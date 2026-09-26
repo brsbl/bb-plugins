@@ -1,7 +1,7 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
-import { BUILT_IN_SCENES, DEFAULT_SCENE, POPPY_HILL_SOURCE, rebuildBuiltIn, sceneOf } from "./scene";
+import { BUILT_IN_SCENES, DEFAULT_SCENE, POPPY_HILL_SOURCE, rebuildBuiltIn, sceneOf } from "./builtins";
 import plugin, {
   DAILY_CONCEPTS,
   applyValues,
@@ -101,6 +101,74 @@ describe("display controls", () => {
   });
 });
 
+describe("scene refs", () => {
+  type RefState = {
+    ref: { kind: string; id: string } | null;
+    scene: { name: string; params: { id: string; value: number }[] };
+  };
+
+  it("tracks which library entry the open scene came from", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    const call = (method: string, input: unknown) => harness.behavior.callRpc(method, input) as Promise<RefState>;
+    expect((await call("loadScene", { id: "tide" })).ref).toEqual({ kind: "builtIn", id: "tide" });
+    const { id } = (await harness.behavior.callRpc("saveScene", { name: "Calm Tide" })) as { id: string };
+    expect((await call("state", null)).ref).toEqual({ kind: "saved", id });
+    const { id: copy } = (await harness.behavior.callRpc("saveScene", { name: "Calm Tide Copy" })) as { id: string };
+    expect(copy).not.toBe(id);
+    expect((await call("state", null)).ref).toEqual({ kind: "saved", id: copy });
+    await harness.behavior.callRpc("deleteScene", { id: copy });
+    expect((await call("state", null)).ref).toBeNull();
+    await harness.lifecycle.dispose();
+  });
+
+  it("never reuses a built-in's name for a saved scene", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    const tide = BUILT_IN_SCENES.find((entry) => entry.id === "tide")!;
+    await harness.behavior.callRpc("loadScene", { id: "tide" });
+    await harness.behavior.callRpc("saveScene", {});
+    const state = (await harness.behavior.callRpc("state", null)) as RefState;
+    expect(state.scene.name).toBe(`${tide.name} 2`);
+    await harness.lifecycle.dispose();
+  });
+
+  it("upgrades a state saved before refs, with a synced Detail", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    const tide = sceneOf(BUILT_IN_SCENES.find((entry) => entry.id === "tide")!);
+    await bb.storage.kv.set("state", {
+      revision: 4,
+      sceneRevision: 3,
+      scene: tide,
+      controls: { enabled: true, showThrough: 0.5, speed: 1, glass: 0.6, quality: 0.8 },
+    });
+    plugin(bb);
+    const state = (await harness.behavior.callRpc("setControls", { speed: 1.5 })) as RefState & {
+      controls: Record<string, unknown>;
+    };
+    expect(state.ref).toEqual({ kind: "builtIn", id: "tide" });
+    expect(state.controls).toEqual({ enabled: true, showThrough: 0.5, speed: 1.5, glass: 0.6 });
+    const stored = (await bb.storage.kv.get("state")) as { ref: unknown; controls: Record<string, unknown> };
+    expect(stored.ref).toEqual({ kind: "builtIn", id: "tide" });
+    expect(stored.controls).not.toHaveProperty("quality");
+    await harness.lifecycle.dispose();
+  });
+
+  it("keeps every slider change when several arrive at once", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    await harness.behavior.callRpc("loadScene", { id: "tide" });
+    await Promise.all([
+      harness.behavior.callRpc("setValues", { values: { glow: 1.7 } }),
+      harness.behavior.callRpc("setValues", { values: { swell: 2 } }),
+    ]);
+    const { scene } = (await harness.behavior.callRpc("state", null)) as RefState;
+    const value = (id: string) => scene.params.find((entry) => entry.id === id)?.value;
+    expect([value("glow"), value("swell")]).toEqual([1.7, 2]);
+    await harness.lifecycle.dispose();
+  });
+});
+
 describe("in-context look report", () => {
   const report = {
     width: 1440,
@@ -174,6 +242,7 @@ describe("scene inputs", () => {
       controls: { showThrough: 0.4, speed: 0.5 },
     });
     expect(() => parseSetPairs(["glow"])).toThrow();
+    expect(() => parseSetPairs(["detail=0.5"])).toThrow(/per device/);
   });
 
   it("reads daily options as an hour, a time zone, or both", () => {

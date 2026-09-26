@@ -1,21 +1,7 @@
-type Rect = { left: number; top: number; right: number; bottom: number };
-type Rgba = [number, number, number, number];
+import { colorParser, encodePng, type Rgba } from "./pixels.js";
+import type { ContextReport } from "./rpc.js";
 
-export interface ContextReport {
-  width: number;
-  height: number;
-  panels: { x0: number; y0: number; x1: number; y1: number }[];
-  openArea: number;
-  openSpread: number;
-  coveredSpread: number;
-  text: {
-    words: number;
-    median: number;
-    worst: number;
-    hardToRead: number;
-    examples: { x: number; y: number; contrast: number }[];
-  };
-}
+type Rect = { left: number; top: number; right: number; bottom: number };
 
 export interface ContextCapture {
   dataUrl: string;
@@ -41,29 +27,6 @@ function intersect(a: Rect, b: Rect): Rect {
 
 function isEmpty(rect: Rect): boolean {
   return rect.right - rect.left < 1 || rect.bottom - rect.top < 1;
-}
-
-function colorParser(): (value: string) => Rgba {
-  const probe = document.createElement("canvas");
-  probe.width = 1;
-  probe.height = 1;
-  const context = probe.getContext("2d", { willReadFrequently: true });
-  const cache = new Map<string, Rgba>();
-  return (value) => {
-    const cached = cache.get(value);
-    if (cached) return cached;
-    let parsed: Rgba = [0, 0, 0, 0];
-    if (context && value && value !== "transparent") {
-      context.clearRect(0, 0, 1, 1);
-      context.fillStyle = "rgba(0, 0, 0, 0)";
-      context.fillStyle = value;
-      context.fillRect(0, 0, 1, 1);
-      const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
-      parsed = [r! / 255, g! / 255, b! / 255, a! / 255];
-    }
-    cache.set(value, parsed);
-    return parsed;
-  };
 }
 
 function channel(value: number): number {
@@ -323,14 +286,7 @@ export async function captureInContext(
   const ratios = scored.map((entry) => entry.contrast).filter(Number.isFinite).sort((left, right) => left - right);
   const round = (value: number) => Math.round(value * 1000) / 1000;
 
-  const blob = await new Promise<Blob | null>((resolve) => output.toBlob(resolve, "image/png"));
-  if (!blob) throw new Error("could not encode the capture");
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error("could not read the capture"));
-    reader.readAsDataURL(blob);
-  });
+  const dataUrl = await encodePng(output);
 
   return {
     dataUrl,

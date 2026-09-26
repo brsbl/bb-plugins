@@ -1,4 +1,4 @@
-import { MAX_AGENTS, MAX_RIPPLES, RIPPLE_KIND_CODE, type RippleKind } from "./scene.js";
+import { MAX_AGENTS, MAX_RIPPLES, RIPPLE_KIND_CODE, type RippleKind } from "./contract.js";
 
 export type ThreadMood = "working" | "waiting" | "idle";
 
@@ -70,6 +70,7 @@ interface Ripple {
   kind: RippleKind;
 }
 
+/** One frame of uniforms. The arrays are reused by the next step(), so upload them right away. */
 export interface ActivityFrame {
   agentCount: number;
   agents: Float32Array;
@@ -118,6 +119,8 @@ export class ActivityField {
   private primed = false;
   private smoothedActivity = 0;
   private lastStep: number | null = null;
+  private readonly agentBuffer = new Float32Array(MAX_AGENTS * 4);
+  private readonly rippleBuffer = new Float32Array(MAX_RIPPLES * 4);
 
   observe(signals: readonly ThreadSignal[], now: number): void {
     const seen = new Set<string>();
@@ -213,14 +216,14 @@ export class ActivityField {
     const ordered = [...this.agents.values()]
       .sort((left, right) => right.presence - left.presence)
       .slice(0, MAX_AGENTS);
-    const agents = new Float32Array(MAX_AGENTS * 4);
+    const agents = this.agentBuffer.fill(0);
     ordered.forEach((agent, index) => {
       agents.set(
         [agent.x, agent.y, agent.mood === "waiting" ? 1 : 0, agent.presence],
         index * 4,
       );
     });
-    const ripples = new Float32Array(MAX_RIPPLES * 4);
+    const ripples = this.rippleBuffer.fill(0);
     this.ripples.forEach((ripple, index) => {
       ripples.set(
         [ripple.x, ripple.y, now - ripple.bornAt, RIPPLE_KIND_CODE[ripple.kind]],

@@ -6,7 +6,8 @@ import {
   hexToRgb,
   remapShaderLog,
   type Scene,
-} from "./scene.js";
+} from "./contract.js";
+import { encodePng } from "./pixels.js";
 
 const VERTEX_SOURCE = `#version 300 es
 in vec2 position;
@@ -40,21 +41,6 @@ export function motionBetween(before: Capture, after: Capture): number {
   return total / length;
 }
 
-function encodePng(canvas: HTMLCanvasElement): Promise<string> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error("could not encode the capture"));
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error ?? new Error("could not read the capture"));
-      reader.readAsDataURL(blob);
-    }, "image/png");
-  });
-}
-
 export interface ThemeColors {
   canvas: [number, number, number];
   ink: [number, number, number];
@@ -72,6 +58,14 @@ interface Program {
   program: WebGLProgram;
   uniforms: Map<string, WebGLUniformLocation | null>;
   paramIds: string[];
+}
+
+/**
+ * Frees the canvas's GPU context now instead of whenever it is garbage collected. Only for a
+ * canvas that is going away: a released context can't be drawn into again.
+ */
+export function releaseContext(canvas: HTMLCanvasElement): void {
+  canvas.getContext("webgl2")?.getExtension("WEBGL_lose_context")?.loseContext();
 }
 
 export class AmbientRenderer {

@@ -1,18 +1,19 @@
 import { useSyncExternalStore } from "react";
 
 import type { ActivitySummary } from "./activity.js";
-import type { Controls, RippleKind, Scene } from "./scene.js";
-import type { AmbientState } from "./server.js";
+import { DETAIL, type Controls, type RippleKind, type Scene } from "./contract.js";
+import type { AmbientState } from "./rpc.js";
 
 const OVERRIDE_MS = 1_500;
 const DEVICE_DETAIL_KEY = "bb-ambient:detail";
 
-function readDeviceDetail(): number | null {
+function readDeviceDetail(): number {
   try {
-    const value = Number(window.localStorage.getItem(DEVICE_DETAIL_KEY));
-    return Number.isFinite(value) && value >= 0.2 && value <= 1 ? value : null;
+    const stored = window.localStorage.getItem(DEVICE_DETAIL_KEY);
+    const value = stored === null ? Number.NaN : Number(stored);
+    return Number.isFinite(value) && value >= DETAIL.min && value <= DETAIL.max ? value : DETAIL.default;
   } catch {
-    return null;
+    return DETAIL.default;
   }
 }
 
@@ -23,7 +24,8 @@ export interface AmbientSnapshot {
   summary: ActivitySummary;
   compileError: string | null;
   throttled: boolean;
-  deviceDetail: number | null;
+  /** Render resolution on this device. It is never synced: each GPU picks its own. */
+  deviceDetail: number;
 }
 
 type Listener = () => void;
@@ -36,7 +38,7 @@ export class AmbientStore {
     summary: { working: 0, waiting: 0 },
     compileError: null,
     throttled: false,
-    deviceDetail: typeof window === "undefined" ? null : readDeviceDetail(),
+    deviceDetail: typeof window === "undefined" ? DETAIL.default : readDeviceDetail(),
   };
   private listeners = new Set<Listener>();
   private rippleListeners = new Set<(kind: RippleKind) => void>();

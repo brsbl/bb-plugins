@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   definePluginApp,
@@ -10,164 +10,39 @@ import {
 } from "@get-bb/plugin-sdk/app";
 
 import { ActivityField, signalsOf } from "./activity.js";
-import { captureInContext, snapshotScene } from "./context.js";
-import { AmbientRenderer, motionBetween, type FrameInput, type ThemeColors } from "./engine.js";
-import { DEFAULT_SCENE, type Controls, type RippleKind, type SceneParam } from "./scene.js";
-import type { AmbientState, CaptureRequest, DailyScene, ambientRpcContract } from "./server.js";
+import { captureScene } from "./capture.js";
+import {
+  CONTROL_SPECS,
+  DETAIL,
+  FALLBACK_SCENE,
+  type Controls,
+  type RippleKind,
+  type SceneParam,
+} from "./contract.js";
+import { AmbientRenderer, releaseContext, type CompileResult, type FrameInput, type ThemeColors } from "./engine.js";
+import { colorParser } from "./pixels.js";
+import type { AmbientState, CaptureRequest, DailyScene, ambientRpcContract } from "./rpc.js";
+import { FrameScheduler, MIN_AUTO_SCALE } from "./scheduler.js";
 import { ambientStore, useAmbient } from "./store.js";
+import { applyVeil, glassTier, mountVeil } from "./veil.js";
 
-const FRAME_INTERVAL_MS = 1000 / 30;
-const FRAME_TOLERANCE_MS = 2;
-const DISCONTINUITY_MS = 1000;
-const SLOW_LATENESS_MS = 25;
-const FAST_LATENESS_MS = 6;
-const STALL_LATENESS_MS = 80;
-const STALLED_FRAME_INTERVAL_MS = 250;
-const MIN_AUTO_SCALE = 0.25;
-const TARGET_FRAME_MS = 12;
-const REJECT_FRAME_MS = 50;
 const HEARTBEAT_MS = 60_000;
-const CAPTURE_DELAY_MS = 900;
-const MOTION_SAMPLE_MS = 1000;
-const CONTEXT_CAPTURE_WIDTH = 1280;
-const VEIL_STYLE_ID = "bb-ambient-veil";
+const REJECT_FRAME_MS = 50;
+const QUARANTINE_KEY = "bb-ambient:quarantine";
+const MAX_QUARANTINED = 20;
+const QUARANTINE_LOG =
+  "Ambient stopped drawing this scene because it reset or stalled the GPU. It stays off until you pick a scene again.";
 
-const PANES = 'body.bb-app-shell > #root, [data-testid="secondary-panel-shelf"]';
-const BLUR = "-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);";
-const GLASS_FILL = "var(--ambient-glass-fill)";
-const GLASS_BLUR = "-webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);";
-const GLASS_SURFACE = `background-color: ${GLASS_FILL}; ${GLASS_BLUR}
-  border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 60%, transparent), 0 12px 32px -16px color-mix(in oklab, var(--ink) 35%, transparent);`;
-const OVERLAY = 'body.bb-app-shell [data-bb-portaled-overlay]:is([role="dialog"], [role="menu"], [role="listbox"])';
-const COLUMN_HALF = "404px";
-const COLUMN_MASK = `linear-gradient(to right, transparent max(10px, 50% - ${COLUMN_HALF}), #000 max(10px, 50% - ${COLUMN_HALF}), #000 min(calc(100% - 10px), 50% + ${COLUMN_HALF}), transparent min(calc(100% - 10px), 50% + ${COLUMN_HALF}))`;
-const RIGHT_PANEL = "body.bb-app-shell > #root #thread-detail-secondary-panel-handle + [data-panel] > aside";
-const COLUMN_LEFT = `max(var(--ambient-column-gutter, 8px), 50% - ${COLUMN_HALF})`;
-const COLUMN_RIGHT = `max(8px, 50% - ${COLUMN_HALF})`;
-const COLUMN_BOTTOM = "8px";
-const THREAD = "body.bb-app-shell > #root [data-thread-window]";
-const COMPACT_HOME = 'body.bb-app-shell > #root [data-testid="root-compose-compact-home"]:has([data-root-compose-mobile-recents])';
-const COMPACT_INSET = "max(16px, calc((100% - 760px) / 2 + 16px))";
-const CHROME_PILLS = 'body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"])';
-const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
-const SECTION_BACK_ROW = 'body.bb-app-shell > #root [data-testid$="-sidebar-top-reserve-row"] + div a';
-const PAGE_MAIN ='[data-testid="app-layout-content-shell"] > main:not(:has([data-thread-window], [data-app-composer], [role="img"][aria-label="bb"]))';
-const PAGE = `body.bb-app-shell > #root ${PAGE_MAIN}`;
-const SIDEBAR_OPEN = 'body.bb-app-shell > #root .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]';
-const THREAD_TITLE_ROW = '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
-
-function glassCss(glass: number): string {
-  return `body.bb-app-shell { --ambient-glass-fill: color-mix(in oklab, var(--ambient-background) ${Math.round(glass * 100)}%, transparent); --ambient-glass-solid: color-mix(in oklab, var(--ambient-background) ${Math.round(Math.min(0.92, Math.max(0.88, glass + 0.3)) * 100)}%, transparent); }
-${THREAD} { position: relative; isolation: isolate; }
-${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
-${THREAD}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
-${THREAD} [data-overflow-fade] { display: none; }
-${PAGE} { position: relative; isolation: isolate; }
-${PAGE}::before { content: ""; position: absolute; z-index: -1; pointer-events: none; ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
-${PAGE_MAIN} :is(.max-w-5xl, [class~="max-w-[760px]"]):not(:is(.max-w-5xl, [class~="max-w-[760px]"]) *) { anchor-name: --ambient-page-column; }
-${PAGE_MAIN} #thread-detail-secondary-panel :is(.max-w-5xl, [class~="max-w-[760px]"]) { anchor-name: none; }
-${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
-${PAGE}:has([data-testid="app-page-header-content-row"])::before { top: var(--bb-app-chrome-row-height, 3rem); }
-@media (max-width: 767px) { ${PAGE} header:has([data-testid="app-page-header-content-row"]) + div { clip-path: inset(0 8px 8px round 0 0 20px 20px); } }
-${PAGE} { --card: color-mix(in oklab, var(--ambient-card) 55%, transparent); }
-${PAGE} :is(input[type="search"], input[placeholder^="Search" i]) { background-color: color-mix(in oklab, var(--ambient-card) 72%, transparent); border-color: color-mix(in oklab, var(--ink) 12%, transparent); }
-${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in oklab, var(--ambient-card) 97%, var(--ink)); border-color: color-mix(in oklab, var(--ink) 14%, transparent); box-shadow: 0 8px 24px -16px color-mix(in oklab, var(--ink) 35%, transparent); }
-@media (min-width: 768px) { ${SIDEBAR_OPEN} { --ambient-column-gutter: 0px; } ${SIDEBAR_OPEN} [data-testid="app-page-header-content-row"] > :first-child { margin-inline-start: -16px; } }
-@media (min-width: 768px) { body.bb-app-shell > #root ${THREAD_TITLE_ROW} { padding-inline-start: max(32px, 50% - ${COLUMN_HALF} + 6px); } ${SIDEBAR_OPEN} ${THREAD_TITLE_ROW} { padding-inline-start: max(0px, 50% - ${COLUMN_HALF} + 16px); } }
-${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, color-mix(in oklab, var(--ambient-background) 18%, transparent), transparent); }
-${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: color-mix(in oklab, var(--ink) 8%, transparent); }
-${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
-${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
-${THREAD} [data-scroll-footer] { isolation: isolate; padding-top: 16px; }
-${THREAD} [data-scroll-footer]::before { content: ""; position: absolute; z-index: -1; pointer-events: none; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; border-radius: 20px; background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), var(--ambient-background); border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--canvas) 18%, transparent); }
-body.bb-app-shell > #root header.bg-surface-scrim { border-color: transparent; }
-${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { ${GLASS_SURFACE} top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
-${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { display: none; }
-${COMPACT_HOME} [data-testid="root-compose-compact-scroll-viewport"] > .px-4 { padding-inline: 0; }
-body.bb-app-shell > #root [data-root-compose-mobile-recents] { padding-block: 0 6px; }
-body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; padding-block-start: 16px; }
-body.bb-app-shell > #root [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { display: none; }
-body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > [data-overflow-fade] { display: none; }
-body.bb-app-shell > #root [data-testid="root-compose-compact-composer"] > .bg-background { background: linear-gradient(to bottom, color-mix(in oklab, var(--canvas) 28%, transparent), transparent 45%), ${GLASS_FILL}; ${GLASS_BLUR} margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; border: 1px solid color-mix(in oklab, var(--ink) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 70%, transparent), 0 -10px 24px -18px color-mix(in oklab, var(--ink) 40%, transparent); }
-body.bb-app-shell > #root [data-app-composer]:not([data-thread-window] *, [data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
-body.bb-app-shell > #root [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
-body.bb-app-shell > #root div.fixed:has(> button[aria-label*="right panel" i]) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
-body.bb-app-shell > #root div.fixed > button[aria-label*="right panel" i] { ${GLASS_SURFACE} border-radius: 12px; }
-body.bb-app-shell > #root [data-sidebar="panel"] { border-inline-end-color: transparent; }
-:is(${CHROME_PILLS}) { ${GLASS_SURFACE} border-radius: 12px; padding-inline: 6px; }
-body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-testid="app-sidebar-top-reserve-row"] > div) { margin-inline: -6px; }
-body.bb-app-shell > #root [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { margin-inline-start: 6px; }
-body.bb-app-shell > #root [data-testid="app-page-header-content-row"][class~="pl-[104px]"] { padding-inline-start: 110px; }
-body.bb-app-shell > #root button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
-body.bb-app-shell > #root [data-testid="app-sidebar-top-reserve-row"] > div:nth-child(n) { margin-inline-end: 0; min-height: 32px; }
-body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :first-child { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline-end: 4px; padding-inline-start: 12px; }
-body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :first-child:has([data-pane-header-focus-tab]) { background-image: linear-gradient(var(--state-active), var(--state-active)); }
-body.bb-app-shell > #root [data-pane-header-focus-tab] { background-color: transparent; }
-body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > [data-app-page-header-actions] { margin-inline: auto -8px; min-height: 32px; }
-body.bb-app-shell > #root [data-app-page-header-actions] button.border { border-color: transparent; }
-@media (max-width: 767px) { body.bb-app-shell > #root div.fixed:has(> button[aria-label*="right panel" i]) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } body.bb-app-shell > #root :is(div.fixed, [data-app-page-header-actions]) button[aria-label*="right panel" i] { width: 32px; height: 32px; } body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } body.bb-app-shell > #root [data-app-page-header-actions]:has(button[aria-label*="right panel" i]) { padding-inline-end: 0; } }
-:is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
-${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
-${SECTION_BACK_ROW} { ${GLASS_SURFACE} border-radius: 16px; }
-${SECTION_BACK_ROW}:is(:hover, :focus-visible) { background-color: ${GLASS_FILL}; background-image: linear-gradient(color-mix(in oklab, var(--ink) 9%, transparent), color-mix(in oklab, var(--ink) 9%, transparent)); }
-:is(${SIDEBAR_CARDS}, ${OVERLAY}) .w-px.bg-border-hairline, :is(${SIDEBAR_CARDS}, ${OVERLAY}) [class*="before:bg-border-hairline"]::before { display: none; }
-body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
-body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] [data-testid="navigation-divider"] { display: none; }
-body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; min-height: min(7rem, 18dvh); margin-block-end: auto; }
-body.bb-app-shell > #root [data-sidebar="content"]:not(:has(~ [data-sidebar="footer"])) { margin-block-end: 8px; }
-body.bb-app-shell > #root [data-sidebar="content"] > .px-2:first-child { padding-block-start: 12px; }
-@media (max-height: 560px) { body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { flex: 0 1 auto; min-height: 3rem; overflow-y: auto; } }
-body.bb-app-shell > #root [data-sidebar="footer"] { flex-shrink: 0; margin-block: 8px; align-self: flex-start; width: max-content; max-width: calc(100% - 16px); }
-body.bb-app-shell > #root [data-sidebar="footer"]:has([data-testid^="plugin-sidebar-footer-disclosure-"]) { align-self: stretch; width: auto; max-width: none; }
-body.bb-app-shell > #root [data-sidebar="footer"] [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; background-color: transparent; }
-body.bb-app-shell > #root [data-sidebar="footer"] > [data-overflow-fade], body.bb-app-shell > #root [data-sidebar="footer"] > ul > li[aria-hidden="true"]:empty { display: none; }
-:is(${SIDEBAR_CARDS}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
-:is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack] [data-sidebar-sticky-tier] { position: relative; top: auto; }
-body.bb-app-shell > #root [data-app-composer] { --background: color-mix(in oklab, var(--ambient-background) 68%, transparent); }
-${RIGHT_PANEL} { ${GLASS_SURFACE} inset: 8px 8px 8px 2px; height: auto; max-width: calc(100% - 10px); border-radius: 20px; overflow: hidden; --background: transparent; --sidebar: transparent; }
-body.bb-app-shell > #root :is([role="separator"][data-split-resize-grid-boundary], [data-panel-resize-handle-id]):not(:hover, [data-dragging], [data-resize-handle-state="drag"]), body.bb-app-shell > #root [data-panel-resize-handle-id]:not(:hover, [data-resize-handle-state="drag"]) > span { background-color: transparent; }
-${RIGHT_PANEL} :is(.sticky, [data-sidebar-sticky-tier]) { -webkit-backdrop-filter: none; backdrop-filter: none; }
-${RIGHT_PANEL} [data-app-browser] > [class~="flex-1"]:last-child { margin: 0 8px 8px; border-radius: 12px; overflow: hidden; }
-${OVERLAY} { ${GLASS_SURFACE} -webkit-backdrop-filter: none; backdrop-filter: none; --background: transparent; --popover: transparent; --sidebar: transparent; }
-${OVERLAY}::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; ${GLASS_BLUR} }
-${OVERLAY} .sticky { -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); }
-body.bb-app-shell [data-bb-portaled-overlay] :is([data-palette-input-band], [data-palette-results-clip]) { background-color: transparent; }
-body.bb-app-shell [data-testid="secondary-panel-shelf"] { background-color: var(--ambient-glass-solid); -webkit-backdrop-filter: blur(32px); backdrop-filter: blur(32px); }`;
-}
-
-function veilCss(showThrough: number): string {
-  const keep = Math.round((1 - showThrough) * 1000) / 10;
-  return `html.bb-app-shell-root { background-color: var(--canvas); }
-body.bb-app-shell { background-color: transparent; --ambient-background: var(--background); --ambient-sidebar: var(--sidebar); --ambient-card: var(--card); }
-:is(${PANES}) { --background: color-mix(in oklab, var(--ambient-background) ${keep}%, transparent); --sidebar: color-mix(in oklab, var(--ambient-sidebar) ${keep}%, transparent); }
-:is(${PANES}) .bg-sidebar .bg-sidebar:not(.sticky), [data-testid="secondary-panel-shelf"] .bg-sidebar:not(.sticky) { --sidebar: transparent; }
-:is(${PANES}) .sticky:is(.bg-sidebar, .bg-background) { --sidebar: transparent; --background: transparent; ${BLUR} }
-:is(${PANES}) header.bg-surface-scrim { background-color: transparent; }
-body.bb-app-shell [role="switch"][aria-checked="true"] > span.bg-background { background-color: var(--canvas); }
-body.bb-app-shell [class~="text-background"] { color: var(--ambient-background); }
-body.bb-app-shell :is(button[role="checkbox"][data-state="checked"], [data-category-option-checkbox][data-state="enabled"]) { color: var(--canvas); }
-body.bb-app-shell > #root [data-sidebar-sticky-stack]::before, body.bb-app-shell > #root [data-sidebar-sticky-tier] { ${BLUR} }
-body.bb-app-shell > #root [style*="--sidebar-width-mobile"]:has(> [data-sidebar="panel"]) { --ambient-sidebar-width-mobile: round(down, var(--sidebar-width-mobile), 1px); }
-body.bb-app-shell > #root :is([data-sidebar="panel"][data-vaul-drawer-direction], [data-sidebar-mobile-backdrop], main[data-sidebar-shelf]) { --sidebar-width-mobile: var(--ambient-sidebar-width-mobile) !important; }
-body.bb-app-shell > #root [data-sidebar="panel"][data-vaul-drawer-direction][data-state="closed"]:not([data-vaul-animate]) { visibility: hidden; transition: visibility 0s linear 260ms; }`;
-}
+let parseColor: ReturnType<typeof colorParser> | null = null;
 
 function readThemeColors(): ThemeColors {
-  const probe = document.createElement("canvas");
-  probe.width = 1;
-  probe.height = 1;
-  const context = probe.getContext("2d", { willReadFrequently: true });
+  const parse = (parseColor ??= colorParser());
   const styles = getComputedStyle(document.documentElement);
-  const read = (name: string, fallback: [number, number, number]) => {
+  const read = (name: string, fallback: [number, number, number]): [number, number, number] => {
     const value = styles.getPropertyValue(name).trim();
-    if (!context || !value) return fallback;
-    context.clearRect(0, 0, 1, 1);
-    context.fillStyle = "#000";
-    context.fillStyle = value;
-    context.fillRect(0, 0, 1, 1);
-    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
-    return [r! / 255, g! / 255, b! / 255] as [number, number, number];
+    if (!value) return fallback;
+    const [r, g, b] = parse(value);
+    return [r, g, b];
   };
   const canvas = read("--canvas", [1, 1, 1]);
   const ink = read("--ink", [0.2, 0.2, 0.2]);
@@ -211,26 +86,102 @@ interface Snapshot {
   sceneId: string | null;
   values: Record<string, number>;
   palette: [string, string, string, string];
-  controls: { showThrough: number; speed: number; glass: number; enabled: boolean };
+  controls: Controls;
 }
 
 function valuesOf(params: readonly SceneParam[]): Record<string, number> {
   return Object.fromEntries(params.map((entry) => [entry.id, entry.value]));
 }
 
+// Scenes that reset or stalled the GPU this session. They are not drawn again until the user
+// picks a scene, so a bad shader can't wedge the GPU on every reload.
+function sourceKey(source: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = Math.imul(hash ^ source.charCodeAt(index), 0x01000193);
+  }
+  return `${(hash >>> 0).toString(16)}:${source.length}`;
+}
+
+function readQuarantine(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(window.sessionStorage.getItem(QUARANTINE_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function isQuarantined(source: string): boolean {
+  return readQuarantine().includes(sourceKey(source));
+}
+
+function quarantine(source: string): void {
+  const key = sourceKey(source);
+  const keys = readQuarantine().filter((entry) => entry !== key);
+  try {
+    window.sessionStorage.setItem(QUARANTINE_KEY, JSON.stringify([...keys, key].slice(-MAX_QUARANTINED)));
+  } catch {}
+}
+
+function clearQuarantine(): void {
+  try {
+    window.sessionStorage.removeItem(QUARANTINE_KEY);
+  } catch {}
+}
+
 function AmbientOverlay() {
   const rpc = useRpc<typeof ambientRpcContract>();
   const connection = useRealtimeConnectionState();
   const { status, threads } = experimental_useSidebarThreads();
-  const { state } = useAmbient();
+  const { state, deviceDetail } = useAmbient();
   const theme = useThemeColors();
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [rendererEpoch, setRendererEpoch] = useState(0);
   const rendererRef = useRef<AmbientRenderer | null>(null);
   const fieldRef = useRef(new ActivityField());
   const compiledRevision = useRef<number | null>(null);
+  /** The scene source on screen, or null while the fallback is drawn. */
+  const drawingRef = useRef<string | null>(null);
+  const ripplesRef = useRef(0);
   const liveRef = useRef({ state, theme, pointer: [0.5, 0.5] as [number, number] });
   liveRef.current.state = state;
   liveRef.current.theme = theme;
+
+  const frameInput = useCallback((time: number): FrameInput => {
+    const frame = fieldRef.current.step(performance.now() / 1000);
+    ripplesRef.current = frame.rippleCount;
+    return { time, frame, pointer: liveRef.current.pointer, theme: liveRef.current.theme };
+  }, []);
+
+  const schedulerRef = useRef<FrameScheduler | null>(null);
+  const detail = useCallback(
+    () => ambientStore.getSnapshot().deviceDetail * (schedulerRef.current?.autoScale ?? 1),
+    [],
+  );
+
+  const syncVeil = useCallback(() => {
+    const controls = liveRef.current.state?.controls;
+    if (!controls?.enabled) return;
+    applyVeil({ showThrough: controls.showThrough, glass: controls.glass, tier: glassTier(detail()) });
+  }, [detail]);
+
+  const scheduler = (schedulerRef.current ??= new FrameScheduler({
+    draw: (time) => {
+      const renderer = rendererRef.current;
+      if (!renderer || !liveRef.current.state) return;
+      renderer.resize(detail());
+      renderer.render(frameInput(time));
+      ambientStore.setSummary(fieldRef.current.summary());
+    },
+    speed: () => liveRef.current.state?.controls.speed ?? 1,
+    busy: () => ambientStore.getSnapshot().summary.working > 0,
+    rippling: () => ripplesRef.current > 0,
+    onScale: (scale) => {
+      ambientStore.setThrottled(scale < 1);
+      syncVeil();
+    },
+  }));
 
   const refresh = useCallback(async () => {
     ambientStore.receive(await rpc.call("state"));
@@ -253,22 +204,19 @@ function AmbientOverlay() {
     const field = fieldRef.current;
     field.observe(signalsOf(threads), performance.now() / 1000);
     ambientStore.setSummary(field.summary());
-  }, [status, threads]);
+    scheduler.wake();
+  }, [scheduler, status, threads]);
 
   useEffect(
     () =>
       ambientStore.onRipple((kind) => {
         fieldRef.current.rippleAtRandomAgent(performance.now() / 1000, kind);
+        scheduler.wake();
       }),
-    [],
+    [scheduler],
   );
 
   const enabled = state?.controls.enabled ?? false;
-  const [rendererEpoch, setRendererEpoch] = useState(0);
-  const fallbackRef = useRef(false);
-  const autoScaleRef = useRef(1);
-  const pacingRef = useRef({ lateness: 0, lastAdjust: 0 });
-  const clockRef = useRef({ time: 0 });
 
   useEffect(() => {
     if (!canvas) return;
@@ -281,7 +229,12 @@ function AmbientOverlay() {
     }
     rendererRef.current = renderer;
     compiledRevision.current = null;
-    const lost = (event: Event) => event.preventDefault();
+    const lost = (event: Event) => {
+      event.preventDefault();
+      // A visible page losing its context while drawing a scene points at the scene.
+      if (drawingRef.current !== null && !document.hidden) quarantine(drawingRef.current);
+      drawingRef.current = null;
+    };
     const restored = () => setRendererEpoch((epoch) => epoch + 1);
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
@@ -293,81 +246,60 @@ function AmbientOverlay() {
     };
   }, [canvas, rendererEpoch]);
 
-  const frameInput = useCallback(
-    (clock: { time: number }): FrameInput => ({
-      time: clock.time,
-      frame: fieldRef.current.step(performance.now() / 1000),
-      pointer: liveRef.current.pointer,
-      theme: liveRef.current.theme,
-    }),
-    [],
-  );
-
-  const detail = useCallback(() => {
-    const current = liveRef.current.state;
-    return (ambientStore.getSnapshot().deviceDetail ?? current?.controls.quality ?? 0.5) * autoScaleRef.current;
-  }, []);
-
-  const renderFrame = useCallback(
-    (clock: { time: number }) => {
-      const renderer = rendererRef.current;
-      if (!renderer || !liveRef.current.state) return;
-      renderer.resize(detail());
-      renderer.render(frameInput(clock));
-      ambientStore.setSummary(fieldRef.current.summary());
-    },
-    [detail, frameInput],
-  );
+  // Declared after the renderer effect so its listeners are gone first: releasing fires webglcontextlost.
+  useEffect(() => {
+    if (!canvas) return;
+    return () => releaseContext(canvas);
+  }, [canvas]);
 
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer || !state) return;
-    const applySceneValues = () => {
-      const source = fallbackRef.current ? DEFAULT_SCENE : state.scene;
-      renderer.setPalette(source.palette);
-      renderer.setParamValues(valuesOf(source.params));
-    };
     if (compiledRevision.current === state.sceneRevision) {
-      applySceneValues();
+      if (drawingRef.current !== null) {
+        renderer.setPalette(state.scene.palette);
+        renderer.setParamValues(valuesOf(state.scene.params));
+      }
+      scheduler.wake();
       return;
     }
     const revision = state.sceneRevision;
     const scene = state.scene;
     compiledRevision.current = revision;
     void (async () => {
-      let result = await renderer.compile(scene);
+      let result: CompileResult = isQuarantined(scene.source)
+        ? { ok: false, log: QUARANTINE_LOG }
+        : await renderer.compile(scene);
       if (result.ok === "superseded" || compiledRevision.current !== revision) return;
-      if (result.ok) {
+      if (result.ok === true) {
         renderer.setPalette(scene.palette);
         renderer.setParamValues(valuesOf(scene.params));
-        renderer.resize(detail() / autoScaleRef.current);
-        const fullDetailMs = renderer.estimateFrameMs(frameInput(clockRef.current));
+        renderer.resize(ambientStore.getSnapshot().deviceDetail);
+        const fullDetailMs = renderer.estimateFrameMs(frameInput(scheduler.time));
         const lowestDetailMs = fullDetailMs * MIN_AUTO_SCALE * MIN_AUTO_SCALE;
         if (lowestDetailMs > REJECT_FRAME_MS) {
+          quarantine(scene.source);
           result = {
             ok: false,
             log: `Too heavy: about ${Math.round(fullDetailMs)} ms per frame, and still ${Math.round(lowestDetailMs)} ms at the lowest detail. Frames must render in a few milliseconds; use fewer loop iterations and fbm octaves.`,
           };
         } else {
-          autoScaleRef.current =
-            fullDetailMs > TARGET_FRAME_MS
-              ? Math.max(MIN_AUTO_SCALE, Math.sqrt(TARGET_FRAME_MS / fullDetailMs))
-              : 1;
-          pacingRef.current.lateness = 0;
-          pacingRef.current.lastAdjust = performance.now();
+          scheduler.calibrate(fullDetailMs);
         }
       }
       if (result.ok === true) {
-        fallbackRef.current = false;
+        drawingRef.current = scene.source;
         ambientStore.setCompileError(null);
       } else if (result.ok === false) {
-        fallbackRef.current = true;
-        autoScaleRef.current = 1;
+        drawingRef.current = null;
+        scheduler.resetScale();
         ambientStore.setCompileError(result.log);
-        const fallback = await renderer.compile(DEFAULT_SCENE);
-        if (fallback.ok !== true) return;
-        applySceneValues();
+        const fallback = await renderer.compile(FALLBACK_SCENE);
+        if (fallback.ok !== true || compiledRevision.current !== revision) return;
+        renderer.setPalette(FALLBACK_SCENE.palette);
+        renderer.setParamValues({});
       }
+      scheduler.wake();
       if (document.hidden || renderer.isContextLost()) return;
       void rpc
         .call("reportCompile", {
@@ -377,7 +309,11 @@ function AmbientOverlay() {
         })
         .catch(() => undefined);
     })();
-  }, [canvas, detail, frameInput, rendererEpoch, rpc, state]);
+  }, [canvas, frameInput, rendererEpoch, rpc, scheduler, state]);
+
+  useEffect(() => {
+    scheduler.wake();
+  }, [scheduler, theme, deviceDetail]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -395,115 +331,51 @@ function AmbientOverlay() {
 
   useEffect(() => {
     if (!enabled || !canvas) return;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let frame = 0;
-    let last = performance.now();
-    const pacing = pacingRef.current;
-    const loop = (timestamp: number) => {
-      frame = requestAnimationFrame(loop);
-      if (document.hidden) {
-        last = timestamp;
-        return;
-      }
-      const stalled = autoScaleRef.current <= MIN_AUTO_SCALE && pacing.lateness > STALL_LATENESS_MS;
-      const interval = stalled ? STALLED_FRAME_INTERVAL_MS : FRAME_INTERVAL_MS;
-      const elapsed = timestamp - last;
-      if (elapsed < interval - FRAME_TOLERANCE_MS) return;
-      last = timestamp;
-      if (elapsed < DISCONTINUITY_MS) {
-        pacing.lateness = pacing.lateness * 0.9 + Math.max(0, elapsed - interval) * 0.1;
-        if (pacing.lateness > SLOW_LATENESS_MS && timestamp - pacing.lastAdjust > 1500 && autoScaleRef.current > MIN_AUTO_SCALE) {
-          autoScaleRef.current = Math.max(MIN_AUTO_SCALE, autoScaleRef.current * 0.7);
-          pacing.lastAdjust = timestamp;
-        } else if (pacing.lateness < FAST_LATENESS_MS && timestamp - pacing.lastAdjust > 8000 && autoScaleRef.current < 1) {
-          autoScaleRef.current = Math.min(1, autoScaleRef.current / 0.85);
-          pacing.lastAdjust = timestamp;
-        }
-      }
-      ambientStore.setThrottled(autoScaleRef.current < 1);
-      const speed = liveRef.current.state?.controls.speed ?? 1;
-      clockRef.current.time +=
-        (Math.min(elapsed, 250) / 1000) * speed * (reducedMotion.matches ? 0.25 : 1);
-      renderFrame(clockRef.current);
-    };
-    frame = requestAnimationFrame(loop);
-    const resume = () => {
-      last = performance.now();
-    };
+    const stop = scheduler.start();
     const move = (event: PointerEvent) => {
-      liveRef.current.pointer = [
-        event.clientX / window.innerWidth,
-        1 - event.clientY / window.innerHeight,
-      ];
+      liveRef.current.pointer = [event.clientX / window.innerWidth, 1 - event.clientY / window.innerHeight];
     };
-    document.addEventListener("visibilitychange", resume);
     window.addEventListener("pointermove", move, { passive: true });
     return () => {
-      cancelAnimationFrame(frame);
-      pacing.lateness = 0;
-      document.removeEventListener("visibilitychange", resume);
+      stop();
       window.removeEventListener("pointermove", move);
     };
-  }, [canvas, enabled, renderFrame]);
+  }, [canvas, enabled, scheduler]);
 
   useRealtime("capture", (payload) => {
     const request = payload as CaptureRequest;
     const renderer = rendererRef.current;
-    if (!renderer || document.hidden || renderer.isContextLost() || typeof request?.requestId !== "string") {
+    if (
+      !renderer ||
+      !canvas ||
+      document.hidden ||
+      renderer.isContextLost() ||
+      typeof request?.requestId !== "string"
+    ) {
       return;
     }
-    if (request.ripple) ambientStore.requestRipple(request.ripple);
-    window.setTimeout(
-      () => {
-        renderFrame(clockRef.current);
-        void renderer
-          .capture(960, liveRef.current.theme.canvas, { encode: false })
-          .then((before) => {
-            window.setTimeout(() => {
-              renderFrame(clockRef.current);
-              const { theme } = liveRef.current;
-              const source = document.querySelector<HTMLCanvasElement>("canvas[data-bb-ambient]");
-              const frame = source ? snapshotScene(source, CONTEXT_CAPTURE_WIDTH) : null;
-              void renderer
-                .capture(960, theme.canvas, { encode: true })
-                .then(async (after) => ({
-                  after,
-                  inContext: frame ? await captureInContext(frame, theme.canvas).catch(() => null) : null,
-                }))
-                .then(({ after, inContext }) =>
-                  rpc.call("submitCapture", {
-                    requestId: request.requestId,
-                    dataUrl: after.dataUrl,
-                    ...(inContext ? { context: inContext } : {}),
-                    summary: fieldRef.current.summary(),
-                    visibility: {
-                      ...after.visibility,
-                      motion: motionBetween(before, after),
-                      frameMs: Math.min(renderer.estimateFrameMs(frameInput(clockRef.current)), 10_000),
-                      detail: Math.min(1, detail()),
-                    },
-                    dark: theme.dark,
-                  }),
-                )
-                .catch(() => undefined);
-            }, MOTION_SAMPLE_MS);
-          })
-          .catch(() => undefined);
-      },
-      request.ripple ? CAPTURE_DELAY_MS : 0,
-    );
+    void captureScene(request, {
+      renderer,
+      canvas,
+      renderNow: () => scheduler.renderNow(),
+      ripple: (kind) => ambientStore.requestRipple(kind),
+      theme: () => liveRef.current.theme,
+      summary: () => fieldRef.current.summary(),
+      frameMs: () => renderer.estimateFrameMs(frameInput(scheduler.time)),
+      detail,
+    })
+      .then((submission) => rpc.call("submitCapture", submission))
+      .catch(() => undefined);
   });
 
-  const showThrough = state?.controls.showThrough ?? 0;
-  const glass = state?.controls.glass ?? 0.6;
+  const showThrough = state?.controls.showThrough;
+  const glass = state?.controls.glass;
   useEffect(() => {
-    if (!enabled) return;
-    const style = document.createElement("style");
-    style.id = VEIL_STYLE_ID;
-    style.textContent = `${veilCss(showThrough)}\n${glassCss(glass)}`;
-    document.head.append(style);
-    return () => style.remove();
-  }, [enabled, showThrough, glass]);
+    if (enabled) return mountVeil();
+  }, [enabled]);
+  useEffect(() => {
+    syncVeil();
+  }, [enabled, showThrough, glass, deviceDetail, syncVeil]);
 
   if (!enabled) return null;
   return createPortal(
@@ -609,31 +481,38 @@ function Slider({
   );
 }
 
+/** Debounces per first argument. Calls still pending when the panel closes are sent, not dropped. */
 function useDebouncedCall<Args extends unknown[]>(
   call: (...args: Args) => void,
   delay: number,
 ): (...args: Args) => void {
-  const timers = useRef(new Map<string, number>());
+  const pending = useRef(new Map<string, { timer: number; args: Args }>());
+  const callRef = useRef(call);
+  callRef.current = call;
   useEffect(() => {
-    const pending = timers.current;
+    const calls = pending.current;
     return () => {
-      for (const timer of pending.values()) window.clearTimeout(timer);
+      for (const { timer, args } of calls.values()) {
+        window.clearTimeout(timer);
+        callRef.current(...args);
+      }
+      calls.clear();
     };
   }, []);
   return useCallback(
     (...args: Args) => {
       const key = String(args[0]);
-      const existing = timers.current.get(key);
-      if (existing !== undefined) window.clearTimeout(existing);
-      timers.current.set(
-        key,
-        window.setTimeout(() => {
-          timers.current.delete(key);
-          call(...args);
+      const existing = pending.current.get(key);
+      if (existing) window.clearTimeout(existing.timer);
+      pending.current.set(key, {
+        args,
+        timer: window.setTimeout(() => {
+          pending.current.delete(key);
+          callRef.current(...args);
         }, delay),
-      );
+      });
     },
-    [call, delay],
+    [delay],
   );
 }
 
@@ -977,10 +856,9 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
     120,
   );
 
-  const activeId = useMemo(() => {
-    if (!state) return null;
-    return library.find((entry) => entry.name === state.scene.name)?.id ?? null;
-  }, [library, state]);
+  const ref = state?.ref ?? null;
+  const activeId =
+    ref && library.some((entry) => entry.id === ref.id && entry.builtIn === (ref.kind === "builtIn")) ? ref.id : null;
 
   const history = useRef<{ past: Snapshot[]; future: Snapshot[]; lastKey: string | null; lastAt: number }>({
     past: [],
@@ -1023,12 +901,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
       sceneId: activeIdRef.current,
       values: valuesOf(current.scene.params),
       palette: [...current.scene.palette],
-      controls: {
-        showThrough: current.controls.showThrough,
-        speed: current.controls.speed,
-        glass: current.controls.glass,
-        enabled: current.controls.enabled,
-      },
+      controls: { ...current.controls },
     };
   }, []);
 
@@ -1050,10 +923,15 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
   const restore = useCallback(
     async (target: Snapshot) => {
       ambientStore.clearOverrides();
+      let current = ambientStore.getSnapshot().state;
       if (target.sceneId && target.sceneId !== activeIdRef.current) {
-        receive(await rpc.call("loadScene", { id: target.sceneId }));
+        current = await rpc.call("loadScene", { id: target.sceneId });
+        receive(current);
       }
-      receive(await rpc.call("setValues", { values: target.values }));
+      // Only values the scene on screen still has; a scene can change its params between snapshots.
+      const ids = new Set(current?.scene.params.map((entry) => entry.id));
+      const values = Object.fromEntries(Object.entries(target.values).filter(([id]) => ids.has(id)));
+      if (Object.keys(values).length > 0) receive(await rpc.call("setValues", { values }));
       receive(await rpc.call("setPalette", { palette: target.palette }));
       receive(await rpc.call("setControls", target.controls));
     },
@@ -1096,7 +974,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
   }, [step]);
 
   const setControl = <Key extends keyof Controls>(key: Key, value: Controls[Key]) => {
-    if (key !== "quality") record(`control:${key}`);
+    record(`control:${key}`);
     ambientStore.setControl(key, value);
     sendControl(key, value);
   };
@@ -1200,6 +1078,7 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
               const id = event.currentTarget.value;
               if (!id || id === activeId) return;
               record(`scene:${Date.now()}`);
+              clearQuarantine();
               void rpc.call("loadScene", { id }).then(receive);
             }}
             className="h-7 w-full cursor-pointer appearance-none truncate rounded-md bg-foreground/5 pr-7 pl-2 text-xs text-foreground outline-none transition-colors hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring"
@@ -1276,45 +1155,28 @@ function AmbientControls({ dismiss }: { dismiss: () => void }) {
       </div>
 
       <Section title="Display" action={<ThemeModeSwitch />}>
+        {CONTROL_SPECS.map((spec) => (
+          <Slider
+            key={spec.key}
+            label={spec.label}
+            hint={spec.hint}
+            value={controls[spec.key]}
+            min={spec.min}
+            max={spec.max}
+            step={spec.step}
+            format={spec.format}
+            onChange={(value) => setControl(spec.key, value)}
+          />
+        ))}
         <Slider
-          label="Visibility"
-          hint="How much of the scene shows through bb"
-          value={controls.showThrough}
-          min={0}
-          max={0.8}
-          step={0.01}
-          format={(value) => `${Math.round(value * 100)}%`}
-          onChange={(value) => setControl("showThrough", value)}
-        />
-        <Slider
-          label="Motion"
-          hint="How fast the scene moves"
-          value={controls.speed}
-          min={0}
-          max={4}
-          step={0.05}
-          format={(value) => `${value.toFixed(1)}×`}
-          onChange={(value) => setControl("speed", value)}
-        />
-        <Slider
-          label="Detail"
-          hint="Render resolution on this device; lower is softer and uses less GPU"
-          value={deviceDetail ?? controls.quality}
-          min={0.2}
-          max={1}
-          step={0.05}
-          format={(value) => `${Math.round(value * 100)}%`}
+          label={DETAIL.label}
+          hint={DETAIL.hint}
+          value={deviceDetail}
+          min={DETAIL.min}
+          max={DETAIL.max}
+          step={DETAIL.step}
+          format={DETAIL.format}
           onChange={(value) => ambientStore.setDeviceDetail(value)}
-        />
-        <Slider
-          label="Glass opacity"
-          hint="How solid the glass behind text is; lower lets more of the scene through"
-          value={controls.glass}
-          min={0.2}
-          max={0.6}
-          step={0.01}
-          format={(value) => `${Math.round(value * 100)}%`}
-          onChange={(value) => setControl("glass", value)}
         />
       </Section>
 
