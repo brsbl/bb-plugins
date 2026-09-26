@@ -154,8 +154,6 @@ const COLORS = {
   overlayText: "oklch(0.95 0.05 215)",
 } as const;
 
-const FONT = "Tahoma, Verdana, 'Segoe UI', sans-serif";
-
 function seeded(seed: number) {
   let value = seed;
   return () => {
@@ -232,6 +230,23 @@ function DotMatrix({ text }: { text: string | number }) {
   return <span className="bbd-pinball-dots" aria-label={String(text)}>{String(text).split("\n").map((line, index) => <span className="bbd-pinball-dot-line" key={index}>{line.split(" ").map((word, wi) => <svg key={wi} aria-hidden viewBox={`0 0 ${word.length * 6} 8`} style={{ width: `${word.length * 0.68}em` }}>
     {[...word].flatMap((char, ci) => (MATRIX[char] ?? MATRIX[char.toUpperCase()] ?? "").split("/").flatMap((row, y) => [...row].flatMap((bit, x) => bit === "1" ? [0, 1, 2, 3].map((dot) => <circle key={`${ci}-${y}-${x}-${dot}`} cx={ci * 6 + x + .25 + (dot % 2) * .5} cy={y + .25 + Math.floor(dot / 2) * .5} r={.22} fill="currentColor" />) : [])))}
   </svg>)}</span>)}</span>;
+}
+
+/** Drawn letter outlines: the title recedes across the cabinet like the XP artwork. */
+function SpaceCadetLettering() {
+  return <svg className="bbd-pinball-lettering" viewBox="0 0 180 86" aria-hidden>
+    <g fill="#b29adf" stroke="#49316d" strokeWidth=".7" strokeLinejoin="round">
+      <path d="M34 7C18 2 4 10 5 25C5 38 23 42 24 52C26 62 13 66 4 67L2 82C19 81 40 67 38 50C37 35 21 31 19 24C17 16 27 17 33 18Z" />
+      <path transform="translate(33 28) skewY(-22) scale(1.28 1.4)" fillRule="evenodd" d="M0 0H7V3Q11-2 17 1Q25 3 24 13Q24 25 15 26Q10 27 7 23V37H0ZM7 9V17Q14 24 17 16Q20 6 13 6Q10 6 7 9Z" />
+      <path transform="translate(65 24) skewY(-22) scale(1.07 1.3)" fillRule="evenodd" d="M1 4Q11-3 20 2Q24 4 23 13V25H16V22Q11 28 4 25Q-3 21 1 14Q5 9 16 10Q17 4 10 6L2 9ZM16 15Q6 13 7 19Q10 24 16 19Z" />
+      <path transform="translate(92 17) skewY(-22) scale(.96 1.16)" d="M22 2L20 9Q8 3 7 13Q7 23 20 17L21 23Q10 30 3 22Q-3 14 2 5Q9-3 22 2Z" />
+      <path transform="translate(116 12) skewY(-22) scale(.84 1.03)" fillRule="evenodd" d="M23 14H7Q7 24 20 18L22 23Q10 29 3 23Q-3 16 2 6Q8-3 18 1Q25 4 23 14ZM7 9H17Q16 2 11 5Q8 5 7 9Z" />
+    </g>
+    <text x="59" y="17" fill="#8e71cd" stroke="#3a2360" strokeWidth=".5" fontFamily="serif" fontWeight="bold" fontSize="17" textLength="77" lengthAdjust="spacingAndGlyphs">3D Pinball</text>
+    <g transform="translate(138 14) scale(.82 1) skewY(-13)" fill="none" stroke="#8e72b8" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2Q-2-3 0 14Q1 27 8 21M17 10Q8 5 10 17Q10 24 17 18M17 8V22M27 0V20M27 10Q18 5 20 17Q21 25 27 18M32 15L39 13Q39 5 33 9Q28 15 33 21L39 18M44 2V19M41 9L47 7" />
+    </g>
+  </svg>;
 }
 
 interface Hud {
@@ -336,6 +351,16 @@ function drawBackdrop(ctx: CanvasRenderingContext2D) {
     ctx.fillRect(star.x, star.y, star.size, star.size);
   }
   ctx.globalAlpha = 1;
+  // Two bright printed stars on the right are a strong part of the original composition.
+  for (const [x, y, radius] of [[350, 37, 42], [340, 350, 42]] as const) {
+    const glow = ctx.createRadialGradient(x, y, 1, x, y, radius);
+    glow.addColorStop(0, "#f7ece1");
+    glow.addColorStop(.1, "#d2b5a1");
+    glow.addColorStop(.27, "#77504d");
+    glow.addColorStop(.6, "#392933");
+    glow.addColorStop(1, "#1b254000");
+    disc(ctx, x, y, radius, glow);
+  }
 }
 
 function woodFill(ctx: CanvasRenderingContext2D, x0: number, x1: number) {
@@ -446,6 +471,9 @@ function drawRamp(ctx: CanvasRenderingContext2D) {
     ctx.fillRect(18 + i * 19, 360, 5, 25);
     disc(ctx, 20 + i * 19, 356, 4, i === 1 ? COLORS.lampOn : COLORS.plungerRed);
   }
+  ctx.fillStyle = "#b46ab7";
+  polygon(ctx, [[83, 394], [96, 402], [92, 418], [105, 433], [94, 438], [84, 420], [73, 414]]);
+  ctx.strokeStyle = "#dbc0d5"; ctx.lineWidth = 1; ctx.stroke();
 }
 
 function drawPrintedArt(ctx: CanvasRenderingContext2D) {
@@ -509,6 +537,30 @@ function drawMechanisms(ctx: CanvasRenderingContext2D) {
     disc(ctx, 290 + Math.sin(i * .6) * 6, 214 + i * 12, 4, COLORS.lampOff);
     disc(ctx, 91, 427 + i * 14, 4, COLORS.lampOff);
   }
+  // Switches and stand-up targets between the upper entry lanes.
+  for (let i = 0; i < 4; i++) {
+    const x = 132 + i * 31;
+    ctx.fillStyle = COLORS.bumperSkirtShade; ctx.fillRect(x, 118, 6, 24);
+    ctx.fillStyle = COLORS.bumperSkirt; ctx.fillRect(x + 1, 120, 2, 17);
+    ctx.fillStyle = COLORS.holeRim; ctx.fillRect(x - 1, 99, 8, 13);
+    disc(ctx, x + 3, 106, 2, COLORS.lampOff);
+  }
+  for (let i = 0; i < 3; i++) {
+    const x = 260 + i * 5, y = 250 + i * 19;
+    disc(ctx, x, y, 9, COLORS.crack);
+    disc(ctx, x, y, 6, COLORS.holeRim);
+    ctx.fillStyle = COLORS.lampOn;
+    polygon(ctx, [[296 - i * 12, 330 + i * 24], [291 - i * 12, 342 + i * 24], [302 - i * 12, 339 + i * 24]]);
+  }
+  // Circular return-lane insert and the striped opening underneath the ramp.
+  disc(ctx, 90, 185, 13, COLORS.woodLight);
+  disc(ctx, 90, 185, 9, COLORS.lampOff);
+  disc(ctx, 90, 185, 5, "#569563");
+  ctx.save(); ctx.translate(57, 331); ctx.rotate(-.45);
+  ctx.fillStyle = COLORS.lane; ctx.fillRect(-19, -11, 38, 22);
+  ctx.strokeStyle = COLORS.rail; ctx.lineWidth = 3; ctx.strokeRect(-19, -11, 38, 22);
+  ctx.fillStyle = "#bb3bce"; ctx.fillRect(-14, -7, 22, 5);
+  ctx.fillStyle = COLORS.lampOn; ctx.fillRect(-8, 3, 15, 6); ctx.restore();
   // Outlane/inlane metalwork narrows into the proven pivot guide geometry.
   for (const side of [0, 1]) {
     ctx.save(); if (side) {ctx.translate(370, 0);ctx.scale(-1, 1);}
@@ -526,8 +578,8 @@ function drawMechanisms(ctx: CanvasRenderingContext2D) {
   for (let i = 0; i < 7; i++) {ctx.fillStyle = i % 2 ? COLORS.rail : COLORS.bumperSkirtShade;ctx.fillRect(373, 680 + i * 5, 11, 3);}
 }
 
-function drawHole(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
-  // The hyperspace "black hole": two rings of blue inserts around an orange vortex.
+function drawRankCircle(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
+  // Printed rank circle and its two rings of inserts, not a physical hole.
   const { x, y } = HOLE;
   const rim = ctx.createRadialGradient(x, y, 20, x, y, 66);
   rim.addColorStop(0, COLORS.holeInner);
@@ -546,11 +598,17 @@ function drawHole(ctx: CanvasRenderingContext2D, state: PinballState, time: numb
     disc(ctx, x + Math.cos(angle) * 43, y + Math.sin(angle) * 43, 4, on ? COLORS.lampOn : COLORS.holeCenterMid);
   }
   const vortex = ctx.createRadialGradient(x, y, 2, x, y, 30);
-  vortex.addColorStop(0, COLORS.spaceDeep);
-  vortex.addColorStop(0.3, COLORS.holeInner);
-  vortex.addColorStop(0.7, COLORS.holeInner);
-  vortex.addColorStop(1, COLORS.holeCenterEdge);
+  vortex.addColorStop(0, "#286e83");
+  vortex.addColorStop(0.7, "#287e92");
+  vortex.addColorStop(1, "#274252");
   disc(ctx, x, y, 35, vortex);
+  ctx.strokeStyle = "#345a70"; ctx.lineWidth = .7;
+  for (let i = 0; i < 17; i++) {
+    const a = i * Math.PI * 2 / 17;
+    ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 8, y + Math.sin(a) * 8);
+    ctx.lineTo(x + Math.cos(a + .11) * 21, y + Math.sin(a + .11) * 21);
+    ctx.lineTo(x + Math.cos(a - .08) * 33, y + Math.sin(a - .08) * 33); ctx.stroke();
+  }
   disc(ctx, x, y, 5, COLORS.holeCenterMid);
 }
 
@@ -576,21 +634,8 @@ function drawArrows(ctx: CanvasRenderingContext2D, state: PinballState, time: nu
 }
 
 function drawDecals(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
-  drawHole(ctx, state, time);
+  drawRankCircle(ctx, state, time);
   drawArrows(ctx, state, time);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = `700 11px ${FONT}`;
-  for (let level = 2; level <= MAX_MULTIPLIER; level += 1) {
-    const x = 140 + (level - 2) * 30;
-    const on = state.multiplier >= level;
-    ctx.fillStyle = on ? COLORS.lampOn : COLORS.lampOff;
-    ctx.fillRect(x - 11, 610, 22, 13);
-    ctx.fillStyle = on ? COLORS.spaceDeep : COLORS.lampOn;
-    ctx.globalAlpha = on ? 1 : 0.5;
-    ctx.fillText(`${level}×`, x, 617);
-    ctx.globalAlpha = 1;
-  }
   TABLE.lanes.forEach((lane, index) => {
     const lit = state.lanes[index] === true || state.lanesFlash > 0;
     ctx.fillStyle = lit ? COLORS.lampOn : COLORS.lampOff;
@@ -1104,14 +1149,13 @@ export function PinballGame({ active = true }: { active?: boolean }) {
         </div>
         <aside className="bbd-pinball-panel" aria-label="Scoreboard">
           <div className="bbd-pinball-logo">
-            <span className="bbd-pinball-logo-small" aria-hidden>3D Pinball</span>
-            <span className="bbd-pinball-logo-big" aria-hidden><span>Space</span><span>Cadet</span></span>
+            <SpaceCadetLettering />
             <svg viewBox="0 0 180 100" className="bbd-pinball-ship" aria-hidden>
               <defs><linearGradient id={`${helpId}-hull`} x2="0.3" y2="1"><stop stopColor="#deded8"/><stop offset=".45" stopColor="#969991"/><stop offset="1" stopColor="#5c6060"/></linearGradient></defs>
               <circle cx="15" cy="78" r="17" fill="#506023" />
               <path d="m2 69 11-5 9 5-5 5 10 8-10 5-5-8-11-1Z" fill="#778129" />
               <path d="m160 23 19-10-5 15 6 7-22 7" fill="#bc4725" /><path d="m166 26 12-7-5 15-9 1" fill="#f3c943" />
-              <path d="m39 60 32-31 34-5 30-12 22 15 8 23 19 14-36 14-67 9-39-9Z" fill={`url(#${helpId}-hull)`} stroke="#4c5355" strokeWidth="2" />
+              <path d="M38 62Q44 39 68 30L112 19Q140 9 158 27Q166 35 163 46Q181 50 181 64Q177 76 153 78L79 89Q53 88 38 77Q31 69 38 62Z" fill={`url(#${helpId}-hull)`} stroke="#4c5355" strokeWidth="2" />
               <path d="m61 54 24-19 30-4 24 7 4 20-22 12-37-3Z" fill="#33383a" />
               <path d="m61 58 21-15 41 11-4 15-37-4Z" fill="#849647" />
               <path d="m76 56 4-15 14-8 24 7 12 19-16 4-16-7-9 8Z" fill="#7348a5" />
@@ -1122,8 +1166,9 @@ export function PinballGame({ active = true }: { active?: boolean }) {
               <circle cx="102" cy="27" r="1.4" fill="#292d36"/><circle cx="110" cy="26" r="1.4" fill="#292d36"/>
               <path d="m102 35 10-2-4 7Z" fill="#f0e1bd" stroke="#895740"/>
               <path d="M78 55q-6-51 31-53 38 0 38 52" fill="none" stroke="#84b1bc" strokeWidth="2" />
-              <path d="m43 64 26-9 12 8-9 16-24-4Z M135 62l31-15 14 17-36 13Z" fill="#92958e" stroke="#c0c2b8" strokeWidth="2" />
-              <ellipse cx="64" cy="73" rx="10" ry="7" fill="#666e6d"/>
+              <path d="M42 63Q45 53 58 54Q75 55 81 67Q88 83 72 86Q46 89 38 77Q34 70 42 63Z M126 67Q143 57 165 48Q183 56 178 68Q164 77 144 78Q132 80 126 67Z" fill="#a9aca5" stroke="#d1d0c8" strokeWidth="2" />
+              <path d="M49 58Q42 70 49 82M58 58Q49 73 59 85M69 62Q60 77 70 86" fill="none" stroke="#747a77" strokeWidth="3"/>
+              <ellipse cx="43" cy="72" rx="7" ry="10" fill="#777f7b"/>
               <path d="m39 60 10-6-3 12Z" fill="#fbdf79"/>
               <text x="53" y="61" transform="rotate(24 53 61)" fill="#f5f0e5" fontSize="9" fontFamily="Tahoma">2001</text>
             </svg>
