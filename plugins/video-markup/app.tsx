@@ -168,7 +168,7 @@ function AddVideo({threadId, file, source, onRegistered}: {threadId: string; fil
 
 function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disabled}: {threadId: string;version:Version;notes:FrameNote[];onSeek:(note:FrameNote)=>void;onRefresh:()=>void;onAddNote:()=>void;disabled:boolean}) {
   const rpc=useRpc<typeof videoMarkupContract>(),composer=useComposer();
-  const [selected,setSelected]=useState<string[]>([]),[filter,setFilter]=useState("actionable"),[error,setError]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState("");
+  const [selected,setSelected]=useState<string[]>([]),[filter,setFilter]=useState("actionable"),[error,setError]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState(""),[promptError,setPromptError]=useState("");
   const [still,setStill]=useState<{note:FrameNote;image:Still}|null>(null);
   // A note whose status just changed stays in view until the filter changes, so it never vanishes mid-click.
   const [kept,setKept]=useState<string[]>([]);
@@ -181,8 +181,8 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disab
   const allSelected = actionable.length>0 && validSelected.length===Math.min(12,actionable.length);
   const noteNumber = (note: FrameNote) => notes.findIndex(n => n.id === note.id) + 1;
   async function addToPrompt() {
-    setBusy(true);setError("");
-    try {const result=await rpc.call("context",{threadId,noteIds:validSelected});composer.insertMention({provider:MENTION_PROVIDER,id:result.id,label:`${videoName(version.media.path)} · ${result.count} note${result.count===1 ? "" : "s"}`});composer.focus();setNotice(`${result.count} note${result.count===1 ? "" : "s"} added to the prompt.`);setSelected([]);} catch(e){setError(errorText(e));}finally{setBusy(false);}
+    setBusy(true);setNotice("");setPromptError("");
+    try {const result=await rpc.call("context",{threadId,noteIds:validSelected});composer.insertMention({provider:MENTION_PROVIDER,id:result.id,label:`${videoName(version.media.path)} · ${result.count} note${result.count===1 ? "" : "s"}`});composer.focus();setNotice(`${result.count} note${result.count===1 ? "" : "s"} added to the prompt.`);setSelected([]);} catch(e){setPromptError(errorText(e));}finally{setBusy(false);}
   }
   function changeStatus(note: FrameNote, status: NoteStatus) {
     setBusy(true);setError("");setKept(ids=>ids.includes(note.id) ? ids : [...ids,note.id]);
@@ -206,6 +206,8 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disab
       </div>
       <Button size="sm" disabled={!validSelected.length || busy} onClick={()=>void addToPrompt()}><Send />Add to prompt</Button>
     </div>}
+    {/* Report the result beside Add to prompt, where the reviewer is looking, not below a long note list. */}
+    {notice && <Notice>{notice}</Notice>}{promptError && <ErrorNotice>{promptError}</ErrorNotice>}
     {!visible.length && <Notice>{!notes.length ? "Pause on a frame, then press Note." : filter==="actionable" ? `All ${notes.length} note${notes.length===1 ? " is" : "s are"} fixed.` : "No notes in this view."}</Notice>}
     <div className="video-markup-note-list">
       {visible.map(note=><article key={note.id} className="video-markup-note border-border" aria-label={`Note ${noteNumber(note)}`}>
@@ -236,7 +238,7 @@ function NoteList({threadId, version, notes, onSeek, onRefresh, onAddNote, disab
         </div>
       </article>)}
     </div>
-    {notice && <Notice>{notice}</Notice>}{error && <ErrorNotice>{error}</ErrorNotice>}
+    {error && <ErrorNotice>{error}</ErrorNotice>}
   </section>;
 }
 
@@ -259,6 +261,20 @@ function ReviewVersion({threadId,versionId,onDirty,startAt}: {threadId:string;ve
     {error&&<ErrorNotice>{error}</ErrorNotice>}</>;
 }
 
+function VersionLabel({position,count}: {position:number;count:number}) {
+  return <span className="video-markup-version text-xs text-muted-foreground">Version {position} of {count}{position<count ? " · not the latest" : ""}</span>;
+}
+
+// A file opened in the viewer names its demo and version, so it is clear where "Leave notes" filed it.
+function FileVersionHeader({threadId,version}: {threadId:string;version:Version}) {
+  const rpc=useRpc<typeof videoMarkupContract>();
+  const [renders,setRenders]=useState<Version[]>([]),[reload,setReload]=useState(0);
+  useRealtime("changed",useCallback(()=>setReload(n=>n+1),[]));
+  useEffect(()=>{let cancelled=false;void(async()=>{const all:Version[]=[];let offset:number|null=0;do{const page: {versions: Version[]; nextOffset: number | null}=await rpc.call("versions",{threadId,offset});all.push(...page.versions);offset=page.nextOffset;}while(offset!==null&&!cancelled);if(!cancelled)setRenders(all.filter(v=>v.demo===version.demo));})().catch(()=>{/* The label is optional; the review below still works without it. */});return()=>{cancelled=true;};},[rpc,threadId,version.demo,reload]);
+  const position=renders.findIndex(v=>v.id===version.id)+1;
+  return <header className="video-markup-header video-markup-row border-border"><h2 className="video-markup-demo">{version.demo}</h2>{position>0&&<VersionLabel position={position} count={renders.length}/>}</header>;
+}
+
 export function VideoMarkupPanel({threadId,params}: PluginThreadPanelProps) {
   const rpc=useRpc<typeof videoMarkupContract>();
   const presentation=useSyncExternalStore(subscribePresentation,()=>presentedVersions.get(threadId)??null);
@@ -273,7 +289,7 @@ export function VideoMarkupPanel({threadId,params}: PluginThreadPanelProps) {
   // Name the version on screen so notes carried into a newer render can't be mistaken for the originals.
   const renders=versions.filter(v=>v.demo===activeDemo),position=active&&active.demo===activeDemo ? renders.indexOf(active)+1 : 0;
   return <main className="video-markup bg-background text-foreground">
-    {versions.length>0&&<header className="video-markup-header video-markup-row border-border">{demos.length===1?<h2 className="video-markup-demo">{activeDemo}</h2>:<Select value={activeDemo} disabled={dirty} onValueChange={value=>{setDemo(value);setCurrent(versions.filter(v=>v.demo===value).at(-1)?.id??null);void rpc.call("selectDemo",{threadId,demo:value}).catch(e=>setError(errorText(e)));}}><SelectTrigger aria-label="Demo" className="video-markup-demo"><SelectValue /></SelectTrigger><SelectContent>{demos.map(name=><SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select>}{position>0&&<span className="video-markup-version text-xs text-muted-foreground">Version {position} of {renders.length}{position<renders.length ? " · not the latest" : ""}</span>}</header>}
+    {versions.length>0&&<header className="video-markup-header video-markup-row border-border">{demos.length===1?<h2 className="video-markup-demo">{activeDemo}</h2>:<Select value={activeDemo} disabled={dirty} onValueChange={value=>{setDemo(value);setCurrent(versions.filter(v=>v.demo===value).at(-1)?.id??null);void rpc.call("selectDemo",{threadId,demo:value}).catch(e=>setError(errorText(e)));}}><SelectTrigger aria-label="Demo" className="video-markup-demo"><SelectValue /></SelectTrigger><SelectContent>{demos.map(name=><SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select>}{position>0&&<VersionLabel position={position} count={renders.length}/>}</header>}
     {error&&<ErrorNotice>{error}</ErrorNotice>}
     {loading ? <Notice>Loading demos…</Notice> : !current ? <Notice>Attach a video in the prompt box, or ask your agent to share one.</Notice> : <>
       <div className="video-markup-review"><ReviewVersion key={current} threadId={threadId} versionId={current} onDirty={setDirty} startAt={presentation?.versionId===current ? presentation : undefined} /></div></>}
@@ -294,7 +310,8 @@ export function VideoMarkupFileViewer({path,source}: PluginFileOpenerProps) {
     } catch { /* Optional frame metadata must not replace the playable preview with an error. */ }
     finally {if(!cancelled)setFrameProbe("failed");}
   })().catch(e=>{if(!cancelled)setError(errorText(e));});return()=>{cancelled=true;};},[path,sourceKey,rpc]);
-  return <main className="video-markup video-markup-review bg-background text-foreground">{error?<ErrorNotice>{error}</ErrorNotice>:version&&source.threadId?<ReviewVersion threadId={source.threadId} versionId={version.id}/>:preview?<><Player key={path} preview={preview} frameProbe={frameProbe}/>{source.threadId?<AddVideo threadId={source.threadId} file={path} source={source} onRegistered={setVersion}/>:<Notice>Open this video from a thread to leave notes.</Notice>}</>:<Notice>Opening video…</Notice>}</main>;
+  if(!error&&version&&source.threadId)return <main className="video-markup bg-background text-foreground"><FileVersionHeader threadId={source.threadId} version={version}/><div className="video-markup-review"><ReviewVersion threadId={source.threadId} versionId={version.id}/></div></main>;
+  return <main className="video-markup video-markup-review bg-background text-foreground">{error?<ErrorNotice>{error}</ErrorNotice>:preview?<><Player key={path} preview={preview} frameProbe={frameProbe}/>{source.threadId?<AddVideo threadId={source.threadId} file={path} source={source} onRegistered={setVersion}/>:<Notice>Open this video from a thread to leave notes.</Notice>}</>:<Notice>Opening video…</Notice>}</main>;
 }
 
 // The chat list remounts directives as they scroll. Reusing a still-valid preview keeps the
