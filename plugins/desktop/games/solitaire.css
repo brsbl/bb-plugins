@@ -4,7 +4,6 @@
   --bbd-sol-royal: #000080;
   --bbd-sol-back: #000080;
   --bbd-sol-felt: #008000;
-  --bbd-sol-felt-deep: oklch(0.41 0.11 156);
   --bbd-sol-red: #ff0000;
   --bbd-sol-black: #000;
   --bbd-sol-face: #fff;
@@ -186,6 +185,14 @@
   transition: transform 180ms ease-out;
 }
 
+/* The win cascade's trail stays painted behind the win panel, as in the original. */
+.bbd-sol-cascade {
+  position: absolute;
+  z-index: 25;
+  display: block;
+  cursor: pointer;
+}
+
 .bbd-sol-win {
   position: absolute;
   inset: 0;
@@ -193,7 +200,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in oklab, var(--bbd-sol-felt-deep) 40%, transparent);
 }
 
 .bbd-sol-win-panel {

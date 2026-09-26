@@ -25,6 +25,7 @@ import {
   type SolitaireState,
   type Suit,
 } from "./solitaire-core";
+import { SUIT_PATHS, courtShapes, pipPositions, runCascade } from "./solitaire-cascade";
 import "./solitaire.css";
 import { usePointerTracker } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
@@ -111,37 +112,9 @@ function fanOffset(pile: readonly Card[], index: number): string {
 function SuitGlyph({ suit, className }: { suit: Suit; className: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden>
-      {suit === "hearts" && (
-        <path d="M12 21.5C5 16 1.5 12.5 1.5 8c0-3.2 2.5-5.5 5.5-5.5 2.2 0 4 1.3 5 3.1 1-1.8 2.8-3.1 5-3.1 3 0 5.5 2.3 5.5 5.5 0 4.5-3.5 8-10.5 13.5Z" />
-      )}
-      {suit === "diamonds" && <path d="M12 1.5 20.5 12 12 22.5 3.5 12Z" />}
-      {suit === "spades" && (
-        <path d="M12 1.5c4 5 10 8.5 10 13 0 3-2.2 5-4.8 5-1.8 0-3.4-.9-4.2-2.3.3 2.3 1.2 3.8 2.8 5.3H8.2c1.6-1.5 2.5-3 2.8-5.3-.8 1.4-2.4 2.3-4.2 2.3C4.2 19.5 2 17.5 2 14.5c0-4.5 6-8 10-13Z" />
-      )}
-      {suit === "clubs" && (
-        <g>
-          <circle cx="12" cy="6.6" r="4.4" />
-          <circle cx="6.4" cy="13.4" r="4.4" />
-          <circle cx="17.6" cy="13.4" r="4.4" />
-          <path d="M10.6 11h2.8c.2 5 1.4 8.6 3.4 11.5H7.2c2-2.9 3.2-6.5 3.4-11.5Z" />
-        </g>
-      )}
+      {SUIT_PATHS[suit].map((d) => <path key={d} d={d} />)}
     </svg>
   );
-}
-
-function pipPositions(rank: number): number[][] {
-  if (rank === 1) return [[50, 50]];
-  if (rank === 2) return [[50, 15], [50, 85]];
-  if (rank === 3) return [[50, 15], [50, 50], [50, 85]];
-  const pips = [[25, 15], [75, 15], [25, 85], [75, 85]];
-  if (rank === 5 || rank === 9) pips.push([50, 50]);
-  if (rank >= 6 && rank <= 8) pips.push([25, 50], [75, 50]);
-  if (rank >= 7 && rank <= 8) pips.push([50, 32]);
-  if (rank === 8) pips.push([50, 68]);
-  if (rank >= 9) pips.push([25, 38], [75, 38], [25, 62], [75, 62]);
-  if (rank === 10) pips.push([50, 26], [50, 74]);
-  return pips;
 }
 
 function CardFace({ card }: { card: Card }) {
@@ -156,12 +129,15 @@ function CardFace({ card }: { card: Card }) {
         {pipPositions(card.rank).map(([x, y], index) => <span key={index} style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) rotate(${y > 50 ? 180 : 0}deg)` }}><SuitGlyph suit={card.suit} className="bbd-sol-pip" /></span>)}
       </div> : <svg className="bbd-sol-court" viewBox="0 0 40 70" aria-hidden>
         {[false, true].map(flipped => <g key={String(flipped)} transform={flipped ? "rotate(180 20 35)" : undefined}>
-          <path d="M2 35V22L11 16h16l11 8v11Z" fill="var(--bbd-sol-gold)" stroke="currentColor" />
-          <path d="M4 35V24l10-5 17 16M11 21l23 14M6 28l13 7" fill="none" stroke="var(--bbd-sol-royal)" strokeWidth="3" />
-          <path d="M15 7h13v12l-5 5-8-7Z" fill="var(--bbd-sol-skin)" stroke="currentColor" />
-          <path d={card.rank === 13 ? "M13 8V2l5 3 4-4 4 4 5-3v6Z" : card.rank === 12 ? "M13 8l3-6 6 3 6-3 3 6Z" : "M12 8l3-6h15l3 6Z"} fill="var(--bbd-sol-gold)" stroke="currentColor" />
-          <path d="M24 11h2m-1 5h-5M14 10v11l5 4" stroke="currentColor" fill="none" />
-          <path d="M4 23V6m-2 3 2-5 2 5M33 26V12" stroke="currentColor" />
+          {courtShapes(card.rank).map(({ d, fill, royal }) => (
+            <path
+              key={d}
+              d={d}
+              fill={fill === "none" ? "none" : `var(--bbd-sol-${fill})`}
+              stroke={royal ? "var(--bbd-sol-royal)" : "currentColor"}
+              strokeWidth={royal ? 3 : undefined}
+            />
+          ))}
         </g>)}
       </svg>}
       <span className="bbd-sol-corner bbd-sol-corner-end">
@@ -208,7 +184,10 @@ export function SolitaireGame() {
   const [metrics, setMetrics] = useState<Metrics>(() => measure(640));
   const [drag, setDrag] = useState<Drag | null>(null);
   const [seconds, setSeconds] = useState(0);
+  const [cascade, setCascade] = useState<"running" | "done" | null>(null);
+  const [launched, setLaunched] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
+  const cascadeRef = useRef<HTMLCanvasElement>(null);
   const dragStackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
   const track = usePointerTracker();
@@ -238,6 +217,51 @@ export function SolitaireGame() {
     const timer = window.setInterval(() => setSeconds((value) => value + 1), 1000);
     return () => window.clearInterval(timer);
   }, [running]);
+
+  useEffect(() => {
+    setCascade(won ? (prefersReducedMotion() ? "done" : "running") : null);
+    setLaunched(0);
+  }, [won]);
+
+  // Metrics are read once at launch; resizing mid-cascade keeps the trail already painted.
+  useEffect(() => {
+    const board = boardRef.current;
+    const canvas = cascadeRef.current;
+    if (cascade !== "running" || !board || !canvas) return;
+    Object.assign(canvas.style, {
+      left: `${board.scrollLeft}px`,
+      top: `${board.scrollTop}px`,
+      width: `${board.clientWidth}px`,
+      height: `${board.clientHeight}px`,
+    });
+    const boardRect = board.getBoundingClientRect();
+    const origins = Array.from(board.querySelectorAll(".bbd-sol-foundation"), (slot) => {
+      const rect = slot.getBoundingClientRect();
+      return { x: rect.left - boardRect.left - board.clientLeft, y: rect.top - boardRect.top - board.clientTop };
+    });
+    return runCascade({
+      canvas,
+      foundations: gameRef.current.foundations,
+      origins,
+      cardWidth: metrics.cardWidth,
+      cardHeight: metrics.cardHeight,
+      font: getComputedStyle(board).fontFamily,
+      random: Math.random,
+      onLaunch: setLaunched,
+      onDone: () => setCascade("done"),
+    });
+  }, [cascade]);
+
+  useEffect(() => {
+    if (cascade !== "running") return;
+    const skip = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && boardRef.current?.closest(".bbd-window")?.getAttribute("data-focused") === "true") {
+        setCascade("done");
+      }
+    };
+    window.addEventListener("keydown", skip);
+    return () => window.removeEventListener("keydown", skip);
+  }, [cascade]);
 
   const startNewGame = useCallback(() => {
     updateDrag(null);
@@ -377,7 +401,10 @@ export function SolitaireGame() {
             )}
           </div>
           {Array.from({ length: FOUNDATION_PILES }, (_, pile) => {
-            const cards = game.foundations[pile] ?? [];
+            // The win cascade deals Kings first, one per foundation in turn.
+            const flown = launched > pile ? Math.floor((launched - 1 - pile) / FOUNDATION_PILES) + 1 : 0;
+            const pileCards = game.foundations[pile] ?? [];
+            const cards = pileCards.slice(0, pileCards.length - flown);
             const top = cards[cards.length - 1];
             const under = cards[cards.length - 2];
             const source: MoveSource = { kind: "foundation", pile };
@@ -443,7 +470,15 @@ export function SolitaireGame() {
             ))}
           </div>
         )}
-        {won && (
+        {cascade !== null && (
+          <canvas
+            ref={cascadeRef}
+            className="bbd-sol-cascade"
+            aria-hidden
+            onPointerDown={() => setCascade("done")}
+          />
+        )}
+        {cascade === "done" && (
           <div className="bbd-sol-win" role="dialog" aria-label="You won">
             <div className="bbd-sol-win-panel bbd-glass">
               <strong className="bbd-sol-win-title">You won!</strong>
