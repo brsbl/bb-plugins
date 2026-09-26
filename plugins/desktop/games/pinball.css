@@ -86,16 +86,17 @@
     inset -2px -2px 0 var(--bbd-pinball-bevel-light);
 }
 
-/* Dot-matrix LED lettering. */
+/* Individual vector lamps keep counters legible at any pixel density. */
 .bbd-pinball-dots {
+  display: inline-block;
   color: var(--bbd-pinball-led);
-  font: bold 20px/1.1 "Lucida Console", Consolas, monospace;
   font-size: clamp(13px, 10.5cqi, 24px);
-  letter-spacing: -1px;
-  white-space: pre-line;
-  -webkit-mask: radial-gradient(circle, #000 0.75px, transparent 1px) 0 0 / 2px 2px;
-  mask: radial-gradient(circle, #000 0.75px, transparent 1px) 0 0 / 2px 2px;
+  line-height: 1.05;
 }
+.bbd-pinball-dot-line { display: block; }
+.bbd-pinball-dot-line svg { display: inline-block; height: 1em; vertical-align: top; margin-right: .35em; }
+.bbd-pinball-dot-line svg:last-child { margin-right: 0; }
+.bbd-pinball-score .bbd-pinball-dot-line svg { transform: skew(-9deg); }
 
 .bbd-pinball-logo {
   position: relative;
@@ -135,8 +136,8 @@
 .bbd-pinball-logo-big {
   display: flex;
   align-items: center;
-  font-size: 23cqi;
-  transform: rotate(-9deg) skewY(-4deg);
+  font-size: 22cqi;
+  transform: rotate(-9deg) skewY(-4deg) scaleX(.94);
   transform-origin: center;
   margin: 0 0 -8px;
   letter-spacing: -1px;
@@ -328,6 +329,9 @@
 }
 
 .bbd-pinball-dialog {
+  position: fixed;
+  inset: auto;
+  margin: 0;
   width: min(430px, calc(100vw - 24px));
   max-height: calc(100vh - 48px);
   padding: 3px;

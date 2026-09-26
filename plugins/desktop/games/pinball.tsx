@@ -57,7 +57,19 @@ function keyLabel(code: string) { return KEY_CHOICES.find(([key]) => key === cod
 function PinballDialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  useEffect(() => { const dialog = ref.current; dialog?.showModal(); return () => dialog?.close(); }, []);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    dialog.showModal();
+    const place = () => {
+      const parent = dialog.closest(".bbd-pinball")?.getBoundingClientRect();
+      if (!parent) return;
+      dialog.style.left = `${Math.max(8, Math.min(parent.left, innerWidth - dialog.offsetWidth - 8))}px`;
+      dialog.style.top = `${Math.max(8, Math.min(parent.top + 30, innerHeight - dialog.offsetHeight - 8))}px`;
+    };
+    place(); window.addEventListener("resize", place);
+    return () => { window.removeEventListener("resize", place); dialog.close(); };
+  }, []);
   return <dialog ref={ref} className="bbd-pinball-dialog" aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); onClose(); }} onKeyDown={(event) => event.stopPropagation()}>
     <header><strong id={titleId}>{title}</strong><button type="button" aria-label="Close dialog" onClick={onClose}>×</button></header>
     <div className="bbd-pinball-dialog-body">{children}</div>
@@ -81,14 +93,14 @@ function PlayerControls({ controls, onSave, onClose }: { controls: Controls; onS
 }
 
 const COLORS = {
-  space: "#18263e",
-  spaceDeep: "#10162c",
+  space: "#1b2540",
+  spaceDeep: "#181c36",
   nebulaRed: "oklch(0.5 0.19 30 / 0.5)",
-  nebulaViolet: "oklch(0.45 0.2 300 / 0.45)",
+  nebulaViolet: "oklch(0.32 0.09 290 / 0.35)",
   nebulaBlue: "oklch(0.5 0.16 250 / 0.35)",
   clear: "oklch(0.2 0.08 280 / 0)",
   star: "oklch(0.96 0.03 240)",
-  crack: "oklch(0.66 0.15 245 / 0.5)",
+  crack: "#456176",
   crackGlow: "oklch(0.6 0.16 250 / 0.14)",
   woodLight: "#716961",
   woodDark: "#292929",
@@ -120,13 +132,13 @@ const COLORS = {
   targetDown: "#4b3310",
   holeRim: "#0e1b4c",
   holeInner: "#218da2",
-  holeLampOff: "#1d3b8f",
+  holeLampOff: "#142776",
   holeLampOn: "#9fe4ff",
   holeCenter: "#17566c",
-  holeCenterMid: "#2795aa",
+  holeCenterMid: "#bd481c",
   holeCenterEdge: "#153345",
-  starburst: "#5b33a8",
-  starburstLight: "#a57ce6",
+  starburst: "#663c85",
+  starburstLight: "#9d76ba",
   arrowOff: "#5c4a12",
   arrowOn: "#ffe45c",
   flipper: "#f4f4f6",
@@ -177,9 +189,50 @@ const CRACKS = (() => {
     }
     lines.push(line);
   };
-  for (let index = 0; index < 16; index += 1) grow(20 + next() * 340, 60 + next() * 560, next() * Math.PI * 2, 7 + Math.floor(next() * 6));
+  for (let index = 0; index < 45; index += 1) grow(20 + next() * 340, 60 + next() * 560, next() * Math.PI * 2, 7 + Math.floor(next() * 6));
   return lines;
 })();
+
+// Hand-authored 5 × 7 lamps, independent of installed/ripped game fonts.
+const MATRIX: Record<string, string> = {
+  "0":"01110/10001/10011/10101/11001/10001/01110", "1":"00100/01100/00100/00100/00100/00100/01110",
+  "2":"01110/10001/00001/00010/00100/01000/11111", "3":"11110/00001/00001/01110/00001/00001/11110",
+  "4":"00010/00110/01010/10010/11111/00010/00010", "5":"11111/10000/10000/11110/00001/00001/11110",
+  "6":"01110/10000/10000/11110/10001/10001/01110", "7":"11111/00001/00010/00100/01000/01000/01000",
+  "8":"01110/10001/10001/01110/10001/10001/01110", "9":"01110/10001/10001/01111/00001/00001/01110",
+  A:"01110/10001/10001/11111/10001/10001/10001", B:"11110/10001/10001/11110/10001/10001/11110",
+  C:"01111/10000/10000/10000/10000/10000/01111", D:"11110/10001/10001/10001/10001/10001/11110",
+  E:"11111/10000/10000/11110/10000/10000/11111", F:"11111/10000/10000/11110/10000/10000/10000",
+  G:"01111/10000/10000/10111/10001/10001/01111", H:"10001/10001/10001/11111/10001/10001/10001",
+  I:"01110/00100/00100/00100/00100/00100/01110", J:"00001/00001/00001/00001/10001/10001/01110",
+  K:"10001/10010/10100/11000/10100/10010/10001", L:"10000/10000/10000/10000/10000/10000/11111",
+  M:"10001/11011/10101/10101/10001/10001/10001", N:"10001/11001/10101/10011/10001/10001/10001",
+  O:"01110/10001/10001/10001/10001/10001/01110", P:"11110/10001/10001/11110/10000/10000/10000",
+  Q:"01110/10001/10001/10001/10101/10010/01101", R:"11110/10001/10001/11110/10100/10010/10001",
+  S:"01111/10000/10000/01110/00001/00001/11110", T:"11111/00100/00100/00100/00100/00100/00100",
+  U:"10001/10001/10001/10001/10001/10001/01110", V:"10001/10001/10001/10001/10001/01010/00100",
+  W:"10001/10001/10001/10101/10101/11011/10001", X:"10001/10001/01010/00100/01010/10001/10001",
+  Y:"10001/10001/01010/00100/00100/00100/00100", Z:"11111/00001/00010/00100/01000/10000/11111",
+  a:"00000/00000/01110/00001/01111/10001/01111", b:"10000/10000/10110/11001/10001/10001/11110",
+  c:"00000/00000/01110/10001/10000/10001/01110", d:"00001/00001/01101/10011/10001/10001/01111",
+  e:"00000/00000/01110/10001/11111/10000/01110", f:"00110/01001/01000/11100/01000/01000/01000",
+  g:"00000/01111/10001/10001/01111/00001/01110", h:"10000/10000/10110/11001/10001/10001/10001",
+  i:"00100/00000/01100/00100/00100/00100/01110", j:"00010/00000/00110/00010/00010/10010/01100",
+  k:"10000/10000/10010/10100/11000/10100/10010", l:"01100/00100/00100/00100/00100/00100/01110",
+  m:"00000/00000/11010/10101/10101/10101/10101", n:"00000/00000/10110/11001/10001/10001/10001",
+  o:"00000/00000/01110/10001/10001/10001/01110", p:"00000/11110/10001/10001/11110/10000/10000",
+  q:"00000/01111/10001/10001/01111/00001/00001", r:"00000/00000/10110/11001/10000/10000/10000",
+  s:"00000/00000/01111/10000/01110/00001/11110", t:"01000/01000/11100/01000/01000/01001/00110",
+  u:"00000/00000/10001/10001/10001/10011/01101", v:"00000/00000/10001/10001/10001/01010/00100",
+  w:"00000/00000/10001/10001/10101/10101/01010", x:"00000/00000/10001/01010/00100/01010/10001",
+  y:"00000/10001/10001/10001/01111/00001/01110", z:"00000/00000/11111/00010/00100/01000/11111",
+  ",":"00000/00000/00000/00000/00100/00100/01000", "-":"00000/00000/00000/11111/00000/00000/00000",
+};
+function DotMatrix({ text }: { text: string | number }) {
+  return <span className="bbd-pinball-dots" aria-label={String(text)}>{String(text).split("\n").map((line, index) => <span className="bbd-pinball-dot-line" key={index}>{line.split(" ").map((word, wi) => <svg key={wi} aria-hidden viewBox={`0 0 ${word.length * 6} 8`} style={{ width: `${word.length * 0.68}em` }}>
+    {[...word].flatMap((char, ci) => (MATRIX[char] ?? MATRIX[char.toUpperCase()] ?? "").split("/").flatMap((row, y) => [...row].flatMap((bit, x) => bit === "1" ? [<circle key={`${ci}-${y}-${x}`} cx={ci * 6 + x + .5} cy={y + .5} r={.39} fill="currentColor" />] : [])))}
+  </svg>)}</span>)}</span>;
+}
 
 interface Hud {
   score: number;
@@ -268,8 +321,8 @@ function drawBackdrop(ctx: CanvasRenderingContext2D) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   for (const [color, lineWidth] of [
-    [COLORS.crackGlow, 4],
-    [COLORS.crack, 1.2],
+    [COLORS.crackGlow, 2],
+    [COLORS.crack, 0.8],
   ] as const) {
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
@@ -425,6 +478,53 @@ function drawPrintedArt(ctx: CanvasRenderingContext2D) {
   }
 }
 
+function drawMechanisms(ctx: CanvasRenderingContext2D) {
+  const rail = (points: readonly (readonly [number, number])[], width = 8) => {
+    ctx.beginPath(); points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    for (const [color, size] of [[COLORS.railShadow, width + 7], [COLORS.rail, width + 3], [COLORS.bumperSkirtShade, width], [COLORS.bumperSkirt, 1]] as const) {
+      ctx.strokeStyle = color; ctx.lineWidth = size; ctx.stroke();
+    }
+  };
+  // Inner return track, target banks and switches around the attack bumpers.
+  rail([[258, 82], [293, 111], [307, 159], [315, 218], [294, 288]], 11);
+  rail([[50, 170], [44, 208], [53, 250], [106, 284]], 5);
+  for (let i = 0; i < 5; i++) {
+    const x = 317 + Math.sin(i * 0.62) * 28, y = 108 + i * 33;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(-0.3 + i * 0.12);
+    ctx.fillStyle = COLORS.railShadow; ctx.fillRect(-12, -8, 24, 16);
+    ctx.strokeStyle = COLORS.rail; ctx.lineWidth = 3; ctx.strokeRect(-12, -8, 24, 16);
+    ctx.strokeStyle = COLORS.crack; ctx.lineWidth = 2; ctx.strokeRect(-9, -6, 18, 12);ctx.restore();
+  }
+  for (const [x, y, angle] of [[119, 146, -0.35], [195, 322, 0.15]] as const) {
+    ctx.save();ctx.translate(x, y);ctx.rotate(angle);
+    ctx.fillStyle = COLORS.railShadow;ctx.fillRect(-29, -12, 58, 23);
+    ctx.fillStyle = COLORS.bumperSkirt;ctx.fillRect(-28, 5, 56, 5);
+    for (let i = 0; i < 3; i++) {ctx.fillStyle = COLORS.target;ctx.fillRect(-26 + i * 19, -5, 12, 13);ctx.fillStyle = COLORS.targetStripe;ctx.fillRect(-24 + i * 19, -5, 7, 4);}
+    ctx.restore();
+  }
+  for (let i = 0; i < 6; i++) {
+    disc(ctx, 68 + Math.sin(i * .6) * 7, 209 + i * 12, 4, COLORS.lampOff);
+    disc(ctx, 290 + Math.sin(i * .6) * 6, 214 + i * 12, 4, COLORS.lampOff);
+    disc(ctx, 91, 427 + i * 14, 4, COLORS.lampOff);
+  }
+  // Outlane/inlane metalwork narrows into the proven pivot guide geometry.
+  for (const side of [0, 1]) {
+    ctx.save(); if (side) {ctx.translate(370, 0);ctx.scale(-1, 1);}
+    rail([[27, 565], [25, 648], [79, 675]], 4);
+    rail([[43, 578], [45, 626], [93, 660]], 4);
+    rail([[50, 654], [91, 680]], 10);
+    ctx.fillStyle = COLORS.lampOff; polygon(ctx, [[20, 591], [30, 591], [25, 603]]);
+    disc(ctx, 78, 557, 5, COLORS.lampOn);
+    disc(ctx, 109, 683, 9, COLORS.holeCenterEdge);
+    ctx.restore();
+  }
+  // Recessed launch lane switch and striped plunger markings.
+  rail([[333, 449], [352, 460], [352, 496], [334, 516]], 7);
+  ctx.fillStyle = COLORS.bumperSkirt;ctx.fillRect(329, 441, 15, 18);
+  for (let i = 0; i < 7; i++) {ctx.fillStyle = i % 2 ? COLORS.rail : COLORS.bumperSkirtShade;ctx.fillRect(373, 680 + i * 5, 11, 3);}
+}
+
 function drawHole(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
   // The hyperspace "black hole": two rings of blue inserts around an orange vortex.
   const { x, y } = HOLE;
@@ -433,7 +533,7 @@ function drawHole(ctx: CanvasRenderingContext2D, state: PinballState, time: numb
   rim.addColorStop(1, COLORS.holeRim);
   disc(ctx, x, y, 66, rim);
   const lit = Math.round(((state.multiplier - 1) / (MAX_MULTIPLIER - 1)) * 22);
-  const chase = Math.floor(time * 10) % 22;
+  const chase = state.status === "playing" && !state.inLane ? Math.floor(time * 4) % 22 : -1;
   for (let index = 0; index < 22; index += 1) {
     const angle = (index / 22) * Math.PI * 2 - Math.PI / 2;
     const on = index < lit || index === chase;
@@ -441,31 +541,24 @@ function drawHole(ctx: CanvasRenderingContext2D, state: PinballState, time: numb
   }
   for (let index = 0; index < 14; index += 1) {
     const angle = (index / 14) * Math.PI * 2;
-    const on = (index + Math.floor(time * 6)) % 7 === 0;
-    disc(ctx, x + Math.cos(angle) * 43, y + Math.sin(angle) * 43, 4, on ? COLORS.holeCenter : COLORS.holeCenterMid);
+    const on = index === 10;
+    disc(ctx, x + Math.cos(angle) * 43, y + Math.sin(angle) * 43, 4, on ? COLORS.lampOn : COLORS.holeCenterMid);
   }
   const vortex = ctx.createRadialGradient(x, y, 2, x, y, 30);
   vortex.addColorStop(0, COLORS.spaceDeep);
-  vortex.addColorStop(0.3, COLORS.holeCenter);
-  vortex.addColorStop(0.7, COLORS.holeCenterMid);
+  vortex.addColorStop(0.3, COLORS.holeInner);
+  vortex.addColorStop(0.7, COLORS.holeInner);
   vortex.addColorStop(1, COLORS.holeCenterEdge);
-  disc(ctx, x, y, 30, vortex);
+  disc(ctx, x, y, 35, vortex);
+  disc(ctx, x, y, 5, COLORS.holeCenterMid);
 }
 
 function drawStarburst(ctx: CanvasRenderingContext2D) {
-  const cx = 185;
-  const cy = 738;
-  for (let index = 0; index < 11; index += 1) {
-    const angle = -Math.PI / 2 + ((index - 5) / 5) * 1.15;
-    const length = index % 2 === 0 ? 154 : 95;
-    const spread = 0.13;
-    ctx.fillStyle = index % 2 === 0 ? COLORS.starburst : COLORS.starburstLight;
-    polygon(ctx, [
-      [cx + Math.cos(angle - spread) * 14, cy + Math.sin(angle - spread) * 14],
-      [cx + Math.cos(angle) * length, cy + Math.sin(angle) * length],
-      [cx + Math.cos(angle + spread) * 14, cy + Math.sin(angle + spread) * 14],
-    ]);
-  }
+  const points = [[81, 656], [144, 680], [134, 605], [176, 678], [185, 597], [203, 679], [242, 608], [229, 681], [289, 648], [245, 692], [282, 714], [214, 710], [229, 720], [142, 720], [156, 710], [91, 714], [133, 692]] as const;
+  ctx.fillStyle = COLORS.starburstLight; polygon(ctx, points);
+  ctx.strokeStyle = COLORS.starburst; ctx.lineWidth = 5; ctx.stroke();
+  disc(ctx, 185, 702, 6, COLORS.lampOff);
+  disc(ctx, 185, 719, 3, COLORS.bumperSkirt);
 }
 
 function drawArrows(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
@@ -565,8 +658,11 @@ function drawSlingshots(ctx: CanvasRenderingContext2D, state: PinballState) {
     ctx.lineTo(mx - 3, (top.y + bottom.y) / 2 + 8);
     ctx.lineTo(bottom.x + (inner.x - bottom.x) * 0.45, bottom.y + (inner.y - bottom.y) * 0.3);
     ctx.strokeStyle = COLORS.slingBolt;
-    ctx.lineWidth = lit ? 2.5 : 1.5;
+    ctx.shadowColor = COLORS.slingBolt;
+    ctx.shadowBlur = 5;
+    ctx.lineWidth = lit ? 4 : 3;
     ctx.stroke();
+    ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.moveTo(sling.kicker.a.x, sling.kicker.a.y);
     ctx.lineTo(sling.kicker.b.x, sling.kicker.b.y);
@@ -724,7 +820,7 @@ export function PinballGame({ active = true }: { active?: boolean }) {
       const background = backdrop.getContext("2d");
       if (!background) return;
       background.setTransform(canvas.width / TABLE.width, 0, 0, canvas.height / TABLE.height, 0, 0);
-      drawBackdrop(background); drawFrame(background); drawPrintedArt(background); drawRamp(background); drawStarburst(background);
+      drawBackdrop(background); drawFrame(background); drawPrintedArt(background); drawRamp(background); drawStarburst(background); drawMechanisms(background);
       backdropRef.current = backdrop;
     }
     drawTable(ctx, stateRef.current, performance.now() / 1000, backdrop);
@@ -1024,20 +1120,20 @@ export function PinballGame({ active = true }: { active?: boolean }) {
             </svg>
             <span className="bbd-pinball-ball">
               <span className="bbd-pinball-ball-label">Ball</span>
-              <span className="bbd-pinball-box"><span className="bbd-pinball-dots">{over ? "" : hud.ballNumber}</span></span>
+              <span className="bbd-pinball-box"><DotMatrix text={over ? "" : hud.ballNumber} /></span>
             </span>
           </div>
           <div className="bbd-pinball-score">
-            <span className="bbd-pinball-box"><span className="bbd-pinball-dots">1</span></span>
+            <span className="bbd-pinball-box"><DotMatrix text="1" /></span>
             <span className="bbd-pinball-box" aria-label={`Score ${formatScore(hud.score)}`}>
-              <span className="bbd-pinball-dots">{formatScore(hud.score)}</span>
+              <DotMatrix text={formatScore(hud.score)} />
             </span>
           </div>
           <p className="bbd-pinball-box bbd-pinball-info">
-            <span className="bbd-pinball-dots">{over ? "Game Over" : !running ? "Game Paused\nF3 to Resume" : "Player 1"}</span>
+            <DotMatrix text={over ? "Game Over" : !running ? "Game Paused\nF3 to Resume" : "Player 1"} />
           </p>
           <p className="bbd-pinball-box bbd-pinball-message" data-tone={over ? "over" : undefined}>
-            <span className="bbd-pinball-dots">{over ? `High Score\n${formatScore(Math.max(highScore, hud.score))}` : !running ? "" : message}</span>
+            <DotMatrix text={over ? `High Score\n${formatScore(Math.max(highScore, hud.score))}` : !running ? "" : message} />
             <span className="bbd-pinball-live">{detail}</span>
           </p>
           <button

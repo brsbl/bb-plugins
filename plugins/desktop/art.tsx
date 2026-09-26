@@ -384,13 +384,11 @@ export function SolitaireArt({ size = 40 }: { size?: number }) {
 export function PinballArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>
-      <path d="M13 5h22l9 37H4Z" fill="url(#bbd-g-navy)" stroke={ICON.navyEdge} strokeLinejoin="round" />
-      <circle cx="18" cy="14.5" r="3.6" fill={ICON.wmpOrange} stroke={ICON.sparkEdge} strokeWidth="0.8" />
-      <circle cx="30" cy="16.5" r="3.6" fill={ICON.wmpGreen} stroke={ICON.recycleEdge} strokeWidth="0.8" />
-      <path d="M12.5 35.5 21 39M35.5 35.5 27 39" stroke={ICON.boltEdge} strokeWidth="4.4" strokeLinecap="round" />
-      <path d="M12.5 35.5 21 39M35.5 35.5 27 39" stroke={ICON.boltTop} strokeWidth="2.6" strokeLinecap="round" />
-      <circle cx="24.5" cy="27" r="6" fill="url(#bbd-g-disc)" stroke={ICON.discEdge} />
-      <circle cx="22.4" cy="24.8" r="1.8" fill={ICON.discLight} />
+      <circle cx="24" cy="24" r="20" fill={ICON.navyEdge} />
+      <circle cx="23" cy="23" r="18" fill="url(#bbd-g-disc)" stroke={ICON.discEdge} strokeWidth="1.5" />
+      <path d="M9 27c3 12 21 17 30 0-2 12-12 18-23 12Z" fill={ICON.navyEdge} opacity=".65" />
+      <ellipse cx="17" cy="15" rx="7" ry="5" transform="rotate(-35 17 15)" fill={ICON.discLight} />
+      <path d="M11 22c-1-7 5-13 12-13" fill="none" stroke={ICON.paper} strokeWidth="1.5" strokeLinecap="round" />
     </IconSvg>
   );
 }

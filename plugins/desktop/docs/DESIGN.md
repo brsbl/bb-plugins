@@ -80,7 +80,7 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Skills | No XP counterpart; a glossy bolt in XP style | `SkillsArt` |
 | Minesweeper | Minesweeper: a spiked black mine with a red flag | `MinesweeperArt` |
 | Solitaire | Solitaire: two fanned cards, a spade behind a heart | `SolitaireArt` |
-| Pinball | Pinball: a navy table with two bumpers, flippers, and a silver ball | `PinballArt` |
+| Pinball | Pinball: a reflective silver ball with a deep blue rim and upper-left highlight | `PinballArt` |
 | Browser | Internet Explorer: blue glossy "e" with a gold orbit | `InternetExplorerArt` |
 | Drawing | Paint: a palette of paint blobs with a brush | `PaintArt` |
 | Terminal | Command Prompt: black window with a blue title bar and `C:\ _` | `CommandPromptArt` |
