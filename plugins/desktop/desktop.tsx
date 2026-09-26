@@ -1218,7 +1218,7 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
     case "thread":
       return desktop.threadById.get(spec.threadId)?.title ?? "Thread";
     case "panel":
-      return `${desktop.threadById.get(spec.threadId)?.title ?? "Thread"} — Details`;
+      return `${desktop.threadById.get(spec.threadId)?.title ?? "Thread"} - Buddy Info`;
     case "buddy-list":
       return buddyListTitle(desktop, spec.threadId);
     case "thread-tab":
@@ -2886,6 +2886,15 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
     manager.open(spec, { x, y: rect.y, width, height: rect.height });
   };
 
+  const openThreadMenu = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (thread === undefined) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    desktop.openMenu(
+      { clientX: bounds.left, clientY: bounds.bottom + 2, preventDefault: () => event.preventDefault(), stopPropagation: () => event.stopPropagation() },
+      threadMenu(desktop, manager, actions, thread, null).filter((entry) => typeof entry !== "object" || !("label" in entry) || entry.label !== "Open"),
+    );
+  };
+
   return (
     <WindowFrame
       window={desktopWindow}
@@ -2900,13 +2909,7 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
               aria-label="Thread actions"
               aria-haspopup="menu"
               title="Thread actions"
-              onClick={(event) => {
-                const bounds = event.currentTarget.getBoundingClientRect();
-                desktop.openMenu(
-                  { clientX: bounds.left, clientY: bounds.bottom + 2, preventDefault: () => event.preventDefault(), stopPropagation: () => event.stopPropagation() },
-                  threadMenu(desktop, manager, actions, thread, null).filter((entry) => typeof entry !== "object" || !("label" in entry) || entry.label !== "Open"),
-                );
-              }}
+              onClick={openThreadMenu}
             >
               <MoreGlyph className="size-3.5" strokeWidth={2} />
             </button>
@@ -2931,6 +2934,10 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
       }
     >
       <div className="bbd-im flex h-full flex-col" style={{ "--bbd-im-buddy": JSON.stringify(`${buddy}:`) } as CSSProperties}>
+        <div className="bbd-im-menubar flex-none">
+          <button type="button" aria-haspopup="menu" disabled={thread === undefined} onClick={openThreadMenu}>Thread</button>
+          <span title={`Screen name: ${buddy}`}>To: <strong>{buddy}</strong></span>
+        </div>
         <div className="bbd-im-chat min-h-0 flex-1">
           <ThreadChat threadId={threadId} variant="compact" layout="contained" permissionPolicy="editable" className="h-full" />
         </div>
@@ -3073,12 +3080,13 @@ function BuddyListWindow({ window: desktopWindow, threadId }: { window: DesktopW
     <WindowFrame window={desktopWindow} title={buddyListTitle(desktop, threadId)} icon={<BuddyListArt size={16} />}>
       <div className="bbd-buddies flex h-full flex-col">
         <div className="bbd-buddies-banner flex-none">
-          <BuddyListArt size={32} />
+          <BuddyListArt size={48} />
           <div className="min-w-0">
-            <p className="truncate font-semibold">{activeScope === "project" ? projectName : environmentName}</p>
-            <p className="bbd-buddies-online truncate">Online ({onlineCount})</p>
+            <p className="bbd-buddies-brand">bb Messenger</p>
+            <p className="truncate">{activeScope === "project" ? projectName : environmentName}</p>
           </div>
         </div>
+        <p className="bbd-buddies-online flex-none">Online ({onlineCount})</p>
         {environmentId === null ? null : (
           <div className="bbd-buddies-tabs flex-none" role="tablist" aria-label="Buddy List scope">
             {(["project", "environment"] as const).map((value) => (
@@ -3220,14 +3228,21 @@ function PanelWindow({ window: desktopWindow, threadId }: { window: DesktopWindo
   return (
     <WindowFrame
       window={desktopWindow}
-      title={`${thread?.title ?? "Thread"} — Details`}
+      title={`${thread?.title ?? "Thread"} - Buddy Info`}
       icon={<DetailsArt size={16} />}
     >
-      <div className="bbd-sunken h-full overflow-auto p-3">
+      <div className="bbd-im-info h-full overflow-auto">
         {thread === undefined ? (
           <p className="text-xs text-muted-foreground">This thread is not available.</p>
         ) : (
           <div className="space-y-3">
+            <div className="bbd-im-info-heading">
+              <BuddyListArt size={32} />
+              <div className="min-w-0">
+                <strong>{aimScreenName(thread.providerId, thread.id)}</strong>
+                <span>{describeStatus(thread)}</span>
+              </div>
+            </div>
             <fieldset className="bbd-fieldset">
               <legend>Thread</legend>
               <DetailRow label="Status">{describeStatus(thread)}</DetailRow>
