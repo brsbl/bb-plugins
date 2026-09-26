@@ -398,7 +398,7 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
   countRef.current = state.windows.length;
 
   const open = useCallback((spec: WindowSpec, rect?: Rect) => {
-    dispatch({ type: "open", spec, rect: rect ?? defaultRect(spec, countRef.current) });
+    dispatch({ type: "open", spec, rect: rect ? fitDragRect(rect, workAreaRect()) : defaultRect(spec, countRef.current) });
   }, []);
 
   const manager = useMemo<WindowManager>(() => {
@@ -633,7 +633,7 @@ export function WindowFrame({
   };
 
   const startDrag = (event: ReactPointerEvent<HTMLElement>, edge?: ResizeEdge) => {
-    if (event.button !== 0 || (event.target as HTMLElement).closest("button") !== null) return;
+    if (event.button !== 0 || event.isPrimary === false || (event.target as HTMLElement).closest("button") !== null) return;
     const element = frameRef.current;
     if (!element) return;
     manager.focus(id);

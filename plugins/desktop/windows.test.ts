@@ -48,7 +48,7 @@ function gesture() {
   target.releasePointerCapture = vi.fn();
   const move = vi.fn();
   const end = vi.fn();
-  const cancel = trackPointer({ currentTarget: target, clientX: 0, clientY: 0, pointerId: 1, button: 0 } as ReactPointerEvent<HTMLElement>, move, end);
+  const cancel = trackPointer({ currentTarget: target, clientX: 0, clientY: 0, pointerId: 1, button: 0 } as unknown as ReactPointerEvent<HTMLElement>, move, end);
   return { target, move, end, cancel };
 }
 

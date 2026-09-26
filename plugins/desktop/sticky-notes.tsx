@@ -241,7 +241,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
   }, [note.id]);
 
   const track = (event: ReactPointerEvent<HTMLElement>, resize = false) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || event.isPrimary === false) return;
     const element = noteRef.current;
     if (!element) return;
     raiseNote(note.id);
@@ -298,8 +298,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
       ]} />
       <textarea
         ref={textRef}
-        ref={noteRef}
-      className="bbd-note-text"
+        className="bbd-note-text"
         value={note.text}
         aria-label="Note text"
         wrap={wrap ? "soft" : "off"}

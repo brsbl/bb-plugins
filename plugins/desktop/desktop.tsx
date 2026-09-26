@@ -990,7 +990,7 @@ function DesktopCanvas() {
   const iconElements = () => Array.from(canvasRef.current?.querySelectorAll<HTMLElement>("[data-desktop-key]") ?? []);
 
   const beginIconDrag = (key: string, event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || event.isPrimary === false) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey) {
       setSelected((current) => {
         const next = new Set(current);
@@ -1041,7 +1041,7 @@ function DesktopCanvas() {
   };
 
   const beginMarquee = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget || event.button !== 0) return;
+    if (event.target !== event.currentTarget || event.button !== 0 || event.isPrimary === false) return;
     const base = event.metaKey || event.ctrlKey || event.shiftKey ? selected : new Set<string>();
     setSelected(base);
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -2743,7 +2743,7 @@ function ThreadCollection({
   const itemProps = (thread: DesktopThread) => ({
     draggable: false,
     onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || event.isPrimary === false) return;
       setSelected(thread.id);
       const source = event.currentTarget;
       const origin = { x: event.clientX, y: event.clientY };

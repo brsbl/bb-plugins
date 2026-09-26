@@ -183,7 +183,7 @@ export function MinesweeperGame() {
             aria-label={`Minesweeper, ${DIFFICULTIES[difficulty].label}`}
             style={{ gridTemplateColumns: `repeat(${board.cols}, ${cellSize}px)`, gridAutoRows: `${cellSize}px` }}
             onPointerDown={(event) => {
-              if (event.button !== 0 || board.status === "won" || board.status === "lost") return;
+              if (event.button !== 0 || event.isPrimary === false || board.status === "won" || board.status === "lost") return;
               // Capture the cell, not the grid, so a normal click still reveals it.
               const target = event.target as HTMLElement;
               const cell = target.closest<HTMLElement>(".bbd-mine-cell");

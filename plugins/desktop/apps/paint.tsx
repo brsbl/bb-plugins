@@ -312,7 +312,7 @@ export function PaintApp() {
   };
 
   const onCanvasPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (event.button !== 0 || strokeRef.current !== null) return;
+    if (event.button !== 0 || event.isPrimary === false || strokeRef.current !== null) return;
     event.preventDefault();
     rootRef.current?.focus({ preventScroll: true });
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -389,7 +389,7 @@ export function PaintApp() {
   };
 
   const onHandlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || strokeRef.current !== null) return;
+    if (event.button !== 0 || event.isPrimary === false || strokeRef.current !== null) return;
     event.preventDefault();
     event.stopPropagation();
     const start = sizeRef.current;

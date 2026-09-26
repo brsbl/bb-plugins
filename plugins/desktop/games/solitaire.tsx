@@ -278,7 +278,7 @@ export function SolitaireGame() {
   }, [drag?.returning, finishReturn]);
 
   const beginDrag = (source: MoveSource, event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || dragRef.current || won) return;
+    if (event.button !== 0 || event.isPrimary === false || dragRef.current || won) return;
     const board = boardRef.current;
     const cards = sourceCards(gameRef.current, source);
     if (!board || cards.length === 0) return;
