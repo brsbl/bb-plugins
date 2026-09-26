@@ -80,18 +80,14 @@ export function isThreadWorking(thread: {
 }
 
 /**
- * How the ball should react to a compaction count. Compactions only
- * accumulate, so a lower reading is stale and ignored: taking it would make
- * the next true reading pop as if the thread had just compacted. An unknown
- * count (`null`) changes nothing, and the first known count is shown quietly.
+ * The compaction count to show without a pop, or null to leave it. Counts
+ * only accumulate, so a lower reading is stale and ignored, and an unknown
+ * count (`null`) changes nothing. Pops come from bb's compaction events
+ * alone, never from a count that rose between reads.
  */
-export function compactionChange(
-  shown: number | null,
-  reported: number | null,
-): { kind: "pop" | "set"; compactions: number } | null {
+export function quietCompactions(shown: number | null, reported: number | null): number | null {
   if (reported === null) return null;
-  if (shown === null) return { kind: "set", compactions: reported };
-  return reported > shown ? { kind: "pop", compactions: reported } : null;
+  return shown === null || reported > shown ? reported : null;
 }
 
 /**

@@ -21,6 +21,8 @@ export interface KatamariStage {
   fill: number;
   /** Null until the thread's compaction count has been read. */
   compactions: number | null;
+  /** The newest compaction bb announced while the window was open; each new one pops the ball. */
+  compactedSeq: number | null;
   ready: boolean;
   title: string | null;
   usedTokens: number | null;
@@ -513,6 +515,7 @@ export function KatamariWindow({
     mode: stage.mode,
     fill: stage.fill,
     compactions: stage.compactions,
+    compactedSeq: stage.compactedSeq,
     ready: stage.ready,
     usedTokens: stage.usedTokens,
   };
@@ -579,7 +582,15 @@ export function KatamariWindow({
 
   useEffect(() => {
     worldRef.current?.setStage(worldStageRef.current);
-  }, [stage.threadId, stage.mode, stage.fill, stage.compactions, stage.ready, stage.usedTokens]);
+  }, [
+    stage.threadId,
+    stage.mode,
+    stage.fill,
+    stage.compactions,
+    stage.compactedSeq,
+    stage.ready,
+    stage.usedTokens,
+  ]);
 
   // New context lands with a chomp: a nibble for a little, a screen-shaking gulp for a heavy turn.
   const lastUsage = useRef<{

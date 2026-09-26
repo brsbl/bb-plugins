@@ -46,6 +46,21 @@ export const threadContextSchema = z
 
 export type ThreadContext = z.infer<typeof threadContextSchema>;
 
+/** Realtime channel the server announces each new compaction on. */
+export const COMPACTED_CHANNEL = "compacted";
+
+export const compactedSignalSchema = z
+  .object({
+    threadId: z.string().min(1),
+    /** The `thread/compacted` event's sequence number, unique within the thread. */
+    seq: z.number().int().nonnegative(),
+    /** The thread's compaction count including this one, capped at the read limit. */
+    compactions: z.number().int().positive(),
+  })
+  .strict();
+
+export type CompactedSignal = z.infer<typeof compactedSignalSchema>;
+
 export const contextKatamariRpcContract = defineRpcContract({
   readThreadContext: {
     input: z.object({ threadId: z.string().min(1).max(200) }).strict(),

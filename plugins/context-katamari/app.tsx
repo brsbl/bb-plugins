@@ -3,10 +3,18 @@ import {
   definePluginApp,
   experimental_useSidebarThreads,
   useBbContext,
+  useRealtime,
   useRpc,
 } from "@get-bb/plugin-sdk/app";
 
-import type { contextKatamariRpcContract, ThreadContext, TurnCost } from "./contract";
+import {
+  COMPACTED_CHANNEL,
+  type CompactedSignal,
+  compactedSignalSchema,
+  type contextKatamariRpcContract,
+  type ThreadContext,
+  type TurnCost,
+} from "./contract";
 import { contextFill } from "./katamari-math";
 import { KatamariWindow, type KatamariStage } from "./katamari-window";
 import {
@@ -172,12 +180,29 @@ function KatamariController({
     stageThread?.updatedAt ?? null,
   );
 
+  // bb's compaction events, announced by the server as they happen, are what pop the ball.
+  const [compacted, setCompacted] = useState<ReadonlyMap<string, CompactedSignal>>(new Map());
+  useRealtime(COMPACTED_CHANNEL, (payload) => {
+    const signal = compactedSignalSchema.safeParse(payload);
+    if (!signal.success) return;
+    setCompacted((current) => {
+      if ((current.get(signal.data.threadId)?.seq ?? -1) >= signal.data.seq) return current;
+      return new Map(current).set(signal.data.threadId, signal.data);
+    });
+  });
+  const lastCompaction = stage.threadId === null ? null : (compacted.get(stage.threadId) ?? null);
+  const polledCompactions = context?.compactions ?? null;
+
   const usage = context?.usage ?? null;
   const windowStage: KatamariStage = {
     threadId: stage.threadId,
     mode: stage.mode,
     fill: usage ? contextFill(usage.usedTokens, usage.capacityTokens) : 0,
-    compactions: context?.compactions ?? null,
+    compactions:
+      lastCompaction === null
+        ? polledCompactions
+        : Math.max(polledCompactions ?? 0, lastCompaction.compactions),
+    compactedSeq: lastCompaction?.seq ?? null,
     ready: context !== null,
     title: stageThread
       ? stageThread.title?.trim() || stageThread.titleFallback?.trim() || "Untitled thread"

@@ -1,6 +1,8 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 import {
+  COMPACTED_CHANNEL,
+  type CompactedSignal,
   type ContextUsage,
   contextKatamariRpcContract,
   TURN_HISTORY_LIMIT,
@@ -226,6 +228,38 @@ export default function plugin(bb: BbPluginApi): void {
   const ledgers = new Map<string, UsageLedger>();
 
   const ledgerKey = (threadId: string) => `ledger:${threadId}`;
+  /** The newest `thread/compacted` sequence already seen, per thread. */
+  const compactionCursors = new Map<string, number>();
+  const cursorKey = (threadId: string) => `compacted:${threadId}`;
+  const compactionChecks = new Map<string, Promise<void>>();
+
+  /**
+   * Announce compactions bb recorded since the last look. A thread seen for
+   * the first time only sets the baseline, so opening old history or a fork
+   * that copied its parent's compactions never pops a ball.
+   */
+  const checkCompactions = async (threadId: string): Promise<void> => {
+    const events = await bb.sdk.threads.events.list({
+      threadId,
+      types: ["thread/compacted"],
+      order: "desc",
+      limit: String(COMPACTION_READ_LIMIT),
+    });
+    const newest = events[0]?.seq ?? 0;
+    const seen = compactionCursors.has(threadId)
+      ? compactionCursors.get(threadId)
+      : await bb.storage.kv.get<number>(cursorKey(threadId));
+    const baseline = typeof seen !== "number";
+    if (!baseline && newest <= seen) {
+      compactionCursors.set(threadId, seen);
+      return;
+    }
+    compactionCursors.set(threadId, newest);
+    await bb.storage.kv.set(cursorKey(threadId), newest);
+    if (baseline) return;
+    const signal: CompactedSignal = { threadId, seq: newest, compactions: events.length };
+    bb.realtime.publish(COMPACTED_CHANNEL, signal);
+  };
 
   /** Read the thread's latest usage report into its ledger. */
   const observe = async (threadId: string): Promise<{ ledger: UsageLedger; latest: number | null }> => {
@@ -255,10 +289,25 @@ export default function plugin(bb: BbPluginApi): void {
       bb.log.debug(`Could not record usage for ${thread.id}: ${describe(error)}`);
     });
   });
+  // bb records a compaction as a thread event; checks for one thread run one at a time.
+  bb.events.on("experimental_thread.events", async ({ thread }) => {
+    const check = (compactionChecks.get(thread.id) ?? Promise.resolve())
+      .then(() => checkCompactions(thread.id))
+      .catch((error: unknown) => {
+        bb.log.debug(`Could not check compactions for ${thread.id}: ${describe(error)}`);
+      });
+    compactionChecks.set(thread.id, check);
+    await check;
+    if (compactionChecks.get(thread.id) === check) compactionChecks.delete(thread.id);
+  });
   bb.events.on("thread.deleted", async ({ thread }) => {
     ledgers.delete(thread.id);
     compactPoints.delete(thread.id);
-    await bb.storage.kv.delete(ledgerKey(thread.id));
+    compactionCursors.delete(thread.id);
+    await Promise.all([
+      bb.storage.kv.delete(ledgerKey(thread.id)),
+      bb.storage.kv.delete(cursorKey(thread.id)),
+    ]);
   });
 
   const readTurns = async (threadId: string): Promise<TurnCost[]> => {

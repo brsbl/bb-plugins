@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  compactionChange,
+  quietCompactions,
   createReadOrder,
   EMPTY_STAGE,
   isThreadWorking,
@@ -76,20 +76,20 @@ describe("isThreadWorking", () => {
   });
 });
 
-describe("compactionChange", () => {
-  it("pops only when the count rises", () => {
-    expect(compactionChange(1, 2)).toEqual({ kind: "pop", compactions: 2 });
-    expect(compactionChange(2, 2)).toBeNull();
+describe("quietCompactions", () => {
+  it("shows a higher count and leaves an equal one", () => {
+    expect(quietCompactions(1, 2)).toBe(2);
+    expect(quietCompactions(2, 2)).toBeNull();
   });
 
-  it("ignores a lower, stale count so the true count cannot pop later", () => {
-    expect(compactionChange(2, 0)).toBeNull();
+  it("ignores a lower, stale count", () => {
+    expect(quietCompactions(2, 0)).toBeNull();
   });
 
-  it("shows the first known count quietly and ignores unknown counts", () => {
-    expect(compactionChange(null, 3)).toEqual({ kind: "set", compactions: 3 });
-    expect(compactionChange(null, null)).toBeNull();
-    expect(compactionChange(2, null)).toBeNull();
+  it("shows the first known count and ignores unknown counts", () => {
+    expect(quietCompactions(null, 3)).toBe(3);
+    expect(quietCompactions(null, null)).toBeNull();
+    expect(quietCompactions(2, null)).toBeNull();
   });
 });
 
