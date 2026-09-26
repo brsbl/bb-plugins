@@ -294,7 +294,7 @@ function loadHighScore(): number {
 }
 
 function formatScore(score: number): string {
-  return score.toLocaleString("en-US");
+  return String(score);
 }
 
 const HOLE = { x: 202, y: 548 };
@@ -1200,7 +1200,7 @@ export function PinballGame({ active = true }: { active?: boolean }) {
             <DotMatrix text={over ? "Game Over" : !running ? "Game Paused\nF3 to Resume" : "Player 1"} />
           </p>
           <p className="bbd-pinball-box bbd-pinball-message" data-tone={over ? "over" : undefined}>
-            <DotMatrix text={over ? `High Score\n${formatScore(Math.max(highScore, hud.score))}` : !running ? "" : message} />
+            <DotMatrix text={over ? `HIGH SCORE\n${formatScore(Math.max(highScore, hud.score))}` : !running ? "" : message} />
             <span className="bbd-pinball-live">{detail}</span>
           </p>
           <button
