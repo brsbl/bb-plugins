@@ -280,9 +280,10 @@ export function SolitaireGame() {
   }, [startNewGame]);
 
   const drawCard = useCallback(() => {
+    if (dragRef.current?.returning) updateDrag(null);
     if (dragRef.current) return;
     setGame((current) => draw(current));
-  }, []);
+  }, [updateDrag]);
 
   const autoMove = useCallback((source: MoveSource) => {
     setGame((current) => {
@@ -302,15 +303,22 @@ export function SolitaireGame() {
   }, [drag?.returning, finishReturn]);
 
   const beginDrag = (source: MoveSource, event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || event.isPrimary === false || dragRef.current || won) return;
+    if (event.button !== 0 || event.isPrimary === false || won) return;
+    // A card still gliding home must not swallow the next grab.
+    if (dragRef.current?.returning) updateDrag(null);
+    if (dragRef.current) return;
     const board = boardRef.current;
     const cards = sourceCards(gameRef.current, source);
     if (!board || cards.length === 0) return;
     const cardRect = event.currentTarget.getBoundingClientRect();
     const boardRect = board.getBoundingClientRect();
-    const targets = Array.from(board.querySelectorAll("[data-sol-drop]")).map((element) => ({
-      target: parseTarget(element), rect: element.getBoundingClientRect(),
-    }));
+    // A tableau column accepts drops anywhere below its top card, down to the bottom of the felt.
+    const targets = Array.from(board.querySelectorAll("[data-sol-drop]")).map((element) => {
+      const target = parseTarget(element);
+      const rect = element.getBoundingClientRect();
+      const bottom = target?.kind === "tableau" ? Math.max(rect.bottom, boardRect.bottom) : rect.bottom;
+      return { target, rect: new DOMRect(rect.left, rect.top, rect.width, bottom - rect.top) };
+    });
     const originX = cardRect.left - boardRect.left + board.scrollLeft;
     const originY = cardRect.top - boardRect.top + board.scrollTop;
     const initial: Drag = {
@@ -329,10 +337,15 @@ export function SolitaireGame() {
     }, (cancelled, moved) => {
       if (cancelled || !moved) { updateDrag(null); return; }
       const lead = new DOMRect(cardRect.left + delta.x, cardRect.top + delta.y, cardRect.width, cardRect.height);
+      const pointerX = initial.startX + delta.x;
+      const pointerY = initial.startY + delta.y;
+      // The legal pile under the pointer wins; otherwise the legal pile the card overlaps most.
       let best: { target: MoveTarget; area: number } | null = null;
       for (const candidate of targets) {
         if (!candidate.target || !canMove(gameRef.current, source, candidate.target)) continue;
-        const area = overlap(lead, candidate.rect);
+        const { left, right, top, bottom } = candidate.rect;
+        const underPointer = pointerX >= left && pointerX <= right && pointerY >= top && pointerY <= bottom;
+        const area = underPointer ? Infinity : overlap(lead, candidate.rect);
         if (area > 0 && (!best || area > best.area)) best = { target: candidate.target, area };
       }
       const next = best ? move(gameRef.current, source, best.target) : null;

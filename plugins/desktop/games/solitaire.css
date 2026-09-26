@@ -116,8 +116,9 @@
   cursor: grab;
 }
 
+/* Transparent rather than hidden, so a card gliding home can be grabbed again at its origin. */
 .bbd-sol-card[data-hidden="true"] {
-  visibility: hidden;
+  opacity: 0;
 }
 
 .bbd-sol-back {
