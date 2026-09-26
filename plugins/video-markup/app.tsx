@@ -282,7 +282,15 @@ export function VideoMarkupPanel({threadId,params}: PluginThreadPanelProps) {
   const [versions,setVersions]=useState<Version[]>([]),[current,setCurrent]=useState<string|null>(presentation?.versionId??initial),[demo,setDemo]=useState<string|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[reload,setReload]=useState(0),[dirty,setDirty]=useState(false);
   const refresh=useCallback(()=>setReload(n=>n+1),[]);
   useRealtime("changed",refresh);
-  useEffect(()=>{setCurrent(presentation?.versionId??initial);setDemo(null);setDirty(false);setError("");refresh();},[threadId,initial,presentation,refresh]);
+  // A newly presented render waits while a note is being drafted, so switching versions never discards the draft.
+  const applied=useRef<{threadId:string;initial:string|null;presentation:typeof presentation}|null>(null);
+  useEffect(()=>{
+    const last=applied.current;
+    if(last&&last.threadId===threadId&&last.initial===initial&&last.presentation===presentation)return;
+    if(last&&last.threadId===threadId&&dirty)return;
+    applied.current={threadId,initial,presentation};
+    setCurrent(presentation?.versionId??initial);setDemo(null);setDirty(false);setError("");refresh();
+  },[threadId,initial,presentation,refresh,dirty]);
   useEffect(()=>{let cancelled=false;void(async()=>{const all:Version[]=[];let offset:number|null=0,selectedDemo:string|null=null;do{const page: {versions: Version[]; nextOffset: number | null; currentDemo: string | null}=await rpc.call("versions",{threadId,offset});all.push(...page.versions);selectedDemo=page.currentDemo;offset=page.nextOffset;}while(offset!==null&&!cancelled);if(!cancelled){setVersions(all);setCurrent(v=>v??all.filter(item=>!selectedDemo||item.demo===selectedDemo).at(-1)?.id??null);setLoading(false);}})().catch(e=>{if(!cancelled){setError(errorText(e));setLoading(false);}});return()=>{cancelled=true;};},[rpc,threadId,reload]);
   const active=versions.find(v=>v.id===current),activeDemo=demo??active?.demo??versions.at(-1)?.demo;
   const demos=[...new Set(versions.map(v=>v.demo))];

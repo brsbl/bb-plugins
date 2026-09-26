@@ -4,7 +4,7 @@ import { parseArgs } from "node:util";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { hostContract } from "./host-contract.js";
-import { directive, id, isActionable, listSchema, mediaSchema, MENTION_PROVIDER, noteInputSchema, noteSchema, promptContext, registerSchema, selectionSchema, sourceSchema, statusInputSchema, stillSchema, versionSchema, videoName, VIDEO_EXTENSIONS, type Media } from "./model.js";
+import { directive, id, isActionable, listSchema, mediaSchema, MENTION_PROVIDER, noteInputSchema, noteSchema, promptContext, registerSchema, selectionSchema, sourceSchema, statusInputSchema, stillSchema, versionSchema, videoName, VIDEO_EXTENSIONS, type Media, type Version } from "./model.js";
 import { openStore } from "./store.js";
 import { mediaResponse } from "./media.js";
 
@@ -144,14 +144,16 @@ export default function plugin(bb: BbPluginApi): void {
       };
     },
   });
+  // Agents and the CLI never need per-frame timestamps; a long render has tens of thousands of them.
+  const withoutFrameTimes = (version: Version): Version => ({...version, media: {...version.media, frameTimes: []}});
   async function present(input: z.output<typeof registerSchema>) {
     const version = await handlers.register(input);
     bb.realtime.publish("present", {threadId: input.threadId, versionId: version.id});
-    return {version, ...handlers.post({threadId: input.threadId, versionId: version.id})};
+    return {version: withoutFrameTimes(version), ...handlers.post({threadId: input.threadId, versionId: version.id})};
   }
   const operations = {
     present: {schema: registerSchema, tool: "video_markup_present", description: "Present an attached or rendered video for markup: register it if needed, request its review panel, and return the inline player directive to emit. Set attachment=true for temporary composer attachment files.", run: present},
-    register: {schema: registerSchema, tool: "video_markup_register_version", description: "Register a rendered demo version and carry forward unresolved notes.", run: handlers.register},
+    register: {schema: registerSchema, tool: "video_markup_register_version", description: "Register a rendered demo version and carry forward unresolved notes.", run: async (input: z.output<typeof registerSchema>) => withoutFrameTimes(await handlers.register(input))},
     versions: {schema: libraryInput, tool: "video_markup_versions", description: "List a thread's demos and versions in order.", run: handlers.versions},
     notes: {schema: listSchema, tool: "video_markup_list_notes", description: "Read frame notes before revising a demo; filter by version, status, or actionable.", run: handlers.notes},
     "add-note": {schema: noteInputSchema, tool: "video_markup_add_note", description: "Save a timestamped note, normalized box/arrow/zoom shapes, and a captured JPEG still.", run: handlers.addNote},
@@ -166,8 +168,11 @@ export default function plugin(bb: BbPluginApi): void {
     return (operation.run as (value: unknown) => unknown)(operation.schema.parse(input));
   }
   for (const [command, operation] of Object.entries(operations)) {
+    // The thread defaults to the calling agent's own, so agents are never pushed to supply or guess one.
+    const parameters = z.toJSONSchema(operation.schema, {io: "input"});
+    parameters.required = parameters.required?.filter(field => field !== "threadId");
     bb.agents.registerTool({name: operation.tool, description: operation.description,
-      parameters: z.toJSONSchema(operation.schema, {io: "input"}),
+      parameters,
       async execute(input, context) {
         const fields = z.record(z.string(), z.unknown()).parse(input);
         const result = await run(command, {...fields, threadId: fields.threadId ?? context.threadId});
