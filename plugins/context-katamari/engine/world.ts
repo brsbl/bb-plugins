@@ -11,7 +11,7 @@ import {
 } from "../katamari-math";
 import { type Drive, IDLE_DRIVE, isIdle } from "../controls";
 import type { KatamariAudio } from "../sound";
-import type { StageMode } from "../stage";
+import { quietCompactions, type StageMode } from "../stage";
 import { CompactionMoons, dressCore } from "./core";
 import { buildCousin, type CousinRig, MAX_DIZZY_STARS, poseCousin } from "./cousin";
 import { Environment } from "./environment";
@@ -69,7 +69,10 @@ export interface WorldStage {
   threadId: string | null;
   mode: StageMode;
   fill: number;
-  compactions: number;
+  /** Null until the thread's compaction count has been read. */
+  compactions: number | null;
+  /** The newest compaction bb announced for the thread; a new one pops the ball. */
+  compactedSeq?: number | null;
   /** False until the thread's context has loaded at least once. */
   ready: boolean;
   /** Tokens the thread holds, for the coin trail; null while unknown. */
@@ -174,6 +177,10 @@ interface Actor {
   nubColor: number;
   moons: CompactionMoons;
   compactions: number;
+  /** False while the thread's real count is unknown and the core shows a guess. */
+  compactionsKnown: boolean;
+  /** The announced compaction this cousin has already shown; only a newer one pops. */
+  compactedSeq: number | null;
   synced: boolean;
   pop: PopState | null;
   gulp: GulpState | null;
@@ -251,10 +258,16 @@ export class KatamariWorld {
   private active: Actor | null = null;
   private exiting: Actor[] = [];
   private mode: StageMode = "empty";
+  /** The on-stage thread's latest announced compaction and count. */
+  private compacted: { seq: number | null; compactions: number | null } = {
+    seq: null,
+    compactions: null,
+  };
   private pendingEntry: {
     threadId: string;
     fill: number;
-    compactions: number;
+    compactions: number | null;
+    compactedSeq: number | null;
     ready: boolean;
     delay: number;
     waited: number;
@@ -367,6 +380,7 @@ export class KatamariWorld {
 
   setStage(stage: WorldStage): void {
     this.mode = stage.mode;
+    this.compacted = { seq: stage.compactedSeq ?? null, compactions: stage.compactions };
     if (stage.usedTokens !== undefined) this.usedTokens = stage.usedTokens;
     const target = radiusForFill(stage.fill);
     if (stage.threadId === null) return;
@@ -378,6 +392,7 @@ export class KatamariWorld {
     if (this.pendingEntry) {
       this.pendingEntry.fill = stage.fill;
       this.pendingEntry.compactions = stage.compactions;
+      this.pendingEntry.compactedSeq = stage.compactedSeq ?? null;
       this.pendingEntry.ready = stage.ready;
       return;
     }
@@ -388,22 +403,38 @@ export class KatamariWorld {
       actor.synced = true;
       actor.radius = target;
       actor.targetRadius = target;
-      this.setCompactions(actor, stage.compactions, false);
+      actor.compactedSeq = stage.compactedSeq ?? null;
+      this.showKnownCompactions(actor, stage.compactions);
       if (actor.stuck.length < 12) this.prefill(actor);
       return;
     }
     actor.targetRadius = target;
-    if (stage.compactions > actor.compactions && actor.phase === "stage" && !actor.pop) {
-      actor.pop = {
-        time: 0,
-        fromRadius: actor.radius,
-        compactions: stage.compactions,
-        burst: false,
-        startScale: 1,
-      };
-    } else if (stage.compactions !== actor.compactions && !actor.pop) {
-      this.setCompactions(actor, stage.compactions, false);
-    }
+    if (this.popIfCompacted(actor) || actor.pop) return;
+    const quiet = quietCompactions(
+      actor.compactionsKnown ? actor.compactions : null,
+      stage.compactions,
+    );
+    if (quiet !== null) this.showKnownCompactions(actor, quiet);
+  }
+
+  /**
+   * Pop when bb has announced a compaction this cousin has not shown yet. A
+   * pop in progress or a cousin still rolling in waits; the update loop
+   * retries each frame.
+   */
+  private popIfCompacted(actor: Actor): boolean {
+    const { seq, compactions } = this.compacted;
+    if (seq === null || seq === actor.compactedSeq) return false;
+    if (!actor.synced || actor.pop || actor.phase !== "stage") return false;
+    actor.compactedSeq = seq;
+    actor.pop = {
+      time: 0,
+      fromRadius: actor.radius,
+      compactions: Math.max(compactions ?? 0, actor.compactions),
+      burst: false,
+      startScale: 1,
+    };
+    return true;
   }
 
   /**
@@ -516,6 +547,7 @@ export class KatamariWorld {
       threadId: stage.threadId ?? "",
       fill: stage.fill,
       compactions: stage.compactions,
+      compactedSeq: stage.compactedSeq ?? null,
       ready: stage.ready,
       delay: leaving ? 0.45 : 0,
       waited: 0,
@@ -529,13 +561,28 @@ export class KatamariWorld {
     actor.moons.setCount(compactions, animate);
   }
 
-  private spawnEntering(threadId: string, fill: number, compactions: number, ready: boolean): void {
+  /** Show a count read from bb without a pop; an unknown count leaves the core as it is. */
+  private showKnownCompactions(actor: Actor, compactions: number | null): void {
+    if (compactions === null) return;
+    actor.compactionsKnown = true;
+    this.setCompactions(actor, compactions, false);
+  }
+
+  private spawnEntering(
+    threadId: string,
+    fill: number,
+    compactions: number | null,
+    compactedSeq: number | null,
+    ready: boolean,
+  ): void {
     // Switching straight back turns a departing cousin around.
     const returning = this.exiting.find((leaving) => leaving.threadId === threadId);
     if (returning) {
       this.exiting = this.exiting.filter((leaving) => leaving !== returning);
       returning.targetRadius = radiusForFill(fill);
-      if (ready) this.setCompactions(returning, compactions, false);
+      if (ready) this.showKnownCompactions(returning, compactions);
+      // Compactions announced while the cousin was away are shown, not popped.
+      returning.compactedSeq = compactedSeq;
       returning.phase = "enter";
       returning.phaseTime = 0;
       this.active = returning;
@@ -546,7 +593,8 @@ export class KatamariWorld {
     this.actorCache.delete(threadId);
     const actor = cached ?? this.createActor(threadId, fill, compactions, ready);
     actor.targetRadius = radiusForFill(fill);
-    if (cached && ready) this.setCompactions(actor, compactions, false);
+    if (cached && ready) this.showKnownCompactions(actor, compactions);
+    actor.compactedSeq = compactedSeq;
     // Enter from screen left and roll to where the camera is looking.
     const left = new THREE.Vector2(
       Math.sin(this.cameraHeading),
@@ -574,7 +622,13 @@ export class KatamariWorld {
 
   private hasOrigin = false;
 
-  private createActor(threadId: string, fill: number, compactions: number, ready: boolean): Actor {
+  private createActor(
+    threadId: string,
+    fill: number,
+    knownCompactions: number | null,
+    ready: boolean,
+  ): Actor {
+    const compactions = knownCompactions ?? 0;
     const seed = hashString(threadId);
     const random = mulberry32(seed);
     const rig = buildCousin(this.kit, seed);
@@ -602,6 +656,8 @@ export class KatamariWorld {
       nubColor,
       moons,
       compactions,
+      compactionsKnown: ready && knownCompactions !== null,
+      compactedSeq: null,
       synced: ready,
       pop: null,
       gulp: null,
@@ -663,12 +719,21 @@ export class KatamariWorld {
       entry.waited += deltaSeconds;
       if (entry.delay <= 0 && (entry.ready || entry.waited > READY_TIMEOUT_SECONDS)) {
         this.pendingEntry = null;
-        this.spawnEntering(entry.threadId, entry.fill, entry.compactions, entry.ready);
+        this.spawnEntering(
+          entry.threadId,
+          entry.fill,
+          entry.compactions,
+          entry.compactedSeq,
+          entry.ready,
+        );
       }
     }
 
     const actor = this.active;
-    if (actor) this.updateActor(actor, deltaSeconds);
+    if (actor) {
+      this.popIfCompacted(actor);
+      this.updateActor(actor, deltaSeconds);
+    }
     for (const leaving of this.exiting) this.updateActor(leaving, deltaSeconds);
     this.exiting = this.exiting.filter((leaving) => {
       const far = Math.hypot(leaving.x - this.cameraFocus.x, leaving.z - this.cameraFocus.z) >

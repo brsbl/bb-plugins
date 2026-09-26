@@ -34,14 +34,32 @@ export type TurnCost = z.infer<typeof turnCostSchema>;
 export const threadContextSchema = z
   .object({
     usage: contextUsageSchema.nullable(),
-    /** How many times the thread's context has been compacted, capped at the read limit. */
-    compactions: z.number().int().nonnegative(),
+    /**
+     * How many times the thread's context has been compacted, capped at the read
+     * limit; null when the count could not be read this time.
+     */
+    compactions: z.number().int().nonnegative().nullable(),
     /** The most recent turns, newest first. */
     turns: z.array(turnCostSchema).max(TURN_HISTORY_LIMIT).optional(),
   })
   .strict();
 
 export type ThreadContext = z.infer<typeof threadContextSchema>;
+
+/** Realtime channel the server announces each new compaction on. */
+export const COMPACTED_CHANNEL = "compacted";
+
+export const compactedSignalSchema = z
+  .object({
+    threadId: z.string().min(1),
+    /** The `thread/compacted` event's sequence number, unique within the thread. */
+    seq: z.number().int().nonnegative(),
+    /** The thread's compaction count including this one, capped at the read limit. */
+    compactions: z.number().int().positive(),
+  })
+  .strict();
+
+export type CompactedSignal = z.infer<typeof compactedSignalSchema>;
 
 export const contextKatamariRpcContract = defineRpcContract({
   readThreadContext: {

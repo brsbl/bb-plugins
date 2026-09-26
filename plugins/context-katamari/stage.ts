@@ -78,3 +78,32 @@ export function isThreadWorking(thread: {
   if (thread.status !== undefined) return WORKING_STATUSES.has(thread.status);
   return WORKING_INDICATORS.has(thread.indicator);
 }
+
+/**
+ * The compaction count to show without a pop, or null to leave it. Counts
+ * only accumulate, so a lower reading is stale and ignored, and an unknown
+ * count (`null`) changes nothing. Pops come from bb's compaction events
+ * alone, never from a count that rose between reads.
+ */
+export function quietCompactions(shown: number | null, reported: number | null): number | null {
+  if (reported === null) return null;
+  return shown === null || reported > shown ? reported : null;
+}
+
+/**
+ * Orders the replies to overlapping reads of one thread. A reply older than
+ * one already applied is stale and dropped; a newer one always lands, so
+ * frequent refreshes never starve the window of updates.
+ */
+export function createReadOrder() {
+  let issued = 0;
+  let applied = 0;
+  return {
+    begin: () => ++issued,
+    accept(read: number): boolean {
+      if (read <= applied) return false;
+      applied = read;
+      return true;
+    },
+  };
+}

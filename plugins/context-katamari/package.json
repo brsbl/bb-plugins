@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-context-katamari",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A floating Katamari world where each thread's ball grows as its context window fills.",
   "type": "module",
   "license": "UNLICENSED",
