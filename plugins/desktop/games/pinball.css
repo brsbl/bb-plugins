@@ -313,7 +313,7 @@
   position: fixed;
   inset: auto;
   margin: 0;
-  width: min(430px, calc(100vw - 24px));
+  width: min(430px, calc(100vw - 24px), 100cqi);
   max-height: calc(100vh - 48px);
   padding: 3px;
   border: 1px solid var(--bbd-blue-deep);
