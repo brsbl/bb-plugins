@@ -41,8 +41,24 @@ const SKY_KEYS: readonly SkyKey[] = [
   { at: 1.0, top: 0x6f9be0, horizon: 0xf7d2dd, sun: 0xffd2a8, hemiSky: 0xfff0f4, hemiGround: 0xb9c79a, light: 1.0, stars: 0.1 },
 ];
 
-const scratchA = new THREE.Color();
-const scratchB = new THREE.Color();
+const scratchColor = new THREE.Color();
+const scratchSunDirection = new THREE.Vector3();
+const WHITE = new THREE.Color(1, 1, 1);
+
+/** Rewritten by every `sampleSky` call, so read it before sampling again. */
+const skySample = {
+  top: new THREE.Color(),
+  horizon: new THREE.Color(),
+  sun: new THREE.Color(),
+  hemiSky: new THREE.Color(),
+  hemiGround: new THREE.Color(),
+  light: 0,
+  stars: 0,
+};
+
+function mixHex(target: THREE.Color, from: number, to: number, blend: number): void {
+  target.setHex(from).lerp(scratchColor.setHex(to), blend);
+}
 
 function sampleSky(phase: number) {
   let index = 0;
@@ -50,17 +66,14 @@ function sampleSky(phase: number) {
   const from = SKY_KEYS[index];
   const to = SKY_KEYS[index + 1];
   const blend = THREE.MathUtils.smoothstep(phase, from.at, to.at);
-  const mix = (a: number, b: number) =>
-    scratchA.setHex(a).lerp(scratchB.setHex(b), blend).clone();
-  return {
-    top: mix(from.top, to.top),
-    horizon: mix(from.horizon, to.horizon),
-    sun: mix(from.sun, to.sun),
-    hemiSky: mix(from.hemiSky, to.hemiSky),
-    hemiGround: mix(from.hemiGround, to.hemiGround),
-    light: THREE.MathUtils.lerp(from.light, to.light, blend),
-    stars: THREE.MathUtils.lerp(from.stars, to.stars, blend),
-  };
+  mixHex(skySample.top, from.top, to.top, blend);
+  mixHex(skySample.horizon, from.horizon, to.horizon, blend);
+  mixHex(skySample.sun, from.sun, to.sun, blend);
+  mixHex(skySample.hemiSky, from.hemiSky, to.hemiSky, blend);
+  mixHex(skySample.hemiGround, from.hemiGround, to.hemiGround, blend);
+  skySample.light = THREE.MathUtils.lerp(from.light, to.light, blend);
+  skySample.stars = THREE.MathUtils.lerp(from.stars, to.stars, blend);
+  return skySample;
 }
 
 const SKY_VERTEX = /* glsl */ `
@@ -316,11 +329,13 @@ export class Environment {
     const arc = daylight ? this.phase / 0.7 : (this.phase - 0.7) / 0.3;
     const elevation = Math.sin(arc * Math.PI) * (daylight ? 1 : 0.7);
     const azimuth = arc * Math.PI + 0.4;
-    const sunDirection = new THREE.Vector3(
-      Math.cos(azimuth) * Math.cos(Math.asin(Math.min(0.999, elevation))),
-      Math.max(0.05, elevation),
-      Math.sin(azimuth) * 0.6,
-    ).normalize();
+    const sunDirection = scratchSunDirection
+      .set(
+        Math.cos(azimuth) * Math.cos(Math.asin(Math.min(0.999, elevation))),
+        Math.max(0.05, elevation),
+        Math.sin(azimuth) * 0.6,
+      )
+      .normalize();
 
     this.skyUniforms.uTop.value.copy(sky.top);
     this.skyUniforms.uHorizon.value.copy(sky.horizon);
@@ -357,7 +372,7 @@ export class Environment {
     this.groundUniforms.uDetail.value = 0.36 * 2 ** level;
     this.groundUniforms.uLight.value
       .copy(sky.hemiSky)
-      .lerp(new THREE.Color(1, 1, 1), 0.35)
+      .lerp(WHITE, 0.35)
       .multiplyScalar(0.55 + sky.light * 0.4);
     this.groundUniforms.uFogColor.value.copy(this.fogColor);
     this.groundUniforms.uFogNear.value = fogNear;
