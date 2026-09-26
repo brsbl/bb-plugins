@@ -1,0 +1,39 @@
+/* Mesh Mono — generated from a mesh gradient (seed 47).
+   Only the anchors, accent, and semantics are set; bb derives the rest. */
+:root, .light {
+  --canvas: #f6f7f9;
+  --ink: #18222f;
+  --primary: #2941ae;
+  --primary-foreground: #f6f7f9;
+  --muted-foreground: color-mix(in oklch, var(--ink) 70%, var(--canvas));
+  --subtle-foreground: color-mix(in oklch, var(--ink) 58%, var(--canvas));
+  --readback-foreground: color-mix(in oklch, var(--ink) 64%, var(--canvas));
+  --timeline-accent: #2941ae;
+  --file-accent: var(--timeline-accent);
+  --destructive: #b3261e;
+  --destructive-text: #8c1d18;
+  --warning: #b06000;
+  --warning-text: #8a4b00;
+  --attention: #3c59dd;
+  --success: #2e7d32;
+  --diff-added: #2e7d32;
+  --diff-removed: #b3261e;
+  --pr-merged: #7e46b9;
+}
+.dark {
+  --canvas: #151b23;
+  --ink: #e1e5ea;
+  --primary: #7b8de0;
+  --primary-foreground: #151b23;
+  --timeline-accent: #7b8de0;
+  --file-accent: var(--timeline-accent);
+  --destructive: #f2b8b5;
+  --destructive-text: #f2b8b5;
+  --warning: #ffb77c;
+  --warning-text: #ffb77c;
+  --attention: #7489e7;
+  --success: #7bc47f;
+  --diff-added: #7bc47f;
+  --diff-removed: #f2b8b5;
+  --pr-merged: #b18cd9;
+}

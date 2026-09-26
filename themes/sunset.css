@@ -1,0 +1,39 @@
+/* Mesh Sunset — generated from a mesh gradient (seed 47).
+   Only the anchors, accent, and semantics are set; bb derives the rest. */
+:root, .light {
+  --canvas: #f9f6f7;
+  --ink: #2f1820;
+  --primary: #ae5129;
+  --primary-foreground: #f9f6f7;
+  --muted-foreground: color-mix(in oklch, var(--ink) 70%, var(--canvas));
+  --subtle-foreground: color-mix(in oklch, var(--ink) 58%, var(--canvas));
+  --readback-foreground: color-mix(in oklch, var(--ink) 64%, var(--canvas));
+  --timeline-accent: #ae5129;
+  --file-accent: var(--timeline-accent);
+  --destructive: #b3261e;
+  --destructive-text: #8c1d18;
+  --warning: #b06000;
+  --warning-text: #8a4b00;
+  --attention: #dd6c3c;
+  --success: #2e7d32;
+  --diff-added: #2e7d32;
+  --diff-removed: #b3261e;
+  --pr-merged: #b9b546;
+}
+.dark {
+  --canvas: #23151a;
+  --ink: #eae1e4;
+  --primary: #e0997b;
+  --primary-foreground: #23151a;
+  --timeline-accent: #e0997b;
+  --file-accent: var(--timeline-accent);
+  --destructive: #f2b8b5;
+  --destructive-text: #f2b8b5;
+  --warning: #ffb77c;
+  --warning-text: #ffb77c;
+  --attention: #e79774;
+  --success: #7bc47f;
+  --diff-added: #7bc47f;
+  --diff-removed: #f2b8b5;
+  --pr-merged: #d9d68c;
+}
