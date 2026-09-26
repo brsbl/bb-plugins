@@ -1010,6 +1010,7 @@
 
 .bbd-note-grip {
   position: absolute;
+  touch-action: none;
   right: 0;
   bottom: 0;
   width: 14px;
