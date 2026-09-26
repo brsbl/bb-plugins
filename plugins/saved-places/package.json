@@ -1,0 +1,58 @@
+{
+  "name": "bb-plugin-saved-places",
+  "version": "0.1.0",
+  "description": "Your saved places on a map that gets clearer as you zoom, with lists, notes, travel times, and an Ask agent button.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "skills",
+    "README.md"
+  ],
+  "scripts": {
+    "prebuild": "node scripts/ensure-data.mjs",
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "import": "node scripts/import.mjs",
+    "pretest": "node scripts/ensure-data.mjs",
+    "test": "vitest run",
+    "pretypecheck": "node scripts/ensure-data.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bb": ">=0.43.0",
+    "bbPluginSdk": ">=0.4.88"
+  },
+  "bb": {
+    "name": "Saved Places",
+    "description": "Your saved places on a map that gets clearer as you zoom, with lists, notes, travel times, and an Ask agent button.",
+    "branding": {
+      "icon": "./assets/map.svg",
+      "experimental_icons": {
+        "map": "./assets/map.svg"
+      }
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [
+      "skills"
+    ]
+  },
+  "dependencies": {
+    "@hugeicons/core-free-icons": "^4.1.3",
+    "@hugeicons/react": "^1.1.6",
+    "maplibre-gl": "5.6.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8"
+  }
+}

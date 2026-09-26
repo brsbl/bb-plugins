@@ -1,0 +1,404 @@
+{
+  "collections": [
+    {
+      "id": "tokyo-eats",
+      "title": "Tokyo eats",
+      "subtitle": "Ramen, sushi, and coffee",
+      "emoji": "🍜"
+    },
+    {
+      "id": "tokyo-nights",
+      "title": "Tokyo nights",
+      "subtitle": "Bars, records, and live jazz",
+      "emoji": "🎷"
+    },
+    {
+      "id": "tokyo-sights",
+      "title": "Tokyo sights",
+      "subtitle": "Temples, museums, parks, and hotels",
+      "emoji": "⛩️"
+    },
+    {
+      "id": "want-to-go",
+      "title": "Want to go",
+      "subtitle": "Saved list",
+      "emoji": "🚩"
+    }
+  ],
+  "places": [
+    {
+      "id": 1,
+      "name": "Ichiran Shibuya",
+      "address": "1-22-7 Jinnan, Shibuya, Tokyo, Japan",
+      "latitude": 35.6614,
+      "longitude": 139.701,
+      "url": "https://www.google.com/maps/search/?api=1&query=Ichiran+Shibuya%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "ramen",
+      "placeType": "Ramen restaurant"
+    },
+    {
+      "id": 2,
+      "name": "AFURI Ebisu",
+      "address": "1-1-7 Ebisu, Shibuya, Tokyo, Japan",
+      "latitude": 35.648,
+      "longitude": 139.7101,
+      "url": "https://www.google.com/maps/search/?api=1&query=AFURI+Ebisu%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "ramen",
+      "placeType": "Ramen restaurant"
+    },
+    {
+      "id": 3,
+      "name": "Fuunji",
+      "address": "2-14-3 Yoyogi, Shibuya, Tokyo, Japan",
+      "latitude": 35.6868,
+      "longitude": 139.698,
+      "url": "https://www.google.com/maps/search/?api=1&query=Fuunji%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "ramen",
+      "placeType": "Tsukemen restaurant"
+    },
+    {
+      "id": 4,
+      "name": "Sushi Dai",
+      "address": "6-5-1 Toyosu, Koto, Tokyo, Japan",
+      "latitude": 35.6456,
+      "longitude": 139.785,
+      "url": "https://www.google.com/maps/search/?api=1&query=Sushi+Dai%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "sushi",
+      "placeType": "Sushi restaurant"
+    },
+    {
+      "id": 5,
+      "name": "Uogashi Nihon-Ichi Shibuya",
+      "address": "2-9-6 Dogenzaka, Shibuya, Tokyo, Japan",
+      "latitude": 35.659,
+      "longitude": 139.699,
+      "url": "https://www.google.com/maps/search/?api=1&query=Uogashi+Nihon-Ichi+Shibuya%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "sushi",
+      "placeType": "Standing sushi bar"
+    },
+    {
+      "id": 6,
+      "name": "Tsukiji Outer Market",
+      "address": "4-16-2 Tsukiji, Chuo, Tokyo, Japan",
+      "latitude": 35.6655,
+      "longitude": 139.7707,
+      "url": "https://www.google.com/maps/search/?api=1&query=Tsukiji+Outer+Market%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "food",
+      "placeType": "Market"
+    },
+    {
+      "id": 7,
+      "name": "Tonkatsu Maisen Aoyama",
+      "address": "4-8-5 Jingumae, Shibuya, Tokyo, Japan",
+      "latitude": 35.668,
+      "longitude": 139.711,
+      "url": "https://www.google.com/maps/search/?api=1&query=Tonkatsu+Maisen+Aoyama%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "food",
+      "placeType": "Tonkatsu restaurant"
+    },
+    {
+      "id": 8,
+      "name": "Fuglen Tokyo",
+      "address": "1-16-11 Tomigaya, Shibuya, Tokyo, Japan",
+      "latitude": 35.67,
+      "longitude": 139.692,
+      "url": "https://www.google.com/maps/search/?api=1&query=Fuglen+Tokyo%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "coffee",
+      "placeType": "Coffee shop"
+    },
+    {
+      "id": 9,
+      "name": "Blue Bottle Coffee Kiyosumi",
+      "address": "1-4-8 Hirano, Koto, Tokyo, Japan",
+      "latitude": 35.68,
+      "longitude": 139.798,
+      "url": "https://www.google.com/maps/search/?api=1&query=Blue+Bottle+Coffee+Kiyosumi%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "coffee",
+      "placeType": "Coffee roaster"
+    },
+    {
+      "id": 10,
+      "name": "ONIBUS COFFEE Nakameguro",
+      "address": "2-14-1 Kamimeguro, Meguro, Tokyo, Japan",
+      "latitude": 35.643,
+      "longitude": 139.699,
+      "url": "https://www.google.com/maps/search/?api=1&query=ONIBUS+COFFEE+Nakameguro%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "coffee",
+      "placeType": "Coffee shop"
+    },
+    {
+      "id": 11,
+      "name": "GLITCH COFFEE & ROASTERS",
+      "address": "3-16 Kanda Nishikicho, Chiyoda, Tokyo, Japan",
+      "latitude": 35.6955,
+      "longitude": 139.764,
+      "url": "https://www.google.com/maps/search/?api=1&query=GLITCH+COFFEE+%26+ROASTERS%2C+Tokyo",
+      "collectionId": "tokyo-eats",
+      "category": "coffee",
+      "placeType": "Coffee roaster"
+    },
+    {
+      "id": 12,
+      "name": "Golden Gai",
+      "address": "1-1 Kabukicho, Shinjuku, Tokyo, Japan",
+      "latitude": 35.694,
+      "longitude": 139.7045,
+      "url": "https://www.google.com/maps/search/?api=1&query=Golden+Gai%2C+Tokyo",
+      "collectionId": "tokyo-nights",
+      "category": "bars",
+      "placeType": "Bar district"
+    },
+    {
+      "id": 13,
+      "name": "Bar BenFiddich",
+      "address": "1-13-7 Nishishinjuku, Shinjuku, Tokyo, Japan",
+      "latitude": 35.692,
+      "longitude": 139.697,
+      "url": "https://www.google.com/maps/search/?api=1&query=Bar+BenFiddich%2C+Tokyo",
+      "collectionId": "tokyo-nights",
+      "category": "bars",
+      "placeType": "Cocktail bar"
+    },
+    {
+      "id": 14,
+      "name": "Gen Yamamoto",
+      "address": "1-6-4 Azabujuban, Minato, Tokyo, Japan",
+      "latitude": 35.656,
+      "longitude": 139.736,
+      "url": "https://www.google.com/maps/search/?api=1&query=Gen+Yamamoto%2C+Tokyo",
+      "collectionId": "tokyo-nights",
+      "category": "bars",
+      "placeType": "Cocktail bar"
+    },
+    {
+      "id": 15,
+      "name": "disk union Shinjuku",
+      "address": "3-31-4 Shinjuku, Shinjuku, Tokyo, Japan",
+      "latitude": 35.692,
+      "longitude": 139.704,
+      "url": "https://www.google.com/maps/search/?api=1&query=disk+union+Shinjuku%2C+Tokyo",
+      "collectionId": "tokyo-nights",
+      "category": "records",
+      "placeType": "Record store"
+    },
+    {
+      "id": 16,
+      "name": "Face Records Shibuya",
+      "address": "10-2 Udagawacho, Shibuya, Tokyo, Japan",
+      "latitude": 35.662,
+      "longitude": 139.698,
+      "url": "https://www.google.com/maps/search/?api=1&query=Face+Records+Shibuya%2C+Tokyo",
+      "collectionId": "tokyo-nights",
+      "category": "records",
+      "placeType": "Record store"
+    },
+    {
+      "id": 17,
+      "name": "Tower Records Shibuya",
+      "address": "1-22-14 Jinnan, Shibuya, Tokyo, Japan",
+      "latitude": 35.6618,
+      "longitude": 139.7016,
+      "url": "https://www.google.com/maps/search/?api=1&query=Tower+Records+Shibuya%2C+Tokyo",
+      "collectionId": "tokyo-nights",
+      "category": "records",
+      "placeType": "Record store"
+    },
+    {
+      "id": 18,
+      "name": "Blue Note Tokyo",
+      "address": "6-3-16 Minamiaoyama, Minato, Tokyo, Japan",
+      "latitude": 35.6618,
+      "longitude": 139.716,
+      "url": "https://www.google.com/maps/search/?api=1&query=Blue+Note+Tokyo%2C+Tokyo",
+      "collectionId": "tokyo-nights",
+      "category": "music",
+      "placeType": "Jazz club"
+    },
+    {
+      "id": 19,
+      "name": "JBS",
+      "address": "1-17-10 Dogenzaka, Shibuya, Tokyo, Japan",
+      "latitude": 35.659,
+      "longitude": 139.697,
+      "url": "https://www.google.com/maps/search/?api=1&query=JBS%2C+Tokyo",
+      "collectionId": "tokyo-nights",
+      "category": "music",
+      "placeType": "Music bar"
+    },
+    {
+      "id": 20,
+      "name": "Shinjuku PIT INN",
+      "address": "2-12-4 Shinjuku, Shinjuku, Tokyo, Japan",
+      "latitude": 35.6905,
+      "longitude": 139.707,
+      "url": "https://www.google.com/maps/search/?api=1&query=Shinjuku+PIT+INN%2C+Tokyo",
+      "collectionId": "tokyo-nights",
+      "category": "music",
+      "placeType": "Jazz club"
+    },
+    {
+      "id": 21,
+      "name": "Senso-ji",
+      "address": "2-3-1 Asakusa, Taito, Tokyo, Japan",
+      "latitude": 35.7148,
+      "longitude": 139.7967,
+      "url": "https://www.google.com/maps/search/?api=1&query=Senso-ji%2C+Tokyo",
+      "collectionId": "tokyo-sights",
+      "category": "culture",
+      "placeType": "Buddhist temple"
+    },
+    {
+      "id": 22,
+      "name": "Meiji Jingu",
+      "address": "1-1 Yoyogikamizonocho, Shibuya, Tokyo, Japan",
+      "latitude": 35.6764,
+      "longitude": 139.6993,
+      "url": "https://www.google.com/maps/search/?api=1&query=Meiji+Jingu%2C+Tokyo",
+      "collectionId": "tokyo-sights",
+      "category": "culture",
+      "placeType": "Shinto shrine"
+    },
+    {
+      "id": 23,
+      "name": "Mori Art Museum",
+      "address": "6-10-1 Roppongi, Minato, Tokyo, Japan",
+      "latitude": 35.6604,
+      "longitude": 139.7292,
+      "url": "https://www.google.com/maps/search/?api=1&query=Mori+Art+Museum%2C+Tokyo",
+      "collectionId": "tokyo-sights",
+      "category": "culture",
+      "placeType": "Art museum"
+    },
+    {
+      "id": 24,
+      "name": "teamLab Planets",
+      "address": "6-1-16 Toyosu, Koto, Tokyo, Japan",
+      "latitude": 35.6491,
+      "longitude": 139.7898,
+      "url": "https://www.google.com/maps/search/?api=1&query=teamLab+Planets%2C+Tokyo",
+      "collectionId": "tokyo-sights",
+      "category": "culture",
+      "placeType": "Art museum"
+    },
+    {
+      "id": 25,
+      "name": "Shinjuku Gyoen",
+      "address": "11 Naitomachi, Shinjuku, Tokyo, Japan",
+      "latitude": 35.6852,
+      "longitude": 139.7101,
+      "url": "https://www.google.com/maps/search/?api=1&query=Shinjuku+Gyoen%2C+Tokyo",
+      "collectionId": "tokyo-sights",
+      "category": "outdoors",
+      "placeType": "Park"
+    },
+    {
+      "id": 26,
+      "name": "Yoyogi Park",
+      "address": "2-1 Yoyogikamizonocho, Shibuya, Tokyo, Japan",
+      "latitude": 35.6717,
+      "longitude": 139.6949,
+      "url": "https://www.google.com/maps/search/?api=1&query=Yoyogi+Park%2C+Tokyo",
+      "collectionId": "tokyo-sights",
+      "category": "outdoors",
+      "placeType": "Park"
+    },
+    {
+      "id": 27,
+      "name": "Inokashira Park",
+      "address": "1-18-31 Gotenyama, Musashino, Tokyo, Japan",
+      "latitude": 35.6997,
+      "longitude": 139.573,
+      "url": "https://www.google.com/maps/search/?api=1&query=Inokashira+Park%2C+Tokyo",
+      "collectionId": "tokyo-sights",
+      "category": "outdoors",
+      "placeType": "Park"
+    },
+    {
+      "id": 28,
+      "name": "Park Hyatt Tokyo",
+      "address": "3-7-1-2 Nishishinjuku, Shinjuku, Tokyo, Japan",
+      "latitude": 35.6856,
+      "longitude": 139.6906,
+      "url": "https://www.google.com/maps/search/?api=1&query=Park+Hyatt+Tokyo%2C+Tokyo",
+      "collectionId": "tokyo-sights",
+      "category": "stays",
+      "placeType": "Hotel"
+    },
+    {
+      "id": 29,
+      "name": "HOSHINOYA Tokyo",
+      "address": "1-9-1 Otemachi, Chiyoda, Tokyo, Japan",
+      "latitude": 35.687,
+      "longitude": 139.764,
+      "url": "https://www.google.com/maps/search/?api=1&query=HOSHINOYA+Tokyo%2C+Tokyo",
+      "collectionId": "tokyo-sights",
+      "category": "stays",
+      "placeType": "Hotel"
+    },
+    {
+      "id": 30,
+      "name": "Sushi Dai",
+      "address": "6-5-1 Toyosu, Koto, Tokyo, Japan",
+      "latitude": 35.6456,
+      "longitude": 139.785,
+      "url": "https://www.google.com/maps/search/?api=1&query=Sushi+Dai%2C+Tokyo",
+      "collectionId": "want-to-go",
+      "category": "sushi",
+      "placeType": "Sushi restaurant"
+    },
+    {
+      "id": 31,
+      "name": "Bar BenFiddich",
+      "address": "1-13-7 Nishishinjuku, Shinjuku, Tokyo, Japan",
+      "latitude": 35.692,
+      "longitude": 139.697,
+      "url": "https://www.google.com/maps/search/?api=1&query=Bar+BenFiddich%2C+Tokyo",
+      "collectionId": "want-to-go",
+      "category": "bars",
+      "placeType": "Cocktail bar"
+    },
+    {
+      "id": 32,
+      "name": "Blue Note Tokyo",
+      "address": "6-3-16 Minamiaoyama, Minato, Tokyo, Japan",
+      "latitude": 35.6618,
+      "longitude": 139.716,
+      "url": "https://www.google.com/maps/search/?api=1&query=Blue+Note+Tokyo%2C+Tokyo",
+      "collectionId": "want-to-go",
+      "category": "music",
+      "placeType": "Jazz club"
+    },
+    {
+      "id": 33,
+      "name": "teamLab Planets",
+      "address": "6-1-16 Toyosu, Koto, Tokyo, Japan",
+      "latitude": 35.6491,
+      "longitude": 139.7898,
+      "url": "https://www.google.com/maps/search/?api=1&query=teamLab+Planets%2C+Tokyo",
+      "collectionId": "want-to-go",
+      "category": "culture",
+      "placeType": "Art museum"
+    },
+    {
+      "id": 34,
+      "name": "Fuunji",
+      "address": "2-14-3 Yoyogi, Shibuya, Tokyo, Japan",
+      "latitude": 35.6868,
+      "longitude": 139.698,
+      "url": "https://www.google.com/maps/search/?api=1&query=Fuunji%2C+Tokyo",
+      "collectionId": "want-to-go",
+      "category": "ramen",
+      "placeType": "Tsukemen restaurant"
+    }
+  ]
+}

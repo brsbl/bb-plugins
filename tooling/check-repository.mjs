@@ -24,6 +24,7 @@ const defaultBbEngine = ">=0.0.34";
 const pluginBbEngineOverrides = new Map([
   ["context-katamari", ">=0.43.0"],
   ["improve-prompt", ">=0.40.0"],
+  ["saved-places", ">=0.43.0"],
   ["theme-preview", ">=0.38.0"],
 ]);
 
