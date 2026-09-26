@@ -120,7 +120,7 @@ export function CommandPrompt({
       cursorStyle: "underline",
       fontFamily: '"Lucida Console", Consolas, ui-monospace, monospace',
       fontSize: 13,
-      theme: { background: "#0c0c0e", foreground: "#cbcbcf", cursor: "#cbcbcf", selectionBackground: "#316ac5" },
+      theme: { background: "#000000", foreground: "#c0c0c0", cursor: "#c0c0c0", selectionBackground: "#c0c0c0", selectionForeground: "#000000" },
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
@@ -182,7 +182,7 @@ export function CommandPrompt({
   }, [targetKey, sessionKey]);
 
   return (
-    <div className="bbd-program bbd-cmd h-full">
+    <div className="bbd-cmd h-full">
       {target === null ? (
         <p className="bbd-cmd-message">{unavailable}</p>
       ) : error !== null ? (

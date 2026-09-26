@@ -1234,7 +1234,7 @@ function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
     case "solitaire":
       return "Solitaire";
     case "pinball":
-      return "Pinball";
+      return "3D Pinball for Windows - Space Cadet";
     case "command-prompt":
       return "Command Prompt";
     case "paint":
@@ -2418,7 +2418,7 @@ function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
       );
     case "pinball":
       return (
-        <WindowFrame window={desktopWindow} title="Pinball" icon={<PinballArt size={16} />}>
+        <WindowFrame window={desktopWindow} title="3D Pinball for Windows - Space Cadet" icon={<PinballArt size={16} />}>
           <PinballGame />
         </WindowFrame>
       );

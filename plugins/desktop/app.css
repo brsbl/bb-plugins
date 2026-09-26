@@ -1170,7 +1170,7 @@
   display: flex;
   flex-direction: column;
   margin: 0 2px 2px;
-  background: oklch(0.15 0.004 265);
+  background: #000;
 }
 
 .bbd-cmd-screen {
@@ -1181,7 +1181,7 @@
 
 .bbd-cmd-message {
   padding: 12px;
-  color: oklch(0.84 0.004 265);
+  color: #c0c0c0;
   font-family: "Lucida Console", Consolas, ui-monospace, monospace;
   font-size: var(--text-xs);
 }
@@ -1226,8 +1226,8 @@
 
 .bbd-ie-nav:disabled svg,
 .bbd-ie-tool:disabled svg {
-  filter: grayscale(1);
-  opacity: 0.45;
+  filter: grayscale(1) brightness(0.85);
+  opacity: 0.7;
 }
 
 .bbd-ie-addressbar {
@@ -1962,7 +1962,6 @@
 .bbd-program-note[data-tone="Pink"] { border-bottom-color: var(--bbd-close); }
 .bbd-program-note[data-tone="Green"] { border-bottom-color: var(--bbd-green); }
 .bbd-program-note[data-tone="Blue"] { border-bottom-color: var(--bbd-blue-sky); }
-.bbd-program.bbd-cmd { margin: 0; }
 .bbd-program .bbd-ie-toolbar { padding: 2px 5px; border-block: 1px solid var(--bbd-xp-light); box-shadow: 0 1px var(--bbd-xp-edge); }
 .bbd-program .bbd-ie-nav,
 .bbd-program .bbd-ie-tool { height: 34px; border-radius: 2px; font: inherit; color: inherit; }

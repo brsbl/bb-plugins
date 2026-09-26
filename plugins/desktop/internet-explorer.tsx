@@ -116,16 +116,18 @@ function storedUrl(urlKey: string): string {
 }
 
 function NavArt({ kind }: { kind: "back" | "forward" }) {
+  // Unique per instance: a shared id resolves to the first match, which may sit in a hidden window and paint nothing.
+  const gradientId = useId();
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
       <defs>
-        <radialGradient id={`bbd-ie-${kind}`} cx="35%" cy="30%" r="75%">
+        <radialGradient id={gradientId} cx="35%" cy="30%" r="75%">
           <stop offset="0" stopColor="oklch(0.9 0.14 140)" />
           <stop offset="0.55" stopColor="oklch(0.66 0.19 142)" />
           <stop offset="1" stopColor="oklch(0.45 0.14 145)" />
         </radialGradient>
       </defs>
-      <circle cx="12" cy="12" r="10.5" fill={`url(#bbd-ie-${kind})`} stroke="oklch(0.38 0.1 145)" strokeWidth="1" />
+      <circle cx="12" cy="12" r="10.5" fill={`url(#${gradientId}) oklch(0.66 0.19 142)`} stroke="oklch(0.38 0.1 145)" strokeWidth="1" />
       <path
         d={kind === "back" ? "M13.5 6.5 8 12l5.5 5.5M8.5 12H17" : "M10.5 6.5 16 12l-5.5 5.5M15.5 12H7"}
         fill="none"

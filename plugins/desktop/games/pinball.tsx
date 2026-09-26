@@ -48,59 +48,104 @@ const NUDGE_KEYS = new Map<string, Nudge>([
 ]);
 
 const COLORS = {
-  space: "oklch(0.22 0.1 285)",
-  spaceDeep: "oklch(0.13 0.06 268)",
-  nebulaPink: "oklch(0.45 0.17 320 / 0.42)",
-  nebulaBlue: "oklch(0.5 0.15 245 / 0.34)",
+  space: "#1b1352",
+  spaceDeep: "#070720",
+  nebulaRed: "oklch(0.5 0.19 30 / 0.5)",
+  nebulaViolet: "oklch(0.45 0.2 300 / 0.45)",
+  nebulaBlue: "oklch(0.5 0.16 250 / 0.35)",
   clear: "oklch(0.2 0.08 280 / 0)",
   star: "oklch(0.96 0.03 240)",
-  frame: "oklch(0.25 0.07 268)",
-  frameEdge: "oklch(0.36 0.09 262)",
-  lane: "oklch(0.16 0.05 268)",
-  rail: "#b5b5ba",
-  railGlow: "#6b313a",
+  crack: "oklch(0.66 0.15 245 / 0.5)",
+  crackGlow: "oklch(0.6 0.16 250 / 0.14)",
+  woodLight: "#b0643a",
+  woodDark: "#4a1d0c",
+  woodEdge: "#1d0904",
+  lane: "#0b0718",
+  railShadow: "#1a0706",
+  rail: "#b8452f",
+  railShine: "#f2b48c",
   gateOpen: "oklch(0.84 0.11 212 / 0.35)",
-  bumper: "#d6d3c6",
-  bumperCore: "#fbf2da",
-  bumperRing: "#a52b32",
-  bumperLit: "oklch(0.95 0.13 95)",
-  sling: "oklch(0.42 0.17 268)",
-  slingLit: "oklch(0.9 0.15 95)",
-  kicker: "oklch(0.76 0.18 32)",
-  laneOff: "oklch(0.36 0.07 70)",
-  laneOn: "oklch(0.88 0.17 80)",
-  target: "oklch(0.74 0.19 42)",
-  targetDown: "oklch(0.4 0.07 42)",
-  flipper: "oklch(0.96 0.02 250)",
-  flipperShade: "oklch(0.8 0.04 255)",
-  flipperEdge: "oklch(0.56 0.2 27)",
-  plunger: "oklch(0.78 0.03 250)",
-  spring: "oklch(0.64 0.05 250)",
-  ballLight: "oklch(0.99 0.01 250)",
-  ballMid: "oklch(0.74 0.03 255)",
-  ballDark: "oklch(0.34 0.04 262)",
-  title: "oklch(0.84 0.11 212 / 0.42)",
-  multiplierOn: "oklch(0.9 0.16 85)",
-  multiplierOff: "oklch(0.6 0.06 262 / 0.55)",
-  arrow: "oklch(0.88 0.17 80)",
+  ramp: "#6a3fb6",
+  rampEdge: "#28125e",
+  rampStripe: "#c2a6f2",
+  bumperShadow: "oklch(0 0 0 / 0.5)",
+  bumperSkirt: "#e7e4dc",
+  bumperSkirtShade: "#8d8a86",
+  bumperRing: "#c3262c",
+  bumperCap: "#fdfaf0",
+  bumperCore: "#2b54c9",
+  bumperLit: "#ffe45c",
+  sling: "#551226",
+  slingLit: "#9a2238",
+  slingEdge: "#e0463c",
+  slingBolt: "oklch(0.78 0.14 235)",
+  kicker: "#f4f1ea",
+  lampOff: "#5c3a12",
+  lampOn: "#ffc933",
+  target: "#ffcf3f",
+  targetStripe: "#c3262c",
+  targetDown: "#4b3310",
+  holeRim: "#0e1b4c",
+  holeInner: "#1e4aa8",
+  holeLampOff: "#1d3b8f",
+  holeLampOn: "#9fe4ff",
+  holeCenter: "#ffcf6a",
+  holeCenterMid: "#d2491f",
+  holeCenterEdge: "#4a0f14",
+  starburst: "#5b33a8",
+  starburstLight: "#a57ce6",
+  arrowOff: "#5c4a12",
+  arrowOn: "#ffe45c",
+  flipper: "#f4f4f6",
+  flipperShade: "#9ea3ae",
+  flipperEdge: "#d0302c",
+  plungerRed: "#c3262c",
+  plungerWhite: "#f2f2f2",
+  spring: "#9aa0ab",
+  ballLight: "#ffffff",
+  ballMid: "#b9bec8",
+  ballDark: "#3c4250",
   shade: "oklch(0.1 0.04 270 / 0.6)",
   overlayText: "oklch(0.95 0.05 215)",
 } as const;
 
 const FONT = "Tahoma, Verdana, 'Segoe UI', sans-serif";
 
-const STARS = (() => {
-  let seed = 7;
-  const next = () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296;
-    return seed / 4294967296;
+function seeded(seed: number) {
+  let value = seed;
+  return () => {
+    value = (value * 1664525 + 1013904223) % 4294967296;
+    return value / 4294967296;
   };
-  return Array.from({ length: 110 }, () => ({
+}
+
+const STARS = (() => {
+  const next = seeded(7);
+  return Array.from({ length: 140 }, () => ({
     x: next() * TABLE.width,
     y: next() * TABLE.height,
     size: next() < 0.15 ? 2 : 1,
     alpha: 0.25 + next() * 0.65,
   }));
+})();
+
+// The Space Cadet playfield is printed with branching blue "energy" cracks.
+const CRACKS = (() => {
+  const next = seeded(23);
+  const lines: (readonly [number, number])[][] = [];
+  const grow = (x: number, y: number, angle: number, steps: number) => {
+    const line: [number, number][] = [[x, y]];
+    for (let index = 0; index < steps; index += 1) {
+      angle += (next() - 0.5) * 1.1;
+      x += Math.cos(angle) * (10 + next() * 14);
+      y += Math.sin(angle) * (10 + next() * 14);
+      line.push([x, y]);
+      if (next() < 0.18 && lines.length < 60) grow(x, y, angle + (next() < 0.5 ? 0.9 : -0.9), Math.floor(steps / 2));
+    }
+    lines.push(line);
+  };
+  for (let index = 0; index < 16; index += 1) grow(20 + next() * 340, 60 + next() * 560, next() * Math.PI * 2, 7 + Math.floor(next() * 6));
+  return lines;
 })();
 
 interface Hud {
@@ -141,10 +186,31 @@ function formatScore(score: number): string {
   return score.toLocaleString("en-US");
 }
 
+const HOLE = { x: 185, y: 410 };
+
+// Yellow arrow inserts: [x, y, angle] where angle 0 points up the table.
+const ARROWS = [
+  [150, 468, 0],
+  [220, 468, 0],
+  [185, 492, 0],
+  [120, 300, -0.35],
+  [250, 300, 0.35],
+  [318, 250, 0],
+  [318, 425, 0],
+  [60, 250, -0.2],
+] as const;
+
 function polygon(ctx: CanvasRenderingContext2D, points: readonly (readonly [number, number])[]) {
   ctx.beginPath();
   points.forEach(([x, y], index) => (index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
   ctx.closePath();
+  ctx.fill();
+}
+
+function disc(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, fill: string | CanvasGradient) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -156,32 +222,28 @@ function drawBackdrop(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, width, height);
   for (const [x, y, radius, color] of [
-    [110, 360, 230, COLORS.nebulaPink],
-    [290, 170, 200, COLORS.nebulaBlue],
+    [320, 110, 120, COLORS.nebulaRed],
+    [70, 330, 190, COLORS.nebulaViolet],
+    [250, 560, 200, COLORS.nebulaBlue],
   ] as const) {
-    const glow = ctx.createRadialGradient(x, y, 8, x, y, radius);
+    const glow = ctx.createRadialGradient(x, y, 6, x, y, radius);
     glow.addColorStop(0, color);
     glow.addColorStop(1, COLORS.clear);
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
   }
-  // Printed Space Cadet motifs: blue planet, concentric mission lamps and circuitry.
-  const planet = ctx.createRadialGradient(185, 420, 5, 185, 420, 62);
-  planet.addColorStop(0, COLORS.railGlow);
-  planet.addColorStop(1, COLORS.spaceDeep);
-  ctx.fillStyle = planet;
-  ctx.beginPath(); ctx.arc(185, 420, 62, 0, Math.PI * 2); ctx.fill();
-  for (let index = 0; index < 24; index += 1) {
-    const angle = index / 24 * Math.PI * 2;
-    ctx.fillStyle = index % 3 === 0 ? COLORS.laneOn : COLORS.bumper;
-    ctx.beginPath(); ctx.arc(185 + Math.cos(angle) * 73, 420 + Math.sin(angle) * 73, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const [color, lineWidth] of [
+    [COLORS.crackGlow, 4],
+    [COLORS.crack, 1.2],
+  ] as const) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    for (const line of CRACKS) line.forEach(([x, y], index) => (index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+    ctx.stroke();
   }
-  ctx.strokeStyle = COLORS.nebulaBlue; ctx.lineWidth = 1;
-  for (let index = 0; index < 12; index += 1) {
-    ctx.beginPath(); ctx.moveTo(30 + index * 28, 110); ctx.lineTo(70 + index * 17, 340); ctx.lineTo(24 + index * 29, 540); ctx.stroke();
-  }
-  ctx.fillStyle = COLORS.nebulaPink;
-  polygon(ctx, [[80, 610], [120, 480], [155, 562], [185, 495], [210, 562], [250, 480], [285, 610]]);
   ctx.fillStyle = COLORS.star;
   for (const star of STARS) {
     ctx.globalAlpha = star.alpha;
@@ -190,10 +252,18 @@ function drawBackdrop(ctx: CanvasRenderingContext2D) {
   ctx.globalAlpha = 1;
 }
 
+function woodFill(ctx: CanvasRenderingContext2D, x0: number, x1: number) {
+  const wood = ctx.createLinearGradient(x0, 0, x1, 0);
+  wood.addColorStop(0, COLORS.woodDark);
+  wood.addColorStop(0.5, COLORS.woodLight);
+  wood.addColorStop(1, COLORS.woodDark);
+  return wood;
+}
+
 function drawFrame(ctx: CanvasRenderingContext2D) {
   const { width, height, arcCenter, arcRadius, shooter } = TABLE;
   const [left, right] = TABLE.flippers;
-  ctx.fillStyle = COLORS.frame;
+  ctx.fillStyle = woodFill(ctx, 0, width);
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.lineTo(0, arcCenter.y);
@@ -202,8 +272,12 @@ function drawFrame(ctx: CanvasRenderingContext2D) {
   ctx.lineTo(width, 0);
   ctx.closePath();
   ctx.fill();
-  ctx.fillRect(0, arcCenter.y, 8, 366);
+  ctx.fillStyle = woodFill(ctx, 0, 8);
+  ctx.fillRect(0, arcCenter.y, 8, height - arcCenter.y);
+  ctx.fillStyle = woodFill(ctx, shooter.right, width);
   ctx.fillRect(shooter.right, arcCenter.y, width - shooter.right, height - arcCenter.y);
+  // Inlane/outlane aprons below the slingshots.
+  ctx.fillStyle = COLORS.woodDark;
   polygon(ctx, [
     [0, 566],
     [8, 566],
@@ -218,30 +292,116 @@ function drawFrame(ctx: CanvasRenderingContext2D) {
     [shooter.left, height],
   ]);
   ctx.fillStyle = COLORS.lane;
-  ctx.fillRect(shooter.left, shooter.floor - 180, shooter.right - shooter.left, height - shooter.floor + 180);
-  ctx.strokeStyle = COLORS.frameEdge;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+  ctx.fillRect(shooter.left, arcCenter.y, shooter.right - shooter.left, height - arcCenter.y);
+  // Launch-lane chevrons.
+  const center = (shooter.left + shooter.right) / 2;
+  ctx.fillStyle = COLORS.lampOff;
+  for (let y = 250; y < 620; y += 46) polygon(ctx, [[center, y], [center + 9, y + 10], [center - 9, y + 10]]);
+  ctx.strokeStyle = COLORS.woodEdge;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, width - 2, height - 2);
 }
 
-function drawDecals(ctx: CanvasRenderingContext2D, state: PinballState) {
+function drawRamp(ctx: CanvasRenderingContext2D) {
+  // The purple left ramp that curls up toward the top of the table.
+  ctx.lineCap = "butt";
+  ctx.beginPath();
+  ctx.moveTo(34, 455);
+  ctx.bezierCurveTo(22, 330, 50, 200, 122, 138);
+  ctx.strokeStyle = COLORS.rampEdge;
+  ctx.lineWidth = 34;
+  ctx.stroke();
+  ctx.strokeStyle = COLORS.ramp;
+  ctx.lineWidth = 28;
+  ctx.stroke();
+  ctx.setLineDash([7, 9]);
+  ctx.strokeStyle = COLORS.rampStripe;
+  ctx.lineWidth = 20;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = COLORS.slingEdge;
+  polygon(ctx, [[22, 470], [46, 470], [34, 452]]);
+}
+
+function drawHole(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
+  // The hyperspace "black hole": two rings of blue inserts around an orange vortex.
+  const { x, y } = HOLE;
+  const rim = ctx.createRadialGradient(x, y, 20, x, y, 78);
+  rim.addColorStop(0, COLORS.holeInner);
+  rim.addColorStop(1, COLORS.holeRim);
+  disc(ctx, x, y, 78, rim);
+  const lit = Math.round(((state.multiplier - 1) / (MAX_MULTIPLIER - 1)) * 22);
+  const chase = Math.floor(time * 10) % 22;
+  for (let index = 0; index < 22; index += 1) {
+    const angle = (index / 22) * Math.PI * 2 - Math.PI / 2;
+    const on = index < lit || index === chase;
+    disc(ctx, x + Math.cos(angle) * 66, y + Math.sin(angle) * 66, 5, on ? COLORS.holeLampOn : COLORS.holeLampOff);
+  }
+  for (let index = 0; index < 14; index += 1) {
+    const angle = (index / 14) * Math.PI * 2;
+    const on = (index + Math.floor(time * 6)) % 7 === 0;
+    disc(ctx, x + Math.cos(angle) * 46, y + Math.sin(angle) * 46, 4, on ? COLORS.holeLampOn : COLORS.holeLampOff);
+  }
+  const vortex = ctx.createRadialGradient(x, y, 2, x, y, 30);
+  vortex.addColorStop(0, COLORS.spaceDeep);
+  vortex.addColorStop(0.3, COLORS.holeCenter);
+  vortex.addColorStop(0.7, COLORS.holeCenterMid);
+  vortex.addColorStop(1, COLORS.holeCenterEdge);
+  disc(ctx, x, y, 30, vortex);
+}
+
+function drawStarburst(ctx: CanvasRenderingContext2D) {
+  const cx = 185;
+  const cy = 712;
+  for (let index = 0; index < 11; index += 1) {
+    const angle = -Math.PI / 2 + ((index - 5) / 5) * 1.15;
+    const length = index % 2 === 0 ? 118 : 78;
+    const spread = 0.13;
+    ctx.fillStyle = index % 2 === 0 ? COLORS.starburst : COLORS.starburstLight;
+    polygon(ctx, [
+      [cx + Math.cos(angle - spread) * 14, cy + Math.sin(angle - spread) * 14],
+      [cx + Math.cos(angle) * length, cy + Math.sin(angle) * length],
+      [cx + Math.cos(angle + spread) * 14, cy + Math.sin(angle + spread) * 14],
+    ]);
+  }
+}
+
+function drawArrows(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
+  const blink = Math.sin(time * 5) > 0;
+  ARROWS.forEach(([x, y, angle], index) => {
+    const on = state.multiplier > 1 ? index % 2 === 0 || blink : blink && index % 3 === 0;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = on ? COLORS.arrowOn : COLORS.arrowOff;
+    polygon(ctx, [[0, -8], [7, 5], [-7, 5]]);
+    ctx.restore();
+  });
+}
+
+function drawDecals(ctx: CanvasRenderingContext2D, state: PinballState, time: number) {
+  drawRamp(ctx);
+  drawStarburst(ctx);
+  drawHole(ctx, state, time);
+  drawArrows(ctx, state, time);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = COLORS.title;
   ctx.font = `700 11px ${FONT}`;
-  ctx.fillText("3D PINBALL", 185, 360);
-  ctx.font = `700 22px ${FONT}`;
-  ctx.fillText("SPACE CADET", 185, 380);
-  ctx.font = `700 12px ${FONT}`;
   for (let level = 2; level <= MAX_MULTIPLIER; level += 1) {
-    ctx.fillStyle = state.multiplier >= level ? COLORS.multiplierOn : COLORS.multiplierOff;
-    ctx.fillText(`${level}×`, 140 + (level - 2) * 30, 500);
+    const x = 140 + (level - 2) * 30;
+    const on = state.multiplier >= level;
+    ctx.fillStyle = on ? COLORS.lampOn : COLORS.lampOff;
+    ctx.fillRect(x - 11, 510, 22, 13);
+    ctx.fillStyle = on ? COLORS.spaceDeep : COLORS.lampOn;
+    ctx.globalAlpha = on ? 1 : 0.5;
+    ctx.fillText(`${level}×`, x, 517);
+    ctx.globalAlpha = 1;
   }
   TABLE.lanes.forEach((lane, index) => {
     const lit = state.lanes[index] === true || state.lanesFlash > 0;
-    ctx.fillStyle = lit ? COLORS.laneOn : COLORS.laneOff;
+    ctx.fillStyle = lit ? COLORS.lampOn : COLORS.lampOff;
     ctx.beginPath();
-    ctx.arc(lane.x, lane.bottom + 16, 5.5, 0, Math.PI * 2);
+    ctx.roundRect(lane.x - 5, lane.bottom + 8, 10, 16, 5);
     ctx.fill();
   });
 }
@@ -254,16 +414,20 @@ function drawRails(ctx: CanvasRenderingContext2D, state: PinballState) {
     ctx.moveTo(wall.a.x, wall.a.y);
     ctx.lineTo(wall.b.x, wall.b.y);
   }
-  ctx.strokeStyle = COLORS.railGlow;
-  ctx.lineWidth = 6;
-  ctx.stroke();
-  ctx.strokeStyle = COLORS.rail;
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
+  for (const [color, lineWidth] of [
+    [COLORS.railShadow, 7],
+    [COLORS.rail, 4],
+    [COLORS.railShine, 1],
+  ] as const) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  }
   ctx.beginPath();
   ctx.moveTo(TABLE.gate.a.x, TABLE.gate.a.y);
   ctx.lineTo(TABLE.gate.b.x, TABLE.gate.b.y);
   ctx.strokeStyle = state.inLane ? COLORS.gateOpen : COLORS.rail;
+  ctx.lineWidth = 3;
   ctx.setLineDash(state.inLane ? [4, 4] : []);
   ctx.stroke();
   ctx.setLineDash([]);
@@ -272,24 +436,37 @@ function drawRails(ctx: CanvasRenderingContext2D, state: PinballState) {
 function drawTargets(ctx: CanvasRenderingContext2D, state: PinballState) {
   TABLE.targets.forEach((target, index) => {
     const up = state.targets[index] === true;
-    ctx.beginPath();
-    ctx.moveTo(target.a.x + (up ? 3.5 : 6), target.a.y + 2);
-    ctx.lineTo(target.b.x + (up ? 3.5 : 6), target.b.y - 2);
-    ctx.strokeStyle = up ? COLORS.target : COLORS.targetDown;
-    ctx.lineWidth = up ? 7 : 2;
-    ctx.lineCap = "butt";
-    ctx.stroke();
+    const x = target.a.x + (up ? 1 : 4);
+    const top = target.a.y + 2;
+    const bottom = target.b.y - 2;
+    ctx.fillStyle = up ? COLORS.target : COLORS.targetDown;
+    ctx.fillRect(x, top, up ? 8 : 3, bottom - top);
+    if (!up) return;
+    ctx.fillStyle = COLORS.targetStripe;
+    ctx.fillRect(x, (top + bottom) / 2 - 2, 8, 4);
   });
 }
 
 function drawSlingshots(ctx: CanvasRenderingContext2D, state: PinballState) {
   TABLE.slingshots.forEach((sling, index) => {
     const lit = (state.slingFlash[index] ?? 0) > 0;
+    const [top, bottom, inner] = sling.corners;
     ctx.fillStyle = lit ? COLORS.slingLit : COLORS.sling;
-    polygon(
-      ctx,
-      sling.corners.map((corner) => [corner.x, corner.y] as const),
-    );
+    polygon(ctx, [[top.x, top.y], [bottom.x, bottom.y], [inner.x, inner.y]]);
+    ctx.strokeStyle = COLORS.slingEdge;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    // Electric bolt printed inside the slingshot.
+    const mx = (top.x * 2 + bottom.x + inner.x) / 4;
+    ctx.beginPath();
+    ctx.moveTo(top.x + (inner.x - top.x) * 0.15, top.y + 14);
+    ctx.lineTo(mx + 4, (top.y + bottom.y) / 2);
+    ctx.lineTo(mx - 3, (top.y + bottom.y) / 2 + 8);
+    ctx.lineTo(bottom.x + (inner.x - bottom.x) * 0.45, bottom.y + (inner.y - bottom.y) * 0.3);
+    ctx.strokeStyle = COLORS.slingBolt;
+    ctx.lineWidth = lit ? 2.5 : 1.5;
+    ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(sling.kicker.a.x, sling.kicker.a.y);
     ctx.lineTo(sling.kicker.b.x, sling.kicker.b.y);
@@ -303,20 +480,18 @@ function drawSlingshots(ctx: CanvasRenderingContext2D, state: PinballState) {
 function drawBumpers(ctx: CanvasRenderingContext2D, state: PinballState) {
   TABLE.bumpers.forEach((bumper, index) => {
     const lit = (state.bumperFlash[index] ?? 0) > 0;
-    const body = ctx.createRadialGradient(bumper.x - 5, bumper.y - 6, 2, bumper.x, bumper.y, bumper.radius);
-    body.addColorStop(0, lit ? COLORS.bumperLit : COLORS.bumperCore);
-    body.addColorStop(1, lit ? COLORS.bumperCore : COLORS.bumper);
-    ctx.fillStyle = body;
-    ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, bumper.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = lit ? COLORS.bumperLit : COLORS.bumperRing;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    ctx.fillStyle = lit ? COLORS.bumperLit : COLORS.bumperRing;
-    ctx.beginPath();
-    ctx.arc(bumper.x, bumper.y, bumper.radius * 0.36, 0, Math.PI * 2);
-    ctx.fill();
+    const { x, y, radius } = bumper;
+    disc(ctx, x + 3, y + 4, radius, COLORS.bumperShadow);
+    const skirt = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, 2, x, y, radius);
+    skirt.addColorStop(0, COLORS.bumperSkirt);
+    skirt.addColorStop(1, COLORS.bumperSkirtShade);
+    disc(ctx, x, y, radius, skirt);
+    disc(ctx, x, y, radius * 0.74, lit ? COLORS.bumperLit : COLORS.bumperRing);
+    const cap = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, radius * 0.5);
+    cap.addColorStop(0, COLORS.bumperCap);
+    cap.addColorStop(1, COLORS.bumperSkirt);
+    disc(ctx, x, y, radius * 0.5, cap);
+    disc(ctx, x, y, radius * 0.22, lit ? COLORS.bumperRing : COLORS.bumperCore);
   });
 }
 
@@ -336,21 +511,18 @@ function drawPlunger(ctx: CanvasRenderingContext2D, state: PinballState) {
   ctx.lineWidth = 2;
   ctx.lineCap = "round";
   ctx.stroke();
-  ctx.fillStyle = COLORS.plunger;
-  ctx.fillRect(shooter.left + 4, floor, shooter.right - shooter.left - 8, 7);
+  const knobWidth = shooter.right - shooter.left - 8;
+  for (let stripe = 0; stripe < 4; stripe += 1) {
+    ctx.fillStyle = stripe % 2 === 0 ? COLORS.plungerRed : COLORS.plungerWhite;
+    ctx.fillRect(shooter.left + 4 + (stripe * knobWidth) / 4, floor, knobWidth / 4, 8);
+  }
 }
 
 function drawLaunchHint(ctx: CanvasRenderingContext2D, time: number) {
   const center = (TABLE.shooter.left + TABLE.shooter.right) / 2;
-  ctx.globalAlpha = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(time * 6));
-  ctx.fillStyle = COLORS.arrow;
-  for (const offset of [0, 26]) {
-    polygon(ctx, [
-      [center, 560 + offset],
-      [center + 8, 572 + offset],
-      [center - 8, 572 + offset],
-    ]);
-  }
+  ctx.globalAlpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 6));
+  ctx.fillStyle = COLORS.arrowOn;
+  for (let y = 250; y < 620; y += 46) polygon(ctx, [[center, y], [center + 9, y + 10], [center - 9, y + 10]]);
   ctx.globalAlpha = 1;
 }
 
@@ -372,26 +544,21 @@ function drawFlippers(ctx: CanvasRenderingContext2D, state: PinballState) {
     ctx.fillStyle = fill;
     ctx.fill();
     ctx.strokeStyle = COLORS.flipperEdge;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.stroke();
-    ctx.fillStyle = COLORS.flipperEdge;
-    ctx.beginPath();
-    ctx.arc(pose.pivot.x, pose.pivot.y, 3, 0, Math.PI * 2);
-    ctx.fill();
+    disc(ctx, pose.pivot.x, pose.pivot.y, 3, COLORS.flipperEdge);
   });
 }
 
 function drawBall(ctx: CanvasRenderingContext2D, state: PinballState) {
   const { x, y } = state.ball;
   const radius = TABLE.ballRadius;
+  disc(ctx, x + 2, y + 3, radius, COLORS.bumperShadow);
   const shine = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, radius);
   shine.addColorStop(0, COLORS.ballLight);
   shine.addColorStop(0.55, COLORS.ballMid);
   shine.addColorStop(1, COLORS.ballDark);
-  ctx.fillStyle = shine;
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fill();
+  disc(ctx, x, y, radius, shine);
 }
 
 function drawOverlay(ctx: CanvasRenderingContext2D, title: string, detail: string) {
@@ -409,11 +576,11 @@ function drawOverlay(ctx: CanvasRenderingContext2D, title: string, detail: strin
 function drawTable(ctx: CanvasRenderingContext2D, state: PinballState, paused: boolean, time: number) {
   drawBackdrop(ctx);
   drawFrame(ctx);
-  drawDecals(ctx, state);
+  drawDecals(ctx, state, time);
   drawTargets(ctx, state);
   drawSlingshots(ctx, state);
-  drawBumpers(ctx, state);
   drawRails(ctx, state);
+  drawBumpers(ctx, state);
   drawPlunger(ctx, state);
   if (awaitingLaunch(state)) drawLaunchHint(ctx, time);
   drawFlippers(ctx, state);
@@ -422,10 +589,26 @@ function drawTable(ctx: CanvasRenderingContext2D, state: PinballState, paused: b
   else if (paused && !state.inLane) drawOverlay(ctx, "PAUSED", "Click the table to resume");
 }
 
+// The table is drawn flat, then tilted away from the player like the original's 3D view.
+const TILT_ANGLE = (24 * Math.PI) / 180;
+const TILT_DEPTH = 1.3;
+const TILT_TOP_SCALE = TILT_DEPTH / (TILT_DEPTH + Math.sin(TILT_ANGLE));
+const TILT_HEIGHT = Math.cos(TILT_ANGLE) * TILT_TOP_SCALE;
+
+/** Maps a point on the tilted canvas (relative to its bottom center, y up) back to table units. */
+function untilt(x: number, up: number, cssHeight: number): { x: number; y: number } {
+  const depth = cssHeight * TILT_DEPTH;
+  const rise = (up * depth) / (Math.cos(TILT_ANGLE) * depth - up * Math.sin(TILT_ANGLE));
+  const scale = depth / (depth + rise * Math.sin(TILT_ANGLE));
+  const unit = cssHeight / TABLE.height;
+  return { x: TABLE.width / 2 + x / scale / unit, y: TABLE.height - rise / unit };
+}
+
 export function PinballGame() {
   const [initial] = useState(newGame);
   const bodyRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const tiltRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<PinballState>(initial);
   const keysRef = useRef(new Set<string>());
@@ -487,12 +670,20 @@ export function PinballGame() {
     const canvas = canvasRef.current;
     if (!stage || !canvas) return;
     const apply = () => {
-      const scale = Math.max(0.05, Math.min(stage.clientWidth / TABLE.width, stage.clientHeight / TABLE.height));
+      const tilt = tiltRef.current;
+      if (!tilt) return;
+      const scale = Math.max(
+        0.05,
+        Math.min(stage.clientWidth / TABLE.width, stage.clientHeight / (TABLE.height * TILT_HEIGHT)),
+      );
       const cssWidth = Math.max(1, Math.floor(TABLE.width * scale));
       const cssHeight = Math.max(1, Math.floor(TABLE.height * scale));
       const ratio = window.devicePixelRatio || 1;
+      tilt.style.width = `${cssWidth}px`;
+      tilt.style.height = `${Math.ceil(cssHeight * TILT_HEIGHT)}px`;
       canvas.style.width = `${cssWidth}px`;
       canvas.style.height = `${cssHeight}px`;
+      canvas.style.transform = `perspective(${cssHeight * TILT_DEPTH}px) rotateX(${TILT_ANGLE}rad)`;
       canvas.width = Math.max(1, Math.round(cssWidth * ratio));
       canvas.height = Math.max(1, Math.round(cssHeight * ratio));
       render();
@@ -594,24 +785,26 @@ export function PinballGame() {
 
   const onCanvasPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * TABLE.width;
-    const y = ((event.clientY - rect.top) / rect.height) * TABLE.height;
+    const rect = tiltRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const { x, y } = untilt(event.clientX - (rect.left + rect.width / 2), rect.bottom - event.clientY, event.currentTarget.offsetHeight);
     const control: Control =
       x >= TABLE.shooter.left && y >= TABLE.shooter.floor - 180 ? "plunger" : x < TABLE.shooter.left / 2 ? "left" : "right";
     hold(event, control);
   };
 
   const over = hud.status === "over";
+  // Mission-box copy follows the original's terse status lines.
   const message = over
-    ? "Game Over — F2 for a new game"
+    ? "Game Over"
     : hud.awaiting
-      ? "Press Space to launch"
+      ? "Awaiting Deployment"
       : !running
-        ? "Paused — click the table to resume"
+        ? "Paused"
         : hud.multiplier > 1
-          ? `Bonus ${hud.multiplier}× lit`
-          : "Light all three top lanes";
+          ? `Bonus ${hud.multiplier}x Lit`
+          : "Launch Training";
+  const detail = over ? "F2 for a new game" : hud.awaiting ? "Hold Space to launch" : !running ? "Click the table to resume" : "";
 
   return (
     <div className="bbd-program bbd-pinball">
@@ -633,53 +826,55 @@ export function PinballGame() {
         onBlur={onBlur}
       >
         <div ref={stageRef} className="bbd-pinball-stage">
-          <canvas
-            ref={canvasRef}
-            className="bbd-pinball-canvas"
-            aria-hidden
-            onPointerDown={onCanvasPointerDown}
-            onPointerUp={release}
-            onPointerCancel={release}
-            onLostPointerCapture={release}
-            onContextMenu={(event) => event.preventDefault()}
-          />
+          <div ref={tiltRef} className="bbd-pinball-tilt">
+            <canvas
+              ref={canvasRef}
+              className="bbd-pinball-canvas"
+              aria-hidden
+              onPointerDown={onCanvasPointerDown}
+              onPointerUp={release}
+              onPointerCancel={release}
+              onLostPointerCapture={release}
+              onContextMenu={(event) => event.preventDefault()}
+            />
+          </div>
         </div>
         <aside className="bbd-pinball-panel" aria-label="Scoreboard">
-          <div className="bbd-pinball-logo" aria-hidden>
-            <span className="bbd-pinball-logo-small">3D Pinball</span>
-            <span className="bbd-pinball-logo-big">Space Cadet</span>
-            <svg viewBox="0 0 160 110" className="bbd-pinball-ship" aria-hidden>
-              <circle cx="24" cy="79" r="14" fill="var(--bbd-pinball-gold)" />
-              <path d="m136 45 20-8-7 19Z" fill="var(--bbd-pinball-alert)" />
-              <path d="m28 67 62-35 57 14-17 36-60 8Z" fill="var(--bbd-pinball-bevel-light)" stroke="var(--bbd-pinball-bevel-dark)" strokeWidth="3" />
-              <ellipse cx="94" cy="52" rx="27" ry="14" fill="var(--bbd-pinball-panel-deep)" />
-              <path d="M74 52c0-30 12-43 27-31l14 30" fill="var(--bbd-pinball-panel)" stroke="var(--bbd-pinball-led)" strokeWidth="2" />
-              <path d="m46 61 42 4-17 18-36-6Z" fill="var(--bbd-pinball-text)" />
-              <path d="m80 72 28-5 19 11-20 17-29-9Z" fill="var(--bbd-pinball-muted)" />
-              <circle cx="100" cy="33" r="10" fill="var(--bbd-pinball-gold)" />
-              <path d="m87 50 10-8 12 8-1 9-25-2Z" fill="var(--bbd-pinball-led)" />
+          <div className="bbd-pinball-logo">
+            <span className="bbd-pinball-logo-small" aria-hidden>3D Pinball</span>
+            <span className="bbd-pinball-logo-big" aria-hidden>Space Cadet</span>
+            <svg viewBox="0 0 180 90" className="bbd-pinball-ship" aria-hidden>
+              <circle cx="22" cy="68" r="17" fill="#5f9b3c" />
+              <path d="M10 60c6-4 12 2 18-2s8 6 4 10-14 2-22-8Z M14 76c6 2 12-2 18 1" fill="#3d6e28" />
+              <path d="m162 50 16-7-5 9 7 5-18 3Z" fill="#e8702a" />
+              <ellipse cx="110" cy="62" rx="44" ry="9" fill="#6f737e" />
+              <ellipse cx="110" cy="55" rx="58" ry="14" fill="#c3c7d0" stroke="#5a5e68" strokeWidth="2" />
+              <path d="M88 53c-2-18 8-30 22-30s24 12 22 30Z" fill="#8a4fd0" />
+              <circle cx="110" cy="31" r="10" fill="#f0c39a" />
+              <path d="M99 28c2-10 20-12 23 0-6-4-16-4-23 0Z" fill="#6b3b1a" />
+              <rect x="102" y="28" width="16" height="5" rx="2" fill="#3b2a6e" />
+              <path d="M84 55a26 30 0 0 1 52 0Z" fill="#bfe0ff" fillOpacity="0.35" stroke="#eaf5ff" strokeWidth="1.5" />
+              <circle cx="72" cy="57" r="2.5" fill="#ffc933" />
+              <circle cx="110" cy="62" r="2.5" fill="#ffc933" />
+              <circle cx="148" cy="57" r="2.5" fill="#ffc933" />
             </svg>
+            <span className="bbd-pinball-ball">
+              <span className="bbd-pinball-ball-label">Ball</span>
+              <span className="bbd-pinball-box bbd-pinball-dots">{over ? "-" : hud.ballNumber}</span>
+            </span>
           </div>
-          <div className="bbd-pinball-readout">
-            <div className="bbd-pinball-row">
-              <span className="bbd-pinball-label">Ball</span>
-              <span className="bbd-pinball-led bbd-pinball-led-small">{over ? "-" : hud.ballNumber}</span>
-            </div>
-            <div className="bbd-pinball-player">
-              <span className="bbd-pinball-label">Player 1</span>
-              <span className="bbd-pinball-led">{formatScore(hud.score)}</span>
-            </div>
-            <div className="bbd-pinball-row">
-              <span className="bbd-pinball-label">Bonus</span>
-              <span className="bbd-pinball-led bbd-pinball-led-small">{hud.multiplier}×</span>
-            </div>
-            <div className="bbd-pinball-row">
-              <span className="bbd-pinball-label">High score</span>
-              <span className="bbd-pinball-high">{formatScore(Math.max(highScore, hud.score))}</span>
-            </div>
+          <div className="bbd-pinball-score">
+            <span className="bbd-pinball-box bbd-pinball-dots">1</span>
+            <span className="bbd-pinball-box bbd-pinball-dots" aria-label={`Score ${formatScore(hud.score)}`}>
+              {formatScore(hud.score)}
+            </span>
           </div>
-          <p className="bbd-pinball-message" data-tone={over ? "over" : hud.awaiting ? "launch" : undefined}>
-            {message}
+          <p className="bbd-pinball-box bbd-pinball-info bbd-pinball-dots">
+            {over ? `High Score ${formatScore(Math.max(highScore, hud.score))}` : "Player 1"}
+          </p>
+          <p className="bbd-pinball-box bbd-pinball-message" data-tone={over ? "over" : undefined}>
+            <span className="bbd-pinball-dots">{message}</span>
+            {detail ? <span className="bbd-pinball-detail">{detail}</span> : null}
           </p>
           <button
             type="button"

@@ -303,7 +303,7 @@ export function defaultRect(spec: WindowSpec, stagger: number): Rect {
             : spec.kind === "solitaire"
               ? { width: 720, height: 540 }
             : spec.kind === "pinball"
-              ? { width: 560, height: 640 }
+              ? { width: 640, height: 560 }
             : spec.kind === "command-prompt"
               ? { width: 680, height: 420 }
             : spec.kind === "paint"
