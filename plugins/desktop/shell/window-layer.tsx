@@ -10,8 +10,9 @@ import { useDesktop } from "./data";
 import { chatWebLink, linkedThreadId, openChatWebLink } from "./links";
 
 /**
- * Moves windows out of the way of bb's home composer while it has focus, and puts them back when it loses it. Mounted
- * outside the data provider so a composer focused while the desktop loads still clears the restored windows.
+ * Moves windows out of the way of bb's home composer while it has focus, and puts them back when it loses it. It mounts
+ * outside the data provider and starts from the current focus, because bb can autofocus the composer before the
+ * desktop has loaded.
  */
 export function ComposerClearance() {
   const manager = useWindowManager();
@@ -37,8 +38,7 @@ export function ComposerClearance() {
       }
       setWindowNudges(next);
     };
-    const onFocusIn = (event: FocusEvent) => {
-      const next = homeComposer(event.target);
+    const track = (next: HTMLElement | null) => {
       if (next === null || next === composer) return;
       observer?.disconnect();
       composer = next;
@@ -46,6 +46,7 @@ export function ComposerClearance() {
       observer.observe(next);
       clearComposer();
     };
+    const onFocusIn = (event: FocusEvent) => track(homeComposer(event.target));
     const onFocusOut = (event: FocusEvent) => {
       if (composer === null) return;
       if (event.relatedTarget instanceof Node && composer.contains(event.relatedTarget)) return;
@@ -56,6 +57,7 @@ export function ComposerClearance() {
     };
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
+    track(homeComposer(document.activeElement));
     return () => {
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
