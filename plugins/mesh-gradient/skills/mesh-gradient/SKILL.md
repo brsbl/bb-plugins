@@ -14,7 +14,7 @@ the text color (white or black) that holds up on the gradient.
 When the user asks for gradient ideas, call `mesh_gradient` with
 `action=propose` once per option, each with a short `name` and a one-line
 `note` on why it fits. Pick `style` (aurora, sunset, ocean, candy, forest,
-mono) or pass `color` (#hex) from the project's brand. Proposals appear under
+mono) or pass `color` (#hex) from the project's brand, not both. Proposals appear under
 **For this thread** in the Mesh Gradient panel; a fresh panel opens on the
 one whose text reads best. The panel keeps up to six proposals per thread, newest first.
 

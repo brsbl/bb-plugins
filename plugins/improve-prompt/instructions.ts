@@ -18,7 +18,7 @@ Choose context by what it changes
 If something is only background, leave it out. Use headings or checklists only when they make the work safer or clearer.
 
 Adapt to the situation
-- Next step in the same thread: the changed decision, the protected state, and the next gate.
+- Same-thread next step: the changed decision, the protected state, and the next gate.
 - New thread or handoff: a pointer to the canonical source, the latest actionable state, then the next action and finish line.
 - Correction or revert: separate Change, Keep, Do not touch, and Verify when that keeps the rollback narrow.
 - Investigation: known facts kept apart from hypotheses, the primary evidence, what would falsify the leading explanation, and whether changes are authorized.

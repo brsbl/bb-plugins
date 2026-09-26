@@ -26,6 +26,10 @@ describe("mesh gradient raster rendering", () => {
         if (currentLayerCenter !== null) paintedCenters.push(currentLayerCenter);
       }),
       fillStyle: "",
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn(),
+      scale: vi.fn(),
     } as unknown as CanvasRenderingContext2D;
 
     drawMeshGradient(context, spec, 100, 100);

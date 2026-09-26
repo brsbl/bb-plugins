@@ -758,10 +758,14 @@ function Studio({ threadId }: PluginThreadPanelProps) {
   const pristineRef = useRef(pristine);
   pristineRef.current = pristine;
 
+  const proposalRequest = useRef(0);
+
   const refreshProposals = useCallback(async () => {
     if (!threadId) return;
+    const request = ++proposalRequest.current;
     try {
       const { proposals: next } = await rpc.call("listProposals", { threadId });
+      if (request !== proposalRequest.current) return;
       setProposals(next);
       const seen = seenProposals.current;
       seenProposals.current = new Set(next.map((proposal) => proposal.id));
@@ -776,6 +780,7 @@ function Studio({ threadId }: PluginThreadPanelProps) {
         toast.success(`The agent proposed “${newest.name}”`);
       }
     } catch (error) {
+      if (request !== proposalRequest.current) return;
       toast.error(`Loading proposals failed: ${errorMessage(error)}`);
     }
   }, [rpc, threadId, loadProposal]);
