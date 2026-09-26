@@ -226,9 +226,19 @@ const MATRIX: Record<string, string> = {
   y:"00000/10001/10001/10001/01111/00001/01110", z:"00000/00000/11111/00010/00100/01000/11111",
   ",":"00000/00000/00000/00000/00100/00100/01000", "-":"00000/00000/00000/11111/00000/00000/00000",
 };
+// Cache the lamp outlines once. One path per glyph avoids thousands of SVG nodes
+// being reconciled whenever a bumper changes the score.
+const MATRIX_PATHS = Object.fromEntries(Object.entries(MATRIX).map(([char, rows]) => [char,
+  rows.split("/").flatMap((row, y) => [...row].flatMap((bit, x) => bit === "1"
+    ? Array.from({ length: 12 }, (_, dot) => {
+      const cx = (x + .16 + (dot % 4) / 3 + .145).toFixed(3);
+      const cy = (y + .16 + Math.floor(dot / 4) / 3).toFixed(3);
+      return `M${cx} ${cy}a.145 .145 0 1 0 -.29 0a.145 .145 0 1 0 .29 0`;
+    }) : [])).join(" "),
+]));
 function DotMatrix({ text }: { text: string | number }) {
   return <span className="bbd-pinball-dots" aria-label={String(text)}>{String(text).split("\n").map((line, index) => <span className="bbd-pinball-dot-line" key={index}>{line.split(" ").map((word, wi) => <svg key={wi} aria-hidden viewBox={`0 0 ${word.length * 6} 8`} style={{ width: `${word.length * 0.68}em` }}>
-    {[...word].flatMap((char, ci) => (MATRIX[char] ?? MATRIX[char.toUpperCase()] ?? "").split("/").flatMap((row, y) => [...row].flatMap((bit, x) => bit === "1" ? Array.from({ length: 12 }, (_, dot) => <circle key={`${ci}-${y}-${x}-${dot}`} cx={ci * 6 + x + .16 + (dot % 4) / 3} cy={y + .16 + Math.floor(dot / 4) / 3} r={.145} fill="currentColor" />) : [])))}
+    {[...word].map((char, ci) => <path key={ci} d={MATRIX_PATHS[char] ?? MATRIX_PATHS[char.toUpperCase()] ?? ""} transform={`translate(${ci * 6} 0)`} fill="currentColor" />)}
   </svg>)}</span>)}</span>;
 }
 
