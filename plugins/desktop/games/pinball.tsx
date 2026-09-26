@@ -230,7 +230,7 @@ const MATRIX: Record<string, string> = {
 };
 function DotMatrix({ text }: { text: string | number }) {
   return <span className="bbd-pinball-dots" aria-label={String(text)}>{String(text).split("\n").map((line, index) => <span className="bbd-pinball-dot-line" key={index}>{line.split(" ").map((word, wi) => <svg key={wi} aria-hidden viewBox={`0 0 ${word.length * 6} 8`} style={{ width: `${word.length * 0.68}em` }}>
-    {[...word].flatMap((char, ci) => (MATRIX[char] ?? MATRIX[char.toUpperCase()] ?? "").split("/").flatMap((row, y) => [...row].flatMap((bit, x) => bit === "1" ? [<circle key={`${ci}-${y}-${x}`} cx={ci * 6 + x + .5} cy={y + .5} r={.39} fill="currentColor" />] : [])))}
+    {[...word].flatMap((char, ci) => (MATRIX[char] ?? MATRIX[char.toUpperCase()] ?? "").split("/").flatMap((row, y) => [...row].flatMap((bit, x) => bit === "1" ? [0, 1, 2, 3].map((dot) => <circle key={`${ci}-${y}-${x}-${dot}`} cx={ci * 6 + x + .25 + (dot % 2) * .5} cy={y + .25 + Math.floor(dot / 2) * .5} r={.22} fill="currentColor" />) : [])))}
   </svg>)}</span>)}</span>;
 }
 
@@ -405,7 +405,7 @@ function drawFrame(ctx: CanvasRenderingContext2D) {
 
 // Original vector reconstruction of the left launch ramp and return platform.
 function drawRamp(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = COLORS.rampEdge;
+  ctx.fillStyle = COLORS.ramp;
   ctx.beginPath();
   ctx.moveTo(18, 310);
   ctx.bezierCurveTo(36, 250, 110, 252, 152, 346);
@@ -431,6 +431,7 @@ function drawRamp(ctx: CanvasRenderingContext2D) {
   ctx.stroke();
   ctx.strokeStyle = COLORS.rampStripe;
   ctx.lineWidth = 26;
+  ctx.lineCap = "butt";
   ctx.setLineDash([9, 10]);
   ctx.stroke();
   ctx.setLineDash([]);
@@ -685,7 +686,7 @@ function drawBumpers(ctx: CanvasRenderingContext2D, state: PinballState) {
     disc(ctx, x, y - 5, radius * 0.82, COLORS.bumperCap);
     for (let petal = 0; petal < 5; petal++) {
       const a = petal / 5 * Math.PI * 2;
-      disc(ctx, x + Math.cos(a) * radius * 0.5, y - 5 + Math.sin(a) * radius * 0.5, radius * 0.25, lit ? COLORS.bumperLit : COLORS.bumperRing);
+      disc(ctx, x + Math.cos(a) * radius * 0.5, y - 5 + Math.sin(a) * radius * 0.5, radius * 0.25, lit ? COLORS.bumperLit : index >= 4 ? COLORS.bumperCore : COLORS.bumperRing);
     }
     disc(ctx, x, y - 7, radius * 0.39, COLORS.bumperSkirt);
     disc(ctx, x, y - 8, radius * 0.27, COLORS.bumperCore);
@@ -908,17 +909,25 @@ export function PinballGame({ active = true }: { active?: boolean }) {
       setVisible(document.visibilityState !== "hidden");
       if (document.visibilityState === "hidden") suspend();
     };
+    const resumeFocus = () => {
+      setFocused(bodyRef.current?.contains(document.activeElement) ?? false);
+    };
     window.addEventListener("blur", suspend);
+    window.addEventListener("focus", resumeFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("blur", suspend);
+      window.removeEventListener("focus", resumeFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [clearInput]);
 
   useEffect(() => {
-    bodyRef.current?.focus({ preventScroll: true });
-  }, []);
+    if (dialog !== null) return;
+    const body = bodyRef.current;
+    body?.focus({ preventScroll: true });
+    setFocused(body?.contains(document.activeElement) ?? false);
+  }, [dialog]);
 
   useEffect(
     () => () => {
