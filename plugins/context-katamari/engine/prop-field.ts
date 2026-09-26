@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import { BASE_RADIUS, hashString, mulberry32 } from "../katamari-math";
 import type { MaterialKit } from "./materials";
+import { PropBatch } from "./prop-batch";
 import { buildProp, pickWeighted, type PropDefinition, type PropMotion, propsFor } from "./props";
 import { angleOf, PICKUP_RATIO, smoothing, wrapAngle } from "./world-math";
 import { zoneAt } from "./zones";
@@ -59,13 +60,17 @@ export class PropField {
   private spawnQueue: SpawnSpec[] = [];
   /** The level, then each neighbor level's cell under the focus, as of the last chunk pass. */
   private readonly lastCells = [Number.NaN, Number.NaN, Number.NaN, Number.NaN, Number.NaN, Number.NaN, Number.NaN];
+  /** Every prop's body in one draw call. */
+  private readonly batch: PropBatch;
 
   constructor(
-    private readonly scene: THREE.Scene,
+    scene: THREE.Scene,
     private readonly kit: MaterialKit,
     private readonly seed: number,
     private readonly random: () => number,
-  ) {}
+  ) {
+    this.batch = new PropBatch(kit, scene, { instances: 256, vertices: 65536, cull: true });
+  }
 
   get props(): ReadonlyMap<string, WorldProp> {
     return this.items;
@@ -151,13 +156,13 @@ export class PropField {
       chunk,
       spinners,
     };
-    this.scene.add(object);
+    this.batch.add(object);
     this.items.set(id, prop);
     return prop;
   }
 
   remove(prop: WorldProp): void {
-    this.scene.remove(prop.object);
+    this.batch.remove(prop.object);
     this.items.delete(prop.id);
   }
 
@@ -171,8 +176,13 @@ export class PropField {
     }
   }
 
-  clear(): void {
+  setVisible(prop: WorldProp, visible: boolean): void {
+    this.batch.setVisible(prop.object, visible);
+  }
+
+  dispose(): void {
     this.items.clear();
+    this.batch.release();
   }
 
   /** Walk, drive, hop, and bob every prop; small ones flee a `chaser` big enough to take them. */
@@ -214,12 +224,18 @@ export class PropField {
       if (prop.motion === "walk" && speed > 0) bob = Math.abs(Math.sin(prop.phase)) * prop.size * 0.12;
       if (prop.motion === "fly") bob = Math.sin(prop.phase * 0.4) * prop.size * 0.3;
       if (prop.motion === "bob") bob = Math.max(0, Math.sin(prop.phase)) * prop.size * 0.08;
-      prop.object.position.set(prop.x, prop.lift + prop.hop + bob, prop.z);
-      prop.object.rotation.set(
-        prop.hop > 0 ? prop.hop / prop.size : 0,
-        -prop.heading,
-        0,
-      );
+      const { position, rotation } = prop.object;
+      const y = prop.lift + prop.hop + bob;
+      const tilt = prop.hop > 0 ? prop.hop / prop.size : 0;
+      // Most props stand still, and their batch entries can stay as they are.
+      if (
+        position.x !== prop.x || position.y !== y || position.z !== prop.z ||
+        rotation.x !== tilt || rotation.y !== -prop.heading || rotation.z !== 0
+      ) {
+        position.set(prop.x, y, prop.z);
+        rotation.set(tilt, -prop.heading, 0);
+        this.batch.update(prop.object);
+      }
       for (const spinner of prop.spinners) {
         const spin = spinner.userData.spin as { axis: "x" | "y" | "z"; speed: number };
         spinner.rotation[spin.axis] += spin.speed * deltaSeconds;

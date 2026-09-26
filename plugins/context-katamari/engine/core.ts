@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { type MaterialKit, TOY_COLORS } from "./materials";
+import { bake } from "./props";
 
 /**
  * A katamari core wears its thread's compaction history. Every compaction
@@ -70,38 +71,44 @@ export function dressCore(
 ): void {
   core.clear();
   const tier = coreTier(compactions);
-  core.add(new THREE.Mesh(kit.sphere(2), kit.solid(tier.core)));
-  const offset = TOY_COLORS.indexOf(nubColor as (typeof TOY_COLORS)[number]);
-  NUB_DIRECTIONS.forEach((direction, index) => {
-    const rings = tier.rainbow
-      ? ([TOY_COLORS[index % TOY_COLORS.length], 0xfaf6ec, TOY_COLORS[(index + 5) % TOY_COLORS.length]] as const)
-      : BULLSEYES[(index + Math.max(0, offset)) % BULLSEYES.length];
-    const nub = new THREE.Group();
-    nub.position.copy(direction).multiplyScalar(0.47);
-    nub.quaternion.setFromUnitVectors(UP, direction);
-    // Stacked domes read as painted rings from any angle.
-    const dome = (color: number, width: number, height: number, lift: number) => {
-      const mesh = new THREE.Mesh(kit.sphere(2), kit.solid(color));
-      mesh.scale.set(width, height, width);
-      mesh.position.y = lift;
-      nub.add(mesh);
-    };
-    dome(rings[0], 0.3, 0.12, 0.02);
-    dome(rings[1], 0.21, 0.12, 0.035);
-    if (tier.nub === "round") {
-      dome(rings[2], 0.11, 0.1, 0.06);
-    } else {
-      const geometry =
-        tier.nub === "spike"
-          ? kit.cone(6)
-          : kit.geometry("octahedron", () => new THREE.OctahedronGeometry(0.5, 0));
-      const center = new THREE.Mesh(geometry, kit.solid(rings[2]));
-      center.scale.set(0.11, tier.nub === "spike" ? 0.18 : 0.2, 0.11);
-      center.position.y = 0.1;
-      nub.add(center);
-    }
-    core.add(nub);
+  // Baked into one mesh, so a ball costs one draw for its core instead of dozens.
+  const look = kit.template(`core:${nubColor}:${CORE_TIERS.indexOf(tier)}`, () => {
+    const model = new THREE.Group();
+    model.add(new THREE.Mesh(kit.sphere(2), kit.solid(tier.core)));
+    const offset = TOY_COLORS.indexOf(nubColor as (typeof TOY_COLORS)[number]);
+    NUB_DIRECTIONS.forEach((direction, index) => {
+      const rings = tier.rainbow
+        ? ([TOY_COLORS[index % TOY_COLORS.length], 0xfaf6ec, TOY_COLORS[(index + 5) % TOY_COLORS.length]] as const)
+        : BULLSEYES[(index + Math.max(0, offset)) % BULLSEYES.length];
+      const nub = new THREE.Group();
+      nub.position.copy(direction).multiplyScalar(0.47);
+      nub.quaternion.setFromUnitVectors(UP, direction);
+      // Stacked domes read as painted rings from any angle.
+      const dome = (color: number, width: number, height: number, lift: number) => {
+        const mesh = new THREE.Mesh(kit.sphere(2), kit.solid(color));
+        mesh.scale.set(width, height, width);
+        mesh.position.y = lift;
+        nub.add(mesh);
+      };
+      dome(rings[0], 0.3, 0.12, 0.02);
+      dome(rings[1], 0.21, 0.12, 0.035);
+      if (tier.nub === "round") {
+        dome(rings[2], 0.11, 0.1, 0.06);
+      } else {
+        const geometry =
+          tier.nub === "spike"
+            ? kit.cone(6)
+            : kit.geometry("octahedron", () => new THREE.OctahedronGeometry(0.5, 0));
+        const center = new THREE.Mesh(geometry, kit.solid(rings[2]));
+        center.scale.set(0.11, tier.nub === "spike" ? 0.18 : 0.2, 0.11);
+        center.position.y = 0.1;
+        nub.add(center);
+      }
+      model.add(nub);
+    });
+    return bake(model, kit);
   });
+  core.add(look.clone(true));
 }
 
 interface Moon {

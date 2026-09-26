@@ -21,6 +21,7 @@ import {
   setCompactions,
   showKnownCompactions,
   sortForShrink,
+  stuckWorldPosition,
 } from "./actor";
 import { CameraRig } from "./camera-rig";
 import { type CousinPose, MAX_DIZZY_STARS, poseCousin } from "./cousin";
@@ -337,7 +338,7 @@ export class KatamariWorld {
   dispose(): void {
     this.stop();
     this.disposed = true;
-    this.field.clear();
+    this.field.dispose();
     this.effects.dispose();
     this.environment.dispose();
     this.kit.dispose();
@@ -400,6 +401,7 @@ export class KatamariWorld {
     }
     const cached = this.actorCache.get(threadId);
     this.actorCache.delete(threadId);
+    cached?.items.restore();
     const actor = cached ?? createActor(this.kit, threadId, fill, compactions, ready);
     actor.targetRadius = radiusForFill(fill);
     if (cached && ready) showKnownCompactions(this.kit, actor, compactions);
@@ -463,7 +465,7 @@ export class KatamariWorld {
     this.retireDeparted();
 
     const camera = this.cameraRig;
-    camera.update(deltaSeconds, this.active, this.field.props);
+    camera.update(deltaSeconds, this.active, this.field);
     const radius = camera.radius;
     const level = scaleLevel(radius);
     this.field.refresh(level, camera.focus, radius);
@@ -538,6 +540,8 @@ export class KatamariWorld {
 
   private retire(actor: Actor): void {
     this.scene.remove(actor.ball, actor.rig.root, actor.ballShadow, actor.cousinShadow);
+    // Benched cousins keep their items but not the GPU copy of them.
+    actor.items.release();
     this.actorCache.set(actor.threadId, actor);
     while (this.actorCache.size > ACTOR_CACHE_LIMIT) {
       const oldest = this.actorCache.keys().next().value;
@@ -812,8 +816,8 @@ export class KatamariWorld {
     const loose = actor.stuck.splice(actor.stuck.length - count, count);
     const position = new THREE.Vector3();
     for (const [index, item] of loose.entries()) {
-      item.object.getWorldPosition(position);
-      actor.roll.remove(item.object);
+      stuckWorldPosition(actor, item, position);
+      actor.items.remove(item.object);
       const prop = this.field.add(
         item.definition,
         position.x,
@@ -905,7 +909,7 @@ export class KatamariWorld {
   private shed(actor: Actor): void {
     const shedding = sortForShrink(actor, actor.radius, actor.targetRadius);
     for (const item of shedding.slice(0, 24)) {
-      actor.roll.remove(item.object);
+      actor.items.remove(item.object);
       const angle = actor.random() * Math.PI * 2;
       const prop = this.field.add(
         item.definition,
@@ -921,12 +925,13 @@ export class KatamariWorld {
       prop.vy = actor.radius * 4;
     }
     for (const item of shedding.slice(24)) {
-      actor.roll.remove(item.object);
+      actor.items.remove(item.object);
     }
     actor.radius = actor.targetRadius;
     for (const item of actor.stuck) item.depth = Math.min(item.depth, actor.radius * 0.84);
     for (const item of actor.stuck) {
       item.object.position.setLength(item.depth - item.size * 0.4);
+      actor.items.update(item.object);
     }
     this.audio.shed();
   }
@@ -970,8 +975,8 @@ export class KatamariWorld {
     const flung = sortForShrink(actor, pop.fromRadius, newRadius);
     const worldPosition = new THREE.Vector3();
     for (const [index, item] of flung.entries()) {
-      item.object.getWorldPosition(worldPosition);
-      actor.roll.remove(item.object);
+      stuckWorldPosition(actor, item, worldPosition);
+      actor.items.remove(item.object);
       if (index >= 30) continue;
       const outX = worldPosition.x - actor.x;
       const outZ = worldPosition.z - actor.z;
@@ -995,6 +1000,7 @@ export class KatamariWorld {
     for (const item of actor.stuck) {
       item.depth = Math.min(item.depth, newRadius * 0.84);
       item.object.position.setLength(item.depth - item.size * 0.4);
+      actor.items.update(item.object);
     }
     setCompactions(this.kit, actor, pop.compactions, true);
     this.effects.burst(actor.x, actor.z, pop.fromRadius, this.random);
