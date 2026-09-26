@@ -335,6 +335,31 @@ function linkedThreadId(target: EventTarget | null): string | null {
   return match === null ? null : decodeURIComponent(match[1]!);
 }
 
+/** A web link clicked in a thread's chat, which opens in that thread's browser window instead of the system browser. */
+function chatWebLink(target: EventTarget | null): { threadId: string; url: string } | null {
+  if (!(target instanceof Element) || nativeBrowser() === null) return null;
+  const threadId = target.closest<HTMLElement>("[data-bbd-chat-thread]")?.dataset.bbdChatThread;
+  const anchor = target.closest("a[href]");
+  if (threadId === undefined || !(anchor instanceof HTMLAnchorElement)) return null;
+  if (!/^https?:$/.test(anchor.protocol) || anchor.origin === window.location.origin) return null;
+  return { threadId, url: anchor.href };
+}
+
+function openChatWebLink(manager: ReturnType<typeof useWindowManager>, link: { threadId: string; url: string }) {
+  const existing = manager.windows.find(
+    (window) => window.spec.kind === "thread-tab" && window.spec.tab === "browser" && window.spec.threadId === link.threadId,
+  );
+  if (existing?.spec.kind === "thread-tab") {
+    nativeBrowser()?.navigate({ tabId: threadBrowserTab(existing.spec.tabId).tabId, url: link.url });
+    if (existing.minimized) manager.minimize(existing.id, false);
+    manager.focus(existing.id);
+    return;
+  }
+  const tabId = Math.random().toString(36).slice(2, 10);
+  localStorage.setItem(threadBrowserTab(tabId).urlKey, link.url);
+  manager.open({ kind: "thread-tab", threadId: link.threadId, tab: "browser", tabId });
+}
+
 function closeThreadTab(spec: { tab: ThreadTabKind; tabId: string }) {
   if (spec.tab === "browser") closeThreadBrowser(spec.tabId);
   else closeCommandPromptSession(threadTerminalSessionKey(spec.tabId));
@@ -656,10 +681,12 @@ function DesktopData() {
             onClickCapture={(event) => {
               if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               const threadId = linkedThreadId(event.target);
-              if (threadId === null) return;
+              const webLink = threadId === null ? chatWebLink(event.target) : null;
+              if (threadId === null && webLink === null) return;
               event.preventDefault();
               event.stopPropagation();
-              openThread(threadId);
+              if (threadId !== null) openThread(threadId);
+              else if (webLink !== null) openChatWebLink(manager, webLink);
             }}
           >
             {manager.windows.map((window) => (
@@ -2938,7 +2965,7 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
           <button type="button" aria-haspopup="menu" disabled={thread === undefined} onClick={openThreadMenu}>Thread</button>
           <span title={`Screen name: ${buddy}`}>To: <strong>{buddy}</strong></span>
         </div>
-        <div className="bbd-im-chat min-h-0 flex-1">
+        <div className="bbd-im-chat min-h-0 flex-1" data-bbd-chat-thread={threadId}>
           <ThreadChat threadId={threadId} variant="compact" layout="contained" permissionPolicy="editable" className="h-full" />
         </div>
         <div className="bbd-im-actions flex-none">
