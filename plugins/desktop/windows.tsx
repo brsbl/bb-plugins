@@ -663,9 +663,11 @@ export function WindowFrame({
       if (edge || maximized) previewRect(element, latest);
       else element.style.transform = `translate(${latest.x - rect.x}px, ${latest.y - rect.y}px)`;
     }, (cancelled, moved) => {
-      delete element.dataset.dragging;
       element.style.transform = "";
       previewRect(element, cancelled || !moved ? rect : latest);
+      // Settle the transform with transitions disabled before restoring nudge animation.
+      if (moved) element.getBoundingClientRect();
+      delete element.dataset.dragging;
       if (maximized && (cancelled || !moved)) element.dataset.maximized = "true";
       if (!cancelled && moved) manager.move(id, latest);
     });

@@ -258,9 +258,11 @@ function StickyNoteView({ note }: { note: StickyNote }) {
       if (resize) previewRect(element, latest);
       else element.style.transform = `translate(${latest.x - origin.x}px, ${latest.y - origin.y}px)`;
     }, (cancelled, moved) => {
-      delete element.dataset.dragging;
       element.style.transform = "";
       previewRect(element, cancelled || !moved ? origin : latest);
+      // Flush once on drop so the shared window transition cannot animate the reset.
+      if (moved) element.getBoundingClientRect();
+      delete element.dataset.dragging;
       if (!cancelled && moved) updateNote(note.id, anchoredNote(latest.x, latest.y, latest.width, latest.height));
     });
   };
