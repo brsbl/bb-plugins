@@ -51,7 +51,8 @@ const COMPACT_HOME = 'body.bb-app-shell > #root [data-testid="root-compose-compa
 const COMPACT_INSET = "max(16px, calc((100% - 760px) / 2 + 16px))";
 const CHROME_PILLS = 'body.bb-app-shell > #root :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], [data-testid="app-sidebar-top-reserve-row"] > div, button[data-sidebar="trigger"])';
 const SIDEBAR_CARDS = 'body.bb-app-shell > #root :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])';
-const PAGE_MAIN = '[data-testid="app-layout-content-shell"] > main:not(:has([data-thread-window], [data-app-composer], [role="img"][aria-label="bb"]))';
+const SECTION_BACK_ROW = 'body.bb-app-shell > #root [data-testid$="-sidebar-top-reserve-row"] + div a';
+const PAGE_MAIN ='[data-testid="app-layout-content-shell"] > main:not(:has([data-thread-window], [data-app-composer], [role="img"][aria-label="bb"]))';
 const PAGE = `body.bb-app-shell > #root ${PAGE_MAIN}`;
 const SIDEBAR_OPEN = 'body.bb-app-shell > #root .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]';
 const THREAD_TITLE_ROW = '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
@@ -109,6 +110,8 @@ body.bb-app-shell > #root [data-app-page-header-actions] button.border { border-
 @media (max-width: 767px) { body.bb-app-shell > #root div.fixed:has(> button[aria-label*="right panel" i]) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } body.bb-app-shell > #root :is(div.fixed, [data-app-page-header-actions]) button[aria-label*="right panel" i] { width: 32px; height: 32px; } body.bb-app-shell > #root [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } body.bb-app-shell > #root [data-app-page-header-actions]:has(button[aria-label*="right panel" i]) { padding-inline-end: 0; } }
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${CHROME_PILLS}) { --state-hover: color-mix(in oklab, var(--ink) 9%, transparent); --state-active: color-mix(in oklab, var(--ink) 15%, transparent); --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
+${SECTION_BACK_ROW} { border: 1px solid transparent; border-radius: 12px; }
+${SECTION_BACK_ROW}:is(:hover, :focus-visible) { ${GLASS_SURFACE} }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] { margin-block: 0 8px; }
 body.bb-app-shell > #root [data-testid="sidebar-navigation-region"] [data-testid="navigation-divider"] { display: none; }
 body.bb-app-shell > #root [data-sidebar="content"] { flex: 0 1 auto; min-height: min(7rem, 18dvh); margin-block-end: auto; }
