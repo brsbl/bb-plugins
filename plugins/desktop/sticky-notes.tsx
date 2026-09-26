@@ -314,8 +314,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
       />
       <ProgramStatusBar><span className="flex-1">{note.saved === true ? "Saved to Desktop" : "Not saved · Ctrl+S"}</span><span>{note.text.length} characters</span></ProgramStatusBar>
       <span
-        ref={noteRef}
-      className="bbd-note-grip"
+        className="bbd-note-grip"
         aria-hidden
         onPointerDown={(event) => track(event, true)}
       />
