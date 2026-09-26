@@ -1,0 +1,3796 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
+import { toast } from "sonner";
+import {
+  ThreadChat,
+  experimental_NewThreadComposer as NewThreadComposer,
+  experimental_useSidebarThreadActions as useSidebarThreadActions,
+  experimental_useSidebarThreadPullRequest as useSidebarThreadPullRequest,
+  experimental_useSidebarThreads as useSidebarThreads,
+  useBbNavigate,
+  useRealtime,
+  useRealtimeConnectionState,
+  useRpc,
+  type NewThreadRequest,
+  type PluginSidebarThread,
+} from "@get-bb/plugin-sdk/app";
+
+import {
+  CheckGlyph,
+  ExternalLinkGlyph,
+  MoreGlyph,
+  FolderArt,
+  DetailsArt,
+  NewFolderArt,
+  NewThreadArt,
+  PluginsArt,
+  RunArt,
+  SearchArt,
+  ShowDesktopArt,
+  SkillsArt,
+  ThreadsArt,
+  GridViewGlyph,
+  ListViewGlyph,
+  MediaPlayerArt,
+  BuddyListArt,
+  MinesweeperArt,
+  PaintArt,
+  InternetExplorerArt,
+  CommandPromptArt,
+  SolitaireArt,
+  PinballArt,
+  RecycleBinArt,
+  StatusIcon,
+  NotePadArt,
+  type StatusKind,
+  NotePadGlyph,
+  ChevronsRightGlyph,
+  PowerGlyph,
+  ThreadArt,
+  TileGlyph,
+  TrashGlyph,
+} from "./art";
+import {
+  ICON_CELL,
+  acceptsDrop,
+  buildGroups,
+  clearanceShift,
+  gridPositions,
+  groupThreads,
+  nextFreePosition,
+  resolveSidebarPreferences,
+  sortThreads,
+  tileRects,
+  type DesktopGroup,
+  type DesktopThread,
+  type Organize,
+  type Point,
+  type Preferences,
+  type SortDirection,
+  type SortKey,
+} from "./core";
+import { NeedsInputBalloon } from "./balloon";
+import { attachAppWindow, findApp, registeredApps, setAppOpener, subscribeApps, type DesktopApp } from "./bridge";
+import { PaintApp } from "./apps/paint";
+import { CommandPrompt, closeCommandPromptSession, threadTerminalSessionKey } from "./command-prompt";
+import {
+  BROWSER_HOME,
+  InternetExplorer,
+  closeInternetExplorer,
+  closeThreadBrowser,
+  nativeBrowser,
+  threadBrowserTab,
+} from "./internet-explorer";
+import { MinesweeperGame } from "./games/minesweeper";
+import { SolitaireGame } from "./games/solitaire";
+import { PinballGame } from "./games/pinball";
+import { playDoorClose, playDoorOpen } from "./door-sounds";
+import { toggleDesktop, useDesktopEnabled } from "./enabled";
+import { MediaDeskband, MediaPlayerWindow, useMic } from "./media-player";
+import { aimScreenName } from "./screen-names";
+import { addStickyNote, noteTitle, openNote, removeNote, useSavedNotes, type StickyNote } from "./sticky-notes";
+import type { DesktopSnapshot, rpcContract } from "./server";
+import {
+  WindowFrame,
+  WindowManagerProvider,
+  setWindowNudges,
+  usePointerTracker,
+  useWindowManager,
+  viewportRect,
+  workAreaRect,
+  windowId,
+  type DesktopWindow,
+  type ThreadTabKind,
+  type WindowSpec,
+} from "./windows";
+
+const THREAD_DRAG_TYPE = "application/x-bb-desktop-thread";
+const PLUGIN_SCOPE = { "data-bb-plugin": "desktop" } as const;
+
+interface ThreadDrag {
+  threadId: string;
+  fromFolderId: string | null;
+}
+
+interface MenuItem {
+  label: string;
+  icon?: ReactNode;
+  disabled?: boolean;
+  checked?: boolean;
+  run: () => void;
+}
+
+type MenuEntry = MenuItem | "separator" | { heading: string };
+
+interface MenuState {
+  x: number;
+  y: number;
+  entries: MenuEntry[];
+}
+
+interface Effective {
+  sort: { key: SortKey; direction: SortDirection };
+  organize: Organize;
+}
+
+interface DesktopContextValue {
+  snapshot: DesktopSnapshot;
+  threads: DesktopThread[];
+  visibleThreads: DesktopThread[];
+  archivedThreads: DesktopThread[];
+  threadById: Map<string, DesktopThread>;
+  liveById: Map<string, PluginSidebarThread>;
+  groups: DesktopGroup[];
+  desktopGroups: DesktopGroup[];
+  moreGroups: DesktopGroup[];
+  groupByKey: Map<string, DesktopGroup>;
+  foldersOf: (threadId: string) => string[];
+  effective: Effective;
+  sort: { key: SortKey; direction: SortDirection };
+  call: ReturnType<typeof useRpc<typeof rpcContract>>["call"];
+  refresh: () => void;
+  openThread: (threadId: string) => void;
+  openMenu: (event: MenuTrigger, entries: MenuEntry[]) => void;
+  dropThread: (group: DesktopGroup, drag: ThreadDrag) => Promise<void>;
+  restoreThread: (threadId: string) => Promise<void>;
+  setPreferences: (patch: Partial<Preferences>) => void;
+}
+
+const DesktopContext = createContext<DesktopContextValue | null>(null);
+
+function useDesktop(): DesktopContextValue {
+  const value = useContext(DesktopContext);
+  if (value === null) throw new Error("useDesktop outside Desktop");
+  return value;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function readThreadDrag(event: ReactDragEvent): ThreadDrag | null {
+  try {
+    const parsed: unknown = JSON.parse(event.dataTransfer.getData(THREAD_DRAG_TYPE));
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const record = parsed as Record<string, unknown>;
+    if (typeof record.threadId !== "string") return null;
+    return {
+      threadId: record.threadId,
+      fromFolderId: typeof record.fromFolderId === "string" ? record.fromFolderId : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function startThreadDrag(event: ReactDragEvent, drag: ThreadDrag) {
+  event.dataTransfer.setData(THREAD_DRAG_TYPE, JSON.stringify(drag));
+  event.dataTransfer.effectAllowed = "move";
+}
+
+function useDropTarget(group: DesktopGroup | null) {
+  const desktop = useDesktop();
+  const [over, setOver] = useState(false);
+  const enabled = group !== null && acceptsDrop(group);
+  return {
+    over,
+    handlers: enabled
+      ? {
+          "data-thread-drop": group.key,
+          onDragOver(event: ReactDragEvent) {
+            if (!event.dataTransfer.types.includes(THREAD_DRAG_TYPE)) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            setOver(true);
+          },
+          onDragLeave() {
+            setOver(false);
+          },
+          onDrop(event: ReactDragEvent) {
+            setOver(false);
+            const drag = readThreadDrag(event);
+            if (drag === null) return;
+            event.preventDefault();
+            void desktop.dropThread(group, drag);
+          },
+        }
+      : {},
+  };
+}
+
+async function fetchSidebarPreferences(): Promise<unknown> {
+  try {
+    const response = await fetch("/api/v1/plugins/thread-list/rpc/listPreferences", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "null",
+      credentials: "same-origin",
+    });
+    const body: unknown = await response.json();
+    return typeof body === "object" && body !== null
+      ? (body as { result?: { preferences?: unknown } }).result?.preferences
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function useDesktopData() {
+  const rpc = useRpc<typeof rpcContract>();
+  const rpcRef = useRef(rpc);
+  rpcRef.current = rpc;
+  const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setSnapshot(await rpcRef.current.call("snapshot"));
+      setError(null);
+    } catch (loadError) {
+      setError(errorMessage(loadError));
+    }
+  }, []);
+
+  const refresh = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      void load();
+    }, 120);
+  }, [load]);
+
+  useEffect(() => {
+    void load();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      if (timer.current !== null) clearTimeout(timer.current);
+    };
+  }, [load, refresh]);
+
+  useRealtime("changed", refresh);
+
+  const connection = useRealtimeConnectionState();
+  const previousConnection = useRef(connection);
+  useEffect(() => {
+    if (connection === "connected" && previousConnection.current !== "connected") refresh();
+    previousConnection.current = connection;
+  }, [connection, refresh]);
+
+  const call = useCallback<DesktopContextValue["call"]>(
+    (...args) => rpcRef.current.call(...args),
+    [],
+  );
+
+  return { snapshot, error, refresh, call };
+}
+
+export function Desktop() {
+  if (!useDesktopEnabled()) return null;
+  return (
+    <WindowManagerProvider>
+      <DesktopData />
+    </WindowManagerProvider>
+  );
+}
+
+const THREAD_ROUTE = /^(?:\/projects\/[^/]+)?\/threads\/([^/?#]+)\/?$/;
+
+function linkedThreadId(target: EventTarget | null): string | null {
+  if (!(target instanceof Element) || target.closest(".bbd-window") === null) return null;
+  if (target.closest('[contenteditable="true"]') !== null) return null;
+  const mention = target.closest("[data-prompt-mention-resource]");
+  if (mention !== null) {
+    try {
+      const resource: unknown = JSON.parse(mention.getAttribute("data-prompt-mention-resource") ?? "null");
+      const record = typeof resource === "object" && resource !== null ? (resource as Record<string, unknown>) : null;
+      if (record?.kind === "thread" && typeof record.threadId === "string") return record.threadId;
+    } catch {
+      return null;
+    }
+  }
+  const anchor = target.closest("a[href]");
+  if (!(anchor instanceof HTMLAnchorElement) || anchor.target === "_blank" || anchor.origin !== window.location.origin) return null;
+  const match = THREAD_ROUTE.exec(anchor.pathname);
+  return match === null ? null : decodeURIComponent(match[1]!);
+}
+
+/** A web link clicked in a thread's chat, which opens in that thread's browser window instead of the system browser. */
+function chatWebLink(target: EventTarget | null): { threadId: string; url: string } | null {
+  if (!(target instanceof Element) || nativeBrowser() === null) return null;
+  const threadId = target.closest<HTMLElement>("[data-bbd-chat-thread]")?.dataset.bbdChatThread;
+  const anchor = target.closest("a[href]");
+  if (threadId === undefined || !(anchor instanceof HTMLAnchorElement)) return null;
+  if (!/^https?:$/.test(anchor.protocol) || anchor.origin === window.location.origin) return null;
+  return { threadId, url: anchor.href };
+}
+
+function openChatWebLink(manager: ReturnType<typeof useWindowManager>, link: { threadId: string; url: string }) {
+  const existing = manager.windows.find(
+    (window) => window.spec.kind === "thread-tab" && window.spec.tab === "browser" && window.spec.threadId === link.threadId,
+  );
+  if (existing?.spec.kind === "thread-tab") {
+    nativeBrowser()?.navigate({ tabId: threadBrowserTab(existing.spec.tabId).tabId, url: link.url });
+    if (existing.minimized) manager.minimize(existing.id, false);
+    manager.focus(existing.id);
+    return;
+  }
+  const tabId = Math.random().toString(36).slice(2, 10);
+  localStorage.setItem(threadBrowserTab(tabId).urlKey, link.url);
+  manager.open({ kind: "thread-tab", threadId: link.threadId, tab: "browser", tabId });
+}
+
+function closeThreadTab(spec: { tab: ThreadTabKind; tabId: string }) {
+  if (spec.tab === "browser") closeThreadBrowser(spec.tabId);
+  else closeCommandPromptSession(threadTerminalSessionKey(spec.tabId));
+}
+
+function closeThreadWindows(manager: ReturnType<typeof useWindowManager>, threadId: string) {
+  for (const window of manager.windows) {
+    if (window.spec.kind === "thread-tab" && window.spec.threadId === threadId) closeThreadTab(window.spec);
+  }
+  manager.closeWhere(
+    (window) =>
+      (window.spec.kind === "thread" ||
+        window.spec.kind === "panel" ||
+        window.spec.kind === "buddy-list" ||
+        window.spec.kind === "thread-tab") &&
+      window.spec.threadId === threadId,
+  );
+}
+
+export function ThreadFolderChip({ threadId }: { threadId: string }) {
+  const enabled = useDesktopEnabled();
+  const { snapshot } = useDesktopData();
+  const folders = (snapshot?.folders ?? []).filter((folder) => folder.threadIds.includes(threadId));
+  const [first] = folders;
+  if (!enabled || first === undefined) return null;
+  const names = folders.map((folder) => folder.name).join(", ");
+  return (
+    <span
+      className="bbd-root bbd-folder-chip"
+      data-bb-plugin="desktop"
+      title={`In Desktop ${folders.length === 1 ? "folder" : "folders"}: ${names}`}
+      aria-label={`In Desktop ${folders.length === 1 ? "folder" : "folders"}: ${names}`}
+    >
+      <FolderArt kind="section" size={16} />
+      <span className="truncate">{first.name}</span>
+      {folders.length > 1 ? <span className="text-muted-foreground">+{folders.length - 1}</span> : null}
+    </span>
+  );
+}
+
+function DesktopData() {
+  const { snapshot, error, refresh, call } = useDesktopData();
+  const live = useSidebarThreads();
+  const manager = useWindowManager();
+  const actions = useSidebarThreadActions();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [dockFrame, setDockFrame] = useState<DockFrame | null>(null);
+  const [sidebar, setSidebar] = useState<ReturnType<typeof resolveSidebarPreferences> | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+
+  useEffect(() => {
+    if (snapshot === null) return;
+    let cancelled = false;
+    void fetchSidebarPreferences().then((preferences) => {
+      if (!cancelled) setSidebar(resolveSidebarPreferences(preferences));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshot]);
+
+  const liveById = useMemo(
+    () => new Map(live.threads.map((thread) => [thread.id, thread])),
+    [live.threads],
+  );
+
+  const threads = useMemo(
+    () =>
+      (snapshot?.threads ?? []).map((thread) => {
+        const current = liveById.get(thread.id);
+        if (current === undefined) return thread;
+        return {
+          ...thread,
+          title: current.title ?? current.titleFallback ?? thread.title,
+          sectionId: current.sectionId,
+          isUnread: current.isUnread,
+          needsInput: current.hasPendingInteraction,
+          isArchived: current.isArchived,
+        };
+      }),
+    [liveById, snapshot?.threads],
+  );
+
+  const effective = useMemo<Effective>(() => {
+    const preferences = snapshot?.preferences;
+    const fromSidebar = sidebar ?? resolveSidebarPreferences(null);
+    const sortPreference = preferences?.sort ?? "sidebar";
+    return {
+      sort:
+        sortPreference === "sidebar"
+          ? fromSidebar.sort
+          : {
+              key: sortPreference,
+              direction: sortPreference === "alpha" ? "ascending" : "descending",
+            },
+      organize:
+        preferences === undefined || preferences.organize === "sidebar"
+          ? fromSidebar.organize
+          : preferences.organize,
+    };
+  }, [sidebar, snapshot?.preferences]);
+
+  const visibleThreads = useMemo(() => threads.filter((thread) => !thread.isArchived), [threads]);
+  const archivedThreads = useMemo(() => threads.filter((thread) => thread.isArchived), [threads]);
+
+  const groups = useMemo(
+    () =>
+      snapshot === null
+        ? []
+        : buildGroups({
+            organize: effective.organize,
+            sections: snapshot.sections,
+            projects: snapshot.projects,
+            machines: snapshot.machines,
+            folders: snapshot.folders,
+            threads: visibleThreads,
+          }),
+    [effective.organize, snapshot, visibleThreads],
+  );
+
+  const groupByKey = useMemo(() => new Map(groups.map((group) => [group.key, group])), [groups]);
+  const hiddenKeys = useMemo(() => new Set(sidebar?.hiddenGroupKeys ?? []), [sidebar]);
+  const desktopGroups = useMemo(() => groups.filter((group) => !hiddenKeys.has(group.key)), [groups, hiddenKeys]);
+  const moreGroups = useMemo(() => groups.filter((group) => hiddenKeys.has(group.key)), [groups, hiddenKeys]);
+  const folderNames = useMemo(() => {
+    const names = new Map<string, string[]>();
+    const ordered = [...groups].sort((left, right) => Number(right.kind === "folder") - Number(left.kind === "folder"));
+    for (const group of ordered) {
+      for (const thread of groupThreads(group, threads)) {
+        names.set(thread.id, [...(names.get(thread.id) ?? []), group.name]);
+      }
+    }
+    return names;
+  }, [groups, threads]);
+  const foldersOf = useCallback((threadId: string) => folderNames.get(threadId) ?? [], [folderNames]);
+
+  const threadById = useMemo(
+    () => new Map(threads.map((thread) => [thread.id, thread])),
+    [threads],
+  );
+
+  const openThread = useCallback(
+    (threadId: string) => {
+      manager.open({ kind: "thread", threadId });
+      if (threadById.get(threadId)?.isUnread === true) {
+        void actions.setRead(threadId, true).catch(() => undefined);
+      }
+    },
+    [actions, manager, threadById],
+  );
+
+  const dropThread = useCallback(
+    async (group: DesktopGroup, drag: ThreadDrag) => {
+      try {
+        if (threadById.get(drag.threadId)?.isArchived === true) {
+          await call("unarchiveThread", { threadId: drag.threadId });
+        }
+        if (group.kind === "section") {
+          if (threadById.get(drag.threadId)?.sectionId === group.id) return;
+          await call("moveToSection", { threadIds: [drag.threadId], sectionId: group.id });
+          toast.success(`Moved to ${group.name}`);
+          refresh();
+          return;
+        }
+        if (group.kind !== "folder" || group.folder.threadIds.includes(drag.threadId)) return;
+        await call("addToFolder", {
+          folderId: group.folder.id,
+          threadIds: [drag.threadId],
+          fromFolderId: drag.fromFolderId,
+        });
+        refresh();
+      } catch (dropError) {
+        toast.error(errorMessage(dropError));
+      }
+    },
+    [call, refresh, threadById],
+  );
+
+  const restoreThread = useCallback(
+    (threadId: string) =>
+      call("unarchiveThread", { threadId })
+        .then(refresh)
+        .catch((restoreError) => {
+          toast.error(errorMessage(restoreError));
+        }),
+    [call, refresh],
+  );
+
+  const openMenu = useCallback((event: MenuTrigger, entries: MenuEntry[]) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({ x: event.clientX, y: event.clientY, entries });
+  }, []);
+
+  const setPreferences = useCallback(
+    (patch: Partial<Preferences>) =>
+      void call("setPreferences", patch)
+        .then(refresh)
+        .catch((preferenceError) => toast.error(errorMessage(preferenceError))),
+    [call, refresh],
+  );
+
+  useEffect(() => {
+    setAppOpener((key) => manager.open({ kind: "app", key }));
+    return () => setAppOpener(null);
+  }, [manager]);
+
+  const windowsRef = useRef(manager.windows);
+  windowsRef.current = manager.windows;
+  useEffect(() => {
+    let composer: HTMLElement | null = null;
+    let observer: ResizeObserver | null = null;
+    const homeComposer = (target: EventTarget | null) =>
+      target instanceof Element && target.closest(".bbd-window-layer, [data-thread-window]") === null
+        ? target.closest<HTMLElement>("[data-app-composer]")
+        : null;
+    const clearComposer = () => {
+      const { width, height } = workAreaRect();
+      const bounds = composer?.getBoundingClientRect();
+      if (bounds === undefined) return;
+      const obstacle = { x: bounds.left, y: bounds.top, width: bounds.width, height: bounds.height };
+      const next = new Map<string, Point>();
+      for (const window of windowsRef.current) {
+        if (window.minimized || window.restoreRect !== null) continue;
+        const shift = clearanceShift(window.rect, obstacle, { width, height });
+        if (shift !== null) next.set(window.id, shift);
+      }
+      setWindowNudges(next);
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      const next = homeComposer(event.target);
+      if (next === null || next === composer) return;
+      observer?.disconnect();
+      composer = next;
+      observer = new ResizeObserver(clearComposer);
+      observer.observe(next);
+      clearComposer();
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      if (composer === null) return;
+      if (event.relatedTarget instanceof Node && composer.contains(event.relatedTarget)) return;
+      observer?.disconnect();
+      observer = null;
+      composer = null;
+      setWindowNudges(new Map());
+    };
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+      observer?.disconnect();
+      setWindowNudges(new Map());
+    };
+  }, []);
+
+  const ready = snapshot !== null && sidebar !== null;
+  useEffect(() => {
+    const element = rootRef.current;
+    if (!ready || element === null) return;
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      setDockFrame({ left: rect.left + rect.width / 2, maxWidth: rect.width });
+    };
+    const observer = new ResizeObserver(measure);
+    for (let node: Element | null = element; node !== null; node = node.parentElement) observer.observe(node);
+    window.addEventListener("resize", measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [ready]);
+
+  if (snapshot === null || sidebar === null) {
+    return (
+      <div className="bbd-root">
+        <div
+          className="bbd-desktop grid place-items-center text-sm text-muted-foreground"
+          style={{ height: 240 }}
+        >
+          {error === null ? null : `Desktop failed to load: ${error}`}
+        </div>
+      </div>
+    );
+  }
+
+  const value: DesktopContextValue = {
+    snapshot,
+    threads,
+    visibleThreads,
+    archivedThreads,
+    threadById,
+    liveById,
+    groups,
+    desktopGroups,
+    moreGroups,
+    groupByKey,
+    foldersOf,
+    effective,
+    sort: effective.sort,
+    call,
+    refresh,
+    openThread,
+    openMenu,
+    dropThread,
+    restoreThread,
+    setPreferences,
+  };
+
+  return (
+    <DesktopContext.Provider value={value}>
+      <div ref={rootRef} className="bbd-root">
+        <DesktopCanvas />
+        {createPortal(
+          <div
+            {...PLUGIN_SCOPE}
+            className="bbd-root bbd-window-layer"
+            onClickCapture={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              const threadId = linkedThreadId(event.target);
+              const webLink = threadId === null ? chatWebLink(event.target) : null;
+              if (threadId === null && webLink === null) return;
+              event.preventDefault();
+              event.stopPropagation();
+              if (threadId !== null) openThread(threadId);
+              else if (webLink !== null) openChatWebLink(manager, webLink);
+            }}
+          >
+            {manager.windows.map((window) => (
+              <WindowContent key={window.id} window={window} />
+            ))}
+            <Taskbar frame={dockFrame} />
+            <NeedsInputBalloon />
+          </div>,
+          document.body,
+        )}
+        {menu === null
+          ? null
+          : createPortal(
+              <ContextMenu menu={menu} onClose={() => setMenu(null)} />,
+              document.body,
+            )}
+      </div>
+    </DesktopContext.Provider>
+  );
+}
+
+function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: menu.x, y: menu.y });
+
+  useEffect(() => {
+    const element = ref.current;
+    if (element !== null) {
+      const box = element.getBoundingClientRect();
+      setPosition({
+        x: Math.max(4, Math.min(menu.x, window.innerWidth - box.width - 4)),
+        y: Math.max(4, Math.min(menu.y, window.innerHeight - box.height - 4)),
+      });
+      element.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    }
+    const dismiss = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      if (event.target instanceof Node && ref.current?.contains(event.target)) return;
+      onClose();
+    };
+    window.addEventListener("pointerdown", dismiss, true);
+    window.addEventListener("keydown", dismiss, true);
+    window.addEventListener("blur", onClose);
+    return () => {
+      window.removeEventListener("pointerdown", dismiss, true);
+      window.removeEventListener("keydown", dismiss, true);
+      window.removeEventListener("blur", onClose);
+    };
+  }, [menu, onClose]);
+
+  const list = (
+    <div className="bbd-menu-list">
+      {menu.entries.map((entry, index) =>
+        entry === "separator" ? (
+          <div key={`separator-${index}`} className="bbd-menu-separator" role="separator" />
+        ) : "heading" in entry ? (
+          <div key={`heading-${index}`} className="bbd-menu-label">
+            {entry.heading}
+          </div>
+        ) : (
+          <button
+            key={`${entry.label}-${index}`}
+            type="button"
+            role={entry.checked === undefined ? "menuitem" : "menuitemradio"}
+            aria-checked={entry.checked}
+            className="bbd-menu-item disabled:text-muted-foreground"
+            disabled={entry.disabled}
+            onClick={() => {
+              onClose();
+              entry.run();
+            }}
+          >
+            <span className="flex size-4 items-center justify-center">
+              {entry.checked ? <CheckGlyph className="size-3.5" strokeWidth={2} /> : entry.icon}
+            </span>
+            {entry.label}
+          </button>
+        ),
+      )}
+    </div>
+  );
+
+  return (
+    <div
+      ref={ref}
+      {...PLUGIN_SCOPE}
+      role="menu"
+      className="bbd-root bbd-menu"
+      style={{ left: position.x, top: position.y }}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      {list}
+    </div>
+  );
+}
+
+function groupSortValue(
+  group: DesktopGroup,
+  threads: readonly DesktopThread[],
+  key: SortKey,
+): number | string {
+  if (key === "alpha") return group.name.toLocaleLowerCase();
+  const members = groupThreads(group, threads);
+  if (key === "created") {
+    return group.kind === "folder"
+      ? group.folder.createdAt
+      : Math.min(Number.MAX_SAFE_INTEGER, ...members.map((thread) => thread.createdAt));
+  }
+  return Math.max(0, ...members.map((thread) => thread.updatedAt));
+}
+
+const ORGANIZE_LABELS: Record<Organize, string> = {
+  section: "Sections",
+  project: "Projects",
+  machine: "Machines",
+};
+
+const SORT_LABELS: Record<SortKey, string> = {
+  updated: "Updated at",
+  created: "Created at",
+  alpha: "Alphabetical",
+};
+
+function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
+  const { preferences } = desktop.snapshot;
+  return [
+    { heading: "Organize by" },
+    {
+      label: "Same as sidebar",
+      checked: preferences.organize === "sidebar",
+      run: () => desktop.setPreferences({ organize: "sidebar" }),
+    },
+    ...(["section", "project", "machine"] as const).map((organize) => ({
+      label: ORGANIZE_LABELS[organize],
+      checked: preferences.organize === organize,
+      run: () => desktop.setPreferences({ organize }),
+    })),
+    { heading: "Sort by" },
+    {
+      label: "Same as sidebar",
+      checked: preferences.sort === "sidebar",
+      run: () => desktop.setPreferences({ sort: "sidebar" }),
+    },
+    ...(["updated", "created", "alpha"] as const).map((sort) => ({
+      label: SORT_LABELS[sort],
+      checked: preferences.sort === sort,
+      run: () => desktop.setPreferences({ sort }),
+    })),
+  ];
+}
+
+type MenuTrigger = Pick<MouseEvent, "clientX" | "clientY" | "preventDefault" | "stopPropagation">;
+
+const PAGE_MENU_IGNORED = [
+  "input",
+  "textarea",
+  "select",
+  "button",
+  "a",
+  "label",
+  "[contenteditable]",
+  "[role]",
+  "[data-promptbox]",
+  "[data-promptbox-shell]",
+  ".bbd-root",
+  '[id^="plugin-homepage:"]:not([id="plugin-homepage:desktop:desktop"])',
+].join(",");
+
+function usePageBackgroundMenu(
+  canvasRef: RefObject<HTMLDivElement | null>,
+  entries: (event: MenuTrigger) => MenuEntry[],
+) {
+  const desktop = useDesktop();
+  const latest = useRef({ desktop, entries });
+  latest.current = { desktop, entries };
+
+  useEffect(() => {
+    const page = canvasRef.current?.closest('[class~="@container/page"]')?.parentElement;
+    if (page === null || page === undefined) return;
+    const onContextMenu = (event: MouseEvent) => {
+      let node = event.target instanceof Element ? event.target : null;
+      while (node !== null && node !== page) {
+        if (node.matches(PAGE_MENU_IGNORED)) return;
+        node = node.parentElement;
+      }
+      if (node === null) return;
+      if (window.getSelection()?.isCollapsed === false) return;
+      latest.current.desktop.openMenu(event, latest.current.entries(event));
+    };
+    page.addEventListener("contextmenu", onContextMenu);
+    return () => page.removeEventListener("contextmenu", onContextMenu);
+  }, [canvasRef]);
+}
+
+const RECYCLE_BIN_KEY = "recycle-bin";
+const MORE_KEY = "more";
+const NOTE_KEY_PREFIX = "note:";
+const ICON_BOX = { width: 88, height: 84 } as const;
+
+
+function isDeletable(group: DesktopGroup): boolean {
+  return group.kind === "folder" || (group.kind === "section" && group.id !== null);
+}
+
+function deletePrompt(groups: DesktopGroup[]): string {
+  const [only] = groups;
+  if (groups.length === 1 && only !== undefined) {
+    return only.kind === "folder"
+      ? `Delete “${only.name}”? Threads inside are kept.`
+      : `Delete the “${only.name}” section? Its threads move to Threads.`;
+  }
+  return `Delete these ${groups.length} items? Threads inside folders are kept, and threads in deleted sections move to Threads.`;
+}
+
+function DesktopCanvas() {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const actions = useSidebarThreadActions();
+  const { snapshot, call, sort } = desktop;
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const binRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(900);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const trackPointer = usePointerTracker();
+  const marqueeRef = useRef<HTMLDivElement>(null);
+  const [overrides, setOverrides] = useState<Record<string, Point>>({});
+
+  useEffect(() => {
+    const element = canvasRef.current;
+    if (element === null) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) setWidth(entry.contentRect.width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => setOverrides({}), [snapshot.layout]);
+
+  const items = desktop.desktopGroups;
+  const hasMore = desktop.moreGroups.length > 0;
+  const savedNotes = useSavedNotes();
+  const noteKeys = useMemo(() => savedNotes.map((note) => NOTE_KEY_PREFIX + note.id), [savedNotes]);
+  const keys = useMemo(
+    () => [RECYCLE_BIN_KEY, ...(hasMore ? [MORE_KEY] : []), ...items.map((item) => item.key), ...noteKeys],
+    [hasMore, items, noteKeys],
+  );
+
+  const positions = useMemo(() => {
+    const placed = new Map<string, Point>();
+    for (const key of keys) {
+      const point = overrides[key] ?? snapshot.layout[key];
+      if (point !== undefined) placed.set(key, { x: Math.max(0, Math.min(point.x, width - ICON_BOX.width)), y: Math.max(0, point.y) });
+    }
+    for (const key of keys) {
+      if (placed.has(key)) continue;
+      placed.set(key, nextFreePosition([...placed.values()], width));
+    }
+    return placed;
+  }, [keys, overrides, snapshot.layout, width]);
+
+  const saveLayout = useCallback(
+    (entries: Record<string, Point>) => {
+      setOverrides((current) => ({ ...current, ...entries }));
+      void call("setLayout", { entries }).catch((error) => toast.error(errorMessage(error)));
+    },
+    [call],
+  );
+
+  const deletableIn = (keySet: ReadonlySet<string>) =>
+    items.filter((group) => keySet.has(group.key) && isDeletable(group));
+
+  const deleteNotesIn = (keySet: ReadonlySet<string>) => {
+    const ids = [...keySet].filter((key) => key.startsWith(NOTE_KEY_PREFIX)).map((key) => key.slice(NOTE_KEY_PREFIX.length));
+    for (const id of ids) removeNote(id);
+    return ids.length > 0;
+  };
+
+  const deleteGroups = (groups: DesktopGroup[], notesDeleted = false) => {
+    if (groups.length === 0) {
+      if (notesDeleted) {
+        setSelected(new Set());
+        return;
+      }
+      toast("Only folders and sections can be deleted.");
+      return;
+    }
+    if (!window.confirm(deletePrompt(groups))) return;
+    const fail = (error: unknown) => toast.error(errorMessage(error));
+    for (const group of groups) {
+      manager.close(`finder:${group.key}`);
+      if (group.kind === "folder") void desktop.call("deleteFolder", { id: group.folder.id }).catch(fail);
+      else if (group.kind === "section" && group.id !== null) {
+        void desktop.call("deleteSection", { id: group.id }).catch(fail);
+      }
+    }
+    setSelected(new Set());
+  };
+
+  const iconElements = () => Array.from(canvasRef.current?.querySelectorAll<HTMLElement>("[data-desktop-key]") ?? []);
+
+  const beginIconDrag = (key: string, event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || event.isPrimary === false) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey) {
+      setSelected((current) => {
+        const next = new Set(current);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      return;
+    }
+    const moving = selected.has(key) ? selected : new Set([key]);
+    if (!selected.has(key)) setSelected(moving);
+    const elements = iconElements().filter((element) => moving.has(element.dataset.desktopKey!));
+    const bin = binRef.current?.getBoundingClientRect();
+    const origin = { x: event.clientX, y: event.clientY };
+    const points = [...moving].map((movingKey) => positions.get(movingKey)!).filter(Boolean);
+    const minX = Math.min(...points.map((point) => point.x));
+    const minY = Math.min(...points.map((point) => point.y));
+    const maxX = Math.max(...points.map((point) => point.x));
+    let delta: Point = { x: 0, y: 0 };
+    let overBin = false;
+    trackPointer(event, (next) => {
+      // Clamp the group as a unit so items retain their spacing at an edge.
+      delta = { x: Math.max(-minX, Math.min(next.x, Math.max(0, width - ICON_BOX.width) - maxX)), y: Math.max(-minY, next.y) };
+      overBin = !moving.has(RECYCLE_BIN_KEY) && bin !== undefined &&
+        origin.x + next.x >= bin.left && origin.x + next.x <= bin.right &&
+        origin.y + next.y >= bin.top && origin.y + next.y <= bin.bottom;
+      for (const element of elements) {
+        element.style.transform = `translate(${delta.x}px, ${delta.y}px)`;
+        element.dataset.dragging = "true";
+      }
+      if (binRef.current) binRef.current.dataset.dropTarget = String(overBin);
+    }, (cancelled, moved) => {
+      for (const element of elements) {
+        element.style.transform = "";
+        element.dataset.dragging = "false";
+      }
+      if (binRef.current) binRef.current.dataset.dropTarget = "false";
+      if (cancelled || !moved) return;
+      if (overBin) {
+        deleteGroups(deletableIn(moving), deleteNotesIn(moving));
+        return;
+      }
+      saveLayout(Object.fromEntries([...moving].flatMap((movingKey) => {
+        const point = positions.get(movingKey);
+        return point ? [[movingKey, { x: point.x + delta.x, y: point.y + delta.y }]] : [];
+      })));
+    });
+  };
+
+  const beginMarquee = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.button !== 0 || event.isPrimary === false) return;
+    const base = event.metaKey || event.ctrlKey || event.shiftKey ? selected : new Set<string>();
+    setSelected(base);
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const start = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    const elements = iconElements();
+    let hit = new Set(base);
+    trackPointer(event, (delta) => {
+      const box = { left: Math.min(start.x, start.x + delta.x), top: Math.min(start.y, start.y + delta.y),
+        width: Math.abs(delta.x), height: Math.abs(delta.y) };
+      const marquee = marqueeRef.current;
+      if (marquee) {
+        marquee.hidden = false;
+        Object.assign(marquee.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+      }
+      hit = new Set(base);
+      for (const [key, point] of positions) {
+        if (point.x < box.left + box.width && point.x + ICON_BOX.width > box.left &&
+            point.y < box.top + box.height && point.y + ICON_BOX.height > box.top) hit.add(key);
+      }
+      for (const element of elements) {
+        const value = String(hit.has(element.dataset.desktopKey!));
+        if (element.getAttribute("aria-selected") !== value) element.setAttribute("aria-selected", value);
+      }
+    }, (cancelled) => {
+      if (marqueeRef.current) marqueeRef.current.hidden = true;
+      const result = cancelled ? base : hit;
+      for (const element of elements) element.setAttribute("aria-selected", String(result.has(element.dataset.desktopKey!)));
+      setSelected(result);
+    });
+  };
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    if ((event.key === "Delete" || event.key === "Backspace") && selected.size > 0) {
+      event.preventDefault();
+      deleteGroups(deletableIn(selected), deleteNotesIn(selected));
+    } else if (event.key === "Escape") {
+      setSelected(new Set());
+    } else if (event.key === "a" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      setSelected(new Set(keys));
+    }
+  };
+
+  const iconMenu = (key: string, single: MenuEntry[]): MenuEntry[] => {
+    if (!(selected.has(key) && selected.size > 1)) return single;
+    const groups = items.filter((group) => selected.has(group.key));
+    const deletable = groups.filter(isDeletable);
+    return [
+      {
+        label: `Open ${groups.length} folders`,
+        disabled: groups.length === 0,
+        run: () => {
+          for (const group of groups) manager.open({ kind: "finder", key: group.key });
+        },
+      },
+      "separator",
+      {
+        label: deletable.length === 1 ? "Delete 1 item" : `Delete ${deletable.length} items`,
+        icon: <TrashGlyph className="size-3.5" />,
+        disabled: deletable.length === 0,
+        run: () => deleteGroups(deletable),
+      },
+    ];
+  };
+
+  const placed = (key: string): Point => positions.get(key)!;
+
+  const arrange = () => {
+    const direction = sort.direction === "ascending" ? 1 : -1;
+    const valueOf = (group: DesktopGroup) => groupSortValue(group, desktop.visibleThreads, sort.key);
+    const ordered = [...items].sort((left, right) => {
+      const leftValue = valueOf(left);
+      const rightValue = valueOf(right);
+      return leftValue < rightValue ? -direction : leftValue > rightValue ? direction : 0;
+    });
+    const keys = [...ordered.map((item) => item.key), ...noteKeys, ...(hasMore ? [MORE_KEY] : []), RECYCLE_BIN_KEY];
+    const grid = gridPositions(keys.length, width);
+    saveLayout(Object.fromEntries(keys.map((key, index) => [key, grid[index]!])));
+  };
+
+  const tileWindows = () => {
+    const open = manager.windows;
+    const threadOf = (window: DesktopWindow) =>
+      window.spec.kind === "thread" || window.spec.kind === "panel"
+        ? desktop.threadById.get(window.spec.threadId)
+        : undefined;
+    const sortedThreads = sortThreads(
+      open.flatMap((window) => {
+        const thread = threadOf(window);
+        return thread === undefined ? [] : [thread];
+      }),
+      sort.key,
+      sort.direction,
+    );
+    const rank = new Map(sortedThreads.map((thread, index) => [thread.id, index]));
+    const ordered = [...open].sort(
+      (left, right) =>
+        (rank.get(threadOf(left)?.id ?? "") ?? Number.MAX_SAFE_INTEGER) -
+        (rank.get(threadOf(right)?.id ?? "") ?? Number.MAX_SAFE_INTEGER),
+    );
+    const rects = tileRects(ordered.length, workAreaRect());
+    manager.arrange(Object.fromEntries(ordered.map((window, index) => [window.id, rects[index]!])));
+  };
+
+  const commands: MenuEntry[] = [
+    { label: "New folder", icon: <NewFolderArt size={16} />, run: () => manager.open({ kind: "new-folder" }) },
+    { label: "New thread", icon: <NewThreadArt size={16} />, run: () => manager.open({ kind: "new-thread", groupKey: null }) },
+    "separator",
+    { label: "My Threads", icon: <ThreadsArt size={16} />, run: () => manager.open({ kind: "threads" }) },
+    { label: "Recycle Bin", icon: <RecycleBinArt size={14} />, run: () => manager.open({ kind: "recycle-bin" }) },
+    { label: "Media Player", icon: <MediaPlayerArt size={14} />, run: () => manager.open({ kind: "media-player" }) },
+    "separator",
+    { label: "Arrange icons", icon: <GridViewGlyph className="size-3.5" />, run: arrange },
+    {
+      label: "Tile windows",
+      icon: <TileGlyph className="size-3.5" />,
+      disabled: manager.windows.length === 0,
+      run: tileWindows,
+    },
+  ];
+  const canvasMenu = (event: MenuTrigger): MenuEntry[] => [
+    ...commands.slice(0, 2),
+    {
+      label: "New note pad",
+      icon: <NotePadGlyph className="size-3.5" />,
+      run: () => addStickyNote({ left: event.clientX, top: event.clientY }),
+    },
+    ...commands.slice(2),
+    "separator",
+    ...viewMenuEntries(desktop),
+  ];
+  usePageBackgroundMenu(canvasRef, canvasMenu);
+
+  const bottom = Math.max(
+    ICON_CELL.height * 2,
+    ...[...positions.values()].map((point) => point.y + ICON_CELL.height),
+  );
+
+  return (
+    <div className="bbd-desktop flex flex-col">
+      <div
+        ref={canvasRef}
+        className="relative flex-1"
+        style={{ minHeight: bottom + 8 }}
+        onPointerDown={beginMarquee}
+        onKeyDown={onKeyDown}
+        onContextMenu={(event) => desktop.openMenu(event, canvasMenu(event))}
+      >
+        {items.map((item) => (
+          <DesktopIcon
+            key={item.key}
+            group={item}
+            position={placed(item.key)}
+            selected={selected.has(item.key)}
+            dragging={false}
+            onPointerDown={(event) => beginIconDrag(item.key, event)}
+            menu={(single) => iconMenu(item.key, single)}
+            onSelect={() => {
+              if (!selected.has(item.key)) setSelected(new Set([item.key]));
+            }}
+          />
+        ))}
+        {hasMore ? (
+          <MoreIcon
+            position={placed(MORE_KEY)}
+            selected={selected.has(MORE_KEY)}
+            dragging={false}
+            onPointerDown={(event) => beginIconDrag(MORE_KEY, event)}
+            onSelect={() => {
+              if (!selected.has(MORE_KEY)) setSelected(new Set([MORE_KEY]));
+            }}
+          />
+        ) : null}
+        {savedNotes.map((note) => {
+          const key = NOTE_KEY_PREFIX + note.id;
+          return (
+            <NoteIcon
+              key={key}
+              note={note}
+              position={placed(key)}
+              selected={selected.has(key)}
+              dragging={false}
+              onPointerDown={(event) => beginIconDrag(key, event)}
+              onSelect={() => {
+                if (!selected.has(key)) setSelected(new Set([key]));
+              }}
+            />
+          );
+        })}
+        <RecycleBinIcon
+          binRef={binRef}
+          position={placed(RECYCLE_BIN_KEY)}
+          selected={selected.has(RECYCLE_BIN_KEY)}
+          dragging={false}
+          iconsOver={false}
+          onPointerDown={(event) => beginIconDrag(RECYCLE_BIN_KEY, event)}
+          onSelect={() => {
+            if (!selected.has(RECYCLE_BIN_KEY)) setSelected(new Set([RECYCLE_BIN_KEY]));
+          }}
+          onArchive={(threadId) => {
+            closeThreadWindows(manager, threadId);
+            actions.archive(threadId);
+          }}
+        />
+        <div ref={marqueeRef} className="bbd-marquee" hidden aria-hidden />
+      </div>
+    </div>
+  );
+}
+
+function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): string {
+  switch (spec.kind) {
+    case "finder":
+      return desktop.groupByKey.get(spec.key)?.name ?? "Folder";
+    case "thread":
+      return desktop.threadById.get(spec.threadId)?.title ?? "Thread";
+    case "panel":
+      return `${desktop.threadById.get(spec.threadId)?.title ?? "Thread"} - Buddy Info`;
+    case "buddy-list":
+      return buddyListTitle(desktop, spec.threadId);
+    case "thread-tab":
+      return threadTabTitle(spec.tab, desktop.threadById.get(spec.threadId)?.title ?? "Thread");
+    case "threads":
+      return "My Threads";
+    case "recycle-bin":
+      return "Recycle Bin";
+    case "more":
+      return "More";
+    case "minesweeper":
+      return "Minesweeper";
+    case "solitaire":
+      return "Solitaire";
+    case "pinball":
+      return "3D Pinball for Windows - Space Cadet";
+    case "command-prompt":
+      return "Command Prompt";
+    case "paint":
+      return "untitled - Paint";
+    case "internet-explorer":
+      return "Internet Explorer";
+    case "app":
+      return findApp(spec.key)?.title ?? "Program";
+    case "new-folder":
+      return "New folder";
+    case "new-thread":
+      return "New thread";
+    case "media-player":
+      return "Media Player";
+  }
+}
+
+function windowArt(spec: WindowSpec, desktop: DesktopContextValue, size: number): ReactNode {
+  switch (spec.kind) {
+    case "finder": {
+      const group = desktop.groupByKey.get(spec.key);
+      return (
+        <FolderArt
+          kind={group?.kind ?? "section"}
+          size={size}
+          empty={group !== undefined && groupThreads(group, desktop.visibleThreads).length === 0}
+        />
+      );
+    }
+    case "thread":
+      return <ThreadArt size={size} />;
+    case "panel":
+      return <DetailsArt size={size} />;
+    case "buddy-list":
+      return <BuddyListArt size={size} />;
+    case "thread-tab":
+      return spec.tab === "browser" ? <InternetExplorerArt size={size} /> : <CommandPromptArt size={size} />;
+    case "threads":
+      return <ThreadsArt size={size} />;
+    case "recycle-bin":
+      return <RecycleBinArt size={size} full={desktop.archivedThreads.length > 0} />;
+    case "more":
+      return <FolderArt kind="section" size={size} empty={desktop.moreGroups.length === 0} />;
+    case "minesweeper":
+      return <MinesweeperArt size={size} />;
+    case "solitaire":
+      return <SolitaireArt size={size} />;
+    case "pinball":
+      return <PinballArt size={size} />;
+    case "command-prompt":
+      return <CommandPromptArt size={size} />;
+    case "paint":
+      return <PaintArt size={size} />;
+    case "internet-explorer":
+      return <InternetExplorerArt size={size} />;
+    case "app":
+      return <AppIcon app={findApp(spec.key)} size={size} />;
+    case "new-folder":
+      return <NewFolderArt size={size} />;
+    case "new-thread":
+      return <NewThreadArt size={size} />;
+    case "media-player":
+      return <MediaPlayerArt size={size} />;
+  }
+}
+
+interface DockFrame {
+  left: number;
+  maxWidth: number;
+}
+
+const START_ITEMS: { spec: WindowSpec; label: string; detail: string }[] = [
+  { spec: { kind: "new-thread", groupKey: null }, label: "New thread", detail: "Start a conversation" },
+  { spec: { kind: "new-folder" }, label: "New folder", detail: "Group threads on the desktop" },
+  { spec: { kind: "media-player" }, label: "Media Player", detail: "Visualize your microphone" },
+];
+
+function StartFlag() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
+      <path d="M2 3.2 Q4.8 2 8.2 3.4 L7.4 8.2 Q4.2 7 1.4 8 Z" fill="oklch(0.66 0.21 30)" />
+      <path d="M9.4 3.8 Q12.6 5 16 3.6 L15.2 8.4 Q12 9.6 8.6 8.6 Z" fill="oklch(0.74 0.19 140)" />
+      <path d="M1.2 9.2 Q4 8.2 7.2 9.4 L6.4 14.2 Q3.4 13 0.4 14 Z" fill="oklch(0.62 0.18 250)" />
+      <path d="M8.4 9.8 Q11.6 11 15 9.6 L14.2 14.4 Q11 15.6 7.6 14.6 Z" fill="oklch(0.86 0.16 90)" />
+    </svg>
+  );
+}
+
+function StartMenu({ onClose }: { onClose: () => void }) {
+  const manager = useWindowManager();
+  const openInternetExplorer = useOpenInternetExplorer();
+  const desktop = useDesktop();
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target) || (target as Element).closest?.(".bbd-start")) return;
+      onClose();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+  const run = (action: () => void) => () => {
+    onClose();
+    action();
+  };
+  interface Launch {
+    id: string;
+    label: string;
+    detail: string;
+    art: (size: number) => ReactNode;
+    run: () => void;
+  }
+  const open = (spec: WindowSpec): Launch["run"] => () => manager.open(spec);
+  const programs: Launch[] = [
+    { id: "internet-explorer", label: "Internet Explorer", detail: "Browse the web in bb", art: (size) => <InternetExplorerArt size={size} />, run: openInternetExplorer },
+    ...START_ITEMS.map((item) => ({
+      id: item.spec.kind,
+      label: item.label,
+      detail: item.detail,
+      art: (size: number) => windowArt(item.spec, desktop, size),
+      run: open(item.spec),
+    })),
+    { id: "sticky-note", label: "Note pad", detail: "Pin a note in the margin", art: (size) => <NotePadArt size={size} />, run: () => addStickyNote() },
+  ];
+  const apps = useDesktopApps();
+  const places: { section: string; items: Launch[] }[] = [
+    ...(apps.length === 0
+      ? []
+      : [
+          {
+            section: "Programs",
+            items: apps.map((app) => ({
+              id: `app:${app.key}`,
+              label: app.title,
+              detail: app.description ?? "",
+              art: (size: number) => <AppIcon app={app} size={size} />,
+              run: open({ kind: "app", key: app.key }),
+            })),
+          },
+        ]),
+    {
+      section: "Accessories",
+      items: [
+        { id: "paint", label: "Paint", detail: "", art: (size) => <PaintArt size={size} />, run: open({ kind: "paint" }) },
+        { id: "command-prompt", label: "Command Prompt", detail: "", art: (size) => <CommandPromptArt size={size} />, run: open({ kind: "command-prompt" }) },
+      ],
+    },
+    {
+      section: "Games",
+      items: [
+        { id: "minesweeper", label: "Minesweeper", detail: "", art: (size) => <MinesweeperArt size={size} />, run: open({ kind: "minesweeper" }) },
+        { id: "solitaire", label: "Solitaire", detail: "", art: (size) => <SolitaireArt size={size} />, run: open({ kind: "solitaire" }) },
+        { id: "pinball", label: "Pinball", detail: "", art: (size) => <PinballArt size={size} />, run: open({ kind: "pinball" }) },
+      ],
+    },
+    {
+      section: "",
+      items: [
+        { id: "search", label: "Search", detail: "", art: (size) => <SearchArt size={size} />, run: () => void runAppCommand("thread.search") },
+        { id: "run", label: "Run…", detail: "", art: (size) => <RunArt size={size} />, run: () => void runAppCommand("palette.open") },
+      ],
+    },
+  ];
+  const itemProps = (item: Launch) => ({
+    type: "button" as const,
+    role: "menuitem",
+    title: "Right-click to add to Quick Launch",
+    onClick: run(item.run),
+    onContextMenu: (event: ReactMouseEvent) => desktop.openMenu(event, [quickLaunchToggleEntry(desktop, item.id)]),
+  });
+  return (
+    <div ref={menuRef} className="bbd-start-menu" role="menu" aria-label="Start menu">
+      <div className="bbd-start-head">
+        <span className="bbd-start-avatar">
+          <StartFlag />
+        </span>
+        <span>bb</span>
+      </div>
+      <div className="bbd-start-columns">
+        <div className="bbd-start-body">
+          {programs.map((item) => (
+            <button key={item.id} className="bbd-start-item" {...itemProps(item)}>
+              {item.art(30)}
+              <span>
+                <strong>{item.label}</strong>
+                <small>{item.detail}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="bbd-start-places">
+          {places.map((group, index) => (
+            <div key={group.section || index} className="grid">
+              {group.section === "" ? <div className="bbd-start-rule" aria-hidden /> : <span className="bbd-start-section">{group.section}</span>}
+              {group.items.map((item) => (
+                <button key={item.id} className="bbd-start-place" {...itemProps(item)}>
+                  {item.art(22)}
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="bbd-start-foot">
+        <button type="button" role="menuitem" className="bbd-start-off" onClick={run(toggleDesktop)}>
+          <span className="bbd-start-power" aria-hidden>
+            <PowerGlyph className="size-3.5" strokeWidth={2.5} />
+          </span>
+          Turn Off Desktop
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface QuickLaunchItem {
+  id: string;
+  label: string;
+  art: ReactNode;
+  run: () => void;
+}
+
+type AppShortcutCommand = "palette.open" | "thread.search";
+
+interface AppShortcut {
+  key: string;
+  mod: boolean;
+  meta: boolean;
+  control: boolean;
+  alt: boolean;
+  shift: boolean;
+}
+
+const DEFAULT_SHORTCUTS: Record<AppShortcutCommand, AppShortcut> = {
+  "palette.open": { key: "p", mod: true, meta: false, control: false, alt: false, shift: true },
+  "thread.search": { key: "k", mod: true, meta: false, control: false, alt: false, shift: false },
+};
+
+function isShortcut(value: unknown): value is AppShortcut {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.key === "string" && ["mod", "meta", "control", "alt", "shift"].every((field) => typeof record[field] === "boolean");
+}
+
+async function appShortcut(command: AppShortcutCommand): Promise<AppShortcut> {
+  try {
+    const response = await fetch("/api/v1/system/config", { credentials: "same-origin" });
+    const body: unknown = await response.json();
+    const bindings = typeof body === "object" && body !== null ? (body as { keybindings?: unknown }).keybindings : undefined;
+    const match = Array.isArray(bindings)
+      ? bindings.find((binding: unknown) => (binding as { command?: unknown })?.command === command)
+      : undefined;
+    const shortcut = (match as { shortcut?: unknown } | undefined)?.shortcut;
+    return isShortcut(shortcut) ? shortcut : DEFAULT_SHORTCUTS[command];
+  } catch {
+    return DEFAULT_SHORTCUTS[command];
+  }
+}
+
+async function runAppCommand(command: AppShortcutCommand) {
+  const shortcut = await appShortcut(command);
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+  const key = shortcut.shift && shortcut.key.length === 1 ? shortcut.key.toUpperCase() : shortcut.key;
+  const init: KeyboardEventInit = {
+    key,
+    code: /^[a-z]$/i.test(shortcut.key) ? `Key${shortcut.key.toUpperCase()}` : undefined,
+    metaKey: shortcut.meta || (shortcut.mod && mac),
+    ctrlKey: shortcut.control || (shortcut.mod && !mac),
+    altKey: shortcut.alt,
+    shiftKey: shortcut.shift,
+    bubbles: true,
+    cancelable: true,
+  };
+  (document.activeElement instanceof HTMLElement ? document.activeElement : document.body).blur();
+  document.body.dispatchEvent(new KeyboardEvent("keydown", init));
+  document.body.dispatchEvent(new KeyboardEvent("keyup", init));
+}
+
+function useOpenInternetExplorer(): () => void {
+  const navigate = useBbNavigate() as ReturnType<typeof useBbNavigate> & { openUrl?: (url: string) => boolean };
+  const manager = useWindowManager();
+  return () => {
+    if (nativeBrowser() !== null) {
+      manager.open({ kind: "internet-explorer" });
+      return;
+    }
+    if (navigate.openUrl?.(BROWSER_HOME) === true) return;
+    window.open(BROWSER_HOME, "_blank", "noopener");
+  };
+}
+
+function navigateInApp(path: string) {
+  window.history.pushState(null, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+function useQuickLaunchCatalog(): QuickLaunchItem[] {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const hiddenByShowDesktop = useRef<string[]>([]);
+  const showDesktop = () => {
+    const open = manager.windows.filter((window) => !window.minimized);
+    if (open.length > 0) {
+      hiddenByShowDesktop.current = open.map((window) => window.id);
+      for (const window of open) manager.minimize(window.id, true);
+      return;
+    }
+    for (const id of hiddenByShowDesktop.current) manager.minimize(id, false);
+    hiddenByShowDesktop.current = [];
+  };
+  const openInternetExplorer = useOpenInternetExplorer();
+  const launcher = (spec: WindowSpec, label: string): QuickLaunchItem => ({
+    id: spec.kind,
+    label,
+    art: windowArt(spec, desktop, 18),
+    run: () => manager.open(spec),
+  });
+  const apps = useDesktopApps();
+  return [
+    ...apps.map((app) => ({
+      id: `app:${app.key}`,
+      label: app.title,
+      art: <AppIcon app={app} size={20} />,
+      run: () => manager.open({ kind: "app", key: app.key }),
+    })),
+    { id: "show-desktop", label: "Show desktop", art: <ShowDesktopArt size={20} />, run: showDesktop },
+    launcher({ kind: "new-thread", groupKey: null }, "New thread"),
+    launcher({ kind: "new-folder" }, "New folder"),
+    launcher({ kind: "threads" }, "My Threads"),
+    launcher({ kind: "recycle-bin" }, "Recycle Bin"),
+    launcher({ kind: "media-player" }, "Media Player"),
+    launcher({ kind: "minesweeper" }, "Minesweeper"),
+    launcher({ kind: "solitaire" }, "Solitaire"),
+    launcher({ kind: "pinball" }, "Pinball"),
+    launcher({ kind: "command-prompt" }, "Command Prompt"),
+    launcher({ kind: "paint" }, "Paint"),
+    { id: "sticky-note", label: "Note pad", art: <NotePadArt size={18} />, run: () => addStickyNote() },
+    { id: "internet-explorer", label: "Internet Explorer", art: <InternetExplorerArt size={20} />, run: openInternetExplorer },
+    { id: "search", label: "Search", art: <SearchArt size={20} />, run: () => void runAppCommand("thread.search") },
+    { id: "run", label: "Run…", art: <RunArt size={20} />, run: () => void runAppCommand("palette.open") },
+    { id: "plugins", label: "Plugins", art: <PluginsArt size={20} />, run: () => navigateInApp("/plugins") },
+    { id: "skills", label: "Skills", art: <SkillsArt size={20} />, run: () => navigateInApp("/skills") },
+  ];
+}
+
+function toggleQuickLaunch(desktop: DesktopContextValue, itemId: string) {
+  const chosen = desktop.snapshot.preferences.quickLaunch;
+  desktop.setPreferences({
+    quickLaunch: chosen.includes(itemId) ? chosen.filter((id) => id !== itemId) : [...chosen, itemId],
+  });
+}
+
+function quickLaunchToggleEntry(desktop: DesktopContextValue, itemId: string): MenuEntry {
+  const pinned = desktop.snapshot.preferences.quickLaunch.includes(itemId);
+  return {
+    label: pinned ? "Remove from Quick Launch" : "Add to Quick Launch",
+    run: () => toggleQuickLaunch(desktop, itemId),
+  };
+}
+
+function quickLaunchMenu(
+  desktop: DesktopContextValue,
+  catalog: QuickLaunchItem[],
+  itemId: string | null,
+): MenuEntry[] {
+  const chosen = desktop.snapshot.preferences.quickLaunch;
+  const save = (quickLaunch: string[]) => desktop.setPreferences({ quickLaunch });
+  const index = itemId === null ? -1 : chosen.indexOf(itemId);
+  const move = (offset: number) => {
+    const next = [...chosen];
+    const [item] = next.splice(index, 1);
+    if (item === undefined) return;
+    next.splice(index + offset, 0, item);
+    save(next);
+  };
+  return [
+    ...(index === -1
+      ? []
+      : [
+          quickLaunchToggleEntry(desktop, chosen[index]!),
+          "separator" as const,
+          { label: "Move left", disabled: index === 0, run: () => move(-1) },
+          { label: "Move right", disabled: index === chosen.length - 1, run: () => move(1) },
+          "separator" as const,
+        ]),
+    { heading: "Show in Quick Launch" },
+    ...catalog.map((item) => ({
+      label: item.label,
+      checked: chosen.includes(item.id),
+      run: () =>
+        save(chosen.includes(item.id) ? chosen.filter((id) => id !== item.id) : [...chosen, item.id]),
+    })),
+  ];
+}
+
+const TASK_MIN_WIDTH = 96;
+const TASK_GAP = 3;
+const TASK_MORE_WIDTH = 44;
+const QUICK_ITEM_WIDTH = 27;
+const QUICK_CHROME_WIDTH = 26;
+const TASKS_BEFORE_QUICK = 2;
+
+interface TaskbarCapacity {
+  quick: number;
+  tasks: number;
+}
+
+function useTaskbarCapacity(navRef: RefObject<HTMLElement | null>, quickCount: number, taskCount: number): TaskbarCapacity {
+  const [capacity, setCapacity] = useState<TaskbarCapacity>({ quick: quickCount, tasks: taskCount });
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (nav === null) return;
+    const measure = () => {
+      const limit = Number.parseFloat(getComputedStyle(nav).maxWidth);
+      const fixed = [...nav.querySelectorAll<HTMLElement>(":scope > .bbd-start, :scope > .bbd-tray")]
+        .reduce((total, element) => total + element.getBoundingClientRect().width, 0);
+      const available = (Number.isFinite(limit) ? limit : window.innerWidth - 24) - fixed - 18 - QUICK_CHROME_WIDTH;
+      const fits = (width: number) => Math.max(0, Math.floor((width + TASK_GAP) / (TASK_MIN_WIDTH + TASK_GAP)));
+      const reserved = Math.min(taskCount, TASKS_BEFORE_QUICK);
+      let quick = quickCount;
+      while (quick > 0 && fits(available - quick * QUICK_ITEM_WIDTH) < reserved) quick -= 1;
+      const room = available - quick * QUICK_ITEM_WIDTH;
+      const tasks = fits(room) >= taskCount ? taskCount : fits(room - TASK_MORE_WIDTH - TASK_GAP);
+      setCapacity((current) => (current.quick === quick && current.tasks === tasks ? current : { quick, tasks }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const element of nav.querySelectorAll(":scope > .bbd-start, :scope > .bbd-tray")) {
+      observer.observe(element);
+    }
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  });
+  return capacity;
+}
+
+function Taskbar({ frame }: { frame: DockFrame | null }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const catalog = useQuickLaunchCatalog();
+  const quickLaunch = desktop.snapshot.preferences.quickLaunch.flatMap(
+    (id) => catalog.find((item) => item.id === id) ?? [],
+  );
+  const { status } = useMic();
+  const playing = status === "live" || status === "starting";
+  const player = manager.windows.find((window) => window.spec.kind === "media-player");
+  const deskband = playing && (player === undefined || player.minimized);
+  const [startOpen, setStartOpen] = useState(false);
+  const closeStart = useCallback(() => setStartOpen(false), []);
+  const activate = (id: string) => {
+    if (manager.focusedId === id) manager.minimize(id, true);
+    else manager.focus(id);
+  };
+  const navRef = useRef<HTMLElement>(null);
+  const fitMaximized = useRef(manager.fitMaximized);
+  fitMaximized.current = manager.fitMaximized;
+  // Maximized windows stop just above the taskbar, which can only be measured once it has rendered.
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (nav === null) return;
+    const observer = new ResizeObserver(() => fitMaximized.current());
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, []);
+  const tasks = manager.windows.filter((window) => !(deskband && window.id === player?.id));
+  const { quick: quickCapacity, tasks: capacity } = useTaskbarCapacity(navRef, quickLaunch.length, tasks.length);
+  const quickShown = quickLaunch.slice(0, quickCapacity);
+  const quickHidden = quickLaunch.slice(quickCapacity);
+  const shown = tasks.slice(0, capacity);
+  const focused = tasks.find((window) => window.id === manager.focusedId);
+  if (capacity > 0 && focused !== undefined && !shown.includes(focused)) shown[capacity - 1] = focused;
+  const hidden = tasks.filter((window) => !shown.includes(window));
+  return (
+    <nav
+      ref={navRef}
+      className="bbd-taskbar"
+      aria-label="Taskbar"
+      style={frame === null ? undefined : { left: frame.left, maxWidth: frame.maxWidth - 24 }}
+      onContextMenu={(event) => desktop.openMenu(event, quickLaunchMenu(desktop, catalog, null))}
+    >
+      <button
+        type="button"
+        className="bbd-start"
+        aria-haspopup="menu"
+        aria-expanded={startOpen}
+        onClick={() => setStartOpen((open) => !open)}
+      >
+        <StartFlag />
+        <span>start</span>
+      </button>
+      {startOpen && <StartMenu onClose={closeStart} />}
+      <div className="bbd-quick" role="toolbar" aria-label="Quick Launch">
+        {quickShown.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className="bbd-quick-item"
+            aria-label={item.label}
+            title={item.label}
+            onClick={item.run}
+            onContextMenu={(event) => desktop.openMenu(event, quickLaunchMenu(desktop, catalog, item.id))}
+          >
+            {item.art}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="bbd-quick-more"
+          aria-label={quickHidden.length > 0 ? "More Quick Launch items" : "Choose Quick Launch items"}
+          title={quickHidden.length > 0 ? "More Quick Launch items" : "Choose Quick Launch items"}
+          aria-haspopup="menu"
+          onClick={(event) =>
+            desktop.openMenu(event, [
+              ...quickHidden.map((item): MenuEntry => ({ label: item.label, icon: item.art, run: item.run })),
+              ...(quickHidden.length > 0 ? ["separator" as const] : []),
+              ...quickLaunchMenu(desktop, catalog, null),
+            ])
+          }
+        >
+          <ChevronsRightGlyph className="size-3" strokeWidth={2.5} />
+        </button>
+      </div>
+      <div className="bbd-tasks">
+        {shown.map((window) => {
+          const title = windowTitle(window.spec, desktop);
+          return (
+            <button
+              key={window.id}
+              type="button"
+              className="bbd-task"
+              aria-label={`${title}${window.minimized ? " (minimized)" : ""}`}
+              title={title}
+              data-focused={manager.focusedId === window.id && !window.minimized}
+              onClick={() => activate(window.id)}
+            >
+              <span className="bbd-task-icon">{windowArt(window.spec, desktop, 16)}</span>
+              <span className="min-w-0 truncate">{title}</span>
+            </button>
+          );
+        })}
+        {hidden.length > 0 ? (
+          <button
+            type="button"
+            className="bbd-task bbd-task-more"
+            aria-label={`${hidden.length} more ${hidden.length === 1 ? "window" : "windows"}`}
+            title={`${hidden.length} more ${hidden.length === 1 ? "window" : "windows"}`}
+            aria-haspopup="menu"
+            onClick={(event) =>
+              desktop.openMenu(
+                event,
+                hidden.map((window): MenuEntry => ({
+                  label: `${windowTitle(window.spec, desktop)}${window.minimized ? " (minimized)" : ""}`,
+                  icon: windowArt(window.spec, desktop, 16),
+                  run: () => manager.focus(window.id),
+                })),
+              )
+            }
+          >
+            <ChevronsRightGlyph className="size-3" strokeWidth={2.5} />
+            <span>{hidden.length}</span>
+          </button>
+        ) : null}
+      </div>
+      <div className="bbd-tray">
+        {deskband && <MediaDeskband onRestore={() => manager.open({ kind: "media-player" })} />}
+        <TrayIcons />
+        <TrayClock />
+      </div>
+    </nav>
+  );
+}
+
+interface FooterItem {
+  key: string;
+  label: string;
+  title: string;
+  iconHtml: string;
+  disclosure: boolean;
+}
+
+const OWN_FOOTER_ITEM = "plugin-sidebar-footer-action-desktop-toggle";
+
+function footerElements(): HTMLElement[] {
+  const footer = document.querySelector('[data-sidebar="footer"]');
+  return footer === null
+    ? []
+    : [...footer.querySelectorAll<HTMLElement>("a[aria-label], button[aria-label]")].filter(
+        (element) => element.closest('[data-testid^="plugin-sidebar-footer-disclosure-"]') === null,
+      );
+}
+
+function footerKey(element: HTMLElement): string {
+  const testId = element.dataset.testid;
+  return testId !== undefined && testId.startsWith("plugin-sidebar-footer") ? testId : element.getAttribute("aria-label") ?? "";
+}
+
+function readFooterItems(): FooterItem[] {
+  return footerElements().flatMap((element) => {
+    const key = footerKey(element);
+    const icon = element.querySelector("svg, [data-icon-root]");
+    if (key === OWN_FOOTER_ITEM || icon === null) return [];
+    const title = element.getAttribute("aria-label") ?? "";
+    return [
+      {
+        key,
+        title,
+        label: title.replace(/\s*\(.*\)$/, ""),
+        iconHtml: icon.outerHTML,
+        disclosure: element.hasAttribute("aria-expanded"),
+      },
+    ];
+  });
+}
+
+function useFooterItems(): FooterItem[] {
+  const [items, setItems] = useState<FooterItem[]>(readFooterItems);
+  useEffect(() => {
+    let last = JSON.stringify(items);
+    const sync = () => {
+      const next = readFooterItems();
+      const serialized = JSON.stringify(next);
+      if (serialized === last) return;
+      last = serialized;
+      setItems(next);
+    };
+    const timer = setInterval(sync, 1500);
+    sync();
+    return () => clearInterval(timer);
+  }, []);
+  return items;
+}
+
+const PANEL_STYLE_ID = "bbd-panel-window-style";
+const PANEL_SELECTOR = '[data-testid^="plugin-sidebar-footer-disclosure-"]';
+const PANEL_TITLE_HEIGHT = 30;
+const PANEL_STYLE = `
+body[data-bbd-panel-window] :has(${PANEL_SELECTOR}) {
+  transform: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  will-change: auto !important;
+  contain: none !important;
+}
+body[data-bbd-panel-window] ${PANEL_SELECTOR} {
+  position: fixed !important;
+  right: var(--bbd-panel-right, 16px);
+  bottom: var(--bbd-panel-bottom, 64px);
+  z-index: 40;
+  width: 340px;
+  height: auto !important;
+  max-height: 70vh;
+  padding: ${PANEL_TITLE_HEIGHT}px 4px 4px;
+  visibility: visible !important;
+  border: 1px solid oklch(0.42 0.19 262 / 0.65) !important;
+  border-radius: 14px 14px 12px 12px !important;
+  background: color-mix(in oklab, var(--background) 82%, transparent) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: 0 18px 40px -18px oklch(0.2 0.05 262 / 0.6);
+  animation: bbd-panel-in 160ms ease-out;
+}
+body[data-bbd-panel-window] ${PANEL_SELECTOR}::before {
+  content: attr(aria-label);
+  position: absolute;
+  inset: 0 0 auto;
+  height: ${PANEL_TITLE_HEIGHT - 2}px;
+  display: flex;
+  align-items: center;
+  padding: 0 40px 0 12px;
+  border-radius: 13px 13px 0 0;
+  background: linear-gradient(oklch(0.7 0.16 250), oklch(0.55 0.2 258) 45%, oklch(0.48 0.2 260));
+  color: oklch(0.99 0.004 250);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  text-shadow: 1px 1px 0 oklch(0.3 0.15 265);
+  cursor: default;
+}
+body[data-bbd-panel-window] ${PANEL_SELECTOR}::after {
+  content: "\\2715";
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: oklch(0.63 0.19 32);
+  box-shadow: inset 0 0 0 1px oklch(0.99 0.004 250 / 0.7);
+  color: oklch(0.99 0.004 250);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+@keyframes bbd-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-bbd-panel-window] ${PANEL_SELECTOR} { animation: none; }
+}
+`;
+
+function sidebarCollapsed(): boolean {
+  return document.querySelector('.peer[data-side="left"][data-state="collapsed"]') !== null;
+}
+
+function openPanel(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(PANEL_SELECTOR);
+}
+
+function placePanel() {
+  const taskbar = document.querySelector(".bbd-taskbar")?.getBoundingClientRect();
+  const root = document.documentElement.style;
+  if (taskbar === undefined) return;
+  root.setProperty("--bbd-panel-right", `${Math.max(12, window.innerWidth - taskbar.right)}px`);
+  root.setProperty("--bbd-panel-bottom", `${window.innerHeight - taskbar.top + 10}px`);
+}
+
+function showPanelsAsWindows(active: boolean) {
+  if (active) {
+    if (document.getElementById(PANEL_STYLE_ID) === null) {
+      const style = document.createElement("style");
+      style.id = PANEL_STYLE_ID;
+      style.textContent = PANEL_STYLE;
+      document.head.append(style);
+    }
+    placePanel();
+    document.body.dataset.bbdPanelWindow = "true";
+  } else {
+    delete document.body.dataset.bbdPanelWindow;
+  }
+}
+
+function usePanelWindows() {
+  useEffect(() => {
+    const sync = () => showPanelsAsWindows(sidebarCollapsed() && openPanel() !== null);
+    const timer = setInterval(sync, 400);
+    const onPointerDown = (event: PointerEvent) => {
+      const panel = openPanel();
+      if (panel === null || document.body.dataset.bbdPanelWindow === undefined) return;
+      const bounds = panel.getBoundingClientRect();
+      const inTitle =
+        event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.top + PANEL_TITLE_HEIGHT;
+      if (!inTitle || event.clientX < bounds.right - 34) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const key = panel.dataset.testid?.replace("plugin-sidebar-footer-disclosure-", "plugin-sidebar-footer-item-");
+      footerElements().find((element) => footerKey(element) === key)?.click();
+    };
+    window.addEventListener("resize", placePanel);
+    window.addEventListener("pointerdown", onPointerDown, true);
+    sync();
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("resize", placePanel);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      showPanelsAsWindows(false);
+    };
+  }, []);
+}
+
+function activateFooterItem(item: FooterItem) {
+  const target = footerElements().find((element) => footerKey(element) === item.key);
+  if (target === undefined) return;
+  target.click();
+  if (item.disclosure && sidebarCollapsed()) {
+    requestAnimationFrame(() => showPanelsAsWindows(openPanel() !== null));
+  }
+}
+
+function TrayIcons() {
+  const items = useFooterItems();
+  usePanelWindows();
+  if (items.length === 0) return null;
+  return (
+    <div className="bbd-tray-icons" role="group" aria-label="Sidebar footer">
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className="bbd-tray-icon"
+          aria-label={item.label}
+          title={item.title}
+          onClick={() => activateFooterItem(item)}
+          dangerouslySetInnerHTML={{ __html: item.iconHtml }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TrayClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <time className="bbd-clock" dateTime={now.toISOString()} title={now.toLocaleDateString(undefined, { dateStyle: "full" })}>
+      {now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+    </time>
+  );
+}
+
+function groupMenu(
+  desktop: DesktopContextValue,
+  manager: ReturnType<typeof useWindowManager>,
+  group: DesktopGroup,
+  open: () => void,
+): MenuEntry[] {
+  const newThread: MenuEntry = {
+    label: `New thread in ${group.name}`,
+    icon: <NewThreadArt size={16} />,
+    run: () => manager.open({ kind: "new-thread", groupKey: group.key }),
+  };
+  const fail = (error: unknown) => toast.error(errorMessage(error));
+  if (group.kind === "folder") {
+    return [
+      { label: "Open", run: open },
+      newThread,
+      "separator",
+      {
+        label: "Rename…",
+        run: () => {
+          const name = window.prompt("Folder name", group.name)?.trim();
+          if (name) void desktop.call("updateFolder", { id: group.folder.id, name }).catch(fail);
+        },
+      },
+      {
+        label: "Delete folder",
+        icon: <TrashGlyph className="size-3.5" />,
+        run: () => {
+          if (!window.confirm(`Delete “${group.name}”? Threads inside are kept.`)) return;
+          manager.close(`finder:${group.key}`);
+          void desktop.call("deleteFolder", { id: group.folder.id }).catch(fail);
+        },
+      },
+    ];
+  }
+  if (group.kind === "section" && group.id !== null) {
+    const sectionId = group.id;
+    return [
+      { label: "Open", run: open },
+      newThread,
+      "separator",
+      {
+        label: "Rename section…",
+        run: () => {
+          const name = window.prompt("Section name", group.name)?.trim();
+          if (name) void desktop.call("renameSection", { id: sectionId, name }).catch(fail);
+        },
+      },
+      {
+        label: "Delete section",
+        icon: <TrashGlyph className="size-3.5" />,
+        run: () => {
+          if (!window.confirm(`Delete the “${group.name}” section? Its threads move to Threads.`)) return;
+          manager.close(`finder:${group.key}`);
+          void desktop.call("deleteSection", { id: sectionId }).catch(fail);
+        },
+      },
+    ];
+  }
+  return [{ label: "Open", run: open }, ...(group.kind === "machine" ? [] : [newThread])];
+}
+
+function DesktopIcon({
+  group,
+  position,
+  selected,
+  dragging,
+  onPointerDown,
+  onSelect,
+  menu,
+}: {
+  group: DesktopGroup;
+  position: Point;
+  selected: boolean;
+  dragging: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onSelect: () => void;
+  menu: (single: MenuEntry[]) => MenuEntry[];
+}) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const drop = useDropTarget(group);
+
+  const open = () => manager.open({ kind: "finder", key: group.key });
+
+  const members = groupThreads(group, desktop.visibleThreads);
+  const tones = members.map(statusTone);
+  const tone = tones.includes("attention") ? "attention" : tones.includes("running") ? "running" : null;
+  const toneCount = tones.filter((candidate) => candidate === tone).length;
+  const unread = tone === null && members.some((thread) => thread.isUnread);
+  const summary = folderSummary(group.name, members.length, tone, toneCount);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={summary}
+      title={summary}
+      className="bbd-icon"
+      data-desktop-key={group.key}
+      data-dragging={dragging}
+      data-drop-target={drop.over}
+      style={{ left: position.x, top: position.y }}
+      onPointerDown={onPointerDown}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+      onContextMenu={(event) => {
+        onSelect();
+        desktop.openMenu(event, menu(groupMenu(desktop, manager, group, open)));
+      }}
+      {...drop.handlers}
+    >
+      <span className="bbd-icon-art">
+        <FolderArt kind={group.kind} empty={members.length === 0} />
+        {tone !== null ? (
+          <span className="bbd-dot" data-tone={tone} aria-hidden>
+            {toneCount > 1 ? toneCount : null}
+          </span>
+        ) : unread ? (
+          <span className="bbd-dot" data-tone="running" style={{ animation: "none" }} aria-hidden />
+        ) : null}
+      </span>
+      <span className="bbd-icon-label">{group.name}</span>
+    </div>
+  );
+}
+
+function groupTone(members: readonly DesktopThread[]) {
+  const tones = members.map(statusTone);
+  const tone = tones.includes("attention") ? "attention" : tones.includes("running") ? "running" : null;
+  return {
+    tone,
+    toneCount: tones.filter((candidate) => candidate === tone).length,
+    unread: tone === null && members.some((thread) => thread.isUnread),
+  } as const;
+}
+
+function StatusDot({ members }: { members: readonly DesktopThread[] }) {
+  const { tone, toneCount, unread } = groupTone(members);
+  if (tone !== null) {
+    return (
+      <span className="bbd-dot" data-tone={tone} aria-hidden>
+        {toneCount > 1 ? toneCount : null}
+      </span>
+    );
+  }
+  return unread ? <span className="bbd-dot" data-tone="running" style={{ animation: "none" }} aria-hidden /> : null;
+}
+
+function moreMembers(desktop: DesktopContextValue): DesktopThread[] {
+  const byId = new Map(
+    desktop.moreGroups.flatMap((group) => groupThreads(group, desktop.visibleThreads)).map((thread) => [thread.id, thread]),
+  );
+  return [...byId.values()];
+}
+
+function MoreIcon({
+  position,
+  selected,
+  dragging,
+  onPointerDown,
+  onSelect,
+}: {
+  position: Point;
+  selected: boolean;
+  dragging: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onSelect: () => void;
+}) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const open = () => manager.open({ kind: "more" });
+  const members = moreMembers(desktop);
+  const { tone, toneCount } = groupTone(members);
+  const count = desktop.moreGroups.length;
+  const summary = `${folderSummary("More", members.length, tone, toneCount)} · ${count} ${count === 1 ? "folder" : "folders"} hidden in the sidebar`;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={summary}
+      title={summary}
+      className="bbd-icon"
+      data-desktop-key={MORE_KEY}
+      data-dragging={dragging}
+      style={{ left: position.x, top: position.y }}
+      onPointerDown={onPointerDown}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+      onContextMenu={(event) => {
+        onSelect();
+        desktop.openMenu(event, [{ label: "Open", run: open }]);
+      }}
+    >
+      <span className="bbd-icon-art">
+        <FolderArt kind="section" empty={count === 0} />
+        <StatusDot members={members} />
+      </span>
+      <span className="bbd-icon-label">More</span>
+    </div>
+  );
+}
+
+function MoreFolderItem({ group }: { group: DesktopGroup }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const drop = useDropTarget(group);
+  const open = () => manager.open({ kind: "finder", key: group.key });
+  const members = groupThreads(group, desktop.visibleThreads);
+  const { tone, toneCount } = groupTone(members);
+  const summary = folderSummary(group.name, members.length, tone, toneCount);
+  return (
+    <div
+      className="bbd-finder-item"
+      role="option"
+      tabIndex={0}
+      aria-selected={false}
+      aria-label={summary}
+      title={summary}
+      data-drop-target={drop.over}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+      onContextMenu={(event) => desktop.openMenu(event, groupMenu(desktop, manager, group, open))}
+      {...drop.handlers}
+    >
+      <span className="bbd-icon-art relative">
+        <FolderArt kind={group.kind} empty={members.length === 0} />
+        <StatusDot members={members} />
+      </span>
+      <span className="bbd-icon-label">{group.name}</span>
+    </div>
+  );
+}
+
+function MoreWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title="More"
+      icon={<FolderArt kind="section" size={16} empty={desktop.moreGroups.length === 0} />}
+      statusBar={
+        <span className="flex-1 truncate">
+          {desktop.moreGroups.length} folders · the groups you moved into More in the sidebar
+        </span>
+      }
+    >
+      <div className="bbd-sunken h-full overflow-auto">
+        {desktop.moreGroups.length === 0 ? (
+          <p className="p-6 text-center text-xs text-muted-foreground">
+            Nothing here. Groups you move into More in the sidebar show up in this folder.
+          </p>
+        ) : (
+          <div className="bbd-finder-grid" role="listbox" aria-label="Folders">
+            {desktop.moreGroups.map((group) => (
+              <MoreFolderItem key={group.key} group={group} />
+            ))}
+          </div>
+        )}
+      </div>
+    </WindowFrame>
+  );
+}
+
+function NoteIcon({
+  note,
+  position,
+  selected,
+  dragging,
+  onPointerDown,
+  onSelect,
+}: {
+  note: StickyNote;
+  position: Point;
+  selected: boolean;
+  dragging: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onSelect: () => void;
+}) {
+  const desktop = useDesktop();
+  const title = noteTitle(note);
+  const open = () => openNote(note.id);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={`Note pad — ${title}`}
+      title={title}
+      className="bbd-icon"
+      data-desktop-key={NOTE_KEY_PREFIX + note.id}
+      data-dragging={dragging}
+      style={{ left: position.x, top: position.y }}
+      onPointerDown={onPointerDown}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+      onContextMenu={(event) => {
+        onSelect();
+        desktop.openMenu(event, [
+          { label: "Open", run: open },
+          "separator",
+          { label: "Delete", icon: <TrashGlyph className="size-3.5" />, run: () => removeNote(note.id) },
+        ]);
+      }}
+    >
+      <span className="bbd-icon-art">
+        <NotePadArt />
+      </span>
+      <span className="bbd-icon-label">{title}</span>
+    </div>
+  );
+}
+
+function RecycleBinIcon({
+  binRef,
+  position,
+  selected,
+  dragging,
+  iconsOver,
+  onPointerDown,
+  onSelect,
+  onArchive,
+}: {
+  binRef: RefObject<HTMLDivElement | null>;
+  position: Point;
+  selected: boolean;
+  dragging: boolean;
+  iconsOver: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onSelect: () => void;
+  onArchive: (threadId: string) => void;
+}) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const [threadOver, setThreadOver] = useState(false);
+  const open = () => manager.open({ kind: "recycle-bin" });
+  const count = desktop.archivedThreads.length;
+  const summary =
+    count === 0 ? "Recycle Bin — empty" : `Recycle Bin — ${count} archived ${count === 1 ? "thread" : "threads"}`;
+
+  return (
+    <div
+      ref={binRef}
+      role="button"
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={summary}
+      title={summary}
+      className="bbd-icon"
+      data-desktop-key={RECYCLE_BIN_KEY}
+      data-thread-drop="recycle-bin"
+      data-dragging={dragging}
+      data-drop-target={threadOver || iconsOver}
+      style={{ left: position.x, top: position.y }}
+      onPointerDown={onPointerDown}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") open();
+      }}
+      onContextMenu={(event) => {
+        onSelect();
+        desktop.openMenu(event, [{ label: "Open", run: open }]);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes(THREAD_DRAG_TYPE)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        setThreadOver(true);
+      }}
+      onDragLeave={() => setThreadOver(false)}
+      onDrop={(event) => {
+        setThreadOver(false);
+        const threadDrag = readThreadDrag(event);
+        if (threadDrag === null) return;
+        event.preventDefault();
+        if (desktop.threadById.get(threadDrag.threadId)?.isArchived === true) return;
+        onArchive(threadDrag.threadId);
+      }}
+    >
+      <span className="bbd-icon-art">
+        <RecycleBinArt full={count > 0} />
+      </span>
+      <span className="bbd-icon-label">Recycle Bin</span>
+    </div>
+  );
+}
+
+function WindowContent({ window: desktopWindow }: { window: DesktopWindow }) {
+  const manager = useWindowManager();
+  const { spec } = desktopWindow;
+  switch (spec.kind) {
+    case "finder":
+      return <FinderWindow window={desktopWindow} groupKey={spec.key} />;
+    case "thread":
+      return <ThreadWindow window={desktopWindow} threadId={spec.threadId} />;
+    case "panel":
+      return <PanelWindow window={desktopWindow} threadId={spec.threadId} />;
+    case "buddy-list":
+      return <BuddyListWindow window={desktopWindow} threadId={spec.threadId} />;
+    case "thread-tab":
+      return <ThreadTabWindow window={desktopWindow} threadId={spec.threadId} tab={spec.tab} tabId={spec.tabId} />;
+    case "threads":
+      return <ThreadsWindow window={desktopWindow} />;
+    case "recycle-bin":
+      return <RecycleBinWindow window={desktopWindow} />;
+    case "more":
+      return <MoreWindow window={desktopWindow} />;
+    case "minesweeper":
+      return (
+        <WindowFrame window={desktopWindow} title="Minesweeper" icon={<MinesweeperArt size={16} />}>
+          <MinesweeperGame />
+        </WindowFrame>
+      );
+    case "solitaire":
+      return (
+        <WindowFrame window={desktopWindow} title="Solitaire" icon={<SolitaireArt size={16} />}>
+          <SolitaireGame />
+        </WindowFrame>
+      );
+    case "pinball":
+      return (
+        <WindowFrame window={desktopWindow} title="3D Pinball for Windows - Space Cadet" icon={<PinballArt size={16} />} keepMounted>
+          <PinballGame active={!desktopWindow.minimized && manager.focusedId === desktopWindow.id} />
+        </WindowFrame>
+      );
+    case "command-prompt":
+      return <CommandPromptWindow window={desktopWindow} />;
+    case "app":
+      return <AppWindow window={desktopWindow} appKey={spec.key} />;
+    case "paint":
+      return (
+        <WindowFrame window={desktopWindow} title="untitled - Paint" icon={<PaintArt size={16} />}>
+          <PaintApp />
+        </WindowFrame>
+      );
+    case "internet-explorer":
+      return <InternetExplorerWindow window={desktopWindow} />;
+    case "new-folder":
+      return <NewFolderWindow window={desktopWindow} />;
+    case "new-thread":
+      return <NewThreadWindow window={desktopWindow} groupKey={spec.groupKey} />;
+    case "media-player":
+      return <MediaPlayerWindow window={desktopWindow} />;
+  }
+}
+
+function threadMenu(
+  desktop: DesktopContextValue,
+  manager: ReturnType<typeof useWindowManager>,
+  actions: ReturnType<typeof useSidebarThreadActions>,
+  thread: DesktopThread,
+  group: DesktopGroup | null,
+): MenuEntry[] {
+  const fromFolderId = group?.kind === "folder" ? group.folder.id : null;
+  const targets = desktop.groups.filter(
+    (candidate) =>
+      acceptsDrop(candidate) &&
+      candidate.key !== group?.key &&
+      !(candidate.kind === "folder" && candidate.folder.threadIds.includes(thread.id)) &&
+      !(candidate.kind === "section" && thread.sectionId === candidate.id),
+  );
+  return [
+    { label: "Open", run: () => desktop.openThread(thread.id) },
+    { label: "Open details", icon: <DetailsArt size={16} />, run: () => manager.open({ kind: "panel", threadId: thread.id }) },
+    { label: "Open in bb", icon: <ExternalLinkGlyph className="size-3.5" />, run: () => actions.open(thread.id) },
+    { label: "Open in split", run: () => actions.open(thread.id, { split: true }) },
+    ...(targets.length > 0 ? ["separator" as const, { heading: "Move to" }] : []),
+    ...targets.map((target): MenuEntry => ({
+      label: target.name,
+      run: () => void desktop.dropThread(target, { threadId: thread.id, fromFolderId }),
+    })),
+    ...(group?.kind === "folder"
+      ? [
+          "separator" as const,
+          {
+            label: `Remove from ${group.name}`,
+            run: () =>
+              void desktop
+                .call("removeFromFolder", { folderId: group.folder.id, threadId: thread.id })
+                .catch((error) => toast.error(errorMessage(error))),
+          },
+        ]
+      : []),
+    "separator",
+    { label: "Copy thread link", run: () => void copyThreadLink(thread) },
+    {
+      label: thread.isUnread ? "Mark as read" : "Mark as unread",
+      run: () => void actions.setRead(thread.id, thread.isUnread).catch((error) => toast.error(errorMessage(error))),
+    },
+    ...(thread.isArchived
+      ? []
+      : [
+          {
+            label: thread.isPinned ? "Unpin" : "Pin",
+            run: () =>
+              void actions.setPinned(thread.id, !thread.isPinned).then(desktop.refresh, (error) => toast.error(errorMessage(error))),
+          },
+        ]),
+    {
+      label: "Rename…",
+      run: () => {
+        const title = window.prompt("Thread name", thread.title)?.trim();
+        if (title && title !== thread.title) {
+          void actions.rename(thread.id, title).then(desktop.refresh, (error) => toast.error(errorMessage(error)));
+        }
+      },
+    },
+    "separator",
+    thread.isArchived
+      ? { label: "Restore", run: () => void desktop.restoreThread(thread.id) }
+      : {
+          label: "Archive",
+          run: () => {
+            closeThreadWindows(manager, thread.id);
+            actions.archive(thread.id);
+          },
+        },
+    { label: "Delete…", run: () => actions.requestDelete(thread.id) },
+  ];
+}
+
+function threadLink(thread: DesktopThread): string {
+  const path =
+    thread.projectId === "proj_personal"
+      ? `/threads/${thread.id}`
+      : `/projects/${encodeURIComponent(thread.projectId)}/threads/${thread.id}`;
+  return new URL(path, window.location.origin).toString();
+}
+
+async function copyThreadLink(thread: DesktopThread) {
+  try {
+    await navigator.clipboard.writeText(threadLink(thread));
+    toast.success("Thread link copied");
+  } catch (error) {
+    toast.error(errorMessage(error));
+  }
+}
+
+function statusTone(thread: DesktopThread): "attention" | "running" | null {
+  if (thread.needsInput) return "attention";
+  if (thread.status === "active" || thread.status === "starting") return "running";
+  return null;
+}
+
+function folderSummary(
+  name: string,
+  total: number,
+  tone: "attention" | "running" | null,
+  toneCount: number,
+): string {
+  if (total === 0) return `${name} — empty`;
+  const threads = `${total} ${total === 1 ? "thread" : "threads"}`;
+  if (tone === "attention") return `${name} — ${threads}, ${toneCount} ${toneCount === 1 ? "needs" : "need"} input`;
+  if (tone === "running") return `${name} — ${threads}, ${toneCount} running`;
+  return `${name} — ${threads}`;
+}
+
+function ThreadGlyph({ thread }: { thread: DesktopThread }) {
+  const tone = statusTone(thread);
+  return (
+    <span className="bbd-icon-art">
+      <ThreadArt archived={thread.isArchived} />
+      {tone !== null ? (
+        <span className="bbd-dot" data-tone={tone} aria-hidden />
+      ) : thread.isUnread ? (
+        <span className="bbd-dot" data-tone="running" style={{ animation: "none" }} aria-hidden />
+      ) : null}
+    </span>
+  );
+}
+
+function statusKind(thread: DesktopThread): StatusKind {
+  if (thread.needsInput) return "attention";
+  if (thread.isArchived) return "archived";
+  if (thread.status === "error") return "error";
+  if (thread.status === "active" || thread.status === "starting" || thread.status === "stopping") return "working";
+  return "idle";
+}
+
+function describeStatus(thread: DesktopThread): string {
+  if (thread.needsInput) return "Needs input";
+  if (thread.isArchived) return "Archived";
+  switch (thread.status) {
+    case "active":
+      return "Working";
+    case "starting":
+      return "Starting";
+    case "stopping":
+      return "Stopping";
+    case "pending":
+      return "Scheduled";
+    case "error":
+      return "Error";
+    default:
+      return "Idle";
+  }
+}
+
+function relativeTime(timestamp: number): string {
+  const seconds = Math.round((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return new Date(timestamp).toLocaleDateString();
+}
+
+function threadTooltip(desktop: DesktopContextValue, thread: DesktopThread): string {
+  const folders = desktop.foldersOf(thread.id);
+  return folders.length === 0 ? thread.title : `${thread.title}\nIn ${folders.join(", ")}`;
+}
+
+function ThreadCollection({
+  threads,
+  group,
+  view,
+  emptyText,
+  showFolders = false,
+}: {
+  threads: DesktopThread[];
+  group: DesktopGroup | null;
+  view: "icons" | "list";
+  emptyText: string;
+  showFolders?: boolean;
+}) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const actions = useSidebarThreadActions();
+  const track = usePointerTracker();
+  const [selected, setSelected] = useState<string | null>(null);
+
+  if (threads.length === 0) {
+    return <p className="p-6 text-center text-xs text-muted-foreground">{emptyText}</p>;
+  }
+
+  const itemProps = (thread: DesktopThread) => ({
+    draggable: false,
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
+      if (event.button !== 0 || event.isPrimary === false) return;
+      setSelected(thread.id);
+      const source = event.currentTarget;
+      const origin = { x: event.clientX, y: event.clientY };
+      const targets = Array.from(document.querySelectorAll<HTMLElement>("[data-thread-drop]")).filter((element) => !element.closest("[hidden]")).map((element) => ({
+        element, key: element.dataset.threadDrop!, rect: element.getBoundingClientRect(),
+        z: Number(element.closest<HTMLElement>(".bbd-window")?.style.zIndex ?? 0),
+      })).sort((a, b) => b.z - a.z);
+      const windows = Array.from(document.querySelectorAll<HTMLElement>(".bbd-window:not([hidden])")).map((element) => ({ rect: element.getBoundingClientRect(), z: Number(element.style.zIndex) || 0 }));
+      const preview = document.createElement("div");
+      preview.className = "bbd-root bbd-thread-drag-preview";
+      preview.textContent = thread.title;
+      let target: typeof targets[number] | undefined;
+      track(event, (delta) => {
+        const x = origin.x + delta.x, y = origin.y + delta.y;
+        const topZ = Math.max(0, ...windows.filter(({ rect }) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom).map(({ z }) => z));
+        const next = targets.find(({ rect, z }) => z >= topZ && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
+        if (!preview.isConnected) document.body.append(preview);
+        preview.style.transform = `translate(${x + 12}px, ${y + 12}px)`;
+        if (target !== next) {
+          if (target) target.element.dataset.dropTarget = "false";
+          target = next;
+          if (target) target.element.dataset.dropTarget = "true";
+        }
+        source.style.opacity = "0.5";
+      }, (cancelled, moved) => {
+        source.style.opacity = "";
+        preview.remove();
+        if (target) target.element.dataset.dropTarget = "false";
+        if (cancelled || !moved || !target) return;
+        if (target.key === "recycle-bin") {
+          if (!thread.isArchived) { closeThreadWindows(manager, thread.id); actions.archive(thread.id); }
+        } else {
+          const destination = desktop.groupByKey.get(target.key);
+          if (destination) void desktop.dropThread(destination, {
+            threadId: thread.id, fromFolderId: group?.kind === "folder" ? group.folder.id : null,
+          });
+        }
+      });
+    },
+    onClick: () => setSelected(thread.id),
+    onDoubleClick: () => desktop.openThread(thread.id),
+    onKeyDown: (event: { key: string }) => {
+      if (event.key === "Enter") desktop.openThread(thread.id);
+    },
+    onContextMenu: (event: ReactMouseEvent) => {
+      setSelected(thread.id);
+      desktop.openMenu(event, threadMenu(desktop, manager, actions, thread, group));
+    },
+    tabIndex: 0,
+    role: "option",
+  });
+
+  if (view === "icons") {
+    return (
+      <div className="bbd-finder-grid" role="listbox" aria-label="Threads">
+        {threads.map((thread) => (
+          <div key={thread.id} className="bbd-finder-item" title={threadTooltip(desktop, thread)} {...itemProps(thread)}>
+            <ThreadGlyph thread={thread} />
+            <span className="bbd-icon-label">{thread.title}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div role="listbox" aria-label="Threads" className="py-1">
+      <div className="bbd-row grid-cols-[1fr_112px_80px] font-semibold text-muted-foreground">
+        <span>Name</span>
+        <span>Status</span>
+        <span>{desktop.sort.key === "created" ? "Created" : "Updated"}</span>
+      </div>
+      {threads.map((thread) => (
+        <div key={thread.id} className="bbd-row grid-cols-[1fr_112px_80px]" title={threadTooltip(desktop, thread)} {...itemProps(thread)}>
+          <span className="flex min-w-0 items-center gap-2">
+            <ThreadArt size={16} archived={thread.isArchived} />
+            <span className="flex min-w-0 flex-col">
+              <span className={`truncate ${thread.isUnread ? "font-semibold" : ""}`}>{thread.title}</span>
+              {showFolders && desktop.foldersOf(thread.id).length > 0 ? (
+                <span className="bbd-row-folders flex min-w-0 items-center gap-1">
+                  <FolderArt kind="section" size={12} />
+                  <span className="truncate">{desktop.foldersOf(thread.id).join(", ")}</span>
+                </span>
+              ) : null}
+            </span>
+          </span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <StatusIcon kind={statusKind(thread)} />
+            <span className="truncate">{describeStatus(thread)}</span>
+          </span>
+          <span className="truncate tabular-nums">
+            {relativeTime(desktop.sort.key === "created" ? thread.createdAt : thread.updatedAt)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function groupDescription(group: DesktopGroup): string {
+  switch (group.kind) {
+    case "folder":
+      return group.folder.hideFromSidebar
+        ? "Desktop folder · its threads are hidden from the sidebar"
+        : "Desktop folder · drag threads here to file them";
+    case "section":
+      return group.id === null
+        ? "Threads outside any section · drag threads here to unfile them"
+        : "Sidebar section · drag threads here to move them";
+    case "project":
+      return "Project";
+    case "machine":
+      return "Machine";
+  }
+}
+
+function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWindow; groupKey: string }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const group = desktop.groupByKey.get(groupKey) ?? null;
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<"icons" | "list">("icons");
+  const drop = useDropTarget(group);
+
+  if (group === null) {
+    return (
+      <WindowFrame window={desktopWindow} title="Folder" icon={<FolderArt kind="section" size={16} />}>
+        <p className="p-6 text-center text-xs text-muted-foreground">
+          This folder isn’t part of the current organization. Switch Organize by from the desktop’s right-click menu to
+          see it again.
+        </p>
+      </WindowFrame>
+    );
+  }
+
+  const needle = query.trim().toLocaleLowerCase();
+  const threads = sortThreads(
+    groupThreads(group, desktop.visibleThreads).filter(
+      (thread) => needle === "" || thread.title.toLocaleLowerCase().includes(needle),
+    ),
+    desktop.sort.key,
+    desktop.sort.direction,
+  );
+
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={group.name}
+      icon={<FolderArt kind={group.kind} size={16} empty={groupThreads(group, desktop.visibleThreads).length === 0} />}
+      statusBar={
+        <>
+          <span>{threads.length} threads</span>
+          <span className="flex-1 truncate">{groupDescription(group)}</span>
+        </>
+      }
+    >
+      <div className="flex h-full flex-col">
+        <div className="bbd-menubar flex-none">
+          <input
+            className="bbd-field bbd-sunken w-36 min-w-16 shrink-[4]"
+            placeholder="Search"
+            aria-label="Search this folder"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {group.kind === "folder" ? (
+            <label className="flex flex-none items-center gap-1 text-xs whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={group.folder.hideFromSidebar}
+                onChange={(event) =>
+                  void desktop
+                    .call("updateFolder", { id: group.folder.id, hideFromSidebar: event.target.checked })
+                    .catch((error) => toast.error(errorMessage(error)))
+                }
+              />
+              Hide from sidebar
+            </label>
+          ) : null}
+          {group.kind === "machine" ? null : (
+            <button
+              type="button"
+              className="bbd-button bbd-bevel flex-none"
+              onClick={() => manager.open({ kind: "new-thread", groupKey: group.key })}
+            >
+              <NewThreadArt size={16} /> New thread
+            </button>
+          )}
+          <div className="ml-auto flex flex-none gap-1">
+            <button type="button" className="bbd-button bbd-bevel px-2" aria-label="Icon view" data-pressed={view === "icons"} onClick={() => setView("icons")}>
+              <GridViewGlyph className="size-3.5" />
+            </button>
+            <button type="button" className="bbd-button bbd-bevel px-2" aria-label="List view" data-pressed={view === "list"} onClick={() => setView("list")}>
+              <ListViewGlyph className="size-3.5" />
+            </button>
+          </div>
+        </div>
+        <div
+          className="bbd-sunken min-h-0 flex-1 overflow-auto"
+          data-drop-target={drop.over}
+          style={drop.over ? { outline: "2px dashed var(--bbd-orange)", outlineOffset: -4 } : undefined}
+          {...drop.handlers}
+        >
+          <ThreadCollection
+            threads={threads}
+            group={group}
+            view={view}
+            emptyText={
+              acceptsDrop(group)
+                ? "Nothing here. Drag threads in from another folder or My Threads."
+                : "No threads here."
+            }
+          />
+        </div>
+      </div>
+    </WindowFrame>
+  );
+}
+
+function typingLine(thread: DesktopThread, buddy: string): string {
+  switch (statusKind(thread)) {
+    case "working":
+      return `${buddy} is typing...`;
+    case "attention":
+      return `${buddy} is waiting for your reply`;
+    case "error":
+      return `${buddy} hit an error`;
+    case "archived":
+      return `${buddy} has signed off`;
+    default:
+      return `${buddy} has been idle for ${idleFor(thread.updatedAt)}`;
+  }
+}
+
+function buddyListTitle(desktop: DesktopContextValue, threadId: string): string {
+  const projectId = desktop.threadById.get(threadId)?.projectId;
+  const name = desktop.snapshot.projects.find((project) => project.id === projectId)?.name;
+  return name === undefined ? "Buddy List" : `${name}'s Buddy List`;
+}
+
+function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const actions = useSidebarThreadActions();
+  const thread = desktop.threadById.get(threadId);
+  const panelOpen = manager.windows.some((window) => window.id === windowId({ kind: "panel", threadId }));
+  const buddiesOpen = manager.windows.some((window) => window.id === windowId({ kind: "buddy-list", threadId }));
+  const buddy = aimScreenName(thread?.providerId ?? "", threadId);
+  const browserAvailable = nativeBrowser() !== null;
+  const working = thread === undefined ? null : statusKind(thread) === "working";
+  const wasWorking = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (working === null) return;
+    const previous = wasWorking.current;
+    wasWorking.current = working;
+    if (previous === null || previous === working) return;
+    if (working) playDoorOpen();
+    else playDoorClose();
+  }, [working]);
+
+  const openTab = (tab: ThreadTabKind) => {
+    const tabId = Math.random().toString(36).slice(2, 10);
+    manager.open({ kind: "thread-tab", threadId, tab, tabId });
+  };
+
+  const toggleDocked = (spec: { kind: "panel" | "buddy-list"; threadId: string }, width: number) => {
+    const id = windowId(spec);
+    if (manager.windows.some((window) => window.id === id)) {
+      manager.close(id);
+      return;
+    }
+    const { rect } = desktopWindow;
+    const viewport = viewportRect();
+    const right = rect.x + rect.width + 8;
+    const left = rect.x - width - 8;
+    const fitsRight = right + width <= viewport.width;
+    const fitsLeft = left >= 0;
+    const x =
+      spec.kind === "buddy-list"
+        ? fitsLeft ? left : fitsRight ? right : 0
+        : fitsRight ? right : Math.max(0, left);
+    manager.open(spec, { x, y: rect.y, width, height: rect.height });
+  };
+
+  const openThreadMenu = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (thread === undefined) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    desktop.openMenu(
+      { clientX: bounds.left, clientY: bounds.bottom + 2, preventDefault: () => event.preventDefault(), stopPropagation: () => event.stopPropagation() },
+      threadMenu(desktop, manager, actions, thread, null).filter((entry) => typeof entry !== "object" || !("label" in entry) || entry.label !== "Open"),
+    );
+  };
+
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={`${thread?.title ?? "Thread"} - Instant Message`}
+      icon={<ThreadArt size={16} />}
+      titleActions={
+        <>
+          {thread === undefined ? null : (
+            <button
+              type="button"
+              className="bbd-titlebar-button mr-1"
+              aria-label="Thread actions"
+              aria-haspopup="menu"
+              title="Thread actions"
+              onClick={openThreadMenu}
+            >
+              <MoreGlyph className="size-3.5" strokeWidth={2} />
+            </button>
+          )}
+          <button
+            type="button"
+            className="bbd-titlebar-button mr-1"
+            aria-label="Open in bb"
+            title="Open in bb"
+            onClick={() => actions.open(threadId)}
+          >
+            <ExternalLinkGlyph className="size-3" strokeWidth={2} />
+          </button>
+        </>
+      }
+      statusBar={
+        thread === undefined ? undefined : (
+          <span className="flex-1 truncate" aria-live="polite" data-typing={statusKind(thread) === "working"}>
+            {typingLine(thread, buddy)}
+          </span>
+        )
+      }
+    >
+      <div className="bbd-im flex h-full flex-col" style={{ "--bbd-im-buddy": JSON.stringify(`${buddy}:`) } as CSSProperties}>
+        <div className="bbd-im-menubar flex-none">
+          <button type="button" aria-haspopup="menu" disabled={thread === undefined} onClick={openThreadMenu}>Thread</button>
+          <span title={`Screen name: ${buddy}`}>To: <strong>{buddy}</strong></span>
+        </div>
+        <div className="bbd-im-chat min-h-0 flex-1" data-bbd-chat-thread={threadId}>
+          <ThreadChat threadId={threadId} variant="compact" layout="contained" permissionPolicy="editable" className="h-full" />
+        </div>
+        <div className="bbd-im-actions flex-none">
+          <button
+            type="button"
+            className="bbd-im-action"
+            aria-pressed={buddiesOpen}
+            title={buddiesOpen ? "Close the Buddy List" : "Buddy List: threads in this project and environment"}
+            onClick={() => toggleDocked({ kind: "buddy-list", threadId }, 280)}
+          >
+            <BuddyListArt size={24} />
+            <span>Buddy List</span>
+          </button>
+          <button
+            type="button"
+            className="bbd-im-action"
+            aria-pressed={panelOpen}
+            title={panelOpen ? "Close thread info" : "Status, branch, pull request, and folders"}
+            onClick={() => toggleDocked({ kind: "panel", threadId }, 320)}
+          >
+            <DetailsArt size={24} />
+            <span>Get Info</span>
+          </button>
+          <button
+            type="button"
+            className="bbd-im-action"
+            disabled={!browserAvailable}
+            title={browserAvailable ? "Open a new browser tab for this thread" : "Browser tabs need the bb desktop app"}
+            onClick={() => openTab("browser")}
+          >
+            <InternetExplorerArt size={24} />
+            <span>Browser</span>
+          </button>
+          <button
+            type="button"
+            className="bbd-im-action"
+            title="Open a new terminal in this thread's environment"
+            onClick={() => openTab("terminal")}
+          >
+            <CommandPromptArt size={24} />
+            <span>Terminal</span>
+          </button>
+        </div>
+      </div>
+    </WindowFrame>
+  );
+}
+
+type BuddyScope = "project" | "environment";
+
+interface BuddyGroup {
+  key: string;
+  name: string;
+  threads: DesktopThread[];
+  total: number;
+}
+
+function buddyRank(thread: DesktopThread): number {
+  switch (statusKind(thread)) {
+    case "attention":
+      return 0;
+    case "working":
+      return 1;
+    case "error":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+function sortBuddies(threads: readonly DesktopThread[]): DesktopThread[] {
+  return [...threads].sort((left, right) => buddyRank(left) - buddyRank(right) || right.updatedAt - left.updatedAt);
+}
+
+function idleFor(timestamp: number): string {
+  const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours}h` : `${Math.round(hours / 24)}d`;
+}
+
+function BuddyListWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const actions = useSidebarThreadActions();
+  const thread = desktop.threadById.get(threadId);
+  const environment = desktop.liveById.get(threadId)?.environment ?? null;
+  const environmentId = environment?.id ?? null;
+  const [scope, setScope] = useState<BuddyScope>("project");
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set(["offline"]));
+  const [selectedId, setSelectedId] = useState(threadId);
+  const activeScope: BuddyScope = environmentId === null ? "project" : scope;
+  const projectName = desktop.snapshot.projects.find((project) => project.id === thread?.projectId)?.name ?? "Project";
+  const environmentName = environment?.name ?? environment?.branchName ?? "Environment";
+
+  const buddyGroups = useMemo((): BuddyGroup[] => {
+    if (thread === undefined) return [];
+    const members = desktop.threads.filter(
+      (candidate) =>
+        candidate.projectId === thread.projectId &&
+        (activeScope === "project" || desktop.liveById.get(candidate.id)?.environment?.id === environmentId),
+    );
+    const filed = new Set<string>();
+    const group = (key: string, name: string, threads: DesktopThread[]): BuddyGroup => ({
+      key,
+      name,
+      threads: sortBuddies(threads.filter((candidate) => !candidate.isArchived)),
+      total: threads.length,
+    });
+    const folders = desktop.groups.flatMap((candidate): BuddyGroup[] => {
+      if (candidate.kind !== "folder") return [];
+      const inFolder = members.filter((member) => candidate.folder.threadIds.includes(member.id));
+      for (const member of inFolder) filed.add(member.id);
+      return inFolder.length === 0 ? [] : [group(candidate.key, candidate.name, inFolder)];
+    });
+    const unfiled = members.filter((candidate) => !filed.has(candidate.id));
+    const offline = members.filter((candidate) => candidate.isArchived);
+    return [
+      ...folders,
+      ...(unfiled.length > 0 ? [group("buddies", "Buddies", unfiled)] : []),
+      ...(offline.length > 0
+        ? [{ key: "offline", name: "Offline", threads: sortBuddies(offline), total: offline.length }]
+        : []),
+    ];
+  }, [activeScope, desktop.groups, desktop.liveById, desktop.threads, environmentId, thread]);
+  const onlineCount = new Set(
+    buddyGroups.flatMap((group) => group.key === "offline" ? [] : group.threads.map((buddy) => buddy.id)),
+  ).size;
+
+  const selected = desktop.threadById.get(selectedId);
+  const toggleGroup = (key: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
+  return (
+    <WindowFrame window={desktopWindow} title={buddyListTitle(desktop, threadId)} icon={<BuddyListArt size={16} />}>
+      <div className="bbd-buddies flex h-full flex-col">
+        <div className="bbd-buddies-banner flex-none">
+          <BuddyListArt size={48} />
+          <div className="min-w-0">
+            <p className="bbd-buddies-brand">bb Messenger</p>
+            <p className="truncate">{activeScope === "project" ? projectName : environmentName}</p>
+          </div>
+        </div>
+        <p className="bbd-buddies-online flex-none">Online ({onlineCount})</p>
+        {environmentId === null ? null : (
+          <div className="bbd-buddies-tabs flex-none" role="tablist" aria-label="Buddy List scope">
+            {(["project", "environment"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                className="bbd-buddies-tab"
+                aria-selected={activeScope === value}
+                onClick={() => setScope(value)}
+              >
+                {value === "project" ? "Project" : "Environment"}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="bbd-buddies-list min-h-0 flex-1 overflow-auto">
+          {thread === undefined ? (
+            <p className="p-3 text-xs text-muted-foreground">This thread is not available.</p>
+          ) : (
+            buddyGroups.map((group) => {
+              const open = !collapsed.has(group.key);
+              return (
+                <section key={group.key}>
+                  <button
+                    type="button"
+                    className="bbd-buddies-group"
+                    aria-expanded={open}
+                    title={
+                      group.key === "offline"
+                        ? "Archived threads"
+                        : `${group.threads.length} of ${group.total} not archived`
+                    }
+                    onClick={() => toggleGroup(group.key)}
+                  >
+                    <span className="bbd-buddies-caret" aria-hidden data-open={open} />
+                    <span className="truncate">{group.name}</span>
+                    <span className="text-muted-foreground">
+                      {group.key === "offline" ? `(${group.total})` : `(${group.threads.length}/${group.total})`}
+                    </span>
+                  </button>
+                  {open ? (
+                    <ul className="bbd-buddies-rows">
+                      {group.threads.map((buddy) => {
+                        const kind = statusKind(buddy);
+                        return (
+                          <li key={buddy.id}>
+                            <button
+                              type="button"
+                              className="bbd-buddy"
+                              aria-current={buddy.id === threadId ? "true" : undefined}
+                              data-selected={buddy.id === selectedId}
+                              data-dim={kind === "idle" || kind === "archived"}
+                              data-bold={buddy.isUnread || kind === "attention"}
+                              title={`${buddy.title}\n${describeStatus(buddy)} · last activity ${relativeTime(buddy.updatedAt)}`}
+                              onClick={() => setSelectedId(buddy.id)}
+                              onDoubleClick={() => desktop.openThread(buddy.id)}
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter") return;
+                                event.preventDefault();
+                                desktop.openThread(buddy.id);
+                              }}
+                              onContextMenu={(event) => {
+                                setSelectedId(buddy.id);
+                                desktop.openMenu(event, threadMenu(desktop, manager, actions, buddy, null));
+                              }}
+                            >
+                              <StatusIcon kind={kind} size={14} />
+                              <span className="min-w-0 flex-1 truncate">{buddy.title}</span>
+                              {kind === "idle" ? <span className="bbd-buddy-idle">({idleFor(buddy.updatedAt)})</span> : null}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                </section>
+              );
+            })
+          )}
+        </div>
+        <div className="bbd-im-actions flex-none">
+          <button
+            type="button"
+            className="bbd-im-action"
+            disabled={selected === undefined}
+            title="Open the selected thread"
+            onClick={() => desktop.openThread(selectedId)}
+          >
+            <ThreadArt size={22} />
+            <span>IM</span>
+          </button>
+          <button
+            type="button"
+            className="bbd-im-action"
+            disabled={selected === undefined}
+            title="Info for the selected thread"
+            onClick={() => manager.open({ kind: "panel", threadId: selectedId })}
+          >
+            <DetailsArt size={24} />
+            <span>Info</span>
+          </button>
+        </div>
+      </div>
+    </WindowFrame>
+  );
+}
+
+function PullRequestLine({ threadId }: { threadId: string }) {
+  const { pullRequest } = useSidebarThreadPullRequest(threadId);
+  if (pullRequest === null) return null;
+  return (
+    <DetailRow label="Pull request">
+      <a className="text-primary underline" href={pullRequest.url} target="_blank" rel="noreferrer">
+        #{pullRequest.number} {pullRequest.title}
+      </a>{" "}
+      <span className="text-muted-foreground">({pullRequest.state})</span>
+    </DetailRow>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[92px_1fr] gap-2 py-0.5 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="min-w-0 break-words">{children}</span>
+    </div>
+  );
+}
+
+function PanelWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const actions = useSidebarThreadActions();
+  const thread = desktop.threadById.get(threadId);
+  const live = desktop.liveById.get(threadId);
+  const section = desktop.snapshot.sections.find((candidate) => candidate.id === thread?.sectionId);
+
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={`${thread?.title ?? "Thread"} - Buddy Info`}
+      icon={<DetailsArt size={16} />}
+    >
+      <div className="bbd-im-info h-full overflow-auto">
+        {thread === undefined ? (
+          <p className="text-xs text-muted-foreground">This thread is not available.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="bbd-im-info-heading">
+              <BuddyListArt size={32} />
+              <div className="min-w-0">
+                <strong>{aimScreenName(thread.providerId, thread.id)}</strong>
+                <span>{describeStatus(thread)}</span>
+              </div>
+            </div>
+            <fieldset className="bbd-fieldset">
+              <legend>Thread</legend>
+              <DetailRow label="Status">{describeStatus(thread)}</DetailRow>
+              <DetailRow label="Screen name">{aimScreenName(thread.providerId, thread.id)}</DetailRow>
+              <DetailRow label="Agent">{thread.providerId}</DetailRow>
+              {live?.environment?.branchName ? <DetailRow label="Branch">{live.environment.branchName}</DetailRow> : null}
+              {live?.environment?.name ? <DetailRow label="Environment">{live.environment.name}</DetailRow> : null}
+              {live?.host ? <DetailRow label="Machine">{live.host.name}</DetailRow> : null}
+              <PullRequestLine threadId={threadId} />
+              <DetailRow label="Created">{new Date(thread.createdAt).toLocaleString()}</DetailRow>
+              <DetailRow label="Sidebar">{thread.isHidden ? "Hidden (filed in a folder)" : "Visible"}</DetailRow>
+              <DetailRow label="Section">{section?.name ?? "None"}</DetailRow>
+              <DetailRow label="Folders">
+                {desktop.foldersOf(threadId).length === 0 ? "None" : desktop.foldersOf(threadId).join(", ")}
+              </DetailRow>
+            </fieldset>
+            <div className="flex flex-wrap gap-1">
+              <button type="button" className="bbd-button bbd-bevel" onClick={() => actions.open(threadId)}>
+                <ExternalLinkGlyph className="size-3.5" /> Open in bb
+              </button>
+              <button
+                type="button"
+                className="bbd-button bbd-bevel"
+                onClick={() => void actions.setRead(threadId, thread.isUnread).catch((error) => toast.error(errorMessage(error)))}
+              >
+                {thread.isUnread ? "Mark read" : "Mark unread"}
+              </button>
+              <button
+                type="button"
+                className="bbd-button bbd-bevel"
+                disabled={thread.isArchived}
+                onClick={() => {
+                  closeThreadWindows(manager, threadId);
+                  actions.archive(threadId);
+                }}
+              >
+                Archive
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </WindowFrame>
+  );
+}
+
+function ThreadsWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLocaleLowerCase();
+  const threads = sortThreads(
+    desktop.visibleThreads.filter(
+      (thread) => needle === "" || thread.title.toLocaleLowerCase().includes(needle),
+    ),
+    desktop.sort.key,
+    desktop.sort.direction,
+  );
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title="My Threads"
+      icon={<ThreadsArt size={16} />}
+      statusBar={<span className="flex-1">{threads.length} threads · drag onto a folder to file</span>}
+    >
+      <div className="flex h-full flex-col">
+        <div className="bbd-menubar flex-none">
+          <input
+            className="bbd-field bbd-sunken min-w-0 flex-1"
+            placeholder="Search threads"
+            aria-label="Search threads"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <div className="bbd-sunken min-h-0 flex-1 overflow-auto">
+          <ThreadCollection threads={threads} group={null} view="list" emptyText="No threads." showFolders />
+        </div>
+      </div>
+    </WindowFrame>
+  );
+}
+
+function useDesktopApps(): readonly DesktopApp[] {
+  return useSyncExternalStore(subscribeApps, registeredApps);
+}
+
+function AppIcon({ app, size }: { app: DesktopApp | undefined; size: number }) {
+  return app?.icon === undefined ? (
+    <DetailsArt size={size} />
+  ) : (
+    <img src={app.icon} width={size} height={size} alt="" style={{ flex: "none", objectFit: "contain" }} />
+  );
+}
+
+function AppWindow({ window: desktopWindow, appKey }: { window: DesktopWindow; appKey: string }) {
+  const apps = useDesktopApps();
+  const app = apps.find((candidate) => candidate.key === appKey);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const available = app !== undefined;
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (body === null || !available) return;
+    return attachAppWindow(desktopWindow.id, appKey, body);
+  }, [available, appKey, desktopWindow.id]);
+  return (
+    <WindowFrame window={desktopWindow} title={app?.title ?? "Program"} icon={<AppIcon app={app} size={16} />} keepMounted>
+      {available ? (
+        <div ref={bodyRef} className="bbd-app-body h-full overflow-auto" />
+      ) : (
+        <p className="p-6 text-center text-xs text-muted-foreground">
+          This program isn't available right now. Its plugin may be turned off or still loading.
+        </p>
+      )}
+    </WindowFrame>
+  );
+}
+
+function InternetExplorerWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
+  const { call } = desktop;
+  const loadThread = useCallback(async () => (await call("browserThread", {})).threadId, [call]);
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={pageTitle === null || pageTitle === "" ? "Internet Explorer" : `${pageTitle} - Internet Explorer`}
+      icon={<InternetExplorerArt size={16} />}
+      onClose={closeInternetExplorer}
+      keepMounted
+    >
+      <InternetExplorer window={desktopWindow} loadThread={loadThread} onTitle={setPageTitle} />
+    </WindowFrame>
+  );
+}
+
+function CommandPromptWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  const machine = desktop.snapshot.machines[0] ?? null;
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={machine === null ? "Command Prompt" : `Command Prompt — ${machine.name}`}
+      icon={<CommandPromptArt size={16} />}
+      onClose={closeCommandPromptSession}
+    >
+      <CommandPrompt target={machine === null ? null : { kind: "host", hostId: machine.id }} />
+    </WindowFrame>
+  );
+}
+
+function threadTabTitle(tab: ThreadTabKind, threadTitle: string, pageTitle: string | null = null): string {
+  if (tab === "terminal") return `Command Prompt — ${threadTitle}`;
+  return `${pageTitle === null || pageTitle === "" ? threadTitle : pageTitle} - Internet Explorer`;
+}
+
+function ThreadTabWindow({
+  window: desktopWindow,
+  threadId,
+  tab,
+  tabId,
+}: {
+  window: DesktopWindow;
+  threadId: string;
+  tab: ThreadTabKind;
+  tabId: string;
+}) {
+  const desktop = useDesktop();
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
+  const threadTitle = desktop.threadById.get(threadId)?.title ?? "Thread";
+  const loadThread = useCallback(async () => threadId, [threadId]);
+  const browserTab = threadBrowserTab(tabId);
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={threadTabTitle(tab, threadTitle, pageTitle)}
+      icon={tab === "browser" ? <InternetExplorerArt size={16} /> : <CommandPromptArt size={16} />}
+      onClose={() => closeThreadTab({ tab, tabId })}
+      keepMounted={tab === "browser"}
+    >
+      {tab === "browser" ? (
+        <InternetExplorer
+          window={desktopWindow}
+          tabId={browserTab.tabId}
+          urlKey={browserTab.urlKey}
+          loadThread={loadThread}
+          onTitle={setPageTitle}
+        />
+      ) : (
+        <CommandPrompt
+          target={{ kind: "thread", threadId }}
+          sessionKey={threadTerminalSessionKey(tabId)}
+          unavailable="This thread has no environment to open a terminal in."
+        />
+      )}
+    </WindowFrame>
+  );
+}
+
+function RecycleBinWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLocaleLowerCase();
+  const threads = sortThreads(
+    desktop.archivedThreads.filter(
+      (thread) => needle === "" || thread.title.toLocaleLowerCase().includes(needle),
+    ),
+    desktop.sort.key,
+    desktop.sort.direction,
+  );
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title="Recycle Bin"
+      icon={<RecycleBinArt size={16} full={desktop.archivedThreads.length > 0} />}
+      statusBar={
+        <span className="flex-1 truncate">
+          {threads.length} archived threads · right-click to restore, or drag onto a folder
+        </span>
+      }
+    >
+      <div className="flex h-full flex-col">
+        <div className="bbd-menubar flex-none">
+          <input
+            className="bbd-field bbd-sunken min-w-0 flex-1"
+            placeholder="Search archived threads"
+            aria-label="Search archived threads"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <div className="bbd-sunken min-h-0 flex-1 overflow-auto">
+          <ThreadCollection
+            threads={threads}
+            group={null}
+            view="list"
+            emptyText="The Recycle Bin is empty. Drag a thread here to archive it."
+          />
+        </div>
+      </div>
+    </WindowFrame>
+  );
+}
+
+function NewFolderWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const [name, setName] = useState("New folder");
+  const [kind, setKind] = useState<"section" | "folder">(
+    desktop.effective.organize === "section" ? "section" : "folder",
+  );
+  const [hide, setHide] = useState(false);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const needle = query.trim().toLocaleLowerCase();
+  const candidates = sortThreads(
+    desktop.threads.filter(
+      (thread) => !thread.isArchived && (needle === "" || thread.title.toLocaleLowerCase().includes(needle)),
+    ),
+    desktop.sort.key,
+    desktop.sort.direction,
+  ).slice(0, 200);
+
+  const create = async () => {
+    setBusy(true);
+    try {
+      const trimmed = name.trim() || "New folder";
+      let key: string;
+      if (kind === "section") {
+        const section = await desktop.call("createSection", { name: trimmed });
+        if (picked.size > 0) {
+          await desktop.call("moveToSection", { threadIds: [...picked], sectionId: section.id });
+        }
+        key = `section:${section.id}`;
+      } else {
+        const folder = await desktop.call("createFolder", {
+          name: trimmed,
+          hideFromSidebar: hide,
+          position: null,
+        });
+        if (picked.size > 0) {
+          await desktop.call("addToFolder", { folderId: folder.id, threadIds: [...picked], fromFolderId: null });
+        }
+        key = `folder:${folder.id}`;
+      }
+      desktop.refresh();
+      manager.close(desktopWindow.id);
+      manager.open({ kind: "finder", key });
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <WindowFrame window={desktopWindow} title="New folder" icon={<NewFolderArt size={16} />}>
+      <form
+        className="flex h-full flex-col gap-3 overflow-auto p-3 text-xs"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void create();
+        }}
+      >
+        <label className="flex items-center gap-2">
+          Name
+          <input
+            className="bbd-field bbd-sunken flex-1"
+            value={name}
+            autoFocus
+            onFocus={(event) => event.target.select()}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        <fieldset className="bbd-fieldset space-y-1">
+          <legend>Kind</legend>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="kind" checked={kind === "section"} onChange={() => setKind("section")} />
+            Sidebar section — shows up in bb’s sidebar too
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="kind" checked={kind === "folder"} onChange={() => setKind("folder")} />
+            Desktop folder — only on this desktop
+          </label>
+          {kind === "folder" ? (
+            <label className="ml-5 flex items-center gap-2">
+              <input type="checkbox" checked={hide} onChange={(event) => setHide(event.target.checked)} />
+              Hide its threads from the sidebar thread list
+            </label>
+          ) : null}
+        </fieldset>
+        <fieldset className="bbd-fieldset flex min-h-32 flex-1 flex-col gap-1">
+          <legend>{kind === "section" ? "Move threads in" : "Add threads"} ({picked.size})</legend>
+          <input
+            className="bbd-field bbd-sunken"
+            placeholder="Search"
+            aria-label="Search threads to add"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <div className="bbd-sunken min-h-0 flex-1 overflow-auto py-1">
+            {candidates.map((thread) => (
+              <label key={thread.id} className="bbd-row grid-cols-[14px_1fr]">
+                <input
+                  type="checkbox"
+                  checked={picked.has(thread.id)}
+                  onChange={(event) => {
+                    const next = new Set(picked);
+                    if (event.target.checked) next.add(thread.id);
+                    else next.delete(thread.id);
+                    setPicked(next);
+                  }}
+                />
+                <span className="truncate">{thread.title}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="mt-auto flex justify-end gap-2">
+          <button type="button" className="bbd-button bbd-bevel min-w-20 justify-center" onClick={() => manager.close(desktopWindow.id)}>
+            Cancel
+          </button>
+          <button type="submit" className="bbd-button bbd-bevel min-w-20 justify-center font-semibold" disabled={busy}>
+            Create
+          </button>
+        </div>
+      </form>
+    </WindowFrame>
+  );
+}
+
+function NewThreadWindow({ window: desktopWindow, groupKey }: { window: DesktopWindow; groupKey: string | null }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const group = groupKey === null ? null : (desktop.groupByKey.get(groupKey) ?? null);
+
+  const submit = async (request: NewThreadRequest) => {
+    const { threadId } = await desktop.call("spawnThread", {
+      request: {
+        ...request,
+        ...(group?.kind === "section" && group.id !== null ? { sectionId: group.id } : {}),
+      },
+    });
+    if (group?.kind === "folder") {
+      await desktop.call("addToFolder", { folderId: group.folder.id, threadIds: [threadId], fromFolderId: null });
+    }
+    manager.close(desktopWindow.id);
+    manager.open({ kind: "thread", threadId });
+  };
+
+  return (
+    <WindowFrame
+      window={desktopWindow}
+      title={group === null ? "New thread" : `New thread in ${group.name}`}
+      icon={<NewThreadArt size={16} />}
+    >
+      <div className="h-full overflow-auto bg-background p-3">
+        <NewThreadComposer
+          onSubmit={submit}
+          {...(group?.kind === "project" && group.id !== null ? { defaultProjectId: group.id } : {})}
+          draftKey={`desktop:new-thread:${groupKey ?? "desktop"}`}
+          placeholder="What should this thread do?"
+        />
+      </div>
+    </WindowFrame>
+  );
+}

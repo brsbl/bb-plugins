@@ -1,0 +1,300 @@
+.bbd-pinball {
+  --bbd-pinball-cabinet: #000;
+  --bbd-pinball-panel: #7b7b7b;
+  --bbd-pinball-bevel-light: #c6c6c6;
+  --bbd-pinball-bevel-dark: #3a3a3a;
+  --bbd-pinball-box: #000;
+  --bbd-pinball-led: #9a8cff;
+  --bbd-pinball-logo: #b69cf0;
+  --bbd-pinball-logo-edge: #321a70;
+  --bbd-pinball-alert: #e0343a;
+  --bbd-pinball-muted: #8f86c9;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+}
+
+.bbd-pinball-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+  padding: 6px;
+  background: var(--bbd-pinball-cabinet);
+  outline: none;
+}
+
+.bbd-pinball-body:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--bbd-accent-line);
+}
+
+.bbd-pinball-stage {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Sized to the tilted table's footprint; the canvas hangs from its bottom edge. */
+.bbd-pinball-tilt {
+  position: relative;
+}
+
+.bbd-pinball-canvas {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: block;
+  transform-origin: 50% 100%;
+  touch-action: none;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.bbd-pinball-panel {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 5px;
+  width: 190px;
+  min-height: 0;
+  padding: 6px;
+  overflow: auto;
+  background: var(--bbd-pinball-panel);
+  box-shadow:
+    inset 2px 2px 0 var(--bbd-pinball-bevel-light),
+    inset -2px -2px 0 var(--bbd-pinball-bevel-dark);
+  color: var(--bbd-pinball-led);
+  font-family: Tahoma, Verdana, "Segoe UI", sans-serif;
+}
+
+/* Recessed black readouts with the grey bevel of the original scoreboard. */
+.bbd-pinball-box {
+  margin: 0;
+  background: var(--bbd-pinball-box);
+  box-shadow:
+    inset 2px 2px 0 var(--bbd-pinball-bevel-dark),
+    inset -2px -2px 0 var(--bbd-pinball-bevel-light);
+}
+
+/* Dot-matrix LED lettering. */
+.bbd-pinball-dots {
+  color: var(--bbd-pinball-led);
+  font: bold 18px/1.2 "Lucida Console", Consolas, monospace;
+  -webkit-mask: radial-gradient(circle, #000 0.75px, transparent 1px) 0 0 / 2px 2px;
+  mask: radial-gradient(circle, #000 0.75px, transparent 1px) 0 0 / 2px 2px;
+}
+
+.bbd-pinball-logo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px 30px;
+  background:
+    radial-gradient(ellipse at 50% 35%, oklch(0.4 0.17 300 / 0.55), oklch(0.4 0.17 300 / 0) 70%),
+    radial-gradient(circle at 20% 80%, oklch(0.9 0 0 / 0.5) 0.6px, transparent 1px) 0 0 / 13px 11px,
+    var(--bbd-pinball-box);
+  box-shadow:
+    inset 2px 2px 0 var(--bbd-pinball-bevel-dark),
+    inset -2px -2px 0 var(--bbd-pinball-bevel-light);
+}
+
+.bbd-pinball-logo-small,
+.bbd-pinball-logo-big {
+  color: var(--bbd-pinball-logo);
+  font-family: "Arial Rounded MT Bold", "Arial Black", Tahoma, sans-serif;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 3px var(--bbd-pinball-logo-edge);
+  text-shadow: 2px 2px 0 var(--bbd-pinball-logo-edge);
+}
+
+.bbd-pinball-logo-small {
+  align-self: flex-end;
+  margin-right: 10px;
+  font-size: 15px;
+}
+
+.bbd-pinball-logo-big {
+  font-size: 29px;
+  letter-spacing: -1px;
+}
+
+.bbd-pinball-ship {
+  width: 100%;
+  height: auto;
+  margin-top: -2px;
+}
+
+.bbd-pinball-ball {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bbd-pinball-ball-label {
+  color: var(--bbd-pinball-alert);
+  font: bold 16px Tahoma, sans-serif;
+  text-transform: uppercase;
+}
+
+.bbd-pinball-ball > .bbd-pinball-box {
+  min-width: 26px;
+  padding: 1px 4px;
+  box-shadow: inset 0 0 0 1px var(--bbd-pinball-alert);
+  text-align: center;
+}
+
+.bbd-pinball-score {
+  display: flex;
+  gap: 5px;
+}
+
+.bbd-pinball-score > .bbd-pinball-box {
+  padding: 4px 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bbd-pinball-score > .bbd-pinball-box:last-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.bbd-pinball-info {
+  min-height: 52px;
+  padding: 6px 8px;
+}
+
+.bbd-pinball-message {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 80px;
+  padding: 8px;
+}
+
+.bbd-pinball-message[data-tone="over"] > .bbd-pinball-dots {
+  color: var(--bbd-pinball-alert);
+}
+
+.bbd-pinball-detail {
+  color: var(--bbd-pinball-muted);
+  font: 11px/1.3 Tahoma, Verdana, sans-serif;
+}
+
+/* The canvas plunger lane handles mouse launches; touch gets a dedicated button. */
+.bbd-pinball-launch {
+  justify-content: center;
+  width: 100%;
+  font-size: 11px;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (pointer: fine) {
+  .bbd-pinball-launch {
+    display: none;
+  }
+}
+
+.bbd-pinball-keys {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--bbd-pinball-bevel-light);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.bbd-pinball-keys[hidden] {
+  display: none;
+}
+
+.bbd-pinball-keys dt {
+  font-weight: 700;
+  color: #fff;
+}
+
+.bbd-pinball-keys dd {
+  margin: 0;
+}
+
+.bbd-pinball-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@container (max-width: 440px) {
+  .bbd-pinball-body {
+    flex-direction: column;
+  }
+
+  .bbd-pinball-panel {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+    width: auto;
+    max-height: 50%;
+    overflow: auto;
+  }
+
+  .bbd-pinball-logo {
+    justify-content: center;
+    padding: 4px 6px;
+  }
+
+  .bbd-pinball-logo-small,
+  .bbd-pinball-logo-big,
+  .bbd-pinball-ship {
+    display: none;
+  }
+
+  .bbd-pinball-ball {
+    position: static;
+  }
+
+  .bbd-pinball-keys {
+    flex: 1 1 100%;
+  }
+
+  .bbd-pinball-score {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .bbd-pinball-info,
+  .bbd-pinball-message {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .bbd-pinball-launch {
+    width: auto;
+  }
+}
