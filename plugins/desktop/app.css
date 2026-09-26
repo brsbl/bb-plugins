@@ -134,6 +134,19 @@
   box-shadow: var(--bbd-highlight), var(--bbd-lift);
 }
 
+/* Maximized: edge to edge like XP, keeping the glass title bar but dropping the floating frame. */
+.bbd-window[data-maximized] {
+  padding: 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.bbd-window[data-maximized] > .bbd-window-body {
+  border-width: 1px 0 0;
+  border-radius: 0;
+}
+
 .bbd-titlebar {
   display: flex;
   align-items: center;

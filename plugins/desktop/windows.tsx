@@ -84,6 +84,7 @@ type Action =
   | { type: "move"; id: string; rect: Rect }
   | { type: "minimize"; id: string; minimized: boolean }
   | { type: "maximize"; id: string; viewport: Rect }
+  | { type: "fit-maximized"; viewport: Rect }
   | { type: "arrange"; rects: Record<string, Rect> };
 
 const STORAGE_KEY = "bb-desktop:windows:v1";
@@ -178,6 +179,15 @@ function reducer(state: WindowState, action: Action): WindowState {
             : { ...window, rect: action.viewport, restoreRect: window.rect };
         }),
       };
+    case "fit-maximized": {
+      const { viewport } = action;
+      const stale = state.windows.some((window) => window.restoreRect !== null && !sameRect(window.rect, viewport));
+      if (!stale) return state;
+      return {
+        ...state,
+        windows: state.windows.map((window) => (window.restoreRect === null ? window : { ...window, rect: viewport })),
+      };
+    }
     case "arrange":
       return {
         ...state,
@@ -273,10 +283,18 @@ export function viewportRect(): Rect {
 }
 
 const DOCK_RESERVE = 80;
+const TASKBAR_GAP = 6;
 
+/** The viewport below bb's chrome and above the floating taskbar, which is what a maximized window fills. */
 export function workAreaRect(): Rect {
   const top = chromeTop();
-  return { x: 0, y: top, width: window.innerWidth, height: Math.max(200, window.innerHeight - DOCK_RESERVE - top) };
+  const taskbar = document.querySelector(".bbd-taskbar")?.getBoundingClientRect();
+  const bottom = taskbar !== undefined && taskbar.height > 0 ? taskbar.top - TASKBAR_GAP : window.innerHeight - DOCK_RESERVE;
+  return { x: 0, y: top, width: window.innerWidth, height: Math.max(200, bottom - top) };
+}
+
+function sameRect(a: Rect, b: Rect): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
 export function defaultRect(spec: WindowSpec, stagger: number): Rect {
@@ -364,6 +382,14 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
       return;
     }
   }, [state.windows]);
+
+  // Maximized windows track the work area as the bb window resizes, and pick up the taskbar's real height once it renders.
+  useEffect(() => {
+    const fit = () => dispatch({ type: "fit-maximized", viewport: workAreaRect() });
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
 
   const countRef = useRef(state.windows.length);
   countRef.current = state.windows.length;
@@ -506,6 +532,7 @@ export function WindowFrame({
       className="bbd-window"
       hidden={desktopWindow.minimized}
       data-focused={focused}
+      data-maximized={maximized || undefined}
       data-settling={settling}
       style={{
         left: desktopWindow.rect.x,
