@@ -270,6 +270,8 @@
 }
 
 @container pinball (max-width: 440px) {
+  .bbd-pinball-stage { width: 100%; }
+
   .bbd-pinball-body {
     display: flex;
     padding: 4px;
@@ -278,13 +280,13 @@
   }
 
   .bbd-pinball-panel {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
     height: auto;
     container-type: normal;
-    flex-direction: row;
-    flex-wrap: wrap;
     align-items: stretch;
-    width: auto;
+    width: 100%;
     max-height: 50%;
     overflow: auto;
   }
@@ -294,8 +296,7 @@
   .bbd-pinball-logo {
     justify-content: center;
     padding: 4px 7px;
-  display: flex;
-  align-items: center;
+    align-items: center;
   }
 
   .bbd-pinball-logo-small,
@@ -319,7 +320,7 @@
 
   .bbd-pinball-info,
   .bbd-pinball-message {
-    flex: 1;
+    grid-column: 1 / -1;
     min-height: 0;
   }
 
