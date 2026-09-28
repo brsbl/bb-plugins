@@ -18,7 +18,7 @@ export class MaterialKit {
     return texture;
   })();
 
-  /** One baked model per prop kind and color variant, or per core look; callers clone it. */
+  /** One baked model per prop variant, core look, or cousin part; callers clone it. */
   template(key: string, create: () => THREE.Group): THREE.Group {
     let template = this.templates.get(key);
     if (!template) {

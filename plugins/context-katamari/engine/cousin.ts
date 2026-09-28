@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import { mulberry32 } from "../katamari-math";
 import { type MaterialKit, pick } from "./materials";
-import { mergeMeshes } from "./props";
+import { bake } from "./props";
 
 /**
  * Each thread gets its own royal cousin, built like the Prince in the key
@@ -97,13 +97,13 @@ function mesh(
  * A rigid piece of the rig as one mesh, so a cousin costs a handful of draws
  * instead of dozens. Each piece is merged once per look and shared.
  */
-function part(kit: MaterialKit, key: string, build: (model: THREE.Group) => void): THREE.Mesh {
-  const geometry = kit.geometry(key, () => {
+function part(kit: MaterialKit, key: string, build: (model: THREE.Group) => void): THREE.Group {
+  const look = kit.template(key, () => {
     const model = new THREE.Group();
     build(model);
-    return mergeMeshes(model) ?? new THREE.BufferGeometry();
+    return bake(model, kit);
   });
-  return new THREE.Mesh(geometry, kit.vertexColored());
+  return look.clone(true);
 }
 
 /** A thin limb hanging from its pivot, with a ball on the end. */
