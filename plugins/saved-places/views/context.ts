@@ -25,6 +25,7 @@ export interface AppApi {
   store: SavedStore;
   route: RouteStore;
   wide: boolean;
+  dark: boolean;
   bounds: Bounds | null;
   zoom: number;
   rings: RingState | null;

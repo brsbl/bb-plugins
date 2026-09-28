@@ -188,7 +188,6 @@ async function main(argv) {
     }
     const collectionId = slugify(record.list);
     if (!collections.has(collectionId)) collections.set(collectionId, { id: collectionId, title: record.list, subtitle: "Saved list", emoji: "📍" });
-    const known = ["ramen", "sushi", "food", "coffee", "bars", "records", "music", "culture", "outdoors", "stays", "other"];
     places.push({
       id: places.length + 1,
       name: record.name,
@@ -197,7 +196,7 @@ async function main(argv) {
       longitude,
       url: normalizeUrl(record.url, record.name, latitude, longitude),
       collectionId,
-      category: known.includes(record.category) ? record.category : categoryFor(record.name, type, address),
+      category: record.category || categoryFor(record.name, type, address),
       placeType: type || null,
     });
   }

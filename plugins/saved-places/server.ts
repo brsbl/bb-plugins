@@ -2,13 +2,13 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { collections, collectionIds, places, placeSchema } from "./places";
-import { categories, categoryFor, categoryIdSchema } from "./categories";
+import { categories, categoryFor, categoryIdSchema, resolveCategory } from "./categories";
 import { allPlaces, customListSchema, importedLists, noteSchema, placesByKey, savedStateSchema, shortAddress, type SavedState } from "./model";
 import { NOTES_LIST_ID } from "./notes-list";
 
 const filterSchema = z.object({ collectionId: z.string().min(1).nullable().default(null), category: categoryIdSchema.nullable().default(null), query: z.string().default("") });
 function filterPlaces(input: z.infer<typeof filterSchema>) {
-  return places.filter(place => (input.collectionId === null || place.collectionId === input.collectionId) && (input.category === null || place.category === input.category) && `${place.name} ${place.address} ${place.placeType ?? ""}`.toLocaleLowerCase().includes(input.query.toLocaleLowerCase().trim()));
+  return places.filter(place => (input.collectionId === null || place.collectionId === input.collectionId) && (input.category === null || place.category === input.category || resolveCategory(place) === input.category) && `${place.name} ${place.address} ${place.placeType ?? ""}`.toLocaleLowerCase().includes(input.query.toLocaleLowerCase().trim()));
 }
 const saveNoteSchema = z.object({ key: z.string().min(1), text: z.string().max(2000) });
 const boundsSchema = z.object({ west: z.number(), south: z.number(), east: z.number(), north: z.number() });
@@ -161,7 +161,7 @@ export default function plugin(bb: BbPluginApi) {
     name: "saved-places",
     summary: "Read the places displayed in the Saved Places map",
     commands: [
-      { name: "list", summary: "List saved places, categories, photos, and coordinates", usage: "bb saved-places list [--collection id] [--category ramen|coffee|bars|…] [--query text] [--json]" },
+      { name: "list", summary: "List saved places, categories, photos, and coordinates", usage: "bb saved-places list [--collection id] [--category ramen|coffee|museum|…] [--query text] [--json]" },
       { name: "collections", summary: "List imported Google Maps collections", usage: "bb saved-places collections [--json]" },
       { name: "lists", summary: "List the custom lists you created in the map", usage: "bb saved-places lists [--json]" },
       { name: "notes", summary: "List your place notes", usage: "bb saved-places notes [--json]" },

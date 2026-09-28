@@ -1,6 +1,6 @@
 import type { GeoJSONSource, Map as GlMap } from "maplibre-gl";
 import type { Feature, FeatureCollection, LineString, Point } from "geojson";
-import { categories } from "./categories";
+import { categoryIdSchema, groupOf, type CategoryId } from "./categories";
 import { categoryIcons, drawIcon } from "./category-icons";
 import { CLUSTER_MAX_ZOOM, CLUSTER_MIN_POINTS, CLUSTER_RADIUS, PLACES_SOURCE, clusterProperties } from "./cluster-piles";
 import type { MapTheme } from "./basemap";
@@ -18,33 +18,56 @@ export function pinCollection(pins: PinInput[]): FeatureCollection<Point> {
     features: pins.map(({ place, color, note, dim }) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [place.longitude, place.latitude] },
-      properties: { key: place.key, name: place.name, category: place.category, lng: place.longitude, lat: place.latitude, icon: place.category === "other" ? "" : `${place.category}-${lightColor(color) ? "dark" : "light"}`, color, note: note ? 1 : 0, dim: dim ? 1 : 0, rank: note ? 0 : place.rating !== null ? 1 : 2 },
+      properties: { key: place.key, name: place.name, category: place.category, group: groupOf(place.category).id, lng: place.longitude, lat: place.latitude, icon: place.category, color, note: note ? 1 : 0, dim: dim ? 1 : 0, rank: note ? 0 : place.rating !== null ? 1 : 2 },
     })),
   };
 }
 
-const lightColor = (hex: string) => {
-  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.62;
-};
+function poiImage(category: CategoryId, dark: boolean) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 40;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.fillStyle = dark ? "#1e2127" : "#ffffff";
+  context.beginPath();
+  context.arc(20, 20, 20, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = groupOf(category).color;
+  context.beginPath();
+  context.arc(20, 20, 17, 0, Math.PI * 2);
+  context.fill();
+  context.translate(9, 9);
+  drawIcon(context, categoryIcons[category], "#ffffff", 22, 2.1);
+  return context.getImageData(0, 0, 40, 40);
+}
 
-function addCategoryImages(map: GlMap) {
-  for (const category of categories) {
-    for (const [tone, color] of [["light", "#ffffff"], ["dark", "#18191b"]] as const) {
-      const id = `sp-icon-${category.id}-${tone}`;
-      if (map.hasImage(id)) continue;
-      const canvas = document.createElement("canvas");
-      canvas.width = canvas.height = 48;
-      const context = canvas.getContext("2d");
-      if (!context) continue;
-      drawIcon(context, categoryIcons[category.id], color, 48, 2);
-      map.addImage(id, context.getImageData(0, 0, 48, 48), { pixelRatio: 3 });
-    }
-  }
+function pinImage(category: CategoryId) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 48;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  if (category === "other") {
+    context.fillStyle = "#ffffff";
+    context.beginPath();
+    context.arc(24, 24, 11, 0, Math.PI * 2);
+    context.fill();
+  } else drawIcon(context, categoryIcons[category], "#ffffff", 48, 2);
+  return context.getImageData(0, 0, 48, 48);
+}
+
+export function provideCategoryImages(map: GlMap, dark: () => boolean) {
+  const provide = ({ id }: { id: string }) => {
+    const [, kind, raw] = /^sp-(poi|icon)-(.+)$/.exec(id) ?? [];
+    const category = categoryIdSchema.safeParse(raw);
+    if (!kind || !category.success || map.hasImage(id)) return;
+    const image = kind === "poi" ? poiImage(category.data, dark()) : pinImage(category.data);
+    if (image) map.addImage(id, image, { pixelRatio: kind === "poi" ? 2 : 3 });
+  };
+  map.on("styleimagemissing", provide);
+  return () => map.off("styleimagemissing", provide);
 }
 
 export function installLayers(map: GlMap, theme: MapTheme) {
-  addCategoryImages(map);
   const firstLabel = map.getStyle().layers?.find(layer => layer.type === "symbol")?.id;
   map.addSource("sp-rings", { type: "geojson", data: empty });
   map.addSource("sp-route", { type: "geojson", data: empty });
@@ -64,8 +87,7 @@ export function installLayers(map: GlMap, theme: MapTheme) {
   const opacity = ["case", ["==", ["get", "dim"], 1], 0.14, 1] as const;
   map.addLayer({ id: "sp-points-shadow", type: "circle", source: PLACES_SOURCE, filter: unclustered as never, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 5, 12, 7, PIN_ZOOM, 13, 16, 15.5], "circle-color": "#000", "circle-opacity": ["case", ["==", ["get", "dim"], 1], 0, theme.dark ? 0.4 : 0.16], "circle-blur": 0.7, "circle-translate": [0, 1.5] } });
   map.addLayer({ id: "sp-points", type: "circle", source: PLACES_SOURCE, filter: unclustered as never, layout: { "circle-sort-key": ["-", 3, ["get", "rank"]] }, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 12, 5.5, PIN_ZOOM, 11.5, 16, 14], "circle-color": ["get", "color"], "circle-opacity": opacity as never, "circle-stroke-color": theme.dark ? "#141414" : "#ffffff", "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 3, 1.25, PIN_ZOOM, 2.25], "circle-stroke-opacity": opacity as never } });
-  map.addLayer({ id: "sp-points-core", type: "circle", source: PLACES_SOURCE, minzoom: PIN_ZOOM, filter: ["all", unclustered, ["==", ["get", "icon"], ""]] as never, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], PIN_ZOOM, 3, 16, 4], "circle-color": "#ffffff", "circle-opacity": opacity as never } });
-  map.addLayer({ id: "sp-points-icon", type: "symbol", source: PLACES_SOURCE, minzoom: PIN_ZOOM, filter: ["all", unclustered, ["!=", ["get", "icon"], ""]] as never, layout: { "icon-image": ["concat", "sp-icon-", ["get", "icon"]], "icon-size": ["interpolate", ["linear"], ["zoom"], PIN_ZOOM, 0.85, 16, 1], "icon-overlap": "always", "icon-ignore-placement": true }, paint: { "icon-opacity": opacity as never } });
+  map.addLayer({ id: "sp-points-icon", type: "symbol", source: PLACES_SOURCE, minzoom: PIN_ZOOM, filter: unclustered as never, layout: { "icon-image": ["concat", "sp-icon-", ["get", "icon"]], "icon-size": ["interpolate", ["linear"], ["zoom"], PIN_ZOOM, 0.85, 16, 1], "icon-overlap": "always", "icon-padding": 6 }, paint: { "icon-opacity": opacity as never } });
   map.addLayer({ id: "sp-points-note", type: "circle", source: PLACES_SOURCE, minzoom: PIN_ZOOM, filter: ["all", unclustered, ["==", ["get", "note"], 1]] as never, paint: { "circle-radius": 4.5, "circle-color": "#ffc53d", "circle-stroke-color": theme.dark ? "#141414" : "#ffffff", "circle-stroke-width": 1.75, "circle-translate": [10, -10], "circle-opacity": opacity as never, "circle-stroke-opacity": opacity as never } });
   map.addLayer({ id: "sp-hover-ring", type: "circle", source: "sp-hover", paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 10, PIN_ZOOM, 17, 16, 20], "circle-color": "transparent", "circle-stroke-width": 2.5, "circle-stroke-color": theme.ink } });
   map.addLayer({ id: "sp-labels", type: "symbol", source: PLACES_SOURCE, minzoom: 14.8, filter: unclustered as never, layout: { "symbol-sort-key": ["get", "rank"], "text-field": ["get", "name"], "text-font": ["Noto Sans Bold"], "text-size": ["interpolate", ["linear"], ["zoom"], 14.8, 11, 17, 13], "text-variable-anchor": ["left", "right", "top", "bottom"], "text-radial-offset": 1.35, "text-justify": "auto", "text-max-width": 9, "text-padding": 3, "text-optional": true, "text-overlap": "never" }, paint: { "text-color": theme.ink, "text-halo-color": theme.panel, "text-halo-width": 1.5, "text-halo-blur": 0.5, "text-opacity": opacity as never } });

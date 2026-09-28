@@ -11,9 +11,9 @@ import Cancel01 from "@hugeicons/core-free-icons/Cancel01Icon";
 import ArrowRight01 from "@hugeicons/core-free-icons/ArrowRight01Icon";
 import { CLUSTER_MAX_ZOOM, CLUSTER_RADIUS, PLACES_SOURCE, attachClusterPiles } from "./cluster-piles";
 import { categoryFor } from "./categories";
-import { muteBasemap, readTheme, type MapTheme } from "./basemap";
-import { POINT_LAYERS, installLayers, setMarkedPoint, setPins, setRings, setRouteLine, setStops, type PinInput } from "./layers";
-import { allPlaces, placesByKey, type SavedPlace } from "./model";
+import { readTheme, streetsStyle, type MapTheme } from "./basemap";
+import { POINT_LAYERS, installLayers, provideCategoryImages, setMarkedPoint, setPins, setRings, setRouteLine, setStops, type PinInput } from "./layers";
+import { allPlaces, placesByKey, trimmedBounds, type SavedPlace } from "./model";
 import { NOTES_LIST_ID, notesList } from "./notes-list";
 import { selectLists } from "./selection";
 import { isochrone, inPolygon, formatDuration, type Ring } from "./routing";
@@ -43,17 +43,6 @@ function uncoveredBounds(map: maplibregl.Map, sheet: HTMLElement | null, wide: b
   const lngs = corners.map(c => c.lng);
   const lats = corners.map(c => c.lat);
   return { west: Math.min(...lngs), south: Math.min(...lats), east: Math.max(...lngs), north: Math.max(...lats) };
-}
-
-function trimmedBounds(places: SavedPlace[]) {
-  if (!places.length) return null;
-  const q = (values: number[], t: number) => values[Math.min(values.length - 1, Math.max(0, Math.round(t * (values.length - 1))))];
-  const lats = places.map(p => p.latitude).sort((a, b) => a - b);
-  const lngs = places.map(p => p.longitude).sort((a, b) => a - b);
-  const bounds = (t: number) => new maplibregl.LngLatBounds([q(lngs, t), q(lats, t)], [q(lngs, 1 - t), q(lats, 1 - t)]);
-  const trimmed = bounds(0.05);
-  const cityScale = trimmed.getEast() - trimmed.getWest() < 3 && trimmed.getNorth() - trimmed.getSouth() < 3;
-  return places.length > 24 && cityScale ? trimmed : bounds(0);
 }
 
 export function PlacesMap() {
@@ -202,16 +191,16 @@ export function PlacesMap() {
   useEffect(() => {
     if (!hasTheme || !container.current || !themeRef.current) return;
     const map = new maplibregl.Map({
-      container: container.current, style: themeRef.current.style, center: [139.72, 35.68], zoom: 2, minZoom: 0.6, maxZoom: 19,
+      container: container.current, style: streetsStyle(themeRef.current), center: [139.72, 35.68], zoom: 2, minZoom: 0.6, maxZoom: 19,
       attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, renderWorldCopies: true, fadeDuration: 160,
     });
     mapRef.current = map;
+    provideCategoryImages(map, () => themeRef.current?.dark ?? false);
     map.touchZoomRotate.disableRotation();
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
     map.on("style.load", () => {
       const current = themeRef.current;
       if (!current) return;
-      muteBasemap(map, current);
       installLayers(map, current);
       setStyleVersion(v => v + 1);
     });
@@ -236,7 +225,7 @@ export function PlacesMap() {
     const previous = themeRef.current;
     themeRef.current = theme;
     const map = mapRef.current;
-    if (map && previous && JSON.stringify(previous) !== JSON.stringify(theme)) map.setStyle(theme.style, { diff: false });
+    if (map && previous && JSON.stringify(previous) !== JSON.stringify(theme)) map.setStyle(streetsStyle(theme), { diff: false });
   }, [theme]);
 
   const paddingKey = JSON.stringify(padding());
@@ -391,7 +380,7 @@ export function PlacesMap() {
   }, [contextView, bounds, context.places, top.kind]);
 
   const api: AppApi = {
-    store, route, wide, bounds, zoom, rings, canGoBack: stack.length > 1, getList,
+    store, route, wide, dark: theme?.dark ?? false, bounds, zoom, rings, canGoBack: stack.length > 1, getList,
     push, pop, replace, openPlace, openLists, hover: setHoverKey, fitKeys, showRings, clearRings,
     compose: draft => { push({ kind: "compose", draft }); },
     openUrl: url => { if (!navigate.openUrl(url)) window.open(url, "_blank", "noopener,noreferrer"); },

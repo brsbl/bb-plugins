@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { collections, places, type Place } from "./places";
-import type { CategoryId } from "./categories";
+import { resolveCategory, type CategoryId } from "./categories";
 
 export const LIST_COLORS = ["#e5484d", "#f76b15", "#d6a100", "#30a46c", "#12a594", "#0090ff", "#3e63dd", "#8e4ec6", "#d6409f", "#a18072"] as const;
 
@@ -80,6 +80,7 @@ function buildPlaces() {
     existing.status ??= p.status;
     if (existing.address.length < p.address.length) existing.address = p.address;
   }
+  for (const place of byKey.values()) place.category = resolveCategory(place);
   return byKey;
 }
 
@@ -98,6 +99,17 @@ export const importedLists: SavedList[] = collections.map((c, index) => ({
 
 export function customToList(list: CustomList): SavedList {
   return { id: list.id, title: list.title, color: list.color, group: "custom", placeKeys: list.placeKeys.filter(key => placesByKey.has(key)), custom: true, sourceIds: list.sourceIds };
+}
+
+export function trimmedBounds(places: Array<{ latitude: number; longitude: number }>): [[number, number], [number, number]] | null {
+  if (!places.length) return null;
+  const q = (values: number[], t: number) => values[Math.min(values.length - 1, Math.max(0, Math.round(t * (values.length - 1))))];
+  const lats = places.map(p => p.latitude).sort((a, b) => a - b);
+  const lngs = places.map(p => p.longitude).sort((a, b) => a - b);
+  const bounds = (t: number): [[number, number], [number, number]] => [[q(lngs, t), q(lats, t)], [q(lngs, 1 - t), q(lats, 1 - t)]];
+  const trimmed = bounds(0.05);
+  const cityScale = trimmed[1][0] - trimmed[0][0] < 3 && trimmed[1][1] - trimmed[0][1] < 3;
+  return places.length > 24 && cityScale ? trimmed : bounds(0);
 }
 
 export function shortAddress(address: string) {
