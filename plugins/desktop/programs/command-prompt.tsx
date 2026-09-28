@@ -100,7 +100,10 @@ export function CommandPrompt({
       observer.disconnect();
       input.dispose();
       socket?.close();
-      terminal.dispose();
+      // open() queues a scroll-area sync on a timer that throws once the terminal is disposed, as it is when a window
+      // closes right after opening or StrictMode remounts it. Detach it now and dispose it after that timer runs.
+      terminal.element?.remove();
+      setTimeout(() => terminal.dispose());
     };
   }, [targetKey, sessionKey]);
 
