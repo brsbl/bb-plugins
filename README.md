@@ -162,9 +162,11 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 ### Desktop
 
-Turns bb's new-thread page into a desktop for your agents: folders that mirror your sidebar sections or projects, a finder for each folder, and resizable thread windows with detached detail panels.
+Turns bb's new-thread page into a Windows XP desktop for your agents. Folders mirror your sidebar, threads open as instant-message windows beside a Buddy List of their project, and a taskbar and Start menu launch XP programs and games, including a real terminal and in-app browser.
 
-![Desktop with a folder finder, a thread window, and its detached details panel](plugins/desktop/docs/screenshot.png)
+![Desktop with a thread open as an Instant Message window between its project's Buddy List and its Buddy Info](plugins/desktop/docs/screenshot.png)
+
+![The Start menu opened from the bb button, listing bb Explorer, Terminal, Paint, and the games](plugins/desktop/docs/start-menu.png)
 
 [Source](plugins/desktop) · [README](plugins/desktop/README.md)
 

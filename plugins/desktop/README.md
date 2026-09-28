@@ -2,7 +2,9 @@
 
 Desktop turns bb's new-thread page into an operating system for your agents. Threads live in folders and open in draggable windows. The page itself is the wallpaper, so it pairs well with the Ambient plugin.
 
-![Desktop with a folder finder, a thread window, and its detached details panel](docs/screenshot.png)
+![Desktop with a thread open as an Instant Message window between its project's Buddy List and its Buddy Info](docs/screenshot.png)
+
+![The Start menu opened from the bb button, listing bb Explorer, Terminal, Paint, and the games](docs/start-menu.png)
 
 ## Use
 
