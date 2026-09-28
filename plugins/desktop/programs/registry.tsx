@@ -173,7 +173,7 @@ const PROGRAMS: { [K in WindowKind]: ProgramDefinition<K> } = {
   },
   "command-prompt": {
     size: fixed(680, 420),
-    title: () => "Command Prompt",
+    title: () => "Terminal",
     art: (_spec, _desktop, size) => <CommandPromptArt size={size} />,
     Window: CommandPromptWindow,
     dispose: () => closeCommandPromptSession(),
@@ -186,7 +186,7 @@ const PROGRAMS: { [K in WindowKind]: ProgramDefinition<K> } = {
   },
   "internet-explorer": {
     size: fixed(880, 640),
-    title: () => "Internet Explorer",
+    title: () => "bb Explorer",
     art: (_spec, _desktop, size) => <InternetExplorerArt size={size} />,
     Window: InternetExplorerWindow,
     dispose: closeInternetExplorer,

@@ -70,17 +70,23 @@ function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }
       });
       element.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
     }
-    const dismiss = (event: Event) => {
-      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+    const dismiss = (event: PointerEvent) => {
       if (event.target instanceof Node && ref.current?.contains(event.target)) return;
       onClose();
     };
+    // Focus sits on the menu's first item, so Escape closes it from anywhere and stops there.
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    };
     window.addEventListener("pointerdown", dismiss, true);
-    window.addEventListener("keydown", dismiss, true);
+    window.addEventListener("keydown", escape, true);
     window.addEventListener("blur", onClose);
     return () => {
       window.removeEventListener("pointerdown", dismiss, true);
-      window.removeEventListener("keydown", dismiss, true);
+      window.removeEventListener("keydown", escape, true);
       window.removeEventListener("blur", onClose);
     };
   }, [menu, onClose]);

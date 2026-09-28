@@ -1,4 +1,4 @@
-/** bb desktop's native browser views, shared by Internet Explorer and thread browser tabs. */
+/** bb desktop's native browser views, shared by bb Explorer and thread browser tabs. */
 export const BROWSER_HOME = "https://www.google.com";
 export const TAB_ID = "bb-desktop-internet-explorer";
 export const URL_KEY = "bb-desktop:internet-explorer:url";

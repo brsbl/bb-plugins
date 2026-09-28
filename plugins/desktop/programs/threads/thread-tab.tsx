@@ -10,8 +10,8 @@ import { InternetExplorer } from "../internet-explorer";
 /** A browser or terminal opened from an Instant Message, bound to that thread's environment. */
 
 export function threadTabTitle(tab: ThreadTabKind, threadTitle: string, pageTitle: string | null = null): string {
-  if (tab === "terminal") return `Command Prompt — ${threadTitle}`;
-  return `${pageTitle === null || pageTitle === "" ? threadTitle : pageTitle} - Internet Explorer`;
+  if (tab === "terminal") return `Terminal — ${threadTitle}`;
+  return `${pageTitle === null || pageTitle === "" ? threadTitle : pageTitle} - bb Explorer`;
 }
 
 export function ThreadTabWindow({

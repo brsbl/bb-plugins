@@ -81,7 +81,7 @@ export function CommandPrompt({
             terminal.write(fromBase64(record.chunk.dataBase64));
           } else if (record.type === "exited") {
             localStorage.removeItem(sessionKey);
-            terminal.write("\r\n\r\n[Process exited. Close this window and open Command Prompt again for a new session.]\r\n");
+            terminal.write("\r\n\r\n[Process exited. Close this window and open Terminal again for a new session.]\r\n");
           } else if (record.type === "error") {
             setError(typeof record.message === "string" ? record.message : "The terminal connection failed.");
           }
@@ -117,7 +117,7 @@ export function CommandPrompt({
   );
 }
 
-/** The Start menu's Command Prompt, a terminal on the first machine. */
+/** The Start menu's Terminal, a terminal on the first machine. */
 
 export function CommandPromptWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   const desktop = useDesktop();
@@ -125,7 +125,7 @@ export function CommandPromptWindow({ window: desktopWindow }: { window: Desktop
   return (
     <WindowFrame
       window={desktopWindow}
-      title={machine === null ? "Command Prompt" : `Command Prompt — ${machine.name}`}
+      title={machine === null ? "Terminal" : `Terminal — ${machine.name}`}
       icon={<CommandPromptArt size={16} />}
     >
       <CommandPrompt target={machine === null ? null : { kind: "host", hostId: machine.id }} />

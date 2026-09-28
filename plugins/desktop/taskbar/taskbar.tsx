@@ -75,7 +75,7 @@ export function Taskbar({ frame }: { frame: DockFrame | null }) {
         onClick={() => setStartOpen((open) => !open)}
       >
         <StartFlag />
-        <span>start</span>
+        <span>bb</span>
       </button>
       {startOpen && <StartMenu onClose={closeStart} />}
       <QuickLaunch shown={quickShown} hidden={quickHidden} catalog={catalog} />

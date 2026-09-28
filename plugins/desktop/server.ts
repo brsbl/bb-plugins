@@ -533,8 +533,8 @@ export default function plugin(bb: BbPluginApi) {
       const thread = await bb.sdk.threads.spawn({
         projectId: PERSONAL_PROJECT_ID,
         visibility: "hidden",
-        title: "Internet Explorer",
-        prompt: "Internet Explorer",
+        title: "bb Explorer",
+        prompt: "bb Explorer",
         environment: { type: "host", workspace: { type: "personal" } },
         sendAt: NEVER,
         pluginMetadata: { role: "browser" },

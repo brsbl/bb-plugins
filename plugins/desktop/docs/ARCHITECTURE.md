@@ -56,7 +56,7 @@ Each `Window` component renders its own `WindowFrame`, so a program controls its
 | Directory | Programs |
 | --- | --- |
 | `programs/threads/` | Instant Message, Buddy List, Buddy Info, thread tabs, explorer windows (folder, My Threads, More, Recycle Bin), New folder, New thread |
-| `programs/` | Internet Explorer, Command Prompt, Media Player, third-party app windows |
+| `programs/` | bb Explorer (`internet-explorer.tsx`), Terminal (`command-prompt.tsx`), Media Player, third-party app windows |
 | `games/`, `apps/` | Minesweeper, Solitaire, Pinball, Paint |
 
 Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, `describeStatus`, `typingLine`, `buddyRank`) live in `programs/threads/status.ts` as pure functions with tests; `status-ui.tsx` renders them.
@@ -87,7 +87,7 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 
 ## Taskbar (`taskbar/`)
 
-`taskbar.tsx` composes start, Quick Launch, task buttons and the tray. `capacity.ts` measures how many buttons fit. `start-menu.tsx` and `quick-launch.tsx` render launchers. `tray.tsx` holds the clock and mirrored footer icons; `footer-panels.ts` restyles collapsed-sidebar footer panels as XP windows.
+`taskbar.tsx` composes the **bb** start button, Quick Launch, task buttons and the tray. `capacity.ts` measures how many buttons fit. `start-menu.tsx` and `quick-launch.tsx` render launchers. `tray.tsx` holds the clock and mirrored footer icons; `footer-panels.ts` restyles collapsed-sidebar footer panels as XP windows.
 
 ## CSS
 

@@ -15,7 +15,7 @@ Note pads still float on every page, but share the programs’ glass title bar a
 
 ## 2. Names
 
-- Use the XP name when a feature maps to an XP thing: **Start**, **Recycle Bin**, **Quick Launch**, **Show desktop**, **Turn Off Desktop**, **balloon**. Drop the "Windows" brand: it is **Media Player**, not Windows Media Player.
+- Use the XP name when a feature maps to an XP thing: **Start menu**, **Recycle Bin**, **Quick Launch**, **Show desktop**, **Turn Off Desktop**, **balloon**. Drop the "Windows" brand: it is **Media Player**, not Windows Media Player. Where the XP name is itself a brand, bb takes its place: the start button reads **bb**, Internet Explorer is **bb Explorer**, and Command Prompt is **Terminal**.
 - Use bb's words for bb concepts: **thread**, **section**, **project**, **archive**, **needs input**. Never rename a bb concept to an XP one (a thread is never a "document").
 - Sentence case everywhere except XP proper names.
 - Thread windows borrow AOL Instant Messenger (AIM 5, circa 2002), not MSN Messenger: the program is **bb Messenger** (no AOL or AIM wordmark, and the running figure is our own drawing), a thread window is an **Instant Message**, and its related threads are **<project>'s Buddy List**. Messages read as AIM transcript lines, `Me:` in blue and the agent's screen name in red, in Times New Roman, with wrapped lines running under the name. Screen names follow real 1997–2006 AIM conventions (3–16 letters and digits, starting with a letter: `xX…Xx`, birth years, `sk8r`, `4lyfe`, `b0i`, `babii`, alternating caps), always contain the agent's name, and are picked deterministically per thread. Timeline notices and tool calls are gray italic system lines, code and the composer are XP fields, and the send button reads **Send**. The only sounds are recorded doors at turn start and end, played for threads with an open IM window: a latch and hinge creak for opening, a single wooden slam for closing. No AOL recording is shipped.
@@ -52,7 +52,7 @@ Icons follow Microsoft's own rules from [Creating Windows XP Icons](https://lear
 - **Angle:** 48 and 32 px objects sit at an angle in perspective. At 16 px, documents, symbols (warning, error, info), and single objects face straight on.
 - **Outline:** every object has an outline so it reads on any background: a darker shade of the object's own color, never plain black.
 - **Drop shadow:** down and to the right (Photoshop angle 135°, distance 2, size 2). Here: the shared `bbd-drop` filter, which `IconSvg` applies to every object icon. Toolbar icons have no shadow.
-- **Avoid:** letters, words, hands, and faces; more than three objects in one icon; the Windows flag outside the Start button.
+- **Avoid:** letters, words, hands, and faces (bb Explorer's "bb" is the one exception, standing in for IE's "e"); more than three objects in one icon; the Windows flag outside the Start button.
 
 ### How it works in this plugin
 
@@ -81,9 +81,9 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | Minesweeper | Minesweeper: a spiked black mine with a red flag | `MinesweeperArt` |
 | Solitaire | Solitaire: two fanned cards, a spade behind a heart | `SolitaireArt` |
 | Pinball | Pinball: a reflective silver ball with a deep blue rim and upper-left highlight | `PinballArt` |
-| Browser | Internet Explorer: blue glossy "e" with a gold orbit | `InternetExplorerArt` |
+| Browser | bb Explorer: Internet Explorer's design with a blue glossy "bb" in place of the "e", inside the gold orbit | `InternetExplorerArt` |
 | Drawing | Paint: a palette of paint blobs with a brush | `PaintArt` |
-| Terminal | Command Prompt: black window with a blue title bar and `C:\ _` | `CommandPromptArt` |
+| Terminal | Command Prompt's icon: black window with a blue title bar and `C:\ _` | `CommandPromptArt` |
 | Thread search | Search: straight-on magnifying glass with a gold handle | `SearchArt` |
 | Command palette | Run: small window with a text field and speed lines | `RunArt` |
 | Thread details | A window with a side pane | `DetailsArt` |
@@ -133,10 +133,10 @@ All eight programs use `WindowFrame`/`WindowTitleBar`, `ProgramMenuBar` and `Pro
 | Paint | File/Edit/View/Image/Colors/Help; two columns of eight tool positions, gray workspace, 28-color box and inset status. Eight existing tools remain active; unimplemented selection/text/curve/polygon tools occupy their original positions but are disabled. Do not alter the raster core to make a cosmetic change. |
 | Media Player | WMP 9 silver-blue skin, Now Playing band, black visualization screen and circular blue playback control. Keep the real microphone input and three existing visualization presets; this is not a media-library or CD player. |
 | Note pad | Plain white document, Lucida Console, File/Edit/Format/View/Help, shared glass title. Keep autosave, multiple notes, edge anchoring and deletion undo. Tone is a small frame accent selected from View; do not return ruled paper or a spiral to the document. |
-| Command Prompt | Shared glass frame, no program menu bar. [XP consoles originally kept Classic chrome under Luna](https://devblogs.microsoft.com/oldnewthing/20071231-00/?p=23983), but this plugin deliberately shares its modern glass frame across programs. Leave the embedded bb terminal’s rendering, theme, keyboard and session behavior untouched. |
-| Internet Explorer | IE6 File/Edit/View/Favorites/Tools/Help, compact navigation toolbar, square address field and green-arrow Go button, inset status panes. Change only chrome; the native browser view and web-only placeholder remain untouched. |
+| Terminal | Command Prompt reference. Shared glass frame, no program menu bar. [XP consoles originally kept Classic chrome under Luna](https://devblogs.microsoft.com/oldnewthing/20071231-00/?p=23983), but this plugin deliberately shares its modern glass frame across programs. Leave the embedded bb terminal’s rendering, theme, keyboard and session behavior untouched. |
+| bb Explorer | Internet Explorer 6 reference. IE6 File/Edit/View/Favorites/Tools/Help, compact navigation toolbar, square address field and green-arrow Go button, inset status panes. Change only chrome; the native browser view and web-only placeholder remain untouched. |
 
-Program names and Start/Quick Launch identifiers and icons are stable. Do not fold a pending rename into visual fidelity work. References are research evidence, not distributable assets; game and program drawings remain original source artwork.
+Program kinds and Start/Quick Launch identifiers are stable even when a program's label changes: Terminal and bb Explorer keep the `command-prompt` and `internet-explorer` ids. Do not fold a rename into visual fidelity work. References are research evidence, not distributable assets; game and program drawings remain original source artwork.
 
 ### bb Messenger: AIM 4.x–5.x reference
 
@@ -156,7 +156,7 @@ The reference is Windows AIM around 2000–2004, rather than later AIM 6 or MSN.
 - Windows open with `defaultRect` sizes and stay inside the viewport (`clampRect`). List windows start at least 460 px wide so titles fit.
 - The taskbar is a pill sized to its contents: Start, Quick Launch, window buttons, tray.
 - Window buttons never shrink below a readable label (96 px). Buttons that don't fit move behind a » count button that lists them in a menu, and the focused window's button always stays visible.
-- bb-facing text uses bb's sans font and typography tokens. Bundled XP programs use compact 11 px Tahoma menus and Lucida Console for Note pad; window titles keep the shared bb typography. Command Prompt retains the embedded terminal’s own type settings. The balloon also uses Tahoma; Messenger’s exceptions are specified above.
+- bb-facing text uses bb's sans font and typography tokens. Bundled XP programs use compact 11 px Tahoma menus and Lucida Console for Note pad; window titles keep the shared bb typography. Terminal retains the embedded terminal’s own type settings. The balloon also uses Tahoma; Messenger’s exceptions are specified above.
 
 ## 7. Motion
 

@@ -1,4 +1,4 @@
-/** bb terminal sessions behind Command Prompt windows and thread terminal tabs. */
+/** bb terminal sessions behind Terminal windows and thread terminal tabs. */
 export const SESSION_KEY = "bb-desktop:command-prompt";
 
 export type CommandPromptTarget = { kind: "host"; hostId: string } | { kind: "thread"; threadId: string };
@@ -51,7 +51,21 @@ async function api(path: string, init?: RequestInit): Promise<unknown> {
   return body;
 }
 
-export async function openSession(target: CommandPromptTarget, sessionKey: string, cols: number, rows: number): Promise<TerminalSession> {
+const opening = new Map<string, Promise<TerminalSession>>();
+
+/**
+ * Reuses the window's stored terminal or creates one. A second call for the same key while the first is
+ * still creating, as React's StrictMode remount does, shares that request instead of creating a second terminal.
+ */
+export function openSession(target: CommandPromptTarget, sessionKey: string, cols: number, rows: number): Promise<TerminalSession> {
+  const pending = opening.get(sessionKey);
+  if (pending !== undefined) return pending;
+  const next = reuseOrCreate(target, sessionKey, cols, rows).finally(() => opening.delete(sessionKey));
+  opening.set(sessionKey, next);
+  return next;
+}
+
+async function reuseOrCreate(target: CommandPromptTarget, sessionKey: string, cols: number, rows: number): Promise<TerminalSession> {
   const stored = readStored(sessionKey);
   if (stored !== null && (target.kind !== "host" || stored.hostId === target.hostId)) {
     const existing = await api(`/terminals/${encodeURIComponent(stored.terminalId)}`).catch(() => null);
@@ -64,7 +78,7 @@ export async function openSession(target: CommandPromptTarget, sessionKey: strin
       rows,
       start: { mode: "shell" },
       target: target.kind === "host" ? { kind: "host_path", hostId: target.hostId, cwd: null } : { kind: "thread", threadId: target.threadId },
-      title: "Command Prompt",
+      title: "Terminal",
     }),
   });
   if (!isSession(created)) throw new Error("bb returned an unexpected terminal");
@@ -73,6 +87,12 @@ export async function openSession(target: CommandPromptTarget, sessionKey: strin
 }
 
 export function closeCommandPromptSession(sessionKey = SESSION_KEY) {
+  const pending = opening.get(sessionKey);
+  if (pending !== undefined) {
+    // The window closed while its terminal was still being created; close it once it exists.
+    void pending.then(() => closeCommandPromptSession(sessionKey), () => undefined);
+    return;
+  }
   const stored = readStored(sessionKey);
   localStorage.removeItem(sessionKey);
   if (stored === null) return;

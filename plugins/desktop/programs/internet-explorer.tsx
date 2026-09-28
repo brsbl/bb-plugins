@@ -248,7 +248,7 @@ export function InternetExplorer({
   const status = error !== null
     ? `Could not open the browser: ${error}`
     : browser === null
-      ? "Internet Explorer needs the bb desktop app."
+      ? "bb Explorer needs the bb desktop app."
       : threadId === null
         ? "Connecting…"
         : state?.errorText !== null && state?.errorText !== undefined
@@ -316,7 +316,7 @@ export function InternetExplorer({
       <div ref={viewRef} className="bbd-ie-view min-h-0 flex-1" data-shown={shown}>
         {shown ? null : (
           <div className="bbd-ie-placeholder">
-            <p>{state?.title ?? (browser === null ? "" : "Internet Explorer")}</p>
+            <p>{state?.title ?? (browser === null ? "" : "bb Explorer")}</p>
             {browser === null ? <p>Open bb's desktop app to browse here, or use the link below.</p> : null}
             {browser === null ? (
               <a href={BROWSER_HOME} target="_blank" rel="noopener noreferrer">
@@ -343,7 +343,7 @@ export function InternetExplorerWindow({ window: desktopWindow }: { window: Desk
   return (
     <WindowFrame
       window={desktopWindow}
-      title={pageTitle === null || pageTitle === "" ? "Internet Explorer" : `${pageTitle} - Internet Explorer`}
+      title={pageTitle === null || pageTitle === "" ? "bb Explorer" : `${pageTitle} - bb Explorer`}
       icon={<InternetExplorerArt size={16} />}
       keepMounted
     >

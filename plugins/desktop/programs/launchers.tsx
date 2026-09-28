@@ -95,7 +95,7 @@ export function useLaunchers(): LauncherCatalog {
     minesweeper: program({ kind: "minesweeper" }, "Minesweeper"),
     solitaire: program({ kind: "solitaire" }, "Solitaire"),
     pinball: program({ kind: "pinball" }, "Pinball"),
-    "command-prompt": program({ kind: "command-prompt" }, "Command Prompt"),
+    "command-prompt": program({ kind: "command-prompt" }, "Terminal"),
     paint: program({ kind: "paint" }, "Paint"),
     "sticky-note": {
       label: "Note pad",
@@ -105,7 +105,7 @@ export function useLaunchers(): LauncherCatalog {
       run: () => addStickyNote(),
     },
     "internet-explorer": {
-      label: "Internet Explorer",
+      label: "bb Explorer",
       detail: "Browse the web in bb",
       art: (size) => <InternetExplorerArt size={size} />,
       quickSize: 20,

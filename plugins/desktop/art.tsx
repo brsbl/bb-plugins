@@ -407,11 +407,12 @@ export function CommandPromptArt({ size = 40 }: { size?: number }) {
 }
 
 export function InternetExplorerArt({ size = 40 }: { size?: number }) {
+  const letters = "M7 8V35.5M7 29a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0-13 0M28 8V35.5M28 29a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0-13 0";
   return (
     <IconSvg size={size}>
-      <path d="M36.5 33.5A14 14 0 1 1 38 22H17.5" fill="none" stroke={ICON.blueOutline} strokeWidth="9" strokeLinecap="round" />
-      <path d="M36.5 33.5A14 14 0 1 1 38 22H17.5" fill="none" stroke="url(#bbd-g-title)" strokeWidth="6.4" strokeLinecap="round" />
-      <path d="M13.5 17.5a9.5 9.5 0 0 1 6-5" fill="none" stroke={ICON.paper} strokeOpacity="0.7" strokeWidth="1.8" strokeLinecap="round" />
+      <path d={letters} fill="none" stroke={ICON.blueOutline} strokeWidth="7" strokeLinecap="round" />
+      <path d={letters} fill="none" stroke="url(#bbd-g-title)" strokeWidth="4.8" strokeLinecap="round" />
+      <path d="M6.2 11v7M27.2 11v7M10.8 25.5a4.5 4.5 0 0 1 3-1.8M31.8 25.5a4.5 4.5 0 0 1 3-1.8" fill="none" stroke={ICON.paper} strokeOpacity="0.7" strokeWidth="1.3" strokeLinecap="round" />
       <ellipse cx="24" cy="25" rx="22" ry="8.5" transform="rotate(-28 24 25)" fill="none" stroke={ICON.boltEdge} strokeWidth="3.6" />
       <ellipse cx="24" cy="25" rx="22" ry="8.5" transform="rotate(-28 24 25)" fill="none" stroke="url(#bbd-g-bolt)" strokeWidth="2.2" strokeDasharray="95 30" strokeDashoffset="10" />
     </IconSvg>
