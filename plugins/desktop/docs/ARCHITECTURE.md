@@ -29,6 +29,7 @@ The note pads and the needs-input balloon (`page/`) render on every bb page, not
 | `geometry.ts` | `chromeTop`, `viewportRect`, `workAreaRect`, `fitDragRect`, `resizeInArea`, `defaultRect` |
 | `pointer.ts` | `trackPointer`, `usePointerTracker`, `crossedDragThreshold`, `previewRect` |
 | `nudges.ts` | The composer-clearance nudge store |
+| `focus.ts` | `windowOwnsKeys` and `typingElsewhere`, so window-wide shortcuts and focus-on-open leave bb's composer alone |
 | `manager.tsx` | `WindowManagerProvider` and `useWindowManager`, including `closeWhere` |
 | `frame.tsx` | `WindowTitleBar`, `WindowFrame` |
 | `index.ts` | The public surface other layers import |
@@ -73,7 +74,7 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 
 | File | Contents |
 | --- | --- |
-| `data.tsx` | `useDesktopSnapshot` (fetch, realtime refresh, preferences), `DesktopDataProvider`, `useDesktop`, and actions: `openThread`, `dropThread`, `restoreThread`, `archiveThread`, `setPreferences` |
+| `data.tsx` | The snapshot fetch (realtime refresh, stale responses dropped, sidebar preferences at most every 15 seconds), `DesktopDataProvider`, `useDesktop`, and actions: `openThread`, `dropThread`, `restoreThread`, `archiveThread`, `setPreferences` |
 | `menu.tsx` | `MenuEntry`, `MenuProvider`, `useMenu().open(event, entries)` |
 | `menus.tsx` | Shared entry builders: `threadMenu`, `groupMenu`, `viewMenuEntries` |
 | `canvas.tsx`, `canvas-icons.tsx` | The icon canvas (layout, selection, marquee, multi-drag, arrange, tile) and its icons: folders, More, note pads, the Recycle Bin |
@@ -82,7 +83,7 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 | `links.ts` | Thread-link and chat web-link routing |
 | `commands.ts` | `runAppCommand` (bb keybindings), `navigateInApp` |
 | `thread-drag.ts` | Pointer thread drags onto `[data-thread-drop]` targets, which set `data-drop-target` while hovered |
-| `folder-chip.tsx` | The thread-header folder label |
+| `folder-chip.tsx` | The thread-header folder label, loaded with the `threadFolders` RPC rather than the whole snapshot |
 | `desktop.tsx` | `Desktop`: the providers, `DesktopShell`, and the taskbar's dock frame |
 
 ## Taskbar (`taskbar/`)
@@ -102,7 +103,7 @@ These outlive a release. Changing one needs a migration.
 | Open windows, `bb-desktop:windows:v1` in `localStorage` | `windows/specs.ts`, `windows/state.ts` |
 | Other `localStorage` keys: `bb-desktop:enabled`, `bb-desktop:notes:v1`, `bb-desktop:visualization`, `bb-desktop:minesweeper:difficulty`, `bb-desktop:pinball:*`, and the browser and terminal keys | `enabled.ts`, `page/sticky-notes.tsx`, `programs/media-player.tsx`, `games/`, `services/` |
 | Native tab ids: `bb-desktop-internet-explorer`, `bb-desktop-thread-browser-<tab>`, `bb-desktop:command-prompt`, `bb-desktop:thread-terminal:<tab>` | `services/browser.ts`, `services/terminal.ts` |
-| Quick Launch launcher ids, defaulting to `DEFAULT_QUICK_LAUNCH`; the server accepts at most 24 ids of 64 characters | `programs/launcher-ids.ts`, `core.ts`, `server.ts` |
+| Quick Launch launcher ids, defaulting to `DEFAULT_QUICK_LAUNCH`; the server accepts at most 24 ids of 160 characters | `programs/launcher-ids.ts`, `core.ts`, `server.ts` |
 | Desktop icon layout keys: `recycle-bin`, `more`, `note:<id>`, group keys | `shell/canvas.tsx`, `server.ts` |
 | Draft keys `desktop:new-thread:<group>` | `programs/threads/new-thread.tsx` |
 | `window.bbDesktopApps` version 1 and the `bb-desktop-apps:ready` event | `bridge.ts`, `skills/desktop-apps` |

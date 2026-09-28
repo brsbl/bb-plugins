@@ -31,7 +31,7 @@ import {
   type Point,
   type SortKey,
 } from "../core";
-import { addStickyNote, removeNote, useSavedNotes } from "../page/sticky-notes";
+import { addStickyNote, removeNote, takeRemovedNoteIds, useSavedNotes } from "../page/sticky-notes";
 import { usePointerTracker, useWindowManager, windowId, workAreaRect, type DesktopWindow } from "../windows";
 import { DesktopIcon, MORE_KEY, MoreIcon, NOTE_KEY_PREFIX, NoteIcon, RECYCLE_BIN_KEY, RecycleBinIcon } from "./canvas-icons";
 import { errorMessage, useDesktop } from "./data";
@@ -60,14 +60,20 @@ function isDeletable(group: DesktopGroup): boolean {
   return group.kind === "folder" || (group.kind === "section" && group.id !== null);
 }
 
-function deletePrompt(groups: DesktopGroup[]): string {
+function deletePrompt(groups: DesktopGroup[], notePads: number): string {
   const [only] = groups;
-  if (groups.length === 1 && only !== undefined) {
+  if (groups.length === 1 && notePads === 0 && only !== undefined) {
     return only.kind === "folder"
       ? `Delete “${only.name}”? Threads inside are kept.`
       : `Delete the “${only.name}” section? Its threads move to Threads.`;
   }
-  return `Delete these ${groups.length} items? Threads inside folders are kept, and threads in deleted sections move to Threads.`;
+  return `Delete these ${groups.length + notePads} items? Threads inside folders are kept, and threads in deleted sections move to Threads.`;
+}
+
+/** A position this tab saved, shown until a snapshot requested after the save finished carries it. */
+interface SavedPosition {
+  point: Point;
+  savedAt: number | null;
 }
 
 /**
@@ -85,7 +91,7 @@ export function DesktopCanvas() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const trackPointer = usePointerTracker();
   const marqueeRef = useRef<HTMLDivElement>(null);
-  const [overrides, setOverrides] = useState<Record<string, Point>>({});
+  const [overrides, setOverrides] = useState<Record<string, SavedPosition>>({});
 
   useEffect(() => {
     const element = canvasRef.current;
@@ -97,12 +103,29 @@ export function DesktopCanvas() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => setOverrides({}), [snapshot.layout]);
+  // A snapshot requested before a save finished can arrive after it, so a position stays until the server has it.
+  useEffect(() => {
+    setOverrides((current) => {
+      const pending = Object.entries(current).filter(
+        ([, saved]) => saved.savedAt === null || saved.savedAt >= desktop.snapshotRequestedAt,
+      );
+      return pending.length === Object.keys(current).length ? current : Object.fromEntries(pending);
+    });
+  }, [desktop.snapshotRequestedAt]);
 
   const items = desktop.desktopGroups;
   const hasMore = desktop.moreGroups.length > 0;
   const savedNotes = useSavedNotes();
   const noteKeys = useMemo(() => savedNotes.map((note) => NOTE_KEY_PREFIX + note.id), [savedNotes]);
+
+  // Forget the icon positions of note pads deleted in this tab, including from a thread page while the desktop was away.
+  useEffect(() => {
+    const removed = takeRemovedNoteIds();
+    if (removed.length === 0) return;
+    const entries = Object.fromEntries(removed.map((id) => [NOTE_KEY_PREFIX + id, null]));
+    void call("setLayout", { entries }).catch(() => undefined);
+  }, [call, savedNotes]);
+
   const keys = useMemo(
     () => [RECYCLE_BIN_KEY, ...(hasMore ? [MORE_KEY] : []), ...items.map((item) => item.key), ...noteKeys],
     [hasMore, items, noteKeys],
@@ -111,7 +134,7 @@ export function DesktopCanvas() {
   const positions = useMemo(() => {
     const placed = new Map<string, Point>();
     for (const key of keys) {
-      const point = overrides[key] ?? snapshot.layout[key];
+      const point = overrides[key]?.point ?? snapshot.layout[key];
       if (point !== undefined) placed.set(key, { x: Math.max(0, Math.min(point.x, width - ICON_BOX.width)), y: Math.max(0, point.y) });
     }
     for (const key of keys) {
@@ -121,33 +144,52 @@ export function DesktopCanvas() {
     return placed;
   }, [keys, overrides, snapshot.layout, width]);
 
+  const { refresh } = desktop;
   const saveLayout = useCallback(
     (entries: Record<string, Point>) => {
-      setOverrides((current) => ({ ...current, ...entries }));
-      void call("setLayout", { entries }).catch((error) => toast.error(errorMessage(error)));
+      const saving: Record<string, SavedPosition> = Object.fromEntries(
+        Object.entries(entries).map(([key, point]) => [key, { point, savedAt: null }]),
+      );
+      setOverrides((current) => ({ ...current, ...saving }));
+      // Settles only positions a later drag hasn't replaced; a failed save puts the icons back.
+      const settle = (savedAt: number | null) =>
+        setOverrides((current) => {
+          const next = { ...current };
+          for (const [key, entry] of Object.entries(saving)) {
+            if (next[key] !== entry) continue;
+            if (savedAt === null) delete next[key];
+            else next[key] = { point: entry.point, savedAt };
+          }
+          return next;
+        });
+      void call("setLayout", { entries }).then(
+        () => {
+          settle(Date.now());
+          refresh();
+        },
+        (error) => {
+          settle(null);
+          toast.error(errorMessage(error));
+        },
+      );
     },
-    [call],
+    [call, refresh],
   );
 
   const deletableIn = (keySet: ReadonlySet<string>) =>
     items.filter((group) => keySet.has(group.key) && isDeletable(group));
 
-  const deleteNotesIn = (keySet: ReadonlySet<string>) => {
-    const ids = [...keySet].filter((key) => key.startsWith(NOTE_KEY_PREFIX)).map((key) => key.slice(NOTE_KEY_PREFIX.length));
-    for (const id of ids) removeNote(id);
-    return ids.length > 0;
-  };
+  const noteIdsIn = (keySet: ReadonlySet<string>) =>
+    [...keySet].filter((key) => key.startsWith(NOTE_KEY_PREFIX)).map((key) => key.slice(NOTE_KEY_PREFIX.length));
 
-  const deleteGroups = (groups: DesktopGroup[], notesDeleted = false) => {
-    if (groups.length === 0) {
-      if (notesDeleted) {
-        setSelected(new Set());
-        return;
-      }
+  const deleteGroups = (groups: DesktopGroup[], noteIds: readonly string[] = []) => {
+    if (groups.length === 0 && noteIds.length === 0) {
       toast("Only folders and sections can be deleted.");
       return;
     }
-    if (!window.confirm(deletePrompt(groups))) return;
+    // Ask before deleting anything, so cancelling keeps the selected note pads too.
+    if (groups.length > 0 && !window.confirm(deletePrompt(groups, noteIds.length))) return;
+    for (const id of noteIds) removeNote(id);
     const fail = (error: unknown) => toast.error(errorMessage(error));
     for (const group of groups) {
       manager.close(windowId({ kind: "finder", key: group.key }));
@@ -202,7 +244,7 @@ export function DesktopCanvas() {
       if (binRef.current) binRef.current.dataset.dropTarget = "false";
       if (cancelled || !moved) return;
       if (overBin) {
-        deleteGroups(deletableIn(moving), deleteNotesIn(moving));
+        deleteGroups(deletableIn(moving), noteIdsIn(moving));
         return;
       }
       saveLayout(Object.fromEntries([...moving].flatMap((movingKey) => {
@@ -249,7 +291,7 @@ export function DesktopCanvas() {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
     if ((event.key === "Delete" || event.key === "Backspace") && selected.size > 0) {
       event.preventDefault();
-      deleteGroups(deletableIn(selected), deleteNotesIn(selected));
+      deleteGroups(deletableIn(selected), noteIdsIn(selected));
     } else if (event.key === "Escape") {
       setSelected(new Set());
     } else if (event.key === "a" && (event.metaKey || event.ctrlKey)) {

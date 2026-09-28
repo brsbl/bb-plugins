@@ -189,7 +189,7 @@ describe("trackNeedsInput", () => {
 
 describe("clearanceShift", () => {
   const composer = { x: 300, y: 50, width: 600, height: 150 };
-  const viewport = { width: 1200, height: 900 };
+  const viewport = { x: 0, y: 0, width: 1200, height: 900 };
 
   it("leaves windows that do not overlap alone", () => {
     expect(clearanceShift({ x: 300, y: 400, width: 400, height: 300 }, composer, viewport)).toBeNull();
@@ -207,6 +207,13 @@ describe("clearanceShift", () => {
 
   it("lets a window hang off an edge when nothing fits, keeping its title bar reachable", () => {
     expect(clearanceShift({ x: 350, y: 100, width: 400, height: 780 }, composer, viewport)).toEqual({ x: 0, y: 112 });
+  });
+
+  it("never moves a window up under bb's top controls", () => {
+    const area = { x: 0, y: 48, width: 1200, height: 852 };
+    const lower = { x: 300, y: 300, width: 600, height: 150 };
+    expect(clearanceShift({ x: 350, y: 70, width: 400, height: 250 }, lower, viewport)).toEqual({ x: 0, y: -32 });
+    expect(clearanceShift({ x: 350, y: 70, width: 400, height: 250 }, lower, area)).toEqual({ x: 0, y: 392 });
   });
 });
 

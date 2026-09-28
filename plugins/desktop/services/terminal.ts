@@ -51,7 +51,20 @@ async function api(path: string, init?: RequestInit): Promise<unknown> {
   return body;
 }
 
-const opening = new Map<string, Promise<TerminalSession>>();
+interface Opening {
+  session: Promise<TerminalSession>;
+  /** Its window closed while it was starting: it must not become the stored session, and it closes once it exists. */
+  state: { abandoned: boolean };
+}
+
+const opening = new Map<string, Opening>();
+
+function closeTerminal(terminalId: string) {
+  void api(`/terminals/${encodeURIComponent(terminalId)}/close`, {
+    method: "POST",
+    body: JSON.stringify({ mode: "force", reason: "user" }),
+  }).catch(() => undefined);
+}
 
 /**
  * Reuses the window's stored terminal or creates one. A second call for the same key while the first is
@@ -59,17 +72,29 @@ const opening = new Map<string, Promise<TerminalSession>>();
  */
 export function openSession(target: CommandPromptTarget, sessionKey: string, cols: number, rows: number): Promise<TerminalSession> {
   const pending = opening.get(sessionKey);
-  if (pending !== undefined) return pending;
-  const next = reuseOrCreate(target, sessionKey, cols, rows).finally(() => opening.delete(sessionKey));
-  opening.set(sessionKey, next);
-  return next;
+  if (pending !== undefined) return pending.session;
+  const state = { abandoned: false };
+  const session = reuseOrCreate(target, sessionKey, cols, rows, state).finally(() => {
+    if (opening.get(sessionKey)?.session === session) opening.delete(sessionKey);
+  });
+  opening.set(sessionKey, { session, state });
+  return session;
 }
 
-async function reuseOrCreate(target: CommandPromptTarget, sessionKey: string, cols: number, rows: number): Promise<TerminalSession> {
+async function reuseOrCreate(
+  target: CommandPromptTarget,
+  sessionKey: string,
+  cols: number,
+  rows: number,
+  state: Opening["state"],
+): Promise<TerminalSession> {
   const stored = readStored(sessionKey);
-  if (stored !== null && (target.kind !== "host" || stored.hostId === target.hostId)) {
-    const existing = await api(`/terminals/${encodeURIComponent(stored.terminalId)}`).catch(() => null);
+  if (stored !== null) {
+    const sameHost = target.kind !== "host" || stored.hostId === target.hostId;
+    const existing = sameHost ? await api(`/terminals/${encodeURIComponent(stored.terminalId)}`).catch(() => null) : null;
     if (isSession(existing) && (existing.status === "running" || existing.status === "starting")) return existing;
+    // The window now targets another machine, or its terminal disconnected: close it rather than leave it running.
+    if (!(isSession(existing) && existing.status === "exited")) closeTerminal(stored.terminalId);
   }
   const created = await api("/terminals", {
     method: "POST",
@@ -82,22 +107,20 @@ async function reuseOrCreate(target: CommandPromptTarget, sessionKey: string, co
     }),
   });
   if (!isSession(created)) throw new Error("bb returned an unexpected terminal");
-  localStorage.setItem(sessionKey, JSON.stringify({ terminalId: created.id, hostId: created.hostId }));
+  if (!state.abandoned) localStorage.setItem(sessionKey, JSON.stringify({ terminalId: created.id, hostId: created.hostId }));
   return created;
 }
 
 export function closeCommandPromptSession(sessionKey = SESSION_KEY) {
   const pending = opening.get(sessionKey);
   if (pending !== undefined) {
-    // The window closed while its terminal was still being created; close it once it exists.
-    void pending.then(() => closeCommandPromptSession(sessionKey), () => undefined);
-    return;
+    // The window closed while its terminal was still starting. Close that terminal once it exists, and let a window
+    // reopened meanwhile start its own instead of sharing, and then losing, this one.
+    pending.state.abandoned = true;
+    opening.delete(sessionKey);
+    void pending.session.then((session) => closeTerminal(session.id), () => undefined);
   }
   const stored = readStored(sessionKey);
   localStorage.removeItem(sessionKey);
-  if (stored === null) return;
-  void api(`/terminals/${encodeURIComponent(stored.terminalId)}/close`, {
-    method: "POST",
-    body: JSON.stringify({ mode: "force", reason: "user" }),
-  }).catch(() => undefined);
+  if (stored !== null) closeTerminal(stored.terminalId);
 }

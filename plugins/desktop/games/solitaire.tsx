@@ -26,7 +26,7 @@ import {
   type Suit,
 } from "./solitaire-core";
 import { SUIT_PATHS, courtShapes, pipPositions, runCascade } from "./solitaire-cascade";
-import { usePointerTracker } from "../windows";
+import { usePointerTracker, windowOwnsKeys } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
 
 interface Metrics {
@@ -254,7 +254,7 @@ export function SolitaireGame() {
   useEffect(() => {
     if (cascade !== "running") return;
     const skip = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && boardRef.current?.closest(".bbd-window")?.getAttribute("data-focused") === "true") {
+      if (event.key === "Escape" && windowOwnsKeys(boardRef.current)) {
         setCascade("done");
       }
     };
@@ -270,7 +270,7 @@ export function SolitaireGame() {
 
   useEffect(() => {
     const restart = (event: KeyboardEvent) => {
-      if (event.key === "F2" && boardRef.current?.closest(".bbd-window")?.getAttribute("data-focused") === "true") {
+      if (event.key === "F2" && windowOwnsKeys(boardRef.current)) {
         event.preventDefault(); startNewGame();
       }
     };

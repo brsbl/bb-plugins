@@ -59,6 +59,12 @@ describe("minesweeper", () => {
     expect(minesLeft(board)).toBe(0);
   });
 
+  it("does not start a fresh game from a click on a flagged cell", () => {
+    const flagged = toggleFlag(emptyBoard("beginner"), 40);
+    expect(reveal(flagged, 40, seeded(1))).toBe(flagged);
+    expect(flagged.status).toBe("ready");
+  });
+
   it("chords a number whose flags match, and does nothing otherwise", () => {
     const start = reveal(boardWithMines(3, 3, [0, 2]), 1, seeded(1));
     expect(chord(start, 1)).toBe(start);

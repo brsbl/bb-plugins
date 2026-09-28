@@ -116,16 +116,29 @@ function closeNote(note: StickyNote) {
   else removeNote(note.id);
 }
 
+/** Saved note pads deleted in this tab whose Desktop icon position the desktop hasn't cleared yet. */
+const removedSavedNotes = new Set<string>();
+
+export function takeRemovedNoteIds(): string[] {
+  const ids = [...removedSavedNotes];
+  removedSavedNotes.clear();
+  return ids;
+}
+
 export function removeNote(id: string) {
   const index = notes.findIndex((note) => note.id === id);
   const note = notes[index];
   if (note === undefined) return;
+  if (note.saved === true) removedSavedNotes.add(id);
   saveNotes(notes.filter((candidate) => candidate.id !== id));
   if (note.text.trim() === "") return;
   toast("Note pad deleted", {
     action: {
       label: "Undo",
-      onClick: () => saveNotes([...notes.slice(0, index), note, ...notes.slice(index)]),
+      onClick: () => {
+        removedSavedNotes.delete(id);
+        saveNotes([...notes.slice(0, index), note, ...notes.slice(index)]);
+      },
     },
   });
 }

@@ -34,6 +34,8 @@ export interface Effective {
 
 export interface DesktopContextValue {
   snapshot: DesktopSnapshot;
+  /** When the shown snapshot was requested, in `Date.now()` time; anything saved before then is in it. */
+  snapshotRequestedAt: number;
   threads: DesktopThread[];
   visibleThreads: DesktopThread[];
   archivedThreads: DesktopThread[];
@@ -86,18 +88,31 @@ async function fetchSidebarPreferences(): Promise<unknown> {
   }
 }
 
-/** The server snapshot, refreshed on realtime changes, reconnects and when the tab becomes visible. */
-export function useDesktopSnapshot() {
+/** How long the sidebar's organize and sort choices are reused before a snapshot load asks bb for them again. */
+const SIDEBAR_PREFERENCES_TTL = 15_000;
+
+/**
+ * The server snapshot, refreshed on realtime changes, reconnects and when the tab becomes visible. Loads can
+ * overlap, so a response older than the one already shown is dropped.
+ */
+function useDesktopSnapshot() {
   const rpc = useRpc<typeof rpcContract>();
   const rpcRef = useRef(rpc);
   rpcRef.current = rpc;
-  const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
+  const [loaded, setLoaded] = useState<{ snapshot: DesktopSnapshot; requestedAt: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requested = useRef(0);
+  const shown = useRef(0);
 
   const load = useCallback(async () => {
+    const request = ++requested.current;
+    const requestedAt = Date.now();
     try {
-      setSnapshot(await rpcRef.current.call("snapshot"));
+      const snapshot = await rpcRef.current.call("snapshot");
+      if (request < shown.current) return;
+      shown.current = request;
+      setLoaded({ snapshot, requestedAt });
       setError(null);
     } catch (loadError) {
       setError(errorMessage(loadError));
@@ -138,26 +153,34 @@ export function useDesktopSnapshot() {
     [],
   );
 
-  return { snapshot, error, refresh, call };
+  return { snapshot: loaded?.snapshot ?? null, requestedAt: loaded?.requestedAt ?? 0, error, refresh, call };
 }
 
 /** Merges the snapshot with live sidebar state and provides it, with the desktop's actions, to everything below. */
 export function DesktopDataProvider({ children }: { children: ReactNode }) {
-  const { snapshot, error, refresh, call } = useDesktopSnapshot();
+  const { snapshot, requestedAt, error, refresh, call } = useDesktopSnapshot();
   const live = useSidebarThreads();
   const manager = useWindowManager();
   const actions = useSidebarThreadActions();
   const [sidebar, setSidebar] = useState<ReturnType<typeof resolveSidebarPreferences> | null>(null);
+  const sidebarFetchedAt = useRef(Number.NEGATIVE_INFINITY);
+  const mounted = useRef(true);
 
   useEffect(() => {
-    if (snapshot === null) return;
-    let cancelled = false;
-    void fetchSidebarPreferences().then((preferences) => {
-      if (!cancelled) setSidebar(resolveSidebarPreferences(preferences));
-    });
+    mounted.current = true;
     return () => {
-      cancelled = true;
+      mounted.current = false;
     };
+  }, []);
+
+  // bb has no signal for sidebar preference changes, so they are picked up with snapshot loads, at most every
+  // SIDEBAR_PREFERENCES_TTL.
+  useEffect(() => {
+    if (snapshot === null || Date.now() - sidebarFetchedAt.current < SIDEBAR_PREFERENCES_TTL) return;
+    sidebarFetchedAt.current = Date.now();
+    void fetchSidebarPreferences().then((preferences) => {
+      if (mounted.current) setSidebar(resolveSidebarPreferences(preferences));
+    });
   }, [snapshot]);
 
   const liveById = useMemo(
@@ -318,6 +341,7 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
 
   const value: DesktopContextValue = {
     snapshot,
+    snapshotRequestedAt: requestedAt,
     threads,
     visibleThreads,
     archivedThreads,

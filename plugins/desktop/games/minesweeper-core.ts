@@ -99,9 +99,10 @@ function open(board: Board, cells: Cell[], start: number): Board {
 
 export function reveal(board: Board, index: number, random: () => number): Board {
   if (board.status === "won" || board.status === "lost") return board;
+  const target = board.cells[index];
+  // A flagged or open cell ignores clicks, so it must not start the game (and its clock) either.
+  if (target === undefined || target.revealed || target.flagged) return board;
   const started = board.status === "ready" ? placeMines(board, index, random) : board;
-  const cell = started.cells[index];
-  if (cell === undefined || cell.revealed || cell.flagged) return started;
   return open(started, [...started.cells], index);
 }
 

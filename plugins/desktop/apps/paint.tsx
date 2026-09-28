@@ -14,7 +14,6 @@ import {
   DEFAULT_CANVAS_SIZE,
   DEFAULT_PRIMARY,
   DEFAULT_SECONDARY,
-  HISTORY_LIMIT,
   PALETTE,
   PAPER,
   TOOLS,
@@ -26,6 +25,7 @@ import {
   linePoints,
   rgbaToHex,
   shapeBounds,
+  trimHistory,
   type Point,
   type ToolId,
 } from "./paint-core";
@@ -254,7 +254,7 @@ export function PaintApp() {
   const remember = () => {
     const snapshot = capture();
     if (snapshot === null) return null;
-    historyRef.current = [...historyRef.current, snapshot].slice(-HISTORY_LIMIT);
+    historyRef.current = trimHistory([...historyRef.current, snapshot], (entry) => entry.image.data.byteLength);
     setCanUndo(true);
     setDirty(true);
     return snapshot;

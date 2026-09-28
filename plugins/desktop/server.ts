@@ -14,6 +14,10 @@ import {
 
 const ACTIVE_THREAD_LIMIT = 500;
 const ARCHIVED_THREAD_LIMIT = 200;
+/** Quick Launch ids include other plugins' programs, `app:<pluginId>/<id>`, each part up to 64 characters. */
+const QUICK_LAUNCH_ID_LIMIT = 160;
+const LAYOUT_KEY_LIMIT = 200;
+const LAYOUT_ENTRY_LIMIT = 2000;
 
 const pointSchema = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
 const preferencesSchema = z
@@ -21,7 +25,7 @@ const preferencesSchema = z
     sort: z.enum(["sidebar", "updated", "created", "alpha"]),
     organize: z.enum(["sidebar", "section", "project", "machine"]),
     lifecycle: z.enum(["sidebar", "active", "archived", "all"]),
-    quickLaunch: z.array(z.string().max(64)).max(24).default([...DEFAULT_QUICK_LAUNCH]),
+    quickLaunch: z.array(z.string().max(QUICK_LAUNCH_ID_LIMIT)).max(24).default([...DEFAULT_QUICK_LAUNCH]),
   })
   .strict();
 const DEFAULT_PREFERENCES: Preferences = {
@@ -115,9 +119,19 @@ export const rpcContract = defineRpcContract({
     input: z.object({ folderId: z.string(), threadId: z.string() }).strict(),
     output: folderSchema,
   },
+  threadFolders: {
+    input: z.object({ threadId: z.string() }).strict(),
+    output: z.object({ folders: z.array(namedSchema) }).strict(),
+  },
   setLayout: {
     input: z
-      .object({ entries: z.record(z.string(), pointSchema.nullable()) })
+      .object({
+        entries: z
+          .record(z.string().max(LAYOUT_KEY_LIMIT), pointSchema.nullable())
+          .refine((entries) => Object.keys(entries).length <= LAYOUT_ENTRY_LIMIT, {
+            message: `at most ${LAYOUT_ENTRY_LIMIT} layout entries`,
+          }),
+      })
       .strict(),
     output: okSchema,
   },
@@ -289,13 +303,24 @@ export default function plugin(bb: BbPluginApi) {
     return parsed.success ? parsed.data : {};
   }
 
-  async function writeLayout(entries: Record<string, Point | null>): Promise<void> {
-    const layout = await readLayout();
-    for (const [key, point] of Object.entries(entries)) {
-      if (point === null) delete layout[key];
-      else layout[key] = { x: Math.round(point.x), y: Math.round(point.y) };
-    }
-    await bb.storage.kv.set("layout", layout);
+  // Layout and preference saves read, merge and write one kv value, so they run one at a time: two tabs, or a new
+  // folder landing while an icon drag saves, would otherwise each write over the other's change.
+  let kvWrites: Promise<unknown> = Promise.resolve();
+  function serializeWrite<T>(write: () => Promise<T>): Promise<T> {
+    const next = kvWrites.then(write, write);
+    kvWrites = next.catch(() => undefined);
+    return next;
+  }
+
+  function writeLayout(entries: Record<string, Point | null>): Promise<void> {
+    return serializeWrite(async () => {
+      const layout = await readLayout();
+      for (const [key, point] of Object.entries(entries)) {
+        if (point === null) delete layout[key];
+        else layout[key] = { x: Math.round(point.x), y: Math.round(point.y) };
+      }
+      await bb.storage.kv.set("layout", layout);
+    });
   }
 
   async function readPreferences(): Promise<Preferences> {
@@ -400,6 +425,8 @@ export default function plugin(bb: BbPluginApi) {
     fromFolderId: string | null;
   }): Promise<Folder> {
     const folder = requireFolder(input.folderId);
+    const from =
+      input.fromFolderId === null || input.fromFolderId === folder.id ? null : readFolder(input.fromFolderId);
     const insert = db.prepare(
       `INSERT OR IGNORE INTO folder_threads (folder_id, thread_id, added_at) VALUES (?, ?, ?)`,
     );
@@ -417,8 +444,12 @@ export default function plugin(bb: BbPluginApi) {
     })();
     if (folder.hideFromSidebar) {
       for (const threadId of input.threadIds) await setVisibility(threadId, "hidden");
-    } else if (input.fromFolderId !== null) {
-      await releaseVisibility(input.threadIds, null);
+    } else if (from?.hideFromSidebar === true) {
+      // Only threads leaving a hiding folder come back; one hidden for another reason stays hidden.
+      await releaseVisibility(
+        input.threadIds.filter((threadId) => from.threadIds.includes(threadId)),
+        null,
+      );
     }
     changed("folders");
     return requireFolder(folder.id);
@@ -441,6 +472,28 @@ export default function plugin(bb: BbPluginApi) {
     if (folder.hideFromSidebar) await releaseVisibility(folder.threadIds, id);
     await writeLayout({ [`folder:${id}`]: null });
     changed("folders");
+  }
+
+  let browserThreadLookup: Promise<{ threadId: string }> | null = null;
+  async function findOrSpawnBrowserThread(): Promise<{ threadId: string }> {
+    const stored = await bb.storage.kv.get<unknown>("browserThreadId");
+    if (typeof stored === "string") {
+      const existing = await bb.sdk.threads.get({ threadId: stored }).catch(() => null);
+      if (existing !== null && existing.deletedAt === null && existing.archivedAt === null) {
+        return { threadId: existing.id };
+      }
+    }
+    const thread = await bb.sdk.threads.spawn({
+      projectId: PERSONAL_PROJECT_ID,
+      visibility: "hidden",
+      title: "bb Explorer",
+      prompt: "bb Explorer",
+      environment: { type: "host", workspace: { type: "personal" } },
+      sendAt: NEVER,
+      pluginMetadata: { role: "browser" },
+    });
+    await bb.storage.kv.set("browserThreadId", thread.id);
+    return { threadId: thread.id };
   }
 
   bb.rpc.register(rpcContract, {
@@ -482,12 +535,24 @@ export default function plugin(bb: BbPluginApi) {
     },
     addToFolder: (input) => addToFolder(input),
     removeFromFolder: ({ folderId, threadId }) => removeFromFolder(folderId, threadId),
+    async threadFolders({ threadId }) {
+      const rows = db
+        .prepare(
+          `SELECT f.id, f.name FROM folders f JOIN folder_threads ft ON ft.folder_id = f.id
+           WHERE ft.thread_id = ? ORDER BY f.created_at`,
+        )
+        .all(threadId) as Row[];
+      return { folders: rows.map((row) => ({ id: String(row.id), name: String(row.name) })) };
+    },
     async setLayout({ entries }) {
       await writeLayout(entries);
+      changed("layout");
       return { ok: true as const };
     },
     async setPreferences(patch) {
-      await bb.storage.kv.set("preferences", { ...(await readPreferences()), ...patch });
+      await serializeWrite(async () =>
+        bb.storage.kv.set("preferences", { ...(await readPreferences()), ...patch }),
+      );
       changed("preferences");
       return { ok: true as const };
     },
@@ -522,25 +587,12 @@ export default function plugin(bb: BbPluginApi) {
       threadsChanged();
       return { threadId: thread.id };
     },
-    async browserThread() {
-      const stored = await bb.storage.kv.get<unknown>("browserThreadId");
-      if (typeof stored === "string") {
-        const existing = await bb.sdk.threads.get({ threadId: stored }).catch(() => null);
-        if (existing !== null && existing.deletedAt === null && existing.archivedAt === null) {
-          return { threadId: existing.id };
-        }
-      }
-      const thread = await bb.sdk.threads.spawn({
-        projectId: PERSONAL_PROJECT_ID,
-        visibility: "hidden",
-        title: "bb Explorer",
-        prompt: "bb Explorer",
-        environment: { type: "host", workspace: { type: "personal" } },
-        sendAt: NEVER,
-        pluginMetadata: { role: "browser" },
+    browserThread() {
+      // bb Explorer windows opened together share one lookup, so they can't each spawn a hidden thread.
+      browserThreadLookup ??= findOrSpawnBrowserThread().finally(() => {
+        browserThreadLookup = null;
       });
-      await bb.storage.kv.set("browserThreadId", thread.id);
-      return { threadId: thread.id };
+      return browserThreadLookup;
     },
   });
 

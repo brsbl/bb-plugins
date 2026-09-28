@@ -26,14 +26,14 @@ export function ComposerClearance() {
         ? target.closest<HTMLElement>("[data-app-composer]")
         : null;
     const clearComposer = () => {
-      const { width, height } = workAreaRect();
+      const area = workAreaRect();
       const bounds = composer?.getBoundingClientRect();
       if (bounds === undefined) return;
       const obstacle = { x: bounds.left, y: bounds.top, width: bounds.width, height: bounds.height };
       const next = new Map<string, Point>();
       for (const window of windowsRef.current) {
         if (window.minimized || window.restoreRect !== null) continue;
-        const shift = clearanceShift(window.rect, obstacle, { width, height });
+        const shift = clearanceShift(window.rect, obstacle, area);
         if (shift !== null) next.set(window.id, shift);
       }
       setWindowNudges(next);

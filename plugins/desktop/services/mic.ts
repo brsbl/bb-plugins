@@ -31,15 +31,17 @@ function subscribeMic(listener: () => void) {
 export async function startMic() {
   if (micState.status === "live" || micState.status === "starting") return;
   setMicState({ status: "starting", analyser: null });
+  let stream: MediaStream | null = null;
+  let context: AudioContext | null = null;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
     });
     if (currentMicStatus() !== "starting") {
       for (const track of stream.getTracks()) track.stop();
       return;
     }
-    const context = new AudioContext();
+    context = new AudioContext();
     const analyser = context.createAnalyser();
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.78;
@@ -49,7 +51,10 @@ export async function startMic() {
     micContext = context;
     setMicState({ status: "live", analyser });
   } catch {
-    setMicState({ status: "blocked", analyser: null });
+    // Setup can fail after the browser granted the mic; let go of it so the recording indicator goes away.
+    for (const track of stream?.getTracks() ?? []) track.stop();
+    void context?.close();
+    if (currentMicStatus() === "starting") setMicState({ status: "blocked", analyser: null });
   }
 }
 

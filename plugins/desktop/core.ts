@@ -336,12 +336,8 @@ export function trackNeedsInput(
   return { known: pending, queue: [...kept, ...arrived], arrived: arrived.length > 0 };
 }
 
-export function clearanceShift(
-  rect: Rect,
-  obstacle: Rect,
-  viewport: { width: number; height: number },
-  gap = 12,
-): Point | null {
+/** The shortest move that clears `obstacle`, preferring one that keeps the whole window inside `area`. */
+export function clearanceShift(rect: Rect, obstacle: Rect, area: Rect, gap = 12): Point | null {
   const overlaps =
     rect.x < obstacle.x + obstacle.width + gap &&
     rect.x + rect.width > obstacle.x - gap &&
@@ -355,14 +351,14 @@ export function clearanceShift(
     { x: obstacle.x + obstacle.width + gap - rect.x, y: 0 },
   ].sort((left, right) => Math.hypot(left.x, left.y) - Math.hypot(right.x, right.y));
   const fits = (shift: Point) =>
-    rect.x + shift.x >= 0 &&
-    rect.y + shift.y >= 0 &&
-    rect.x + shift.x + rect.width <= viewport.width &&
-    rect.y + shift.y + rect.height <= viewport.height;
+    rect.x + shift.x >= area.x &&
+    rect.y + shift.y >= area.y &&
+    rect.x + shift.x + rect.width <= area.x + area.width &&
+    rect.y + shift.y + rect.height <= area.y + area.height;
   const reachable = (shift: Point) =>
-    rect.y + shift.y >= 0 &&
-    rect.y + shift.y + 40 <= viewport.height &&
-    rect.x + shift.x + rect.width >= 80 &&
-    rect.x + shift.x <= viewport.width - 80;
+    rect.y + shift.y >= area.y &&
+    rect.y + shift.y + 40 <= area.y + area.height &&
+    rect.x + shift.x + rect.width >= area.x + 80 &&
+    rect.x + shift.x <= area.x + area.width - 80;
   return candidates.find(fits) ?? candidates.find(reachable) ?? null;
 }

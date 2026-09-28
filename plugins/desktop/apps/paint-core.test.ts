@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { PALETTE, floodFill, hexToRgba, linePoints, rgbaToHex, shapeBounds, type Rgba } from "./paint-core";
+import {
+  HISTORY_BYTES,
+  HISTORY_LIMIT,
+  PALETTE,
+  floodFill,
+  hexToRgba,
+  linePoints,
+  rgbaToHex,
+  shapeBounds,
+  trimHistory,
+  type Rgba,
+} from "./paint-core";
 
 const WHITE: Rgba = [255, 255, 255, 255];
 const BLACK: Rgba = [0, 0, 0, 255];
@@ -162,5 +173,14 @@ describe("shapeBounds", () => {
 
   it("constrains to a square", () => {
     expect(shapeBounds({ x: 10, y: 10 }, { x: 4, y: 12 }, true)).toEqual({ x: 4, y: 10, width: 6, height: 6 });
+  });
+});
+
+describe("trimHistory", () => {
+  it("keeps undo steps within both the step limit and the memory budget, never dropping the newest", () => {
+    const steps = Array.from({ length: 30 }, (_, index) => index);
+    expect(trimHistory(steps, () => 1_000_000)).toEqual(steps.slice(-HISTORY_LIMIT));
+    expect(trimHistory(steps, () => HISTORY_BYTES / 4)).toEqual([26, 27, 28, 29]);
+    expect(trimHistory(steps, () => HISTORY_BYTES * 2)).toEqual([29]);
   });
 });

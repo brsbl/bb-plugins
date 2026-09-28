@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { ProgramMenuBar } from "../apps/xp-chrome";
+import { typingElsewhere } from "../windows";
 import {
   BALLS_PER_GAME,
   MAX_MULTIPLIER,
@@ -982,7 +983,8 @@ export function PinballGame({ active = true }: { active?: boolean }) {
   useEffect(() => {
     if (dialog !== null) return;
     const body = bodyRef.current;
-    body?.focus({ preventScroll: true });
+    // Opening the table takes the keys unless someone is typing, such as in bb's composer when the desktop restores.
+    if (!typingElsewhere(body)) body?.focus({ preventScroll: true });
     setFocused(body?.contains(document.activeElement) ?? false);
   }, [dialog]);
 

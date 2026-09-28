@@ -63,6 +63,22 @@ export const MAX_CANVAS_SIZE = 4096;
 
 export const HISTORY_LIMIT = 20;
 
+/** Undo keeps whole canvas copies, so it also stops at a memory budget: 20 steps at 640×400, one at 4096×4096. */
+export const HISTORY_BYTES = 64 * 1024 * 1024;
+
+/** The newest undo steps that fit both the step limit and the memory budget, always keeping the newest one. */
+export function trimHistory<T>(history: readonly T[], bytesOf: (entry: T) => number): T[] {
+  const kept: T[] = [];
+  let bytes = 0;
+  for (let index = history.length - 1; index >= 0 && kept.length < HISTORY_LIMIT; index -= 1) {
+    const entry = history[index]!;
+    bytes += bytesOf(entry);
+    if (kept.length > 0 && bytes > HISTORY_BYTES) break;
+    kept.unshift(entry);
+  }
+  return kept;
+}
+
 export const TOOL_SIZES: Record<ToolId, readonly number[]> = {
   pencil: [],
   brush: [2, 4, 7, 11],

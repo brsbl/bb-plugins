@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
-import { usePointerTracker } from "../windows";
+import { usePointerTracker, windowOwnsKeys } from "../windows";
 import { ProgramMenuBar } from "../apps/xp-chrome";
 import {
   DIFFICULTIES,
@@ -105,7 +105,7 @@ export function MinesweeperGame() {
 
   useEffect(() => {
     const restart = (event: KeyboardEvent) => {
-      if (event.key === "F2" && fieldRef.current?.closest(".bbd-window")?.getAttribute("data-focused") === "true") { event.preventDefault(); newGame(); }
+      if (event.key === "F2" && windowOwnsKeys(fieldRef.current)) { event.preventDefault(); newGame(); }
     };
     window.addEventListener("keydown", restart);
     return () => window.removeEventListener("keydown", restart);
