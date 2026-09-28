@@ -2,7 +2,7 @@ export const WORKFLOW_CONFIG_VERSION = 2 as const;
 
 export type WorkflowStageRole = "inbox" | "stage";
 
-export const MAX_WORKFLOW_STAGES = 12;
+export const MAX_WORKFLOW_STAGES = 24;
 /**
  * Rule a section starts with until its owner describes one. It has to be safe
  * for an agent to act on as written, so it says the section is user-managed
@@ -206,7 +206,9 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
 
 function validateStages(stages: WorkflowStage[]): void {
   if (stages.length < 2 || stages.length > MAX_WORKFLOW_STAGES) {
-    throw new Error("Configure Inbox plus 1–11 workflow stages.");
+    throw new Error(
+      `Configure Inbox plus 1–${MAX_WORKFLOW_STAGES - 1} workflow stages.`,
+    );
   }
   const keys = new Set<string>();
   const titles = new Set<string>();

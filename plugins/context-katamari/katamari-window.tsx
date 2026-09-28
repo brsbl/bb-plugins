@@ -19,7 +19,10 @@ export interface KatamariStage {
   threadId: string | null;
   mode: StageMode;
   fill: number;
-  compactions: number;
+  /** Null until the thread's compaction count has been read. */
+  compactions: number | null;
+  /** The newest compaction bb announced while the window was open; each new one pops the ball. */
+  compactedSeq: number | null;
   ready: boolean;
   title: string | null;
   usedTokens: number | null;
@@ -512,6 +515,7 @@ export function KatamariWindow({
     mode: stage.mode,
     fill: stage.fill,
     compactions: stage.compactions,
+    compactedSeq: stage.compactedSeq,
     ready: stage.ready,
     usedTokens: stage.usedTokens,
   };
@@ -578,7 +582,15 @@ export function KatamariWindow({
 
   useEffect(() => {
     worldRef.current?.setStage(worldStageRef.current);
-  }, [stage.threadId, stage.mode, stage.fill, stage.compactions, stage.ready, stage.usedTokens]);
+  }, [
+    stage.threadId,
+    stage.mode,
+    stage.fill,
+    stage.compactions,
+    stage.compactedSeq,
+    stage.ready,
+    stage.usedTokens,
+  ]);
 
   // New context lands with a chomp: a nibble for a little, a screen-shaking gulp for a heavy turn.
   const lastUsage = useRef<{
@@ -593,7 +605,7 @@ export function KatamariWindow({
     // A thread we watched start with nothing measured: its first usage is the
     // system prompt and tools arriving, not history we opened onto. After a
     // compaction the usage also blanks briefly, and what returns is the summary.
-    const setup = previous.usedTokens === null && previous.ready && stage.compactions === 0;
+    const setup = previous.usedTokens === null && previous.ready && (stage.compactions ?? 0) === 0;
     const before = setup ? 0 : previous.usedTokens;
     if (
       before === null ||
@@ -823,7 +835,7 @@ export function KatamariWindow({
           {lastItem ? <span key={lastItem.key} className="ck-item-name">{lastItem.name}</span> : null}
         </div>
 
-        <PrinceOnEarth mode={stage.mode} compactions={hud?.compactions ?? stage.compactions} />
+        <PrinceOnEarth mode={stage.mode} compactions={hud?.compactions ?? stage.compactions ?? 0} />
 
         {guideOpen ? <Guide onClose={() => toggleGuide(false)} /> : null}
 

@@ -2117,6 +2117,66 @@ assert.equal(
   "Opus 4.8 (1M)",
 );
 
+// Sweeping from an open card onto rows that have not loaded hides the old
+// card immediately and opens only the row the pointer settles on.
+const sweepRow = window.document.createElement("div");
+sweepRow.className = "group/thread-row";
+const sweepA = window.document.createElement("a");
+sweepA.dataset.sidebarThreadId = "thr_sweep_a";
+sweepA.href = "/threads/thr_sweep_a";
+sweepA.textContent = "Sweep A";
+const sweepB = window.document.createElement("a");
+sweepB.dataset.sidebarThreadId = "thr_sweep_b";
+sweepB.href = "/threads/thr_sweep_b";
+sweepB.textContent = "Sweep B";
+sweepRow.append(sweepA, sweepB);
+nestedGroup.append(sweepRow);
+const threadCard = window.document.getElementById("bb-thread-hover-card");
+assert.equal(threadCard.hidden, false);
+function moveBetween(from, to) {
+  from.dispatchEvent(
+    new window.PointerEvent("pointerout", {
+      bubbles: true,
+      pointerType: "mouse",
+      relatedTarget: to,
+    }),
+  );
+  to.dispatchEvent(
+    new window.PointerEvent("pointerover", {
+      bubbles: true,
+      pointerType: "mouse",
+      relatedTarget: from,
+    }),
+  );
+}
+moveBetween(nestedThread, sweepA);
+assert.equal(
+  threadCard.hidden,
+  true,
+  "hides the previous row's card while a cold row settles",
+);
+await new Promise((resolve) => setTimeout(resolve, 100));
+moveBetween(sweepA, sweepB);
+await new Promise((resolve) => setTimeout(resolve, 100));
+assert.equal(threadCard.hidden, true, "keeps the card closed during a sweep");
+assert.equal(
+  requestBodies.some(({ threadId }) => threadId === "thr_sweep_a"),
+  false,
+  "skips rows the pointer only passed over",
+);
+await new Promise((resolve) => setTimeout(resolve, 70));
+assert.equal(threadCard.hidden, false);
+assert.equal(sweepB.getAttribute("aria-describedby"), "bb-thread-hover-card");
+sweepB.dispatchEvent(
+  new window.PointerEvent("pointerout", {
+    bubbles: true,
+    pointerType: "mouse",
+    relatedTarget: window.document.body,
+  }),
+);
+await new Promise((resolve) => setTimeout(resolve, 140));
+sweepRow.remove();
+
 // Touch devices — mobile web, tablets — have no hover, so the plugin must not
 // install anything and must not intercept taps on a thread row.
 setHoverCapablePointer(false);

@@ -3,13 +3,27 @@ import {
   definePluginApp,
   experimental_useSidebarThreads,
   useBbContext,
+  useRealtime,
   useRpc,
 } from "@get-bb/plugin-sdk/app";
 
-import type { contextKatamariRpcContract, ThreadContext, TurnCost } from "./contract";
+import {
+  COMPACTED_CHANNEL,
+  type CompactedSignal,
+  compactedSignalSchema,
+  type contextKatamariRpcContract,
+  type ThreadContext,
+  type TurnCost,
+} from "./contract";
 import { contextFill } from "./katamari-math";
 import { KatamariWindow, type KatamariStage } from "./katamari-window";
-import { EMPTY_STAGE, isThreadWorking, resolveStage, type StageState } from "./stage";
+import {
+  createReadOrder,
+  EMPTY_STAGE,
+  isThreadWorking,
+  resolveStage,
+  type StageState,
+} from "./stage";
 import "./app.css";
 
 const OPEN_KEY = "context-katamari:open";
@@ -61,14 +75,26 @@ function useThreadContext(
 ): ThreadContext | null {
   const rpc = useRpc<typeof contextKatamariRpcContract>();
   const [contexts, setContexts] = useState<ReadonlyMap<string, ThreadContext | null>>(new Map());
+  const readOrders = useRef(new Map<string, ReturnType<typeof createReadOrder>>());
 
   const refresh = useCallback(
     (id: string) => {
+      const order = readOrders.current.get(id) ?? createReadOrder();
+      readOrders.current.set(id, order);
+      const request = order.begin();
       void rpc
         .call("readThreadContext", { threadId: id })
-        .then((context) => {
+        .then((read) => {
+          // A slower, older read must not replace a newer one: its lower
+          // compaction count would come back as a phantom compaction.
+          if (!order.accept(request)) return;
           setContexts((current) => {
             const previous = current.get(id);
+            // Keep the last known count when this read could not get one.
+            const context =
+              read.compactions === null
+                ? { ...read, compactions: previous?.compactions ?? null }
+                : read;
             if (
               previous !== undefined &&
               previous?.usage?.usedTokens === context.usage?.usedTokens &&
@@ -154,12 +180,29 @@ function KatamariController({
     stageThread?.updatedAt ?? null,
   );
 
+  // bb's compaction events, announced by the server as they happen, are what pop the ball.
+  const [compacted, setCompacted] = useState<ReadonlyMap<string, CompactedSignal>>(new Map());
+  useRealtime(COMPACTED_CHANNEL, (payload) => {
+    const signal = compactedSignalSchema.safeParse(payload);
+    if (!signal.success) return;
+    setCompacted((current) => {
+      if ((current.get(signal.data.threadId)?.seq ?? -1) >= signal.data.seq) return current;
+      return new Map(current).set(signal.data.threadId, signal.data);
+    });
+  });
+  const lastCompaction = stage.threadId === null ? null : (compacted.get(stage.threadId) ?? null);
+  const polledCompactions = context?.compactions ?? null;
+
   const usage = context?.usage ?? null;
   const windowStage: KatamariStage = {
     threadId: stage.threadId,
     mode: stage.mode,
     fill: usage ? contextFill(usage.usedTokens, usage.capacityTokens) : 0,
-    compactions: context?.compactions ?? 0,
+    compactions:
+      lastCompaction === null
+        ? polledCompactions
+        : Math.max(polledCompactions ?? 0, lastCompaction.compactions),
+    compactedSeq: lastCompaction?.seq ?? null,
     ready: context !== null,
     title: stageThread
       ? stageThread.title?.trim() || stageThread.titleFallback?.trim() || "Untitled thread"

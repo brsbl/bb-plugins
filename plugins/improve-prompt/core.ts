@@ -70,6 +70,7 @@ export function buildWorkerPrompt(input: {
     "<rewrite-instructions>",
     instructions,
     "</rewrite-instructions>",
+    "These instructions replace the prompt-shaper skill for this rewrite; do not load it.",
     "",
     ...(input.targetModel === FABLE_5_1_MODEL
       ? [

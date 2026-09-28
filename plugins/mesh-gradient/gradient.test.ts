@@ -21,6 +21,7 @@ import {
   readabilityFor,
   readabilitySummary,
   relativeLuminance,
+  pointEllipse,
   sampleLuminances,
   toCss,
   toCssLayers,
@@ -265,6 +266,25 @@ describe("canvas-free readability sampling", () => {
     const corner = samples[0]!;
     expect(center).toBeGreaterThan(0.8);
     expect(corner).toBeCloseTo(relativeLuminance(115, 115, 115), 2);
+  });
+
+  it("fades each point over the CSS farthest-corner ellipse", () => {
+    const spec = {
+      seed: 1,
+      style: "mono" as const,
+      points: [point({ x: 0, y: 50, radius: 50 })],
+    };
+    const samples = sampleLuminances(spec, { width: 100, height: 20 });
+    const base = relativeLuminance(115, 115, 115);
+    expect(samples[10 * 100 + 60]!).toBeGreaterThan(base + 0.01);
+    expect(samples[10 * 100 + 75]!).toBeCloseTo(base, 2);
+    expect(samples[5 * 100 + 5]!).toBeGreaterThan(base + 0.01);
+    expect(pointEllipse(spec.points[0]!, 100, 20)).toEqual({
+      cx: 0,
+      cy: 10,
+      rx: Math.SQRT2 * 50,
+      ry: Math.SQRT2 * 5,
+    });
   });
 
   it("composites the first point on top, matching the CSS layer order", () => {

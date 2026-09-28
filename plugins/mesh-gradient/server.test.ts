@@ -1,4 +1,4 @@
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
 import { generateMeshGradient, toCss } from "./gradient.js";
@@ -551,6 +551,83 @@ describe("mesh gradient backend", () => {
       threadId: "thr_b",
     })) as { proposals: unknown[] };
     expect(other.proposals).toHaveLength(0);
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("keeps every proposal when agents propose in parallel", async () => {
+    const host = await loadPlugin();
+    await Promise.all(
+      [11, 12, 13, 14].map((seed) =>
+        host.harness.behavior.callAgentTool(
+          "mesh_gradient",
+          { action: "propose", seed, style: "candy" },
+          { threadId: "thr_a" },
+        ),
+      ),
+    );
+    const listed = (await host.harness.behavior.callRpc("listProposals", {
+      threadId: "thr_a",
+    })) as { proposals: Array<{ seed: number }> };
+    expect(listed.proposals.map((proposal) => proposal.seed).sort()).toEqual([
+      11, 12, 13, 14,
+    ]);
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("rejects a style combined with a color instead of ignoring it", async () => {
+    const host = await loadPlugin();
+    const tool = await host.harness.behavior.callAgentTool(
+      "mesh_gradient",
+      { action: "propose", style: "ocean", color: "#3366ff" },
+      { threadId: "thr_a" },
+    );
+    expect(JSON.stringify(tool)).toContain("Pass style or color, not both");
+    const cli = await host.harness.behavior.runCli(
+      ["propose", "--style", "ocean", "--color", "#3366ff"],
+      { threadId: "thr_a" },
+    );
+    expect(cli.exitCode).toBe(1);
+    expect(cli.stderr).toContain("--style and --color can't be combined");
+    const listed = (await host.harness.behavior.callRpc("listProposals", {
+      threadId: "thr_a",
+    })) as { proposals: unknown[] };
+    expect(listed.proposals).toHaveLength(0);
+    const colorOnly = await host.harness.behavior.runCli(
+      ["propose", "--color", "#3366ff"],
+      { threadId: "thr_a" },
+    );
+    expect(colorOnly.exitCode).toBe(0);
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("drops a thread's proposals when the thread is deleted", async () => {
+    const host = await loadPlugin();
+    for (const threadId of ["thr_a", "thr_b"]) {
+      await host.harness.behavior.callAgentTool(
+        "mesh_gradient",
+        { action: "propose", seed: 5, style: "forest" },
+        { threadId },
+      );
+    }
+    await host.harness.behavior.emitThreadEvent("thread.deleted", {
+      thread: makeThreadResponse({ id: "thr_a" }),
+    });
+    expect(await host.bb.storage.kv.get("proposals/thr_a")).toBeUndefined();
+    const kept = (await host.harness.behavior.callRpc("listProposals", {
+      threadId: "thr_b",
+    })) as { proposals: unknown[] };
+    expect(kept.proposals).toHaveLength(1);
+    await host.harness.lifecycle.dispose();
+  });
+
+  it("keeps saved names from closing generated CSS comments", async () => {
+    const host = await loadPlugin();
+    await host.harness.behavior.callRpc("saveGradient", {
+      ...saveInput(21),
+      name: "sneaky */ body { color: red } /*",
+    });
+    const tokens = await host.harness.behavior.runCli(["tokens"]);
+    expect(tokens.stdout).toContain("/* sneaky * / body { color: red } /* */");
     await host.harness.lifecycle.dispose();
   });
 

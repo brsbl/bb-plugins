@@ -11,6 +11,7 @@ import {
   MESH_STYLE_NAMES,
   MIN_POINTS,
   MIN_RADIUS,
+  cssCommentText,
   generateFromColor,
   generateMeshGradient,
   nameFor,
@@ -28,6 +29,8 @@ const SAVED_PREFIX = "saved/";
 const REALTIME_CHANNEL = "gradients";
 const PROPOSALS_PREFIX = "proposals/";
 const PROPOSALS_CHANNEL = "proposals";
+const STYLE_WITH_COLOR_ERROR =
+  "--style and --color can't be combined: a color builds its own palette around that hue";
 export const MAX_PROPOSALS = 6;
 
 export const meshPointSchema = z.object({
@@ -290,7 +293,27 @@ export async function listProposals(
  * Newest first, capped, and deduped by artwork: re-proposing the same points
  * moves that option to the front instead of listing it twice.
  */
-export async function addProposal(
+const proposalWrites = new Map<string, Promise<unknown>>();
+
+function withProposalLock<T>(threadId: string, write: () => Promise<T>): Promise<T> {
+  const next = (proposalWrites.get(threadId) ?? Promise.resolve()).then(write);
+  const settled = next.catch(() => undefined);
+  proposalWrites.set(threadId, settled);
+  void settled.then(() => {
+    if (proposalWrites.get(threadId) === settled) proposalWrites.delete(threadId);
+  });
+  return next;
+}
+
+export function addProposal(
+  bb: BbPluginApi,
+  threadId: string,
+  input: { spec: MeshGradientSpec; name?: string; note?: string },
+): Promise<GradientProposal> {
+  return withProposalLock(threadId, () => writeProposal(bb, threadId, input));
+}
+
+async function writeProposal(
   bb: BbPluginApi,
   threadId: string,
   input: { spec: MeshGradientSpec; name?: string; note?: string },
@@ -318,7 +341,15 @@ export async function addProposal(
   return proposal;
 }
 
-async function dismissProposal(
+function dismissProposal(
+  bb: BbPluginApi,
+  threadId: string,
+  id: string,
+): Promise<boolean> {
+  return withProposalLock(threadId, () => removeProposal(bb, threadId, id));
+}
+
+async function removeProposal(
   bb: BbPluginApi,
   threadId: string,
   id: string,
@@ -436,7 +467,7 @@ export function renderTokens(
   const body = entries
     .map(
       (entry) =>
-        `  /* ${entry.name} */\n` +
+        `  /* ${cssCommentText(entry.name)} */\n` +
         `  --gradient-${entry.slug}-color: ${entry.color};\n` +
         `  --gradient-${entry.slug}: ${entry.image};`,
     )
@@ -489,6 +520,7 @@ function parseGenerateFlags(
     style: "aurora",
     format: "css",
   };
+  let styleGiven = false;
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     const value = argv[index + 1];
@@ -514,6 +546,7 @@ function parseGenerateFlags(
         throw new Error(`--style must be one of: ${MESH_STYLE_NAMES.join(", ")}`);
       }
       flags.style = style;
+      styleGiven = true;
       index += 1;
     } else if (token === "--format") {
       if (value !== "css" && value !== "svg" && value !== "json") {
@@ -549,13 +582,16 @@ function parseGenerateFlags(
       throw new Error(`unknown flag ${JSON.stringify(token)}`);
     }
   }
+  if (flags.customColor && styleGiven && flags.style !== "custom") {
+    throw new Error(STYLE_WITH_COLOR_ERROR);
+  }
   return flags;
 }
 
 function renderSpec(spec: MeshGradientSpec, format: "css" | "svg" | "json"): string {
   if (format === "svg") return toSvg(spec);
   if (format === "json") return JSON.stringify(spec, null, 2);
-  const header = `/* ${nameFor(spec)} — seed ${spec.seed}, style ${spec.style}, ${spec.points.length} points */`;
+  const header = `/* ${cssCommentText(nameFor(spec))} — seed ${spec.seed}, style ${spec.style}, ${spec.points.length} points */`;
   const readability = `/* readability: ${readabilitySummary(spec)} */`;
   return [header, readability, toCss(spec)].join("\n");
 }
@@ -638,6 +674,12 @@ export default function plugin(bb: BbPluginApi): void {
     return { hostId: environment.hostId, root };
   }
 
+  bb.events.on("thread.deleted", async ({ thread }) => {
+    await withProposalLock(thread.id, () =>
+      bb.storage.kv.delete(`${PROPOSALS_PREFIX}${thread.id}`),
+    );
+  });
+
   bb.rpc.register(meshGradientRpcContract, {
     async listSaved() {
       return { gradients: await listSavedGradients(bb) };
@@ -715,11 +757,11 @@ export default function plugin(bb: BbPluginApi): void {
       style: z
         .enum(MESH_STYLE_NAMES)
         .optional()
-        .describe("palette for action=generate"),
+        .describe("palette for action=generate or propose; omit when passing color"),
       color: z
         .string()
         .optional()
-        .describe("hex like #3366ff — generates a gradient around that hue"),
+        .describe("hex like #3366ff — generates a gradient around that hue instead of a style"),
       seed: z.number().int().optional(),
       points: z.number().int().min(MIN_POINTS).max(MAX_POINTS).optional(),
       format: z.enum(["css", "svg", "json"]).optional(),
@@ -764,6 +806,17 @@ export default function plugin(bb: BbPluginApi): void {
           };
         }
         return renderSpec(specOf(match), format);
+      }
+      if (input.color && input.style && input.style !== "custom") {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Pass style or color, not both: a color builds its own palette around that hue.",
+            },
+          ],
+          isError: true,
+        };
       }
       const spec = input.color
         ? generateFromColor(input.color, {
