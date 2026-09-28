@@ -1,7 +1,8 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { BUILT_IN_SCENES, DEFAULT_SCENE, POPPY_HILL_SOURCE, rebuildBuiltIn, sceneOf } from "./builtins";
+import { parseCaptureRequest } from "./capture";
 import plugin, {
   DAILY_CONCEPTS,
   applyValues,
@@ -118,6 +119,66 @@ describe("display controls", () => {
     await harness.lifecycle.dispose();
   });
 
+  it("keeps the scene revision when an undo step stays on the open scene", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    type State = {
+      revision: number;
+      sceneRevision: number;
+      scene: { palette: string[]; params: { id: string; value: number }[] };
+      controls: Record<string, unknown>;
+    };
+    const tide = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as State;
+    const restored = (await harness.behavior.callRpc("restore", {
+      sceneId: "tide",
+      values: { glow: 1.3 },
+      palette: tide.scene.palette,
+      controls: tide.controls,
+    })) as State;
+    expect(restored.sceneRevision).toBe(tide.sceneRevision);
+    expect(restored.revision).toBeGreaterThan(tide.revision);
+    expect(restored.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1.3);
+    await harness.lifecycle.dispose();
+  });
+
+  it("refuses an unsaved scene's undo step once a saved scene is open", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    type State = { ref: unknown; scene: { palette: string[] }; controls: Record<string, unknown> };
+    await harness.behavior.callRpc("loadScene", { id: "tide" });
+    const { id } = (await harness.behavior.callRpc("saveScene", { name: "Unsaved Soon" })) as { id: string };
+    await harness.behavior.callRpc("deleteScene", { id });
+    const unsaved = (await harness.behavior.callRpc("state", null)) as State;
+    expect(unsaved.ref).toBeNull();
+    const tide = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as State;
+    await expect(
+      harness.behavior.callRpc("restore", {
+        sceneId: null,
+        values: {},
+        palette: ["#000000", "#111111", "#222222", "#333333"],
+        controls: unsaved.controls,
+      }),
+    ).rejects.toThrow();
+    expect(((await harness.behavior.callRpc("state", null)) as State).scene.palette).toEqual(tide.scene.palette);
+    expect(await bb.storage.kv.get("tweaks/tide")).toBeUndefined();
+    await harness.lifecycle.dispose();
+  });
+
+  it("sets scene params and controls from the CLI in one write", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    await harness.behavior.callRpc("loadScene", { id: "tide" });
+    const result = await harness.behavior.runCli(["set", "glow=1.2", "glass_opacity=40%"]);
+    expect(result.exitCode).toBe(0);
+    const state = (await harness.behavior.callRpc("state", null)) as {
+      scene: { params: { id: string; value: number }[] };
+      controls: { glass: number };
+    };
+    expect(state.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1.2);
+    expect(state.controls.glass).toBe(0.4);
+    await harness.lifecycle.dispose();
+  });
+
   it("only lets glass opacity go down from its default", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
     plugin(bb);
@@ -176,6 +237,17 @@ describe("scene refs", () => {
     const stored = (await bb.storage.kv.get("state")) as { ref: unknown; controls: Record<string, unknown> };
     expect(stored.ref).toEqual({ kind: "builtIn", id: "tide" });
     expect(stored.controls).not.toHaveProperty("quality");
+    await harness.lifecycle.dispose();
+  });
+
+  it("stores a first state newer than any revision from before it started", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    const started = Date.now();
+    plugin(bb);
+    await vi.waitFor(async () => expect(await bb.storage.kv.get("state")).toBeDefined());
+    const stored = (await bb.storage.kv.get("state")) as { revision: number; sceneRevision: number };
+    expect(stored.revision).toBeGreaterThanOrEqual(started);
+    expect(stored.sceneRevision).toBe(stored.revision);
     await harness.lifecycle.dispose();
   });
 
@@ -259,6 +331,15 @@ describe("scene inputs", () => {
     const next = applyValues(scene, { swell: 2 });
     expect(next.params.find((entry) => entry.id === "constructor")?.value).toBe(0.5);
     expect(next.params.find((entry) => entry.id === "swell")?.value).toBe(2);
+  });
+
+  it("accepts only well-formed capture requests from the realtime channel", () => {
+    expect(parseCaptureRequest({ requestId: "r1", ripple: null })).toEqual({ requestId: "r1", ripple: null });
+    expect(parseCaptureRequest({ requestId: "r1", ripple: "done", extra: 1 })).toEqual({ requestId: "r1", ripple: "done" });
+    expect(parseCaptureRequest({ requestId: "", ripple: null })).toBeNull();
+    expect(parseCaptureRequest({ requestId: "r1", ripple: "toString" })).toBeNull();
+    expect(parseCaptureRequest({ requestId: "r1" })).toBeNull();
+    expect(parseCaptureRequest(null)).toBeNull();
   });
 
   it("parses CLI set pairs into params and controls", () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 
 import { valuesOf, type Controls } from "./contract.js";
@@ -21,11 +21,13 @@ type History = { past: HistoryEntry[]; future: HistoryEntry[]; lastKey: string |
 
 const receive = (next: AmbientState) => ambientStore.receive(next);
 
+type Debounced<Args extends unknown[]> = ((...args: Args) => void) & {
+  /** Drops pending calls without sending them. */
+  cancel(): void;
+};
+
 /** Debounces per first argument. Calls still pending when the panel closes are sent, not dropped. */
-function useDebouncedCall<Args extends unknown[]>(
-  call: (...args: Args) => void,
-  delay: number,
-): (...args: Args) => void {
+function useDebouncedCall<Args extends unknown[]>(call: (...args: Args) => void, delay: number): Debounced<Args> {
   const pending = useRef(new Map<string, { timer: number; args: Args }>());
   const callRef = useRef(call);
   callRef.current = call;
@@ -39,8 +41,8 @@ function useDebouncedCall<Args extends unknown[]>(
       calls.clear();
     };
   }, []);
-  return useCallback(
-    (...args: Args) => {
+  return useMemo(() => {
+    const send = (...args: Args) => {
       const key = String(args[0]);
       const existing = pending.current.get(key);
       if (existing) window.clearTimeout(existing.timer);
@@ -51,9 +53,13 @@ function useDebouncedCall<Args extends unknown[]>(
           callRef.current(...args);
         }, delay),
       });
-    },
-    [delay],
-  );
+    };
+    const cancel = () => {
+      for (const { timer } of pending.current.values()) window.clearTimeout(timer);
+      pending.current.clear();
+    };
+    return Object.assign(send, { cancel });
+  }, [delay]);
 }
 
 /**
@@ -118,7 +124,7 @@ export function useSceneEditing(state: AmbientState | null) {
     const current = ambientStore.getSnapshot().state;
     if (!current) return null;
     return {
-      sceneId: activeIdRef.current,
+      sceneId: current.ref?.id ?? null,
       values: valuesOf(current.scene.params),
       palette: [...current.scene.palette],
       controls: { ...current.controls },
@@ -154,10 +160,15 @@ export function useSceneEditing(state: AmbientState | null) {
         entry.past = [...entry.past, current];
       }
       entry.lastKey = null;
+      // An edit still waiting to send would land after the restore and undo part of it.
+      sendValue.cancel();
+      sendPalette.cancel();
+      sendControl.cancel();
       ambientStore.clearOverrides();
-      void rpc.call("restore", target).then(receive);
+      // The server refuses a step from an unsaved scene once another scene is open: it can't come back.
+      void rpc.call("restore", target).then(receive, () => undefined);
     },
-    [rpc, snapshot],
+    [rpc, snapshot, sendValue, sendPalette, sendControl],
   );
 
   const setValue = (id: string, value: number) => {

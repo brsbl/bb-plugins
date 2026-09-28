@@ -344,9 +344,12 @@ export default function plugin(bb: BbPluginApi): void {
             return ok(`loaded ${(await ops.loadScene(argument)).scene.name}`);
           case "set": {
             if (rest.length === 0) throw new Error(`usage: bb ambient set <param|${CLI_CONTROL_NAMES}>=<value>[%] [...]`);
-            const { scene } = await ops.readState();
-            const { values, controls } = parseSetPairs(rest, new Set(scene.params.map((entry) => entry.id)));
-            const next = await ops.editScene({ values, controls });
+            let values: Record<string, number> = {};
+            let controls: Partial<Controls> = {};
+            const next = await ops.editScene((state) => {
+              ({ values, controls } = parseSetPairs(rest, new Set(state.scene.params.map((entry) => entry.id))));
+              return { values, controls };
+            });
             const applied = next.scene.params
               .filter((entry) => Object.hasOwn(values, entry.id))
               .map((entry) => `${entry.id}=${entry.value}`);

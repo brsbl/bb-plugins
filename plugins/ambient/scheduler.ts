@@ -46,6 +46,8 @@ export class FrameScheduler {
   private last = 0;
   private lastInterval = 0;
   private lastInput = Number.NEGATIVE_INFINITY;
+  /** The pointer moved since the last frame; the only input a settled scene shows. */
+  private pointerMoved = false;
   private frame = 0;
   private dirty = true;
   private running = false;
@@ -56,8 +58,9 @@ export class FrameScheduler {
   start(): () => void {
     this.running = true;
     this.last = performance.now();
-    const input = () => {
+    const input = (event: Event) => {
       this.lastInput = performance.now();
+      if (event.type === "pointermove") this.pointerMoved = true;
       this.schedule();
     };
     const resume = () => this.schedule();
@@ -120,7 +123,7 @@ export class FrameScheduler {
     const hovered = timestamp - this.lastInput < ACTIVE_INPUT_MS;
     const paused = document.hidden || (!document.hasFocus() && !hovered);
     const still = this.reducedMotion.matches && !this.hooks.rippling();
-    const settled = this.lastInput <= this.last && this.hooks.settled();
+    const settled = !this.pointerMoved && this.hooks.settled();
     if (paused || still || settled) {
       if (this.dirty) this.draw(timestamp, 0);
       // The gap until the next frame is a rest, not lateness.
@@ -162,6 +165,7 @@ export class FrameScheduler {
     this.time += (stepMs / 1000) * this.hooks.speed();
     this.last = timestamp;
     this.dirty = false;
+    this.pointerMoved = false;
     this.hooks.draw(this.time);
   }
 }

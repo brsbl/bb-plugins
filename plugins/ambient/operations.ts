@@ -364,6 +364,9 @@ export function createOperations(bb: BbPluginApi) {
   function restore(entry: HistoryEntry): Promise<AmbientState> {
     return serialized(async () => {
       const state = await readState();
+      if (entry.sceneId === null && state.ref !== null) {
+        throw new Error("that step belongs to an unsaved scene that is no longer open");
+      }
       const switching = entry.sceneId !== null && entry.sceneId !== state.ref?.id;
       const base = switching ? await resolveScene(entry.sceneId!) : state;
       const known = Object.fromEntries(
@@ -478,10 +481,11 @@ export function createOperations(bb: BbPluginApi) {
    * Applies an edit. Values, palette, and controls land immediately. A new shader or param list
    * waits for a bb window to compile it and is rolled back if none can.
    */
-  async function editScene(edit: SceneEdit): Promise<AmbientState> {
-    const structural = edit.source !== undefined || edit.params !== undefined;
+  async function editScene(input: SceneEdit | ((state: AmbientState) => SceneEdit)): Promise<AmbientState> {
     const { previous, next, compiled } = await serialized(async () => {
       const state = await readState();
+      const edit = typeof input === "function" ? input(state) : input;
+      const structural = edit.source !== undefined || edit.params !== undefined;
       const renamed = edit.name !== undefined && edit.name !== state.scene.name;
       // A new shader is no longer the built-in it started from.
       const { baseId: _replaced, ...unbased } = state.scene;

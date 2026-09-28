@@ -8,12 +8,12 @@ import {
 } from "@get-bb/plugin-sdk/app";
 
 import { ActivityField, signalsOf } from "./activity.js";
-import { captureScene } from "./capture.js";
+import { captureScene, parseCaptureRequest } from "./capture.js";
 import { FALLBACK_SCENE, valuesOf } from "./contract.js";
 import { AmbientRenderer, releaseContext, type CompileResult, type FrameInput, type ThemeColors } from "./engine.js";
 import { colorParser } from "./pixels.js";
 import { isQuarantined, quarantine } from "./quarantine.js";
-import { captureRequestSchema, type ambientRpcContract } from "./rpc.js";
+import type { ambientRpcContract } from "./rpc.js";
 import { FrameScheduler, MIN_AUTO_SCALE } from "./scheduler.js";
 import { ambientStore, useAmbient } from "./store.js";
 import { applyVeil, glassTier, mountVeil } from "./veil.js";
@@ -287,10 +287,10 @@ export function AmbientOverlay() {
   }, [canvas, enabled, scheduler]);
 
   useRealtime("capture", (payload) => {
-    const request = captureRequestSchema.safeParse(payload);
+    const request = parseCaptureRequest(payload);
     const renderer = rendererRef.current;
-    if (!request.success || !renderer || !canvas || document.hidden || renderer.isContextLost()) return;
-    void captureScene(request.data, {
+    if (!request || !renderer || !canvas || document.hidden || renderer.isContextLost()) return;
+    void captureScene(request, {
       renderer,
       canvas,
       renderNow: () => scheduler.renderNow(),
