@@ -81,7 +81,7 @@ export const CONTROL_SPECS: readonly ControlSpec[] = [
   {
     key: "glass",
     name: "glass",
-    aliases: [],
+    aliases: ["glass_opacity"],
     label: "Glass opacity",
     hint: "How solid the glass behind text is; lower lets more of the scene through",
     describe:

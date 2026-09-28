@@ -272,6 +272,10 @@ describe("scene inputs", () => {
       values: { glass: 0.2, detail: 3 },
       controls: {},
     });
+    expect(parseSetPairs(["glass_opacity=45%"], new Set(["glass"]))).toEqual({
+      values: {},
+      controls: { glass: 0.45 },
+    });
   });
 
   it("reads daily options as an hour, a time zone, or both", () => {
