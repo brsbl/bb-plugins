@@ -109,6 +109,10 @@ export function clampToSpec(spec: Pick<RangeSpec, "min" | "max">, value: number)
   return Math.min(spec.max, Math.max(spec.min, value));
 }
 
+export function valuesOf(params: readonly SceneParam[]): Record<string, number> {
+  return Object.fromEntries(params.map((entry) => [entry.id, entry.value]));
+}
+
 export const DEFAULT_CONTROLS: Controls = {
   enabled: true,
   ...(Object.fromEntries(CONTROL_SPECS.map((spec) => [spec.key, spec.default])) as Record<ControlKey, number>),

@@ -59,13 +59,13 @@ describe("display controls", () => {
     plugin(bb);
     await harness.behavior.callRpc("loadScene", { id: "tide" });
     await harness.behavior.callRpc("setValues", { values: { glow: 1.7 } });
-    await harness.behavior.callRpc("setControls", { showThrough: 0.1, glass: 0.3 });
+    await harness.behavior.callRpc("setControls", { enabled: false, showThrough: 0.1, glass: 0.3 });
     const reset = (await harness.behavior.callRpc("resetScene", { id: "tide" })) as {
       scene: { params: { id: string; value: number }[] };
-      controls: { showThrough: number; speed: number; glass: number };
+      controls: { enabled: boolean; showThrough: number; speed: number; glass: number };
     };
     expect(reset.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1);
-    expect(reset.controls).toMatchObject({ showThrough: 0.77, speed: 0.75, glass: 0.6 });
+    expect(reset.controls).toMatchObject({ enabled: false, showThrough: 0.77, speed: 0.75, glass: 0.6 });
     const reloaded = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as {
       scene: { params: { id: string; value: number }[] };
     };
@@ -90,6 +90,31 @@ describe("display controls", () => {
     expect(glow((await harness.behavior.callRpc("resetScene", { id })) as SceneState)).toBe(1);
     const reset = (await harness.behavior.callRpc("library", null)) as Library;
     expect(reset.entries.find((entry) => entry.id === id)?.tweaked).toBe(false);
+    await harness.lifecycle.dispose();
+  });
+
+  it("restores an undo step, including its scene, in one write", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    type State = {
+      ref: { id: string } | null;
+      scene: { palette: string[]; params: { id: string; value: number }[] };
+      controls: { enabled: boolean; speed: number };
+    };
+    const tide = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as State;
+    await harness.behavior.callRpc("loadScene", { id: "fireflies" });
+    const palette = ["#000000", ...tide.scene.palette.slice(1)];
+    const restored = (await harness.behavior.callRpc("restore", {
+      sceneId: "tide",
+      values: { glow: 1.4, retired: 3 },
+      palette,
+      controls: { enabled: true, showThrough: 0.5, speed: 0.25, glass: 0.4 },
+    })) as State;
+    expect(restored.ref?.id).toBe("tide");
+    expect(restored.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1.4);
+    expect(restored.scene.params.some((entry) => entry.id === "retired")).toBe(false);
+    expect(restored.scene.palette).toEqual(palette);
+    expect(restored.controls).toMatchObject({ enabled: true, speed: 0.25 });
     await harness.lifecycle.dispose();
   });
 
@@ -243,6 +268,10 @@ describe("scene inputs", () => {
     });
     expect(() => parseSetPairs(["glow"])).toThrow();
     expect(() => parseSetPairs(["detail=0.5"])).toThrow(/per device/);
+    expect(parseSetPairs(["glass=0.2", "detail=3"], new Set(["glass", "detail"]))).toEqual({
+      values: { glass: 0.2, detail: 3 },
+      controls: {},
+    });
   });
 
   it("reads daily options as an hour, a time zone, or both", () => {

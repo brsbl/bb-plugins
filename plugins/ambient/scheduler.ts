@@ -5,6 +5,7 @@
 //   idle    10 fps  nothing happening (agents idle or waiting on you); the scene keeps drifting
 //   paused   0 fps  bb hidden or unfocused (and not hovered); one frame for any change, then stop
 //   still    0 fps  prefers-reduced-motion, except while a ripple plays
+//   settled  0 fps  Motion 0 with no agents or ripples: every frame would be identical until input
 //
 // It also owns auto-scale: when frames arrive late it lowers render resolution, and raises it
 // again once they are comfortably on time.
@@ -32,6 +33,8 @@ export interface FrameHooks {
   /** Agents are working. */
   busy(): boolean;
   rippling(): boolean;
+  /** Nothing on screen moves on its own: Motion is 0 and no agents or ripples are left. */
+  settled(): boolean;
   onScale(scale: number): void;
 }
 
@@ -117,8 +120,11 @@ export class FrameScheduler {
     const hovered = timestamp - this.lastInput < ACTIVE_INPUT_MS;
     const paused = document.hidden || (!document.hasFocus() && !hovered);
     const still = this.reducedMotion.matches && !this.hooks.rippling();
-    if (paused || still) {
+    const settled = this.lastInput <= this.last && this.hooks.settled();
+    if (paused || still || settled) {
       if (this.dirty) this.draw(timestamp, 0);
+      // The gap until the next frame is a rest, not lateness.
+      this.lastInterval = 0;
       return;
     }
     this.frame = requestAnimationFrame(this.tick);

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { BUILT_IN_SCENES, DEFAULT_SCENE, rebuildBuiltIn, sceneOf } from "./builtins.js";
 import {
   DEFAULT_CONTROLS,
+  valuesOf,
   type Controls,
   type Scene,
   type SceneParam,
@@ -25,6 +26,7 @@ import {
   type CaptureRequest,
   type DailyScene,
   type DailyUpdate,
+  type HistoryEntry,
   type LibraryEntry,
   type LibraryIndex,
 } from "./rpc.js";
@@ -220,13 +222,17 @@ export function createOperations(bb: BbPluginApi) {
     };
   }
 
-  /** Only call from inside serialized(). */
+  /**
+   * Only call from inside serialized(). Revisions follow the clock, so a state written after the
+   * stored one was wiped (a reinstall) still reads as newer to windows that saw the old one.
+   */
   async function writeState(next: SceneFields, options: { sceneChanged: boolean }): Promise<AmbientState> {
     const previous = await readState();
+    const revision = Math.max(previous.revision + 1, Date.now());
     const state = stateSchema.parse({
       ...next,
-      revision: previous.revision + 1,
-      sceneRevision: options.sceneChanged ? previous.revision + 1 : previous.sceneRevision,
+      revision,
+      sceneRevision: options.sceneChanged ? revision : previous.sceneRevision,
     });
     await kv.set(STATE_KEY, state);
     bb.realtime.publish("state", { revision: state.revision, sceneRevision: state.sceneRevision });
@@ -244,10 +250,18 @@ export function createOperations(bb: BbPluginApi) {
     });
   }
 
-  /** Rewrites a state from an earlier version (no ref, a synced Detail) in the current shape. */
+  /**
+   * Rewrites a state from an earlier version (no ref, a synced Detail) in the current shape, and
+   * stores a first state so its revision is newer than any a window kept from before a wipe.
+   */
   function migrate(): Promise<void> {
     return serialized(async () => {
       const raw = await kv.get(STATE_KEY);
+      if (raw === undefined) {
+        const { revision: _initial, sceneRevision: _scene, ...fields } = initialState();
+        await writeState(fields, { sceneChanged: true });
+        return;
+      }
       if (!isRecord(raw)) return;
       const legacy = !("ref" in raw) || (isRecord(raw.controls) && "quality" in raw.controls);
       if (legacy) await kv.set(STATE_KEY, stateSchema.parse(await readState()));
@@ -265,7 +279,7 @@ export function createOperations(bb: BbPluginApi) {
       const key = `${TWEAKS_PREFIX}${ref.id}`;
       const fresh = (await kv.get(key)) === undefined;
       await kv.set(key, {
-        values: Object.fromEntries(scene.params.map((entry) => [entry.id, entry.value])),
+        values: valuesOf(scene.params),
         palette: scene.palette,
         ...(scene.baseId === ref.id ? {} : { scene }),
       });
@@ -322,7 +336,11 @@ export function createOperations(bb: BbPluginApi) {
         await kv.delete(`${TWEAKS_PREFIX}${builtIn.id}`);
         bb.realtime.publish("library", { id: builtIn.id });
         return writeState(
-          { scene: sceneOf(builtIn), ref: { kind: "builtIn", id: builtIn.id }, controls: DEFAULT_CONTROLS },
+          {
+            scene: sceneOf(builtIn),
+            ref: { kind: "builtIn", id: builtIn.id },
+            controls: { ...DEFAULT_CONTROLS, enabled: state.controls.enabled },
+          },
           { sceneChanged: true },
         );
       }
@@ -336,6 +354,28 @@ export function createOperations(bb: BbPluginApi) {
         { ...state, scene: rebuildBuiltIn(original), ref: { kind: "saved", id } },
         { sceneChanged: true },
       );
+    });
+  }
+
+  /**
+   * Puts back an undo step in one write: its scene, the values that scene still has (params can
+   * change between steps), its colors, and the display controls.
+   */
+  function restore(entry: HistoryEntry): Promise<AmbientState> {
+    return serialized(async () => {
+      const state = await readState();
+      const switching = entry.sceneId !== null && entry.sceneId !== state.ref?.id;
+      const base = switching ? await resolveScene(entry.sceneId!) : state;
+      const known = Object.fromEntries(
+        Object.entries(entry.values).filter(([id]) => base.scene.params.some((param) => param.id === id)),
+      );
+      const scene = { ...applyValues(base.scene, known), palette: entry.palette };
+      const next = await writeState(
+        { scene, ref: base.ref, controls: controlsSchema.parse(entry.controls) },
+        { sceneChanged: switching },
+      );
+      if (!sameScene(base.scene, scene)) await autosave(next);
+      return next;
     });
   }
 
@@ -684,6 +724,7 @@ export function createOperations(bb: BbPluginApi) {
         sceneChanged: false,
       }),
     loadScene,
+    restore,
     resetScene,
     saveScene,
     deleteScene,
