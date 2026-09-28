@@ -26,7 +26,6 @@ export function toggleDesktop() {
   const enabled = !readEnabled();
   localStorage.setItem(ENABLED_KEY, String(enabled));
   for (const listener of enabledListeners) listener();
-  if (!enabled) stopMic();
   toast.success(enabled ? "Desktop turned on" : "Desktop turned off");
   if (enabled && window.location.pathname !== "/") {
     window.history.pushState(null, "", "/");
@@ -50,4 +49,20 @@ export function useDesktopEnabled(): boolean {
   const enabled = useSyncExternalStore(subscribeEnabled, readEnabled);
   const compact = useSyncExternalStore(subscribeCompact, readCompact);
   return enabled && !compact;
+}
+
+/**
+ * Releases the microphone once the desktop goes away: turned off in this tab or another, or bb narrowed to its
+ * compact layout. It listens for the whole page because Media Player keeps playing while the desktop is unmounted.
+ */
+export function installMicRelease(): () => void {
+  const release = () => {
+    if (!readEnabled() || readCompact()) stopMic();
+  };
+  const unsubscribeEnabled = subscribeEnabled(release);
+  const unsubscribeCompact = subscribeCompact(release);
+  return () => {
+    unsubscribeEnabled();
+    unsubscribeCompact();
+  };
 }

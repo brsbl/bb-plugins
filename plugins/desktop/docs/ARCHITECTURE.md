@@ -18,7 +18,7 @@ Imports only point down this list. A module never imports from a layer above it.
 | Composition | `shell/desktop.tsx` | Wires the providers and chrome together |
 | Entry | `app.tsx` | Registers the homepage section, footer action, thread header action and content script |
 
-The note pads and the needs-input balloon (`page/`) render on every bb page, not only the desktop, so they depend only on leaves and `windows/`. Services are leaves for the same reason: `enabled.ts` stops the microphone when the desktop turns off, without importing a program.
+The note pads and the needs-input balloon (`page/`) render on every bb page, not only the desktop, so they depend only on leaves and `windows/`. Services are leaves for the same reason: `enabled.ts` stops the microphone when the desktop turns off in any tab or bb narrows to its compact layout, without importing a program.
 
 ## Window system (`windows/`)
 
@@ -91,7 +91,7 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 
 ## CSS
 
-All authored CSS lives in one root `app.css`, the first import in `app.tsx`. It stays a single file because the install-ref publisher (`tooling/publish-install-refs.mjs`) copies the plugin's root `app.css` into git-install releases and ignores any other stylesheet. The `.bbd-root` tokens and shared primitives (`.bbd-glass`, `.bbd-bevel`, `.bbd-sunken`, `.bbd-button`) come first, and later rules override earlier ones at equal specificity, so add a rule next to the other rules for its surface and move one only after checking that no rule it passes shares its specificity. Class names are part of the visual contract; renaming one is a visual change. The build scans every source file for Tailwind classes, so new directories need no configuration.
+All CSS lives in one root `app.css`, the first import in `app.tsx`, including each program's styles and a copy of xterm.js's stylesheet. It stays a single file because the install-ref publisher (`tooling/publish-install-refs.mjs`) copies the plugin's root `app.css` into git-install releases and drops every stylesheet a component imports, so never import CSS from anywhere else. The `.bbd-root` tokens and shared primitives (`.bbd-glass`, `.bbd-bevel`, `.bbd-sunken`, `.bbd-button`) come first, and later rules override earlier ones at equal specificity, so add a rule next to the other rules for its surface and move one only after checking that no rule it passes shares its specificity. Class names are part of the visual contract; renaming one is a visual change. The build scans every source file for Tailwind classes, so new directories need no configuration.
 
 ## Stored and public contracts
 

@@ -11,7 +11,6 @@ import {
   type ReactNode,
 } from "react";
 
-import "./pinball.css";
 import { ProgramMenuBar } from "../apps/xp-chrome";
 import {
   BALLS_PER_GAME,

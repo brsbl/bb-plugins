@@ -26,7 +26,6 @@ import {
   type Suit,
 } from "./solitaire-core";
 import { SUIT_PATHS, courtShapes, pipPositions, runCascade } from "./solitaire-cascade";
-import "./solitaire.css";
 import { usePointerTracker } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
 

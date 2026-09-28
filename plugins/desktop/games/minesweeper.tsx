@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
-import "./minesweeper.css";
 import { usePointerTracker } from "../windows";
 import { ProgramMenuBar } from "../apps/xp-chrome";
 import {

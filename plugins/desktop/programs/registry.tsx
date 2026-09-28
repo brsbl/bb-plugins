@@ -56,7 +56,7 @@ export interface ProgramDefinition<K extends WindowKind> {
 
 function MinesweeperWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   return (
-    <WindowFrame window={desktopWindow} title="Minesweeper" icon={<MinesweeperArt size={16} />}>
+    <WindowFrame window={desktopWindow} title="Minesweeper" icon={<MinesweeperArt size={16} />} keepMounted>
       <MinesweeperGame />
     </WindowFrame>
   );
@@ -64,7 +64,7 @@ function MinesweeperWindow({ window: desktopWindow }: { window: DesktopWindow })
 
 function SolitaireWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   return (
-    <WindowFrame window={desktopWindow} title="Solitaire" icon={<SolitaireArt size={16} />}>
+    <WindowFrame window={desktopWindow} title="Solitaire" icon={<SolitaireArt size={16} />} keepMounted>
       <SolitaireGame />
     </WindowFrame>
   );
@@ -81,7 +81,7 @@ function PinballWindow({ window: desktopWindow }: { window: DesktopWindow }) {
 
 function PaintWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   return (
-    <WindowFrame window={desktopWindow} title="untitled - Paint" icon={<PaintArt size={16} />}>
+    <WindowFrame window={desktopWindow} title="untitled - Paint" icon={<PaintArt size={16} />} keepMounted>
       <PaintApp />
     </WindowFrame>
   );

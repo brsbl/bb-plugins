@@ -2,7 +2,7 @@ import { definePluginApp } from "@get-bb/plugin-sdk/app";
 
 import "./app.css";
 import { installDesktopBridge } from "./bridge";
-import { readCompact, toggleDesktop } from "./enabled";
+import { installMicRelease, readCompact, toggleDesktop } from "./enabled";
 import { NeedsInputBalloon } from "./page/balloon";
 import { mountStickyNotes, StickyNoteHeaderButton } from "./page/sticky-notes";
 import { Desktop } from "./shell/desktop";
@@ -10,6 +10,7 @@ import { ThreadFolderChip } from "./shell/folder-chip";
 
 export default definePluginApp((app) => {
   installDesktopBridge();
+  installMicRelease();
   app.slots.homepageSection({
     id: "desktop",
     title: "Desktop",

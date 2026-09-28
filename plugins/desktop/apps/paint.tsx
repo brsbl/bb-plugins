@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 
-import "./paint.css";
 import { usePointerTracker } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "./xp-chrome";
 import {
