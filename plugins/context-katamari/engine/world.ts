@@ -166,6 +166,8 @@ export class KatamariWorld {
   private disposed = false;
   private lastFillMilestone = -1;
   private hasOrigin = false;
+  /** Props that don't come from a chunk, counted so each gets its own id. */
+  private looseCount = 0;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -339,6 +341,9 @@ export class KatamariWorld {
     this.stop();
     this.disposed = true;
     this.field.dispose();
+    // Benched balls gave their batches back when they left the stage.
+    this.active?.items.release();
+    for (const leaving of this.exiting) leaving.items.release();
     this.effects.dispose();
     this.environment.dispose();
     this.kit.dispose();
@@ -815,7 +820,7 @@ export class KatamariWorld {
     if (count <= 0) return;
     const loose = actor.stuck.splice(actor.stuck.length - count, count);
     const position = new THREE.Vector3();
-    for (const [index, item] of loose.entries()) {
+    for (const item of loose) {
       stuckWorldPosition(actor, item, position);
       actor.items.remove(item.object);
       const prop = this.field.add(
@@ -824,7 +829,7 @@ export class KatamariWorld {
         position.z,
         item.size,
         null,
-        `loose:${this.time}:${index}`,
+        this.looseId("loose"),
         item.object as THREE.Group,
       );
       const spread = (actor.random() - 0.5) * 2;
@@ -917,7 +922,7 @@ export class KatamariWorld {
         actor.z + Math.sin(angle) * actor.radius * 1.2,
         item.size,
         null,
-        `shed:${this.time}:${Math.random()}`,
+        this.looseId("shed"),
         item.object as THREE.Group,
       );
       prop.vx = Math.cos(angle) * actor.radius * 3;
@@ -987,7 +992,7 @@ export class KatamariWorld {
         worldPosition.z,
         item.size,
         null,
-        `pop:${this.time}:${index}`,
+        this.looseId("pop"),
         item.object as THREE.Group,
       );
       const fling = pop.fromRadius * (3 + actor.random() * 3);
@@ -1030,7 +1035,7 @@ export class KatamariWorld {
         actor.z + Math.sin(angle) * distance,
         actor.radius * (0.2 + this.random() * 0.25),
         null,
-        `sprinkle:${this.time}:${index}`,
+        this.looseId("sprinkle"),
       );
       prop.hop = actor.radius * (gulping ? 3 + this.random() * 5 : 6);
       prop.vy = 0;
@@ -1041,6 +1046,11 @@ export class KatamariWorld {
       }
     }
     if (!gulping) this.onEvent({ kind: "sprinkle" });
+  }
+
+  private looseId(kind: string): string {
+    this.looseCount += 1;
+    return `${kind}:${this.looseCount}`;
   }
 
   /** Chomp, chomp, chomp: the ball squashes flat and springs back per bite. */

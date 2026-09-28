@@ -1203,11 +1203,30 @@ export function pickWeighted(
  * single draw call. Parts tagged with `userData.spin` stay live objects.
  */
 export function bake(model: THREE.Group, kit: MaterialKit): THREE.Group {
-  model.updateMatrixWorld(true);
   const spinners: THREE.Object3D[] = [];
   model.traverse((child) => {
     if (child !== model && child.userData.spin) spinners.push(child);
   });
+  const baked = new THREE.Group();
+  const merged = mergeMeshes(model, spinners);
+  if (merged) {
+    const mesh = new THREE.Mesh(merged, kit.vertexColored());
+    mesh.userData.ownedGeometry = true;
+    baked.add(mesh);
+  }
+  for (const spinner of spinners) baked.attach(spinner);
+  return baked;
+}
+
+/**
+ * Every mesh under `model`, outside the `skip` subtrees, as one geometry in
+ * `model`'s frame, with each mesh's material color copied into its vertices.
+ */
+export function mergeMeshes(
+  model: THREE.Object3D,
+  skip: readonly THREE.Object3D[] = [],
+): THREE.BufferGeometry | null {
+  model.updateMatrixWorld(true);
   const inverseRoot = model.matrixWorld.clone().invert();
   const pieces: THREE.BufferGeometry[] = [];
   const color = new THREE.Color();
@@ -1215,7 +1234,7 @@ export function bake(model: THREE.Group, kit: MaterialKit): THREE.Group {
     if (!(child instanceof THREE.Mesh)) return;
     let ancestor: THREE.Object3D | null = child;
     while (ancestor && ancestor !== model) {
-      if (spinners.includes(ancestor)) return;
+      if (skip.includes(ancestor)) return;
       ancestor = ancestor.parent;
     }
     const source = child.geometry as THREE.BufferGeometry;
@@ -1229,16 +1248,9 @@ export function bake(model: THREE.Group, kit: MaterialKit): THREE.Group {
     piece.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     pieces.push(piece);
   });
-  const baked = new THREE.Group();
   const merged = pieces.length > 0 ? mergeGeometries(pieces) : null;
   for (const piece of pieces) piece.dispose();
-  if (merged) {
-    const mesh = new THREE.Mesh(merged, kit.vertexColored());
-    mesh.userData.ownedGeometry = true;
-    baked.add(mesh);
-  }
-  for (const spinner of spinners) baked.attach(spinner);
-  return baked;
+  return merged;
 }
 
 /** Color variants baked per prop kind; each is built once and cloned after. */

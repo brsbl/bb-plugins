@@ -163,6 +163,8 @@ export class PropField {
 
   remove(prop: WorldProp): void {
     this.batch.remove(prop.object);
+    // Only props on the ground step aside for the camera; one leaving it shows again.
+    prop.object.visible = true;
     this.items.delete(prop.id);
   }
 
