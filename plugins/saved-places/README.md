@@ -20,7 +20,7 @@ Open Saved Places from a thread's panel menu or the sidebar.
 
 - **Library.** Lists, custom lists, and notes, each with a cover. Search matches places, lists, and notes.
 - **Lists.** Category chips, an "Only in view" filter, and a map chip with the in-view count.
-- **Custom lists.** Build a list from one or more lists, the current filter, or what's in view.
+- **Custom lists.** Tap + to start an empty list and fill it with Add places, or tap Select in any list (or filter it) and choose Add to list to put places into a new or existing list, with Undo. Lists can be duplicated, renamed in place, or opened together from the library.
 - **Notes.** A short note on any place; notes show on rows, pins, and clusters.
 - **Walking reach.** 5/10/15-minute walking rings around a place, with everything outside dimmed.
 - **Walking distance.** On a list, shade a 5, 10, or 15-minute walk around each place (up to 12) to see which saves are walkable from each other.

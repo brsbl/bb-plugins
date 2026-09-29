@@ -103,7 +103,7 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
             </button>;
           })}
           {customLists.length > 0 && <hr />}
-          <button type="button" role="menuitem" onClick={() => { setPicker(false); app.compose({ sourceIds: [], scopes: [{ id: "one", label: place.name, keys: [place.key] }] }); }}><Icon icon={Add01} size={16} />New list with this place</button>
+          <button type="button" role="menuitem" onClick={() => { setPicker(false); app.compose({ keys: [place.key], source: place.name, title: "", sourceIds: [], destinations: false }); }}><Icon icon={Add01} size={16} />New list with this place</button>
         </div>}
       </div>
     </div>

@@ -17,7 +17,7 @@ export function Frame({ header, footer, children, label }: { header: ReactNode; 
 export function ListRow({ list, meta, onClick, selecting, selected, trailing }: { list: SavedList; meta?: string; onClick: () => void; selecting?: boolean; selected?: boolean; trailing?: ReactNode }) {
   const { store } = useApp();
   const notes = list.placeKeys.reduce((n, key) => n + (store.notes[key] ? 1 : 0), 0);
-  return <button type="button" className="sp-row sp-list-row" onClick={onClick} aria-pressed={selecting ? selected : undefined}>
+  return <button type="button" className="sp-row sp-list-row" onClick={onClick} role={selecting ? "checkbox" : undefined} aria-checked={selecting ? Boolean(selected) : undefined}>
     <ListCover list={list} />
     <span className="sp-row-text">
       <span className="sp-row-title">{list.title}</span>
@@ -27,13 +27,15 @@ export function ListRow({ list, meta, onClick, selecting, selected, trailing }: 
   </button>;
 }
 
-export function PlaceRow({ place, showLists }: { place: SavedPlace; showLists?: SavedList[] }) {
+export interface RowCheck { on: boolean; toggle: () => void; locked?: string }
+
+export function PlaceRow({ place, showLists, check }: { place: SavedPlace; showLists?: SavedList[]; check?: RowCheck }) {
   const app = useApp();
   const note = app.store.notes[place.key]?.text;
   const category = categoryFor(place.category);
   const kind = place.placeType ?? (place.category === "other" ? null : category.label);
   return <div className="sp-place-row" onMouseEnter={() => app.hover(place.key)} onMouseLeave={() => app.hover(null)}>
-    <button type="button" className="sp-row" onClick={() => app.openPlace(place.key)} onFocus={() => app.hover(place.key)} onBlur={() => app.hover(null)}>
+    <button type="button" className="sp-row" role={check ? "checkbox" : undefined} aria-checked={check ? check.on || Boolean(check.locked) : undefined} aria-disabled={check?.locked ? true : undefined} onClick={() => check ? check.locked || check.toggle() : app.openPlace(place.key)} onFocus={() => app.hover(place.key)} onBlur={() => app.hover(null)}>
       <PlaceAvatar place={place} color={category.color} />
       <span className="sp-row-text">
         <span className="sp-row-title">{place.name}</span>
@@ -41,6 +43,7 @@ export function PlaceRow({ place, showLists }: { place: SavedPlace; showLists?: 
         {note && <span className="sp-row-note"><Icon icon={Note01} size={13} />{note}</span>}
         {showLists && showLists.length > 1 && <span className="sp-row-lists">{showLists.filter(l => l.placeKeys.includes(place.key)).map(l => <span key={l.id} style={{ background: l.color }} title={l.title} />)}</span>}
       </span>
+      {check && (check.locked ? <span className="sp-row-badge">{check.locked}</span> : <span className="sp-check" data-on={check.on || undefined} aria-hidden="true">{check.on && <Icon icon={CheckmarkCircle02} size={22} />}</span>)}
     </button>
   </div>;
 }

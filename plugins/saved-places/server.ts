@@ -14,7 +14,7 @@ const saveNoteSchema = z.object({ key: z.string().min(1), text: z.string().max(2
 const boundsSchema = z.object({ west: z.number(), south: z.number(), east: z.number(), north: z.number() });
 const travelModeSchema = z.enum(["walk", "bike", "drive"]);
 export const viewContextSchema = z.object({
-  view: z.enum(["library", "lists", "place", "compose"]),
+  view: z.enum(["library", "lists", "place", "compose", "pick"]),
   query: z.string().max(200),
   listIds: z.array(z.string().min(1)).max(64),
   filter: z.object({ categories: z.array(categoryIdSchema), notes: z.boolean(), query: z.string().max(200), inView: z.boolean() }).nullable(),

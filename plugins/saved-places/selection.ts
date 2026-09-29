@@ -1,4 +1,4 @@
-import { matchesQuery, placesByKey, type Note, type SavedList, type SavedPlace } from "./model";
+import { allPlaces, matchesQuery, placesByKey, type Note, type SavedList, type SavedPlace } from "./model";
 import type { ListFilter } from "./views/context";
 
 export interface Selection { lists: SavedList[]; all: SavedPlace[]; filtered: SavedPlace[] }
@@ -19,4 +19,10 @@ export function selectLists(ids: string[], filter: ListFilter, getList: (id: str
     (!filter.notes || Boolean(notes[place.key])) &&
     matchesQuery(place, filter.query, notes[place.key]?.text));
   return { lists, all, filtered };
+}
+
+export function pickCandidates(sourceId: string | null, query: string, getList: (id: string) => SavedList | undefined, notes: Record<string, Note>): SavedPlace[] {
+  const source = sourceId ? getList(sourceId) : undefined;
+  const pool = source ? source.placeKeys.map(key => placesByKey.get(key)).filter((p): p is SavedPlace => p !== undefined) : allPlaces;
+  return pool.filter(place => matchesQuery(place, query, notes[place.key]?.text));
 }
