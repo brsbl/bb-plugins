@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import { BASE_RADIUS } from "../katamari-math";
 import type { Actor } from "./actor";
-import type { WorldProp } from "./prop-field";
+import type { PropField } from "./prop-field";
 import { smoothing, tininessFor, wrapAngle } from "./world-math";
 
 /**
@@ -37,7 +37,7 @@ export class CameraRig {
     return this.followRadius;
   }
 
-  update(deltaSeconds: number, actor: Actor | null, props: ReadonlyMap<string, WorldProp>): void {
+  update(deltaSeconds: number, actor: Actor | null, field: PropField): void {
     const followRadius = actor?.radius ?? this.followRadius;
     this.followRadius += (followRadius - this.followRadius) * smoothing(1.6, deltaSeconds);
     // A towering Prince over a tiny ball needs the camera further back to fit him in.
@@ -87,17 +87,17 @@ export class CameraRig {
       this.camera.far = far;
       this.camera.updateProjectionMatrix();
     }
-    this.clearSightLine(radius, props);
+    this.clearSightLine(radius, field);
   }
 
   /** Anything between the camera and the katamari steps aside, so the Prince stays in view. */
-  private clearSightLine(radius: number, props: ReadonlyMap<string, WorldProp>): void {
+  private clearSightLine(radius: number, field: PropField): void {
     const from = this.camera.position;
     const toX = this.focus.x - from.x;
     const toY = radius - from.y;
     const toZ = this.focus.z - from.z;
     const length = Math.hypot(toX, toY, toZ);
-    for (const prop of props.values()) {
+    for (const prop of field.props.values()) {
       const offsetX = prop.x - from.x;
       const offsetY = prop.lift + prop.hop + prop.size - from.y;
       const offsetZ = prop.z - from.z;
@@ -109,7 +109,7 @@ export class CameraRig {
         const closestZ = offsetZ - (toZ / length) * along;
         blocking = Math.hypot(closestX, closestY, closestZ) < prop.size * 1.1 + radius * 0.3;
       }
-      prop.object.visible = !blocking;
+      field.setVisible(prop, !blocking);
     }
   }
 }
