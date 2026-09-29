@@ -73,7 +73,7 @@ function SolitaireWindow({ window: desktopWindow }: { window: DesktopWindow }) {
 function PinballWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   const manager = useWindowManager();
   return (
-    <WindowFrame window={desktopWindow} title="3D Pinball for Windows - Space Cadet" icon={<PinballArt size={16} />} keepMounted>
+    <WindowFrame window={desktopWindow} title="Pinball" icon={<PinballArt size={16} />} keepMounted>
       <PinballGame active={!desktopWindow.minimized && manager.focusedId === desktopWindow.id} />
     </WindowFrame>
   );
@@ -167,7 +167,7 @@ const PROGRAMS: { [K in WindowKind]: ProgramDefinition<K> } = {
   },
   pinball: {
     size: fixed(640, 560),
-    title: () => "3D Pinball for Windows - Space Cadet",
+    title: () => "Pinball",
     art: (_spec, _desktop, size) => <PinballArt size={size} />,
     Window: PinballWindow,
   },

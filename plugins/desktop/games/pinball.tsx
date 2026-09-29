@@ -80,7 +80,7 @@ function PlayerControls({ controls, onSave, onClose }: { controls: Controls; onS
   const [draft, setDraft] = useState(controls);
   const labels = [["left", "Left Flipper"], ["right", "Right Flipper"], ["nudgeLeft", "Left Table Bump"], ["nudgeRight", "Right Table Bump"], ["nudgeUp", "Bottom Table Bump"], ["plunger", "Plunger"]] as const;
   const duplicate = new Set(Object.values(draft)).size !== labels.length;
-  return <PinballDialog title="3D Pinball: Player Controls" onClose={onClose}>
+  return <PinballDialog title="Pinball: Player Controls" onClose={onClose}>
     <fieldset><legend>Instructions</legend><p>Choose a key for each control, then choose OK.</p><p>To restore the original keys, choose Default, then OK.</p></fieldset>
     <fieldset><legend>Control Options</legend><div className="bbd-pinball-control-grid">
       {labels.map(([key, label]) => <label key={key}><span>{label}</span><select className="bbd-field bbd-sunken" value={draft[key]} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}>
@@ -172,7 +172,7 @@ const STARS = (() => {
   }));
 })();
 
-// The Space Cadet playfield is printed with branching blue "energy" cracks.
+// The playfield is printed with branching blue "energy" cracks.
 const CRACKS = (() => {
   const next = seeded(23);
   const lines: (readonly [number, number])[][] = [];
@@ -243,18 +243,73 @@ function DotMatrix({ text }: { text: string | number }) {
 }
 
 /** Drawn letter outlines: the title recedes across the cabinet like the XP artwork. */
-function SpaceCadetLettering() {
+function PinballLettering() {
   return <svg className="bbd-pinball-lettering" viewBox="0 0 180 86" aria-hidden>
-    <g fill="#b29adf" stroke="#49316d" strokeWidth=".7" strokeLinejoin="round">
-      <path d="M34 7C18 2 4 10 5 25C5 38 23 42 24 52C26 62 13 66 4 67L2 82C19 81 40 67 38 50C37 35 21 31 19 24C17 16 27 17 33 18Z" />
-      <path transform="translate(33 28) skewY(-22) scale(1.28 1.4)" fillRule="evenodd" d="M0 0H7V3Q11-2 17 1Q25 3 24 13Q24 25 15 26Q10 27 7 23V37H0ZM7 9V17Q14 24 17 16Q20 6 13 6Q10 6 7 9Z" />
-      <path transform="translate(65 24) skewY(-22) scale(1.07 1.3)" fillRule="evenodd" d="M1 4Q11-3 20 2Q24 4 23 13V25H16V22Q11 28 4 25Q-3 21 1 14Q5 9 16 10Q17 4 10 6L2 9ZM16 15Q6 13 7 19Q10 24 16 19Z" />
-      <path transform="translate(92 17) skewY(-22) scale(.96 1.16)" d="M22 2L20 9Q8 3 7 13Q7 23 20 17L21 23Q10 30 3 22Q-3 14 2 5Q9-3 22 2Z" />
-      <path transform="translate(116 12) skewY(-22) scale(.84 1.03)" fillRule="evenodd" d="M23 14H7Q7 24 20 18L22 23Q10 29 3 23Q-3 16 2 6Q8-3 18 1Q25 4 23 14ZM7 9H17Q16 2 11 5Q8 5 7 9Z" />
+    <g fill="#b29adf" stroke="#49316d" strokeWidth=".7" strokeLinejoin="round" fillRule="evenodd">
+      <path d="M7 6C20 1 41 1 41 20C41 37 26 43 18 42L16 78H3ZM19 14L18 31C25 31 29 27 29 22C29 16 25 13 19 14Z" />
+      <path transform="translate(43 37.5) skewY(-22) scale(1.34 1.5)" d="M0 0H7V25H0ZM0-11H7V-4H0Z" />
+      <path transform="translate(57.7 35.2) skewY(-22) scale(1.29 1.44)" d="M0 0H7V3Q11-2 17 1Q24 3 24 12V25H17V13Q17 7 12 7Q7 7 7 12V25H0Z" />
+      <path transform="translate(93.9 29.7) skewY(-22) scale(1.17 1.31)" d="M0 25H7V22Q11 27 17 24Q25 22 24 12Q24 0 15-1Q10-2 7 2V-12H0ZM7 16V8Q14 1 17 9Q20 19 13 19Q10 19 7 16Z" />
+      <path transform="translate(126.5 24.7) skewY(-22) scale(1.06 1.18)" d="M1 4Q11-3 20 2Q24 4 23 13V25H16V22Q11 28 4 25Q-3 21 1 14Q5 9 16 10Q17 4 10 6L2 9ZM16 15Q6 13 7 19Q10 24 16 19Z" />
+      <path transform="translate(156.1 20.2) skewY(-22) scale(.95 1.07)" d="M0-12H7V25H0Z" />
+      <path transform="translate(166.6 18.6) skewY(-22) scale(.92 1.03)" d="M0-12H7V25H0Z" />
     </g>
-    <text x="59" y="17" fill="#8e71cd" stroke="#3a2360" strokeWidth=".5" fontFamily="serif" fontWeight="bold" fontSize="17" textLength="77" lengthAdjust="spacingAndGlyphs">3D Pinball</text>
-    <g transform="translate(138 14) scale(.82 1) skewY(-13)" fill="none" stroke="#8e72b8" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 2Q-2-3 0 14Q1 27 8 21M17 10Q8 5 10 17Q10 24 17 18M17 8V22M27 0V20M27 10Q18 5 20 17Q21 25 27 18M32 15L39 13Q39 5 33 9Q28 15 33 21L39 18M44 2V19M41 9L47 7" />
+  </svg>;
+}
+
+const PANEL_STARS = (() => {
+  const next = seeded(11);
+  return Array.from({ length: 80 }, () => ({ x: next() * 180, y: next() * 180, r: 0.3 + next() * 0.6, alpha: 0.35 + next() * 0.65 }));
+})();
+
+const SPARKLE = "M0-5L1-1L5 0L1 1L0 5L-1 1L-5 0L-1-1Z";
+
+/** The scoreboard backdrop: nebula, a ringed planet, its moon, and a spiral galaxy under a starfield. */
+function PinballSpace({ id }: { id: string }) {
+  const ring = (sweep: 0 | 1) => <g fill="none" strokeLinecap="round">
+    <path d={`M-52 0A52 11.5 0 0 ${sweep} 52 0`} stroke="#9fd9f2" strokeOpacity=".35" strokeWidth="1.2" />
+    <path d={`M-46 0A46 10 0 0 ${sweep} 46 0`} stroke={`url(#${id}-ring)`} strokeWidth="4" />
+    <path d={`M-39 0A39 8.5 0 0 ${sweep} 39 0`} stroke="#e6d4ff" strokeOpacity=".5" strokeWidth="1.6" />
+  </g>;
+  return <svg className="bbd-pinball-space" viewBox="0 0 180 180" preserveAspectRatio="xMidYMid slice" aria-hidden>
+    <defs>
+      <radialGradient id={`${id}-violet`}><stop stopColor="#9b4fe0" stopOpacity=".7" /><stop offset=".5" stopColor="#5a2aa8" stopOpacity=".3" /><stop offset="1" stopColor="#2a1060" stopOpacity="0" /></radialGradient>
+      <radialGradient id={`${id}-rose`}><stop stopColor="#e0569f" stopOpacity=".55" /><stop offset="1" stopColor="#e0569f" stopOpacity="0" /></radialGradient>
+      <radialGradient id={`${id}-cyan`}><stop stopColor="#3fc3e6" stopOpacity=".45" /><stop offset="1" stopColor="#3fc3e6" stopOpacity="0" /></radialGradient>
+      <radialGradient id={`${id}-planet`} cx=".35" cy=".3" r=".8"><stop stopColor="#ffe2b0" /><stop offset=".35" stopColor="#f19a5c" /><stop offset=".7" stopColor="#a8456e" /><stop offset="1" stopColor="#2e1348" /></radialGradient>
+      <radialGradient id={`${id}-moon`} cx=".35" cy=".35"><stop stopColor="#f4f0ff" /><stop offset=".6" stopColor="#a99ccc" /><stop offset="1" stopColor="#3d3466" /></radialGradient>
+      <radialGradient id={`${id}-galaxy`}><stop stopColor="#ffffff" /><stop offset=".2" stopColor="#d8f2ff" stopOpacity=".85" /><stop offset=".6" stopColor="#7ab8ff" stopOpacity=".25" /><stop offset="1" stopColor="#7ab8ff" stopOpacity="0" /></radialGradient>
+      <linearGradient id={`${id}-ring`}><stop stopColor="#7fd8ff" stopOpacity=".25" /><stop offset=".5" stopColor="#f1e6ff" stopOpacity=".95" /><stop offset="1" stopColor="#7fd8ff" stopOpacity=".25" /></linearGradient>
+      <clipPath id={`${id}-planet-clip`}><circle r="25" /></clipPath>
+    </defs>
+    <ellipse cx="72" cy="96" rx="92" ry="52" transform="rotate(-30 72 96)" fill={`url(#${id}-violet)`} />
+    <ellipse cx="138" cy="58" rx="52" ry="32" transform="rotate(-20 138 58)" fill={`url(#${id}-rose)`} />
+    <ellipse cx="42" cy="150" rx="58" ry="30" transform="rotate(-15 42 150)" fill={`url(#${id}-cyan)`} />
+    <g fill="#fff">{PANEL_STARS.map((star, index) => <circle key={index} cx={star.x} cy={star.y} r={star.r} opacity={star.alpha} />)}</g>
+    <g transform="translate(34 150) rotate(-25) scale(1 .45)">
+      <circle r="22" fill={`url(#${id}-galaxy)`} />
+      <g fill="none" stroke="#c8ecff" strokeOpacity=".6" strokeWidth="2.4" strokeLinecap="round">
+        <path d="M0 0C6-7 17-3 17 6C17 15 4 19-7 15" />
+        <path d="M0 0C6-7 17-3 17 6C17 15 4 19-7 15" transform="rotate(180)" />
+      </g>
+      <circle r="2.6" fill="#fff" />
+    </g>
+    <circle cx="58" cy="104" r="6.5" fill={`url(#${id}-moon)`} />
+    <g transform="translate(116 108) rotate(-18)">
+      {ring(1)}
+      <circle r="25" fill={`url(#${id}-planet)`} />
+      <g clipPath={`url(#${id}-planet-clip)`} fill="none" stroke="#ffe7c2" strokeLinecap="round">
+        <path d="M-30-11Q0-7 30-13" strokeOpacity=".3" strokeWidth="3" />
+        <path d="M-30-1Q0 3 30-3" strokeOpacity=".22" strokeWidth="4.5" />
+        <path d="M-30 12Q0 15 30 10" strokeOpacity=".18" strokeWidth="2.5" />
+      </g>
+      {ring(0)}
+    </g>
+    <g fill="#fff">
+      <path d={SPARKLE} transform="translate(160 132) scale(.9)" />
+      <path d={SPARKLE} transform="translate(22 104) scale(.7)" />
+      <path d={SPARKLE} transform="translate(86 152) scale(.6)" />
+      <path d={SPARKLE} transform="translate(172 84) scale(.5)" />
     </g>
   </svg>;
 }
@@ -1142,7 +1197,7 @@ export function PinballGame({ active = true }: { active?: boolean }) {
         className="bbd-pinball-body"
         tabIndex={0}
         role="application"
-        aria-label="3D Pinball table"
+        aria-label="Pinball table"
         aria-describedby={helpId}
         onFocus={() => setFocused(true)}
         onBlur={onBlur}
@@ -1163,29 +1218,8 @@ export function PinballGame({ active = true }: { active?: boolean }) {
         </div>
         <aside className="bbd-pinball-panel" aria-label="Scoreboard">
           <div className="bbd-pinball-logo">
-            <SpaceCadetLettering />
-            <svg viewBox="0 0 180 100" className="bbd-pinball-ship" aria-hidden>
-              <defs><linearGradient id={`${helpId}-hull`} x2="0.3" y2="1"><stop stopColor="#deded8"/><stop offset=".45" stopColor="#969991"/><stop offset="1" stopColor="#5c6060"/></linearGradient></defs>
-              <circle cx="15" cy="78" r="17" fill="#506023" />
-              <path d="m2 69 11-5 9 5-5 5 10 8-10 5-5-8-11-1Z" fill="#778129" />
-              <path d="m160 23 19-10-5 15 6 7-22 7" fill="#bc4725" /><path d="m166 26 12-7-5 15-9 1" fill="#f3c943" />
-              <path d="M38 62Q44 39 68 30L112 19Q140 9 158 27Q166 35 163 46Q181 50 181 64Q177 76 153 78L79 89Q53 88 38 77Q31 69 38 62Z" fill={`url(#${helpId}-hull)`} stroke="#4c5355" strokeWidth="2" />
-              <path d="m61 54 24-19 30-4 24 7 4 20-22 12-37-3Z" fill="#33383a" />
-              <path d="m61 58 21-15 41 11-4 15-37-4Z" fill="#849647" />
-              <path d="m76 56 4-15 14-8 24 7 12 19-16 4-16-7-9 8Z" fill="#7348a5" />
-              <path d="m86 42 12-7 7 4 8 10-7 5-9-9-9 4-14-1-3-5Z" fill="#d7ad7e" stroke="#7d6145" />
-              <ellipse cx="105" cy="29" rx="12" ry="15" fill="#e5b389" stroke="#785239" />
-              <path d="M92 26q0-20 16-19 17 2 13 28l-6-9-1-10-15 0-1 15Z" fill="#4f7fa6" stroke="#b3c7ca" />
-              <ellipse cx="101" cy="26" rx="3" ry="4" fill="#f2eee0"/><ellipse cx="110" cy="25" rx="3" ry="4" fill="#f2eee0"/>
-              <circle cx="102" cy="27" r="1.4" fill="#292d36"/><circle cx="110" cy="26" r="1.4" fill="#292d36"/>
-              <path d="m102 35 10-2-4 7Z" fill="#f0e1bd" stroke="#895740"/>
-              <path d="M78 55q-6-51 31-53 38 0 38 52" fill="none" stroke="#84b1bc" strokeWidth="2" />
-              <path d="M42 63Q45 53 58 54Q75 55 81 67Q88 83 72 86Q46 89 38 77Q34 70 42 63Z M126 67Q143 57 165 48Q183 56 178 68Q164 77 144 78Q132 80 126 67Z" fill="#a9aca5" stroke="#d1d0c8" strokeWidth="2" />
-              <path d="M49 58Q42 70 49 82M58 58Q49 73 59 85M69 62Q60 77 70 86" fill="none" stroke="#747a77" strokeWidth="3"/>
-              <ellipse cx="43" cy="72" rx="7" ry="10" fill="#777f7b"/>
-              <path d="m39 60 10-6-3 12Z" fill="#fbdf79"/>
-              <text x="53" y="61" transform="rotate(24 53 61)" fill="#f5f0e5" fontSize="9" fontFamily="Tahoma">2001</text>
-            </svg>
+            <PinballSpace id={helpId} />
+            <PinballLettering />
             <span className="bbd-pinball-ball">
               <span className="bbd-pinball-ball-label">Ball</span>
               <span className="bbd-pinball-box"><DotMatrix text={over ? "" : hud.ballNumber} /></span>
@@ -1223,8 +1257,8 @@ export function PinballGame({ active = true }: { active?: boolean }) {
       </div>
       <p id={helpId} className="bbd-pinball-live">{keyLabel(controls.left)}: left flipper. {keyLabel(controls.right)}: right flipper. Hold {keyLabel(controls.plunger)}, then release to launch. F3: pause. F8: player controls.</p>
       {dialog === "controls" && <PlayerControls controls={controls} onClose={() => { setDialog(null); bodyRef.current?.focus(); }} onSave={(value) => { clearInput(); setControls(value); localStorage.setItem(CONTROL_KEY, JSON.stringify(value)); setDialog(null); bodyRef.current?.focus(); }} />}
-      {dialog !== null && dialog !== "controls" && <PinballDialog title={dialog === "scores" ? "3D Pinball: High Scores" : dialog === "help" ? "Pinball Help" : "About Pinball"} onClose={() => { setDialog(null); bodyRef.current?.focus(); }}>
-        {dialog === "scores" ? <p>High score: {formatScore(Math.max(highScore, hud.score))}</p> : dialog === "about" ? <><p><strong>3D Pinball — Space Cadet</strong></p><p>Desktop's original vector tribute to the Windows classic. No original game assets are included.</p><p>Single-player scoring with bumpers, targets, and lane bonuses. Original missions, sounds, and multiplayer are not implemented.</p></> : <><p>Hold {keyLabel(controls.plunger)} and release to launch. Hit bumpers and targets to score; light all three top lanes to increase the bonus multiplier.</p><dl className="bbd-pinball-keys">
+      {dialog !== null && dialog !== "controls" && <PinballDialog title={dialog === "scores" ? "Pinball: High Scores" : dialog === "help" ? "Pinball Help" : "About Pinball"} onClose={() => { setDialog(null); bodyRef.current?.focus(); }}>
+        {dialog === "scores" ? <p>High score: {formatScore(Math.max(highScore, hud.score))}</p> : dialog === "about" ? <><p><strong>Pinball</strong></p><p>Desktop's original vector tribute to the Windows classic. No original game assets are included.</p><p>Single-player scoring with bumpers, targets, and lane bonuses. Original missions, sounds, and multiplayer are not implemented.</p></> : <><p>Hold {keyLabel(controls.plunger)} and release to launch. Hit bumpers and targets to score; light all three top lanes to increase the bonus multiplier.</p><dl className="bbd-pinball-keys">
           <dt>{keyLabel(controls.left)} / Left Shift</dt><dd>Left flipper</dd>
           <dt>{keyLabel(controls.right)} / Right Shift</dt><dd>Right flipper</dd>
           <dt>{keyLabel(controls.plunger)} / Down</dt><dd>Hold, then release to launch</dd>

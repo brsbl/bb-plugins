@@ -2535,7 +2535,6 @@
   padding: 6px 4px 25px;
   background:
     radial-gradient(ellipse at 50% 35%, oklch(0.4 0.17 300 / 0.55), oklch(0.4 0.17 300 / 0) 70%),
-    radial-gradient(circle at 20% 80%, oklch(0.9 0 0 / 0.5) 0.6px, transparent 1px) 0 0 / 13px 11px,
     var(--bbd-pinball-box);
   box-shadow:
     inset 2px 2px 0 var(--bbd-pinball-bevel-dark),
@@ -2551,12 +2550,11 @@
   z-index: 1;
 }
 
-.bbd-pinball-ship {
+.bbd-pinball-space {
   position: absolute;
-  left: 15%;
-  top: 31%;
-  width: 90%;
-  height: 60%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .bbd-pinball-ball {
@@ -2708,7 +2706,7 @@
   }
 
   .bbd-pinball-lettering,
-  .bbd-pinball-ship {
+  .bbd-pinball-space {
     display: none;
   }
 
