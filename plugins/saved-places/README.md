@@ -1,6 +1,6 @@
 # Saved Places
 
-Your saved places on a map that gets clearer as you zoom. Browse lists, build your own, leave notes, see what's within a 5/10/15-minute walk, plan a route, and hand the current map view to an agent with **Ask agent**.
+Your saved places on a map that gets clearer as you zoom. Browse lists, build your own, leave notes, see what's within a 5/10/15-minute walk of a place or a whole list, and hand the current map view to an agent with **Ask agent**.
 
 It ships with a small sample of public places in Tokyo. Import your own Google Maps lists or any CSV to make it yours.
 
@@ -23,7 +23,7 @@ Open Saved Places from a thread's panel menu or the sidebar.
 - **Custom lists.** Build a list from one or more lists, the current filter, or what's in view.
 - **Notes.** A short note on any place; notes show on rows, pins, and clusters.
 - **Walking reach.** 5/10/15-minute walking rings around a place, with everything outside dimmed.
-- **Routes.** Add stops, pick walk, bike, or drive, find the quickest order, and open it in Google Maps.
+- **Walking distance.** On a list, shade a 5, 10, or 15-minute walk around each place (up to 12) to see which saves are walkable from each other.
 - **Ask agent.** Starts a new thread with a snapshot of the current map view (camera, filters, places in view, notes) attached as a mention.
 
 Agents can read the same data with `bb saved-places list|collections|lists|notes --json`.
@@ -56,7 +56,7 @@ The map uses free, keyless services. Check their usage policies before heavy use
 | Service | Used for | Change it in |
 | --- | --- | --- |
 | [OpenFreeMap](https://openfreemap.org) | Vector tiles and fonts for the streets basemap and list-cover maps | `streetsStyle` in `basemap.ts` |
-| [Valhalla](https://valhalla1.openstreetmap.de) public server (FOSSGIS) | Walking rings, travel times, routes | `ENDPOINT` in `routing.ts` |
+| [Valhalla](https://valhalla1.openstreetmap.de) public server (FOSSGIS) | Walking rings and walking distance | `ENDPOINT` in `routing.ts` |
 
 Point `ENDPOINT` at your own [Valhalla](https://github.com/valhalla/valhalla) instance for heavier routing. Map data © OpenStreetMap contributors.
 

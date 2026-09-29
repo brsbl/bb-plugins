@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import Route01 from "@hugeicons/core-free-icons/Route01Icon";
 import Note01 from "@hugeicons/core-free-icons/Note01Icon";
 import CheckmarkCircle02 from "@hugeicons/core-free-icons/CheckmarkCircle02Icon";
 import { categoryFor } from "../categories";
@@ -31,7 +30,6 @@ export function ListRow({ list, meta, onClick, selecting, selected, trailing }: 
 export function PlaceRow({ place, showLists }: { place: SavedPlace; showLists?: SavedList[] }) {
   const app = useApp();
   const note = app.store.notes[place.key]?.text;
-  const stop = app.route.stops.indexOf(place.key);
   const category = categoryFor(place.category);
   const kind = place.placeType ?? (place.category === "other" ? null : category.label);
   return <div className="sp-place-row" onMouseEnter={() => app.hover(place.key)} onMouseLeave={() => app.hover(null)}>
@@ -43,9 +41,6 @@ export function PlaceRow({ place, showLists }: { place: SavedPlace; showLists?: 
         {note && <span className="sp-row-note"><Icon icon={Note01} size={13} />{note}</span>}
         {showLists && showLists.length > 1 && <span className="sp-row-lists">{showLists.filter(l => l.placeKeys.includes(place.key)).map(l => <span key={l.id} style={{ background: l.color }} title={l.title} />)}</span>}
       </span>
-    </button>
-    <button type="button" className="sp-stop-toggle" data-on={stop >= 0 || undefined} aria-label={stop >= 0 ? `Remove ${place.name} from route` : `Add ${place.name} to route`} title={stop >= 0 ? "Remove from route" : "Add to route"} onClick={() => app.route.toggle(place.key)}>
-      {stop >= 0 ? stop + 1 : <Icon icon={Route01} size={16} />}
     </button>
   </div>;
 }

@@ -6,26 +6,22 @@ import BubbleChatAdd from "@hugeicons/core-free-icons/BubbleChatAddIcon";
 import Add01 from "@hugeicons/core-free-icons/Add01Icon";
 import MinusSign from "@hugeicons/core-free-icons/MinusSignIcon";
 import CenterFocus from "@hugeicons/core-free-icons/CenterFocusIcon";
-import Route01 from "@hugeicons/core-free-icons/Route01Icon";
 import Cancel01 from "@hugeicons/core-free-icons/Cancel01Icon";
-import ArrowRight01 from "@hugeicons/core-free-icons/ArrowRight01Icon";
 import { CLUSTER_MAX_ZOOM, CLUSTER_RADIUS, PLACES_SOURCE, attachClusterPiles } from "./cluster-piles";
 import { categoryFor } from "./categories";
 import { readTheme, streetsStyle, type MapTheme } from "./basemap";
-import { POINT_LAYERS, installLayers, provideCategoryImages, setMarkedPoint, setPins, setRings, setRouteLine, setStops, type PinInput } from "./layers";
+import { POINT_LAYERS, installLayers, provideCategoryImages, setMarkedPoint, setPins, setRings, type PinInput } from "./layers";
 import { allPlaces, placesByKey, trimmedBounds, type SavedPlace } from "./model";
 import { NOTES_LIST_ID, notesList } from "./notes-list";
 import { selectLists } from "./selection";
-import { isochrone, inPolygon, formatDuration, type Ring } from "./routing";
+import { MAX_RING_PLACES, cachedIsochrone, isochrone, inPolygon, type Ring, type TravelMode } from "./routing";
 import type { ViewContext, rpcContract } from "./server";
 import { useSavedState } from "./use-saved-state";
-import { useRoute } from "./use-route";
-import { Icon, IconButton, plural } from "./ui";
-import { AppContext, emptyFilter, inBounds, type AppApi, type Bounds, type RingState, type View } from "./views/context";
+import { Icon, IconButton } from "./ui";
+import { AppContext, emptyFilter, inBounds, listRingOwner, type AppApi, type Bounds, type RingState, type View } from "./views/context";
 import { LibraryView } from "./views/library";
 import { ListView } from "./views/list";
 import { PlaceView } from "./views/place";
-import { RouteView } from "./views/route";
 import { ComposeView } from "./views/compose";
 
 type Detent = "peek" | "half" | "full";
@@ -57,7 +53,6 @@ export function PlacesMap() {
   const rpc = useRpc<typeof rpcContract>();
   const [asking, setAsking] = useState(false);
   const store = useSavedState();
-  const route = useRoute();
   const [theme, setTheme] = useState<MapTheme | null>(null);
   const [styleVersion, setStyleVersion] = useState(0);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -70,8 +65,10 @@ export function PlacesMap() {
   const [rings, setRingState] = useState<RingState | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string } | null>(null);
-  const ringRequest = useRef<AbortController | null>(null);
+  const ringRequest = useRef<{ controller: AbortController; signature: string } | null>(null);
   const top = stack[stack.length - 1];
+  const topRef = useRef(top);
+  topRef.current = top;
   const wide = size.width >= WIDE_MIN;
 
   const detentHeight = useCallback((d: Detent) => d === "peek" ? 156 : d === "half" ? Math.round(size.height * 0.5) : size.height - 56, [size.height]);
@@ -107,13 +104,12 @@ export function PlacesMap() {
 
   const pins = useMemo<PinInput[]>(() => {
     const ringShapes = rings && top.kind === "place" && rings.owner === `place:${top.key}` && rings.features.length ? rings.features : null;
-    const stopSet = top.kind === "route" && route.stops.length ? new Set(route.stops) : null;
     const list = selectedPlace && !context.places.includes(selectedPlace) ? [...context.places, selectedPlace] : context.places;
     return list.map(place => {
       const outsideRings = ringShapes ? place !== selectedPlace && !ringShapes.some(r => inPolygon([place.longitude, place.latitude], r.geometry)) : false;
-      return { place, color: categoryFor(place.category).color, note: Boolean(store.notes[place.key]), dim: outsideRings || Boolean(stopSet && !stopSet.has(place.key)) };
+      return { place, color: categoryFor(place.category).color, note: Boolean(store.notes[place.key]), dim: outsideRings };
     });
-  }, [context, selectedPlace, rings, top, route.stops, store.notes]);
+  }, [context, selectedPlace, rings, top, store.notes]);
 
   const fitPlaces = useCallback((places: SavedPlace[], animate = true) => {
     const map = mapRef.current;
@@ -135,39 +131,55 @@ export function PlacesMap() {
     setDetent(next);
   }, [wide, detent, paddingFor]);
   const openLists = useCallback((ids: string[]) => {
-    setStack(s => [...s, { kind: "lists", ids, filter: emptyFilter }]);
+    setStack(s => [...s, { kind: "lists", ids, filter: emptyFilter, reach: null }]);
     const keys = new Set(ids.flatMap(id => getList(id)?.placeKeys ?? []));
     fitPlaces([...keys].map(k => placesByKey.get(k)).filter((p): p is SavedPlace => Boolean(p)));
   }, [getList, fitPlaces]);
 
-  const clearRings = useCallback(() => { ringRequest.current?.abort(); ringRequest.current = null; setRingState(null); }, []);
-  const showRings = useCallback((owner: string, points: SavedPlace[], mode: RingState["mode"], minutes: number[]) => {
-    ringRequest.current?.abort();
-    const controller = new AbortController();
-    ringRequest.current = controller;
-    setRingState({ owner, mode, features: [], loading: true, error: null });
-    (async () => {
-      const features: Ring[] = [];
-      for (const point of points.slice(0, 12)) features.push(...await isochrone(point, mode, minutes, controller.signal));
-      return features;
-    })().then(features => {
-      if (controller.signal.aborted) return;
-      setRingState({ owner, mode, features, loading: false, error: null });
-      const map = mapRef.current;
-      if (!map) return;
-      const b = new maplibregl.LngLatBounds();
-      for (const f of features) for (const poly of f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates) for (const [lng, lat] of poly[0]) b.extend([lng, lat]);
-      if (!b.isEmpty()) map.fitBounds(b, { padding: FIT_INSET, duration: reducedMotion() ? 0 : 700 });
-    }, () => {
-      if (!controller.signal.aborted) setRingState({ owner, mode, features: [], loading: false, error: "Travel times are unavailable right now. Try again in a moment." });
-    });
+  const fitRings = useCallback((features: Ring[]) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const b = new maplibregl.LngLatBounds();
+    for (const f of features) for (const poly of f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates) for (const [lng, lat] of poly[0]) b.extend([lng, lat]);
+    if (!b.isEmpty()) map.fitBounds(b, { padding: FIT_INSET, duration: reducedMotion() ? 0 : 700 });
   }, []);
+  const clearRings = useCallback(() => { ringRequest.current?.controller.abort(); ringRequest.current = null; setRingState(null); }, []);
+  const showRings = useCallback((owner: string, points: SavedPlace[], mode: TravelMode, minutes: number[]) => {
+    const targets = points.slice(0, MAX_RING_PLACES);
+    const signature = [owner, mode, minutes.join(","), ...targets.map(p => p.key)].join("|");
+    if (ringRequest.current?.signature === signature) return;
+    ringRequest.current?.controller.abort();
+    const controller = new AbortController();
+    ringRequest.current = { controller, signature };
+    const cached = targets.map(point => cachedIsochrone(point, mode, minutes));
+    const features = cached.flatMap(rings => rings ?? []);
+    const total = targets.length;
+    let done = cached.filter(Boolean).length;
+    setRingState({ owner, mode, features, loading: done < total, done, total, error: null });
+    if (done === total) { fitRings(features); return; }
+    (async () => {
+      for (const [index, point] of targets.entries()) {
+        if (cached[index]) continue;
+        features.push(...await isochrone(point, mode, minutes, controller.signal));
+        done += 1;
+        if (!controller.signal.aborted) setRingState({ owner, mode, features: [...features], loading: done < total, done, total, error: null });
+      }
+    })().then(() => {
+      const current = topRef.current;
+      if (!controller.signal.aborted && (current.kind !== "place" || owner === `place:${current.key}`)) fitRings(features);
+    }, () => {
+      if (controller.signal.aborted) return;
+      ringRequest.current = null;
+      setRingState({ owner, mode, features: [...features], loading: false, done, total, error: "Travel times are unavailable right now. Try again in a moment." });
+    });
+  }, [fitRings]);
 
   useEffect(() => {
     if (!rings) return;
-    const owned = rings.owner === "route" ? top.kind === "route" : top.kind === "place" && rings.owner === `place:${top.key}`;
+    const listOwner = contextView.kind === "lists" && contextView.reach !== null ? listRingOwner(contextView.ids) : null;
+    const owned = rings.owner === listOwner || (top.kind === "place" && rings.owner === `place:${top.key}`);
     if (!owned) clearRings();
-  }, [top, rings, clearRings]);
+  }, [top, contextView, rings, clearRings]);
 
   useEffect(() => {
     const el = root.current;
@@ -271,23 +283,14 @@ export function PlacesMap() {
     setRings(map, rings?.features ?? []);
   }, [styleVersion, rings]);
 
-  const unclustered = Boolean(rings?.features.length) || (top.kind === "route" && route.stops.length > 0);
+  const unclustered = Boolean(rings?.features.length);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleVersion) return;
     (map.getSource(PLACES_SOURCE) as GeoJSONSource | undefined)?.setClusterOptions({ cluster: !unclustered, clusterRadius: CLUSTER_RADIUS, clusterMaxZoom: CLUSTER_MAX_ZOOM });
   }, [styleVersion, unclustered]);
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !styleVersion) return;
-    setStops(map, route.places);
-    setRouteLine(map, route.result ? route.result.line.map(([lng, lat]) => [lng, lat] as [number, number]) : null);
-  }, [styleVersion, route.places, route.result]);
-
   const mapReady = styleVersion > 0;
-  const topRef = useRef(top);
-  topRef.current = top;
   const openPlaceRef = useRef(openPlace);
   openPlaceRef.current = openPlace;
   useEffect(() => {
@@ -339,7 +342,7 @@ export function PlacesMap() {
   useEffect(() => {
     if (wide) return;
     if (top.kind === "compose") setDetent("full");
-    else if (top.kind === "place" || top.kind === "route") setDetent(d => d === "peek" ? "half" : d);
+    else if (top.kind === "place") setDetent(d => d === "peek" ? "half" : d);
   }, [top.kind, wide]);
 
   const dragStart = useRef<{ y: number; height: number; moved: boolean } | null>(null);
@@ -380,7 +383,7 @@ export function PlacesMap() {
   }, [contextView, bounds, context.places, top.kind]);
 
   const api: AppApi = {
-    store, route, wide, dark: theme?.dark ?? false, bounds, zoom, rings, canGoBack: stack.length > 1, getList,
+    store, wide, dark: theme?.dark ?? false, bounds, zoom, rings, canGoBack: stack.length > 1, getList,
     push, pop, replace, openPlace, openLists, hover: setHoverKey, fitKeys, showRings, clearRings,
     compose: draft => { push({ kind: "compose", draft }); },
     openUrl: url => { if (!navigate.openUrl(url)) window.open(url, "_blank", "noopener,noreferrer"); },
@@ -400,7 +403,6 @@ export function PlacesMap() {
       placeKey: selectedPlace?.key ?? null,
       camera: map && b && center ? { center: [center.lng, center.lat], zoom: map.getZoom(), bounds: b } : null,
       placeKeys: pins.map(pin => pin.place.key),
-      route: route.stops.length ? { mode: route.mode, stops: route.stops } : null,
       rings: rings?.features.length ? { mode: rings.mode, minutes: [...new Set(rings.features.map(ring => ring.properties.minutes))].sort((a, b) => a - b) } : null,
     };
     setAsking(true);
@@ -415,8 +417,7 @@ export function PlacesMap() {
     }
   };
 
-  const error = mapError ?? store.error ?? route.error;
-  const showTray = route.stops.length > 0 && top.kind !== "route" && top.kind !== "compose";
+  const error = mapError ?? store.error;
   const zoomBy = (delta: number) => mapRef.current?.easeTo({ zoom: (mapRef.current?.getZoom() ?? 2) + delta, duration: reducedMotion() ? 0 : 250 });
 
   return <AppContext.Provider value={api}>
@@ -448,19 +449,13 @@ export function PlacesMap() {
         <div className="sp-view" key={stack.length + top.kind}>
           {!store.loaded ? <div className="sp-loading" role="status"><span className="sp-spinner" />Loading your places…</div>
             : top.kind === "library" ? <LibraryView query={top.query} />
-            : top.kind === "lists" ? <ListView ids={top.ids} filter={top.filter} />
+            : top.kind === "lists" ? <ListView ids={top.ids} filter={top.filter} reach={top.reach} />
             : top.kind === "place" ? <PlaceView placeKey={top.key} />
-            : top.kind === "route" ? <RouteView />
             : <ComposeView draft={top.draft} />}
         </div>
-        {showTray && <button type="button" className="sp-tray" onClick={() => push({ kind: "route" })}>
-          <span className="sp-tray-icon"><Icon icon={Route01} size={17} /></span>
-          <span className="sp-row-text"><span className="sp-row-title">Route · {plural(route.stops.length, "stop")}</span><span className="sp-row-meta">{route.result ? `${formatDuration(route.result.seconds)} ${route.mode === "walk" ? "walking" : route.mode === "bike" ? "by bike" : "by car"}` : route.stops.length < 2 ? "Add another stop" : "Working out the route…"}</span></span>
-          <Icon icon={ArrowRight01} size={16} />
-        </button>}
       </div>
 
-      {error && <div className="sp-toast" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss" onClick={() => { setMapError(null); store.clearError(); route.clearError(); }}><Icon icon={Cancel01} size={14} /></button></div>}
+      {error && <div className="sp-toast" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss" onClick={() => { setMapError(null); store.clearError(); }}><Icon icon={Cancel01} size={14} /></button></div>}
     </section>
   </AppContext.Provider>;
 }

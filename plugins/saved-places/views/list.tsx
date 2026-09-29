@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ArrowLeft01 from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import MoreHorizontal from "@hugeicons/core-free-icons/MoreHorizontalIcon";
 import Search01 from "@hugeicons/core-free-icons/Search01Icon";
@@ -10,21 +10,36 @@ import Note01 from "@hugeicons/core-free-icons/Note01Icon";
 import { categories, groupOf, groups, type CategoryId } from "../categories";
 import { LIST_COLORS } from "../model";
 import { selectLists } from "../selection";
+import { MAX_RING_PLACES, RING_MINUTES } from "../routing";
 import { categoryIcons } from "../category-icons";
 import { Chip, Icon, IconButton, ListCover, SectionTitle, plural } from "../ui";
 import { Frame, PlaceRow } from "./rows";
-import { inBounds, useApp, type ListFilter } from "./context";
+import { inBounds, listRingOwner, useApp, type ListFilter } from "./context";
 
 const MAX_CATEGORY_CHIPS = 8;
+const DEFAULT_REACH = 10;
 
-export function ListView({ ids, filter }: { ids: string[]; filter: ListFilter }) {
+export function ListView({ ids, filter, reach }: { ids: string[]; filter: ListFilter; reach: number | null }) {
   const app = useApp();
   const { store } = app;
   const [menu, setMenu] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const selection = useMemo(() => selectLists(ids, filter, app.getList, store.notes), [ids, filter, app.getList, store.notes]);
   const { lists, all, filtered } = selection;
-  const setFilter = (patch: Partial<ListFilter>) => app.replace({ kind: "lists", ids, filter: { ...filter, ...patch } });
+  const setFilter = (patch: Partial<ListFilter>) => app.replace({ kind: "lists", ids, filter: { ...filter, ...patch }, reach });
+  const setReach = (next: number | null) => app.replace({ kind: "lists", ids, filter, reach: next });
+  const owner = listRingOwner(ids);
+  const rings = app.rings?.owner === owner ? app.rings : null;
+  const tooMany = filtered.length > MAX_RING_PLACES;
+  const { showRings, clearRings } = app;
+  useEffect(() => {
+    if (reach === null) return;
+    if (tooMany) clearRings();
+    else showRings(owner, filtered, "walk", [reach]);
+  }, [reach, tooMany, owner, filtered, showRings, clearRings]);
+  const reachNote = reach === null ? null
+    : tooMany ? `Walking distance maps up to ${MAX_RING_PLACES} places. Search or pick a category to narrow these ${filtered.length}.`
+    : rings?.error ?? (rings && !rings.loading ? `Shaded areas are within a ${reach}-minute walk of each place.` : `Mapping walking distance… ${rings?.done ?? 0} of ${filtered.length}`);
   const bounds = app.bounds;
   const here = bounds ? filtered.filter(p => inBounds(p, bounds)) : filtered;
   const hereKeys = new Set(here.map(p => p.key));
@@ -92,6 +107,13 @@ export function ListView({ ids, filter }: { ids: string[]; filter: ListFilter })
       <button type="button" className="sp-toggle" aria-pressed={filter.inView} onClick={() => setFilter({ inView: !filter.inView })}><span className="sp-toggle-track" />Only in view</button>
       <span>{here.length} in view{elsewhere.length > 0 && ` · ${elsewhere.length} elsewhere`}</span>
     </div>
+    <div className="sp-view-meta">
+      <button type="button" className="sp-toggle" aria-pressed={reach !== null} onClick={() => setReach(reach === null ? DEFAULT_REACH : null)}><span className="sp-toggle-track" />Walking distance</button>
+      {reach !== null && <div className="sp-segmented sp-segmented-small sp-segmented-text" role="radiogroup" aria-label="Walking time">
+        {RING_MINUTES.map(minutes => <button key={minutes} type="button" role="radio" aria-checked={reach === minutes} onClick={() => setReach(minutes)}>{minutes} min</button>)}
+      </div>}
+    </div>
+    {reachNote && <p className="sp-view-note" role="status">{reachNote}</p>}
     {here.map(p => <PlaceRow key={p.key} place={p} showLists={single ? undefined : lists} />)}
     {!filter.inView && elsewhere.length > 0 && <>
       {here.length > 0 && <SectionTitle>Elsewhere</SectionTitle>}

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ArrowLeft01 from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import Navigation03 from "@hugeicons/core-free-icons/Navigation03Icon";
-import Route01 from "@hugeicons/core-free-icons/Route01Icon";
 import LinkSquare02 from "@hugeicons/core-free-icons/LinkSquare02Icon";
 import Target02 from "@hugeicons/core-free-icons/Target02Icon";
 import Add01 from "@hugeicons/core-free-icons/Add01Icon";
@@ -29,7 +28,7 @@ const km = (a: SavedPlace, b: SavedPlace) => {
 
 export function PlaceView({ placeKey }: { placeKey: string }) {
   const app = useApp();
-  const { store, route } = app;
+  const { store } = app;
   const place = placesByKey.get(placeKey);
   const [picker, setPicker] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -56,7 +55,6 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
   const customLists = store.customLists;
   const inCustom = customLists.filter(l => l.placeKeys.includes(place.key));
   const color = category.color;
-  const stop = route.stops.indexOf(place.key);
   const mobile = isMobile();
   const mapsUrl = mobile ? `https://www.google.com/maps/search/?${new URLSearchParams({ api: "1", query: `${place.name}, ${place.address}` })}` : place.url;
   const directions = `https://www.google.com/maps/dir/?${new URLSearchParams({ api: "1", destination: `${place.latitude},${place.longitude}`, travelmode: "walking" })}`;
@@ -87,7 +85,6 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
     <div className="sp-actions">
       <ActionButton icon={Navigation03} label="Directions" onClick={() => open(directions)} primary />
       <ActionButton icon={Walking} label={rings ? "Hide reach" : "Walk reach"} pressed={Boolean(rings)} onClick={() => rings ? app.clearRings() : toggleRings("walk")} />
-      <ActionButton icon={stop >= 0 ? Tick02 : Route01} label={stop >= 0 ? `Stop ${stop + 1}` : "Add to route"} pressed={stop >= 0} onClick={() => route.toggle(place.key)} />
       <ActionButton icon={LinkSquare02} label="Google Maps" onClick={() => open(mapsUrl)} />
     </div>
 
@@ -133,12 +130,9 @@ function NearbyGroup({ minutes, mode, places }: { minutes: number; mode: TravelM
   const verb = mode === "walk" ? "walk" : mode === "bike" ? "ride" : "drive";
   return <div className="sp-nearby">
     <p className="sp-nearby-label"><span className="sp-nearby-badge">{minutes}</span>min {verb}<span className="sp-muted">{plural(places.length, "save")}</span></p>
-    {shown.map(p => {
-      return <div key={p.key} className="sp-nearby-row" onMouseEnter={() => app.hover(p.key)} onMouseLeave={() => app.hover(null)}>
-        <button type="button" onClick={() => app.openPlace(p.key)}><span aria-hidden="true" className="sp-nearby-icon" style={{ color: categoryFor(p.category).color }}><Icon icon={categoryIcons[p.category]} size={15} /></span><span className="sp-nearby-name">{p.name}</span>{app.store.notes[p.key] && <span className="sp-note-dot" aria-label="Has a note" />}</button>
-        <button type="button" className="sp-stop-toggle sp-stop-toggle-small" data-on={app.route.stops.includes(p.key) || undefined} aria-label={app.route.stops.includes(p.key) ? `Remove ${p.name} from route` : `Add ${p.name} to route`} title={app.route.stops.includes(p.key) ? "Remove from route" : "Add to route"} onClick={() => app.route.toggle(p.key)}>{app.route.stops.includes(p.key) ? app.route.stops.indexOf(p.key) + 1 : <Icon icon={Route01} size={14} />}</button>
-      </div>;
-    })}
+    {shown.map(p => <div key={p.key} className="sp-nearby-row" onMouseEnter={() => app.hover(p.key)} onMouseLeave={() => app.hover(null)}>
+      <button type="button" onClick={() => app.openPlace(p.key)}><span aria-hidden="true" className="sp-nearby-icon" style={{ color: categoryFor(p.category).color }}><Icon icon={categoryIcons[p.category]} size={15} /></span><span className="sp-nearby-name">{p.name}</span>{app.store.notes[p.key] && <span className="sp-note-dot" aria-label="Has a note" />}</button>
+    </div>)}
     {places.length > 5 && <button type="button" className="sp-link-button" onClick={() => setAll(v => !v)}>{all ? "Show fewer" : `Show ${places.length - 5} more`}</button>}
   </div>;
 }
