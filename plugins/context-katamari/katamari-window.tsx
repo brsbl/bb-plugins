@@ -53,6 +53,7 @@ export function KatamariWindow({
   onClose,
 }: KatamariWindowProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<KatamariWorld | null>(null);
   const audioRef = useRef<KatamariAudio | null>(null);
   const pressedRef = useRef(new Set<string>());
@@ -71,6 +72,9 @@ export function KatamariWindow({
   const [guideOpen, setGuideOpen] = useState(() => !guideSeen());
   const speechTimer = useRef(0);
   const lookOutTimer = useRef(0);
+  // One counter keys every replayed animation. Date.now() collides when the
+  // GULP label and a speech bubble start in the same millisecond.
+  const animationKey = useRef(0);
 
   const speechEnds = useRef(0);
   const queuedSpeechTimer = useRef(0);
@@ -78,7 +82,7 @@ export function KatamariWindow({
   const say = useCallback((text: string) => {
     window.clearTimeout(speechTimer.current);
     const seconds = speechSeconds(text);
-    setSpeech({ text, key: Date.now(), seconds });
+    setSpeech({ text, key: ++animationKey.current, seconds });
     speechEnds.current = Date.now() + seconds * 1000;
     speechTimer.current = window.setTimeout(() => setSpeech(null), seconds * 1000);
   }, []);
@@ -114,7 +118,7 @@ export function KatamariWindow({
           sayNext(line(LINES.sprinkle));
           break;
         case "rolledUp":
-          setLastItem({ name: event.name, image: event.image, key: Date.now() });
+          setLastItem({ name: event.name, image: event.image, key: ++animationKey.current });
           break;
         case "lookOut":
           window.clearTimeout(lookOutTimer.current);
@@ -225,7 +229,7 @@ export function KatamariWindow({
     });
     if (!swallowed) return;
     worldRef.current?.gulp(swallowed.share);
-    setGulpLabel({ text: swallowed.label, tier: swallowed.tier, key: Date.now() });
+    setGulpLabel({ text: swallowed.label, tier: swallowed.tier, key: ++animationKey.current });
   }, [stage.threadId, stage.usedTokens, stage.capacityTokens, stage.ready, stage.compactions]);
 
   // When a turn finishes, the King reads out what its prompt cost.
@@ -282,7 +286,12 @@ export function KatamariWindow({
     setGuideOpen(open);
     if (!open) markGuideSeen();
   }, []);
-  const closeGuide = useCallback(() => toggleGuide(false), [toggleGuide]);
+  const closeGuide = useCallback(() => {
+    // "Got it" leaves with the guide, so keep focus in the world instead of
+    // letting it drop without a blur.
+    if (stageRef.current?.contains(document.activeElement)) stageRef.current.focus();
+    toggleGuide(false);
+  }, [toggleGuide]);
 
   const releaseKeys = () => {
     pressedRef.current.clear();
@@ -309,6 +318,7 @@ export function KatamariWindow({
       aria-label="Context Katamari"
     >
       <div
+        ref={stageRef}
         className="ck-stage"
         tabIndex={0}
         aria-label="Katamari world. Click, then roll with the arrow keys. Escape to let go."

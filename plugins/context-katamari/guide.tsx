@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 const GUIDE_SEEN_KEY = "context-katamari:guide-seen";
 
@@ -35,6 +35,21 @@ const GUIDE_EVENTS = [
  */
 export const Guide = memo(function Guide({ onClose }: { onClose(): void }) {
   const [page, setPage] = useState<"hud" | "events">("hud");
+  const guideRef = useRef<HTMLDivElement>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const refocus = useRef(false);
+  const turnTo = (next: "hud" | "events") => {
+    refocus.current = guideRef.current?.contains(document.activeElement) ?? false;
+    setPage(next);
+  };
+  // Each page has its own card, so turning takes the pressed button with it
+  // and focus drops to the page without a blur. Hand it to the next control.
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    (page === "events" ? closeRef : nextRef).current?.focus();
+  }, [page]);
   const nav = (
     <div className="ck-guide-actions">
       <button
@@ -42,7 +57,7 @@ export const Guide = memo(function Guide({ onClose }: { onClose(): void }) {
         className="ck-guide-arrow"
         aria-label="Previous page"
         disabled={page === "hud"}
-        onClick={() => setPage("hud")}
+        onClick={() => turnTo("hud")}
       >
         ‹
       </button>
@@ -51,23 +66,24 @@ export const Guide = memo(function Guide({ onClose }: { onClose(): void }) {
         <span data-on={page === "events"} />
       </span>
       <button
+        ref={nextRef}
         type="button"
         className="ck-guide-arrow"
         aria-label="Next page"
         disabled={page === "events"}
-        onClick={() => setPage("events")}
+        onClick={() => turnTo("events")}
       >
         ›
       </button>
       {page === "events" ? (
-        <button type="button" className="ck-guide-close" onClick={onClose}>
+        <button ref={closeRef} type="button" className="ck-guide-close" onClick={onClose}>
           Got it
         </button>
       ) : null}
     </div>
   );
   return (
-    <div className="ck-guide" data-page={page} role="dialog" aria-label="What everything means">
+    <div ref={guideRef} className="ck-guide" data-page={page} role="dialog" aria-label="What everything means">
       {page === "hud" ? (
         <>
           <span className="ck-guide-label" data-spot="size">↑ Size · tokens used / max</span>
