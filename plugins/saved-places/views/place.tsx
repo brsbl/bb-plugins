@@ -73,7 +73,7 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
         : <PlaceAvatar place={place} color={color} size={52} />}
       <h2 className="sp-place-name">{place.name}</h2>
       <p className="sp-place-kind">
-        {place.category !== "other" && <span className="sp-place-kind-icon" style={{ color }}><Icon icon={categoryIcons[place.category]} size={15} /></span>}
+        {place.category !== "other" && <span className="sp-place-kind-icon sp-orb" style={{ "--orb-color": color } as React.CSSProperties}><Icon icon={categoryIcons[place.category]} size={12} /></span>}
         {kind}
         {place.rating !== null && <><span className="sp-dot-sep" /><span className="sp-rating">★ {place.rating.toFixed(1)}</span>{place.reviewCount !== null && <span className="sp-muted">({place.reviewCount.toLocaleString()})</span>}</>}
         {place.price && <><span className="sp-dot-sep" />{place.price}</>}
@@ -131,7 +131,7 @@ function NearbyGroup({ minutes, mode, places }: { minutes: number; mode: TravelM
   return <div className="sp-nearby">
     <p className="sp-nearby-label"><span className="sp-nearby-badge">{minutes}</span>min {verb}<span className="sp-muted">{plural(places.length, "save")}</span></p>
     {shown.map(p => <div key={p.key} className="sp-nearby-row" onMouseEnter={() => app.hover(p.key)} onMouseLeave={() => app.hover(null)}>
-      <button type="button" onClick={() => app.openPlace(p.key)}><span aria-hidden="true" className="sp-nearby-icon" style={{ color: categoryFor(p.category).color }}><Icon icon={categoryIcons[p.category]} size={15} /></span><span className="sp-nearby-name">{p.name}</span>{app.store.notes[p.key] && <span className="sp-note-dot" aria-label="Has a note" />}</button>
+      <button type="button" onClick={() => app.openPlace(p.key)}><span aria-hidden="true" className="sp-nearby-icon sp-orb" style={{ "--orb-color": categoryFor(p.category).color } as React.CSSProperties}><Icon icon={categoryIcons[p.category]} size={12} /></span><span className="sp-nearby-name">{p.name}</span>{app.store.notes[p.key] && <span className="sp-note-dot" aria-label="Has a note" />}</button>
     </div>)}
     {places.length > 5 && <button type="button" className="sp-link-button" onClick={() => setAll(v => !v)}>{all ? "Show fewer" : `Show ${places.length - 5} more`}</button>}
   </div>;
