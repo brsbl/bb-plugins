@@ -5,6 +5,7 @@ import { installDesktopBridge } from "./bridge";
 import { installMicRelease, readCompact, toggleDesktop } from "./enabled";
 import { NeedsInputBalloon } from "./page/balloon";
 import { mountStickyNotes, StickyNoteHeaderButton } from "./page/sticky-notes";
+import { DesktopSettings } from "./settings";
 import { Desktop } from "./shell/desktop";
 import { ThreadFolderChip } from "./shell/folder-chip";
 
@@ -16,6 +17,7 @@ export default definePluginApp((app) => {
     title: "Desktop",
     component: () => <Desktop />,
   });
+  app.slots.settingsSection({ id: "desktop", component: DesktopSettings });
   app.slots.sidebarFooterAction({
     id: "toggle",
     title: "Desktop",

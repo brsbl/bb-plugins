@@ -156,13 +156,13 @@ export function groupMenu(
   return [{ label: "Open", run: open }, ...(group.kind === "machine" ? [] : [newThread])];
 }
 
-const ORGANIZE_LABELS: Record<Organize, string> = {
+export const ORGANIZE_LABELS: Record<Organize, string> = {
   section: "Sections",
   project: "Projects",
   machine: "Machines",
 };
 
-const SORT_LABELS: Record<SortKey, string> = {
+export const SORT_LABELS: Record<SortKey, string> = {
   updated: "Updated at",
   created: "Created at",
   alpha: "Alphabetical",

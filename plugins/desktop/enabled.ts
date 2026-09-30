@@ -22,10 +22,15 @@ function subscribeEnabled(listener: () => void) {
   };
 }
 
-export function toggleDesktop() {
-  const enabled = !readEnabled();
+/** Turns the desktop on or off in this browser. The switch lives in localStorage, so each device keeps its own. */
+export function setDesktopEnabled(enabled: boolean) {
   localStorage.setItem(ENABLED_KEY, String(enabled));
   for (const listener of enabledListeners) listener();
+}
+
+export function toggleDesktop() {
+  const enabled = !readEnabled();
+  setDesktopEnabled(enabled);
   toast.success(enabled ? "Desktop turned on" : "Desktop turned off");
   if (enabled && window.location.pathname !== "/") {
     window.history.pushState(null, "", "/");
@@ -45,8 +50,13 @@ export function readCompact(): boolean {
   return window.matchMedia(COMPACT_QUERY).matches;
 }
 
+/** Whether the desktop is switched on in this browser, whatever the window width. */
+export function useDesktopSwitch(): boolean {
+  return useSyncExternalStore(subscribeEnabled, readEnabled);
+}
+
 export function useDesktopEnabled(): boolean {
-  const enabled = useSyncExternalStore(subscribeEnabled, readEnabled);
+  const enabled = useDesktopSwitch();
   const compact = useSyncExternalStore(subscribeCompact, readCompact);
   return enabled && !compact;
 }

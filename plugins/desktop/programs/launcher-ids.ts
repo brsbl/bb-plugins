@@ -24,6 +24,26 @@ export const LAUNCHER_IDS = [
 
 export type LauncherId = (typeof LAUNCHER_IDS)[number];
 
+export const LAUNCHER_LABELS: Record<LauncherId, string> = {
+  "show-desktop": "Show desktop",
+  "new-thread": "New thread",
+  "new-folder": "New folder",
+  threads: "My Threads",
+  "recycle-bin": "Recycle Bin",
+  "media-player": "Media Player",
+  minesweeper: "Minesweeper",
+  solitaire: "Solitaire",
+  pinball: "Pinball",
+  "command-prompt": "Terminal",
+  paint: "Paint",
+  "sticky-note": "Note pad",
+  "internet-explorer": "bb Explorer",
+  search: "Search",
+  run: "Run…",
+  plugins: "Plugins",
+  skills: "Skills",
+};
+
 /** A program another plugin registered through `window.bbDesktopApps`. */
 export function appLauncherId(key: string): string {
   return `app:${key}`;

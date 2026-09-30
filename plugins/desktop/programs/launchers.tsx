@@ -7,7 +7,7 @@ import { navigateInApp, runAppCommand } from "../shell/commands";
 import { useDesktop } from "../shell/data";
 import { useWindowManager, type WindowManager, type WindowSpec } from "../windows";
 import { AppIcon, useDesktopApps } from "./app-window";
-import { LAUNCHER_IDS, appLauncherId, type LauncherId } from "./launcher-ids";
+import { LAUNCHER_IDS, LAUNCHER_LABELS, appLauncherId, type LauncherId } from "./launcher-ids";
 import { windowArt } from "./registry";
 
 /** Something a person can start from the Start menu or Quick Launch. */
@@ -71,51 +71,47 @@ export function useLaunchers(): LauncherCatalog {
       run: () => manager.open({ kind: "app", key: app.key }),
     }),
   );
-  const program = (spec: WindowSpec, label: string, detail = ""): Omit<Launcher, "id"> => ({
-    label,
+  const program = (spec: WindowSpec, detail = ""): Omit<Launcher, "id" | "label"> => ({
     detail,
     art: (size) => windowArt(spec, desktop, size),
     quickSize: 18,
     run: () => manager.open(spec),
   });
-  const command = (label: string, art: (size: number) => ReactNode, run: () => void): Omit<Launcher, "id"> => ({
-    label,
+  const command = (art: (size: number) => ReactNode, run: () => void): Omit<Launcher, "id" | "label"> => ({
     detail: "",
     art,
     quickSize: 20,
     run,
   });
-  const builtIn: Record<LauncherId, Omit<Launcher, "id">> = {
-    "show-desktop": command("Show desktop", (size) => <ShowDesktopArt size={size} />, () => showDesktop(manager)),
-    "new-thread": program({ kind: "new-thread", groupKey: null }, "New thread", "Start a conversation"),
-    "new-folder": program({ kind: "new-folder" }, "New folder", "Group threads on the desktop"),
-    threads: program({ kind: "threads" }, "My Threads"),
-    "recycle-bin": program({ kind: "recycle-bin" }, "Recycle Bin"),
-    "media-player": program({ kind: "media-player" }, "Media Player", "Visualize your microphone"),
-    minesweeper: program({ kind: "minesweeper" }, "Minesweeper"),
-    solitaire: program({ kind: "solitaire" }, "Solitaire"),
-    pinball: program({ kind: "pinball" }, "Pinball"),
-    "command-prompt": program({ kind: "command-prompt" }, "Terminal"),
-    paint: program({ kind: "paint" }, "Paint"),
+  const builtIn: Record<LauncherId, Omit<Launcher, "id" | "label">> = {
+    "show-desktop": command((size) => <ShowDesktopArt size={size} />, () => showDesktop(manager)),
+    "new-thread": program({ kind: "new-thread", groupKey: null }, "Start a conversation"),
+    "new-folder": program({ kind: "new-folder" }, "Group threads on the desktop"),
+    threads: program({ kind: "threads" }),
+    "recycle-bin": program({ kind: "recycle-bin" }),
+    "media-player": program({ kind: "media-player" }, "Visualize your microphone"),
+    minesweeper: program({ kind: "minesweeper" }),
+    solitaire: program({ kind: "solitaire" }),
+    pinball: program({ kind: "pinball" }),
+    "command-prompt": program({ kind: "command-prompt" }),
+    paint: program({ kind: "paint" }),
     "sticky-note": {
-      label: "Note pad",
       detail: "Pin a note in the margin",
       art: (size) => <NotePadArt size={size} />,
       quickSize: 18,
       run: () => addStickyNote(),
     },
     "internet-explorer": {
-      label: "bb Explorer",
       detail: "Browse the web in bb",
       art: (size) => <InternetExplorerArt size={size} />,
       quickSize: 20,
       run: openInternetExplorer,
     },
-    search: command("Search", (size) => <SearchArt size={size} />, () => void runAppCommand("thread.search")),
-    run: command("Run…", (size) => <RunArt size={size} />, () => void runAppCommand("palette.open")),
-    plugins: command("Plugins", (size) => <PluginsArt size={size} />, () => navigateInApp("/plugins")),
-    skills: command("Skills", (size) => <SkillsArt size={size} />, () => navigateInApp("/skills")),
+    search: command((size) => <SearchArt size={size} />, () => void runAppCommand("thread.search")),
+    run: command((size) => <RunArt size={size} />, () => void runAppCommand("palette.open")),
+    plugins: command((size) => <PluginsArt size={size} />, () => navigateInApp("/plugins")),
+    skills: command((size) => <SkillsArt size={size} />, () => navigateInApp("/skills")),
   };
-  const launcher = (id: LauncherId): Launcher => ({ id, ...builtIn[id] });
+  const launcher = (id: LauncherId): Launcher => ({ id, label: LAUNCHER_LABELS[id], ...builtIn[id] });
   return { apps, launcher, quickLaunch: [...apps, ...LAUNCHER_IDS.map(launcher)] };
 }
