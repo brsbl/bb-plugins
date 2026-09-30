@@ -263,14 +263,13 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
     [threads],
   );
 
+  // Opening a window leaves the read state alone: marking the thread read here
+  // would erase bb's "New" divider before the thread is ever opened in bb.
   const openThread = useCallback(
     (threadId: string) => {
       manager.open({ kind: "thread", threadId });
-      if (threadById.get(threadId)?.isUnread === true) {
-        void actions.setRead(threadId, true).catch(() => undefined);
-      }
     },
-    [actions, manager, threadById],
+    [manager],
   );
 
   const dropThread = useCallback(
