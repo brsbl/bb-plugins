@@ -54,7 +54,7 @@ export function placeKey(place: Pick<Place, "url" | "name" | "latitude" | "longi
   return cid ? `cid:${cid}` : `${place.name}|${place.latitude.toFixed(5)}|${place.longitude.toFixed(5)}`;
 }
 
-const SYSTEM_LISTS = new Set(["favorite-places", "want-to-go", "starred-places", "saved-places"]);
+const SYSTEM_LISTS = new Set(["favorites", "favorite-places", "want-to-go", "starred-places", "saved-places"]);
 function groupFor(id: string, title: string): ListGroup {
   if (SYSTEM_LISTS.has(id)) return "saved";
   if (/recommendations/i.test(title)) return "friends";
