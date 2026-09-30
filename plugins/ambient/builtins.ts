@@ -393,35 +393,93 @@ vec3 scene(vec2 uv, vec2 p) {
   col = pow(col, vec3(1.0 + ((g - 0.5) * (0.5 + 0.5 * valley) + (valley - 0.5) * 0.15) * 0.7 * p_grain * gw));
 
   float skyM = smoothstep(farY(q.x) + 0.05, farY(q.x) + 0.1, q.y);
-  for (int l = 0; l < 2; l++) {
-    float sc = l == 0 ? 90.0 : 38.0;
+  // nebula: layered pigment in the milky way, cut by dark dust filaments
+  float mw = q.y - 0.12 - 0.3 * q.x;
+  float band = exp(-mw * mw / 0.02) * skyM * p_galaxy;
+  float nb = noise(q * 4.0 + wv * 1.5) * 0.5 + noise(q * 9.0 - t * 0.01) * 0.3 + noise(q * 22.0) * 0.2;
+  float fil = smoothstep(0.5, 0.75, noise(vec2(q.x * 7.0 + q.y * 3.0, q.y * 16.0 - q.x * 4.0)));
+  vec3 nebC = mix(mix(K, vec3(0.55, 0.95, 1.0), smoothstep(0.5, 0.8, nb)), mix(Y, vec3(1.0), 0.4), pow(nb, 4.0) * exp(-mw * mw / 0.004));
+  col = 1.0 - (1.0 - col) * (1.0 - nebC * smoothstep(0.25, 0.75, nb) * band * 0.85 * (1.0 - 0.7 * fil));
+  col *= 1.0 - fil * band * 0.35;
+
+  for (int l = 0; l < 3; l++) {
+    float sc = l == 0 ? 90.0 : (l == 1 ? 38.0 : 14.0);
     vec2 sg = p * sc + float(l) * 17.0;
     vec2 sid = floor(sg);
     float sh = hash21(sid);
     vec2 so = vec2(hash21(sid + 2.3), hash21(sid + 5.9)) - 0.5;
-    float sd = length(fract(sg) - 0.5 - so * 0.6);
+    vec2 sv = fract(sg) - 0.5 - so * 0.6;
+    float sd = length(sv);
+    float dens = l == 0 ? 0.12 + 0.25 * band : (l == 1 ? 0.07 : 0.1);
+    float on = step(1.0 - dens * p_stars, sh) * skyM * min(p_stars * 2.0, 1.0);
     float star = smoothstep(l == 0 ? 0.09 : 0.06, 0.0, sd) + (l == 0 ? 0.0 : exp(-sd * sd / 0.02) * 0.3);
+    if (l == 2) {
+      star = smoothstep(0.035, 0.0, sd) + exp(-sd * sd / 0.004) * 0.6;
+      star += (exp(-abs(sv.x) * 90.0) * exp(-abs(sv.y) * 9.0) + exp(-abs(sv.y) * 90.0) * exp(-abs(sv.x) * 9.0)) * 0.7;
+    }
     float tw = 0.55 + 0.45 * sin(t * (0.8 + 1.8 * sh) + sh * 60.0);
-    col = mix(col, mix(vec3(0.86, 0.92, 1.0), K, 0.25 * sh), star * step(1.0 - (l == 0 ? 0.12 : 0.07) * p_stars, sh) * tw * skyM * min(p_stars * 2.0, 1.0));
+    vec3 sc3 = mix(vec3(0.86, 0.92, 1.0), sh > 0.5 ? K : mix(Y, vec3(1.0), 0.5), 0.3 * fract(sh * 13.0));
+    col = 1.0 - (1.0 - col) * (1.0 - sc3 * clamp(star * on * tw, 0.0, 1.0));
   }
 
+  // ground mist, lit from within by the swarm
+  float fy = farY(q.x);
+  float mistN = noise(vec2(q.x * 2.5 - t * 0.03, q.y * 7.0)) * 0.65 + noise(vec2(q.x * 7.0 + t * 0.05, q.y * 18.0)) * 0.35;
+  float mist = smoothstep(0.09, 0.0, abs(q.y - fy + 0.07)) * smoothstep(0.35, 0.75, mistN) * p_mist;
+  col = mix(col, mix(K, vec3(0.85, 0.93, 1.0), 0.45), mist * 0.4);
+
+  // fireflies: J-shaped flashes, long-exposure trails, out-of-focus ones up close
   float ax = u_resolution.x / u_resolution.y;
-  for (int i = 0; i < 24; i++) {
+  vec3 green = mix(Y, vec3(0.78, 1.0, 0.42), 0.4);
+  vec3 hot = mix(green, vec3(1.0, 1.0, 0.9), 0.6);
+  float light = 0.0;
+  for (int i = 0; i < 60; i++) {
     float fi = float(i);
+    if (fi >= 16.0 + 30.0 * p_motes) break;
     vec2 s = vec2(fi * 7.13, fi * 3.71);
     vec2 hp = vec2(hash21(s), hash21(s + 1.7));
+    float z = hash21(s + 6.6);
     float xs = hp.x * 2.0 - 1.0;
     xs = sign(xs) * pow(abs(xs), 0.55);
-    vec2 fp = vec2(xs * 0.5 * ax, mix(-0.44, 0.14, hp.y));
-    fp += vec2(0.08 * sin(t * 0.21 * (1.0 + hp.y) + fi * 2.1), 0.045 * sin(t * 0.37 * (1.0 + hp.x) + fi));
-    float blink = smoothstep(0.0, 0.8, sin(t * (0.6 + 0.5 * hash21(s + 9.1)) + fi * 2.3));
+    vec2 home = vec2(xs * 0.5 * ax, mix(-0.44, 0.16, hp.y));
+    vec2 hd = p - home;
+    if (dot(hd, hd) > 0.06) continue;
+    float w1 = 0.21 * (1.0 + hp.y), w2 = 0.37 * (1.0 + hp.x);
+    vec2 amp = vec2(0.08, 0.045) * (0.6 + 0.8 * z);
+    vec2 fp = home + amp * vec2(sin(t * w1 + fi * 2.1), sin(t * w2 + fi));
+    vec2 fb = home + amp * vec2(sin((t - 1.0) * w1 + fi * 2.1), sin((t - 1.0) * w2 + fi));
+    float rate = 0.35 + 0.35 * hash21(s + 9.1);
+    float ph = fract(t * rate + hash21(s + 3.3));
+    float flash = smoothstep(0.0, 0.05, ph) * (1.0 - smoothstep(0.05, 0.55, ph));
+    flash = max(flash, 0.14);
     vec2 d = p - fp + (wv - 0.5) * 0.02;
     float d2 = dot(d, d);
-    float r = 0.0085 * p_size * (0.7 + 0.6 * hash21(s + 4.4));
-    float halo = exp(-d2 / (r * r * 22.0)) * blink * p_motes;
-    col = 1.0 - (1.0 - col) * (1.0 - Y * clamp(halo * 0.85, 0.0, 1.0));
-    col = mix(col, core, smoothstep(r, r * 0.3, sqrt(d2)) * blink * min(p_motes, 1.0));
+    float r = 0.0085 * p_size * (0.6 + 0.8 * z);
+    light += flash * exp(-d2 / 0.006) * (0.5 + z);
+    if (z > 0.88) {
+      // near the lens: a soft bokeh disc with a brighter rim
+      float R = r * 3.2;
+      float dl = sqrt(d2);
+      float disc = smoothstep(R, R * 0.88, dl) * (0.35 + 0.35 * smoothstep(R * 0.55, R, dl));
+      col = 1.0 - (1.0 - col) * (1.0 - green * disc * flash * 0.8 * min(p_motes, 1.0));
+      continue;
+    }
+    vec2 ba = fp - fb;
+    float k = clamp(dot(p - fb, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+    float td = length(p - fb - ba * k);
+    float ph0 = fract(ph - rate * (1.0 - k));
+    float tf = smoothstep(0.0, 0.05, ph0) * (1.0 - smoothstep(0.05, 0.55, ph0));
+    float trail = smoothstep(r * 0.7, 0.0, td) * tf * k * p_trails;
+    float halo = exp(-d2 / (r * r * 30.0)) * flash * p_motes;
+    col = 1.0 - (1.0 - col) * (1.0 - green * clamp(halo * 1.1 + trail * 0.85, 0.0, 1.0));
+    col = mix(col, hot, smoothstep(r, r * 0.3, sqrt(d2)) * flash * min(p_motes, 1.0));
   }
+  // their light catches the grass and mist around them
+  col += green * clamp(light, 0.0, 1.5) * 0.18 * (1.0 - skyM * 0.6) * (0.4 + mist);
+
+  // cold-press paper: pigment settles into the tooth
+  float tooth = noise(p * 240.0) * 0.6 + noise(p * 90.0 + 3.0) * 0.4;
+  col *= 1.0 - 0.07 * p_grain * smoothstep(0.45, 0.8, tooth);
 
   for (int i = 0; i < 16; i++) {
     if (i >= u_agentCount) break;
@@ -2037,6 +2095,8 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
       param("motes", "Firefly swarm", 0, 2, 0.9),
       param("stars", "Stars", 0, 2, 1),
       param("galaxy", "Milky Way", 0, 2, 1),
+      param("trails", "Light trails", 0, 2, 1),
+      param("mist", "Ground mist", 0, 2, 1),
       param("wind", "Grass sway", 0, 3, 1),
       param("wet", "Wetness (blooms & bleed)", 0, 2, 1),
       param("grain", "Granulation", 0, 2, 1),
