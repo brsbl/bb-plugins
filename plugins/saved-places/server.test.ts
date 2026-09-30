@@ -22,6 +22,8 @@ describe("Saved Places plugin", () => {
     expect(await names("museum")).toEqual(expect.arrayContaining(["Mori Art Museum", "teamLab Planets"]));
     expect(await names("museum")).not.toContain("Senso-ji");
     expect(await names("culture")).toEqual(expect.arrayContaining(["Senso-ji", "Mori Art Museum"]));
+    const [sensoji] = JSON.parse((await harness.behavior.runCli(["list", "--query", "Senso-ji", "--json"])).stdout) as Array<{ category: string }>;
+    expect(sensoji.category).toBe("temple");
     await harness.lifecycle.dispose();
   });
 });
