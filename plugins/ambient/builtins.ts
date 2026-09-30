@@ -303,12 +303,19 @@ vec3 meadow(vec2 p, vec2 w, float t) {
   float fy = farY(p.x);
 
   float sy = clamp((p.y - fy) / 0.5, 0.0, 1.0);
-  vec3 glow = mix(mix(K, paper, 0.4), mix(Y, paper, 0.2), smoothstep(0.14, 0.0, sy) * 0.8);
-  vec3 col = mix(glow, mix(K, V, 0.55), smoothstep(0.03, 0.3, sy));
-  col = mix(col, mix(I, V, 0.3), smoothstep(0.3, 0.9, sy));
+  vec3 glow = mix(mix(K, V, 0.5), mix(K, paper, 0.3), smoothstep(0.1, 0.0, sy) * 0.6);
+  vec3 col = mix(glow, mix(V, I, 0.45), smoothstep(0.02, 0.25, sy));
+  col = mix(col, I, smoothstep(0.25, 0.8, sy));
+  // milky way: a tilted band of nebula with dark dust lanes
+  float mw = p.y - 0.12 - 0.3 * p.x + 0.05 * noise(vec2(p.x * 3.0 + t * 0.01, 2.0));
+  float band = exp(-mw * mw / 0.014) * smoothstep(0.04, 0.2, sy);
+  float neb = noise(p * 5.0 + vec2(t * 0.012, 0.0));
+  float dust = smoothstep(0.55, 0.8, noise(p * 11.0 - 3.0));
+  col = mix(col, mix(V, K, neb), band * (0.4 + 0.45 * neb) * (1.0 - 0.6 * dust) * p_galaxy);
+  col = mix(col, mix(K, paper, 0.5), band * band * smoothstep(0.5, 0.85, neb) * 0.3 * p_galaxy);
   float cl = noise(vec2(p.x * 1.4 - t * 0.03, p.y * 3.0 + 1.7));
-  vec3 cloudC = mix(V, K, smoothstep(0.55, 0.1, sy)) * 0.95;
-  col = mix(col, cloudC, smoothstep(0.5, 0.72, cl) * 0.6 * smoothstep(0.08, 0.25, sy));
+  vec3 cloudC = mix(mix(I, V, 0.7), K, smoothstep(0.55, 0.1, sy) * 0.5);
+  col = mix(col, cloudC, smoothstep(0.5, 0.72, cl) * 0.45 * smoothstep(0.08, 0.25, sy));
 
   float mt = fy - 0.045 + 0.012 * sin(p.x * 2.7 + 1.0);
   float tl = fy + 0.03 * noise(vec2(p.x * 8.0, 1.0)) + 0.015 * noise(vec2(p.x * 21.0, 4.0));
@@ -384,6 +391,19 @@ vec3 scene(vec2 uv, vec2 p) {
   float lum = dot(col, vec3(0.3, 0.55, 0.15));
   float gw = (0.35 + clamp((col.b - col.g) * 1.5, 0.0, 1.0)) * (1.0 - lum * 0.6) * calm;
   col = pow(col, vec3(1.0 + ((g - 0.5) * (0.5 + 0.5 * valley) + (valley - 0.5) * 0.15) * 0.7 * p_grain * gw));
+
+  float skyM = smoothstep(farY(q.x) + 0.05, farY(q.x) + 0.1, q.y);
+  for (int l = 0; l < 2; l++) {
+    float sc = l == 0 ? 90.0 : 38.0;
+    vec2 sg = p * sc + float(l) * 17.0;
+    vec2 sid = floor(sg);
+    float sh = hash21(sid);
+    vec2 so = vec2(hash21(sid + 2.3), hash21(sid + 5.9)) - 0.5;
+    float sd = length(fract(sg) - 0.5 - so * 0.6);
+    float star = smoothstep(l == 0 ? 0.09 : 0.06, 0.0, sd) + (l == 0 ? 0.0 : exp(-sd * sd / 0.02) * 0.3);
+    float tw = 0.55 + 0.45 * sin(t * (0.8 + 1.8 * sh) + sh * 60.0);
+    col = mix(col, mix(vec3(0.86, 0.92, 1.0), K, 0.25 * sh), star * step(1.0 - (l == 0 ? 0.12 : 0.07) * p_stars, sh) * tw * skyM * min(p_stars * 2.0, 1.0));
+  }
 
   float ax = u_resolution.x / u_resolution.y;
   for (int i = 0; i < 24; i++) {
@@ -1391,142 +1411,49 @@ vec3 scene(vec2 uv, vec2 p){
   return mix(u_canvas, col, p_color);
 }`;
 
-const JELLYFISH_DEEP_SOURCE = `float caustic(vec2 x, float t) {
-  vec2 p = x * 6.2832 - 250.0;
-  vec2 i = p;
-  float c = 1.0;
-  for (int n = 0; n < 4; n++) {
-    float tt = t * (1.0 - 3.5 / float(n + 1));
-    i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
-    c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / 0.005), p.y / (cos(i.y + tt) / 0.005)));
-  }
-  c /= 4.0;
-  c = 1.17 - pow(c, 1.4);
-  return clamp(pow(abs(c), 8.0), 0.0, 1.0);
-}
-
-vec4 jelly(vec2 d, float s, float ph, float trail, float tt) {
-  float c = 0.5 + 0.5 * sin(ph);
-  float sx = s * (1.0 + 0.14 * c);
-  float sy = s * (0.8 - 0.16 * c);
-  if (abs(d.x) > sx * 2.2 || d.y > sy * 1.4 || d.y < -s * 5.5 * trail) return vec4(0.0);
-  vec2 b = d / vec2(sx, sy);
-  float r = length(b);
-  float skirt = -0.28 - 0.1 * sin(b.x * 10.0 + ph * 0.5) - 0.12 * c;
-  float body = smoothstep(1.0, 0.9, r) * smoothstep(skirt - 0.06, skirt + 0.04, b.y);
-  float rim = body * smoothstep(0.55, 0.97, r) + smoothstep(0.08, 0.0, abs(b.y - skirt)) * smoothstep(1.05, 0.8, abs(b.x));
-  vec2 ib = b - vec2(0.0, 0.18);
-  float inner = body * exp(-dot(ib, ib) * 5.0) * (0.6 + 0.4 * cos(atan(ib.x, ib.y) * 4.0));
-  float tent = 0.0;
-  float yy = -(d.y - skirt * sy);
-  if (yy > 0.0) {
-    float len = s * 5.0 * trail;
-    float ty = yy / len;
-    if (ty < 1.0) {
-      for (int k = 0; k < 5; k++) {
-        float fk = float(k) - 2.0;
-        float tx = fk * 0.36 * sx * (1.0 - 0.3 * ty) + 0.3 * s * ty * sin(ty * 7.0 - tt * 2.4 + fk * 1.3);
-        float w = s * (0.07 - 0.04 * ty);
-        tent += smoothstep(w, w * 0.2, abs(d.x - tx)) * pow(1.0 - ty, 1.4) * 0.7;
-      }
-      float ay = yy / (len * 0.55);
-      if (ay < 1.0) {
-        for (int k = 0; k < 2; k++) {
-          float fk = float(k) * 2.0 - 1.0;
-          float tx = fk * 0.12 * sx + 0.16 * s * sin(ay * 5.0 - tt * 1.6 + fk);
-          float w = s * (0.2 - 0.12 * ay) * (0.8 + 0.2 * sin(ay * 40.0 - tt * 3.0));
-          tent += smoothstep(w, w * 0.3, abs(d.x - tx)) * (1.0 - ay);
-        }
-      }
-    }
-  }
-  return vec4(body, clamp(rim, 0.0, 1.0), inner, clamp(tent, 0.0, 1.0));
-}
-
-vec3 scene(vec2 uv, vec2 p) {
+const JELLYFISH_TIDEPOOL_SOURCE = `vec3 scene(vec2 uv, vec2 p) {
   float t = u_time * p_drift;
-  vec3 abyss = u_palette[0];
-  vec3 sea = u_palette[1];
-  vec3 jel = u_palette[2];
-  vec3 sun = u_palette[3];
-  float ar = u_resolution.x / u_resolution.y;
+  vec3 deep = u_palette[0];
+  vec3 teal = u_palette[1];
+  vec3 vio = u_palette[2];
+  vec3 dawn = u_palette[3];
+  vec3 water = mix(u_canvas, mix(deep, teal, 0.4), mix(0.5, 0.8, u_dark));
 
   vec2 dp = p - toP(u_pointer);
-  float pd = exp(-dot(dp, dp) / 0.012);
-  float n = fbm(p * 1.7 + vec2(t * 0.05, -t * 0.03));
-  vec2 q = p + (n - 0.5) * vec2(0.05, 0.03) + 0.004 * vec2(sin(p.y * 9.0 + t * 0.9), cos(p.x * 7.0 - t * 0.7)) + dp * pd * 0.25;
+  float pd = exp(-dot(dp, dp) / 0.01);
+  vec2 q = p + dp * pd * 0.4;
 
-  float ex = abs(p.x) / (0.5 * ar);
-  float edge = max(smoothstep(0.42, 0.9, ex), smoothstep(0.8, 0.97, uv.y));
+  // calm mask: quiet across the reading column and composer; lively at the edges and top
+  float ex = abs(p.x) / (0.5 * u_resolution.x / u_resolution.y);
+  float edge = max(smoothstep(0.4, 0.9, ex), smoothstep(0.75, 0.95, uv.y));
   float live = mix(1.0, edge, p_calm);
 
-  float depth = clamp(1.0 - uv.y + (n - 0.5) * 0.12, 0.0, 1.0);
-  float fall = pow(smoothstep(-0.05, 1.05, depth), 1.3 / p_depth);
-  vec3 shallow = mix(sea, sun, 0.22);
-  vec3 col = mix(shallow, abyss, fall);
+  vec2 w = q * 2.2 + vec2(t * 0.12, -t * 0.08);
+  float n = fbm(w + vec2(sin(t * 0.4 + q.y * 3.0) * 0.5, cos(t * 0.33) * 0.4));
+  vec3 col = mix(water, mix(deep, teal, 0.6), n * (0.35 + 0.65 * live));
+  // slow swells rolling across the pool
+  float swell = 0.5 + 0.5 * sin(q.x * 4.0 + q.y * 2.5 - t * 1.1 + n * 3.0);
+  col = mix(col, mix(deep, teal, 0.5), swell * 0.18 * (0.4 + 0.6 * live));
+  float c = abs(sin(q.x * 18.0 + n * 7.0 + t * 1.6) * sin(q.y * 15.0 - n * 6.0 - t * 1.3));
+  col = mix(col, mix(teal, vec3(1.0), 0.3), pow(1.0 - c, 10.0) * 0.6 * p_glow * (0.25 + 0.75 * live));
 
-  float wave = 0.025 * sin(q.x * 13.0 + t * 1.2) + 0.015 * sin(q.x * 29.0 - t * 1.9) + 0.02 * (n - 0.5);
-  float surf = smoothstep(0.86, 0.99, uv.y + wave);
-  float glint = caustic(vec2(q.x * 0.9, q.y * 3.0) + vec2(t * 0.01, 0.0), t * 0.5);
-  col = mix(col, mix(sun, sea, 0.2), surf * (0.55 + 0.4 * glint));
+  float rimM = max(smoothstep(0.6, 1.0, ex + n * 0.2), smoothstep(0.78, 1.0, uv.y + n * 0.1));
+  col = mix(col, mix(vio, dawn, uv.y), rimM * 0.85 * p_dawn);
 
-  float rx = q.x + (uv.y - 1.0) * 0.32;
-  float r1 = noise(vec2(rx * 6.0 + t * 0.07, t * 0.12));
-  float r2 = noise(vec2(rx * 15.0 - t * 0.1, 4.0 + t * 0.18));
-  float rays = pow(clamp(r1 * 0.7 + r2 * 0.45 - 0.3, 0.0, 1.0), 1.6) * smoothstep(1.0, 0.1, depth);
-  col = mix(col, sun, clamp(rays * 0.85 * p_rays * (0.4 + 0.6 * live), 0.0, 0.8));
+  vec2 g = q * 22.0 + vec2(t * 1.2, sin(t * 0.5) * 2.5);
+  vec2 cid = floor(g);
+  float h = hash21(cid);
+  vec2 off = vec2(hash21(cid + 3.1), hash21(cid + 7.7)) - 0.5;
+  float tw = 0.5 + 0.5 * sin(t * 3.0 + h * 40.0);
+  float sp = smoothstep(0.22, 0.0, length(fract(g) - 0.5 - off * 0.5));
+  col = mix(col, mix(teal, vio, h) * 1.2, sp * step(1.0 - p_plankton * 0.5, h) * tw * p_glow * (0.15 + 0.85 * live));
 
-  float floorY = -0.43 + 0.03 * sin(p.x * 2.3 + 1.0) + 0.02 * sin(p.x * 5.1) + 0.015 * (n - 0.5);
-  float sand = smoothstep(0.006, -0.006, q.y - floorY);
-  float ripplesand = 0.5 + 0.5 * sin((q.x + 0.3 * q.y) * 70.0 + n * 6.0);
-  vec3 floorCol = mix(mix(abyss, sun, 0.2), mix(abyss, sea, 0.45), 0.5 + 0.3 * ripplesand);
-  col = mix(col, floorCol, sand * 0.85);
-
-  float ca = caustic(q * vec2(1.1, 1.6) + vec2(t * 0.012, t * 0.02), t * 0.32);
-  float caW = mix(0.5 * (1.0 - fall), 1.0, sand) * (0.3 + 0.7 * live);
-  col = mix(col, mix(sun, sea, 0.15), clamp(ca * caW * 0.8 * p_caustics, 0.0, 0.85));
-
-  for (int l = 0; l < 2; l++) {
-    float fl = float(l);
-    float sc = mix(34.0, 18.0, fl);
-    vec2 g = q * sc + vec2(sin(t * 0.21 + fl * 2.0) * 0.8 + t * 0.15, t * (0.25 + 0.2 * fl));
-    vec2 cid = floor(g);
-    float h = hash21(cid + fl * 17.0);
-    vec2 off = vec2(hash21(cid + 3.1), hash21(cid + 7.7)) - 0.5;
-    float sz = mix(0.09, 0.14, fl);
-    float sp = smoothstep(sz, sz * 0.2, length(fract(g) - 0.5 - off * 0.6));
-    float on = step(1.0 - 0.3 * p_snow, h);
-    col = mix(col, mix(sun, shallow, 0.35 + 0.3 * fall), sp * on * mix(0.35, 0.55, fl) * (0.3 + 0.7 * live));
-  }
-
-  vec2 bg = vec2(q.x * 10.0, q.y * 10.0 - t * 1.3);
-  vec2 bid = floor(bg);
-  float hb = hash21(bid + 41.0);
-  if (hash21(vec2(bid.x, 9.0)) < 0.1 * p_bubbles && hb < 0.8) {
-    vec2 bl = fract(bg) - 0.5 - vec2(0.18 * sin(t * 3.0 + hb * 30.0 + bg.y * 1.7), 0.0);
-    float br = 0.07 + 0.12 * hb;
-    float bd = length(bl);
-    float shell = smoothstep(br * 0.35, 0.0, abs(bd - br));
-    float spec = smoothstep(br * 0.4, 0.0, length(bl - vec2(-0.35, 0.35) * br));
-    col = mix(col, mix(sun, sea, 0.2), clamp(shell * 0.6 + spec * 0.85, 0.0, 1.0) * (0.15 + 0.85 * live) * (1.0 - 0.4 * fall));
-  }
-
-  for (int k = 0; k < 4; k++) {
+  for (int k = 0; k < 3; k++) {
     float fk = float(k);
-    float s = mix(0.032, 0.07, fract(fk * 0.618 + 0.2));
-    float fog = mix(0.5, 0.95, (s - 0.032) / 0.038);
-    float jy = fract(fk * 0.29 + t * 0.006 * (1.0 + fk * 0.35)) * 1.5 - 0.75;
-    float side = mod(fk, 2.0) < 0.5 ? -1.0 : 1.0;
-    float jx = side * (0.5 * ar) * mix(0.6, 0.88, fract(fk * 0.43)) + 0.05 * sin(t * 0.17 + fk * 2.0);
-    float ph = t * 1.4 + fk * 1.9;
-    vec2 d = p - vec2(jx, jy + 0.012 * sin(ph));
-    vec4 j = jelly(d, s, ph, 1.0, t + fk);
-    vec3 jc = mix(jel, sea, 0.2 + 0.2 * sin(fk * 2.3));
-    float halo = exp(-dot(d, d) / (s * s * 6.0));
-    col = mix(col, mix(jc, sun, 0.2), clamp(halo * 0.4 * p_glow * fog, 0.0, 0.8));
-    col = mix(col, mix(col, jc, 0.6), j.x * 0.45 * fog);
-    col = mix(col, mix(jc, sun, 0.25 + 0.2 * j.z), clamp(j.y * 0.95 + j.z * 0.55, 0.0, 1.0) * fog);
-    col = mix(col, mix(jc, sun, 0.15), j.w * 0.7 * fog);
+    vec2 jp = vec2(0.6 * sin(t * 0.15 + fk * 2.1), 0.38 * sin(t * 0.11 + fk * 1.7) + 0.03 * sin(t * 1.5 + fk));
+    vec2 d = p - jp;
+    float bell = exp(-dot(d * vec2(1.0, 1.6), d * vec2(1.0, 1.6)) / 0.003);
+    col = mix(col, vio, clamp(bell * 0.7 * p_glow * (0.3 + 0.7 * live), 0.0, 0.8));
   }
 
   for (int i = 0; i < 16; i++) {
@@ -1534,32 +1461,34 @@ vec3 scene(vec2 uv, vec2 p) {
     vec4 a = u_agents[i];
     float fi = float(i);
     float waiting = step(0.5, a.z);
-    float ph = u_time * mix(2.6, 1.1, waiting) + fi * 1.7;
-    vec2 c0 = toP(a.xy) + vec2(0.006 * sin(u_time * 0.7 + fi), (1.0 - waiting) * 0.012 * sin(ph - 1.2));
+    float pulse = 0.5 + 0.5 * sin(u_time * 3.0 + fi);
+    float swim = sin(u_time * 2.2 + fi * 1.3);
+    vec2 c0 = toP(a.xy) + vec2(0.006 * sin(u_time * 0.7 + fi), (1.0 - waiting) * 0.014 * swim);
     vec2 d = p - c0;
-    float s = 0.036;
-    vec4 j = jelly(d, s, ph, mix(1.0, 0.7, waiting), u_time + fi);
-    vec3 jc = mix(jel, sea, 0.25 + 0.25 * sin(fi * 1.7));
-    jc = mix(jc, sun, 0.7 * waiting);
-    float pulse = 0.5 + 0.5 * sin(u_time * 2.0 + fi);
-    float halo = exp(-dot(d, d) / (s * s * (4.0 + 3.0 * waiting * pulse)));
-    col = mix(col, jc, clamp(halo * a.w * p_glow * 0.6, 0.0, 0.85));
-    col = mix(col, mix(col, jc, 0.7), j.x * 0.6 * a.w);
-    col = mix(col, mix(jc, sun, 0.3 + 0.3 * j.z), clamp(j.y * 0.9 + j.z * 0.6, 0.0, 1.0) * a.w);
-    col = mix(col, mix(jc, sun, 0.2), j.w * 0.75 * a.w);
-    if (waiting < 0.5) {
-      for (int b = 0; b < 3; b++) {
-        float fb = float(b);
-        float by = fract(u_time * 0.45 + fb * 0.33 + fi * 0.21);
-        vec2 bp = c0 + vec2(0.012 * sin(by * 12.0 + fb * 2.0 + fi), s * 0.9 + by * 0.14);
-        float br = 0.004 + 0.003 * fb;
-        float ring = smoothstep(0.0022, 0.0, abs(length(p - bp) - br));
-        col = mix(col, mix(sun, sea, 0.2), ring * (1.0 - by) * 0.8 * a.w);
+    float squash = 1.0 + 0.18 * swim * (1.0 - waiting);
+    vec2 bd = d * vec2(squash, 1.0 / squash);
+    float r = 0.03;
+    float dome = length(bd) / r;
+    float bellM = smoothstep(1.0, 0.6, dome) * smoothstep(-0.4 * r, 0.0, bd.y);
+    vec3 jc = mix(vio, teal, 0.3 + 0.3 * sin(fi));
+    if (waiting > 0.5) jc = mix(jc, dawn, 0.75);
+    float halo = exp(-dot(d, d) / (0.004 + 0.008 * waiting * pulse));
+    col = mix(col, jc, clamp(halo * a.w * p_glow * (0.4 + 0.35 * waiting * pulse), 0.0, 0.8));
+    col = mix(col, mix(jc, vec3(1.0), 0.25), bellM * 0.9 * a.w);
+    float len = 0.1 * p_trail * (1.0 - 0.4 * waiting);
+    float ty = clamp(-d.y / len, 0.0, 1.0);
+    if (d.y < 0.0 && d.y > -len) {
+      for (int k = 0; k < 3; k++) {
+        float fk = float(k) - 1.0;
+        float tx = fk * 0.012 + 0.014 * ty * sin(ty * 8.0 - u_time * 3.0 + fk * 2.0);
+        float tl = smoothstep(0.005, 0.0, abs(d.x - tx));
+        col = mix(col, jc, tl * (1.0 - ty) * 0.75 * a.w);
       }
-    } else {
-      float ph2 = fract(u_time * 0.5 + fi * 0.3);
-      float ring = abs(length(d) - s * (1.6 + 2.2 * ph2));
-      col = mix(col, sun, smoothstep(0.004, 0.0, ring) * (1.0 - ph2) * 0.7 * a.w);
+    }
+    if (waiting > 0.5) {
+      float ph = fract(u_time * 0.6);
+      float ring = abs(length(d) - r * (1.5 + 1.8 * ph));
+      col = mix(col, dawn, smoothstep(0.005, 0.0, ring) * (1.0 - ph) * 0.8 * a.w);
     }
   }
 
@@ -1567,14 +1496,503 @@ vec3 scene(vec2 uv, vec2 p) {
     if (i >= u_rippleCount) break;
     vec4 r = u_ripples[i];
     float dist = length(p - toP(r.xy));
-    float front = r.z * 0.2;
-    float ring = exp(-pow((dist - front) * 26.0, 2.0)) * exp(-r.z * 0.8);
-    float shimmer = 0.6 + 0.4 * sin(atan(p.y - toP(r.xy).y, p.x - toP(r.xy).x) * 18.0 + r.z * 6.0);
-    vec3 rc = r.w > 0.5 && r.w < 1.5 ? vec3(0.95, 0.28, 0.25) : (r.w > 1.5 ? jel : mix(sun, sea, 0.3));
-    col = mix(col, rc, ring * shimmer * 0.7);
+    float ring = exp(-pow((dist - r.z * 0.22) * 30.0, 2.0)) * exp(-r.z * 0.9);
+    vec3 rc = r.w > 0.5 && r.w < 1.5 ? vec3(0.95, 0.2, 0.18) : (r.w > 1.5 ? vio : teal);
+    col = mix(col, rc, ring * 0.75);
   }
 
-  col = mix(col, mix(sun, sea, 0.4), pd * 0.12);
+  col = mix(col, teal, pd * 0.2);
+  return mix(u_canvas, col, p_color);
+}`;
+
+const SUMI_KOI_SOURCE = `// x = ink, y = red patches, z = body mask, w = body roundness (1 along the spine, 0 at the flank)
+vec4 koi(vec2 p, vec2 c, float ang, float L, float tb, float spots) {
+  vec2 q = p - c;
+  if (dot(q, q) > 2.6 * L * L) return vec4(0.0);
+  float ca = cos(ang), sa = sin(ang);
+  q = vec2(ca * q.x + sa * q.y, -sa * q.x + ca * q.y) / L;
+  float s = q.x;
+  float v = q.y - 0.12 * sin(2.4 * s - tb) * (1.0 - s) * 0.5;
+  float av = abs(v);
+  float hw = 0.2 * sqrt(max((1.0 - s) * (s + 0.8), 0.0) / 0.81);
+  hw = max(hw, 0.045 * step(-1.0, s) * step(s, -0.5));
+  float body = smoothstep(0.0, 0.035, hw - av);
+  float round_ = sqrt(clamp(1.0 - pow(av / max(hw, 1e-3), 2.0), 0.0, 1.0)) * body;
+  float ts = -(s + 0.85);
+  float tw = 0.04 + max(ts, 0.0) * 0.8;
+  float tail = step(0.0, ts) * smoothstep(0.0, 0.03, tw - av) * smoothstep(0.0, 0.05, 0.28 + 0.3 * av / tw - ts);
+  vec2 d = normalize(vec2(-0.55, 0.8 + 0.2 * sin(tb * 1.3)));
+  vec2 fq = vec2(s - 0.28, av - 0.15);
+  float fin = smoothstep(1.0, 0.75, length(vec2((dot(fq, d) - 0.12) / 0.14, dot(fq, vec2(-d.y, d.x)) / 0.06)));
+  float rays = 0.55 + 0.45 * sin(v / (max(ts, 0.0) + 0.08) * 9.0);
+  float br = noise(vec2(s * 2.2 + spots * 9.0, v * 34.0));
+  float bodyInk = mix(0.28, 1.0, smoothstep(-hw, hw * 0.4, v));
+  bodyInk = max(bodyInk, smoothstep(0.55, 0.9, s) * 0.95);
+  bodyInk *= mix(1.0, 0.45 + 0.7 * br, 0.85);
+  float ink = max(body * bodyInk, max(tail * 0.5 * rays, fin * 0.45 * (0.6 + 0.5 * br)));
+  float outline = body * (1.0 - smoothstep(0.0, 0.07, hw - av)) * (0.6 + 0.5 * br);
+  float kInk = max(outline * 0.9, max(tail * 0.3 * rays, fin * 0.3));
+  ink = mix(ink, kInk, step(0.5, spots));
+  float eye = smoothstep(0.05, 0.025, length(vec2(s - 0.76, av - 0.1)));
+  ink = max(ink, eye);
+  float rp = noise(vec2(s * 2.6 + spots * 17.0, v * 5.0));
+  float red = body * step(0.5, spots) * max(smoothstep(0.45, 0.58, rp), smoothstep(0.35, 0.5, s) * smoothstep(0.85, 0.7, s)) * (1.0 - eye) * (0.75 + 0.35 * br);
+  return vec4(ink, red, max(body, max(tail, fin)), round_);
+}
+
+// soft shadow the fish casts on the pond floor
+float koiShadow(vec2 p, vec2 c, float ang, float L) {
+  vec2 q = p - c;
+  if (dot(q, q) > 2.0 * L * L) return 0.0;
+  float ca = cos(ang), sa = sin(ang);
+  q = vec2(ca * q.x + sa * q.y, -sa * q.x + ca * q.y) / L;
+  return exp(-(pow((q.x - 0.05) / 0.8, 2.0) + pow(q.y / 0.22, 2.0)) * 2.2);
+}
+
+// top light: flanks roll into shadow, a wet highlight rides the spine
+vec3 koiLight(vec3 col, vec4 k, float a) {
+  float r = k.w;
+  col *= 1.0 - (k.z - r) * 0.45 * p_depth * a;
+  col = mix(col, vec3(1.0, 0.99, 0.96), pow(r, 7.0) * 0.4 * p_depth * a);
+  return col;
+}
+
+vec3 base(vec2 p, float t) {
+  vec3 paper = u_palette[0];
+  vec3 ink = u_palette[1];
+  vec3 wash = u_palette[2];
+  vec3 red = u_palette[3];
+  vec3 shade = mix(wash, ink, 0.55);
+  float ft = t * p_swim;
+
+  float n1 = noise(vec2(p.x * 1.1 - t * 0.03, p.y * 2.6 + 1.7));
+  float n2 = noise(vec2(p.x * 2.3 + t * 0.02, p.y * 4.0 - 3.1));
+  float wm = smoothstep(0.35, 0.85, n1 * 0.7 + n2 * 0.45);
+  vec3 col = mix(paper, mix(paper, wash, 0.8), wm * p_wash);
+  col = mix(col, wash, 0.14 * p_wash * smoothstep(0.1, -0.55, p.y));
+
+  float ly = p.y * 10.0;
+  float li = floor(ly);
+  ly += 0.3 * sin(p.x * 2.3 - t * 0.25 + li * 1.7);
+  float sx = p.x * 1.7 - t * 0.05 + li * 3.1;
+  float cx = floor(sx);
+  float hs = hash21(vec2(cx, li));
+  float lenF = 0.45 + 0.45 * hash21(vec2(cx, li + 9.0));
+  float u = fract(sx) / lenF;
+  float th = 0.075 * pow(max(1.0 - u, 0.0), 0.7) * smoothstep(0.0, 0.06, u) * step(0.35, hs) * step(u, 1.0);
+  float line = smoothstep(th, th * 0.3, abs(fract(ly) - 0.5));
+  col = mix(col, mix(wash, ink, 0.45), line * (0.35 + 0.35 * hs));
+
+  // deep koi: large, washed out, their shadows close beneath them
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    float dir = mod(fi, 2.0) < 0.5 ? 1.0 : -1.0;
+    float spd = 0.035 + 0.01 * fi;
+    float x = mod(fi * 0.9 + dir * spd * ft + 1.35, 2.7) - 1.35;
+    float y = 0.13 - 0.16 * fi + 0.05 * sin(ft * 0.21 + fi * 2.0);
+    float dy = 0.05 * 0.21 * cos(ft * 0.21 + fi * 2.0);
+    float ang = atan(dy, dir * spd);
+    float L = 0.22 * p_size;
+    col = mix(col, shade, koiShadow(p - vec2(0.012, -0.018) * p_depth, vec2(x, y), ang, L) * 0.14 * p_depth);
+    vec4 k = koi(p, vec2(x, y), ang, L, ft * 1.6 + fi * 2.0, fi == 1.0 ? 1.0 : 0.0);
+    col = mix(col, mix(wash, ink, 0.3), k.x * 0.62);
+    col = mix(col, mix(red, wash, 0.35), k.y * 0.55);
+    col = koiLight(col, k, 0.5);
+  }
+
+  // shallow koi: crisp, lit from above, casting shadows well below them
+  for (int i = 0; i < 5; i++) {
+    float fi = float(i);
+    float dir = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
+    float spd = 0.055 + 0.012 * fi;
+    float lane = i == 0 ? 0.35 : (i == 1 ? -0.36 : (i == 2 ? 0.27 : (i == 3 ? -0.27 : 0.4)));
+    float x = mod(fi * 0.57 + dir * spd * ft + 1.2, 2.4) - 1.2;
+    float y = lane + 0.035 * sin(ft * 0.33 + fi * 1.3);
+    float dy = 0.035 * 0.33 * cos(ft * 0.33 + fi * 1.3);
+    float ang = atan(dy, dir * spd);
+    float L = 0.13 * p_size;
+    col = mix(col, shade, koiShadow(p - vec2(0.022, -0.034) * p_depth, vec2(x, y), ang, L) * 0.3 * p_depth);
+    vec4 k = koi(p, vec2(x, y), ang, L, ft * 3.2 + fi * 1.7, i == 3 ? 1.0 : 0.0);
+    col = mix(col, paper, k.z * step(2.5, fi) * step(fi, 3.5) * 0.9);
+    col = mix(col, ink, k.x * 0.92);
+    col = mix(col, red, k.y * 0.9);
+    col = koiLight(col, k, 1.0);
+  }
+
+  float yy = p.y + 0.5;
+  if (yy < 0.3) {
+    float cw = 0.085;
+    for (int j = -1; j <= 1; j++) {
+      float c = floor(p.x / cw) + float(j);
+      float h = hash21(vec2(c, 7.0));
+      if (h < 0.45) continue;
+      float h2 = hash21(vec2(c, 13.0));
+      float H = 0.1 + 0.17 * h2;
+      if (yy > H) continue;
+      float k = yy / H;
+      float lean = (h2 - 0.5) * 0.12;
+      float bx = (c + 0.5 + 0.6 * (h - 0.7)) * cw + (0.04 * sin(t * 0.6 + c * 1.3) + lean) * k * k;
+      float wdt = 0.011 * pow(sin(3.1416 * min(k * 0.92 + 0.06, 1.0)), 0.8) + 0.0008;
+      float st = smoothstep(wdt, wdt * 0.35, abs(p.x - bx));
+      float bs = noise(vec2((p.x - bx) / max(wdt, 1e-3) * 2.0 + c, yy * 14.0));
+      col = mix(col, mix(mix(ink, wash, 0.45), wash, 0.5 * k), st * (0.7 - 0.3 * k) * (0.65 + 0.45 * bs));
+    }
+  }
+
+  // lily pads float on the surface, so they shade the water and fish under them
+  for (int l = 0; l < 2; l++) {
+    float lane = l == 0 ? 0.465 : -0.475;
+    if (abs(p.y - lane) > 0.16) continue;
+    float cw = 0.24;
+    float drift = t * (l == 0 ? 0.008 : -0.006);
+    float px = p.x + drift;
+    for (int j = -1; j <= 1; j++) {
+      float c = floor(px / cw) + float(j);
+      float h = hash21(vec2(c, float(l) * 5.0 + 2.0));
+      if (h < 0.3) continue;
+      float h2 = hash21(vec2(c, 31.0 + float(l)));
+      float h3 = hash21(vec2(c, 47.0 + float(l)));
+      vec2 cc = vec2((c + 0.5 + 0.5 * (h2 - 0.5)) * cw, lane + 0.06 * (h3 - 0.5));
+      vec2 d = vec2(px, p.y) - cc;
+      float r = 0.045 + 0.045 * h2;
+      vec2 ds = d - vec2(0.03, -0.045) * p_depth;
+      float sd = length(ds * vec2(1.0, 1.3));
+      col = mix(col, shade, smoothstep(r * 1.1, r * 0.6, sd) * 0.3 * p_depth);
+      float dist = length(d * vec2(1.0, 1.3));
+      float a = atan(d.y, d.x);
+      float nt = smoothstep(0.22, 0.3, abs(mod(a - h * 6.2832 + 3.1416, 6.2832) - 3.1416));
+      float pad = smoothstep(r, r - 0.007, dist) * nt;
+      float bs = noise(vec2(a * 6.0 + c, dist * 60.0));
+      float tone = 0.35 + 0.5 * smoothstep(0.1 * r, r, dist);
+      tone *= 0.7 + 0.45 * bs;
+      tone -= 0.2 * smoothstep(0.85, 1.0, cos(a * 9.0 + h * 5.0)) * smoothstep(0.15 * r, 0.5 * r, dist);
+      // the pad cups upward: its lit rim faces the light, its far rim falls away
+      float cup = smoothstep(0.6 * r, r, dist) * dot(d / max(dist, 1e-3), vec2(-0.6, 0.8));
+      tone -= 0.18 * cup * p_depth;
+      col = mix(col, mix(wash * 0.7, ink, 0.6), pad * clamp(tone, 0.0, 1.0));
+      if (h > 0.7) {
+        vec2 bd = d - vec2(r * 0.25, r * 0.15);
+        bd.x -= bd.y * 0.35;
+        float bud = smoothstep(1.0, 0.8, length(vec2(bd.x / (r * 0.28), (bd.y - r * 0.05) / (r * 0.42 * (1.0 - 0.4 * smoothstep(-r * 0.3, r * 0.4, bd.y))))));
+        col = mix(col, mix(red, red * 0.7, smoothstep(-r * 0.3, r * 0.4, bd.y)), bud * 0.95);
+      }
+    }
+  }
+  return col;
+}
+
+vec3 scene(vec2 uv, vec2 p) {
+  float t = u_time;
+  vec3 paper = u_palette[0];
+  vec3 ink = u_palette[1];
+  vec3 wash = u_palette[2];
+
+  vec2 dp = p - toP(u_pointer);
+  float pd = length(dp);
+  float pr = sin(pd * 90.0 - t * 5.0) * exp(-pd * pd / 0.008);
+  vec2 warp = dp / max(pd, 1e-3) * pr * 0.005;
+
+  float rings = 0.0;
+  float err = 0.0;
+  for (int i = 0; i < 12; i++) {
+    if (i >= u_rippleCount) break;
+    vec4 r = u_ripples[i];
+    vec2 d = p - toP(r.xy);
+    float dist = length(d);
+    float fade = exp(-r.z * 0.7);
+    if (abs(r.w - 1.0) < 0.5) {
+      float rad = 0.02 + 0.07 * sqrt(r.z);
+      float edgeN = noise(d * 30.0 + r.xy * 50.0) * 0.03;
+      err += smoothstep(rad + 0.01, rad - 0.01, dist + edgeN) * fade;
+    } else {
+      float rad = r.z * 0.12;
+      float rg = exp(-pow((dist - rad) * 80.0, 2.0)) + 0.6 * exp(-pow((dist - rad * 0.62) * 80.0, 2.0));
+      rg *= 0.6 + 0.5 * noise(vec2(atan(d.y, d.x) * 4.0, r.z));
+      rings += rg * fade;
+      warp += d / max(dist, 1e-3) * rg * fade * 0.003;
+    }
+  }
+
+  float f = fbm(p * 3.2 + vec2(t * 0.015, 0.0));
+  vec2 bleed = vec2(f - 0.5, noise(p * 6.0 + 3.7 + t * 0.01) - 0.5) * 0.024 * p_bleed;
+  vec2 sp = p + bleed + warp;
+  vec3 A = base(sp, t);
+  vec2 o = vec2(0.004, 0.0028);
+  vec3 B = base(sp + o, t);
+  vec3 C = base(sp + vec2(-o.y, o.x), t);
+  vec3 lw = vec3(0.3, 0.59, 0.11);
+  float lA = dot(A, lw);
+  float pool = clamp((max(dot(B, lw), dot(C, lw)) - lA) * 3.5, 0.0, 1.0);
+  vec3 col = A * (1.0 - 0.4 * pool * min(p_bleed, 1.5));
+
+  float lp = dot(paper, lw);
+  float inkAmt = clamp(1.0 - dot(col, lw) / max(lp, 0.01), 0.0, 1.0);
+  float fw = smoothstep(0.55, 0.8, noise(vec2(p.x * 7.0 + p.y * 3.0, p.y * 220.0 + p.x * 20.0)));
+  col = mix(col, paper, fw * smoothstep(0.3, 0.9, inkAmt) * 0.55 * p_dry);
+
+  col = mix(col, mix(wash, ink, 0.6), clamp(rings, 0.0, 1.0) * 0.7);
+  col = mix(col, mix(wash, ink, 0.3), max(pr, 0.0) * 0.18);
+
+  for (int i = 0; i < 16; i++) {
+    if (i >= u_agentCount) break;
+    vec4 a = u_agents[i];
+    vec2 c = toP(a.xy);
+    float waiting = step(0.5, a.z);
+    float fi = float(i);
+    float L = 0.075 * a.w * sqrt(p_size);
+    float ph = t * 0.9 * max(p_swim, 0.2) + fi * 1.7;
+    vec2 pos = mix(c + 0.05 * vec2(cos(ph), sin(ph)), c + vec2(0.0, 0.004 * sin(t * 2.0 + fi)), waiting);
+    float ang = mix(ph + 1.5708, 1.5708, waiting);
+    if (waiting < 0.5) {
+      for (int k = 0; k < 3; k++) {
+        float fk = float(k);
+        vec2 pp = c + 0.05 * vec2(cos(ph - 0.7 * (fk + 1.0)), sin(ph - 0.7 * (fk + 1.0)));
+        float rad = 0.008 + 0.009 * fk;
+        float rl = smoothstep(0.003, 0.0, abs(length(p - pp) - rad)) * (1.0 - fk / 3.0) * 0.5;
+        col = mix(col, mix(wash, ink, 0.4), rl * a.w);
+      }
+    } else {
+      for (int k = 0; k < 2; k++) {
+        float fp = fract(t * 0.5 + float(k) * 0.5);
+        float rad = L * 0.5 + fp * 0.09;
+        float rl = smoothstep(0.004, 0.0, abs(length(p - pos) - rad)) * (1.0 - fp);
+        col = mix(col, ink, rl * 0.7 * a.w);
+      }
+    }
+    col = mix(col, mix(wash, ink, 0.55), koiShadow(p - vec2(0.02, -0.03) * p_depth, pos, ang, L) * 0.3 * p_depth * a.w);
+    vec4 k = koi(p, pos, ang, L, t * 4.0 + fi, 1.0);
+    col = mix(col, paper * 1.03, k.z * a.w * 0.95);
+    col = mix(col, ink, k.x * a.w);
+    col = mix(col, u_palette[3] * 1.05, k.y * a.w);
+    col = koiLight(col, k, a.w);
+  }
+
+  col = mix(col, vec3(0.86, 0.12, 0.08), clamp(err, 0.0, 1.0) * 0.8);
+  float fib = noise(p * vec2(420.0, 160.0)) * 0.6 + noise(p * vec2(90.0, 700.0)) * 0.4;
+  col *= 0.955 + 0.07 * fib;
+  return mix(u_canvas, col, p_color);
+}`;
+
+const RED_ALARM_SOURCE = `const float BAY[16] = float[16](0.0,8.0,2.0,10.0,12.0,4.0,14.0,6.0,3.0,11.0,1.0,9.0,15.0,7.0,13.0,5.0);
+float bayer(vec2 c) { ivec2 i = ivec2(mod(c, 4.0)); return (BAY[i.x + i.y * 4] + 0.5) / 16.0; }
+
+const float HZ = -0.16;
+float g_led;
+float g_aspect;
+
+float boxD(vec2 d, vec2 h) { vec2 q = abs(d) - h; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0); }
+float segD(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float k = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * k); }
+
+// eyepiece lens: magnifies the middle, crushes the periphery toward the rim
+vec2 lens(vec2 p) {
+  vec2 e = p / vec2(0.5 * g_aspect, 0.5);
+  float r2 = dot(e, e) * 0.5;
+  return p * (1.0 + p_bulge * r2) / (1.0 + p_bulge);
+}
+
+// subject: monochrome intensity + depth (0 near, 1 far)
+vec2 base(vec2 p, float t) {
+  float sp = p_speed;
+  float led = g_led;
+  if (p.y < HZ) {
+    // near layer: checkered wireframe floor racing toward the viewer
+    float d = HZ - p.y;
+    float z = 0.22 / d;
+    float zz = z + t * 0.9 * sp;
+    float dz = abs(fract(zz + 0.5) - 0.5) * d * d / 0.22;
+    float xw = p.x * z * 1.6;
+    float dx = abs(fract(xw + 0.5) - 0.5) / (z * 1.6);
+    float w = led * 0.55;
+    float lz = step(dz, w) * smoothstep(9.0, 2.5, z);
+    float lx = step(dx, w) * smoothstep(16.0, 3.0, z);
+    float chk = mod(floor(zz + 0.5) + floor(xw + 0.5), 2.0);
+    float I = 0.04 + 0.5 * exp(-d * 30.0) + chk * 0.3 * smoothstep(7.0, 1.5, z);
+    I = max(I, max(lz, lx) * mix(0.45, 0.98, smoothstep(6.0, 1.0, z)));
+    // message packets riding the lanes
+    float lane = floor(xw + 0.5);
+    float h = hash21(vec2(lane, 3.1));
+    float zp = mod(h * 37.0 - t * (1.2 + 1.6 * h) * sp, 14.0) + 0.6;
+    float pd = abs(z - zp) * d * d / 0.22;
+    if (h < 0.45 && pd < led * 1.6 && dx < led * 1.3) I = 1.0;
+    return vec2(I, clamp(z / 10.0, 0.0, 1.0));
+  }
+  float up = p.y - HZ;
+  float I = 0.01 + 0.34 * exp(-up * 16.0);
+  if (up < led * 1.5) I = 0.95;
+  float dep = 1.0;
+  // far layer: skyline of stacked thread cards
+  float xf = p.x + t * 0.012 * sp;
+  float cw = 0.09;
+  float ci = floor(xf / cw);
+  float fx = xf - (ci + 0.5) * cw;
+  float h1 = hash21(vec2(ci, 1.7));
+  float th = 0.07 + 0.3 * h1 * h1;
+  float hw = cw * 0.4;
+  if (abs(fx) < hw && up < th) {
+    float sy = up / 0.026;
+    float edge = max(step(hw - led * 1.1, abs(fx)), step(th - led * 1.1, up));
+    I = fract(sy) > 0.8 ? 0.06 : 0.24;
+    float lit = step(0.8, hash21(vec2(ci, floor(sy)) + floor(t * 0.5 * sp + h1 * 4.0) * 0.13));
+    I = max(I, lit * 0.55 * step(fract(sy), 0.8));
+    I = max(I, edge * 0.45);
+    dep = 0.85;
+  }
+  // middle layer: thread windows rising out of the horizon, dimming as they scroll away
+  vec2 cs = vec2(0.34, 0.26);
+  vec2 q = vec2(p.x - t * 0.008 * sp, p.y - t * 0.03 * sp);
+  vec2 id = floor(q / cs);
+  vec2 f = q - (id + 0.5) * cs;
+  float hp = hash21(id + 5.3);
+  if (hp < p_panels && up > 0.008) {
+    vec2 hs = vec2(0.115 + 0.03 * hash21(id + 9.1), 0.08 + 0.03 * hash21(id + 2.7));
+    vec2 ofs = (vec2(hash21(id + 1.3), hash21(id + 7.7)) - 0.5) * vec2(0.06, 0.05);
+    vec2 d = f - ofs;
+    float bd = boxD(d, hs);
+    if (bd < 0.0) {
+      dep = 0.45;
+      float P = 0.0;
+      float top = hs.y - d.y;
+      if (top < 0.034) {
+        P = 0.55;
+        if (boxD(d - vec2(-hs.x + 0.02, hs.y - 0.017), vec2(0.009)) < 0.0) P = 0.12;
+        if (abs(d.x - hs.x + 0.022) < led * 2.0 && abs(top - 0.017) < led * 2.0) P = 0.95;
+      } else {
+        float rowF = (top - 0.04) / 0.024;
+        float row = floor(rowF);
+        if (rowF > 0.0 && fract(rowF) < 0.42 && top < 2.0 * hs.y - 0.012) {
+          float inner = 2.0 * hs.x - 0.03;
+          float lx = (d.x + hs.x - 0.015) / inner;
+          float hr = hash21(vec2(row, 4.0) + id);
+          if (hr > 0.62) lx = 1.0 - lx;
+          float len = 0.25 + 0.6 * hash21(vec2(row, 8.0) + id);
+          if (lx > 0.0 && lx < len) P = hr > 0.62 ? 0.62 : 0.34;
+        }
+      }
+      if (bd > -led * 1.2) P = 0.8;
+      I = P * mix(1.0, 0.42, smoothstep(0.18, 0.6, up));
+    }
+  }
+  return vec2(I, dep);
+}
+
+vec3 cubeV(int i) { return vec3((i & 1) == 0 ? -1.0 : 1.0, (i & 2) == 0 ? -1.0 : 1.0, (i & 4) == 0 ? -1.0 : 1.0); }
+
+float events(vec2 p, float t, out float err) {
+  float led = g_led;
+  float I = 0.0;
+  err = 0.0;
+  for (int i = 0; i < 16; i++) {
+    if (i >= u_agentCount) break;
+    vec4 a = u_agents[i];
+    vec2 head = lens(toP(a.xy)) + vec2(0.0, 0.006 * sin(t * 2.1 + float(i)));
+    vec2 d = p - head;
+    if (dot(d, d) > 0.03) continue;
+    if (a.z > 0.5) {
+      // waiting: blinking [!] callout with sonar frames
+      float blink = step(0.3, fract(t * 1.4));
+      float fr = step(abs(boxD(d, vec2(0.04, 0.032))), led * 0.8);
+      float ex = step(boxD(d - vec2(0.0, 0.006), vec2(led * 0.9, 0.013)), 0.0) + step(boxD(d + vec2(0.0, 0.02), vec2(led * 0.9)), 0.0);
+      I = max(I, max(fr, ex) * mix(0.45, 1.0, blink) * a.w);
+      float ph = fract(t * 0.7 + float(i) * 0.3);
+      float ring = step(abs(boxD(d, vec2(0.04, 0.032) * (1.0 + ph * 2.2))), led * 0.7);
+      I = max(I, ring * (1.0 - ph) * 0.8 * a.w);
+    } else {
+      // working: spinning wireframe cube with a scan trail
+      float R = 0.05 * a.w;
+      float ay = t * 1.3 + float(i), ax = 0.55 + 0.25 * sin(t * 0.7 + float(i));
+      float cy = cos(ay), sy = sin(ay), cx = cos(ax), sx = sin(ax);
+      if (dot(d, d) < 0.0016) {
+        float md = 1e3;
+        for (int e = 0; e < 12; e++) {
+          int axn = e / 4;
+          int k = e - axn * 4;
+          int lo = k & ((1 << axn) - 1);
+          int ia = ((k >> axn) << (axn + 1)) | lo;
+          int ib = ia | (1 << axn);
+          vec3 va = cubeV(ia), vb = cubeV(ib);
+          va = vec3(cy * va.x + sy * va.z, va.y, -sy * va.x + cy * va.z);
+          vb = vec3(cy * vb.x + sy * vb.z, vb.y, -sy * vb.x + cy * vb.z);
+          vec2 pa = vec2(va.x, cx * va.y - sx * va.z) * R * 0.5;
+          vec2 pb = vec2(vb.x, cx * vb.y - sx * vb.z) * R * 0.5;
+          md = min(md, segD(d, pa, pb));
+        }
+        I = max(I, step(md, led * 0.65) * a.w);
+      }
+      I = max(I, 0.2 * exp(-dot(d, d) / 0.002) * a.w);
+      for (int k = 0; k < 6; k++) {
+        float fk = float(k) + fract(t * 3.0);
+        vec2 tp = vec2(-0.05 - fk * 0.018, 0.004 * sin(fk * 1.7 + t * 3.0));
+        float tb = boxD(d - tp, vec2(led * 1.2, led * 0.6));
+        I = max(I, step(tb, 0.0) * (1.0 - fk / 6.5) * 0.9 * a.w);
+      }
+    }
+  }
+  for (int i = 0; i < 12; i++) {
+    if (i >= u_rippleCount) break;
+    vec4 r = u_ripples[i];
+    vec2 d = p - lens(toP(r.xy));
+    float fade = exp(-r.z * 0.7);
+    float sp = r.w > 1.5 ? 0.12 : 0.24;
+    float s = r.z * sp + 0.01;
+    float bd = boxD(d, vec2(s * 1.35, s));
+    float ring = step(abs(bd), led * 0.9) + step(abs(boxD(d, vec2(s * 0.8, s * 0.6))), led * 0.7) * 0.6;
+    I = max(I, clamp(ring, 0.0, 1.0) * fade);
+    // error: an inverted shockwave band trailing the frame
+    if (abs(r.w - 1.0) < 0.5) err = max(err, step(bd, 0.0) * step(-0.08, bd) * exp(-r.z * 0.9) * 1.6);
+  }
+  return I;
+}
+
+vec3 scene(vec2 uv, vec2 p0) {
+  float t = u_time;
+  float led = 1.0 / p_res;
+  g_led = led;
+  g_aspect = u_resolution.x / u_resolution.y;
+  // cursor knocks the mirror out of sync: rows tear sideways
+  vec2 sp0 = p0;
+  vec2 dp = p0 - toP(u_pointer);
+  float gl = exp(-dot(dp, dp) / 0.012);
+  sp0.x += gl * (hash21(vec2(floor(p0.y / led), floor(t * 14.0))) - 0.5) * 0.08;
+
+  // look through the eyepiece: the LED grid itself bends with the lens
+  vec2 p = lens(sp0);
+  vec2 c = floor(p / led);
+  vec2 cp = (c + 0.5) * led;
+
+  // tunnel: elliptical falloff from the middle, dithered into stepped LED rings
+  vec2 e = p0 / vec2(0.5 * g_aspect, 0.5);
+  float r = length(e * vec2(0.82, 1.0));
+  float vig = 1.0 - p_tunnel * smoothstep(0.2, 1.2, r);
+  vig *= 1.0 - p_tunnel * 0.9 * smoothstep(1.05, 1.45, r);
+
+  vec2 b = base(cp, t);
+  float I = b.x;
+  // stereo ghost: near things double like a misaligned eyepiece
+  vec2 gb = base(cp + vec2(0.012 * p_stereo, 0.0), t);
+  I = max(I, gb.x * (1.0 - gb.y) * 0.45 * step(0.01, p_stereo));
+  I *= vig;
+  float err;
+  I = max(I, events(cp, t, err) * max(vig, 0.65));
+  // oscillating mirror sweep
+  float sx = mod(t * 0.45, 2.8) - 1.4;
+  float band = exp(-pow((p0.x - sx) * 7.0, 2.0));
+  I = I * (1.0 + 0.6 * p_scan * band) + 0.07 * p_scan * band * vig;
+  I *= 0.9 + 0.1 * hash21(vec2(c.y, 0.37));
+  // RED ALARM: inverse video strobe
+  float ev = clamp(err, 0.0, 1.0);
+  float haz = step(0.5, fract((cp.x + cp.y) / 0.05 - t * 2.0));
+  float strobe = 0.5 + 0.5 * step(0.5, fract(t * 4.0));
+  I = mix(I, mix(1.0 - I, haz, 0.5), ev * strobe);
+
+  float lvl = clamp(floor(clamp(I, 0.0, 1.0) * 3.0 + bayer(c)), 0.0, 3.0);
+  vec3 lc = lvl < 0.5 ? u_palette[0] : lvl < 1.5 ? u_palette[1] : lvl < 2.5 ? u_palette[2] : u_palette[3];
+  lc = mix(lc, vec3(1.0, 0.72, 0.6), ev * strobe * step(2.5, lvl) * 0.5);
+  vec2 f = fract(p / led) - 0.5;
+  float dot_ = smoothstep(0.52, 0.3, max(abs(f.x) * 1.15, abs(f.y)));
+  vec3 col = mix(u_palette[0] * 0.7, lc, mix(0.55, 1.0, dot_));
+  col += u_palette[2] * 0.06 * clamp(I, 0.0, 1.0);
+  // the dark rubber visor swallows the far rim
+  col *= mix(1.0, 0.35, p_tunnel * smoothstep(0.95, 1.5, r));
   return mix(u_canvas, col, p_color);
 }`;
 
@@ -1597,10 +2015,12 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     id: "fireflies",
     name: "Fireflies",
     source: FIREFLIES_SOURCE,
-    palette: ["#1d2266", "#6b3fb5", "#ffe14d", "#ff5fa2"],
+    palette: ["#070b22", "#1f3f94", "#ffd65c", "#58b4ff"],
     params: [
       param("size", "Firefly size", 0.2, 3, 1.2),
       param("motes", "Firefly swarm", 0, 2, 0.9),
+      param("stars", "Stars", 0, 2, 1),
+      param("galaxy", "Milky Way", 0, 2, 1),
       param("wind", "Grass sway", 0, 3, 1),
       param("wet", "Wetness (blooms & bleed)", 0, 2, 1),
       param("grain", "Granulation", 0, 2, 1),
@@ -1679,20 +2099,49 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     ],
   },
   {
-    id: "jellyfish-deep",
-    name: "Jellyfish Deep",
-    source: JELLYFISH_DEEP_SOURCE,
-    palette: ["#05213f", "#13a3b4", "#c48bff", "#fdf3cf"],
+    id: "jellyfish-tidepool",
+    name: "Jellyfish Tidepool",
+    source: JELLYFISH_TIDEPOOL_SOURCE,
+    palette: ["#06243a", "#1fb5a8", "#b98cff", "#ffb38a"],
     params: [
-      param("drift", "Current", 0, 3, 1),
-      param("depth", "Depth", 0.4, 2, 1),
-      param("rays", "Light shafts", 0, 2, 1),
-      param("caustics", "Caustics", 0, 2, 1),
-      param("snow", "Marine snow", 0, 2, 1),
-      param("bubbles", "Bubbles", 0, 2, 1),
+      param("drift", "Current speed", 0, 3, 1),
       param("glow", "Bioluminescence", 0, 2, 1),
-      param("calm", "Calm behind text", 0, 1, 0.6),
+      param("plankton", "Plankton density", 0, 1, 0.45),
+      param("trail", "Tentacle length", 0.3, 2, 1),
+      param("dawn", "Dawn on the rim", 0, 1, 0.6),
+      param("calm", "Calm behind text", 0, 1, 0.7),
       param("color", "Color strength", 0, 1, 0.92),
+    ],
+  },
+  {
+    id: "sumi-koi",
+    name: "Sumi Koi",
+    source: SUMI_KOI_SOURCE,
+    palette: ["#f1e8d6", "#1c1e22", "#6d8a96", "#d63a1c"],
+    params: [
+      param("swim", "Swim speed", 0, 3, 1),
+      param("size", "Koi size", 0.6, 1.6, 1),
+      param("depth", "Depth & shadows", 0, 2, 1),
+      param("bleed", "Ink bleed", 0, 2, 0.6),
+      param("dry", "Dry brush", 0, 1, 0.3),
+      param("wash", "Water wash", 0, 1, 0.71),
+      param("color", "Color strength", 0, 1, 0.93),
+    ],
+  },
+  {
+    id: "red-alarm",
+    name: "Red Alarm",
+    source: RED_ALARM_SOURCE,
+    palette: ["#140204", "#6e0610", "#d4101c", "#ff4a3a"],
+    params: [
+      param("speed", "Scroll speed", 0, 3, 0.4),
+      param("res", "LED rows", 90, 260, 192, 1),
+      param("stereo", "Stereo depth", 0, 2, 0.54),
+      param("panels", "Thread panels", 0, 1, 0.76),
+      param("scan", "Mirror scan glow", 0, 1, 0.77),
+      param("tunnel", "Tunnel vision", 0, 1, 0.04),
+      param("bulge", "Eyepiece bulge", 0, 1.5, 0.91),
+      param("color", "Color strength", 0, 1, 1),
     ],
   },
 ];
