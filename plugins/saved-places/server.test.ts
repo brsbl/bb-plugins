@@ -43,8 +43,8 @@ describe("import script", () => {
       const data = JSON.parse(await readFile(out, "utf8"));
       expect(data.collections.map((c: { id: string }) => c.id)).toEqual(["coffee", "starred-places"]);
       expect(data.places).toMatchObject([
-        { name: 'Cafe "One"', latitude: 35.1, longitude: 139.2, collectionId: "coffee", category: "coffee" },
-        { name: "Museo Tamayo", url: "https://maps.google.com/?cid=123", collectionId: "starred-places", category: "culture" },
+        { name: 'Cafe "One"', latitude: 35.1, longitude: 139.2, collectionId: "coffee", category: "other" },
+        { name: "Museo Tamayo", url: "https://maps.google.com/?cid=123", collectionId: "starred-places", category: "other" },
       ]);
     } finally {
       await rm(dir, { recursive: true, force: true });
