@@ -20,14 +20,18 @@ const LAYOUT_KEY_LIMIT = 200;
 const LAYOUT_ENTRY_LIMIT = 2000;
 
 const pointSchema = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
+const preferenceFields = {
+  sort: z.enum(["sidebar", "updated", "created", "alpha"]),
+  organize: z.enum(["sidebar", "section", "project", "machine"]),
+  lifecycle: z.enum(["sidebar", "active", "archived", "all"]),
+  quickLaunch: z.array(z.string().max(QUICK_LAUNCH_ID_LIMIT)).max(24),
+};
 const preferencesSchema = z
-  .object({
-    sort: z.enum(["sidebar", "updated", "created", "alpha"]),
-    organize: z.enum(["sidebar", "section", "project", "machine"]),
-    lifecycle: z.enum(["sidebar", "active", "archived", "all"]),
-    quickLaunch: z.array(z.string().max(QUICK_LAUNCH_ID_LIMIT)).max(24).default([...DEFAULT_QUICK_LAUNCH]),
-  })
+  .object({ ...preferenceFields, quickLaunch: preferenceFields.quickLaunch.default([...DEFAULT_QUICK_LAUNCH]) })
   .strict();
+// Built without the stored default: a partial of a defaulted field still fills it in, so saving only `sort` would
+// reset Quick Launch.
+const preferencesPatchSchema = z.object(preferenceFields).partial().strict();
 const DEFAULT_PREFERENCES: Preferences = {
   sort: "sidebar",
   organize: "sidebar",
@@ -135,7 +139,7 @@ export const rpcContract = defineRpcContract({
       .strict(),
     output: okSchema,
   },
-  setPreferences: { input: preferencesSchema.partial().strict(), output: okSchema },
+  setPreferences: { input: preferencesPatchSchema, output: okSchema },
   createSection: { input: z.object({ name: nameSchema }).strict(), output: namedSchema },
   renameSection: { input: z.object({ id: z.string(), name: nameSchema }).strict(), output: okSchema },
   deleteSection: { input: z.object({ id: z.string() }).strict(), output: okSchema },

@@ -157,6 +157,14 @@ describe("desktop server", () => {
     expect(snapshot.preferences).toMatchObject({ sort: "alpha", quickLaunch: [program] });
   });
 
+  it("keeps Quick Launch when a later save changes only the organization", async () => {
+    const { harness } = await setup();
+    await harness.callRpc("setPreferences", { quickLaunch: ["pinball"] });
+    await harness.callRpc("setPreferences", { organize: "project" });
+    const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
+    expect(snapshot.preferences).toMatchObject({ organize: "project", quickLaunch: ["pinball"] });
+  });
+
   it("starts one hidden bb Explorer thread when two windows ask at once", async () => {
     const { harness, spawns } = await setup();
     const [first, second] = await Promise.all([
