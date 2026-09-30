@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categories, categoryIdSchema, groupOf, groups, resolveCategory } from "./categories";
+import { categories, categoryIdSchema, groupOf, groups, includesCategory, resolveCategory } from "./categories";
 import { categoryIcons } from "./category-icons";
 
 const luminance = (hex: string) => {
@@ -29,11 +29,39 @@ describe("category taxonomy", () => {
   it("refines broad stored categories from the place type or name", () => {
     expect(resolveCategory({ category: "culture", placeType: "Art museum", name: "Mori Art Museum" })).toBe("museum");
     expect(resolveCategory({ category: "culture", placeType: "Shinto shrine", name: "Meiji Jingu" })).toBe("shrine");
-    expect(resolveCategory({ category: "outdoors", placeType: "Theme park", name: "Fuji-Q" })).toBe("outdoors");
-    expect(resolveCategory({ category: "other", placeType: "Theme park", name: "Fuji-Q" })).toBe("amusement");
+    expect(resolveCategory({ category: "outdoors", placeType: "Theme park", name: "Fuji-Q" })).toBe("amusement");
     expect(resolveCategory({ category: "other", placeType: null, name: "Disk Union Record Store" })).toBe("records");
     expect(resolveCategory({ category: "music", placeType: "Music bar", name: "JBS" })).toBe("music");
     expect(resolveCategory({ category: "ramen", placeType: "Sushi restaurant", name: "Ichiran" })).toBe("ramen");
     expect(resolveCategory({ category: "other", placeType: null, name: "Somewhere" })).toBe("other");
+  });
+
+  it.each([
+    ["Bar", "JAM Record Bar", "bars"],
+    ["Dessert restaurant", "Azuki to Kōri", "dessert"],
+    ["Restaurant", "Sushi Sho", "sushi"],
+    ["Restaurant", "Koloa Fish Market", "food"],
+    ["Standing sushi bar", "Uogashi Nihon-Ichi", "sushi"],
+    ["Sports bar", "The Local", "bars"],
+    ["Cafe & bar", "Dug Jazz Cafe & Bar", "music"],
+    ["Kitchen supply store", "Kama-Asa", "shop"],
+    ["Dojo restaurant", "Dojo", "food"],
+    ["Swimwear store", "Seafolly", "fashion"],
+    ["Observation deck", "Tokyo Tower", "viewpoint"],
+    [null, "Mitsui Garden Hotel Kyoto", "stays"],
+    [null, "Shoe Palace", "fashion"],
+    [null, "Beach Road Scissors Cut Curry Rice", "food"],
+    [null, "Skinny's Lounge", "bars"],
+    [null, "Taishan Cuisine", "food"],
+    [null, "Song Fa Bak Kut Teh 11 New Bridge Road", "food"],
+  ] as const)("puts a %s named %s in %s", (placeType, name, expected) => {
+    expect(resolveCategory({ category: "other", placeType, name })).toBe(expected);
+  });
+
+  it("lets a broad filter id match the categories in its group", () => {
+    expect(includesCategory("culture", "shrine")).toBe(true);
+    expect(includesCategory("food", "sushi")).toBe(true);
+    expect(includesCategory("museum", "shrine")).toBe(false);
+    expect(includesCategory("music", "bars")).toBe(false);
   });
 });

@@ -2,13 +2,13 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { collections, collectionIds, places, placeSchema } from "./places";
-import { categories, categoryFor, categoryIdSchema, resolveCategory } from "./categories";
+import { categories, categoryFor, categoryIdSchema, includesCategory, resolveCategory } from "./categories";
 import { allPlaces, customListSchema, importedLists, noteSchema, placesByKey, savedStateSchema, shortAddress, type SavedState } from "./model";
 import { NOTES_LIST_ID } from "./notes-list";
 
 const filterSchema = z.object({ collectionId: z.string().min(1).nullable().default(null), category: categoryIdSchema.nullable().default(null), query: z.string().default("") });
 function filterPlaces(input: z.infer<typeof filterSchema>) {
-  return places.filter(place => (input.collectionId === null || place.collectionId === input.collectionId) && (input.category === null || place.category === input.category || resolveCategory(place) === input.category) && `${place.name} ${place.address} ${place.placeType ?? ""}`.toLocaleLowerCase().includes(input.query.toLocaleLowerCase().trim()));
+  return places.filter(place => (input.collectionId === null || place.collectionId === input.collectionId) && (input.category === null || includesCategory(input.category, resolveCategory(place))) && `${place.name} ${place.address} ${place.placeType ?? ""}`.toLocaleLowerCase().includes(input.query.toLocaleLowerCase().trim()));
 }
 const saveNoteSchema = z.object({ key: z.string().min(1), text: z.string().max(2000) });
 const boundsSchema = z.object({ west: z.number(), south: z.number(), east: z.number(), north: z.number() });

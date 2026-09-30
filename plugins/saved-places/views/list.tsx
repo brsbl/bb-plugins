@@ -95,7 +95,7 @@ export function ListView({ ids, filter, reach }: { ids: string[]; filter: ListFi
     </label>
     <div className="sp-chips" role="group" aria-label="Filter places">
       {noteCount > 0 && <Chip pressed={filter.notes} onClick={() => setFilter({ notes: !filter.notes })} color="#e2a336"><Icon icon={Note01} size={13} />Notes<span>{noteCount}</span></Chip>}
-      {chips.length > 1 && chips.map(c => <Chip key={c.key} pressed={c.ids.every(id => filter.categories.includes(id))} onClick={() => toggleChip(c.ids)}><span className="sp-chip-glyph" style={{ background: c.color }}><Icon icon={c.icon} size={12} /></span>{c.label}<span>{c.count}</span></Chip>)}
+      {chips.length > 1 && chips.map(c => <Chip key={c.key} pressed={c.ids.every(id => filter.categories.includes(id))} onClick={() => toggleChip(c.ids)}><span className="sp-chip-glyph sp-orb" style={{ "--orb-color": c.color } as React.CSSProperties}><Icon icon={c.icon} size={12} /></span>{c.label}<span>{c.count}</span></Chip>)}
       {!single && lists.map(l => <span key={l.id} className="sp-legend"><span style={{ background: l.color }} />{l.title}</span>)}
     </div>
   </>;
