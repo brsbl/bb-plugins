@@ -7,8 +7,9 @@ import { allPlaces, customListSchema, importedLists, noteSchema, placesByKey, sa
 import { NOTES_LIST_ID } from "./notes-list";
 
 const filterSchema = z.object({ collectionId: z.string().min(1).nullable().default(null), category: categoryIdSchema.nullable().default(null), query: z.string().default("") });
+const resolvedPlaces = places.map(place => ({ ...place, category: resolveCategory(place) }));
 function filterPlaces(input: z.infer<typeof filterSchema>) {
-  return places.filter(place => (input.collectionId === null || place.collectionId === input.collectionId) && (input.category === null || includesCategory(input.category, resolveCategory(place))) && `${place.name} ${place.address} ${place.placeType ?? ""}`.toLocaleLowerCase().includes(input.query.toLocaleLowerCase().trim()));
+  return resolvedPlaces.filter(place => (input.collectionId === null || place.collectionId === input.collectionId) && (input.category === null || includesCategory(input.category, place.category)) && `${place.name} ${place.address} ${place.placeType ?? ""}`.toLocaleLowerCase().includes(input.query.toLocaleLowerCase().trim()));
 }
 const saveNoteSchema = z.object({ key: z.string().min(1), text: z.string().max(2000) });
 const boundsSchema = z.object({ west: z.number(), south: z.number(), east: z.number(), north: z.number() });
@@ -123,7 +124,7 @@ export default function plugin(bb: BbPluginApi) {
   });
 
   bb.rpc.register(rpcContract, {
-    list: () => places,
+    list: () => resolvedPlaces,
     filter: filterPlaces,
     state: () => readState(),
     saveList: list => serialize(async () => {
