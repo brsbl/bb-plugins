@@ -242,17 +242,25 @@ function DotMatrix({ text }: { text: string | number }) {
   </svg>)}</span>)}</span>;
 }
 
-/** Drawn letter outlines: the title recedes across the cabinet like the XP artwork. */
-function PinballLettering() {
+/** Upright letter outlines on one baseline: ascenders start at y=0, the x-height at y=12, and the baseline is y=37. */
+const PINBALL_GLYPHS: readonly (readonly [number, string])[] = [
+  [0, "M0 0H15C22 0 27 5 27 11C27 17 22 22 15 22H7V37H0ZM7 6V16H14C18 16 20 14 20 11C20 8 18 6 14 6Z"],
+  [30, "M0 12H7V37H0ZM0 1H7V7H0Z"],
+  [40.5, "M0 12H7V15C9 13 12 11.5 15.5 11.5C21 11.5 24 15 24 20V37H17V21C17 18.5 15.5 17.5 13.5 17.5C10 17.5 7 20 7 23V37H0Z"],
+  [68, "M0 0H7V14.5C9 12.5 12 11.5 15 11.5C22 11.5 26 17 26 24.5C26 32 22 37.5 15 37.5C12 37.5 9 36.5 7 34.5V37H0ZM7 20.5V28.5C8.5 30.5 10.5 31.5 12.5 31.5C16.5 31.5 19 28.5 19 24.5C19 20.5 16.5 17.5 12.5 17.5C10.5 17.5 8.5 18.5 7 20.5Z"],
+  [97.5, "M26 12V37H19V34.5C17 36.5 14 37.5 11 37.5C4 37.5 0 32 0 24.5C0 17 4 11.5 11 11.5C14 11.5 17 12.5 19 14.5V12ZM19 20.5C17.5 18.5 15.5 17.5 13.5 17.5C9.5 17.5 7 20.5 7 24.5C7 28.5 9.5 31.5 13.5 31.5C15.5 31.5 17.5 30.5 19 28.5Z"],
+  [127, "M0 0H7V37H0Z"],
+  [137.5, "M0 0H7V37H0Z"],
+];
+
+/** The "Pinball" wordmark: one italic line of drawn letters over a hard drop shadow. */
+function PinballLettering({ id }: { id: string }) {
+  const glyphs = PINBALL_GLYPHS.map(([x, d]) => <path key={x} transform={`translate(${x} 0)`} d={d} />);
   return <svg className="bbd-pinball-lettering" viewBox="0 0 180 86" aria-hidden>
-    <g fill="#b29adf" stroke="#49316d" strokeWidth=".7" strokeLinejoin="round" fillRule="evenodd">
-      <path d="M7 6C20 1 41 1 41 20C41 37 26 43 18 42L16 78H3ZM19 14L18 31C25 31 29 27 29 22C29 16 25 13 19 14Z" />
-      <path transform="translate(43 37.5) skewY(-22) scale(1.34 1.5)" d="M0 0H7V25H0ZM0-11H7V-4H0Z" />
-      <path transform="translate(57.7 35.2) skewY(-22) scale(1.29 1.44)" d="M0 0H7V3Q11-2 17 1Q24 3 24 12V25H17V13Q17 7 12 7Q7 7 7 12V25H0Z" />
-      <path transform="translate(93.9 29.7) skewY(-22) scale(1.17 1.31)" d="M0 25H7V22Q11 27 17 24Q25 22 24 12Q24 0 15-1Q10-2 7 2V-12H0ZM7 16V8Q14 1 17 9Q20 19 13 19Q10 19 7 16Z" />
-      <path transform="translate(126.5 24.7) skewY(-22) scale(1.06 1.18)" d="M1 4Q11-3 20 2Q24 4 23 13V25H16V22Q11 28 4 25Q-3 21 1 14Q5 9 16 10Q17 4 10 6L2 9ZM16 15Q6 13 7 19Q10 24 16 19Z" />
-      <path transform="translate(156.1 20.2) skewY(-22) scale(.95 1.07)" d="M0-12H7V25H0Z" />
-      <path transform="translate(166.6 18.6) skewY(-22) scale(.92 1.03)" d="M0-12H7V25H0Z" />
+    <defs><linearGradient id={`${id}-letters`} gradientUnits="userSpaceOnUse" x2="0" y2="37"><stop stopColor="#e6dcff" /><stop offset="1" stopColor="#9277d4" /></linearGradient></defs>
+    <g transform="translate(14 16) skewX(-10) scale(1.1)" fillRule="evenodd">
+      <g transform="translate(1.6 2)" fill="#2a1650">{glyphs}</g>
+      <g fill={`url(#${id}-letters)`} stroke="#49316d" strokeWidth=".7" strokeLinejoin="round">{glyphs}</g>
     </g>
   </svg>;
 }
@@ -1219,7 +1227,7 @@ export function PinballGame({ active = true }: { active?: boolean }) {
         <aside className="bbd-pinball-panel" aria-label="Scoreboard">
           <div className="bbd-pinball-logo">
             <PinballSpace id={helpId} />
-            <PinballLettering />
+            <PinballLettering id={helpId} />
             <span className="bbd-pinball-ball">
               <span className="bbd-pinball-ball-label">Ball</span>
               <span className="bbd-pinball-box"><DotMatrix text={over ? "" : hud.ballNumber} /></span>
