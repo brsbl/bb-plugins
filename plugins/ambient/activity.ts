@@ -182,6 +182,11 @@ export class ActivityField {
     this.addRipple(x, y, now, kind);
   }
 
+  /** No agent is on screen, no ripple is playing, and the activity glow has faded out. */
+  quiet(): boolean {
+    return this.agents.size === 0 && this.ripples.length === 0 && this.smoothedActivity < 1e-3;
+  }
+
   summary(): ActivitySummary {
     let working = 0;
     let waiting = 0;
