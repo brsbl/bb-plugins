@@ -10,8 +10,11 @@ const MAX_ZOOM = 14.5;
 const RENDER_TIMEOUT = 10_000;
 const RETIRE_AFTER = 15_000;
 const CACHE_LIMIT = 120;
+const MAX_ATTEMPTS = 3;
+const RETRY_AFTER = 5_000;
 
-interface Job { key: string; places: SavedPlace[]; dark: boolean }
+interface Job { key: string; places: SavedPlace[]; dark: boolean; attempts: number }
+type Result = { url: string | null; retry: boolean };
 
 const cache = new Map<string, string>();
 const failed = new Set<string>();
@@ -78,11 +81,11 @@ function create(style: StyleSpecification) {
 }
 
 function render({ places, dark }: Job) {
-  return new Promise<string | null>(resolve => {
+  return new Promise<Result>(resolve => {
     const style = coverStyle(places, dark);
     const reuse = map;
     const target = reuse ?? create(style);
-    if (!target) return resolve(null);
+    if (!target) return resolve({ url: null, retry: false });
     const finish = (ok: boolean) => {
       window.clearTimeout(timer);
       target.off("idle", settled);
@@ -91,7 +94,7 @@ function render({ places, dark }: Job) {
         try { url = target.getCanvas().toDataURL("image/jpeg", 0.86); } catch { url = null; }
       }
       if (!ok || !url) retire();
-      resolve(url);
+      resolve({ url, retry: !ok });
     };
     const settled = () => finish(true);
     const timer = window.setTimeout(() => finish(false), RENDER_TIMEOUT);
@@ -104,7 +107,12 @@ function render({ places, dark }: Job) {
   });
 }
 
-function remember(key: string, url: string | null) {
+function remember(job: Job, { url, retry }: Result) {
+  const { key } = job;
+  if (!url && retry && job.attempts + 1 < MAX_ATTEMPTS) {
+    window.setTimeout(() => request({ ...job, attempts: job.attempts + 1 }), RETRY_AFTER);
+    return;
+  }
   if (!url) failed.add(key);
   else {
     cache.set(key, url);
@@ -117,11 +125,11 @@ async function drain() {
   if (draining) return;
   draining = true;
   window.clearTimeout(retireTimer);
-  while (queue.length) {
+  while (queue.length && document.visibilityState === "visible") {
     const job = queue.shift()!;
     queued.delete(job.key);
     if (cache.has(job.key) || failed.has(job.key)) continue;
-    remember(job.key, await render(job));
+    remember(job, await render(job));
   }
   draining = false;
   retireTimer = window.setTimeout(retire, RETIRE_AFTER);
@@ -133,6 +141,8 @@ function request(job: Job) {
   queue.push(job);
   void drain();
 }
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void drain(); });
 
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
@@ -153,7 +163,7 @@ export function useMapSnapshot(element: RefObject<HTMLElement | null>, places: S
     return () => observer.disconnect();
   }, [element, key, seen]);
   useEffect(() => {
-    if (seen && key) request({ key, places, dark });
+    if (seen && key) request({ key, places, dark, attempts: 0 });
   }, [seen, key, places, dark]);
   return useSyncExternalStore(subscribe, () => key ? cache.get(key) ?? null : null);
 }
