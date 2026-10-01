@@ -683,8 +683,9 @@ vec3 scene(vec2 uv, vec2 p) {
 const CONTOUR_SOURCE = `float terrain(vec2 tq) {
   vec2 wq = tq + 0.6 * vec2(noise(tq * 0.7 + 3.1), noise(tq * 0.7 - 1.7));
   float f = fbm(wq);
-  float r = 1.0 - abs(noise(wq * 2.3 + 5.0) * 2.0 - 1.0);
-  return f * 0.85 + r * r * 0.18 - 0.05;
+  float n = noise(wq * 2.3 + 5.0) * 2.0 - 1.0;
+  float r = 1.0 - sqrt(n * n + 0.04);
+  return f * 0.85 + r * r * 0.16 - 0.04;
 }
 
 // a trail meandering across the map, in terrain space so it drifts with the land
@@ -736,11 +737,11 @@ vec3 scene(vec2 uv, vec2 p) {
   col = mix(col, mix(base, vec3(0.93, 0.9, 0.84), 0.6), smoothstep(0.6, 0.85, h) * p_fill);
 
   // pronounced hillshade: cool shadows, warm highlights
-  vec2 g = vec2(dFdx(h), dFdy(h)) / max(px, 1e-5) * 0.22;
+  vec2 g = vec2(dFdx(h), dFdy(h)) / max(px, 1e-5) * 0.12;
   vec3 L = normalize(vec3(-0.7, 0.7, 0.6));
   float dif = dot(normalize(vec3(-g, 1.0)), L) - L.z;
-  col *= mix(vec3(1.0), vec3(0.6, 0.65, 0.74), clamp(-dif * 1.6 * p_relief, 0.0, 0.85));
-  col = mix(col, vec3(1.0, 0.98, 0.93), clamp(dif * 1.4 * p_relief, 0.0, 1.0) * 0.5);
+  col *= mix(vec3(1.0), vec3(0.62, 0.67, 0.76), smoothstep(0.0, 0.6, -dif * p_relief));
+  col = mix(col, vec3(1.0, 0.98, 0.93), smoothstep(0.0, 0.5, dif * p_relief) * 0.5);
 
   // water: lakes in the hollows, streams threading the valleys
   float wl = 0.27;
@@ -769,11 +770,11 @@ vec3 scene(vec2 uv, vec2 p) {
   for (int k = 0; k < 2; k++) {
     float d = trailD(tq, float(k) * 1.7 + 0.4, k == 0 ? -0.55 : 0.55) / tpx;
     float dash = step(0.45, fract(tq.x * 9.0 + float(k) * 0.3));
-    col = mix(col, vec3(0.45, 0.33, 0.22), (1.0 - smoothstep(0.6, 1.5, d)) * dash * 0.85 * p_trails * (1.0 - lake));
+    col = mix(col, vec3(0.42, 0.3, 0.2), (1.0 - smoothstep(1.0, 2.0, d)) * dash * 0.9 * p_trails * (1.0 - lake));
   }
   float rd = trailD(tq, 2.6, 0.0) / tpx;
-  col = mix(col, vec3(1.0), (1.0 - smoothstep(3.0, 4.2, rd)) * 0.9 * p_trails);
-  col = mix(col, green, (1.0 - smoothstep(1.6, 2.6, rd)) * p_trails);
+  col = mix(col, vec3(1.0), (1.0 - smoothstep(4.6, 5.6, rd)) * 0.95 * p_trails);
+  col = mix(col, green, (1.0 - smoothstep(2.9, 3.9, rd)) * p_trails);
 
   // agents: green location pins with a white ring; waiting ones ping
   float pr = pin;
