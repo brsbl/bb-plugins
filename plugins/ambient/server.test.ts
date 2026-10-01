@@ -1,7 +1,8 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { BUILT_IN_SCENES, DEFAULT_SCENE, POPPY_HILL_SOURCE, rebuildBuiltIn, sceneOf } from "./builtins";
+import { parseCaptureRequest } from "./capture";
 import plugin, {
   DAILY_CONCEPTS,
   applyValues,
@@ -59,13 +60,13 @@ describe("display controls", () => {
     plugin(bb);
     await harness.behavior.callRpc("loadScene", { id: "tide" });
     await harness.behavior.callRpc("setValues", { values: { glow: 1.7 } });
-    await harness.behavior.callRpc("setControls", { showThrough: 0.1, glass: 0.3 });
+    await harness.behavior.callRpc("setControls", { enabled: false, showThrough: 0.1, glass: 0.3 });
     const reset = (await harness.behavior.callRpc("resetScene", { id: "tide" })) as {
       scene: { params: { id: string; value: number }[] };
-      controls: { showThrough: number; speed: number; glass: number };
+      controls: { enabled: boolean; showThrough: number; speed: number; glass: number };
     };
     expect(reset.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1);
-    expect(reset.controls).toMatchObject({ showThrough: 0.77, speed: 0.75, glass: 0.6 });
+    expect(reset.controls).toMatchObject({ enabled: false, showThrough: 0.77, speed: 0.75, glass: 0.6 });
     const reloaded = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as {
       scene: { params: { id: string; value: number }[] };
     };
@@ -90,6 +91,91 @@ describe("display controls", () => {
     expect(glow((await harness.behavior.callRpc("resetScene", { id })) as SceneState)).toBe(1);
     const reset = (await harness.behavior.callRpc("library", null)) as Library;
     expect(reset.entries.find((entry) => entry.id === id)?.tweaked).toBe(false);
+    await harness.lifecycle.dispose();
+  });
+
+  it("restores an undo step, including its scene, in one write", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    type State = {
+      ref: { id: string } | null;
+      scene: { palette: string[]; params: { id: string; value: number }[] };
+      controls: { enabled: boolean; speed: number };
+    };
+    const tide = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as State;
+    await harness.behavior.callRpc("loadScene", { id: "fireflies" });
+    const palette = ["#000000", ...tide.scene.palette.slice(1)];
+    const restored = (await harness.behavior.callRpc("restore", {
+      sceneId: "tide",
+      values: { glow: 1.4, retired: 3 },
+      palette,
+      controls: { enabled: true, showThrough: 0.5, speed: 0.25, glass: 0.4 },
+    })) as State;
+    expect(restored.ref?.id).toBe("tide");
+    expect(restored.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1.4);
+    expect(restored.scene.params.some((entry) => entry.id === "retired")).toBe(false);
+    expect(restored.scene.palette).toEqual(palette);
+    expect(restored.controls).toMatchObject({ enabled: true, speed: 0.25 });
+    await harness.lifecycle.dispose();
+  });
+
+  it("keeps the scene revision when an undo step stays on the open scene", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    type State = {
+      revision: number;
+      sceneRevision: number;
+      scene: { palette: string[]; params: { id: string; value: number }[] };
+      controls: Record<string, unknown>;
+    };
+    const tide = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as State;
+    const restored = (await harness.behavior.callRpc("restore", {
+      sceneId: "tide",
+      values: { glow: 1.3 },
+      palette: tide.scene.palette,
+      controls: tide.controls,
+    })) as State;
+    expect(restored.sceneRevision).toBe(tide.sceneRevision);
+    expect(restored.revision).toBeGreaterThan(tide.revision);
+    expect(restored.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1.3);
+    await harness.lifecycle.dispose();
+  });
+
+  it("refuses an unsaved scene's undo step once a saved scene is open", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    type State = { ref: unknown; scene: { palette: string[] }; controls: Record<string, unknown> };
+    await harness.behavior.callRpc("loadScene", { id: "tide" });
+    const { id } = (await harness.behavior.callRpc("saveScene", { name: "Unsaved Soon" })) as { id: string };
+    await harness.behavior.callRpc("deleteScene", { id });
+    const unsaved = (await harness.behavior.callRpc("state", null)) as State;
+    expect(unsaved.ref).toBeNull();
+    const tide = (await harness.behavior.callRpc("loadScene", { id: "tide" })) as State;
+    await expect(
+      harness.behavior.callRpc("restore", {
+        sceneId: null,
+        values: {},
+        palette: ["#000000", "#111111", "#222222", "#333333"],
+        controls: unsaved.controls,
+      }),
+    ).rejects.toThrow();
+    expect(((await harness.behavior.callRpc("state", null)) as State).scene.palette).toEqual(tide.scene.palette);
+    expect(await bb.storage.kv.get("tweaks/tide")).toBeUndefined();
+    await harness.lifecycle.dispose();
+  });
+
+  it("sets scene params and controls from the CLI in one write", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    await harness.behavior.callRpc("loadScene", { id: "tide" });
+    const result = await harness.behavior.runCli(["set", "glow=1.2", "glass_opacity=40%"]);
+    expect(result.exitCode).toBe(0);
+    const state = (await harness.behavior.callRpc("state", null)) as {
+      scene: { params: { id: string; value: number }[] };
+      controls: { glass: number };
+    };
+    expect(state.scene.params.find((entry) => entry.id === "glow")?.value).toBe(1.2);
+    expect(state.controls.glass).toBe(0.4);
     await harness.lifecycle.dispose();
   });
 
@@ -151,6 +237,17 @@ describe("scene refs", () => {
     const stored = (await bb.storage.kv.get("state")) as { ref: unknown; controls: Record<string, unknown> };
     expect(stored.ref).toEqual({ kind: "builtIn", id: "tide" });
     expect(stored.controls).not.toHaveProperty("quality");
+    await harness.lifecycle.dispose();
+  });
+
+  it("stores a first state newer than any revision from before it started", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    const started = Date.now();
+    plugin(bb);
+    await vi.waitFor(async () => expect(await bb.storage.kv.get("state")).toBeDefined());
+    const stored = (await bb.storage.kv.get("state")) as { revision: number; sceneRevision: number };
+    expect(stored.revision).toBeGreaterThanOrEqual(started);
+    expect(stored.sceneRevision).toBe(stored.revision);
     await harness.lifecycle.dispose();
   });
 
@@ -236,6 +333,15 @@ describe("scene inputs", () => {
     expect(next.params.find((entry) => entry.id === "swell")?.value).toBe(2);
   });
 
+  it("accepts only well-formed capture requests from the realtime channel", () => {
+    expect(parseCaptureRequest({ requestId: "r1", ripple: null })).toEqual({ requestId: "r1", ripple: null });
+    expect(parseCaptureRequest({ requestId: "r1", ripple: "done", extra: 1 })).toEqual({ requestId: "r1", ripple: "done" });
+    expect(parseCaptureRequest({ requestId: "", ripple: null })).toBeNull();
+    expect(parseCaptureRequest({ requestId: "r1", ripple: "toString" })).toBeNull();
+    expect(parseCaptureRequest({ requestId: "r1" })).toBeNull();
+    expect(parseCaptureRequest(null)).toBeNull();
+  });
+
   it("parses CLI set pairs into params and controls", () => {
     expect(parseSetPairs(["glow=1.5", "visibility=40%", "motion=0.5", "scale=-1"])).toEqual({
       values: { glow: 1.5, scale: -1 },
@@ -243,6 +349,14 @@ describe("scene inputs", () => {
     });
     expect(() => parseSetPairs(["glow"])).toThrow();
     expect(() => parseSetPairs(["detail=0.5"])).toThrow(/per device/);
+    expect(parseSetPairs(["glass=0.2", "detail=3"], new Set(["glass", "detail"]))).toEqual({
+      values: { glass: 0.2, detail: 3 },
+      controls: {},
+    });
+    expect(parseSetPairs(["glass_opacity=45%"], new Set(["glass"]))).toEqual({
+      values: {},
+      controls: { glass: 0.45 },
+    });
   });
 
   it("reads daily options as an hour, a time zone, or both", () => {
