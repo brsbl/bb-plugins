@@ -92,6 +92,9 @@ function parseTarget(element: Element): MoveTarget | null {
   return null;
 }
 
+/** How far past a pile's edges a dropped card still counts as over it, in CSS pixels. */
+const DROP_SLOP = 12;
+
 function overlap(a: DOMRect, b: DOMRect): number {
   const width = Math.min(a.right, b.right) - Math.max(a.left, b.left);
   const height = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
@@ -335,16 +338,25 @@ export function SolitaireGame() {
       if (dragStackRef.current) dragStackRef.current.style.transform = `translate(${latest.x}px, ${latest.y}px)`;
     }, (cancelled, moved) => {
       if (cancelled || !moved) { updateDrag(null); return; }
-      const lead = new DOMRect(cardRect.left + delta.x, cardRect.top + delta.y, cardRect.width, cardRect.height);
+      // The whole lifted stack counts, not just the grabbed card, so a stack whose lower cards cover a pile drops there.
+      const stack = dragStackRef.current?.getBoundingClientRect();
+      const lead = new DOMRect(
+        cardRect.left + delta.x,
+        cardRect.top + delta.y,
+        cardRect.width,
+        Math.max(cardRect.height, stack ? stack.bottom - (cardRect.top + delta.y) : 0),
+      );
       const pointerX = initial.startX + delta.x;
       const pointerY = initial.startY + delta.y;
-      // The legal pile under the pointer wins; otherwise the legal pile the card overlaps most.
+      // The legal pile under the pointer wins; otherwise the legal pile the stack overlaps most. Piles reach a little
+      // past their edges so a near miss still lands.
       let best: { target: MoveTarget; area: number } | null = null;
       for (const candidate of targets) {
         if (!candidate.target || !canMove(gameRef.current, source, candidate.target)) continue;
         const { left, right, top, bottom } = candidate.rect;
+        const reach = new DOMRect(left - DROP_SLOP, top - DROP_SLOP, right - left + DROP_SLOP * 2, bottom - top + DROP_SLOP * 2);
         const underPointer = pointerX >= left && pointerX <= right && pointerY >= top && pointerY <= bottom;
-        const area = underPointer ? Infinity : overlap(lead, candidate.rect);
+        const area = underPointer ? Infinity : overlap(lead, reach);
         if (area > 0 && (!best || area > best.area)) best = { target: candidate.target, area };
       }
       const next = best ? move(gameRef.current, source, best.target) : null;
