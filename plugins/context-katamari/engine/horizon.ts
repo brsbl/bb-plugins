@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import { mulberry32 } from "../katamari-math";
 import type { MaterialKit } from "./materials";
@@ -16,6 +17,8 @@ const RAINBOW_DISTANCE = 110;
 const RAINBOW_SCALE = 34;
 const RAINBOW_BANDS = [0xe8453c, 0xf5913a, 0xf7d23e, 0x6cbf45, 0x3a8fd6, 0x7a4fb0];
 const BUILDING_COLORS = [0x8fa4ae, 0x9db2bc, 0x7e949f, 0xb2c3cb, 0x6f8792];
+
+const scratchForward = new THREE.Vector3();
 
 type Vec3 = readonly [number, number, number];
 
@@ -124,8 +127,24 @@ function buildFuji(kit: MaterialKit, bearing: number): THREE.Group {
   return bake(mountain, kit);
 }
 
+/** All six bands in one mesh; each band's color lives in its vertices. */
+function buildRainbow(): THREE.Mesh {
+  const bands = RAINBOW_BANDS.map((hex, band) => {
+    const arc = new THREE.TorusGeometry(1 - band * 0.034, 0.017, 4, 80, Math.PI);
+    const color = new THREE.Color(hex);
+    const count = arc.getAttribute("position").count;
+    const colors = new Float32Array(count * 3);
+    for (let index = 0; index < count; index += 1) color.toArray(colors, index * 3);
+    arc.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    return arc;
+  });
+  const merged = mergeGeometries(bands);
+  for (const band of bands) band.dispose();
+  return new THREE.Mesh(merged, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
+}
+
 interface CloudBank {
-  mesh: THREE.Group;
+  mesh: THREE.Mesh;
   angle: number;
   distance: number;
   drift: number;
@@ -133,7 +152,7 @@ interface CloudBank {
 
 export class Horizon {
   readonly group = new THREE.Group();
-  private readonly rainbow = new THREE.Group();
+  private readonly rainbow: THREE.Mesh;
   private readonly clouds: CloudBank[] = [];
   private readonly cloudMaterial: THREE.MeshToonMaterial;
   private readonly fujiMaterials: THREE.Material[] = [];
@@ -159,17 +178,24 @@ export class Horizon {
     this.group.add(fuji);
 
     this.cloudMaterial = new THREE.MeshToonMaterial({ color: 0xffffff, fog: false });
+    // Each bank's puffs are merged into one mesh, so a bank is a single draw.
+    const puffMatrix = new THREE.Matrix4();
     for (let index = 0; index < 16; index += 1) {
-      const bank = new THREE.Group();
+      const pieces: THREE.BufferGeometry[] = [];
       const puffs = 5 + Math.floor(random() * 5);
       for (let puff = 0; puff < puffs; puff += 1) {
-        const sphere = new THREE.Mesh(kit.sphere(2), this.cloudMaterial);
         const size = 2.2 + random() * 3.2;
-        sphere.scale.set(size * 1.2, size, size);
         // Flat bottoms and billowing tops, the way cumulus sits on a horizon.
-        sphere.position.set((puff - puffs / 2) * 2.6 + random(), 9 + size * 0.35 + random() * 2.5, random() * 2);
-        bank.add(sphere);
+        puffMatrix
+          .makeScale(size * 1.2, size, size)
+          .setPosition((puff - puffs / 2) * 2.6 + random(), 9 + size * 0.35 + random() * 2.5, random() * 2);
+        // The kit sphere is shared, so transform a copy; untextured, so drop its UVs.
+        const piece = kit.sphere(2).clone().applyMatrix4(puffMatrix);
+        piece.deleteAttribute("uv");
+        pieces.push(piece);
       }
+      const bank = new THREE.Mesh(mergeGeometries(pieces), this.cloudMaterial);
+      for (const piece of pieces) piece.dispose();
       this.group.add(bank);
       this.clouds.push({
         mesh: bank,
@@ -179,13 +205,7 @@ export class Horizon {
       });
     }
 
-    RAINBOW_BANDS.forEach((color, band) => {
-      const arc = new THREE.Mesh(
-        new THREE.TorusGeometry(1 - band * 0.034, 0.017, 4, 80, Math.PI),
-        new THREE.MeshBasicMaterial({ color, fog: false }),
-      );
-      this.rainbow.add(arc);
-    });
+    this.rainbow = buildRainbow();
     this.group.add(this.rainbow);
   }
 
@@ -200,13 +220,16 @@ export class Horizon {
     this.group.scale.setScalar(radius);
     for (const cloud of this.clouds) {
       cloud.angle += cloud.drift * deltaSeconds;
-      const [x, z] = polar(cloud.angle, cloud.distance);
-      cloud.mesh.position.set(x, 0, z);
+      // Same math as `polar`, inlined to skip a per-frame array.
+      cloud.mesh.position.set(
+        Math.cos(cloud.angle) * cloud.distance,
+        0,
+        Math.sin(cloud.angle) * cloud.distance,
+      );
       cloud.mesh.rotation.y = -cloud.angle + Math.PI / 2;
     }
     // The rainbow hangs across the sky ahead of the camera, like the key art.
-    const forward = new THREE.Vector3();
-    camera.getWorldDirection(forward);
+    const forward = camera.getWorldDirection(scratchForward);
     forward.y = 0;
     forward.normalize();
     this.rainbow.visible = daylight > 0.5;
@@ -220,11 +243,10 @@ export class Horizon {
   }
 
   dispose(): void {
+    for (const cloud of this.clouds) cloud.mesh.geometry.dispose();
     this.cloudMaterial.dispose();
     for (const material of this.fujiMaterials) material.dispose();
-    for (const arc of this.rainbow.children as THREE.Mesh[]) {
-      arc.geometry.dispose();
-      (arc.material as THREE.Material).dispose();
-    }
+    this.rainbow.geometry.dispose();
+    (this.rainbow.material as THREE.Material).dispose();
   }
 }
