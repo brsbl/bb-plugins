@@ -82,14 +82,14 @@ export function windowReducer(state: WindowState, action: WindowAction): WindowS
     case "maximize":
       return update(state, action.id, (window) =>
         window.restoreRect !== null
-          ? { ...window, rect: fitDragRect(window.restoreRect, action.viewport), restoreRect: null }
+          ? { ...window, rect: window.restoreRect, restoreRect: null }
           : { ...window, rect: action.viewport, restoreRect: window.rect },
       );
     case "fit-maximized": {
+      // Only maximized windows track the work area; the rest keep their rects and are fitted when shown (`placeWindows`).
       const { viewport } = action;
-      const fitted = (window: DesktopWindow) => (window.restoreRect !== null ? viewport : fitDragRect(window.rect, viewport));
-      if (state.windows.every((window) => sameRect(window.rect, fitted(window)))) return state;
-      return { ...state, windows: state.windows.map((window) => ({ ...window, rect: fitted(window) })) };
+      if (state.windows.every((window) => window.restoreRect === null || sameRect(window.rect, viewport))) return state;
+      return { ...state, windows: state.windows.map((window) => (window.restoreRect === null ? window : { ...window, rect: viewport })) };
     }
     case "navigate": {
       const current = state.windows.find((window) => window.id === action.id);
@@ -125,7 +125,19 @@ function isRect(value: unknown): value is Rect {
   return ["x", "y", "width", "height"].every((key) => typeof record[key] === "number" && Number.isFinite(record[key]));
 }
 
-/** Parses stored windows, refitting each to `area` (the current work area). */
+/**
+ * Where windows show in `area`, the current work area. Stored rects stay as the person left them, so a viewport that
+ * shrinks for a moment doesn't shrink every window for good; only the shown copy is fitted.
+ */
+export function placeWindows(windows: DesktopWindow[], area: Rect): DesktopWindow[] {
+  return windows.map((window) => {
+    if (window.restoreRect !== null) return window;
+    const rect = fitDragRect(window.rect, area);
+    return sameRect(rect, window.rect) ? window : { ...window, rect };
+  });
+}
+
+/** Parses stored windows as they were left; a maximized one fills `area` (the current work area). */
 export function parseWindows(raw: string | null, area: Rect): WindowState {
   try {
     const parsed: unknown = JSON.parse(raw ?? "[]");
@@ -135,12 +147,12 @@ export function parseWindows(raw: string | null, area: Rect): WindowState {
       const record = entry as Record<string, unknown>;
       const spec = parseSpec(record.spec);
       if (spec === null || !isRect(record.rect)) return [];
-      const restoreRect = isRect(record.restoreRect) ? fitDragRect(record.restoreRect, area) : null;
+      const restoreRect = isRect(record.restoreRect) ? record.restoreRect : null;
       return [
         {
           id: windowId(spec),
           spec,
-          rect: restoreRect === null ? fitDragRect(record.rect, area) : area,
+          rect: restoreRect === null ? record.rect : area,
           z: typeof record.z === "number" ? record.z : 1,
           minimized: record.minimized === true,
           restoreRect,

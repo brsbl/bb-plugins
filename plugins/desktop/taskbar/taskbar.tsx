@@ -52,7 +52,7 @@ export function Taskbar({ frame }: { frame: DockFrame | null }) {
     return () => observer.disconnect();
   }, []);
   const tasks = manager.windows.filter((window) => !(deskband && window.id === player?.id));
-  const { quick: quickCapacity, tasks: capacity } = useTaskbarCapacity(navRef, quickLaunch.length, tasks.length);
+  const { quick: quickCapacity, tasks: capacity } = useTaskbarCapacity(navRef, quickLaunch.length, tasks.length, frame?.maxWidth);
   const quickShown = quickLaunch.slice(0, quickCapacity);
   const quickHidden = quickLaunch.slice(quickCapacity);
   const shown = tasks.slice(0, capacity);
