@@ -442,7 +442,7 @@ vec3 scene(vec2 uv, vec2 p) {
 
   vec2 wv = vec2(fbm(p * 2.4 + vec2(0.0, t * 0.02)), fbm(p * 2.4 + vec2(5.2, 1.3) - vec2(t * 0.016, 0.0)));
   vec2 fe = vec2(noise(p * 48.0), noise(p * 48.0 + 9.1)) - 0.5;
-  vec2 q = p + ((wv - 0.5) * 0.05 + fe * 0.008) * p_wet - dp * pt * 0.04;
+  vec2 q = p + ((wv - 0.5) * 0.075 + fe * 0.012) * p_wet - dp * pt * 0.04;
   vec3 c0 = meadow(q, w, t);
   vec3 c1 = meadow(q + vec2(0.005, 0.008), w, t);
 
@@ -453,7 +453,7 @@ vec3 scene(vec2 uv, vec2 p) {
   float bn = noise(p * 2.6 + wv * 1.6 + 11.0) * 0.75 + noise(p * 11.0 + wv * 3.0) * 0.18 + noise(p * 38.0) * 0.07;
   float inb = smoothstep(0.656, 0.664, bn);
   float rimIn = inb * smoothstep(0.73, 0.66, bn);
-  col = mix(col, pow(col, vec3(0.7)), inb * 0.5 * p_wet);
+  col = mix(col, pow(col, vec3(0.7)), inb * 0.7 * p_wet);
   col = pow(col, vec3(1.0 + rimIn * 0.8 * p_wet * calm));
   col = mix(col, pow(col, vec3(0.8)), pt * 0.4);
 
@@ -541,16 +541,12 @@ vec3 scene(vec2 uv, vec2 p) {
     float ph0 = fract(ph - rate * (1.0 - k));
     float tf = smoothstep(0.0, 0.05, ph0) * (1.0 - smoothstep(0.05, 0.55, ph0));
     float trail = smoothstep(r * 0.7, 0.0, td) * tf * k * p_trails;
-    float halo = exp(-d2 / (r * r * 30.0)) * flash * p_motes;
+    float halo = exp(-d2 / (r * r * 30.0)) * flash * p_motes * (1.0 + 1.2 * fe.x);
     col = 1.0 - (1.0 - col) * (1.0 - green * clamp(halo * 1.1 + trail * 0.85, 0.0, 1.0));
     col = mix(col, hot, smoothstep(r, r * 0.3, sqrt(d2)) * flash * min(p_motes, 1.0));
   }
   // their light catches the grass and mist around them
   col += green * clamp(light, 0.0, 1.5) * 0.18 * (1.0 - skyM * 0.6) * (0.4 + mist);
-
-  // cold-press paper: pigment settles into the tooth
-  float tooth = noise(p * 240.0) * 0.6 + noise(p * 90.0 + 3.0) * 0.4;
-  col *= 1.0 - 0.07 * p_grain * smoothstep(0.45, 0.8, tooth);
 
   for (int i = 0; i < 16; i++) {
     if (i >= u_agentCount) break;
@@ -610,6 +606,27 @@ vec3 scene(vec2 uv, vec2 p) {
     float sp = pow(0.5 + 0.5 * cos(ang * 9.0 + r.x * 50.0), 20.0) * exp(-pow((dist - rf * 1.25) * 60.0, 2.0)) * fade;
     col = 1.0 - (1.0 - col) * (1.0 - mix(mix(Y, core, 0.5), vec3(1.0, 0.3, 0.2), isErr) * sp);
   }
+
+  // watercolor finish: values settle into flat glazes whose edges pool darker
+  vec3 lw = vec3(0.3, 0.55, 0.15);
+  float L0 = dot(col, lw);
+  float lv = (L0 + (noise(p * 5.0 + wv * 2.5) - 0.5) * 0.09) * 6.0;
+  float fr = fract(lv);
+  float Lq = (floor(lv) + smoothstep(0.3, 0.7, fr)) / 6.0;
+  col = mix(col, col * clamp((Lq + 0.03) / (L0 + 0.03), 0.75, 1.35), clamp(0.7 * p_wash, 0.0, 1.0));
+  col *= 1.0 - exp(-pow((fr - 0.36) / 0.07, 2.0)) * 0.12 * p_wash * p_wet;
+  // pigment drifts between teal and indigo across the sheet
+  float hue = noise(p * 1.7 + wv * 1.2 + 21.0);
+  col *= mix(vec3(1.0), mix(vec3(0.9, 1.04, 1.05), vec3(0.97, 0.95, 1.07), hue), 0.7 * p_wet);
+  // cold-press paper: lit tooth, pigment granulating in its valleys, dry-brush skips on the ground
+  float th = noise(p * 210.0) * 0.6 + noise(p * 80.0 + 3.0) * 0.4;
+  vec2 po = p + vec2(0.0015);
+  float th2 = noise(po * 210.0) * 0.6 + noise(po * 80.0 + 3.0) * 0.4;
+  float Lc = dot(col, lw);
+  col *= 1.0 + (th - th2) * 0.35 * p_grain;
+  col *= 1.0 - (1.0 - th) * 0.16 * p_grain * (1.0 - Lc);
+  float skip = smoothstep(0.66, 0.74, noise(vec2(p.x * 26.0 + p.y * 8.0, p.y * 170.0))) * smoothstep(0.55, 0.75, th);
+  col = mix(col, vec3(0.97, 0.94, 0.88), skip * 0.25 * p_grain * (1.0 - skyM));
 
   float pf = min(u_resolution.y / 4.0, 160.0);
   float pn = noise(p * pf) * 0.6 + noise(p * pf * 0.47 + 4.0) * 0.4;
@@ -2171,6 +2188,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
       param("moon", "Moon", 0, 2, 1),
       param("wind", "Grass sway", 0, 3, 1),
       param("wet", "Wetness (blooms & bleed)", 0, 2, 1),
+      param("wash", "Wash layering", 0, 2, 1),
       param("grain", "Granulation", 0, 2, 1),
       param("color", "Color strength", 0, 1, 0.92),
     ],
