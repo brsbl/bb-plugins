@@ -1407,8 +1407,8 @@
   float: left;
   margin-right: 6px;
   content: var(--bbd-im-buddy);
-  /* Screen names keep AIM's serif; the line height matches bb's message text so the name sits on its first line. */
-  font: bold 15px/calc(var(--text-sm) * 1.625) "Times New Roman", Times, serif;
+  /* Same size and line height as the message text, as in AIM, so the name sits on its first line. */
+  font: bold var(--text-sm)/calc(var(--text-sm) * 1.625) "Times New Roman", Times, serif;
   color: var(--bbd-im-them);
   min-width: 0;
   max-width: 100%;
@@ -1458,6 +1458,16 @@
 
 .bbd-im-chat [data-message-column] :is([data-markdown-preview], p, li, blockquote) {
   overflow-wrap: anywhere;
+}
+
+/* AIM's serif at bb's message size; code keeps bb's monospace. */
+.bbd-im-chat [data-message-column] {
+  font-family: "Times New Roman", Times, serif;
+}
+
+/* Times is small on the line, so inline code drops a size to stay with the words around it. */
+.bbd-im-chat [data-message-column] :not(pre) > code {
+  font-size: 0.85em;
 }
 
 .bbd-im-chat [data-message-column] :is([data-markdown-preview], a, code, pre) {
