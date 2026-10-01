@@ -81,7 +81,7 @@ export const CONTROL_SPECS: readonly ControlSpec[] = [
   {
     key: "glass",
     name: "glass",
-    aliases: [],
+    aliases: ["glass_opacity"],
     label: "Glass opacity",
     hint: "How solid the glass behind text is; lower lets more of the scene through",
     describe:
@@ -107,6 +107,10 @@ export const DETAIL: RangeSpec = {
 
 export function clampToSpec(spec: Pick<RangeSpec, "min" | "max">, value: number): number {
   return Math.min(spec.max, Math.max(spec.min, value));
+}
+
+export function valuesOf(params: readonly SceneParam[]): Record<string, number> {
+  return Object.fromEntries(params.map((entry) => [entry.id, entry.value]));
 }
 
 export const DEFAULT_CONTROLS: Controls = {
