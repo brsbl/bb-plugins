@@ -29,6 +29,7 @@ const productionDependencyFields = [
 const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari"]);
 const explicitlyRetiredInstallRefs = Object.freeze([
   "plugin/omegacode",
+  "plugin/saved-places",
   "plugin/ui-patterns",
 ]);
 

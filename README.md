@@ -126,13 +126,9 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/o
 
 ### Saved Places
 
-Your saved places on a map that gets clearer as you zoom, with lists, notes, walking reach, routes, and an Ask agent button that hands the current view to a new thread. Import your own Google Maps lists or any CSV.
+Your saved places on a map that gets clearer as you zoom, with lists, notes, walking distance between saves, and an Ask agent button that hands the current view to a new thread. It now lives in its own template repository, [brsbl/saved-places](https://github.com/brsbl/saved-places), so you can make a copy with your own Google Maps saves.
 
-![Saved Places library of sample Tokyo lists beside a map with category-colored pins and clusters](plugins/saved-places/docs/screenshot.png)
-
-[Source](plugins/saved-places) · [README](plugins/saved-places/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/saved-places --yes`
+Install: `bb plugin install git:https://github.com/brsbl/saved-places.git --yes`
 
 ### Plugin Finder
 
@@ -159,6 +155,18 @@ Attaches durable discussion threads to selected timeline text. Users and agents 
 [Source](plugins/timeline-comments) · [README](plugins/timeline-comments/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/timeline-comments --yes`
+
+### Desktop
+
+Turns bb's new-thread page into a Windows XP desktop for your agents. Folders mirror your sidebar, threads open as instant-message windows beside a Buddy List of their project, and a taskbar and Start menu launch XP programs and games, including a real terminal and in-app browser.
+
+![Desktop with a thread open as an Instant Message window between its project's Buddy List and its Buddy Info](plugins/desktop/docs/screenshot.png)
+
+![The Start menu opened from the bb button, listing bb Explorer, Terminal, Paint, and the games](plugins/desktop/docs/start-menu.png)
+
+[Source](plugins/desktop) · [README](plugins/desktop/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/desktop --yes`
 
 ### Ambient
 
