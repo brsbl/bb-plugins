@@ -265,7 +265,29 @@ vec3 scene(vec2 uv, vec2 p){
   return mix(u_canvas, col, p_color);
 }`;
 
-const FIREFLIES_SOURCE = `float farY(float x) { return -0.02 + 0.03 * sin(x * 1.9 + 0.6) + 0.018 * sin(x * 4.3 + 2.0); }
+const FIREFLIES_SOURCE = `const float LAKE = -0.035;
+float ridgeFar(float x) { return 0.05 + 0.13 * pow(1.0 - abs(2.0 * noise(vec2(x * 2.2, 1.0)) - 1.0), 2.0) + 0.03 * noise(vec2(x * 7.0, 2.0)) + 0.01 * noise(vec2(x * 23.0, 3.0)); }
+float ridgeNear(float x) { return 0.005 + 0.03 * sin(x * 2.1 + 2.0) + 0.02 * noise(vec2(x * 5.0, 3.0)) + 0.006 * noise(vec2(x * 19.0, 4.0)); }
+float shoreY(float x) { return -0.105 + 0.018 * sin(x * 1.7 + 1.0) + 0.008 * noise(vec2(x * 6.0, 5.0)); }
+vec2 moonPos() { return vec2(0.3 * u_resolution.x / u_resolution.y, 0.34); }
+
+// a row of tiered pines standing on base, thinning out between groves
+float pines(vec2 p, float base, float cw, float hMin, float hMax, float seed) {
+  float cx = floor(p.x / cw);
+  float cov = 0.0;
+  for (int j = -1; j <= 1; j++) {
+    float c = cx + float(j);
+    float grove = smoothstep(0.35, 0.6, noise(vec2(c * cw * 2.5, seed)));
+    if (hash21(vec2(c, seed)) > 0.25 + 0.75 * grove) continue;
+    float x0 = (c + 0.2 + 0.6 * hash21(vec2(c, seed + 1.0))) * cw;
+    float H = mix(hMin, hMax, hash21(vec2(c, seed + 2.0))) * (0.55 + 0.45 * grove);
+    float k = (p.y - base) / H;
+    if (k < -0.3 || k > 1.0) continue;
+    float wd = cw * 0.5 * (1.0 - k) * (0.7 + 0.3 * abs(sin(k * 16.0 + c)));
+    cov = max(cov, smoothstep(wd, wd * 0.5, abs(p.x - x0)));
+  }
+  return cov;
+}
 
 float grass(vec2 p, float cw, float hMin, float hMax, float w, float seed, float wid, float heads, float arch) {
   float y0 = -0.56;
@@ -300,43 +322,93 @@ vec3 meadow(vec2 p, vec2 w, float t) {
   vec3 Y = u_palette[2];
   vec3 K = u_palette[3];
   vec3 paper = vec3(0.97, 0.94, 0.88);
-  float fy = farY(p.x);
+  vec2 mp = moonPos();
 
-  float sy = clamp((p.y - fy) / 0.5, 0.0, 1.0);
-  vec3 glow = mix(mix(K, V, 0.5), mix(K, paper, 0.3), smoothstep(0.1, 0.0, sy) * 0.6);
-  vec3 col = mix(glow, mix(V, I, 0.45), smoothstep(0.02, 0.25, sy));
-  col = mix(col, I, smoothstep(0.25, 0.8, sy));
-  // milky way: a tilted band of nebula with dark dust lanes
+  // sky: navy overhead, a pale band of moonlit haze along the peaks
+  float sy = clamp((p.y - LAKE) / 0.5, 0.0, 1.0);
+  vec3 col = mix(mix(K, V, 0.35), V * 0.8, smoothstep(0.0, 0.25, sy));
+  col = mix(col, I, smoothstep(0.2, 0.85, sy));
+  col = mix(col, mix(K, paper, 0.35), smoothstep(0.14, 0.0, sy) * 0.35);
   float mw = p.y - 0.12 - 0.3 * p.x + 0.05 * noise(vec2(p.x * 3.0 + t * 0.01, 2.0));
   float band = exp(-mw * mw / 0.014) * smoothstep(0.04, 0.2, sy);
   float neb = noise(p * 5.0 + vec2(t * 0.012, 0.0));
   float dust = smoothstep(0.55, 0.8, noise(p * 11.0 - 3.0));
   col = mix(col, mix(V, K, neb), band * (0.4 + 0.45 * neb) * (1.0 - 0.6 * dust) * p_galaxy);
   col = mix(col, mix(K, paper, 0.5), band * band * smoothstep(0.5, 0.85, neb) * 0.3 * p_galaxy);
-  float cl = noise(vec2(p.x * 1.4 - t * 0.03, p.y * 3.0 + 1.7));
-  vec3 cloudC = mix(mix(I, V, 0.7), K, smoothstep(0.55, 0.1, sy) * 0.5);
-  col = mix(col, cloudC, smoothstep(0.5, 0.72, cl) * 0.45 * smoothstep(0.08, 0.25, sy));
 
-  float mt = fy - 0.045 + 0.012 * sin(p.x * 2.7 + 1.0);
-  float tl = fy + 0.03 * noise(vec2(p.x * 8.0, 1.0)) + 0.015 * noise(vec2(p.x * 21.0, 4.0));
-  vec3 tc = mix(I, V, 0.3 + 0.3 * noise(p * vec2(6.0, 9.0)));
-  float mist = noise(vec2(p.x * 2.0 - t * 0.04, 7.0));
-  tc = mix(tc, mix(V, K, 0.45), smoothstep(mt + 0.05, mt, p.y) * (0.35 + 0.4 * mist));
-  col = mix(col, tc, smoothstep(tl + 0.004, tl - 0.004, p.y));
+  // the moon: a wide halo, a textured disc lit from the upper left
+  vec2 md = p - mp;
+  float ml = length(md);
+  col = mix(col, mix(K, paper, 0.55), exp(-ml * ml / 0.03) * 0.4 * p_moon);
+  col = mix(col, mix(K, paper, 0.75), exp(-ml / 0.014) * 0.5 * min(p_moon, 1.0));
+  float maria = noise(md * 45.0 + 3.0) * 0.6 + noise(md * 120.0) * 0.4;
+  vec3 moonC = mix(vec3(0.99, 0.97, 0.9), vec3(0.74, 0.8, 0.88), smoothstep(0.45, 0.72, maria));
+  moonC *= 0.8 + 0.2 * smoothstep(0.055, 0.0, length(md - vec2(-0.012, 0.012)));
+  col = mix(col, moonC, smoothstep(0.044, 0.041, ml) * min(p_moon, 1.0));
 
-  float md = clamp((mt - p.y) / 0.3, 0.0, 1.0);
-  vec3 mc = mix(mix(V, K, 0.35), mix(I, V, 0.5), smoothstep(0.0, 1.0, md));
-  mc = mix(mc, mix(K, Y, 0.3), smoothstep(0.045, 0.0, mt - p.y) * 0.55);
-  mc = mix(mc, mix(V, K, 0.5), 0.3 * smoothstep(0.45, 0.75, noise(vec2(p.x * 2.5 + 3.0, p.y * 6.0))));
-  mc = mix(mc, mix(K, V, 0.25), smoothstep(0.66, 0.8, noise(p * 4.5 + 20.0)) * 0.55);
-  col = mix(col, mc, smoothstep(mt + 0.004, mt - 0.004, p.y));
+  // moonlit wisps of cloud
+  float cl = noise(vec2(p.x * 1.6 - t * 0.02, p.y * 9.0 + 1.7)) * 0.7 + noise(vec2(p.x * 5.0 - t * 0.03, p.y * 22.0)) * 0.3;
+  float wisp = smoothstep(0.52, 0.76, cl) * smoothstep(0.05, 0.2, p.y) * smoothstep(0.5, 0.25, p.y);
+  col = mix(col, mix(mix(V, K, 0.5), mix(K, paper, 0.55), exp(-ml * ml / 0.06)), wisp * 0.45);
 
-  float r2 = fy - 0.16 + 0.035 * sin(p.x * 1.1 + 0.3) + 0.012 * sin(p.x * 3.3 + 1.0);
-  vec3 hc = mix(I, V, 0.4 + 0.2 * noise(vec2(p.x * 3.0, p.y * 5.0 + 2.0)));
-  hc = mix(hc, mix(K, V, 0.35), smoothstep(0.04, 0.0, r2 - p.y) * 0.6);
-  hc = mix(hc, mix(K, V, 0.4), smoothstep(0.68, 0.82, noise(p * 3.8 + 41.0)) * 0.5);
-  col = mix(col, hc, smoothstep(r2 + 0.004, r2 - 0.004, p.y));
+  // far range: moon-facing slopes catch light, snow on the high peaks, haze at the foot
+  float rf = ridgeFar(p.x);
+  float slope = (ridgeFar(p.x + 0.004) - rf) / 0.004;
+  float lit = clamp(0.5 - slope * 0.7, 0.0, 1.0);
+  vec3 mtn = mix(mix(V, K, 0.3), mix(K, paper, 0.3), lit * 0.55);
+  mtn *= 0.86 + 0.2 * noise(vec2(p.x * 26.0 + p.y * 12.0, p.y * 7.0));
+  float snow = smoothstep(0.12, 0.15, rf) * smoothstep(0.03, 0.0, rf - p.y) * smoothstep(0.35, 0.6, noise(vec2(p.x * 40.0, p.y * 9.0)));
+  mtn = mix(mtn, mix(paper, K, 0.25) * (0.75 + 0.3 * lit), snow * 0.8);
+  mtn = mix(mtn, mix(K, V, 0.45), smoothstep(0.07, 0.0, p.y - LAKE) * 0.55);
+  col = mix(col, mtn, smoothstep(rf + 0.002, rf - 0.002, p.y));
 
+  // near ridge, dark with pines along its crest
+  float rn = ridgeNear(p.x);
+  float nearM = max(smoothstep(rn + 0.002, rn - 0.002, p.y), pines(p, rn - 0.004, 0.02, 0.02, 0.065, 7.0));
+  vec3 hc = mix(I, V, 0.25 + 0.2 * noise(vec2(p.x * 9.0, p.y * 30.0)));
+  hc = mix(hc, mix(V, K, 0.35), smoothstep(0.03, 0.0, p.y - LAKE) * 0.35);
+  col = mix(col, hc, nearM);
+
+  // the lake mirrors the ridge, the pines, and a glittering path of moonlight
+  if (p.y < LAKE) {
+    float dy = LAKE - p.y;
+    float wob = (noise(vec2(p.x * 30.0, p.y * 300.0 - t * 0.5)) - 0.5) * 0.005 * (0.3 + dy * 20.0);
+    vec2 rp = vec2(p.x + wob, LAKE + dy * 1.25);
+    vec3 lc = mix(mix(K, V, 0.35), V * 0.75, smoothstep(0.0, 0.07, dy));
+    float rr = ridgeNear(rp.x);
+    float refl = max(smoothstep(rr + 0.003, rr - 0.003, rp.y), pines(rp, rr - 0.004, 0.02, 0.02, 0.065, 7.0));
+    lc = mix(lc, mix(I, V, 0.45), refl * 0.8);
+    float glit = exp(-pow((p.x - mp.x) / (0.015 + dy * 0.5), 2.0)) * smoothstep(0.5, 0.85, noise(vec2(p.x * 45.0, p.y * 420.0 - t * 0.8)));
+    lc = mix(lc, mix(paper, K, 0.25), glit * 0.85 * min(p_moon, 1.0));
+    lc *= 0.9 + 0.14 * noise(vec2(p.x * 6.0, p.y * 160.0 + t * 0.3));
+    col = lc;
+  }
+
+  // meadow: dry-brush strokes following the slope, a moonlit bank at the water
+  float sh = shoreY(p.x);
+  float gm0 = smoothstep(sh + 0.003, sh - 0.003, p.y);
+  float mdp = clamp((sh - p.y) / 0.35, 0.0, 1.0);
+  vec3 mc = mix(mix(V, K, 0.25), mix(I, V, 0.45), smoothstep(0.0, 0.7, mdp));
+  mc = mix(mc, mix(K, paper, 0.25), smoothstep(0.01, 0.0, sh - p.y) * 0.4);
+  mc *= 0.84 + 0.26 * noise(vec2(p.x * 4.0 + p.y * 2.0, p.y * 55.0));
+  col = mix(col, mc, gm0);
+
+  float r2 = sh - 0.13 + 0.035 * sin(p.x * 1.1 + 0.3) + 0.012 * sin(p.x * 3.3 + 1.0);
+  vec3 hc2 = mix(I, V, 0.4 + 0.2 * noise(vec2(p.x * 3.0, p.y * 5.0 + 2.0)));
+  hc2 = mix(hc2, mix(K, V, 0.35), smoothstep(0.04, 0.0, r2 - p.y) * 0.6);
+  hc2 *= 0.86 + 0.22 * noise(vec2(p.x * 5.0 - p.y * 3.0, p.y * 48.0));
+  col = mix(col, hc2, smoothstep(r2 + 0.004, r2 - 0.004, p.y));
+
+  // wildflowers scattered through the meadow
+  vec2 fg = p * vec2(70.0, 90.0);
+  vec2 fid = floor(fg);
+  float fh = hash21(fid + 40.0);
+  float fl = smoothstep(0.2, 0.08, length(fract(fg) - 0.5 - (vec2(hash21(fid + 1.1), hash21(fid + 2.2)) - 0.5) * 0.5));
+  fl *= step(0.85, fh) * gm0 * smoothstep(0.0, 0.08, sh - p.y);
+  col = mix(col, (fh > 0.95 ? mix(Y, paper, 0.4) : mix(K, paper, 0.55)) * 0.9, fl * 0.75);
+
+  float gf = grass(p, 0.011, 0.05, 0.14, w.y * 0.7, 23.0, 0.25, 0.15, 0.3);
+  col = mix(col, mix(I, V, 0.5) * 0.9, gf * 0.7);
   float gm = grass(p, 0.02, 0.14, 0.3, w.y, 3.0, 0.22, 0.2, 0.45);
   col = mix(col, mix(I, V, 0.4) * 0.8, gm * 0.9);
   float gy = -0.47 + 0.035 * noise(vec2(p.x * 5.0, 0.0));
@@ -392,7 +464,7 @@ vec3 scene(vec2 uv, vec2 p) {
   float gw = (0.35 + clamp((col.b - col.g) * 1.5, 0.0, 1.0)) * (1.0 - lum * 0.6) * calm;
   col = pow(col, vec3(1.0 + ((g - 0.5) * (0.5 + 0.5 * valley) + (valley - 0.5) * 0.15) * 0.7 * p_grain * gw));
 
-  float skyM = smoothstep(farY(q.x) + 0.05, farY(q.x) + 0.1, q.y);
+  float skyM = smoothstep(ridgeFar(q.x) + 0.004, ridgeFar(q.x) + 0.03, q.y);
   // nebula: layered pigment in the milky way, cut by dark dust filaments
   float mw = q.y - 0.12 - 0.3 * q.x;
   float band = exp(-mw * mw / 0.02) * skyM * p_galaxy;
@@ -411,7 +483,7 @@ vec3 scene(vec2 uv, vec2 p) {
     vec2 sv = fract(sg) - 0.5 - so * 0.6;
     float sd = length(sv);
     float dens = l == 0 ? 0.12 + 0.25 * band : (l == 1 ? 0.07 : 0.1);
-    float on = step(1.0 - dens * p_stars, sh) * skyM * min(p_stars * 2.0, 1.0);
+    float on = step(1.0 - dens * p_stars, sh) * skyM * min(p_stars * 2.0, 1.0) * smoothstep(0.046, 0.07, length(p - moonPos()));
     float star = smoothstep(l == 0 ? 0.09 : 0.06, 0.0, sd) + (l == 0 ? 0.0 : exp(-sd * sd / 0.02) * 0.3);
     if (l == 2) {
       star = smoothstep(0.035, 0.0, sd) + exp(-sd * sd / 0.004) * 0.6;
@@ -423,9 +495,8 @@ vec3 scene(vec2 uv, vec2 p) {
   }
 
   // ground mist, lit from within by the swarm
-  float fy = farY(q.x);
   float mistN = noise(vec2(q.x * 2.5 - t * 0.03, q.y * 7.0)) * 0.65 + noise(vec2(q.x * 7.0 + t * 0.05, q.y * 18.0)) * 0.35;
-  float mist = smoothstep(0.09, 0.0, abs(q.y - fy + 0.07)) * smoothstep(0.35, 0.75, mistN) * p_mist;
+  float mist = smoothstep(0.06, 0.0, abs(q.y - LAKE + 0.01)) * smoothstep(0.35, 0.75, mistN) * p_mist;
   col = mix(col, mix(K, vec3(0.85, 0.93, 1.0), 0.45), mist * 0.4);
 
   // fireflies: J-shaped flashes, long-exposure trails, out-of-focus ones up close
@@ -441,7 +512,7 @@ vec3 scene(vec2 uv, vec2 p) {
     float z = hash21(s + 6.6);
     float xs = hp.x * 2.0 - 1.0;
     xs = sign(xs) * pow(abs(xs), 0.55);
-    vec2 home = vec2(xs * 0.5 * ax, mix(-0.44, 0.16, hp.y));
+    vec2 home = vec2(xs * 0.5 * ax, mix(-0.46, 0.0, hp.y));
     vec2 hd = p - home;
     if (dot(hd, hd) > 0.06) continue;
     float w1 = 0.21 * (1.0 + hp.y), w2 = 0.37 * (1.0 + hp.x);
@@ -2097,6 +2168,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
       param("galaxy", "Milky Way", 0, 2, 1),
       param("trails", "Light trails", 0, 2, 1),
       param("mist", "Ground mist", 0, 2, 1),
+      param("moon", "Moon", 0, 2, 1),
       param("wind", "Grass sway", 0, 3, 1),
       param("wet", "Wetness (blooms & bleed)", 0, 2, 1),
       param("grain", "Granulation", 0, 2, 1),
