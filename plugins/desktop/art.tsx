@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import {
   BubbleChatAddIcon,
   Cancel01Icon,
@@ -410,16 +410,38 @@ export function CommandPromptArt({ size = 40 }: { size?: number }) {
 const BB_MARK =
   "M243.173 132.901C209.16 110.325 161.732 109.355 117.39 127.537L138.53 49.419C143.962 29.344 132.062 8.673 111.974 3.291 91.943-2.077 71.348 9.793 65.95 29.816L8.449 243.115 8.431 243.11C-5.35 287.398 2.824 332.057 34.741 360.27 81.38 401.497 162.048 392.94 221.66 343.061 226.111 349.8 231.053 354.963 237.39 360.565 287.404 404.775 376.886 391.327 437.242 330.885 497.598 270.443 506.288 185.578 456.275 141.368 422.463 111.479 370.582 107.952 321.904 127.469L342.81 49.115C348.113 29.238 336.312 8.822 316.441 3.498 296.555-1.831 276.113 9.971 270.785 29.857L243.173 132.901ZM279.815 258.612C282.467 247.201 289.832 224.61 297.282 213.521 323.555 175.201 369.028 158.632 398.847 176.515 428.666 194.398 431.54 239.961 405.266 278.281L404.647 279.174C378.283 316.857 333.288 333.029 303.702 315.286 285.262 304.227 277.126 282.582 279.815 258.612ZM219.168 226.258C218.73 242.98 212.813 261.289 201.226 278.189L200.608 279.083C174.244 316.766 129.249 332.936 99.663 315.193 70.077 297.449 67.626 251.559 93.243 213.428 119.516 175.108 164.988 158.541 194.807 176.423 210.476 185.82 218.698 206.643 219.168 226.258Z";
 
-/** IE's orbit around bb's wordmark. The ring stays behind the letters, and a light edge separates them from it, so the mark reads at 16 px. */
+/** IE's crescent orbit in ring-local coordinates: its near side (top) is thick at the left end and tapers to a hairline. */
+const IE_ORBIT =
+  "M-27 0A27 11.5 0 1 0 27 0A27 11.5 0 1 0-27 0ZM-21.3 2.6A24.1 8.8 0 1 0 26.9 2.6A24.1 8.8 0 1 0-21.3 2.6Z";
+
+/**
+ * Internet Explorer's icon around bb's wordmark: blue letters and a gold crescent orbit, thick at the lower left where it
+ * sweeps in front of the first b, then passing behind the letters so both stems stay whole. A white gap where it crosses keeps the letters readable.
+ */
 export function InternetExplorerArt({ size = 40 }: { size?: number }) {
-  const ring = "rotate(-20 24 24.5)";
+  const id = useId();
+  const orbit = "translate(23.5 24) rotate(-36)";
+  const letters = (
+    <g transform="translate(7.6 11.6) scale(0.068)">
+      <path d={BB_MARK} fillRule="evenodd" fill="url(#bbd-g-title)" stroke={ICON.blueOutline} strokeWidth="20" strokeLinejoin="round" paintOrder="stroke" />
+      <path d={BB_MARK} fillRule="evenodd" fill={ICON.paper} opacity="0.35" clipPath={`url(#${id}-gloss)`} />
+    </g>
+  );
   return (
     <IconSvg size={size}>
-      <ellipse cx="24" cy="24.5" rx="23" ry="8.5" transform={ring} fill="none" stroke={ICON.boltEdge} strokeWidth="3.8" />
-      <ellipse cx="24" cy="24.5" rx="23" ry="8.5" transform={ring} fill="none" stroke="url(#bbd-g-bolt)" strokeWidth="2.3" />
-      <g transform="translate(8.2 11.4) scale(0.0645)">
-        <path d={BB_MARK} fillRule="evenodd" fill="none" stroke={ICON.paper} strokeWidth="70" strokeLinejoin="round" />
-        <path d={BB_MARK} fillRule="evenodd" fill="url(#bbd-g-title)" stroke={ICON.blueOutline} strokeWidth="22" strokeLinejoin="round" paintOrder="stroke" />
+      <defs>
+        {/* Only the orbit's thick lower-left end crosses in front, so it never cuts the b stems. */}
+        <clipPath id={`${id}-back`}><path d="M-12-14H30V14H-30V2H-12Z" /></clipPath>
+        <clipPath id={`${id}-front`}><path d="M-30-14H-12V2H-30Z" /></clipPath>
+        <clipPath id={`${id}-gloss`}><ellipse cx="245" cy="120" rx="250" ry="105" /></clipPath>
+      </defs>
+      <g transform={orbit} clipPath={`url(#${id}-back)`}>
+        <path d={IE_ORBIT} fillRule="evenodd" fill="url(#bbd-g-bolt)" stroke={ICON.boltEdge} strokeWidth="0.6" />
+      </g>
+      {letters}
+      <g transform={orbit} clipPath={`url(#${id}-front)`}>
+        <path d={IE_ORBIT} fillRule="evenodd" fill="none" stroke={ICON.paper} strokeWidth="2.6" strokeLinejoin="round" />
+        <path d={IE_ORBIT} fillRule="evenodd" fill="url(#bbd-g-bolt)" stroke={ICON.boltEdge} strokeWidth="0.6" />
       </g>
     </IconSvg>
   );
