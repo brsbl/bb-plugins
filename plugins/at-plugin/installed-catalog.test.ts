@@ -172,6 +172,63 @@ describe("Installed discovery", () => {
     expect(decodeInstalledItemId(item?.id ?? "")).toEqual({ pluginId: "safe:id%一" });
   });
 
+  it("uses each plugin's own branding icon, else the Plugins icon", () => {
+    const plugins = [
+      installed({ id: "named", name: "Named", icon: "Palette" }),
+      installed({
+        id: "asset",
+        name: "Asset",
+        icon: "./assets/map.svg",
+        iconUrl: "/api/v1/plugins/asset/assets/icon?h=abc",
+        icons: {
+          other: "/api/v1/plugins/asset/assets/icons/other.svg?h=def",
+          map: "/api/v1/plugins/asset/assets/icons/map.svg?h=abc",
+        },
+      }),
+      installed({
+        id: "file",
+        name: "File",
+        icon: "./assets/icon.svg",
+        iconUrl: "/api/v1/plugins/file/assets/icon?h=abc",
+        icons: { ball: "/api/v1/plugins/file/assets/icons/ball.svg?h=def" },
+      }),
+      installed({ id: "none", name: "None" }),
+    ];
+
+    expect(
+      searchInstalledPlugins(plugins, "plugin").map((item) => [item.title, item.icon]),
+    ).toEqual([
+      ["Asset", "asset/map"],
+      ["File", "Plug02"],
+      ["Named", "Palette"],
+      ["None", "Plug02"],
+    ]);
+  });
+
+  it("falls back to the Plugins icon on hosts that omit the icons map", () => {
+    const legacy = installed({
+      id: "legacy",
+      name: "Legacy",
+      icon: "./assets/icon.svg",
+      iconUrl: "/api/v1/plugins/legacy/assets/icon?h=abc",
+    });
+    delete (legacy as Partial<InstalledPluginRecord>).icons;
+    const unsafeKey = installed({
+      id: "unsafe",
+      name: "Unsafe",
+      icon: "./assets/icon.svg",
+      iconUrl: "/api/v1/plugins/unsafe/assets/icon?h=abc",
+      icons: { "Not A Name": "/api/v1/plugins/unsafe/assets/icons/x.svg?h=abc" },
+    });
+
+    expect(
+      searchInstalledPlugins([legacy, unsafeKey], "plugin").map((item) => [item.title, item.icon]),
+    ).toEqual([
+      ["Legacy", "Plug02"],
+      ["Unsafe", "Plug02"],
+    ]);
+  });
+
   it("returns at most six rows", () => {
     const plugins = Array.from({ length: 9 }, (_, index) =>
       installed({
