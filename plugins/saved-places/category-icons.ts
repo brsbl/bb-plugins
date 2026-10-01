@@ -25,7 +25,9 @@ import HotTube from "@hugeicons/core-free-icons/HotTubeIcon";
 import IceCream02 from "@hugeicons/core-free-icons/IceCream02Icon";
 import Landmark from "@hugeicons/core-free-icons/LandmarkIcon";
 import Library from "@hugeicons/core-free-icons/LibraryIcon";
+import City02 from "@hugeicons/core-free-icons/City02Icon";
 import Location01 from "@hugeicons/core-free-icons/Location01Icon";
+import Location04 from "@hugeicons/core-free-icons/Location04Icon";
 import Mosque01 from "@hugeicons/core-free-icons/Mosque01Icon";
 import Mountain from "@hugeicons/core-free-icons/MountainIcon";
 import MusicNote01 from "@hugeicons/core-free-icons/MusicNote01Icon";
@@ -61,6 +63,8 @@ export const categoryIcons: Record<CategoryId, IconSvgElement> = {
   outdoors: Tree06,
   stays: BedDouble,
   other: Location01,
+  neighborhood: City02,
+  address: Location04,
   pizza: Pizza01,
   burger: Hamburger01,
   tacos: Taco01,

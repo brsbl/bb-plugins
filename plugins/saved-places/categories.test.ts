@@ -27,13 +27,13 @@ describe("category taxonomy", () => {
   });
 
   it("refines broad stored categories from the place type or name", () => {
-    expect(resolveCategory({ category: "culture", placeType: "Art museum", name: "Mori Art Museum" })).toBe("museum");
-    expect(resolveCategory({ category: "culture", placeType: "Shinto shrine", name: "Meiji Jingu" })).toBe("shrine");
-    expect(resolveCategory({ category: "outdoors", placeType: "Theme park", name: "Fuji-Q" })).toBe("amusement");
-    expect(resolveCategory({ category: "other", placeType: null, name: "Disk Union Record Store" })).toBe("records");
-    expect(resolveCategory({ category: "music", placeType: "Music bar", name: "JBS" })).toBe("music");
-    expect(resolveCategory({ category: "ramen", placeType: "Sushi restaurant", name: "Ichiran" })).toBe("ramen");
-    expect(resolveCategory({ category: "other", placeType: null, name: "Somewhere" })).toBe("other");
+    expect(resolveCategory({ category: "culture", placeType: "Art museum", name: "Mori Art Museum", address: "" })).toBe("museum");
+    expect(resolveCategory({ category: "culture", placeType: "Shinto shrine", name: "Meiji Jingu", address: "" })).toBe("shrine");
+    expect(resolveCategory({ category: "outdoors", placeType: "Theme park", name: "Fuji-Q", address: "" })).toBe("amusement");
+    expect(resolveCategory({ category: "other", placeType: null, name: "Disk Union Record Store", address: "" })).toBe("records");
+    expect(resolveCategory({ category: "music", placeType: "Music bar", name: "JBS", address: "" })).toBe("music");
+    expect(resolveCategory({ category: "ramen", placeType: "Sushi restaurant", name: "Ichiran", address: "" })).toBe("ramen");
+    expect(resolveCategory({ category: "other", placeType: null, name: "Somewhere", address: "" })).toBe("other");
   });
 
   it.each([
@@ -55,7 +55,20 @@ describe("category taxonomy", () => {
     [null, "Taishan Cuisine", "food"],
     [null, "Song Fa Bak Kut Teh 11 New Bridge Road", "food"],
   ] as const)("puts a %s named %s in %s", (placeType, name, expected) => {
-    expect(resolveCategory({ category: "other", placeType, name })).toBe(expected);
+    expect(resolveCategory({ category: "other", placeType, name, address: "" })).toBe(expected);
+  });
+
+  it("files bare addresses and dropped pins under Addresses, and Google neighborhoods under Neighborhoods", () => {
+    const resolve = (name: string, address = "", placeType: string | null = null) => resolveCategory({ category: "other", placeType, name, address });
+    expect(resolve("190 Elizabeth St", "190 Elizabeth St, New York, NY 10012")).toBe("address");
+    expect(resolve("34 Nonhyeon-ro 152-gil")).toBe("address");
+    expect(resolve("Via San Paolo, 34")).toBe("address");
+    expect(resolve("251 Compostela", "251 Compostela, La Habana, Cuba")).toBe("address");
+    expect(resolve(`31°13'22.6"N 121°28'11.4"E`)).toBe("address");
+    expect(resolve("7 Adams", "1963 Sutter St, San Francisco")).toBe("other");
+    expect(resolve("001", "Tai Kwun, Hollywood Rd")).toBe("other");
+    expect(resolveCategory({ category: "food", placeType: null, name: "7 Adams", address: "1963 Sutter St" })).toBe("food");
+    expect(resolve("Shimokitazawa", "", "Neighborhood")).toBe("neighborhood");
   });
 
   it("keeps each original broad filter id matching what it matched before the taxonomy grew", () => {

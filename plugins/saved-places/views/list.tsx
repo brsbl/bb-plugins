@@ -53,7 +53,7 @@ export function ListView({ ids, filter, reach, picked }: { ids: string[]; filter
   const [menu, setMenu] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [renaming, setRenaming] = useState(false);
-  const selection = useMemo(() => selectLists(ids, filter, app.getList, store.notes), [ids, filter, app.getList, store.notes]);
+  const selection = useMemo(() => selectLists(ids, filter, app.getList, store.notes), [ids, filter, app.getList, store.notes, store.categories]);
   const { lists, all, filtered } = selection;
   const update = (patch: { filter?: ListFilter; reach?: number | null; picked?: string[] | null }) => app.replace({ kind: "lists", ids, filter, reach, picked, ...patch });
   const setFilter = (patch: Partial<ListFilter>) => update({ filter: { ...filter, ...patch } });

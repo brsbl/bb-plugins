@@ -102,7 +102,7 @@ export function PlacesMap() {
     const query = contextView.kind === "library" ? contextView.query.trim().toLocaleLowerCase() : "";
     const places = query ? allPlaces.filter(p => `${p.name} ${p.address} ${p.placeType ?? ""} ${store.notes[p.key]?.text ?? ""}`.toLocaleLowerCase().includes(query)) : allPlaces;
     return { places };
-  }, [contextView, getList, store.notes]);
+  }, [contextView, getList, store.notes, store.categories]);
 
   const selectedPlace = top.kind === "place" ? placesByKey.get(top.key) ?? null : null;
   const pickedKeys = top.kind === "pick" ? top.picked : top.kind === "lists" ? top.picked : null;
@@ -114,7 +114,7 @@ export function PlacesMap() {
       const outsideRings = ringShapes ? place !== selectedPlace && !ringShapes.some(r => inPolygon([place.longitude, place.latitude], r.geometry)) : false;
       return { place, color: categoryFor(place.category).color, note: Boolean(store.notes[place.key]), dim: outsideRings, picked: pickedKeys?.includes(place.key) ?? false };
     });
-  }, [context, selectedPlace, rings, top, store.notes, pickedKeys]);
+  }, [context, selectedPlace, rings, top, store.notes, store.categories, pickedKeys]);
 
   const fitPlaces = useCallback((places: SavedPlace[], animate = true) => {
     const map = mapRef.current;
@@ -278,7 +278,7 @@ export function PlacesMap() {
     const map = mapRef.current;
     if (!map || !styleVersion) return;
     setMarkedPoint(map, "sp-selected", selectedPlace, selectedPlace ? categoryFor(selectedPlace.category).color : undefined);
-  }, [styleVersion, selectedPlace]);
+  }, [styleVersion, selectedPlace, store.categories]);
 
   useEffect(() => {
     const map = mapRef.current;

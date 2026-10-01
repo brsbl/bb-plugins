@@ -11,6 +11,7 @@ export const categoryIdSchema = z.enum([
   "spa", "fitness", "sports", "amusement",
   "transit", "airport", "ferry",
   "health",
+  "neighborhood", "address",
 ]);
 export type CategoryId = z.infer<typeof categoryIdSchema>;
 
@@ -75,7 +76,8 @@ const rows: Record<GroupId, CategoryRow[]> = {
     ["cinema", "Cinemas", /cin[eé]ma|movie|film|imax/i, ["cinema"]],
     ["theater", "Theaters", /theat(er|re)|playhouse|opera|kabuki|ballet|performing arts/i, ["theatre"]],
     ["library", "Libraries", /librar|biblioth/i, ["library"]],
-    ["culture", "Sights", /landmark|attraction|monument|memorial|historic|heritage|tower|ruins|statue|sightseeing|tourist|^(sculpture|bridge|plaza|neighbo(u)?rhood)$/i, ["attraction", "monument", "ruins"], true],
+    ["neighborhood", "Neighborhoods", /^(neighbo(u)?rhood|district|historic district|shopping street|street)$/i],
+    ["culture", "Sights", /landmark|attraction|monument|memorial|historic|heritage|tower|ruins|statue|sightseeing|tourist|^(sculpture|bridge|plaza)$/i, ["attraction", "monument", "ruins"], true],
   ],
   outdoors: [
     ["camping", "Camping", /campground|campsite|camping|glamping/i, ["campsite", "camp_site", "caravan_site"]],
@@ -107,6 +109,7 @@ const rows: Record<GroupId, CategoryRow[]> = {
   ],
   other: [
     ["health", "Health", /hospital|clinic|pharmac|drugstore|doctor|dentist|dental|medical|optician|optometr/i, ["hospital"]],
+    ["address", "Addresses", null],
     ["other", "Other", null, [], true],
   ],
 };
@@ -165,10 +168,23 @@ function narrowByName(hit: Category, name: string): CategoryId {
   return siblings.slice(0, siblings.indexOf(hit)).find(category => category.id !== "market" && category.match?.test(name))?.id ?? hit.id;
 }
 
-export function resolveCategory(place: { category: CategoryId; placeType: string | null; name: string }): CategoryId {
+const coordinates = /^-?\d{1,3}(\.\d+)?°|^-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+$/;
+const streetWord = /\b(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|pl|place|ct|court|hwy|rue|via|calle|lu|ro|gil|dong|ga)\b/i;
+const streetFirst = /^(via|rue|calle|avenida|strada)\s[^,]+,\s*\d+/i;
+
+export function looksLikeAddress(name: string, address: string): boolean {
+  return coordinates.test(name) || streetFirst.test(name) || (/^\d/.test(name) && (streetWord.test(name) || address.startsWith(`${name},`)));
+}
+
+function resolveStored(place: { category: CategoryId; placeType: string | null; name: string }): CategoryId {
   const stored = categoryFor(place.category);
   if (!stored.refines) return stored.id;
   const fromType = place.placeType ? matchType(place.placeType) : undefined;
   if (fromType) return fromType.refines ? narrowByName(fromType, place.name) : fromType.id;
   return byNameOrder.find(category => category.match?.test(place.name))?.id ?? stored.id;
+}
+
+export function resolveCategory(place: { category: CategoryId; placeType: string | null; name: string; address: string }): CategoryId {
+  const resolved = resolveStored(place);
+  return resolved === "other" && looksLikeAddress(place.name, place.address) ? "address" : resolved;
 }
