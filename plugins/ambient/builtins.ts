@@ -727,7 +727,7 @@ vec3 scene(vec2 uv, vec2 p) {
 
   // the sheet: cream paper, woodland on the lower slopes, a warmer tint on high ground
   vec3 col = paper * (0.97 + 0.04 * noise(p * vec2(280.0, 90.0)));
-  float wl = 0.2;
+  float wl = 0.27;
   float wood = smoothstep(0.48, 0.6, noise(p * p_scale * 2.4 + vec2(9.0 + t, t * 0.4))) * smoothstep(0.6, 0.42, h);
   col = mix(col, mix(paper, green, 0.8), wood * p_fill);
   col = mix(col, col * vec3(1.0, 0.95, 0.86), smoothstep(0.45, 0.95, h) * 0.6 * p_fill);
