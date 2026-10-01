@@ -6,11 +6,13 @@ import {
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
+  useSdk,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
+import { z } from "zod";
 import {
   buildGroups,
-  groupThreads,
+  groupMembers,
   resolveSidebarPreferences,
   withLiveState,
   type DesktopGroup,
@@ -46,6 +48,8 @@ export interface DesktopContextValue {
   desktopGroups: DesktopGroup[];
   moreGroups: DesktopGroup[];
   groupByKey: Map<string, DesktopGroup>;
+  /** A group's unarchived threads, computed once for every group. */
+  membersOf: (group: DesktopGroup) => DesktopThread[];
   foldersOf: (threadId: string) => string[];
   effective: Effective;
   sort: { key: SortKey; direction: SortDirection };
@@ -71,19 +75,21 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** The sidebar's own organize and sort choices, which the desktop follows when set to "Same as sidebar". */
-async function fetchSidebarPreferences(): Promise<unknown> {
+const sidebarPreferencesSchema = z.object({ preferences: z.unknown() });
+
+/**
+ * The sidebar's own organize and sort choices, which the desktop follows when set to "Same as sidebar". They belong to
+ * bb's bundled thread-list plugin; when it can't answer, the desktop falls back to its defaults.
+ */
+async function fetchSidebarPreferences(plugins: ReturnType<typeof useSdk>["plugins"]): Promise<unknown> {
   try {
-    const response = await fetch("/api/v1/plugins/thread-list/rpc/listPreferences", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "null",
-      credentials: "same-origin",
+    const { preferences } = await plugins.callRpc({
+      pluginId: "thread-list",
+      method: "listPreferences",
+      input: null,
+      outputSchema: sidebarPreferencesSchema,
     });
-    const body: unknown = await response.json();
-    return typeof body === "object" && body !== null
-      ? (body as { result?: { preferences?: unknown } }).result?.preferences
-      : null;
+    return preferences;
   } catch {
     return null;
   }
@@ -157,11 +163,26 @@ function useDesktopSnapshot() {
   return { snapshot: loaded?.snapshot ?? null, requestedAt: loaded?.requestedAt ?? 0, error, refresh, call };
 }
 
+const NO_THREADS: DesktopThread[] = [];
+
+/** Keeps the previous array while every element is the same object, so unrelated live updates don't ripple down. */
+function useStableArray<T>(next: T[]): T[] {
+  const previous = useRef(next);
+  const current = previous.current;
+  if (current !== next && (current.length !== next.length || next.some((item, index) => item !== current[index]))) {
+    previous.current = next;
+  }
+  return previous.current;
+}
+
 /** Merges the snapshot with live sidebar state and provides it, with the desktop's actions, to everything below. */
 export function DesktopDataProvider({ children }: { children: ReactNode }) {
   const { snapshot, requestedAt, error, refresh, call } = useDesktopSnapshot();
   const live = useSidebarThreads();
+  const sdk = useSdk();
   const manager = useWindowManager();
+  const managerRef = useRef(manager);
+  managerRef.current = manager;
   const actions = useSidebarThreadActions();
   const [sidebar, setSidebar] = useState<ReturnType<typeof resolveSidebarPreferences> | null>(null);
   const sidebarFetchedAt = useRef(Number.NEGATIVE_INFINITY);
@@ -179,24 +200,34 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (snapshot === null || Date.now() - sidebarFetchedAt.current < SIDEBAR_PREFERENCES_TTL) return;
     sidebarFetchedAt.current = Date.now();
-    void fetchSidebarPreferences().then((preferences) => {
+    void fetchSidebarPreferences(sdk.plugins).then((preferences) => {
       if (mounted.current) setSidebar(resolveSidebarPreferences(preferences));
     });
-  }, [snapshot]);
+  }, [sdk.plugins, snapshot]);
+
+  // Preference edits show at once and stack: a second Quick Launch change made before the snapshot reloads builds on
+  // the first instead of on the stale snapshot. The overlay clears once a snapshot requested after the last save lands.
+  const [preferenceOverlay, setPreferenceOverlay] = useState<Partial<Preferences>>({});
+  const savesInFlight = useRef(0);
+  const lastSaveDoneAt = useRef(0);
+  useEffect(() => {
+    if (savesInFlight.current === 0 && requestedAt >= lastSaveDoneAt.current) setPreferenceOverlay({});
+  }, [requestedAt]);
 
   const liveById = useMemo(
     () => new Map(live.threads.map((thread) => [thread.id, thread])),
     [live.threads],
   );
 
-  const threads = useMemo(
-    () =>
-      (snapshot?.threads ?? []).map((thread) => withLiveState(thread, liveById.get(thread.id))),
-    [liveById, snapshot?.threads],
+  const threads = useStableArray(
+    useMemo(
+      () => (snapshot?.threads ?? NO_THREADS).map((thread) => withLiveState(thread, liveById.get(thread.id))),
+      [liveById, snapshot?.threads],
+    ),
   );
 
   const effective = useMemo<Effective>(() => {
-    const preferences = snapshot?.preferences;
+    const preferences = snapshot === null ? undefined : { ...snapshot.preferences, ...preferenceOverlay };
     const fromSidebar = sidebar ?? resolveSidebarPreferences(null);
     const sortPreference = preferences?.sort ?? "sidebar";
     return {
@@ -212,7 +243,7 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
           ? fromSidebar.organize
           : preferences.organize,
     };
-  }, [sidebar, snapshot?.preferences]);
+  }, [preferenceOverlay, sidebar, snapshot]);
 
   const visibleThreads = useMemo(() => threads.filter((thread) => !thread.isArchived), [threads]);
   const archivedThreads = useMemo(() => threads.filter((thread) => thread.isArchived), [threads]);
@@ -236,12 +267,17 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
   const hiddenKeys = useMemo(() => new Set(sidebar?.hiddenGroupKeys ?? []), [sidebar]);
   const desktopGroups = useMemo(() => groups.filter((group) => !hiddenKeys.has(group.key)), [groups, hiddenKeys]);
   const moreGroups = useMemo(() => groups.filter((group) => hiddenKeys.has(group.key)), [groups, hiddenKeys]);
+  const members = useMemo(() => groupMembers(groups, visibleThreads), [groups, visibleThreads]);
+  const membersOf = useCallback((group: DesktopGroup) => members.get(group.key) ?? NO_THREADS, [members]);
   const folderNames = useMemo(() => {
     const names = new Map<string, string[]>();
     const ordered = [...groups].sort((left, right) => Number(right.kind === "folder") - Number(left.kind === "folder"));
+    const everyMember = groupMembers(ordered, threads);
     for (const group of ordered) {
-      for (const thread of groupThreads(group, threads)) {
-        names.set(thread.id, [...(names.get(thread.id) ?? []), group.name]);
+      for (const thread of everyMember.get(group.key) ?? NO_THREADS) {
+        const existing = names.get(thread.id);
+        if (existing === undefined) names.set(thread.id, [group.name]);
+        else existing.push(group.name);
       }
     }
     return names;
@@ -255,12 +291,20 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
 
   // Opening a window leaves the read state alone: marking the thread read here
   // would erase bb's "New" divider before the thread is ever opened in bb.
-  const openThread = useCallback(
-    (threadId: string) => {
-      manager.open({ kind: "thread", threadId });
-    },
-    [manager],
+  // A deleted thread's windows close, which also ends their terminal and browser tabs.
+  useRealtime(
+    "changed",
+    useCallback((payload: unknown) => {
+      if (typeof payload !== "object" || payload === null) return;
+      const { scope, threadId } = payload as { scope?: unknown; threadId?: unknown };
+      if (scope !== "thread-deleted" || typeof threadId !== "string") return;
+      managerRef.current.closeWhere((window) => threadIdOf(window.spec) === threadId);
+    }, []),
   );
+
+  const openThread = useCallback((threadId: string) => {
+    managerRef.current.open({ kind: "thread", threadId });
+  }, []);
 
   const dropThread = useCallback(
     async (group: DesktopGroup, drag: ThreadDrag) => {
@@ -301,21 +345,88 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
 
   const archiveThread = useCallback(
     (threadId: string) => {
-      manager.closeWhere((window) => threadIdOf(window.spec) === threadId);
+      managerRef.current.closeWhere((window) => threadIdOf(window.spec) === threadId);
       actions.archive(threadId);
     },
-    [actions, manager],
+    [actions],
   );
 
   const setPreferences = useCallback(
-    (patch: Partial<Preferences>) =>
+    (patch: Partial<Preferences>) => {
+      setPreferenceOverlay((overlay) => ({ ...overlay, ...patch }));
+      savesInFlight.current += 1;
       void call("setPreferences", patch)
-        .then(refresh)
-        .catch((preferenceError) => toast.error(errorMessage(preferenceError))),
+        .catch((preferenceError) => toast.error(errorMessage(preferenceError)))
+        .finally(() => {
+          savesInFlight.current -= 1;
+          lastSaveDoneAt.current = Date.now();
+          refresh();
+        });
+    },
     [call, refresh],
   );
+  const shownSnapshot = useMemo(
+    () =>
+      snapshot === null || Object.keys(preferenceOverlay).length === 0
+        ? snapshot
+        : { ...snapshot, preferences: { ...snapshot.preferences, ...preferenceOverlay } },
+    [preferenceOverlay, snapshot],
+  );
 
-  if (snapshot === null || sidebar === null) {
+  const value = useMemo<DesktopContextValue | null>(
+    () =>
+      shownSnapshot === null
+        ? null
+        : {
+            snapshot: shownSnapshot,
+            snapshotRequestedAt: requestedAt,
+            threads,
+            visibleThreads,
+            archivedThreads,
+            threadById,
+            liveById,
+            groups,
+            desktopGroups,
+            moreGroups,
+            groupByKey,
+            membersOf,
+            foldersOf,
+            effective,
+            sort: effective.sort,
+            call,
+            refresh,
+            openThread,
+            dropThread,
+            restoreThread,
+            archiveThread,
+            setPreferences,
+          },
+    [
+      shownSnapshot,
+      requestedAt,
+      threads,
+      visibleThreads,
+      archivedThreads,
+      threadById,
+      liveById,
+      groups,
+      desktopGroups,
+      moreGroups,
+      groupByKey,
+      membersOf,
+      foldersOf,
+      effective,
+      call,
+      refresh,
+      openThread,
+      dropThread,
+      restoreThread,
+      archiveThread,
+      setPreferences,
+    ],
+  );
+
+  if (value === null || sidebar === null) {
     return (
       <div className="bbd-root">
         <div
@@ -327,30 +438,6 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
       </div>
     );
   }
-
-  const value: DesktopContextValue = {
-    snapshot,
-    snapshotRequestedAt: requestedAt,
-    threads,
-    visibleThreads,
-    archivedThreads,
-    threadById,
-    liveById,
-    groups,
-    desktopGroups,
-    moreGroups,
-    groupByKey,
-    foldersOf,
-    effective,
-    sort: effective.sort,
-    call,
-    refresh,
-    openThread,
-    dropThread,
-    restoreThread,
-    archiveThread,
-    setPreferences,
-  };
 
   return <DesktopContext.Provider value={value}>{children}</DesktopContext.Provider>;
 }

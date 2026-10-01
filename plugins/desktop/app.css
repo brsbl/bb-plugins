@@ -109,12 +109,12 @@
  * backdrop filter, that makes the composer its own stacking layer, so desktop icons later in the page paint over the
  * menu. Lift the composer above the icons, and above the windows while it has focus (they already move clear of it).
  */
-:root:has(.bbd-root) [data-app-composer]:not(.bbd-window-layer *, [data-thread-window] *) {
+:root:has(.bbd-window-layer) [data-app-composer]:not(.bbd-window-layer *, [data-thread-window] *) {
   position: relative;
   z-index: 1;
 }
 
-:root:has(.bbd-root) [data-app-composer]:not(.bbd-window-layer *, [data-thread-window] *):focus-within {
+:root:has(.bbd-window-layer) [data-app-composer]:not(.bbd-window-layer *, [data-thread-window] *):focus-within {
   z-index: 47;
 }
 
@@ -1403,7 +1403,12 @@
   clear: both;
 }
 
-.bbd-im-chat [data-message-column]::before {
+/*
+ * Speaker labels need a positive sign of who wrote the message: bb gives an agent's message column the
+ * `group/message` class itself and wraps a person's message in a child that has it. A layout Desktop doesn't
+ * recognize gets no label rather than the wrong one.
+ */
+.bbd-im-chat [data-message-column]:is([class~="group/message"], :has(> [class~="group/message"]))::before {
   float: left;
   margin-right: 6px;
   content: var(--bbd-im-buddy);
@@ -1415,7 +1420,7 @@
   overflow-wrap: anywhere;
 }
 
-.bbd-im-chat [data-message-column]:has(> .ml-auto)::before {
+.bbd-im-chat [data-message-column]:has(> [class~="group/message"])::before {
   content: "Me:";
   color: var(--bbd-im-me);
 }

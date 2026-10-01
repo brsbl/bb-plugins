@@ -18,10 +18,8 @@ export function NewThreadWindow({ window: desktopWindow, groupKey }: { window: D
         ...request,
         ...(group?.kind === "section" && group.id !== null ? { sectionId: group.id } : {}),
       },
+      ...(group?.kind === "folder" ? { folderId: group.folder.id } : {}),
     });
-    if (group?.kind === "folder") {
-      await desktop.call("addToFolder", { folderId: group.folder.id, threadIds: [threadId], fromFolderId: null });
-    }
     manager.close(desktopWindow.id);
     manager.open({ kind: "thread", threadId });
   };

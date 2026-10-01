@@ -217,6 +217,11 @@ export function InternetExplorer({
 
   useEffect(() => {
     if (browser === null || threadId === null) return;
+    // A minimized window only needs its page hidden once; the overlap check restarts on restore.
+    if (desktopWindow.minimized) {
+      sync();
+      return;
+    }
     let frame = 0;
     let count = 0;
     const tick = () => {
@@ -233,7 +238,7 @@ export function InternetExplorer({
       window.removeEventListener("resize", onResize);
       window.removeEventListener("bbd-drag-state", onResize);
     };
-  }, [browser, threadId, sync]);
+  }, [browser, threadId, sync, desktopWindow.minimized]);
 
   const go = (event: FormEvent) => {
     event.preventDefault();

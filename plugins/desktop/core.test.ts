@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildGroups,
-  filterLifecycle,
   gridPositions,
+  groupMembers,
   groupThreads,
-  clampRect,
   clearanceShift,
   nextFreePosition,
   trackNeedsInput,
@@ -105,11 +104,6 @@ describe("groups", () => {
     expect(groupThreads(groups[1]!, withPin).map((t) => t.id)).toEqual(["a"]);
     expect(groupThreads(groups[3]!, withPin).map((t) => t.id)).toEqual(["p"]);
   });
-
-  it("treats lifecycle as a filter, not a folder", () => {
-    expect(filterLifecycle(threads, "archived").map((t) => t.id)).toEqual(["b"]);
-    expect(filterLifecycle(threads, "active").map((t) => t.id)).toEqual(["a", "c"]);
-  });
 });
 
 describe("withLiveState", () => {
@@ -117,10 +111,13 @@ describe("withLiveState", () => {
     title: null,
     titleFallback: "Fallback",
     sectionId: "sec_inbox",
+    status: "idle" as const,
     isUnread: true,
     hasPendingInteraction: true,
     isArchived: false,
     isPinned: true,
+    updatedAt: 0,
+    host: null,
   };
 
   it("takes section, pin, archive and read state from the live sidebar", () => {
@@ -149,9 +146,50 @@ describe("withLiveState", () => {
     expect(byKey.get("section:sec_old")).toEqual([]);
   });
 
+  it("takes run status and activity time from the live sidebar", () => {
+    const merged = withLiveState(thread("a", { status: "idle", updatedAt: 5, hostId: "host_old" }), {
+      ...live,
+      status: "active",
+      updatedAt: 9,
+      host: { id: "host_new" },
+    });
+    expect(merged).toMatchObject({ status: "active", updatedAt: 9, hostId: "host_new" });
+  });
+
+  it("returns the same thread when nothing it shows changed", () => {
+    const current = thread("a", { title: "Fallback", sectionId: "sec_inbox", isUnread: true, needsInput: true, isPinned: true });
+    expect(withLiveState(current, live)).toBe(current);
+    expect(withLiveState(current, { ...live, isUnread: false })).not.toBe(current);
+  });
+
   it("keeps the snapshot when the sidebar has not loaded the thread", () => {
     const original = thread("a", { sectionId: "sec_old" });
     expect(withLiveState(original, undefined)).toBe(original);
+  });
+});
+
+describe("groupMembers", () => {
+  it("gives every group the same threads as groupThreads", () => {
+    const threads = [
+      thread("a", { sectionId: "sec_1", projectId: "p1", hostId: "h1" }),
+      thread("b", { projectId: "p2" }),
+      thread("p", { sectionId: "sec_1", isPinned: true }),
+    ];
+    const folders = [folder({ id: "fld", threadIds: ["b", "missing", "a"] })];
+    for (const organize of ["section", "project", "machine"] as const) {
+      const groups = buildGroups({
+        organize,
+        sections: [{ id: "sec_1", name: "One" }],
+        projects: [{ id: "p1", name: "P1" }, { id: "p2", name: "P2" }],
+        machines: [{ id: "h1", name: "Laptop" }],
+        folders,
+        threads,
+      });
+      const members = groupMembers(groups, threads);
+      for (const group of groups) {
+        expect(members.get(group.key)?.map((t) => t.id)).toEqual(groupThreads(group, threads).map((t) => t.id));
+      }
+    }
   });
 });
 
@@ -277,13 +315,3 @@ describe("clearanceShift", () => {
   });
 });
 
-describe("clampRect", () => {
-  it("keeps a window's title bar below the app's top controls", () => {
-    expect(clampRect({ x: 900, y: -20, width: 400, height: 300 }, { y: 48, width: 1200, height: 852 })).toEqual({
-      x: 900,
-      y: 48,
-      width: 400,
-      height: 300,
-    });
-  });
-});

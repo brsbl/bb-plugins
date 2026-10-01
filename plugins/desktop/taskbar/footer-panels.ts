@@ -69,8 +69,11 @@ export function useFooterItems(): FooterItem[] {
 const PANEL_STYLE_ID = "bbd-panel-window-style";
 const PANEL_SELECTOR = '[data-testid^="plugin-sidebar-footer-disclosure-"]';
 const PANEL_TITLE_HEIGHT = 30;
+// A transformed or filtered ancestor would trap the fixed panel inside the collapsed sidebar, so those effects are
+// lifted, but only between the sidebar root and the panel; bb and other plugins keep theirs everywhere else.
 const PANEL_STYLE = `
-body[data-bbd-panel-window] :has(${PANEL_SELECTOR}) {
+body[data-bbd-panel-window] .peer[data-side]:has(${PANEL_SELECTOR}),
+body[data-bbd-panel-window] .peer[data-side] :has(${PANEL_SELECTOR}) {
   transform: none !important;
   filter: none !important;
   backdrop-filter: none !important;

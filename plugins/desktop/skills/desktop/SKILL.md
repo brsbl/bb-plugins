@@ -14,6 +14,8 @@ bb desktop folders
 bb desktop folder create "Launch" --hide-from-sidebar
 bb desktop folder add <folder-id> <thread-id>...
 bb desktop folder remove <folder-id> <thread-id>
+bb desktop folder show <folder-id>
+bb desktop folder update <folder-id> [--name <name>] [--hide-from-sidebar | --show-in-sidebar]
 bb desktop folder delete <folder-id>
 bb desktop unhide-all
 ```

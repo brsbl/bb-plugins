@@ -82,7 +82,9 @@ export function WindowLayer({ dockFrame }: { dockFrame: DockFrame | null }) {
       onClickCapture={(event) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         const threadId = linkedThreadId(event.target);
-        const webLink = threadId === null ? chatWebLink(event.target) : null;
+        // Web links follow bb's own link handling unless Desktop is set to keep them in bb Explorer.
+        const webLink =
+          threadId === null && desktop.snapshot.preferences.chatWebLinks === "explorer" ? chatWebLink(event.target) : null;
         if (threadId === null && webLink === null) return;
         event.preventDefault();
         event.stopPropagation();

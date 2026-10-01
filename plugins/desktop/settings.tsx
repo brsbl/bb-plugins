@@ -139,6 +139,19 @@ export function DesktopSettings() {
           control={<Switch id={`${id}-shown`} checked={shown} onChange={setDesktopEnabled} />}
         />
         <SettingRow
+          label="Open chat links in bb Explorer"
+          description="Web links in an Instant Message open in the thread's bb Explorer window instead of wherever bb opens links. Needs the bb desktop app."
+          htmlFor={`${id}-links`}
+          layout="trailing"
+          control={
+            <Switch
+              id={`${id}-links`}
+              checked={preferences?.chatWebLinks === "explorer"}
+              onChange={(checked) => save({ chatWebLinks: checked ? "explorer" : "bb" })}
+            />
+          }
+        />
+        <SettingRow
           label="Quick Launch"
           description="Shortcuts beside the bb button on the taskbar, in the order you add them."
           layout="below"

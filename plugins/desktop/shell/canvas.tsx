@@ -22,7 +22,6 @@ import {
 import {
   ICON_CELL,
   gridPositions,
-  groupThreads,
   nextFreePosition,
   sortThreads,
   tileRects,
@@ -43,11 +42,10 @@ const ICON_BOX = { width: 88, height: 84 } as const;
 
 function groupSortValue(
   group: DesktopGroup,
-  threads: readonly DesktopThread[],
+  members: readonly DesktopThread[],
   key: SortKey,
 ): number | string {
   if (key === "alpha") return group.name.toLocaleLowerCase();
-  const members = groupThreads(group, threads);
   if (key === "created") {
     return group.kind === "folder"
       ? group.folder.createdAt
@@ -329,7 +327,7 @@ export function DesktopCanvas() {
 
   const arrange = () => {
     const direction = sort.direction === "ascending" ? 1 : -1;
-    const valueOf = (group: DesktopGroup) => groupSortValue(group, desktop.visibleThreads, sort.key);
+    const valueOf = (group: DesktopGroup) => groupSortValue(group, desktop.membersOf(group), sort.key);
     const ordered = [...items].sort((left, right) => {
       const leftValue = valueOf(left);
       const rightValue = valueOf(right);
