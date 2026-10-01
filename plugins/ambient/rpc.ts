@@ -103,6 +103,18 @@ export const stateSchema = z.object({
 
 export type AmbientState = z.infer<typeof stateSchema>;
 
+/** An undo step: the scene it was on, that scene's values and colors, and the display controls. */
+export const historyEntrySchema = z
+  .object({
+    sceneId: z.string().min(1).nullable(),
+    values: z.record(z.string(), z.number().finite()),
+    palette: paletteSchema,
+    controls: controlsSchema,
+  })
+  .strict();
+
+export type HistoryEntry = z.infer<typeof historyEntrySchema>;
+
 export const libraryEntrySchema = z.object({
   id: z.string().min(1),
   scene: sceneSchema,
@@ -230,6 +242,7 @@ export const ambientRpcContract = defineRpcContract({
     input: z.object({ id: z.string().min(1) }).strict(),
     output: stateSchema,
   },
+  restore: { input: historyEntrySchema, output: stateSchema },
   resetScene: {
     input: z.object({ id: z.string().min(1) }).strict(),
     output: stateSchema,
@@ -276,10 +289,12 @@ export const ambientRpcContract = defineRpcContract({
 
 export type CaptureRequestKind = z.infer<typeof rippleKindSchema>;
 
-export interface CaptureRequest {
-  requestId: string;
-  ripple: CaptureRequestKind | null;
-}
+export const captureRequestSchema = z.object({
+  requestId: z.string().min(1),
+  ripple: rippleKindSchema.nullable(),
+});
+
+export type CaptureRequest = z.infer<typeof captureRequestSchema>;
 
 export type CaptureReport = {
   dataUrl: string;
