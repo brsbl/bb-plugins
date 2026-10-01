@@ -144,7 +144,7 @@ vec2 skyFlow(vec2 p, float sw, float W){
 
 vec2 disturb(vec2 p){
   vec2 dp = p - toP(u_pointer);
-  vec2 v = perp(dp)/0.07*exp(-dot(dp, dp)/0.008)*2.5;
+  vec2 v = perp(dp)/0.07*exp(-dot(dp, dp)/0.005)*0.9;
   for (int i = 0; i < 16; i++){
     if (i >= u_agentCount) break;
     vec4 a = u_agents[i];
@@ -193,8 +193,9 @@ vec3 scene(vec2 uv, vec2 p){
   vec2 g0 = floor(p/cell);
   float bestPri = -1.0, sa = 0.0, sb = 0.0, sh = 0.0, shw = 1.0;
   vec2 sc = p;
-  for (int j = -1; j <= 1; j++)
-  for (int i = -1; i <= 1; i++){
+  // strokes reach up to two cells, so search two cells out or they get clipped at cell edges
+  for (int j = -2; j <= 2; j++)
+  for (int i = -2; i <= 2; i++){
     vec2 id = g0 + vec2(float(i), float(j));
     float h = hash21(id);
     vec2 c = (id + 0.5 + (vec2(h, hash21(id + 3.3)) - 0.5)*0.8)*cell;

@@ -179,7 +179,7 @@ vec3 scene(vec2 uv, vec2 p0) {
   vec2 sp0 = p0;
   vec2 dp = p0 - toP(u_pointer);
   float gl = exp(-dot(dp, dp) / 0.012);
-  sp0.x += gl * (hash21(vec2(floor(p0.y / led), floor(t * 14.0))) - 0.5) * 0.08;
+  sp0.x += gl * (hash21(vec2(floor(p0.y / led), floor(t * 14.0))) - 0.5) * 0.03;
 
   // look through the eyepiece: the LED grid itself bends with the lens
   vec2 p = lens(sp0);

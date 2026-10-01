@@ -354,15 +354,13 @@ vec3 scene(vec2 uv, vec2 p) {
   // pigment drifts between teal and indigo across the sheet
   float hue = noise(p * 1.7 + wv * 1.2 + 21.0);
   col *= mix(vec3(1.0), mix(vec3(0.9, 1.04, 1.05), vec3(0.97, 0.95, 1.07), hue), 0.7 * p_wet);
-  // cold-press paper: lit tooth, pigment granulating in its valleys, dry-brush skips on the ground
+  // cold-press paper: lit tooth, pigment granulating in its valleys
   float th = noise(p * 210.0) * 0.6 + noise(p * 80.0 + 3.0) * 0.4;
   vec2 po = p + vec2(0.0015);
   float th2 = noise(po * 210.0) * 0.6 + noise(po * 80.0 + 3.0) * 0.4;
   float Lc = dot(col, lw);
   col *= 1.0 + (th - th2) * 0.35 * p_grain;
   col *= 1.0 - (1.0 - th) * 0.16 * p_grain * (1.0 - Lc);
-  float skip = smoothstep(0.66, 0.74, noise(vec2(p.x * 26.0 + p.y * 8.0, p.y * 170.0))) * smoothstep(0.55, 0.75, th);
-  col = mix(col, vec3(0.97, 0.94, 0.88), skip * 0.25 * p_grain * (1.0 - skyM));
 
   float pf = min(u_resolution.y / 4.0, 160.0);
   float pn = noise(p * pf) * 0.6 + noise(p * pf * 0.47 + 4.0) * 0.4;

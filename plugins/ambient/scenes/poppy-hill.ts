@@ -21,7 +21,7 @@ vec2 clouds(vec2 p, float t) {
       vec2 pc = vec2(cx + u * 0.13 * sc, cy + (0.035 * (1.0 - u * u) + 0.015 * hash21(vec2(fk, fj))) * sc);
       float r = (0.04 + 0.025 * (1.0 - u * u) + 0.012 * hash21(vec2(fj, fk + 9.0))) * sc;
       float d = length((p - pc) * vec2(1.0, 1.15));
-      float m = smoothstep(r, r * 0.82, d) * step(cy - 0.025 * sc, p.y);
+      float m = smoothstep(r, r * 0.55, d) * smoothstep(cy - 0.04 * sc, cy - 0.005 * sc, p.y + 0.012 * sin(p.x * 60.0 + fk));
       cov = max(cov, m);
       lit = max(lit, m * smoothstep(-r, r * 0.8, p.y - pc.y + (p.x - pc.x) * 0.3));
     }
@@ -114,7 +114,7 @@ vec3 dabLayer(vec2 p, vec2 off, float w, float t, out float m, out float stripe)
   vec2 cp = (c + 0.5 - off) * cell;
   float h = hash21(c + off * 7.0);
   float hy = hillY(cp.x);
-  float ang = cp.y > hy + 0.01 ? 0.05 + 0.3 * (h - 0.5) : 1.3 + (h - 0.5) * 0.9 - w * 0.4;
+  float ang = cp.y > hy + 0.01 ? 0.05 + 0.7 * (h - 0.5) : 1.3 + (h - 0.5) * 0.9 - w * 0.4;
   vec2 dir = vec2(cos(ang), sin(ang));
   vec2 nrm = vec2(-dir.y, dir.x);
   vec2 jit = (vec2(h, hash21(c + 3.3)) - 0.5) * 0.35;
