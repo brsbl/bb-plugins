@@ -120,9 +120,19 @@ export function categoryFor(id: CategoryId): Category {
   return byId.get(id) ?? byId.get("other")!;
 }
 
+const legacyFilters: Partial<Record<CategoryId, { group: GroupId; except: CategoryId[] }>> = {
+  food: { group: "food", except: ["ramen", "sushi"] },
+  coffee: { group: "cafe", except: [] },
+  bars: { group: "nightlife", except: ["music"] },
+  culture: { group: "culture", except: [] },
+  outdoors: { group: "outdoors", except: [] },
+  stays: { group: "stays", except: [] },
+  other: { group: "other", except: [] },
+};
+
 export function includesCategory(filter: CategoryId, id: CategoryId): boolean {
-  const broad = categoryFor(filter);
-  return id === filter || (rows[broad.group].at(-1)?.[0] === filter && categoryFor(id).group === broad.group);
+  const legacy = legacyFilters[filter];
+  return id === filter || (legacy !== undefined && categoryFor(id).group === legacy.group && !legacy.except.includes(id));
 }
 
 export function groupOf(id: CategoryId): Group {
