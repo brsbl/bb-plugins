@@ -27,9 +27,13 @@ interface ComposerTarget {
   inWindow: boolean;
   /** Shown in "Send to …". */
   label: string;
-  /** A new-thread box's token, under which the server tracks the project the box has selected. */
-  token: string;
 }
+
+/**
+ * The new-thread box's token. Switching its project remounts the box, so the token lives with the page rather than
+ * the box, and a picture added before the switch still finds the project picked after it.
+ */
+const NEW_THREAD_TOKEN = `${COMPOSER_TOKEN_PREFIX}${typeof crypto === "undefined" ? Math.random().toString(36).slice(2) : crypto.randomUUID()}`;
 
 /** Every message box on screen: the page's own, and each thread window's. */
 const targets: ComposerTarget[] = [];
@@ -146,7 +150,7 @@ export function sendToThread(item: { kind: "notes" | "pictures"; id: string; lab
     item.kind === PICTURE_MENTIONS
       ? pictureMentionId(item.id, {
           threadId: scope.kind === "new-thread" ? null : scope.kind === "side-chat" ? scope.childThreadId : scope.threadId,
-          composerToken: scope.kind === "new-thread" ? target.token : null,
+          composerToken: scope.kind === "new-thread" ? NEW_THREAD_TOKEN : null,
           projectId: "projectId" in scope ? scope.projectId : null,
         })
       : item.id;
@@ -165,13 +169,7 @@ export function ComposerBridge() {
   const threadId = scope.kind === "new-thread" ? null : scope.kind === "side-chat" ? scope.childThreadId : scope.threadId;
   const title = threadId === null ? null : (threads.find((thread) => thread.id === threadId)?.displayTitle ?? null);
   const label = scope.kind === "new-thread" ? "new thread" : `“${title ?? "this thread"}”`;
-  const target = useRef<ComposerTarget>({
-    composer,
-    anchor: null,
-    inWindow: false,
-    label,
-    token: `${COMPOSER_TOKEN_PREFIX}${crypto.randomUUID()}`,
-  });
+  const target = useRef<ComposerTarget>({ composer, anchor: null, inWindow: false, label });
   target.current.composer = composer;
 
   // A picture mentioned in a new thread is attached to the project the box has selected when the message is sent, so
@@ -180,7 +178,7 @@ export function ComposerBridge() {
   const newThreadProject = scope.kind === "new-thread" ? scope.projectId : null;
   useEffect(() => {
     if (newThreadProject === null) return;
-    rpc.call("setComposerProject", { token: target.current.token, projectId: newThreadProject }).catch(() => undefined);
+    rpc.call("setComposerProject", { token: NEW_THREAD_TOKEN, projectId: newThreadProject }).catch(() => undefined);
   }, [rpc, newThreadProject]);
 
   useEffect(() => {
