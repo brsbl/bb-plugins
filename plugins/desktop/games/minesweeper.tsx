@@ -188,7 +188,8 @@ export function MinesweeperGame() {
               const cell = target.closest<HTMLElement>(".bbd-mine-cell");
               if (!cell) return;
               setPressing(true);
-              track({ ...event, currentTarget: cell }, () => setPressing(false), () => setPressing(false));
+              // An infinite threshold keeps a slipping press a press, so the cell's click still fires.
+              track({ ...event, currentTarget: cell }, () => setPressing(false), () => setPressing(false), { threshold: Infinity });
             }}
             onPointerCancel={() => setPressing(false)}
           >

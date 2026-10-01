@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseSpec, windowId } from "./specs";
-import { parseWindows, serializeWindows, windowReducer } from "./state";
+import { parseWindows, placeWindows, serializeWindows, windowReducer } from "./state";
 
 const area = { x: 0, y: 48, width: 1440, height: 766 };
 
@@ -42,6 +42,17 @@ describe("stored windows (v1)", () => {
     expect(thread.restoreRect).toEqual({ x: 300, y: 100, width: 620, height: 640 });
   });
 
+  it("loads stored rects as they were left, even ones the measured work area would clip", () => {
+    const stored = JSON.parse(STORED_V1) as { spec: unknown; rect: unknown; restoreRect: unknown }[];
+    // Before the taskbar is measured the work area is shorter than the real one, and narrower windows are possible too.
+    const { windows } = parseWindows(STORED_V1, { x: 0, y: 48, width: 400, height: 300 });
+    expect(windows.find((window) => window.id === "threads")!.rect).toEqual(stored[0]!.rect);
+    expect(windows.find((window) => window.id === "thread:thr_a")!.restoreRect).toEqual(stored[2]!.restoreRect);
+    expect(JSON.parse(serializeWindows(windows)).map((entry: { rect: unknown }) => entry.rect)).toEqual(
+      stored.slice(0, 8).map((entry, index) => (index === 2 ? { x: 0, y: 48, width: 400, height: 300 } : entry.rect)),
+    );
+  });
+
   it("round-trips through the stored format", () => {
     const { windows } = parseWindows(STORED_V1, area);
     const again = parseWindows(serializeWindows(windows), area).windows;
@@ -64,6 +75,43 @@ describe("stored windows (v1)", () => {
     expect(windowId({ kind: "new-thread", groupKey: null })).toBe("new-thread:desktop");
     expect(windowId({ kind: "new-thread", groupKey: "folder:f1" })).toBe("new-thread:folder:f1");
     expect(windowId({ kind: "media-player" })).toBe("media-player");
+  });
+});
+
+describe("work area changes", () => {
+  const small = { x: 0, y: 48, width: 600, height: 400 };
+  const loaded = parseWindows(STORED_V1, area);
+
+  it("keeps stored rects through a shrink and back, and only maximized windows track the area", () => {
+    const shrunk = windowReducer(loaded, { type: "fit-maximized", viewport: small });
+    expect(shrunk.windows.find((window) => window.id === "thread:thr_a")!.rect).toEqual(small);
+    const restored = windowReducer(shrunk, { type: "fit-maximized", viewport: area });
+    expect(restored.windows).toEqual(loaded.windows);
+    expect(serializeWindows(restored.windows)).toBe(serializeWindows(loaded.windows));
+  });
+
+  it("fits windows only where they are shown", () => {
+    const shown = placeWindows(windowReducer(loaded, { type: "fit-maximized", viewport: small }).windows, small);
+    for (const window of shown) {
+      expect(window.rect.x + window.rect.width).toBeLessThanOrEqual(small.x + small.width);
+      expect(window.rect.y + window.rect.height).toBeLessThanOrEqual(small.y + small.height);
+    }
+    expect(shown.find((window) => window.id === "threads")!.rect).toEqual({ x: 120, y: 48, width: 460, height: 400 });
+    expect(placeWindows(loaded.windows, area).find((window) => window.id === "threads")).toBe(loaded.windows[0]);
+  });
+
+  it("restores a maximized window to its own rect, not one fitted to a smaller area", () => {
+    const shrunk = windowReducer(loaded, { type: "fit-maximized", viewport: small });
+    const restored = windowReducer(shrunk, { type: "maximize", id: "thread:thr_a", viewport: small });
+    expect(restored.windows.find((window) => window.id === "thread:thr_a")).toMatchObject({
+      rect: { x: 300, y: 100, width: 620, height: 640 },
+      restoreRect: null,
+    });
+    const remaximized = windowReducer(restored, { type: "maximize", id: "thread:thr_a", viewport: area });
+    expect(remaximized.windows.find((window) => window.id === "thread:thr_a")).toMatchObject({
+      rect: area,
+      restoreRect: { x: 300, y: 100, width: 620, height: 640 },
+    });
   });
 });
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useBbNavigate } from "@get-bb/plugin-sdk/app";
+import { useBbNavigate, useSdk } from "@get-bb/plugin-sdk/app";
 import { InternetExplorerArt, NotePadArt, PluginsArt, RunArt, SearchArt, ShowDesktopArt, SkillsArt } from "../art";
 import { addStickyNote } from "../page/sticky-notes";
 import { BROWSER_HOME, nativeBrowser } from "../services/browser";
@@ -61,6 +61,7 @@ export function useLaunchers(): LauncherCatalog {
   const desktop = useDesktop();
   const manager = useWindowManager();
   const openInternetExplorer = useOpenInternetExplorer();
+  const { system } = useSdk();
   const apps = useDesktopApps().map(
     (app): Launcher => ({
       id: appLauncherId(app.key),
@@ -107,8 +108,8 @@ export function useLaunchers(): LauncherCatalog {
       quickSize: 20,
       run: openInternetExplorer,
     },
-    search: command((size) => <SearchArt size={size} />, () => void runAppCommand("thread.search")),
-    run: command((size) => <RunArt size={size} />, () => void runAppCommand("palette.open")),
+    search: command((size) => <SearchArt size={size} />, () => void runAppCommand(system, "thread.search")),
+    run: command((size) => <RunArt size={size} />, () => void runAppCommand(system, "palette.open")),
     plugins: command((size) => <PluginsArt size={size} />, () => navigateInApp("/plugins")),
     skills: command((size) => <SkillsArt size={size} />, () => navigateInApp("/skills")),
   };

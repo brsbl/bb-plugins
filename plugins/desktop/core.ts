@@ -64,30 +64,18 @@ export interface Rect extends Point {
 export const ICON_CELL = { width: 96, height: 92 } as const;
 export const ICON_MARGIN = 16;
 
-export function threadMatchesLifecycle(
-  thread: DesktopThread,
-  lifecycle: Lifecycle,
-): boolean {
-  if (lifecycle === "all") return true;
-  return lifecycle === "archived" ? thread.isArchived : !thread.isArchived;
-}
-
-export function filterLifecycle(
-  threads: readonly DesktopThread[],
-  lifecycle: Lifecycle,
-): DesktopThread[] {
-  return threads.filter((thread) => threadMatchesLifecycle(thread, lifecycle));
-}
-
 /** The fields of a sidebar thread the desktop takes live, ahead of its own snapshot. */
 export interface LiveThreadState {
   title: string | null;
   titleFallback: string | null;
   sectionId: string | null;
+  status: DesktopThread["status"];
   isUnread: boolean;
   hasPendingInteraction: boolean;
   isArchived: boolean;
   isPinned: boolean;
+  updatedAt: number;
+  host: { id: string } | null;
 }
 
 /**
@@ -96,15 +84,20 @@ export interface LiveThreadState {
  */
 export function withLiveState(thread: DesktopThread, live: LiveThreadState | undefined): DesktopThread {
   if (live === undefined) return thread;
-  return {
+  const merged: DesktopThread = {
     ...thread,
     title: live.title ?? live.titleFallback ?? thread.title,
     sectionId: live.sectionId,
+    hostId: live.host?.id ?? thread.hostId,
+    status: live.status,
     isUnread: live.isUnread,
     needsInput: live.hasPendingInteraction,
     isArchived: live.isArchived,
     isPinned: live.isPinned,
+    updatedAt: Math.max(thread.updatedAt, live.updatedAt),
   };
+  // Unchanged threads keep their identity, so a live update for one thread doesn't look like a change to all of them.
+  return (Object.keys(merged) as (keyof DesktopThread)[]).every((key) => merged[key] === thread[key]) ? thread : merged;
 }
 
 export function groupThreads(
@@ -128,6 +121,44 @@ export function groupThreads(
     case "machine":
       return threads.filter((thread) => !thread.isPinned && thread.hostId === group.id);
   }
+}
+
+/** Every group's threads in one pass, for the same membership `groupThreads` gives one group at a time. */
+export function groupMembers(
+  groups: readonly DesktopGroup[],
+  threads: readonly DesktopThread[],
+): Map<string, DesktopThread[]> {
+  const byId = new Map(threads.map((thread) => [thread.id, thread]));
+  const buckets = new Map<string, DesktopThread[]>();
+  const add = (key: string, thread: DesktopThread) => {
+    const bucket = buckets.get(key);
+    if (bucket === undefined) buckets.set(key, [thread]);
+    else bucket.push(thread);
+  };
+  for (const thread of threads) {
+    if (thread.isPinned) {
+      add("pinned", thread);
+      continue;
+    }
+    add(`section:${thread.sectionId}`, thread);
+    add(`project:${thread.projectId}`, thread);
+    add(`machine:${thread.hostId}`, thread);
+  }
+  const members = new Map<string, DesktopThread[]>();
+  for (const group of groups) {
+    if (group.kind === "folder") {
+      members.set(
+        group.key,
+        group.folder.threadIds.flatMap((id) => {
+          const thread = byId.get(id);
+          return thread === undefined ? [] : [thread];
+        }),
+      );
+    } else {
+      members.set(group.key, buckets.get(group.kind === "pinned" ? "pinned" : `${group.kind}:${group.id}`) ?? []);
+    }
+  }
+  return members;
 }
 
 export function buildGroups(args: {
@@ -199,6 +230,9 @@ export function naturalDirection(key: SortKey): SortDirection {
   return key === "alpha" ? "ascending" : "descending";
 }
 
+// One collator for every comparison: localeCompare with options builds a new one each call, about 20x slower.
+const titleCollator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+
 export function sortThreads(
   threads: readonly DesktopThread[],
   key: SortKey,
@@ -207,10 +241,7 @@ export function sortThreads(
   const sign = direction === "ascending" ? 1 : -1;
   return [...threads].sort((left, right) => {
     if (key === "alpha") {
-      const byTitle = left.title.localeCompare(right.title, undefined, {
-        sensitivity: "base",
-        numeric: true,
-      });
+      const byTitle = titleCollator.compare(left.title, right.title);
       return sign * (byTitle !== 0 ? byTitle : left.id.localeCompare(right.id));
     }
     if (key === "updated") {
@@ -287,38 +318,7 @@ export function nextFreePosition(
   return free ?? candidates.at(-1)!;
 }
 
-export function snapToGrid(point: Point): Point {
-  return {
-    x: Math.max(
-      ICON_MARGIN,
-      ICON_MARGIN +
-        Math.round((point.x - ICON_MARGIN) / ICON_CELL.width) * ICON_CELL.width,
-    ),
-    y: Math.max(
-      ICON_MARGIN,
-      ICON_MARGIN +
-        Math.round((point.y - ICON_MARGIN) / ICON_CELL.height) *
-          ICON_CELL.height,
-    ),
-  };
-}
-
 export const MIN_WINDOW = { width: 280, height: 180 } as const;
-
-export function clampRect(
-  rect: Rect,
-  area: { x?: number; y?: number; width: number; height: number },
-): Rect {
-  const top = area.y ?? 0;
-  const width = Math.min(Math.max(rect.width, MIN_WINDOW.width), area.width);
-  const height = Math.min(Math.max(rect.height, MIN_WINDOW.height), area.height);
-  return {
-    width,
-    height,
-    x: Math.min(Math.max(rect.x, 40 - width), area.width - 40),
-    y: Math.min(Math.max(rect.y, top), top + area.height - 32),
-  };
-}
 
 export type ResizeEdge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 

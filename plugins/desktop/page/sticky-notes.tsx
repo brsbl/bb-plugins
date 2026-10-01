@@ -57,10 +57,30 @@ function emitNotes() {
   for (const listener of noteListeners) listener();
 }
 
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function writeNotes() {
+  if (writeTimer !== null) clearTimeout(writeTimer);
+  writeTimer = null;
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+}
+
+// Typing rewrites every note, so storage (and the other tabs reading it) gets the result once typing pauses, or as
+// the page goes away.
 function saveNotes(next: StickyNote[]) {
   notes = next;
-  localStorage.setItem(NOTES_KEY, JSON.stringify(next));
+  if (writeTimer !== null) clearTimeout(writeTimer);
+  writeTimer = setTimeout(writeNotes, 300);
   emitNotes();
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    if (writeTimer !== null) writeNotes();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && writeTimer !== null) writeNotes();
+  });
 }
 
 /** Notes edited here whose newest text the server hasn't stored yet; a server reload keeps these local copies. */
@@ -161,9 +181,19 @@ async function sendNote(note: StickyNote) {
   sendToThread({ kind: NOTE_MENTIONS, id: note.id, label: noteTitle(note) });
 }
 
+/** Saved note pads for desktop icons; the same array while their ids and titles hold, so typing doesn't re-render it. */
 export function useSavedNotes(): StickyNote[] {
   const list = useNotes();
-  return useMemo(() => list.filter((note) => note.saved === true), [list]);
+  const previous = useRef<StickyNote[]>([]);
+  return useMemo(() => {
+    const saved = list.filter((note) => note.saved === true);
+    const last = previous.current;
+    const same =
+      saved.length === last.length &&
+      saved.every((note, index) => note.id === last[index]!.id && noteTitle(note) === noteTitle(last[index]!));
+    if (!same) previous.current = saved;
+    return previous.current;
+  }, [list]);
 }
 
 export function openNote(id: string) {

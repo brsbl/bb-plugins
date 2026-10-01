@@ -1,6 +1,6 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { FolderArt, NotePadArt, RecycleBinArt, TrashGlyph } from "../art";
-import { groupThreads, type DesktopGroup, type DesktopThread, type Point } from "../core";
+import type { DesktopGroup, DesktopThread, Point } from "../core";
 import { noteTitle, openNote, removeNote, type StickyNote } from "../page/sticky-notes";
 import { folderSummary, groupTone } from "../programs/threads/status";
 import { StatusDot } from "../programs/threads/status-ui";
@@ -41,7 +41,7 @@ export function DesktopIcon({
 
   const open = () => manager.open({ kind: "finder", key: group.key });
 
-  const members = groupThreads(group, desktop.visibleThreads);
+  const members = desktop.membersOf(group);
   const { tone, toneCount } = groupTone(members);
   const summary = folderSummary(group.name, members.length, tone, toneCount);
 
@@ -77,7 +77,7 @@ export function DesktopIcon({
 
 function moreMembers(desktop: DesktopContextValue): DesktopThread[] {
   const byId = new Map(
-    desktop.moreGroups.flatMap((group) => groupThreads(group, desktop.visibleThreads)).map((thread) => [thread.id, thread]),
+    desktop.moreGroups.flatMap((group) => desktop.membersOf(group)).map((thread) => [thread.id, thread]),
   );
   return [...byId.values()];
 }

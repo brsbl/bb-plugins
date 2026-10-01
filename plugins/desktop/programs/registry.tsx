@@ -19,7 +19,6 @@ import {
   ThreadsArt,
 } from "../art";
 import { findApp } from "../bridge";
-import { groupThreads } from "../core";
 import { MinesweeperGame } from "../games/minesweeper";
 import { PinballGame } from "../games/pinball";
 import { SolitaireGame } from "../games/solitaire";
@@ -103,7 +102,7 @@ const PROGRAMS: { [K in WindowKind]: ProgramDefinition<K> } = {
         <FolderArt
           kind={group?.kind ?? "section"}
           size={size}
-          empty={group !== undefined && groupThreads(group, desktop.visibleThreads).length === 0}
+          empty={group !== undefined && desktop.membersOf(group).length === 0}
         />
       );
     },

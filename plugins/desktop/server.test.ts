@@ -25,15 +25,15 @@ type ListedThread = ReturnType<typeof listedThread>;
 
 /**
  * bb's thread list as the real server answers it: no `archived` filter means active and archived together, hidden
- * threads only with `includeHidden`, oldest first, cut at `limit` (default 50).
+ * threads only with `includeHidden`, oldest first, a page of `limit` (default 50) from `offset`.
  */
 function threadStore(threads: ListedThread[]) {
-  return async (args: { archived?: boolean; includeHidden?: boolean; limit?: number } = {}) =>
+  return async (args: { archived?: boolean; includeHidden?: boolean; limit?: number; offset?: number } = {}) =>
     threads
       .filter((thread) => args.includeHidden === true || thread.visibility !== "hidden")
       .filter((thread) => args.archived === undefined || (thread.archivedAt !== null) === args.archived)
       .sort((left, right) => left.createdAt - right.createdAt)
-      .slice(0, args.limit ?? 50);
+      .slice(args.offset ?? 0, (args.offset ?? 0) + (args.limit ?? 50));
 }
 
 const DEFAULT_THREADS = [
@@ -57,8 +57,10 @@ async function setup(threads: ListedThread[] = DEFAULT_THREADS) {
       hosts: { list: async () => [{ id: "host_1", name: "Laptop" }] },
       threads: {
         list: threadStore(threads),
-        get: async ({ threadId }: { threadId: string }) =>
-          makeThreadResponse({ id: threadId, visibility: (visibility.get(threadId) ?? "visible") as "visible" }),
+        get: async ({ threadId }: { threadId: string }) => {
+          if (threadId.startsWith("thr_missing")) throw new Error(`thread ${threadId} not found`);
+          return makeThreadResponse({ id: threadId, visibility: (visibility.get(threadId) ?? "visible") as "visible" });
+        },
         getPluginMetadata: async ({ threadId }: { threadId: string }) => ({ ...metadata.get(threadId) }),
         updatePluginMetadata: async (args: { threadId: string; set?: Record<string, unknown>; remove?: string[] }) => {
           const next = { ...metadata.get(args.threadId), ...args.set };
@@ -119,6 +121,14 @@ describe("desktop server", () => {
     expect(snapshot.threads.filter((thread) => thread.isArchived).length).toBeGreaterThan(0);
   });
 
+  it("lists every active thread past the first page", async () => {
+    const active = Array.from({ length: 1201 }, (_, index) => listedThread(`thr_${index}`, { createdAt: index }));
+    const { harness } = await setup(active);
+    const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
+    expect(snapshot.threads).toHaveLength(1201);
+    expect(snapshot.threads.at(-1)?.id).toBe("thr_1200");
+  });
+
   it("marks pinned threads so the desktop can file them like the sidebar", async () => {
     const { harness } = await setup([listedThread("thr_pin", { pinnedAt: 7, sectionId: "sec_1" }), listedThread("thr_b")]);
     const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
@@ -140,8 +150,25 @@ describe("desktop server", () => {
     });
   });
 
+  it("keeps Quick Launch when another stored preference is unknown or unreadable", async () => {
+    const { harness, bb } = await setup();
+    await bb.storage.kv.set("preferences", {
+      sort: "newest-first",
+      organize: "project",
+      quickLaunch: ["threads", "app:paint"],
+      addedLater: true,
+    });
+    const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
+    expect(snapshot.preferences).toEqual({
+      sort: "sidebar",
+      organize: "project",
+      lifecycle: "sidebar",
+      quickLaunch: ["threads", "app:paint"],
+    });
+  });
+
   it("leaves out hidden threads unless a desktop folder hid them", async () => {
-    const { harness } = await setup();
+    const { harness } = await setup([...DEFAULT_THREADS, listedThread("thr_filed", { visibility: "hidden", createdAt: 4 })]);
     const folder = (await harness.callRpc("createFolder", {
       name: "Launch",
       hideFromSidebar: true,
@@ -150,6 +177,33 @@ describe("desktop server", () => {
     await harness.callRpc("addToFolder", { folderId: folder.id, threadIds: ["thr_filed"], fromFolderId: null });
     const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
     expect(snapshot.threads.map((thread) => thread.id).sort()).toEqual(["thr_a", "thr_filed", "thr_old"]);
+  });
+
+  it("tells desktops which thread was deleted so its windows close", async () => {
+    const host = await setup();
+    await host.harness.emitThreadEvent("thread.deleted", { thread: makeThreadResponse({ id: "thr_a" }) } as never);
+    expect(host.harness.realtimeSignals).toContainEqual({
+      channel: "changed",
+      payload: { scope: "thread-deleted", threadId: "thr_a" },
+    });
+  });
+
+  it("files only real threads from the CLI, and updates and shows folders", async () => {
+    const { harness } = await setup();
+    const created = await harness.runCli(["folder", "create", "Launch"]);
+    const folderId = /Created (fld_\w+)/.exec(created.stdout ?? "")?.[1] ?? "";
+    expect(await harness.runCli(["folder", "add", folderId, "thr_a", "thr_missing"])).toMatchObject({
+      exitCode: 2,
+      stderr: expect.stringContaining("no such thread: thr_missing"),
+    });
+    const tooMany = Array.from({ length: 201 }, (_, index) => `thr_${index}`);
+    expect((await harness.runCli(["folder", "add", folderId, ...tooMany])).exitCode).toBe(2);
+    expect((await harness.runCli(["folder", "add", folderId, "thr_a"])).exitCode).toBe(0);
+    expect(await harness.runCli(["folder", "update", folderId, "--name", "Ship", "--hide-from-sidebar"])).toMatchObject({
+      exitCode: 0,
+      stdout: `Updated ${folderId} (Ship), hidden from sidebar.`,
+    });
+    expect((await harness.runCli(["folder", "show", folderId])).stdout).toBe(`${folderId}\tShip\thidden from sidebar\nthr_a`);
   });
 
   it("moves threads into a real sidebar section", async () => {

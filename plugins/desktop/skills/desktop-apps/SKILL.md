@@ -16,7 +16,7 @@ Opting in is optional and safe: when Desktop is not installed, turned off, or on
 ## Steps
 
 1. Copy [desktop-app.tsx](desktop-app.tsx) into the plugin (for example `desktop-app.tsx` next to `app.tsx`). It has no dependencies beyond React.
-2. Register a homepage section that renders `DesktopApp`. Desktop hides this section automatically; it only exists to keep the app mounted on the page where the desktop lives.
+2. Render `DesktopApp` from an `experimental_appOverlay` slot. The host draws no chrome around an overlay and mounts it once per bb window, so nothing shows when Desktop is absent. If your plugin already registers an overlay, render `DesktopApp` inside it instead.
 
 ```tsx
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
@@ -25,9 +25,8 @@ import { DesktopApp } from "./desktop-app";
 import { MyPanel } from "./my-panel";
 
 export default definePluginApp((app) => {
-  app.slots.homepageSection({
+  app.slots.experimental_appOverlay({
     id: "desktop-app",
-    title: "My plugin",
     component: () => (
       <DesktopApp
         app={{
@@ -84,4 +83,5 @@ If your plugin already has a sidebar footer panel (`experimental_sidebarFooter` 
 - `registerApp` returns an unregister function; the helper calls it on unmount. Registering the same `pluginId`/`id` again replaces the earlier registration.
 - Invalid registrations are ignored with a console warning.
 - The registry lives in the browser tab. There is no CLI for it, because the apps exist only while their plugins are loaded in a bb window.
-- A future breaking change would ship as a new `version`; the helper only talks to version 1.
+- `window.bbDesktopApps` stays version 1 for as long as Desktop exists, so copied helpers keep working. A breaking change would be published alongside it under a new name rather than by changing `version` on this object.
+- Plugins that followed an earlier version of this skill and render `DesktopApp` from a homepage section keep working: Desktop hides that section.

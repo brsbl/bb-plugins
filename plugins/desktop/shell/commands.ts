@@ -1,3 +1,5 @@
+import type { useSdk } from "@get-bb/plugin-sdk/app";
+
 /** bb app commands the desktop can trigger; bb only exposes them as keybindings. */
 export type AppShortcutCommand = "palette.open" | "thread.search";
 
@@ -21,11 +23,13 @@ function isShortcut(value: unknown): value is AppShortcut {
   return typeof record.key === "string" && ["mod", "meta", "control", "alt", "shift"].every((field) => typeof record[field] === "boolean");
 }
 
-async function appShortcut(command: AppShortcutCommand): Promise<AppShortcut> {
+type SystemArea = ReturnType<typeof useSdk>["system"];
+
+async function appShortcut(system: SystemArea, command: AppShortcutCommand): Promise<AppShortcut> {
   try {
-    const response = await fetch("/api/v1/system/config", { credentials: "same-origin" });
-    const body: unknown = await response.json();
-    const bindings = typeof body === "object" && body !== null ? (body as { keybindings?: unknown }).keybindings : undefined;
+    const config: unknown = await system.config();
+    const bindings =
+      typeof config === "object" && config !== null ? (config as { keybindings?: unknown }).keybindings : undefined;
     const match = Array.isArray(bindings)
       ? bindings.find((binding: unknown) => (binding as { command?: unknown })?.command === command)
       : undefined;
@@ -36,8 +40,8 @@ async function appShortcut(command: AppShortcutCommand): Promise<AppShortcut> {
   }
 }
 
-export async function runAppCommand(command: AppShortcutCommand) {
-  const shortcut = await appShortcut(command);
+export async function runAppCommand(system: SystemArea, command: AppShortcutCommand) {
+  const shortcut = await appShortcut(system, command);
   const mac = /Mac|iPhone|iPad/.test(navigator.platform);
   const key = shortcut.shift && shortcut.key.length === 1 ? shortcut.key.toUpperCase() : shortcut.key;
   const init: KeyboardEventInit = {

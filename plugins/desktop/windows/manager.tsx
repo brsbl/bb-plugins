@@ -1,10 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import type { Rect } from "../core";
-import { defaultRect, fitDragRect, workAreaRect, type Size } from "./geometry";
+import { defaultRect, fitDragRect, sameRect, workAreaRect, type Size } from "./geometry";
 import type { WindowSpec } from "./specs";
-import { loadWindows, saveWindows, windowReducer, type DesktopWindow } from "./state";
+import { loadWindows, placeWindows, saveWindows, windowReducer, type DesktopWindow } from "./state";
 
 export interface WindowManager {
+  /** Each window as shown: fitted to the current work area, while its stored rect keeps the size the person gave it. */
   windows: DesktopWindow[];
   focusedId: string | null;
   open(spec: WindowSpec, rect?: Rect): void;
@@ -14,7 +15,7 @@ export interface WindowManager {
   move(id: string, rect: Rect): void;
   minimize(id: string, minimized: boolean): void;
   toggleMaximize(id: string): void;
-  /** Re-fits maximized windows to the work area, e.g. once the taskbar has rendered and can be measured. */
+  /** Re-measures the work area and re-fits windows to it, e.g. once the taskbar has rendered and can be measured. */
   fitMaximized(): void;
   arrange(rects: Record<string, Rect>): void;
   /** Shows `spec` in window `id` instead of opening another window, recording where it was for Back. */
@@ -41,16 +42,24 @@ export function WindowManagerProvider({ sizeOf, onDispose, children }: {
   children: ReactNode;
 }) {
   const [state, dispatch] = useReducer(windowReducer, undefined, loadWindows);
+  const [area, setArea] = useState(workAreaRect);
 
   useEffect(() => saveWindows(state.windows), [state.windows]);
 
-  // Maximized windows track the work area as the bb window resizes, and pick up the taskbar's real height once it renders.
-  useEffect(() => {
-    const fit = () => dispatch({ type: "fit-maximized", viewport: workAreaRect() });
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+  const fitMaximized = useCallback(() => {
+    const next = workAreaRect();
+    setArea((current) => (sameRect(current, next) ? current : next));
+    dispatch({ type: "fit-maximized", viewport: next });
   }, []);
+
+  // Windows follow the work area as the bb window resizes, and pick up the taskbar's real height once it renders.
+  useEffect(() => {
+    fitMaximized();
+    window.addEventListener("resize", fitMaximized);
+    return () => window.removeEventListener("resize", fitMaximized);
+  }, [fitMaximized]);
+
+  const windows = useMemo(() => placeWindows(state.windows, area), [state.windows, area]);
 
   const countRef = useRef(state.windows.length);
   countRef.current = state.windows.length;
@@ -74,11 +83,11 @@ export function WindowManagerProvider({ sizeOf, onDispose, children }: {
   }, []);
 
   const manager = useMemo<WindowManager>(() => {
-    const focused = state.windows
+    const focused = windows
       .filter((window) => !window.minimized)
       .reduce<DesktopWindow | null>((top, window) => (top === null || window.z > top.z ? window : top), null);
     return {
-      windows: state.windows,
+      windows,
       focusedId: focused?.id ?? null,
       open,
       focus: (id) => dispatch({ type: "focus", id }),
@@ -87,13 +96,13 @@ export function WindowManagerProvider({ sizeOf, onDispose, children }: {
       move: (id, rect) => dispatch({ type: "move", id, rect }),
       minimize: (id, minimized) => dispatch({ type: "minimize", id, minimized }),
       toggleMaximize: (id) => dispatch({ type: "maximize", id, viewport: workAreaRect() }),
-      fitMaximized: () => dispatch({ type: "fit-maximized", viewport: workAreaRect() }),
+      fitMaximized,
       arrange: (rects) => dispatch({ type: "arrange", rects }),
       navigate: (id, spec) => dispatch({ type: "navigate", id, spec }),
       goBack: (id) => dispatch({ type: "go", id, direction: "back" }),
       goForward: (id) => dispatch({ type: "go", id, direction: "forward" }),
     };
-  }, [closeWhere, open, state.windows]);
+  }, [closeWhere, fitMaximized, open, windows]);
 
   return <WindowManagerContext.Provider value={manager}>{children}</WindowManagerContext.Provider>;
 }

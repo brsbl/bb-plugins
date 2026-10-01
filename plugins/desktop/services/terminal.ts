@@ -1,3 +1,5 @@
+import { useSdk } from "@get-bb/plugin-sdk/app";
+
 /** bb terminal sessions behind Terminal windows and thread terminal tabs. */
 export const SESSION_KEY = "bb-desktop:command-prompt";
 
@@ -37,18 +39,20 @@ function isSession(value: unknown): value is TerminalSession {
   return typeof record.id === "string" && typeof record.hostId === "string" && typeof record.status === "string";
 }
 
-async function api(path: string, init?: RequestInit): Promise<unknown> {
-  const response = await fetch(`/api/v1${path}`, {
-    ...init,
-    credentials: "same-origin",
-    headers: { "content-type": "application/json", ...init?.headers },
-  });
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message = (body as { error?: { message?: unknown }; message?: unknown } | null)?.error?.message ?? (body as { message?: unknown } | null)?.message;
-    throw new Error(typeof message === "string" ? message : `Request failed (${response.status})`);
-  }
-  return body;
+type Sdk = ReturnType<typeof useSdk>;
+let boundSdk: Sdk | null = null;
+
+/**
+ * Gives the session functions bb's SDK. Window cleanup runs outside React, so components that open or own terminals
+ * bind it while they render.
+ */
+export function useTerminalSdk() {
+  boundSdk = useSdk();
+}
+
+function terminals(): Sdk["terminals"] {
+  if (boundSdk === null) throw new Error("bb's terminals aren't available yet");
+  return boundSdk.terminals;
 }
 
 interface Opening {
@@ -60,10 +64,9 @@ interface Opening {
 const opening = new Map<string, Opening>();
 
 function closeTerminal(terminalId: string) {
-  void api(`/terminals/${encodeURIComponent(terminalId)}/close`, {
-    method: "POST",
-    body: JSON.stringify({ mode: "force", reason: "user" }),
-  }).catch(() => undefined);
+  void Promise.resolve()
+    .then(() => terminals().close({ terminalId, mode: "force" }))
+    .catch(() => undefined);
 }
 
 /**
@@ -91,20 +94,24 @@ async function reuseOrCreate(
   const stored = readStored(sessionKey);
   if (stored !== null) {
     const sameHost = target.kind !== "host" || stored.hostId === target.hostId;
-    const existing = sameHost ? await api(`/terminals/${encodeURIComponent(stored.terminalId)}`).catch(() => null) : null;
+    const existing: unknown = sameHost
+      ? await terminals()
+          .get({ terminalId: stored.terminalId })
+          .catch(() => null)
+      : null;
     if (isSession(existing) && (existing.status === "running" || existing.status === "starting")) return existing;
     // The window now targets another machine, or its terminal disconnected: close it rather than leave it running.
     if (!(isSession(existing) && existing.status === "exited")) closeTerminal(stored.terminalId);
   }
-  const created = await api("/terminals", {
-    method: "POST",
-    body: JSON.stringify({
-      cols,
-      rows,
-      start: { mode: "shell" },
-      target: target.kind === "host" ? { kind: "host_path", hostId: target.hostId, cwd: null } : { kind: "thread", threadId: target.threadId },
-      title: "Terminal",
-    }),
+  const created: unknown = await terminals().create({
+    cols,
+    rows,
+    start: { mode: "shell" },
+    scope:
+      target.kind === "host"
+        ? { kind: "host_path", hostId: target.hostId, cwd: null }
+        : { kind: "thread", threadId: target.threadId },
+    title: "Terminal",
   });
   if (!isSession(created)) throw new Error("bb returned an unexpected terminal");
   if (!state.abandoned) localStorage.setItem(sessionKey, JSON.stringify({ terminalId: created.id, hostId: created.hostId }));

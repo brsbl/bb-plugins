@@ -6,13 +6,14 @@ import { installMicRelease, readCompact, toggleDesktop } from "./enabled";
 import { NeedsInputBalloon } from "./page/balloon";
 import { ComposerBridge, LibrarySync } from "./page/library-bridge";
 import { mountStickyNotes, StickyNoteHeaderButton } from "./page/sticky-notes";
+import { stopMic } from "./services/mic";
 import { DesktopSettings } from "./settings";
 import { Desktop } from "./shell/desktop";
 import { ThreadFolderChip } from "./shell/folder-chip";
 
 export default definePluginApp((app) => {
-  installDesktopBridge();
-  installMicRelease();
+  const removeBridge = installDesktopBridge();
+  const removeMicRelease = installMicRelease();
   app.slots.homepageSection({
     id: "desktop",
     title: "Desktop",
@@ -43,6 +44,16 @@ export default definePluginApp((app) => {
     ),
   });
   app.contentScripts.register({ id: "sticky-notes", mount: mountStickyNotes });
+  // Runs when this frontend generation goes away (Desktop disabled, updated or reloaded): a module-level microphone
+  // stream would otherwise outlive it with no Stop button left to reach it.
+  app.contentScripts.register({
+    id: "lifecycle",
+    mount: () => () => {
+      stopMic();
+      removeMicRelease();
+      removeBridge();
+    },
+  });
   // Inside every message box, including thread windows', so note pads and Paint can send to the one in use.
   app.composer.customize({ id: "library", actions: [{ id: "library-bridge", component: ComposerBridge }] });
 });

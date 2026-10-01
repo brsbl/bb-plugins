@@ -3,7 +3,14 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";
 
 import { CommandPromptArt } from "../art";
-import { SESSION_KEY, connectTerminal, openSession, type CommandPromptTarget, type TerminalConnection } from "../services/terminal";
+import {
+  SESSION_KEY,
+  connectTerminal,
+  openSession,
+  useTerminalSdk,
+  type CommandPromptTarget,
+  type TerminalConnection,
+} from "../services/terminal";
 import { useDesktop } from "../shell/data";
 import { WindowFrame, type DesktopWindow } from "../windows";
 
@@ -31,6 +38,7 @@ export function CommandPrompt({
   sessionKey?: string;
   unavailable?: string;
 }) {
+  useTerminalSdk();
   const targetKey = target === null ? null : target.kind === "host" ? `host:${target.hostId}` : `thread:${target.threadId}`;
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);

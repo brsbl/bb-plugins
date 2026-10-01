@@ -192,6 +192,8 @@ export function SolitaireGame() {
   const cascadeRef = useRef<HTMLCanvasElement>(null);
   const dragStackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
+  // Bumped on each deal so a gesture begun on an earlier deal can't revive its stack or drop onto the new one.
+  const dealRef = useRef(0);
   const track = usePointerTracker();
   const gameRef = useRef(game);
   const won = isWon(game);
@@ -266,6 +268,7 @@ export function SolitaireGame() {
   }, [cascade]);
 
   const startNewGame = useCallback(() => {
+    dealRef.current += 1;
     updateDrag(null);
     setSeconds(0);
     setGame(newGame(Math.random));
@@ -330,13 +333,16 @@ export function SolitaireGame() {
     };
     let latest = initial;
     let delta = { x: 0, y: 0 };
+    const deal = dealRef.current;
     track(event, (next) => {
+      if (dealRef.current !== deal) return;
       delta = next;
       latest = { ...initial, x: originX + next.x, y: originY + next.y };
       if (dragRef.current === null) updateDrag(latest);
       else dragRef.current = latest;
       if (dragStackRef.current) dragStackRef.current.style.transform = `translate(${latest.x}px, ${latest.y}px)`;
     }, (cancelled, moved) => {
+      if (dealRef.current !== deal) return;
       if (cancelled || !moved) { updateDrag(null); return; }
       // The whole lifted stack counts, not just the grabbed card, so a stack whose lower cards cover a pile drops there.
       const stack = dragStackRef.current?.getBoundingClientRect();
