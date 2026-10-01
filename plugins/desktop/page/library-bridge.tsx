@@ -2,6 +2,7 @@ import { experimental_useSidebarThreads as useSidebarThreads, useComposer, useRe
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
+import { SendGlyph } from "../art";
 import { LIBRARY_CHANNEL, PICTURE_MENTIONS, pictureMentionId, type LibraryKind } from "../library";
 
 /** Calls one of the plugin's rpc methods from code outside bb's React tree, such as the note pad layer. */
@@ -47,6 +48,23 @@ export function onLibraryChange(listener: (kind: LibraryKind) => void): () => vo
 function currentTarget(): ComposerTarget | null {
   if (active !== null && targets.includes(active)) return active;
   return targets.filter((target) => !target.inWindow).at(-1) ?? targets.at(-1) ?? null;
+}
+
+/** A title bar button that sends the window's note pad or picture to the message box in use, which its tooltip names. */
+export function SendButton({ onSend }: { onSend: () => void }) {
+  const label = useSendLabel();
+  return (
+    <button
+      type="button"
+      className="bbd-titlebar-button"
+      aria-label={label}
+      title={label}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={onSend}
+    >
+      <SendGlyph className="size-3.5" strokeWidth={2} />
+    </button>
+  );
 }
 
 /** "Send to “Quick question”", naming where Send to thread will write. */

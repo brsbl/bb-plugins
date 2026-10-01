@@ -21,6 +21,7 @@ import {
   PlayIcon,
   PreviousIcon,
   Notebook01Icon,
+  Sent02Icon,
   PowerIcon,
   StopIcon,
   PinIcon,
@@ -502,6 +503,7 @@ export const PowerGlyph = bbGlyph(PowerIcon);
 export const ChevronsRightGlyph = bbGlyph(ArrowRightDoubleIcon);
 export const MicGlyph = bbGlyph(Mic01Icon);
 export const NotePadGlyph = bbGlyph(Notebook01Icon);
+export const SendGlyph = bbGlyph(Sent02Icon);
 export const NextGlyph = bbGlyph(NextIcon);
 export const PreviousGlyph = bbGlyph(PreviousIcon);
 

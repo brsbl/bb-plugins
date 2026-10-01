@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
-import { PaintApp, currentPictureName, usePictureName } from "../apps/paint";
+import { PaintApp, currentPictureName, sendOpenPicture, usePictureName } from "../apps/paint";
+import { SendButton } from "../page/library-bridge";
 import {
   BuddyListArt,
   CommandPromptArt,
@@ -82,7 +83,7 @@ function PinballWindow({ window: desktopWindow }: { window: DesktopWindow }) {
 function PaintWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   const name = usePictureName();
   return (
-    <WindowFrame window={desktopWindow} title={`${name} - Paint`} icon={<PaintArt size={16} />} keepMounted>
+    <WindowFrame window={desktopWindow} title={`${name} - Paint`} icon={<PaintArt size={16} />} titleActions={<SendButton onSend={sendOpenPicture} />} keepMounted>
       <PaintApp />
     </WindowFrame>
   );

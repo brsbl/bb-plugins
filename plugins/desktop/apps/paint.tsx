@@ -73,6 +73,13 @@ function setPictureName(name: string) {
   for (const listener of nameListeners) listener();
 }
 
+/** Paint's Send, for the button in its window's title bar. */
+let sendPicture: (() => void) | null = null;
+
+export function sendOpenPicture() {
+  sendPicture?.();
+}
+
 export function currentPictureName(): string {
   return pictureName;
 }
@@ -413,6 +420,11 @@ export function PaintApp() {
     if (id === null) return;
     sendToThread({ kind: PICTURE_MENTIONS, id, label: saved?.name ?? name });
   };
+
+  sendPicture = () => void send();
+  useEffect(() => () => {
+    sendPicture = null;
+  }, []);
 
   const selectTool = (next: ToolId) => {
     if (next === "picker" && tool !== "picker") setPreviousTool(tool);
