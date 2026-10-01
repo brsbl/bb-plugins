@@ -66,3 +66,30 @@ describe("stored windows (v1)", () => {
     expect(windowId({ kind: "media-player" })).toBe("media-player");
   });
 });
+
+describe("navigating a window", () => {
+  const rect = { x: 100, y: 100, width: 560, height: 400 };
+  const opened = windowReducer({ windows: [], nextZ: 1 }, { type: "open", spec: { kind: "more" }, rect });
+
+  it("shows a folder in the same window, then goes back and forward", () => {
+    const inFolder = windowReducer(opened, { type: "navigate", id: "more", spec: { kind: "finder", key: "section:s1" } });
+    expect(inFolder.windows.map((window) => [window.id, window.rect])).toEqual([["finder:section:s1", rect]]);
+    const back = windowReducer(inFolder, { type: "go", id: "finder:section:s1", direction: "back" });
+    expect(back.windows.map((window) => window.id)).toEqual(["more"]);
+    expect(back.windows[0]!.history).toEqual({ back: [], forward: [{ kind: "finder", key: "section:s1" }] });
+    const forward = windowReducer(back, { type: "go", id: "more", direction: "forward" });
+    expect(forward.windows.map((window) => window.id)).toEqual(["finder:section:s1"]);
+    expect(windowReducer(forward, { type: "go", id: "finder:section:s1", direction: "forward" })).toBe(forward);
+  });
+
+  it("closes another window already showing the place it navigates to", () => {
+    const both = windowReducer(opened, { type: "open", spec: { kind: "finder", key: "section:s1" }, rect });
+    const navigated = windowReducer(both, { type: "navigate", id: "more", spec: { kind: "finder", key: "section:s1" } });
+    expect(navigated.windows.map((window) => [window.id, window.rect])).toEqual([["finder:section:s1", rect]]);
+  });
+
+  it("does not store history", () => {
+    const inFolder = windowReducer(opened, { type: "navigate", id: "more", spec: { kind: "finder", key: "section:s1" } });
+    expect(serializeWindows(inFolder.windows)).not.toContain("history");
+  });
+});

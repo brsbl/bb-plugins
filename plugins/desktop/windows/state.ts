@@ -11,6 +11,8 @@ export interface DesktopWindow {
   /** The pre-maximize rect; non-null means the window is maximized. */
   restoreRect: Rect | null;
   openedThisSession: boolean;
+  /** Places this window showed before and after the current one, for Back and Forward. Kept in memory only. */
+  history?: { back: WindowSpec[]; forward: WindowSpec[] };
 }
 
 export interface WindowState {
@@ -26,9 +28,27 @@ export type WindowAction =
   | { type: "minimize"; id: string; minimized: boolean }
   | { type: "maximize"; id: string; viewport: Rect }
   | { type: "fit-maximized"; viewport: Rect }
-  | { type: "arrange"; rects: Record<string, Rect> };
+  | { type: "arrange"; rects: Record<string, Rect> }
+  | { type: "navigate"; id: string; spec: WindowSpec }
+  | { type: "go"; id: string; direction: "back" | "forward" };
 
 export const STORAGE_KEY = "bb-desktop:windows:v1";
+
+/**
+ * Shows `spec` in window `id`, like a folder opened inside an Explorer window. Another window already showing it
+ * closes, since a place has one window.
+ */
+function show(state: WindowState, id: string, spec: WindowSpec, history: { back: WindowSpec[]; forward: WindowSpec[] }): WindowState {
+  const nextId = windowId(spec);
+  const current = state.windows.find((window) => window.id === id);
+  if (current === undefined || nextId === id) return state;
+  return {
+    ...state,
+    windows: state.windows
+      .filter((window) => window.id !== nextId)
+      .map((window) => (window.id === id ? { ...window, id: nextId, spec, history } : window)),
+  };
+}
 
 function update(state: WindowState, id: string, change: (window: DesktopWindow) => DesktopWindow): WindowState {
   return { ...state, windows: state.windows.map((window) => (window.id === id ? change(window) : window)) };
@@ -70,6 +90,23 @@ export function windowReducer(state: WindowState, action: WindowAction): WindowS
       const fitted = (window: DesktopWindow) => (window.restoreRect !== null ? viewport : fitDragRect(window.rect, viewport));
       if (state.windows.every((window) => sameRect(window.rect, fitted(window)))) return state;
       return { ...state, windows: state.windows.map((window) => ({ ...window, rect: fitted(window) })) };
+    }
+    case "navigate": {
+      const current = state.windows.find((window) => window.id === action.id);
+      if (current === undefined) return state;
+      return show(state, action.id, action.spec, { back: [...(current.history?.back ?? []), current.spec], forward: [] });
+    }
+    case "go": {
+      const current = state.windows.find((window) => window.id === action.id);
+      const back = current?.history?.back ?? [];
+      const forward = current?.history?.forward ?? [];
+      if (current === undefined) return state;
+      if (action.direction === "back") {
+        const previous = back.at(-1);
+        return previous === undefined ? state : show(state, action.id, previous, { back: back.slice(0, -1), forward: [current.spec, ...forward] });
+      }
+      const next = forward[0];
+      return next === undefined ? state : show(state, action.id, next, { back: [...back, current.spec], forward: forward.slice(1) });
     }
     case "arrange":
       return {

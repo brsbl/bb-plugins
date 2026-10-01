@@ -66,7 +66,7 @@ function storedUrl(urlKey: string): string {
   return stored !== null && /^https?:\/\//.test(stored) ? stored : BROWSER_HOME;
 }
 
-function NavArt({ kind }: { kind: "back" | "forward" }) {
+export function NavArt({ kind }: { kind: "back" | "forward" }) {
   // Unique per instance: a shared id resolves to the first match, which may sit in a hidden window and paint nothing.
   const gradientId = useId();
   return (

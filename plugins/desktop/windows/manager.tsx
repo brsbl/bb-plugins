@@ -17,6 +17,10 @@ export interface WindowManager {
   /** Re-fits maximized windows to the work area, e.g. once the taskbar has rendered and can be measured. */
   fitMaximized(): void;
   arrange(rects: Record<string, Rect>): void;
+  /** Shows `spec` in window `id` instead of opening another window, recording where it was for Back. */
+  navigate(id: string, spec: WindowSpec): void;
+  goBack(id: string): void;
+  goForward(id: string): void;
 }
 
 const WindowManagerContext = createContext<WindowManager | null>(null);
@@ -85,6 +89,9 @@ export function WindowManagerProvider({ sizeOf, onDispose, children }: {
       toggleMaximize: (id) => dispatch({ type: "maximize", id, viewport: workAreaRect() }),
       fitMaximized: () => dispatch({ type: "fit-maximized", viewport: workAreaRect() }),
       arrange: (rects) => dispatch({ type: "arrange", rects }),
+      navigate: (id, spec) => dispatch({ type: "navigate", id, spec }),
+      goBack: (id) => dispatch({ type: "go", id, direction: "back" }),
+      goForward: (id) => dispatch({ type: "go", id, direction: "forward" }),
     };
   }, [closeWhere, open, state.windows]);
 

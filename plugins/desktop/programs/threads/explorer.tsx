@@ -7,11 +7,29 @@ import { useMenu } from "../../shell/menu";
 import { groupMenu } from "../../shell/menus";
 import { threadDropTarget } from "../../shell/thread-drag";
 import { WindowFrame, useWindowManager, type DesktopWindow } from "../../windows";
+import { NavArt } from "../internet-explorer";
 import { ThreadCollection } from "./collection";
 import { folderSummary, groupTone } from "./status";
 import { StatusDot } from "./status-ui";
 
 /** Explorer-style windows that list threads: a folder, My Threads, More, and the Recycle Bin. */
+
+/** Explorer's Back and Forward through the places this window has shown. */
+function ExplorerNav({ window: desktopWindow }: { window: DesktopWindow }) {
+  const manager = useWindowManager();
+  const back = desktopWindow.history?.back.length ?? 0;
+  const forward = desktopWindow.history?.forward.length ?? 0;
+  return (
+    <span className="flex flex-none items-center">
+      <button type="button" className="bbd-ie-nav" aria-label="Back" title="Back" disabled={back === 0} onClick={() => manager.goBack(desktopWindow.id)}>
+        <NavArt kind="back" />
+      </button>
+      <button type="button" className="bbd-ie-nav" aria-label="Forward" title="Forward" disabled={forward === 0} onClick={() => manager.goForward(desktopWindow.id)}>
+        <NavArt kind="forward" />
+      </button>
+    </span>
+  );
+}
 
 function groupDescription(group: DesktopGroup): string {
   switch (group.kind) {
@@ -73,6 +91,7 @@ export function FinderWindow({ window: desktopWindow, groupKey }: { window: Desk
     >
       <div className="flex h-full flex-col">
         <div className="bbd-menubar flex-none">
+          <ExplorerNav window={desktopWindow} />
           <input
             className="bbd-field bbd-sunken w-36 min-w-16 shrink-[4]"
             placeholder="Search"
@@ -149,6 +168,7 @@ export function ThreadsWindow({ window: desktopWindow }: { window: DesktopWindow
     >
       <div className="flex h-full flex-col">
         <div className="bbd-menubar flex-none">
+          <ExplorerNav window={desktopWindow} />
           <input
             className="bbd-field bbd-sunken min-w-0 flex-1"
             placeholder="Search threads"
@@ -189,6 +209,7 @@ export function RecycleBinWindow({ window: desktopWindow }: { window: DesktopWin
     >
       <div className="flex h-full flex-col">
         <div className="bbd-menubar flex-none">
+          <ExplorerNav window={desktopWindow} />
           <input
             className="bbd-field bbd-sunken min-w-0 flex-1"
             placeholder="Search archived threads"
@@ -211,11 +232,12 @@ export function RecycleBinWindow({ window: desktopWindow }: { window: DesktopWin
 }
 
 
-function MoreFolderItem({ group }: { group: DesktopGroup }) {
+function MoreFolderItem({ group, windowId }: { group: DesktopGroup; windowId: string }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
   const menu = useMenu();
-  const open = () => manager.open({ kind: "finder", key: group.key });
+  // A folder opened inside More takes over this window, as in Explorer; Back returns to More.
+  const open = () => manager.navigate(windowId, { kind: "finder", key: group.key });
   const members = groupThreads(group, desktop.visibleThreads);
   const { tone, toneCount } = groupTone(members);
   const summary = folderSummary(group.name, members.length, tone, toneCount);
@@ -256,18 +278,23 @@ export function MoreWindow({ window: desktopWindow }: { window: DesktopWindow })
         </span>
       }
     >
-      <div className="bbd-sunken h-full overflow-auto">
-        {desktop.moreGroups.length === 0 ? (
-          <p className="p-6 text-center text-xs text-muted-foreground">
-            Nothing here. Groups you move into More in the sidebar show up in this folder.
-          </p>
-        ) : (
-          <div className="bbd-finder-grid" role="listbox" aria-label="Folders">
-            {desktop.moreGroups.map((group) => (
-              <MoreFolderItem key={group.key} group={group} />
-            ))}
-          </div>
-        )}
+      <div className="flex h-full flex-col">
+        <div className="bbd-menubar flex-none">
+          <ExplorerNav window={desktopWindow} />
+        </div>
+        <div className="bbd-sunken min-h-0 flex-1 overflow-auto">
+          {desktop.moreGroups.length === 0 ? (
+            <p className="p-6 text-center text-xs text-muted-foreground">
+              Nothing here. Groups you move into More in the sidebar show up in this folder.
+            </p>
+          ) : (
+            <div className="bbd-finder-grid" role="listbox" aria-label="Folders">
+              {desktop.moreGroups.map((group) => (
+                <MoreFolderItem key={group.key} group={group} windowId={desktopWindow.id} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </WindowFrame>
   );
