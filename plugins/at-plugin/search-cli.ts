@@ -146,7 +146,9 @@ export function registerSearchCli(bb: BbPluginApi): void {
         }
       }
       if (options.scope !== "installed") {
-        const rows = searchCommunityPlugins(matches.filter((entry) => !installedIds.has(entry.pluginId)), query, null);
+        const hostMatches = catalog.status === "fulfilled" ? catalog.value.hostMatches : undefined;
+        const rows = searchCommunityPlugins(
+          matches.filter((entry) => !installedIds.has(entry.pluginId)), query, null, hostMatches);
         for (const row of rows) {
           const identity = decodeCommunityItemId(row.id);
           const entry = matches.find((entry) => entry.marketplace === COMMUNITY_MARKETPLACE

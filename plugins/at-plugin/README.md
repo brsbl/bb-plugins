@@ -20,9 +20,17 @@ The existing `@` syntax remains available: type `@auto` and select a result.
 Type `@plugin` to browse installed and Community plugins without
 the usual six-results-per-group limit. Bare `@` does not return results in BB.
 
-Installed results include all enabled, running plugins, including UI-only
-plugins and themes. Disabled or unhealthy plugins are excluded. Community
-results include compatible plugins that are not installed.
+Results appear in two groups from two mention providers. Row and pill icons
+below require a bb build that honors per-item mention icons (get-bb/bb#4541);
+older builds show Plugin Finder's own icon on every row.
+
+- **Installed plugins** includes all enabled, running plugins, including
+  UI-only plugins and themes. Disabled or unhealthy plugins are excluded. Each
+  row and mention pill shows the plugin's own icon; plugins whose branding is
+  only an image file without a matching `experimental_icons` entry use the
+  Plugins icon.
+- **Community plugins** includes compatible BB Community plugins that are not
+  installed. They are marked "Not installed" and use the Plugins icon.
 
 - An installed plugin mention tells the agent which available plugin to prefer
   when it is relevant.

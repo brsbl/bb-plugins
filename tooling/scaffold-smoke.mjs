@@ -150,7 +150,7 @@ try {
   );
   assert.deepEqual(
     resolveRetiredInstallRefs(["plugin/design-doctrine", "plugin/improve-prompt"]),
-    ["plugin/omegacode", "plugin/ui-patterns"],
+    ["plugin/omegacode", "plugin/saved-places", "plugin/ui-patterns"],
   );
   assert.throws(
     () => resolveRetiredInstallRefs(["plugin/omegacode"]),
