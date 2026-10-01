@@ -62,6 +62,7 @@ const SHELL = "body.bb-app-shell";
 const ROOT = `${SHELL} > #root`;
 const PANES = `${ROOT}, [data-testid="secondary-panel-shelf"]`;
 const OVERLAY = `${SHELL} [data-bb-portaled-overlay]:is([role="dialog"], [role="menu"], [role="listbox"])`;
+// The compact right-panel shelf is a portaled dialog too; its sticky headers stay solid glass, unlike menus.
 const THREAD = `${ROOT} [data-thread-window]`;
 const PAGE_MAIN =
   '[data-testid="app-layout-content-shell"] > main:not(:has([data-thread-window], [data-app-composer], [role="img"][aria-label="bb"]))';
@@ -202,5 +203,6 @@ ${OVERLAY} { ${GLASS_PANE} --background: transparent; --popover: transparent; --
 ${OVERLAY}::before { ${LAYER} inset: 0; border-radius: inherit; ${BLUR} }
 ${OVERLAY} .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: transparent; --background: transparent; --popover: transparent; ${BLUR} }
 ${SHELL}[data-ambient-glass="solid"] ${OVERLAY} .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: var(--ambient-glass-solid); --background: var(--ambient-glass-solid); --popover: var(--ambient-glass-solid); }
+${OVERLAY}[data-testid="secondary-panel-shelf"] .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: var(--ambient-glass-solid); --background: var(--ambient-glass-solid); --popover: var(--ambient-glass-solid); ${NO_BLUR} }
 ${SHELL} [data-bb-portaled-overlay] :is([data-palette-input-band], [data-palette-results-clip]) { background-color: transparent; }
 ${SHELL} [data-testid="secondary-panel-shelf"] { background-color: var(--ambient-glass-solid); ${BLUR} }`;
