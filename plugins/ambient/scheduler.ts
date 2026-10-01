@@ -5,6 +5,7 @@
 //   idle    10 fps  nothing happening (agents idle or waiting on you); the scene keeps drifting
 //   paused   0 fps  bb hidden or unfocused (and not hovered); one frame for any change, then stop
 //   still    0 fps  prefers-reduced-motion, except while a ripple plays
+//   settled  0 fps  Motion 0 with no agents or ripples: every frame would be identical until input
 //
 // It also owns auto-scale: when frames arrive late it lowers render resolution, and raises it
 // again once they are comfortably on time.
@@ -32,6 +33,8 @@ export interface FrameHooks {
   /** Agents are working. */
   busy(): boolean;
   rippling(): boolean;
+  /** Nothing on screen moves on its own: Motion is 0 and no agents or ripples are left. */
+  settled(): boolean;
   onScale(scale: number): void;
 }
 
@@ -43,6 +46,8 @@ export class FrameScheduler {
   private last = 0;
   private lastInterval = 0;
   private lastInput = Number.NEGATIVE_INFINITY;
+  /** The pointer moved since the last frame; the only input a settled scene shows. */
+  private pointerMoved = false;
   private frame = 0;
   private dirty = true;
   private running = false;
@@ -53,8 +58,9 @@ export class FrameScheduler {
   start(): () => void {
     this.running = true;
     this.last = performance.now();
-    const input = () => {
+    const input = (event: Event) => {
       this.lastInput = performance.now();
+      if (event.type === "pointermove") this.pointerMoved = true;
       this.schedule();
     };
     const resume = () => this.schedule();
@@ -117,8 +123,11 @@ export class FrameScheduler {
     const hovered = timestamp - this.lastInput < ACTIVE_INPUT_MS;
     const paused = document.hidden || (!document.hasFocus() && !hovered);
     const still = this.reducedMotion.matches && !this.hooks.rippling();
-    if (paused || still) {
+    const settled = !this.pointerMoved && this.hooks.settled();
+    if (paused || still || settled) {
       if (this.dirty) this.draw(timestamp, 0);
+      // The gap until the next frame is a rest, not lateness.
+      this.lastInterval = 0;
       return;
     }
     this.frame = requestAnimationFrame(this.tick);
@@ -156,6 +165,7 @@ export class FrameScheduler {
     this.time += (stepMs / 1000) * this.hooks.speed();
     this.last = timestamp;
     this.dirty = false;
+    this.pointerMoved = false;
     this.hooks.draw(this.time);
   }
 }
