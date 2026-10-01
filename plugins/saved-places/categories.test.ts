@@ -58,9 +58,14 @@ describe("category taxonomy", () => {
     expect(resolveCategory({ category: "other", placeType, name })).toBe(expected);
   });
 
-  it("lets a broad filter id match the categories in its group", () => {
+  it("keeps each original broad filter id matching what it matched before the taxonomy grew", () => {
     expect(includesCategory("culture", "shrine")).toBe(true);
-    expect(includesCategory("food", "sushi")).toBe(true);
+    expect(includesCategory("food", "pizza")).toBe(true);
+    expect(includesCategory("food", "ramen")).toBe(false);
+    expect(includesCategory("food", "sushi")).toBe(false);
+    expect(includesCategory("bars", "wine")).toBe(true);
+    expect(includesCategory("bars", "music")).toBe(false);
+    expect(includesCategory("coffee", "bakery")).toBe(true);
     expect(includesCategory("museum", "shrine")).toBe(false);
     expect(includesCategory("music", "bars")).toBe(false);
   });
