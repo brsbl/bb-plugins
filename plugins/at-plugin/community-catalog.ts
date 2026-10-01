@@ -1,5 +1,6 @@
 import type { BbPluginApi, PluginMentionItem } from "@get-bb/plugin-sdk";
 import { isPluginBrowseQuery } from "./mention-query";
+import { PLUGIN_ICON } from "./plugin-icon";
 
 import {
   MAX_ITEM_SUBTITLE_BYTES,
@@ -34,11 +35,20 @@ function folded(value: string): string {
   return value.toLowerCase();
 }
 
-function identityMatchTier(
+function startsWord(field: string, query: string): boolean {
+  for (let index = field.indexOf(query); index !== -1; index = field.indexOf(query, index + 1)) {
+    if (index === 0 || !/[\p{L}\p{N}]/u.test(field[index - 1]!)) return true;
+  }
+  return false;
+}
+
+function matchTier(
   query: string,
   displayName: string,
   pluginId: string,
   entryId: string,
+  entry: CommunityCatalogRecord,
+  hostMatched: boolean,
 ): number {
   const foldedQuery = folded(normalizeUntrustedText(query));
   if (foldedQuery.length === 0) return 3;
@@ -47,6 +57,14 @@ function identityMatchTier(
   if (fields.some((field) => field === foldedQuery)) return 0;
   if (fields.some((field) => field.startsWith(foldedQuery))) return 1;
   if (fields.some((field) => field.includes(foldedQuery))) return 2;
+  // Entries the catalog matched (it also searches tags, which are not
+  // returned) keep its ranking. Only Plugin Finder's own overview matches are
+  // demoted, since a mid-word hit there ("amb" in "chamber") is usually noise.
+  const summary = folded(normalizeUntrustedText(`${entry.description} ${entry.category ?? ""}`));
+  if (hostMatched || startsWord(summary, foldedQuery)) return 3;
+  const overview = folded(normalizeUntrustedText(entry.overview ?? ""));
+  if (startsWord(overview, foldedQuery)) return 4;
+  if (summary.includes(foldedQuery) || overview.includes(foldedQuery)) return 5;
   return 3;
 }
 
@@ -54,6 +72,7 @@ function toCandidate(
   entry: CommunityCatalogRecord,
   query: string,
   hostRank: number,
+  hostMatched: boolean,
 ): CommunityCandidate | null {
   if (
     entry.marketplace !== COMMUNITY_MARKETPLACE ||
@@ -80,7 +99,7 @@ function toCandidate(
     publisherLabel,
     normalizedName: folded(displayName),
     hostRank,
-    tier: identityMatchTier(query, displayName, pluginId, entryId),
+    tier: matchTier(query, displayName, pluginId, entryId, entry, hostMatched),
   };
 }
 
@@ -88,10 +107,12 @@ export function searchCommunityPlugins(
   entries: readonly CommunityCatalogRecord[],
   query: string,
   limit: number | null = RESULT_LIMIT,
+  hostMatches?: ReadonlySet<CommunityCatalogRecord>,
 ): PluginMentionItem[] {
   const browse = isPluginBrowseQuery(query);
   const ranked = entries
-    .map((entry, hostRank) => toCandidate(entry, browse ? "" : query, hostRank))
+    .map((entry, hostRank) =>
+      toCandidate(entry, browse ? "" : query, hostRank, hostMatches?.has(entry) ?? false))
     .filter((candidate): candidate is CommunityCandidate => candidate !== null)
     .sort((left, right) => left.tier - right.tier || left.hostRank - right.hostRank);
 
@@ -129,6 +150,7 @@ export function searchCommunityPlugins(
       }),
       title: boundUntrustedText(candidate.displayName, MAX_ITEM_TITLE_BYTES),
       subtitle: boundUntrustedText(subtitleParts.join(" · "), MAX_ITEM_SUBTITLE_BYTES),
+      icon: PLUGIN_ICON,
     };
   });
 }
