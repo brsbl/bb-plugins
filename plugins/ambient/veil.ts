@@ -195,5 +195,6 @@ ${RIGHT_PANEL} [data-app-browser] > [class~="flex-1"]:last-child { margin: 0 8px
 ${OVERLAY} { ${GLASS_PANE} --background: transparent; --popover: transparent; --sidebar: transparent; }
 ${OVERLAY}::before { ${LAYER} inset: 0; border-radius: inherit; ${BLUR} }
 ${OVERLAY} .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: transparent; --background: transparent; --popover: transparent; ${BLUR} }
+${SHELL}[data-ambient-glass="solid"] ${OVERLAY} .sticky:is(.bg-sidebar, .bg-background, .bg-popover) { --sidebar: var(--ambient-glass-solid); --background: var(--ambient-glass-solid); --popover: var(--ambient-glass-solid); }
 ${SHELL} [data-bb-portaled-overlay] :is([data-palette-input-band], [data-palette-results-clip]) { background-color: transparent; }
 ${SHELL} [data-testid="secondary-panel-shelf"] { background-color: var(--ambient-glass-solid); ${BLUR} }`;
