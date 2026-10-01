@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import maplibregl, { type GeoJSONSource, type Map as GlMap, type PaddingOptions } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useBbNavigate, useComposer, useRpc } from "@get-bb/plugin-sdk/app";
@@ -13,21 +13,23 @@ import { readTheme, streetsStyle, type MapTheme } from "./basemap";
 import { POINT_LAYERS, installLayers, provideCategoryImages, setMarkedPoint, setPins, setRings, type PinInput } from "./layers";
 import { allPlaces, placesByKey, trimmedBounds, type SavedPlace } from "./model";
 import { NOTES_LIST_ID, notesList } from "./notes-list";
-import { selectLists } from "./selection";
+import { pickCandidates, selectLists } from "./selection";
 import { MAX_RING_PLACES, cachedIsochrone, isochrone, inPolygon, type Ring, type TravelMode } from "./routing";
 import type { ViewContext, rpcContract } from "./server";
 import { useSavedState } from "./use-saved-state";
 import { Icon, IconButton } from "./ui";
-import { AppContext, emptyFilter, inBounds, listRingOwner, type AppApi, type Bounds, type RingState, type View } from "./views/context";
+import { AppContext, emptyFilter, inBounds, listRingOwner, togglePicked, type AppApi, type Bounds, type NoticeAction, type RingState, type View } from "./views/context";
 import { LibraryView } from "./views/library";
 import { ListView } from "./views/list";
 import { PlaceView } from "./views/place";
 import { ComposeView } from "./views/compose";
+import { PickView } from "./views/pick";
 
 type Detent = "peek" | "half" | "full";
 const PANEL_WIDTH = 372;
 const WIDE_MIN = 720;
 const FIT_INSET = 28;
+const NOTICE_MS = 6000;
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function uncoveredBounds(map: maplibregl.Map, sheet: HTMLElement | null, wide: boolean, sheetHeight: number): Bounds {
@@ -56,7 +58,8 @@ export function PlacesMap() {
   const [theme, setTheme] = useState<MapTheme | null>(null);
   const [styleVersion, setStyleVersion] = useState(0);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [stack, setStack] = useState<View[]>([{ kind: "library", query: "" }]);
+  const [stack, setStack] = useState<View[]>([{ kind: "library", query: "", picked: null }]);
+  const [notice, setNotice] = useState<{ id: number; message: string; actions: NoticeAction[] } | null>(null);
   const [size, setSize] = useState({ width: 1024, height: 720 });
   const [detent, setDetent] = useState<Detent>("half");
   const [drag, setDrag] = useState<number | null>(null);
@@ -89,8 +92,9 @@ export function PlacesMap() {
   const notes = useMemo(() => notesList(store.notes), [store.notes]);
   const getList = useCallback((id: string) => id === NOTES_LIST_ID ? notes : store.listsById.get(id), [notes, store.listsById]);
 
-  const contextView = useMemo(() => [...stack].reverse().find(v => v.kind === "lists" || v.kind === "library") ?? stack[0], [stack]);
+  const contextView = useMemo(() => [...stack].reverse().find(v => v.kind === "lists" || v.kind === "library" || v.kind === "pick") ?? stack[0], [stack]);
   const context = useMemo(() => {
+    if (contextView.kind === "pick") return { places: pickCandidates(contextView.sourceId, contextView.query, getList, store.notes) };
     if (contextView.kind === "lists") {
       const selection = selectLists(contextView.ids, contextView.filter, getList, store.notes);
       return { places: selection.filtered };
@@ -101,15 +105,16 @@ export function PlacesMap() {
   }, [contextView, getList, store.notes]);
 
   const selectedPlace = top.kind === "place" ? placesByKey.get(top.key) ?? null : null;
+  const pickedKeys = top.kind === "pick" ? top.picked : top.kind === "lists" ? top.picked : null;
 
   const pins = useMemo<PinInput[]>(() => {
     const ringShapes = rings && top.kind === "place" && rings.owner === `place:${top.key}` && rings.features.length ? rings.features : null;
     const list = selectedPlace && !context.places.includes(selectedPlace) ? [...context.places, selectedPlace] : context.places;
     return list.map(place => {
       const outsideRings = ringShapes ? place !== selectedPlace && !ringShapes.some(r => inPolygon([place.longitude, place.latitude], r.geometry)) : false;
-      return { place, color: categoryFor(place.category).color, note: Boolean(store.notes[place.key]), dim: outsideRings };
+      return { place, color: categoryFor(place.category).color, note: Boolean(store.notes[place.key]), dim: outsideRings, picked: pickedKeys?.includes(place.key) ?? false };
     });
-  }, [context, selectedPlace, rings, top, store.notes]);
+  }, [context, selectedPlace, rings, top, store.notes, pickedKeys]);
 
   const fitPlaces = useCallback((places: SavedPlace[], animate = true) => {
     const map = mapRef.current;
@@ -120,6 +125,10 @@ export function PlacesMap() {
   const fitKeys = useCallback((keys: string[]) => fitPlaces(keys.map(k => placesByKey.get(k)).filter((p): p is SavedPlace => Boolean(p))), [fitPlaces]);
 
   const push = useCallback((view: View) => setStack(s => [...s, view]), []);
+  const finishSelect = useCallback((next?: View) => setStack(s => {
+    const rest = s.slice(0, -1).map((view, index, all) => index === all.length - 1 && (view.kind === "lists" || view.kind === "library") ? { ...view, picked: null } : view);
+    return next ? [...rest, next] : rest.length ? rest : s;
+  }), []);
   const pop = useCallback(() => setStack(s => s.length > 1 ? s.slice(0, -1) : s), []);
   const replace = useCallback((view: View) => setStack(s => [...s.slice(0, -1), view]), []);
   const openPlace = useCallback((key: string) => {
@@ -131,7 +140,7 @@ export function PlacesMap() {
     setDetent(next);
   }, [wide, detent, paddingFor]);
   const openLists = useCallback((ids: string[]) => {
-    setStack(s => [...s, { kind: "lists", ids, filter: emptyFilter, reach: null }]);
+    setStack(s => [...s, { kind: "lists", ids, filter: emptyFilter, reach: null, picked: null }]);
     const keys = new Set(ids.flatMap(id => getList(id)?.placeKeys ?? []));
     fitPlaces([...keys].map(k => placesByKey.get(k)).filter((p): p is SavedPlace => Boolean(p)));
   }, [getList, fitPlaces]);
@@ -284,7 +293,7 @@ export function PlacesMap() {
     setRings(map, rings?.features ?? []);
   }, [styleVersion, rings]);
 
-  const unclustered = Boolean(rings?.features.length);
+  const unclustered = Boolean(rings?.features.length) || pickedKeys !== null;
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleVersion) return;
@@ -294,6 +303,13 @@ export function PlacesMap() {
   const mapReady = styleVersion > 0;
   const openPlaceRef = useRef(openPlace);
   openPlaceRef.current = openPlace;
+  const tapPin = (key: string) => {
+    if (top.kind === "lists" && top.picked) replace({ ...top, picked: togglePicked(top.picked, key) });
+    else if (top.kind === "pick") { if (!getList(top.listId)?.placeKeys.includes(key)) replace({ ...top, picked: togglePicked(top.picked, key) }); }
+    else openPlace(key);
+  };
+  const tapPinRef = useRef(tapPin);
+  tapPinRef.current = tapPin;
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
@@ -312,7 +328,7 @@ export function PlacesMap() {
     };
     const click = (event: maplibregl.MapMouseEvent) => {
       const hit = nearest(event.point, 22);
-      if (hit) openPlaceRef.current(hit.key);
+      if (hit) tapPinRef.current(hit.key);
       else if (topRef.current.kind === "place") setStack(s => s.slice(0, -1));
     };
     const move = (event: maplibregl.MapMouseEvent) => {
@@ -328,23 +344,30 @@ export function PlacesMap() {
     return () => { map.off("click", click); map.off("mousemove", move); map.off("mouseout", leave); map.off("movestart", leave); };
   }, [mapReady]);
 
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea")) { target.blur(); return; }
-      pop();
-    };
-    const el = root.current;
-    el?.addEventListener("keydown", key);
-    return () => el?.removeEventListener("keydown", key);
-  }, [pop]);
+  const onKeyDown = (event: ReactKeyboardEvent) => {
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea")) { target.blur(); return; }
+    if ((top.kind === "lists" || top.kind === "library") && top.picked) replace({ ...top, picked: null });
+    else pop();
+  };
 
+  const selecting = pickedKeys !== null || (top.kind === "library" && top.picked !== null);
+  const previousKind = useRef(top.kind);
   useEffect(() => {
+    const leftCompose = previousKind.current === "compose" && top.kind !== "compose";
+    previousKind.current = top.kind;
     if (wide) return;
     if (top.kind === "compose") setDetent("full");
-    else if (top.kind === "place") setDetent(d => d === "peek" ? "half" : d);
-  }, [top.kind, wide]);
+    else if (leftCompose) setDetent(d => d === "full" ? "half" : d);
+    else if (top.kind === "place" || selecting) setDetent(d => d === "peek" ? "half" : d);
+  }, [top.kind, selecting, wide]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(current => current?.id === notice.id ? null : current), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const dragStart = useRef<{ y: number; height: number; moved: boolean } | null>(null);
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -387,6 +410,8 @@ export function PlacesMap() {
     store, wide, dark: theme?.dark ?? false, bounds, zoom, rings, canGoBack: stack.length > 1, getList,
     push, pop, replace, openPlace, openLists, hover: setHoverKey, fitKeys, showRings, clearRings,
     compose: draft => { push({ kind: "compose", draft }); },
+    finishSelect,
+    notify: (message, actions = []) => setNotice({ id: Date.now(), message, actions }),
     openUrl: url => { if (!navigate.openUrl(url)) window.open(url, "_blank", "noopener,noreferrer"); },
     expand: () => { if (!wide) setDetent(d => d === "full" ? d : "full"); },
   };
@@ -422,7 +447,7 @@ export function PlacesMap() {
   const zoomBy = (delta: number) => mapRef.current?.easeTo({ zoom: (mapRef.current?.getZoom() ?? 2) + delta, duration: reducedMotion() ? 0 : 250 });
 
   return <AppContext.Provider value={api}>
-    <section ref={root} className="sp-root" data-layout={wide ? "wide" : "narrow"} data-theme={theme?.dark ? "dark" : "light"} aria-label="Saved places" style={{ "--sheet-height": `${sheetHeight}px`, "--panel-width": `${PANEL_WIDTH}px` } as React.CSSProperties}>
+    <section ref={root} className="sp-root" onKeyDown={onKeyDown} data-layout={wide ? "wide" : "narrow"} data-theme={theme?.dark ? "dark" : "light"} aria-label="Saved places" style={{ "--sheet-height": `${sheetHeight}px`, "--panel-width": `${PANEL_WIDTH}px` } as React.CSSProperties}>
       <div ref={container} className="sp-map" data-no-sidebar-swipe />
       {tooltip && <div className="sp-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>{tooltip.name}</div>}
 
@@ -449,14 +474,20 @@ export function PlacesMap() {
         {!wide && <div className="sp-grip" aria-hidden="true"><span /></div>}
         <div className="sp-view" key={stack.length + top.kind}>
           {!store.loaded ? <div className="sp-loading" role="status"><span className="sp-spinner" />Loading your places…</div>
-            : top.kind === "library" ? <LibraryView query={top.query} />
-            : top.kind === "lists" ? <ListView ids={top.ids} filter={top.filter} reach={top.reach} />
+            : top.kind === "library" ? <LibraryView query={top.query} picked={top.picked} />
+            : top.kind === "lists" ? <ListView ids={top.ids} filter={top.filter} reach={top.reach} picked={top.picked} />
             : top.kind === "place" ? <PlaceView placeKey={top.key} />
+            : top.kind === "pick" ? <PickView listId={top.listId} query={top.query} sourceId={top.sourceId} picked={top.picked} />
             : <ComposeView draft={top.draft} />}
         </div>
       </div>
 
-      {error && <div className="sp-toast" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss" onClick={() => { setMapError(null); store.clearError(); }}><Icon icon={Cancel01} size={14} /></button></div>}
+      {error ? <div className="sp-toast" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss" onClick={() => { setMapError(null); store.clearError(); }}><Icon icon={Cancel01} size={14} /></button></div>
+        : notice && <div className="sp-toast" role="status" key={notice.id}>
+          <span>{notice.message}</span>
+          {notice.actions.map(action => <button key={action.label} type="button" className="sp-toast-action" onClick={() => { setNotice(null); action.run(); }}>{action.label}</button>)}
+          <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}><Icon icon={Cancel01} size={14} /></button>
+        </div>}
     </section>
   </AppContext.Provider>;
 }

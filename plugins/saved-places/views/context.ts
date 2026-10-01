@@ -1,18 +1,20 @@
 import { createContext, useContext } from "react";
 import type { CategoryId } from "../categories";
-import type { CustomList, SavedList, SavedPlace } from "../model";
+import type { SavedList, SavedPlace } from "../model";
 import type { Ring, TravelMode } from "../routing";
 import type { SavedStore } from "../use-saved-state";
 
 export interface ListFilter { categories: CategoryId[]; notes: boolean; query: string; inView: boolean }
 export const emptyFilter: ListFilter = { categories: [], notes: false, query: "", inView: false };
-export interface ComposeScope { id: string; label: string; keys: string[] }
-export interface ComposeDraft { sourceIds: string[]; scopes: ComposeScope[]; editing?: CustomList; title?: string; color?: string }
+export interface ComposeDraft { keys: string[]; source: string; title: string; sourceIds: string[]; destinations: boolean }
 export type View =
-  | { kind: "library"; query: string }
-  | { kind: "lists"; ids: string[]; filter: ListFilter; reach: number | null }
+  | { kind: "library"; query: string; picked: string[] | null }
+  | { kind: "lists"; ids: string[]; filter: ListFilter; reach: number | null; picked: string[] | null }
   | { kind: "place"; key: string }
-  | { kind: "compose"; draft: ComposeDraft };
+  | { kind: "compose"; draft: ComposeDraft }
+  | { kind: "pick"; listId: string; query: string; sourceId: string | null; picked: string[] };
+export const togglePicked = (picked: string[], key: string) => picked.includes(key) ? picked.filter(k => k !== key) : [...picked, key];
+export interface NoticeAction { label: string; run: () => void }
 
 export interface Bounds { west: number; south: number; east: number; north: number }
 export const inBounds = (place: SavedPlace, b: Bounds) => place.latitude >= b.south && place.latitude <= b.north && (b.west <= b.east ? place.longitude >= b.west && place.longitude <= b.east : place.longitude >= b.west || place.longitude <= b.east);
@@ -39,6 +41,8 @@ export interface AppApi {
   showRings: (owner: string, points: SavedPlace[], mode: TravelMode, minutes: number[]) => void;
   clearRings: () => void;
   compose: (draft: ComposeDraft) => void;
+  finishSelect: (next?: View) => void;
+  notify: (message: string, actions?: NoticeAction[]) => void;
   openUrl: (url: string) => void;
   expand: () => void;
 }

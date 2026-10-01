@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Search01 from "@hugeicons/core-free-icons/Search01Icon";
 import Cancel01 from "@hugeicons/core-free-icons/Cancel01Icon";
 import Add01 from "@hugeicons/core-free-icons/Add01Icon";
@@ -6,19 +6,20 @@ import { allPlaces, GROUP_LABELS, matchesQuery, type ListGroup } from "../model"
 import { Icon, ListCover, SectionTitle, plural } from "../ui";
 import { NOTES_LIST_ID } from "../notes-list";
 import { Frame, ListRow, PlaceRow } from "./rows";
-import { inBounds, useApp } from "./context";
+import { inBounds, togglePicked, useApp } from "./context";
 
 const GROUPS: ListGroup[] = ["custom", "trips", "friends", "saved"];
 
-export function LibraryView({ query }: { query: string }) {
+export function LibraryView({ query, picked }: { query: string; picked: string[] | null }) {
   const app = useApp();
   const { store } = app;
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
+  const selecting = picked !== null;
+  const selected = picked ?? [];
   const q = query.trim();
   const noteKeys = Object.keys(store.notes);
   const notesList = app.getList(NOTES_LIST_ID);
-  const setQuery = (next: string) => app.replace({ kind: "library", query: next });
+  const setQuery = (next: string) => app.replace({ kind: "library", query: next, picked });
+  const setPicked = (next: string[] | null) => app.replace({ kind: "library", query, picked: next });
 
   const area = useMemo(() => {
     const bounds = app.bounds;
@@ -34,15 +35,8 @@ export function LibraryView({ query }: { query: string }) {
   const listMatches = useMemo(() => q ? store.lists.filter(list => list.title.toLocaleLowerCase().includes(q.toLocaleLowerCase())) : [], [q, store.lists]);
   const placeMatches = useMemo(() => q ? allPlaces.filter(place => matchesQuery(place, q, store.notes[place.key]?.text)) : [], [q, store.notes]);
 
-  const toggle = (id: string) => setSelected(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id]);
-  const openList = (id: string) => selecting ? toggle(id) : app.openLists([id]);
-  const startCompose = () => {
-    const sources = selected.map(app.getList).filter(l => l !== undefined);
-    const keys = [...new Set(sources.flatMap(l => l.placeKeys))];
-    app.compose({ sourceIds: sources.map(l => l.id), scopes: [{ id: "all", label: `All ${plural(keys.length, "place")}`, keys }], title: sources.length === 1 ? `${sources[0].title} picks` : "" });
-    setSelecting(false);
-    setSelected([]);
-  };
+  const openList = (id: string) => picked ? setPicked(togglePicked(picked, id)) : app.openLists([id]);
+  const openTogether = () => { if (!selected.length) return; setPicked(null); app.openLists(selected); };
 
   const header = <>
     <div className="sp-title-row">
@@ -50,8 +44,8 @@ export function LibraryView({ query }: { query: string }) {
         <h2 className="sp-title">Saved</h2>
         <p className="sp-subtitle">{plural(allPlaces.length, "place")}<span className="sp-dot-sep" />{plural(store.lists.length, "list")}{noteKeys.length > 0 && <><span className="sp-dot-sep" />{plural(noteKeys.length, "note")}</>}</p>
       </div>
-      <button type="button" className="sp-text-button" onClick={() => { setSelecting(v => !v); setSelected([]); }}>{selecting ? "Done" : "Select"}</button>
-      {!selecting && <button type="button" className="sp-round-button" aria-label="New list" title="New list" onClick={() => app.compose({ sourceIds: [], scopes: [{ id: "empty", label: "Start empty", keys: [] }] })}><Icon icon={Add01} size={18} /></button>}
+      <button type="button" className="sp-text-button" onClick={() => setPicked(selecting ? null : [])}>{selecting ? "Done" : "Select"}</button>
+      {!selecting && <button type="button" className="sp-round-button" aria-label="New list" title="New list" onClick={() => app.compose({ keys: [], source: "", title: "", sourceIds: [], destinations: false })}><Icon icon={Add01} size={18} /></button>}
     </div>
     <label className="sp-search">
       <Icon icon={Search01} size={16} />
@@ -61,9 +55,8 @@ export function LibraryView({ query }: { query: string }) {
   </>;
 
   const footer = selecting ? <div className="sp-action-bar">
-    <span className="sp-action-bar-label">{selected.length ? plural(selected.length, "list") + " selected" : "Choose lists to combine"}</span>
-    <button type="button" className="sp-button" disabled={!selected.length} onClick={() => { app.openLists(selected); setSelecting(false); setSelected([]); }}>Show together</button>
-    <button type="button" className="sp-button sp-button-primary" disabled={!selected.length} onClick={startCompose}>New list</button>
+    <span className="sp-action-bar-label" role="status">{selected.length ? `${plural(selected.length, "list")} selected` : "Choose lists to open together"}</span>
+    <button type="button" className="sp-button sp-button-primary" disabled={!selected.length} onClick={openTogether}>Open together</button>
   </div> : undefined;
 
   if (q) return <Frame label="Search results" header={header}>
@@ -88,7 +81,7 @@ export function LibraryView({ query }: { query: string }) {
         </button>)}
       </div>
     </>}
-    {notesList && !selecting && <ListRow list={notesList} meta={plural(notesList.placeKeys.length, "place") + " with notes"} onClick={() => app.openLists([NOTES_LIST_ID])} />}
+    {notesList && <ListRow list={notesList} meta={plural(notesList.placeKeys.length, "place") + " with notes"} onClick={() => openList(NOTES_LIST_ID)} selecting={selecting} selected={selected.includes(NOTES_LIST_ID)} />}
     {GROUPS.map(group => {
       const lists = store.lists.filter(list => list.group === group);
       if (!lists.length) return null;
@@ -99,7 +92,7 @@ export function LibraryView({ query }: { query: string }) {
     })}
     {!store.customLists.length && !selecting && <div className="sp-hint">
       <strong>Make your own lists</strong>
-      <span>Tap Select to combine lists, or open any list and save the places you filter into a new one.</span>
+      <span>Tap + to start one, or tap Select inside any list to save places from it.</span>
     </div>}
   </Frame>;
 }

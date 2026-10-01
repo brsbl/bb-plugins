@@ -7,7 +7,7 @@ import type { MapTheme } from "./basemap";
 import type { SavedPlace } from "./model";
 import type { Ring } from "./routing";
 
-export interface PinInput { place: SavedPlace; color: string; note: boolean; dim: boolean }
+export interface PinInput { place: SavedPlace; color: string; note: boolean; dim: boolean; picked: boolean }
 export const POINT_LAYERS = ["sp-points"];
 const empty: FeatureCollection = { type: "FeatureCollection", features: [] };
 const PIN_ZOOM = 14;
@@ -15,10 +15,10 @@ const PIN_ZOOM = 14;
 export function pinCollection(pins: PinInput[]): FeatureCollection<Point> {
   return {
     type: "FeatureCollection",
-    features: pins.map(({ place, color, note, dim }) => ({
+    features: pins.map(({ place, color, note, dim, picked }) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [place.longitude, place.latitude] },
-      properties: { key: place.key, name: place.name, category: place.category, group: groupOf(place.category).id, lng: place.longitude, lat: place.latitude, icon: place.category, color, note: note ? 1 : 0, dim: dim ? 1 : 0, rank: note ? 0 : place.rating !== null ? 1 : 2 },
+      properties: { key: place.key, name: place.name, category: place.category, group: groupOf(place.category).id, lng: place.longitude, lat: place.latitude, icon: place.category, color, note: note ? 1 : 0, dim: dim ? 1 : 0, picked: picked ? 1 : 0, rank: note ? 0 : place.rating !== null ? 1 : 2 },
     })),
   };
 }
@@ -82,6 +82,7 @@ export function installLayers(map: GlMap, theme: MapTheme) {
   const unclustered = ["!", ["has", "point_count"]] as const;
   const opacity = ["case", ["==", ["get", "dim"], 1], 0.14, 1] as const;
   map.addLayer({ id: "sp-points-shadow", type: "circle", source: PLACES_SOURCE, filter: unclustered as never, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 5, 12, 7, PIN_ZOOM, 13, 16, 15.5], "circle-color": "#000", "circle-opacity": ["case", ["==", ["get", "dim"], 1], 0, theme.dark ? 0.4 : 0.16], "circle-blur": 0.7, "circle-translate": [0, 1.5] } });
+  map.addLayer({ id: "sp-points-picked", type: "circle", source: PLACES_SOURCE, filter: ["all", unclustered, ["==", ["get", "picked"], 1]] as never, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 8, 12, 10, PIN_ZOOM, 17, 16, 20], "circle-color": theme.accent, "circle-opacity": 0.18, "circle-stroke-width": 2.5, "circle-stroke-color": theme.accent } });
   map.addLayer({ id: "sp-points", type: "circle", source: PLACES_SOURCE, filter: unclustered as never, layout: { "circle-sort-key": ["-", 3, ["get", "rank"]] }, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 12, 5.5, PIN_ZOOM, 11.5, 16, 14], "circle-color": ["get", "color"], "circle-opacity": opacity as never, "circle-stroke-color": theme.dark ? "#141414" : "#ffffff", "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 3, 1.25, PIN_ZOOM, 2.25], "circle-stroke-opacity": opacity as never } });
   map.addLayer({ id: "sp-points-icon", type: "symbol", source: PLACES_SOURCE, minzoom: PIN_ZOOM, filter: unclustered as never, layout: { "icon-image": ["concat", "sp-icon-", ["get", "icon"]], "icon-size": ["interpolate", ["linear"], ["zoom"], PIN_ZOOM, 0.85, 16, 1], "icon-overlap": "always", "icon-padding": 6 }, paint: { "icon-opacity": opacity as never } });
   map.addLayer({ id: "sp-points-note", type: "circle", source: PLACES_SOURCE, minzoom: PIN_ZOOM, filter: ["all", unclustered, ["==", ["get", "note"], 1]] as never, paint: { "circle-radius": 4.5, "circle-color": "#ffc53d", "circle-stroke-color": theme.dark ? "#141414" : "#ffffff", "circle-stroke-width": 1.75, "circle-translate": [10, -10], "circle-opacity": opacity as never, "circle-stroke-opacity": opacity as never } });
