@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import maplibregl, { type GeoJSONSource, type Map as GlMap, type PaddingOptions } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useBbNavigate, useComposer, useRpc } from "@get-bb/plugin-sdk/app";
@@ -6,32 +6,30 @@ import BubbleChatAdd from "@hugeicons/core-free-icons/BubbleChatAddIcon";
 import Add01 from "@hugeicons/core-free-icons/Add01Icon";
 import MinusSign from "@hugeicons/core-free-icons/MinusSignIcon";
 import CenterFocus from "@hugeicons/core-free-icons/CenterFocusIcon";
-import Route01 from "@hugeicons/core-free-icons/Route01Icon";
 import Cancel01 from "@hugeicons/core-free-icons/Cancel01Icon";
-import ArrowRight01 from "@hugeicons/core-free-icons/ArrowRight01Icon";
 import { CLUSTER_MAX_ZOOM, CLUSTER_RADIUS, PLACES_SOURCE, attachClusterPiles } from "./cluster-piles";
 import { categoryFor } from "./categories";
-import { muteBasemap, readTheme, type MapTheme } from "./basemap";
-import { POINT_LAYERS, installLayers, setMarkedPoint, setPins, setRings, setRouteLine, setStops, type PinInput } from "./layers";
-import { allPlaces, placesByKey, type SavedPlace } from "./model";
+import { readTheme, streetsStyle, type MapTheme } from "./basemap";
+import { POINT_LAYERS, installLayers, provideCategoryImages, setMarkedPoint, setPins, setRings, type PinInput } from "./layers";
+import { allPlaces, placesByKey, trimmedBounds, type SavedPlace } from "./model";
 import { NOTES_LIST_ID, notesList } from "./notes-list";
-import { selectLists } from "./selection";
-import { isochrone, inPolygon, formatDuration, type Ring } from "./routing";
+import { pickCandidates, selectLists } from "./selection";
+import { MAX_RING_PLACES, cachedIsochrone, isochrone, inPolygon, type Ring, type TravelMode } from "./routing";
 import type { ViewContext, rpcContract } from "./server";
 import { useSavedState } from "./use-saved-state";
-import { useRoute } from "./use-route";
-import { Icon, IconButton, plural } from "./ui";
-import { AppContext, emptyFilter, inBounds, type AppApi, type Bounds, type RingState, type View } from "./views/context";
+import { Icon, IconButton } from "./ui";
+import { AppContext, emptyFilter, inBounds, listRingOwner, togglePicked, type AppApi, type Bounds, type NoticeAction, type RingState, type View } from "./views/context";
 import { LibraryView } from "./views/library";
 import { ListView } from "./views/list";
 import { PlaceView } from "./views/place";
-import { RouteView } from "./views/route";
 import { ComposeView } from "./views/compose";
+import { PickView } from "./views/pick";
 
 type Detent = "peek" | "half" | "full";
 const PANEL_WIDTH = 372;
 const WIDE_MIN = 720;
 const FIT_INSET = 28;
+const NOTICE_MS = 6000;
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function uncoveredBounds(map: maplibregl.Map, sheet: HTMLElement | null, wide: boolean, sheetHeight: number): Bounds {
@@ -43,17 +41,6 @@ function uncoveredBounds(map: maplibregl.Map, sheet: HTMLElement | null, wide: b
   const lngs = corners.map(c => c.lng);
   const lats = corners.map(c => c.lat);
   return { west: Math.min(...lngs), south: Math.min(...lats), east: Math.max(...lngs), north: Math.max(...lats) };
-}
-
-function trimmedBounds(places: SavedPlace[]) {
-  if (!places.length) return null;
-  const q = (values: number[], t: number) => values[Math.min(values.length - 1, Math.max(0, Math.round(t * (values.length - 1))))];
-  const lats = places.map(p => p.latitude).sort((a, b) => a - b);
-  const lngs = places.map(p => p.longitude).sort((a, b) => a - b);
-  const bounds = (t: number) => new maplibregl.LngLatBounds([q(lngs, t), q(lats, t)], [q(lngs, 1 - t), q(lats, 1 - t)]);
-  const trimmed = bounds(0.05);
-  const cityScale = trimmed.getEast() - trimmed.getWest() < 3 && trimmed.getNorth() - trimmed.getSouth() < 3;
-  return places.length > 24 && cityScale ? trimmed : bounds(0);
 }
 
 export function PlacesMap() {
@@ -68,11 +55,11 @@ export function PlacesMap() {
   const rpc = useRpc<typeof rpcContract>();
   const [asking, setAsking] = useState(false);
   const store = useSavedState();
-  const route = useRoute();
   const [theme, setTheme] = useState<MapTheme | null>(null);
   const [styleVersion, setStyleVersion] = useState(0);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [stack, setStack] = useState<View[]>([{ kind: "library", query: "" }]);
+  const [stack, setStack] = useState<View[]>([{ kind: "library", query: "", picked: null }]);
+  const [notice, setNotice] = useState<{ id: number; message: string; actions: NoticeAction[] } | null>(null);
   const [size, setSize] = useState({ width: 1024, height: 720 });
   const [detent, setDetent] = useState<Detent>("half");
   const [drag, setDrag] = useState<number | null>(null);
@@ -81,8 +68,10 @@ export function PlacesMap() {
   const [rings, setRingState] = useState<RingState | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string } | null>(null);
-  const ringRequest = useRef<AbortController | null>(null);
+  const ringRequest = useRef<{ controller: AbortController; signature: string; owner: string } | null>(null);
   const top = stack[stack.length - 1];
+  const topRef = useRef(top);
+  topRef.current = top;
   const wide = size.width >= WIDE_MIN;
 
   const detentHeight = useCallback((d: Detent) => d === "peek" ? 156 : d === "half" ? Math.round(size.height * 0.5) : size.height - 56, [size.height]);
@@ -103,8 +92,9 @@ export function PlacesMap() {
   const notes = useMemo(() => notesList(store.notes), [store.notes]);
   const getList = useCallback((id: string) => id === NOTES_LIST_ID ? notes : store.listsById.get(id), [notes, store.listsById]);
 
-  const contextView = useMemo(() => [...stack].reverse().find(v => v.kind === "lists" || v.kind === "library") ?? stack[0], [stack]);
+  const contextView = useMemo(() => [...stack].reverse().find(v => v.kind === "lists" || v.kind === "library" || v.kind === "pick") ?? stack[0], [stack]);
   const context = useMemo(() => {
+    if (contextView.kind === "pick") return { places: pickCandidates(contextView.sourceId, contextView.query, getList, store.notes) };
     if (contextView.kind === "lists") {
       const selection = selectLists(contextView.ids, contextView.filter, getList, store.notes);
       return { places: selection.filtered };
@@ -112,19 +102,19 @@ export function PlacesMap() {
     const query = contextView.kind === "library" ? contextView.query.trim().toLocaleLowerCase() : "";
     const places = query ? allPlaces.filter(p => `${p.name} ${p.address} ${p.placeType ?? ""} ${store.notes[p.key]?.text ?? ""}`.toLocaleLowerCase().includes(query)) : allPlaces;
     return { places };
-  }, [contextView, getList, store.notes]);
+  }, [contextView, getList, store.notes, store.categories]);
 
   const selectedPlace = top.kind === "place" ? placesByKey.get(top.key) ?? null : null;
+  const pickedKeys = top.kind === "pick" ? top.picked : top.kind === "lists" ? top.picked : null;
 
   const pins = useMemo<PinInput[]>(() => {
     const ringShapes = rings && top.kind === "place" && rings.owner === `place:${top.key}` && rings.features.length ? rings.features : null;
-    const stopSet = top.kind === "route" && route.stops.length ? new Set(route.stops) : null;
     const list = selectedPlace && !context.places.includes(selectedPlace) ? [...context.places, selectedPlace] : context.places;
     return list.map(place => {
       const outsideRings = ringShapes ? place !== selectedPlace && !ringShapes.some(r => inPolygon([place.longitude, place.latitude], r.geometry)) : false;
-      return { place, color: categoryFor(place.category).color, note: Boolean(store.notes[place.key]), dim: outsideRings || Boolean(stopSet && !stopSet.has(place.key)) };
+      return { place, color: categoryFor(place.category).color, note: Boolean(store.notes[place.key]), dim: outsideRings, picked: pickedKeys?.includes(place.key) ?? false };
     });
-  }, [context, selectedPlace, rings, top, route.stops, store.notes]);
+  }, [context, selectedPlace, rings, top, store.notes, store.categories, pickedKeys]);
 
   const fitPlaces = useCallback((places: SavedPlace[], animate = true) => {
     const map = mapRef.current;
@@ -135,6 +125,10 @@ export function PlacesMap() {
   const fitKeys = useCallback((keys: string[]) => fitPlaces(keys.map(k => placesByKey.get(k)).filter((p): p is SavedPlace => Boolean(p))), [fitPlaces]);
 
   const push = useCallback((view: View) => setStack(s => [...s, view]), []);
+  const finishSelect = useCallback((next?: View) => setStack(s => {
+    const rest = s.slice(0, -1).map((view, index, all) => index === all.length - 1 && (view.kind === "lists" || view.kind === "library") ? { ...view, picked: null } : view);
+    return next ? [...rest, next] : rest.length ? rest : s;
+  }), []);
   const pop = useCallback(() => setStack(s => s.length > 1 ? s.slice(0, -1) : s), []);
   const replace = useCallback((view: View) => setStack(s => [...s.slice(0, -1), view]), []);
   const openPlace = useCallback((key: string) => {
@@ -146,39 +140,56 @@ export function PlacesMap() {
     setDetent(next);
   }, [wide, detent, paddingFor]);
   const openLists = useCallback((ids: string[]) => {
-    setStack(s => [...s, { kind: "lists", ids, filter: emptyFilter }]);
+    setStack(s => [...s, { kind: "lists", ids, filter: emptyFilter, reach: null, picked: null }]);
     const keys = new Set(ids.flatMap(id => getList(id)?.placeKeys ?? []));
     fitPlaces([...keys].map(k => placesByKey.get(k)).filter((p): p is SavedPlace => Boolean(p)));
   }, [getList, fitPlaces]);
 
-  const clearRings = useCallback(() => { ringRequest.current?.abort(); ringRequest.current = null; setRingState(null); }, []);
-  const showRings = useCallback((owner: string, points: SavedPlace[], mode: RingState["mode"], minutes: number[]) => {
-    ringRequest.current?.abort();
-    const controller = new AbortController();
-    ringRequest.current = controller;
-    setRingState({ owner, mode, features: [], loading: true, error: null });
-    (async () => {
-      const features: Ring[] = [];
-      for (const point of points.slice(0, 12)) features.push(...await isochrone(point, mode, minutes, controller.signal));
-      return features;
-    })().then(features => {
-      if (controller.signal.aborted) return;
-      setRingState({ owner, mode, features, loading: false, error: null });
-      const map = mapRef.current;
-      if (!map) return;
-      const b = new maplibregl.LngLatBounds();
-      for (const f of features) for (const poly of f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates) for (const [lng, lat] of poly[0]) b.extend([lng, lat]);
-      if (!b.isEmpty()) map.fitBounds(b, { padding: FIT_INSET, duration: reducedMotion() ? 0 : 700 });
-    }, () => {
-      if (!controller.signal.aborted) setRingState({ owner, mode, features: [], loading: false, error: "Travel times are unavailable right now. Try again in a moment." });
-    });
+  const fitRings = useCallback((features: Ring[]) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const b = new maplibregl.LngLatBounds();
+    for (const f of features) for (const poly of f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates) for (const [lng, lat] of poly[0]) b.extend([lng, lat]);
+    if (!b.isEmpty()) map.fitBounds(b, { padding: FIT_INSET, duration: reducedMotion() ? 0 : 700 });
   }, []);
+  const clearRings = useCallback(() => { ringRequest.current?.controller.abort(); ringRequest.current = null; setRingState(null); }, []);
+  const showRings = useCallback((owner: string, points: SavedPlace[], mode: TravelMode, minutes: number[]) => {
+    const targets = points.slice(0, MAX_RING_PLACES);
+    const signature = [owner, mode, minutes.join(","), ...targets.map(p => p.key)].join("|");
+    if (ringRequest.current?.signature === signature) return;
+    ringRequest.current?.controller.abort();
+    const controller = new AbortController();
+    ringRequest.current = { controller, signature, owner };
+    const cached = targets.map(point => cachedIsochrone(point, mode, minutes));
+    const features = cached.flatMap(rings => rings ?? []);
+    const total = targets.length;
+    let done = cached.filter(Boolean).length;
+    setRingState({ owner, mode, features, loading: done < total, done, total, error: null });
+    if (done === total) { fitRings(features); return; }
+    (async () => {
+      for (const [index, point] of targets.entries()) {
+        if (cached[index]) continue;
+        features.push(...await isochrone(point, mode, minutes, controller.signal));
+        done += 1;
+        if (!controller.signal.aborted) setRingState({ owner, mode, features: [...features], loading: done < total, done, total, error: null });
+      }
+    })().then(() => {
+      const current = topRef.current;
+      if (!controller.signal.aborted && (current.kind !== "place" || owner === `place:${current.key}`)) fitRings(features);
+    }, () => {
+      if (controller.signal.aborted) return;
+      ringRequest.current = null;
+      setRingState({ owner, mode, features: [...features], loading: false, done, total, error: "Travel times are unavailable right now. Try again in a moment." });
+    });
+  }, [fitRings]);
 
   useEffect(() => {
     if (!rings) return;
-    const owned = rings.owner === "route" ? top.kind === "route" : top.kind === "place" && rings.owner === `place:${top.key}`;
+    const owner = ringRequest.current?.owner ?? rings.owner;
+    const listOwner = contextView.kind === "lists" && contextView.reach !== null ? listRingOwner(contextView.ids) : null;
+    const owned = owner === listOwner || (top.kind === "place" && owner === `place:${top.key}`);
     if (!owned) clearRings();
-  }, [top, rings, clearRings]);
+  }, [top, contextView, rings, clearRings]);
 
   useEffect(() => {
     const el = root.current;
@@ -202,16 +213,16 @@ export function PlacesMap() {
   useEffect(() => {
     if (!hasTheme || !container.current || !themeRef.current) return;
     const map = new maplibregl.Map({
-      container: container.current, style: themeRef.current.style, center: [139.72, 35.68], zoom: 2, minZoom: 0.6, maxZoom: 19,
+      container: container.current, style: streetsStyle(themeRef.current), center: [139.72, 35.68], zoom: 2, minZoom: 0.6, maxZoom: 19,
       attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, renderWorldCopies: true, fadeDuration: 160,
     });
     mapRef.current = map;
+    provideCategoryImages(map, () => themeRef.current?.dark ?? false);
     map.touchZoomRotate.disableRotation();
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
     map.on("style.load", () => {
       const current = themeRef.current;
       if (!current) return;
-      muteBasemap(map, current);
       installLayers(map, current);
       setStyleVersion(v => v + 1);
     });
@@ -236,7 +247,7 @@ export function PlacesMap() {
     const previous = themeRef.current;
     themeRef.current = theme;
     const map = mapRef.current;
-    if (map && previous && JSON.stringify(previous) !== JSON.stringify(theme)) map.setStyle(theme.style, { diff: false });
+    if (map && previous && JSON.stringify(previous) !== JSON.stringify(theme)) map.setStyle(streetsStyle(theme), { diff: false });
   }, [theme]);
 
   const paddingKey = JSON.stringify(padding());
@@ -267,7 +278,7 @@ export function PlacesMap() {
     const map = mapRef.current;
     if (!map || !styleVersion) return;
     setMarkedPoint(map, "sp-selected", selectedPlace, selectedPlace ? categoryFor(selectedPlace.category).color : undefined);
-  }, [styleVersion, selectedPlace]);
+  }, [styleVersion, selectedPlace, store.categories]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -282,25 +293,23 @@ export function PlacesMap() {
     setRings(map, rings?.features ?? []);
   }, [styleVersion, rings]);
 
-  const unclustered = Boolean(rings?.features.length) || (top.kind === "route" && route.stops.length > 0);
+  const unclustered = Boolean(rings?.features.length) || pickedKeys !== null;
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleVersion) return;
     (map.getSource(PLACES_SOURCE) as GeoJSONSource | undefined)?.setClusterOptions({ cluster: !unclustered, clusterRadius: CLUSTER_RADIUS, clusterMaxZoom: CLUSTER_MAX_ZOOM });
   }, [styleVersion, unclustered]);
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !styleVersion) return;
-    setStops(map, route.places);
-    setRouteLine(map, route.result ? route.result.line.map(([lng, lat]) => [lng, lat] as [number, number]) : null);
-  }, [styleVersion, route.places, route.result]);
-
   const mapReady = styleVersion > 0;
-  const topRef = useRef(top);
-  topRef.current = top;
   const openPlaceRef = useRef(openPlace);
   openPlaceRef.current = openPlace;
+  const tapPin = (key: string) => {
+    if (top.kind === "lists" && top.picked) replace({ ...top, picked: togglePicked(top.picked, key) });
+    else if (top.kind === "pick") { if (!getList(top.listId)?.placeKeys.includes(key)) replace({ ...top, picked: togglePicked(top.picked, key) }); }
+    else openPlace(key);
+  };
+  const tapPinRef = useRef(tapPin);
+  tapPinRef.current = tapPin;
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
@@ -319,7 +328,7 @@ export function PlacesMap() {
     };
     const click = (event: maplibregl.MapMouseEvent) => {
       const hit = nearest(event.point, 22);
-      if (hit) openPlaceRef.current(hit.key);
+      if (hit) tapPinRef.current(hit.key);
       else if (topRef.current.kind === "place") setStack(s => s.slice(0, -1));
     };
     const move = (event: maplibregl.MapMouseEvent) => {
@@ -335,23 +344,30 @@ export function PlacesMap() {
     return () => { map.off("click", click); map.off("mousemove", move); map.off("mouseout", leave); map.off("movestart", leave); };
   }, [mapReady]);
 
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea")) { target.blur(); return; }
-      pop();
-    };
-    const el = root.current;
-    el?.addEventListener("keydown", key);
-    return () => el?.removeEventListener("keydown", key);
-  }, [pop]);
+  const onKeyDown = (event: ReactKeyboardEvent) => {
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea")) { target.blur(); return; }
+    if ((top.kind === "lists" || top.kind === "library") && top.picked) replace({ ...top, picked: null });
+    else pop();
+  };
 
+  const selecting = pickedKeys !== null || (top.kind === "library" && top.picked !== null);
+  const previousKind = useRef(top.kind);
   useEffect(() => {
+    const leftCompose = previousKind.current === "compose" && top.kind !== "compose";
+    previousKind.current = top.kind;
     if (wide) return;
     if (top.kind === "compose") setDetent("full");
-    else if (top.kind === "place" || top.kind === "route") setDetent(d => d === "peek" ? "half" : d);
-  }, [top.kind, wide]);
+    else if (leftCompose) setDetent(d => d === "full" ? "half" : d);
+    else if (top.kind === "place" || selecting) setDetent(d => d === "peek" ? "half" : d);
+  }, [top.kind, selecting, wide]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(current => current?.id === notice.id ? null : current), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const dragStart = useRef<{ y: number; height: number; moved: boolean } | null>(null);
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -391,9 +407,11 @@ export function PlacesMap() {
   }, [contextView, bounds, context.places, top.kind]);
 
   const api: AppApi = {
-    store, route, wide, bounds, zoom, rings, canGoBack: stack.length > 1, getList,
+    store, wide, dark: theme?.dark ?? false, bounds, zoom, rings, canGoBack: stack.length > 1, getList,
     push, pop, replace, openPlace, openLists, hover: setHoverKey, fitKeys, showRings, clearRings,
     compose: draft => { push({ kind: "compose", draft }); },
+    finishSelect,
+    notify: (message, actions = []) => setNotice({ id: Date.now(), message, actions }),
     openUrl: url => { if (!navigate.openUrl(url)) window.open(url, "_blank", "noopener,noreferrer"); },
     expand: () => { if (!wide) setDetent(d => d === "full" ? d : "full"); },
   };
@@ -411,7 +429,6 @@ export function PlacesMap() {
       placeKey: selectedPlace?.key ?? null,
       camera: map && b && center ? { center: [center.lng, center.lat], zoom: map.getZoom(), bounds: b } : null,
       placeKeys: pins.map(pin => pin.place.key),
-      route: route.stops.length ? { mode: route.mode, stops: route.stops } : null,
       rings: rings?.features.length ? { mode: rings.mode, minutes: [...new Set(rings.features.map(ring => ring.properties.minutes))].sort((a, b) => a - b) } : null,
     };
     setAsking(true);
@@ -426,13 +443,12 @@ export function PlacesMap() {
     }
   };
 
-  const error = mapError ?? store.error ?? route.error;
-  const showTray = route.stops.length > 0 && top.kind !== "route" && top.kind !== "compose";
+  const error = mapError ?? store.error;
   const zoomBy = (delta: number) => mapRef.current?.easeTo({ zoom: (mapRef.current?.getZoom() ?? 2) + delta, duration: reducedMotion() ? 0 : 250 });
 
   return <AppContext.Provider value={api}>
-    <section ref={root} className="sp-root" data-layout={wide ? "wide" : "narrow"} data-theme={theme?.dark ? "dark" : "light"} aria-label="Saved places" style={{ "--sheet-height": `${sheetHeight}px`, "--panel-width": `${PANEL_WIDTH}px` } as React.CSSProperties}>
-      <div ref={container} className="sp-map" />
+    <section ref={root} className="sp-root" onKeyDown={onKeyDown} data-layout={wide ? "wide" : "narrow"} data-theme={theme?.dark ? "dark" : "light"} aria-label="Saved places" style={{ "--sheet-height": `${sheetHeight}px`, "--panel-width": `${PANEL_WIDTH}px` } as React.CSSProperties}>
+      <div ref={container} className="sp-map" data-no-sidebar-swipe />
       {tooltip && <div className="sp-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>{tooltip.name}</div>}
 
       <div className="sp-controls">
@@ -458,20 +474,20 @@ export function PlacesMap() {
         {!wide && <div className="sp-grip" aria-hidden="true"><span /></div>}
         <div className="sp-view" key={stack.length + top.kind}>
           {!store.loaded ? <div className="sp-loading" role="status"><span className="sp-spinner" />Loading your places…</div>
-            : top.kind === "library" ? <LibraryView query={top.query} />
-            : top.kind === "lists" ? <ListView ids={top.ids} filter={top.filter} />
+            : top.kind === "library" ? <LibraryView query={top.query} picked={top.picked} />
+            : top.kind === "lists" ? <ListView ids={top.ids} filter={top.filter} reach={top.reach} picked={top.picked} />
             : top.kind === "place" ? <PlaceView placeKey={top.key} />
-            : top.kind === "route" ? <RouteView />
+            : top.kind === "pick" ? <PickView listId={top.listId} query={top.query} sourceId={top.sourceId} picked={top.picked} />
             : <ComposeView draft={top.draft} />}
         </div>
-        {showTray && <button type="button" className="sp-tray" onClick={() => push({ kind: "route" })}>
-          <span className="sp-tray-icon"><Icon icon={Route01} size={17} /></span>
-          <span className="sp-row-text"><span className="sp-row-title">Route · {plural(route.stops.length, "stop")}</span><span className="sp-row-meta">{route.result ? `${formatDuration(route.result.seconds)} ${route.mode === "walk" ? "walking" : route.mode === "bike" ? "by bike" : "by car"}` : route.stops.length < 2 ? "Add another stop" : "Working out the route…"}</span></span>
-          <Icon icon={ArrowRight01} size={16} />
-        </button>}
       </div>
 
-      {error && <div className="sp-toast" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss" onClick={() => { setMapError(null); store.clearError(); route.clearError(); }}><Icon icon={Cancel01} size={14} /></button></div>}
+      {error ? <div className="sp-toast" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss" onClick={() => { setMapError(null); store.clearError(); }}><Icon icon={Cancel01} size={14} /></button></div>
+        : notice && <div className="sp-toast" role="status" key={notice.id}>
+          <span>{notice.message}</span>
+          {notice.actions.map(action => <button key={action.label} type="button" className="sp-toast-action" onClick={() => { setNotice(null); action.run(); }}>{action.label}</button>)}
+          <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}><Icon icon={Cancel01} size={14} /></button>
+        </div>}
     </section>
   </AppContext.Provider>;
 }

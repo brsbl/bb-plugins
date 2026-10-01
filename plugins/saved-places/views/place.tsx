@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ArrowLeft01 from "@hugeicons/core-free-icons/ArrowLeft01Icon";
 import Navigation03 from "@hugeicons/core-free-icons/Navigation03Icon";
-import Route01 from "@hugeicons/core-free-icons/Route01Icon";
 import LinkSquare02 from "@hugeicons/core-free-icons/LinkSquare02Icon";
 import Target02 from "@hugeicons/core-free-icons/Target02Icon";
 import Add01 from "@hugeicons/core-free-icons/Add01Icon";
@@ -9,8 +8,9 @@ import Tick02 from "@hugeicons/core-free-icons/Tick02Icon";
 import Walking from "@hugeicons/core-free-icons/WalkingIcon";
 import Bicycle01 from "@hugeicons/core-free-icons/Bicycle01Icon";
 import Car01 from "@hugeicons/core-free-icons/Car01Icon";
+import ArrowDown01 from "@hugeicons/core-free-icons/ArrowDown01Icon";
 import type { IconSvgElement } from "@hugeicons/react";
-import { categoryFor } from "../categories";
+import { categories, categoryFor, groups, type CategoryId } from "../categories";
 import { categoryIcons } from "../category-icons";
 import { allPlaces, customToList, placesByKey, type SavedPlace } from "../model";
 import { RING_MINUTES, TRAVEL_MODES, inPolygon, type TravelMode } from "../routing";
@@ -29,7 +29,7 @@ const km = (a: SavedPlace, b: SavedPlace) => {
 
 export function PlaceView({ placeKey }: { placeKey: string }) {
   const app = useApp();
-  const { store, route } = app;
+  const { store } = app;
   const place = placesByKey.get(placeKey);
   const [picker, setPicker] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -56,11 +56,10 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
   const customLists = store.customLists;
   const inCustom = customLists.filter(l => l.placeKeys.includes(place.key));
   const color = category.color;
-  const stop = route.stops.indexOf(place.key);
   const mobile = isMobile();
   const mapsUrl = mobile ? `https://www.google.com/maps/search/?${new URLSearchParams({ api: "1", query: `${place.name}, ${place.address}` })}` : place.url;
   const directions = `https://www.google.com/maps/dir/?${new URLSearchParams({ api: "1", destination: `${place.latitude},${place.longitude}`, travelmode: "walking" })}`;
-  const kind = place.placeType ?? (place.category === "other" ? "Saved place" : category.label);
+  const kind = place.placeType && place.placeType !== category.label ? place.placeType : null;
   const open = (url: string) => mobile ? window.open(url, "_blank", "noopener,noreferrer") : app.openUrl(url);
   const toggleRings = (mode: TravelMode) => rings && rings.mode === mode ? app.clearRings() : app.showRings(owner, [place], mode, RING_MINUTES);
 
@@ -75,8 +74,8 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
         : <PlaceAvatar place={place} color={color} size={52} />}
       <h2 className="sp-place-name">{place.name}</h2>
       <p className="sp-place-kind">
-        {place.category !== "other" && <Icon icon={categoryIcons[place.category]} size={15} />}
-        {kind}
+        <CategoryPicker placeKey={place.key} category={place.category} automatic={place.autoCategory} fixed={place.key in store.categories} />
+        {kind && <><span className="sp-dot-sep" />{kind}</>}
         {place.rating !== null && <><span className="sp-dot-sep" /><span className="sp-rating">★ {place.rating.toFixed(1)}</span>{place.reviewCount !== null && <span className="sp-muted">({place.reviewCount.toLocaleString()})</span>}</>}
         {place.price && <><span className="sp-dot-sep" />{place.price}</>}
       </p>
@@ -87,7 +86,6 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
     <div className="sp-actions">
       <ActionButton icon={Navigation03} label="Directions" onClick={() => open(directions)} primary />
       <ActionButton icon={Walking} label={rings ? "Hide reach" : "Walk reach"} pressed={Boolean(rings)} onClick={() => rings ? app.clearRings() : toggleRings("walk")} />
-      <ActionButton icon={stop >= 0 ? Tick02 : Route01} label={stop >= 0 ? `Stop ${stop + 1}` : "Add to route"} pressed={stop >= 0} onClick={() => route.toggle(place.key)} />
       <ActionButton icon={LinkSquare02} label="Google Maps" onClick={() => open(mapsUrl)} />
     </div>
 
@@ -106,7 +104,7 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
             </button>;
           })}
           {customLists.length > 0 && <hr />}
-          <button type="button" role="menuitem" onClick={() => { setPicker(false); app.compose({ sourceIds: [], scopes: [{ id: "one", label: place.name, keys: [place.key] }] }); }}><Icon icon={Add01} size={16} />New list with this place</button>
+          <button type="button" role="menuitem" onClick={() => { setPicker(false); app.compose({ keys: [place.key], source: place.name, title: "", sourceIds: [], destinations: false }); }}><Icon icon={Add01} size={16} />New list with this place</button>
         </div>}
       </div>
     </div>
@@ -133,14 +131,27 @@ function NearbyGroup({ minutes, mode, places }: { minutes: number; mode: TravelM
   const verb = mode === "walk" ? "walk" : mode === "bike" ? "ride" : "drive";
   return <div className="sp-nearby">
     <p className="sp-nearby-label"><span className="sp-nearby-badge">{minutes}</span>min {verb}<span className="sp-muted">{plural(places.length, "save")}</span></p>
-    {shown.map(p => {
-      return <div key={p.key} className="sp-nearby-row" onMouseEnter={() => app.hover(p.key)} onMouseLeave={() => app.hover(null)}>
-        <button type="button" onClick={() => app.openPlace(p.key)}><span aria-hidden="true" className="sp-nearby-icon"><Icon icon={categoryIcons[p.category]} size={15} /></span><span className="sp-nearby-name">{p.name}</span>{app.store.notes[p.key] && <span className="sp-note-dot" aria-label="Has a note" />}</button>
-        <button type="button" className="sp-stop-toggle sp-stop-toggle-small" data-on={app.route.stops.includes(p.key) || undefined} aria-label={app.route.stops.includes(p.key) ? `Remove ${p.name} from route` : `Add ${p.name} to route`} title={app.route.stops.includes(p.key) ? "Remove from route" : "Add to route"} onClick={() => app.route.toggle(p.key)}>{app.route.stops.includes(p.key) ? app.route.stops.indexOf(p.key) + 1 : <Icon icon={Route01} size={14} />}</button>
-      </div>;
-    })}
+    {shown.map(p => <div key={p.key} className="sp-nearby-row" onMouseEnter={() => app.hover(p.key)} onMouseLeave={() => app.hover(null)}>
+      <button type="button" onClick={() => app.openPlace(p.key)}><span aria-hidden="true" className="sp-nearby-icon sp-orb" style={{ "--orb-color": categoryFor(p.category).color } as React.CSSProperties}><Icon icon={categoryIcons[p.category]} size={12} /></span><span className="sp-nearby-name">{p.name}</span>{app.store.notes[p.key] && <span className="sp-note-dot" aria-label="Has a note" />}</button>
+    </div>)}
     {places.length > 5 && <button type="button" className="sp-link-button" onClick={() => setAll(v => !v)}>{all ? "Show fewer" : `Show ${places.length - 5} more`}</button>}
   </div>;
+}
+
+function CategoryPicker({ placeKey, category, automatic, fixed }: { placeKey: string; category: CategoryId; automatic: CategoryId; fixed: boolean }) {
+  const { store } = useApp();
+  const current = categoryFor(category);
+  return <label className="sp-category-pick" title="Change category">
+    <span className="sp-place-kind-icon sp-orb" style={{ "--orb-color": current.color } as React.CSSProperties}><Icon icon={categoryIcons[category]} size={12} /></span>
+    {current.id === "other" ? "Saved place" : current.label}
+    <Icon icon={ArrowDown01} size={13} />
+    <select aria-label="Category" value={fixed ? category : ""} onChange={e => void store.saveCategory(placeKey, e.target.value ? e.target.value as CategoryId : null)}>
+      <option value="">Automatic · {categoryFor(automatic).label}</option>
+      {groups.map(group => <optgroup key={group.id} label={group.label}>
+        {categories.filter(c => c.group === group.id).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+      </optgroup>)}
+    </select>
+  </label>;
 }
 
 function ActionButton({ icon, label, onClick, pressed, primary }: { icon: IconSvgElement; label: string; onClick: () => void; pressed?: boolean; primary?: boolean }) {

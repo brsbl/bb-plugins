@@ -18,7 +18,7 @@ export const placeSchema = z.object({
   longitude: z.number().min(-180).max(180),
   url: z.url(),
   collectionId: z.string().min(1).refine(id => collectionIds.has(id), "Unknown collection"),
-  category: categoryIdSchema.default("other"),
+  category: categoryIdSchema.catch("other"),
   placeType: z.string().nullable().default(null),
   photoUrl: z.url().nullable().default(null),
   rating: z.number().min(0).max(5).nullable().default(null),

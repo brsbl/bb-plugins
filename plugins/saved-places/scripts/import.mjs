@@ -16,24 +16,6 @@ Builds data/saved-places.json from your own places. Each input file becomes one 
   --geocode   Look up missing coordinates with OpenStreetMap Nominatim (1 request per second)
   --out       Output path (default: data/saved-places.json)`;
 
-const CATEGORY_RULES = [
-  ["ramen", /ramen|ラーメン|noodle|soba|udon|tsukemen|pho\b/i],
-  ["sushi", /sushi|寿司|omakase|sashimi/i],
-  ["coffee", /coffee|café|cafe|espresso|roaster|coffee shop|tea house|bakery/i],
-  ["bars", /\bbar\b|pub|brewery|cocktail|izakaya|wine|tavern|speakeasy|lounge/i],
-  ["records", /record|vinyl|disk union|music store/i],
-  ["music", /jazz|live music|concert|music venue|club|blue note/i],
-  ["culture", /museum|museo|museu|gallery|temple|shrine|church|cathedral|castle|palace|monument|landmark|tower|library|theater|theatre|tourist attraction|historical/i],
-  ["outdoors", /park|garden|beach|trail|hike|mountain|lake|viewpoint|nature|forest|island/i],
-  ["stays", /hotel|hostel|inn\b|ryokan|resort|lodge|motel|airbnb/i],
-  ["food", /restaurant|food|kitchen|diner|grill|taco|taqueria|pizza|burger|market|bistro|eatery|dumpling|bbq|steak|curry|bakery|deli|yokocho/i],
-];
-
-function categoryFor(...texts) {
-  const text = texts.filter(Boolean).join(" ");
-  return CATEGORY_RULES.find(([, pattern]) => pattern.test(text))?.[0] ?? "other";
-}
-
 function slugify(text) {
   return text.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "list";
 }
@@ -188,7 +170,6 @@ async function main(argv) {
     }
     const collectionId = slugify(record.list);
     if (!collections.has(collectionId)) collections.set(collectionId, { id: collectionId, title: record.list, subtitle: "Saved list", emoji: "📍" });
-    const known = ["ramen", "sushi", "food", "coffee", "bars", "records", "music", "culture", "outdoors", "stays", "other"];
     places.push({
       id: places.length + 1,
       name: record.name,
@@ -197,7 +178,7 @@ async function main(argv) {
       longitude,
       url: normalizeUrl(record.url, record.name, latitude, longitude),
       collectionId,
-      category: known.includes(record.category) ? record.category : categoryFor(record.name, type, address),
+      category: record.category || "other",
       placeType: type || null,
     });
   }

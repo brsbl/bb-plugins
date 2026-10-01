@@ -2,26 +2,34 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { collections, collectionIds, places, placeSchema } from "./places";
-import { categories, categoryFor, categoryIdSchema } from "./categories";
-import { allPlaces, customListSchema, importedLists, noteSchema, placesByKey, savedStateSchema, shortAddress, type SavedState } from "./model";
+import { categories, categoryFor, categoryIdSchema, groupOf, includesCategory, type CategoryId } from "./categories";
+import { allPlaces, applyCategoryOverrides, customListSchema, importedLists, noteSchema, placeKey, placesByKey, savedStateSchema, shortAddress, type SavedState } from "./model";
 import { NOTES_LIST_ID } from "./notes-list";
 
 const filterSchema = z.object({ collectionId: z.string().min(1).nullable().default(null), category: categoryIdSchema.nullable().default(null), query: z.string().default("") });
+const currentPlaces = () => places.map(place => ({ ...place, category: placesByKey.get(placeKey(place))?.category ?? place.category }));
 function filterPlaces(input: z.infer<typeof filterSchema>) {
-  return places.filter(place => (input.collectionId === null || place.collectionId === input.collectionId) && (input.category === null || place.category === input.category) && `${place.name} ${place.address} ${place.placeType ?? ""}`.toLocaleLowerCase().includes(input.query.toLocaleLowerCase().trim()));
+  return currentPlaces().filter(place => (input.collectionId === null || place.collectionId === input.collectionId) && (input.category === null || includesCategory(input.category, place.category)) && `${place.name} ${place.address} ${place.placeType ?? ""}`.toLocaleLowerCase().includes(input.query.toLocaleLowerCase().trim()));
 }
 const saveNoteSchema = z.object({ key: z.string().min(1), text: z.string().max(2000) });
+const saveCategorySchema = z.object({ key: z.string().min(1), category: categoryIdSchema.nullable() });
+const storedOverridesSchema = z.record(z.string(), z.unknown());
+function knownOverrides(stored: Record<string, unknown>): Record<string, CategoryId> {
+  return Object.fromEntries(Object.entries(stored).flatMap(([key, value]) => {
+    const category = categoryIdSchema.safeParse(value);
+    return category.success ? [[key, category.data]] : [];
+  }));
+}
 const boundsSchema = z.object({ west: z.number(), south: z.number(), east: z.number(), north: z.number() });
 const travelModeSchema = z.enum(["walk", "bike", "drive"]);
 export const viewContextSchema = z.object({
-  view: z.enum(["library", "lists", "place", "route", "compose"]),
+  view: z.enum(["library", "lists", "place", "compose", "pick"]),
   query: z.string().max(200),
   listIds: z.array(z.string().min(1)).max(64),
   filter: z.object({ categories: z.array(categoryIdSchema), notes: z.boolean(), query: z.string().max(200), inView: z.boolean() }).nullable(),
   placeKey: z.string().min(1).nullable(),
   camera: z.object({ center: z.tuple([z.number(), z.number()]), zoom: z.number(), bounds: boundsSchema }).nullable(),
   placeKeys: z.array(z.string().min(1)).max(5000),
-  route: z.object({ mode: travelModeSchema, stops: z.array(z.string().min(1)).max(50) }).nullable(),
   rings: z.object({ mode: travelModeSchema, minutes: z.array(z.number()) }).nullable(),
 });
 export type ViewContext = z.infer<typeof viewContextSchema>;
@@ -35,11 +43,13 @@ export const rpcContract = defineRpcContract({
   saveList: { input: customListSchema, output: savedStateSchema },
   deleteList: { input: z.object({ id: z.string().min(1) }), output: savedStateSchema },
   saveNote: { input: saveNoteSchema, output: savedStateSchema },
+  saveCategory: { input: saveCategorySchema, output: savedStateSchema },
   viewContextCreate: { input: viewContextSchema, output: viewMentionSchema },
 });
 
 const LISTS_KEY = "custom-lists";
 const NOTES_KEY = "notes";
+const CATEGORIES_KEY = "category-overrides";
 const MENTION_INDEX_KEY = "view-mentions";
 const MENTION_LIMIT = 50;
 const PLACE_SAMPLE = 100;
@@ -71,7 +81,6 @@ function describeView(input: ViewContext, state: SavedState) {
     counts: { shown: shown.length, inView: visible.length, inViewByCategory: countBy(visible), shownByCategory: countBy(shown) },
     selectedPlace: selected ? summarize(selected) : null,
     walkingRings: input.rings,
-    route: input.route && { mode: input.route.mode, stops: input.route.stops.map(key => placesByKey.get(key)).filter(place => place !== undefined).map(summarize) },
     placesInView: ranked.slice(0, PLACE_SAMPLE).map(summarize),
     placesInViewOmitted: Math.max(0, ranked.length - PLACE_SAMPLE),
   };
@@ -94,7 +103,22 @@ export default function plugin(bb: BbPluginApi) {
   async function readState(): Promise<SavedState> {
     const lists = z.array(customListSchema).safeParse((await kv.get(LISTS_KEY)) ?? []);
     const notes = z.record(z.string(), noteSchema).safeParse((await kv.get(NOTES_KEY)) ?? {});
-    return { lists: lists.success ? lists.data : [], notes: notes.success ? notes.data : {} };
+    const state = { lists: lists.success ? lists.data : [], notes: notes.success ? notes.data : {}, categories: knownOverrides(await readStoredOverrides()) };
+    applyCategoryOverrides(state.categories);
+    return state;
+  }
+  async function readStoredOverrides() {
+    return storedOverridesSchema.catch({}).parse((await kv.get(CATEGORIES_KEY)) ?? {});
+  }
+  async function saveCategory(input: z.infer<typeof saveCategorySchema>) {
+    if (!placesByKey.has(input.key)) throw new Error("Unknown place.");
+    return serialize(async () => {
+      const stored = await readStoredOverrides();
+      if (input.category) stored[input.key] = input.category;
+      else delete stored[input.key];
+      await kv.set(CATEGORIES_KEY, stored);
+      return readState();
+    });
   }
   async function saveNote(input: z.infer<typeof saveNoteSchema>) {
     return serialize(async () => {
@@ -125,8 +149,8 @@ export default function plugin(bb: BbPluginApi) {
   });
 
   bb.rpc.register(rpcContract, {
-    list: () => places,
-    filter: filterPlaces,
+    list: async () => { await readState(); return currentPlaces(); },
+    filter: async input => { await readState(); return filterPlaces(input); },
     state: () => readState(),
     saveList: list => serialize(async () => {
       const state = await readState();
@@ -144,6 +168,7 @@ export default function plugin(bb: BbPluginApi) {
       return state;
     }),
     saveNote,
+    saveCategory,
     viewContextCreate: async input => {
       const { label, context } = describeView(input, await readState());
       const id = randomUUID();
@@ -161,11 +186,13 @@ export default function plugin(bb: BbPluginApi) {
     name: "saved-places",
     summary: "Read the places displayed in the Saved Places map",
     commands: [
-      { name: "list", summary: "List saved places, categories, photos, and coordinates", usage: "bb saved-places list [--collection id] [--category ramen|coffee|bars|…] [--query text] [--json]" },
+      { name: "list", summary: "List saved places, categories, photos, and coordinates", usage: "bb saved-places list [--collection id] [--category ramen|coffee|museum|…] [--query text] [--json]" },
       { name: "collections", summary: "List imported Google Maps collections", usage: "bb saved-places collections [--json]" },
       { name: "lists", summary: "List the custom lists you created in the map", usage: "bb saved-places lists [--json]" },
       { name: "notes", summary: "List your place notes", usage: "bb saved-places notes [--json]" },
       { name: "note", summary: "Set or clear a place note (empty text clears it)", usage: "bb saved-places note <place-key|exact place name> <text…>" },
+      { name: "categories", summary: "List category ids, labels, and color groups", usage: "bb saved-places categories [--json]" },
+      { name: "category", summary: "Set a place's category, or clear your fix with `auto`; fixes survive re-imports", usage: "bb saved-places category <place-key|exact place name> <category-id|auto>" },
     ],
     async run(argv) {
       const json = argv.includes("--json");
@@ -185,7 +212,20 @@ export default function plugin(bb: BbPluginApi) {
         await saveNote({ key: place.key, text: argv.slice(2).filter(a => a !== "--json").join(" ") });
         return { exitCode: 0, stdout: `Saved note for ${place.name}` };
       }
-      if (argv[0] !== "list") return { exitCode: 0, stdout: "Usage: bb saved-places list|collections|lists|notes|note …\nRun `bb saved-places collections` for collection IDs, or open Saved Places from a thread's panel menu or the sidebar." };
+      if (argv[0] === "categories") {
+        const rows = categories.map(category => ({ id: category.id, label: category.label, group: groupOf(category.id).label }));
+        return { exitCode: 0, stdout: json ? JSON.stringify(rows) : rows.map(r => `${r.id}\t${r.label}\t${r.group}`).join("\n") };
+      }
+      if (argv[0] === "category") {
+        const place = argv[1] ? resolvePlace(argv[1]) : null;
+        if (!place) return { exitCode: 1, stderr: "Unknown place. Pass a key from `bb saved-places list --json` or an exact, unique place name." };
+        const value = argv[2];
+        const category = value === "auto" ? null : categoryIdSchema.safeParse(value);
+        if (category && !category.success) return { exitCode: 1, stderr: "Unknown category. Run `bb saved-places categories` for ids, or pass `auto` to clear your fix." };
+        await saveCategory({ key: place.key, category: category ? category.data : null });
+        return { exitCode: 0, stdout: `${place.name}: ${categoryFor(place.category).label}${category ? "" : " (automatic)"}` };
+      }
+      if (argv[0] !== "list") return { exitCode: 0, stdout: "Usage: bb saved-places list|collections|lists|notes|note|categories|category …\nRun `bb saved-places collections` for collection IDs, or open Saved Places from a thread's panel menu or the sidebar." };
       const input: Record<string, string> = {};
       const flags: Record<string, string> = { "--collection": "collectionId", "--category": "category", "--query": "query" };
       for (let i = 1; i < argv.length; i++) {
@@ -196,6 +236,7 @@ export default function plugin(bb: BbPluginApi) {
       }
       const parsed = filterSchema.safeParse(input);
       if (!parsed.success || (parsed.data.collectionId !== null && !collectionIds.has(parsed.data.collectionId))) return { exitCode: 1, stderr: "Unknown collection or category." };
+      await readState();
       const result = filterPlaces(parsed.data);
       return { exitCode: 0, stdout: json ? JSON.stringify(result) : result.map(p => `${p.name}\t${p.category}\t${p.latitude}, ${p.longitude}`).join("\n") };
     },

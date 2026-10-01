@@ -1,20 +1,21 @@
 import maplibregl, { type ExpressionSpecification, type GeoJSONSource, type Map as GlMap } from "maplibre-gl";
-import { categories } from "./categories";
+import { groups } from "./categories";
 import { categoryIcons, iconSvg } from "./category-icons";
+import { createClusterShader, type MeshSpec } from "./cluster-shader";
 
 export const PLACES_SOURCE = "places";
 export const CLUSTER_MAX_ZOOM = 14;
 export const CLUSTER_RADIUS = 55;
 export const CLUSTER_MIN_POINTS = 3;
 
-const tracked = categories.filter(category => category.id !== "other");
+const tracked = groups.filter(group => group.id !== "other");
 export const clusterProperties: Record<string, ExpressionSpecification> = {
-  ...Object.fromEntries(categories.flatMap(category => {
-    const member = ["==", ["get", "category"], category.id] as ExpressionSpecification;
+  ...Object.fromEntries(groups.flatMap(group => {
+    const member = ["==", ["get", "group"], group.id] as ExpressionSpecification;
     return [
-      [category.id, ["+", ["case", member, 1, 0]]],
-      [`${category.id}_lng`, ["+", ["case", member, ["get", "lng"], 0]]],
-      [`${category.id}_lat`, ["+", ["case", member, ["get", "lat"], 0]]],
+      [group.id, ["+", ["case", member, 1, 0]]],
+      [`${group.id}_lng`, ["+", ["case", member, ["get", "lng"], 0]]],
+      [`${group.id}_lat`, ["+", ["case", member, ["get", "lat"], 0]]],
     ];
   })),
   west: ["min", ["get", "lng"]],
@@ -37,7 +38,7 @@ const onWhite = (hex: string) => {
 };
 
 type Blob = { color: string; count: number; lng: number; lat: number };
-const OTHER_COLOR = categories.find(category => category.id === "other")!.color;
+const OTHER_COLOR = groups.find(group => group.id === "other")!.color;
 export function meshGradient(blobs: Blob[], extent: { west: number; east: number; south: number; north: number }) {
   const typed = blobs.filter(blob => blob.color !== OTHER_COLOR);
   if (typed.length) blobs = typed;
@@ -48,19 +49,26 @@ export function meshGradient(blobs: Blob[], extent: { west: number; east: number
   const span = Math.max((extent.east - extent.west) * scale, extent.north - extent.south, 1e-9);
   const ordered = [...blobs].sort((a, b) => b.count - a.count);
   const base = onWhite(ordered[0].color);
-  const layers = ordered.slice(1, 6).reverse().map(blob => {
-    const x = Math.round(50 + ((blob.lng - midLng) * scale / span) * 70);
-    const y = Math.round(50 - ((blob.lat - midLat) / span) * 70);
-    const r = Math.round(24 + 66 * Math.sqrt(blob.count / total));
-    const fill = onWhite(blob.color);
-    return `radial-gradient(${r}% ${r}% at ${x}% ${y}%, ${fill} 0%, ${fill} 22%, ${fill}00 100%)`;
-  });
-  return { base, background: [...layers, base].join(", ") };
+  const placed = ordered.slice(0, 6).map(blob => ({
+    x: Math.round(50 + ((blob.lng - midLng) * scale / span) * 70),
+    y: Math.round(50 - ((blob.lat - midLat) / span) * 70),
+    r: Math.round(24 + 66 * Math.sqrt(blob.count / total)),
+    color: onWhite(blob.color),
+  }));
+  const layers = placed.slice(1).reverse().map(({ x, y, r, color }) => `radial-gradient(${r}% ${r}% at ${x}% ${y}%, ${color} 0%, ${color} 22%, ${color}00 100%)`);
+  const spec: MeshSpec = { base: ordered[0].color, blobs: placed.map(({ x, y, r }, i) => ({ x: (x - 50) / 50, y: (50 - y) / 50, r: r / 50, color: ordered[i].color })) };
+  return { base, background: [...layers, base].join(", "), spec };
 }
+const seedFor = (id: string) => {
+  let h = 2166136261;
+  for (const char of id) h = Math.imul(h ^ char.charCodeAt(0), 16777619);
+  return (h >>> 0) / 4294967296;
+};
 const sizeFor = (count: number) => Math.round(Math.min(58, 26 + 3.2 * Math.sqrt(count)));
 
 export function attachClusterPiles(map: GlMap, onError: (message: string) => void) {
-  const markers = new Map<string, { marker: maplibregl.Marker; signature: string }>();
+  const markers = new Map<string, { marker: maplibregl.Marker; signature: string; release: () => void }>();
+  const shader = createClusterShader();
   let active = true;
   const update = () => {
     if (!map.getSource(PLACES_SOURCE) || !map.isSourceLoaded(PLACES_SOURCE)) return;
@@ -74,28 +82,31 @@ export function attachClusterPiles(map: GlMap, onError: (message: string) => voi
       const screen = map.project(coordinates);
       if (screen.x < -60 || screen.y < -60 || screen.x > frame.clientWidth + 60 || screen.y > frame.clientHeight + 60) continue;
       visible.add(id);
-      const blobs = categories.map(category => {
-        const n = Number(feature.properties[category.id]) || 0;
-        return { color: category.color, count: n, lng: n ? Number(feature.properties[`${category.id}_lng`]) / n : 0, lat: n ? Number(feature.properties[`${category.id}_lat`]) / n : 0 };
+      const blobs = groups.map(group => {
+        const n = Number(feature.properties[group.id]) || 0;
+        return { color: group.color, count: n, lng: n ? Number(feature.properties[`${group.id}_lng`]) / n : 0, lat: n ? Number(feature.properties[`${group.id}_lat`]) / n : 0 };
       }).filter(blob => blob.count > 0);
-      const composition = tracked.map(category => ({ ...category, count: Number(feature.properties[category.id]) || 0 })).filter(category => category.count > 0).sort((a, b) => b.count - a.count);
+      const composition = tracked.map(group => ({ ...group, count: Number(feature.properties[group.id]) || 0 })).filter(group => group.count > 0).sort((a, b) => b.count - a.count);
       const notes = Number(feature.properties.notes) || 0;
       const dim = feature.properties.dim === 1;
-      const mesh = blobs.length ? meshGradient(blobs, { west: Number(feature.properties.west), east: Number(feature.properties.east), south: Number(feature.properties.south), north: Number(feature.properties.north) }) : { base: "#60646c", background: "#60646c" };
-      const signature = `${count}:${mesh.background}:${notes}:${dim}:${composition.map(category => `${category.id}${category.count}`).join(",")}`;
+      const gradient = blobs.length ? meshGradient(blobs, { west: Number(feature.properties.west), east: Number(feature.properties.east), south: Number(feature.properties.south), north: Number(feature.properties.north) }) : { base: "#60646c", background: "#60646c", spec: { base: "#60646c", blobs: [] } };
+      const signature = `${count}:${gradient.background}:${notes}:${dim}:${composition.map(group => `${group.id}${group.count}`).join(",")}`;
       let entry = markers.get(id);
       if (entry?.signature !== signature) {
         entry?.marker.remove();
+        entry?.release();
         const button = document.createElement("button");
         button.type = "button";
         button.className = "sp-cluster";
-        button.style.setProperty("--cluster-color", mesh.base);
-        button.style.setProperty("--cluster-fill", mesh.background);
+        button.style.setProperty("--cluster-color", gradient.base);
+        button.style.setProperty("--cluster-fill", gradient.background);
         button.style.setProperty("--cluster-size", `${sizeFor(count)}px`);
         if (dim) button.dataset.dim = "true";
-        const description = `${count} places${composition.length ? `: ${composition.map(category => `${category.count} ${category.label}`).join(", ")}` : ""}${notes ? `, ${notes} with notes` : ""}`;
+        const description = `${count} places${composition.length ? `: ${composition.map(group => `${group.count} ${group.label}`).join(", ")}` : ""}${notes ? `, ${notes} with notes` : ""}`;
         button.setAttribute("aria-label", `${description}. Zoom in`);
         button.title = description;
+        const mesh = shader?.attach(gradient.spec, sizeFor(count), seedFor(id));
+        if (mesh) button.append(mesh.canvas);
         const total = document.createElement("span");
         total.className = "sp-cluster-count";
         total.textContent = count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count);
@@ -104,9 +115,9 @@ export function attachClusterPiles(map: GlMap, onError: (message: string) => voi
           const pile = document.createElement("span");
           pile.className = "sp-cluster-pile";
           pile.setAttribute("aria-hidden", "true");
-          for (const category of composition.slice(0, 2)) {
+          for (const group of composition.slice(0, 2)) {
             const badge = document.createElement("span");
-            badge.innerHTML = iconSvg(categoryIcons[category.id], { size: 12, strokeWidth: 2.1 });
+            badge.innerHTML = iconSvg(categoryIcons[group.icon], { size: 12, strokeWidth: 2.1 });
             pile.append(badge);
           }
           button.append(pile);
@@ -127,7 +138,7 @@ export function attachClusterPiles(map: GlMap, onError: (message: string) => voi
             if (active && markers.get(id)?.marker === marker) onError("The group changed. Tap it again to zoom in.");
           }
         });
-        entry = { marker, signature };
+        entry = { marker, signature, release: mesh?.release ?? (() => {}) };
         markers.set(id, entry);
       }
       const previous = entry.marker.getLngLat();
@@ -136,17 +147,22 @@ export function attachClusterPiles(map: GlMap, onError: (message: string) => voi
     for (const [id, entry] of markers) {
       if (visible.has(id)) continue;
       entry.marker.remove();
+      entry.release();
       markers.delete(id);
     }
   };
+  const wake = () => shader?.wake();
   map.on("render", update);
+  map.on("movestart", wake);
   return {
-    refresh: () => { for (const entry of markers.values()) entry.marker.remove(); markers.clear(); update(); },
+    refresh: () => { for (const entry of markers.values()) { entry.marker.remove(); entry.release(); } markers.clear(); update(); },
     remove: () => {
       active = false;
       map.off("render", update);
+      map.off("movestart", wake);
       for (const entry of markers.values()) entry.marker.remove();
       markers.clear();
+      shader?.destroy();
     },
   };
 }
