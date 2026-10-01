@@ -23,6 +23,8 @@ function groupDescription(group: DesktopGroup): string {
       return group.id === null
         ? "Threads outside any section · drag threads here to unfile them"
         : "Sidebar section · drag threads here to move them";
+    case "pinned":
+      return "Pinned threads, as in the sidebar";
     case "project":
       return "Project";
     case "machine":
@@ -92,7 +94,7 @@ export function FinderWindow({ window: desktopWindow, groupKey }: { window: Desk
               Hide from sidebar
             </label>
           ) : null}
-          {group.kind === "machine" ? null : (
+          {group.kind === "machine" || group.kind === "pinned" ? null : (
             <button
               type="button"
               className="bbd-button bbd-bevel flex-none"

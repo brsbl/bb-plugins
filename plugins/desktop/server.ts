@@ -345,7 +345,7 @@ export default function plugin(bb: BbPluginApi) {
 
   async function listThreads(): Promise<DesktopThread[]> {
     const [active, archived] = await Promise.all([
-      bb.sdk.threads.list({ hasParent: false, limit: ACTIVE_THREAD_LIMIT }),
+      bb.sdk.threads.list({ archived: false, hasParent: false, limit: ACTIVE_THREAD_LIMIT }),
       bb.sdk.threads.list({ archived: true, hasParent: false, limit: ARCHIVED_THREAD_LIMIT }),
     ]);
     const hiddenIds = (

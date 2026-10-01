@@ -200,6 +200,7 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
           isUnread: current.isUnread,
           needsInput: current.hasPendingInteraction,
           isArchived: current.isArchived,
+          isPinned: current.isPinned,
         };
       }),
     [liveById, snapshot?.threads],

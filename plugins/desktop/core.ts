@@ -47,7 +47,9 @@ export interface DesktopThread {
 
 export type DesktopGroup =
   | { key: string; kind: "folder"; name: string; folder: Folder }
-  | { key: string; kind: "section" | "project" | "machine"; name: string; id: string | null };
+  | { key: string; kind: "section" | "project" | "machine"; name: string; id: string | null }
+  /** The sidebar's Pinned group. Like the sidebar, pinned threads show only here, not in their section or project. */
+  | { key: string; kind: "pinned"; name: string };
 
 export interface Point {
   x: number;
@@ -89,12 +91,14 @@ export function groupThreads(
         return thread === undefined ? [] : [thread];
       });
     }
+    case "pinned":
+      return threads.filter((thread) => thread.isPinned);
     case "section":
-      return threads.filter((thread) => thread.sectionId === group.id);
+      return threads.filter((thread) => !thread.isPinned && thread.sectionId === group.id);
     case "project":
-      return threads.filter((thread) => thread.projectId === group.id);
+      return threads.filter((thread) => !thread.isPinned && thread.projectId === group.id);
     case "machine":
-      return threads.filter((thread) => thread.hostId === group.id);
+      return threads.filter((thread) => !thread.isPinned && thread.hostId === group.id);
   }
 }
 
@@ -144,7 +148,11 @@ export function buildGroups(args: {
         : []),
     ];
   }
+  const pinned: DesktopGroup[] = args.threads.some((thread) => thread.isPinned)
+    ? [{ key: "pinned", kind: "pinned", name: "Pinned" }]
+    : [];
   return [
+    ...pinned,
     ...organized,
     ...args.folders.map((folder) => ({
       key: `folder:${folder.id}`,

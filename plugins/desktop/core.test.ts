@@ -89,6 +89,22 @@ describe("groups", () => {
     expect(byMachine.map((group) => group.name)).toEqual(["Laptop", "No machine"]);
   });
 
+  it("shows pinned threads only in a leading Pinned folder, as the sidebar does", () => {
+    const withPin = [...threads, thread("p", { sectionId: "sec_1", isPinned: true })];
+    const groups = buildGroups({
+      organize: "section",
+      sections: [{ id: "sec_1", name: "Inbox" }],
+      projects: [],
+      machines: [],
+      folders: [folder({ threadIds: ["p"] })],
+      threads: withPin,
+    });
+    expect(groups.map((group) => group.key)).toEqual(["pinned", "section:sec_1", "section:none", "folder:fld"]);
+    expect(groupThreads(groups[0]!, withPin).map((t) => t.id)).toEqual(["p"]);
+    expect(groupThreads(groups[1]!, withPin).map((t) => t.id)).toEqual(["a"]);
+    expect(groupThreads(groups[3]!, withPin).map((t) => t.id)).toEqual(["p"]);
+  });
+
   it("treats lifecycle as a filter, not a folder", () => {
     expect(filterLifecycle(threads, "archived").map((t) => t.id)).toEqual(["b"]);
     expect(filterLifecycle(threads, "active").map((t) => t.id)).toEqual(["a", "c"]);

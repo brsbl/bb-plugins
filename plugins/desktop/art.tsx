@@ -492,7 +492,7 @@ export function FolderArt({
   size?: number;
   empty?: boolean;
 }) {
-  const Badge = kind === "project" ? ProjectGlyph : kind === "machine" ? MachineGlyph : kind === "folder" ? PinGlyph : null;
+  const Badge = kind === "project" ? ProjectGlyph : kind === "machine" ? MachineGlyph : kind === "folder" || kind === "pinned" ? PinGlyph : null;
   const showBadge = Badge !== null && size >= 24;
   return (
     <span className="relative inline-grid place-items-center" style={{ width: size, height: size }}>

@@ -153,7 +153,7 @@ export function groupMenu(
       },
     ];
   }
-  return [{ label: "Open", run: open }, ...(group.kind === "machine" ? [] : [newThread])];
+  return [{ label: "Open", run: open }, ...(group.kind === "machine" || group.kind === "pinned" ? [] : [newThread])];
 }
 
 const ORGANIZE_LABELS: Record<Organize, string> = {
