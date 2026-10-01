@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
-import { customToList, importedLists, type CustomList, type SavedList, type SavedState } from "./model";
+import { applyCategoryOverrides, customToList, importedLists, type CustomList, type SavedList, type SavedState } from "./model";
+import type { CategoryId } from "./categories";
 
 export function useSavedState() {
   const rpc = useRpc<typeof rpcContract>();
-  const [state, setState] = useState<SavedState>({ lists: [], notes: {} });
+  const [state, setState] = useState<SavedState>({ lists: [], notes: {}, categories: {} });
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const noteTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -18,6 +19,7 @@ export function useSavedState() {
     return () => { active = false; };
   }, [rpc]);
 
+  useMemo(() => applyCategoryOverrides(state.categories), [state.categories]);
   const lists = useMemo<SavedList[]>(() => [...state.lists.map(customToList).sort((a, b) => a.title.localeCompare(b.title)), ...importedLists], [state.lists]);
   const listsById = useMemo(() => new Map(lists.map(l => [l.id, l])), [lists]);
 
@@ -55,11 +57,26 @@ export function useSavedState() {
       rpc.call("saveNote", { key, text }).catch(() => setError("Your note could not be saved. Try again."));
     }, 500));
   }, [rpc]);
+  const saveCategory = useCallback(async (key: string, category: CategoryId | null) => {
+    const previous = latest.current.categories;
+    setState(current => {
+      const categories = { ...current.categories };
+      if (category) categories[key] = category;
+      else delete categories[key];
+      return { ...current, categories };
+    });
+    try {
+      setState(await rpc.call("saveCategory", { key, category }));
+    } catch {
+      setState(current => ({ ...current, categories: previous }));
+      setError("That category could not be saved. Try again.");
+    }
+  }, [rpc]);
   const togglePlaceInList = useCallback(async (list: CustomList, key: string) => {
     const placeKeys = list.placeKeys.includes(key) ? list.placeKeys.filter(k => k !== key) : [...list.placeKeys, key];
     if (!await saveList({ ...list, placeKeys, updatedAt: Date.now() })) setError("That list could not be saved. Try again.");
   }, [saveList]);
 
-  return { loaded, error, fail: setError, clearError: () => setError(null), customLists: state.lists, notes: state.notes, lists, listsById, saveList, addPlaces, removePlaces, deleteList, saveNote, togglePlaceInList };
+  return { loaded, error, fail: setError, clearError: () => setError(null), customLists: state.lists, notes: state.notes, categories: state.categories, lists, listsById, saveList, addPlaces, removePlaces, deleteList, saveNote, saveCategory, togglePlaceInList };
 }
 export type SavedStore = ReturnType<typeof useSavedState>;

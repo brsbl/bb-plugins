@@ -26,6 +26,22 @@ describe("Saved Places plugin", () => {
     expect(sensoji.category).toBe("temple");
     await harness.lifecycle.dispose();
   });
+
+  it("keeps category fixes in plugin storage, separate from the imported data", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "saved-places" });
+    plugin(bb);
+    const categoryOf = async (name: string) => (JSON.parse((await harness.behavior.runCli(["list", "--query", name, "--json"])).stdout) as Array<{ category: string }>)[0].category;
+    expect((await harness.behavior.runCli(["category", "Senso-ji", "shrine"])).exitCode).toBe(0);
+    expect(await categoryOf("Senso-ji")).toBe("shrine");
+    const state = await harness.behavior.callRpc("state") as { categories: Record<string, string> };
+    expect(Object.values(state.categories)).toEqual(["shrine"]);
+    expect((await harness.behavior.runCli(["category", "Senso-ji", "nope"])).exitCode).toBe(1);
+    expect((await harness.behavior.runCli(["category", "Nowhere at all", "shrine"])).exitCode).toBe(1);
+    expect((await harness.behavior.runCli(["category", "Senso-ji", "auto"])).exitCode).toBe(0);
+    expect(await categoryOf("Senso-ji")).toBe("temple");
+    expect(JSON.parse((await harness.behavior.runCli(["categories", "--json"])).stdout)).toEqual(expect.arrayContaining([expect.objectContaining({ id: "address", label: "Addresses" })]));
+    await harness.lifecycle.dispose();
+  });
 });
 
 describe("import script", () => {

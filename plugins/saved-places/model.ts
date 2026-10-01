@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { collections, places, type Place } from "./places";
-import { resolveCategory, type CategoryId } from "./categories";
+import { categoryIdSchema, resolveCategory, type CategoryId } from "./categories";
 
 export const LIST_COLORS = ["#e5484d", "#f76b15", "#d6a100", "#30a46c", "#12a594", "#0090ff", "#3e63dd", "#8e4ec6", "#d6409f", "#a18072"] as const;
 
@@ -16,7 +16,8 @@ export const customListSchema = z.object({
 export type CustomList = z.infer<typeof customListSchema>;
 export const noteSchema = z.object({ text: z.string().max(2000), updatedAt: z.number().int() });
 export type Note = z.infer<typeof noteSchema>;
-export const savedStateSchema = z.object({ lists: z.array(customListSchema), notes: z.record(z.string(), noteSchema) });
+export const categoryOverridesSchema = z.record(z.string(), categoryIdSchema);
+export const savedStateSchema = z.object({ lists: z.array(customListSchema), notes: z.record(z.string(), noteSchema), categories: categoryOverridesSchema });
 export type SavedState = z.infer<typeof savedStateSchema>;
 
 export type ListGroup = "custom" | "trips" | "friends" | "saved";
@@ -30,6 +31,7 @@ export interface SavedPlace {
   longitude: number;
   url: string;
   category: CategoryId;
+  autoCategory: CategoryId;
   placeType: string | null;
   photoUrl: string | null;
   rating: number | null;
@@ -67,7 +69,7 @@ function buildPlaces() {
     const key = placeKey(p);
     const existing = byKey.get(key);
     if (!existing) {
-      byKey.set(key, { key, name: p.name, address: p.address, latitude: p.latitude, longitude: p.longitude, url: p.url, category: p.category, placeType: p.placeType, photoUrl: p.photoUrl, rating: p.rating, reviewCount: p.reviewCount, price: p.price, status: p.status, listIds: [p.collectionId] });
+      byKey.set(key, { key, name: p.name, address: p.address, latitude: p.latitude, longitude: p.longitude, url: p.url, category: p.category, autoCategory: p.category, placeType: p.placeType, photoUrl: p.photoUrl, rating: p.rating, reviewCount: p.reviewCount, price: p.price, status: p.status, listIds: [p.collectionId] });
       continue;
     }
     if (!existing.listIds.includes(p.collectionId)) existing.listIds.push(p.collectionId);
@@ -80,12 +82,16 @@ function buildPlaces() {
     existing.status ??= p.status;
     if (existing.address.length < p.address.length) existing.address = p.address;
   }
-  for (const place of byKey.values()) place.category = resolveCategory(place);
+  for (const place of byKey.values()) place.category = place.autoCategory = resolveCategory(place);
   return byKey;
 }
 
 export const placesByKey = buildPlaces();
 export const allPlaces = [...placesByKey.values()];
+
+export function applyCategoryOverrides(overrides: Record<string, CategoryId>) {
+  for (const place of allPlaces) place.category = overrides[place.key] ?? place.autoCategory;
+}
 
 export const importedLists: SavedList[] = collections.map((c, index) => ({
   id: c.id,

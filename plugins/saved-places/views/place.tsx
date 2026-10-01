@@ -8,8 +8,9 @@ import Tick02 from "@hugeicons/core-free-icons/Tick02Icon";
 import Walking from "@hugeicons/core-free-icons/WalkingIcon";
 import Bicycle01 from "@hugeicons/core-free-icons/Bicycle01Icon";
 import Car01 from "@hugeicons/core-free-icons/Car01Icon";
+import ArrowDown01 from "@hugeicons/core-free-icons/ArrowDown01Icon";
 import type { IconSvgElement } from "@hugeicons/react";
-import { categoryFor } from "../categories";
+import { categories, categoryFor, groups, type CategoryId } from "../categories";
 import { categoryIcons } from "../category-icons";
 import { allPlaces, customToList, placesByKey, type SavedPlace } from "../model";
 import { RING_MINUTES, TRAVEL_MODES, inPolygon, type TravelMode } from "../routing";
@@ -58,7 +59,7 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
   const mobile = isMobile();
   const mapsUrl = mobile ? `https://www.google.com/maps/search/?${new URLSearchParams({ api: "1", query: `${place.name}, ${place.address}` })}` : place.url;
   const directions = `https://www.google.com/maps/dir/?${new URLSearchParams({ api: "1", destination: `${place.latitude},${place.longitude}`, travelmode: "walking" })}`;
-  const kind = place.placeType ?? (place.category === "other" ? "Saved place" : category.label);
+  const kind = place.placeType && place.placeType !== category.label ? place.placeType : null;
   const open = (url: string) => mobile ? window.open(url, "_blank", "noopener,noreferrer") : app.openUrl(url);
   const toggleRings = (mode: TravelMode) => rings && rings.mode === mode ? app.clearRings() : app.showRings(owner, [place], mode, RING_MINUTES);
 
@@ -73,8 +74,8 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
         : <PlaceAvatar place={place} color={color} size={52} />}
       <h2 className="sp-place-name">{place.name}</h2>
       <p className="sp-place-kind">
-        {place.category !== "other" && <span className="sp-place-kind-icon sp-orb" style={{ "--orb-color": color } as React.CSSProperties}><Icon icon={categoryIcons[place.category]} size={12} /></span>}
-        {kind}
+        <CategoryPicker placeKey={place.key} category={place.category} automatic={place.autoCategory} fixed={place.key in store.categories} />
+        {kind && <><span className="sp-dot-sep" />{kind}</>}
         {place.rating !== null && <><span className="sp-dot-sep" /><span className="sp-rating">★ {place.rating.toFixed(1)}</span>{place.reviewCount !== null && <span className="sp-muted">({place.reviewCount.toLocaleString()})</span>}</>}
         {place.price && <><span className="sp-dot-sep" />{place.price}</>}
       </p>
@@ -135,6 +136,22 @@ function NearbyGroup({ minutes, mode, places }: { minutes: number; mode: TravelM
     </div>)}
     {places.length > 5 && <button type="button" className="sp-link-button" onClick={() => setAll(v => !v)}>{all ? "Show fewer" : `Show ${places.length - 5} more`}</button>}
   </div>;
+}
+
+function CategoryPicker({ placeKey, category, automatic, fixed }: { placeKey: string; category: CategoryId; automatic: CategoryId; fixed: boolean }) {
+  const { store } = useApp();
+  const current = categoryFor(category);
+  return <label className="sp-category-pick" title="Change category">
+    <span className="sp-place-kind-icon sp-orb" style={{ "--orb-color": current.color } as React.CSSProperties}><Icon icon={categoryIcons[category]} size={12} /></span>
+    {current.id === "other" ? "Saved place" : current.label}
+    <Icon icon={ArrowDown01} size={13} />
+    <select aria-label="Category" value={fixed ? category : ""} onChange={e => void store.saveCategory(placeKey, e.target.value ? e.target.value as CategoryId : null)}>
+      <option value="">Automatic · {categoryFor(automatic).label}</option>
+      {groups.map(group => <optgroup key={group.id} label={group.label}>
+        {categories.filter(c => c.group === group.id).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+      </optgroup>)}
+    </select>
+  </label>;
 }
 
 function ActionButton({ icon, label, onClick, pressed, primary }: { icon: IconSvgElement; label: string; onClick: () => void; pressed?: boolean; primary?: boolean }) {

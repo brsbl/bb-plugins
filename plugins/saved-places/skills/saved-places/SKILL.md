@@ -10,6 +10,8 @@ Saved Places shows the user's saved places on a map, imported from Google Maps l
 - `bb saved-places lists --json` reads the custom lists the user built in the map (id, title, color, place keys).
 - `bb saved-places notes --json` reads place notes with their place keys.
 - `bb saved-places note <place-key|exact place name> <text…>` sets a note; empty text clears it. Confirm with the user before changing their notes.
+- `bb saved-places categories --json` lists category ids, labels, and color groups.
+- `bb saved-places category <place-key|exact place name> <category-id|auto>` saves a category fix; `auto` removes it. Fixes are stored in plugin storage keyed by place, so they survive re-imports, and they win over the automatic category.
 
 RPCs: `list` (null), `filter` (collectionId/category/query), `state`, `saveList`, `deleteList`, `saveNote`, `viewContextCreate`.
 
@@ -26,3 +28,4 @@ When the user asks to import or refresh their Google Maps saves, work from a sou
 3. Open each list. The page requests `/maps/preview/entitylist/getlist`; fetch that URL from the page with `credentials: "include"`, drop the first line of the response, and parse the rest as JSON. In `payload = parsed[0]`, `payload[4]` is the list title and `payload[8]` its places: for each `row`, the name is `row[2]`, the address `row[1][4]`, the latitude `row[1][5][2]`, and the longitude `row[1][5][3]`. If that shape has changed, open each place instead and read the coordinates from its URL, which contains `!3d<lat>!4d<lng>`.
 4. Write one CSV row per place and list, with `name,latitude,longitude,address,list` columns, to a temporary file outside the repository. Run `npm run import --workspace=bb-plugin-saved-places -- <file>` from the monorepo root to replace `data/saved-places.json`, then reinstall or `bb plugin reload saved-places`.
 5. Check `bb saved-places collections --json` against the list counts shown in Maps, delete the temporary file, and tell the user the import is a snapshot they can refresh by asking again.
+6. Run `bb saved-places list --category other --json` to find places that got no category. For each one that is a real venue, confirm what it is with a web search against its address, then save the result with `bb saved-places category`. Leave places you cannot confirm as they are; street addresses are filed under Addresses automatically.
