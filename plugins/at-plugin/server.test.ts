@@ -164,7 +164,7 @@ describe("provider registration and package shape", () => {
       engines: { bbPluginSdk: ">=0.4.8" },
       bb: {
         name: "Plugin Finder",
-        branding: { icon: "Zap" },
+        branding: { icon: "Search" },
         server: "./server.ts",
         skills: ["skills"],
       },

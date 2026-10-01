@@ -56,12 +56,15 @@ function matchTier(
   if (fields.some((field) => field === foldedQuery)) return 0;
   if (fields.some((field) => field.startsWith(foldedQuery))) return 1;
   if (fields.some((field) => field.includes(foldedQuery))) return 2;
-  // Catalog matches also come from long descriptions and overviews, where a
-  // mid-word hit ("amb" in "chamber") is usually noise; rank those last.
+  // Long descriptions and overviews make mid-word hits ("amb" in "chamber")
+  // likely noise, so rank those last. Entries with no local text match were
+  // matched by the catalog itself (for example by tag) and keep its ranking.
   const summary = folded(normalizeUntrustedText(`${entry.description} ${entry.category ?? ""}`));
+  const overview = folded(normalizeUntrustedText(entry.overview ?? ""));
   if (startsWord(summary, foldedQuery)) return 3;
-  if (startsWord(folded(normalizeUntrustedText(entry.overview ?? "")), foldedQuery)) return 4;
-  return 5;
+  if (startsWord(overview, foldedQuery)) return 4;
+  if (summary.includes(foldedQuery) || overview.includes(foldedQuery)) return 5;
+  return 3;
 }
 
 function toCandidate(
