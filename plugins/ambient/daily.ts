@@ -116,7 +116,7 @@ export function dailyPrompt(moment: LocalMoment, timeZone: string, request?: str
     "- Build depth with at least three layers (far, middle, near), each with its own value and its own speed of motion, like parallax.",
     "- Give it strong value structure and saturated color: clear lights and darks, all four palette colors visible, not one flat mid-tone or a single hue.",
     "Paint in two passes, the way the built-in Poppy Hill does. It is the quality bar, and its full source is at the end of this brief:",
-    "- A subject function paints the scene plainly: forms, light, and depth in continuous color, with no style yet. Poppy Hill's base() draws the sky, clouds, hills, grass, and poppies.",
+    "- A subject function paints the scene plainly: forms, light, and depth in continuous color, with no style yet. Poppy Hill's base() draws the sky, hills, grass, and poppies; its clouds go on after the dab pass so their soft edges aren't chopped into dabs.",
     "- A style pass re-renders the subject in the medium by resampling it, so the style shapes every pixel. Poppy Hill's dabLayer() cuts the window into jittered, oriented brush dabs; each dab takes one color from the subject, dab direction follows the form (level in the sky, upright and wind-bent in the grass), and two offset dab layers overlap with bristle streaks.",
     "- Never draw flat smoothstep shapes and lay sine stripes or noise on top as texture. That reads as clip art however many layers it has.",
     "- The style pass calls the subject once or twice per pixel, so keep the subject cheap.",
