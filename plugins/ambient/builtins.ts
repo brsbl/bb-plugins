@@ -27,12 +27,12 @@ vec2 moonP(float W){ return vec2(W - 0.17, 0.33); }
 
 // Fuji on the horizon: concave slopes, a snowcap with a ragged hem; x = sdf, y = snow
 vec2 fuji(vec2 p, float W){
-  float fx = -W*0.42, base = 0.06, H = 0.15*p_fuji;
+  float fx = -W*0.38, base = 0.06, H = 0.21*p_fuji;
   if (H < 0.005) return vec2(1.0, 0.0);
   float k = clamp((p.y - base)/H, 0.0, 1.0);
-  float hw = 0.2*pow(1.0 - k, 1.7) + 0.014;
+  float hw = 0.26*pow(1.0 - k, 1.8) + 0.016;
   float d = max(abs(p.x - fx) - hw, p.y - base - H);
-  float hem = 0.62 + 0.05*sin((p.x - fx)*140.0) + 0.03*sin((p.x - fx)*61.0);
+  float hem = 0.64 + 0.04*sin((p.x - fx)*110.0) + 0.03*sin((p.x - fx)*47.0);
   return vec2(d, step(hem, k));
 }
 
@@ -187,7 +187,7 @@ vec3 scene(vec2 uv, vec2 p){
     col = mix(mix(teal, paper, 0.28), mix(navy, teal, 0.7), smoothstep(0.02, -0.02, pw.y - (pw.y > 0.25 ? 0.31 : 0.18))*0.6);
   } else if (A.reg < 0.9){
     // Fuji: prussian-blue flanks graded toward the base, a paper-white snowcap
-    float fk = clamp((pw.y - 0.06)/0.15, 0.0, 1.0);
+    float fk = clamp((pw.y - 0.06)/0.21, 0.0, 1.0);
     col = mix(mix(navy, teal, 0.55), navy*0.85, fk);
     col = mix(col, mix(paper, teal, 0.12), A.v);
     col = mix(col, mix(lant, paper, 0.3), clamp(w, 0.0, 1.0)*0.25);
@@ -298,7 +298,7 @@ vec3 scene(vec2 uv, vec2 p){
   float knot = exp(-dot(kd, kd)/0.006)*step(0.55, hash21(kc + 9.0));
   float wg = p.y*170.0 + 7.0*noise(vec2(p.x*1.1, p.y*2.5)) + 1.5*noise(p*vec2(5.0, 16.0)) + 26.0*knot*length(kd)/0.08;
   float grain = pow(0.5 + 0.5*sin(wg), 3.0);
-  float dens = 0.88 + 0.12*grain*p_wood + 0.05*noise(p*190.0);
+  float dens = 0.9 + 0.075*grain*p_wood + 0.05*noise(p*190.0);
   float press = noise(p*vec2(2.6, 4.2) + 11.0)*0.65 + noise(p*13.0 + 3.0)*0.35;
   dens -= smoothstep(0.55, 0.85, press)*0.12*p_wood;
   col = mix(paper, col, clamp(dens, 0.0, 1.0));
