@@ -1510,7 +1510,6 @@ const SCREAMING_FJORD_SOURCE = `const int NS = 9;
 
 vec2 perp(vec2 d){ return vec2(-d.y, d.x); }
 vec2 rot2(vec2 v, float a){ float c = cos(a), s = sin(a); return vec2(c*v.x - s*v.y, s*v.x + c*v.y); }
-float segD(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; return length(pa - ba*clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0)); }
 
 vec3 starAt(int i, float W){
   float fi = float(i);
@@ -1537,32 +1536,6 @@ float cyp(vec2 p, float cx, float sw){
   float sway = 0.05*sin(sw*0.6 + cx*3.0)*h*h + 0.02*sin(h*9.0 - sw*1.3)*h;
   float lob = 1.0 + 0.3*sin(h*16.0 - sw*1.6 + cx*5.0) + 0.14*sin(h*37.0 - sw*2.4);
   return 0.09*pow(1.0 - h, 0.75)*lob - abs(p.x - cx - sway);
-}
-
-// the screaming figure: an S-curved robe, a skull-like head, hands pressed to the cheeks
-vec2 figHead(float t, float W){ return vec2(0.2*W + 0.006*sin(t*0.7), -0.12); }
-float figRobe(vec2 p, vec2 hc, float t){
-  float k = clamp((hc.y - 0.06 - p.y)/0.32, 0.0, 1.0);
-  if (p.y > hc.y - 0.06) return 1.0;
-  float cx = hc.x + 0.04*sin(k*3.2 + 0.4 + t*0.5)*k;
-  return abs(p.x - cx) - mix(0.02, 0.105, pow(k, 0.7));
-}
-float figSkull(vec2 p, vec2 hc){
-  vec2 d = p - hc;
-  float wy = clamp(d.y/0.072*0.5 + 0.5, 0.0, 1.0);
-  float w = 0.052*(0.58 + 0.42*sqrt(wy));
-  return (length(vec2(d.x/w, d.y/0.072)) - 1.0)*0.05;
-}
-float figHands(vec2 p, vec2 hc){
-  float d = 1.0;
-  for (int s = 0; s < 2; s++){
-    float sx = s == 0 ? -1.0 : 1.0;
-    vec2 sh = hc + vec2(sx*0.05, -0.1);
-    vec2 hd = hc + vec2(sx*0.054, -0.012);
-    d = min(d, segD(p, sh, hd) - 0.012);
-    d = min(d, (length((p - hd)/vec2(0.015, 0.032)) - 1.0)*0.015);
-  }
-  return d;
 }
 
 vec3 skyCol(vec2 p, float sw, float W){
@@ -1653,8 +1626,6 @@ vec3 base(vec2 p, float t, float W){
     vec3 rc = mix(wood, mix(red, yel, 0.35), smoothstep(-0.012, 0.012, p.y - ry)*0.6);
     col = mix(col, rc, smoothstep(0.014, 0.011, abs(p.y - ry)));
   }
-  // the screamer
-  // the cypress
   return col;
 }
 
@@ -1758,7 +1729,6 @@ vec3 scene(vec2 uv, vec2 p){
   }
   col *= 0.97 + 0.05*noise(p*160.0);
 
-  // crisp painted features the strokes would smear away: the screamer's face, the two walkers
   // the cypress, painted over the strokes as one dark flame with a clean edge and its own upward strokes
   {
     float sw = t*p_swirl;
@@ -1776,24 +1746,8 @@ vec3 scene(vec2 uv, vec2 p){
     }
   }
 
-  // the screamer, painted over the strokes so the silhouette stays legible
-  vec2 hc = figHead(t, W);
+  // two top-hatted walkers on the bridge
   vec3 drk = u_palette[3];
-  vec3 skin = mix(u_palette[1], vec3(0.72, 0.76, 0.56), 0.55);
-  float rough = (noise(p*170.0) - 0.5)*0.004;
-  float vstroke = noise(vec2(p.x*95.0, p.y*12.0 - t*0.2));
-  vec3 robe = mix(drk, u_palette[0]*0.5, 0.35 + 0.3*vstroke)*(0.85 + 0.25*vstroke);
-  col = mix(col, robe, smoothstep(0.0015, -0.0015, figRobe(p, hc, t) + rough));
-  vec2 hl = (p - hc)/0.07;
-  vec3 skinS = skin*(0.78 + 0.3*smoothstep(0.6, -0.6, hl.x - hl.y))*(0.92 + 0.12*noise(p*vec2(70.0, 140.0)));
-  col = mix(col, skinS*0.92, smoothstep(0.0015, -0.0015, figHands(p, hc) + rough));
-  col = mix(col, skinS, smoothstep(0.0015, -0.0015, figSkull(p, hc) + rough));
-  float mouthS = 1.0 + 0.12*sin(t*1.4);
-  float eyeL = length((p - hc - vec2(-0.018, 0.013))/vec2(0.009, 0.013)) - 1.0;
-  float eyeR = length((p - hc - vec2(0.018, 0.013))/vec2(0.009, 0.013)) - 1.0;
-  float mouth = length((p - hc - vec2(0.0, -0.034))/(vec2(0.009, 0.018)*mouthS)) - 1.0;
-  float face = min(min(eyeL, eyeR), mouth);
-  col = mix(col, drk*0.6, smoothstep(0.15, -0.15, face + 0.12*(noise(p*400.0) - 0.5)));
   for (int k = 0; k < 2; k++){
     float wx = -W*(0.66 - 0.08*float(k)) + 0.004*sin(t*0.9 + float(k));
     float fy = railY(wx, W) - 0.09;
@@ -2710,7 +2664,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
   },
   {
     id: "swirling-stars-screaming-fjord",
-    name: "Screaming Fjord",
+    name: "Starry Fjord",
     source: SCREAMING_FJORD_SOURCE,
     palette: ["#1f3c96", "#f6c84a", "#e2481f", "#0e1630"],
     params: [
