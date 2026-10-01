@@ -432,7 +432,7 @@ export function PlacesMap() {
 
   return <AppContext.Provider value={api}>
     <section ref={root} className="sp-root" data-layout={wide ? "wide" : "narrow"} data-theme={theme?.dark ? "dark" : "light"} aria-label="Saved places" style={{ "--sheet-height": `${sheetHeight}px`, "--panel-width": `${PANEL_WIDTH}px` } as React.CSSProperties}>
-      <div ref={container} className="sp-map" />
+      <div ref={container} className="sp-map" data-no-sidebar-swipe />
       {tooltip && <div className="sp-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>{tooltip.name}</div>}
 
       <div className="sp-controls">
