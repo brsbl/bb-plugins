@@ -42,7 +42,7 @@ bb ambient delete <id>
 bb ambient on | off
 bb ambient reset tide           # restore a scene's original version; edits to the open scene save into it until reset
 bb ambient paint "california poppies, impressionist, in the wind"   # an agent paints it in a new thread
-bb ambient set glass=45%       # lower the frosted glass behind text (max 60%)
+bb ambient set glass=45%       # lower the frosted glass behind text (max 60%; glass_opacity= if the scene has its own glass param)
 bb ambient daily on 8 America/New_York   # an agent paints a new scene each morning after 8
 bb ambient daily now | off | status
 ```
