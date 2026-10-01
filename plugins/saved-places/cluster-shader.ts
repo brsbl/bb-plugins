@@ -5,6 +5,7 @@ const MAX_BLOBS = 5;
 const MAX_SIZE = 58;
 const COLUMNS = 8;
 const FRAME_MS = 1000 / 30;
+const ACTIVE_MS = 8000;
 
 const vertexSource = `
 attribute vec2 a_pos;
@@ -96,7 +97,7 @@ void main() {
 
 const rgb = (hex: string): [number, number, number] => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
 
-type Tile = { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; spec: MeshSpec; seed: number; size: number; drawn: boolean };
+type Tile = { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; seed: number; size: number; drawn: boolean; base: Float32Array; blobs: Float32Array; colors: Float32Array };
 
 export function createClusterShader() {
   const gl = document.createElement("canvas").getContext("webgl", { premultipliedAlpha: true, antialias: false, alpha: true });
@@ -134,10 +135,11 @@ export function createClusterShader() {
   let frame = 0;
   let last = 0;
   let lost = false;
+  let activeUntil = 0;
   const start = performance.now();
   gl.canvas.addEventListener("webglcontextlost", event => { event.preventDefault(); lost = true; });
 
-  const animating = () => !reducedMotion.matches && document.visibilityState === "visible";
+  const animating = (now: number) => !reducedMotion.matches && document.visibilityState === "visible" && now < activeUntil;
   const render = (list: Tile[], time: number) => {
     const size = Math.ceil(MAX_SIZE * dpr());
     const rows = Math.ceil(list.length / COLUMNS);
@@ -152,18 +154,12 @@ export function createClusterShader() {
     const placed = list.map((tile, index) => ({ tile, px: Math.ceil(tile.size * dpr()), x: (index % COLUMNS) * size, y: Math.floor(index / COLUMNS) * size }));
     for (const { tile, px, x, y } of placed) {
       gl.viewport(x, canvas.height - y - px, px, px);
-      const blobs = new Float32Array(MAX_BLOBS * 4);
-      const colors = new Float32Array(MAX_BLOBS * 3);
-      tile.spec.blobs.slice(0, MAX_BLOBS).forEach((blob, i) => {
-        blobs.set([blob.x, blob.y, blob.r, 1], i * 4);
-        colors.set(rgb(blob.color), i * 3);
-      });
       gl.uniform1f(u.time, time);
       gl.uniform1f(u.seed, tile.seed);
       gl.uniform1f(u.px, 2 / px);
-      gl.uniform3fv(u.base, rgb(tile.spec.base));
-      gl.uniform4fv(u.blob, blobs);
-      gl.uniform3fv(u.color, colors);
+      gl.uniform3fv(u.base, tile.base);
+      gl.uniform4fv(u.blob, tile.blobs);
+      gl.uniform3fv(u.color, tile.colors);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
     for (const { tile, px, x, y } of placed) {
@@ -176,11 +172,11 @@ export function createClusterShader() {
   const draw = (now: number) => {
     frame = 0;
     if (lost || !tiles.size) return;
-    const animate = animating();
+    const animate = animating(now);
     const pending = [...tiles].filter(tile => tile.canvas.isConnected && (animate || !tile.drawn));
     if (pending.length && (!animate || now - last >= FRAME_MS)) {
       last = now;
-      render(pending, animate ? (now - start) / 1000 : 0);
+      render(pending, (now - start) / 1000);
     }
     if (animate) frame = requestAnimationFrame(draw);
   };
@@ -188,10 +184,11 @@ export function createClusterShader() {
   const flush = () => {
     flushing = false;
     const fresh = [...tiles].filter(tile => tile.canvas.isConnected && !tile.drawn);
-    if (!lost && fresh.length) render(fresh, animating() ? (performance.now() - start) / 1000 : 0);
+    if (!lost && fresh.length) render(fresh, (performance.now() - start) / 1000);
   };
   const schedule = () => { if (!frame) frame = requestAnimationFrame(draw); };
-  const onVisibility = () => schedule();
+  const wake = () => { activeUntil = performance.now() + ACTIVE_MS; schedule(); };
+  const onVisibility = () => { if (document.visibilityState === "visible") wake(); };
   document.addEventListener("visibilitychange", onVisibility);
   reducedMotion.addEventListener("change", onVisibility);
 
@@ -202,12 +199,19 @@ export function createClusterShader() {
       canvas.setAttribute("aria-hidden", "true");
       const ctx = canvas.getContext("2d");
       if (!ctx) return { canvas, release: () => {} };
-      const tile: Tile = { canvas, ctx, spec, seed, size, drawn: false };
+      const blobs = new Float32Array(MAX_BLOBS * 4);
+      const colors = new Float32Array(MAX_BLOBS * 3);
+      spec.blobs.slice(0, MAX_BLOBS).forEach((blob, i) => {
+        blobs.set([blob.x, blob.y, blob.r, 1], i * 4);
+        colors.set(rgb(blob.color), i * 3);
+      });
+      const tile: Tile = { canvas, ctx, seed, size, drawn: false, base: new Float32Array(rgb(spec.base)), blobs, colors };
       tiles.add(tile);
       if (!flushing) { flushing = true; queueMicrotask(flush); }
-      schedule();
+      wake();
       return { canvas, release: () => { tiles.delete(tile); } };
     },
+    wake,
     destroy() {
       if (frame) cancelAnimationFrame(frame);
       frame = 0;

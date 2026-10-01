@@ -151,12 +151,15 @@ export function attachClusterPiles(map: GlMap, onError: (message: string) => voi
       markers.delete(id);
     }
   };
+  const wake = () => shader?.wake();
   map.on("render", update);
+  map.on("movestart", wake);
   return {
     refresh: () => { for (const entry of markers.values()) { entry.marker.remove(); entry.release(); } markers.clear(); update(); },
     remove: () => {
       active = false;
       map.off("render", update);
+      map.off("movestart", wake);
       for (const entry of markers.values()) entry.marker.remove();
       markers.clear();
       shader?.destroy();
