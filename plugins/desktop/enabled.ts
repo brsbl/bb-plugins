@@ -55,9 +55,14 @@ export function useDesktopSwitch(): boolean {
   return useSyncExternalStore(subscribeEnabled, readEnabled);
 }
 
+/** Whether bb is in its compact (phone) layout, where the desktop never renders. */
+export function useCompact(): boolean {
+  return useSyncExternalStore(subscribeCompact, readCompact);
+}
+
 export function useDesktopEnabled(): boolean {
   const enabled = useDesktopSwitch();
-  const compact = useSyncExternalStore(subscribeCompact, readCompact);
+  const compact = useCompact();
   return enabled && !compact;
 }
 

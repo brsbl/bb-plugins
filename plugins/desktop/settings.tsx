@@ -1,27 +1,15 @@
 import { useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
-import type { OrganizePreference, Preferences, SortPreference } from "./core";
-import { setDesktopEnabled, useDesktopSwitch } from "./enabled";
+import type { Preferences } from "./core";
+import { setDesktopEnabled, useCompact, useDesktopSwitch } from "./enabled";
 import { useDesktopApps } from "./programs/app-window";
 import { LAUNCHER_IDS, LAUNCHER_LABELS, appLauncherId } from "./programs/launcher-ids";
 import type { rpcContract } from "./server";
 import { errorMessage } from "./shell/data";
-import { ORGANIZE_LABELS, SORT_LABELS } from "./shell/menus";
-
-const SAME_AS_SIDEBAR = "Same as sidebar";
-const ORGANIZE_OPTIONS = [
-  ["sidebar", SAME_AS_SIDEBAR],
-  ...(Object.entries(ORGANIZE_LABELS) as [OrganizePreference, string][]),
-] as const;
-const SORT_OPTIONS = [["sidebar", SAME_AS_SIDEBAR], ...(Object.entries(SORT_LABELS) as [SortPreference, string][])] as const;
-
-const selectClass =
-  "h-8 w-full min-w-0 cursor-pointer rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 sm:w-48";
 
 /**
- * The saved desktop preferences, outside the desktop itself: phones and narrow windows never mount the desktop, so
- * this is where they change its organization, sorting, and Quick Launch.
+ * The saved desktop preferences, outside the desktop itself, for the Quick Launch choices this page edits.
  */
 function usePreferences() {
   const rpc = useRpc<typeof rpcContract>();
@@ -126,6 +114,7 @@ function Switch({ id, checked, onChange }: { id: string; checked: boolean; onCha
 /** Desktop's section on its plugin settings page, the one surface a phone can reach. */
 export function DesktopSettings() {
   const id = useId();
+  const compact = useCompact();
   const shown = useDesktopSwitch();
   const apps = useDesktopApps();
   const { preferences, error, save } = usePreferences();
@@ -136,53 +125,18 @@ export function DesktopSettings() {
   const chosen = preferences?.quickLaunch ?? [];
   return (
     <div className="grid gap-2">
+      {compact ? (
+        <p className="text-xs leading-snug text-subtle-foreground/75">
+          The desktop isn't available on phones. Open bb in a window at least 768 px wide to use it.
+        </p>
+      ) : null}
       <div className="divide-y divide-border rounded-lg border border-border bg-card px-4 py-3.5">
         <SettingRow
           label="Show the desktop"
-          description="Replaces the home page in this browser. It needs a window at least 768 px wide, so phones keep the regular home page."
+          description="Replaces the home page in this browser."
           htmlFor={`${id}-shown`}
           layout="trailing"
           control={<Switch id={`${id}-shown`} checked={shown} onChange={setDesktopEnabled} />}
-        />
-        <SettingRow
-          label="Organize folders by"
-          description="Which groups become the folders on the desktop."
-          htmlFor={`${id}-organize`}
-          control={
-            <select
-              id={`${id}-organize`}
-              className={selectClass}
-              disabled={preferences === null}
-              value={preferences?.organize ?? "sidebar"}
-              onChange={(event) => save({ organize: event.target.value as OrganizePreference })}
-            >
-              {ORGANIZE_OPTIONS.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          }
-        />
-        <SettingRow
-          label="Sort threads by"
-          description="The order of threads inside folders and lists."
-          htmlFor={`${id}-sort`}
-          control={
-            <select
-              id={`${id}-sort`}
-              className={selectClass}
-              disabled={preferences === null}
-              value={preferences?.sort ?? "sidebar"}
-              onChange={(event) => save({ sort: event.target.value as SortPreference })}
-            >
-              {SORT_OPTIONS.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          }
         />
         <SettingRow
           label="Quick Launch"
