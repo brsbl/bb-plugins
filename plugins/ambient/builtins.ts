@@ -1558,97 +1558,168 @@ vec3 scene(vec2 uv, vec2 p){
   return mix(u_canvas, col, p_color);
 }`;
 
-const JELLYFISH_TIDEPOOL_SOURCE = `vec3 scene(vec2 uv, vec2 p) {
+const JELLYFISH_TIDEPOOL_SOURCE = `// a translucent moon jelly: lit dome, glowing gonads, frilled margin, oral arms, long tentacles
+vec4 jelly(vec2 p, vec2 c, float R, float ph, float tilt, float blur, vec3 glowC, float trail) {
+  vec2 q = p - c;
+  float ca = cos(tilt), sa = sin(tilt);
+  q = vec2(ca * q.x + sa * q.y, -sa * q.x + ca * q.y);
+  float L = R * 5.0 * trail;
+  if (q.y > R * 1.3 || q.y < -L - R || abs(q.x) > R * 2.2) return vec4(0.0);
+  float pulse = 0.5 + 0.5 * sin(ph);
+  float w = R * (1.08 - 0.16 * pulse);
+  float h = R * (0.72 + 0.18 * pulse);
+  vec2 b = q / vec2(w, h);
+  float under = -0.2 + 0.28 * b.x * b.x;
+  float d = b.y > 0.0 ? length(b) - 1.0 : abs(b.x) - 1.0;
+  d = max(d, under - b.y);
+  float aa = 0.04 + blur * 6.0;
+  float bell = smoothstep(aa, -aa, d);
+  float rim = smoothstep(-0.4, 0.0, d) * bell;
+  vec2 g = b - vec2(0.0, 0.3);
+  float ga = atan(g.y, g.x);
+  float gon = smoothstep(1.0, 0.45, length(g) / (0.3 * (0.55 + 0.45 * abs(cos(ga * 2.0))))) * bell;
+  float veins = smoothstep(0.8, 1.0, cos(atan(b.x, b.y + 0.3) * 16.0)) * bell * (1.0 - gon) * 0.5;
+  float sheen = exp(-dot(b - vec2(-0.4, 0.55), b - vec2(-0.4, 0.55)) / 0.035) * bell;
+  float frill = smoothstep(0.1 + aa, 0.0, abs(b.y - under + 0.04 * sin(b.x * 28.0 + ph * 2.0))) * smoothstep(1.15, 0.95, abs(b.x));
+
+  float base = under * h;
+  float lines = 0.0;
+  if (q.y < base && abs(q.x) < w * 1.4) {
+    float k = clamp((base - q.y) / L, 0.0, 1.0);
+    for (int i = 0; i < 5; i++) {
+      float fi = float(i) - 2.0;
+      float x0 = fi / 2.0 * w * 0.9;
+      float x = x0 * (1.0 - 0.25 * k) + R * 0.35 * k * sin(k * 5.0 - ph * 0.7 + fi * 1.3);
+      float wd = R * 0.025 * (1.0 - 0.6 * k) + blur;
+      lines = max(lines, smoothstep(wd, 0.0, abs(q.x - x)) * (1.0 - k) * (0.6 + 0.4 * sin(k * 40.0 + fi)));
+    }
+    float ka = clamp((base - q.y) / (L * 0.55), 0.0, 1.0);
+    for (int i = 0; i < 2; i++) {
+      float s = i == 0 ? -1.0 : 1.0;
+      float x = s * R * 0.12 + R * 0.25 * ka * sin(ka * 4.0 - ph * 0.5 + s);
+      float wd = R * (0.13 * (1.0 - ka) + 0.03) * (0.8 + 0.3 * sin(ka * 60.0 + s * 2.0)) + blur;
+      lines = max(lines, smoothstep(wd, wd * 0.4, abs(q.x - x)) * (1.0 - ka) * 0.85);
+    }
+  }
+  float a = clamp(bell * 0.35 + rim * 0.5 + gon * 0.7 + frill * 0.8 + lines * 0.7 + veins, 0.0, 1.0);
+  vec3 col = glowC * (bell * 0.25 + rim * 0.75 + gon * 1.1 + frill + lines * 0.8 + veins) + vec3(1.0) * sheen * 0.6;
+  return vec4(col, a);
+}
+
+vec3 scene(vec2 uv, vec2 p) {
   float t = u_time * p_drift;
+  float ax = u_resolution.x / u_resolution.y;
   vec3 deep = u_palette[0];
-  vec3 teal = u_palette[1];
-  vec3 vio = u_palette[2];
-  vec3 dawn = u_palette[3];
-  vec3 water = mix(u_canvas, mix(deep, teal, 0.4), mix(0.5, 0.8, u_dark));
+  vec3 cyan = u_palette[1];
+  vec3 coral = u_palette[2];
+  vec3 pale = u_palette[3];
 
   vec2 dp = p - toP(u_pointer);
-  float pd = exp(-dot(dp, dp) / 0.01);
-  vec2 q = p + dp * pd * 0.4;
+  float pd = exp(-dot(dp, dp) / 0.012);
+  vec2 q = p + dp * pd * 0.25;
 
-  // calm mask: quiet across the reading column and composer; lively at the edges and top
-  float ex = abs(p.x) / (0.5 * u_resolution.x / u_resolution.y);
-  float edge = max(smoothstep(0.4, 0.9, ex), smoothstep(0.75, 0.95, uv.y));
-  float live = mix(1.0, edge, p_calm);
+  // water column: sunlit surface above, deepening navy below
+  vec3 col = mix(deep * 0.55, mix(deep, cyan, 0.4), smoothstep(-0.05, 1.05, uv.y));
+  float sh = fbm(vec2(q.x * 3.0 + t * 0.05, q.y * 2.0 - t * 0.04));
+  col = mix(col, mix(cyan, pale, 0.45), smoothstep(0.8, 1.0, uv.y) * (0.35 + 0.65 * sh));
+  float cx = q.x * 9.0 + sh * 4.0, cy = q.y * 9.0 - sh * 3.0;
+  float caus = pow(1.0 - abs(sin(cx + t * 0.6) * sin(cy - t * 0.5)), 18.0);
+  col += mix(cyan, pale, 0.5) * caus * 0.07 * smoothstep(0.45, 1.0, uv.y);
+  // shafts of light slanting down from the surface
+  float rx = q.x + (0.5 - q.y) * 0.32;
+  float rays = noise(vec2(rx * 6.0, t * 0.06)) * noise(vec2(rx * 13.0 + 3.0, t * 0.04 + 7.0));
+  rays = smoothstep(0.12, 0.45, rays) * smoothstep(-0.45, 0.5, q.y);
+  col += mix(cyan, pale, 0.55) * rays * 0.28 * p_rays;
 
-  vec2 w = q * 2.2 + vec2(t * 0.12, -t * 0.08);
-  float n = fbm(w + vec2(sin(t * 0.4 + q.y * 3.0) * 0.5, cos(t * 0.33) * 0.4));
-  vec3 col = mix(water, mix(deep, teal, 0.6), n * (0.35 + 0.65 * live));
-  // slow swells rolling across the pool
-  float swell = 0.5 + 0.5 * sin(q.x * 4.0 + q.y * 2.5 - t * 1.1 + n * 3.0);
-  col = mix(col, mix(deep, teal, 0.5), swell * 0.18 * (0.4 + 0.6 * live));
-  float c = abs(sin(q.x * 18.0 + n * 7.0 + t * 1.6) * sin(q.y * 15.0 - n * 6.0 - t * 1.3));
-  col = mix(col, mix(teal, vec3(1.0), 0.3), pow(1.0 - c, 10.0) * 0.6 * p_glow * (0.25 + 0.75 * live));
-
-  float rimM = max(smoothstep(0.6, 1.0, ex + n * 0.2), smoothstep(0.78, 1.0, uv.y + n * 0.1));
-  col = mix(col, mix(vio, dawn, uv.y), rimM * 0.85 * p_dawn);
-
-  vec2 g = q * 22.0 + vec2(t * 1.2, sin(t * 0.5) * 2.5);
-  vec2 cid = floor(g);
-  float h = hash21(cid);
-  vec2 off = vec2(hash21(cid + 3.1), hash21(cid + 7.7)) - 0.5;
-  float tw = 0.5 + 0.5 * sin(t * 3.0 + h * 40.0);
-  float sp = smoothstep(0.22, 0.0, length(fract(g) - 0.5 - off * 0.5));
-  col = mix(col, mix(teal, vio, h) * 1.2, sp * step(1.0 - p_plankton * 0.5, h) * tw * p_glow * (0.15 + 0.85 * live));
-
-  for (int k = 0; k < 3; k++) {
-    float fk = float(k);
-    vec2 jp = vec2(0.6 * sin(t * 0.15 + fk * 2.1), 0.38 * sin(t * 0.11 + fk * 1.7) + 0.03 * sin(t * 1.5 + fk));
-    vec2 d = p - jp;
-    float bell = exp(-dot(d * vec2(1.0, 1.6), d * vec2(1.0, 1.6)) / 0.003);
-    col = mix(col, vio, clamp(bell * 0.7 * p_glow * (0.3 + 0.7 * live), 0.0, 0.8));
+  // marine snow at two depths
+  for (int l = 0; l < 2; l++) {
+    float fl = float(l);
+    float sc = l == 0 ? 55.0 : 24.0;
+    vec2 sg = q * sc + vec2(t * (0.3 + 0.4 * fl), -t * (0.6 + 0.8 * fl)) + fl * 13.0;
+    vec2 id = floor(sg);
+    float hs = hash21(id);
+    vec2 o = vec2(hash21(id + 2.1), hash21(id + 4.7)) - 0.5;
+    float sd = length(fract(sg) - 0.5 - o * 0.6);
+    col += mix(pale, cyan, 0.4) * smoothstep(0.1 + 0.05 * fl, 0.0, sd) * step(1.0 - 0.25 * p_snow, hs) * (0.25 + 0.3 * fl);
   }
 
+  // tidepool floor: dark rock lit along its rim, anemones swaying in the current
+  float ry = -0.4 + 0.05 * noise(vec2(q.x * 3.5, 1.0)) + 0.03 * noise(vec2(q.x * 11.0, 2.0)) + 0.1 * (1.0 - p_rocks);
+  if (q.y < ry + 0.12 && p_rocks > 0.0) {
+    float rock = smoothstep(ry + 0.003, ry - 0.003, q.y);
+    vec3 rc = mix(deep * 0.45, mix(deep, cyan, 0.25), smoothstep(0.03, 0.0, ry - q.y) * 0.7);
+    rc *= 0.75 + 0.35 * noise(q * vec2(30.0, 18.0)) * noise(q * 7.0 + 4.0);
+    col = mix(col, rc, rock);
+    float cw = 0.13;
+    for (int j = -1; j <= 1; j++) {
+      float ci = floor(q.x / cw) + float(j);
+      float h = hash21(vec2(ci, 9.0));
+      if (h < 1.0 - 0.75 * p_rocks) continue;
+      float bx = (ci + 0.2 + 0.6 * hash21(vec2(ci, 3.0))) * cw;
+      float by = -0.4 + 0.05 * noise(vec2(bx * 3.5, 1.0)) + 0.03 * noise(vec2(bx * 11.0, 2.0)) + 0.1 * (1.0 - p_rocks) - 0.006;
+      vec2 ad = q - vec2(bx, by);
+      float r = length(ad);
+      float Ln = 0.045 + 0.04 * hash21(vec2(ci, 5.0));
+      if (ad.y < -0.01 || r > Ln * 1.1) continue;
+      float an = atan(ad.x, ad.y);
+      float sway = 0.35 * sin(t * 0.8 + ci) * (r / Ln);
+      float tent = smoothstep(0.55, 0.92, cos((an - sway) * 11.0)) * smoothstep(Ln, Ln * 0.8, r) * step(abs(an - sway), 1.35);
+      float tip = smoothstep(Ln * 0.65, Ln * 0.95, r) * tent;
+      vec3 ac = mix(coral * 0.7, mix(coral, pale, 0.5), r / Ln);
+      col = mix(col, ac, tent * 0.9);
+      col += coral * tip * 0.35 * p_glow;
+    }
+  }
+
+  // drifting jellies, deepest first; depth fades and softens them
+  float n = floor(p_jellies + 0.5);
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i);
+    if (fi >= n) break;
+    float z = 0.85 - 0.75 * fi / max(n - 1.0, 1.0);
+    float hx = fract(fi * 0.618 + 0.21);
+    vec2 c = vec2((hx * 2.0 - 1.0) * 0.4 * ax + 0.06 * sin(t * 0.05 + fi * 2.0),
+                  0.12 - 0.2 * fract(fi * 0.37 + 0.5) + 0.07 * sin(t * 0.04 + fi * 1.7));
+    float ph = u_time * (0.9 + 0.3 * hash21(vec2(fi, 2.0))) + fi * 2.3;
+    c.y += 0.012 * sin(ph - 0.8);
+    float R = mix(0.135, 0.05, z) * p_size;
+    vec3 gc = mix(mix(cyan, pale, 0.35), mix(coral, pale, 0.3), step(0.66, hash21(vec2(fi, 8.0))));
+    vec2 jd = q - c;
+    col += gc * exp(-dot(jd, jd) / (R * R * 3.0)) * 0.16 * p_glow * (1.0 - 0.5 * z);
+    vec4 jl = jelly(q, c, R, ph, 0.25 * sin(t * 0.09 + fi * 2.0), z * 0.004 * p_depth, gc * p_glow, p_trail);
+    vec3 jc = mix(jl.rgb, mix(deep, cyan, 0.3), z * 0.45 * p_depth);
+    col = mix(col, col * 0.85 + jc, jl.a * (1.0 - 0.35 * z * p_depth));
+  }
+
+  // agents are small bright jellies; ones waiting on you pulse coral rings
   for (int i = 0; i < 16; i++) {
     if (i >= u_agentCount) break;
     vec4 a = u_agents[i];
     float fi = float(i);
     float waiting = step(0.5, a.z);
-    float pulse = 0.5 + 0.5 * sin(u_time * 3.0 + fi);
-    float swim = sin(u_time * 2.2 + fi * 1.3);
-    vec2 c0 = toP(a.xy) + vec2(0.006 * sin(u_time * 0.7 + fi), (1.0 - waiting) * 0.014 * swim);
-    vec2 d = p - c0;
-    float squash = 1.0 + 0.18 * swim * (1.0 - waiting);
-    vec2 bd = d * vec2(squash, 1.0 / squash);
-    float r = 0.03;
-    float dome = length(bd) / r;
-    float bellM = smoothstep(1.0, 0.6, dome) * smoothstep(-0.4 * r, 0.0, bd.y);
-    vec3 jc = mix(vio, teal, 0.3 + 0.3 * sin(fi));
-    if (waiting > 0.5) jc = mix(jc, dawn, 0.75);
-    float halo = exp(-dot(d, d) / (0.004 + 0.008 * waiting * pulse));
-    col = mix(col, jc, clamp(halo * a.w * p_glow * (0.4 + 0.35 * waiting * pulse), 0.0, 0.8));
-    col = mix(col, mix(jc, vec3(1.0), 0.25), bellM * 0.9 * a.w);
-    float len = 0.1 * p_trail * (1.0 - 0.4 * waiting);
-    float ty = clamp(-d.y / len, 0.0, 1.0);
-    if (d.y < 0.0 && d.y > -len) {
-      for (int k = 0; k < 3; k++) {
-        float fk = float(k) - 1.0;
-        float tx = fk * 0.012 + 0.014 * ty * sin(ty * 8.0 - u_time * 3.0 + fk * 2.0);
-        float tl = smoothstep(0.005, 0.0, abs(d.x - tx));
-        col = mix(col, jc, tl * (1.0 - ty) * 0.75 * a.w);
-      }
-    }
+    float ph = u_time * mix(2.4, 1.2, waiting) + fi * 1.3;
+    vec2 c0 = toP(a.xy) + vec2(0.006 * sin(u_time * 0.7 + fi), 0.01 * sin(ph - 0.8) * (1.0 - waiting));
+    vec3 gc = mix(mix(cyan, pale, 0.3), coral, waiting);
+    vec2 jd = q - c0;
+    col += gc * exp(-dot(jd, jd) / 0.004) * 0.25 * a.w * p_glow;
+    vec4 jl = jelly(q, c0, 0.03 * a.w, ph, 0.0, 0.0, gc * 1.2 * p_glow, 0.8);
+    col = mix(col, col * 0.85 + jl.rgb, jl.a * a.w);
     if (waiting > 0.5) {
-      float ph = fract(u_time * 0.6);
-      float ring = abs(length(d) - r * (1.5 + 1.8 * ph));
-      col = mix(col, dawn, smoothstep(0.005, 0.0, ring) * (1.0 - ph) * 0.8 * a.w);
+      float f = fract(u_time * 0.6 + fi * 0.3);
+      col += coral * smoothstep(0.004, 0.0, abs(length(jd) - 0.035 - 0.08 * f)) * (1.0 - f) * 0.8 * a.w;
     }
   }
 
   for (int i = 0; i < 12; i++) {
     if (i >= u_rippleCount) break;
     vec4 r = u_ripples[i];
-    float dist = length(p - toP(r.xy));
-    float ring = exp(-pow((dist - r.z * 0.22) * 30.0, 2.0)) * exp(-r.z * 0.9);
-    vec3 rc = r.w > 0.5 && r.w < 1.5 ? vec3(0.95, 0.2, 0.18) : (r.w > 1.5 ? vio : teal);
-    col = mix(col, rc, ring * 0.75);
+    float dist = length(q - toP(r.xy));
+    float ring = exp(-pow((dist - r.z * 0.2) * 40.0, 2.0)) * exp(-r.z * 0.9);
+    vec3 rc = r.w > 0.5 && r.w < 1.5 ? vec3(0.95, 0.22, 0.2) : (r.w > 1.5 ? pale : cyan);
+    col = mix(col, rc, ring * 0.7);
   }
 
-  col = mix(col, teal, pd * 0.2);
+  col += cyan * pd * 0.08;
   return mix(u_canvas, col, p_color);
 }`;
 
@@ -2269,14 +2340,17 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     id: "jellyfish-tidepool",
     name: "Jellyfish Tidepool",
     source: JELLYFISH_TIDEPOOL_SOURCE,
-    palette: ["#06243a", "#1fb5a8", "#b98cff", "#ffb38a"],
+    palette: ["#06163a", "#2fc9d8", "#ff8466", "#e6f7ff"],
     params: [
       param("drift", "Current speed", 0, 3, 1),
-      param("glow", "Bioluminescence", 0, 2, 1),
-      param("plankton", "Plankton density", 0, 1, 0.45),
+      param("jellies", "Jellyfish", 1, 6, 4, 1),
+      param("size", "Jellyfish size", 0.5, 1.8, 1),
       param("trail", "Tentacle length", 0.3, 2, 1),
-      param("dawn", "Dawn on the rim", 0, 1, 0.6),
-      param("calm", "Calm behind text", 0, 1, 0.7),
+      param("glow", "Bioluminescence", 0, 2, 1),
+      param("depth", "Depth haze", 0, 2, 1),
+      param("rays", "Light shafts", 0, 2, 1),
+      param("snow", "Marine snow", 0, 2, 1),
+      param("rocks", "Tidepool floor", 0, 1, 0.8),
       param("color", "Color strength", 0, 1, 0.92),
     ],
   },
