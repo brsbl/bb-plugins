@@ -1184,6 +1184,7 @@
 }
 
 .bbd-cmd {
+  position: relative;
   display: flex;
   flex-direction: column;
   margin: 0 2px 2px;
@@ -1199,6 +1200,18 @@
 .bbd-cmd-message {
   padding: 12px;
   color: #c0c0c0;
+  font-family: "Lucida Console", Consolas, ui-monospace, monospace;
+  font-size: var(--text-xs);
+}
+
+.bbd-cmd-status {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 1;
+  padding: 1px 6px;
+  color: #000;
+  background: #c0c0c0;
   font-family: "Lucida Console", Consolas, ui-monospace, monospace;
   font-size: var(--text-xs);
 }

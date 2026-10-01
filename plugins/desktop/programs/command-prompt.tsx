@@ -3,7 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";
 
 import { CommandPromptArt } from "../art";
-import { SESSION_KEY, openSession, type CommandPromptTarget } from "../services/terminal";
+import { SESSION_KEY, connectTerminal, openSession, type CommandPromptTarget, type TerminalConnection } from "../services/terminal";
 import { useDesktop } from "../shell/data";
 import { WindowFrame, type DesktopWindow } from "../windows";
 
@@ -34,6 +34,7 @@ export function CommandPrompt({
   const targetKey = target === null ? null : target.kind === "host" ? `host:${target.hostId}` : `thread:${target.threadId}`;
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -43,6 +44,7 @@ export function CommandPrompt({
       cursorStyle: "underline",
       fontFamily: '"Lucida Console", Consolas, ui-monospace, monospace',
       fontSize: 13,
+      scrollback: 10_000,
       theme: { background: "#000000", foreground: "#c0c0c0", cursor: "#c0c0c0", selectionBackground: "#c0c0c0", selectionForeground: "#000000" },
     });
     const fit = new FitAddon();
@@ -50,44 +52,29 @@ export function CommandPrompt({
     terminal.open(container);
     fit.fit();
 
-    let socket: WebSocket | null = null;
+    let connection: TerminalConnection | null = null;
     let disposed = false;
-    const send = (message: object) => {
-      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
-    };
-    const input = terminal.onData((data) => send({ type: "input", dataBase64: toBase64(data) }));
+    const input = terminal.onData((data) => connection?.sendInput(toBase64(data)));
     const observer = new ResizeObserver(() => {
       fit.fit();
-      send({ type: "resize", cols: terminal.cols, rows: terminal.rows });
+      connection?.sendResize(terminal.cols, terminal.rows);
     });
     observer.observe(container);
 
     openSession(target, sessionKey, terminal.cols, terminal.rows).then(
       (session) => {
         if (disposed) return;
-        const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-        socket = new WebSocket(`${scheme}://${window.location.host}/ws/terminals/${encodeURIComponent(session.id)}?sinceSeq=0`);
-        socket.addEventListener("open", () => send({ type: "resize", cols: terminal.cols, rows: terminal.rows }));
-        socket.addEventListener("message", (event) => {
-          let message: unknown;
-          try {
-            message = JSON.parse(String(event.data));
-          } catch {
-            return;
-          }
-          const record = message as { type?: unknown; chunk?: { dataBase64?: unknown }; message?: unknown };
-          if (record.type === "output" && typeof record.chunk?.dataBase64 === "string") {
-            terminal.write(fromBase64(record.chunk.dataBase64));
-          } else if (record.type === "exited") {
+        connection = connectTerminal(session.id, {
+          onOutput: (dataBase64) => terminal.write(fromBase64(dataBase64)),
+          onEnded: () => {
             localStorage.removeItem(sessionKey);
             terminal.write("\r\n\r\n[Process exited. Close this window and open Terminal again for a new session.]\r\n");
-          } else if (record.type === "error") {
-            setError(typeof record.message === "string" ? record.message : "The terminal connection failed.");
-          }
+          },
+          onError: setError,
+          onReconnecting: () => setReconnecting(true),
+          onReconnected: () => setReconnecting(false),
         });
-        socket.addEventListener("close", () => {
-          if (!disposed) terminal.write("\r\n[Disconnected]\r\n");
-        });
+        connection.sendResize(terminal.cols, terminal.rows);
         terminal.focus();
       },
       (openError: unknown) => {
@@ -99,7 +86,7 @@ export function CommandPrompt({
       disposed = true;
       observer.disconnect();
       input.dispose();
-      socket?.close();
+      connection?.dispose();
       // open() queues a scroll-area sync on a timer that throws once the terminal is disposed, as it is when a window
       // closes right after opening or StrictMode remounts it. Detach it now and dispose it after that timer runs.
       terminal.element?.remove();
@@ -114,6 +101,7 @@ export function CommandPrompt({
       ) : error !== null ? (
         <p className="bbd-cmd-message">Could not open a terminal: {error}</p>
       ) : null}
+      {reconnecting && error === null ? <p className="bbd-cmd-status" role="status">Reconnecting…</p> : null}
       <div ref={containerRef} className="bbd-cmd-screen" hidden={target === null || error !== null} />
     </div>
   );
