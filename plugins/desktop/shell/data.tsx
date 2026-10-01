@@ -12,6 +12,7 @@ import {
   buildGroups,
   groupThreads,
   resolveSidebarPreferences,
+  withLiveState,
   type DesktopGroup,
   type DesktopThread,
   type Organize,
@@ -190,19 +191,7 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
 
   const threads = useMemo(
     () =>
-      (snapshot?.threads ?? []).map((thread) => {
-        const current = liveById.get(thread.id);
-        if (current === undefined) return thread;
-        return {
-          ...thread,
-          title: current.title ?? current.titleFallback ?? thread.title,
-          sectionId: current.sectionId,
-          isUnread: current.isUnread,
-          needsInput: current.hasPendingInteraction,
-          isArchived: current.isArchived,
-          isPinned: current.isPinned,
-        };
-      }),
+      (snapshot?.threads ?? []).map((thread) => withLiveState(thread, liveById.get(thread.id))),
     [liveById, snapshot?.threads],
   );
 

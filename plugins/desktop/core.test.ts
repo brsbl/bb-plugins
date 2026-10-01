@@ -12,6 +12,7 @@ import {
   resizeRect,
   resolveSidebarPreferences,
   sortThreads,
+  withLiveState,
   type DesktopThread,
   type Folder,
 } from "./core";
@@ -108,6 +109,49 @@ describe("groups", () => {
   it("treats lifecycle as a filter, not a folder", () => {
     expect(filterLifecycle(threads, "archived").map((t) => t.id)).toEqual(["b"]);
     expect(filterLifecycle(threads, "active").map((t) => t.id)).toEqual(["a", "c"]);
+  });
+});
+
+describe("withLiveState", () => {
+  const live = {
+    title: null,
+    titleFallback: "Fallback",
+    sectionId: "sec_inbox",
+    isUnread: true,
+    hasPendingInteraction: true,
+    isArchived: false,
+    isPinned: true,
+  };
+
+  it("takes section, pin, archive and read state from the live sidebar", () => {
+    const merged = withLiveState(thread("a", { sectionId: "sec_old", title: "Stale" }), live);
+    expect(merged).toMatchObject({
+      title: "Fallback",
+      sectionId: "sec_inbox",
+      isUnread: true,
+      needsInput: true,
+      isArchived: false,
+      isPinned: true,
+    });
+  });
+
+  it("files a thread the way the sidebar does the moment it moves", () => {
+    const sections = [{ id: "sec_inbox", name: "Inbox" }, { id: "sec_old", name: "Review" }];
+    const snapshot = [thread("moved", { sectionId: "sec_old" }), thread("pinned", { sectionId: "sec_inbox" })];
+    const merged = [
+      withLiveState(snapshot[0]!, { ...live, isPinned: false }),
+      withLiveState(snapshot[1]!, { ...live, sectionId: "sec_inbox", isPinned: true }),
+    ];
+    const groups = buildGroups({ organize: "section", sections, projects: [], machines: [], folders: [], threads: merged });
+    const byKey = new Map(groups.map((group) => [group.key, groupThreads(group, merged).map((t) => t.id)]));
+    expect(byKey.get("pinned")).toEqual(["pinned"]);
+    expect(byKey.get("section:sec_inbox")).toEqual(["moved"]);
+    expect(byKey.get("section:sec_old")).toEqual([]);
+  });
+
+  it("keeps the snapshot when the sidebar has not loaded the thread", () => {
+    const original = thread("a", { sectionId: "sec_old" });
+    expect(withLiveState(original, undefined)).toBe(original);
   });
 });
 

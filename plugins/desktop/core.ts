@@ -79,6 +79,34 @@ export function filterLifecycle(
   return threads.filter((thread) => threadMatchesLifecycle(thread, lifecycle));
 }
 
+/** The fields of a sidebar thread the desktop takes live, ahead of its own snapshot. */
+export interface LiveThreadState {
+  title: string | null;
+  titleFallback: string | null;
+  sectionId: string | null;
+  isUnread: boolean;
+  hasPendingInteraction: boolean;
+  isArchived: boolean;
+  isPinned: boolean;
+}
+
+/**
+ * Applies bb's live sidebar state to a snapshot thread, so moves (Thread Organizer filing into Inbox, say), pins,
+ * archiving and reads show on the desktop as soon as the sidebar shows them, without waiting for a snapshot.
+ */
+export function withLiveState(thread: DesktopThread, live: LiveThreadState | undefined): DesktopThread {
+  if (live === undefined) return thread;
+  return {
+    ...thread,
+    title: live.title ?? live.titleFallback ?? thread.title,
+    sectionId: live.sectionId,
+    isUnread: live.isUnread,
+    needsInput: live.hasPendingInteraction,
+    isArchived: live.isArchived,
+    isPinned: live.isPinned,
+  };
+}
+
 export function groupThreads(
   group: DesktopGroup,
   threads: readonly DesktopThread[],

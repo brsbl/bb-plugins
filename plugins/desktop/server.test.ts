@@ -21,7 +21,28 @@ function listedThread(id: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function setup() {
+type ListedThread = ReturnType<typeof listedThread>;
+
+/**
+ * bb's thread list as the real server answers it: no `archived` filter means active and archived together, hidden
+ * threads only with `includeHidden`, oldest first, cut at `limit` (default 50).
+ */
+function threadStore(threads: ListedThread[]) {
+  return async (args: { archived?: boolean; includeHidden?: boolean; limit?: number } = {}) =>
+    threads
+      .filter((thread) => args.includeHidden === true || thread.visibility !== "hidden")
+      .filter((thread) => args.archived === undefined || (thread.archivedAt !== null) === args.archived)
+      .sort((left, right) => left.createdAt - right.createdAt)
+      .slice(0, args.limit ?? 50);
+}
+
+const DEFAULT_THREADS = [
+  listedThread("thr_old", { archivedAt: 5, createdAt: 1 }),
+  listedThread("thr_a", { createdAt: 2 }),
+  listedThread("thr_automation", { visibility: "hidden", createdAt: 3 }),
+];
+
+async function setup(threads: ListedThread[] = DEFAULT_THREADS) {
   const updates: Array<{ threadId: string; visibility?: string; sectionId?: string | null }> = [];
   const spawns: unknown[] = [];
   const host = createFakePluginHost({
@@ -33,10 +54,7 @@ async function setup() {
       projects: { list: async () => [{ id: "proj", name: "bb" }] },
       hosts: { list: async () => [{ id: "host_1", name: "Laptop" }] },
       threads: {
-        list: async (args?: { archived?: boolean; includeHidden?: boolean }) =>
-          args?.includeHidden
-            ? [listedThread("thr_automation", { visibility: "hidden" })]
-            : args?.archived ? [listedThread("thr_old", { archivedAt: 5 })] : [listedThread("thr_a")],
+        list: threadStore(threads),
         get: async ({ threadId }: { threadId: string }) => makeThreadResponse({ id: threadId }),
         spawn: async (args: unknown) => {
           spawns.push(args);
@@ -70,6 +88,32 @@ describe("desktop server", () => {
     expect(snapshot.threads.map((thread) => [thread.id, thread.isArchived, thread.hostId])).toEqual([
       ["thr_a", false, "host_1"],
       ["thr_old", true, "host_1"],
+    ]);
+  });
+
+  it("lists every active thread even when archived ones outnumber the page", async () => {
+    // A long-lived bb holds far more archived threads than one page. Mixing them into the active request filled the
+    // page with old archived threads, so new arrivals (an Inbox thread, say) never reached the desktop.
+    const archived = Array.from({ length: 700 }, (_, index) =>
+      listedThread(`thr_archived_${index}`, { archivedAt: 10, createdAt: index }),
+    );
+    const active = Array.from({ length: 20 }, (_, index) =>
+      listedThread(`thr_active_${index}`, { createdAt: 1000 + index, sectionId: index === 19 ? "sec_1" : null }),
+    );
+    const { harness } = await setup([...archived, ...active]);
+    const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
+    const shown = snapshot.threads.filter((thread) => !thread.isArchived).map((thread) => thread.id);
+    expect(shown).toEqual(active.map((thread) => thread.id));
+    expect(snapshot.threads.find((thread) => thread.id === "thr_active_19")?.sectionId).toBe("sec_1");
+    expect(snapshot.threads.filter((thread) => thread.isArchived).length).toBeGreaterThan(0);
+  });
+
+  it("marks pinned threads so the desktop can file them like the sidebar", async () => {
+    const { harness } = await setup([listedThread("thr_pin", { pinnedAt: 7, sectionId: "sec_1" }), listedThread("thr_b")]);
+    const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
+    expect(snapshot.threads.map((thread) => [thread.id, thread.isPinned])).toEqual([
+      ["thr_pin", true],
+      ["thr_b", false],
     ]);
   });
 
