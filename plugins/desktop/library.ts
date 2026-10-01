@@ -50,21 +50,34 @@ export function noteTitle(text: string): string {
   return text.trim().split("\n")[0]?.trim().slice(0, 40) || "Untitled";
 }
 
+/** Marks a new-thread message box whose project can still change before the message is sent. */
+export const COMPOSER_TOKEN_PREFIX = "ntc_";
+
 /**
- * A picture mention carries where its message is going, `<pictureId>@<threadId or projectId>`, because a mention
- * resolves from its id alone and the picture is attached to that thread's project.
+ * A picture mention carries where its message is going, `<pictureId>@<scope>`, because a mention resolves from its id
+ * alone and the picture is attached to that message's project. The scope is the thread, or for a new thread the
+ * message box, whose project the server looks up at send time, since the user can still switch it.
  */
-export function pictureMentionId(pictureId: string, target: { threadId?: string | null; projectId?: string | null }): string {
-  const scope = target.threadId ?? target.projectId ?? null;
+export function pictureMentionId(
+  pictureId: string,
+  target: { threadId?: string | null; composerToken?: string | null; projectId?: string | null },
+): string {
+  const scope = target.threadId ?? target.composerToken ?? target.projectId ?? null;
   return scope === null ? pictureId : `${pictureId}@${scope}`;
 }
 
-export function parsePictureMentionId(itemId: string): { pictureId: string; threadId: string | null; projectId: string | null } {
+export function parsePictureMentionId(itemId: string): {
+  pictureId: string;
+  threadId: string | null;
+  composerToken: string | null;
+  projectId: string | null;
+} {
   const at = itemId.indexOf("@");
-  if (at === -1) return { pictureId: itemId, threadId: null, projectId: null };
+  const none = { threadId: null, composerToken: null, projectId: null };
+  if (at === -1) return { pictureId: itemId, ...none };
   const pictureId = itemId.slice(0, at);
   const scope = itemId.slice(at + 1);
-  return scope.startsWith("thr_")
-    ? { pictureId, threadId: scope, projectId: null }
-    : { pictureId, threadId: null, projectId: scope };
+  if (scope.startsWith("thr_")) return { pictureId, ...none, threadId: scope };
+  if (scope.startsWith(COMPOSER_TOKEN_PREFIX)) return { pictureId, ...none, composerToken: scope };
+  return { pictureId, ...none, projectId: scope };
 }
