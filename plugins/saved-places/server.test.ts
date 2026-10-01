@@ -18,6 +18,12 @@ describe("Saved Places plugin", () => {
     expect(collections.exitCode).toBe(0);
     expect(JSON.parse(collections.stdout).length).toBeGreaterThan(0);
     expect((await harness.behavior.runCli(["list", "--collection", "missing"])).exitCode).toBe(1);
+    const names = async (category: string) => (JSON.parse((await harness.behavior.runCli(["list", "--category", category, "--json"])).stdout) as Array<{ name: string }>).map(place => place.name);
+    expect(await names("museum")).toEqual(expect.arrayContaining(["Mori Art Museum", "teamLab Planets"]));
+    expect(await names("museum")).not.toContain("Senso-ji");
+    expect(await names("culture")).toEqual(expect.arrayContaining(["Senso-ji", "Mori Art Museum"]));
+    const [sensoji] = JSON.parse((await harness.behavior.runCli(["list", "--query", "Senso-ji", "--json"])).stdout) as Array<{ category: string }>;
+    expect(sensoji.category).toBe("temple");
     await harness.lifecycle.dispose();
   });
 });
@@ -39,8 +45,8 @@ describe("import script", () => {
       const data = JSON.parse(await readFile(out, "utf8"));
       expect(data.collections.map((c: { id: string }) => c.id)).toEqual(["coffee", "starred-places"]);
       expect(data.places).toMatchObject([
-        { name: 'Cafe "One"', latitude: 35.1, longitude: 139.2, collectionId: "coffee", category: "coffee" },
-        { name: "Museo Tamayo", url: "https://maps.google.com/?cid=123", collectionId: "starred-places", category: "culture" },
+        { name: 'Cafe "One"', latitude: 35.1, longitude: 139.2, collectionId: "coffee", category: "other" },
+        { name: "Museo Tamayo", url: "https://maps.google.com/?cid=123", collectionId: "starred-places", category: "other" },
       ]);
     } finally {
       await rm(dir, { recursive: true, force: true });

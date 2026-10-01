@@ -7,13 +7,15 @@ import Copy01 from "@hugeicons/core-free-icons/Copy01Icon";
 import PencilEdit02 from "@hugeicons/core-free-icons/PencilEdit02Icon";
 import Delete02 from "@hugeicons/core-free-icons/Delete02Icon";
 import Note01 from "@hugeicons/core-free-icons/Note01Icon";
-import { categories } from "../categories";
+import { categories, groupOf, groups, type CategoryId } from "../categories";
 import { LIST_COLORS } from "../model";
 import { selectLists } from "../selection";
 import { categoryIcons } from "../category-icons";
 import { Chip, Icon, IconButton, ListCover, SectionTitle, plural } from "../ui";
 import { Frame, PlaceRow } from "./rows";
 import { inBounds, useApp, type ListFilter } from "./context";
+
+const MAX_CATEGORY_CHIPS = 8;
 
 export function ListView({ ids, filter }: { ids: string[]; filter: ListFilter }) {
   const app = useApp();
@@ -28,7 +30,15 @@ export function ListView({ ids, filter }: { ids: string[]; filter: ListFilter })
   const hereKeys = new Set(here.map(p => p.key));
   const elsewhere = filtered.filter(p => !hereKeys.has(p.key));
   const visibleRows = filter.inView ? here : [...here, ...elsewhere];
-  const categoryCounts = categories.map(c => ({ ...c, count: all.filter(p => p.category === c.id).length })).filter(c => c.count > 0 && c.id !== "other");
+  const categoryCounts = categories.map(c => ({ key: c.id, label: c.label, color: c.color, icon: categoryIcons[c.id], ids: [c.id], count: all.filter(p => p.category === c.id).length })).filter(c => c.count > 0 && c.key !== "other").sort((a, b) => b.count - a.count);
+  const chips = categoryCounts.length <= MAX_CATEGORY_CHIPS ? categoryCounts : groups.map(g => {
+    const members = categoryCounts.filter(c => c.ids.some(id => groupOf(id).id === g.id));
+    return { key: g.id, label: g.label, color: g.color, icon: categoryIcons[g.icon], ids: members.flatMap(c => c.ids), count: members.reduce((n, c) => n + c.count, 0) };
+  }).filter(g => g.count > 0).sort((a, b) => b.count - a.count);
+  const toggleChip = (ids: CategoryId[]) => {
+    const on = ids.every(id => filter.categories.includes(id));
+    setFilter({ categories: on ? filter.categories.filter(id => !ids.includes(id)) : [...filter.categories, ...ids.filter(id => !filter.categories.includes(id))] });
+  };
   const noteCount = all.filter(p => store.notes[p.key]).length;
   const single = lists.length === 1 ? lists[0] : null;
   const custom = single?.custom ? store.customLists.find(l => l.id === single.id) : undefined;
@@ -70,7 +80,7 @@ export function ListView({ ids, filter }: { ids: string[]; filter: ListFilter })
     </label>
     <div className="sp-chips" role="group" aria-label="Filter places">
       {noteCount > 0 && <Chip pressed={filter.notes} onClick={() => setFilter({ notes: !filter.notes })} color="#e2a336"><Icon icon={Note01} size={13} />Notes<span>{noteCount}</span></Chip>}
-      {categoryCounts.length > 1 && categoryCounts.map(c => <Chip key={c.id} pressed={filter.categories.includes(c.id)} onClick={() => setFilter({ categories: filter.categories.includes(c.id) ? filter.categories.filter(x => x !== c.id) : [...filter.categories, c.id] })}><span className="sp-chip-dot" style={{ background: c.color }} /><Icon icon={categoryIcons[c.id]} size={14} />{c.label}<span>{c.count}</span></Chip>)}
+      {chips.length > 1 && chips.map(c => <Chip key={c.key} pressed={c.ids.every(id => filter.categories.includes(id))} onClick={() => toggleChip(c.ids)}><span className="sp-chip-glyph sp-orb" style={{ "--orb-color": c.color } as React.CSSProperties}><Icon icon={c.icon} size={12} /></span>{c.label}<span>{c.count}</span></Chip>)}
       {!single && lists.map(l => <span key={l.id} className="sp-legend"><span style={{ background: l.color }} />{l.title}</span>)}
     </div>
   </>;

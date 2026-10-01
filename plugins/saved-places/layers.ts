@@ -1,6 +1,6 @@
 import type { GeoJSONSource, Map as GlMap } from "maplibre-gl";
 import type { Feature, FeatureCollection, LineString, Point } from "geojson";
-import { categories } from "./categories";
+import { categories, groupOf } from "./categories";
 import { categoryIcons, drawIcon } from "./category-icons";
 import { CLUSTER_MAX_ZOOM, CLUSTER_MIN_POINTS, CLUSTER_RADIUS, PLACES_SOURCE, clusterProperties } from "./cluster-piles";
 import type { MapTheme } from "./basemap";
@@ -18,7 +18,7 @@ export function pinCollection(pins: PinInput[]): FeatureCollection<Point> {
     features: pins.map(({ place, color, note, dim }) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [place.longitude, place.latitude] },
-      properties: { key: place.key, name: place.name, category: place.category, lng: place.longitude, lat: place.latitude, icon: place.category === "other" ? "" : `${place.category}-${lightColor(color) ? "dark" : "light"}`, color, note: note ? 1 : 0, dim: dim ? 1 : 0, rank: note ? 0 : place.rating !== null ? 1 : 2 },
+      properties: { key: place.key, name: place.name, category: place.category, group: groupOf(place.category).id, lng: place.longitude, lat: place.latitude, icon: place.category === "other" ? "" : `${place.category}-${lightColor(color) ? "dark" : "light"}`, color, note: note ? 1 : 0, dim: dim ? 1 : 0, rank: note ? 0 : place.rating !== null ? 1 : 2 },
     })),
   };
 }
