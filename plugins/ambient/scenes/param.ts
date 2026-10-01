@@ -2,6 +2,8 @@ import type { Scene, SceneParam } from "../contract.js";
 
 export interface BuiltInScene extends Scene {
   id: string;
+  /** Earlier names this scene shipped under; loads and saved states that use them still resolve. */
+  aliases?: string[];
 }
 
 export function param(

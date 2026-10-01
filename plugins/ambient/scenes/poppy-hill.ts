@@ -4,6 +4,31 @@ export const POPPY_HILL_SOURCE = `float hillY(float x) {
   return 0.07 + 0.09 * sin(x * 1.5 + 0.7) + 0.035 * sin(x * 3.7 + 1.3);
 }
 
+// fluffy cumulus built from overlapping puffs: x = coverage, y = how much sun the puff catches
+vec2 clouds(vec2 p, float t) {
+  float cov = 0.0, lit = 0.0;
+  float ax = u_resolution.x / u_resolution.y;
+  for (int k = 0; k < 4; k++) {
+    float fk = float(k);
+    float span = ax + 0.8;
+    float cx = mod(fk * 0.47 * span + t * 0.008 * (0.7 + 0.3 * fk), span) - span * 0.5;
+    float cy = 0.27 + 0.13 * hash21(vec2(fk, 2.0));
+    float sc = 0.7 + 0.5 * hash21(vec2(fk, 5.0));
+    if (abs(p.x - cx) > 0.25 * sc || abs(p.y - cy) > 0.12 * sc) continue;
+    for (int j = 0; j < 6; j++) {
+      float fj = float(j);
+      float u = (fj - 2.5) / 2.5;
+      vec2 pc = vec2(cx + u * 0.13 * sc, cy + (0.035 * (1.0 - u * u) + 0.015 * hash21(vec2(fk, fj))) * sc);
+      float r = (0.04 + 0.025 * (1.0 - u * u) + 0.012 * hash21(vec2(fj, fk + 9.0))) * sc;
+      float d = length((p - pc) * vec2(1.0, 1.15));
+      float m = smoothstep(r, r * 0.82, d) * step(cy - 0.025 * sc, p.y);
+      cov = max(cov, m);
+      lit = max(lit, m * smoothstep(-r, r * 0.8, p.y - pc.y + (p.x - pc.x) * 0.3));
+    }
+  }
+  return vec2(cov, lit);
+}
+
 vec3 base(vec2 p, float w, float t) {
   vec3 skyC = u_palette[0];
   vec3 grass = u_palette[1];
@@ -14,8 +39,19 @@ vec3 base(vec2 p, float w, float t) {
 
   float sy = clamp((p.y - hy) / 0.45, 0.0, 1.0);
   vec3 col = mix(mix(skyC, vec3(1.0, 0.96, 0.86), 0.45), skyC * 0.85 + vec3(0.0, 0.05, 0.14), sy);
-  float cl = noise(vec2(p.x * 2.2 - t * 0.06, p.y * 5.0)) * noise(vec2(p.x * 4.0 - t * 0.09, p.y * 9.0 + 3.0));
-  col = mix(col, vec3(1.0, 0.98, 0.95), smoothstep(0.16, 0.42, cl) * 0.85 * smoothstep(hy, hy + 0.1, p.y));
+  if (p.y > hy) {
+    vec2 cl = clouds(p, t * p_wind);
+    vec3 cc = mix(mix(skyC, vec3(0.78, 0.8, 0.88), 0.55), vec3(1.0, 0.98, 0.93), cl.y);
+    col = mix(col, cc, cl.x * 0.95);
+  }
+
+  // a distant range dissolving into haze
+  float hy3 = hy2 + 0.05 + 0.03 * sin(p.x * 2.3 + 1.1) + 0.015 * noise(vec2(p.x * 6.0, 4.0));
+  if (p.y < hy3 + 0.01) {
+    vec3 far = mix(skyC * 0.82 + vec3(0.08, 0.08, 0.05), mix(grass, skyC, 0.7), 0.3);
+    far = mix(far, vec3(0.95, 0.94, 0.9), 0.25 * smoothstep(hy3 - 0.06, hy3, p.y));
+    col = mix(col, far, smoothstep(hy3 + 0.004, hy3 - 0.004, p.y) * 0.85);
+  }
 
   if (p.y < hy2 + 0.01) {
     vec3 bh = mix(grass, skyC, 0.4) + gold * 0.1;
@@ -162,7 +198,8 @@ vec3 scene(vec2 uv, vec2 p) {
 
 export const poppyHill: BuiltInScene = {
   id: "poppy-hill",
-  name: "Poppy Hill in the Wind",
+  name: "Poppy Hill",
+  aliases: ["Poppy Hill in the Wind"],
   source: POPPY_HILL_SOURCE,
   palette: ["#5fa9ea", "#3f9b34", "#ff5a0a", "#ffbf1f"],
   params: [

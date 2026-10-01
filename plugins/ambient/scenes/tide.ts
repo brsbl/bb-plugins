@@ -14,6 +14,17 @@ float nearY(float x, float T, float W){
 }
 vec2 moonP(float W){ return vec2(W - 0.17, 0.33); }
 
+// Fuji on the horizon: concave slopes, a snowcap with a ragged hem; x = sdf, y = snow
+vec2 fuji(vec2 p, float W){
+  float fx = -W*0.38, base = 0.06, H = 0.21*p_fuji;
+  if (H < 0.005) return vec2(1.0, 0.0);
+  float k = clamp((p.y - base)/H, 0.0, 1.0);
+  float hw = 0.26*pow(1.0 - k, 1.8) + 0.016;
+  float d = max(abs(p.x - fx) - hw, p.y - base - H);
+  float hem = 0.64 + 0.04*sin((p.x - fx)*110.0) + 0.03*sin((p.x - fx)*47.0);
+  return vec2(d, step(hem, k));
+}
+
 float claw(vec2 d, float r){
   return max(length(d) - r, -(length(d - r*vec2(0.5, -0.38)) - r*0.8));
 }
@@ -32,7 +43,7 @@ float clawSdf(vec2 p, int L, float T, float W){
     float g = smoothstep(0.3, 0.9, crest(cxs*fq + ph))*p_foam;
     if (g <= 0.01) continue;
     float cx = cxs + sh;
-    float r = cw*(0.42 + 0.3*h)*g;
+    float r = cw*(0.42 + 0.3*h)*g*(1.0 + 0.14*sin(u_time*1.8 + h*6.3));
     float y = L == 1 ? midY(cx, T) : nearY(cx, T, W);
     vec2 d = p - vec2(cx, y + r*0.3);
     s = min(s, claw(d, r));
@@ -88,10 +99,12 @@ Ink subject(vec2 p, float T, float W){
     o.reg = 0.0;
     float md = length(p - moonP(W)) - 0.046;
     if (md < 0.0) o.reg = 0.25;
+    vec2 fj = fuji(p, W);
+    if (fj.x < 0.0){ o.reg = 0.8; o.v = fj.y; }
     float m = min(mistSdf(p, T, 0.31, 0.02, 1.7), mistSdf(p, T, 0.18, 0.015, 5.3));
     if (m < 0.0) o.reg = 0.5;
     o.edge = min(min(sF, min(sM, sN)), abs(m));
-    if (m >= 0.0) o.edge = min(o.edge, abs(md));
+    if (m >= 0.0) o.edge = min(o.edge, min(abs(md), abs(fj.x)));
   }
   return o;
 }
@@ -156,10 +169,17 @@ vec3 scene(vec2 uv, vec2 p){
   if (A.reg < 0.1){
     col = mix(mix(navy, teal, 0.5), mix(navy, teal, 0.1), smoothstep(0.0, 0.8, A.v));
     col = mix(col, mix(lant, paper, 0.3), clamp(w, 0.0, 1.0)*0.45);
+    col = mix(col, navy*0.85, smoothstep(0.3, 0.5, pw.y)*0.3);
   } else if (A.reg < 0.4){
     col = mix(mix(paper, lant, 0.35), lant, smoothstep(0.02, 0.05, length(pw - moonP(W)))*0.6);
   } else if (A.reg < 0.7){
     col = mix(mix(teal, paper, 0.28), mix(navy, teal, 0.7), smoothstep(0.02, -0.02, pw.y - (pw.y > 0.25 ? 0.31 : 0.18))*0.6);
+  } else if (A.reg < 0.9){
+    // Fuji: prussian-blue flanks graded toward the base, a paper-white snowcap
+    float fk = clamp((pw.y - 0.06)/0.21, 0.0, 1.0);
+    col = mix(mix(navy, teal, 0.55), navy*0.85, fk);
+    col = mix(col, mix(paper, teal, 0.12), A.v);
+    col = mix(col, mix(lant, paper, 0.3), clamp(w, 0.0, 1.0)*0.25);
   } else {
     float k = clamp(A.v, 0.0, 0.999)*4.0;
     float ki = floor(k);
@@ -183,7 +203,24 @@ vec3 scene(vec2 uv, vec2 p){
     col = mix(col, paper, smoothstep(rr, rr*0.7, length(fract(sq) - 0.5 - o)));
   }
 
-  float lw = max(0.0018, 2.2/u_resolution.y)*(K.reg > 2.5 ? 1.25 : 1.0);
+  // spray thrown off the near crests, arcing up and falling back
+  if (band > -0.02 && band < 0.16 && p_spray > 0.0){
+    float cw = 0.022;
+    float c0 = floor(pw.x/cw);
+    for (int j = -2; j <= 1; j++){
+      float c = c0 + float(j);
+      float hc = hash21(vec2(c, 31.0));
+      float cx0 = (c + hc)*cw;
+      float g = smoothstep(0.45, 0.9, crest(cx0*4.0 - T*1.6 + 2.0));
+      if (g < 0.05 || hc > 0.35 + 0.4*p_spray) continue;
+      float f = fract(u_time*(0.35 + 0.25*hc) + hc*7.0);
+      vec2 sp = vec2(cx0 + 0.05*f, nearY(cx0, T, W) + 0.1*g*sin(f*3.1416));
+      float rr = (0.0045 + 0.004*hash21(vec2(c, 5.0)))*(1.0 - 0.6*f);
+      col = mix(col, paper, smoothstep(rr, rr*0.6, length(pw - sp))*(1.0 - f*f)*g);
+    }
+  }
+
+  float lw = max(0.0018, 2.2/u_resolution.y)*(K.reg > 2.5 ? 1.25 : 1.0)*(0.75 + 0.55*noise(p*70.0));
   col = mix(col, navy*0.45, smoothstep(lw, lw*0.55, K.edge)*0.9);
 
   for (int i = 0; i < 16; i++){
@@ -243,9 +280,16 @@ vec3 scene(vec2 uv, vec2 p){
     if (isErr) col = mix(col, verm, smoothstep(rad, 0.0, e)*exp(-r.z*0.9)*0.45);
   }
 
-  float gn = noise(vec2(p.x*2.5, p.y*9.0));
-  float grain = 0.5 + 0.5*sin(p.y*260.0 + gn*9.0 + noise(vec2(p.x*18.0, p.y*70.0))*1.2);
-  float dens = 0.86 + 0.09*grain + 0.07*noise(p*190.0);
+  // cherry-wood block: grain rings that swirl around knots, uneven baren pressure
+  vec2 kc = floor(p/0.4);
+  vec2 kp = (kc + 0.2 + 0.6*vec2(hash21(kc), hash21(kc + 5.0)))*0.4;
+  vec2 kd = (p - kp)*vec2(1.0, 2.6);
+  float knot = exp(-dot(kd, kd)/0.006)*step(0.55, hash21(kc + 9.0));
+  float wg = p.y*170.0 + 7.0*noise(vec2(p.x*1.1, p.y*2.5)) + 1.5*noise(p*vec2(5.0, 16.0)) + 26.0*knot*length(kd)/0.08;
+  float grain = pow(0.5 + 0.5*sin(wg), 3.0);
+  float dens = 0.9 + 0.075*grain*p_wood + 0.05*noise(p*190.0);
+  float press = noise(p*vec2(2.6, 4.2) + 11.0)*0.65 + noise(p*13.0 + 3.0)*0.35;
+  dens -= smoothstep(0.55, 0.85, press)*0.12*p_wood;
   col = mix(paper, col, clamp(dens, 0.0, 1.0));
   float fib = noise(rot2(p, 0.6)*vec2(40.0, 520.0)) + noise(rot2(p, -1.1)*vec2(35.0, 480.0));
   col *= 0.96 + 0.04*fib;
@@ -265,6 +309,9 @@ export const tide: BuiltInScene = {
     param("foam", "Foam claws", 0, 1.6, 1, 0.05),
     param("carve", "Carved line density", 0.5, 2, 1, 0.05),
     param("glow", "Lantern glow", 0, 2, 1, 0.05),
+    param("spray", "Spray", 0, 2, 1, 0.05),
+    param("fuji", "Mount Fuji", 0, 1.5, 1, 0.05),
+    param("wood", "Wood grain", 0, 2, 1, 0.05),
     param("color", "Color strength", 0, 1, 0.92),
   ],
 };
