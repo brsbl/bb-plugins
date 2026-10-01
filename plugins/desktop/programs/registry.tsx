@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import { PaintApp } from "../apps/paint";
+import { PaintApp, currentPictureName, usePictureName } from "../apps/paint";
 import {
   BuddyListArt,
   CommandPromptArt,
@@ -80,8 +80,9 @@ function PinballWindow({ window: desktopWindow }: { window: DesktopWindow }) {
 }
 
 function PaintWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const name = usePictureName();
   return (
-    <WindowFrame window={desktopWindow} title="untitled - Paint" icon={<PaintArt size={16} />} keepMounted>
+    <WindowFrame window={desktopWindow} title={`${name} - Paint`} icon={<PaintArt size={16} />} keepMounted>
       <PaintApp />
     </WindowFrame>
   );
@@ -180,7 +181,7 @@ const PROGRAMS: { [K in WindowKind]: ProgramDefinition<K> } = {
   },
   paint: {
     size: fixed(780, 580),
-    title: () => "untitled - Paint",
+    title: () => `${currentPictureName()} - Paint`,
     art: (_spec, _desktop, size) => <PaintArt size={size} />,
     Window: PaintWindow,
   },

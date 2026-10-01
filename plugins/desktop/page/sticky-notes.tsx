@@ -13,23 +13,16 @@ import { NotePadArt, NotePadGlyph } from "../art";
 import { workAreaRect, fitDragRect, previewRect, usePointerTracker, WindowTitleBar } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
 import { useDesktopEnabled } from "../enabled";
+import { NOTE_MENTIONS, noteTitle as titleOf, type StickyNote } from "../library";
+import { libraryCall, onLibraryChange, sendToThread } from "./library-bridge";
 
-export interface StickyNote {
-  id: string;
-  text: string;
-  side: "left" | "right";
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  tone: number;
-  /** Saved note pads keep a Desktop icon and survive closing. */
-  saved?: boolean;
-  /** A saved note pad whose window is closed; its Desktop icon reopens it. */
-  hidden?: boolean;
-}
+export type { StickyNote };
 
+/** This browser's copy of the notes, so they paint at once; the plugin's server holds the real ones. */
 const NOTES_KEY = "bb-desktop:notes:v1";
+/** Set once this browser's notes have been moved to the server. */
+const IMPORTED_KEY = "bb-desktop:notes:imported:v1";
+const SAVE_DELAY_MS = 400;
 const TONES = ["Yellow", "Pink", "Green", "Blue"] as const;
 const DEFAULT_SIZE = { width: 360, height: 260 };
 const MARGIN = 16;
@@ -70,6 +63,64 @@ function saveNotes(next: StickyNote[]) {
   emitNotes();
 }
 
+/** Notes edited here whose newest text the server hasn't stored yet; a server reload keeps these local copies. */
+const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>();
+
+function pushNote(id: string) {
+  const timer = pendingSaves.get(id);
+  if (timer !== undefined) clearTimeout(timer);
+  pendingSaves.set(id, setTimeout(() => void flushNote(id), SAVE_DELAY_MS));
+}
+
+async function flushNote(id: string) {
+  const timer = pendingSaves.get(id);
+  if (timer !== undefined) clearTimeout(timer);
+  const note = notes.find((candidate) => candidate.id === id);
+  if (note === undefined) {
+    pendingSaves.delete(id);
+    return;
+  }
+  try {
+    const { note: stored } = await libraryCall<{ note: StickyNote }>("saveNote", { note });
+    // A newer edit typed while this save was in flight keeps its own pending save.
+    if (pendingSaves.get(id) === timer || pendingSaves.get(id) === undefined) pendingSaves.delete(id);
+    if (stored.updatedAt !== note.updatedAt && !pendingSaves.has(id)) {
+      saveNotes(notes.map((candidate) => (candidate.id === id ? stored : candidate)));
+    }
+  } catch {
+    pendingSaves.delete(id);
+  }
+}
+
+let syncing: Promise<void> | null = null;
+
+/**
+ * Loads the notes from the server, keeping notes with unsaved local edits. The first time, notes this browser kept
+ * before the server stored them move over, so nothing written earlier is lost.
+ */
+export function syncNotes(): Promise<void> {
+  syncing ??= (async () => {
+    try {
+      if (localStorage.getItem(IMPORTED_KEY) === null) {
+        const local = loadNotes();
+        if (local.length > 0) await libraryCall("importNotes", { notes: local.map((note) => ({ ...note, updatedAt: note.updatedAt ?? Date.now() })) });
+        localStorage.setItem(IMPORTED_KEY, String(Date.now()));
+      }
+      const { notes: remote } = await libraryCall<{ notes: StickyNote[] }>("listNotes");
+      const byId = new Map(remote.map((note) => [note.id, note]));
+      const local = notes.filter((note) => pendingSaves.has(note.id) || byId.has(note.id));
+      const merged = local.map((note) => (pendingSaves.has(note.id) ? note : byId.get(note.id)!));
+      const known = new Set(merged.map((note) => note.id));
+      saveNotes([...merged, ...remote.filter((note) => !known.has(note.id))]);
+    } catch {
+      // Offline or the plugin is reloading: keep this browser's copy and try again on the next change.
+    } finally {
+      syncing = null;
+    }
+  })();
+  return syncing;
+}
+
 function subscribeNotes(listener: () => void) {
   noteListeners.add(listener);
   const onStorage = (event: StorageEvent) => {
@@ -85,7 +136,8 @@ function subscribeNotes(listener: () => void) {
 }
 
 function updateNote(id: string, patch: Partial<StickyNote>) {
-  saveNotes(notes.map((note) => (note.id === id ? { ...note, ...patch } : note)));
+  saveNotes(notes.map((note) => (note.id === id ? { ...note, ...patch, updatedAt: Date.now() } : note)));
+  pushNote(id);
 }
 
 function raiseNote(id: string) {
@@ -96,7 +148,17 @@ function raiseNote(id: string) {
 
 /** Desktop icon label, taken from the note's first line like a saved file name. */
 export function noteTitle(note: StickyNote) {
-  return note.text.trim().split("\n")[0]?.trim().slice(0, 40) || "Untitled";
+  return titleOf(note.text);
+}
+
+/** Flushes the note's latest text to the server, then adds it to the message being written. */
+async function sendNote(note: StickyNote) {
+  if (note.text.trim() === "") {
+    toast("Write something in the note pad first.");
+    return;
+  }
+  await flushNote(note.id);
+  sendToThread({ kind: NOTE_MENTIONS, id: note.id, label: noteTitle(note) });
 }
 
 export function useSavedNotes(): StickyNote[] {
@@ -108,7 +170,8 @@ export function openNote(id: string) {
   const note = notes.find((candidate) => candidate.id === id);
   if (note === undefined) return;
   focusNoteId = id;
-  saveNotes([...notes.filter((candidate) => candidate.id !== id), { ...note, hidden: false }]);
+  saveNotes([...notes.filter((candidate) => candidate.id !== id), { ...note, hidden: false, updatedAt: Date.now() }]);
+  pushNote(id);
 }
 
 function closeNote(note: StickyNote) {
@@ -130,14 +193,19 @@ export function removeNote(id: string) {
   const note = notes[index];
   if (note === undefined) return;
   if (note.saved === true) removedSavedNotes.add(id);
+  const timer = pendingSaves.get(id);
+  if (timer !== undefined) clearTimeout(timer);
+  pendingSaves.delete(id);
   saveNotes(notes.filter((candidate) => candidate.id !== id));
+  void libraryCall("deleteNote", { id }).catch(() => undefined);
   if (note.text.trim() === "") return;
   toast("Note pad deleted", {
     action: {
       label: "Undo",
       onClick: () => {
         removedSavedNotes.delete(id);
-        saveNotes([...notes.slice(0, index), note, ...notes.slice(index)]);
+        saveNotes([...notes.slice(0, index), { ...note, updatedAt: Date.now() }, ...notes.slice(index)]);
+        pushNote(id);
       },
     },
   });
@@ -216,9 +284,11 @@ export function addStickyNote(at?: { left: number; top: number }) {
     text: "",
     tone: 0,
     ...anchoredNote(base.left, top, width, height),
+    updatedAt: Date.now(),
   };
   focusNoteId = note.id;
   saveNotes([...notes, note]);
+  pushNote(note.id);
 }
 
 function useNotes(): StickyNote[] {
@@ -304,6 +374,8 @@ function StickyNoteView({ note }: { note: StickyNote }) {
           { label: "Save to Desktop", shortcut: "Ctrl+S", action: save },
           { label: "Export as .txt…", action: exportFile },
           "separator",
+          { label: "Send to thread", action: () => void sendNote(note) },
+          "separator",
           { label: "Delete note pad", action: () => removeNote(note.id) },
         ] },
         { label: "Edit", items: [{ label: "Select All", action: () => { textRef.current?.focus(); textRef.current?.select(); } }] },
@@ -341,6 +413,20 @@ function StickyNotes() {
   const enabled = useDesktopEnabled();
   const list = useNotes();
   useViewportSize();
+  useEffect(() => {
+    void syncNotes();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void syncNotes();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const stop = onLibraryChange((kind) => {
+      if (kind === "notes") void syncNotes();
+    });
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      stop();
+    };
+  }, []);
   if (!enabled) return null;
   return (
     <>

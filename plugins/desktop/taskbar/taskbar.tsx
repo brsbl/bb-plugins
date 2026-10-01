@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ChevronsRightGlyph } from "../art";
 import { useLaunchers } from "../programs/launchers";
 import { MediaDeskband } from "../programs/media-player";
+import { usePictureName } from "../apps/paint";
 import { windowArt, windowTitle } from "../programs/registry";
 import { useMic } from "../services/mic";
 import { useDesktop } from "../shell/data";
@@ -24,6 +25,8 @@ export interface DockFrame {
  */
 export function Taskbar({ frame }: { frame: DockFrame | null }) {
   const desktop = useDesktop();
+  // Paint's button names the open picture, so it redraws when that changes.
+  usePictureName();
   const manager = useWindowManager();
   const menu = useMenu();
   const catalog = useLaunchers().quickLaunch;

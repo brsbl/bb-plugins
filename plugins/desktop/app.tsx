@@ -4,6 +4,7 @@ import "./app.css";
 import { installDesktopBridge } from "./bridge";
 import { installMicRelease, readCompact, toggleDesktop } from "./enabled";
 import { NeedsInputBalloon } from "./page/balloon";
+import { LibraryBridge } from "./page/library-bridge";
 import { mountStickyNotes, StickyNoteHeaderButton } from "./page/sticky-notes";
 import { DesktopSettings } from "./settings";
 import { Desktop } from "./shell/desktop";
@@ -15,7 +16,12 @@ export default definePluginApp((app) => {
   app.slots.homepageSection({
     id: "desktop",
     title: "Desktop",
-    component: () => <Desktop />,
+    component: () => (
+      <>
+        <Desktop />
+        <LibraryBridge />
+      </>
+    ),
   });
   app.slots.settingsSection({ id: "desktop", component: DesktopSettings });
   app.slots.sidebarFooterAction({
@@ -32,6 +38,7 @@ export default definePluginApp((app) => {
         {isCompactViewport ? null : <ThreadFolderChip threadId={threadId} />}
         <StickyNoteHeaderButton isCompactViewport={isCompactViewport} />
         <NeedsInputBalloon />
+        <LibraryBridge />
       </>
     ),
   });
