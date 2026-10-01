@@ -28,14 +28,9 @@ const preferenceFields = {
   organize: z.enum(["sidebar", "section", "project", "machine"]),
   lifecycle: z.enum(["sidebar", "active", "archived", "all"]),
   quickLaunch: z.array(z.string().max(QUICK_LAUNCH_ID_LIMIT)).max(24),
-  chatWebLinks: z.enum(["bb", "explorer"]),
 };
 const preferencesSchema = z
-  .object({
-    ...preferenceFields,
-    quickLaunch: preferenceFields.quickLaunch.default([...DEFAULT_QUICK_LAUNCH]),
-    chatWebLinks: preferenceFields.chatWebLinks.default("bb"),
-  })
+  .object({ ...preferenceFields, quickLaunch: preferenceFields.quickLaunch.default([...DEFAULT_QUICK_LAUNCH]) })
   .strict();
 // Built without the stored default: a partial of a defaulted field still fills it in, so saving only `sort` would
 // reset Quick Launch.
@@ -45,7 +40,6 @@ const DEFAULT_PREFERENCES: Preferences = {
   organize: "sidebar",
   lifecycle: "sidebar",
   quickLaunch: [...DEFAULT_QUICK_LAUNCH],
-  chatWebLinks: "bb",
 };
 // Stored preferences are read field by field, so one unreadable or unknown field (say, from a newer or older Desktop)
 // falls back alone instead of resetting Quick Launch with the rest.
@@ -54,7 +48,6 @@ const storedPreferencesSchema = z.object({
   organize: preferenceFields.organize.catch(DEFAULT_PREFERENCES.organize),
   lifecycle: preferenceFields.lifecycle.catch(DEFAULT_PREFERENCES.lifecycle),
   quickLaunch: preferenceFields.quickLaunch.catch([...DEFAULT_QUICK_LAUNCH]),
-  chatWebLinks: preferenceFields.chatWebLinks.catch(DEFAULT_PREFERENCES.chatWebLinks),
 });
 const namedSchema = z.object({ id: z.string(), name: z.string() }).strict();
 const nameSchema = z.string().trim().min(1).max(80);

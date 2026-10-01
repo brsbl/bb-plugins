@@ -11,8 +11,6 @@ export interface Preferences {
   organize: OrganizePreference;
   lifecycle: LifecyclePreference;
   quickLaunch: string[];
-  /** Where web links clicked in an Instant Message open: wherever bb opens links, or the thread's bb Explorer window. */
-  chatWebLinks: "bb" | "explorer";
 }
 
 export const DEFAULT_QUICK_LAUNCH = ["show-desktop", "new-thread", "threads"] as const;

@@ -289,8 +289,7 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
     [threads],
   );
 
-  // Opening a window leaves the read state alone: marking the thread read here
-  // would erase bb's "New" divider before the thread is ever opened in bb.
+  // bb's chat marks the thread read once its window shows it, as opening the thread in bb does.
   // A deleted thread's windows close, which also ends their terminal and browser tabs.
   useRealtime(
     "changed",

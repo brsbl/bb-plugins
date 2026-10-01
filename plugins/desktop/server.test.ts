@@ -97,7 +97,6 @@ describe("desktop server", () => {
       organize: "sidebar",
       lifecycle: "sidebar",
       quickLaunch: ["show-desktop", "new-thread", "threads"],
-      chatWebLinks: "bb",
     });
     expect(snapshot.threads.map((thread) => [thread.id, thread.isArchived, thread.hostId])).toEqual([
       ["thr_a", false, "host_1"],
@@ -148,7 +147,6 @@ describe("desktop server", () => {
       organize: "project",
       lifecycle: "all",
       quickLaunch: ["show-desktop", "new-thread", "threads"],
-      chatWebLinks: "bb",
     });
   });
 
@@ -166,7 +164,6 @@ describe("desktop server", () => {
       organize: "project",
       lifecycle: "sidebar",
       quickLaunch: ["threads", "app:paint"],
-      chatWebLinks: "bb",
     });
   });
 
