@@ -106,8 +106,11 @@ export function AmbientOverlay() {
   const syncVeil = useCallback(() => {
     const controls = liveRef.current.state?.controls;
     if (!controls?.enabled) return;
-    applyVeil({ showThrough: controls.showThrough, glass: controls.glass, tier: glassTier(detail()) });
-  }, [detail]);
+    // The glass tier follows the device's Detail setting, not the transient auto-scale, so the
+    // glass doesn't flip between frosted and solid whenever frames run late.
+    const tier = glassTier(ambientStore.getSnapshot().deviceDetail);
+    applyVeil({ showThrough: controls.showThrough, glass: controls.glass, tier });
+  }, []);
 
   const scheduler = (schedulerRef.current ??= new FrameScheduler({
     draw: (time) => {
@@ -123,7 +126,6 @@ export function AmbientOverlay() {
     settled: () => liveRef.current.state?.controls.speed === 0 && fieldRef.current.quiet(),
     onScale: (scale) => {
       ambientStore.setThrottled(scale < 1);
-      syncVeil();
     },
   }));
 
