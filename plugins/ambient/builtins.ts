@@ -1810,17 +1810,57 @@ vec3 scene(vec2 uv, vec2 p) {
       if (h < 1.0 - 0.75 * p_rocks) continue;
       float bx = (ci + 0.2 + 0.6 * hash21(vec2(ci, 3.0))) * cw;
       float by = -0.4 + 0.05 * noise(vec2(bx * 3.5, 1.0)) + 0.03 * noise(vec2(bx * 11.0, 2.0)) + 0.1 * (1.0 - p_rocks) - 0.006;
-      vec2 ad = q - vec2(bx, by);
-      float r = length(ad);
-      float Ln = 0.045 + 0.04 * hash21(vec2(ci, 5.0));
-      if (ad.y < -0.01 || r > Ln * 1.1) continue;
-      float an = atan(ad.x, ad.y);
-      float sway = 0.35 * sin(t * 0.8 + ci) * (r / Ln);
-      float tent = smoothstep(0.55, 0.92, cos((an - sway) * 11.0)) * smoothstep(Ln, Ln * 0.8, r) * step(abs(an - sway), 1.35);
-      float tip = smoothstep(Ln * 0.65, Ln * 0.95, r) * tent;
-      vec3 ac = mix(coral * 0.7, mix(coral, pale, 0.5), r / Ln);
-      col = mix(col, ac, tent * 0.9);
-      col += coral * tip * 0.35 * p_glow;
+      if (abs(q.x - bx) > 0.12 || q.y < by - 0.004 || q.y > by + 0.16) continue;
+      float sz = 0.8 + 0.45 * hash21(vec2(ci, 5.0));
+      float hue = hash21(vec2(ci, 12.0));
+      vec3 ac = hue < 0.55 ? coral : (hue < 0.8 ? mix(coral, pale, 0.45) : mix(cyan, deep, 0.3));
+      float Hc = 0.034 * sz, wc = 0.015 * sz;
+      // back row of tentacles, then the column and oral disc, then the front row
+      for (int layer = 0; layer < 3; layer++) {
+        if (layer == 1) {
+          float kc = clamp((q.y - by) / Hc, 0.0, 1.0);
+          float cwid = wc * (0.75 + 0.4 * kc * kc);
+          float cd = max(abs(q.x - bx) - cwid, max(by - q.y, q.y - by - Hc));
+          float nx = clamp((q.x - bx) / cwid, -1.0, 1.0);
+          vec3 cc = ac * (0.35 + 0.45 * sqrt(1.0 - nx * nx)) * (0.88 + 0.12 * sin(nx * 10.0));
+          col = mix(col, cc, smoothstep(0.0015, -0.0015, cd));
+          vec2 od = (q - vec2(bx, by + Hc)) / vec2(cwid * 1.08, cwid * 0.32);
+          col = mix(col, mix(ac, pale, 0.25) * 0.75, smoothstep(1.05, 0.85, length(od)));
+          continue;
+        }
+        float front = layer == 2 ? 1.0 : 0.0;
+        for (int k2 = 0; k2 < 6; k2++) {
+          float fi = float(k2) * 2.0 + front;
+          float u = fi / 11.0 * 2.0 - 1.0;
+          float ang = u * 1.2 + 0.22 * sin(t * 0.7 + ci + fi * 0.6);
+          vec2 o = vec2(bx + u * wc * 0.95, by + Hc);
+          float L = (0.05 + 0.025 * hash21(vec2(ci, fi))) * sz * (1.0 - 0.25 * abs(u));
+          float curl = (0.25 + 0.2 * sin(t * 0.5 + fi + ci)) * (u < 0.0 ? -1.0 : 1.0);
+          vec2 dir = vec2(sin(ang), cos(ang));
+          vec2 nrm = vec2(dir.y, -dir.x);
+          float best = 1.0, bt = 0.0;
+          vec2 p0 = o;
+          for (int sg = 1; sg <= 3; sg++) {
+            float tt = float(sg) / 3.0;
+            vec2 p1 = o + L * (dir * tt + nrm * curl * tt * tt);
+            vec2 pa = q - p0, ba = p1 - p0;
+            float hh = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+            float dd = length(pa - ba * hh);
+            if (dd < best) { best = dd; bt = (float(sg) - 1.0 + hh) / 3.0; }
+            p0 = p1;
+          }
+          float thick = 0.0058 * sz * (1.0 - 0.55 * bt);
+          float tipR = 0.0042 * sz;
+          float dTip = length(q - p0) - tipR;
+          float m = smoothstep(0.0012, -0.0012, min(best - thick, dTip));
+          float roundT = clamp(1.0 - best / max(thick, 1e-4), 0.0, 1.0);
+          vec3 tc = mix(ac * 0.55, mix(ac, pale, 0.5), bt) * (0.55 + 0.55 * sqrt(roundT));
+          tc = mix(tc, mix(ac, pale, 0.65), smoothstep(tipR, 0.0, length(q - p0)) * 0.8);
+          tc *= mix(0.62, 1.0, front);
+          col = mix(col, tc, m);
+          col += mix(ac, pale, 0.5) * smoothstep(tipR * 2.5, 0.0, length(q - p0)) * 0.25 * p_glow * front;
+        }
+      }
     }
   }
 
