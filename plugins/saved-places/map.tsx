@@ -68,7 +68,7 @@ export function PlacesMap() {
   const [rings, setRingState] = useState<RingState | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string } | null>(null);
-  const ringRequest = useRef<{ controller: AbortController; signature: string } | null>(null);
+  const ringRequest = useRef<{ controller: AbortController; signature: string; owner: string } | null>(null);
   const top = stack[stack.length - 1];
   const topRef = useRef(top);
   topRef.current = top;
@@ -159,7 +159,7 @@ export function PlacesMap() {
     if (ringRequest.current?.signature === signature) return;
     ringRequest.current?.controller.abort();
     const controller = new AbortController();
-    ringRequest.current = { controller, signature };
+    ringRequest.current = { controller, signature, owner };
     const cached = targets.map(point => cachedIsochrone(point, mode, minutes));
     const features = cached.flatMap(rings => rings ?? []);
     const total = targets.length;
@@ -185,8 +185,9 @@ export function PlacesMap() {
 
   useEffect(() => {
     if (!rings) return;
+    const owner = ringRequest.current?.owner ?? rings.owner;
     const listOwner = contextView.kind === "lists" && contextView.reach !== null ? listRingOwner(contextView.ids) : null;
-    const owned = rings.owner === listOwner || (top.kind === "place" && rings.owner === `place:${top.key}`);
+    const owned = owner === listOwner || (top.kind === "place" && owner === `place:${top.key}`);
     if (!owned) clearRings();
   }, [top, contextView, rings, clearRings]);
 
