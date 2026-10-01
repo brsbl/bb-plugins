@@ -7,7 +7,7 @@ import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
 import plugin from "./server";
-import { applyCategoryOverrides } from "./model";
+import { allPlaces, applyCategoryOverrides } from "./model";
 
 describe("Saved Places plugin", () => {
   it("serves the bundled places over rpc and the CLI", async () => {
@@ -25,6 +25,22 @@ describe("Saved Places plugin", () => {
     expect(await names("culture")).toEqual(expect.arrayContaining(["Senso-ji", "Mori Art Museum"]));
     const [sensoji] = JSON.parse((await harness.behavior.runCli(["list", "--query", "Senso-ji", "--json"])).stdout) as Array<{ category: string }>;
     expect(sensoji.category).toBe("temple");
+    await harness.lifecycle.dispose();
+  });
+
+  it("keeps every other category fix when one stored value is no longer a known category", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "saved-places" });
+    plugin(bb);
+    const sensoji = allPlaces.find(place => place.name === "Senso-ji")!.key;
+    await bb.storage.kv.set("category-overrides", { [sensoji]: "shrine", "cid:1": "retired-category" });
+    const categoryOf = async (name: string) => (JSON.parse((await harness.behavior.runCli(["list", "--query", name, "--json"])).stdout) as Array<{ category: string }>)[0].category;
+    expect(await categoryOf("Senso-ji")).toBe("shrine");
+    expect((await harness.behavior.runCli(["category", "Mori Art Museum", "gallery"])).exitCode).toBe(0);
+    expect(await bb.storage.kv.get("category-overrides")).toEqual(expect.objectContaining({ [sensoji]: "shrine", "cid:1": "retired-category" }));
+    expect(await categoryOf("Senso-ji")).toBe("shrine");
+    await harness.behavior.runCli(["category", "Senso-ji", "auto"]);
+    await harness.behavior.runCli(["category", "Mori Art Museum", "auto"]);
+    applyCategoryOverrides({});
     await harness.lifecycle.dispose();
   });
 

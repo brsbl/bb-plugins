@@ -2,8 +2,8 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { collections, collectionIds, places, placeSchema } from "./places";
-import { categories, categoryFor, categoryIdSchema, groupOf, includesCategory } from "./categories";
-import { allPlaces, applyCategoryOverrides, categoryOverridesSchema, customListSchema, importedLists, noteSchema, placeKey, placesByKey, savedStateSchema, shortAddress, type SavedState } from "./model";
+import { categories, categoryFor, categoryIdSchema, groupOf, includesCategory, type CategoryId } from "./categories";
+import { allPlaces, applyCategoryOverrides, customListSchema, importedLists, noteSchema, placeKey, placesByKey, savedStateSchema, shortAddress, type SavedState } from "./model";
 import { NOTES_LIST_ID } from "./notes-list";
 
 const filterSchema = z.object({ collectionId: z.string().min(1).nullable().default(null), category: categoryIdSchema.nullable().default(null), query: z.string().default("") });
@@ -13,6 +13,13 @@ function filterPlaces(input: z.infer<typeof filterSchema>) {
 }
 const saveNoteSchema = z.object({ key: z.string().min(1), text: z.string().max(2000) });
 const saveCategorySchema = z.object({ key: z.string().min(1), category: categoryIdSchema.nullable() });
+const storedOverridesSchema = z.record(z.string(), z.unknown());
+function knownOverrides(stored: Record<string, unknown>): Record<string, CategoryId> {
+  return Object.fromEntries(Object.entries(stored).flatMap(([key, value]) => {
+    const category = categoryIdSchema.safeParse(value);
+    return category.success ? [[key, category.data]] : [];
+  }));
+}
 const boundsSchema = z.object({ west: z.number(), south: z.number(), east: z.number(), north: z.number() });
 const travelModeSchema = z.enum(["walk", "bike", "drive"]);
 export const viewContextSchema = z.object({
@@ -96,20 +103,21 @@ export default function plugin(bb: BbPluginApi) {
   async function readState(): Promise<SavedState> {
     const lists = z.array(customListSchema).safeParse((await kv.get(LISTS_KEY)) ?? []);
     const notes = z.record(z.string(), noteSchema).safeParse((await kv.get(NOTES_KEY)) ?? {});
-    const overrides = categoryOverridesSchema.safeParse((await kv.get(CATEGORIES_KEY)) ?? {});
-    const state = { lists: lists.success ? lists.data : [], notes: notes.success ? notes.data : {}, categories: overrides.success ? overrides.data : {} };
+    const state = { lists: lists.success ? lists.data : [], notes: notes.success ? notes.data : {}, categories: knownOverrides(await readStoredOverrides()) };
     applyCategoryOverrides(state.categories);
     return state;
+  }
+  async function readStoredOverrides() {
+    return storedOverridesSchema.catch({}).parse((await kv.get(CATEGORIES_KEY)) ?? {});
   }
   async function saveCategory(input: z.infer<typeof saveCategorySchema>) {
     if (!placesByKey.has(input.key)) throw new Error("Unknown place.");
     return serialize(async () => {
-      const state = await readState();
-      if (input.category) state.categories[input.key] = input.category;
-      else delete state.categories[input.key];
-      await kv.set(CATEGORIES_KEY, state.categories);
-      applyCategoryOverrides(state.categories);
-      return state;
+      const stored = await readStoredOverrides();
+      if (input.category) stored[input.key] = input.category;
+      else delete stored[input.key];
+      await kv.set(CATEGORIES_KEY, stored);
+      return readState();
     });
   }
   async function saveNote(input: z.infer<typeof saveNoteSchema>) {
