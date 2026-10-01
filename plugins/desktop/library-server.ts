@@ -5,6 +5,7 @@ import type Database from "better-sqlite3";
 import { z } from "zod";
 
 import {
+  COMPOSER_TOKEN_PREFIX,
   LIBRARY_CHANNEL,
   NOTE_DEFAULTS,
   NOTE_MENTIONS,
@@ -78,6 +79,10 @@ const pictureSummarySchema = z
   .strict();
 
 const pictureNameSchema = z.string().trim().min(1).max(80);
+/** bb files a thread sent with "No project" here. */
+const PERSONAL_PROJECT_ID = "proj_personal";
+/** New-thread message boxes remembered at once; the oldest is forgotten first. */
+const COMPOSER_LIMIT = 200;
 const sideSchema = z.number().int().min(1).max(PICTURE_SIDE_LIMIT);
 const okSchema = z.object({ ok: z.literal(true) }).strict();
 
@@ -109,6 +114,11 @@ export const libraryContract = defineRpcContract({
     output: pictureSummarySchema,
   },
   deletePicture: { input: z.object({ id: z.string() }).strict(), output: okSchema },
+  /** A new-thread message box reports its project whenever the user picks one, for pictures mentioned in it. */
+  setComposerProject: {
+    input: z.object({ token: z.string().startsWith(COMPOSER_TOKEN_PREFIX).max(80), projectId: z.string().min(1).max(100) }).strict(),
+    output: okSchema,
+  },
 });
 
 type Row = Record<string, unknown>;
@@ -149,6 +159,8 @@ function slug(name: string): string {
  */
 export function registerLibrary(bb: BbPluginApi, db: Database.Database) {
   const changed = (kind: LibraryKind) => bb.realtime.publish(LIBRARY_CHANNEL, { kind });
+  /** Each new-thread message box's current project, by the token its picture mentions carry. */
+  const composerProjects = new Map<string, string>();
 
   const listNotes = (): StickyNote[] =>
     (db.prepare(`SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at`).all() as Row[]).map(noteFromRow);
@@ -261,6 +273,12 @@ export function registerLibrary(bb: BbPluginApi, db: Database.Database) {
       changed("pictures");
       return { ok: true as const };
     },
+    async setComposerProject({ token, projectId }) {
+      composerProjects.delete(token);
+      composerProjects.set(token, projectId);
+      if (composerProjects.size > COMPOSER_LIMIT) composerProjects.delete(composerProjects.keys().next().value!);
+      return { ok: true as const };
+    },
   });
 
   const matches = (query: string, ...fields: string[]) => {
@@ -314,8 +332,14 @@ export function registerLibrary(bb: BbPluginApi, db: Database.Database) {
           context: `${about} It is an SVG drawing:\n\n${Buffer.from(picture.dataBase64, "base64").toString("utf8")}`,
         };
       }
+      // A new thread goes to whichever project its box has selected now; one the server never heard about (it restarted
+      // since) is most likely "No project", which bb files under the personal project.
       const projectId =
-        target.projectId ?? (target.threadId === null ? null : (await bb.sdk.threads.get({ threadId: target.threadId })).projectId);
+        target.threadId !== null
+          ? (await bb.sdk.threads.get({ threadId: target.threadId })).projectId
+          : target.composerToken !== null
+            ? (composerProjects.get(target.composerToken) ?? PERSONAL_PROJECT_ID)
+            : target.projectId;
       if (projectId === null) {
         return { context: `${about} Use desktop_picture_view with id ${picture.id} to see it.` };
       }
