@@ -2225,7 +2225,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
   },
   {
     id: "poppy-hill",
-    name: "Poppy Hill in the Wind",
+    name: "Poppy Hill",
     source: POPPY_HILL_SOURCE,
     palette: ["#5fa9ea", "#3f9b34", "#ff5a0a", "#ffbf1f"],
     params: [
@@ -2239,7 +2239,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
   },
   {
     id: "plasticine-lighthouse-cove",
-    name: "Plasticine Lighthouse Cove",
+    name: "Lighthouse Cove",
     source: PLASTICINE_COVE_SOURCE,
     palette: ["#1c2c6b", "#22b3a6", "#ff6a3d", "#ffe0a6"],
     params: [
@@ -2253,7 +2253,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
   },
   {
     id: "swirling-stars-screaming-fjord",
-    name: "Swirling Stars, Screaming Fjord",
+    name: "Screaming Fjord",
     source: SCREAMING_FJORD_SOURCE,
     palette: ["#2446a8", "#f6cf3f", "#e04a24", "#102a22"],
     params: [
