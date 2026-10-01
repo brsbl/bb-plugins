@@ -140,6 +140,8 @@ vec3 scene(vec2 uv, vec2 p) {
   for (int i = 0; i < 16; i++) {
     if (i >= u_agentCount) break;
     vec4 a = u_agents[i];
+    // a fading-in agent has no size yet; drawing it would divide by zero
+    if (a.w < 0.05) continue;
     float fi = float(i);
     vec2 c0 = toP(a.xy);
     vec2 d = p - c0;

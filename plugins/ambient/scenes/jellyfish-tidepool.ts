@@ -92,10 +92,13 @@ vec4 anemone(vec2 q, vec2 b, float S, float t, float seed, vec3 body, vec3 tip, 
     float front = float(layer);
     for (int i = 0; i < 22; i++) {
       float fi = float(i) * 2.0 + front;
+      // cheap reach test before the hashes: no tentacle is longer than ~1, rooted along the disc
+      float u0 = (fi + 0.5) / 44.0 * 2.0 - 1.0;
+      if (length(l - vec2(u0 * 0.46, Hc)) > 1.15) continue;
       float h1 = hash21(vec2(fi, seed * 17.0 + 1.0));
       float h2 = hash21(vec2(fi, seed * 17.0 + 2.0));
       float h3 = hash21(vec2(fi, seed * 17.0 + 3.0));
-      float u = (fi + 0.5) / 44.0 * 2.0 - 1.0 + (h1 - 0.5) * 0.05;
+      float u = u0 + (h1 - 0.5) * 0.05;
       vec2 root = vec2(u * 0.46, Hc - 0.04 + 0.09 * (1.0 - u * u) * front);
       float L = (0.6 + 0.3 * h3) * (1.0 - 0.3 * u * u) * mix(1.05, 0.9, front);
       if (length(l - root) > L + 0.1) continue;
