@@ -11,6 +11,7 @@ import {
   type Point,
   type Preferences,
 } from "./core";
+import { LIBRARY_MIGRATIONS, LIBRARY_TOOLS, registerLibrary } from "./library-server";
 
 const ACTIVE_THREAD_PAGE = 500;
 const FOLDER_THREAD_LIMIT = 1000;
@@ -290,10 +291,15 @@ export default function plugin(bb: BbPluginApi) {
     `DELETE FROM folders WHERE kind = 'smart'`,
     `DROP TABLE notifications`,
     `DROP TABLE webhooks`,
+    ...LIBRARY_MIGRATIONS,
   ]);
   db.pragma("foreign_keys = ON");
 
   const changed = (scope: string) => bb.realtime.publish("changed", { scope });
+
+  registerLibrary(bb, db);
+  // Every thread gets the note pad and Paint tools, and the plugin's skills as before.
+  bb.agents.configure(() => ({ tools: [...LIBRARY_TOOLS], skills: ["desktop", "desktop-apps"] }));
 
   function readFolder(id: string): Folder | null {
     const row = db.prepare(`SELECT * FROM folders WHERE id = ?`).get(id) as Row | undefined;

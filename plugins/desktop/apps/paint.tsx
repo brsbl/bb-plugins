@@ -1,13 +1,21 @@
+import { useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 
+import { toast } from "sonner";
+
+import { LIBRARY_CHANNEL, PICTURE_MENTIONS, type PictureSummary } from "../library";
+import type { libraryContract } from "../library-server";
+import { sendToThread } from "../page/library-bridge";
 import { usePointerTracker } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "./xp-chrome";
 import {
@@ -53,6 +61,41 @@ const TOOL_ORDER: ToolId[] = ["eraser", "fill", "picker", "pencil", "brush", "li
 const TOOL_AREAS: Record<ToolId, string> = { eraser: "2 / 1", fill: "2 / 2", picker: "3 / 1", pencil: "4 / 1", brush: "4 / 2", line: "6 / 1", rectangle: "7 / 1", ellipse: "8 / 1" };
 
 const INK = "oklch(0.24 0.03 260)";
+const UNTITLED = "untitled";
+/** How many saved pictures File lists to open. */
+const OPEN_LIMIT = 8;
+
+let pictureName = UNTITLED;
+const nameListeners = new Set<() => void>();
+
+function setPictureName(name: string) {
+  pictureName = name;
+  for (const listener of nameListeners) listener();
+}
+
+export function currentPictureName(): string {
+  return pictureName;
+}
+
+/** The open picture's name, for Paint's title bar and taskbar button. */
+export function usePictureName(): string {
+  return useSyncExternalStore(
+    (listener) => {
+      nameListeners.add(listener);
+      return () => nameListeners.delete(listener);
+    },
+    () => pictureName,
+  );
+}
+
+function decodeImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Paint couldn't read that picture."));
+    image.src = src;
+  });
+}
 
 function ToolGlyph({ tool }: { tool: ToolId }) {
   const common = { fill: "none", stroke: INK, strokeWidth: 1.3, strokeLinecap: "round", strokeLinejoin: "round" } as const;
@@ -210,6 +253,19 @@ export function PaintApp() {
   const [secondary, setSecondary] = useState(DEFAULT_SECONDARY);
   const [canUndo, setCanUndo] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const rpc = useRpc<typeof libraryContract>();
+  const [pictures, setPictures] = useState<PictureSummary[]>([]);
+  /** The saved picture this canvas came from; null until the first save. */
+  const [pictureId, setPictureId] = useState<string | null>(null);
+  const name = usePictureName();
+
+  const loadPictures = useCallback(() => {
+    rpc.call("listPictures").then(({ pictures: list }) => setPictures(list), () => undefined);
+  }, [rpc]);
+  useEffect(loadPictures, [loadPictures]);
+  useRealtime(LIBRARY_CHANNEL, (payload) => {
+    if ((payload as { kind?: unknown } | null)?.kind === "pictures") loadPictures();
+  });
 
   const context = (canvas: HTMLCanvasElement | null) => {
     const ctx = canvas?.getContext("2d", { willReadFrequently: canvas === canvasRef.current }) ?? null;
@@ -273,28 +329,88 @@ export function PaintApp() {
     remember();
     applySize(sizeRef.current, null);
     setDirty(false);
+    setPictureId(null);
+    setPictureName(UNTITLED);
   };
 
-  const save = () => {
+  /** The picture at its own size, as Paint saves it. */
+  const flatten = (): HTMLCanvasElement | null => {
     const canvas = canvasRef.current;
-    if (canvas === null) return;
+    if (canvas === null) return null;
     const output = document.createElement("canvas");
     output.width = sizeRef.current.width;
     output.height = sizeRef.current.height;
     const ctx = output.getContext("2d");
-    if (ctx === null) return;
+    if (ctx === null) return null;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(canvas, 0, 0, output.width, output.height);
-    output.toBlob((blob) => {
+    return output;
+  };
+
+  const exportPng = () => {
+    flatten()?.toBlob((blob) => {
       if (blob === null) return;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "untitled.png";
+      link.download = `${name}.png`;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setDirty(false);
     }, "image/png");
+  };
+
+  /** Saves into the Desktop's pictures, where agents can see it; asks for a name the first time or for Save As. */
+  const save = async (asNew = false): Promise<PictureSummary | null> => {
+    const output = flatten();
+    if (output === null) return null;
+    let nextName = name;
+    if (pictureId === null || asNew) {
+      const answer = window.prompt("Save picture as", name === UNTITLED ? "" : name)?.trim();
+      if (!answer) return null;
+      nextName = answer.slice(0, 80);
+    }
+    try {
+      const saved = await rpc.call("savePicture", {
+        id: asNew ? null : pictureId,
+        name: nextName,
+        width: output.width,
+        height: output.height,
+        pngBase64: output.toDataURL("image/png").slice("data:image/png;base64,".length),
+      });
+      setPictureId(saved.id);
+      setPictureName(saved.name);
+      setDirty(false);
+      toast(`Saved ${saved.name}`);
+      return saved;
+    } catch (error) {
+      toast("Couldn't save the picture", { description: error instanceof Error ? error.message : String(error) });
+      return null;
+    }
+  };
+
+  const openPicture = async (summary: PictureSummary) => {
+    if (dirty && !window.confirm(`Open ${summary.name}? Unsaved changes will be lost.`)) return;
+    try {
+      const picture = await rpc.call("getPicture", { id: summary.id });
+      const image = await decodeImage(`data:${picture.mimeType};base64,${picture.dataBase64}`);
+      remember();
+      applySize({ width: picture.width, height: picture.height }, null);
+      const ctx = context(canvasRef.current);
+      ctx?.drawImage(image, 0, 0, picture.width, picture.height);
+      setDirty(false);
+      setPictureId(picture.id);
+      setPictureName(picture.name);
+    } catch (error) {
+      toast("Couldn't open the picture", { description: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
+  /** Saves the picture, then adds it to the message being written so the agent can see it. */
+  const send = async () => {
+    const saved = dirty || pictureId === null ? await save() : null;
+    const id = saved?.id ?? pictureId;
+    if (id === null) return;
+    sendToThread({ kind: PICTURE_MENTIONS, id, label: saved?.name ?? name });
   };
 
   const selectTool = (next: ToolId) => {
@@ -418,6 +534,10 @@ export function PaintApp() {
       event.preventDefault();
       undo();
     }
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      void save(event.shiftKey);
+    }
   };
 
   const toolSizes = TOOL_SIZES[tool];
@@ -426,7 +546,22 @@ export function PaintApp() {
   return (
     <div ref={rootRef} className="bbd-program bbd-paint flex h-full flex-col" tabIndex={-1} onKeyDown={onKeyDown}>
       <ProgramMenuBar menus={[
-        { label: "File", items: [{ label: "New", action: newPicture }, { label: "Save", action: save }, { label: "Save As…", action: save }] },
+        { label: "File", items: [
+          { label: "New", action: newPicture },
+          ...(pictures.length === 0
+            ? [{ label: "Open: no saved pictures", disabled: true }]
+            : pictures.slice(0, OPEN_LIMIT).map((picture) => ({
+                label: `Open ${picture.name}${picture.format === "svg" ? " (from an agent)" : ""}`,
+                checked: picture.id === pictureId,
+                action: () => void openPicture(picture),
+              }))),
+          "separator" as const,
+          { label: "Save", shortcut: "Ctrl+S", action: () => void save() },
+          { label: "Save As…", action: () => void save(true) },
+          { label: "Export as PNG…", action: exportPng },
+          "separator" as const,
+          { label: "Send to thread", action: () => void send() },
+        ] },
         { label: "Edit", items: [{ label: "Undo", shortcut: "Ctrl+Z", disabled: !canUndo, action: undo }] },
         { label: "View", items: [{ label: "Tool Box", checked: true }, { label: "Color Box", checked: true }, { label: "Status Bar", checked: true }] },
         { label: "Image", items: [{ label: "Attributes…", disabled: true }, { label: "Clear Image", action: newPicture }] },
