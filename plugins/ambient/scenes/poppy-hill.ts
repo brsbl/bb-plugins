@@ -39,11 +39,6 @@ vec3 base(vec2 p, float w, float t) {
 
   float sy = clamp((p.y - hy) / 0.45, 0.0, 1.0);
   vec3 col = mix(mix(skyC, vec3(1.0, 0.96, 0.86), 0.45), skyC * 0.85 + vec3(0.0, 0.05, 0.14), sy);
-  if (p.y > hy) {
-    vec2 cl = clouds(p, t * p_wind);
-    vec3 cc = mix(mix(skyC, vec3(0.78, 0.8, 0.88), 0.55), vec3(1.0, 0.98, 0.93), cl.y);
-    col = mix(col, cc, cl.x * 0.95);
-  }
 
   // a distant range dissolving into haze
   float hy3 = hy2 + 0.05 + 0.03 * sin(p.x * 2.3 + 1.1) + 0.015 * noise(vec2(p.x * 6.0, 4.0));
@@ -156,6 +151,15 @@ vec3 scene(vec2 uv, vec2 p) {
   colA *= 0.95 + 0.08 * sA;
   vec3 col = mix(colB, colA, smoothstep(0.62, 0.46, mA));
   col *= 0.97 + 0.06 * noise(p * 140.0);
+
+  // clouds go on after the dab pass with soft, ragged edges; resampled into dabs they broke into blocks
+  if (p.y > hillY(p.x)) {
+    vec2 jit = vec2(noise(p * 90.0), noise(p * 90.0 + 7.3)) - 0.5;
+    vec2 cl = clouds(p + jit * 0.008, t * p_wind);
+    vec3 cc = mix(mix(u_palette[0], vec3(0.78, 0.8, 0.88), 0.55), vec3(1.0, 0.98, 0.93), cl.y);
+    cc *= 0.95 + 0.07 * sA;
+    col = mix(col, cc, cl.x * 0.95);
+  }
 
   for (int i = 0; i < 16; i++) {
     if (i >= u_agentCount) break;
