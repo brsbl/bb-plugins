@@ -4,7 +4,7 @@ import "./app.css";
 import { installDesktopBridge } from "./bridge";
 import { installMicRelease, readCompact, toggleDesktop } from "./enabled";
 import { NeedsInputBalloon } from "./page/balloon";
-import { LibraryBridge } from "./page/library-bridge";
+import { ComposerBridge, LibrarySync } from "./page/library-bridge";
 import { mountStickyNotes, StickyNoteHeaderButton } from "./page/sticky-notes";
 import { DesktopSettings } from "./settings";
 import { Desktop } from "./shell/desktop";
@@ -19,7 +19,7 @@ export default definePluginApp((app) => {
     component: () => (
       <>
         <Desktop />
-        <LibraryBridge />
+        <LibrarySync />
       </>
     ),
   });
@@ -38,9 +38,11 @@ export default definePluginApp((app) => {
         {isCompactViewport ? null : <ThreadFolderChip threadId={threadId} />}
         <StickyNoteHeaderButton isCompactViewport={isCompactViewport} />
         <NeedsInputBalloon />
-        <LibraryBridge />
+        <LibrarySync />
       </>
     ),
   });
   app.contentScripts.register({ id: "sticky-notes", mount: mountStickyNotes });
+  // Inside every message box, including thread windows', so note pads and Paint can send to the one in use.
+  app.composer.customize({ id: "library", actions: [{ id: "library-bridge", component: ComposerBridge }] });
 });

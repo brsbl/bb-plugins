@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 import { LIBRARY_CHANNEL, PICTURE_MENTIONS, type PictureSummary } from "../library";
 import type { libraryContract } from "../library-server";
-import { sendToThread } from "../page/library-bridge";
+import { sendToThread, useSendLabel } from "../page/library-bridge";
 import { usePointerTracker } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "./xp-chrome";
 import {
@@ -258,6 +258,7 @@ export function PaintApp() {
   /** The saved picture this canvas came from; null until the first save. */
   const [pictureId, setPictureId] = useState<string | null>(null);
   const name = usePictureName();
+  const sendLabel = useSendLabel();
 
   const loadPictures = useCallback(() => {
     rpc.call("listPictures").then(({ pictures: list }) => setPictures(list), () => undefined);
@@ -558,7 +559,7 @@ export function PaintApp() {
           { label: "Save As…", action: () => void save(true) },
           { label: "Export as PNG…", action: exportPng },
           "separator" as const,
-          { label: "Send to thread", action: () => void send() },
+          { label: sendLabel, action: () => void send() },
         ] },
         { label: "Edit", items: [{ label: "Undo", shortcut: "Ctrl+Z", disabled: !canUndo, action: undo }] },
         { label: "View", items: [{ label: "Tool Box", checked: true }, { label: "Color Box", checked: true }, { label: "Status Bar", checked: true }] },

@@ -14,7 +14,7 @@ import { workAreaRect, fitDragRect, previewRect, usePointerTracker, WindowTitleB
 import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
 import { useDesktopEnabled } from "../enabled";
 import { NOTE_MENTIONS, noteTitle as titleOf, type StickyNote } from "../library";
-import { libraryCall, onLibraryChange, sendToThread } from "./library-bridge";
+import { libraryCall, onLibraryChange, sendToThread, useSendLabel } from "./library-bridge";
 
 export type { StickyNote };
 
@@ -310,6 +310,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
   const trackPointer = usePointerTracker();
   const rect = screenRect(note);
   const [wrap, setWrap] = useState(true);
+  const sendLabel = useSendLabel();
   const save = () => updateNote(note.id, { saved: true });
   const exportFile = () => {
     void exportNoteFile(note).then((name) => {
@@ -374,7 +375,7 @@ function StickyNoteView({ note }: { note: StickyNote }) {
           { label: "Save to Desktop", shortcut: "Ctrl+S", action: save },
           { label: "Export as .txt…", action: exportFile },
           "separator",
-          { label: "Send to thread", action: () => void sendNote(note) },
+          { label: sendLabel, action: () => void sendNote(note) },
           "separator",
           { label: "Delete note pad", action: () => removeNote(note.id) },
         ] },
