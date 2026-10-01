@@ -228,6 +228,7 @@ export default function plugin(bb: BbPluginApi) {
       }
       const parsed = filterSchema.safeParse(input);
       if (!parsed.success || (parsed.data.collectionId !== null && !collectionIds.has(parsed.data.collectionId))) return { exitCode: 1, stderr: "Unknown collection or category." };
+      await readState();
       const result = filterPlaces(parsed.data);
       return { exitCode: 0, stdout: json ? JSON.stringify(result) : result.map(p => `${p.name}\t${p.category}\t${p.latitude}, ${p.longitude}`).join("\n") };
     },

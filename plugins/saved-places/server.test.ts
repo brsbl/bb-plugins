@@ -7,6 +7,7 @@ import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
 import plugin from "./server";
+import { applyCategoryOverrides } from "./model";
 
 describe("Saved Places plugin", () => {
   it("serves the bundled places over rpc and the CLI", async () => {
@@ -37,6 +38,8 @@ describe("Saved Places plugin", () => {
     expect(Object.values(state.categories)).toEqual(["shrine"]);
     expect((await harness.behavior.runCli(["category", "Senso-ji", "nope"])).exitCode).toBe(1);
     expect((await harness.behavior.runCli(["category", "Nowhere at all", "shrine"])).exitCode).toBe(1);
+    applyCategoryOverrides({});
+    expect(await categoryOf("Senso-ji")).toBe("shrine");
     expect((await harness.behavior.runCli(["category", "Senso-ji", "auto"])).exitCode).toBe(0);
     expect(await categoryOf("Senso-ji")).toBe("temple");
     expect(JSON.parse((await harness.behavior.runCli(["categories", "--json"])).stdout)).toEqual(expect.arrayContaining([expect.objectContaining({ id: "address", label: "Addresses" })]));
