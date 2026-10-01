@@ -1,9 +1,10 @@
-import { experimental_useSidebarThreads as useSidebarThreads, useComposer, useRealtime } from "@get-bb/plugin-sdk/app";
+import { experimental_useSidebarThreads as useSidebarThreads, useComposer, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { SendGlyph } from "../art";
-import { LIBRARY_CHANNEL, PICTURE_MENTIONS, pictureMentionId, type LibraryKind } from "../library";
+import { COMPOSER_TOKEN_PREFIX, LIBRARY_CHANNEL, PICTURE_MENTIONS, pictureMentionId, type LibraryKind } from "../library";
+import type { libraryContract } from "../library-server";
 
 /** Calls one of the plugin's rpc methods from code outside bb's React tree, such as the note pad layer. */
 export async function libraryCall<T>(method: string, input: unknown = null): Promise<T> {
@@ -27,6 +28,12 @@ interface ComposerTarget {
   /** Shown in "Send to …". */
   label: string;
 }
+
+/**
+ * The new-thread box's token. Switching its project remounts the box, so the token lives with the page rather than
+ * the box, and a picture added before the switch still finds the project picked after it.
+ */
+const NEW_THREAD_TOKEN = `${COMPOSER_TOKEN_PREFIX}${typeof crypto === "undefined" ? Math.random().toString(36).slice(2) : crypto.randomUUID()}`;
 
 /** Every message box on screen: the page's own, and each thread window's. */
 const targets: ComposerTarget[] = [];
@@ -143,6 +150,7 @@ export function sendToThread(item: { kind: "notes" | "pictures"; id: string; lab
     item.kind === PICTURE_MENTIONS
       ? pictureMentionId(item.id, {
           threadId: scope.kind === "new-thread" ? null : scope.kind === "side-chat" ? scope.childThreadId : scope.threadId,
+          composerToken: scope.kind === "new-thread" ? NEW_THREAD_TOKEN : null,
           projectId: "projectId" in scope ? scope.projectId : null,
         })
       : item.id;
@@ -163,6 +171,15 @@ export function ComposerBridge() {
   const label = scope.kind === "new-thread" ? "new thread" : `“${title ?? "this thread"}”`;
   const target = useRef<ComposerTarget>({ composer, anchor: null, inWindow: false, label });
   target.current.composer = composer;
+
+  // A picture mentioned in a new thread is attached to the project the box has selected when the message is sent, so
+  // the server follows the picker.
+  const rpc = useRpc<typeof libraryContract>();
+  const newThreadProject = scope.kind === "new-thread" ? scope.projectId : null;
+  useEffect(() => {
+    if (newThreadProject === null) return;
+    rpc.call("setComposerProject", { token: NEW_THREAD_TOKEN, projectId: newThreadProject }).catch(() => undefined);
+  }, [rpc, newThreadProject]);
 
   useEffect(() => {
     const entry = target.current;
