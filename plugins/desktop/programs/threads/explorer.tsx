@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { FolderArt, GridViewGlyph, ListViewGlyph, NewThreadArt, RecycleBinArt, ThreadsArt } from "../../art";
-import { acceptsDrop, groupThreads, sortThreads, type DesktopGroup } from "../../core";
+import { acceptsDrop, sortThreads, type DesktopGroup } from "../../core";
 import { errorMessage, useDesktop } from "../../shell/data";
 import { useMenu } from "../../shell/menu";
 import { groupMenu } from "../../shell/menus";
@@ -70,7 +70,7 @@ export function FinderWindow({ window: desktopWindow, groupKey }: { window: Desk
 
   const needle = query.trim().toLocaleLowerCase();
   const threads = sortThreads(
-    groupThreads(group, desktop.visibleThreads).filter(
+    desktop.membersOf(group).filter(
       (thread) => needle === "" || thread.title.toLocaleLowerCase().includes(needle),
     ),
     desktop.sort.key,
@@ -81,7 +81,7 @@ export function FinderWindow({ window: desktopWindow, groupKey }: { window: Desk
     <WindowFrame
       window={desktopWindow}
       title={group.name}
-      icon={<FolderArt kind={group.kind} size={16} empty={groupThreads(group, desktop.visibleThreads).length === 0} />}
+      icon={<FolderArt kind={group.kind} size={16} empty={desktop.membersOf(group).length === 0} />}
       statusBar={
         <>
           <span>{threads.length} threads</span>
@@ -238,7 +238,7 @@ function MoreFolderItem({ group, windowId }: { group: DesktopGroup; windowId: st
   const menu = useMenu();
   // A folder opened inside More takes over this window, as in Explorer; Back returns to More.
   const open = () => manager.navigate(windowId, { kind: "finder", key: group.key });
-  const members = groupThreads(group, desktop.visibleThreads);
+  const members = desktop.membersOf(group);
   const { tone, toneCount } = groupTone(members);
   const summary = folderSummary(group.name, members.length, tone, toneCount);
   return (

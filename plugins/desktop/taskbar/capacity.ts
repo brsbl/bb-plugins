@@ -14,7 +14,16 @@ interface TaskbarCapacity {
   tasks: number;
 }
 
-export function useTaskbarCapacity(navRef: RefObject<HTMLElement | null>, quickCount: number, taskCount: number): TaskbarCapacity {
+/**
+ * `maxWidth` is the taskbar's frame width; it only re-runs the measurement. Other renders (every live thread update)
+ * read no layout.
+ */
+export function useTaskbarCapacity(
+  navRef: RefObject<HTMLElement | null>,
+  quickCount: number,
+  taskCount: number,
+  maxWidth: number | undefined,
+): TaskbarCapacity {
   const [capacity, setCapacity] = useState<TaskbarCapacity>({ quick: quickCount, tasks: taskCount });
   useLayoutEffect(() => {
     const nav = navRef.current;
@@ -42,6 +51,6 @@ export function useTaskbarCapacity(navRef: RefObject<HTMLElement | null>, quickC
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  });
+  }, [navRef, quickCount, taskCount, maxWidth]);
   return capacity;
 }

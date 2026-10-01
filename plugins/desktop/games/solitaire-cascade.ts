@@ -216,6 +216,11 @@ export function runCascade(options: CascadeOptions): () => void {
   };
 
   const step = () => {
+    // A minimized window stays mounted but hidden; finish instead of painting frames nobody sees.
+    if (!canvas.isConnected || canvas.closest("[hidden]")) {
+      onDone();
+      return;
+    }
     for (let tick = 0; tick < 2; tick += 1) {
       if (!flying && !launch()) {
         onDone();

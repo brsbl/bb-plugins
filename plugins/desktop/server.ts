@@ -13,7 +13,9 @@ import {
 } from "./core";
 import { LIBRARY_MIGRATIONS, LIBRARY_TOOLS, registerLibrary } from "./library-server";
 
-const ACTIVE_THREAD_LIMIT = 500;
+const ACTIVE_THREAD_PAGE = 500;
+const FOLDER_THREAD_LIMIT = 1000;
+const ADD_THREAD_LIMIT = 200;
 const ARCHIVED_THREAD_LIMIT = 200;
 /** Quick Launch ids include other plugins' programs, `app:<pluginId>/<id>`, each part up to 64 characters. */
 const QUICK_LAUNCH_ID_LIMIT = 160;
@@ -39,6 +41,14 @@ const DEFAULT_PREFERENCES: Preferences = {
   lifecycle: "sidebar",
   quickLaunch: [...DEFAULT_QUICK_LAUNCH],
 };
+// Stored preferences are read field by field, so one unreadable or unknown field (say, from a newer or older Desktop)
+// falls back alone instead of resetting Quick Launch with the rest.
+const storedPreferencesSchema = z.object({
+  sort: preferenceFields.sort.catch(DEFAULT_PREFERENCES.sort),
+  organize: preferenceFields.organize.catch(DEFAULT_PREFERENCES.organize),
+  lifecycle: preferenceFields.lifecycle.catch(DEFAULT_PREFERENCES.lifecycle),
+  quickLaunch: preferenceFields.quickLaunch.catch([...DEFAULT_QUICK_LAUNCH]),
+});
 const namedSchema = z.object({ id: z.string(), name: z.string() }).strict();
 const nameSchema = z.string().trim().min(1).max(80);
 
@@ -114,7 +124,7 @@ export const rpcContract = defineRpcContract({
     input: z
       .object({
         folderId: z.string(),
-        threadIds: z.array(z.string()).min(1).max(200),
+        threadIds: z.array(z.string()).min(1).max(ADD_THREAD_LIMIT),
         fromFolderId: z.string().nullable(),
       })
       .strict(),
@@ -152,7 +162,9 @@ export const rpcContract = defineRpcContract({
   },
   unarchiveThread: { input: z.object({ threadId: z.string() }).strict(), output: okSchema },
   spawnThread: {
-    input: z.object({ request: z.record(z.string(), z.unknown()) }).strict(),
+    input: z
+      .object({ request: z.record(z.string(), z.unknown()), folderId: z.string().optional() })
+      .strict(),
     output: z.object({ threadId: z.string() }).strict(),
   },
   browserThread: {
@@ -223,6 +235,8 @@ const CLI_USAGE = [
   "  bb desktop folder create <name> [--hide-from-sidebar]",
   "  bb desktop folder add <folder-id> <thread-id>...",
   "  bb desktop folder remove <folder-id> <thread-id>",
+  "  bb desktop folder show <folder-id>",
+  "  bb desktop folder update <folder-id> [--name <name>] [--hide-from-sidebar | --show-in-sidebar]",
   "  bb desktop folder delete <folder-id>",
   "  bb desktop unhide-all",
 ].join("\n");
@@ -338,7 +352,7 @@ export default function plugin(bb: BbPluginApi) {
   }
 
   async function readPreferences(): Promise<Preferences> {
-    const parsed = preferencesSchema.safeParse(await bb.storage.kv.get<unknown>("preferences"));
+    const parsed = storedPreferencesSchema.safeParse(await bb.storage.kv.get<unknown>("preferences"));
     return parsed.success ? parsed.data : DEFAULT_PREFERENCES;
   }
 
@@ -353,38 +367,43 @@ export default function plugin(bb: BbPluginApi) {
     return { sections: named(sections), projects: named(projects), machines: named(hosts) };
   }
 
+  /** Every active root thread, page by page, so a large bb never drops its newest threads from the desktop. */
+  async function listActiveThreads() {
+    const threads: Awaited<ReturnType<typeof bb.sdk.threads.list>> = [];
+    for (let offset = 0; ; offset += ACTIVE_THREAD_PAGE) {
+      const page = await bb.sdk.threads.list({
+        archived: false,
+        hasParent: false,
+        includeHidden: true,
+        limit: ACTIVE_THREAD_PAGE,
+        offset,
+      });
+      threads.push(...page);
+      if (page.length < ACTIVE_THREAD_PAGE) return threads;
+    }
+  }
+
   async function listThreads(): Promise<DesktopThread[]> {
     const [active, archived] = await Promise.all([
-      bb.sdk.threads.list({ archived: false, hasParent: false, limit: ACTIVE_THREAD_LIMIT }),
-      bb.sdk.threads.list({ archived: true, hasParent: false, limit: ARCHIVED_THREAD_LIMIT }),
+      listActiveThreads(),
+      bb.sdk.threads.list({ archived: true, hasParent: false, includeHidden: true, limit: ARCHIVED_THREAD_LIMIT }),
     ]);
-    const hiddenIds = (
-      db
-        .prepare(
-          `SELECT DISTINCT ft.thread_id FROM folder_threads ft JOIN folders f ON f.id = ft.folder_id
-           WHERE f.hide_from_sidebar = 1`,
-        )
-        .all() as Row[]
-    ).map((row) => String(row.thread_id));
-    const listedIds = new Set([...active, ...archived].map((thread) => thread.id));
-    const hidden = await Promise.all(
-      hiddenIds
-        .filter((threadId) => !listedIds.has(threadId))
-        .map((threadId) =>
-          bb.sdk.threads
-            .get({ threadId, include: "host" })
-            .then((thread) => ({
-              ...thread,
-              environmentHostId: "host" in thread ? (thread.host?.id ?? null) : null,
-              hasPendingInteraction: false,
-            }))
-            .catch(() => null),
-        ),
+    // Hidden threads belong on the desktop only when a hiding folder holds them; the rest are other plugins' helpers.
+    const filed = new Set(
+      (
+        db
+          .prepare(
+            `SELECT DISTINCT ft.thread_id FROM folder_threads ft JOIN folders f ON f.id = ft.folder_id
+             WHERE f.hide_from_sidebar = 1`,
+          )
+          .all() as Row[]
+      ).map((row) => String(row.thread_id)),
     );
     const seen = new Set<string>();
     const threads: DesktopThread[] = [];
-    for (const thread of [...active, ...archived, ...hidden]) {
-      if (thread === null || thread.deletedAt !== null || seen.has(thread.id)) continue;
+    for (const thread of [...active, ...archived]) {
+      if (thread.deletedAt !== null || seen.has(thread.id)) continue;
+      if (thread.visibility === "hidden" && !filed.has(thread.id)) continue;
       seen.add(thread.id);
       threads.push(toDesktopThread(thread));
     }
@@ -463,6 +482,10 @@ export default function plugin(bb: BbPluginApi) {
     fromFolderId: string | null;
   }): Promise<Folder> {
     const folder = requireFolder(input.folderId);
+    const arriving = new Set(input.threadIds.filter((threadId) => !folder.threadIds.includes(threadId)));
+    if (folder.threadIds.length + arriving.size > FOLDER_THREAD_LIMIT) {
+      throw new Error(`${folder.name} can hold at most ${FOLDER_THREAD_LIMIT} threads`);
+    }
     const from =
       input.fromFolderId === null || input.fromFolderId === folder.id ? null : readFolder(input.fromFolderId);
     const insert = db.prepare(
@@ -504,6 +527,23 @@ export default function plugin(bb: BbPluginApi) {
     return requireFolder(folderId);
   }
 
+  async function updateFolder(input: { id: string; name?: string; hideFromSidebar?: boolean }): Promise<Folder> {
+    const folder = requireFolder(input.id);
+    const hide = input.hideFromSidebar ?? folder.hideFromSidebar;
+    db.prepare(`UPDATE folders SET name = ?, hide_from_sidebar = ? WHERE id = ?`).run(
+      input.name ?? folder.name,
+      hide ? 1 : 0,
+      folder.id,
+    );
+    if (hide && !folder.hideFromSidebar) {
+      for (const threadId of folder.threadIds) await hideThread(threadId);
+    } else if (!hide && folder.hideFromSidebar) {
+      await releaseVisibility(folder.threadIds, folder.id);
+    }
+    changed("folders");
+    return requireFolder(folder.id);
+  }
+
   async function deleteFolder(id: string): Promise<void> {
     const folder = requireFolder(id);
     db.prepare(`DELETE FROM folders WHERE id = ?`).run(id);
@@ -520,8 +560,11 @@ export default function plugin(bb: BbPluginApi) {
     const hiding = listFolders().filter((folder) => folder.hideFromSidebar);
     db.prepare(`UPDATE folders SET hide_from_sidebar = 0 WHERE hide_from_sidebar = 1`).run();
     const candidates = new Set(hiding.flatMap((folder) => folder.threadIds));
-    const hidden = await bb.sdk.threads.list({ includeHidden: true, hasParent: false, limit: ACTIVE_THREAD_LIMIT });
-    for (const thread of hidden) if (thread.visibility === "hidden") candidates.add(thread.id);
+    const [active, archived] = await Promise.all([
+      listActiveThreads(),
+      bb.sdk.threads.list({ archived: true, hasParent: false, includeHidden: true, limit: ARCHIVED_THREAD_LIMIT }),
+    ]);
+    for (const thread of [...active, ...archived]) if (thread.visibility === "hidden") candidates.add(thread.id);
     let shown = 0;
     for (const threadId of candidates) {
       const metadata = await bb.sdk.threads.getPluginMetadata({ threadId }).catch(() => null);
@@ -592,22 +635,7 @@ export default function plugin(bb: BbPluginApi) {
       };
     },
     createFolder: (input) => createFolder(input),
-    async updateFolder(input) {
-      const folder = requireFolder(input.id);
-      const hide = input.hideFromSidebar ?? folder.hideFromSidebar;
-      db.prepare(`UPDATE folders SET name = ?, hide_from_sidebar = ? WHERE id = ?`).run(
-        input.name ?? folder.name,
-        hide ? 1 : 0,
-        folder.id,
-      );
-      if (hide && !folder.hideFromSidebar) {
-        for (const threadId of folder.threadIds) await hideThread(threadId);
-      } else if (!hide && folder.hideFromSidebar) {
-        await releaseVisibility(folder.threadIds, folder.id);
-      }
-      changed("folders");
-      return requireFolder(folder.id);
-    },
+    updateFolder: (input) => updateFolder(input),
     async deleteFolder({ id }) {
       await deleteFolder(id);
       return { ok: true as const };
@@ -661,8 +689,24 @@ export default function plugin(bb: BbPluginApi) {
       threadsChanged();
       return { ok: true as const };
     },
-    async spawnThread({ request }) {
-      const thread = await bb.sdk.threads.spawn(request as unknown as ThreadSpawnArgs);
+    async spawnThread({ request, folderId }) {
+      // Filed in the same call, so a folder that went away fails before any thread exists, and a hiding folder's
+      // thread is hidden from the start rather than flashing into the sidebar.
+      const folder = folderId === undefined ? null : requireFolder(folderId);
+      const args = request as unknown as ThreadSpawnArgs;
+      const thread = await bb.sdk.threads.spawn(
+        folder?.hideFromSidebar === true
+          ? { ...args, visibility: "hidden", pluginMetadata: { ...args.pluginMetadata, [HIDDEN_BY_DESKTOP]: true } }
+          : args,
+      );
+      if (folder !== null) {
+        db.prepare(`INSERT OR IGNORE INTO folder_threads (folder_id, thread_id, added_at) VALUES (?, ?, ?)`).run(
+          folder.id,
+          thread.id,
+          Date.now(),
+        );
+        changed("folders");
+      }
       threadsChanged();
       return { threadId: thread.id };
     },
@@ -687,16 +731,16 @@ export default function plugin(bb: BbPluginApi) {
     if (threadsTimer !== null) clearTimeout(threadsTimer);
   });
 
+  // Run status, activity time and reads reach the desktop live from the sidebar, so turn starts and ends need no
+  // snapshot; only threads arriving, leaving or being deleted do.
   bb.events.on("thread.created", threadsChanged);
-  bb.events.on("thread.active", threadsChanged);
   bb.events.on("thread.archived", threadsChanged);
   bb.events.on("thread.unarchived", threadsChanged);
   bb.events.on("thread.deleted", ({ thread }) => {
     db.prepare(`DELETE FROM folder_threads WHERE thread_id = ?`).run(thread.id);
+    bb.realtime.publish("changed", { scope: "thread-deleted", threadId: thread.id });
     threadsChanged();
   });
-  bb.events.on("thread.idle", threadsChanged);
-  bb.events.on("thread.failed", threadsChanged);
 
   bb.cli.register({
     name: "desktop",
@@ -707,7 +751,7 @@ export default function plugin(bb: BbPluginApi) {
         name: "folder",
         summary: "Create, fill, empty, or delete a folder",
         usage:
-          "bb desktop folder create <name> [--hide-from-sidebar] | add <folder-id> <thread-id>... | remove <folder-id> <thread-id> | delete <folder-id>",
+          "bb desktop folder create <name> [--hide-from-sidebar] | add <folder-id> <thread-id>... | remove <folder-id> <thread-id> | show <folder-id> | update <folder-id> [--name <name>] [--hide-from-sidebar | --show-in-sidebar] | delete <folder-id>",
       },
       {
         name: "unhide-all",
@@ -754,6 +798,13 @@ export default function plugin(bb: BbPluginApi) {
             if (folderId === undefined || threadIds.length === 0) {
               return fail("folder add needs a folder id and at least one thread id");
             }
+            if (threadIds.length > ADD_THREAD_LIMIT) return fail(`folder add takes at most ${ADD_THREAD_LIMIT} threads at a time`);
+            const unknown: string[] = [];
+            for (const threadId of new Set(threadIds)) {
+              const thread = await bb.sdk.threads.get({ threadId }).catch(() => null);
+              if (thread === null || thread.deletedAt !== null) unknown.push(threadId);
+            }
+            if (unknown.length > 0) return fail(`no such thread: ${unknown.join(", ")}`);
             const folder = await addToFolder({ folderId, threadIds, fromFolderId: null });
             return { exitCode: 0, stdout: `${folder.name} now has ${folder.threadIds.length} threads.` };
           }
@@ -764,6 +815,40 @@ export default function plugin(bb: BbPluginApi) {
             }
             const folder = await removeFromFolder(folderId, threadId);
             return { exitCode: 0, stdout: `${folder.name} now has ${folder.threadIds.length} threads.` };
+          }
+          if (subcommand === "show") {
+            const [folderId] = rest;
+            if (folderId === undefined) return fail("folder show needs a folder id");
+            const folder = requireFolder(folderId);
+            const header = `${folder.id}\t${folder.name}${folder.hideFromSidebar ? "\thidden from sidebar" : ""}`;
+            return { exitCode: 0, stdout: [header, ...folder.threadIds].join("\n") };
+          }
+          if (subcommand === "update") {
+            const parsed = parseArgs({
+              args: rest,
+              allowPositionals: true,
+              strict: true,
+              options: {
+                name: { type: "string" },
+                "hide-from-sidebar": { type: "boolean" },
+                "show-in-sidebar": { type: "boolean" },
+              },
+            });
+            const [folderId] = parsed.positionals;
+            if (folderId === undefined) return fail("folder update needs a folder id");
+            const { name, "hide-from-sidebar": hide, "show-in-sidebar": show } = parsed.values;
+            if (hide === true && show === true) return fail("choose --hide-from-sidebar or --show-in-sidebar, not both");
+            const parsedName = name === undefined ? undefined : nameSchema.safeParse(name);
+            if (parsedName !== undefined && !parsedName.success) return fail("folder update needs a valid name");
+            const folder = await updateFolder({
+              id: folderId,
+              name: parsedName?.data,
+              hideFromSidebar: hide === true ? true : show === true ? false : undefined,
+            });
+            return {
+              exitCode: 0,
+              stdout: `Updated ${folder.id} (${folder.name})${folder.hideFromSidebar ? ", hidden from sidebar" : ""}.`,
+            };
           }
           if (subcommand === "delete") {
             const [folderId] = rest;

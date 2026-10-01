@@ -488,8 +488,9 @@ export function PaintApp() {
     const color = tool === "eraser" || alternate ? secondary : primary;
     const stroke: Stroke = { pointerId: event.pointerId, tool, color, width: sizes[tool], start: point, last: point };
     strokeRef.current = stroke;
-    remember();
+    // Shapes snapshot only once they land, so an Escape-cancelled shape leaves no undo step or dirty mark.
     if (tool === "pencil" || tool === "brush" || tool === "eraser") {
+      remember();
       const ctx = context(canvas);
       if (ctx !== null) strokeSegment(ctx, stroke, point, point);
     }
@@ -510,6 +511,7 @@ export function PaintApp() {
       strokeRef.current = null;
       clearOverlay();
       if (!cancelled && (stroke.tool === "line" || stroke.tool === "rectangle" || stroke.tool === "ellipse")) {
+        remember();
         const ctx = context(canvasRef.current);
         if (ctx !== null) drawShape(ctx, stroke, stroke.last, square);
       }

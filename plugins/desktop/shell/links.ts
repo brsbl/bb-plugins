@@ -23,6 +23,18 @@ export function linkedThreadId(target: EventTarget | null): string | null {
   return match === null ? null : decodeURIComponent(match[1]!);
 }
 
+/**
+ * bb's "open links in the in-app browser" setting, which bb keeps in this key (on by default). Desktop's stand-in for
+ * bb's in-app browser is the thread's bb Explorer window.
+ */
+export function opensLinksInAppBrowser(): boolean {
+  try {
+    return JSON.parse(localStorage.getItem("bb.openLinksInAppBrowser") ?? "true") !== false;
+  } catch {
+    return true;
+  }
+}
+
 /** A web link clicked in a thread's chat, which opens in that thread's browser window instead of the system browser. */
 export function chatWebLink(target: EventTarget | null): { threadId: string; url: string } | null {
   if (!(target instanceof Element) || nativeBrowser() === null) return null;

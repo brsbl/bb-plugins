@@ -7,7 +7,7 @@ import { PLUGIN_SCOPE } from "../slots";
 import { Taskbar, type DockFrame } from "../taskbar/taskbar";
 import { setWindowNudges, useWindowManager, workAreaRect } from "../windows";
 import { useDesktop } from "./data";
-import { chatWebLink, linkedThreadId, openChatWebLink } from "./links";
+import { chatWebLink, linkedThreadId, openChatWebLink, opensLinksInAppBrowser } from "./links";
 
 /**
  * Moves windows out of the way of bb's home composer while it has focus, and puts them back when it loses it. It mounts
@@ -82,7 +82,9 @@ export function WindowLayer({ dockFrame }: { dockFrame: DockFrame | null }) {
       onClickCapture={(event) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         const threadId = linkedThreadId(event.target);
-        const webLink = threadId === null ? chatWebLink(event.target) : null;
+        // Web links follow bb's link setting: its in-app browser becomes the thread's bb Explorer window, and an
+        // external browser is left to bb.
+        const webLink = threadId === null && opensLinksInAppBrowser() ? chatWebLink(event.target) : null;
         if (threadId === null && webLink === null) return;
         event.preventDefault();
         event.stopPropagation();

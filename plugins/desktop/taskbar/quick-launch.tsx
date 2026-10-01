@@ -25,24 +25,27 @@ export function quickLaunchMenu(
   catalog: readonly Launcher[],
   itemId: string | null,
 ): MenuEntry[] {
+  const known = new Set(catalog.map((item) => item.id));
+  // Ids for programs that aren't loaded (a plugin app not registered yet, say) keep their place but are skipped when
+  // moving; ids nothing could ever load are dropped on save.
   const chosen = desktop.snapshot.preferences.quickLaunch;
-  const save = (quickLaunch: string[]) => desktop.setPreferences({ quickLaunch });
-  const index = itemId === null ? -1 : chosen.indexOf(itemId);
+  const shown = chosen.filter((id) => known.has(id));
+  const save = (quickLaunch: string[]) =>
+    desktop.setPreferences({ quickLaunch: quickLaunch.filter((id) => known.has(id) || id.startsWith("app:")) });
+  const index = itemId === null ? -1 : shown.indexOf(itemId);
   const move = (offset: number) => {
-    const next = [...chosen];
-    const [item] = next.splice(index, 1);
-    if (item === undefined) return;
-    next.splice(index + offset, 0, item);
-    save(next);
+    const neighbor = shown[index + offset];
+    if (itemId === null || neighbor === undefined) return;
+    save(chosen.map((id) => (id === itemId ? neighbor : id === neighbor ? itemId : id)));
   };
   return [
     ...(index === -1
       ? []
       : [
-          quickLaunchToggleEntry(desktop, chosen[index]!),
+          quickLaunchToggleEntry(desktop, shown[index]!),
           "separator" as const,
           { label: "Move left", disabled: index === 0, run: () => move(-1) },
-          { label: "Move right", disabled: index === chosen.length - 1, run: () => move(1) },
+          { label: "Move right", disabled: index === shown.length - 1, run: () => move(1) },
           "separator" as const,
         ]),
     { heading: "Show in Quick Launch" },

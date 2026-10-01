@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { setAppOpener } from "../bridge";
 import { useDesktopEnabled } from "../enabled";
 import { disposeWindow, windowSize } from "../programs/registry";
+import { useTerminalSdk } from "../services/terminal";
 import type { DockFrame } from "../taskbar/taskbar";
 import { WindowManagerProvider, useWindowManager } from "../windows";
 import { DesktopCanvas } from "./canvas";
@@ -17,7 +18,12 @@ function useDockFrame(rootRef: RefObject<HTMLDivElement | null>): DockFrame | nu
     if (element === null) return;
     const measure = () => {
       const rect = element.getBoundingClientRect();
-      setDockFrame({ left: rect.left + rect.width / 2, maxWidth: rect.width });
+      const left = Math.round(rect.left + rect.width / 2);
+      const maxWidth = Math.round(rect.width);
+      // Ancestors resize on every frame of the sidebar animation; only a real move re-renders the desktop.
+      setDockFrame((current) =>
+        current !== null && current.left === left && current.maxWidth === maxWidth ? current : { left, maxWidth },
+      );
     };
     const observer = new ResizeObserver(measure);
     for (let node: Element | null = element; node !== null; node = node.parentElement) observer.observe(node);
@@ -42,6 +48,8 @@ function AppOpener() {
 }
 
 function DesktopShell() {
+  // Closing a terminal window cleans up its session outside React, even if the window never rendered this load.
+  useTerminalSdk();
   const rootRef = useRef<HTMLDivElement>(null);
   const dockFrame = useDockFrame(rootRef);
   return (

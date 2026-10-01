@@ -38,6 +38,8 @@ export function ProgramMenuBar({ menus }: { menus: readonly ProgramMenu[] }) {
       if (event.target instanceof Node && !bar.current?.contains(event.target) && !popup.current?.contains(event.target)) setOpen(null);
     };
     const onKey = (event: KeyboardEvent) => {
+      // Keys typed elsewhere (another window, a field) are not the menu's to take.
+      if (!(event.target instanceof Node) || (!bar.current?.contains(event.target) && !popup.current?.contains(event.target))) return;
       if (event.key === "Escape") { event.preventDefault(); close(); }
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         event.preventDefault();
