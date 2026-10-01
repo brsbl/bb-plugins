@@ -45,6 +45,8 @@ const DEFAULT_THREADS = [
 async function setup(threads: ListedThread[] = DEFAULT_THREADS) {
   const updates: Array<{ threadId: string; visibility?: string; sectionId?: string | null }> = [];
   const spawns: unknown[] = [];
+  const metadata = new Map<string, Record<string, unknown>>();
+  const visibility = new Map(threads.map((thread) => [thread.id, thread.visibility]));
   const host = createFakePluginHost({
     pluginId: "desktop",
     sdk: {
@@ -55,7 +57,15 @@ async function setup(threads: ListedThread[] = DEFAULT_THREADS) {
       hosts: { list: async () => [{ id: "host_1", name: "Laptop" }] },
       threads: {
         list: threadStore(threads),
-        get: async ({ threadId }: { threadId: string }) => makeThreadResponse({ id: threadId }),
+        get: async ({ threadId }: { threadId: string }) =>
+          makeThreadResponse({ id: threadId, visibility: (visibility.get(threadId) ?? "visible") as "visible" }),
+        getPluginMetadata: async ({ threadId }: { threadId: string }) => ({ ...metadata.get(threadId) }),
+        updatePluginMetadata: async (args: { threadId: string; set?: Record<string, unknown>; remove?: string[] }) => {
+          const next = { ...metadata.get(args.threadId), ...args.set };
+          for (const key of args.remove ?? []) delete next[key];
+          metadata.set(args.threadId, next);
+          return next;
+        },
         spawn: async (args: unknown) => {
           spawns.push(args);
           await new Promise((resolve) => setTimeout(resolve, 5));
@@ -63,13 +73,14 @@ async function setup(threads: ListedThread[] = DEFAULT_THREADS) {
         },
         update: async (args: { threadId: string; visibility?: string; sectionId?: string | null }) => {
           updates.push(args);
+          if (args.visibility !== undefined) visibility.set(args.threadId, args.visibility as "visible");
           return makeThreadResponse({ id: args.threadId });
         },
       },
     } as never,
   });
   await plugin(host.bb);
-  return { ...host, updates, spawns };
+  return { ...host, updates, spawns, metadata };
 }
 
 describe("desktop server", () => {
@@ -165,6 +176,39 @@ describe("desktop server", () => {
     expect(updates.filter((update) => update.visibility === "visible")).toEqual([]);
     await harness.callRpc("removeFromFolder", { folderId: other.id, threadId: "thr_a" });
     expect(updates.at(-1)).toEqual({ threadId: "thr_a", visibility: "visible" });
+  });
+
+  it("never shows a thread that was hidden before Desktop filed it", async () => {
+    // thr_automation is another plugin's hidden helper thread. Filing it and taking it out again must leave it hidden.
+    const { harness, updates } = await setup();
+    const hiding = (await harness.callRpc("createFolder", {
+      name: "Launch",
+      hideFromSidebar: true,
+      position: null,
+    })) as { id: string };
+    await harness.callRpc("addToFolder", { folderId: hiding.id, threadIds: ["thr_automation"], fromFolderId: null });
+    await harness.callRpc("removeFromFolder", { folderId: hiding.id, threadId: "thr_automation" });
+    await harness.callRpc("addToFolder", { folderId: hiding.id, threadIds: ["thr_automation"], fromFolderId: null });
+    await harness.callRpc("deleteFolder", { id: hiding.id });
+    expect(updates.filter((update) => update.threadId === "thr_automation")).toEqual([]);
+  });
+
+  it("shows every thread Desktop hid and stops hiding folders with unhide-all", async () => {
+    const { harness, updates, metadata } = await setup();
+    const hiding = (await harness.callRpc("createFolder", {
+      name: "Launch",
+      hideFromSidebar: true,
+      position: null,
+    })) as { id: string };
+    await harness.callRpc("addToFolder", { folderId: hiding.id, threadIds: ["thr_a", "thr_automation"], fromFolderId: null });
+    expect(metadata.get("thr_a")).toEqual({ hiddenByDesktop: true });
+    const result = await harness.runCli(["unhide-all"]);
+    expect(result).toMatchObject({ exitCode: 0, stdout: "Showed 1 thread in the sidebar." });
+    expect(updates.at(-1)).toEqual({ threadId: "thr_a", visibility: "visible" });
+    expect(metadata.get("thr_a")).toEqual({});
+    expect(updates.filter((update) => update.threadId === "thr_automation")).toEqual([]);
+    const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
+    expect(snapshot.folders.find((folder) => folder.id === hiding.id)?.hideFromSidebar).toBe(false);
   });
 
   it("moves a thread between folders without showing it unless it leaves a hiding folder", async () => {

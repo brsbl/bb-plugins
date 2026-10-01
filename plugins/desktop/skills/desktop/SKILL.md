@@ -15,10 +15,12 @@ bb desktop folder create "Launch" --hide-from-sidebar
 bb desktop folder add <folder-id> <thread-id>...
 bb desktop folder remove <folder-id> <thread-id>
 bb desktop folder delete <folder-id>
+bb desktop unhide-all
 ```
 
 - Desktop folders mirror the sidebar's sections, projects, or machines; filing a thread into a section is an ordinary bb section change. `folder create` makes an extra desktop-only folder that holds chosen threads.
-- With `--hide-from-sidebar`, a desktop-only folder's threads are hidden from the sidebar thread list until they leave the folder or the folder is deleted.
+- With `--hide-from-sidebar`, a desktop-only folder's threads are hidden from the sidebar thread list until they leave the folder or the folder is deleted. A thread that was already hidden (another plugin's helper thread) stays hidden.
+- `unhide-all` shows every thread Desktop hid and turns off hiding on every folder. Run it before uninstalling Desktop.
 
 ## Making another plugin a Desktop program
 

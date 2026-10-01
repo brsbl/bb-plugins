@@ -8,7 +8,7 @@ Desktop turns bb's new-thread page into an operating system for your agents. Thr
 
 ## Use
 
-- **Folders.** Desktop folders mirror the sidebar's organization: your sections plus the loose Threads bucket, your projects, or your machines. By default they follow the sidebar's own setting; change it by right-clicking the desktop. New folder creates either a real sidebar section or a desktop-only folder, and desktop-only folders can hide their threads from the sidebar.
+- **Folders.** Desktop folders mirror the sidebar's organization: your sections plus the loose Threads bucket, your projects, or your machines. By default they follow the sidebar's own setting; change it by right-clicking the desktop. New folder creates either a real sidebar section or a desktop-only folder, and desktop-only folders can hide their threads from the sidebar. Desktop only shows threads it hid itself, so another plugin's hidden threads stay hidden. Before uninstalling Desktop, run `bb desktop unhide-all` to bring back every thread it hid; bb has no screen that lists hidden threads.
 - **More.** Groups you move into More in the sidebar live inside a More folder on the desktop instead of cluttering it. Its icon rolls up their status.
 - **Which folder is this thread in?** My Threads lists each thread's folders under its title, every thread's tooltip and details panel name its folders, and a thread page shows a folder label next to the note pad button when the thread is in a Desktop folder.
 - **Recycle Bin.** Archived threads live in the Recycle Bin, and folders show only active threads. Drag a thread onto the bin to archive it; right-click it inside the bin to restore it, or drag it onto a folder. Dropping desktop folders or sections on the bin deletes them after a confirmation.

@@ -223,7 +223,11 @@ const CLI_USAGE = [
   "  bb desktop folder add <folder-id> <thread-id>...",
   "  bb desktop folder remove <folder-id> <thread-id>",
   "  bb desktop folder delete <folder-id>",
+  "  bb desktop unhide-all",
 ].join("\n");
+
+/** Plugin metadata key on threads Desktop hid, so it only ever shows threads it hid itself. */
+const HIDDEN_BY_DESKTOP = "hiddenByDesktop";
 
 export default function plugin(bb: BbPluginApi) {
   const db = bb.storage.database();
@@ -381,13 +385,37 @@ export default function plugin(bb: BbPluginApi) {
     return threads;
   }
 
-  async function setVisibility(threadId: string, visibility: "hidden" | "visible") {
+  function warn(threadId: string, action: string, error: unknown) {
+    bb.log.warn(`could not ${action} ${threadId}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  /**
+   * Hides a filed thread from the sidebar and tags it as hidden by Desktop. A thread that was already hidden, such as
+   * another plugin's helper thread, is left alone and untagged, so Desktop never shows it later.
+   */
+  async function hideThread(threadId: string) {
     try {
-      await bb.sdk.threads.update({ threadId, visibility });
+      const [thread, metadata] = await Promise.all([
+        bb.sdk.threads.get({ threadId }),
+        bb.sdk.threads.getPluginMetadata({ threadId }),
+      ]);
+      if (thread.visibility === "hidden" && metadata[HIDDEN_BY_DESKTOP] !== true) return;
+      await bb.sdk.threads.updatePluginMetadata({ threadId, set: { [HIDDEN_BY_DESKTOP]: true } });
+      if (thread.visibility !== "hidden") await bb.sdk.threads.update({ threadId, visibility: "hidden" });
     } catch (error) {
-      bb.log.warn(
-        `could not set ${threadId} ${visibility}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      warn(threadId, "hide", error);
+    }
+  }
+
+  /** Shows a thread again only if Desktop hid it. */
+  async function showThread(threadId: string) {
+    try {
+      const metadata = await bb.sdk.threads.getPluginMetadata({ threadId });
+      if (metadata[HIDDEN_BY_DESKTOP] !== true) return;
+      await bb.sdk.threads.update({ threadId, visibility: "visible" });
+      await bb.sdk.threads.updatePluginMetadata({ threadId, remove: [HIDDEN_BY_DESKTOP] });
+    } catch (error) {
+      warn(threadId, "show", error);
     }
   }
 
@@ -404,7 +432,7 @@ export default function plugin(bb: BbPluginApi) {
 
   async function releaseVisibility(threadIds: readonly string[], folderId: string | null) {
     for (const threadId of threadIds) {
-      if (!isInHidingFolder(threadId, folderId)) await setVisibility(threadId, "visible");
+      if (!isInHidingFolder(threadId, folderId)) await showThread(threadId);
     }
   }
 
@@ -447,7 +475,7 @@ export default function plugin(bb: BbPluginApi) {
       }
     })();
     if (folder.hideFromSidebar) {
-      for (const threadId of input.threadIds) await setVisibility(threadId, "hidden");
+      for (const threadId of input.threadIds) await hideThread(threadId);
     } else if (from?.hideFromSidebar === true) {
       // Only threads leaving a hiding folder come back; one hidden for another reason stays hidden.
       await releaseVisibility(
@@ -477,6 +505,47 @@ export default function plugin(bb: BbPluginApi) {
     await writeLayout({ [`folder:${id}`]: null });
     changed("folders");
   }
+
+  /**
+   * Turns off hiding on every folder and shows every thread Desktop hid, including any left tagged after a folder or
+   * its rows went away. Run before uninstalling, since bb has no screen that lists hidden threads.
+   */
+  async function unhideAll(): Promise<number> {
+    const hiding = listFolders().filter((folder) => folder.hideFromSidebar);
+    db.prepare(`UPDATE folders SET hide_from_sidebar = 0 WHERE hide_from_sidebar = 1`).run();
+    const candidates = new Set(hiding.flatMap((folder) => folder.threadIds));
+    const hidden = await bb.sdk.threads.list({ includeHidden: true, hasParent: false, limit: ACTIVE_THREAD_LIMIT });
+    for (const thread of hidden) if (thread.visibility === "hidden") candidates.add(thread.id);
+    let shown = 0;
+    for (const threadId of candidates) {
+      const metadata = await bb.sdk.threads.getPluginMetadata({ threadId }).catch(() => null);
+      if (metadata?.[HIDDEN_BY_DESKTOP] !== true) continue;
+      await showThread(threadId);
+      shown += 1;
+    }
+    if (hiding.length > 0) changed("folders");
+    return shown;
+  }
+
+  /**
+   * Versions before the tag hid threads without recording it. Tag what hiding folders hold now, once, so those threads
+   * still come back when they leave the folder.
+   */
+  async function tagThreadsHiddenBeforeTagging() {
+    if ((await bb.storage.kv.get<unknown>("migration:hidden-tag:v1")) === true) return;
+    const browserThreadId = await bb.storage.kv.get<unknown>("browserThreadId");
+    const members = new Set(listFolders().filter((folder) => folder.hideFromSidebar).flatMap((folder) => folder.threadIds));
+    for (const threadId of members) {
+      if (threadId === browserThreadId) continue;
+      await bb.sdk.threads
+        .updatePluginMetadata({ threadId, set: { [HIDDEN_BY_DESKTOP]: true } })
+        .catch((error: unknown) => warn(threadId, "tag", error));
+    }
+    await bb.storage.kv.set("migration:hidden-tag:v1", true);
+  }
+  void tagThreadsHiddenBeforeTagging().catch((error: unknown) =>
+    bb.log.warn(`could not tag hidden threads: ${error instanceof Error ? error.message : String(error)}`),
+  );
 
   let browserThreadLookup: Promise<{ threadId: string }> | null = null;
   async function findOrSpawnBrowserThread(): Promise<{ threadId: string }> {
@@ -526,7 +595,7 @@ export default function plugin(bb: BbPluginApi) {
         folder.id,
       );
       if (hide && !folder.hideFromSidebar) {
-        for (const threadId of folder.threadIds) await setVisibility(threadId, "hidden");
+        for (const threadId of folder.threadIds) await hideThread(threadId);
       } else if (!hide && folder.hideFromSidebar) {
         await releaseVisibility(folder.threadIds, folder.id);
       }
@@ -634,6 +703,11 @@ export default function plugin(bb: BbPluginApi) {
         usage:
           "bb desktop folder create <name> [--hide-from-sidebar] | add <folder-id> <thread-id>... | remove <folder-id> <thread-id> | delete <folder-id>",
       },
+      {
+        name: "unhide-all",
+        summary: "Show every thread Desktop hid from the sidebar and stop hiding folders",
+        usage: "bb desktop unhide-all",
+      },
     ],
     async run(argv, context) {
       const fail = (message: string) => ({ exitCode: 2, stderr: `${message}\n\n${CLI_USAGE}` });
@@ -645,6 +719,10 @@ export default function plugin(bb: BbPluginApi) {
               `${folder.id}\t${folder.name}\t${folder.threadIds.length} threads${folder.hideFromSidebar ? "\thidden from sidebar" : ""}`,
           );
           return { exitCode: 0, stdout: lines.join("\n") || "No folders." };
+        }
+        if (command === "unhide-all") {
+          const shown = await unhideAll();
+          return { exitCode: 0, stdout: `Showed ${shown} thread${shown === 1 ? "" : "s"} in the sidebar.` };
         }
         if (command === "folder") {
           if (subcommand === "create") {
