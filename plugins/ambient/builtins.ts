@@ -1814,7 +1814,7 @@ vec3 scene(vec2 uv, vec2 p) {
       float sz = 0.8 + 0.45 * hash21(vec2(ci, 5.0));
       float hue = hash21(vec2(ci, 12.0));
       vec3 ac = hue < 0.55 ? coral : (hue < 0.8 ? mix(coral, pale, 0.45) : mix(cyan, deep, 0.3));
-      float Hc = 0.034 * sz, wc = 0.015 * sz;
+      float Hc = 0.034 * sz, wc = 0.019 * sz;
       // back row of tentacles, then the column and oral disc, then the front row
       for (int layer = 0; layer < 3; layer++) {
         if (layer == 1) {
@@ -1829,12 +1829,12 @@ vec3 scene(vec2 uv, vec2 p) {
           continue;
         }
         float front = layer == 2 ? 1.0 : 0.0;
-        for (int k2 = 0; k2 < 6; k2++) {
+        for (int k2 = 0; k2 < 8; k2++) {
           float fi = float(k2) * 2.0 + front;
-          float u = fi / 11.0 * 2.0 - 1.0;
+          float u = fi / 15.0 * 2.0 - 1.0;
           float ang = u * 1.2 + 0.22 * sin(t * 0.7 + ci + fi * 0.6);
           vec2 o = vec2(bx + u * wc * 0.95, by + Hc);
-          float L = (0.05 + 0.025 * hash21(vec2(ci, fi))) * sz * (1.0 - 0.25 * abs(u));
+          float L = (0.042 + 0.022 * hash21(vec2(ci, fi))) * sz * (1.0 - 0.2 * abs(u));
           float curl = (0.25 + 0.2 * sin(t * 0.5 + fi + ci)) * (u < 0.0 ? -1.0 : 1.0);
           vec2 dir = vec2(sin(ang), cos(ang));
           vec2 nrm = vec2(dir.y, -dir.x);
@@ -1849,8 +1849,8 @@ vec3 scene(vec2 uv, vec2 p) {
             if (dd < best) { best = dd; bt = (float(sg) - 1.0 + hh) / 3.0; }
             p0 = p1;
           }
-          float thick = 0.0058 * sz * (1.0 - 0.55 * bt);
-          float tipR = 0.0042 * sz;
+          float thick = 0.0088 * sz * (1.0 - 0.45 * bt);
+          float tipR = 0.0058 * sz;
           float dTip = length(q - p0) - tipR;
           float m = smoothstep(0.0012, -0.0012, min(best - thick, dTip));
           float roundT = clamp(1.0 - best / max(thick, 1e-4), 0.0, 1.0);
