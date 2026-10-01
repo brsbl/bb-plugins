@@ -96,7 +96,11 @@ const CLI_CONTROL_KEYS = new Map<string, ControlKey>(
 
 const CLI_CONTROL_NAMES = CONTROL_SPECS.map((spec) => spec.name).join("|");
 
-export function parseSetPairs(pairs: readonly string[]): {
+/** A scene's own param wins over a display control with the same name, so every param stays settable. */
+export function parseSetPairs(
+  pairs: readonly string[],
+  paramIds: ReadonlySet<string> = new Set(),
+): {
   values: Record<string, number>;
   controls: Partial<Controls>;
 } {
@@ -106,10 +110,11 @@ export function parseSetPairs(pairs: readonly string[]): {
     const match = /^([a-z][a-z0-9_]*)=(-?\d+(?:\.\d+)?)(%?)$/.exec(pair);
     if (!match) throw new Error(`expected <param>=<number>, got ${JSON.stringify(pair)}`);
     const [, key, number, percent] = match;
-    if (RETIRED_CONTROLS.has(key!)) {
+    const param = paramIds.has(key!);
+    if (!param && RETIRED_CONTROLS.has(key!)) {
       throw new Error("Detail is set per device, in the Display section of the Ambient panel");
     }
-    const control = CLI_CONTROL_KEYS.get(key!);
+    const control = param ? undefined : CLI_CONTROL_KEYS.get(key!);
     const value = Number(number) / (percent ? 100 : 1);
     if (control) {
       controls[control] = value;
@@ -140,6 +145,7 @@ export default function plugin(bb: BbPluginApi): void {
     setPalette: ({ palette }) => ops.editScene({ palette }),
     setControls: (controls) => ops.setControls(controls),
     loadScene: ({ id }) => ops.loadScene(id),
+    restore: (entry) => ops.restore(entry),
     resetScene: ({ id }) => ops.resetScene(id),
     async saveScene({ name }) {
       return { id: await ops.saveScene(name) };
@@ -338,8 +344,12 @@ export default function plugin(bb: BbPluginApi): void {
             return ok(`loaded ${(await ops.loadScene(argument)).scene.name}`);
           case "set": {
             if (rest.length === 0) throw new Error(`usage: bb ambient set <param|${CLI_CONTROL_NAMES}>=<value>[%] [...]`);
-            const { values, controls } = parseSetPairs(rest);
-            const next = await ops.editScene({ values, controls });
+            let values: Record<string, number> = {};
+            let controls: Partial<Controls> = {};
+            const next = await ops.editScene((state) => {
+              ({ values, controls } = parseSetPairs(rest, new Set(state.scene.params.map((entry) => entry.id))));
+              return { values, controls };
+            });
             const applied = next.scene.params
               .filter((entry) => Object.hasOwn(values, entry.id))
               .map((entry) => `${entry.id}=${entry.value}`);

@@ -228,7 +228,7 @@ export default definePluginApp((app) => {
   app.slots.sidebarFooterAction({
     id: "toggle",
     title: "Context Katamari",
-    icon: "Circle",
+    icon: "context-katamari/katamari",
     run: () => openFlag.set(!openFlag.get()),
   });
   app.slots.experimental_appOverlay({
