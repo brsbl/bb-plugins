@@ -680,31 +680,71 @@ vec3 scene(vec2 uv, vec2 p) {
   return mix(u_canvas, col, p_color);
 }`;
 
-const CONTOUR_SOURCE = `vec3 scene(vec2 uv, vec2 p) {
+const CONTOUR_SOURCE = `float terrain(vec2 p, float t) {
+  vec2 q = p * p_scale + vec2(t, t * 0.4);
+  vec2 wq = q + 0.6 * vec2(noise(q * 0.7 + 3.1), noise(q * 0.7 - 1.7));
+  float f = fbm(wq);
+  float r = 1.0 - abs(noise(wq * 2.3 + 5.0) * 2.0 - 1.0);
+  float r2 = 1.0 - abs(noise(wq * 5.1 - 2.0) * 2.0 - 1.0);
+  return f * 0.85 + r * r * 0.2 + r2 * r2 * 0.06 - 0.06;
+}
+
+vec3 scene(vec2 uv, vec2 p) {
   float t = u_time * 0.02 * p_drift;
-  float h = fbm(p * p_scale + vec2(t, t * 0.4)) * 1.2;
+  float h = terrain(p, t);
+
+  // agents raise sharp summits that grow while they work
+  float waitRing = 0.0;
   for (int i = 0; i < 16; i++) {
     if (i >= u_agentCount) break;
     vec4 a = u_agents[i];
     vec2 d = p - toP(a.xy);
-    float breathe = a.z > 0.5 ? 0.8 + 0.2 * sin(u_time * 2.0) : 1.0;
-    h += p_height * a.w * breathe * exp(-dot(d, d) / 0.03);
+    float r2 = dot(d, d);
+    float pk = 0.55 * p_height * a.w / (1.0 + r2 / 0.0018) * exp(-r2 / 0.03);
+    h += pk;
+    if (a.z > 0.5) {
+      float f = fract(u_time * 0.5 + float(i) * 0.3);
+      waitRing = max(waitRing, smoothstep(0.004, 0.0, abs(sqrt(r2) - 0.02 - 0.09 * f)) * (1.0 - f) * a.w);
+    }
   }
   for (int i = 0; i < 12; i++) {
     if (i >= u_rippleCount) break;
     vec4 r = u_ripples[i];
     float dist = length(p - toP(r.xy));
     float dir = abs(r.w - 1.0) < 0.5 ? -1.0 : 1.0;
-    h += dir * 0.25 * exp(-pow((dist - r.z * 0.28) * 18.0, 2.0)) * exp(-r.z);
+    h += dir * 0.12 * exp(-pow((dist - r.z * 0.25) * 16.0, 2.0)) * exp(-r.z);
   }
+
+  // hypsometric tint: stepped layers from deep lowland to high ground
+  float hn = smoothstep(0.08, 0.82, h);
+  float layers = 9.0;
+  vec3 smoothC = ramp(hn);
+  vec3 stepC = ramp((floor(hn * layers) + 0.5) / layers);
+  vec3 col = mix(smoothC, stepC, 0.55);
+  col = mix(u_canvas, col, 0.35 + 0.65 * p_fill);
+
+  // hillshade from the terrain's screen-space slope, lit from the upper left
+  vec2 g = vec2(dFdx(h), dFdy(h)) * u_resolution.y * 0.22 * p_relief;
+  vec3 n = normalize(vec3(-g, 1.0));
+  float shade = dot(n, normalize(vec3(-0.6, 0.6, 0.55)));
+  col *= 0.6 + 0.55 * clamp(shade, 0.0, 1.2);
+
+  // contour lines a constant pixel width everywhere; every fifth an index contour
   float v = h * p_density;
-  float w = fwidth(v) * p_weight;
-  float f = fract(v);
-  float line = 1.0 - smoothstep(0.0, w * 1.5, min(f, 1.0 - f));
-  float m = fract(v / 5.0);
-  float major = 1.0 - smoothstep(0.0, w * 2.5, min(m, 1.0 - m) * 5.0);
-  vec3 base = mix(u_canvas, ramp(h * 0.8), p_fill);
-  vec3 col = mix(base, u_palette[3], clamp(line * 0.55 + major * 0.35, 0.0, 1.0));
+  float fw = max(fwidth(v), 1e-4);
+  float dMinor = min(fract(v), 1.0 - fract(v)) / fw;
+  float mv = fract(v / 5.0);
+  float dMajor = min(mv, 1.0 - mv) * 5.0 / fw;
+  float crowd = smoothstep(0.7, 0.3, fw);
+  float minor = (1.0 - smoothstep(0.35 * p_weight, 0.35 * p_weight + 1.0, dMinor)) * crowd;
+  float major = (1.0 - smoothstep(0.9 * p_weight, 0.9 * p_weight + 1.0, dMajor)) * smoothstep(1.4, 0.6, fw);
+  float lum = dot(col, vec3(0.3, 0.55, 0.15));
+  vec3 lineC = mix(col * 1.7 + 0.1, col * 0.35, smoothstep(0.2, 0.4, lum));
+  col = mix(col, lineC, minor * 0.8);
+  col = mix(col, lineC * 0.85, major);
+
+  col = mix(col, u_palette[3], waitRing * 0.8);
+  col *= 0.97 + 0.04 * noise(p * vec2(300.0, 80.0));
   return mix(u_canvas, col, p_color);
 }`;
 
@@ -2505,11 +2545,12 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     source: CONTOUR_SOURCE,
     palette: ["#0d1b3e", "#3a2d8f", "#e0457b", "#ffd36b"],
     params: [
-      param("scale", "Zoom", 0.5, 5, 1.6),
-      param("density", "Line density", 2, 30, 22, 0.5),
-      param("weight", "Line weight", 0.5, 3, 1),
-      param("height", "Agent peaks", 0, 2, 1.9),
-      param("fill", "Fill", 0, 1, 0.5),
+      param("scale", "Zoom", 0.5, 5, 1.8),
+      param("density", "Line density", 4, 40, 26, 0.5),
+      param("weight", "Line weight", 0.5, 3, 1.2),
+      param("relief", "Hillshade", 0, 2, 1),
+      param("height", "Agent peaks", 0, 2, 1),
+      param("fill", "Tint strength", 0, 1, 0.85),
       param("drift", "Drift", 0, 3, 1),
       param("color", "Color strength", 0, 1, 1),
     ],
