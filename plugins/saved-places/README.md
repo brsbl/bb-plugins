@@ -47,7 +47,7 @@ Takeout list CSVs contain names and links but no coordinates, so `--geocode` loo
 
 Any CSV with `name`, `latitude`, and `longitude` columns also works, with optional `address`, `url`, `list`, `category`, and `type` columns. A `list` column splits one file into several lists. GeoJSON files of Point features work too.
 
-Each place is assigned a category from its name and type. To change the categories, edit `categories.ts` (ids, labels, colors), `category-icons.ts` (map icons), and the matching `CATEGORY_RULES` in `scripts/import.mjs`, then re-import. Lists titled "Favorite places", "Want to go", or "Starred places" are grouped as saved by Google; see `groupFor` in `model.ts`.
+Each place gets its category from its Google place type, narrowed by its name (a "Restaurant" named "Sushi Sho" is Sushi), or from its name alone when it has no type; addresses are never used. A specific `category` in your CSV, such as `museum`, overrides both. Categories belong to ten color groups (Food, Cafés & sweets, Nightlife, Culture, Outdoors, Shopping, Stays, Wellness & fun, Getting around, Other); a place takes its group's color and its category's icon. To add or change a category, edit its row in `categories.ts` (label, name/type pattern, and the OpenMapTiles POI classes it covers) and its icon in `category-icons.ts`. Lists titled "Favorite places", "Want to go", or "Starred places" are grouped as saved by Google; see `groupFor` in `model.ts`.
 
 ## Map services
 

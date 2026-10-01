@@ -75,7 +75,7 @@ export function PlaceView({ placeKey }: { placeKey: string }) {
         : <PlaceAvatar place={place} color={color} size={52} />}
       <h2 className="sp-place-name">{place.name}</h2>
       <p className="sp-place-kind">
-        {place.category !== "other" && <Icon icon={categoryIcons[place.category]} size={15} />}
+        {place.category !== "other" && <span className="sp-place-kind-icon sp-orb" style={{ "--orb-color": color } as React.CSSProperties}><Icon icon={categoryIcons[place.category]} size={12} /></span>}
         {kind}
         {place.rating !== null && <><span className="sp-dot-sep" /><span className="sp-rating">★ {place.rating.toFixed(1)}</span>{place.reviewCount !== null && <span className="sp-muted">({place.reviewCount.toLocaleString()})</span>}</>}
         {place.price && <><span className="sp-dot-sep" />{place.price}</>}
@@ -135,7 +135,7 @@ function NearbyGroup({ minutes, mode, places }: { minutes: number; mode: TravelM
     <p className="sp-nearby-label"><span className="sp-nearby-badge">{minutes}</span>min {verb}<span className="sp-muted">{plural(places.length, "save")}</span></p>
     {shown.map(p => {
       return <div key={p.key} className="sp-nearby-row" onMouseEnter={() => app.hover(p.key)} onMouseLeave={() => app.hover(null)}>
-        <button type="button" onClick={() => app.openPlace(p.key)}><span aria-hidden="true" className="sp-nearby-icon"><Icon icon={categoryIcons[p.category]} size={15} /></span><span className="sp-nearby-name">{p.name}</span>{app.store.notes[p.key] && <span className="sp-note-dot" aria-label="Has a note" />}</button>
+        <button type="button" onClick={() => app.openPlace(p.key)}><span aria-hidden="true" className="sp-nearby-icon sp-orb" style={{ "--orb-color": categoryFor(p.category).color } as React.CSSProperties}><Icon icon={categoryIcons[p.category]} size={12} /></span><span className="sp-nearby-name">{p.name}</span>{app.store.notes[p.key] && <span className="sp-note-dot" aria-label="Has a note" />}</button>
         <button type="button" className="sp-stop-toggle sp-stop-toggle-small" data-on={app.route.stops.includes(p.key) || undefined} aria-label={app.route.stops.includes(p.key) ? `Remove ${p.name} from route` : `Add ${p.name} to route`} title={app.route.stops.includes(p.key) ? "Remove from route" : "Add to route"} onClick={() => app.route.toggle(p.key)}>{app.route.stops.includes(p.key) ? app.route.stops.indexOf(p.key) + 1 : <Icon icon={Route01} size={14} />}</button>
       </div>;
     })}

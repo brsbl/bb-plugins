@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { collections, places, type Place } from "./places";
-import type { CategoryId } from "./categories";
+import { resolveCategory, type CategoryId } from "./categories";
 
 export const LIST_COLORS = ["#e5484d", "#f76b15", "#d6a100", "#30a46c", "#12a594", "#0090ff", "#3e63dd", "#8e4ec6", "#d6409f", "#a18072"] as const;
 
@@ -80,6 +80,7 @@ function buildPlaces() {
     existing.status ??= p.status;
     if (existing.address.length < p.address.length) existing.address = p.address;
   }
+  for (const place of byKey.values()) place.category = resolveCategory(place);
   return byKey;
 }
 

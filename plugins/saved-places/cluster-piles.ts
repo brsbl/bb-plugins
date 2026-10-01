@@ -1,5 +1,5 @@
 import maplibregl, { type ExpressionSpecification, type GeoJSONSource, type Map as GlMap } from "maplibre-gl";
-import { categories } from "./categories";
+import { groups } from "./categories";
 import { categoryIcons, iconSvg } from "./category-icons";
 import { createClusterShader, type MeshSpec } from "./cluster-shader";
 
@@ -8,14 +8,14 @@ export const CLUSTER_MAX_ZOOM = 14;
 export const CLUSTER_RADIUS = 55;
 export const CLUSTER_MIN_POINTS = 3;
 
-const tracked = categories.filter(category => category.id !== "other");
+const tracked = groups.filter(group => group.id !== "other");
 export const clusterProperties: Record<string, ExpressionSpecification> = {
-  ...Object.fromEntries(categories.flatMap(category => {
-    const member = ["==", ["get", "category"], category.id] as ExpressionSpecification;
+  ...Object.fromEntries(groups.flatMap(group => {
+    const member = ["==", ["get", "group"], group.id] as ExpressionSpecification;
     return [
-      [category.id, ["+", ["case", member, 1, 0]]],
-      [`${category.id}_lng`, ["+", ["case", member, ["get", "lng"], 0]]],
-      [`${category.id}_lat`, ["+", ["case", member, ["get", "lat"], 0]]],
+      [group.id, ["+", ["case", member, 1, 0]]],
+      [`${group.id}_lng`, ["+", ["case", member, ["get", "lng"], 0]]],
+      [`${group.id}_lat`, ["+", ["case", member, ["get", "lat"], 0]]],
     ];
   })),
   west: ["min", ["get", "lng"]],
@@ -38,7 +38,7 @@ const onWhite = (hex: string) => {
 };
 
 type Blob = { color: string; count: number; lng: number; lat: number };
-const OTHER_COLOR = categories.find(category => category.id === "other")!.color;
+const OTHER_COLOR = groups.find(group => group.id === "other")!.color;
 export function meshGradient(blobs: Blob[], extent: { west: number; east: number; south: number; north: number }) {
   const typed = blobs.filter(blob => blob.color !== OTHER_COLOR);
   if (typed.length) blobs = typed;
@@ -82,15 +82,15 @@ export function attachClusterPiles(map: GlMap, onError: (message: string) => voi
       const screen = map.project(coordinates);
       if (screen.x < -60 || screen.y < -60 || screen.x > frame.clientWidth + 60 || screen.y > frame.clientHeight + 60) continue;
       visible.add(id);
-      const blobs = categories.map(category => {
-        const n = Number(feature.properties[category.id]) || 0;
-        return { color: category.color, count: n, lng: n ? Number(feature.properties[`${category.id}_lng`]) / n : 0, lat: n ? Number(feature.properties[`${category.id}_lat`]) / n : 0 };
+      const blobs = groups.map(group => {
+        const n = Number(feature.properties[group.id]) || 0;
+        return { color: group.color, count: n, lng: n ? Number(feature.properties[`${group.id}_lng`]) / n : 0, lat: n ? Number(feature.properties[`${group.id}_lat`]) / n : 0 };
       }).filter(blob => blob.count > 0);
-      const composition = tracked.map(category => ({ ...category, count: Number(feature.properties[category.id]) || 0 })).filter(category => category.count > 0).sort((a, b) => b.count - a.count);
+      const composition = tracked.map(group => ({ ...group, count: Number(feature.properties[group.id]) || 0 })).filter(group => group.count > 0).sort((a, b) => b.count - a.count);
       const notes = Number(feature.properties.notes) || 0;
       const dim = feature.properties.dim === 1;
       const gradient = blobs.length ? meshGradient(blobs, { west: Number(feature.properties.west), east: Number(feature.properties.east), south: Number(feature.properties.south), north: Number(feature.properties.north) }) : { base: "#60646c", background: "#60646c", spec: { base: "#60646c", blobs: [] } };
-      const signature = `${count}:${gradient.background}:${notes}:${dim}:${composition.map(category => `${category.id}${category.count}`).join(",")}`;
+      const signature = `${count}:${gradient.background}:${notes}:${dim}:${composition.map(group => `${group.id}${group.count}`).join(",")}`;
       let entry = markers.get(id);
       if (entry?.signature !== signature) {
         entry?.marker.remove();
@@ -102,7 +102,7 @@ export function attachClusterPiles(map: GlMap, onError: (message: string) => voi
         button.style.setProperty("--cluster-fill", gradient.background);
         button.style.setProperty("--cluster-size", `${sizeFor(count)}px`);
         if (dim) button.dataset.dim = "true";
-        const description = `${count} places${composition.length ? `: ${composition.map(category => `${category.count} ${category.label}`).join(", ")}` : ""}${notes ? `, ${notes} with notes` : ""}`;
+        const description = `${count} places${composition.length ? `: ${composition.map(group => `${group.count} ${group.label}`).join(", ")}` : ""}${notes ? `, ${notes} with notes` : ""}`;
         button.setAttribute("aria-label", `${description}. Zoom in`);
         button.title = description;
         const mesh = shader?.attach(gradient.spec, sizeFor(count), seedFor(id));
@@ -115,9 +115,9 @@ export function attachClusterPiles(map: GlMap, onError: (message: string) => voi
           const pile = document.createElement("span");
           pile.className = "sp-cluster-pile";
           pile.setAttribute("aria-hidden", "true");
-          for (const category of composition.slice(0, 2)) {
+          for (const group of composition.slice(0, 2)) {
             const badge = document.createElement("span");
-            badge.innerHTML = iconSvg(categoryIcons[category.id], { size: 12, strokeWidth: 2.1 });
+            badge.innerHTML = iconSvg(categoryIcons[group.icon], { size: 12, strokeWidth: 2.1 });
             pile.append(badge);
           }
           button.append(pile);

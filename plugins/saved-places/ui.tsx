@@ -52,7 +52,7 @@ export function ListCover({ list, size = 44 }: { list: SavedList; size?: number 
 export function PlaceAvatar({ place, color, size = 40 }: { place: SavedPlace; color: string; size?: number }) {
   const [failed, setFailed] = useState(false);
   if (place.photoUrl && !failed) return <span className="sp-avatar sp-avatar-photo" style={{ width: size, height: size }}><img src={place.photoUrl} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} /></span>;
-  return <span className="sp-avatar" style={{ width: size, height: size, "--list-color": color } as React.CSSProperties} aria-hidden="true"><Icon icon={categoryIcons[place.category]} size={Math.round(size * 0.45)} /></span>;
+  return <span className="sp-avatar sp-orb" style={{ width: size, height: size, "--orb-color": color } as React.CSSProperties} aria-hidden="true"><Icon icon={categoryIcons[place.category]} size={Math.round(size * 0.45)} /></span>;
 }
 
 export function Chip({ pressed, onClick, children, color }: { pressed: boolean; onClick: () => void; children: ReactNode; color?: string }) {

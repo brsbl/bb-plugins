@@ -154,8 +154,23 @@
 .sp-cover-stack .sp-cover + .sp-cover { margin-left: -16px; box-shadow: 0 0 0 2px var(--sp-bg); }
 .sp-list-hero { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 
-.sp-avatar { flex: none; display: grid; place-items: center; border-radius: 11px; overflow: hidden; color: var(--list-color); background: color-mix(in oklab, var(--list-color) 13%, var(--sp-bg)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--list-color) 16%, transparent); }
-.sp-avatar-photo { background: var(--sp-fill); box-shadow: none; }
+.sp-avatar { flex: none; display: grid; place-items: center; border-radius: 11px; overflow: hidden; color: #fff; }
+.sp-orb {
+  --orb-tint: color-mix(in oklab, var(--orb-color) 74%, #fff);
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background:
+    radial-gradient(58% 32% at 50% 19%, rgb(255 255 255 / 0.62), rgb(255 255 255 / 0) 100%),
+    radial-gradient(13% 10% at 33% 26%, rgb(255 255 255 / 0.9), rgb(255 255 255 / 0) 100%),
+    radial-gradient(70% 40% at 50% 104%, color-mix(in oklab, var(--orb-tint) 60%, #fff), rgb(255 255 255 / 0) 100%),
+    radial-gradient(120% 120% at 32% 22%, var(--orb-tint), var(--orb-color) 80%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4), 0 0 0 2px var(--sp-bg), 0 2px 6px -1px rgb(0 0 0 / 0.3);
+}
+.sp-orb svg { filter: drop-shadow(0 0.5px 1px rgb(0 0 0 / 0.45)); }
+.sp-avatar-photo { background: var(--sp-fill); }
 .sp-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .sp-shelf { display: grid; grid-auto-flow: column; grid-auto-columns: 84px; gap: 12px; overflow-x: auto; padding: 2px 8px 10px; scroll-snap-type: x proximity; scrollbar-width: none; }
@@ -181,7 +196,8 @@
 .sp-chip[aria-pressed="true"] { background: var(--sp-ink); color: var(--sp-bg); border-color: transparent; }
 .sp-chip[aria-pressed="true"] > span:last-child { color: inherit; opacity: 0.7; }
 .sp-chip[style][aria-pressed="true"] { background: var(--chip-color); color: #1d1600; }
-.sp-chip-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.sp-chip-glyph { width: 20px; height: 20px; margin-left: -6px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4), 0 1px 3px rgb(0 0 0 / 0.25); }
+.sp-chip-glyph svg { width: 12px; height: 12px; }
 .sp-legend { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 4px; font-size: var(--text-xs, 12px); color: var(--sp-muted); white-space: nowrap; }
 .sp-legend span { width: 8px; height: 8px; border-radius: 50%; }
 
@@ -222,6 +238,7 @@
 .sp-place-name { margin-top: 12px; font-size: var(--text-xl, 20px); font-weight: 680; letter-spacing: -0.022em; line-height: 1.2; }
 .sp-photo + .sp-place-name { margin-top: 0; }
 .sp-place-kind { margin-top: 5px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; color: var(--sp-muted); }
+.sp-place-kind-icon { width: 20px; height: 20px; margin-right: 2px; }
 .sp-rating { color: var(--sp-ink); font-weight: 620; }
 .sp-place-status { margin-top: 4px; color: var(--sp-danger); font-size: var(--text-xs, 12px); font-weight: 560; }
 .sp-place-address { margin-top: 6px; color: var(--sp-muted); font-size: var(--text-xs, 12px); }
@@ -274,7 +291,7 @@
 .sp-nearby-row { display: flex; align-items: center; gap: 4px; }
 .sp-nearby-row > button:first-child { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 9px; text-align: left; font-size: var(--text-sm, 13px); }
 .sp-nearby-row > button:first-child:hover { background: var(--sp-hover); }
-.sp-nearby-icon { width: 18px; display: grid; place-items: center; flex: none; color: var(--sp-muted); }
+.sp-nearby-icon { width: 20px; height: 20px; }
 .sp-nearby-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-note-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--sp-note); }
 .sp-nearby .sp-link-button { margin-left: 30px; }
