@@ -164,7 +164,7 @@ describe("provider registration and package shape", () => {
       engines: { bbPluginSdk: ">=0.4.8" },
       bb: {
         name: "Plugin Finder",
-        branding: { icon: "Zap" },
+        branding: { icon: "Target" },
         server: "./server.ts",
         skills: ["skills"],
       },
@@ -302,7 +302,12 @@ describe("provider searches", () => {
 
     const installedRows = await mentionProvider(harness, "installed").search(MENTION_CONTEXT);
     expect(installedRows).toEqual([
-      { id: encodeInstalledItemId("github"), title: "GitHub", subtitle: "Plugin description" },
+      {
+        id: encodeInstalledItemId("github"),
+        title: "GitHub",
+        subtitle: "Plugin description",
+        icon: "Plug02",
+      },
     ]);
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([
       "plugins.list",
@@ -319,6 +324,7 @@ describe("provider searches", () => {
         }),
         title: "Git Memory",
         subtitle: "Not installed · Catalog description",
+        icon: "Plug02",
       },
     ]);
     expect(harness.inspection.sdk.calls.map((call) => call.path)).toEqual([

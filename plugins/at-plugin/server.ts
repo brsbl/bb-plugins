@@ -167,7 +167,7 @@ export default async function plugin(bb: BbPluginApi) {
       if (trigger === "#" && query.trim().toLowerCase() === "plugins") query = "plugin";
       try {
         const catalog = await searchCatalog(query);
-        return searchCommunityPlugins(catalog.matches, query);
+        return searchCommunityPlugins(catalog.matches, query, undefined, catalog.hostMatches);
       } catch {
         return [];
       }
