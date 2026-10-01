@@ -1,7 +1,7 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 
-import { BUILT_IN_SCENES, DEFAULT_SCENE, matchesBuiltInName, POPPY_HILL_SOURCE, rebuildBuiltIn, sceneOf } from "./builtins";
+import { BUILT_IN_SCENES, DEFAULT_SCENE, POPPY_HILL_SOURCE, rebuildBuiltIn, sceneOf } from "./builtins";
 import { parseCaptureRequest } from "./capture";
 import plugin, {
   DAILY_CONCEPTS,
@@ -368,15 +368,6 @@ describe("scene inputs", () => {
 });
 
 describe("built-in scenes", () => {
-  it("still resolve the names and ids they shipped under", () => {
-    const byId = (id: string) => BUILT_IN_SCENES.find((entry) => entry.id === id)!;
-    expect(matchesBuiltInName(byId("poppy-hill"), "Poppy Hill in the Wind")).toBe(true);
-    expect(matchesBuiltInName(byId("swirling-stars-screaming-fjord"), "swirling stars, screaming fjord")).toBe(true);
-    expect(byId("jellyfish-deep").name).toBe("Jellyfish Tidepool");
-    expect(matchesBuiltInName(byId("jellyfish-deep"), "Jellyfish Deep")).toBe(true);
-    expect(matchesBuiltInName(byId("tide"), "Poppy Hill")).toBe(false);
-  });
-
   it("rebuild from code while keeping the user's values and colors", () => {
     const stored = {
       ...sceneOf(BUILT_IN_SCENES[0]!),

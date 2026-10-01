@@ -311,7 +311,6 @@ vec3 scene(vec2 uv, vec2 p){
 export const screamingFjord: BuiltInScene = {
   id: "swirling-stars-screaming-fjord",
   name: "Starry Fjord",
-  aliases: ["Swirling Stars, Screaming Fjord", "Screaming Fjord"],
   source: SOURCE,
   palette: ["#1f3c96", "#f6c84a", "#e2481f", "#0e1630"],
   params: [

@@ -197,7 +197,6 @@ vec3 scene(vec2 uv, vec2 p) {
 export const risographMap: BuiltInScene = {
   id: "risograph-map",
   name: "Atomic Comics",
-  aliases: ["Risograph Map"],
   source: SOURCE,
   palette: ["#e23b2e", "#2b78cf", "#ffd23f", "#f3e6c8"],
   params: [

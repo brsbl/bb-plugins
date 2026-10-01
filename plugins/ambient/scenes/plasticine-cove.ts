@@ -328,7 +328,6 @@ vec3 scene(vec2 uv, vec2 p){
 export const plasticineCove: BuiltInScene = {
   id: "plasticine-lighthouse-cove",
   name: "Lighthouse Cove",
-  aliases: ["Plasticine Lighthouse Cove"],
   source: SOURCE,
   palette: ["#1c2c6b", "#22b3a6", "#ff6a3d", "#ffe0a6"],
   params: [

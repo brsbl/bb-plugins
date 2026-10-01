@@ -1,7 +1,7 @@
 import type { BbPluginApi, JsonValue } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
-import { BUILT_IN_SCENES, DEFAULT_SCENE, matchesBuiltInName, rebuildBuiltIn, sceneOf } from "./builtins.js";
+import { BUILT_IN_SCENES, DEFAULT_SCENE, rebuildBuiltIn, sceneOf } from "./builtins.js";
 import {
   DEFAULT_CONTROLS,
   valuesOf,
@@ -193,7 +193,7 @@ export function createOperations(bb: BbPluginApi) {
 
   /** States written before refs existed matched scenes by name; derive the same answer once. */
   async function deriveRef(scene: Scene): Promise<SceneRef | null> {
-    const builtIn = BUILT_IN_SCENES.find((entry) => matchesBuiltInName(entry, scene.name));
+    const builtIn = BUILT_IN_SCENES.find((entry) => entry.name === scene.name);
     if (builtIn) return { kind: "builtIn", id: builtIn.id };
     const saved = (await readIndex()).find((entry) => entry.name === scene.name);
     return saved ? { kind: "saved", id: saved.id } : null;
@@ -301,7 +301,7 @@ export function createOperations(bb: BbPluginApi) {
   async function resolveScene(idOrName: string): Promise<{ scene: Scene; ref: SceneRef }> {
     const wanted = idOrName.trim().toLowerCase();
     const builtIn = BUILT_IN_SCENES.find(
-      (entry) => entry.id === wanted || matchesBuiltInName(entry, wanted),
+      (entry) => entry.id === wanted || entry.name.toLowerCase() === wanted,
     );
     if (builtIn) {
       const ref = { kind: "builtIn", id: builtIn.id } as const;

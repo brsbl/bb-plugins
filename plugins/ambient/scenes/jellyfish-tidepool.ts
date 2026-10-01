@@ -243,11 +243,9 @@ vec3 scene(vec2 uv, vec2 p) {
   return mix(u_canvas, col, p_color);
 }`;
 
-/** Keeps the jellyfish-deep id it replaced, so saved tweaks and id-based loads carry over. */
 export const jellyfishTidepool: BuiltInScene = {
-  id: "jellyfish-deep",
+  id: "jellyfish-tidepool",
   name: "Jellyfish Tidepool",
-  aliases: ["Jellyfish Deep"],
   source: SOURCE,
   palette: ["#06163a", "#2fc9d8", "#ff8466", "#e6f7ff"],
   params: [

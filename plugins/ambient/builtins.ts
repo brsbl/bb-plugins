@@ -28,12 +28,6 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
   redAlarm,
 ];
 
-/** Whether a name refers to this built-in, including the longer names some scenes shipped with. */
-export function matchesBuiltInName(builtIn: BuiltInScene, name: string): boolean {
-  const wanted = name.trim().toLowerCase();
-  return [builtIn.name, ...(builtIn.aliases ?? [])].some((entry) => entry.toLowerCase() === wanted);
-}
-
 export const DEFAULT_SCENE: Scene = sceneOf(BUILT_IN_SCENES[0]!);
 
 export function sceneOf(builtIn: BuiltInScene): Scene {

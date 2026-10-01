@@ -199,7 +199,6 @@ vec3 scene(vec2 uv, vec2 p) {
 export const poppyHill: BuiltInScene = {
   id: "poppy-hill",
   name: "Poppy Hill",
-  aliases: ["Poppy Hill in the Wind"],
   source: POPPY_HILL_SOURCE,
   palette: ["#5fa9ea", "#3f9b34", "#ff5a0a", "#ffbf1f"],
   params: [
