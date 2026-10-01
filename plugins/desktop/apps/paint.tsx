@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 import { LIBRARY_CHANNEL, PICTURE_MENTIONS, type PictureSummary } from "../library";
 import type { libraryContract } from "../library-server";
-import { sendToThread } from "../page/library-bridge";
+import { sendToThread, useSendLabel } from "../page/library-bridge";
 import { usePointerTracker } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "./xp-chrome";
 import {
@@ -71,6 +71,13 @@ const nameListeners = new Set<() => void>();
 function setPictureName(name: string) {
   pictureName = name;
   for (const listener of nameListeners) listener();
+}
+
+/** Paint's Send, for the button in its window's title bar. */
+let sendPicture: (() => void) | null = null;
+
+export function sendOpenPicture() {
+  sendPicture?.();
 }
 
 export function currentPictureName(): string {
@@ -258,6 +265,7 @@ export function PaintApp() {
   /** The saved picture this canvas came from; null until the first save. */
   const [pictureId, setPictureId] = useState<string | null>(null);
   const name = usePictureName();
+  const sendLabel = useSendLabel();
 
   const loadPictures = useCallback(() => {
     rpc.call("listPictures").then(({ pictures: list }) => setPictures(list), () => undefined);
@@ -413,6 +421,11 @@ export function PaintApp() {
     sendToThread({ kind: PICTURE_MENTIONS, id, label: saved?.name ?? name });
   };
 
+  sendPicture = () => void send();
+  useEffect(() => () => {
+    sendPicture = null;
+  }, []);
+
   const selectTool = (next: ToolId) => {
     if (next === "picker" && tool !== "picker") setPreviousTool(tool);
     setTool(next);
@@ -560,7 +573,7 @@ export function PaintApp() {
           { label: "Save As…", action: () => void save(true) },
           { label: "Export as PNG…", action: exportPng },
           "separator" as const,
-          { label: "Send to thread", action: () => void send() },
+          { label: sendLabel, action: () => void send() },
         ] },
         { label: "Edit", items: [{ label: "Undo", shortcut: "Ctrl+Z", disabled: !canUndo, action: undo }] },
         { label: "View", items: [{ label: "Tool Box", checked: true }, { label: "Color Box", checked: true }, { label: "Status Bar", checked: true }] },

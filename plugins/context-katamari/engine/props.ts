@@ -1161,13 +1161,26 @@ export const PROP_CATALOG: readonly PropDefinition[] = [
 
 const MAX_TIER = Math.max(...PROP_CATALOG.map((definition) => definition.tier));
 
+/** Filtered once per zone and tier; callers share the result and only read it. */
+const propsByZone = new Map<Zone, Map<number, readonly PropDefinition[]>>();
+
 export function propsFor(zone: Zone, tier: number): readonly PropDefinition[] {
   const clamped = Math.min(Math.max(tier, 0), MAX_TIER);
-  return PROP_CATALOG.filter(
-    (definition) =>
-      definition.tier === clamped &&
-      (definition.zones === "all" || definition.zones.includes(zone)),
-  );
+  let byTier = propsByZone.get(zone);
+  if (!byTier) {
+    byTier = new Map();
+    propsByZone.set(zone, byTier);
+  }
+  let definitions = byTier.get(clamped);
+  if (!definitions) {
+    definitions = PROP_CATALOG.filter(
+      (definition) =>
+        definition.tier === clamped &&
+        (definition.zones === "all" || definition.zones.includes(zone)),
+    );
+    byTier.set(clamped, definitions);
+  }
+  return definitions;
 }
 
 export function pickWeighted(

@@ -1,5 +1,5 @@
 import type { ActivitySummary } from "./activity.js";
-import type { RippleKind } from "./contract.js";
+import { RIPPLE_KIND_CODE, type RippleKind } from "./contract.js";
 import { captureInContext, snapshotScene } from "./context.js";
 import { motionBetween, type AmbientRenderer, type ThemeColors } from "./engine.js";
 import type { CaptureRequest, CaptureSubmission } from "./rpc.js";
@@ -22,6 +22,16 @@ export interface CaptureSource {
   frameMs(): number;
   /** Effective render detail, 0..1. */
   detail(): number;
+}
+
+/** Checks a capture request by hand, so the app bundle doesn't carry zod and the RPC contract. */
+export function parseCaptureRequest(payload: unknown): CaptureRequest | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const { requestId, ripple } = payload as Record<string, unknown>;
+  if (typeof requestId !== "string" || requestId === "") return null;
+  if (ripple === null) return { requestId, ripple };
+  if (typeof ripple !== "string" || !Object.hasOwn(RIPPLE_KIND_CODE, ripple)) return null;
+  return { requestId, ripple: ripple as RippleKind };
 }
 
 const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));

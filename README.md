@@ -126,13 +126,9 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/o
 
 ### Saved Places
 
-Your saved places on a map that gets clearer as you zoom, with lists, notes, walking reach, routes, and an Ask agent button that hands the current view to a new thread. Import your own Google Maps lists or any CSV.
+Your saved places on a map that gets clearer as you zoom, with lists, notes, walking distance between saves, and an Ask agent button that hands the current view to a new thread. It now lives in its own template repository, [brsbl/saved-places](https://github.com/brsbl/saved-places), so you can make a copy with your own Google Maps saves.
 
-![Saved Places library of sample Tokyo lists beside a map with category-colored pins and clusters](plugins/saved-places/docs/screenshot.png)
-
-[Source](plugins/saved-places) · [README](plugins/saved-places/README.md)
-
-Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/saved-places --yes`
+Install: `bb plugin install git:https://github.com/brsbl/saved-places.git --yes`
 
 ### Plugin Finder
 
