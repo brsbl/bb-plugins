@@ -1097,16 +1097,9 @@ vec3 base(vec2 p, float w, float t) {
         float r = s * 0.32 * sz;
         float e = length(d * vec2(1.0, 1.25)) / r;
         if (e < 1.0) {
-          // mostly California orange, with red corn poppies, yellow, and white ones mixed in
-          float kind = hash21(c + 63.7);
           vec3 pc = mix(orange, gold, h2.x * 0.6);
-          vec3 hi = gold * 1.1 + 0.1;
-          if (kind < 0.12) { pc = vec3(0.86, 0.11, 0.08); hi = vec3(1.0, 0.3, 0.2); }
-          else if (kind < 0.22) { pc = vec3(1.0, 0.85, 0.2); hi = vec3(1.0, 0.95, 0.6); }
-          else if (kind < 0.29) { pc = vec3(0.96, 0.93, 0.86); hi = vec3(1.0); }
-          pc = mix(pc, hi, smoothstep(0.75, 0.0, e) * (d.y > 0.0 ? 0.55 : 0.25));
+          pc = mix(pc, gold * 1.1 + 0.1, smoothstep(0.75, 0.0, e) * (d.y > 0.0 ? 0.55 : 0.25));
           pc *= 0.8 + 0.35 * smoothstep(-r, r, d.y + d.x * 0.5);
-          pc = mix(pc, vec3(0.12, 0.08, 0.05), smoothstep(0.3, 0.15, e) * (kind < 0.12 ? 0.9 : (kind < 0.29 ? 0.6 : 0.0)));
           col = mix(col, pc, smoothstep(1.0, 0.8, e));
         }
       }
@@ -1259,8 +1252,6 @@ float castMask(vec2 p, float t, float aspect){
       m = max(m, smoothstep(pf.z, pf.z*0.8, length(p - pf.xy)));
     }
   }
-  vec2 sd = p - vec2(0.06*aspect, 0.3);
-  m = max(m, smoothstep(0.085, 0.07, length(sd)));
   float lx0 = 0.5*aspect - 0.13;
   float ty = p.y + 0.22;
   float hw = mix(0.038, 0.025, clamp(ty/0.3, 0.0, 1.0)) + 0.004;
@@ -1279,14 +1270,7 @@ Clay subject(vec2 p, float t, float aspect){
   c.g = vec2(0.05*sm, 0.16*sm);
   c.alb *= 0.95 + 0.1*sn;
   c.ao = 1.0 - 0.32*castMask(p + vec2(-0.017, 0.017), t, aspect);
-  vec2 sc = vec2(0.06*aspect, 0.3);
-  vec2 sd = p - sc;
-  c.alb += u_palette[3]*exp(-dot(sd, sd)/0.03)*0.22;
   float best = 0.0;
-  float sl = length(sd);
-  vec3 sunC = mix(u_palette[2], u_palette[3], 0.3 + 0.4*smoothstep(0.09, 0.0, sl));
-  sunC = mix(sunC, u_palette[2]*1.05, smoothstep(0.005, 0.0, abs(sl - 0.064))*0.8);
-  dome(c, sd, 0.085, sunC, 0.25, best, 0.0, 0.012);
   float cc0 = floor((p.x + t*0.018)/0.3);
   for (int j = -1; j <= 1; j++){
     for (int k = 0; k < 3; k++){
@@ -1392,15 +1376,6 @@ Clay subject(vec2 p, float t, float aspect){
     } else {
       c.ao *= 0.5 + 0.5*smoothstep(0.0, 0.035, p.y - e);
     }
-  }
-  // the low sun laid across the water as a broken column of glints
-  if (isWater > 0.5){
-    float sx = 0.06*aspect;
-    float spread = 0.03 + 0.14*max(-p.y, 0.0);
-    float colm = exp(-pow((p.x - sx + 0.012*sin(p.y*60.0 + t*2.0))/spread, 2.0));
-    float glint = smoothstep(0.4, 0.85, noise(vec2(p.x*38.0, p.y*150.0 - t*1.5)));
-    c.alb = mix(c.alb, mix(u_palette[3], vec3(1.0), 0.45), colm*(0.2 + 0.65*glint)*p_glints);
-    c.emit += u_palette[3]*colm*glint*0.12*p_glints;
   }
   for (int i = 0; i < 16; i++){
     if (i >= u_agentCount) break;
@@ -1697,14 +1672,6 @@ vec3 base(vec2 p, float t, float W){
   }
   // the screamer
   // the cypress
-  float cx = W - 0.09;
-  float ins = cyp(p, cx, sw);
-  if (ins > -0.004){
-    float n = noise(vec2((p.x - cx)*40.0 + 1.5*sin(p.y*9.0 + sw*0.8), p.y*4.0));
-    vec3 cc = mix(drk*0.55 + vec3(0.0, 0.03, 0.02), mix(drk, vec3(0.16, 0.36, 0.24), 0.5), smoothstep(0.5, 0.88, n));
-    cc = mix(cc, mix(blu, drk, 0.5), smoothstep(0.8, 0.95, noise(vec2(p.x*60.0, p.y*9.0)))*0.4);
-    col = mix(col, cc, smoothstep(-0.004, 0.002, ins));
-  }
   return col;
 }
 
@@ -1751,9 +1718,7 @@ float formAng(vec2 p, float t, float W){
   float sw = t*p_swirl;
   float ry = railY(p.x, W);
   vec2 dir;
-  if (cyp(p, W - 0.09, sw) > 0.0){
-    dir = vec2(0.45*sin(p.y*12.0 - sw*1.5 + (p.x - W)*40.0), 1.0);
-  } else if (p.y < ry - 0.08){
+  if (p.y < ry - 0.08){
     dir = p - deckVP(W);
   } else if (p.y < ry + 0.012){
     dir = vec2(1.0, -0.24/(2.0*W));
@@ -1811,6 +1776,23 @@ vec3 scene(vec2 uv, vec2 p){
   col *= 0.97 + 0.05*noise(p*160.0);
 
   // crisp painted features the strokes would smear away: the screamer's face, the two walkers
+  // the cypress, painted over the strokes as one dark flame with a clean edge and its own upward strokes
+  {
+    float sw = t*p_swirl;
+    float cx = W - 0.09;
+    float ins = cyp(p, cx, sw);
+    if (ins > -0.006){
+      float k = clamp((p.y + 0.52), 0.0, 1.0);
+      vec2 fq = vec2((p.x - cx)*55.0 + 2.0*sin(p.y*10.0 - sw*1.4), p.y*7.0 - sw*0.3);
+      float flame = noise(fq)*0.65 + noise(fq*vec2(2.3, 1.7) + 4.0)*0.35;
+      vec3 drkC = u_palette[3];
+      vec3 cc = mix(drkC*0.5 + vec3(0.0, 0.03, 0.02), mix(drkC, vec3(0.16, 0.36, 0.24), 0.55), smoothstep(0.45, 0.85, flame));
+      cc = mix(cc, mix(u_palette[0], drkC, 0.5), smoothstep(0.78, 0.92, noise(fq*vec2(1.2, 3.0) - 7.0))*0.45);
+      cc *= 0.85 + 0.2*smoothstep(0.0, 0.03, ins)*(1.0 - 0.3*k);
+      col = mix(col, cc, smoothstep(-0.0015, 0.0015, ins + (noise(p*140.0) - 0.5)*0.003));
+    }
+  }
+
   // the screamer, painted over the strokes so the silhouette stays legible
   vec2 hc = figHead(t, W);
   vec3 drk = u_palette[3];
@@ -2738,7 +2720,6 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
       param("thumb", "Thumbprints", 0, 2.5, 1, 0.05),
       param("fps", "Stop-motion fps", 4, 24, 12, 1),
       param("beam", "Lighthouse beam", 0, 2, 1, 0.05),
-      param("glints", "Sun on water", 0, 2, 1, 0.05),
       param("gulls", "Seagulls", 0, 6, 3, 1),
       param("color", "Color strength", 0, 1, 0.92),
     ],
