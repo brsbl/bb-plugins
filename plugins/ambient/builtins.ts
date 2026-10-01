@@ -610,11 +610,12 @@ vec3 scene(vec2 uv, vec2 p) {
   // watercolor finish: values settle into flat glazes whose edges pool darker
   vec3 lw = vec3(0.3, 0.55, 0.15);
   float L0 = dot(col, lw);
-  float lv = (L0 + (noise(p * 5.0 + wv * 2.5) - 0.5) * 0.09) * 6.0;
+  float lv = (L0 + (noise(p * 3.5 + wv * 3.0) - 0.5) * 0.14) * 5.0;
   float fr = fract(lv);
-  float Lq = (floor(lv) + smoothstep(0.3, 0.7, fr)) / 6.0;
-  col = mix(col, col * clamp((Lq + 0.03) / (L0 + 0.03), 0.75, 1.35), clamp(0.7 * p_wash, 0.0, 1.0));
-  col *= 1.0 - exp(-pow((fr - 0.36) / 0.07, 2.0)) * 0.12 * p_wash * p_wet;
+  float Lq = (floor(lv) + smoothstep(0.15, 0.85, fr)) / 5.0;
+  float settle = clamp(0.55 * p_wash, 0.0, 1.0) * (1.0 - clamp(light, 0.0, 1.0));
+  col = mix(col, col * clamp((Lq + 0.03) / (L0 + 0.03), 0.8, 1.25), settle);
+  col *= 1.0 - exp(-pow((fr - 0.3) / 0.08, 2.0)) * 0.1 * p_wet * settle;
   // pigment drifts between teal and indigo across the sheet
   float hue = noise(p * 1.7 + wv * 1.2 + 21.0);
   col *= mix(vec3(1.0), mix(vec3(0.9, 1.04, 1.05), vec3(0.97, 0.95, 1.07), hue), 0.7 * p_wet);
