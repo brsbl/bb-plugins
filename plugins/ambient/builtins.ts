@@ -685,26 +685,36 @@ const CONTOUR_SOURCE = `float terrain(vec2 p, float t) {
   vec2 wq = q + 0.6 * vec2(noise(q * 0.7 + 3.1), noise(q * 0.7 - 1.7));
   float f = fbm(wq);
   float r = 1.0 - abs(noise(wq * 2.3 + 5.0) * 2.0 - 1.0);
-  float r2 = 1.0 - abs(noise(wq * 5.1 - 2.0) * 2.0 - 1.0);
-  return f * 0.85 + r * r * 0.2 + r2 * r2 * 0.06 - 0.06;
+  return f * 0.85 + r * r * 0.18 - 0.05;
+}
+
+// signed distance to an upright equilateral triangle of circumradius-ish r
+float triD(vec2 q, float r) {
+  const float k = 1.7320508;
+  q.x = abs(q.x) - r;
+  q.y = q.y + r / k;
+  if (q.x + k * q.y > 0.0) q = vec2(q.x - k * q.y, -k * q.x - q.y) / 2.0;
+  q.x -= clamp(q.x, -2.0 * r, 0.0);
+  return -length(q) * sign(q.y);
 }
 
 vec3 scene(vec2 uv, vec2 p) {
   float t = u_time * 0.02 * p_drift;
+  vec3 brown = u_palette[0], blue = u_palette[1], green = u_palette[2], paper = u_palette[3];
   float h = terrain(p, t);
 
-  // agents raise sharp summits that grow while they work
-  float waitRing = 0.0;
+  // agents raise summits that grow while they work
+  float waitRing = 0.0, summit = 1.0;
   for (int i = 0; i < 16; i++) {
     if (i >= u_agentCount) break;
     vec4 a = u_agents[i];
     vec2 d = p - toP(a.xy);
     float r2 = dot(d, d);
-    float pk = 0.55 * p_height * a.w / (1.0 + r2 / 0.0018) * exp(-r2 / 0.03);
-    h += pk;
+    h += 0.5 * p_height * a.w / (1.0 + r2 / 0.002) * exp(-r2 / 0.03);
+    summit = min(summit, triD(d - vec2(0.0, 0.002), 0.0075 * a.w));
     if (a.z > 0.5) {
       float f = fract(u_time * 0.5 + float(i) * 0.3);
-      waitRing = max(waitRing, smoothstep(0.004, 0.0, abs(sqrt(r2) - 0.02 - 0.09 * f)) * (1.0 - f) * a.w);
+      waitRing = max(waitRing, smoothstep(0.003, 0.0, abs(sqrt(r2) - 0.02 - 0.08 * f)) * (1.0 - f) * a.w);
     }
   }
   for (int i = 0; i < 12; i++) {
@@ -712,39 +722,50 @@ vec3 scene(vec2 uv, vec2 p) {
     vec4 r = u_ripples[i];
     float dist = length(p - toP(r.xy));
     float dir = abs(r.w - 1.0) < 0.5 ? -1.0 : 1.0;
-    h += dir * 0.12 * exp(-pow((dist - r.z * 0.25) * 16.0, 2.0)) * exp(-r.z);
+    h += dir * 0.1 * exp(-pow((dist - r.z * 0.25) * 16.0, 2.0)) * exp(-r.z);
   }
 
-  // hypsometric tint: stepped layers from deep lowland to high ground
-  float hn = smoothstep(0.08, 0.82, h);
-  float layers = 9.0;
-  vec3 smoothC = ramp(hn);
-  vec3 stepC = ramp((floor(hn * layers) + 0.5) / layers);
-  vec3 col = mix(smoothC, stepC, 0.55);
-  col = mix(u_canvas, col, 0.35 + 0.65 * p_fill);
+  // the sheet: cream paper, woodland on the lower slopes, a warmer tint on high ground
+  vec3 col = paper * (0.97 + 0.04 * noise(p * vec2(280.0, 90.0)));
+  float wl = 0.2;
+  float wood = smoothstep(0.48, 0.6, noise(p * p_scale * 2.4 + vec2(9.0 + t, t * 0.4))) * smoothstep(0.6, 0.42, h);
+  col = mix(col, mix(paper, green, 0.8), wood * p_fill);
+  col = mix(col, col * vec3(1.0, 0.95, 0.86), smoothstep(0.45, 0.95, h) * 0.6 * p_fill);
 
-  // hillshade from the terrain's screen-space slope, lit from the upper left
-  vec2 g = vec2(dFdx(h), dFdy(h)) * u_resolution.y * 0.22 * p_relief;
-  vec3 n = normalize(vec3(-g, 1.0));
-  float shade = dot(n, normalize(vec3(-0.6, 0.6, 0.55)));
-  col *= 0.6 + 0.55 * clamp(shade, 0.0, 1.2);
+  // gentle hillshade, lit from the upper left
+  vec2 g = vec2(dFdx(h), dFdy(h)) * u_resolution.y * 0.2;
+  float shade = dot(normalize(vec3(-g, 1.0)), normalize(vec3(-0.6, 0.6, 0.55)));
+  col *= 1.0 + (shade - 0.55) * 0.4 * p_relief;
 
-  // contour lines a constant pixel width everywhere; every fifth an index contour
+  // lakes in the hollows
+  float hw = max(fwidth(h), 1e-5);
+  float water = smoothstep(hw, -hw, h - wl);
+  vec3 wc = mix(mix(paper, blue, 0.3), mix(paper, blue, 0.5), smoothstep(wl, wl - 0.15, h));
+  col = mix(col, wc, water);
+
+  // contour lines a constant pixel width; every fifth an index contour
   float v = h * p_density;
   float fw = max(fwidth(v), 1e-4);
   float dMinor = min(fract(v), 1.0 - fract(v)) / fw;
   float mv = fract(v / 5.0);
   float dMajor = min(mv, 1.0 - mv) * 5.0 / fw;
   float crowd = smoothstep(0.7, 0.3, fw);
-  float minor = (1.0 - smoothstep(0.35 * p_weight, 0.35 * p_weight + 1.0, dMinor)) * crowd;
-  float major = (1.0 - smoothstep(0.9 * p_weight, 0.9 * p_weight + 1.0, dMajor)) * smoothstep(1.4, 0.6, fw);
-  float lum = dot(col, vec3(0.3, 0.55, 0.15));
-  vec3 lineC = mix(col * 1.7 + 0.1, col * 0.35, smoothstep(0.2, 0.4, lum));
-  col = mix(col, lineC, minor * 0.8);
-  col = mix(col, lineC * 0.85, major);
+  float minor = (1.0 - smoothstep(0.3 * p_weight, 0.3 * p_weight + 1.0, dMinor)) * crowd;
+  float major = (1.0 - smoothstep(0.85 * p_weight, 0.85 * p_weight + 1.0, dMajor)) * smoothstep(1.4, 0.6, fw);
+  vec3 lineC = mix(brown, blue * 0.9, water);
+  col = mix(col, lineC, minor * mix(0.7, 0.35, water));
+  col = mix(col, lineC, major * mix(0.95, 0.5, water));
+  float shore = 1.0 - smoothstep(0.6 * p_weight, 0.6 * p_weight + 1.0, abs(h - wl) / hw);
+  col = mix(col, blue * 0.8, shore);
 
-  col = mix(col, u_palette[3], waitRing * 0.8);
-  col *= 0.97 + 0.04 * noise(p * vec2(300.0, 80.0));
+  // a faint map grid
+  vec2 gd = abs(fract(p / 0.2 + 0.5) - 0.5) * 0.2 * u_resolution.y;
+  col = mix(col, blue * 0.75, (1.0 - smoothstep(0.3, 1.2, min(gd.x, gd.y))) * 0.22 * p_grid);
+
+  // summit markers and the pulse of a waiting agent
+  float sw = max(fwidth(summit), 1e-5);
+  col = mix(col, brown * 0.7, smoothstep(sw, -sw, summit));
+  col = mix(col, brown, waitRing * 0.85);
   return mix(u_canvas, col, p_color);
 }`;
 
@@ -783,9 +804,9 @@ vec4 panelArt(int kind, vec2 q, vec2 hs, float t, float lw) {
   if (kind == 0) {
     // flying saucer beaming down over a dotted night sky
     float ty = clamp(q.y / hs.y * 0.5 + 0.5, 0.0, 1.0);
-    col = tint(col, blue, benday(q, 0.25 + 0.55 * ty));
+    col = tint(col, blue, benday(q, 0.06 + 0.32 * ty));
     float sp = hash21(floor(q * 26.0));
-    col = mix(col, paper, smoothstep(0.12, 0.0, length(fract(q * 26.0) - 0.5)) * step(0.93, sp));
+    col = mix(col, paper, smoothstep(0.12, 0.0, length(fract(q * 26.0) - 0.5)) * step(0.975, sp) * step(0.45, ty));
     vec2 c = vec2(0.35 * hs.x * sin(t * 0.35), 0.28 * hs.y + 0.025 * sin(t * 1.2));
     float R = hs.y * 0.5;
     vec2 s = rotA(q - c, 0.12 * sin(t * 0.6));
@@ -806,12 +827,12 @@ vec4 panelArt(int kind, vec2 q, vec2 hs, float t, float lw) {
     ink = max(ink, max(strokeD(dome, lw), strokeD(disc, lw)));
   } else if (kind == 1) {
     // rocket ship tearing past speed lines
-    col = tint(col, yel, 0.9);
+    col = tint(col, yel, 0.3);
     float row = floor(q.y * 34.0);
     float hr = hash21(vec2(row, 3.0));
     float xs = fract(q.x * (0.8 + hr) / hs.x * 0.5 + t * (0.6 + 0.6 * hr) + hr * 7.0);
     float taper = smoothstep(0.0, 0.08, xs) * smoothstep(0.7, 0.3, xs);
-    float streak = strokeD((fract(q.y * 34.0) - 0.5) / 34.0, 0.0022 * taper) * step(0.55, hr) * step(0.01, taper);
+    float streak = strokeD((fract(q.y * 34.0) - 0.5) / 34.0, 0.0022 * taper) * step(0.84, hr) * step(0.01, taper);
     col = mix(col, INK, streak);
     float R = hs.y * 0.62;
     float lx = mod(t * 0.12 * hs.x * 4.0, hs.x * 3.6) - hs.x * 1.8;
@@ -832,11 +853,11 @@ vec4 panelArt(int kind, vec2 q, vec2 hs, float t, float lw) {
     ink = max(ink, max(strokeD(min(body, fin), lw), strokeD(win, lw * 0.8)));
   } else if (kind == 2) {
     // POW: a jagged burst over radiating action lines
-    col = tint(col, blue, benday(q, 0.35 + 0.3 * length(q) / hs.y));
+    col = tint(col, blue, benday(q, 0.1 + 0.15 * length(q) / hs.y));
     float a = atan(q.y, q.x);
-    float lines = step(0.86, fract(a * 9.0 / 3.1416 + hash21(vec2(floor(a * 18.0 / 3.1416), 1.0)) * 0.3)) * smoothstep(hs.y * 0.3, hs.y * 0.8, length(q));
+    float lines = step(0.95, fract(a * 9.0 / 3.1416 + hash21(vec2(floor(a * 18.0 / 3.1416), 1.0)) * 0.3)) * smoothstep(hs.y * 0.3, hs.y * 0.8, length(q));
     col = mix(col, INK, lines * 0.8);
-    float R = hs.y * (0.78 + 0.06 * sin(t * 2.2));
+    float R = hs.y * (0.62 + 0.05 * sin(t * 2.2));
     vec2 s = rotA(q, 0.05 * sin(t * 0.9));
     float b1 = burst(s, R, 13.0, 0.42, 1.0);
     float b2 = burst(rotA(s, 0.4), R * 0.58, 11.0, 0.4, 2.0);
@@ -844,58 +865,6 @@ vec4 panelArt(int kind, vec2 q, vec2 hs, float t, float lw) {
     col = mix(col, tint(paper, yel, 0.95), fillD(b2));
     col = mix(col, tint(paper, red, 0.5), fillD(b2) * benday(s * 1.3, 0.25));
     ink = max(ink, max(strokeD(b1, lw * 1.2), strokeD(b2, lw)));
-  } else if (kind == 3) {
-    // city at night: red sky, searchlights, a silhouette skyline with lit windows
-    float ty = clamp(q.y / hs.y * 0.5 + 0.5, 0.0, 1.0);
-    col = tint(col, red, benday(q, 0.7 - 0.5 * ty));
-    col = tint(col, yel, 0.25 + 0.4 * (1.0 - ty));
-    vec2 mc = vec2(hs.x * 0.5, hs.y * 0.5);
-    float moon = length(q - mc) - hs.y * 0.2;
-    col = mix(col, tint(paper, yel, 0.6), fillD(moon));
-    ink = max(ink, strokeD(moon, lw * 0.8));
-    for (int k = 0; k < 2; k++) {
-      float sk = k == 0 ? -1.0 : 1.0;
-      vec2 o = vec2(sk * hs.x * 0.35, -hs.y);
-      float ang = 1.5708 + sk * 0.35 + 0.3 * sin(t * 0.5 + sk);
-      vec2 d = q - o;
-      float off = abs(atan(d.x, d.y) - (ang - 1.5708));
-      float beam = smoothstep(0.1, 0.07, off) * step(0.0, d.y);
-      col = mix(col, tint(paper, yel, 0.35), beam * 0.75);
-    }
-    float cw = hs.x * 0.16;
-    float ci = floor(q.x / cw);
-    float hb = hash21(vec2(ci, 5.0));
-    float top = -hs.y + hs.y * (0.45 + 0.55 * hb);
-    float bx = q.x - (ci + 0.5) * cw;
-    float bld = max(abs(bx) - cw * 0.44, q.y - top);
-    vec2 wg = vec2(bx / (cw * 0.2), (q.y - top) / (hs.y * 0.07));
-    float lit = step(0.6, hash21(floor(wg) + ci * 13.0 + floor(t * 0.15 + hb * 5.0)));
-    float wnd = step(abs(fract(wg.x) - 0.5), 0.25) * step(abs(fract(wg.y) - 0.5), 0.22) * step(abs(bx), cw * 0.32) * step(q.y, top - hs.y * 0.05);
-    col = mix(col, INK, fillD(bld));
-    col = mix(col, yel, fillD(bld) * wnd * lit);
-  } else {
-    // ray-gun zap: a zigzag bolt across magenta dots
-    col = tint(col, red, benday(q, 0.42));
-    float za = atan(q.y + hs.y, q.x + hs.x);
-    col = mix(col, INK, step(0.88, fract(za * 22.0 / 3.1416)) * smoothstep(hs.y * 0.6, hs.y * 1.4, length(q + hs)) * 0.7);
-    float zt = fract(t * 0.35);
-    float d = 1.0;
-    vec2 a0 = vec2(-hs.x * 0.95, hs.y * 0.45);
-    for (int k = 0; k < 5; k++) {
-      float fk = float(k);
-      vec2 a1 = vec2(-hs.x * 0.95 + (fk + 1.0) * hs.x * 0.38, hs.y * (0.45 - 0.22 * (fk + 1.0)) + (mod(fk, 2.0) < 0.5 ? 0.12 : -0.12) * hs.y * (1.0 + 0.3 * sin(t * 7.0 + fk)));
-      d = min(d, segD(q, a0, a1));
-      a0 = a1;
-    }
-    float bolt = d - hs.y * 0.075;
-    float glow = d - hs.y * 0.16;
-    float on = 0.6 + 0.4 * step(0.5, fract(t * 3.0));
-    col = mix(col, paper, fillD(glow) * on);
-    col = mix(col, tint(paper, yel, 0.95), fillD(bolt));
-    ink = max(ink, max(strokeD(bolt, lw * 1.2), strokeD(glow, lw * 0.6) * on));
-    float imp = burst(q - a0, hs.y * 0.3 * (0.8 + 0.3 * zt), 9.0, 0.5, 7.0);
-    col = mix(col, tint(paper, yel, 0.95), fillD(imp));
-    ink = max(ink, strokeD(imp, lw));
   }
   return vec4(col, ink);
 }
@@ -907,25 +876,21 @@ vec3 scene(vec2 uv, vec2 p) {
   float lw = 0.0014 * p_ink;
 
   // the page: two tiers of panels with slanted gutters
-  float gut = 0.013;
+  float gut = 0.022;
   float ry = 0.04 + 0.05 * p.x / W;
   float dRow = abs(p.y - ry) / 1.001;
   bool topRow = p.y > ry;
-  float b1 = -0.3 * W + 0.06 * (p.y - 0.27);
-  float b2 = 0.28 * W - 0.05 * (p.y - 0.27);
-  float b3 = 0.1 * W + 0.07 * (p.y + 0.23);
+  float b1 = 0.15 * W + 0.06 * (p.y - 0.27);
   int pid;
   float dCol;
   vec2 ctr, hs;
   if (topRow) {
-    dCol = min(abs(p.x - b1), abs(p.x - b2)) / 1.002;
-    if (p.x < b1) { pid = 0; ctr = vec2(-0.65 * W, 0.27); hs = vec2(0.35 * W, 0.23); }
-    else if (p.x < b2) { pid = 2; ctr = vec2(-0.01 * W, 0.27); hs = vec2(0.29 * W, 0.23); }
-    else { pid = 3; ctr = vec2(0.64 * W, 0.27); hs = vec2(0.36 * W, 0.23); }
+    dCol = abs(p.x - b1) / 1.002;
+    if (p.x < b1) { pid = 0; ctr = vec2(-0.42 * W, 0.27); hs = vec2(0.58 * W, 0.23); }
+    else { pid = 2; ctr = vec2(0.58 * W, 0.27); hs = vec2(0.42 * W, 0.23); }
   } else {
-    dCol = abs(p.x - b3) / 1.002;
-    if (p.x < b3) { pid = 1; ctr = vec2(-0.45 * W, -0.23); hs = vec2(0.55 * W, 0.27); }
-    else { pid = 4; ctr = vec2(0.55 * W, -0.23); hs = vec2(0.45 * W, 0.27); }
+    dCol = 1.0;
+    pid = 1; ctr = vec2(0.0, -0.23); hs = vec2(W, 0.27);
   }
   float dEdge = min(W - abs(p.x), 0.5 - abs(p.y));
   float border = min(min(dRow, dCol), dEdge);
@@ -2669,14 +2634,15 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
     id: "contour",
     name: "Contour",
     source: CONTOUR_SOURCE,
-    palette: ["#0d1b3e", "#3a2d8f", "#e0457b", "#ffd36b"],
+    palette: ["#7d4f2a", "#3d7fbf", "#a9c98f", "#f2ebda"],
     params: [
       param("scale", "Zoom", 0.5, 5, 1.8),
-      param("density", "Line density", 4, 40, 26, 0.5),
+      param("density", "Line density", 4, 40, 22, 0.5),
       param("weight", "Line weight", 0.5, 3, 1.2),
-      param("relief", "Hillshade", 0, 2, 1),
+      param("relief", "Hillshade", 0, 2, 0.35),
       param("height", "Agent peaks", 0, 2, 1),
-      param("fill", "Tint strength", 0, 1, 0.85),
+      param("fill", "Map tint", 0, 1, 0.8),
+      param("grid", "Map grid", 0, 1, 0.6),
       param("drift", "Drift", 0, 3, 1),
       param("color", "Color strength", 0, 1, 1),
     ],
