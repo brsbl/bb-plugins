@@ -86,6 +86,18 @@ describe("Paint pictures on the server", () => {
     expect(uploads.map((upload) => upload.projectId)).toEqual(["proj_from_thread", "proj_other"]);
   });
 
+  it("attaches a new thread's picture to the project its box has selected when the message is sent", async () => {
+    const { behavior, mention, uploads } = await setup();
+    const saved = (await behavior.callRpc("savePicture", { id: null, name: "Plan", width: 2, height: 1, pngBase64: PNG })) as PictureSummary;
+    await behavior.callRpc("setComposerProject", { token: "ntc_box", projectId: "proj_first" });
+    // The user switches projects after adding the picture; the attachment follows the switch.
+    await behavior.callRpc("setComposerProject", { token: "ntc_box", projectId: "proj_second" });
+    await mention(PICTURE_MENTIONS).resolve(`${saved.id}@ntc_box`);
+    // A box the server no longer knows (it restarted) sends to the personal project, where "No project" files threads.
+    await mention(PICTURE_MENTIONS).resolve(`${saved.id}@ntc_forgotten`);
+    expect(uploads.map((upload) => upload.projectId)).toEqual(["proj_second", "proj_personal"]);
+  });
+
   it("opens, renames and deletes saved pictures", async () => {
     const { behavior } = await setup();
     const saved = (await behavior.callRpc("savePicture", { id: null, name: "One", width: 2, height: 1, pngBase64: PNG })) as PictureSummary;
