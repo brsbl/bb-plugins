@@ -101,6 +101,17 @@ export function customToList(list: CustomList): SavedList {
   return { id: list.id, title: list.title, color: list.color, group: "custom", placeKeys: list.placeKeys.filter(key => placesByKey.has(key)), custom: true, sourceIds: list.sourceIds };
 }
 
+export function trimmedBounds(places: Array<{ latitude: number; longitude: number }>): [[number, number], [number, number]] | null {
+  if (!places.length) return null;
+  const q = (values: number[], t: number) => values[Math.min(values.length - 1, Math.max(0, Math.round(t * (values.length - 1))))];
+  const lats = places.map(p => p.latitude).sort((a, b) => a - b);
+  const lngs = places.map(p => p.longitude).sort((a, b) => a - b);
+  const bounds = (t: number): [[number, number], [number, number]] => [[q(lngs, t), q(lats, t)], [q(lngs, 1 - t), q(lats, 1 - t)]];
+  const trimmed = bounds(0.05);
+  const cityScale = trimmed[1][0] - trimmed[0][0] < 3 && trimmed[1][1] - trimmed[0][1] < 3;
+  return places.length > 24 && cityScale ? trimmed : bounds(0);
+}
+
 export function shortAddress(address: string) {
   const parts = address.split(",").map(part => part.trim()).filter(Boolean);
   if (parts.length <= 2) return parts.join(", ");

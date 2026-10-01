@@ -13,7 +13,7 @@ import { CLUSTER_MAX_ZOOM, CLUSTER_RADIUS, PLACES_SOURCE, attachClusterPiles } f
 import { categoryFor } from "./categories";
 import { readTheme, streetsStyle, type MapTheme } from "./basemap";
 import { POINT_LAYERS, installLayers, provideCategoryImages, setMarkedPoint, setPins, setRings, setRouteLine, setStops, type PinInput } from "./layers";
-import { allPlaces, placesByKey, type SavedPlace } from "./model";
+import { allPlaces, placesByKey, trimmedBounds, type SavedPlace } from "./model";
 import { NOTES_LIST_ID, notesList } from "./notes-list";
 import { selectLists } from "./selection";
 import { isochrone, inPolygon, formatDuration, type Ring } from "./routing";
@@ -43,17 +43,6 @@ function uncoveredBounds(map: maplibregl.Map, sheet: HTMLElement | null, wide: b
   const lngs = corners.map(c => c.lng);
   const lats = corners.map(c => c.lat);
   return { west: Math.min(...lngs), south: Math.min(...lats), east: Math.max(...lngs), north: Math.max(...lats) };
-}
-
-function trimmedBounds(places: SavedPlace[]) {
-  if (!places.length) return null;
-  const q = (values: number[], t: number) => values[Math.min(values.length - 1, Math.max(0, Math.round(t * (values.length - 1))))];
-  const lats = places.map(p => p.latitude).sort((a, b) => a - b);
-  const lngs = places.map(p => p.longitude).sort((a, b) => a - b);
-  const bounds = (t: number) => new maplibregl.LngLatBounds([q(lngs, t), q(lats, t)], [q(lngs, 1 - t), q(lats, 1 - t)]);
-  const trimmed = bounds(0.05);
-  const cityScale = trimmed.getEast() - trimmed.getWest() < 3 && trimmed.getNorth() - trimmed.getSouth() < 3;
-  return places.length > 24 && cityScale ? trimmed : bounds(0);
 }
 
 export function PlacesMap() {
@@ -391,7 +380,7 @@ export function PlacesMap() {
   }, [contextView, bounds, context.places, top.kind]);
 
   const api: AppApi = {
-    store, route, wide, bounds, zoom, rings, canGoBack: stack.length > 1, getList,
+    store, route, wide, dark: theme?.dark ?? false, bounds, zoom, rings, canGoBack: stack.length > 1, getList,
     push, pop, replace, openPlace, openLists, hover: setHoverKey, fitKeys, showRings, clearRings,
     compose: draft => { push({ kind: "compose", draft }); },
     openUrl: url => { if (!navigate.openUrl(url)) window.open(url, "_blank", "noopener,noreferrer"); },

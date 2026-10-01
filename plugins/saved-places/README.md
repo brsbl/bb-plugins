@@ -47,7 +47,7 @@ Takeout list CSVs contain names and links but no coordinates, so `--geocode` loo
 
 Any CSV with `name`, `latitude`, and `longitude` columns also works, with optional `address`, `url`, `list`, `category`, and `type` columns. A `list` column splits one file into several lists. GeoJSON files of Point features work too.
 
-Each place gets its category from its Google place type, narrowed by its name (a "Restaurant" named "Sushi Sho" is Sushi), or from its name alone when it has no type; addresses are never used. A specific `category` in your CSV, such as `museum`, overrides both. Categories belong to ten color groups (Food, Cafés & sweets, Nightlife, Culture, Outdoors, Shopping, Stays, Wellness & fun, Getting around, Other); a place takes its group's color and its category's icon, and the basemap's own points of interest use the same icons and colors. To add or change a category, edit its row in `categories.ts` (label, name/type pattern, and the OpenMapTiles POI classes it covers) and its icon in `category-icons.ts`. Lists titled "Favorite places", "Want to go", or "Starred places" are grouped as saved by Google; see `groupFor` in `model.ts`.
+Each place gets its category from its Google place type, narrowed by its name (a "Restaurant" named "Sushi Sho" is Sushi), or from its name alone when it has no type; addresses are never used. A specific `category` in your CSV, such as `museum`, overrides both. Categories belong to ten color groups (Food, Cafés & sweets, Nightlife, Culture, Outdoors, Shopping, Stays, Wellness & fun, Getting around, Other); a place takes its group's color and its category's icon, and the basemap's own points of interest use the same icons and colors. To add or change a category, edit its row in `categories.ts` (label, name/type pattern, and the OpenMapTiles POI classes it covers) and its icon in `category-icons.ts`. Lists without photos use a small map of their places as the cover. Lists titled "Favorite places", "Want to go", or "Starred places" are grouped as saved by Google; see `groupFor` in `model.ts`.
 
 ## Map services
 
@@ -55,7 +55,7 @@ The map uses free, keyless services. Check their usage policies before heavy use
 
 | Service | Used for | Change it in |
 | --- | --- | --- |
-| [OpenFreeMap](https://openfreemap.org) | Vector tiles and fonts for the streets basemap | `streetsStyle` in `basemap.ts` |
+| [OpenFreeMap](https://openfreemap.org) | Vector tiles and fonts for the streets basemap and list-cover maps | `streetsStyle` in `basemap.ts` |
 | [Valhalla](https://valhalla1.openstreetmap.de) public server (FOSSGIS) | Walking rings, travel times, routes | `ENDPOINT` in `routing.ts` |
 
 Point `ENDPOINT` at your own [Valhalla](https://github.com/valhalla/valhalla) instance for heavier routing. Map data © OpenStreetMap contributors.
