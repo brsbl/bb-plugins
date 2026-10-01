@@ -91,6 +91,32 @@ describe("Community discovery", () => {
     ]);
   });
 
+  it("ranks word-start description, then overview, then mid-word catalog matches", () => {
+    const entries = [
+      community({ pluginId: "mid", entryId: "mid", displayName: "Mid", description: "An echo chamber" }),
+      community({ pluginId: "over", entryId: "over", displayName: "Over", overview: "Shows ambient light" }),
+      community({ pluginId: "desc", entryId: "desc", displayName: "Desc", description: "Amber warnings" }),
+    ];
+
+    expect(searchCommunityPlugins(entries, "amb").map((item) => item.title)).toEqual([
+      "Desc",
+      "Over",
+      "Mid",
+    ]);
+  });
+
+  it("shows the Plugins icon for every not-installed plugin", () => {
+    const entries = [
+      community({ pluginId: "named", entryId: "named", displayName: "Named", icon: "Palette" }),
+      community({ pluginId: "file", entryId: "file", displayName: "File", iconUrl: "/icon.svg" }),
+    ];
+
+    expect(searchCommunityPlugins(entries, "").map((item) => item.icon)).toEqual([
+      "Plug02",
+      "Plug02",
+    ]);
+  });
+
   it("deduplicates stable plugin ids after ranking, keeping the better result", () => {
     const entries = [
       community({

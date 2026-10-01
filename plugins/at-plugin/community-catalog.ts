@@ -1,5 +1,6 @@
 import type { BbPluginApi, PluginMentionItem } from "@get-bb/plugin-sdk";
 import { isPluginBrowseQuery } from "./mention-query";
+import { PLUGIN_ICON } from "./plugin-icon";
 
 import {
   MAX_ITEM_SUBTITLE_BYTES,
@@ -34,11 +35,19 @@ function folded(value: string): string {
   return value.toLowerCase();
 }
 
-function identityMatchTier(
+function startsWord(field: string, query: string): boolean {
+  for (let index = field.indexOf(query); index !== -1; index = field.indexOf(query, index + 1)) {
+    if (index === 0 || !/[\p{L}\p{N}]/u.test(field[index - 1]!)) return true;
+  }
+  return false;
+}
+
+function matchTier(
   query: string,
   displayName: string,
   pluginId: string,
   entryId: string,
+  entry: CommunityCatalogRecord,
 ): number {
   const foldedQuery = folded(normalizeUntrustedText(query));
   if (foldedQuery.length === 0) return 3;
@@ -47,7 +56,12 @@ function identityMatchTier(
   if (fields.some((field) => field === foldedQuery)) return 0;
   if (fields.some((field) => field.startsWith(foldedQuery))) return 1;
   if (fields.some((field) => field.includes(foldedQuery))) return 2;
-  return 3;
+  // Catalog matches also come from long descriptions and overviews, where a
+  // mid-word hit ("amb" in "chamber") is usually noise; rank those last.
+  const summary = folded(normalizeUntrustedText(`${entry.description} ${entry.category ?? ""}`));
+  if (startsWord(summary, foldedQuery)) return 3;
+  if (startsWord(folded(normalizeUntrustedText(entry.overview ?? "")), foldedQuery)) return 4;
+  return 5;
 }
 
 function toCandidate(
@@ -80,7 +94,7 @@ function toCandidate(
     publisherLabel,
     normalizedName: folded(displayName),
     hostRank,
-    tier: identityMatchTier(query, displayName, pluginId, entryId),
+    tier: matchTier(query, displayName, pluginId, entryId, entry),
   };
 }
 
@@ -129,6 +143,7 @@ export function searchCommunityPlugins(
       }),
       title: boundUntrustedText(candidate.displayName, MAX_ITEM_TITLE_BYTES),
       subtitle: boundUntrustedText(subtitleParts.join(" · "), MAX_ITEM_SUBTITLE_BYTES),
+      icon: PLUGIN_ICON,
     };
   });
 }

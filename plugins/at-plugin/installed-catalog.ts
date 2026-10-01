@@ -1,5 +1,6 @@
 import type { BbPluginApi, PluginMentionItem } from "@get-bb/plugin-sdk";
 import { isPluginBrowseQuery } from "./mention-query";
+import { installedIconName } from "./plugin-icon";
 
 import {
   MAX_ITEM_SUBTITLE_BYTES,
@@ -122,6 +123,7 @@ export function searchInstalledPlugins(
         id: encodeInstalledItemId(candidate.pluginId),
         title: boundUntrustedText(candidate.displayName, MAX_ITEM_TITLE_BYTES),
         ...(subtitle.length > 0 ? { subtitle } : {}),
+        icon: installedIconName(candidate.plugin),
       };
     });
 }
