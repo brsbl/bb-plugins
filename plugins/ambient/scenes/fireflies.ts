@@ -239,7 +239,7 @@ vec3 scene(vec2 uv, vec2 p) {
   vec3 green = mix(Y, vec3(0.78, 1.0, 0.42), 0.4);
   vec3 hot = mix(green, vec3(1.0, 1.0, 0.9), 0.6);
   float light = 0.0;
-  for (int i = 0; i < 60; i++) {
+  for (int i = 0; i < 76; i++) {
     float fi = float(i);
     if (fi >= 16.0 + 30.0 * p_motes) break;
     vec2 s = vec2(fi * 7.13, fi * 3.71);
