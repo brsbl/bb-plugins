@@ -15,14 +15,13 @@ const saveNoteSchema = z.object({ key: z.string().min(1), text: z.string().max(2
 const boundsSchema = z.object({ west: z.number(), south: z.number(), east: z.number(), north: z.number() });
 const travelModeSchema = z.enum(["walk", "bike", "drive"]);
 export const viewContextSchema = z.object({
-  view: z.enum(["library", "lists", "place", "route", "compose"]),
+  view: z.enum(["library", "lists", "place", "compose"]),
   query: z.string().max(200),
   listIds: z.array(z.string().min(1)).max(64),
   filter: z.object({ categories: z.array(categoryIdSchema), notes: z.boolean(), query: z.string().max(200), inView: z.boolean() }).nullable(),
   placeKey: z.string().min(1).nullable(),
   camera: z.object({ center: z.tuple([z.number(), z.number()]), zoom: z.number(), bounds: boundsSchema }).nullable(),
   placeKeys: z.array(z.string().min(1)).max(5000),
-  route: z.object({ mode: travelModeSchema, stops: z.array(z.string().min(1)).max(50) }).nullable(),
   rings: z.object({ mode: travelModeSchema, minutes: z.array(z.number()) }).nullable(),
 });
 export type ViewContext = z.infer<typeof viewContextSchema>;
@@ -72,7 +71,6 @@ function describeView(input: ViewContext, state: SavedState) {
     counts: { shown: shown.length, inView: visible.length, inViewByCategory: countBy(visible), shownByCategory: countBy(shown) },
     selectedPlace: selected ? summarize(selected) : null,
     walkingRings: input.rings,
-    route: input.route && { mode: input.route.mode, stops: input.route.stops.map(key => placesByKey.get(key)).filter(place => place !== undefined).map(summarize) },
     placesInView: ranked.slice(0, PLACE_SAMPLE).map(summarize),
     placesInViewOmitted: Math.max(0, ranked.length - PLACE_SAMPLE),
   };

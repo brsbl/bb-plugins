@@ -27,7 +27,7 @@ export function ComposeView({ draft }: { draft: ComposeDraft }) {
       : { id: newId(), title: title.trim(), color, placeKeys: keys, sourceIds: draft.sourceIds, createdAt: now, updatedAt: now };
     void app.store.saveList(list);
     if (editing) app.pop();
-    else app.replace({ kind: "lists", ids: [list.id], filter: { categories: [], notes: false, query: "", inView: false } });
+    else app.replace({ kind: "lists", ids: [list.id], filter: { categories: [], notes: false, query: "", inView: false }, reach: null });
   };
 
   return <Frame label={editing ? "Edit list" : "New list"} header={<>

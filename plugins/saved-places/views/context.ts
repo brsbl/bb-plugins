@@ -3,7 +3,6 @@ import type { CategoryId } from "../categories";
 import type { CustomList, SavedList, SavedPlace } from "../model";
 import type { Ring, TravelMode } from "../routing";
 import type { SavedStore } from "../use-saved-state";
-import type { RouteStore } from "../use-route";
 
 export interface ListFilter { categories: CategoryId[]; notes: boolean; query: string; inView: boolean }
 export const emptyFilter: ListFilter = { categories: [], notes: false, query: "", inView: false };
@@ -11,19 +10,18 @@ export interface ComposeScope { id: string; label: string; keys: string[] }
 export interface ComposeDraft { sourceIds: string[]; scopes: ComposeScope[]; editing?: CustomList; title?: string; color?: string }
 export type View =
   | { kind: "library"; query: string }
-  | { kind: "lists"; ids: string[]; filter: ListFilter }
+  | { kind: "lists"; ids: string[]; filter: ListFilter; reach: number | null }
   | { kind: "place"; key: string }
-  | { kind: "route" }
   | { kind: "compose"; draft: ComposeDraft };
 
 export interface Bounds { west: number; south: number; east: number; north: number }
 export const inBounds = (place: SavedPlace, b: Bounds) => place.latitude >= b.south && place.latitude <= b.north && (b.west <= b.east ? place.longitude >= b.west && place.longitude <= b.east : place.longitude >= b.west || place.longitude <= b.east);
 
-export interface RingState { owner: string; mode: TravelMode; features: Ring[]; loading: boolean; error: string | null }
+export const listRingOwner = (ids: string[]) => `list:${ids.join(",")}`;
+export interface RingState { owner: string; mode: TravelMode; features: Ring[]; loading: boolean; done: number; total: number; error: string | null }
 
 export interface AppApi {
   store: SavedStore;
-  route: RouteStore;
   wide: boolean;
   dark: boolean;
   bounds: Bounds | null;
