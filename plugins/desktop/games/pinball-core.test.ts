@@ -4,6 +4,7 @@ import {
   BALLS_PER_GAME,
   POINTS,
   TABLE,
+  awaitingLaunch,
   newGame,
   step,
   type Ball,
@@ -32,6 +33,14 @@ function inPlay(ball: Ball, base: PinballState = newGame()): PinballState {
 }
 
 describe("pinball", () => {
+  it("stays awaiting launch on every frame while the plunger charges", () => {
+    const settled = run(newGame(), idle, 0.5);
+    expect(awaitingLaunch(settled)).toBe(true);
+    const frames: boolean[] = [];
+    run(settled, { ...idle, plunger: true }, 1.2, (state) => frames.push(awaitingLaunch(state)));
+    expect(frames.every(Boolean)).toBe(true);
+  });
+
   it("launches a charged ball out of the shooter lane and into the table", () => {
     const charged = run(newGame(), { ...idle, plunger: true }, 1.2);
     expect(charged.plunger).toBe(1);

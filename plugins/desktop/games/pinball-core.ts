@@ -265,12 +265,10 @@ export function plungerFloor(state: Pick<PinballState, "plunger">): number {
 }
 
 export function awaitingLaunch(state: PinballState): boolean {
-  return (
-    state.status === "playing" &&
-    state.inLane &&
-    Math.abs(state.ball.vy) < 20 &&
-    state.ball.y >= plungerFloor(state) - TABLE.ballRadius - 3
-  );
+  if (state.status !== "playing" || !state.inLane) return false;
+  // While the plunger charges, the ball trails the retreating floor; it is still waiting to launch.
+  if (state.plunger > 0) return true;
+  return Math.abs(state.ball.vy) < 20 && state.ball.y >= plungerFloor(state) - TABLE.ballRadius - 3;
 }
 
 export interface FlipperPose {
