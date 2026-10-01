@@ -708,168 +708,253 @@ const CONTOUR_SOURCE = `vec3 scene(vec2 uv, vec2 p) {
   return mix(u_canvas, col, p_color);
 }`;
 
-const RISOGRAPH_SOURCE = `float g_t;
+const RISOGRAPH_SOURCE = `const vec3 INK = vec3(0.07, 0.06, 0.08);
 
 vec2 rotA(vec2 v, float a) { float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
 float segD(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)); }
-float fill(float d) { return smoothstep(0.0015, -0.0015, d); }
+float fillD(float d) { float w = fwidth(d) * 0.75 + 1e-4; return smoothstep(w, -w, d); }
+float strokeD(float d, float lw) { float w = fwidth(d) * 0.75 + 1e-4; return smoothstep(lw + w, lw - w, abs(d)); }
 
-// halftone screen: tint 0..1 becomes dots at the ink's own angle
-float halftone(vec2 p, float tint, float ang) {
-  vec2 g = rotA(p, ang) * (110.0 / p_dots);
-  float r = 0.62 * sqrt(clamp(tint, 0.0, 1.0));
-  return smoothstep(r + 0.08, r - 0.08, length(fract(g) - 0.5));
+// Ben-Day dots: a tone becomes a 45-degree grid of ink dots
+float benday(vec2 p, float tone) {
+  vec2 g = rotA(p, 0.785) * (95.0 / p_dots);
+  float r = 0.72 * sqrt(clamp(tone, 0.0, 1.0));
+  float d = length(fract(g) - 0.5);
+  float w = fwidth(d) + 1e-4;
+  return smoothstep(r + w, r - w, d);
 }
 
-// kidney / amoeba blob
-float blob(vec2 p, vec2 c, float R, float sd) {
-  vec2 d = p - c;
-  float a = atan(d.y, d.x);
-  return length(d) - R * (1.0 + 0.22 * sin(2.0 * a + sd + g_t * 0.05) + 0.12 * sin(3.0 * a - sd * 1.7));
+// a jagged comic burst; spikes vary in length
+float burst(vec2 q, float r, float n, float jag, float seed) {
+  float a = atan(q.y, q.x) + 3.1416;
+  float k = a * n / 6.2832;
+  float s = 1.0 - abs(fract(k) - 0.5) * 2.0;
+  float h = hash21(vec2(floor(k), seed));
+  return (length(q) - r * (1.0 - jag + jag * s * (0.65 + 0.35 * h))) * 0.8;
 }
 
-float boomerang(vec2 q, float s) {
-  float th = s * 0.16;
-  float d1 = segD(q, vec2(0.0), vec2(-0.75, 0.55) * s) - th * (1.0 - 0.4 * clamp(length(q) / s, 0.0, 1.0));
-  float d2 = segD(q, vec2(0.0), vec2(0.8, 0.45) * s) - th * (1.0 - 0.4 * clamp(length(q) / s, 0.0, 1.0));
-  return min(d1, d2);
-}
+vec3 tint(vec3 base, vec3 ink, float cov) { return base * mix(vec3(1.0), ink, cov); }
 
-// atomic starburst: thin spikes of alternating length, each tipped with a dot
-float starburst(vec2 q, float s, float n) {
-  float a = atan(q.y, q.x);
-  float r = length(q);
-  float sec = 6.2832 / n;
-  float k = floor(a / sec + 0.5);
-  float L = s * (mod(k, 2.0) < 0.5 ? 1.0 : 0.6);
-  vec2 dir = vec2(cos(k * sec), sin(k * sec));
-  float sp = segD(q, vec2(0.0), dir * L) - s * 0.025;
-  float tip = length(q - dir * L) - s * 0.07;
-  return min(min(sp, tip), r - s * 0.12);
-}
-
-float sparkle(vec2 q, float s) {
-  vec2 a = abs(q) / s;
-  return (sqrt(a.x) + sqrt(a.y) - 1.0) * s * 0.5;
-}
-
-float atomRings(vec2 q, float s, float t) {
-  float d = 1.0;
-  for (int i = 0; i < 3; i++) {
-    vec2 r = rotA(q, float(i) * 1.0472 + t * 0.2);
-    d = min(d, abs(length(r * vec2(1.0, 2.8)) - s) / 2.0 - s * 0.03);
-  }
-  return d;
-}
-
-// ink coverage for (pink, blue, yellow) at p
-vec3 inks(vec2 p) {
-  float t = g_t;
-  vec3 c = vec3(0.0);
-  float ax = u_resolution.x / u_resolution.y;
-
-  // big drifting blobs, laid down as flat tints
-  c.x = max(c.x, halftone(p, 0.55, 0.26) * fill(blob(p, vec2(-0.45 * ax + 0.05 * sin(t * 0.03), 0.22), 0.22, 1.0)));
-  c.y = max(c.y, halftone(p, 0.4, 1.31) * fill(blob(p, vec2(0.38 * ax, -0.2 + 0.04 * sin(t * 0.025)), 0.25, 4.0)));
-  c.z = max(c.z, fill(blob(p, vec2(0.05 * ax + 0.06 * sin(t * 0.02), 0.32), 0.17, 2.5)));
-  c.x = max(c.x, halftone(p, 0.35, 0.26) * fill(blob(p, vec2(0.1 * ax, -0.38), 0.2, 6.0)));
-  c.z = max(c.z, halftone(p, 0.7, 0.79) * fill(blob(p, vec2(-0.3 * ax, -0.3 + 0.04 * sin(t * 0.03)), 0.16, 3.0)));
-
-  // a wallpaper of mid-century motifs drifting past
-  float cs = 0.17;
-  vec2 fp = p + vec2(t * 0.006, t * 0.003) * p_drift;
-  vec2 cell = floor(fp / cs);
-  for (int j = -1; j <= 1; j++)
-  for (int i = -1; i <= 1; i++) {
-    vec2 id = cell + vec2(float(i), float(j));
-    float h = hash21(id);
-    if (h > 0.35 + 0.6 * p_motifs) continue;
-    vec2 ctr = (id + 0.5 + 0.5 * (vec2(hash21(id + 3.3), hash21(id + 7.1)) - 0.5)) * cs;
-    float rot = hash21(id + 1.9) * 6.2832 + t * 0.08 * (hash21(id + 4.4) - 0.5) * p_drift;
-    vec2 q = rotA(fp - ctr, rot);
-    float s = cs * (0.28 + 0.18 * hash21(id + 5.5));
-    float kind = floor(hash21(id + 9.9) * 4.0);
-    if (kind < 0.5) {
-      float b = fill(boomerang(q, s));
-      if (hash21(id + 2.2) > 0.5) c.y = max(c.y, b); else c.x = max(c.x, b);
-    } else if (kind < 1.5) {
-      c.y = max(c.y, fill(starburst(q, s, 12.0)));
-    } else if (kind < 2.5) {
-      c.z = max(c.z, fill(sparkle(q, s * 0.9)));
-      c.x = max(c.x, fill(sparkle(q, s * 0.4)));
-    } else {
-      c.y = max(c.y, fill(atomRings(q, s * 0.75, t)));
-      c.x = max(c.x, fill(length(q) - s * 0.14));
+// one panel's art: rgb plus a black-ink line mask
+vec4 panelArt(int kind, vec2 q, vec2 hs, float t, float lw) {
+  vec3 paper = u_palette[3], red = u_palette[0], blue = u_palette[1], yel = u_palette[2];
+  vec3 col = paper;
+  float ink = 0.0;
+  if (kind == 0) {
+    // flying saucer beaming down over a dotted night sky
+    float ty = clamp(q.y / hs.y * 0.5 + 0.5, 0.0, 1.0);
+    col = tint(col, blue, benday(q, 0.25 + 0.55 * ty));
+    float sp = hash21(floor(q * 26.0));
+    col = mix(col, paper, smoothstep(0.12, 0.0, length(fract(q * 26.0) - 0.5)) * step(0.93, sp));
+    vec2 c = vec2(0.35 * hs.x * sin(t * 0.35), 0.28 * hs.y + 0.025 * sin(t * 1.2));
+    float R = hs.y * 0.5;
+    vec2 s = rotA(q - c, 0.12 * sin(t * 0.6));
+    if (s.y < 0.0) {
+      float bw = R * 0.25 + (-s.y) * 0.45;
+      float beam = step(abs(s.x), bw) * smoothstep(-hs.y * 1.6, -R * 0.1, s.y);
+      col = mix(col, tint(paper, yel, 0.15 + 0.85 * benday(q, 0.5)), beam * 0.85);
+      ink = max(ink, strokeD(abs(s.x) - bw, lw * 0.6) * smoothstep(-hs.y * 1.2, -R * 0.15, s.y));
     }
-  }
-
-  // agents: spinning atoms while they work, a pulsing starburst while they wait on you
-  for (int i = 0; i < 16; i++) {
-    if (i >= u_agentCount) break;
-    vec4 a = u_agents[i];
-    vec2 d = p - toP(a.xy);
-    if (dot(d, d) > 0.012) continue;
-    float fi = float(i);
-    if (a.z > 0.5) {
-      float pulse = 0.85 + 0.25 * sin(u_time * 4.0 + fi);
-      vec2 q = rotA(d, u_time * 0.4);
-      c.z = max(c.z, fill(starburst(q, 0.05 * pulse * a.w, 16.0)));
-      c.x = max(c.x, fill(sparkle(q, 0.03 * pulse * a.w)));
-    } else {
-      c.y = max(c.y, fill(atomRings(d, 0.03 * a.w, u_time * 4.0 + fi)));
-      vec2 e = vec2(cos(u_time * 3.0 + fi), sin(u_time * 3.0 + fi) / 2.8) * 0.03 * a.w;
-      c.x = max(c.x, fill(length(d - rotA(e, u_time * 0.8)) - 0.006 * a.w));
-      c.z = max(c.z, fill(length(d) - 0.009 * a.w));
+    float dome = max(length(s - vec2(0.0, R * 0.08)) - R * 0.42, -(s.y - R * 0.08));
+    float disc = (length(s / vec2(R, R * 0.24)) - 1.0) * R * 0.24;
+    vec3 dc = mix(tint(paper, blue, 0.35), paper, smoothstep(0.0, R * 0.3, s.y - R * 0.2 + s.x * 0.4));
+    col = mix(col, dc, fillD(dome));
+    vec3 hull = mix(tint(paper, blue, 0.55) * 0.75, tint(paper, blue, 0.15), smoothstep(-R * 0.2, R * 0.2, s.y));
+    col = mix(col, hull, fillD(disc));
+    float lights = fillD(length(vec2(fract(s.x / (R * 0.28) + t * 0.6) - 0.5, (s.y + R * 0.02) / (R * 0.28))) - 0.22);
+    col = mix(col, mix(yel, red, step(0.5, fract(s.x / (R * 0.56) + t * 0.3))), lights * fillD(disc + R * 0.05));
+    ink = max(ink, max(strokeD(dome, lw), strokeD(disc, lw)));
+  } else if (kind == 1) {
+    // rocket ship tearing past speed lines
+    col = tint(col, yel, 0.9);
+    float row = floor(q.y * 34.0);
+    float hr = hash21(vec2(row, 3.0));
+    float xs = fract(q.x * (0.8 + hr) / hs.x * 0.5 + t * (0.6 + 0.6 * hr) + hr * 7.0);
+    float taper = smoothstep(0.0, 0.08, xs) * smoothstep(0.7, 0.3, xs);
+    float streak = strokeD((fract(q.y * 34.0) - 0.5) / 34.0, 0.0022 * taper) * step(0.55, hr) * step(0.01, taper);
+    col = mix(col, INK, streak);
+    float R = hs.y * 0.62;
+    float lx = mod(t * 0.12 * hs.x * 4.0, hs.x * 3.6) - hs.x * 1.8;
+    vec2 c = vec2(lx, -0.05 * hs.y + 0.03 * sin(t * 1.5));
+    vec2 s = rotA(q - c, -0.12);
+    float body = segD(s, vec2(-R * 0.5, 0.0), vec2(R * 0.35, 0.0)) - R * 0.2 * (1.0 - 0.85 * smoothstep(R * 0.05, R * 0.6, s.x));
+    float fin = segD(vec2(s.x, abs(s.y)), vec2(-R * 0.3, R * 0.15), vec2(-R * 0.68, R * 0.42)) - R * 0.07;
+    float win = length(s - vec2(R * 0.12, R * 0.02)) - R * 0.085;
+    if (s.x < -R * 0.5) {
+      float fl = length((s + vec2(R * 0.55, 0.0)) / vec2(R * (0.45 + 0.12 * sin(t * 23.0)), R * 0.16)) - 1.0;
+      col = mix(col, mix(red, yel, smoothstep(0.0, -0.6, fl)), fillD(fl));
+      ink = max(ink, strokeD(fl * R * 0.16, lw * 0.7));
     }
-  }
-
-  // ripples: a ring of dashes bursting outward; errors flash a pink-and-yellow (red) disc
-  for (int i = 0; i < 12; i++) {
-    if (i >= u_rippleCount) break;
-    vec4 r = u_ripples[i];
-    vec2 d = p - toP(r.xy);
-    float rad = 0.02 + r.z * 0.14;
-    float fade = step(r.z * 0.3, 0.9);
-    float ang = atan(d.y, d.x);
-    float dash = step(0.5, fract(ang * 18.0 / 6.2832 + r.z * 0.5));
-    float ring = fill(abs(length(d) - rad) - 0.006 * exp(-r.z * 0.5)) * dash * fade * exp(-r.z * 0.3);
-    if (abs(r.w - 1.0) < 0.5) {
-      float disc = fill(length(d) - rad * 0.7) * step(r.z, 2.5);
-      c.x = max(c.x, max(ring, disc));
-      c.z = max(c.z, disc);
-    } else if (r.w > 1.5) {
-      c.z = max(c.z, ring);
-    } else {
-      c.x = max(c.x, ring);
+    col = mix(col, red * 0.92, fillD(fin));
+    col = mix(col, mix(paper, tint(paper, blue, 0.3), smoothstep(R * 0.2, -R * 0.2, s.y)), fillD(body));
+    col = mix(col, red, fillD(body) * step(abs(s.x + R * 0.12), R * 0.06));
+    col = mix(col, tint(paper, blue, 0.7), fillD(win));
+    ink = max(ink, max(strokeD(min(body, fin), lw), strokeD(win, lw * 0.8)));
+  } else if (kind == 2) {
+    // POW: a jagged burst over radiating action lines
+    col = tint(col, blue, benday(q, 0.35 + 0.3 * length(q) / hs.y));
+    float a = atan(q.y, q.x);
+    float lines = step(0.86, fract(a * 9.0 / 3.1416 + hash21(vec2(floor(a * 18.0 / 3.1416), 1.0)) * 0.3)) * smoothstep(hs.y * 0.3, hs.y * 0.8, length(q));
+    col = mix(col, INK, lines * 0.8);
+    float R = hs.y * (0.78 + 0.06 * sin(t * 2.2));
+    vec2 s = rotA(q, 0.05 * sin(t * 0.9));
+    float b1 = burst(s, R, 13.0, 0.42, 1.0);
+    float b2 = burst(rotA(s, 0.4), R * 0.58, 11.0, 0.4, 2.0);
+    col = mix(col, tint(paper, red, 0.95), fillD(b1));
+    col = mix(col, tint(paper, yel, 0.95), fillD(b2));
+    col = mix(col, tint(paper, red, 0.5), fillD(b2) * benday(s * 1.3, 0.25));
+    ink = max(ink, max(strokeD(b1, lw * 1.2), strokeD(b2, lw)));
+  } else if (kind == 3) {
+    // city at night: red sky, searchlights, a silhouette skyline with lit windows
+    float ty = clamp(q.y / hs.y * 0.5 + 0.5, 0.0, 1.0);
+    col = tint(col, red, benday(q, 0.7 - 0.5 * ty));
+    col = tint(col, yel, 0.25 + 0.4 * (1.0 - ty));
+    vec2 mc = vec2(hs.x * 0.5, hs.y * 0.5);
+    float moon = length(q - mc) - hs.y * 0.2;
+    col = mix(col, tint(paper, yel, 0.6), fillD(moon));
+    ink = max(ink, strokeD(moon, lw * 0.8));
+    for (int k = 0; k < 2; k++) {
+      float sk = k == 0 ? -1.0 : 1.0;
+      vec2 o = vec2(sk * hs.x * 0.35, -hs.y);
+      float ang = 1.5708 + sk * 0.35 + 0.3 * sin(t * 0.5 + sk);
+      vec2 d = q - o;
+      float off = abs(atan(d.x, d.y) - (ang - 1.5708));
+      float beam = smoothstep(0.1, 0.07, off) * step(0.0, d.y);
+      col = mix(col, tint(paper, yel, 0.35), beam * 0.75);
     }
+    float cw = hs.x * 0.16;
+    float ci = floor(q.x / cw);
+    float hb = hash21(vec2(ci, 5.0));
+    float top = -hs.y + hs.y * (0.45 + 0.55 * hb);
+    float bx = q.x - (ci + 0.5) * cw;
+    float bld = max(abs(bx) - cw * 0.44, q.y - top);
+    vec2 wg = vec2(bx / (cw * 0.2), (q.y - top) / (hs.y * 0.07));
+    float lit = step(0.6, hash21(floor(wg) + ci * 13.0 + floor(t * 0.15 + hb * 5.0)));
+    float wnd = step(abs(fract(wg.x) - 0.5), 0.25) * step(abs(fract(wg.y) - 0.5), 0.22) * step(abs(bx), cw * 0.32) * step(q.y, top - hs.y * 0.05);
+    col = mix(col, INK, fillD(bld));
+    col = mix(col, yel, fillD(bld) * wnd * lit);
+  } else {
+    // ray-gun zap: a zigzag bolt across magenta dots
+    col = tint(col, red, benday(q, 0.42));
+    float za = atan(q.y + hs.y, q.x + hs.x);
+    col = mix(col, INK, step(0.88, fract(za * 22.0 / 3.1416)) * smoothstep(hs.y * 0.6, hs.y * 1.4, length(q + hs)) * 0.7);
+    float zt = fract(t * 0.35);
+    float d = 1.0;
+    vec2 a0 = vec2(-hs.x * 0.95, hs.y * 0.45);
+    for (int k = 0; k < 5; k++) {
+      float fk = float(k);
+      vec2 a1 = vec2(-hs.x * 0.95 + (fk + 1.0) * hs.x * 0.38, hs.y * (0.45 - 0.22 * (fk + 1.0)) + (mod(fk, 2.0) < 0.5 ? 0.12 : -0.12) * hs.y * (1.0 + 0.3 * sin(t * 7.0 + fk)));
+      d = min(d, segD(q, a0, a1));
+      a0 = a1;
+    }
+    float bolt = d - hs.y * 0.075;
+    float glow = d - hs.y * 0.16;
+    float on = 0.6 + 0.4 * step(0.5, fract(t * 3.0));
+    col = mix(col, paper, fillD(glow) * on);
+    col = mix(col, tint(paper, yel, 0.95), fillD(bolt));
+    ink = max(ink, max(strokeD(bolt, lw * 1.2), strokeD(glow, lw * 0.6) * on));
+    float imp = burst(q - a0, hs.y * 0.3 * (0.8 + 0.3 * zt), 9.0, 0.5, 7.0);
+    col = mix(col, tint(paper, yel, 0.95), fillD(imp));
+    ink = max(ink, strokeD(imp, lw));
   }
-  return c;
+  return vec4(col, ink);
 }
 
 vec3 scene(vec2 uv, vec2 p) {
-  g_t = u_time;
-  vec3 pink = u_palette[0], blue = u_palette[1], yel = u_palette[2], paper = u_palette[3];
-  vec2 dp = p - toP(u_pointer);
-  vec2 q = p + dp * exp(-dot(dp, dp) / 0.01) * 0.12;
+  float t = u_time * p_drift;
+  vec3 paper = u_palette[3], red = u_palette[0], blue = u_palette[1], yel = u_palette[2];
+  float W = 0.5 * u_resolution.x / u_resolution.y;
+  float lw = 0.0014 * p_ink;
 
-  // each drum prints slightly off register
-  vec2 m = vec2(0.0035, -0.0022) * p_misreg;
-  float cp = inks(q + m).x;
-  float cb = inks(q).y;
-  float cy = inks(q - m * vec2(-0.8, 1.3)).z;
+  // the page: two tiers of panels with slanted gutters
+  float gut = 0.013;
+  float ry = 0.04 + 0.05 * p.x / W;
+  float dRow = abs(p.y - ry) / 1.001;
+  bool topRow = p.y > ry;
+  float b1 = -0.3 * W + 0.06 * (p.y - 0.27);
+  float b2 = 0.28 * W - 0.05 * (p.y - 0.27);
+  float b3 = 0.1 * W + 0.07 * (p.y + 0.23);
+  int pid;
+  float dCol;
+  vec2 ctr, hs;
+  if (topRow) {
+    dCol = min(abs(p.x - b1), abs(p.x - b2)) / 1.002;
+    if (p.x < b1) { pid = 0; ctr = vec2(-0.65 * W, 0.27); hs = vec2(0.35 * W, 0.23); }
+    else if (p.x < b2) { pid = 2; ctr = vec2(-0.01 * W, 0.27); hs = vec2(0.29 * W, 0.23); }
+    else { pid = 3; ctr = vec2(0.64 * W, 0.27); hs = vec2(0.36 * W, 0.23); }
+  } else {
+    dCol = abs(p.x - b3) / 1.002;
+    if (p.x < b3) { pid = 1; ctr = vec2(-0.45 * W, -0.23); hs = vec2(0.55 * W, 0.27); }
+    else { pid = 4; ctr = vec2(0.55 * W, -0.23); hs = vec2(0.45 * W, 0.27); }
+  }
+  float dEdge = min(W - abs(p.x), 0.5 - abs(p.y));
+  float border = min(min(dRow, dCol), dEdge);
 
-  // starved, speckled ink
-  float g1 = noise(p * 320.0), g2 = noise(p * 140.0 + 7.0), g3 = noise(p * 260.0 + 3.0);
-  float starve = smoothstep(0.55, 0.85, noise(p * vec2(3.0, 9.0) + 4.0));
-  cp *= 1.0 - p_grain * (0.35 * smoothstep(0.55, 0.85, g1) + 0.25 * starve);
-  cb *= 1.0 - p_grain * (0.35 * smoothstep(0.55, 0.85, g2) + 0.2 * starve);
-  cy *= 1.0 - p_grain * 0.3 * smoothstep(0.55, 0.85, g3);
+  vec2 q = p - ctr;
+  vec2 mis = vec2(0.0028, -0.002) * p_misreg;
+  vec4 art = panelArt(pid, q + mis, hs, t, lw);
+  vec4 key = panelArt(pid, q, hs, t, lw);
+  vec3 col = art.rgb;
+  col = mix(col, INK, key.a);
+  float frame = smoothstep(gut + lw * 2.5 + 0.001, gut + lw * 2.5, border);
+  col = mix(col, INK, frame);
+  col = mix(col, paper, smoothstep(gut + 0.0008, gut, border));
 
-  // overprint like real ink: each layer multiplies the paper
-  vec3 col = paper * (0.97 + 0.04 * noise(p * vec2(60.0, 600.0)));
-  col *= mix(vec3(1.0), yel, cy * 0.95);
-  col *= mix(vec3(1.0), pink, cp * 0.9);
-  col *= mix(vec3(1.0), blue, cb * 0.92);
+  // agents: little rockets on patrol; waiting ones raise a "!" balloon
+  for (int i = 0; i < 16; i++) {
+    if (i >= u_agentCount) break;
+    vec4 a = u_agents[i];
+    float fi = float(i);
+    vec2 c0 = toP(a.xy);
+    vec2 d = p - c0;
+    if (dot(d, d) > 0.012) continue;
+    float R = 0.028 * a.w;
+    if (a.z > 0.5) {
+      float bob = 1.0 + 0.08 * sin(u_time * 4.0 + fi);
+      vec2 b = d / bob;
+      float bal = (length(b / vec2(1.25, 1.0)) - R * 1.1);
+      float tail = segD(b, vec2(-R * 0.3, -R * 0.8), vec2(-R * 0.9, -R * 1.5)) - R * 0.12;
+      float sh = min(bal, tail);
+      col = mix(col, paper, fillD(sh));
+      col = mix(col, INK, strokeD(sh, lw));
+      float bang = min(segD(b, vec2(0.0, R * 0.55), vec2(0.0, -R * 0.15)) - R * 0.14, length(b + vec2(0.0, R * 0.55)) - R * 0.15);
+      col = mix(col, red, fillD(bang));
+    } else {
+      float ph = u_time * 1.2 + fi * 1.7;
+      vec2 c = vec2(0.03 * cos(ph), 0.03 * sin(ph));
+      vec2 s = rotA(d - c, -(ph + 1.5708));
+      float body = segD(s, vec2(-R * 0.5, 0.0), vec2(R * 0.4, 0.0)) - R * 0.22 * (1.0 - 0.85 * smoothstep(R * 0.05, R * 0.6, s.x));
+      float fin = segD(vec2(s.x, abs(s.y)), vec2(-R * 0.3, R * 0.15), vec2(-R * 0.65, R * 0.4)) - R * 0.08;
+      float fl = length((s + vec2(R * 0.6, 0.0)) / vec2(R * (0.4 + 0.1 * sin(u_time * 25.0 + fi)), R * 0.15)) - 1.0;
+      col = mix(col, mix(red, yel, smoothstep(0.0, -0.6, fl)), fillD(fl) * a.w);
+      col = mix(col, red, fillD(fin) * a.w);
+      col = mix(col, paper, fillD(body) * a.w);
+      col = mix(col, INK, strokeD(min(body, fin), lw) * a.w);
+    }
+  }
+
+  // events land as impact bursts: yellow for a finished turn, red for an error
+  for (int i = 0; i < 12; i++) {
+    if (i >= u_rippleCount) break;
+    vec4 r = u_ripples[i];
+    if (r.z > 1.6) continue;
+    vec2 d = p - toP(r.xy);
+    float isErr = step(abs(r.w - 1.0), 0.5);
+    float grow = smoothstep(0.0, 0.35, r.z) * (1.0 - smoothstep(1.1, 1.6, r.z));
+    float R = (r.w > 1.5 ? 0.04 : 0.07) * grow;
+    if (R < 0.002) continue;
+    float b = burst(rotA(d, r.x * 9.0), R, 12.0, 0.45, r.x * 50.0);
+    float bi = burst(rotA(d, r.x * 9.0 + 0.3), R * 0.55, 9.0, 0.4, r.y * 50.0);
+    col = mix(col, mix(yel, red, isErr), fillD(b));
+    col = mix(col, mix(paper, yel, isErr), fillD(bi));
+    col = mix(col, INK, strokeD(b, lw));
+  }
+
+  // pulpy newsprint: yellowed fibres, flecks, and a darkened edge of age
+  float fib = noise(p * vec2(40.0, 380.0)) * 0.5 + noise(p * vec2(300.0, 60.0)) * 0.5;
+  col *= 0.95 + 0.06 * fib;
+  col = mix(col, col * vec3(1.0, 0.94, 0.8), p_age * (0.25 + 0.35 * smoothstep(0.35, 0.75, length(uv - 0.5))));
+  col = mix(col, INK, step(0.995, hash21(floor(p * 420.0))) * 0.3 * p_age);
   return mix(u_canvas, col, p_color);
 }`;
 
@@ -2353,15 +2438,15 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
   },
   {
     id: "risograph-map",
-    name: "Atomic Age",
+    name: "Atomic Comics",
     source: RISOGRAPH_SOURCE,
-    palette: ["#ff48b0", "#0078bf", "#ffe800", "#f6f0e1"],
+    palette: ["#e23b2e", "#2b78cf", "#ffd23f", "#f3e6c8"],
     params: [
-      param("drift", "Drift", 0, 3, 1),
-      param("motifs", "Motif density", 0, 1, 0.7),
-      param("dots", "Halftone dot size", 0.5, 2.5, 1),
+      param("drift", "Action speed", 0, 3, 1),
+      param("dots", "Ben-Day dot size", 0.5, 2.5, 1),
+      param("ink", "Ink line weight", 0.5, 3, 1.4),
       param("misreg", "Misregistration", 0, 3, 1),
-      param("grain", "Ink grain", 0, 2, 1),
+      param("age", "Newsprint age", 0, 2, 1),
       param("color", "Color strength", 0, 1, 0.92),
     ],
   },
