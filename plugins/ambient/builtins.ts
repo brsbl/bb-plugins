@@ -663,15 +663,13 @@ vec3 scene(vec2 uv, vec2 p) {
   // pigment drifts between teal and indigo across the sheet
   float hue = noise(p * 1.7 + wv * 1.2 + 21.0);
   col *= mix(vec3(1.0), mix(vec3(0.9, 1.04, 1.05), vec3(0.97, 0.95, 1.07), hue), 0.7 * p_wet);
-  // cold-press paper: lit tooth, pigment granulating in its valleys, dry-brush skips on the ground
+  // cold-press paper: lit tooth, pigment granulating in its valleys
   float th = noise(p * 210.0) * 0.6 + noise(p * 80.0 + 3.0) * 0.4;
   vec2 po = p + vec2(0.0015);
   float th2 = noise(po * 210.0) * 0.6 + noise(po * 80.0 + 3.0) * 0.4;
   float Lc = dot(col, lw);
   col *= 1.0 + (th - th2) * 0.35 * p_grain;
   col *= 1.0 - (1.0 - th) * 0.16 * p_grain * (1.0 - Lc);
-  float skip = smoothstep(0.66, 0.74, noise(vec2(p.x * 26.0 + p.y * 8.0, p.y * 170.0))) * smoothstep(0.55, 0.75, th);
-  col = mix(col, vec3(0.97, 0.94, 0.88), skip * 0.25 * p_grain * (1.0 - skyM));
 
   float pf = min(u_resolution.y / 4.0, 160.0);
   float pn = noise(p * pf) * 0.6 + noise(p * pf * 0.47 + 4.0) * 0.4;
@@ -1006,7 +1004,7 @@ vec2 clouds(vec2 p, float t) {
       vec2 pc = vec2(cx + u * 0.13 * sc, cy + (0.035 * (1.0 - u * u) + 0.015 * hash21(vec2(fk, fj))) * sc);
       float r = (0.04 + 0.025 * (1.0 - u * u) + 0.012 * hash21(vec2(fj, fk + 9.0))) * sc;
       float d = length((p - pc) * vec2(1.0, 1.15));
-      float m = smoothstep(r, r * 0.82, d) * step(cy - 0.025 * sc, p.y);
+      float m = smoothstep(r, r * 0.55, d) * smoothstep(cy - 0.04 * sc, cy - 0.005 * sc, p.y + 0.012 * sin(p.x * 60.0 + fk));
       cov = max(cov, m);
       lit = max(lit, m * smoothstep(-r, r * 0.8, p.y - pc.y + (p.x - pc.x) * 0.3));
     }
@@ -1099,7 +1097,7 @@ vec3 dabLayer(vec2 p, vec2 off, float w, float t, out float m, out float stripe)
   vec2 cp = (c + 0.5 - off) * cell;
   float h = hash21(c + off * 7.0);
   float hy = hillY(cp.x);
-  float ang = cp.y > hy + 0.01 ? 0.05 + 0.3 * (h - 0.5) : 1.3 + (h - 0.5) * 0.9 - w * 0.4;
+  float ang = cp.y > hy + 0.01 ? 0.05 + 0.7 * (h - 0.5) : 1.3 + (h - 0.5) * 0.9 - w * 0.4;
   vec2 dir = vec2(cos(ang), sin(ang));
   vec2 nrm = vec2(-dir.y, dir.x);
   vec2 jit = (vec2(h, hash21(c + 3.3)) - 0.5) * 0.35;
@@ -1650,7 +1648,7 @@ vec2 skyFlow(vec2 p, float sw, float W){
 
 vec2 disturb(vec2 p){
   vec2 dp = p - toP(u_pointer);
-  vec2 v = perp(dp)/0.07*exp(-dot(dp, dp)/0.008)*2.5;
+  vec2 v = perp(dp)/0.07*exp(-dot(dp, dp)/0.005)*0.9;
   for (int i = 0; i < 16; i++){
     if (i >= u_agentCount) break;
     vec4 a = u_agents[i];
@@ -1699,8 +1697,9 @@ vec3 scene(vec2 uv, vec2 p){
   vec2 g0 = floor(p/cell);
   float bestPri = -1.0, sa = 0.0, sb = 0.0, sh = 0.0, shw = 1.0;
   vec2 sc = p;
-  for (int j = -1; j <= 1; j++)
-  for (int i = -1; i <= 1; i++){
+  // strokes reach up to two cells, so search two cells out or they get clipped at cell edges
+  for (int j = -2; j <= 2; j++)
+  for (int i = -2; i <= 2; i++){
     vec2 id = g0 + vec2(float(i), float(j));
     float h = hash21(id);
     vec2 c = (id + 0.5 + (vec2(h, hash21(id + 3.3)) - 0.5)*0.8)*cell;
@@ -2520,7 +2519,7 @@ vec3 scene(vec2 uv, vec2 p0) {
   vec2 sp0 = p0;
   vec2 dp = p0 - toP(u_pointer);
   float gl = exp(-dot(dp, dp) / 0.012);
-  sp0.x += gl * (hash21(vec2(floor(p0.y / led), floor(t * 14.0))) - 0.5) * 0.08;
+  sp0.x += gl * (hash21(vec2(floor(p0.y / led), floor(t * 14.0))) - 0.5) * 0.03;
 
   // look through the eyepiece: the LED grid itself bends with the lens
   vec2 p = lens(sp0);
