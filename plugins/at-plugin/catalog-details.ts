@@ -67,19 +67,25 @@ export function createMentionCatalogReader(bb: BbPluginApi) {
 async function catalogDetails(
   query: string,
   search: (query: string) => Promise<CatalogDetails[]>,
-): Promise<{ entries: CatalogDetails[]; matches: CatalogDetails[] }> {
+): Promise<{
+  entries: CatalogDetails[];
+  matches: CatalogDetails[];
+  hostMatches: ReadonlySet<CatalogDetails>;
+}> {
   const [entries, hostMatches] = await Promise.all([
     search(""),
     query ? search(query) : Promise.resolve(null),
   ]);
-  if (hostMatches === null) return { entries, matches: entries };
+  if (hostMatches === null) return { entries, matches: entries, hostMatches: new Set(entries) };
   const byIdentity = new Map(entries.map((entry) => [key(entry), entry]));
   const seen = new Set(hostMatches.map(key));
+  const hostMatched = hostMatches.map((entry) => byIdentity.get(key(entry)) ?? entry);
   return {
     entries,
     matches: [
-      ...hostMatches.map((entry) => byIdentity.get(key(entry)) ?? entry),
+      ...hostMatched,
       ...entries.filter((entry) => !seen.has(key(entry)) && matchesDetails(entry, query)),
     ],
+    hostMatches: new Set(hostMatched),
   };
 }

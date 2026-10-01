@@ -48,6 +48,7 @@ function matchTier(
   pluginId: string,
   entryId: string,
   entry: CommunityCatalogRecord,
+  hostMatched: boolean,
 ): number {
   const foldedQuery = folded(normalizeUntrustedText(query));
   if (foldedQuery.length === 0) return 3;
@@ -56,12 +57,12 @@ function matchTier(
   if (fields.some((field) => field === foldedQuery)) return 0;
   if (fields.some((field) => field.startsWith(foldedQuery))) return 1;
   if (fields.some((field) => field.includes(foldedQuery))) return 2;
-  // Long descriptions and overviews make mid-word hits ("amb" in "chamber")
-  // likely noise, so rank those last. Entries with no local text match were
-  // matched by the catalog itself (for example by tag) and keep its ranking.
+  // Entries the catalog matched (it also searches tags, which are not
+  // returned) keep its ranking. Only Plugin Finder's own overview matches are
+  // demoted, since a mid-word hit there ("amb" in "chamber") is usually noise.
   const summary = folded(normalizeUntrustedText(`${entry.description} ${entry.category ?? ""}`));
+  if (hostMatched || startsWord(summary, foldedQuery)) return 3;
   const overview = folded(normalizeUntrustedText(entry.overview ?? ""));
-  if (startsWord(summary, foldedQuery)) return 3;
   if (startsWord(overview, foldedQuery)) return 4;
   if (summary.includes(foldedQuery) || overview.includes(foldedQuery)) return 5;
   return 3;
@@ -71,6 +72,7 @@ function toCandidate(
   entry: CommunityCatalogRecord,
   query: string,
   hostRank: number,
+  hostMatched: boolean,
 ): CommunityCandidate | null {
   if (
     entry.marketplace !== COMMUNITY_MARKETPLACE ||
@@ -97,7 +99,7 @@ function toCandidate(
     publisherLabel,
     normalizedName: folded(displayName),
     hostRank,
-    tier: matchTier(query, displayName, pluginId, entryId, entry),
+    tier: matchTier(query, displayName, pluginId, entryId, entry, hostMatched),
   };
 }
 
@@ -105,10 +107,12 @@ export function searchCommunityPlugins(
   entries: readonly CommunityCatalogRecord[],
   query: string,
   limit: number | null = RESULT_LIMIT,
+  hostMatches?: ReadonlySet<CommunityCatalogRecord>,
 ): PluginMentionItem[] {
   const browse = isPluginBrowseQuery(query);
   const ranked = entries
-    .map((entry, hostRank) => toCandidate(entry, browse ? "" : query, hostRank))
+    .map((entry, hostRank) =>
+      toCandidate(entry, browse ? "" : query, hostRank, hostMatches?.has(entry) ?? false))
     .filter((candidate): candidate is CommunityCandidate => candidate !== null)
     .sort((left, right) => left.tier - right.tier || left.hostRank - right.hostRank);
 

@@ -205,6 +205,30 @@ describe("Installed discovery", () => {
     ]);
   });
 
+  it("falls back to the Plugins icon on hosts that omit the icons map", () => {
+    const legacy = installed({
+      id: "legacy",
+      name: "Legacy",
+      icon: "./assets/icon.svg",
+      iconUrl: "/api/v1/plugins/legacy/assets/icon?h=abc",
+    });
+    delete (legacy as Partial<InstalledPluginRecord>).icons;
+    const unsafeKey = installed({
+      id: "unsafe",
+      name: "Unsafe",
+      icon: "./assets/icon.svg",
+      iconUrl: "/api/v1/plugins/unsafe/assets/icon?h=abc",
+      icons: { "Not A Name": "/api/v1/plugins/unsafe/assets/icons/x.svg?h=abc" },
+    });
+
+    expect(
+      searchInstalledPlugins([legacy, unsafeKey], "plugin").map((item) => [item.title, item.icon]),
+    ).toEqual([
+      ["Legacy", "Plug02"],
+      ["Unsafe", "Plug02"],
+    ]);
+  });
+
   it("returns at most six rows", () => {
     const plugins = Array.from({ length: 9 }, (_, index) =>
       installed({

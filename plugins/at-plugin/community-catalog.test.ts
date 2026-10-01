@@ -105,6 +105,29 @@ describe("Community discovery", () => {
     ]);
   });
 
+  it("keeps catalog matches in catalog order instead of demoting mid-word text hits", () => {
+    const tagged = community({
+      pluginId: "digest",
+      entryId: "digest",
+      displayName: "Digest",
+      description: "Sends email digests",
+    });
+    const local = community({
+      pluginId: "helper",
+      entryId: "helper",
+      displayName: "Helper",
+      overview: "Uses ai models",
+    });
+
+    expect(searchCommunityPlugins([tagged, local], "ai").map((item) => item.title)).toEqual([
+      "Helper",
+      "Digest",
+    ]);
+    expect(
+      searchCommunityPlugins([tagged, local], "ai", 6, new Set([tagged])).map((item) => item.title),
+    ).toEqual(["Digest", "Helper"]);
+  });
+
   it("shows the Plugins icon for every not-installed plugin", () => {
     const entries = [
       community({ pluginId: "named", entryId: "named", displayName: "Named", icon: "Palette" }),
