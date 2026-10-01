@@ -688,14 +688,10 @@ const CONTOUR_SOURCE = `float terrain(vec2 p, float t) {
   return f * 0.85 + r * r * 0.18 - 0.05;
 }
 
-// signed distance to an upright equilateral triangle of circumradius-ish r
-float triD(vec2 q, float r) {
-  const float k = 1.7320508;
-  q.x = abs(q.x) - r;
-  q.y = q.y + r / k;
-  if (q.x + k * q.y > 0.0) q = vec2(q.x - k * q.y, -k * q.x - q.y) / 2.0;
-  q.x -= clamp(q.x, -2.0 * r, 0.0);
-  return -length(q) * sign(q.y);
+// a spot-height cross, the way topo maps mark a summit
+float crossD(vec2 q, float r) {
+  q = abs(vec2(q.x + q.y, q.x - q.y)) * 0.7071;
+  return max(min(q.x, q.y), max(q.x, q.y) - r);
 }
 
 vec3 scene(vec2 uv, vec2 p) {
@@ -709,9 +705,11 @@ vec3 scene(vec2 uv, vec2 p) {
     if (i >= u_agentCount) break;
     vec4 a = u_agents[i];
     vec2 d = p - toP(a.xy);
-    float r2 = dot(d, d);
+    float an = atan(d.y, d.x);
+    vec2 dl = d * (1.0 + 0.35 * (noise(vec2(an * 1.6 + float(i) * 7.0, 1.0)) - 0.5)) * vec2(1.0, 1.25);
+    float r2 = dot(dl, dl);
     h += 0.5 * p_height * a.w / (1.0 + r2 / 0.002) * exp(-r2 / 0.03);
-    summit = min(summit, triD(d - vec2(0.0, 0.002), 0.0075 * a.w));
+    summit = min(summit, crossD(d, 0.006 * a.w) - 0.0011);
     if (a.z > 0.5) {
       float f = fract(u_time * 0.5 + float(i) * 0.3);
       waitRing = max(waitRing, smoothstep(0.003, 0.0, abs(sqrt(r2) - 0.02 - 0.08 * f)) * (1.0 - f) * a.w);
