@@ -15,7 +15,7 @@ export function groupTone(members: readonly DesktopThread[]) {
   return {
     tone,
     toneCount: tones.filter((candidate) => candidate === tone).length,
-    unread: tone === null && members.some((thread) => thread.isUnread),
+    unreadCount: tone === null ? members.filter((thread) => thread.isUnread).length : 0,
   } as const;
 }
 
@@ -24,11 +24,13 @@ export function folderSummary(
   total: number,
   tone: "attention" | "running" | null,
   toneCount: number,
+  unreadCount = 0,
 ): string {
   if (total === 0) return `${name} — empty`;
   const threads = `${total} ${total === 1 ? "thread" : "threads"}`;
   if (tone === "attention") return `${name} — ${threads}, ${toneCount} ${toneCount === 1 ? "needs" : "need"} input`;
   if (tone === "running") return `${name} — ${threads}, ${toneCount} running`;
+  if (unreadCount > 0) return `${name} — ${threads}, ${unreadCount} unread`;
   return `${name} — ${threads}`;
 }
 
