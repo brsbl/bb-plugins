@@ -227,8 +227,9 @@ ${ROOT} [data-pane-header-focus-tab] { background-color: transparent; }
 ${ROOT} [data-testid="app-page-header-content-row"] > [data-app-page-header-actions] { margin-inline: auto -8px; min-height: 32px; }
 ${ROOT} [data-app-page-header-actions] button.border { border-color: transparent; }
 ${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) { ${HIDE} }
-${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) + [data-thread-header-pane-actions] { margin-inline-start: 0; }
-@media (max-width: 767px) { ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } ${ROOT} :is(div.fixed, [data-app-page-header-actions]) ${RIGHT_PANEL_BUTTON} { width: 32px; height: 32px; } ${ROOT} [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } ${ROOT} [data-app-page-header-actions]:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
+${ROOT} [data-app-page-header-actions]:has(> [data-thread-header-pane-actions]) { column-gap: 0; }
+${ROOT} [data-app-page-header-actions] [data-thread-header-pane-actions] { margin-inline-start: 0; column-gap: 0; }
+@media (max-width: 767px) { ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } ${ROOT} :is(div.fixed, [data-app-page-header-actions]) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } ${ROOT} [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } ${ROOT} [data-app-page-header-actions]:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 ${SECTION_BACK} { ${GLASS_SURFACE} border-block-end: 0; border-radius: 16px 16px 0 0; margin-inline: 8px; padding-block: 8px 4px; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
