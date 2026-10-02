@@ -37,6 +37,7 @@ import {
   type Point,
   type ToolId,
 } from "./paint-core";
+import { askText } from "../shell/ask-text";
 
 interface Size {
   width: number;
@@ -373,8 +374,8 @@ export function PaintApp() {
     if (output === null) return null;
     let nextName = name;
     if (pictureId === null || asNew) {
-      const answer = window.prompt("Save picture as", name === UNTITLED ? "" : name)?.trim();
-      if (!answer) return null;
+      const answer = await askText({ title: "Save As", label: "File name:", initial: name === UNTITLED ? "" : name, confirmLabel: "Save" });
+      if (answer === null) return null;
       nextName = answer.slice(0, 80);
     }
     try {
