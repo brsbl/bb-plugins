@@ -239,8 +239,8 @@ function MoreFolderItem({ group, windowId }: { group: DesktopGroup; windowId: st
   // A folder opened inside More takes over this window, as in Explorer; Back returns to More.
   const open = () => manager.navigate(windowId, { kind: "finder", key: group.key });
   const members = desktop.membersOf(group);
-  const { tone, toneCount } = groupTone(members);
-  const summary = folderSummary(group.name, members.length, tone, toneCount);
+  const { tone, toneCount, unreadCount } = groupTone(members);
+  const summary = folderSummary(group.name, members.length, tone, toneCount, unreadCount);
   return (
     <div
       className="bbd-finder-item"
