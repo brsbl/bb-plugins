@@ -368,8 +368,28 @@
 }
 
 .bbd-dot[data-tone="running"] {
-  background: linear-gradient(180deg, var(--bbd-green), var(--bbd-green-deep));
-  animation: bbd-pulse 1.4s ease-in-out infinite;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: var(--bbd-white);
+  color: var(--bbd-blue);
+}
+
+.bbd-dot-spinner {
+  width: 12px;
+  height: 12px;
+  animation: bbd-spin 0.9s linear infinite;
+}
+
+@keyframes bbd-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bbd-dot-spinner { animation: none; }
 }
 
 /* Unread is Mail's solid blue dot: smaller than a count badge, never numbered, never blinking. */
@@ -381,10 +401,6 @@
   height: 11px;
   padding: 0;
   background: linear-gradient(180deg, var(--bbd-blue-bright), var(--bbd-blue));
-}
-
-@keyframes bbd-pulse {
-  50% { opacity: 0.35; }
 }
 
 .bbd-finder-grid {
