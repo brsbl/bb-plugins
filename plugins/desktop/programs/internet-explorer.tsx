@@ -12,6 +12,7 @@ const OCCLUDERS = [
   ".bbd-menu-list",
   ".bbd-start-menu",
   ".bbd-balloon",
+  ".bbd-ask",
   "[role='menu']",
   "[role='listbox']",
   "[role='alertdialog']",
