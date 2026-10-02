@@ -1,14 +1,25 @@
-import { ThreadArt } from "../../art";
+import { LoadingGlyph, ThreadArt } from "../../art";
 import type { DesktopThread } from "../../core";
 import type { DesktopContextValue } from "../../shell/data";
 import { groupTone, statusTone } from "./status";
+
+/** In progress spins like bb's own loading icon and is never counted; only waiting on you carries a number. */
+function RunningMark() {
+  return (
+    <span className="bbd-dot" data-tone="running" aria-hidden>
+      <LoadingGlyph className="bbd-dot-spinner" strokeWidth={2.5} />
+    </span>
+  );
+}
 
 export function ThreadGlyph({ thread }: { thread: DesktopThread }) {
   const tone = statusTone(thread);
   return (
     <span className="bbd-icon-art">
       <ThreadArt archived={thread.isArchived} />
-      {tone !== null ? (
+      {tone === "running" ? (
+        <RunningMark />
+      ) : tone !== null ? (
         <span className="bbd-dot" data-tone={tone} aria-hidden />
       ) : thread.isUnread ? (
         <span className="bbd-dot" data-tone="unread" aria-hidden />
@@ -19,6 +30,7 @@ export function ThreadGlyph({ thread }: { thread: DesktopThread }) {
 
 export function StatusDot({ members }: { members: readonly DesktopThread[] }) {
   const { tone, toneCount, unread } = groupTone(members);
+  if (tone === "running") return <RunningMark />;
   if (tone !== null) {
     return (
       <span className="bbd-dot" data-tone={tone} aria-hidden>
