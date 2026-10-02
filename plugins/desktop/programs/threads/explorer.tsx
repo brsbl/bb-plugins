@@ -138,7 +138,7 @@ export function FinderWindow({ window: desktopWindow, groupKey }: { window: Desk
             view={view}
             emptyText={
               acceptsDrop(group)
-                ? "Nothing here. Drag threads in from another folder or My Threads."
+                ? "Nothing here yet. Drag a thread onto this folder, or use Move to in a thread’s menu."
                 : "No threads here."
             }
           />

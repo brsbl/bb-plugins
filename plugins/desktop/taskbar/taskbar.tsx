@@ -111,7 +111,7 @@ export function Taskbar({ frame }: { frame: DockFrame | null }) {
               menu.open(
                 event,
                 hidden.map((window): MenuEntry => ({
-                  label: `${windowTitle(window.spec, desktop)}${window.minimized ? " (minimized)" : ""}`,
+                  label: windowTitle(window.spec, desktop),
                   icon: windowArt(window.spec, desktop, 16),
                   run: () => manager.focus(window.id),
                 })),
