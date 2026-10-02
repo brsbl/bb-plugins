@@ -29,11 +29,18 @@ export function threadMenu(
     { label: "Open details", icon: <DetailsArt size={16} />, run: () => manager.open({ kind: "panel", threadId: thread.id }) },
     { label: "Open in bb", icon: <ExternalLinkGlyph className="size-3.5" />, run: () => actions.open(thread.id) },
     { label: "Open in split", run: () => actions.open(thread.id, { split: true }) },
-    ...(targets.length > 0 ? ["separator" as const, { heading: "Move to" }] : []),
-    ...targets.map((target): MenuEntry => ({
-      label: target.name,
-      run: () => void desktop.dropThread(target, { threadId: thread.id, fromFolderId }),
-    })),
+    ...(targets.length > 0
+      ? [
+          "separator" as const,
+          {
+            label: "Move to",
+            submenu: targets.map((target): MenuEntry => ({
+              label: target.name,
+              run: () => void desktop.dropThread(target, { threadId: thread.id, fromFolderId }),
+            })),
+          },
+        ]
+      : []),
     ...(group?.kind === "folder"
       ? [
           "separator" as const,

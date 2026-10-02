@@ -485,6 +485,20 @@
   outline: none;
 }
 
+.bbd-menu-item[data-open] {
+  background: var(--bbd-select);
+  color: var(--bbd-white);
+}
+
+.bbd-menu-chevron {
+  margin-right: -10px;
+}
+
+.bbd-submenu {
+  max-height: calc(100vh - 8px);
+  overflow-y: auto;
+}
+
 .bbd-menu-separator {
   height: 1px;
   margin: 4px 6px;

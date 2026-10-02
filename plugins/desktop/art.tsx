@@ -3,6 +3,7 @@ import {
   BubbleChatAddIcon,
   Cancel01Icon,
   ArrowRightDoubleIcon,
+  ArrowRight01Icon,
   CollapseIcon,
   CubeIcon,
   DashboardSquare01Icon,
@@ -501,6 +502,7 @@ export const PlayGlyph = bbGlyph(PlayIcon);
 export const StopGlyph = bbGlyph(StopIcon);
 export const PowerGlyph = bbGlyph(PowerIcon);
 export const ChevronsRightGlyph = bbGlyph(ArrowRightDoubleIcon);
+export const ChevronRightGlyph = bbGlyph(ArrowRight01Icon);
 export const MicGlyph = bbGlyph(Mic01Icon);
 export const NotePadGlyph = bbGlyph(Notebook01Icon);
 export const SendGlyph = bbGlyph(Sent02Icon);
