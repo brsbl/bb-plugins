@@ -81,6 +81,8 @@ const SIDEBAR_FOOTER = `${ROOT} [data-sidebar="footer"]`;
 /** Plugins, Settings and Skills put "Back to app" above the section card; it joins the card as its first row. */
 const SECTION_BACK = `${ROOT} [data-testid$="-sidebar-top-reserve-row"] + div:has(+ [data-sidebar="content"])`;
 const SIDEBAR_OPEN = `${ROOT} .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]`;
+/** On phones the thread scrolls right up to the glass's top edge; fade it out there so sliced lines of text never sit on the edge or its corners. */
+const THREAD_TOP_FADE = "mask-image: linear-gradient(to bottom, transparent, #000 16px);";
 const THREAD_TITLE_ROW =
   '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
 const PAGE_COLUMN = ':is(.max-w-5xl, [class~="max-w-[760px]"])';
@@ -132,6 +134,7 @@ ${THREAD} { position: relative; isolation: isolate; }
 ${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
 ${THREAD}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 ${THREAD} [data-overflow-fade] { ${HIDE} }
+@media (max-width: 767px) { ${THREAD} .thread-scrollbar { ${THREAD_TOP_FADE} } }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
 ${PAGE_MAIN} ${PAGE_COLUMN}:not(${PAGE_COLUMN} *) { anchor-name: --ambient-page-column; }
