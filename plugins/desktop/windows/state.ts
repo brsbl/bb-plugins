@@ -24,7 +24,7 @@ export type WindowAction =
   | { type: "open"; spec: WindowSpec; rect: Rect }
   | { type: "focus"; id: string }
   | { type: "close-where"; predicate: (window: DesktopWindow) => boolean }
-  | { type: "move"; id: string; rect: Rect }
+  | { type: "move"; id: string; rect: Rect; attached?: Record<string, Rect> }
   | { type: "minimize"; id: string; minimized: boolean }
   | { type: "maximize"; id: string; viewport: Rect }
   | { type: "fit-maximized"; viewport: Rect }
@@ -106,15 +106,14 @@ export function windowReducer(state: WindowState, action: WindowAction): WindowS
     case "close-where":
       return { ...state, windows: state.windows.filter((window) => !action.predicate(window)) };
     case "move": {
-      const target = state.windows.find((window) => window.id === action.id);
-      if (target === undefined) return state;
-      const docked = target.restoreRect === null;
+      // Docked windows take the rects the drag previewed, so they land where the person saw them.
+      const attached = action.attached ?? {};
       return {
         ...state,
         windows: state.windows.map((window) => {
           if (window.id === action.id) return { ...window, rect: action.rect, restoreRect: null };
-          if (docked && isAttached(window, target)) return { ...window, rect: dockedRect(window.rect, target.rect, action.rect) };
-          return window;
+          const docked = attached[window.id];
+          return docked === undefined ? window : { ...window, rect: docked };
         }),
       };
     }
