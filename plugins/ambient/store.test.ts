@@ -38,3 +38,23 @@ it("keeps pending zoom when another slider changes before a slow save finishes",
   store.receive({ ...acknowledged, revision: 4, scene: initial.scene });
   expect(zoom()).toBe(0.65);
 });
+
+it("rolls back a failed save without dropping a newer edit to the same slider", () => {
+  const store = new AmbientStore();
+  store.receive({ revision: 1, sceneRevision: 1, scene: sceneOf(fuzzyDots), ref: null, controls: DEFAULT_CONTROLS });
+  const failed = store.setValue("size", 40);
+  const latest = store.setValue("size", 60);
+  failed();
+  expect(store.getSnapshot().state!.scene.params.find((entry) => entry.id === "size")!.value).toBe(60);
+  latest();
+  expect(store.getSnapshot().state!.scene.params.find((entry) => entry.id === "size")!.value).toBe(0.65);
+});
+
+it("drops a pending zoom when a different scene is loaded", () => {
+  const store = new AmbientStore();
+  const state: AmbientState = { revision: 1, sceneRevision: 1, scene: sceneOf(fuzzyDots), ref: null, controls: DEFAULT_CONTROLS };
+  store.receive(state);
+  store.setValue("size", 40);
+  store.receive({ ...state, revision: 2, sceneRevision: 2 });
+  expect(store.getSnapshot().state!.scene.params.find((entry) => entry.id === "size")!.value).toBe(0.65);
+});
