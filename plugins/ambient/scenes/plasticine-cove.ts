@@ -54,8 +54,6 @@ float castMask(vec2 p, float t, float aspect){
       m = max(m, smoothstep(pf.z, pf.z*0.8, length(p - pf.xy)));
     }
   }
-  vec2 sd = p - vec2(0.06*aspect, 0.3);
-  m = max(m, smoothstep(0.085, 0.07, length(sd)));
   float lx0 = 0.5*aspect - 0.13;
   float ty = p.y + 0.22;
   float hw = mix(0.038, 0.025, clamp(ty/0.3, 0.0, 1.0)) + 0.004;
@@ -74,14 +72,7 @@ Clay subject(vec2 p, float t, float aspect){
   c.g = vec2(0.05*sm, 0.16*sm);
   c.alb *= 0.95 + 0.1*sn;
   c.ao = 1.0 - 0.32*castMask(p + vec2(-0.017, 0.017), t, aspect);
-  vec2 sc = vec2(0.06*aspect, 0.3);
-  vec2 sd = p - sc;
-  c.alb += u_palette[3]*exp(-dot(sd, sd)/0.03)*0.22;
   float best = 0.0;
-  float sl = length(sd);
-  vec3 sunC = mix(u_palette[2], u_palette[3], 0.3 + 0.4*smoothstep(0.09, 0.0, sl));
-  sunC = mix(sunC, u_palette[2]*1.05, smoothstep(0.005, 0.0, abs(sl - 0.064))*0.8);
-  dome(c, sd, 0.085, sunC, 0.25, best, 0.0, 0.012);
   float cc0 = floor((p.x + t*0.018)/0.3);
   for (int j = -1; j <= 1; j++){
     for (int k = 0; k < 3; k++){
@@ -89,6 +80,29 @@ Clay subject(vec2 p, float t, float aspect){
       if (pf.w == 0.0 || p.y < pf.w - 0.03) continue;
       vec3 cl = mix(mix(u_palette[3], vec3(1.0), 0.3), u_palette[2]*0.9 + 0.12, smoothstep(pf.w + 0.03, pf.w - 0.03, p.y)*0.5);
       dome(c, p - pf.xy, pf.z, cl, 0.3, best, 0.0, 0.06);
+    }
+  }
+  // clay seagulls wheeling across the sky, flapping as they go
+  for (int gi = 0; gi < 6; gi++){
+    float fg = float(gi);
+    if (fg >= p_gulls) break;
+    float span = aspect + 0.5;
+    float gx = mod(fg*0.37*span + t*(0.022 + 0.008*fg), span) - span*0.5;
+    float gy = 0.17 + 0.22*hash21(vec2(fg, 4.0)) + 0.02*sin(t*0.7 + fg*2.0);
+    float S = 0.016 + 0.008*hash21(vec2(fg, 6.0));
+    vec2 q = (p - vec2(gx, gy))/S;
+    if (abs(q.x) > 1.25 || abs(q.y) > 1.1) continue;
+    float flap = 0.5*sin(t*5.0 + fg*1.9);
+    float ax = min(abs(q.x), 1.0);
+    float wy = (0.4 + flap)*sin(3.1416*ax)*0.75 - 0.15*ax;
+    float th = 0.17*(1.0 - 0.75*ax);
+    float wing = max(abs(q.y - wy) - th, abs(q.x) - 1.0);
+    float body = length(q/vec2(0.3, 0.16)) - 1.0;
+    if (min(wing, body*0.16) < 0.0){
+      float u = clamp((q.y - wy)/max(th, 1e-3), -1.0, 1.0);
+      c.alb = mix(vec3(0.95, 0.94, 0.92), u_palette[0]*0.7, smoothstep(0.7, 0.95, ax));
+      c.g = body < 0.0 ? -q/0.3*0.6 : vec2(0.0, slopeOf(u)*0.45);
+      c.z = 0.55; c.ao = 1.0;
     }
   }
   float hx = p.x;
@@ -104,6 +118,7 @@ Clay subject(vec2 p, float t, float aspect){
     c.z = 0.35; c.ao = 1.0;
   }
   float lx0 = 0.5*aspect - 0.13;
+  float isWater = 0.0;
   for (int i = 0; i < 4; i++){
     float fi = float(i);
     float de;
@@ -114,7 +129,7 @@ Clay subject(vec2 p, float t, float aspect){
       if (rl < 1.0 + 0.08*noise(p*40.0)){
         c.alb = mix(u_palette[0]*0.8 + 0.1, u_palette[1]*0.5, 0.3);
         c.g = -rd/max(sqrt(max(1.0 - rl*rl, 0.0)), 0.3)*0.9;
-        c.z = 0.8; c.ao = 1.0;
+        c.z = 0.8; c.ao = 1.0; isWater = 0.0;
       }
       float ty = p.y + 0.22;
       if (ty > 0.0 && ty < 0.3){
@@ -124,7 +139,7 @@ Clay subject(vec2 p, float t, float aspect){
           float band = mod(floor(ty/0.055 + 0.08*sin(p.x*120.0)), 2.0);
           c.alb = band < 0.5 ? u_palette[2] : mix(u_palette[3], vec3(1.0), 0.3);
           c.g = vec2(slopeOf(u)*0.8, 0.0);
-          c.z = 0.8; c.ao = 1.0;
+          c.z = 0.8; c.ao = 1.0; isWater = 0.0;
         }
       }
       if (ty >= 0.3 && ty < 0.335 && abs(p.x - lx0) < 0.028){
@@ -159,6 +174,7 @@ Clay subject(vec2 p, float t, float aspect){
       foam = mix(foam, u_palette[1], step(2.5, fi)*0.35);
       c.alb = ci < 0.5 ? foam : sea;
       c.z = 0.45 + fi*0.18;
+      isWater = ci < 0.5 ? 0.0 : 1.0;
     } else {
       c.ao *= 0.5 + 0.5*smoothstep(0.0, 0.035, p.y - e);
     }
@@ -180,6 +196,15 @@ Clay subject(vec2 p, float t, float aspect){
     float ta = -atan(bslope)*0.6;
     d = vec2(cos(ta)*d.x - sin(ta)*d.y, sin(ta)*d.x + cos(ta)*d.y)/sc2;
     float waiting = step(0.5, a.z);
+    if (isWater > 0.5 && d.y < -0.022 && d.y > -0.1 && abs(d.x) < 0.07){
+      // the boat's wobbling reflection: pale sail above a dark hull smear
+      float k = (-d.y - 0.022)/0.078;
+      float wob = 0.007*sin(d.y*170.0 + t*3.0 + fi);
+      float sail = smoothstep(0.022*(1.0 - 0.5*k), 0.0, abs(d.x - 0.022 + wob))*(1.0 - k)*step(0.012, -d.y - 0.022);
+      float hull = smoothstep(0.04, 0.0, abs(d.x + wob))*smoothstep(0.014, 0.0, -d.y - 0.022);
+      c.alb = mix(c.alb, mix(u_palette[3], vec3(1.0), 0.3), sail*0.4);
+      c.alb = mix(c.alb, u_palette[2]*0.7, hull*0.35);
+    }
     if (d.x > 0.07 || d.x < -0.16 || abs(d.y) > 0.1) continue;
     if (waiting < 0.5){
       float sh = fract(t*0.9 + fi*0.3);
@@ -285,20 +310,24 @@ vec3 scene(vec2 uv, vec2 p){
   col = mix(col, c.alb*0.95*c.ao, (1.0 - c.z)*0.22);
   col += c.emit;
   vec2 lamp = vec2(0.5*aspect - 0.13, 0.097);
-  float ang = T*0.9;
+  float ang = T*0.55;
   vec2 bd = p - lamp;
   float side = cos(ang);
+  float facing = max(sin(ang), 0.0)*(1.0 - abs(side));
   float along = bd.x*sign(side);
-  float cone = exp(-pow(bd.y/(0.008 + max(along, 0.0)*0.13), 2.0))*exp(-max(along, 0.0)*1.1)*step(0.0, along)*abs(side);
-  float lampGlow = exp(-dot(bd, bd)/0.0012);
-  col += u_palette[3]*(cone*0.5*(1.0 - smoothstep(0.5, 0.7, c.z)) + lampGlow*0.5)*p_beam;
+  float spread = 0.01 + max(along, 0.0)*(0.09 + 0.25*(1.0 - abs(side)));
+  float cone = exp(-pow((bd.y - along*0.015)/spread, 2.0))*exp(-max(along, 0.0)*0.5)*step(0.0, along)*sqrt(abs(side));
+  float rays = 0.75 + 0.25*noise(vec2(atan(bd.y, abs(bd.x))*40.0, T*0.4));
+  float lampGlow = exp(-dot(bd, bd)/0.0012)*(0.6 + 2.0*facing);
+  vec3 beamC = mix(u_palette[3], vec3(1.0, 0.98, 0.9), 0.5);
+  col += beamC*(cone*0.75*rays*(1.0 - smoothstep(0.55, 0.75, c.z)) + lampGlow*0.5)*p_beam;
   col *= 1.0 + 0.025*(hash21(vec2(frame, 7.0)) - 0.5);
   return mix(u_canvas, col, p_color);
 }`;
 
 export const plasticineCove: BuiltInScene = {
   id: "plasticine-lighthouse-cove",
-  name: "Plasticine Lighthouse Cove",
+  name: "Lighthouse Cove",
   source: SOURCE,
   palette: ["#1c2c6b", "#22b3a6", "#ff6a3d", "#ffe0a6"],
   params: [
@@ -307,6 +336,7 @@ export const plasticineCove: BuiltInScene = {
     param("thumb", "Thumbprints", 0, 2.5, 1, 0.05),
     param("fps", "Stop-motion fps", 4, 24, 12, 1),
     param("beam", "Lighthouse beam", 0, 2, 1, 0.05),
+    param("gulls", "Seagulls", 0, 6, 3, 1),
     param("color", "Color strength", 0, 1, 0.92),
   ],
 };

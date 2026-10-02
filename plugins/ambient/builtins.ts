@@ -1,10 +1,12 @@
 import type { Scene } from "./contract.js";
 import { contour } from "./scenes/contour.js";
 import { fireflies } from "./scenes/fireflies.js";
-import { jellyfishDeep } from "./scenes/jellyfish-deep.js";
+import { jellyfishTidepool } from "./scenes/jellyfish-tidepool.js";
+import { koiPond } from "./scenes/koi-pond.js";
 import type { BuiltInScene } from "./scenes/param.js";
 import { plasticineCove } from "./scenes/plasticine-cove.js";
 import { poppyHill } from "./scenes/poppy-hill.js";
+import { redAlarm } from "./scenes/red-alarm.js";
 import { risographMap } from "./scenes/risograph-map.js";
 import { screamingFjord } from "./scenes/screaming-fjord.js";
 import { tide } from "./scenes/tide.js";
@@ -21,7 +23,9 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
   poppyHill,
   plasticineCove,
   screamingFjord,
-  jellyfishDeep,
+  jellyfishTidepool,
+  koiPond,
+  redAlarm,
 ];
 
 export const DEFAULT_SCENE: Scene = sceneOf(BUILT_IN_SCENES[0]!);

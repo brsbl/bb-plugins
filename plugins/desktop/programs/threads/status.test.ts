@@ -74,10 +74,11 @@ describe("thread status", () => {
 
   it("summarizes a folder by its most urgent members", () => {
     const members = [thread({ needsInput: true }), thread({ status: "active" }), thread({ needsInput: true })];
-    expect(groupTone(members)).toEqual({ tone: "attention", toneCount: 2, unread: false });
-    expect(groupTone([thread({ isUnread: true })])).toEqual({ tone: null, toneCount: 1, unread: true });
+    expect(groupTone(members)).toEqual({ tone: "attention", toneCount: 2, unreadCount: 0 });
+    expect(groupTone([thread({ isUnread: true }), thread({ isUnread: true }), thread()])).toEqual({ tone: null, toneCount: 3, unreadCount: 2 });
     expect(folderSummary("Work", 3, "attention", 2)).toBe("Work — 3 threads, 2 need input");
     expect(folderSummary("Work", 1, "running", 1)).toBe("Work — 1 thread, 1 running");
+    expect(folderSummary("Work", 3, null, 3, 2)).toBe("Work — 3 threads, 2 unread");
     expect(folderSummary("Work", 0, null, 0)).toBe("Work — empty");
   });
 });

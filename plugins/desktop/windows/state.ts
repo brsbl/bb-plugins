@@ -50,6 +50,28 @@ function show(state: WindowState, id: string, spec: WindowSpec, history: { back:
   };
 }
 
+/** Whether `window` is a Buddy List or Buddy Info docked to `thread`'s Instant Message, which it moves and closes with. */
+export function isAttached(window: DesktopWindow, thread: DesktopWindow): boolean {
+  return (
+    thread.spec.kind === "thread" &&
+    (window.spec.kind === "panel" || window.spec.kind === "buddy-list") &&
+    window.spec.threadId === thread.spec.threadId
+  );
+}
+
+/** Where a window docked beside a thread goes when the thread moves from `from` to `to`: it keeps to its side and height. */
+export function dockedRect(rect: Rect, from: Rect, to: Rect): Rect {
+  const onRight = rect.x + rect.width / 2 >= from.x + from.width / 2;
+  return {
+    x: rect.x + (onRight ? to.x + to.width - (from.x + from.width) : to.x - from.x),
+    y: rect.y + to.y - from.y,
+    width: rect.width,
+    height: Math.max(MIN_ATTACHED_HEIGHT, rect.height + to.height - from.height),
+  };
+}
+
+const MIN_ATTACHED_HEIGHT = 160;
+
 function update(state: WindowState, id: string, change: (window: DesktopWindow) => DesktopWindow): WindowState {
   return { ...state, windows: state.windows.map((window) => (window.id === id ? change(window) : window)) };
 }
@@ -71,14 +93,41 @@ export function windowReducer(state: WindowState, action: WindowAction): WindowS
       const top = Math.max(0, ...state.windows.map((window) => window.z));
       const target = state.windows.find((window) => window.id === action.id);
       if (target === undefined || (target.z === top && !target.minimized)) return state;
-      return { ...update(state, action.id, (window) => ({ ...window, z: state.nextZ, minimized: false })), nextZ: state.nextZ + 1 };
+      const attached = state.windows.filter((window) => isAttached(window, target));
+      const raised = new Map([...attached, target].map((window, index) => [window.id, state.nextZ + index]));
+      return {
+        windows: state.windows.map((window) => {
+          const z = raised.get(window.id);
+          return z === undefined ? window : { ...window, z, minimized: false };
+        }),
+        nextZ: state.nextZ + raised.size,
+      };
     }
     case "close-where":
       return { ...state, windows: state.windows.filter((window) => !action.predicate(window)) };
-    case "move":
-      return update(state, action.id, (window) => ({ ...window, rect: action.rect, restoreRect: null }));
-    case "minimize":
-      return update(state, action.id, (window) => ({ ...window, minimized: action.minimized }));
+    case "move": {
+      const target = state.windows.find((window) => window.id === action.id);
+      if (target === undefined) return state;
+      const docked = target.restoreRect === null;
+      return {
+        ...state,
+        windows: state.windows.map((window) => {
+          if (window.id === action.id) return { ...window, rect: action.rect, restoreRect: null };
+          if (docked && isAttached(window, target)) return { ...window, rect: dockedRect(window.rect, target.rect, action.rect) };
+          return window;
+        }),
+      };
+    }
+    case "minimize": {
+      const target = state.windows.find((window) => window.id === action.id);
+      if (target === undefined) return state;
+      return {
+        ...state,
+        windows: state.windows.map((window) =>
+          window.id === action.id || isAttached(window, target) ? { ...window, minimized: action.minimized } : window,
+        ),
+      };
+    }
     case "maximize":
       return update(state, action.id, (window) =>
         window.restoreRect !== null
