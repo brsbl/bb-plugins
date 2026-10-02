@@ -42,7 +42,7 @@ Tables accept up to 20 existing items from the same thread. For mixed rows, incl
 
 ## Handle a click
 
-A click submits readable text such as “Send escrow follow-up” with a named mention pill. Its user-hidden context contains `kind: inline-action-card`, `threadId`, `itemId`, `attemptId`, `action`, and `intent`. `approved-action` is approval for exactly that attempt. A bulk message contains one such reference per selected row. Read those IDs from context, never guess them from the label. Legacy messages containing `[action:...] [attempt:...]` remain valid references to their existing attempts. The button submits through the existing composer pipeline (and can queue while the thread is busy). Do not ask the user to type another confirmation.
+A click submits readable text such as “Send escrow follow-up” with a named mention pill. Its user-hidden context contains `kind: inline-action-card`, `threadId`, `itemId`, `attemptId`, `action`, and `intent`. `approved-action` is approval for exactly that attempt. A bulk message contains one such reference per selected row. Read those IDs from context, never guess them from the label. Keep them in tool calls; do not repeat hidden IDs in user-facing replies. Legacy messages containing `[action:...] [attempt:...]` remain valid references to their existing attempts. The button submits through the existing composer pipeline (and can queue while the thread is busy). Do not ask the user to type another confirmation.
 
 1. Claim the exact attempt before acting:
    `bb action-cards claim esc-1 --attempt <uuid>`

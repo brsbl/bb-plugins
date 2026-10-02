@@ -76,9 +76,13 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 ### Inline Action Cards
 
-Edit email replies and approve decisions inside agent messages. Each item keeps its draft, recipients, action buttons, and result together.
+Edit email replies and approve decisions inside agent messages. Review one item or a group in a table; each item keeps its draft, actions, and result together.
 
-![Editable Reply and Decide cards inside a thread](https://github.com/user-attachments/assets/deef0d32-fda2-40bd-9351-0abe1d01d7c0)
+![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
+
+![Action table and results](https://github.com/user-attachments/assets/ec63ecfe-86ad-4a46-8f6e-06a72e8923f0)
+
+![Mixed table with one reply expanded](https://github.com/user-attachments/assets/4eef8810-5a99-40af-8fa4-974d25f6937f)
 
 [Source](plugins/inline-action-cards) · [README](plugins/inline-action-cards/README.md)
 

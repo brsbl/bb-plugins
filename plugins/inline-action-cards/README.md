@@ -2,7 +2,7 @@
 
 Edit an email reply or approve a decision directly inside an agent message. Use a single card for one important item or a table to review a group in place.
 
-![Editable Reply and Decide cards inside a thread](https://github.com/user-attachments/assets/deef0d32-fda2-40bd-9351-0abe1d01d7c0)
+![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
 
 ## Install
 
