@@ -93,6 +93,28 @@
   opacity: 0.6;
 }
 
+.bbd-ask {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482900;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+}
+
+.bbd-window.bbd-ask-window {
+  position: relative;
+  width: min(360px, calc(100vw - 32px));
+}
+
+.bbd-ask-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  font-size: var(--text-xs);
+}
+
 .bbd-window-layer {
   position: fixed;
   inset: 0;
@@ -1336,30 +1358,28 @@
   border-left: 1px solid var(--bbd-hairline);
 }
 
+/* A sunken XP field drawn inside the scroller, so the message box covers its lower edge instead of being clipped by it. */
 .bbd-im-chat .thread-scrollbar {
   background: var(--bbd-im-paper);
-  box-shadow: inset 1px 1px 0 var(--bbd-im-shadow), inset -1px -1px 0 var(--bbd-im-light);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-im-shadow),
+    inset 2px 2px 0 color-mix(in oklab, var(--ink) 14%, transparent),
+    inset -1px -1px 0 var(--bbd-im-light);
 }
 
 .bbd-im-chat .sticky.bottom-0 > .relative {
   /* Opaque, or the transcript scrolling beneath shows through the composer. */
-  background: var(--bbd-im-paper);
-  border-top: 1px solid var(--bbd-hairline);
-  box-shadow: var(--bbd-highlight);
+  background: var(--bbd-im-face);
+  border-top: 1px solid var(--bbd-im-light);
 }
 
 .bbd-im-chat .sticky.bottom-0 > .relative > .pointer-events-none {
   display: none;
 }
 
+/* The message box lines up with the transcript above it, as AIM's two fields do. */
 .bbd-im-chat .sticky.bottom-0 > .relative > .px-4 {
-  padding: 6px 6px 4px;
-}
-
-.bbd-im-chat [data-promptbox] {
-  border-radius: 4px;
-  border-color: color-mix(in oklab, var(--bbd-blue-deep) 30%, transparent);
-  box-shadow: inset 0 1px 2px color-mix(in oklab, var(--ink) 14%, transparent);
+  padding: 4px 0 2px;
 }
 
 .bbd-im,
@@ -1372,23 +1392,24 @@
 }
 
 .bbd-im {
+  --bbd-im-face: color-mix(in oklch, var(--canvas) 92%, var(--ink));
   --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
   --bbd-im-me: light-dark(color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink)), oklch(0.76 0.13 262));
   --bbd-im-them: light-dark(color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink)), oklch(0.75 0.13 27));
 }
 
+.bbd-im {
+  background: var(--bbd-im-face);
+}
+
 .bbd-im-chat {
   min-width: 0;
   overflow: hidden;
+  padding: 4px 4px 0;
 }
 
-.bbd-im-chat [data-timeline-row-list="top-level"] {
-  gap: 3px;
-  padding-block: 4px;
-}
-
-.bbd-im-chat [data-timeline-row-id]:has([data-message-column]) {
-  padding-block: 5px;
+.bbd-im-chat [data-message-column]:has(> .ml-auto) {
+  padding-inline: 0.5rem;
 }
 
 .bbd-im-chat [data-message-column] {
@@ -1427,10 +1448,6 @@
 .bbd-im-chat [data-message-column]:has(> [class~="group/message"])::before {
   content: "Me:";
   color: var(--bbd-im-me);
-}
-
-.bbd-im-chat [data-message-column]:has(> .ml-auto) {
-  padding-inline: 0.5rem;
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto {
@@ -1483,27 +1500,6 @@
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
-}
-
-/* Keep real message actions reachable without reserving a blank line per message. */
-.bbd-im-chat [data-message-column] > .relative,
-.bbd-im-chat [data-message-column] > .ml-auto > .relative,
-.bbd-im-chat [data-message-column] > .ml-auto > .flex > .relative {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: auto;
-  height: 20px;
-  z-index: 1;
-}
-
-.bbd-im-chat [data-message-column] > .relative > .absolute,
-.bbd-im-chat [data-message-column] > .ml-auto > .relative > .absolute,
-.bbd-im-chat [data-message-column] > .ml-auto > .flex > .relative > .absolute {
-  left: auto;
-  right: 0;
-  max-width: none;
-  overflow: visible;
 }
 
 .bbd-im-chat [data-message-column] pre {
@@ -1582,8 +1578,9 @@
 
 .bbd-im-chat [data-promptbox] {
   border-radius: 0;
-  border-color: var(--bbd-im-field);
-  background: var(--canvas);
+  border-color: var(--bbd-im-shadow) var(--bbd-im-light) var(--bbd-im-light) var(--bbd-im-shadow);
+  background: var(--bbd-im-paper);
+  box-shadow: inset 1px 1px 0 color-mix(in oklab, var(--ink) 14%, transparent);
 }
 
 .bbd-im-chat [data-promptbox] button[data-promptbox-submit-action] {
@@ -1663,7 +1660,7 @@
   padding: 1px 4px;
   border-bottom: 1px solid var(--bbd-im-shadow);
   box-shadow: inset 0 1px 0 var(--bbd-im-light);
-  background: var(--bbd-glass-solid);
+  background: var(--bbd-im-face);
   font: 11px/1.4 Tahoma, Verdana, sans-serif;
 }
 
@@ -1691,13 +1688,9 @@
   min-width: 0;
   flex-wrap: wrap;
   gap: 2px;
-  margin: 3px;
-  padding: 2px;
-  border: 1px solid var(--bbd-im-shadow);
-  border-top-color: var(--bbd-im-light);
-  border-left-color: var(--bbd-im-light);
-  background: var(--bbd-glass-solid);
-  box-shadow: inset -1px -1px 0 var(--bbd-hairline);
+  padding: 2px 4px 4px;
+  border-top: 1px solid var(--bbd-im-shadow);
+  box-shadow: inset 0 1px 0 var(--bbd-im-light);
 }
 
 .bbd-im-action {

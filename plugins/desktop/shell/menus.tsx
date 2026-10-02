@@ -5,6 +5,7 @@ import { acceptsDrop, type DesktopGroup, type DesktopThread, type Organize, type
 import { windowId, type WindowManager } from "../windows";
 import { errorMessage, type DesktopContextValue } from "./data";
 import type { MenuEntry } from "./menu";
+import { askText } from "./ask-text";
 
 type SidebarThreadActions = ReturnType<typeof useSidebarThreadActions>;
 
@@ -62,12 +63,12 @@ export function threadMenu(
         ]),
     {
       label: "Rename…",
-      run: () => {
-        const title = window.prompt("Thread name", thread.title)?.trim();
-        if (title && title !== thread.title) {
-          void actions.rename(thread.id, title).then(desktop.refresh, (error) => toast.error(errorMessage(error)));
-        }
-      },
+      run: () =>
+        void askText({ title: "Rename thread", label: "Thread name:", initial: thread.title }).then((title) => {
+          if (title && title !== thread.title) {
+            void actions.rename(thread.id, title).then(desktop.refresh, (error) => toast.error(errorMessage(error)));
+          }
+        }),
     },
     "separator",
     thread.isArchived
@@ -113,10 +114,10 @@ export function groupMenu(
       "separator",
       {
         label: "Rename…",
-        run: () => {
-          const name = window.prompt("Folder name", group.name)?.trim();
-          if (name) void desktop.call("updateFolder", { id: group.folder.id, name }).catch(fail);
-        },
+        run: () =>
+          void askText({ title: "Rename folder", label: "Folder name:", initial: group.name }).then((name) => {
+            if (name) void desktop.call("updateFolder", { id: group.folder.id, name }).catch(fail);
+          }),
       },
       {
         label: "Delete folder",
@@ -137,10 +138,10 @@ export function groupMenu(
       "separator",
       {
         label: "Rename section…",
-        run: () => {
-          const name = window.prompt("Section name", group.name)?.trim();
-          if (name) void desktop.call("renameSection", { id: sectionId, name }).catch(fail);
-        },
+        run: () =>
+          void askText({ title: "Rename section", label: "Section name:", initial: group.name }).then((name) => {
+            if (name) void desktop.call("renameSection", { id: sectionId, name }).catch(fail);
+          }),
       },
       {
         label: "Delete section",
