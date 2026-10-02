@@ -1072,6 +1072,10 @@
   }
 }
 
+.bbd-note:focus {
+  outline: none;
+}
+
 .bbd-note button:focus-visible,
 .bbd-note-add:focus-visible {
   outline: 2px solid var(--ring);
