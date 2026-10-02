@@ -59,17 +59,21 @@ export function isAttached(window: DesktopWindow, thread: DesktopWindow): boolea
   );
 }
 
-/** Where a window docked beside a thread goes when the thread moves from `from` to `to`: it keeps to its side and height. */
+/**
+ * Where a window docked beside a thread goes when the thread moves from `from` to `to`: flush against the same side,
+ * as tall as the thread. It depends only on the side and `to`, so a window the work area clamped stays docked.
+ */
 export function dockedRect(rect: Rect, from: Rect, to: Rect): Rect {
   const onRight = rect.x + rect.width / 2 >= from.x + from.width / 2;
   return {
-    x: rect.x + (onRight ? to.x + to.width - (from.x + from.width) : to.x - from.x),
-    y: rect.y + to.y - from.y,
+    x: onRight ? to.x + to.width + DOCK_GAP : to.x - rect.width - DOCK_GAP,
+    y: to.y,
     width: rect.width,
-    height: Math.max(MIN_ATTACHED_HEIGHT, rect.height + to.height - from.height),
+    height: Math.max(MIN_ATTACHED_HEIGHT, to.height),
   };
 }
 
+const DOCK_GAP = 8;
 const MIN_ATTACHED_HEIGHT = 160;
 
 function update(state: WindowState, id: string, change: (window: DesktopWindow) => DesktopWindow): WindowState {

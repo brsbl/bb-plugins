@@ -79,7 +79,7 @@ export function WindowFrame({
       const node = isAttached(other, desktopWindow) ? document.querySelector<HTMLElement>(`[data-bbd-window-id="${CSS.escape(other.id)}"]`) : null;
       return node === null ? [] : [{ id: other.id, node, rect: other.rect }];
     });
-    const dockedTo = (target: Rect) => attached.map((other) => fitDragRect(dockedRect(other.rect, rect, target), area));
+    const dockedTo = (target: Rect) => attached.map((other) => dockedRect(other.rect, rect, target));
     track(event, (delta) => {
       latest = edge ? resizeInArea(origin, edge, delta, area)
         : fitDragRect({ ...origin, x: origin.x + delta.x, y: origin.y + delta.y }, area);
@@ -90,7 +90,7 @@ export function WindowFrame({
       dockedTo(latest).forEach((docked, index) => {
         const other = attached[index]!;
         other.node.dataset.dragging = "true";
-        previewRect(other.node, docked);
+        previewRect(other.node, fitDragRect(docked, area));
       });
     }, (cancelled, moved) => {
       element.style.transform = "";
