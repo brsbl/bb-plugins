@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionMessage, idSchema, title, type Action, type Item } from "./model.js";
@@ -9,6 +9,7 @@ const submitting = new Set<string>();
 const readableError = (error: unknown) => error instanceof Error ? error.message : "The card could not be updated. Try again.";
 
 function ActionCard({ id, threadId }: { id: string; threadId: string }) {
+  const draftId = useId();
   const rpc = useRpc<typeof rpcContract>();
   const composer = useComposer();
   const composerView = useComposerView();
@@ -152,8 +153,8 @@ function ActionCard({ id, threadId }: { id: string; threadId: string }) {
       <div className="iac-subject">{reply.subject}</div>
       <div className="iac-recipients">To: {reply.to.join(", ")}{reply.cc.length > 0 && <div>Cc: {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc: {reply.bcc.join(", ")}</div>}</div>
       <details className="iac-original"><summary>Original email</summary><div className="iac-from">From: {reply.original.from}</div><div className="iac-email">{reply.original.body}</div></details>
-      <div className="iac-draft-header"><label htmlFor={`draft-${threadId}-${id}`}>Draft</label><span role="status">{ready && (saveError ? "Not saved" : saving || dirty.current ? "Saving…" : "Saved")}</span></div>
-      <textarea id={`draft-${threadId}-${id}`} aria-label="Draft" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={Math.min(14, Math.max(5, draft.split("\n").length + 1))} onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }} onBlur={() => void flush().catch(() => {})} />
+      <div className="iac-draft-header"><label htmlFor={draftId}>Draft</label><span role="status">{ready && (saveError ? "Not saved" : saving || dirty.current ? "Saving…" : "Saved")}</span></div>
+      <textarea id={draftId} aria-label="Draft" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={Math.min(14, Math.max(5, draft.split("\n").length + 1))} onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }} onBlur={() => void flush().catch(() => {})} />
     </> : <p className="iac-consequence">{item.content.type === "decide" && item.content.consequence}</p>}
     {error && <div className="iac-error" role="alert">{error}<div className="iac-recovery">{loadError && <button onClick={() => void load()}>Retry loading</button>}{saveError && <><button onClick={() => void flush().catch(() => {})}>Retry save</button><button onClick={() => void load(true)}>Load saved draft</button></>}</div></div>}
     <div className="iac-footer">

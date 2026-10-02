@@ -13,24 +13,24 @@ export const rpcContract = defineRpcContract({
 });
 
 export function createStore(bb: BbPluginApi) {
-  const db = bb.storage.database();
-  bb.storage.migrate(db, [
+  const database = () => bb.storage.database();
+  bb.storage.migrate(database(), [
     "CREATE TABLE action_items (thread_id TEXT NOT NULL, item_id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (thread_id, item_id))",
   ]);
-  const read = db.prepare("SELECT value FROM action_items WHERE thread_id = ? AND item_id = ?");
-  const write = db.prepare("INSERT INTO action_items VALUES (?, ?, ?) ON CONFLICT(thread_id, item_id) DO UPDATE SET value=excluded.value");
+  const read = () => database().prepare("SELECT value FROM action_items WHERE thread_id = ? AND item_id = ?");
+  const write = () => database().prepare("INSERT INTO action_items VALUES (?, ?, ?) ON CONFLICT(thread_id, item_id) DO UPDATE SET value=excluded.value");
   const get = (threadId: string, id: string): Item => {
-    const row = read.get(threadId, id) as { value: string } | undefined;
+    const row = read().get(threadId, id) as { value: string } | undefined;
     if (!row) throw new Error("This card is unavailable. Ask the agent to recreate it with the same item ID.");
     return itemSchema.parse(JSON.parse(row.value));
   };
   const persist = (item: Item) => {
     const next = itemSchema.parse(item);
-    write.run(next.threadId, next.id, JSON.stringify(next));
+    write().run(next.threadId, next.id, JSON.stringify(next));
     return next;
   };
   const change = (threadId: string, id: string, revision: number | null, update: (item: Item) => void) => {
-    const next = db.transaction(() => {
+    const next = database().transaction(() => {
       const item = get(threadId, id);
       if (revision !== null && item.revision !== revision) throw new Error("This card changed elsewhere. Reload it before continuing; your unsaved text is still here.");
       update(item);
@@ -45,8 +45,8 @@ export function createStore(bb: BbPluginApi) {
     get,
     create(threadId: string, id: string, raw: unknown) {
       const content = contentSchema.parse(raw);
-      return db.transaction(() => {
-        if (read.get(threadId, id)) throw new Error("That item ID already exists. Read it and revise its draft instead of replacing the card.");
+      return database().transaction(() => {
+        if (read().get(threadId, id)) throw new Error("That item ID already exists. Read it and revise its draft instead of replacing the card.");
         return persist({ threadId, id, content, revision: 1, state: "ready", attempt: null, result: null, updatedAt: new Date().toISOString() });
       })();
     },
