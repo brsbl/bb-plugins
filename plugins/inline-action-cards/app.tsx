@@ -41,6 +41,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     if (alive.current) {
       setItem(next); onItemRef.current?.(next);
       if (changedState && next.state !== "ready") onExpandRef.current?.(false);
+      if (changedState && (next.state === "succeeded" || next.state === "failed")) setError(null);
     }
   }, []);
   useEffect(() => {
