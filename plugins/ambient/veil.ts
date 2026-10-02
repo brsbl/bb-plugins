@@ -37,6 +37,53 @@ export function applyVeil(settings: VeilSettings): void {
   if (body.dataset.ambientGlass !== settings.tier) body.dataset.ambientGlass = settings.tier;
 }
 
+/** A footer pill this close to the sidebar cards' width stretches to match them, so their edges line up. */
+const FOOTER_SNAP_PX = 40;
+
+/**
+ * Marks the sidebar footer with data-ambient-snap while its pill is nearly as wide as the cards.
+ * The page observer only notices a new footer (the phone drawer remounts it); measuring happens
+ * when the footer's buttons or the cards' width change.
+ */
+function snapSidebarFooter(): () => void {
+  let footer: HTMLElement | null = null;
+  let frame = 0;
+  const measure = () => {
+    if (!footer) return;
+    const card = footer.parentElement?.querySelector<HTMLElement>('[data-sidebar="content"]');
+    delete footer.dataset.ambientSnap;
+    if (card && card.offsetWidth - footer.offsetWidth < FOOTER_SNAP_PX) footer.dataset.ambientSnap = "";
+  };
+  const cards = new ResizeObserver(measure);
+  const buttons = new MutationObserver(measure);
+  const track = () => {
+    frame = 0;
+    const next = document.querySelector<HTMLElement>(SIDEBAR_FOOTER);
+    if (next === footer) return;
+    cards.disconnect();
+    buttons.disconnect();
+    if (footer) delete footer.dataset.ambientSnap;
+    footer = next;
+    if (!footer) return;
+    const card = footer.parentElement?.querySelector('[data-sidebar="content"]');
+    if (card) cards.observe(card);
+    buttons.observe(footer, { childList: true, subtree: true });
+    measure();
+  };
+  const page = new MutationObserver(() => {
+    if (!frame) frame = requestAnimationFrame(track);
+  });
+  page.observe(document.body, { childList: true, subtree: true });
+  track();
+  return () => {
+    cancelAnimationFrame(frame);
+    page.disconnect();
+    cards.disconnect();
+    buttons.disconnect();
+    if (footer) delete footer.dataset.ambientSnap;
+  };
+}
+
 /** Injects the stylesheet if it isn't already there; the returned cleanup removes it and the properties. */
 export function mountVeil(): () => void {
   let style = document.getElementById(VEIL_STYLE_ID);
@@ -47,7 +94,9 @@ export function mountVeil(): () => void {
     document.head.append(style);
   }
   const mounted = style;
+  const stopSnapping = snapSidebarFooter();
   return () => {
+    stopSnapping();
     mounted.remove();
     const { body } = document;
     body.style.removeProperty("--ambient-keep");
@@ -81,8 +130,6 @@ const SIDEBAR_FOOTER = `${ROOT} [data-sidebar="footer"]`;
 /** Plugins, Settings and Skills put "Back to app" above the section card; it joins the card as its first row. */
 const SECTION_BACK = `${ROOT} [data-testid$="-sidebar-top-reserve-row"] + div:has(+ [data-sidebar="content"])`;
 const SIDEBAR_OPEN = `${ROOT} .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]`;
-/** On phones the thread scrolls right up to the glass's top edge; fade it out there so sliced lines of text never sit on the edge or its corners. */
-const THREAD_TOP_FADE = "mask-image: linear-gradient(to bottom, transparent, #000 16px);";
 const THREAD_TITLE_ROW =
   '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
 const PAGE_COLUMN = ':is(.max-w-5xl, [class~="max-w-[760px]"])';
@@ -134,7 +181,6 @@ ${THREAD} { position: relative; isolation: isolate; }
 ${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
 ${THREAD}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 ${THREAD} [data-overflow-fade] { ${HIDE} }
-@media (max-width: 767px) { ${THREAD} .thread-scrollbar { ${THREAD_TOP_FADE} } }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
 ${PAGE_MAIN} ${PAGE_COLUMN}:not(${PAGE_COLUMN} *) { anchor-name: --ambient-page-column; }
@@ -169,17 +215,19 @@ ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(6px + env(safe-area-i
 ${ROOT} div.fixed > ${RIGHT_PANEL_BUTTON} { ${GLASS_CHIP} border-radius: 12px; }
 ${ROOT} [data-sidebar="panel"] { border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_CHIP} border-radius: 12px; padding-inline: 6px; }
-${ROOT} :is([data-testid="app-page-header-content-row"] > :first-child, ${SIDEBAR_RESERVE_PILL}) { margin-inline: -6px; }
+${ROOT} ${SIDEBAR_RESERVE_PILL} { margin-inline: -6px; }
 ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { margin-inline-start: 6px; }
 ${ROOT} [data-testid="app-page-header-content-row"][class~="pl-[104px]"] { padding-inline-start: ${TRAFFIC_LIGHT_RESERVE}; }
 ${ROOT} ${SIDEBAR_HEADER_CONTENT} { display: flex; align-items: center; min-width: 0; max-width: 100%; min-height: 32px; overflow: hidden; }
 ${ROOT} button[data-sidebar="trigger"] { margin-inline: -4px 0; width: 32px; height: 32px; }
 ${ROOT} [data-testid="app-sidebar-top-reserve-row"] > div:nth-child(n) { margin-inline-end: 0; min-height: 32px; }
-${HEADER_FIRST} { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline-end: 4px; padding-inline-start: 12px; }
+${HEADER_FIRST} { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline: -6px 6px; padding-inline-start: 12px; }
 ${HEADER_FIRST}:has([data-pane-header-focus-tab]) { background-image: linear-gradient(var(--state-active), var(--state-active)); }
 ${ROOT} [data-pane-header-focus-tab] { background-color: transparent; }
 ${ROOT} [data-testid="app-page-header-content-row"] > [data-app-page-header-actions] { margin-inline: auto -8px; min-height: 32px; }
 ${ROOT} [data-app-page-header-actions] button.border { border-color: transparent; }
+${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) { ${HIDE} }
+${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) + [data-thread-header-pane-actions] { margin-inline-start: 0; }
 @media (max-width: 767px) { ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } ${ROOT} :is(div.fixed, [data-app-page-header-actions]) ${RIGHT_PANEL_BUTTON} { width: 32px; height: 32px; } ${ROOT} [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } ${ROOT} [data-app-page-header-actions]:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
@@ -194,7 +242,7 @@ ${ROOT} [data-sidebar="content"]:not(:has(~ [data-sidebar="footer"])) { margin-b
 ${ROOT} [data-sidebar="content"] > .px-2:first-child { padding-block-start: 12px; }
 @media (max-height: 560px) { ${ROOT} [data-testid="sidebar-navigation-region"] { flex: 0 1 auto; min-height: 3rem; overflow-y: auto; } }
 ${SIDEBAR_FOOTER} { flex-shrink: 0; margin-block: 8px; align-self: flex-start; width: max-content; max-width: calc(100% - 16px); }
-${SIDEBAR_FOOTER}:has([data-testid^="plugin-sidebar-footer-disclosure-"]) { align-self: stretch; width: auto; max-width: none; }
+${SIDEBAR_FOOTER}:is([data-ambient-snap], :has([data-testid^="plugin-sidebar-footer-disclosure-"])) { align-self: stretch; width: auto; max-width: none; }
 ${SIDEBAR_FOOTER} [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; background-color: transparent; }
 ${SIDEBAR_FOOTER} > [data-overflow-fade], ${SIDEBAR_FOOTER} > ul > li[aria-hidden="true"]:empty { ${HIDE} }
 :is(${SIDEBAR_CARDS}, ${RIGHT_PANEL}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), ${OVERLAY} :is(.sticky:not(.bg-sidebar, .bg-background, .bg-popover), [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { ${NO_BLUR} }
