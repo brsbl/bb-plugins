@@ -1,6 +1,6 @@
 import { useRef, useState, useSyncExternalStore, type MouseEventHandler, type PointerEvent as ReactPointerEvent, type PointerEventHandler, type ReactNode } from "react";
 import { CloseGlyph, MaximizeGlyph, MinusGlyph, RestoreGlyph } from "../art";
-import type { ResizeEdge } from "../core";
+import type { Rect, ResizeEdge } from "../core";
 import { fitDragRect, resizeInArea, workAreaRect } from "./geometry";
 import { useWindowManager } from "./manager";
 import { subscribeNudges, takeWindowNudge, windowNudge } from "./nudges";
@@ -77,8 +77,9 @@ export function WindowFrame({
     let latest = origin;
     const attached = maximized ? [] : manager.windows.flatMap((other) => {
       const node = isAttached(other, desktopWindow) ? document.querySelector<HTMLElement>(`[data-bbd-window-id="${CSS.escape(other.id)}"]`) : null;
-      return node === null ? [] : [{ node, rect: other.rect }];
+      return node === null ? [] : [{ id: other.id, node, rect: other.rect }];
     });
+    const dockedTo = (target: Rect) => attached.map((other) => dockedRect(other.rect, rect, target));
     track(event, (delta) => {
       latest = edge ? resizeInArea(origin, edge, delta, area)
         : fitDragRect({ ...origin, x: origin.x + delta.x, y: origin.y + delta.y }, area);
@@ -86,10 +87,11 @@ export function WindowFrame({
       if (maximized) element.removeAttribute("data-maximized");
       if (edge || maximized) previewRect(element, latest);
       else element.style.transform = `translate(${latest.x - rect.x}px, ${latest.y - rect.y}px)`;
-      for (const other of attached) {
+      dockedTo(latest).forEach((docked, index) => {
+        const other = attached[index]!;
         other.node.dataset.dragging = "true";
-        previewRect(other.node, dockedRect(other.rect, rect, latest));
-      }
+        previewRect(other.node, fitDragRect(docked, area));
+      });
     }, (cancelled, moved) => {
       element.style.transform = "";
       previewRect(element, cancelled || !moved ? rect : latest);
@@ -102,7 +104,10 @@ export function WindowFrame({
       if (moved) element.getBoundingClientRect();
       delete element.dataset.dragging;
       if (maximized && (cancelled || !moved)) element.dataset.maximized = "true";
-      if (!cancelled && moved) manager.move(id, latest);
+      if (!cancelled && moved) {
+        const docked = dockedTo(latest);
+        manager.move(id, latest, Object.fromEntries(attached.map((other, index) => [other.id, docked[index]!])));
+      }
     });
   };
 

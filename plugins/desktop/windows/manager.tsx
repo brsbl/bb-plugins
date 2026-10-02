@@ -12,7 +12,8 @@ export interface WindowManager {
   focus(id: string): void;
   close(id: string): void;
   closeWhere(predicate: (window: DesktopWindow) => boolean): void;
-  move(id: string, rect: Rect): void;
+  /** `attached` gives docked windows' new rects when they moved with this one. */
+  move(id: string, rect: Rect, attached?: Record<string, Rect>): void;
   minimize(id: string, minimized: boolean): void;
   toggleMaximize(id: string): void;
   /** Re-measures the work area and re-fits windows to it, e.g. once the taskbar has rendered and can be measured. */
@@ -96,7 +97,7 @@ export function WindowManagerProvider({ sizeOf, onDispose, children }: {
         closeWhere((window) => window.id === id || (target !== undefined && isAttached(window, target)));
       },
       closeWhere,
-      move: (id, rect) => dispatch({ type: "move", id, rect }),
+      move: (id, rect, attached) => dispatch({ type: "move", id, rect, attached }),
       minimize: (id, minimized) => dispatch({ type: "minimize", id, minimized }),
       toggleMaximize: (id) => dispatch({ type: "maximize", id, viewport: workAreaRect() }),
       fitMaximized,
