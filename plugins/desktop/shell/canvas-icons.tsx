@@ -42,8 +42,8 @@ export function DesktopIcon({
   const open = () => manager.open({ kind: "finder", key: group.key });
 
   const members = desktop.membersOf(group);
-  const { tone, toneCount } = groupTone(members);
-  const summary = folderSummary(group.name, members.length, tone, toneCount);
+  const { tone, toneCount, unreadCount } = groupTone(members);
+  const summary = folderSummary(group.name, members.length, tone, toneCount, unreadCount);
 
   return (
     <div
@@ -88,9 +88,9 @@ export function MoreIcon({ position, selected, onPointerDown, onSelect }: IconPr
   const menu = useMenu();
   const open = () => manager.open({ kind: "more" });
   const members = moreMembers(desktop);
-  const { tone, toneCount } = groupTone(members);
+  const { tone, toneCount, unreadCount } = groupTone(members);
   const count = desktop.moreGroups.length;
-  const summary = `${folderSummary("More", members.length, tone, toneCount)} · ${count} ${count === 1 ? "folder" : "folders"} hidden in the sidebar`;
+  const summary = `${folderSummary("More", members.length, tone, toneCount, unreadCount)} · ${count} ${count === 1 ? "folder" : "folders"} hidden in the sidebar`;
   return (
     <div
       role="button"

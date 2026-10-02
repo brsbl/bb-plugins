@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import type { Rect } from "../core";
 import { defaultRect, fitDragRect, sameRect, workAreaRect, type Size } from "./geometry";
 import type { WindowSpec } from "./specs";
-import { loadWindows, placeWindows, saveWindows, windowReducer, type DesktopWindow } from "./state";
+import { isAttached, loadWindows, placeWindows, saveWindows, windowReducer, type DesktopWindow } from "./state";
 
 export interface WindowManager {
   /** Each window as shown: fitted to the current work area, while its stored rect keeps the size the person gave it. */
@@ -12,7 +12,8 @@ export interface WindowManager {
   focus(id: string): void;
   close(id: string): void;
   closeWhere(predicate: (window: DesktopWindow) => boolean): void;
-  move(id: string, rect: Rect): void;
+  /** `attached` gives docked windows' new rects when they moved with this one. */
+  move(id: string, rect: Rect, attached?: Record<string, Rect>): void;
   minimize(id: string, minimized: boolean): void;
   toggleMaximize(id: string): void;
   /** Re-measures the work area and re-fits windows to it, e.g. once the taskbar has rendered and can be measured. */
@@ -91,9 +92,12 @@ export function WindowManagerProvider({ sizeOf, onDispose, children }: {
       focusedId: focused?.id ?? null,
       open,
       focus: (id) => dispatch({ type: "focus", id }),
-      close: (id) => closeWhere((window) => window.id === id),
+      close: (id) => {
+        const target = windowsRef.current.find((window) => window.id === id);
+        closeWhere((window) => window.id === id || (target !== undefined && isAttached(window, target)));
+      },
       closeWhere,
-      move: (id, rect) => dispatch({ type: "move", id, rect }),
+      move: (id, rect, attached) => dispatch({ type: "move", id, rect, attached }),
       minimize: (id, minimized) => dispatch({ type: "minimize", id, minimized }),
       toggleMaximize: (id) => dispatch({ type: "maximize", id, viewport: workAreaRect() }),
       fitMaximized,

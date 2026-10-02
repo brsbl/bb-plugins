@@ -138,7 +138,7 @@ export function FinderWindow({ window: desktopWindow, groupKey }: { window: Desk
             view={view}
             emptyText={
               acceptsDrop(group)
-                ? "Nothing here. Drag threads in from another folder or My Threads."
+                ? "Nothing here yet. Drag a thread onto this folder, or use Move to in a thread’s menu."
                 : "No threads here."
             }
           />
@@ -239,8 +239,8 @@ function MoreFolderItem({ group, windowId }: { group: DesktopGroup; windowId: st
   // A folder opened inside More takes over this window, as in Explorer; Back returns to More.
   const open = () => manager.navigate(windowId, { kind: "finder", key: group.key });
   const members = desktop.membersOf(group);
-  const { tone, toneCount } = groupTone(members);
-  const summary = folderSummary(group.name, members.length, tone, toneCount);
+  const { tone, toneCount, unreadCount } = groupTone(members);
+  const summary = folderSummary(group.name, members.length, tone, toneCount, unreadCount);
   return (
     <div
       className="bbd-finder-item"

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseSpec, windowId } from "./specs";
-import { parseWindows, placeWindows, serializeWindows, windowReducer } from "./state";
+import type { Rect } from "../core";
+import { parseSpec, windowId, type WindowSpec } from "./specs";
+import { dockedRect, parseWindows, placeWindows, serializeWindows, windowReducer, type WindowState } from "./state";
 
 const area = { x: 0, y: 48, width: 1440, height: 766 };
 
@@ -139,5 +140,53 @@ describe("navigating a window", () => {
   it("does not store history", () => {
     const inFolder = windowReducer(opened, { type: "navigate", id: "more", spec: { kind: "finder", key: "section:s1" } });
     expect(serializeWindows(inFolder.windows)).not.toContain("history");
+  });
+});
+
+describe("windows docked to a thread", () => {
+  const thread = { x: 300, y: 100, width: 600, height: 500 };
+  const open = (state: WindowState, spec: WindowSpec, rect: Rect) => windowReducer(state, { type: "open", spec, rect });
+  let docked: WindowState = { windows: [], nextZ: 1 };
+  docked = open(docked, { kind: "thread", threadId: "thr_a" }, thread);
+  docked = open(docked, { kind: "buddy-list", threadId: "thr_a" }, { x: 12, y: 100, width: 280, height: 500 });
+  docked = open(docked, { kind: "panel", threadId: "thr_a" }, { x: 908, y: 100, width: 320, height: 500 });
+  docked = open(docked, { kind: "thread-tab", threadId: "thr_a", tab: "terminal", tabId: "t1" }, { x: 40, y: 60, width: 400, height: 300 });
+  docked = open(docked, { kind: "panel", threadId: "thr_b" }, { x: 908, y: 100, width: 320, height: 500 });
+  const rectOf = (state: WindowState, id: string) => state.windows.find((window) => window.id === id)!.rect;
+
+  it("docks a window against its side of the thread as the thread moves or resizes", () => {
+    const list = rectOf(docked, "buddy-list:thr_a");
+    const info = rectOf(docked, "panel:thr_a");
+    expect(dockedRect(list, thread, { ...thread, x: 340, y: 140 })).toEqual({ x: 52, y: 140, width: 280, height: 500 });
+    expect(dockedRect(info, thread, { x: 250, y: 100, width: 700, height: 560 })).toEqual({ x: 958, y: 100, width: 320, height: 560 });
+  });
+
+  it("stores exactly the docked rects the drag showed, and leaves every other window alone", () => {
+    const shown = { "buddy-list:thr_a": { x: 0, y: 140, width: 280, height: 500 }, "panel:thr_a": { x: 948, y: 140, width: 320, height: 500 } };
+    const moved = windowReducer(docked, { type: "move", id: "thread:thr_a", rect: { ...thread, x: 340, y: 140 }, attached: shown });
+    expect(rectOf(moved, "buddy-list:thr_a")).toEqual(shown["buddy-list:thr_a"]);
+    expect(rectOf(moved, "panel:thr_a")).toEqual(shown["panel:thr_a"]);
+    expect(rectOf(moved, "thread-tab:t1")).toEqual(rectOf(docked, "thread-tab:t1"));
+    expect(rectOf(moved, "panel:thr_b")).toEqual(rectOf(docked, "panel:thr_b"));
+  });
+
+  it("leaves docked windows in place when the thread moves without a drag, such as a composer nudge", () => {
+    const nudged = windowReducer(docked, { type: "move", id: "thread:thr_a", rect: { ...thread, x: 360 } });
+    expect(rectOf(nudged, "buddy-list:thr_a")).toEqual(rectOf(docked, "buddy-list:thr_a"));
+    expect(rectOf(nudged, "panel:thr_a")).toEqual(rectOf(docked, "panel:thr_a"));
+  });
+
+  it("minimizes and restores them together, raising the thread above them", () => {
+    const minimized = windowReducer(docked, { type: "minimize", id: "thread:thr_a", minimized: true });
+    expect(minimized.windows.filter((window) => window.minimized).map((window) => window.id)).toEqual([
+      "thread:thr_a",
+      "buddy-list:thr_a",
+      "panel:thr_a",
+    ]);
+    const restored = windowReducer(minimized, { type: "focus", id: "thread:thr_a" });
+    expect(restored.windows.some((window) => window.minimized)).toBe(false);
+    const z = (id: string) => restored.windows.find((window) => window.id === id)!.z;
+    expect(z("thread:thr_a")).toBe(Math.max(...restored.windows.map((window) => window.z)));
+    expect(z("panel:thr_a")).toBeGreaterThan(z("panel:thr_b"));
   });
 });

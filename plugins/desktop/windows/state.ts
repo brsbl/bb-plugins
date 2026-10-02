@@ -24,7 +24,7 @@ export type WindowAction =
   | { type: "open"; spec: WindowSpec; rect: Rect }
   | { type: "focus"; id: string }
   | { type: "close-where"; predicate: (window: DesktopWindow) => boolean }
-  | { type: "move"; id: string; rect: Rect }
+  | { type: "move"; id: string; rect: Rect; attached?: Record<string, Rect> }
   | { type: "minimize"; id: string; minimized: boolean }
   | { type: "maximize"; id: string; viewport: Rect }
   | { type: "fit-maximized"; viewport: Rect }
@@ -50,6 +50,32 @@ function show(state: WindowState, id: string, spec: WindowSpec, history: { back:
   };
 }
 
+/** Whether `window` is a Buddy List or Buddy Info docked to `thread`'s Instant Message, which it moves and closes with. */
+export function isAttached(window: DesktopWindow, thread: DesktopWindow): boolean {
+  return (
+    thread.spec.kind === "thread" &&
+    (window.spec.kind === "panel" || window.spec.kind === "buddy-list") &&
+    window.spec.threadId === thread.spec.threadId
+  );
+}
+
+/**
+ * Where a window docked beside a thread goes when the thread moves from `from` to `to`: flush against the same side,
+ * as tall as the thread. It depends only on the side and `to`, so a window the work area clamped stays docked.
+ */
+export function dockedRect(rect: Rect, from: Rect, to: Rect): Rect {
+  const onRight = rect.x + rect.width / 2 >= from.x + from.width / 2;
+  return {
+    x: onRight ? to.x + to.width + DOCK_GAP : to.x - rect.width - DOCK_GAP,
+    y: to.y,
+    width: rect.width,
+    height: Math.max(MIN_ATTACHED_HEIGHT, to.height),
+  };
+}
+
+const DOCK_GAP = 8;
+const MIN_ATTACHED_HEIGHT = 160;
+
 function update(state: WindowState, id: string, change: (window: DesktopWindow) => DesktopWindow): WindowState {
   return { ...state, windows: state.windows.map((window) => (window.id === id ? change(window) : window)) };
 }
@@ -71,14 +97,40 @@ export function windowReducer(state: WindowState, action: WindowAction): WindowS
       const top = Math.max(0, ...state.windows.map((window) => window.z));
       const target = state.windows.find((window) => window.id === action.id);
       if (target === undefined || (target.z === top && !target.minimized)) return state;
-      return { ...update(state, action.id, (window) => ({ ...window, z: state.nextZ, minimized: false })), nextZ: state.nextZ + 1 };
+      const attached = state.windows.filter((window) => isAttached(window, target));
+      const raised = new Map([...attached, target].map((window, index) => [window.id, state.nextZ + index]));
+      return {
+        windows: state.windows.map((window) => {
+          const z = raised.get(window.id);
+          return z === undefined ? window : { ...window, z, minimized: false };
+        }),
+        nextZ: state.nextZ + raised.size,
+      };
     }
     case "close-where":
       return { ...state, windows: state.windows.filter((window) => !action.predicate(window)) };
-    case "move":
-      return update(state, action.id, (window) => ({ ...window, rect: action.rect, restoreRect: null }));
-    case "minimize":
-      return update(state, action.id, (window) => ({ ...window, minimized: action.minimized }));
+    case "move": {
+      // Docked windows take the rects the drag previewed, so they land where the person saw them.
+      const attached = action.attached ?? {};
+      return {
+        ...state,
+        windows: state.windows.map((window) => {
+          if (window.id === action.id) return { ...window, rect: action.rect, restoreRect: null };
+          const docked = attached[window.id];
+          return docked === undefined ? window : { ...window, rect: docked };
+        }),
+      };
+    }
+    case "minimize": {
+      const target = state.windows.find((window) => window.id === action.id);
+      if (target === undefined) return state;
+      return {
+        ...state,
+        windows: state.windows.map((window) =>
+          window.id === action.id || isAttached(window, target) ? { ...window, minimized: action.minimized } : window,
+        ),
+      };
+    }
     case "maximize":
       return update(state, action.id, (window) =>
         window.restoreRect !== null

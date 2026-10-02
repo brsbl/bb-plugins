@@ -6,6 +6,7 @@ import { ProgramWindow } from "../programs/registry";
 import { PLUGIN_SCOPE } from "../slots";
 import { Taskbar, type DockFrame } from "../taskbar/taskbar";
 import { setWindowNudges, useWindowManager, workAreaRect } from "../windows";
+import { AskTextDialog } from "./ask-text";
 import { useDesktop } from "./data";
 import { chatWebLink, linkedThreadId, openChatWebLink, opensLinksInAppBrowser } from "./links";
 
@@ -97,6 +98,7 @@ export function WindowLayer({ dockFrame }: { dockFrame: DockFrame | null }) {
       ))}
       <Taskbar frame={dockFrame} />
       <NeedsInputBalloon />
+      <AskTextDialog />
     </div>,
     document.body,
   );
