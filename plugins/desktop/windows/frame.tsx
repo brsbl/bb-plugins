@@ -5,7 +5,7 @@ import { fitDragRect, resizeInArea, workAreaRect } from "./geometry";
 import { useWindowManager } from "./manager";
 import { subscribeNudges, takeWindowNudge, windowNudge } from "./nudges";
 import { previewRect, usePointerTracker } from "./pointer";
-import type { DesktopWindow } from "./state";
+import { dockedRect, isAttached, type DesktopWindow } from "./state";
 
 const EDGES: readonly ResizeEdge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 
@@ -75,6 +75,10 @@ export function WindowFrame({
       y: event.clientY - Math.min(24, event.clientY - rect.y),
     }, area) : fitDragRect(rect, area);
     let latest = origin;
+    const attached = maximized ? [] : manager.windows.flatMap((other) => {
+      const node = isAttached(other, desktopWindow) ? document.querySelector<HTMLElement>(`[data-bbd-window-id="${CSS.escape(other.id)}"]`) : null;
+      return node === null ? [] : [{ node, rect: other.rect }];
+    });
     track(event, (delta) => {
       latest = edge ? resizeInArea(origin, edge, delta, area)
         : fitDragRect({ ...origin, x: origin.x + delta.x, y: origin.y + delta.y }, area);
@@ -82,9 +86,18 @@ export function WindowFrame({
       if (maximized) element.removeAttribute("data-maximized");
       if (edge || maximized) previewRect(element, latest);
       else element.style.transform = `translate(${latest.x - rect.x}px, ${latest.y - rect.y}px)`;
+      for (const other of attached) {
+        other.node.dataset.dragging = "true";
+        previewRect(other.node, dockedRect(other.rect, rect, latest));
+      }
     }, (cancelled, moved) => {
       element.style.transform = "";
       previewRect(element, cancelled || !moved ? rect : latest);
+      for (const other of attached) {
+        if (cancelled || !moved) previewRect(other.node, other.rect);
+        other.node.getBoundingClientRect();
+        delete other.node.dataset.dragging;
+      }
       // Settle the transform with transitions disabled before restoring nudge animation.
       if (moved) element.getBoundingClientRect();
       delete element.dataset.dragging;
@@ -104,6 +117,7 @@ export function WindowFrame({
       role="dialog"
       aria-label={title}
       className="bbd-window"
+      data-bbd-window-id={id}
       hidden={desktopWindow.minimized}
       data-focused={focused}
       data-maximized={maximized || undefined}

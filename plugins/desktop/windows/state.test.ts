@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseSpec, windowId } from "./specs";
-import { parseWindows, placeWindows, serializeWindows, windowReducer } from "./state";
+import type { Rect } from "../core";
+import { parseSpec, windowId, type WindowSpec } from "./specs";
+import { parseWindows, placeWindows, serializeWindows, windowReducer, type WindowState } from "./state";
 
 const area = { x: 0, y: 48, width: 1440, height: 766 };
 
@@ -139,5 +140,50 @@ describe("navigating a window", () => {
   it("does not store history", () => {
     const inFolder = windowReducer(opened, { type: "navigate", id: "more", spec: { kind: "finder", key: "section:s1" } });
     expect(serializeWindows(inFolder.windows)).not.toContain("history");
+  });
+});
+
+describe("windows docked to a thread", () => {
+  const thread = { x: 300, y: 100, width: 600, height: 500 };
+  const open = (state: WindowState, spec: WindowSpec, rect: Rect) => windowReducer(state, { type: "open", spec, rect });
+  let docked: WindowState = { windows: [], nextZ: 1 };
+  docked = open(docked, { kind: "thread", threadId: "thr_a" }, thread);
+  docked = open(docked, { kind: "buddy-list", threadId: "thr_a" }, { x: 12, y: 100, width: 280, height: 500 });
+  docked = open(docked, { kind: "panel", threadId: "thr_a" }, { x: 908, y: 100, width: 320, height: 500 });
+  docked = open(docked, { kind: "thread-tab", threadId: "thr_a", tab: "terminal", tabId: "t1" }, { x: 40, y: 60, width: 400, height: 300 });
+  docked = open(docked, { kind: "panel", threadId: "thr_b" }, { x: 908, y: 100, width: 320, height: 500 });
+  const rectOf = (state: WindowState, id: string) => state.windows.find((window) => window.id === id)!.rect;
+
+  it("moves its Buddy List and Buddy Info with the thread, and nothing else", () => {
+    const moved = windowReducer(docked, { type: "move", id: "thread:thr_a", rect: { ...thread, x: 340, y: 140 } });
+    expect(rectOf(moved, "buddy-list:thr_a")).toEqual({ x: 52, y: 140, width: 280, height: 500 });
+    expect(rectOf(moved, "panel:thr_a")).toEqual({ x: 948, y: 140, width: 320, height: 500 });
+    expect(rectOf(moved, "thread-tab:t1")).toEqual(rectOf(docked, "thread-tab:t1"));
+    expect(rectOf(moved, "panel:thr_b")).toEqual(rectOf(docked, "panel:thr_b"));
+  });
+
+  it("keeps each docked window against its side when the thread resizes", () => {
+    const resized = windowReducer(docked, { type: "move", id: "thread:thr_a", rect: { x: 250, y: 100, width: 700, height: 560 } });
+    expect(rectOf(resized, "buddy-list:thr_a")).toEqual({ x: -38, y: 100, width: 280, height: 560 });
+    expect(rectOf(resized, "panel:thr_a")).toEqual({ x: 958, y: 100, width: 320, height: 560 });
+  });
+
+  it("moves alone when a docked window is dragged", () => {
+    const moved = windowReducer(docked, { type: "move", id: "panel:thr_a", rect: { x: 0, y: 0, width: 320, height: 500 } });
+    expect(rectOf(moved, "thread:thr_a")).toEqual(thread);
+  });
+
+  it("minimizes and restores them together, raising the thread above them", () => {
+    const minimized = windowReducer(docked, { type: "minimize", id: "thread:thr_a", minimized: true });
+    expect(minimized.windows.filter((window) => window.minimized).map((window) => window.id)).toEqual([
+      "thread:thr_a",
+      "buddy-list:thr_a",
+      "panel:thr_a",
+    ]);
+    const restored = windowReducer(minimized, { type: "focus", id: "thread:thr_a" });
+    expect(restored.windows.some((window) => window.minimized)).toBe(false);
+    const z = (id: string) => restored.windows.find((window) => window.id === id)!.z;
+    expect(z("thread:thr_a")).toBe(Math.max(...restored.windows.map((window) => window.z)));
+    expect(z("panel:thr_a")).toBeGreaterThan(z("panel:thr_b"));
   });
 });

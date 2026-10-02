@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import type { Rect } from "../core";
 import { defaultRect, fitDragRect, sameRect, workAreaRect, type Size } from "./geometry";
 import type { WindowSpec } from "./specs";
-import { loadWindows, placeWindows, saveWindows, windowReducer, type DesktopWindow } from "./state";
+import { isAttached, loadWindows, placeWindows, saveWindows, windowReducer, type DesktopWindow } from "./state";
 
 export interface WindowManager {
   /** Each window as shown: fitted to the current work area, while its stored rect keeps the size the person gave it. */
@@ -91,7 +91,10 @@ export function WindowManagerProvider({ sizeOf, onDispose, children }: {
       focusedId: focused?.id ?? null,
       open,
       focus: (id) => dispatch({ type: "focus", id }),
-      close: (id) => closeWhere((window) => window.id === id),
+      close: (id) => {
+        const target = windowsRef.current.find((window) => window.id === id);
+        closeWhere((window) => window.id === id || (target !== undefined && isAttached(window, target)));
+      },
       closeWhere,
       move: (id, rect) => dispatch({ type: "move", id, rect }),
       minimize: (id, minimized) => dispatch({ type: "minimize", id, minimized }),
