@@ -368,8 +368,19 @@
 }
 
 .bbd-dot[data-tone="running"] {
-  background: linear-gradient(180deg, var(--bbd-blue-bright), var(--bbd-blue));
+  background: linear-gradient(180deg, var(--bbd-green), var(--bbd-green-deep));
   animation: bbd-pulse 1.4s ease-in-out infinite;
+}
+
+/* Unread is Mail's solid blue dot: smaller than a count badge, never numbered, never blinking. */
+.bbd-dot[data-tone="unread"] {
+  top: 1px;
+  right: -1px;
+  min-width: 0;
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  background: linear-gradient(180deg, var(--bbd-blue-bright), var(--bbd-blue));
 }
 
 @keyframes bbd-pulse {

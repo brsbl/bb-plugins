@@ -11,7 +11,7 @@ export function ThreadGlyph({ thread }: { thread: DesktopThread }) {
       {tone !== null ? (
         <span className="bbd-dot" data-tone={tone} aria-hidden />
       ) : thread.isUnread ? (
-        <span className="bbd-dot" data-tone="running" style={{ animation: "none" }} aria-hidden />
+        <span className="bbd-dot" data-tone="unread" aria-hidden />
       ) : null}
     </span>
   );
@@ -22,11 +22,11 @@ export function StatusDot({ members }: { members: readonly DesktopThread[] }) {
   if (tone !== null) {
     return (
       <span className="bbd-dot" data-tone={tone} aria-hidden>
-        {toneCount > 1 ? toneCount : null}
+        {toneCount}
       </span>
     );
   }
-  return unread ? <span className="bbd-dot" data-tone="running" style={{ animation: "none" }} aria-hidden /> : null;
+  return unread ? <span className="bbd-dot" data-tone="unread" aria-hidden /> : null;
 }
 
 export function threadTooltip(desktop: DesktopContextValue, thread: DesktopThread): string {
