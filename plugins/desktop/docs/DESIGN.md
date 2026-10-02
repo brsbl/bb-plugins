@@ -9,7 +9,7 @@ Every surface belongs to exactly one layer. Decide which before designing anythi
 | Layer | Surfaces | Looks like | Why |
 | --- | --- | --- | --- |
 | **XP layer** | The desktop, icons, windows, taskbar, Start menu, tray, balloons, context menus opened on the desktop | Windows XP Luna: blue title bars, green Start, bevelled buttons, yellow balloons, drawn icons | This is the plugin's whole point |
-| **bb layer** | Anything the plugin renders inside bb's own chrome: the thread-header folder label, the note pad header button, settings | Native bb: bb tokens, bb typography, line glyphs, no XP chrome | XP chrome inside bb's header would look broken, not nostalgic |
+| **bb layer** | Anything the plugin renders inside bb's own chrome: the thread-header folder label, the note pad header button, settings | Native bb: bb tokens, bb typography, line glyphs, no XP chrome. The note pad header button is the one exception: it shows `NotePadArt` so it matches the note pads it creates | XP chrome inside bb's header would look broken, not nostalgic |
 
 Note pads still float on every page, but share the programs’ glass title bar and menus. XP Notepad had a plain white editing surface; the spiral binding and rules belong to its icon, not its document.
 
@@ -92,7 +92,7 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 
 ### Line glyphs
 
-Hugeicons line glyphs (`bbGlyph`) are allowed only for small controls inside a window (view toggles, title-bar buttons) and for the bb layer (the note pad header button). They never stand in for an app, place, or object.
+Hugeicons line glyphs (`bbGlyph`) are allowed only for small controls inside a window (view toggles, title-bar buttons) and for the bb layer. They never stand in for an app, place, or object.
 
 ## 5. Components
 
