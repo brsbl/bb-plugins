@@ -9,7 +9,7 @@ import {
 import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 
-import { NotePadArt, NotePadGlyph } from "../art";
+import { NotePadArt } from "../art";
 import { workAreaRect, fitDragRect, previewRect, usePointerTracker, WindowTitleBar } from "../windows";
 import { ProgramMenuBar, ProgramStatusBar } from "../apps/xp-chrome";
 import { useDesktopEnabled } from "../enabled";
@@ -390,7 +390,14 @@ function StickyNoteView({ note }: { note: StickyNote }) {
       data-tone={TONES[note.tone % TONES.length]}
       aria-label="Note pad"
       style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+      tabIndex={-1}
       onPointerDown={() => raiseNote(note.id)}
+      onKeyDown={(event) => {
+        if (event.key.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey)) return;
+        event.preventDefault();
+        if (event.shiftKey) exportFile();
+        else save();
+      }}
     >
       <WindowTitleBar title="Note pad" icon={<NotePadArt size={16} />}
         titleActions={<SendButton onSend={() => void sendNote(note)} />}
@@ -424,12 +431,6 @@ function StickyNoteView({ note }: { note: StickyNote }) {
         placeholder=""
         spellCheck={false}
         onChange={(event) => updateNote(note.id, { text: event.target.value })}
-        onKeyDown={(event) => {
-          if (event.key.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey)) return;
-          event.preventDefault();
-          if (event.shiftKey) exportFile();
-          else save();
-        }}
       />
       <ProgramStatusBar><span className="flex-1">{note.saved === true ? "Saved to Desktop" : "Not saved · Ctrl+S"}</span><span>{note.text.length} characters</span></ProgramStatusBar>
       <span
@@ -496,7 +497,7 @@ export function StickyNoteHeaderButton({ isCompactViewport }: { isCompactViewpor
         addStickyNote({ left: window.innerWidth - DEFAULT_SIZE.width - MARGIN, top: button.bottom + 12 });
       }}
     >
-      <NotePadGlyph className="size-4" />
+      <NotePadArt size={20} />
     </button>
   );
 }
