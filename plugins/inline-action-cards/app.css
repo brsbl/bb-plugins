@@ -1,0 +1,30 @@
+.iac-card { margin: 12px 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--foreground); font-size: 13px; line-height: 1.5; }
+.iac-heading { display: flex; align-items: baseline; gap: 10px; }
+.iac-heading strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.iac-kind { color: var(--muted-foreground); font-size: 11px; flex-shrink: 0; }
+.iac-subject { margin-top: 6px; }
+.iac-recipients { color: var(--muted-foreground); font-size: 12px; margin: 4px 0 10px; overflow-wrap: anywhere; }
+.iac-original { margin: 8px 0 16px; font-size: 12px; }
+.iac-original summary { color: var(--muted-foreground); cursor: pointer; width: fit-content; }
+.iac-from { margin-top: 10px; color: var(--muted-foreground); }
+.iac-email { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 8px 0; }
+.iac-draft-header { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted-foreground); margin-bottom: 6px; }
+.iac-card textarea { display: block; box-sizing: border-box; width: 100%; min-height: 120px; max-height: 450px; resize: vertical; padding: 12px; font: inherit; line-height: 1.65; color: inherit; background: var(--background); border: 1px solid var(--border); border-radius: 7px; }
+.iac-card textarea[readonly] { background: transparent; }
+.iac-footer { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.iac-card button { font: inherit; font-size: 12px; color: inherit; border: 1px solid var(--border); border-radius: 6px; background: transparent; padding: 5px 9px; min-height: 30px; cursor: pointer; }
+.iac-card button:hover { background: var(--muted); }
+.iac-card button:disabled { opacity: .5; cursor: default; }
+.iac-card .iac-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); font-weight: 500; }
+.iac-card .iac-primary:hover { filter: brightness(.94); }
+.iac-card :is(button, textarea, summary):focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.iac-utilities { display: flex; gap: 2px; margin-left: auto; }
+.iac-card .iac-icon { width: 30px; padding: 6px; border-color: transparent; color: var(--muted-foreground); }
+.iac-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.iac-consequence { margin: 6px 0 0; color: var(--muted-foreground); }
+.iac-error { margin-top: 10px; color: var(--destructive); font-size: 12px; }
+.iac-recovery { display: flex; gap: 6px; margin-top: 6px; }
+.iac-result { flex: 1; }
+.iac-failed { flex: 1; color: var(--destructive); }
+.iac-footer time { color: var(--muted-foreground); margin-left: 4px; font-size: 11px; }
+@media (max-width: 480px) { .iac-card { padding: 12px; } .iac-heading { flex-direction: column; gap: 2px; } }

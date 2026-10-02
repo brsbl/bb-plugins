@@ -74,6 +74,14 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
 
+### Inline Action Cards
+
+Edit email replies and approve decisions inside agent messages. Each item keeps its draft, recipients, action buttons, and result together.
+
+[Source](plugins/inline-action-cards) · [README](plugins/inline-action-cards/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/inline-action-cards --yes`
+
 ### Mesh Gradient
 
 Creates, edits, saves, and shares reusable mesh gradients from a visual studio beside a thread. Users can hand an exact saved gradient to the current agent, while agents can generate gradients, inspect the shared library, and apply saved designs through the same plugin.
