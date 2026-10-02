@@ -392,15 +392,18 @@
   .bbd-dot-spinner { animation: none; }
 }
 
-/* Unread is Mail's solid blue dot: smaller than a count badge, never numbered, never blinking. */
+/* Unread is Mail's blue badge: a folder counts its unread threads, a single thread shows a plain dot. */
 .bbd-dot[data-tone="unread"] {
+  background: linear-gradient(180deg, var(--bbd-blue-bright), var(--bbd-blue));
+}
+
+.bbd-dot[data-tone="unread"]:empty {
   top: 1px;
   right: -1px;
   min-width: 0;
   width: 11px;
   height: 11px;
   padding: 0;
-  background: linear-gradient(180deg, var(--bbd-blue-bright), var(--bbd-blue));
 }
 
 .bbd-finder-grid {
