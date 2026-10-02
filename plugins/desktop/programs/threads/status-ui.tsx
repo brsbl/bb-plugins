@@ -29,7 +29,7 @@ export function ThreadGlyph({ thread }: { thread: DesktopThread }) {
 }
 
 export function StatusDot({ members }: { members: readonly DesktopThread[] }) {
-  const { tone, toneCount, unread } = groupTone(members);
+  const { tone, toneCount, unreadCount } = groupTone(members);
   if (tone === "running") return <RunningMark />;
   if (tone !== null) {
     return (
@@ -38,7 +38,11 @@ export function StatusDot({ members }: { members: readonly DesktopThread[] }) {
       </span>
     );
   }
-  return unread ? <span className="bbd-dot" data-tone="unread" aria-hidden /> : null;
+  return unreadCount > 0 ? (
+    <span className="bbd-dot" data-tone="unread" aria-hidden>
+      {unreadCount}
+    </span>
+  ) : null;
 }
 
 export function threadTooltip(desktop: DesktopContextValue, thread: DesktopThread): string {
