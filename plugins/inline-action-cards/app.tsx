@@ -93,7 +93,7 @@ function ActionCard({ id, threadId }: { id: string; threadId: string }) {
     if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try the card again.");
     composer.setText(message);
     try {
-      await composer.experimental_submit({});
+      await composer.experimental_submit({ experimental_data: { itemId: id } });
       // Some older hosts restore the draft rather than reject on transport failure.
       if (composer.text === message) throw new Error("The request was not submitted. Retry this same request from the card or composer.");
     } catch (err) {
@@ -110,6 +110,7 @@ function ActionCard({ id, threadId }: { id: string; threadId: string }) {
       if (!next) return;
       // Preserve composer contents before reserving an action, too.
       if (composer.text.trim() || view.current.draft.attachmentCount) throw new Error("Send or clear your current composer message first, then try the card again.");
+      if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to respond.");
       if (action) {
         next = await rpc.call("prepare", { id, threadId, revision: next.revision, action });
         adopt(next);
@@ -152,7 +153,7 @@ function ActionCard({ id, threadId }: { id: string; threadId: string }) {
       <div className="iac-recipients">To: {reply.to.join(", ")}{reply.cc.length > 0 && <div>Cc: {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc: {reply.bcc.join(", ")}</div>}</div>
       <details className="iac-original"><summary>Original email</summary><div className="iac-from">From: {reply.original.from}</div><div className="iac-email">{reply.original.body}</div></details>
       <div className="iac-draft-header"><label htmlFor={`draft-${threadId}-${id}`}>Draft</label><span role="status">{ready && (saveError ? "Not saved" : saving || dirty.current ? "Saving…" : "Saved")}</span></div>
-      <textarea id={`draft-${threadId}-${id}`} aria-label="Draft" value={draft} readOnly={!ready || busy} spellCheck rows={Math.min(14, Math.max(5, draft.split("\n").length + 1))} onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }} onBlur={() => void flush().catch(() => {})} />
+      <textarea id={`draft-${threadId}-${id}`} aria-label="Draft" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={Math.min(14, Math.max(5, draft.split("\n").length + 1))} onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }} onBlur={() => void flush().catch(() => {})} />
     </> : <p className="iac-consequence">{item.content.type === "decide" && item.content.consequence}</p>}
     {error && <div className="iac-error" role="alert">{error}<div className="iac-recovery">{loadError && <button onClick={() => void load()}>Retry loading</button>}{saveError && <><button onClick={() => void flush().catch(() => {})}>Retry save</button><button onClick={() => void load(true)}>Load saved draft</button></>}</div></div>}
     <div className="iac-footer">

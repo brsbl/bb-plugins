@@ -13,13 +13,15 @@ async function setup(composerText = "", saveFailure = false) {
     composer: { scope: { kind: "thread", threadId: "thr_test" }, text: composerText },
     rpc: {
       get: () => item,
-      save: (input: { draft: string; revision: number }) => {
+      save: (raw) => {
+        const input = raw as { draft: string; revision: number };
         calls.push("save");
         if (saveFailure) throw new Error("Draft could not be saved. Retry.");
         item = { ...item, revision: item.revision + 1, content: { ...fixture().content, draft: input.draft } } as Item;
         return item;
       },
-      prepare: (input: { action: "send"; revision: number }) => {
+      prepare: (raw) => {
+        const input = raw as { action: "send"; revision: number };
         calls.push("prepare"); expect(input.revision).toBe(item.revision);
         item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false } }; return item;
       },
@@ -31,8 +33,8 @@ async function setup(composerText = "", saveFailure = false) {
 it("flushes an immediate edit before submitting Send exactly once", async () => {
   const { slot, calls, get } = await setup();
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "My latest edit" } });
-  fireEvent.click(screen.getByRole("button", { name: "Send", exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: "Send", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(calls).toEqual(["save", "prepare"]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
@@ -47,7 +49,7 @@ it("keeps Ask for changes in the composer without submitting", async () => {
 });
 it("preserves an existing composer message", async () => {
   const { slot, calls } = await setup("Please also check another message");
-  fireEvent.click(screen.getByRole("button", { name: "Send", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   await screen.findByRole("alert");
   expect(slot.inspection.composer.text).toBe("Please also check another message");
   expect(slot.inspection.composer.submits).toHaveLength(0);
@@ -56,7 +58,7 @@ it("preserves an existing composer message", async () => {
 it("keeps an unsaved edit visible and offers recovery without submitting", async () => {
   const { slot, calls } = await setup("", true);
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "Keep this edit" } });
-  fireEvent.click(screen.getByRole("button", { name: "Send", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   await screen.findByRole("button", { name: "Retry save" });
   expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Keep this edit");
   expect(calls).toEqual(["save"]);
