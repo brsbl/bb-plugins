@@ -12,10 +12,15 @@ export const contentSchema = z.discriminatedUnion("type", [
     cc: z.array(address).max(30).default([]),
     bcc: z.array(address).max(30).default([]),
     subject: line,
-    original: z.object({ from: line, body: z.string().max(60_000) }).strict(),
+    original: z.object({ from: line, date: line.optional(), body: z.string().max(60_000) }).strict(),
     draft: draftSchema,
   }).strict(),
-  z.object({ type: z.literal("decide"), question: line, consequence: line }).strict(),
+  z.object({
+    type: z.literal("decide"), question: line, consequence: line,
+    yesLabel: line.optional(), noLabel: line.optional(),
+    // Explicit semantic key: matching button copy alone is not enough for bulk approval.
+    actionKey: idSchema.optional(),
+  }).strict(),
 ]);
 export const actionSchema = z.enum(["send", "save-draft", "yes", "no", "later", "skip"]);
 export type Action = z.infer<typeof actionSchema>;
@@ -36,6 +41,32 @@ export const itemSchema = z.object({
 }).strict();
 export type Item = z.infer<typeof itemSchema>;
 export type Content = z.infer<typeof contentSchema>;
+export const tableContentSchema = z.object({
+  title: line,
+  ids: z.array(idSchema).min(1).max(20).refine((ids) => new Set(ids).size === ids.length, "Each item must appear once"),
+}).strict();
+export const tableSchema = tableContentSchema.extend({ id: idSchema, threadId: idSchema });
+export const tableViewSchema = tableSchema.extend({ items: z.array(itemSchema) });
+export type TableView = z.infer<typeof tableViewSchema>;
+
+export function actionLabel(item: Item, action: Action): string {
+  if (item.content.type === "decide") {
+    if (action === "yes") return item.content.yesLabel ?? "Yes";
+    if (action === "no") return item.content.noLabel ?? "No";
+  }
+  return labels[action];
+}
+
+export function bulkLabel(items: Item[]): string | null {
+  const first = items[0]?.content;
+  if (!first || first.type !== "decide" || !first.actionKey || !first.yesLabel) return null;
+  return items.every(({ content }) => content.type === "decide" && content.actionKey === first.actionKey && content.yesLabel === first.yesLabel)
+    ? `${first.yesLabel} all` : null;
+}
+
+export function mentionId(item: Item, changes = false): string {
+  return `${item.threadId}:${item.id}:${changes ? "changes" : item.attempt!.id}`;
+}
 
 export function assertAction(item: Item, action: Action) {
   const allowed: Action[] = item.content.type === "reply"
@@ -52,5 +83,5 @@ export function title(item: Item): string {
 
 export function actionMessage(item: Item): string {
   if (!item.attempt) throw new Error("Choose an action first.");
-  return `${labels[item.attempt.action]}: ${title(item)} [action:${item.id}] [attempt:${item.attempt.id}]`;
+  return item.state === "failed" && !item.result?.retryable ? "Check outcome for " : `${actionLabel(item, item.attempt.action)} `;
 }

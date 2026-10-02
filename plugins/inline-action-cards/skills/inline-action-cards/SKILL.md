@@ -1,11 +1,11 @@
 ---
 name: inline-action-cards
-description: Put editable email replies or Yes/No decisions inline in a bb reply, handle action-card clicks, and update each card with its result. Use when triaging individual items, preparing email replies, reading [action:...] choices, or reporting action outcomes.
+description: Put editable email replies or Yes/No decisions inline in a bb reply, handle action-card clicks, and update each card with its result. Use when triaging individual items, preparing email replies, handling action mention choices, or reporting action outcomes.
 ---
 
 # Inline Action Cards
 
-One item per card. Create the item first, then emit the returned `::action{id="..."}` directive on its own line, outside code fences. Cards appear only inside assistant messages. IDs are unique within the owning thread; never reuse one for another email or decision. Use concise, task-specific IDs.
+Use a single card for one important item. Use a table for three or more similar items, or a mixed group that should stay together. Create the item first, then emit the returned `::action{id="..."}` directive on its own line, outside code fences. Cards appear only inside assistant messages. IDs are unique within the owning thread; never reuse one for another email or decision. Use concise, task-specific IDs.
 
 All item data and drafts live in the plugin's SQLite storage. Never put them in thread storage. CLI JSON travels to the server; local paths do not.
 
@@ -15,7 +15,7 @@ Run from the owning thread (or add `--thread <id>`). `--item-stdin` avoids shell
 
 ```sh
 bb action-cards create esc-1 --item-stdin <<'JSON'
-{"type":"reply","summary":"Follow up on the missing escrow refund","subject":"Re: Refund check","to":["escrow@example.com"],"cc":[],"bcc":[],"original":{"from":"Escrow team <escrow@example.com>","body":"We mailed your refund on June 8."},"draft":"Hello,\n\nCould you confirm the status of my refund check?\n\nThank you."}
+{"type":"reply","summary":"Follow up on the missing escrow refund","subject":"Re: Refund check","to":["escrow@example.com"],"cc":[],"bcc":[],"original":{"from":"Escrow team <escrow@example.com>","date":"Jun 8","body":"We mailed your refund on June 8."},"draft":"Hello,\n\nCould you confirm the status of my refund check?\n\nThank you."}
 JSON
 bb action-cards create receipts-1 --item-stdin <<'JSON'
 {"type":"decide","question":"File DigitalOcean under Receipts?","consequence":"Add the Receipts label to this invoice; it stays in your inbox."}
@@ -24,9 +24,25 @@ JSON
 
 Use the actual recipients and show every To/Cc/Bcc recipient. Include enough original context to understand the reply. A Reply draft is plain text; Markdown characters remain literal when sent. For a Decide card, state the exact consequence of Yes. No means do not perform the proposed action. Never invent approval from the presence of a card.
 
+## Group items in a table
+
+Create the items first, then create a table that references those same IDs. Emit its returned `::actions{id="..."}` directive on its own line. Rows keep their order as results arrive. Reply rows open their full editor with Review; only one is open at a time.
+
+```sh
+bb action-cards create news-1 --item-stdin <<'JSON'
+{"type":"decide","question":"DigitalOcean · September newsletter","consequence":"Archive this newsletter from the inbox.","yesLabel":"Archive","noLabel":"Keep","actionKey":"archive-email"}
+JSON
+# Create news-2 and news-3 for the other messages, then:
+bb action-cards create-table newsletters --table-stdin <<'JSON'
+{"title":"3 newsletters","ids":["news-1","news-2","news-3"]}
+JSON
+```
+
+Tables accept up to 20 existing items from the same thread. For mixed rows, include Reply and Decide IDs in the same list. A Decide item can supply `yesLabel`/`noLabel` for precise verbs. They still map to the existing `yes`/`no` actions. Use `actionKey` only when rows perform the **same operation** (for example `archive-email`); matching keys and affirmative labels enable Archive all. Do not give archive, delete, or differently scoped actions the same key. The bulk button approves only the currently ready rows; failed rows require their own retry. Each selected item gets its own attempt and outcome, so partial failures remain visible.
+
 ## Handle a click
 
-A submitted message such as `Send: escrow follow-up [action:esc-1] [attempt:<uuid>]` is approval for exactly that action and item. The button submits through the existing composer pipeline (and can queue while the thread is busy). Do not ask the user to type another confirmation.
+A click submits readable text such as “Send escrow follow-up” with a named mention pill. Its user-hidden context contains `kind: inline-action-card`, `threadId`, `itemId`, `attemptId`, `action`, and `intent`. `approved-action` is approval for exactly that attempt. A bulk message contains one such reference per selected row. Read those IDs from context, never guess them from the label. Legacy messages containing `[action:...] [attempt:...]` remain valid references to their existing attempts. The button submits through the existing composer pipeline (and can queue while the thread is busy). Do not ask the user to type another confirmation.
 
 1. Claim the exact attempt before acting:
    `bb action-cards claim esc-1 --attempt <uuid>`
@@ -39,7 +55,7 @@ bb action-cards report esc-1 --attempt <uuid> --outcome succeeded --message 'Sen
 bb action-cards report receipts-1 --attempt <uuid> --outcome succeeded --message 'Added to Receipts'
 ```
 
-The card adds the local time. Put useful result detail in the message when needed. Read persisted state any time with `bb action-cards get esc-1`.
+The card collapses to a result line and adds the local time. Use “Sent to Escrow team”, “Archived”, or “Filed under Receipts” as appropriate. The draft stays reachable through View. Do not promise Undo: this plugin has no reversible service action. Put useful result detail in the message when needed. Read persisted state any time with `bb action-cards get esc-1`.
 
 A rejected claim is not approval to try again. It means the attempt is stale, already claimed, or finished. Read its state and reconcile the external service result; never repeat the side effect. The claim is durable across reloads. Retain the external service's receipt in the thread when available. This prevents duplicate execution from repeated clicks/messages but cannot make external APIs exactly-once.
 
@@ -51,11 +67,11 @@ Report a short, user-facing failure with recovery in the same place. Mark it ret
 bb action-cards report esc-1 --attempt <uuid> --outcome failed --message 'Gmail is disconnected. Reconnect it, then retry.' --retryable
 ```
 
-The card shows Retry. A new click creates a new attempt, which must be claimed again. If a timeout or crash leaves the outcome unknown, omit `--retryable`. The card offers Check outcome; inspect the service before reporting success or safe failure. Do not send again to discover whether the earlier send worked. A `Check outcome:` message authorizes reconciliation only, not repeating the action. A pending Resend request uses the original attempt ID, so it cannot be claimed twice.
+The card shows Retry. A new click creates a new attempt, which must be claimed again. If a timeout or crash leaves the outcome unknown, omit `--retryable`. The card offers Check outcome; inspect the service before reporting success or safe failure. Do not send again to discover whether the earlier send worked. A message with `check-outcome` context (or a legacy `Check outcome:` message) authorizes reconciliation only, not repeating the action. A pending Resend request uses the original attempt ID, so it cannot be claimed twice.
 
 ## Ask for changes
 
-This button saves current edits, fills the composer, and focuses it without submitting. Wait for the user's requested changes. Read the current item, then update the **same** draft using its revision:
+This button saves current edits, inserts a readable prompt with a `request-changes` mention, and focuses the composer without submitting. Wait for the user's requested changes. Read the current item, then update the **same** draft using its revision:
 
 ```sh
 bb action-cards get esc-1
@@ -66,8 +82,8 @@ Could you confirm when my refund check was mailed?
 TEXT
 ```
 
-A revision conflict means the user edited the draft meanwhile. Re-read and incorporate their edit rather than overwriting it. A revision is not approval to send. The original card refreshes in place; do not create another card for the revised draft. Failed actions must be reconciled or safely reopened before editing. Later/Skip cards have Resume.
+A revision conflict means the user edited the draft meanwhile. Re-read and incorporate their edit rather than overwriting it. A revision is not approval to send. The original card refreshes in place; do not create another card for the revised draft. Failed actions must be reconciled or safely reopened before editing. Later/Skip cards have Resume in their ⋯ menu. Safe failures put Edit draft / Choose again there too.
 
 ## Limits
 
-Reply and Decide only; inline only. No Gmail credentials, Gmail transport, autonomous send, scheduled reminder, batch card, or side panel is included. Agents supply the connected service and must report outcomes. The editor is a small autosaving plain-text field; it does not implement Docs rich text or proposal acceptance. Docs' private editor cannot be embedded or flushed safely by another plugin through the public SDK.
+Reply and Decide only; inline only. No Gmail credentials, Gmail transport, autonomous send, scheduled reminder, Undo, or side panel is included. Agents supply the connected service and must report outcomes. The editor is a small autosaving plain-text field; it does not implement Docs rich text or proposal acceptance. Docs' private editor cannot be embedded or flushed safely by another plugin through the public SDK.

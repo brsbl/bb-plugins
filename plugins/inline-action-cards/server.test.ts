@@ -17,7 +17,7 @@ describe("durable inline actions", () => {
     expect(() => store.save({ ...ref, revision: 1, draft: "Stale autosave" })).toThrow("changed elsewhere");
     expect(() => store.prepare({ ...ref, revision: 1, action: "send" })).toThrow("changed elsewhere");
     const pending = store.prepare({ ...ref, revision: saved.revision, action: "send" });
-    expect(actionMessage(pending)).toContain("Send: Escrow follow-up [action:esc-1] [attempt:");
+    expect(actionMessage(pending)).toBe("Send ");
     expect(() => store.prepare({ ...ref, revision: pending.revision, action: "send" })).toThrow("in progress");
     const claimed = store.claim(ref.threadId, ref.id, pending.attempt!.id);
     expect(claimed.content).toMatchObject({ draft: "User's exact edited draft" });
@@ -58,4 +58,32 @@ describe("durable inline actions", () => {
     expect(saved).toMatchObject({ revision: 2, content: { draft: "After reload" } });
     await expect(reloaded.harness.behavior.callRpc("get", { ...ref, id: "../escape" })).rejects.toThrow();
   });
+});
+
+it("resolves stable approvals into hidden context and preserves legacy items", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  await host.harness.behavior.runCli(["create", ref.id, "--thread", ref.threadId, "--item", JSON.stringify(reply)]);
+  const pending = await host.harness.behavior.callRpc("prepare", { ...ref, revision: 1, action: "send" }) as { attempt: { id: string } };
+  const provider = host.harness.registrations.mentionProviders[0]!;
+  const resolved = await provider.resolve(`${ref.threadId}:${ref.id}:${pending.attempt.id}`);
+  expect(JSON.parse(resolved.context)).toMatchObject({ intent: "approved-action", itemId: ref.id, attemptId: pending.attempt.id, threadId: ref.threadId, action: "send" });
+  expect(() => provider.resolve(`${ref.threadId}:${ref.id}:stale`)).toThrow("replaced");
+  expect(JSON.parse((await provider.resolve(`${ref.threadId}:${ref.id}:changes`)).context).intent).toBe("request-changes");
+});
+it("bulk approval atomically reserves only the displayed ready rows of a matching action", () => {
+  const { store } = setup();
+  const content = { type: "decide", question: "Newsletter", consequence: "Archive from inbox", yesLabel: "Archive", noLabel: "Keep", actionKey: "archive-email" };
+  ["a", "b", "c"].forEach((id) => store.create(ref.threadId, id, content));
+  store.createTable(ref.threadId, "news", { title: "Newsletters", ids: ["a", "b", "c"] });
+  const args = { threadId: ref.threadId, id: "news", items: ["a", "b", "c"].map((id) => ({ id, revision: 1 })) };
+  expect(() => store.prepareTable({ ...args, items: args.items.slice(0, 2) })).toThrow("changed");
+  expect(store.get(ref.threadId, "a").state).toBe("ready");
+  const approved = store.prepareTable(args);
+  expect(approved).toHaveLength(3);
+  expect(new Set(approved.map((item) => item.attempt!.id)).size).toBe(3);
+  expect(() => store.prepareTable(args)).toThrow("changed");
+  store.create(ref.threadId, "other", { ...content, actionKey: "delete-email" });
+  store.createTable(ref.threadId, "mixed", { title: "Different operations", ids: ["a", "other"] });
+  expect(() => store.prepareTable({ ...args, id: "mixed", items: [{ id: "other", revision: 1 }] })).toThrow("do not share");
+  expect(() => store.table("thr_other", "news")).toThrow("unavailable");
 });

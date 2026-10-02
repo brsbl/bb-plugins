@@ -1,30 +1,52 @@
-.iac-card { margin: 12px 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--foreground); font-size: 13px; line-height: 1.5; }
-.iac-heading { display: flex; align-items: baseline; gap: 10px; }
-.iac-heading strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-.iac-kind { color: var(--muted-foreground); font-size: 11px; flex-shrink: 0; }
-.iac-subject { margin-top: 6px; }
-.iac-recipients { color: var(--muted-foreground); font-size: 12px; margin: 4px 0 10px; overflow-wrap: anywhere; }
-.iac-original { margin: 8px 0 16px; font-size: 12px; }
-.iac-original summary { color: var(--muted-foreground); cursor: pointer; width: fit-content; }
-.iac-from { margin-top: 10px; color: var(--muted-foreground); }
-.iac-email { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 8px 0; }
-.iac-draft-header { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted-foreground); margin-bottom: 6px; }
-.iac-card textarea { display: block; box-sizing: border-box; width: 100%; min-height: 120px; max-height: 450px; resize: vertical; padding: 12px; font: inherit; line-height: 1.65; color: inherit; background: var(--background); border: 1px solid var(--border); border-radius: 7px; }
-.iac-card textarea[readonly] { background: transparent; }
-.iac-footer { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
-.iac-card button { font: inherit; font-size: 12px; color: inherit; border: 1px solid var(--border); border-radius: 6px; background: transparent; padding: 5px 9px; min-height: 30px; cursor: pointer; }
-.iac-card button:hover { background: var(--muted); }
-.iac-card button:disabled { opacity: .5; cursor: default; }
-.iac-card .iac-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); font-weight: 500; }
-.iac-card .iac-primary:hover { filter: brightness(.94); }
-.iac-card :is(button, textarea, summary):focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
-.iac-utilities { display: flex; gap: 2px; margin-left: auto; }
-.iac-card .iac-icon { width: 30px; padding: 6px; border-color: transparent; color: var(--muted-foreground); }
+.iac-card, .iac-table { --iac-gap: calc(var(--spacing, .25rem) * 2); margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius-lg, .75rem); background: var(--card); color: var(--foreground); font-size: 13px; line-height: 1.6; }
+.iac-card { padding: 14px 16px; }
+.iac-header, .iac-result-line, .iac-row-line, .iac-table-header { display: flex; align-items: center; justify-content: space-between; gap: var(--iac-gap); }
+.iac-header { align-items: flex-start; }
+.iac-recipient-line { flex: 1; min-width: 0; padding-top: 4px; overflow-wrap: anywhere; font-size: 12px; }
+.iac-muted, .iac-consequence, .iac-save, .iac-progress, .iac-result-line time { color: var(--muted-foreground); }
+.iac-question { padding-top: 4px; font-weight: 500; overflow-wrap: anywhere; }
+.iac-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
+.iac-footer { margin-top: 8px; }
+.iac-actions button { font-size: 12px; }
+.iac-icon { width: 28px; height: 28px; padding: 5px; color: var(--muted-foreground); }
 .iac-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
-.iac-consequence { margin: 6px 0 0; color: var(--muted-foreground); }
-.iac-error { margin-top: 10px; color: var(--destructive); font-size: 12px; }
-.iac-recovery { display: flex; gap: 6px; margin-top: 6px; }
-.iac-result { flex: 1; }
-.iac-failed { flex: 1; color: var(--destructive); }
-.iac-footer time { color: var(--muted-foreground); margin-left: 4px; font-size: 11px; }
-@media (max-width: 480px) { .iac-card { padding: 12px; } .iac-heading { flex-direction: column; gap: 2px; } }
+.iac-original { margin: 8px 0 12px; min-width: 0; font-size: 12px; }
+.iac-original summary { display: flex; align-items: baseline; gap: 6px; color: var(--muted-foreground); cursor: pointer; }
+.iac-original summary::before { content: "▸"; flex-shrink: 0; }
+.iac-original[open] summary::before { content: "▾"; }
+.iac-original summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iac-email { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 12px 0; }
+.iac-card textarea, .iac-row textarea { display: block; box-sizing: border-box; width: 100%; min-height: 28px; max-height: 560px; resize: none; padding: 4px 0; font: inherit; line-height: 1.7; color: inherit; background: transparent; border: 0; border-radius: var(--radius-sm, .25rem); outline: none; }
+.iac-card textarea:not([readonly]):hover, .iac-row textarea:not([readonly]):hover { background: var(--state-hover, var(--muted)); }
+.iac-card textarea:not([readonly]):focus, .iac-row textarea:not([readonly]):focus { background: var(--state-hover, var(--muted)); box-shadow: 0 0 0 1px var(--border); }
+.iac-original summary:focus-visible { outline: 1px solid var(--ring); outline-offset: 3px; }
+.iac-save { display: block; text-align: right; font-size: 11px; }
+.iac-consequence { margin: 4px 0 0; overflow-wrap: anywhere; }
+.iac-error, .iac-failed { color: var(--destructive); }
+.iac-error { margin-top: 8px; font-size: 12px; }
+.iac-result-line > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.iac-result-line time { font-size: 11px; white-space: nowrap; }
+.iac-result-line + .iac-body, .iac-result-line + .iac-row-expanded { margin-top: 12px; }
+.iac-table-header { padding: 10px 16px; color: var(--muted-foreground); font-size: 12px; }
+.iac-table > .iac-error { padding: 0 16px 10px; }
+.iac-row { padding: 12px 16px; border-top: 1px solid var(--border); }
+.iac-row-line { align-items: center; }
+.iac-row-description { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.iac-row-description .iac-consequence { font-size: 12px; }
+.iac-row-line > .iac-footer { margin-top: 0; min-width: 160px; }
+.iac-row .iac-footer > button:last-child { min-width: 64px; }
+.iac-row-expanded { margin-top: 12px; }
+.iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: 12px; box-shadow: var(--shadow-md); }
+.iac-menu { min-width: 170px; padding: 4px; }
+.iac-menu-item { padding: 6px 8px; border-radius: var(--radius-sm, .25rem); cursor: pointer; outline: none; }
+.iac-menu-item[data-highlighted] { background: var(--state-hover, var(--muted)); }
+.iac-tooltip { padding: 4px 8px; }
+@media (max-width: 480px) {
+  .iac-card, .iac-row { padding: 12px; }
+  .iac-table-header { padding: 8px 12px; }
+  .iac-row-line { flex-wrap: wrap; }
+  .iac-row-line > .iac-footer { margin-left: auto; }
+  .iac-result-line { align-items: flex-start; flex-wrap: wrap; }
+  .iac-result-line > span { flex-basis: 160px; }
+  .iac-result-line > .iac-actions { margin-left: auto; }
+}

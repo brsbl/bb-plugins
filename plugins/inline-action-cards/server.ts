@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionSchema, assertAction, contentSchema, draftSchema, idSchema, itemSchema, type Item } from "./model.js";
+import { actionSchema, assertAction, bulkLabel, contentSchema, draftSchema, idSchema, itemSchema, tableContentSchema, tableSchema, tableViewSchema, type Item } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
@@ -10,15 +10,19 @@ export const rpcContract = defineRpcContract({
   save: { input: versioned.extend({ draft: draftSchema }), output: itemSchema },
   prepare: { input: versioned.extend({ action: actionSchema }), output: itemSchema },
   reopen: { input: versioned, output: itemSchema },
+  table: { input: ref, output: tableViewSchema },
+  prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
 });
 
 export function createStore(bb: BbPluginApi) {
   const db = bb.storage.database();
   bb.storage.migrate(db, [
     "CREATE TABLE action_items (thread_id TEXT NOT NULL, item_id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (thread_id, item_id))",
+    "CREATE TABLE action_tables (thread_id TEXT NOT NULL, table_id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (thread_id, table_id))",
   ]);
   const read = db.prepare("SELECT value FROM action_items WHERE thread_id = ? AND item_id = ?");
   const write = db.prepare("INSERT INTO action_items VALUES (?, ?, ?) ON CONFLICT(thread_id, item_id) DO UPDATE SET value=excluded.value");
+  const readTable = db.prepare("SELECT value FROM action_tables WHERE thread_id = ? AND table_id = ?");
   const get = (threadId: string, id: string): Item => {
     const row = read.get(threadId, id) as { value: string } | undefined;
     if (!row) throw new Error("This card is unavailable. Ask the agent to recreate it with the same item ID.");
@@ -41,8 +45,47 @@ export function createStore(bb: BbPluginApi) {
     bb.realtime.publish("items", { threadId, id });
     return next;
   };
+  const table = (threadId: string, id: string) => {
+    const row = readTable.get(threadId, id) as { value: string } | undefined;
+    if (!row) throw new Error("This table is unavailable. Ask the agent to recreate it.");
+    const value = tableSchema.parse(JSON.parse(row.value));
+    return { ...value, items: value.ids.map((itemId) => get(threadId, itemId)) };
+  };
+  const prepare = (item: Item, action: z.infer<typeof actionSchema>) => {
+    if (item.state !== "ready" && !(item.state === "failed" && item.result?.retryable)) throw new Error("This card already has an action in progress or has finished.");
+    assertAction(item, action);
+    if (item.state === "failed" && action !== item.attempt?.action) throw new Error("Retry the original action, or reopen the card to choose another.");
+    item.state = "pending";
+    item.attempt = { id: randomUUID(), action, claimed: false };
+    item.result = null;
+  };
   return {
     get,
+    table,
+    createTable(threadId: string, id: string, raw: unknown) {
+      const content = tableContentSchema.parse(raw);
+      return db.transaction(() => {
+        content.ids.forEach((itemId) => get(threadId, itemId));
+        if (readTable.get(threadId, id)) throw new Error("That table ID already exists. Reuse its directive.");
+        const value = { ...content, threadId, id };
+        db.prepare("INSERT INTO action_tables VALUES (?, ?, ?)").run(threadId, id, JSON.stringify(value));
+        return value;
+      })();
+    },
+    prepareTable(input: z.infer<typeof rpcContract.prepareTable.input>) {
+      const next = db.transaction(() => {
+        const group = table(input.threadId, input.id);
+        if (!bulkLabel(group.items)) throw new Error("These rows do not share one action. Choose each row separately.");
+        const ready = group.items.filter((item) => item.state === "ready");
+        if (!ready.length || ready.length !== input.items.length || new Set(input.items.map((item) => item.id)).size !== input.items.length || ready.some((item) => !input.items.some((candidate) => candidate.id === item.id && candidate.revision === item.revision))) throw new Error("This table changed. Review the remaining rows, then try again.");
+        return ready.map((item) => {
+          prepare(item, "yes"); item.revision++; item.updatedAt = new Date().toISOString();
+          return persist(item);
+        });
+      })();
+      bb.realtime.publish("items", { threadId: input.threadId });
+      return next;
+    },
     create(threadId: string, id: string, raw: unknown) {
       const content = contentSchema.parse(raw);
       return db.transaction(() => {
@@ -58,12 +101,7 @@ export function createStore(bb: BbPluginApi) {
     },
     prepare(input: z.infer<typeof rpcContract.prepare.input>) {
       return change(input.threadId, input.id, input.revision, (item) => {
-        if (item.state !== "ready" && !(item.state === "failed" && item.result?.retryable)) throw new Error("This card already has an action in progress or has finished.");
-        assertAction(item, input.action);
-        if (item.state === "failed" && input.action !== item.attempt?.action) throw new Error("Retry the original action, or reopen the card to choose another.");
-        item.state = "pending";
-        item.attempt = { id: randomUUID(), action: input.action, claimed: false };
-        item.result = null;
+        prepare(item, input.action);
       });
     },
     claim(threadId: string, id: string, attemptId: string) {
@@ -94,6 +132,24 @@ export default function plugin(bb: BbPluginApi): void {
   bb.rpc.register(rpcContract, {
     get: ({ threadId, id }) => store.get(threadId, id),
     save: store.save, prepare: store.prepare, reopen: store.reopen,
+    table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable,
+  });
+  bb.ui.registerMentionProvider({
+    id: "action", label: "Action cards", search: () => [],
+    resolve(value) {
+      const [thread, id, attempt, extra] = value.split(":");
+      if (extra || !attempt) throw new Error("This action reference is incomplete. Use the card again.");
+      const item = store.get(idSchema.parse(thread), idSchema.parse(id));
+      const changes = attempt === "changes";
+      if (!changes && item.attempt?.id !== attempt) throw new Error("This action was replaced. Use the latest card.");
+      return { context: JSON.stringify({
+        kind: "inline-action-card", threadId: item.threadId, itemId: item.id,
+        intent: changes ? "request-changes" : item.state === "failed" ? "check-outcome" : "approved-action",
+        attemptId: changes ? null : item.attempt!.id, action: changes ? null : item.attempt!.action,
+        instruction: changes ? "Read the latest saved item and revise that same draft. This is not approval to act."
+          : "Claim this exact attempt once with bb action-cards claim before acting. Use the returned latest saved content. A failed/claimed/completed attempt authorizes reconciliation only; never repeat its side effect. Report the verified result with bb action-cards report.",
+      }) };
+    },
   });
   const threadOption = { type: "string", description: "Owning thread; defaults to this thread" } as const;
   const itemPosition = [{ name: "id", required: true, description: "Stable item ID" }] as const;
@@ -102,6 +158,15 @@ export default function plugin(bb: BbPluginApi): void {
   bb.cli.register(defineCli({
     name: "action-cards", summary: "Create inline cards, read saved drafts, and report action results",
     commands: {
+      "create-table": cliCommand({
+        summary: "Group existing items in an inline table", positionals: itemPosition,
+        options: { thread: threadOption, table: { type: "string", required: true, stdin: true, description: "Table JSON with title and item ids; use --table-stdin" } },
+        run({ options, positionals }, ctx) {
+          const id = idSchema.parse(positionals.id);
+          store.createTable(scope(ctx, options.thread), id, JSON.parse(options.table));
+          return { exitCode: 0, stdout: `::actions{id="${id}"}\n` };
+        },
+      }),
       create: cliCommand({
         summary: "Create one card; prints its directive", positionals: itemPosition,
         options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply or Decide JSON; use --item-stdin" } },
