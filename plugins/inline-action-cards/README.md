@@ -2,6 +2,8 @@
 
 Edit an email reply or approve a decision directly inside an agent message. Each card keeps its draft, recipients, buttons, and result together.
 
+![Editable Reply and Decide cards inside a thread](https://github.com/user-attachments/assets/deef0d32-fda2-40bd-9351-0abe1d01d7c0)
+
 ## Install
 
 ```bash

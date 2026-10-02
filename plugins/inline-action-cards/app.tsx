@@ -25,6 +25,7 @@ function ActionCard({ id, threadId }: { id: string; threadId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const lastLoadFailed = useRef(false);
   const flight = useRef<Promise<void> | null>(null);
   const lock = useRef(false);
   const alive = useRef(true);
@@ -41,9 +42,11 @@ function ActionCard({ id, threadId }: { id: string; threadId: string }) {
       adopt(next);
       text.current = next.content.type === "reply" ? next.content.draft : "";
       dirty.current = false;
-      setDraft(text.current); setLoadError(false); setSaveError(false); setError(null);
+      setDraft(text.current); setLoadError(false); setSaveError(false);
+      if (discard || lastLoadFailed.current) setError(null);
+      lastLoadFailed.current = false;
     } catch (err) {
-      if (alive.current) { setLoadError(true); setError(readableError(err)); }
+      if (alive.current) { lastLoadFailed.current = true; setLoadError(true); setError(readableError(err)); }
     }
   }, [rpc, id, threadId, adopt]);
   useEffect(() => {

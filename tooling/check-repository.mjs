@@ -266,7 +266,12 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     const screenshots = localImageTargets(pluginReadme).map((path) =>
       normalizeRelativePath(path, `${slug}: screenshot`),
     );
-    assert(screenshots.length > 0, `${slug}: README screenshot missing`);
+    // PR evidence is uploaded directly to GitHub; reuse those durable captures
+    // in the catalog without committing image files into the product diff.
+    const githubScreenshots = markdownImageTargets(pluginReadme).filter((target) =>
+      /^https:\/\/github\.com\/user-attachments\/assets\/[a-f0-9-]+$/i.test(target),
+    );
+    assert(screenshots.length + githubScreenshots.length > 0, `${slug}: README screenshot missing`);
     for (const screenshot of screenshots) {
       const details = await stat(resolve(directory, screenshot)).catch(() => null);
       assert(
@@ -279,7 +284,8 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       );
     }
     assert(
-      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)),
+      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)) ||
+        githubScreenshots.some((screenshot) => rootImages.includes(screenshot)),
       `${slug}: root representative screenshot missing`,
     );
     assert(

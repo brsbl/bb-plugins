@@ -78,6 +78,8 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 Edit email replies and approve decisions inside agent messages. Each item keeps its draft, recipients, action buttons, and result together.
 
+![Editable Reply and Decide cards inside a thread](https://github.com/user-attachments/assets/deef0d32-fda2-40bd-9351-0abe1d01d7c0)
+
 [Source](plugins/inline-action-cards) · [README](plugins/inline-action-cards/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/inline-action-cards --yes`

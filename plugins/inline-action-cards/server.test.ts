@@ -52,9 +52,10 @@ describe("durable inline actions", () => {
     const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
     const created = await host.harness.behavior.runCli(["create", ref.id, "--thread", ref.threadId, "--item", JSON.stringify(reply)]);
     expect(created.stdout).toBe('::action{id="esc-1"}\n');
-    await host.harness.lifecycle.reload(plugin);
-    const saved = await host.harness.behavior.callRpc("save", { ...ref, revision: 1, draft: "After reload" });
+    const reloaded = await host.harness.lifecycle.reload(plugin);
+    hosts[hosts.indexOf(host)] = reloaded;
+    const saved = await reloaded.harness.behavior.callRpc("save", { ...ref, revision: 1, draft: "After reload" });
     expect(saved).toMatchObject({ revision: 2, content: { draft: "After reload" } });
-    await expect(host.harness.behavior.callRpc("get", { ...ref, id: "../escape" })).rejects.toThrow();
+    await expect(reloaded.harness.behavior.callRpc("get", { ...ref, id: "../escape" })).rejects.toThrow();
   });
 });
