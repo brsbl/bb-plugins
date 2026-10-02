@@ -93,6 +93,28 @@
   opacity: 0.6;
 }
 
+.bbd-ask {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482900;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+}
+
+.bbd-window.bbd-ask-window {
+  position: relative;
+  width: min(360px, calc(100vw - 32px));
+}
+
+.bbd-ask-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  font-size: var(--text-xs);
+}
+
 .bbd-window-layer {
   position: fixed;
   inset: 0;
