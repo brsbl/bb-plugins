@@ -25,8 +25,9 @@ This folder holds the small amount of machinery the plugins genuinely share. Run
 
 ## Marketplace releases
 
-Thread Organizer and Context Katamari are listed in the BB marketplace. Bump the
-plugin version and lockfile, rebuild its artifacts, and merge after CI passes.
+Thread Organizer, Context Katamari, and Ambient are listed in the BB
+marketplace. Bump the plugin version and lockfile, rebuild its artifacts, and
+merge after CI passes.
 The existing publish job creates `<slug>/v<version>` from the same bundles as
 `plugin/<slug>`. The tag retains `plugins/<slug>`, so marketplace URLs and
 version ranges stay valid. Do not tag the source commit manually.
