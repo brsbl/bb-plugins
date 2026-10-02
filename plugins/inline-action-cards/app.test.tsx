@@ -28,7 +28,10 @@ async function setup(composerText = "", saveFailure = false) {
     },
   });
   await screen.findByRole("textbox", { name: "Draft" });
-  return { slot, calls, get: () => item };
+  return { slot, calls, get: () => item, reportSuccess: async () => {
+    item = { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Sent", retryable: false } };
+    await slot.behavior.emitRealtime("items", {});
+  } };
 }
 it("flushes an immediate edit before submitting Send exactly once", async () => {
   const { slot, calls, get } = await setup();
@@ -55,6 +58,15 @@ it("preserves an existing composer message", async () => {
   expect(slot.inspection.composer.text).toBe("Please also check another message");
   expect(slot.inspection.composer.submits).toHaveLength(0);
   expect(calls).toEqual([]);
+});
+it("replaces an obsolete local error when the agent reports success", async () => {
+  const { reportSuccess } = await setup("Another composer message");
+  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
+  await screen.findByRole("alert");
+  // Another client can complete the item while this view retains a local error.
+  await reportSuccess();
+  await screen.findByText(/Sent to escrow@example.com/);
+  expect(screen.queryByRole("alert")).toBeNull();
 });
 it("keeps an unsaved edit visible and offers recovery without submitting", async () => {
   const { slot, calls } = await setup("", true);
