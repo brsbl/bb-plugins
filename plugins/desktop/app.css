@@ -1426,6 +1426,9 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 .bbd-im {
+  /* Larger than bb's 13 px so the serif transcript and its gray system lines read comfortably at a glance. */
+  --bbd-im-text: 16px;
+  --bbd-im-system-text: 14px;
   --bbd-im-face: color-mix(in oklch, var(--canvas) 92%, var(--ink));
   --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
   --bbd-im-me: light-dark(color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink)), oklch(0.76 0.13 262));
@@ -1450,7 +1453,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   gap: 8px;
   margin: 4px 4px 0;
   padding: 6px 8px;
-  font: italic 12px/1.5 Tahoma, Verdana, sans-serif;
+  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
   color: var(--bbd-im-system);
   background: var(--bbd-im-paper);
   box-shadow:
@@ -1498,7 +1501,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   margin-right: 6px;
   content: var(--bbd-im-buddy);
   /* Same size and line height as the message text, as in AIM, so the name sits on its first line. */
-  font: bold var(--text-sm)/calc(var(--text-sm) * 1.625) "Times New Roman", Times, serif;
+  font: bold var(--bbd-im-text)/1.625 "Times New Roman", Times, serif;
   color: var(--bbd-im-them);
   min-width: 0;
   max-width: 100%;
@@ -1515,7 +1518,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
  * down a line, so it is lifted above the speaker as a system line and "Me:" stays with what was said.
  */
 .bbd-im-chat [data-message-column]:has(> .ml-auto > .mb-1:first-child) {
-  padding-top: 20px;
+  padding-top: 24px;
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child {
@@ -1523,7 +1526,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   top: 0;
   left: 0.5rem;
   margin: 0;
-  font: italic 12px/18px Tahoma, Verdana, sans-serif;
+  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
   color: var(--bbd-im-system);
 }
 
@@ -1531,10 +1534,6 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   font: inherit;
   color: inherit;
   -webkit-text-fill-color: currentColor;
-}
-
-.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child svg {
-  display: none;
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto {
@@ -1580,9 +1579,12 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   overflow-wrap: anywhere;
 }
 
-/* AIM's serif at bb's message size; code keeps bb's monospace. */
-.bbd-im-chat [data-message-column] {
+/* AIM's serif, a size up from bb's messages; code keeps bb's monospace. */
+.bbd-im-chat [data-message-column],
+.bbd-im-chat [data-message-column] :is(.text-sm, .text-xs, .text-base) {
   font-family: "Times New Roman", Times, serif;
+  font-size: var(--bbd-im-text);
+  line-height: 1.625;
 }
 
 /* Times is small on the line, so inline code drops a size to stay with the words around it. */
@@ -1609,13 +1611,13 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 .bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row),
 .bbd-im-chat .mt-4.min-h-7:has(> .animate-shine) {
   border-radius: 0;
-  font: italic 12px/1.5 Tahoma, Verdana, sans-serif;
+  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
   color: var(--bbd-im-system);
 }
 
 .bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.text-sm, .text-muted-foreground, .text-subtle-foreground),
 .bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row) :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
-  font-size: 12px;
+  font-size: var(--bbd-im-system-text);
   color: inherit;
 }
 
