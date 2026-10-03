@@ -41,7 +41,6 @@ function pointer(type: string, x: number, pointerId = 1) {
   return event;
 }
 function gesture() {
-  window.dispatchEvent(pointer("pointerdown", 0));
   const target = document.createElement("div");
   document.body.append(target);
   target.setPointerCapture = vi.fn();
@@ -56,42 +55,50 @@ function gesture() {
 afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ""; });
 
 describe("pointer lifecycle", () => {
-  it("coalesces movement and flushes the final position exactly once on drop", () => {
-    vi.spyOn(window, "requestAnimationFrame").mockReturnValue(1);
+  it("follows the captured pointer past the threshold and commits on release", () => {
     const g = gesture();
-    for (let x = 4; x < 64; x++) window.dispatchEvent(pointer("pointermove", x));
+    g.target.dispatchEvent(pointer("pointermove", 2));
     expect(g.move).not.toHaveBeenCalled();
-    window.dispatchEvent(pointer("pointerup", 64));
-    expect(g.move).toHaveBeenCalledTimes(1);
-    expect(g.move.mock.calls[0]![0]).toEqual({ x: 64, y: 0 });
-    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true, false);
+    g.target.dispatchEvent(pointer("pointermove", 64));
+    expect(g.move).toHaveBeenLastCalledWith({ x: 64, y: 0 }, expect.anything());
+    expect(document.querySelector(".bbd-drag-shield")).not.toBeNull();
+    g.target.dispatchEvent(pointer("pointerup", 64));
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
     expect(g.target.releasePointerCapture).toHaveBeenCalledWith(1);
     expect(document.querySelector(".bbd-drag-shield")).toBeNull();
   });
-  it.each(["pointercancel", "lostpointercapture", "blur", "contextmenu", "Escape", "unmount"])("cleans up on %s without committing a pending move", (reason) => {
-    vi.spyOn(window, "requestAnimationFrame").mockReturnValue(1);
+  it.each(["pointercancel", "lostpointercapture", "unmount"])("cancels on %s and releases everything", (reason) => {
     document.documentElement.style.userSelect = "text";
     const g = gesture();
-    window.dispatchEvent(pointer("pointermove", 10));
+    g.target.dispatchEvent(pointer("pointermove", 10));
     if (reason === "unmount") g.cancel();
-    else if (reason === "Escape") window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    else if (reason === "lostpointercapture") g.target.dispatchEvent(pointer(reason, 10));
-    else window.dispatchEvent(pointer(reason, 10));
-    window.dispatchEvent(pointer("pointerup", 20));
-    expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true, reason === "Escape");
-    expect(g.move).not.toHaveBeenCalled();
+    else g.target.dispatchEvent(pointer(reason, 10));
+    g.target.dispatchEvent(pointer("pointerup", 20));
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true);
     expect(document.documentElement.style.userSelect).toBe("text");
     expect(document.querySelector(".bbd-drag-shield")).toBeNull();
     expect(g.target.releasePointerCapture).toHaveBeenCalledTimes(1);
   });
-  it("suppresses a cancelled press's release click but permits the next gesture", () => {
+  it.each(["blur", "resize", "contextmenu", "keydown"])("keeps dragging through a window %s, as bb's resizers do", (type) => {
     const g = gesture();
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-    window.dispatchEvent(pointer("pointerup", 0));
+    g.target.dispatchEvent(pointer("pointermove", 10));
+    window.dispatchEvent(type === "keydown" ? new KeyboardEvent("keydown", { key: "Escape" }) : new Event(type));
+    g.target.dispatchEvent(pointer("pointermove", 30));
+    g.target.dispatchEvent(pointer("pointerup", 30));
+    expect(g.move).toHaveBeenLastCalledWith({ x: 30, y: 0 }, expect.anything());
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
+  });
+  it("swallows the click that follows a drag, but not a later plain click", async () => {
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 10));
+    g.target.dispatchEvent(pointer("pointerup", 10));
     const click = () => new MouseEvent("click", { detail: 1, bubbles: true, cancelable: true });
     expect(g.target.dispatchEvent(click())).toBe(false);
-    window.dispatchEvent(pointer("pointerdown", 0));
-    expect(g.target.dispatchEvent(click())).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const plain = gesture();
+    plain.target.dispatchEvent(pointer("pointerup", 0));
+    expect(plain.end).toHaveBeenCalledExactlyOnceWith(false, false);
+    expect(plain.target.dispatchEvent(click())).toBe(true);
   });
   it.each([1, 2])("does not capture button %s", (button) => {
     const target = document.createElement("div");
@@ -101,11 +108,11 @@ describe("pointer lifecycle", () => {
   });
   it("ignores other pointers and preserves a tiny drag as a click", () => {
     const g = gesture();
-    window.dispatchEvent(pointer("pointermove", 20, 2));
-    window.dispatchEvent(pointer("pointerup", 20, 2));
+    g.target.dispatchEvent(pointer("pointermove", 20, 2));
+    g.target.dispatchEvent(pointer("pointerup", 20, 2));
     expect(g.end).not.toHaveBeenCalled();
-    window.dispatchEvent(pointer("pointermove", 2));
-    window.dispatchEvent(pointer("pointerup", 2));
+    g.target.dispatchEvent(pointer("pointermove", 2));
+    g.target.dispatchEvent(pointer("pointerup", 2));
     expect(g.move).not.toHaveBeenCalled();
     expect(g.end).toHaveBeenCalledExactlyOnceWith(false, false);
   });
