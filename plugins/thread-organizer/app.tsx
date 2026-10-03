@@ -400,7 +400,7 @@ function StageCard({
                 </button>
               </Popover.Trigger>
               <Popover.Portal>
-                <Popover.Content align="end" sideOffset={6} collisionPadding={12} aria-label={`Entry prompt for ${stage.title}`}
+                <Popover.Content data-bb-plugin-root="" data-bb-portaled-overlay="" align="end" sideOffset={6} collisionPadding={12} aria-label={`Entry prompt for ${stage.title}`}
                   className="z-50 w-[560px] max-w-[calc(100vw-24px)] rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg outline-none">
                   <form className="grid gap-3" onSubmit={(event) => {
                     event.preventDefault();
