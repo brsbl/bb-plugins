@@ -14,6 +14,8 @@ const MAX_FRAME_SECONDS = 0.1;
 const MAX_VIEW_PIXELS = 400 * 300;
 /** Half the horizontal field of view, as the camera plane's length relative to the view direction. */
 const FOV = 1;
+/** Wall height as a fraction of the corridor's width: the original's corridors are wider than they are tall, about 4:3. */
+const WALL_HEIGHT = 0.75;
 const TEXTURE = 128;
 const TURBO_SPEED = 3;
 
@@ -106,47 +108,87 @@ function stucco(): Uint32Array {
 }
 
 /*
- * Wall pictures, drawn in source. The original hung a few photographs on wall faces; these are Desktop's own: a globe
- * on a toy-strewn table, a rolling green hill under a blue sky, and a bb poster.
+ * The wall picture, drawn in source after the original's: a pale room with a ceiling light, a window onto a flowering
+ * garden, a big mosaic globe, and toy bricks heaped on a round wooden table, finished with the original's chunky
+ * dithered look. Nothing is traced or copied from Microsoft's bitmap.
  */
-function paintPicture(ctx: CanvasRenderingContext2D, kind: number) {
+function paintPicture(ctx: CanvasRenderingContext2D, _kind: number) {
   const size = TEXTURE;
-  if (kind === 0) {
-    const room = ctx.createLinearGradient(0, 0, 0, size);
-    room.addColorStop(0, "#4b5f78"); room.addColorStop(0.62, "#7c8fa3"); room.addColorStop(0.63, "#6b3f1e"); room.addColorStop(1, "#3d220e");
-    ctx.fillStyle = room; ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = "#e7f1d8"; ctx.fillRect(8, 10, 34, 40);
-    ctx.fillStyle = "#3f8a3a"; for (const [x, y, r] of [[16, 30, 9], [28, 24, 11], [36, 40, 8], [20, 44, 7]]) { ctx.beginPath(); ctx.arc(x!, y!, r!, 0, Math.PI * 2); ctx.fill(); }
-    ctx.strokeStyle = "#f3f3f0"; ctx.lineWidth = 3; ctx.strokeRect(8, 10, 34, 40); ctx.beginPath(); ctx.moveTo(25, 10); ctx.lineTo(25, 50); ctx.moveTo(8, 30); ctx.lineTo(42, 30); ctx.stroke();
-    const sea = ctx.createRadialGradient(68, 40, 6, 80, 54, 42);
-    sea.addColorStop(0, "#5aa8ff"); sea.addColorStop(0.7, "#1d4fc4"); sea.addColorStop(1, "#0b2470");
-    ctx.fillStyle = sea; ctx.beginPath(); ctx.arc(80, 56, 38, 0, Math.PI * 2); ctx.fill();
-    ctx.save(); ctx.beginPath(); ctx.arc(80, 56, 38, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = "#3e9b3c";
-    for (const [x, y, rx, ry] of [[64, 40, 14, 9], [92, 34, 10, 7], [96, 64, 13, 15], [66, 70, 8, 11], [82, 86, 9, 5]]) { ctx.beginPath(); ctx.ellipse(x!, y!, rx!, ry!, 0.4, 0, Math.PI * 2); ctx.fill(); }
-    ctx.strokeStyle = "rgba(255,240,140,0.55)"; ctx.lineWidth = 1;
-    for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.ellipse(80, 56, Math.abs(i) * 12 + 2, 38, 0, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(42, 56 + i * 11); ctx.lineTo(118, 56 + i * 11); ctx.stroke(); }
-    ctx.restore();
-    ctx.fillStyle = "#c9a23a"; ctx.fillRect(76, 94, 8, 6); ctx.fillRect(66, 99, 28, 4);
-    const toys = ["#e8322a", "#f6c919", "#2ea043", "#2f6fe0", "#ef7a1a", "#9b3fd0"];
-    for (let i = 0; i < 16; i++) { ctx.fillStyle = toys[i % toys.length]!; ctx.fillRect(4 + hash(i, 1, 9) * 112, 104 + hash(i, 2, 9) * 18, 6 + hash(i, 3, 9) * 9, 4 + hash(i, 4, 9) * 4); }
-  } else if (kind === 1) {
-    const sky = ctx.createLinearGradient(0, 0, 0, size * 0.7);
-    sky.addColorStop(0, "#1f5fd8"); sky.addColorStop(1, "#9fd0ff");
-    ctx.fillStyle = sky; ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    for (const [x, y, r] of [[30, 26, 10], [42, 22, 13], [56, 28, 9], [92, 40, 8], [102, 36, 11]]) { ctx.beginPath(); ctx.arc(x!, y!, r!, 0, Math.PI * 2); ctx.fill(); }
-    const hill = ctx.createLinearGradient(0, 70, 0, size);
-    hill.addColorStop(0, "#6cc644"); hill.addColorStop(1, "#2f7d1f");
-    ctx.fillStyle = hill; ctx.beginPath(); ctx.moveTo(0, 92); ctx.quadraticCurveTo(48, 58, 128, 80); ctx.lineTo(128, 128); ctx.lineTo(0, 128); ctx.closePath(); ctx.fill();
-  } else {
-    const poster = ctx.createLinearGradient(0, 0, size, size);
-    poster.addColorStop(0, "#3a8dff"); poster.addColorStop(1, "#0b3fb8");
-    ctx.fillStyle = poster; ctx.fillRect(0, 0, size, size);
-    bbMark ??= new Path2D(BB_MARK);
-    ctx.save(); ctx.translate(18, 30); ctx.scale(92 / 491, 92 / 491);
-    ctx.fillStyle = "#ffffff"; ctx.fill(bbMark, "evenodd"); ctx.restore();
+  ctx.save();
+  ctx.scale(size / 128, size / 128);
+  const room = ctx.createLinearGradient(0, 0, 0, 80);
+  room.addColorStop(0, "#e6e3d6"); room.addColorStop(0.7, "#d9d5c4"); room.addColorStop(1, "#b9b6a2");
+  ctx.fillStyle = room; ctx.fillRect(0, 0, 128, 128);
+  // Ceiling light.
+  ctx.fillStyle = "#fbfcfd"; ctx.beginPath(); ctx.ellipse(45, 4, 11, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#cfcfc4"; ctx.fillRect(34, 7.5, 22, 1);
+  // Window onto the garden: dark foliage, leaves, red and purple flowers, white frame and mullions.
+  ctx.fillStyle = "#1c2f12"; ctx.fillRect(1, 14, 49, 46);
+  const leaves = ["#3c8a2a", "#5daf3a", "#2a6a20", "#7fc55a", "#4f9a30"];
+  const flowers = ["#b8302a", "#d4552e", "#7a3fa8", "#a14bc4", "#c0402e"];
+  for (let i = 0; i < 260; i++) {
+    const x = 1 + hash(i, 11, 3) * 47, y = 14 + hash(i, 12, 3) * 44;
+    const flower = hash(i, 15, 3) < 0.28 && (y < 40 || x > 30);
+    ctx.fillStyle = flower ? flowers[i % flowers.length]! : leaves[i % leaves.length]!;
+    ctx.fillRect(x, y, 2 + hash(i, 13, 3) * 3, 1.5 + hash(i, 14, 3) * 2.5);
   }
+  ctx.fillStyle = "#eceee9";
+  ctx.fillRect(0, 13, 51, 1.6); ctx.fillRect(49, 13, 2, 47); ctx.fillRect(36, 14, 1.4, 46); ctx.fillRect(43, 14, 1.4, 46); ctx.fillRect(36, 36, 14, 1.2);
+  ctx.fillStyle = "#c9c5b2"; ctx.fillRect(0, 60, 52, 3);
+  ctx.fillStyle = "#a9a891"; ctx.fillRect(0, 63, 60, 14);
+  // The globe: a dark mosaic of blues with yellow-green land, cut off below by the table.
+  const gx = 90, gy = 40, gr = 38;
+  ctx.fillStyle = "#0a0f52"; ctx.beginPath(); ctx.arc(gx, gy, gr, 0, Math.PI * 2); ctx.fill();
+  for (let y = gy - gr; y < gy + gr; y += 3) {
+    for (let x = gx - gr; x < gx + gr; x += 3) {
+      const dx = (x + 1.5 - gx) / gr, dy = (y + 1.5 - gy) / gr;
+      if (dx * dx + dy * dy > 0.98) continue;
+      const cell = hash(Math.round(x), Math.round(y), 24);
+      const land = (dx < -0.55 && dy > -0.55 && dy < 0.55 && hash(Math.round(x), Math.round(y), 21) > 0.2)
+        || (dx > 0.62 && dy < -0.25 && hash(Math.round(x), Math.round(y), 22) > 0.25)
+        || (dx > -0.4 && dx < -0.2 && dy < -0.6 && cell > 0.4);
+      const shade = 0.75 + 0.25 * (1 - Math.max(0, dx * 0.5 + dy * 0.5));
+      ctx.fillStyle = land
+        ? (cell > 0.45 ? `rgb(${205 * shade} ${200 * shade} 50)` : `rgb(${120 * shade} ${160 * shade} 40)`)
+        : (cell > 0.72 ? `rgb(${80 * shade} ${100 * shade} 245)` : cell > 0.3 ? `rgb(${30 * shade} ${44 * shade} ${200 * shade})` : `rgb(14 20 ${130 * shade})`);
+      ctx.fillRect(x + 0.3, y + 0.3, 2.4, 2.4);
+    }
+  }
+  // Round wooden table: a golden top fading to a dark rim.
+  const wood = ctx.createLinearGradient(0, 72, 0, 128);
+  wood.addColorStop(0, "#b07a26"); wood.addColorStop(0.55, "#8a5a1a"); wood.addColorStop(1, "#4c2e0c");
+  ctx.fillStyle = wood; ctx.beginPath(); ctx.ellipse(68, 118, 70, 46, 0, 0, Math.PI * 2); ctx.fill();
+  // Toy bricks, measured off the original's layout; each has a lighter top and a dark underside.
+  const bricks: [number, number, number, number, string][] = [
+    [82, 63, 21, 9, "#7a3fa8"], [86, 65, 8, 6, "#d8302a"], [94, 66, 7, 6, "#efe23c"], [84, 71, 18, 9, "#2a6a20"],
+    [19, 72, 9, 8, "#f2d23a"], [19, 80, 9, 5, "#d8302a"], [19, 85, 9, 5, "#2a4fd0"], [19, 90, 9, 6, "#2fa83c"],
+    [28, 73, 8, 7, "#3a56d8"], [40, 67, 13, 10, "#f4f4ee"], [36, 75, 15, 6, "#34b840"], [29, 79, 12, 5, "#f0eef2"],
+    [26, 80, 4, 4, "#d94fa8"], [41, 80, 14, 9, "#efe23c"], [2, 99, 6, 6, "#efde34"],
+    [57, 96, 13, 9, "#3fbf3a"], [68, 92, 14, 10, "#d42e26"], [82, 85, 22, 13, "#efde34"], [82, 102, 21, 11, "#3e5ad6"],
+    [97, 98, 23, 13, "#d0261f"], [110, 80, 16, 16, "#c8221c"], [117, 80, 10, 16, "#3c54cc"], [83, 112, 10, 6, "#b245c8"],
+    [68, 109, 14, 7, "#efe23c"], [31, 107, 6, 6, "#d8302a"], [38, 108, 7, 5, "#34b840"], [46, 109, 6, 5, "#3d48c8"], [52, 108, 7, 5, "#d8302a"],
+  ];
+  for (const [x, y, w, h, colour] of bricks) {
+    ctx.fillStyle = "rgba(30,15,0,0.5)"; ctx.fillRect(x + 1, y + h, w, 1.5);
+    ctx.fillStyle = colour; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.fillRect(x, y, w, 1.4);
+    ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(x, y + h - 1.5, w, 1.5);
+  }
+  ctx.restore();
+  // The original's chunky finish: 2 × 2 cells, a touch of noise, and a shortened palette.
+  const image = ctx.getImageData(0, 0, size, size);
+  const data = image.data;
+  for (let y = 0; y < size; y += 2) {
+    for (let x = 0; x < size; x += 2) {
+      for (let c = 0; c < 3; c++) {
+        let sum = 0;
+        for (let oy = 0; oy < 2; oy++) for (let ox = 0; ox < 2; ox++) sum += data[((y + oy) * size + x + ox) * 4 + c]!;
+        const value = Math.round((sum / 4 + (hash(x, y, 30) - 0.5) * 8) / 12) * 12;
+        for (let oy = 0; oy < 2; oy++) for (let ox = 0; ox < 2; ox++) data[((y + oy) * size + x + ox) * 4 + c] = clamp(value);
+      }
+    }
+  }
+  ctx.putImageData(image, 0, 0);
 }
 
 let pictures: Uint32Array[] | null = null;
@@ -197,7 +239,7 @@ function castScene(pixels: Uint32Array, depth: Float32Array, width: number, heig
   const horizon = height / 2;
   pixels.fill(floor[0]!);
   for (let y = Math.floor(horizon) + 1; y < height; y++) {
-    const distance = focal * 0.5 / (y - horizon);
+    const distance = focal * WALL_HEIGHT * 0.5 / (y - horizon);
     const stepX = distance * 2 * planeX / width, stepY = distance * 2 * planeY / width;
     let fx = px + distance * (dirX - planeX), fy = py + distance * (dirY - planeY);
     for (let x = 0; x < width; x++) {
@@ -233,7 +275,7 @@ function castScene(pixels: Uint32Array, depth: Float32Array, width: number, heig
     if ((side === 0 && rayX < 0) || (side === 1 && rayY > 0)) tx = TEXTURE - 1 - tx;
     const picture = pictureAt(run, mapX, mapY, dir);
     const face = picture === undefined ? wall : loadPictures()[picture]!;
-    const lineHeight = focal / distance, top = horizon - lineHeight / 2;
+    const lineHeight = focal * WALL_HEIGHT / distance, top = horizon - lineHeight / 2;
     const start = Math.max(0, Math.ceil(top)), end = Math.min(height, Math.ceil(horizon + lineHeight / 2));
     for (let y = start; y < end; y++) {
       const ty = Math.floor((y - top) * TEXTURE / lineHeight) & (TEXTURE - 1);
@@ -500,10 +542,11 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
     else if (sprite.kind === "rat") paintRat(cardContext, time);
     else if (sprite.kind === "smiley") paintSmiley(cardContext);
     else paintStartButton(cardContext, time);
-    const size = (focal / sprite.forward) * SPRITE_SIZE[sprite.kind];
+    const size = (focal * WALL_HEIGHT / sprite.forward) * SPRITE_SIZE[sprite.kind];
     const centerX = (width / 2) * (1 + sprite.side / sprite.forward);
     // The rat's feet meet the floor; the rock floats low, just above it.
-    const bob = sprite.kind === "rat" ? focal / sprite.forward * (0.5 - SPRITE_SIZE.rat * 0.25) : sprite.kind === "polyhedron" ? focal / sprite.forward * 0.26 : 0;
+    const wall = focal * WALL_HEIGHT / sprite.forward;
+    const bob = sprite.kind === "rat" ? wall * (0.5 - SPRITE_SIZE.rat * 0.25) : sprite.kind === "polyhedron" ? wall * 0.26 : 0;
     const top = height / 2 - size / 2 + bob;
     const left = Math.floor(centerX - size / 2);
     const right = Math.min(width, Math.ceil(centerX + size / 2));

@@ -9,9 +9,9 @@
 export const MAZE_COLUMNS = 10;
 export const MAZE_ROWS = 8;
 const SPINNER_COUNT = 3;
-/** How many wall faces carry a picture, and how many different pictures there are. */
+/** How many wall faces carry a picture, and how many different pictures there are (the original has one). */
 const PICTURE_COUNT = 4;
-export const PICTURE_KINDS = 3;
+export const PICTURE_KINDS = 1;
 
 /** Seconds to walk one cell, turn a quarter, roll over, and celebrate at the exit, before Turbo Mode. */
 const WALK_SECONDS = 0.65;
