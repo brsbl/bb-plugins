@@ -135,7 +135,7 @@ function PinStrip({ threadId }: { threadId: string }) {
         <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void unpin(pin)}
-        className="absolute -right-0.5 -top-1 flex size-5 items-center justify-center rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
+        className="absolute right-0 -top-1 flex size-5 items-center justify-center rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
     </span>;
     return <ContextMenu key={pin.id}>
       <ContextMenuTrigger asChild>
