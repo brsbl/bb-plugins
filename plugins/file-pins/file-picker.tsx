@@ -4,6 +4,7 @@ import { useRpc } from "@get-bb/plugin-sdk/app";
 import type { RecentFile, rpcContract } from "./contract.js";
 import { Command, CommandInput, CommandItem, CommandList } from "./components/ui/command.js";
 import { DropdownMenuContent, DropdownMenuItem } from "./components/ui/dropdown-menu.js";
+import { Icon } from "./components/ui/icon.js";
 import { ReferenceIcon } from "./reference-icon.js";
 
 export function FilePicker({ threadId, recent, hasPins, onClose, onPinned, onCustomize }: {
@@ -62,7 +63,7 @@ export function FilePicker({ threadId, recent, hasPins, onClose, onPinned, onCus
         </select>}
         {/* Keep this small menu anchored on mobile, using the shared menu recipe. */}
         <Menu.Root modal={false}>
-          <Menu.Trigger asChild><button type="button" aria-label="Pin options" title="Pin options" disabled={busy} className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">…</button></Menu.Trigger>
+          <Menu.Trigger asChild><button type="button" aria-label="Pin options" title="Pin options" disabled={busy} className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
           <DropdownMenuContent align="end" style={{ animation: "none", transition: "none" }} onCloseAutoFocus={(event) => { if (paste) { event.preventDefault(); input.current?.focus(); } }}>
             <DropdownMenuItem onSelect={() => { setPaste(true); setQuery(""); setError(null); }}>Paste a path…</DropdownMenuItem>
             {hasPins && <DropdownMenuItem onSelect={onCustomize}>Customize pins</DropdownMenuItem>}
