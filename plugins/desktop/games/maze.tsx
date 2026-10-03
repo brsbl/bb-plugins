@@ -627,7 +627,7 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
     const run = runRef.current;
     // Render beyond every viewport edge during a roll. Rotating a viewport-sized image exposes black corners.
     const rolling = Math.abs(Math.sin(run.pose.roll)) > 0.001;
-    const { baseWidth, baseHeight, width, height } = viewSize(canvas.width, canvas.height, rolling);
+    const { baseWidth, scale, width, height } = viewSize(canvas.width, canvas.height, rolling);
     if (view.image.width !== width || view.image.height !== height) {
       view.canvas.width = width; view.canvas.height = height;
       view.image = new ImageData(width, height); view.depth = new Float32Array(width);
@@ -643,7 +643,8 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
     ctx.imageSmoothingEnabled = true;
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(run.pose.roll);
-    const drawWidth = width / baseWidth * canvas.width, drawHeight = height / baseHeight * canvas.height;
+    // A rolling buffer is drawn at one uniform scale so its square covers the whole viewport as it turns.
+    const drawWidth = rolling ? width * scale : canvas.width, drawHeight = rolling ? height * scale : canvas.height;
     ctx.drawImage(view.canvas, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (optionsRef.current.overheadMap) drawMap(ctx, run, canvas.width / Math.max(1, canvas.clientWidth), time);

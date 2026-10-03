@@ -11,9 +11,16 @@ describe("3D Maze view", () => {
         expect(size.width * size.height).toBeLessThanOrEqual(budget + 4 * Math.sqrt(budget));
         if (rolling) {
           expect(size.width).toBe(size.height);
-          expect(size.width).toBeGreaterThanOrEqual(Math.hypot(size.baseWidth, size.baseHeight));
         }
       }
+    }
+  });
+
+  it("covers the whole viewport at every roll angle, however wide or tall the window", () => {
+    for (const [width, height] of [[2818, 274], [4000, 100], [100, 4000], [1280, 960], [641, 3]] as const) {
+      const size = viewSize(width, height, true);
+      // Drawn at its uniform scale, the square must reach the viewport's corners.
+      expect(size.width * size.scale).toBeGreaterThanOrEqual(Math.hypot(width, height));
     }
   });
 
@@ -22,7 +29,7 @@ describe("3D Maze view", () => {
   });
 
   it("does not upscale a small view", () => {
-    expect(viewSize(200, 150, false)).toEqual({ baseWidth: 200, baseHeight: 150, width: 200, height: 150 });
+    expect(viewSize(200, 150, false)).toEqual({ baseWidth: 200, baseHeight: 150, scale: 1, width: 200, height: 150 });
   });
 
   it("acts on F2 and F3 once per press, ignoring key repeats", () => {
