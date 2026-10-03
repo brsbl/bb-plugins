@@ -14,6 +14,8 @@ export const ENTRY_PROMPT_MAX_LENGTH = 2000;
 export const RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8000;
 
 export interface EditableWorkflowStage {
+  /** Additional inboxes catch this plugin's origin or explicit inbox metadata marker. */
+  catchesPluginId?: string;
   /** Sent to a thread when it lands in this stage; omitted when unset. */
   entryPrompt?: string;
   key: string;
@@ -61,8 +63,12 @@ export interface OrganizableThread {
   visibility: "hidden" | "visible";
 }
 
+// Keep the stored protected rule compatible with existing single-inbox readers.
 export const INBOX_RULE =
   "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can’t be customized.";
+
+export const INBOX_DESCRIPTION =
+  "Idle unread threads not claimed by another inbox appear here automatically and stay until work resumes or you move a read thread to another section.";
 
 export const HANDOFF_RULE =
   "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
@@ -188,6 +194,16 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
   if (role !== "inbox" && role !== "stage") {
     throw new Error(`Stage "${key}" has an invalid role.`);
   }
+  if (
+    value.catchesPluginId !== undefined &&
+    (typeof value.catchesPluginId !== "string" ||
+      !/^[a-z0-9][a-z0-9-]*$/u.test(value.catchesPluginId) ||
+      value.catchesPluginId.length > 128)
+  ) {
+    throw new Error(
+      `Section "${key}" needs a plugin id using lowercase letters, digits, and hyphens.`,
+    );
+  }
   if (entryPrompt.length > ENTRY_PROMPT_MAX_LENGTH) {
     throw new Error(
       `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`,
@@ -200,6 +216,9 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
     role,
     // Defaults are not persisted, so configs without prompts stay byte-stable.
     ...(entryPrompt.length > 0 ? { entryPrompt } : {}),
+    ...(typeof value.catchesPluginId === "string"
+      ? { catchesPluginId: value.catchesPluginId }
+      : {}),
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null,
   };
 }
@@ -212,6 +231,7 @@ function validateStages(stages: WorkflowStage[]): void {
   }
   const keys = new Set<string>();
   const titles = new Set<string>();
+  const caughtPlugins = new Set<string>();
   for (const stage of stages) {
     if (keys.has(stage.key)) {
       throw new Error(`Stage key "${stage.key}" is duplicated.`);
@@ -225,14 +245,23 @@ function validateStages(stages: WorkflowStage[]): void {
     if (stage.role === "inbox" && hasEntryPrompt(stage)) {
       throw new Error("Inbox cannot send an entry prompt.");
     }
+    if (stage.role === "inbox" && stage.key !== "inbox") {
+      if (!stage.catchesPluginId) throw new Error(`Inbox "${stage.title}" needs a plugin.`);
+      if (caughtPlugins.has(stage.catchesPluginId)) {
+        throw new Error(`Plugin "${stage.catchesPluginId}" already has another inbox.`);
+      }
+      caughtPlugins.add(stage.catchesPluginId);
+    } else if (stage.catchesPluginId !== undefined) {
+      throw new Error("Only an additional inbox can catch a plugin.");
+    }
   }
-  const inboxes = stages.filter((stage) => stage.role === "inbox");
-  if (inboxes.length !== 1 || inboxes[0]?.key !== "inbox") {
+  const mainInbox = stages.find((stage) => stage.key === "inbox");
+  if (mainInbox?.role !== "inbox") {
     throw new Error(
-      "The workflow must contain exactly one protected Inbox stage.",
+      "The workflow must contain the protected main Inbox.",
     );
   }
-  if (inboxes[0]?.rule !== INBOX_RULE) {
+  if (mainInbox.rule !== INBOX_RULE) {
     throw new Error("Inbox routing and its system rule cannot be changed.");
   }
 }
@@ -300,6 +329,14 @@ export function normalizeEditableWorkflowConfig(
 ): EditableWorkflowConfig {
   const stages = value.stages.map((stage) => {
     const parsed = parseStage(stage, false);
+    // Old editors may submit the previous protected Inbox copy. Accept it
+    // just as the persisted-config loader does, without changing their fields.
+    if (
+      parsed.key === "inbox" &&
+      PREVIOUS_INBOX_RULES.some((rule) => rule === parsed.rule)
+    ) {
+      parsed.rule = INBOX_RULE;
+    }
     const { sectionId: _sectionId, ...editable } = parsed;
     return editable;
   });
@@ -392,11 +429,11 @@ export function entryPromptMessage(
 }
 
 export function inboxStage(config: WorkflowConfig): WorkflowStage {
-  return config.stages.find((stage) => stage.role === "inbox")!;
+  return config.stages.find((stage) => stage.key === "inbox")!;
 }
 
-export function firstWorkflowStage(config: WorkflowConfig): WorkflowStage {
-  return config.stages.find((stage) => stage.role === "stage")!;
+export function firstWorkflowStage(config: WorkflowConfig): WorkflowStage | null {
+  return config.stages.find((stage) => stage.role === "stage") ?? null;
 }
 
 export function stageForSectionId(
@@ -513,26 +550,19 @@ export function isUnreadThread(thread: OrganizableThread): boolean {
 export function placementForThread(
   config: WorkflowConfig,
   thread: OrganizableThread,
-  rememberedStageKey: string,
-  leaveInbox?: boolean,
-): WorkflowStage;
-export function placementForThread(
-  config: WorkflowConfig,
-  thread: OrganizableThread,
-  rememberedStageKey: string | null,
-  leaveInbox?: boolean,
-): WorkflowStage | null;
-export function placementForThread(
-  config: WorkflowConfig,
-  thread: OrganizableThread,
   rememberedStageKey: string | null,
   leaveInbox = false,
+  matchedInbox: WorkflowStage | null = null,
 ): WorkflowStage | null {
   const remembered =
     config.stages.find(
       (stage) => stage.key === rememberedStageKey && stage.role === "stage",
     ) ?? firstWorkflowStage(config);
   const currentStage = stageForSectionId(config, thread.sectionId);
+  if (!leaveInbox) {
+    if (matchedInbox) return matchedInbox;
+    if (currentStage?.role === "inbox" && currentStage.key !== "inbox") return currentStage;
+  }
   const belongsInInbox =
     !isRunningThread(thread) &&
     (isUnreadThread(thread) ||
@@ -565,7 +595,12 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
         `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
     );
   return [
-    `**${escapeTableCell(inboxStage(config).title)}** is the protected Inbox section. Idle unread threads go there automatically and stay until work resumes or the user moves a read thread to another workflow section. This routing behavior can’t be customized; never choose Inbox yourself.`,
+    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads not claimed by another inbox go there automatically and stay until work resumes or the user moves a read thread to another workflow section. Never choose an inbox with \`bb organizer phase\`.`,
+    ...config.stages
+      .filter((stage) => stage.role === "inbox" && stage.key !== "inbox")
+      .map((stage) =>
+        `**${escapeTableCell(stage.title)}** catches threads from plugin \`${stage.catchesPluginId}\` and keeps them after reading until the user moves or archives them.`,
+      ),
     "",
     "| Key | Section | What belongs here |",
     "| --- | --- | --- |",
