@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { CHAT_CONTRACT_PROBES, checkChatContract, inspectChatContract } from "./chat-contract";
+import { CHAT_CONTRACT_PROBES, COMPOSER_SUBMIT, checkChatContract, inspectChatContract, readComposerSend } from "./chat-contract";
 
 // Real ThreadChat markup captured from bb; see the comment at the top of the fixture for how to refresh it.
 const fixture = readFileSync(resolve(__dirname, "__fixtures__/thread-chat.html"), "utf8");
@@ -182,9 +182,26 @@ describe("bb ThreadChat contract", () => {
     expect(matches(".bbd-im-chat .sticky.bottom-0 > .relative > .pointer-events-none").every((fade) => fade.hasAttribute("data-overflow-fade"))).toBe(true);
     expect(matches('.bbd-im-chat[data-archived="true"] [data-scroll-footer]')).toEqual([archived.querySelector(CHAT_CONTRACT_PROBES.footer)]);
     expect(live.querySelector(CHAT_CONTRACT_PROBES.footer)).not.toBeNull();
-    const send = matches('.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"])');
-    expect(send).toHaveLength(2);
-    expect(send.every((button) => button.closest(CHAT_CONTRACT_PROBES.promptbox) !== null)).toBe(true);
+  });
+
+  it("hands Send and Stop to the strip's Send: hides bb's, which the strip finds and mirrors", () => {
+    const { live, archived } = load();
+    const hidden = matches('.bbd-im-chat [data-scroll-footer] [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"])');
+    expect(hidden).toEqual([live.querySelector(COMPOSER_SUBMIT), archived.querySelector(COMPOSER_SUBMIT)]);
+    const button = hidden[0] as HTMLButtonElement;
+    expect(readComposerSend(button)).toEqual({ action: "send", disabled: true, title: "Submit (Enter)" });
+    button.disabled = false;
+    expect(readComposerSend(button)).toEqual({ action: "send", disabled: false, title: "Submit (Enter)" });
+    button.type = "button";
+    button.setAttribute("aria-label", "Stop run");
+    expect(readComposerSend(button)).toEqual({ action: "stop", disabled: false, title: "Stop run" });
+    button.setAttribute("aria-label", "Start voice input");
+    expect(readComposerSend(button).disabled).toBe(true);
+    // With no draft the chevron is hidden, so its wrapper goes too; with one, the chevron stays usable.
+    const empty = '.bbd-im-chat [data-promptbox] [data-promptbox-send-menu]:not(:has(> button[aria-label="Send options"]:not([aria-hidden])))';
+    expect(matches(empty)).toHaveLength(2);
+    live.querySelector('button[aria-label="Send options"]')!.removeAttribute("aria-hidden");
+    expect(Array.from(document.querySelectorAll(empty))).toHaveLength(1);
   });
 
   it("reports a mismatch when bb renames its row and message markers", () => {
@@ -197,6 +214,12 @@ describe("bb ThreadChat contract", () => {
   it("reports a mismatch when the message box loses its markers", () => {
     const { archived } = load(fixture.replaceAll("data-scroll-footer=", "data-sticky-footer=").replaceAll("data-promptbox=", "data-composer="));
     expect(inspectChatContract(archived)).toEqual({ contract: "mismatch", failed: [CHAT_CONTRACT_PROBES.footer, CHAT_CONTRACT_PROBES.promptbox] });
+  });
+
+  it("reports a mismatch when the message box loses its submit button, so bb's own stays in charge", () => {
+    const { live } = load(fixture.replaceAll("data-promptbox-submit-action=", "data-promptbox-primary-action="));
+    expect(inspectChatContract(live)).toEqual({ contract: "mismatch", failed: [CHAT_CONTRACT_PROBES.submit] });
+    expect(live.querySelector(COMPOSER_SUBMIT)).toBeNull();
   });
 
   it("waits while bb is still loading the transcript", () => {
