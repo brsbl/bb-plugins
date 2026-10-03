@@ -1413,7 +1413,7 @@ describe("harvest activity feed", () => {
     await harness.lifecycle.dispose();
   });
 
-  it("announces a finished thread and shows the reviewer's rejection reason", async () => {
+  it("announces a finished thread and leaves a rejected-only thread out of the feed", async () => {
     const root = await makeDoctrineRoot();
     const { harness } = await startPlugin(root, {
       propose: () => [makeProposal()],
@@ -1430,19 +1430,7 @@ describe("harvest activity feed", () => {
       ).length,
     ).toBeGreaterThanOrEqual(2);
     const activity = (await harness.behavior.callRpc("getHarvestActivity", {})) as ActivityPage;
-    expect(activity.items).toEqual([
-      expect.objectContaining({
-        threadId: "thr_rejected_feed",
-        result: "rejected",
-        proposals: [
-          expect.objectContaining({
-            title: "Reserve alarm color for errors",
-            result: "rejected",
-            reason: "already covered by ddr_001",
-          }),
-        ],
-      }),
-    ]);
+    expect(activity.items).toEqual([]);
     await harness.lifecycle.dispose();
   });
 });
