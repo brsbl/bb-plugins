@@ -1547,10 +1547,6 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   -webkit-text-fill-color: currentColor;
 }
 
-.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child svg {
-  display: none;
-}
-
 .bbd-im-chat [data-message-column] > .ml-auto {
   width: 100%;
   max-width: 100%;
