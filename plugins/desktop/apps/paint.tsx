@@ -489,7 +489,7 @@ export function PaintApp() {
     const color = tool === "eraser" || alternate ? secondary : primary;
     const stroke: Stroke = { pointerId: event.pointerId, tool, color, width: sizes[tool], start: point, last: point };
     strokeRef.current = stroke;
-    // Shapes snapshot only once they land, so a cancelled shape leaves no undo step or dirty mark.
+    // Shapes snapshot only once they land, so an Escape-cancelled shape leaves no undo step or dirty mark.
     if (tool === "pencil" || tool === "brush" || tool === "eraser") {
       remember();
       const ctx = context(canvas);
