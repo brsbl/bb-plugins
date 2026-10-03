@@ -1,28 +1,34 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
 
-// One stored order plus the pins moved to overflow. The strip shows the other
-// pins in order, as many as fit; the rest sit behind ⋯.
+// One stored order plus the files that are not pinned. The strip shows pinned
+// files in order, as many as fit; the ⋯ list holds the rest.
 export const PIN_SLOT_CLASS = "w-[7rem]";
 export const PIN_MAX_WIDTH_CLASS = "max-w-[7rem]";
 
-export type PinLayout<T extends { id: string }> = { strip: T[]; more: T[]; isFull: boolean };
+export type PinLayout<T extends { id: string }> = { strip: T[]; more: T[]; canPin: boolean };
 export type Arrangement = { order: string[]; more: string[] };
 
-export function layoutPins<T extends { id: string }>(pins: readonly T[], more: readonly string[], capacity: number | null): PinLayout<T> {
-  const strip = pins.filter((pin) => !more.includes(pin.id)).slice(0, capacity ?? undefined);
-  return { strip, more: pins.filter((pin) => !strip.includes(pin)), isFull: capacity !== null && strip.length >= capacity };
+/** Pinned files that no longer fit lead the ⋯ list until there is room again. */
+export function layoutPins<T extends { id: string }>(pins: readonly T[], unpinned: readonly string[], capacity: number | null): PinLayout<T> {
+  const pinned = pins.filter((pin) => !unpinned.includes(pin.id));
+  const strip = pinned.slice(0, capacity ?? undefined);
+  return {
+    strip,
+    more: [...pinned.slice(strip.length), ...pins.filter((pin) => unpinned.includes(pin.id))],
+    canPin: capacity === null || pinned.length < capacity,
+  };
 }
 
-/** Moves only this pin to overflow; the next pins that fit take its place. */
-export function moveToOverflow({ order, more }: Arrangement, id: string): Arrangement {
+export function unpinFile({ order, more }: Arrangement, id: string): Arrangement {
   return { order, more: [...new Set([...more, id])] };
 }
 
-/** Puts an overflow pin last on the strip, taking the last slot when the strip is full. */
-export function moveToStrip(layout: PinLayout<{ id: string }>, { order, more }: Arrangement, id: string): Arrangement {
+/** Puts a file last on the strip; returns null instead of displacing a pin. */
+export function pinFile(layout: PinLayout<{ id: string }>, { order, more }: Arrangement, id: string): Arrangement | null {
+  if (!layout.canPin) return null;
   const last = layout.strip.at(-1)?.id;
   const rest = order.filter((pinId) => pinId !== id);
-  const index = last === undefined ? 0 : rest.indexOf(last) + (layout.isFull ? 0 : 1);
+  const index = last === undefined ? 0 : rest.indexOf(last) + 1;
   return { order: [...rest.slice(0, index), id, ...rest.slice(index)], more: more.filter((pinId) => pinId !== id) };
 }
 

@@ -1,18 +1,28 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import * as Menu from "@radix-ui/react-dropdown-menu";
 import { definePluginApp, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import type { RecentFile, Reference, rpcContract } from "./contract.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./components/ui/context-menu.js";
+import { DropdownMenuContent, DropdownMenuItem } from "./components/ui/dropdown-menu.js";
 import { Icon } from "./components/ui/icon.js";
 import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger, PinPopoverAnchor } from "./pin-popover.js";
 import { FilePicker } from "./file-picker.js";
-import { layoutPins, moveToOverflow, moveToStrip, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
+import { layoutPins, pinFile, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, unpinFile, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 ${PIN_MAX_WIDTH_CLASS} items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 // The quiet file chip bb uses for composer attachments.
 const pinClass = cn(linkClass, "rounded-md bg-surface-recessed shadow-xs");
+// ⋯ list rows use bb's menu item density; their ⋯ shows on hover, focus and touch.
+const rowLinkClass = "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const rowActionClass = "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100";
+const noMotion = { animation: "none", transition: "none" };
+type PinAction = { label: string; hint?: string; disabled?: boolean; run(): void };
+function ActionLabel({ action }: { action: PinAction }) {
+  return action.hint ? <span className="min-w-0"><span className="block">{action.label}</span><span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{action.hint}</span></span> : <>{action.label}</>;
+}
 const launchers = new Map<string, () => void>();
 function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -75,14 +85,14 @@ function PinStrip({ threadId }: { threadId: string }) {
   useRealtime("pins-changed", (payload) => {
     if (payload && typeof payload === "object" && "threadId" in payload && payload.threadId === threadId) void refresh();
   });
-  async function unpin(pin: Reference) {
+  async function remove(pin: Reference) {
     if (busy) return;
     setBusy(true);
     try {
       const { undoToken } = await rpc.call("remove", { threadId, pinId: pin.id });
       setMoreOpen(false);
       await refresh();
-      if (undoToken) toast(`Unpinned ${pin.name}`, {
+      if (undoToken) toast(`Removed ${pin.name}`, {
         duration: 10_000,
         action: { label: "Undo", onClick: () => {
           void rpc.call("undo", { threadId, undoToken }).then(() => refresh()).catch(report);
@@ -120,35 +130,68 @@ function PinStrip({ threadId }: { threadId: string }) {
     catch (error) { report(error); }
     finally { if (alive.current) setBusy(false); }
   }
-  function reference(pin: Reference, inList = false) {
-    const title = `${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
-    const link = pin.status === "missing" ? <span className={`relative inline-flex min-w-0 ${inList ? "w-full" : PIN_MAX_WIDTH_CLASS}`} title={title}>
-      <span aria-label={`${pin.name} (missing)`} className={cn(pinClass, "cursor-default pr-4 text-destructive/55 hover:text-destructive/55", inList && "w-full max-w-none")}>
+  function title(pin: Reference) {
+    return `${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
+  }
+  // Pinned files offer Unpin (to the ⋯ list); other files offer Pin while the strip has room.
+  function actions(pin: Reference): PinAction[] {
+    const pinned = !more.includes(pin.id);
+    return [
+      pinned
+        ? { label: "Unpin", run: () => arrange(unpinFile(current, pin.id)) }
+        : { label: "Pin", disabled: !layout.canPin, hint: layout.canPin ? undefined : "No room on the strip", run: () => {
+          const next = pinFile(layout, current, pin.id);
+          if (next) { setMoreOpen(false); arrange(next); }
+        } },
+      { label: "Remove", disabled: busy, run: () => void remove(pin) },
+    ];
+  }
+  function contextMenu(pin: Reference) {
+    return <ContextMenuContent style={noMotion}>
+      {actions(pin).map((action) => <ContextMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></ContextMenuItem>)}
+    </ContextMenuContent>;
+  }
+  function stripPin(pin: Reference) {
+    const link = pin.status === "missing" ? <span className={`relative inline-flex min-w-0 ${PIN_MAX_WIDTH_CLASS}`} title={title(pin)}>
+      <span aria-label={`${pin.name} (missing)`} className={cn(pinClass, "cursor-default pr-4 text-destructive/55 hover:text-destructive/55")}>
         <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
-      <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void unpin(pin)}
-        className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
-    </span> : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title}
-      aria-label={`Open ${pin.name}`} className={cn(pinClass, inList && "w-full max-w-none", pin.status !== "available" && "opacity-60")}><PinContents pin={pin} /></FileLink>;
+      <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void remove(pin)}
+        className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
+    </span> : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title(pin)}
+      aria-label={`Open ${pin.name}`} className={cn(pinClass, pin.status !== "available" && "opacity-60")}><PinContents pin={pin} /></FileLink>;
+    return <ContextMenu key={pin.id}><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>;
+  }
+  function listRow(pin: Reference) {
+    const name = <><ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span></>;
+    const link = pin.status === "missing"
+      ? <span aria-label={`${pin.name} (missing)`} title={title(pin)} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
+      : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title(pin)}
+        aria-label={`Open ${pin.name}`} className={cn(rowLinkClass, pin.status !== "available" && "opacity-60")}>{name}</FileLink>;
     return <ContextMenu key={pin.id}>
-      <ContextMenuTrigger asChild>{link}</ContextMenuTrigger>
-      <ContextMenuContent style={{ animation: "none", transition: "none" }}>
-        {inList
-          ? <ContextMenuItem onSelect={() => { setMoreOpen(false); arrange(moveToStrip(layout, current, pin.id)); }}>Move to strip</ContextMenuItem>
-          : <ContextMenuItem onSelect={() => arrange(moveToOverflow(current, pin.id))}>Move to overflow</ContextMenuItem>}
-        <ContextMenuItem disabled={busy} onSelect={() => void unpin(pin)}>Remove</ContextMenuItem>
-      </ContextMenuContent>
+      <ContextMenuTrigger asChild>
+        <div className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover focus-within:bg-state-hover">
+          {link}
+          <Menu.Root modal={false}>
+            <Menu.Trigger asChild><button type="button" aria-label={`Actions for ${pin.name}`} title="Actions" className={rowActionClass}><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
+            <DropdownMenuContent align="end" style={noMotion}>
+              {actions(pin).map((action) => <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
+            </DropdownMenuContent>
+          </Menu.Root>
+        </div>
+      </ContextMenuTrigger>
+      {contextMenu(pin)}
     </ContextMenu>;
   }
   return <div className="relative min-w-0">
     <Popover open={picker} onOpenChange={setPicker}>
-      {pins.length > 0 ? <section aria-label="Pinned files" className="min-w-0 px-1 py-1">
+      {pins.length > 0 ? <section aria-label="Pinned files" className="min-w-0 overflow-hidden px-1 py-1">
         <div className="flex min-w-0 items-center gap-1">
-          {layout.strip.map((pin) => reference(pin))}
+          {layout.strip.map((pin) => stripPin(pin))}
           <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
           {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-            <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more pinned files`} title="More pinned files" className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
-            <PopoverContent aria-label="More pinned files" className="w-72 p-1"><div className="max-h-64 space-y-0.5 overflow-y-auto pb-0.5">{layout.more.map((pin) => reference(pin, true))}</div></PopoverContent>
+            <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more files`} title="More files" className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
+            <PopoverContent aria-label="More files" className="w-56 p-1"><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
           </Popover>}
         </div>
       </section> : recent.length > 0 ? <section aria-label="Suggested pins" className="flex min-w-0 items-center gap-1 px-1 py-1">

@@ -22,5 +22,5 @@ its pins. Pins do not copy file contents or automatically add them to agent cont
 
 A normal click on Markdown under the file host's `~/Moss/Notes/`, or Markdown
 containing `moss-*` fences or `:::tabs`, opens the Moss Mac app on that host.
-Other files retain bb's FileLink behavior. Right-click a pin to move it between the strip and the ⋯ overflow list, or to Remove it; Remove's toast offers Undo. Missing files remain visible
+Other files retain bb's FileLink behavior. In the UI, Unpin moves a file from the strip to the ⋯ list and Pin moves it back while the strip has room; Remove deletes it with an Undo toast. The CLI `unpin` command removes the file from the thread. Missing files remain visible
 with an accessible missing label and a small × to remove them. Use the composer's + → Pin to thread to search or paste a path. The picker offers recent thread files. Moss detection uses only distinctive markers; this plugin has no custom parser or renderer and does not depend on the Moss viewer plugin.
