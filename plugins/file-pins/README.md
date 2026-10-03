@@ -3,7 +3,7 @@
 Keep local files within reach in each thread. Pins stay above the composer even
 when the file viewer is closed, and are shared across clients.
 
-![Persistent thread file pins](https://github.com/user-attachments/assets/10565290-eedc-407e-a451-68b6659a3c11)
+![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
 
 ## Install
 
