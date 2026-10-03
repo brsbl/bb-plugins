@@ -1604,6 +1604,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   width: auto;
   margin-top: -1.25rem;
   clear: none;
+  pointer-events: none;
 }
 
 /*
@@ -1618,6 +1619,10 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   padding: 0 4px;
   /* bb clips this row; the fade above the buttons sits outside it. */
   overflow: visible;
+}
+
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 button {
+  pointer-events: auto;
 }
 
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0::before {
