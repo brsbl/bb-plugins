@@ -76,7 +76,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     read: async (input) => {
       const target = await locate(input);
       const note = await host.call("readNote", { path: target.path }, { hostId: target.hostId });
-      if (!note.moss) return { moss: false };
+      if (!note.moss) return { moss: false as const };
       return { ...note, hostId: target.hostId, frameUrl, assetRoute: `${httpRoot}/asset` };
     },
     notes: async ({ hostId }) => ({ notes: (await host.call("listNotes", {}, { hostId })).notes }),
