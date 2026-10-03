@@ -24,6 +24,7 @@ import {
 
 import {
   ENTRY_PROMPT_MAX_LENGTH,
+  INBOX_DESCRIPTION,
   WORKFLOW_CONFIG_VERSION,
   DEFAULT_STAGE_RULE,
   MAX_WORKFLOW_STAGES,
@@ -249,6 +250,7 @@ function StageCard({
   stageCount,
 }: StageCardProps) {
   const inbox = stage.role === "inbox";
+  const protectedInbox = stage.key === "inbox";
   const update = <Key extends keyof EditableWorkflowStage>(
     key: Key,
     value: EditableWorkflowStage[Key],
@@ -269,15 +271,15 @@ function StageCard({
     <article
       className="min-w-0 border-b border-border bg-background px-3 py-2.5 last:rounded-b-lg last:border-b-0 lg:p-3"
       onDragOver={(event) => {
-        if (!inbox) event.preventDefault();
+        if (!protectedInbox) event.preventDefault();
       }}
       onDrop={(event: DragEvent) => {
         event.preventDefault();
-        if (!inbox) onDrop(index);
+        if (!protectedInbox) onDrop(index);
       }}
     >
       <div className={stageRowClass}>
-        {inbox ? (
+        {protectedInbox ? (
           <span aria-hidden="true" className="hidden size-8 lg:block" />
         ) : (
           <span className="hidden shrink-0 lg:inline-flex">
@@ -305,7 +307,7 @@ function StageCard({
           onChange={(event) => update("title", event.target.value)}
           value={stage.title}
         />
-        {inbox ? (
+        {protectedInbox ? (
           <span
             aria-hidden="true"
             className="col-start-2 row-start-1 size-8 lg:col-start-5"
@@ -319,11 +321,11 @@ function StageCard({
             stageCount={stageCount}
           />
         )}
-        {inbox ? (
+        {protectedInbox ? (
           <p
             className={`${stageRuleLayoutClass} px-2.5 py-1.5 text-sm leading-5 text-muted-foreground`}
           >
-            {stage.rule}
+            {INBOX_DESCRIPTION}
           </p>
         ) : (
           <label className={`${stageRuleLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
@@ -395,19 +397,39 @@ function StageCard({
             </label>
           </>
         )}
-        {!inbox ? (
-          <label className="col-span-2 col-start-1 row-start-4 mt-2 inline-flex items-center gap-2 px-2.5 text-xs text-muted-foreground lg:col-start-3 lg:row-start-2">
-            <input
-              aria-label={`Skip Inbox for ${stage.title}`}
-              checked={stage.skipInbox ?? false}
-              className="size-3.5 accent-current"
-              onChange={(event) =>
-                update("skipInbox", event.target.checked)
-              }
-              type="checkbox"
-            />
-            Skip Inbox: unread threads stay in this section
-          </label>
+        {!protectedInbox ? (
+          <div className="col-span-2 col-start-1 row-start-4 mt-2 flex flex-wrap items-center gap-2 px-2.5 text-xs text-muted-foreground lg:col-start-3 lg:row-start-2">
+            <label className="inline-flex items-center gap-2">
+              Type
+              <select
+                aria-label={`Section type for ${stage.title}`}
+                className="h-7 rounded border border-border bg-background px-1.5 text-foreground"
+                onChange={(event) => {
+                  const { catchesPluginId: _filter, ...fields } = stage;
+                  onChange({ ...fields, role: event.target.value as "stage" | "inbox" });
+                }}
+                value={stage.role}
+              >
+                <option value="stage">Workflow section</option>
+                <option disabled={hasPrompt} value="inbox">Inbox</option>
+              </select>
+            </label>
+            {inbox ? (
+              <label className="inline-flex items-center gap-2">
+                Catches plugin
+                <input
+                  aria-label={`Plugin caught by ${stage.title}`}
+                  className="h-7 w-36 rounded border border-border bg-background px-2 text-foreground"
+                  maxLength={128}
+                  onChange={(event) => update("catchesPluginId", event.target.value)}
+                  placeholder="plugin-id"
+                  value={stage.catchesPluginId ?? ""}
+                />
+              </label>
+            ) : hasPrompt ? (
+              <span>Clear the entry prompt to make this an inbox.</span>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </article>
@@ -568,14 +590,14 @@ export function WorkflowSettings() {
   const save = async () => {
     if (config === null) return;
     const submittedRevision = editRevisionRef.current;
-    const normalized = normalizeEditableWorkflowConfig(
-      finalizeDraftKeys(config, draftKeysRef.current),
-    );
     savingRef.current = true;
     setSaving(true);
     setSaved(false);
     setError(null);
     try {
+      const normalized = normalizeEditableWorkflowConfig(
+        finalizeDraftKeys(config, draftKeysRef.current),
+      );
       const full = await rpc.call("saveConfig", {
         ...normalized,
         baseRevision: loadedRevisionRef.current,

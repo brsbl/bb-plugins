@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_WORKFLOW_CONFIG,
   INBOX_RULE,
+  INBOX_DESCRIPTION,
   cloneWorkflowConfig,
   type EditableWorkflowConfig,
   type WorkflowConfig,
@@ -253,10 +254,10 @@ describe("workflow settings", () => {
       expect(rendered.getByDisplayValue("Inbox")).toBeTruthy(),
     );
     const inboxTitle = rendered.getByDisplayValue("Inbox") as HTMLInputElement;
-    const inboxRule = rendered.getByText(INBOX_RULE);
+    const inboxRule = rendered.getByText(INBOX_DESCRIPTION);
     expect(inboxTitle.disabled).toBe(false);
     expect(inboxRule.tagName).toBe("P");
-    expect(inboxRule.textContent).toContain("unless their remembered section skips Inbox");
+    expect(inboxRule.textContent).toContain("not claimed by another inbox");
     expect(rendered.queryByLabelText("Unread routing is automatic")).toBeNull();
 
     fireEvent.change(inboxTitle, { target: { value: "Needs Me" } });
@@ -729,7 +730,7 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
-  it("saves the per-section skip-Inbox opt-in and can turn it off", async () => {
+  it("saves an additional inbox filter and can turn it back into a workflow section", async () => {
     const app = await loadApp();
     let savedInput: EditableWorkflowConfig | null = null;
     const rendered = renderSlot<{}, typeof rpcContract>(
@@ -746,20 +747,27 @@ describe("workflow settings", () => {
         },
       },
     );
-    const toggle = await rendered.findByRole("checkbox", {
-      name: "Skip Inbox for Planning",
+    const type = await rendered.findByRole("combobox", {
+      name: "Section type for Planning",
     });
-    expect((toggle as HTMLInputElement).checked).toBe(false);
-    expect(rendered.queryByRole("checkbox", { name: "Skip Inbox for Inbox" })).toBeNull();
-    fireEvent.click(toggle);
+    expect((type as HTMLSelectElement).value).toBe("stage");
+    expect(rendered.queryByRole("combobox", { name: "Section type for Inbox" })).toBeNull();
+    fireEvent.change(type, { target: { value: "inbox" } });
+    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
+    expect((await rendered.findByRole("alert")).textContent).toContain("needs a plugin");
+    expect(savedInput).toBeNull();
+    fireEvent.change(rendered.getByLabelText("Plugin caught by Planning"), { target: { value: "digests" } });
+    expect(rendered.queryByLabelText("Entry prompt for Planning")).toBeNull();
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => expect(savedInput?.stages[1])
-      .toMatchObject({ skipInbox: true }));
+      .toMatchObject({ role: "inbox", catchesPluginId: "digests" }));
     await rendered.findByRole("button", { name: "Saved" });
-    fireEvent.click(toggle);
+    fireEvent.change(type, { target: { value: "stage" } });
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
-    await vi.waitFor(() => expect(savedInput?.stages[1])
-      .not.toHaveProperty("skipInbox"));
+    await vi.waitFor(() => {
+      expect(savedInput?.stages[1]).toMatchObject({ role: "stage" });
+      expect(savedInput?.stages[1]).not.toHaveProperty("catchesPluginId");
+    });
     rendered.lifecycle.unmount();
   });
 
@@ -829,7 +837,7 @@ describe("workflow settings", () => {
     expect(planningTitle.className).toContain("border-transparent");
 
     const inboxTitle = rendered.getByLabelText("Inbox section title");
-    const inboxRule = rendered.getByText(INBOX_RULE);
+    const inboxRule = rendered.getByText(INBOX_DESCRIPTION);
     const inboxGrid = inboxTitle.parentElement!;
     expect(inboxRule.parentElement).toBe(inboxGrid);
     expect(inboxGrid.children).toHaveLength(5);

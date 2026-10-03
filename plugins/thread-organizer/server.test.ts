@@ -123,6 +123,7 @@ function createHarness(
   ];
   type TestThreadChange =
     | "archived-changed"
+    | "metadata-changed"
     | "order-changed"
     | "parent-changed"
     | "read-state-changed"
@@ -184,6 +185,10 @@ function createHarness(
       threads.set(threadId, updated);
       return updated;
     },
+  );
+  const pluginMetadata = new Map<string, Record<string, unknown>>();
+  const getPluginMetadata = vi.fn(async ({ pluginId }: { pluginId?: string }) =>
+    pluginMetadata.get(pluginId ?? "thread-organizer") ?? {},
   );
   const getThread = vi.fn(async ({ threadId }: { threadId: string }) =>
     getTestThread(threadId),
@@ -261,6 +266,7 @@ function createHarness(
       },
       threads: {
         get: getThread,
+        getPluginMetadata,
         list: listThreads,
         queuedMessages: { delete: deleteQueuedMessage },
         send: sendMessage,
@@ -275,6 +281,8 @@ function createHarness(
     create,
     deleteSection,
     getThread,
+    getPluginMetadata,
+    pluginMetadata,
     listSections,
     deleteQueuedMessage,
     listThreads,
@@ -778,55 +786,59 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("keeps unread threads in a skip-Inbox section across a restart and respects user moves", async () => {
+  it.each(["origin", "metadata"] as const)("claims %s plugin threads, stays after reading and restart, and respects moves", async (source) => {
     const organizer = createHarness();
     await plugin(organizer.bb);
-    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
-    await organizer.harness.behavior.runCli(["phase", "spec-review"], { threadId: "thr_test" });
     const edited = editableWorkflowConfig(await configFor(organizer));
-    Object.assign(edited.stages.find((stage) => stage.key === "spec-review")!, {
-      skipInbox: true,
-      entryPrompt: "Review this work.",
-    });
+    edited.stages.push({ key: "digests", title: "Digests", role: "inbox",
+      catchesPluginId: "digests", rule: "Published issues." });
     const saved = await organizer.harness.behavior.callRpc("saveConfig", edited) as WorkflowConfig;
     const sectionId = (key: string) => saved.stages.find((stage) => stage.key === key)!.sectionId;
-    // Enabling the setting restores an existing unread Inbox thread silently.
-    expect(organizer.current().sectionId).toBe(sectionId("spec-review"));
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20,
+      originPluginId: source === "origin" ? "digests" : "automations" });
+    if (source === "metadata") organizer.pluginMetadata.set("digests", { inbox: true, issueId: "issue-1" });
+    organizer.emitChanged("metadata-changed");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(sectionId("digests")));
+    if (source === "metadata") expect(organizer.getPluginMetadata).toHaveBeenCalledWith({
+      threadId: "thr_test", pluginId: "digests",
+    });
     expect(organizer.sendMessage).not.toHaveBeenCalled();
     organizer.setThread({ lastReadAt: 20 });
     organizer.emitChanged();
     await organizer.harness.behavior.emitThreadEvent("thread.idle", {
       thread: organizer.current(), lastAssistantText: null,
     });
-    expect(organizer.current().sectionId).toBe(sectionId("spec-review"));
-    organizer.setThread({ lastReadAt: 0 });
-    organizer.emitChanged();
-    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
-      thread: organizer.current(), lastAssistantText: null,
-    });
-    expect(organizer.current().sectionId).toBe(sectionId("spec-review"));
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", { thread: organizer.current() });
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
 
     const replacement = await organizer.harness.lifecycle.reload(plugin);
     const reloaded = await replacement.harness.behavior.callRpc("getConfig", {}) as WorkflowConfig;
-    expect(reloaded.stages.find((stage) => stage.key === "spec-review"))
-      .toMatchObject({ skipInbox: true });
-    expect(organizer.current().sectionId).toBe(sectionId("spec-review"));
+    expect(reloaded.stages.find((stage) => stage.key === "digests"))
+      .toMatchObject({ role: "inbox", catchesPluginId: "digests" });
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
+    await expect(replacement.bb.storage.kv.get("thread:v3:thr_test"))
+      .resolves.toMatchObject({ version: 5, claimedInboxKey: "digests" });
     expect(organizer.sendMessage).not.toHaveBeenCalled();
 
-    // A user move changes the remembered stage, and default sections stay sticky.
-    organizer.setThread({ sectionId: sectionId("building") });
+    // Even an explicit move to the main Inbox dismisses the plugin claim.
+    organizer.setThread({ status: "idle", sectionId: sectionId("inbox") });
     organizer.emitChanged("order-changed");
     await vi.waitFor(async () => {
       await expect(replacement.bb.storage.kv.get("thread:v3:thr_test"))
-        .resolves.toMatchObject({ rememberedStageKey: "building" });
+        .resolves.toMatchObject({ dismissedInboxPluginId: "digests" });
     });
-    organizer.setThread({ lastReadAt: 20 });
-    organizer.emitChanged();
     await replacement.harness.behavior.emitThreadEvent("thread.idle", {
       thread: organizer.current(), lastAssistantText: null,
     });
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
     await replacement.harness.behavior.runCli(["phase", "on-hold"], { threadId: "thr_test" });
+    expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+    organizer.emitChanged("metadata-changed");
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
     expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
     await replacement.harness.lifecycle.dispose();
   });
@@ -1224,7 +1236,7 @@ describe("Thread Organizer server", () => {
       "| planning | Shaping | Clarifying the outcome and constraints. |",
     );
     expect(configuration.instructions).toContain(
-      "**Needs Me** is the protected Inbox section",
+      "**Needs Me** is the protected main Inbox",
     );
     expect(configuration.instructions).toContain(
       "generated from the user’s plugin settings",
@@ -1363,29 +1375,35 @@ describe("config CLI", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("shows and changes skip-Inbox routing through the existing approval flow", async () => {
+  it("adds and changes plugin inboxes through the existing approval flow", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
-    expect(await cli(organizer, ["section", "inbox", "planning"]))
-      .toMatchObject({ exitCode: 0, stdout: "use\n" });
-    const enabled = await approved(organizer, [
-      "section", "inbox", "planning", "--set", "skip",
+    const added = await approved(organizer, [
+      "section", "add", "Digests", "--inbox", "--catches-plugin", "digests",
     ]);
-    expect(enabled.result.exitCode).toBe(0);
-    expect(enabled.request.payload).toMatchObject({
-      summary: "Unread threads assigned to Planning will stay in that section and skip Inbox.",
-    });
-    expect(await stageOf(organizer, "planning"))
-      .toMatchObject({ skipInbox: true });
-    expect(await cli(organizer, ["section", "inbox", "planning"]))
-      .toMatchObject({ exitCode: 0, stdout: "skip\n" });
-    await approved(organizer, ["section", "inbox", "planning", "--set", "use"]);
-    expect(await stageOf(organizer, "planning"))
-      .not.toHaveProperty("skipInbox");
-    const count = pending(organizer).length;
-    expect(await cli(organizer, ["section", "inbox", "inbox", "--set", "skip"]))
+    expect(added.result.exitCode).toBe(0);
+    expect(await stageOf(organizer, "digests"))
+      .toMatchObject({ role: "inbox", catchesPluginId: "digests" });
+    expect(await cli(organizer, ["section", "type", "digests"]))
+      .toMatchObject({ exitCode: 0, stdout: "inbox (catches digests)\n" });
+    expect(await cli(organizer, ["phase", "digests"]))
       .toMatchObject({ exitCode: 2 });
-    expect(await cli(organizer, ["section", "inbox", "planning", "--set", "always"]))
+    expect(await cli(organizer, ["prompt", "digests", "--set", "Run work."]))
+      .toMatchObject({ exitCode: 2 });
+    await approved(organizer, ["section", "type", "digests", "--set", "stage"]);
+    expect(await stageOf(organizer, "digests")).toMatchObject({ role: "stage" });
+    expect(await stageOf(organizer, "digests")).not.toHaveProperty("catchesPluginId");
+    const inbox = await approved(organizer, [
+      "section", "type", "digests", "--set", "inbox", "--catches-plugin", "digests",
+    ]);
+    expect(inbox.result.exitCode).toBe(0);
+    expect(inbox.request.payload).toMatchObject({
+      summary: "Digests will catch threads from digests and keep them until you move or archive them.",
+    });
+    const count = pending(organizer).length;
+    expect(await cli(organizer, ["section", "type", "inbox", "--set", "stage"]))
+      .toMatchObject({ exitCode: 2 });
+    expect(await cli(organizer, ["section", "type", "planning", "--set", "inbox"]))
       .toMatchObject({ exitCode: 2 });
     expect(pending(organizer)).toHaveLength(count);
     await organizer.harness.lifecycle.dispose();

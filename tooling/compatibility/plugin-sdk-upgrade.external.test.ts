@@ -335,16 +335,7 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
       .toMatchObject({ gitResolvedCommit: release.commit });
     const config = await rpc("getConfig");
     expect(config).toMatchObject({ version: 2 });
-    if (savedConfig) {
-      expect(config).toEqual({
-        ...savedConfig,
-        stages: savedConfig.stages.map((stage: Record<string, unknown>) =>
-          stage.role === "inbox" ? {
-            ...stage,
-            rule: "Idle unread threads appear here automatically, unless their remembered section skips Inbox. Threads in Inbox stay until work resumes or you move a read thread to another section.",
-          } : stage),
-      });
-    }
+    if (savedConfig) expect(config).toEqual(savedConfig);
   } finally {
     if (server) {
       await server.pluginService.stop();
