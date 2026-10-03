@@ -1479,7 +1479,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
  */
 .bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]) {
   height: 1px;
-  margin-top: -9px;
+  margin-top: -7px;
   overflow: hidden;
   visibility: hidden;
 }
@@ -1608,21 +1608,21 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   justify-content: flex-start;
 }
 
+/* Messages sit 6 px apart, as close as AIM's lines, with nothing reserved for their actions below. */
+.bbd-im-chat [data-timeline-row-list="top-level"] {
+  row-gap: 6px;
+}
+
 /*
- * bb reserves a 20 px row under every message for its hover actions. Here the actions are 12 px tall and the slot
- * keeps 4 px; bb's 8 px row gap holds the rest, so a hovered message's actions end where the next message starts.
+ * bb reserves a 20 px row under every message for its hover actions. Here that row pulls up over the message's last
+ * line instead, so it adds no height. Like the text, it starts after the speaker label when it shares the label's
+ * line, so a one-line message keeps "Me:" or the buddy's name readable.
  */
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 {
-  height: 4px;
-}
-
-.bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 > button {
-  height: 12px;
-}
-
-/* The last message's actions would hang 8 px into the message box, so the transcript keeps that room below its rows. */
-.bbd-im-chat [data-timeline-row-list="top-level"] {
-  padding-bottom: 10px;
+  display: flow-root;
+  width: auto;
+  margin-top: -1.25rem;
+  clear: none;
 }
 
 /* Every line starts at the left edge in AIM, so a person's message actions sit there too, as the agent's do. */
@@ -1630,6 +1630,27 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   right: auto;
   left: 0;
   margin-left: -0.25rem;
+}
+
+/* Behind the actions, while bb shows them, the paper fades in and out with the buttons, ending in a 20 px fade to the text. */
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 {
+  z-index: 0;
+  padding-right: 20px;
+}
+
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to right, var(--bbd-im-paper) calc(100% - 20px), transparent);
+  opacity: 0;
+  transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bbd-im-chat [class~="group/message"]:is(:hover, :focus-within) .relative.w-full.h-5 > .absolute.top-0::before,
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 > [data-menu-open]::before {
+  opacity: 1;
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto .rounded-xl {
