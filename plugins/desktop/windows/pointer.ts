@@ -11,12 +11,13 @@ let cancelActivePointer: (() => void) | undefined;
 
 /**
  * Captures one primary-pointer gesture. `onMove` runs at most once per frame after the drag threshold;
- * Escape, blur, resize, context menus, lost capture and a second pointer cancel it. Returns the cancel function.
+ * Escape, blur, resize, context menus, lost capture and a second pointer cancel it; `onEnd` learns whether Escape was
+ * the reason, since only Escape is an explicit request to undo. Returns the cancel function.
  */
 export function trackPointer(
   event: ReactPointerEvent<HTMLElement>,
   onMove: (delta: Point, event: PointerEvent) => void,
-  onEnd?: (cancelled: boolean, moved: boolean) => void,
+  onEnd?: (cancelled: boolean, moved: boolean, escaped: boolean) => void,
   options: { threshold?: number; samples?: boolean } = {},
 ): () => void {
   if (event.button !== 0 || event.isPrimary === false) return () => {};
@@ -26,6 +27,7 @@ export function trackPointer(
   const start = { x: event.clientX, y: event.clientY };
   let moved = false;
   let ended = false;
+  let escaped = false;
   let frame = 0;
   let latest: PointerEvent | null = null;
   let samples: PointerEvent[] = [];
@@ -102,12 +104,12 @@ export function trackPointer(
         window.addEventListener("pointerup", afterUp, true);
       } else afterUp();
     }
-    onEnd?.(cancelled, moved);
+    onEnd?.(cancelled, moved, escaped);
     window.dispatchEvent(new Event("bbd-drag-state"));
   };
   const cancel = () => end(true);
   const cancelPointer = (next: PointerEvent) => { if (next.pointerId === pointerId) cancel(); };
-  const key = (next: KeyboardEvent) => { if (next.key === "Escape") { next.preventDefault(); cancel(); } };
+  const key = (next: KeyboardEvent) => { if (next.key === "Escape") { next.preventDefault(); escaped = true; cancel(); } };
   const up = (next: PointerEvent) => {
     if (next.pointerId !== pointerId) return;
     if (moved) move(next);

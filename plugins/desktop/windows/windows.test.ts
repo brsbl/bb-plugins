@@ -64,7 +64,7 @@ describe("pointer lifecycle", () => {
     window.dispatchEvent(pointer("pointerup", 64));
     expect(g.move).toHaveBeenCalledTimes(1);
     expect(g.move.mock.calls[0]![0]).toEqual({ x: 64, y: 0 });
-    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true, false);
     expect(g.target.releasePointerCapture).toHaveBeenCalledWith(1);
     expect(document.querySelector(".bbd-drag-shield")).toBeNull();
   });
@@ -78,7 +78,7 @@ describe("pointer lifecycle", () => {
     else if (reason === "lostpointercapture") g.target.dispatchEvent(pointer(reason, 10));
     else window.dispatchEvent(pointer(reason, 10));
     window.dispatchEvent(pointer("pointerup", 20));
-    expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true);
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true, reason === "Escape");
     expect(g.move).not.toHaveBeenCalled();
     expect(document.documentElement.style.userSelect).toBe("text");
     expect(document.querySelector(".bbd-drag-shield")).toBeNull();
