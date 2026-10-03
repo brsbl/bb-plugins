@@ -11,7 +11,7 @@
     "README.md"
   ],
   "engines": {
-    "bb": ">=0.0.34",
+    "bb": ">=0.43.4",
     "bbPluginSdk": "^0.4.1"
   },
   "bb": {

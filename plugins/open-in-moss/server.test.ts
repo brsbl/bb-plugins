@@ -97,21 +97,48 @@ describe("POST /open", () => {
     ]);
   });
 
-  it("does not guess when multiple Macs have the file or a host probe fails", async () => {
-    for (const unavailable of [false, true]) {
-      const host = createFakePluginHost({
-        pluginId: "open-in-moss",
-        sdk: { hosts: { list: async () => [makeHostResponse({ id: "one" }), makeHostResponse({ id: "two" })] } },
-        experimental_callHostRpc: ({ hostId }) => {
-          if (unavailable && hostId === "two") throw new Error("disconnected");
-          return { ok: true, path: "/notes/spec.md" };
-        },
-      });
-      await createOpenInMossPlugin()(host.bb);
-      const response = await host.harness.fetchHttp("POST", "/open", { body: JSON.stringify({ path: "/notes/spec.md" }) });
-      expect(response.status).toBe(unavailable ? 502 : 409);
-      expect(host.harness.experimental_hostRpcCalls.every(({ method }) => method === "probe")).toBe(true);
-    }
+  it("opens on the first matching host by ID when another host fails or also matches", async () => {
+    const host = createFakePluginHost({
+      pluginId: "open-in-moss",
+      sdk: { hosts: { list: async () => [
+        makeHostResponse({ id: "host_c" }),
+        makeHostResponse({ id: "host_b" }),
+        makeHostResponse({ id: "host_a" }),
+      ] } },
+      experimental_callHostRpc: ({ hostId }) => {
+        if (hostId === "host_a") throw new Error("not running plugins");
+        return { ok: true, path: "/notes/spec.md" };
+      },
+    });
+    await createOpenInMossPlugin(dependencies({ platform: "linux" }))(host.bb);
+    const response = await host.harness.fetchHttp("POST", "/open", { body: JSON.stringify({ path: "/notes/spec.md" }) });
+    expect(response.status).toBe(200);
+    expect(host.harness.experimental_hostRpcCalls.filter(({ method }) => method === "open"))
+      .toEqual([expect.objectContaining({ hostId: "host_b" })]);
+  });
+
+  it("reports an unreachable host when no reachable host has the file", async () => {
+    const host = createFakePluginHost({
+      pluginId: "open-in-moss",
+      sdk: { hosts: { list: async () => [makeHostResponse({ id: "linux" }), makeHostResponse({ id: "mac" })] } },
+      experimental_callHostRpc: ({ hostId, input }) => {
+        if (hostId === "mac") throw new Error("asleep");
+        return runOnHost(pathInput.parse(input).path, false, dependencies({ platform: "linux" }));
+      },
+    });
+    await createOpenInMossPlugin(dependencies({ platform: "linux" }))(host.bb);
+    const response = await host.harness.fetchHttp("POST", "/open", { body: JSON.stringify({ path: "/notes/spec.md" }) });
+    expect(response.status).toBe(502);
+    expect(host.harness.experimental_hostRpcCalls.every(({ method }) => method === "probe")).toBe(true);
+  });
+
+  it("opens a file on a macOS server locally without probing hosts", async () => {
+    const open = vi.fn(async () => {});
+    const { harness } = await loadPlugin(dependencies({ open }));
+    const response = await harness.fetchHttp("POST", "/open", { body: JSON.stringify({ path: "/notes/spec.md" }) });
+    expect(response.status).toBe(200);
+    expect(open).toHaveBeenCalledExactlyOnceWith("/notes/spec.md");
+    expect(harness.experimental_hostRpcCalls).toHaveLength(0);
   });
 
   it("never retries a failed targeted launch on another host or the server", async () => {
@@ -127,23 +154,6 @@ describe("POST /open", () => {
     expect(response.status).toBe(502);
     expect(host.harness.experimental_hostRpcCalls).toHaveLength(1);
     expect(localOpen).not.toHaveBeenCalled();
-  });
-
-  it("preserves path-only local opens on bb versions without host RPC", async () => {
-    const host = createFakePluginHost({ pluginId: "open-in-moss" });
-    Object.defineProperty(host.bb.hosts, "experimental_client", { value: undefined });
-    const open = vi.fn(async () => {});
-    await createOpenInMossPlugin(dependencies({ open }))(host.bb);
-    const response = await host.harness.fetchHttp("POST", "/open", {
-      body: JSON.stringify({ path: "/notes/spec.md" }),
-    });
-    expect(response.status).toBe(200);
-    expect(open).toHaveBeenCalledExactlyOnceWith("/notes/spec.md");
-    const remote = await host.harness.fetchHttp("POST", "/open", {
-      body: JSON.stringify({ path: "/notes/spec.md", hostId: "host_mac" }),
-    });
-    expect(remote.status).toBe(502);
-    expect(open).toHaveBeenCalledTimes(1);
   });
 
   it("resolves and opens a Markdown file in Moss", async () => {

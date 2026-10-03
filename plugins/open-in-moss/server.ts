@@ -38,40 +38,41 @@ export function createOpenInMossPlugin(
   dependencies: OpenInMossDependencies = systemDependencies,
 ) {
   return async function plugin(bb: BbPluginApi) {
-    const hosts = bb.hosts?.experimental_client?.({ contract: mossHostContract });
+    const hosts = bb.hosts.experimental_client({ contract: mossHostContract });
 
     async function openFile(path: string, hostId?: string) {
-      if (!hosts) {
-        if (hostId !== undefined) {
-          throw new OpenInMossError("host_unavailable", "This bb version cannot open a file on another host.");
+      if (hostId === undefined) {
+        // A macOS server that has the file opens it itself, as before host RPC.
+        if (dependencies.platform === "darwin" && (await runOnHost(path, false, dependencies)).ok) {
+          return runOnHost(path, true, dependencies);
         }
-        return runOnHost(path, true, dependencies);
+        hostId = await findHost(path);
       }
-
       try {
-        if (hostId === undefined) {
-          const connected = (await bb.sdk.hosts.list()).filter((host) => host.status === "connected");
-          if (connected.length === 0) {
-            throw new OpenInMossError("host_unavailable", "No file host is connected.");
-          }
-          const probes = await Promise.all(connected.map(async (host) => ({
-            hostId: host.id,
-            result: await hosts.call("probe", { path }, { hostId: host.id, timeoutMs: 10_000 }),
-          })));
-          const matches = probes.filter((probe) => probe.result.ok);
-          if (matches.length > 1) {
-            throw new OpenInMossError("ambiguous_host", "This file exists on multiple Macs. Supply its hostId to choose one.");
-          }
-          if (matches.length === 0) {
-            return probes.find((probe) => !probe.result.ok && probe.result.error.code !== "unsupported_platform")?.result ?? probes[0]!.result;
-          }
-          hostId = matches[0]!.hostId;
-        }
         return await hosts.call("open", { path }, { hostId, timeoutMs: 20_000 });
-      } catch (error) {
-        if (error instanceof OpenInMossError) throw error;
+      } catch {
         throw new OpenInMossError("host_unavailable", "The file host could not be reached. Reconnect it and try again.");
       }
+    }
+
+    // One unreachable or slow host must not block a host that has the file.
+    // When several hosts have the same path, the lowest host ID wins.
+    async function findHost(path: string): Promise<string> {
+      const connected = (await bb.sdk.hosts.list())
+        .filter((host) => host.status === "connected")
+        .map((host) => host.id)
+        .sort();
+      const probes = await Promise.allSettled(
+        connected.map((id) => hosts.call("probe", { path }, { hostId: id, timeoutMs: 10_000 })),
+      );
+      const match = probes.findIndex((probe) => probe.status === "fulfilled" && probe.value.ok);
+      if (match !== -1) return connected[match]!;
+      const errors = probes.flatMap((probe) =>
+        probe.status === "fulfilled" && !probe.value.ok ? [probe.value.error] : []);
+      const error = errors.find(({ code }) => code !== "unsupported_platform")
+        ?? (errors.length > 0 && errors.length === probes.length ? errors[0] : undefined);
+      if (error) throw new OpenInMossError(error.code, error.message);
+      throw new OpenInMossError("host_unavailable", "No connected Mac could be checked for this file. Reconnect it and try again.");
     }
 
     bb.http.route(
