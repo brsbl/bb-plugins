@@ -168,20 +168,16 @@ function PinStrip({ threadId }: { threadId: string }) {
       ? <span aria-label={`${pin.name} (missing)`} title={title(pin)} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
       : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title(pin)}
         aria-label={`Open ${pin.name}`} className={cn(rowLinkClass, pin.status !== "available" && "opacity-60")}>{name}</FileLink>;
-    return <ContextMenu key={pin.id}>
-      <ContextMenuTrigger asChild>
-        <div className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover focus-within:bg-state-hover">
-          {link}
-          <Menu.Root modal={false}>
-            <Menu.Trigger asChild><button type="button" aria-label={`Actions for ${pin.name}`} title="Actions" className={rowActionClass}><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
-            <DropdownMenuContent align="end" style={noMotion}>
-              {actions(pin).map((action) => <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
-            </DropdownMenuContent>
-          </Menu.Root>
-        </div>
-      </ContextMenuTrigger>
-      {contextMenu(pin)}
-    </ContextMenu>;
+    // The menu trigger sits on the link itself, as on the strip, so it replaces FileLink's own menu.
+    return <div key={pin.id} className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover focus-within:bg-state-hover">
+      <ContextMenu><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>
+      <Menu.Root modal={false}>
+        <Menu.Trigger asChild><button type="button" aria-label={`Actions for ${pin.name}`} title="Actions" className={rowActionClass}><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
+        <DropdownMenuContent align="end" style={noMotion}>
+          {actions(pin).map((action) => <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
+        </DropdownMenuContent>
+      </Menu.Root>
+    </div>;
   }
   return <div className="relative min-w-0">
     <Popover open={picker} onOpenChange={setPicker}>
