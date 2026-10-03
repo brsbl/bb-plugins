@@ -5,7 +5,11 @@
   "type": "module",
   "private": true,
   "license": "UNLICENSED",
-  "files": ["dist", "docs", "README.md"],
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
   "engines": {
     "bb": ">=0.0.34",
     "bbPluginSdk": "^0.4.1"
@@ -18,7 +22,8 @@
     },
     "server": "./server.ts",
     "app": "./app.tsx",
-    "skills": []
+    "skills": [],
+    "host": "./host.ts"
   },
   "keywords": [
     "bb-plugin",
@@ -45,6 +50,7 @@
     "react-dom": "^19.0.0",
     "sonner": "^1.7.4",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "zod": "^4.3.6"
   }
 }

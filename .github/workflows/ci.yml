@@ -102,6 +102,11 @@ jobs:
       - run: npm ci
       - run: npm run typecheck --workspace=${{ matrix.package }}
       - run: npm run build --workspace=${{ matrix.package }}
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && matrix.package == 'bb-plugin-open-in-moss'
+        with:
+          name: open-in-moss-dist
+          path: plugins/open-in-moss/dist
       - run: npm test --workspace=${{ matrix.package }}
       - run: npm run test:built --workspace=${{ matrix.package }} --if-present
       - run: node tooling/validate-plugin-artifacts.mjs ${{ matrix.path }}

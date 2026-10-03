@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeHostResponse } from "@get-bb/plugin-sdk/testing";
 import {
   createOpenInMossPlugin,
   type OpenInMossDependencies,
 } from "./server";
+import { runOnHost } from "./open";
+import { pathInput } from "./contract";
 
 function dependencies(
   overrides: Partial<OpenInMossDependencies> = {},
@@ -18,7 +20,11 @@ function dependencies(
 }
 
 async function loadPlugin(deps: OpenInMossDependencies) {
-  const host = createFakePluginHost({ pluginId: "open-in-moss" });
+  const host = createFakePluginHost({
+    pluginId: "open-in-moss",
+    sdk: { hosts: { list: async () => [makeHostResponse({ id: "host_mac" })] } },
+    experimental_callHostRpc: ({ method, input }) => runOnHost(pathInput.parse(input).path, method === "open", deps),
+  });
   await createOpenInMossPlugin(deps)(host.bb);
   return host;
 }
@@ -62,6 +68,84 @@ describe("POST /open", () => {
     expect(localOpen).not.toHaveBeenCalled();
   });
 
+  it("discovers the file on a Mac without opening it during probes", async () => {
+    const open = vi.fn(async () => {});
+    const host = createFakePluginHost({
+      pluginId: "open-in-moss",
+      sdk: { hosts: { list: async () => [
+        makeHostResponse({ id: "host_linux" }),
+        makeHostResponse({ id: "host_mac" }),
+        makeHostResponse({ id: "host_offline", status: "disconnected" }),
+      ] } },
+      experimental_callHostRpc: ({ hostId, method, input }) => runOnHost(
+        pathInput.parse(input).path, method === "open",
+        dependencies({ platform: hostId === "host_mac" ? "darwin" : "linux", open }),
+      ),
+    });
+    const localOpen = vi.fn(async () => {});
+    await createOpenInMossPlugin(dependencies({ platform: "linux", open: localOpen }))(host.bb);
+    const response = await host.harness.fetchHttp("POST", "/open", {
+      body: JSON.stringify({ path: "/Users/brsbl/Moss/Notes/Tweets/Tweets.md" }),
+    });
+    expect(response.status).toBe(200);
+    expect(open).toHaveBeenCalledExactlyOnceWith("/Users/brsbl/Moss/Notes/Tweets/Tweets.md");
+    expect(localOpen).not.toHaveBeenCalled();
+    expect(host.harness.experimental_hostRpcCalls.map(({ hostId, method }) => ({ hostId, method }))).toEqual([
+      { hostId: "host_linux", method: "probe" },
+      { hostId: "host_mac", method: "probe" },
+      { hostId: "host_mac", method: "open" },
+    ]);
+  });
+
+  it("does not guess when multiple Macs have the file or a host probe fails", async () => {
+    for (const unavailable of [false, true]) {
+      const host = createFakePluginHost({
+        pluginId: "open-in-moss",
+        sdk: { hosts: { list: async () => [makeHostResponse({ id: "one" }), makeHostResponse({ id: "two" })] } },
+        experimental_callHostRpc: ({ hostId }) => {
+          if (unavailable && hostId === "two") throw new Error("disconnected");
+          return { ok: true, path: "/notes/spec.md" };
+        },
+      });
+      await createOpenInMossPlugin()(host.bb);
+      const response = await host.harness.fetchHttp("POST", "/open", { body: JSON.stringify({ path: "/notes/spec.md" }) });
+      expect(response.status).toBe(unavailable ? 502 : 409);
+      expect(host.harness.experimental_hostRpcCalls.every(({ method }) => method === "probe")).toBe(true);
+    }
+  });
+
+  it("never retries a failed targeted launch on another host or the server", async () => {
+    const localOpen = vi.fn(async () => {});
+    const host = createFakePluginHost({
+      pluginId: "open-in-moss",
+      experimental_callHostRpc: () => { throw new Error("host disconnected"); },
+    });
+    await createOpenInMossPlugin(dependencies({ open: localOpen }))(host.bb);
+    const response = await host.harness.fetchHttp("POST", "/open", {
+      body: JSON.stringify({ path: "/notes/spec.md", hostId: "host_mac" }),
+    });
+    expect(response.status).toBe(502);
+    expect(host.harness.experimental_hostRpcCalls).toHaveLength(1);
+    expect(localOpen).not.toHaveBeenCalled();
+  });
+
+  it("preserves path-only local opens on bb versions without host RPC", async () => {
+    const host = createFakePluginHost({ pluginId: "open-in-moss" });
+    Object.defineProperty(host.bb.hosts, "experimental_client", { value: undefined });
+    const open = vi.fn(async () => {});
+    await createOpenInMossPlugin(dependencies({ open }))(host.bb);
+    const response = await host.harness.fetchHttp("POST", "/open", {
+      body: JSON.stringify({ path: "/notes/spec.md" }),
+    });
+    expect(response.status).toBe(200);
+    expect(open).toHaveBeenCalledExactlyOnceWith("/notes/spec.md");
+    const remote = await host.harness.fetchHttp("POST", "/open", {
+      body: JSON.stringify({ path: "/notes/spec.md", hostId: "host_mac" }),
+    });
+    expect(remote.status).toBe(502);
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
   it("resolves and opens a Markdown file in Moss", async () => {
     const open = vi.fn(async () => {});
     const realpath = vi.fn(async () => "/real/notes/spec.md");
@@ -86,6 +170,8 @@ describe("POST /open", () => {
       {},
       { path: "notes/spec.md" },
       { path: "/workspace/spec.ts" },
+      { path: "/workspace/spec.md", hostId: 42 },
+      { path: "/workspace/spec.md", hostId: "" },
     ]) {
       const response = await post(dependencies(), body);
       expect(response.status).toBe(400);
