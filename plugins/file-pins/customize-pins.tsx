@@ -138,7 +138,8 @@ function PinTile({ pin, busy, onRemove }: { pin: Reference; busy: boolean; onRem
         className={cn(
           TILE_CLASS,
           "flex touch-none items-center gap-1.5 rounded-md border border-sidebar-foreground/15 bg-sidebar px-2 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-          pin.status === "missing" && "text-destructive/55",
+          // Like the strip, a missing pin has no pill: just its tinted name in the tile's slot.
+          pin.status === "missing" && "border-transparent bg-transparent text-destructive/55",
           !busy && "cursor-grab active:cursor-grabbing",
         )}
       >
