@@ -1403,8 +1403,8 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   --bbd-im-system-text: 13px;
   --bbd-im-face: color-mix(in oklch, var(--canvas) 92%, var(--ink));
   --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
-  --bbd-im-me: light-dark(color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink)), oklch(0.76 0.13 262));
-  --bbd-im-them: light-dark(color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink)), oklch(0.75 0.13 27));
+  --bbd-im-blue: light-dark(color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink)), oklch(0.76 0.13 262));
+  --bbd-im-red: light-dark(color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink)), oklch(0.75 0.13 27));
 }
 
 .bbd-im {
@@ -1530,7 +1530,8 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   content: var(--bbd-im-buddy);
   /* Same size and line height as the message text, as in AIM, so the name sits on its first line. */
   font: bold var(--bbd-im-text)/1.625 "Times New Roman", Times, serif;
-  color: var(--bbd-im-them);
+  /* AIM's colors: the buddy in blue, your own name in red. */
+  color: var(--bbd-im-blue);
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -1538,7 +1539,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 
 .bbd-im-chat [data-message-column]:has(> [class~="group/message"])::before {
   content: "Me:";
-  color: var(--bbd-im-me);
+  color: var(--bbd-im-red);
 }
 
 /*
@@ -1693,12 +1694,12 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 .bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]) > .rounded-md {
-  color: var(--bbd-im-them);
+  color: var(--bbd-im-red);
 }
 
 .bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]) > .rounded-md button {
   font-style: normal;
-  color: var(--bbd-im-me);
+  color: var(--bbd-im-blue);
   text-decoration: underline;
 }
 
@@ -1735,7 +1736,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 
 .bbd-im-chat [data-message-column] a:not([data-prompt-mention-resource]),
 .bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative a:not([data-prompt-mention-resource]) {
-  color: var(--bbd-im-me);
+  color: var(--bbd-im-blue);
   text-decoration: underline;
 }
 
@@ -1745,7 +1746,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   border: 0;
   border-radius: 0;
   background: none;
-  color: var(--bbd-im-me);
+  color: var(--bbd-im-blue);
   text-decoration: underline;
 }
 
