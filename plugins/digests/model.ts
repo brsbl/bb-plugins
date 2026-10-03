@@ -87,6 +87,7 @@ const sources = z.array(SourceSchema).max(1_000).refine((items) => {
 
 export const PublishInputSchema = z.object({
   headline: z.string().trim().min(1).max(240),
+  lede: z.string().trim().max(2_000).default(""),
   metrics: z.array(MetricSchema).max(6).default([]),
   details: z.string().trim().min(1).max(100_000),
   sources: sources.default([]),
@@ -97,6 +98,7 @@ export const IssueSchema = z.object({
   digestId: DigestIdSchema,
   threadId: IdSchema.nullable().default(null),
   headline: z.string().trim().min(1).max(240),
+  lede: z.string().trim().max(2_000).default(""),
   metrics: z.array(MetricSchema).max(6).default([]),
   details: z.string().max(100_000).default(""),
   state: z.enum(["collecting", "ready", "failed"]).default("collecting"),
@@ -112,6 +114,7 @@ export const IssueSchema = z.object({
 export const IssuePatchSchema = z.object({
   threadId: IdSchema.nullable().optional(),
   headline: IssueSchema.shape.headline.optional(),
+  lede: z.string().trim().max(2_000).optional(),
   metrics: z.array(MetricSchema).max(6).optional(),
   details: z.string().max(100_000).optional(),
   recovery: z.enum(["retry", "reconnect", "upgrade"]).nullable().optional(),

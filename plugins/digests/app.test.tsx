@@ -15,6 +15,7 @@ const readyIssue = {
   digestId: "unread-email",
   threadId: "thr_issue",
   headline: "Two messages need your attention",
+  lede: "A quiet morning: **12 unread messages**, with **2 replies** to consider.",
   metrics: [{ label: "Unread", value: "12" }, { label: "Need a reply", value: "2" }],
   details: "The design review needs a reply by Friday.",
   state: "ready",
@@ -36,21 +37,32 @@ const definition = {
 afterEach(cleanup);
 
 describe("Digests app", () => {
-  it("renders a compact issue with expandable details and no separate view", async () => {
+  it("shows the newsletter immediately with safe rich text and optional more detail", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     expect(app.navPanels).toHaveLength(0);
     expect(app.messageDirectives.map((item) => item.id)).toEqual(["digest-issue"]);
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
-      rpc: { getIssue: () => readyIssue },
+      rpc: { getIssue: () => ({ ...readyIssue,
+        lede: "A quiet weekend: **14 new emails**, but only **2 need you**. Google flagged a sign-in to ==confirm today==.",
+        details: "## Reply to\n\n[**Felix Rieseberg**](https://example.test/felix) :chip[Anthropic] suggested **Thursday at 3pm**.\n\n[**Review reply**](https://example.test/reply)\n\n## The rest\n\nYour scorecard gained :gain[+12 followers]. An [unsafe link](javascript:alert%281%29) stays inert.\n\n<script>window.untrusted = true</script>\n\n<!-- more -->\n\nEarlier context: `:chip[not a chip]`.",
+      }) },
     });
     expect(await slot.findByRole("heading", { name: readyIssue.headline })).toBeDefined();
-    expect(slot.getByText("12")).toBeDefined();
-    const summary = slot.getByText("Details");
+    expect(slot.getByText("14 new emails").tagName).toBe("STRONG");
+    expect(slot.getByText("confirm today").tagName).toBe("MARK");
+    expect(slot.getByText("Anthropic").className).toBe("digest-chip");
+    expect(slot.getByText("+12 followers").className).toBe("digest-gain");
+    expect(slot.getByRole("heading", { name: "Reply to" }).closest("details")).toBeNull();
+    expect(slot.getByRole("link", { name: "Felix Rieseberg" }).getAttribute("href")).toBe("https://example.test/felix");
+    expect(slot.getByRole("link", { name: "Review reply" }).closest("p")?.className).toBe("digest-item-actions");
+    expect(slot.queryByRole("link", { name: "unsafe link" })).toBeNull();
+    expect(slot.container.querySelector("script, dl, time")).toBeNull();
+    const summary = slot.getByText("More detail");
     const details = summary.closest("details")!;
     expect(details.open).toBe(false);
     fireEvent.click(summary);
     expect(details.open).toBe(true);
-    expect(slot.getByText(readyIssue.details)).toBeDefined();
+    expect(slot.getByText(":chip[not a chip]").tagName).toBe("CODE");
     fireEvent.click(summary);
     expect(details.open).toBe(false);
     expect(slot.inspection.rpcCalls).toEqual([{ method: "getIssue", input: { threadId: "thr_issue", id: "issue_1" } }]);
@@ -71,7 +83,7 @@ describe("Digests app", () => {
     });
     const reconnect = await slot.findByRole("button", { name: "Reconnect" });
     expect(slot.inspection.rpcCalls).toHaveLength(1);
-    expect(slot.getByText("Details").closest("details")!.open).toBe(true);
+    expect(slot.getByText("Reconnect Gmail, then retry this digest.").closest("details")).toBeNull();
     fireEvent.click(reconnect);
     expect(await slot.findByText("Gmail is open in bb Browser. Sign in there, then retry.")).toBeDefined();
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "reconnect", input: { threadId: "thr_issue", id: "issue_1" } });
@@ -155,6 +167,6 @@ describe("Digests app", () => {
     fireEvent.click(slot.getByRole("button", { name: "Retry" }));
     expect(await slot.findByText("Retrying this issue.")).toBeDefined();
     await slot.behavior.emitRealtime("issues", { id: "issue_1" });
-    await waitFor(() => expect(slot.queryByRole("region", { name: "Digest summary" })).toBeNull());
+    await waitFor(() => expect(slot.queryByRole("article", { name: "Digest summary" })).toBeNull());
   });
 });

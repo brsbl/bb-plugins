@@ -184,7 +184,7 @@ export function createService(bb: BbPluginApi) {
       issue ??= newIssue(definition, null, key);
       // Create the searchable native thread before committing processed IDs.
       if (!issue.threadId) {
-        issue = store.issues.update(issue.id, { headline: payload.headline, details: payload.details, metrics: payload.metrics });
+        issue = store.issues.update(issue.id, { headline: payload.headline, lede: payload.lede, details: payload.details, metrics: payload.metrics });
         issue = await spawnDelivery(definition, issue);
       }
       // External publishers may retry a failed delivery with the same key.

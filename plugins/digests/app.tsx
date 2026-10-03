@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Children, isValidElement, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   definePluginApp,
-  Markdown,
   useBbNavigate,
   useComposer,
   useRealtime,
@@ -20,6 +21,78 @@ type Overview = {
   actionCardsAvailable: boolean;
   organizerReady: boolean;
 };
+
+function richText(children: ReactNode): ReactNode {
+  return Children.map(children, (child) => {
+    if (typeof child !== "string") return child;
+    const parts: ReactNode[] = [];
+    let offset = 0;
+    for (const match of child.matchAll(/==([^=\n]+)==|:(chip|gain)\[([^\]\n]+)\]/gu)) {
+      parts.push(child.slice(offset, match.index));
+      parts.push(match[1] !== undefined
+        ? <mark key={match.index}>{match[1]}</mark>
+        : <span key={match.index} className={`digest-${match[2]}`}>{match[3]}</span>);
+      offset = match.index + match[0].length;
+    }
+    parts.push(child.slice(offset));
+    return parts;
+  });
+}
+
+function safeLink(value: string): string {
+  try {
+    const url = new URL(value);
+    return ["https:", "http:", "mailto:"].includes(url.protocol) ? value : "";
+  } catch {
+    return "";
+  }
+}
+
+function NewsletterLink({ children, href }: { children?: ReactNode; href?: string }) {
+  return href
+    ? <a href={href} target="_blank" rel="noopener noreferrer">{richText(children)}</a>
+    : <span>{richText(children)}</span>;
+}
+
+function NewsletterHeading({ children }: { children?: ReactNode }) {
+  const text = Children.toArray(children).filter((child) => typeof child === "string").join("");
+  return <h3 className={/^(the rest|in brief|coming up)$/iu.test(text) ? "digest-routine-heading" : undefined}>{richText(children)}</h3>;
+}
+
+const newsletterComponents: Components = {
+  a: NewsletterLink,
+  p: ({ children }) => {
+    const parts = Children.toArray(children);
+    const actions = parts.length > 0 && parts.some((part) => isValidElement(part) && part.type === NewsletterLink)
+      && parts.every((part) => typeof part === "string" ? /^[\s·|]*$/u.test(part) : isValidElement(part) && part.type === NewsletterLink);
+    return <p className={actions ? "digest-item-actions" : undefined}>{richText(children)}</p>;
+  },
+  strong: ({ children }) => <strong>{richText(children)}</strong>,
+  em: ({ children }) => <em>{richText(children)}</em>,
+  del: ({ children }) => <del>{richText(children)}</del>,
+  li: ({ children }) => <li>{richText(children)}</li>,
+  blockquote: ({ children }) => <blockquote>{richText(children)}</blockquote>,
+  h1: NewsletterHeading,
+  h2: NewsletterHeading,
+  h3: NewsletterHeading,
+  h4: NewsletterHeading,
+  h5: NewsletterHeading,
+  h6: NewsletterHeading,
+  td: ({ children }) => <td>{richText(children)}</td>,
+  th: ({ children }) => <th>{richText(children)}</th>,
+};
+
+function NewsletterText({ content, className = "" }: { content: string; className?: string }) {
+  return <div className={`digest-rich ${className}`}>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={newsletterComponents}
+      skipHtml
+      allowedElements={["p", "br", "strong", "em", "del", "a", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "code", "pre", "hr", "table", "thead", "tbody", "tr", "td", "th"]}
+      urlTransform={safeLink}
+    >{content}</ReactMarkdown>
+  </div>;
+}
 
 function useReconnectRefresh(refresh: () => void) {
   const connection = useRealtimeConnectionState();
@@ -67,7 +140,7 @@ function DigestIssue({ attributes, message }: PluginMessageDirectiveProps) {
       <div className="digest-issue">
         {loadError ? <>
           <p role="alert">This issue couldn’t be loaded. Check that bb is running and try again.</p>
-          <button type="button" className="digest-button" onClick={() => { void load(); }}>Retry</button>
+          <button type="button" className="digest-text-action digest-text-primary" onClick={() => { void load(); }}>Retry</button>
         </> : <p className="digest-muted" role="status">Loading digest…</p>}
       </div>
     );
@@ -117,6 +190,8 @@ function IssueSummary({ issue, threadId, loadError, refresh }: {
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState<"retry" | "reconnect" | null>(null);
+  const [mainContent, ...extraContent] = issue.details.split(/\r?\n[ \t]*<!-- more -->[ \t]*\r?\n/u);
+  const moreContent = extraContent.join("\n\n");
   const recover = async (action: "retry" | "reconnect") => {
     if (pending) return;
     setPending(action);
@@ -142,28 +217,22 @@ function IssueSummary({ issue, threadId, loadError, refresh }: {
   };
 
   return (
-    <section className="digest-issue" aria-label="Digest summary" data-state={issue.state}>
-      <header className="digest-issue-header">
-        <span className="digest-eyebrow">{issue.state === "failed" ? "Needs attention" : issue.state === "collecting" ? "Preparing digest" : "Digest"}</span>
-        {issue.publishedAt !== null && <time className="digest-muted" dateTime={new Date(issue.publishedAt).toISOString()}>
-          {new Date(issue.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-        </time>}
-      </header>
-      <h3 className="digest-headline">{issue.headline}</h3>
+    <article className="digest-issue" aria-label="Digest summary" data-state={issue.state}>
+      <h2 className="digest-headline">{issue.headline}</h2>
+      {issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
-      {issue.metrics.length > 0 && <dl className="digest-metrics">
-        {issue.metrics.slice(0, 6).map((metric, index) => <div key={`${metric.label}-${index}`}>
-          <dt>{metric.label}</dt>
-          <dd>{metric.value}</dd>
-        </div>)}
-      </dl>}
+      {mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
+      {moreContent.trim() && <details className="digest-more">
+        <summary>More detail</summary>
+        <NewsletterText content={moreContent} />
+      </details>}
       {issue.state === "failed" && <div className="digest-recovery">
         {issue.recovery === "upgrade" && <p>Update bb on your desktop and connected server to 0.45.0 or later, then retry. Your existing browser sign-ins can be reused after the update.</p>}
         <div className="digest-controls">
-          {issue.recovery === "reconnect" && <button type="button" className="digest-button digest-primary" disabled={pending !== null} onClick={() => { void recover("reconnect"); }}>
+          {issue.recovery === "reconnect" && <button type="button" className="digest-text-action digest-text-primary" disabled={pending !== null} onClick={() => { void recover("reconnect"); }}>
             {pending === "reconnect" ? "Opening…" : "Reconnect"}
           </button>}
-          <button type="button" className={`digest-button ${issue.recovery === "reconnect" ? "" : "digest-primary"}`} disabled={pending !== null} onClick={() => { void recover("retry"); }}>
+          <button type="button" className={`digest-text-action ${issue.recovery === "reconnect" ? "" : "digest-text-primary"}`} disabled={pending !== null} onClick={() => { void recover("retry"); }}>
             {pending === "retry" ? "Retrying…" : "Retry"}
           </button>
         </div>
@@ -172,13 +241,9 @@ function IssueSummary({ issue, threadId, loadError, refresh }: {
       {notice && <p className="digest-muted" role="status">{notice}</p>}
       {loadError && <div className="digest-refresh-error" role="alert">
         <span>Couldn’t refresh this issue. The last saved summary is shown.</span>
-        <button type="button" className="digest-button" onClick={() => { void refresh(); }}>Retry</button>
+        <button type="button" className="digest-text-action digest-text-primary" onClick={() => { void refresh(); }}>Retry</button>
       </div>}
-      {issue.details.trim() && <details className="digest-details" open={issue.state === "failed"}>
-        <summary>Details</summary>
-        <Markdown content={issue.details} />
-      </details>}
-    </section>
+    </article>
   );
 }
 

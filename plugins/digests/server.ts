@@ -73,10 +73,10 @@ export default function plugin(bb: BbPluginApi) {
       run: cliCommand({ summary: "Run a digest now in its own issue thread", options: { digest, json }, async run(input) { return output(await service.run(input.options.digest)); } }),
       publish: cliCommand({
         summary: "Publish Markdown as a new issue from any thread, or finish this run's issue",
-        options: { digest, file, json, headline: { type: "string", description: "Short headline; defaults to first Markdown line" }, metrics: { type: "string", description: "JSON array of up to six label/value objects" }, sources: { type: "string", description: "JSON array of connectionId/messageId/threadId source references" }, key: { type: "string", description: "Idempotency key; defaults to the content SHA-256" } },
+        options: { digest, file, json, headline: { type: "string", description: "Story headline; defaults to first Markdown line" }, lede: { type: "string", description: "One or two opening sentences, with important counts in bold" }, metrics: { type: "string", description: "Optional structured metrics retained with the issue; include visible numbers in the prose" }, sources: { type: "string", description: "JSON array of connectionId/messageId/threadId source references" }, key: { type: "string", description: "Idempotency key; defaults to the content SHA-256" } },
         async run(input, ctx) {
           const details = await readFile(input.options.file, ctx);
-          const payload = publishInputSchema.parse({ headline: input.options.headline ?? details.split(/\r?\n/).find((line) => line.trim())?.replace(/^#+\s*/, "").slice(0, 240), details, metrics: JSON.parse(input.options.metrics ?? "[]"), sources: JSON.parse(input.options.sources ?? "[]") });
+          const payload = publishInputSchema.parse({ headline: input.options.headline ?? details.split(/\r?\n/).find((line) => line.trim())?.replace(/^#+\s*/, "").slice(0, 240), lede: input.options.lede, details, metrics: JSON.parse(input.options.metrics ?? "[]"), sources: JSON.parse(input.options.sources ?? "[]") });
           const current = service.store.issues.getByThread(requireThread(ctx));
           if (current && current.digestId !== input.options.digest) throw new Error("This run belongs to a different digest. Publish from another thread.");
           const result = current ? await service.publishCurrent(ctx.threadId!, payload) : await service.publishExternal(input.options.digest, payload, input.options.key ?? createHash("sha256").update(JSON.stringify(payload)).digest("hex"));

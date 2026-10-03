@@ -48,8 +48,20 @@ and label incomplete coverage. Reading calls `digest_processed` with stable
 Gmail message IDs, excludes prior publications, and submits the IDs with
 `digest_publish`. Failed attempts never consume IDs.
 
-Publish a short headline, a few key numbers, Markdown details and source IDs
-using `digest_publish`. Emit the returned directive first on its own line.
+Publish a short morning newsletter using `digest_publish`: a story headline,
+a 1–2 sentence `lede`, short Markdown `details`, and source IDs. The thread title
+already has the category and date; never repeat a kicker. Use sections such as
+Reply to, Check, To do, Worth reading in full, and The rest. Put important counts
+and facts in **bold prose**, with linked names, subjects and articles. No stat
+tiles, bar charts, tables or pill tabs.
+
+Use `==confirm today==` sparingly for time-sensitive facts, `:chip[Anthropic]`
+for context and `:gain[+12 followers]` for gains. Under only items needing the
+user, put small source/review links on their own line; bold the primary link.
+These links can open information, never authorize writes. Routine items get
+one line at the end. Optional supporting detail follows a standalone
+`<!-- more -->` marker and appears under More detail. Emit the returned directive
+first on its own line.
 Use `digest_fail` for an honest failure with Retry or Reconnect. Do not
 present an empty or partial collection as a successful complete briefing.
 
@@ -57,9 +69,10 @@ present an empty or partial collection as a successful complete briefing.
 
 `bb digest publish --digest x-scorecard --file brief.md`
 
-Optional `--headline`, `--metrics '[{"label":"Views","value":"12.4k"}]'`,
+Optional `--headline`, `--lede`, `--metrics '[{"label":"Views","value":"12.4k"}]'`,
 `--sources`, and `--key week-2026-10-05` customize the publication. Repeating
-the same key returns the existing issue. The file is read on the invoking
+the same key returns the existing issue. Put visible numbers in the prose;
+structured metrics are retained as data without rendering tiles. The file is read on the invoking
 thread's computer. The destination definition determines the project. Return
 the new thread reference to the caller; do not print its issue directive in
 the publishing thread.

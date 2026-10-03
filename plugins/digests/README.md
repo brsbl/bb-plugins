@@ -1,7 +1,7 @@
 # Digests
 
-Private briefings delivered as threads, with a headline, key numbers, and
-expandable details. Unread issues notify you in Inbox, return to Digests after
+Private briefings delivered as threads, as short newsletters with a story headline, a lede,
+and compact written sections. Supporting detail can expand in place. Unread issues notify you in Inbox, return to Digests after
 reading, and archive seven days later. Find old issues with native thread search.
 
 ## Install
