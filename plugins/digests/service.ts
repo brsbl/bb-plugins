@@ -222,7 +222,7 @@ export function createService(bb: BbPluginApi) {
       if (await bb.storage.kv.get<boolean>(`retry:${id}`)) throw new Error("This issue already has a retry queued.");
       await bb.storage.kv.set(`retry:${id}`, true);
       try {
-        await bb.sdk.threads.send({ threadId, input: [{ type: "text", mentions: [], text: runPrompt(requiredDefinition(issue.digestId)) }] });
+        await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", mentions: [], text: runPrompt(requiredDefinition(issue.digestId)) }] });
       } catch (error) {
         await bb.storage.kv.delete(`retry:${id}`);
         throw error;
