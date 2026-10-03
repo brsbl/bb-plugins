@@ -18,7 +18,7 @@ function PinContents({ pin }: { pin: Reference }) {
   return <><ReferenceIcon name={pin.name} moss={pin.moss} status={pin.status} /><span className="truncate group-hover:underline">{pin.name}</span></>;
 }
 
-function PinStrip({ threadId, composerKey }: { threadId: string; composerKey: string }) {
+function PinStrip({ threadId }: { threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
@@ -46,9 +46,9 @@ function PinStrip({ threadId, composerKey }: { threadId: string; composerKey: st
   useEffect(() => {
     alive.current = true;
     const launch = () => { setMoreOpen(false); setPicker({}); };
-    launchers.set(composerKey, launch);
-    return () => { alive.current = false; generation.current++; if (launchers.get(composerKey) === launch) launchers.delete(composerKey); };
-  }, [composerKey]);
+    launchers.set(threadId, launch);
+    return () => { alive.current = false; generation.current++; if (launchers.get(threadId) === launch) launchers.delete(threadId); };
+  }, [threadId]);
   useEffect(() => { void refresh(); }, [refresh, connection]);
   useEffect(() => {
     const check = () => { if (document.visibilityState === "visible") void refresh(); };
@@ -150,11 +150,11 @@ function PinStrip({ threadId, composerKey }: { threadId: string; composerKey: st
 }
 function PinsBanner() {
   const composer = useComposer();
-  return composer.scope.kind === "thread" ? <PinStrip key={composer.scope.threadId} threadId={composer.scope.threadId} composerKey={composer.key} /> : null;
+  return composer.scope.kind === "thread" ? <PinStrip key={composer.scope.threadId} threadId={composer.scope.threadId}  /> : null;
 }
 export default definePluginApp((app) => {
   app.composer.customize({
     id: "file-pins", scopes: ["thread"], banners: [{ id: "pins", chrome: "bare", component: PinsBanner }],
-    plusMenu: [{ id: "pin-file", label: "Pin to thread", icon: "Pin", run: ({ composer }) => { launchers.get(composer.key)?.(); } }],
+    plusMenu: [{ id: "pin-file", label: "Pin to thread", icon: "Pin", run: ({ composer }) => { if (composer.scope.kind === "thread") launchers.get(composer.scope.threadId)?.(); } }],
   });
 });

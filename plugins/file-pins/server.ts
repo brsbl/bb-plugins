@@ -79,7 +79,7 @@ export default function plugin(bb: BbPluginApi): void {
     search: async ({ threadId, hostId, query }) => {
       const target = await thread(threadId);
       const environment = target.environmentId ? await bb.sdk.environments.get({ environmentId: target.environmentId }) : null;
-      const root = environment?.hostId === hostId ? environment.path : (await host.call("home", {}, { hostId })).path;
+      const root = environment?.hostId === hostId && environment.path ? environment.path : (await host.call("home", {}, { hostId })).path;
       if (!query.trim()) return { root, paths: [], truncated: false };
       const result = await bb.sdk.files.listPaths({ hostId, path: root, query: query.trim(), includeFiles: true, includeDirectories: false, limit: 20 });
       return { root, paths: result.paths.map(({ path, name }) => ({ path: `${root.replace(/[\\/]$/, "")}/${path}`, name })), truncated: result.truncated };
