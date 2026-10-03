@@ -97,7 +97,7 @@ describe("bb ThreadChat contract", () => {
     }
   });
 
-  it("quotes a message from another agent or bb as a small IM, not a system line", () => {
+  it("keeps bb's layout for a message from another agent or bb, with the message set like the transcript", () => {
     const { peer } = load();
     expect(checkChatContract(peer)).toBe("ok");
     // bb draws these as user rows without a message column: GeneratedConversationMessage.
@@ -105,31 +105,21 @@ describe("bb ThreadChat contract", () => {
     expect(rows.map(rowOf)).toEqual(["thr_fixture_peer:user-seed:52", "thr_fixture_peer:user-seed:74", "thr_fixture_peer:user-seed:129", "thr_fixture_lead:user-seed:29"]);
     expect(rows.every((row) => peer.contains(row))).toBe(true);
     expect(matches(HIDDEN_ROWS).filter((row) => rows.includes(row))).toEqual([]);
-
-    const quoted = matches(QUOTED);
-    expect(quoted).toEqual(rows.map((row) => row.querySelector(":scope > .rounded-md")));
-    // The system-line rules style tool and thought rows, never these messages or anything in them.
+    // The tool and thought system-line rules never reach these rows; their header gets its own system-line rule.
     for (const selector of [SYSTEM_LINES, `${SYSTEM_LINES} :is(.text-sm, .text-muted-foreground, .text-subtle-foreground)`]) {
       expect(matches(selector).filter((element) => rows.some((row) => row.contains(element)))).toEqual([]);
     }
-
-    // bb's own title is the speaker label, and the colon goes after its last part.
-    const labels = matches(`${QUOTED} > .group\\/timeline-row span[title] > :last-child`);
-    expect(labels.map((label) => label.textContent)).toEqual(["Release checklist lead", "Release checklist lead", "Release checklist lead", "finished"]);
-    expect(quoted.map((row) => row.querySelector(":scope > .group\\/timeline-row span[title]")?.textContent)).toEqual([
+    const headers = matches(`${QUOTED} > .group\\/timeline-row`);
+    expect(headers.map((header) => header.querySelector("span[title]")?.textContent)).toEqual([
       "Message from Release checklist lead",
       "Message from Release checklist lead",
       "Message from Release checklist lead",
       "Release notes check finished",
     ]);
-    expect(matches(`${QUOTED} > .group\\/timeline-row > *`).map((header) => header.getAttribute("aria-expanded"))).toEqual([null, "true", "false", "false"]);
-
-    // The message sits three wrappers into bb's panel, collapsed or expanded, and keeps bb's markdown.
-    const text = matches(`${QUOTED} > .relative > div > div > div > div`);
-    expect(text).toHaveLength(4);
-    expect(text.every((element) => element.querySelector("[data-markdown-preview]") !== null)).toBe(true);
-    const expanded = text[1].querySelector("[data-markdown-preview]")!;
-    expect(Array.from(expanded.children, (child) => child.tagName)).toEqual(["P", "OL", "P"]);
+    // The message body, collapsed or expanded, keeps bb's markdown and takes the transcript's type.
+    const bodies = matches(`${QUOTED} > .relative`);
+    expect(bodies).toHaveLength(4);
+    expect(bodies.every((body) => body.querySelector("[data-markdown-preview]") !== null)).toBe(true);
     expect(matches(`${QUOTED} > .relative a:not([data-prompt-mention-resource])`).map((link) => link.getAttribute("href"))).toEqual(["https://example.com/notes"]);
     expect(matches(`${QUOTED} > .relative [data-prompt-mention-resource]`).map((pill) => pill.textContent)).toEqual(["Release notes check"]);
   });
