@@ -1626,9 +1626,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 
 /* AIM's serif, a size up from bb's messages; code keeps bb's monospace. */
 .bbd-im-chat [data-message-column],
-.bbd-im-chat [data-message-column] :is(.text-sm, .text-xs, .text-base):not(code),
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md,
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md :is(.text-sm, .text-xs, .text-base):not(code) {
+.bbd-im-chat [data-message-column] :is(.text-sm, .text-xs, .text-base):not(code) {
   font-family: "Times New Roman", Times, serif;
   font-size: var(--bbd-im-text);
   line-height: 1.625;
@@ -1705,76 +1703,24 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 /*
- * A message another agent or bb sent this thread is a user row that bb draws as an expandable row, not a message column
- * (thread/timeline/GeneratedConversationMessage.tsx). It reads as a quoted IM: a small sunken field holding bb's own
- * title ("Message from <thread>", "<thread> finished") as a bold speaker label, then the message in the transcript's
- * Times. The label is green, since red is the buddy in this window and blue is you. The field's margin keeps the 12 px
- * between messages, which a message gets from its action slot.
+ * A message another agent or bb sent this thread is a user row that bb draws as an expandable row
+ * (thread/timeline/GeneratedConversationMessage.tsx). It keeps bb's layout: the "Message from <thread>" header reads as
+ * a system line, and the message, indented under bb's thread line, is set like the transcript's messages.
  */
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md {
-  display: flow-root;
-  width: auto;
-  margin: 0 0.5rem 4px;
-  padding: 2px 6px;
-  border-radius: 0;
-  background: var(--bbd-im-paper);
-  box-shadow:
-    inset 1px 1px 0 var(--bbd-im-shadow),
-    inset -1px -1px 0 var(--bbd-im-face);
-}
-
-/* Above bb's message panel, which is positioned and would otherwise cover the label's link and toggle. */
 .bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row {
-  position: relative;
-  z-index: 1;
-  float: left;
-  max-width: 100%;
-  margin-right: 6px;
+  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
+  color: var(--bbd-im-system);
 }
 
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row > * {
-  display: block;
-  width: auto;
-  padding: 0;
-  font: bold var(--bbd-im-text)/1.625 "Times New Roman", Times, serif;
-  color: light-dark(oklch(0.48 0.14 150), oklch(0.76 0.12 150));
-  text-align: left;
-}
-
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row :is(span, a) {
-  display: inline;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
+  font-size: var(--bbd-im-system-text);
   color: inherit;
-  text-decoration: none;
-  white-space: normal;
-  opacity: 1;
 }
 
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row a:hover {
-  text-decoration: underline;
-}
-
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row span[title] > :last-child::after {
-  content: ":";
-}
-
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row svg {
-  display: none;
-}
-
-/* bb indents the message three wrappers deep, behind a thread line; here it follows the label, as an IM line does. */
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative > div > div,
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative > div > div > div,
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative > div > div > div > div {
-  margin: 0;
-  padding: 0;
-}
-
-.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative > div > div > div::before {
-  display: none;
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative,
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative :is(.text-sm, .text-xs, .text-base, .text-muted-foreground, .text-subtle-foreground):not(code) {
+  font: normal var(--bbd-im-text)/1.625 "Times New Roman", Times, serif;
+  color: var(--foreground);
 }
 
 .bbd-im-chat :is(pre, div:has(> pre)) {
