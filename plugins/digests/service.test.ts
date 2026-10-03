@@ -13,7 +13,10 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-function setup() {
+function setup(options: { runs?: Array<{
+  id: string; threadId: string | null; status: string; scheduledFor: number; startedAt: number;
+  error: string | null; skipReason: string | null;
+}> } = {}) {
   let signIn = { signedIn: true, signedOut: false };
   let tabCount = 0;
   let deliveryCount = 0;
@@ -55,7 +58,7 @@ function setup() {
           } else if (pluginId === "automations" && ["automations_create", "automations_pause", "automations_resume"].includes(method)) {
             result = { id: "auto_digest_new", enabled: method === "automations_resume", nextRunAt: null };
           } else if (pluginId === "automations" && method === "automations_runs") {
-            result = { runs: [], nextCursor: null };
+            result = { runs: options.runs ?? [], nextCursor: null };
           } else {
             throw new Error(`Unexpected cross-plugin request: ${pluginId}/${method}`);
           }
@@ -144,10 +147,67 @@ describe("digest issue lifecycle", () => {
     expect(first.issue).toMatchObject({ state: "ready", threadId: "thr_delivery_1", dedupeKey: "week-2026-41" });
     expect(harness.inspection.sdk.callsTo("threads.spawn")).toHaveLength(1);
     expect(harness.inspection.sdk.callsTo("threads.spawn")[0]?.[0]).toMatchObject({
-      projectId: "proj_digest", title: expect.stringContaining("Reading ·"), prompt: expect.stringContaining(payload().details),
+      projectId: "proj_digest", title: expect.stringContaining("Reading ·"), input: [expect.objectContaining({ text: expect.stringContaining(payload().details), visibility: "agent-only" })],
     });
     expect(service.store.issues.list()).toHaveLength(1);
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toEqual([]);
+  });
+
+  it("shows a delayed scheduled run in place and opens its connection only after the user retries", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const { service, harness } = setup({ runs: [{
+      id: "run_late", threadId: "thr_late", status: "running", scheduledFor: NOW - 20 * 60_000,
+      startedAt: NOW, error: null, skipReason: null,
+    }] });
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_digest_new" });
+
+    const delayed = await service.begin("reading", "thr_late");
+    expect(delayed).toMatchObject({
+      complete: true, sessions: [], issue: { threadId: "thr_late", state: "failed", recovery: "retry", details: expect.stringContaining("delayed") },
+    });
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toEqual([]);
+    expect(service.store.connections.get("gmail")?.status).toBe("unknown");
+
+    await service.retry("thr_late", delayed.issue.id);
+    const retried = await service.begin("reading", "thr_late");
+    expect(retried).toMatchObject({ complete: false, issue: { id: delayed.issue.id, threadId: "thr_late", state: "collecting" } });
+    expect(retried.sessions[0]).toMatchObject({ threadId: "thr_late", tabId: "tab_1" });
+    expect(service.store.issues.list()).toHaveLength(1);
+    expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([value]) =>
+      (value as { method: string }).method === "automations_runs",
+    )).toHaveLength(1);
+  });
+
+  it("retries a failed delivery in the same thread without changing the saved issue or collecting again", async () => {
+    const { service, harness } = setup();
+    const published = await service.publishExternal("reading", payload(), "delivery-recovery");
+    const threadId = published.issue.threadId!;
+    await service.settled(threadId, true);
+
+    expect(await service.recoveryIssue(threadId)).toMatchObject({
+      id: published.issue.id, state: "failed", recovery: "retry", details: expect.stringContaining("delivery turn failed"),
+    });
+    expect(service.store.issues.get(published.issue.id)).toEqual(published.issue);
+    expect(service.store.processed("reading", "gmail", ["message_1"])).toEqual(["message_1"]);
+
+    await expect(service.retry(threadId, published.issue.id)).resolves.toEqual({ threadId });
+    const sent = harness.inspection.sdk.callsTo("threads.send")[0]?.[0] as {
+      threadId: string; input: Array<{ type: string; text: string; visibility?: string }>;
+    };
+    expect(sent).toMatchObject({
+      threadId, input: [{ type: "text", visibility: "agent-only", text: expect.stringContaining("::digest-issue[") }],
+    });
+    expect(sent.input[0]?.text).toContain("Do not browse");
+    expect(sent.input[0]?.text).not.toContain("digest_begin");
+    expect(harness.inspection.sdk.callsTo("threads.spawn")).toHaveLength(1);
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toEqual([]);
+
+    await service.settled(threadId, false);
+    expect(await service.recoveryIssue(threadId)).toBeNull();
+    expect(service.store.issues.get(published.issue.id)).toEqual(published.issue);
+    expect(service.store.processed("reading", "gmail", ["message_1"])).toEqual(["message_1"]);
+    expect(service.store.issues.list()).toHaveLength(1);
   });
 
   it("archives only read and settled issues after seven days, preserving unread and running threads", async () => {

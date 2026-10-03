@@ -16,6 +16,10 @@ export function directive(issue: Pick<Issue, "id" | "headline" | "metrics" | "de
 }
 
 export function runPrompt(definition: DigestDefinition): string {
+  return `Prepare ${definition.name} in this thread. Call digest_begin with digestId ${JSON.stringify(definition.id)} first, then follow its instructions. Collection is read-only. If complete is true, emit the returned directive and stop; otherwise publish the briefing through digest_publish.`;
+}
+
+export function collectionInstructions(definition: DigestDefinition): string {
   return `[Digests recipe: ${definition.id}]
 Produce one private briefing in THIS thread. First call digest_begin with digestId ${JSON.stringify(definition.id)}. It assigns the issue, date title and Digests section, checks each connection and returns fresh Browser Automation sessions.
 If begin returns a failure, emit its directive alone, state the failure briefly, and STOP. Never borrow another thread's tab or copy cookies. Use only returned sessions and declared connections. Close sessions by publishing or failing the issue.

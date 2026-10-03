@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createStore } from "./store.js";
 import { issueSchema, type DigestDefinition, type Issue, type PublishInput } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
-import { deliveryPrompt, directive, issueTitle, runPrompt } from "./prompts.js";
+import { deliveryPrompt, directive, issueTitle, runPrompt, collectionInstructions } from "./prompts.js";
 
 const automationSchema = z.object({ id: z.string(), enabled: z.boolean(), nextRunAt: z.number().nullable() }).passthrough();
 const runSchema = z.object({ id: z.string(), threadId: z.string().nullable(), status: z.string(), scheduledFor: z.number(), startedAt: z.number(), error: z.string().nullable(), skipReason: z.string().nullable() }).passthrough();
@@ -92,7 +92,7 @@ export function createService(bb: BbPluginApi) {
       ...(definition.providerId ? { providerId: definition.providerId } : {}),
       ...(definition.model ? { model: definition.model } : {}),
       permissionMode: definition.permissionMode,
-      title: issueTitle(definition, issue.createdAt), prompt: deliveryPrompt(issue),
+      title: issueTitle(definition, issue.createdAt), input: [{ type: "text", text: deliveryPrompt(issue), mentions: [], visibility: "agent-only" }],
       sectionId: stage.sectionId, pluginMetadata: { issueId: issue.id, digestId: definition.id },
     });
     const bound = changed(store.issues.update(issue.id, { threadId: thread.id }));
@@ -151,7 +151,7 @@ export function createService(bb: BbPluginApi) {
             throw error;
           }
         }
-        return { issue, directive: directive(issue), sessions, complete: false };
+        return { issue, directive: directive(issue), sessions, instructions: collectionInstructions(definition), complete: false };
       } catch (error) {
         issue = await fail(issue, error instanceof Error ? error.message : String(error), error instanceof ConnectionError ? error.recovery : "retry");
         return { issue, directive: directive(issue), sessions: [], complete: true };
@@ -218,11 +218,15 @@ export function createService(bb: BbPluginApi) {
   async function retry(threadId: string, id: string) {
     return exclusive(`retry:${id}`, async () => {
       const issue = requiredIssue(threadId, id);
-      if (issue.state !== "failed") throw new Error("Only a failed issue can be retried.");
+      const deliveryFailed = issue.state === "ready" && await bb.storage.kv.get<boolean>(`recovery:${id}`);
+      if (issue.state !== "failed" && !deliveryFailed) throw new Error("Only a failed issue can be retried.");
       if (await bb.storage.kv.get<boolean>(`retry:${id}`)) throw new Error("This issue already has a retry queued.");
       await bb.storage.kv.set(`retry:${id}`, true);
       try {
-        await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", mentions: [], text: runPrompt(requiredDefinition(issue.digestId)) }] });
+        await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", mentions: [],
+          text: deliveryFailed ? deliveryPrompt(issue) : runPrompt(requiredDefinition(issue.digestId)),
+          ...(deliveryFailed ? { visibility: "agent-only" as const } : {}),
+        }] });
       } catch (error) {
         await bb.storage.kv.delete(`retry:${id}`);
         throw error;
@@ -293,12 +297,21 @@ export function createService(bb: BbPluginApi) {
     const issue = store.issues.getByThread(threadId);
     if (!issue) return;
     if (issue.state === "collecting") await fail(issue, failed ? "The agent stopped before this issue was ready. Retry to finish it." : "The run ended without publishing a digest. Retry to prepare it.", "retry", true);
-    if (failed) await bb.storage.kv.delete(`retry:${issue.id}`);
+    if (issue.state === "ready") {
+      if (failed) await bb.storage.kv.set(`recovery:${issue.id}`, true);
+      else await bb.storage.kv.delete(`recovery:${issue.id}`);
+      changed(issue);
+    }
+    await bb.storage.kv.delete(`retry:${issue.id}`);
     await closeIssueBrowsers(issue);
   }
   async function recoveryIssue(threadId: string) {
     const issue = store.issues.getByThread(threadId);
-    return issue?.state === "failed" && await bb.storage.kv.get<boolean>(`recovery:${issue.id}`) ? issue : null;
+    if (!issue || !await bb.storage.kv.get<boolean>(`recovery:${issue.id}`)) return null;
+    if (issue.state === "failed") return issue;
+    if (issue.state === "ready") return { ...issue, state: "failed" as const, recovery: "retry" as const,
+      details: `Your issue was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
+    return null;
   }
   return { store, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }
