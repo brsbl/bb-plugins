@@ -124,7 +124,7 @@ describe("digest issue lifecycle", () => {
     expect(failed.issue).toMatchObject({ state: "failed", recovery: "reconnect" });
     await expect(service.retry("thr_intruder", failed.issue.id)).rejects.toThrow("does not belong");
     await expect(service.retry("thr_retry", failed.issue.id)).resolves.toEqual({ threadId: "thr_retry" });
-    expect(harness.inspection.sdk.callsTo("threads.send")[0]?.[0]).toMatchObject({ threadId: "thr_retry", prompt: expect.stringContaining("digest_begin") });
+    expect(harness.inspection.sdk.callsTo("threads.send")[0]?.[0]).toMatchObject({ threadId: "thr_retry", input: [{ type: "text", text: expect.stringContaining("digest_begin") }] });
     setSignIn({ signedIn: true, signedOut: false });
     const retried = await service.begin("reading", "thr_retry");
     expect(retried.issue.id).toBe(failed.issue.id);

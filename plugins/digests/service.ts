@@ -222,7 +222,7 @@ export function createService(bb: BbPluginApi) {
       if (await bb.storage.kv.get<boolean>(`retry:${id}`)) throw new Error("This issue already has a retry queued.");
       await bb.storage.kv.set(`retry:${id}`, true);
       try {
-        await bb.sdk.threads.send({ threadId, prompt: runPrompt(requiredDefinition(issue.digestId)) });
+        await bb.sdk.threads.send({ threadId, input: [{ type: "text", text: runPrompt(requiredDefinition(issue.digestId)) }] });
       } catch (error) {
         await bb.storage.kv.delete(`retry:${id}`);
         throw error;
@@ -237,7 +237,7 @@ export function createService(bb: BbPluginApi) {
     if (!connection) throw new Error("No connection needs reconnecting. Retry the issue.");
     const scope = await connectionScope(bb, connection, threadId);
     const tab = await bb.sdk.experimental_desktopBrowsers.createTab({ ...scope, url: connection.url, presentation: "reveal" });
-    if ("profile" in tab.tab) {
+    if (Object.hasOwn(tab.tab, "profile")) {
       await bb.sdk.experimental_desktopBrowsers.closeTab({ ...scope, tabId: tab.tab.tabId });
       throw new Error("Update bb to 0.45 or later first, then Retry. Your existing BB Browser sign-ins will be used.");
     }

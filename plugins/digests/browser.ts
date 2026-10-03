@@ -48,7 +48,7 @@ export async function openBrowser(bb: BbPluginApi, connection: Connection, threa
   const created = await bb.sdk.experimental_desktopBrowsers.createTab({ ...scope, url: "about:blank", presentation: "hidden" });
   // The older public API returns a profile on every tab and creates a new,
   // empty automation partition. Do not import cookies or bypass its boundary.
-  if ("profile" in created.tab) {
+  if (Object.hasOwn(created.tab, "profile")) {
     await bb.sdk.experimental_desktopBrowsers.closeTab({ ...scope, tabId: created.tab.tabId });
     throw new ConnectionError("Update bb to 0.45 or later on the desktop and server, then Retry. This version cannot open a fresh tab with your existing sign-in.", "upgrade-required", "upgrade");
   }
