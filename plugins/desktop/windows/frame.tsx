@@ -81,19 +81,22 @@ export function WindowFrame({
         other.node.dataset.dragging = "true";
         previewRect(other.node, fitDragRect(docked, area));
       });
-    }, (cancelled, moved) => {
+    }, (_cancelled, moved, escaped) => {
+      // Only Escape undoes a move or resize. Anything else that ends it early, such as the browser window losing focus,
+      // a viewport resize or lost pointer capture, keeps where the window got to, so it never springs back on release.
+      const commit = moved && !escaped;
       element.style.transform = "";
-      previewRect(element, cancelled || !moved ? rect : latest);
+      previewRect(element, commit ? latest : rect);
       for (const other of attached) {
-        if (cancelled || !moved) previewRect(other.node, other.rect);
+        if (!commit) previewRect(other.node, other.rect);
         other.node.getBoundingClientRect();
         delete other.node.dataset.dragging;
       }
       // Flush the cleared transform before the drag styles come off.
       if (moved) element.getBoundingClientRect();
       delete element.dataset.dragging;
-      if (maximized && (cancelled || !moved)) element.dataset.maximized = "true";
-      if (!cancelled && moved) {
+      if (maximized && !commit) element.dataset.maximized = "true";
+      if (commit) {
         const docked = dockedTo(latest);
         manager.move(id, latest, Object.fromEntries(attached.map((other, index) => [other.id, docked[index]!])));
       }
