@@ -1,12 +1,12 @@
 # Thread Organizer
 
 Thread Organizer turns native bb thread sections into a configurable workflow.
-It keeps unread agent output in one attention queue without losing each
-thread’s actual stage.
+It keeps unread agent output in one attention queue, with an option for
+individual sections to keep their unread threads in place.
 
 ![Thread Organizer workflow sections in bb](docs/screenshot.png)
 
-![Optional return from Inbox after reading](https://github.com/user-attachments/assets/c08d8be0-43ca-4c6e-9f1b-11f99d20fbff)
+![Thread Organizer workflow settings](https://github.com/user-attachments/assets/c08d8be0-43ca-4c6e-9f1b-11f99d20fbff)
 
 ## Behavior
 
@@ -15,9 +15,9 @@ thread’s actual stage.
 - Running threads appear in their remembered workflow stage, or Threads when
   they have not been assigned one.
 - Idle unread threads appear in Inbox and, by default, stay there after being marked read.
-- A section can opt into **Return here from Inbox after reading**. Its read
-  threads return to their remembered section automatically, without a new
-  entry prompt. Unread threads still stay in Inbox.
+- A section can opt into **Skip Inbox: unread threads stay in this section**.
+  Its unread threads stay in their remembered section. Enabling this also
+  restores existing Inbox threads to that section without a new entry prompt.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.
 - Starting work again restores the thread’s remembered stage.
@@ -58,8 +58,8 @@ Open Thread Organizer in bb’s plugin settings. The workflow editor lets you:
 - rename Inbox while leaving its routing protected;
 - add, remove, reorder, and rename other sections;
 - describe what belongs in each section;
-- give a section an entry prompt that is sent to a thread when it lands there.
-- return its threads from Inbox automatically after they are read.
+- give a section an entry prompt that is sent to a thread when it lands there;
+- keep a section’s unread threads in place by skipping Inbox.
 
 The defaults are Planning, Spec Review, Building, Testing / Deploy, Handoff,
 and On Hold. When an agent has enough context to determine that its current
@@ -115,9 +115,9 @@ thread, without opening Settings:
 ```bash
 bb organizer section list
 bb organizer section add "Review" --after testing-deploy --rule "A PR is complete and needs its one review."
-bb organizer section after-read review              # stay (default) or return
-bb organizer section after-read review --set return # return after reading
-bb organizer section after-read review --set stay   # keep read threads in Inbox
+bb organizer section inbox review             # use (default) or skip
+bb organizer section inbox review --set skip  # keep unread threads in Review
+bb organizer section inbox review --set use   # route unread threads to Inbox
 bb organizer prompt                      # every section and its prompt
 bb organizer prompt review               # one section's prompt
 bb organizer prompt review --set "Run /slop-cop on this PR, then /slim-pr, /write-pr, and /merge-ready."
@@ -135,7 +135,7 @@ prompt, titles must be unique, rules are limited to 240 characters, and
 prompts to 2000. Every save names the revision it was based on; a save based
 on a workflow that changed since then is refused, the settings page holds Save
 until you discard your edits and reload, and the sidebar refreshes its copy.
-Return-after-reading is an optional per-section setting. Existing settings
+Skip Inbox is an optional per-section setting. Existing settings
 keep their behavior until it is enabled; configuration version 2 remains
 supported, and turning it off restores sticky Inbox routing.
 

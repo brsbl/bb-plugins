@@ -778,43 +778,42 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("returns opted-in issues after reading across a restart, without an entry prompt", async () => {
+  it("keeps unread threads in a skip-Inbox section across a restart and respects user moves", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.runCli(["phase", "spec-review"], { threadId: "thr_test" });
     const edited = editableWorkflowConfig(await configFor(organizer));
     Object.assign(edited.stages.find((stage) => stage.key === "spec-review")!, {
-      clearFromInboxAfterRead: true,
+      skipInbox: true,
       entryPrompt: "Review this work.",
     });
     const saved = await organizer.harness.behavior.callRpc("saveConfig", edited) as WorkflowConfig;
     const sectionId = (key: string) => saved.stages.find((stage) => stage.key === key)!.sectionId;
-    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    // Enabling the setting restores an existing unread Inbox thread silently.
+    expect(organizer.current().sectionId).toBe(sectionId("spec-review"));
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    organizer.setThread({ lastReadAt: 20 });
+    organizer.emitChanged();
     await organizer.harness.behavior.emitThreadEvent("thread.idle", {
       thread: organizer.current(), lastAssistantText: null,
     });
-    // A publisher can assign the remembered stage while its issue is unread.
-    await organizer.harness.behavior.runCli(["phase", "spec-review"], { threadId: "thr_test" });
-    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
-    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    expect(organizer.current().sectionId).toBe(sectionId("spec-review"));
+    organizer.setThread({ lastReadAt: 0 });
+    organizer.emitChanged();
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("spec-review"));
 
     const replacement = await organizer.harness.lifecycle.reload(plugin);
     const reloaded = await replacement.harness.behavior.callRpc("getConfig", {}) as WorkflowConfig;
     expect(reloaded.stages.find((stage) => stage.key === "spec-review"))
-      .toMatchObject({ clearFromInboxAfterRead: true });
-    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
-    organizer.setThread({ lastReadAt: 20 });
-    organizer.emitChanged();
-    await vi.waitFor(() =>
-      expect(organizer.current().sectionId).toBe(sectionId("spec-review")),
-    );
+      .toMatchObject({ skipInbox: true });
+    expect(organizer.current().sectionId).toBe(sectionId("spec-review"));
     expect(organizer.sendMessage).not.toHaveBeenCalled();
 
-    // Marking it unread puts it back in Inbox; a user move changes its stage.
-    organizer.setThread({ lastReadAt: 0 });
-    organizer.emitChanged();
-    await vi.waitFor(() =>
-      expect(organizer.current().sectionId).toBe(sectionId("inbox")),
-    );
+    // A user move changes the remembered stage, and default sections stay sticky.
     organizer.setThread({ sectionId: sectionId("building") });
     organizer.emitChanged("order-changed");
     await vi.waitFor(async () => {
@@ -1364,29 +1363,29 @@ describe("config CLI", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
-  it("shows and changes after-reading behavior through the existing approval flow", async () => {
+  it("shows and changes skip-Inbox routing through the existing approval flow", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
-    expect(await cli(organizer, ["section", "after-read", "planning"]))
-      .toMatchObject({ exitCode: 0, stdout: "stay\n" });
+    expect(await cli(organizer, ["section", "inbox", "planning"]))
+      .toMatchObject({ exitCode: 0, stdout: "use\n" });
     const enabled = await approved(organizer, [
-      "section", "after-read", "planning", "--set", "return",
+      "section", "inbox", "planning", "--set", "skip",
     ]);
     expect(enabled.result.exitCode).toBe(0);
     expect(enabled.request.payload).toMatchObject({
-      summary: "Read threads in Inbox will return to Planning automatically, without a new entry prompt.",
+      summary: "Unread threads assigned to Planning will stay in that section and skip Inbox.",
     });
     expect(await stageOf(organizer, "planning"))
-      .toMatchObject({ clearFromInboxAfterRead: true });
-    expect(await cli(organizer, ["section", "after-read", "planning"]))
-      .toMatchObject({ exitCode: 0, stdout: "return\n" });
-    await approved(organizer, ["section", "after-read", "planning", "--set", "stay"]);
+      .toMatchObject({ skipInbox: true });
+    expect(await cli(organizer, ["section", "inbox", "planning"]))
+      .toMatchObject({ exitCode: 0, stdout: "skip\n" });
+    await approved(organizer, ["section", "inbox", "planning", "--set", "use"]);
     expect(await stageOf(organizer, "planning"))
-      .not.toHaveProperty("clearFromInboxAfterRead");
+      .not.toHaveProperty("skipInbox");
     const count = pending(organizer).length;
-    expect(await cli(organizer, ["section", "after-read", "inbox", "--set", "return"]))
+    expect(await cli(organizer, ["section", "inbox", "inbox", "--set", "skip"]))
       .toMatchObject({ exitCode: 2 });
-    expect(await cli(organizer, ["section", "after-read", "planning", "--set", "always"]))
+    expect(await cli(organizer, ["section", "inbox", "planning", "--set", "always"]))
       .toMatchObject({ exitCode: 2 });
     expect(pending(organizer)).toHaveLength(count);
     await organizer.harness.lifecycle.dispose();

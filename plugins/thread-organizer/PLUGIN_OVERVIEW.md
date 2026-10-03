@@ -8,7 +8,7 @@ Give a stage an entry prompt and every thread that lands there receives it as a 
 
 ## How it works
 
-Configure everything on the plugin's settings page: rename or reorder stages, describe what belongs in each, and type each entry prompt in place. A section can return its threads from Inbox automatically after reading; other sections keep read threads in Inbox until you move them or resume work. Inbox never carries a prompt. From inside a thread, `bb organizer phase <stage>` moves that thread; `bb organizer section` and `bb organizer prompt` list, add, set, or clear stages and prompts, and each change asks for your approval in that thread before it is saved.
+Configure everything on the plugin's settings page: rename or reorder stages, describe what belongs in each, and type each entry prompt in place. A section can skip Inbox so its unread threads stay in that section. Other sections use Inbox until you move their threads or resume work. Inbox never carries a prompt. From inside a thread, `bb organizer phase <stage>` moves that thread; `bb organizer section` and `bb organizer prompt` list, add, set, or clear stages and prompts, and each change asks for your approval in that thread before it is saved.
 
 The plugin never renames a thread, never expands or collapses sections, and never classifies prompts to guess a stage. Movement follows the rules you wrote, and prompts fire once per landing with a cooldown, so a thread cannot be prompted in a loop.
 

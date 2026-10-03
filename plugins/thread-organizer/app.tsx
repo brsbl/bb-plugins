@@ -398,15 +398,15 @@ function StageCard({
         {!inbox ? (
           <label className="col-span-2 col-start-1 row-start-4 mt-2 inline-flex items-center gap-2 px-2.5 text-xs text-muted-foreground lg:col-start-3 lg:row-start-2">
             <input
-              aria-label={`Return to ${stage.title} from Inbox after reading`}
-              checked={stage.clearFromInboxAfterRead ?? false}
+              aria-label={`Skip Inbox for ${stage.title}`}
+              checked={stage.skipInbox ?? false}
               className="size-3.5 accent-current"
               onChange={(event) =>
-                update("clearFromInboxAfterRead", event.target.checked)
+                update("skipInbox", event.target.checked)
               }
               type="checkbox"
             />
-            Return here from Inbox after reading
+            Skip Inbox: unread threads stay in this section
           </label>
         ) : null}
       </div>

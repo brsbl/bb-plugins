@@ -101,23 +101,23 @@ describe("workflow configuration", () => {
     });
   });
 
-  it("loads existing sticky Inbox settings and preserves the optional return-after-reading flag", () => {
+  it("loads existing sticky Inbox settings and preserves the optional skip-Inbox flag", () => {
     const legacy = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
     legacy.stages[0]!.rule = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can’t be customized.";
     expect(core.parseWorkflowConfig(legacy)).toEqual(core.DEFAULT_WORKFLOW_CONFIG);
     expect(core.normalizeEditableWorkflowConfig(core.editableWorkflowConfig(legacy)))
       .toEqual(core.editableWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG));
 
-    legacy.stages[1]!.clearFromInboxAfterRead = true;
+    legacy.stages[1]!.skipInbox = true;
     const loaded = core.parseWorkflowConfig(legacy)!;
     expect(loaded.version).toBe(2);
-    expect(loaded.stages[1]!.clearFromInboxAfterRead).toBe(true);
+    expect(loaded.stages[1]!.skipInbox).toBe(true);
     const edited = core.editableWorkflowConfig(loaded);
-    edited.stages[1]!.clearFromInboxAfterRead = false;
+    edited.stages[1]!.skipInbox = false;
     expect(core.mergeEditableWorkflowConfig(loaded, edited).stages[1])
-      .not.toHaveProperty("clearFromInboxAfterRead");
+      .not.toHaveProperty("skipInbox");
 
-    edited.stages[0]!.clearFromInboxAfterRead = true;
+    edited.stages[0]!.skipInbox = true;
     expect(() => core.normalizeEditableWorkflowConfig(edited))
       .toThrow("not Inbox");
   });
@@ -268,10 +268,10 @@ describe("thread placement precedence", () => {
     ).toBe("planning");
   });
 
-  it("returns read Inbox threads only to an opted-in remembered stage", () => {
+  it("keeps unread threads in their remembered stage only when it skips Inbox", () => {
     const optedIn = core.cloneWorkflowConfig(config);
     optedIn.stages.find((stage) => stage.key === "spec-review")!
-      .clearFromInboxAfterRead = true;
+      .skipInbox = true;
     const inInbox = thread({ sectionId: "sec_inbox" });
     expect(core.placementForThread(optedIn, inInbox, "spec-review").key)
       .toBe("spec-review");
@@ -281,9 +281,13 @@ describe("thread placement precedence", () => {
       .toBe("inbox");
     expect(core.placementForThread(
       optedIn, { ...inInbox, lastReadAt: 0 }, "spec-review",
-    ).key).toBe("inbox");
+    ).key).toBe("spec-review");
     expect(core.buildWorkflowSkillSlot(optedIn))
-      .toContain("Read threads return automatically from Inbox to **Spec Review**");
+      .toContain("**Spec Review** skips Inbox: unread threads stay in that section.");
+    optedIn.stages.find((stage) => stage.key === "spec-review")!.skipInbox = false;
+    expect(core.placementForThread(
+      optedIn, { ...inInbox, lastReadAt: 0 }, "spec-review",
+    ).key).toBe("inbox");
   });
 });
 

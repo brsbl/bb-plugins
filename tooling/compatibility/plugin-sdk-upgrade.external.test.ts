@@ -341,7 +341,7 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
         stages: savedConfig.stages.map((stage: Record<string, unknown>) =>
           stage.role === "inbox" ? {
             ...stage,
-            rule: "Idle unread threads appear here automatically. They stay until work resumes or you move them, unless their remembered section is set to return after reading.",
+            rule: "Idle unread threads appear here automatically, unless their remembered section skips Inbox. Threads in Inbox stay until work resumes or you move a read thread to another section.",
           } : stage),
       });
     }

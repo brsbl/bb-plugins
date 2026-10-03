@@ -14,8 +14,8 @@ export const ENTRY_PROMPT_MAX_LENGTH = 2000;
 export const RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8000;
 
 export interface EditableWorkflowStage {
-  /** Return read Inbox threads to this stage; omitted means keep them in Inbox. */
-  clearFromInboxAfterRead?: boolean;
+  /** Keep this stage's unread threads here; omitted means use the protected Inbox. */
+  skipInbox?: boolean;
   /** Sent to a thread when it lands in this stage; omitted when unset. */
   entryPrompt?: string;
   key: string;
@@ -64,7 +64,7 @@ export interface OrganizableThread {
 }
 
 export const INBOX_RULE =
-  "Idle unread threads appear here automatically. They stay until work resumes or you move them, unless their remembered section is set to return after reading.";
+  "Idle unread threads appear here automatically, unless their remembered section skips Inbox. Threads in Inbox stay until work resumes or you move a read thread to another section.";
 
 export const HANDOFF_RULE =
   "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
@@ -192,11 +192,11 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
     throw new Error(`Stage "${key}" has an invalid role.`);
   }
   if (
-    value.clearFromInboxAfterRead !== undefined &&
-    typeof value.clearFromInboxAfterRead !== "boolean"
+    value.skipInbox !== undefined &&
+    typeof value.skipInbox !== "boolean"
   ) {
     throw new Error(
-      `Stage "${key}" return-after-reading setting must be a boolean.`,
+      `Stage "${key}" skip-Inbox setting must be a boolean.`,
     );
   }
   if (entryPrompt.length > ENTRY_PROMPT_MAX_LENGTH) {
@@ -211,8 +211,8 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
     role,
     // Defaults are not persisted, so configs without prompts stay byte-stable.
     ...(entryPrompt.length > 0 ? { entryPrompt } : {}),
-    ...(value.clearFromInboxAfterRead === true
-      ? { clearFromInboxAfterRead: true }
+    ...(value.skipInbox === true
+      ? { skipInbox: true }
       : {}),
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null,
   };
@@ -239,8 +239,8 @@ function validateStages(stages: WorkflowStage[]): void {
     if (stage.role === "inbox" && hasEntryPrompt(stage)) {
       throw new Error("Inbox cannot send an entry prompt.");
     }
-    if (stage.role === "inbox" && stage.clearFromInboxAfterRead) {
-      throw new Error("Set return-after-reading on a workflow section, not Inbox.");
+    if (stage.role === "inbox" && stage.skipInbox) {
+      throw new Error("Set skip-Inbox on a workflow section, not Inbox.");
     }
   }
   const inboxes = stages.filter((stage) => stage.role === "inbox");
@@ -557,13 +557,12 @@ export function placementForThread(
     config.stages.find(
       (stage) => stage.key === rememberedStageKey && stage.role === "stage",
     ) ?? firstWorkflowStage(config);
+  if (rememberedStageKey !== null && remembered.skipInbox) return remembered;
   const currentStage = stageForSectionId(config, thread.sectionId);
   const belongsInInbox =
     !isRunningThread(thread) &&
     (isUnreadThread(thread) ||
-      (!leaveInbox &&
-        currentStage?.role === "inbox" &&
-        !(rememberedStageKey !== null && remembered.clearFromInboxAfterRead)));
+      (!leaveInbox && currentStage?.role === "inbox"));
   return belongsInInbox
     ? inboxStage(config)
     : rememberedStageKey === null ? null : remembered;
@@ -592,11 +591,11 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
         `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
     );
   return [
-    `**${escapeTableCell(inboxStage(config).title)}** is the protected Inbox section. Idle unread threads go there automatically and stay until work resumes or the user moves a read thread to another workflow section, unless their remembered section is set to return after reading. Never choose Inbox yourself.`,
+    `**${escapeTableCell(inboxStage(config).title)}** is the protected Inbox section. Idle unread threads go there automatically unless their remembered section skips Inbox. Threads in Inbox stay until work resumes or the user moves a read thread to another workflow section. Never choose Inbox yourself.`,
     ...config.stages
-      .filter((stage) => stage.role === "stage" && stage.clearFromInboxAfterRead)
+      .filter((stage) => stage.role === "stage" && stage.skipInbox)
       .map((stage) =>
-        `Read threads return automatically from Inbox to **${escapeTableCell(stage.title)}** without a new entry prompt.`,
+        `**${escapeTableCell(stage.title)}** skips Inbox: unread threads stay in that section.`,
       ),
     "",
     "| Key | Section | What belongs here |",

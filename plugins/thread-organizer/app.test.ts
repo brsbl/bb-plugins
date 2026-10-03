@@ -256,7 +256,7 @@ describe("workflow settings", () => {
     const inboxRule = rendered.getByText(INBOX_RULE);
     expect(inboxTitle.disabled).toBe(false);
     expect(inboxRule.tagName).toBe("P");
-    expect(inboxRule.textContent).toContain("unless their remembered section is set to return after reading");
+    expect(inboxRule.textContent).toContain("unless their remembered section skips Inbox");
     expect(rendered.queryByLabelText("Unread routing is automatic")).toBeNull();
 
     fireEvent.change(inboxTitle, { target: { value: "Needs Me" } });
@@ -729,7 +729,7 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
-  it("saves the per-section return-after-reading opt-in and can turn it off", async () => {
+  it("saves the per-section skip-Inbox opt-in and can turn it off", async () => {
     const app = await loadApp();
     let savedInput: EditableWorkflowConfig | null = null;
     const rendered = renderSlot<{}, typeof rpcContract>(
@@ -747,19 +747,19 @@ describe("workflow settings", () => {
       },
     );
     const toggle = await rendered.findByRole("checkbox", {
-      name: "Return to Planning from Inbox after reading",
+      name: "Skip Inbox for Planning",
     });
     expect((toggle as HTMLInputElement).checked).toBe(false);
-    expect(rendered.queryByRole("checkbox", { name: "Return to Inbox from Inbox after reading" })).toBeNull();
+    expect(rendered.queryByRole("checkbox", { name: "Skip Inbox for Inbox" })).toBeNull();
     fireEvent.click(toggle);
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => expect(savedInput?.stages[1])
-      .toMatchObject({ clearFromInboxAfterRead: true }));
+      .toMatchObject({ skipInbox: true }));
     await rendered.findByRole("button", { name: "Saved" });
     fireEvent.click(toggle);
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => expect(savedInput?.stages[1])
-      .not.toHaveProperty("clearFromInboxAfterRead"));
+      .not.toHaveProperty("skipInbox"));
     rendered.lifecycle.unmount();
   });
 
