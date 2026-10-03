@@ -34,7 +34,7 @@ Create saves it enabled and offers Run now to preview. Editing keeps its ID and
 existing enabled state. New schedules default to weekdays 10am PT.
 
 For agent-managed setup, use `bb digest define --file definition.json` with
-a new ID, name, optional emoji, projectId, instructions, connectionIds, createdAt timestamp,
+a new ID, name, projectId, instructions, connectionIds, createdAt timestamp,
 providerId, model, and optional `{cron, timezone}` schedule. Definitions start
 disabled. `bb digest connections set --file connection.json` stores only
 `id`, `name`, `url`, `browserHostId`, and optional `desktopInstanceId`; never
@@ -44,7 +44,7 @@ connection check. If the browser is unavailable, say so and offer Retry.
 The prompt (`instructions`) stores only the user's own words about what they
 want to know. Never add searches, read-only rules, deduplication, output format,
 or other collection mechanics to it or its preview. Starters contain plain
-editable intent. The emoji appears before the name on cards and issue titles.
+editable intent. Issue titles use the name and date, without an emoji prefix.
 
 ## Scheduled runs
 

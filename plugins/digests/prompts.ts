@@ -1,10 +1,9 @@
-import { digestEmoji } from "./identity.js";
 import type { DigestDefinition, Issue } from "./model.js";
 
 export function issueTitle(definition: DigestDefinition, now: number): string {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: definition.schedule?.timezone ?? "America/Los_Angeles", weekday: "short", month: "short", day: "numeric" }).formatToParts(now);
   const part = (type: string) => parts.find((value) => value.type === type)?.value ?? "";
-  return `${digestEmoji(definition)} ${definition.name} · ${part("weekday")} ${part("month")} ${part("day")}`;
+  return `${definition.name} · ${part("weekday")} ${part("month")} ${part("day")}`;
 }
 
 export function directive(issue: Pick<Issue, "id" | "headline" | "lede" | "metrics" | "details">): string {

@@ -63,12 +63,12 @@ describe("digest contracts", () => {
     }
   });
 
-  it("accepts one emoji grapheme and keeps older definitions readable with an emoji title", () => {
+  it("accepts legacy emoji metadata without adding it to issue titles", () => {
     for (const emoji of ["📬", "👩🏽‍💻", "🇺🇸", "1️⃣"]) expect(EmojiSchema.safeParse(emoji).success).toBe(true);
     for (const emoji of ["", "A", "📬📚"]) expect(EmojiSchema.safeParse(emoji).success).toBe(false);
     const old = DigestDefinitionSchema.parse({ id: "reading", name: "Reading", projectId: "proj_test", instructions: "My newsletters.", createdAt: 1 });
     const date = Date.UTC(2026, 9, 5, 17);
-    expect(issueTitle(old, date)).toBe("📚 Reading · Mon Oct 5");
-    expect(issueTitle({ ...old, emoji: "👩🏽‍💻" }, date)).toBe("👩🏽‍💻 Reading · Mon Oct 5");
+    expect(issueTitle(old, date)).toBe("Reading · Mon Oct 5");
+    expect(issueTitle({ ...old, emoji: "👩🏽‍💻" }, date)).toBe("Reading · Mon Oct 5");
   });
 });

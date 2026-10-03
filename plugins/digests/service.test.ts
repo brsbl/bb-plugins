@@ -94,6 +94,9 @@ describe("digest issue lifecycle", () => {
     expect(service.requiredDefinition("reading").enabled).toBe(false);
     const updated = await service.saveDigest({ ...input, id: created.id, name: "Reply list", emoji: "📮", schedule: { cron: "0 11 * * 1-5", timezone: "America/Los_Angeles" } });
     expect(updated).toMatchObject({ id: created.id, automationId: created.automationId, enabled: true, name: "Reply list", emoji: "📮", instructions: input.instructions });
+    const { emoji: _legacyEmoji, ...withoutEmoji } = input;
+    const edited = await service.saveDigest({ ...withoutEmoji, id: created.id, name: "Reply list" });
+    expect(edited.emoji).toBe("📮");
     const calls = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: unknown });
     expect(calls.filter((call) => call.method === "automations_create")).toHaveLength(1);
     expect(calls.find((call) => call.method === "automations_update")?.input).toMatchObject({ automationId: created.automationId, name: "Digests · Reply list", trigger: { cron: "0 11 * * 1-5" } });

@@ -175,23 +175,23 @@ describe("Digests app", () => {
       overview: () => ({ definitions, connections: [{ id: "gmail", name: "Gmail", status: "signed-in" }], organizerReady: true, actionCardsAvailable: false }),
       saveDigest: (input) => {
         const value = input as { name: string; instructions: string; schedule: typeof definition.schedule };
-        const saved = { ...definition, ...value, id: "digest-new", enabled: true };
+        const saved = { ...definition, ...value, id: "digest-new", emoji: "💌", enabled: true };
         definitions = [saved]; return saved;
       },
     } });
     fireEvent.click(await slot.findByRole("button", { name: "+ Add digest" }));
     const name = slot.getByLabelText("Name");
     expect(document.activeElement).toBe(name);
-    expect((slot.getByLabelText("Emoji") as HTMLInputElement).value).toBe("📬");
-    fireEvent.change(slot.getByLabelText("Emoji"), { target: { value: "💌" } });
+    expect(slot.queryByLabelText("Emoji")).toBeNull();
     fireEvent.change(name, { target: { value: "My inbox" } });
     fireEvent.change(slot.getByLabelText("What should it tell you?"), { target: { value: "Only messages that need a reply." } });
     fireEvent.click(slot.getByRole("button", { name: "Create digest" }));
     expect(await slot.findByText("Run now to preview")).toBeDefined();
-    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", emoji: "💌", instructions: "Only messages that need a reply.", connectionId: "gmail", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", instructions: "Only messages that need a reply.", connectionId: "gmail", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
     expect(slot.getByText("Only messages that need a reply.").className).toContain("digest-prompt-preview");
+    expect(slot.getByRole("heading", { name: "My inbox" }).textContent).toBe("My inbox");
     fireEvent.click(slot.getByRole("button", { name: "Edit My inbox" }));
-    expect((slot.getByLabelText("Emoji") as HTMLInputElement).value).toBe("💌");
+    expect(slot.queryByLabelText("Emoji")).toBeNull();
     fireEvent.change(slot.getByLabelText("Name"), { target: { value: "Replies" } });
     fireEvent.click(slot.getByRole("button", { name: "Save changes" }));
     expect(await slot.findByRole("button", { name: "Edit Replies" })).toBeDefined();

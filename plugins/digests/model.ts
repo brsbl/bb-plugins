@@ -36,6 +36,7 @@ export const DigestDefinitionSchema = z.object({
   /** The stable, human-readable slug used by `bb digest --digest`. */
   id: DigestIdSchema,
   name: z.string().trim().min(1).max(100),
+  // Retained for saved definitions and existing clients; never rendered.
   emoji: EmojiSchema.optional(),
   projectId: IdSchema,
   instructions: z.string().trim().min(1).max(30_000),
@@ -121,6 +122,7 @@ export const SaveDigestSchema = z.object({
   id: DigestIdSchema.optional(),
   connectionId: DigestIdSchema,
   name: DigestDefinitionSchema.shape.name,
+  // Retained for saved definitions and existing clients; never rendered.
   emoji: EmojiSchema.optional(),
   instructions: DigestDefinitionSchema.shape.instructions,
   schedule: ScheduleSchema.nullable(),

@@ -70,4 +70,4 @@ bb plugin install "path:$PWD/plugins/digests" --yes
 CI runs `npm run check --workspace=bb-plugin-digests` remotely. Use an isolated
 bb development app with fixture accounts for browser and screenshot verification.
 
-Digest cards show their emoji and schedule beside the name. Edit the emoji and your own prompt in place; collection rules and Gmail searches live in the runtime, never in the prompt preview. Older definitions without an emoji use a sensible default.
+Digest cards keep the name prominent, with a muted schedule beside the switch. Edit your own prompt in place; collection rules and Gmail searches live in the runtime, never in the prompt preview. Legacy emoji values remain saved but do not appear on cards or new issue titles.

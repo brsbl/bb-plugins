@@ -12,7 +12,6 @@ import {
   type PluginMessageDirectiveProps,
 } from "@get-bb/plugin-sdk/app";
 
-import { defaultDigestEmoji, digestEmoji } from "./identity.js";
 import type { rpcContract } from "./contracts.js";
 import type { Connection, DigestDefinition, Issue, SaveDigest } from "./model.js";
 import { Button } from "./components/ui/button.js";
@@ -302,7 +301,6 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   onSave: (input: SaveDigest) => Promise<void>;
 }) {
   const formId = useId();
-  const [emoji, setEmoji] = useState(definition ? digestEmoji(definition) : defaultDigestEmoji(connection.id));
   const [name, setName] = useState(definition?.name ?? "");
   const [instructions, setInstructions] = useState(definition?.instructions ?? "");
   const [minute = "0", hour = "10", day = "*", month = "*", weekday = "1-5"] = definition?.schedule?.cron.split(/\s+/u) ?? [];
@@ -315,13 +313,11 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   return <form className="digest-form" onSubmit={(event) => {
     event.preventDefault();
     const [hours, minutes] = time.split(":");
-    void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, emoji, instructions,
+    void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, instructions,
       schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone: definition?.schedule?.timezone ?? "America/Los_Angeles" } });
   }}>
-    <div className="digest-identity-fields">
-      <div><label htmlFor={`${formId}-emoji`}>Emoji</label><input id={`${formId}-emoji`} className="digest-emoji-input" required maxLength={32} value={emoji} onChange={(event) => setEmoji(event.target.value)} aria-describedby={`${formId}-emoji-hint`} /><span id={`${formId}-emoji-hint`} className="digest-sr-only">Choose one emoji.</span></div>
-      <div><label htmlFor={`${formId}-name`}>Name</label><input id={`${formId}-name`} autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Unread email" /></div>
-    </div>
+    <label htmlFor={`${formId}-name`}>Name</label>
+    <input id={`${formId}-name`} autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Unread email" />
     <label htmlFor={`${formId}-prompt`}>What should it tell you?</label>
     <textarea id={`${formId}-prompt`} required maxLength={30000} rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={`e.g. ${connection.id === "gmail" ? "Unread emails that need a reply, newest first. Skip newsletters and recruiting." : `The updates from ${connection.name} that need my attention.`}`} />
     {!publishOnly && <div className="digest-schedule-fields"><label htmlFor={`${formId}-days`}>When</label>
@@ -452,8 +448,8 @@ function DigestsSettings() {
             <ul className="digest-nested-list">{definitions.map((definition) => <li className="digest-nested-item" key={definition.id}>
               {editing?.digestId === definition.id ? <DigestForm connection={site} definition={definition} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : <div className="digest-definition">
                 <button className="digest-edit" disabled={editing !== null || pending !== null} onClick={() => setEditing({ siteId: site.id, digestId: definition.id })} aria-label={`Edit ${definition.name}`} />
-                <div className="digest-definition-top"><div className="digest-definition-title"><h5><span aria-hidden>{digestEmoji(definition)}</span> {definition.name}</h5>
-                  {definition.schedule && <span className="digest-schedule-pill"><Icon name="Calendar" className="digest-schedule-icon" aria-hidden /> {scheduleLabel(definition.schedule)}</span>}</div>
+                <div className="digest-definition-top"><div className="digest-definition-title"><h5>{definition.name}</h5>
+                  {definition.schedule && <span className="digest-schedule-label"><Icon name="Calendar" className="digest-schedule-icon" aria-hidden /> {scheduleLabel(definition.schedule)}</span>}</div>
                   {definition.schedule && <Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} />}
                 </div>
                 <p className="digest-prompt-preview">{definition.instructions}</p>
