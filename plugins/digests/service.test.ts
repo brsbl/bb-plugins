@@ -41,7 +41,11 @@ function setup(options: { runs?: Array<{
       experimental_desktopBrowsers: {
         listInstances: async () => ({ instances: [{ instanceId: "desktop_1", generation: "generation_1" }] }),
         createTab: async () => ({ tab: { tabId: `tab_${++tabCount}` } }),
-        closeTab: async () => ({ ok: true }),
+        closeTab: async (input) => {
+          // The real desktop tab endpoint rejects extra internal lease fields.
+          expect(Object.keys(input).sort()).toEqual(["generation", "hostId", "instanceId", "tabId", "threadId"]);
+          return { ok: true };
+        },
       },
       plugins: {
         callRpc: async ({ pluginId, method, input, outputSchema }) => {
@@ -208,6 +212,31 @@ describe("digest issue lifecycle", () => {
     expect(service.store.issues.get(published.issue.id)).toEqual(published.issue);
     expect(service.store.processed("reading", "gmail", ["message_1"])).toEqual(["message_1"]);
     expect(service.store.issues.list()).toHaveLength(1);
+  });
+
+  it.each(["failed", "skipped", "succeeded"])("keeps a manual retry collecting when the original run remains %s", async (status) => {
+    const { service } = setup({ runs: [{
+      id: "run_terminal", threadId: "thr_retry", status, scheduledFor: Date.now(), startedAt: Date.now(), error: null, skipReason: null,
+    }] });
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_digest_new" });
+    const first = await service.begin("reading", "thr_retry");
+    await service.settled("thr_retry", true);
+    await service.retry("thr_retry", first.issue.id);
+    await service.begin("reading", "thr_retry");
+    await service.reconcile();
+    expect(service.store.issues.get(first.issue.id)?.state).toBe("collecting");
+    const published = await service.publishCurrent("thr_retry", payload());
+    expect(published.issue.state).toBe("ready");
+  });
+
+  it.each([false, true])("keeps recovery visible when an already-failed turn settles (failed=%s)", async (failedTurn) => {
+    const { service, setSignIn } = setup();
+    setSignIn({ signedIn: false, signedOut: true });
+    const result = await service.begin("reading", "thr_no_directive");
+    await service.settled("thr_no_directive", failedTurn);
+    expect(await service.recoveryIssue("thr_no_directive")).toMatchObject({
+      id: result.issue.id, state: "failed", recovery: "reconnect", details: expect.stringContaining("signed out"),
+    });
   });
 
   it("archives only read and settled issues after seven days, preserving unread and running threads", async () => {

@@ -221,6 +221,10 @@ export function createService(bb: BbPluginApi) {
       const deliveryFailed = issue.state === "ready" && await bb.storage.kv.get<boolean>(`recovery:${id}`);
       if (issue.state !== "failed" && !deliveryFailed) throw new Error("Only a failed issue can be retried.");
       if (await bb.storage.kv.get<boolean>(`retry:${id}`)) throw new Error("This issue already has a retry queued.");
+      const previousManualRetry = await bb.storage.kv.get<boolean>(`manual-retry:${id}`);
+      // Native automation results describe the first turn and never reopen.
+      // From this point the issue's own settlement events own its recovery.
+      await bb.storage.kv.set(`manual-retry:${id}`, true);
       await bb.storage.kv.set(`retry:${id}`, true);
       try {
         await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", mentions: [],
@@ -229,6 +233,7 @@ export function createService(bb: BbPluginApi) {
         }] });
       } catch (error) {
         await bb.storage.kv.delete(`retry:${id}`);
+        if (!previousManualRetry) await bb.storage.kv.delete(`manual-retry:${id}`);
         throw error;
       }
       return { threadId };
@@ -261,6 +266,7 @@ export function createService(bb: BbPluginApi) {
         for (const run of result.runs.reverse()) {
           let issue = run.threadId ? store.issues.getByThread(run.threadId) : store.issues.getByKey(definition.id, `run:${run.id}`);
           if (issue?.state === "ready") continue;
+          if (issue && await bb.storage.kv.get<boolean>(`manual-retry:${issue.id}`)) continue;
           const created = !issue;
           if (!issue) issue = newIssue(definition, run.threadId, `run:${run.id}`, run.scheduledFor);
           if (run.threadId && created) {
@@ -297,6 +303,10 @@ export function createService(bb: BbPluginApi) {
     const issue = store.issues.getByThread(threadId);
     if (!issue) return;
     if (issue.state === "collecting") await fail(issue, failed ? "The agent stopped before this issue was ready. Retry to finish it." : "The run ended without publishing a digest. Retry to prepare it.", "retry", true);
+    if (issue.state === "failed") {
+      await bb.storage.kv.set(`recovery:${issue.id}`, true);
+      changed(issue);
+    }
     if (issue.state === "ready") {
       if (failed) await bb.storage.kv.set(`recovery:${issue.id}`, true);
       else await bb.storage.kv.delete(`recovery:${issue.id}`);

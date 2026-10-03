@@ -26,7 +26,8 @@ export async function closeBrowser(bb: BbPluginApi, lease: BrowserLease): Promis
   try {
     await browserRpc(bb, "close", { threadId: lease.threadId, sessionId: lease.sessionId }, z.unknown());
   } finally {
-    await bb.sdk.experimental_desktopBrowsers.closeTab(lease);
+    const { hostId, instanceId, generation, threadId, tabId } = lease;
+    await bb.sdk.experimental_desktopBrowsers.closeTab({ hostId, instanceId, generation, threadId, tabId });
   }
 }
 
