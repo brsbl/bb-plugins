@@ -110,6 +110,7 @@ describe("workflow configuration", () => {
 
     const extra = { key: "digests", title: "Digests", role: "inbox" as const,
       catchesPluginId: "digests", rule: "Published issues.", sectionId: "sec_digests" };
+    expect(core.parseWorkflowConfig({ version: 2, stages: [legacy.stages[0], extra] })?.stages).toHaveLength(2);
     legacy.stages.push(extra);
     const loaded = core.parseWorkflowConfig(legacy)!;
     expect(loaded.version).toBe(2);
