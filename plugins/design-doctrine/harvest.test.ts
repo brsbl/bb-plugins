@@ -252,6 +252,7 @@ async function startPlugin(root: string, script: AgentScript) {
     return makeThreadResponse({ id: `spawned-${harness.sdk.calls.length}` });
   }) as never);
   harness.sdk.stub("threads.wait", (async () => ({ matched: true })) as never);
+  harness.sdk.stub("threads.archive", (async () => ({ ok: true })) as never);
 
   await plugin(bb);
   return host;
@@ -453,6 +454,17 @@ describe("archive-triggered harvest", () => {
       "ddr_002",
     ]);
     expect(status.thread).toMatchObject({ outcome: "approved:1" });
+    const spawns = harness.sdk.callsTo("threads.spawn").map(([args]) => args);
+    expect(spawns).toHaveLength(2);
+    expect(spawns).toEqual(
+      spawns.map(() =>
+        expect.objectContaining({
+          projectId: "proj_personal",
+          environment: { type: "host", workspace: { type: "personal" } },
+        }),
+      ),
+    );
+    expect(harness.sdk.callsTo("threads.archive")).toHaveLength(spawns.length);
     const rulesStatus = await execFileAsync("git", [
       "-C",
       root,

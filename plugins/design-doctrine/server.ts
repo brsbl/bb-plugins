@@ -1079,11 +1079,26 @@ export default async function plugin(bb: BbPluginApi) {
         title,
         prompt,
       });
-      await bb.sdk.threads.wait({
-        threadId: spawned.id,
-        status: "idle",
-        timeoutMs: HARVEST_AGENT_TIMEOUT_MS,
-      });
+      // Each spawn provisions its own personal workspace, which bb removes only
+      // once the thread is archived, so a finished or stalled agent never lingers.
+      try {
+        await bb.sdk.threads.wait({
+          threadId: spawned.id,
+          status: "idle",
+          timeoutMs: HARVEST_AGENT_TIMEOUT_MS,
+        });
+      } catch (error) {
+        await bb.sdk.threads.stop({ threadId: spawned.id }).catch(() => undefined);
+        throw error;
+      } finally {
+        await bb.sdk.threads.archive({ threadId: spawned.id }).catch((error: unknown) => {
+          bb.log.warn(
+            `doctrine harvest: could not archive agent thread ${spawned.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
+      }
     },
   });
 
