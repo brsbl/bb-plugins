@@ -114,6 +114,8 @@ export function releaseManifest(sourceManifest) {
   // so installation never depends on development node_modules. The wrapper
   // also carries plugin-authored CSS through that second build.
   if (manifest.bb?.app) manifest.bb.app = releaseAppEntry;
+  // Host bundles are self-contained and can be rebuilt without authored sources.
+  if (manifest.bb?.host) manifest.bb.host = "./dist/host.js";
   for (const field of productionDependencyFields) {
     delete manifest[field];
   }
