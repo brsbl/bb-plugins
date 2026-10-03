@@ -19,9 +19,21 @@ than one machine is enrolled, the picker lets you choose the file's machine.
 
 Pins read as quiet references above the composer, with extra files in **+N**.
 Hover a filename for its full path and machine. Right-click a pin to **Unpin**;
-the toast offers **Undo**. Missing files stay visible with a warning and offer
-**Repin…** or **Unpin**. Availability refreshes on focus and every 30 seconds.
-The strip disappears when the thread has no pins.
+the toast offers **Undo**. Choose **Customize pins** in the picker or a pin's
+context menu to reorder by dragging or Space/arrow keys, remove files, then
+choose **Done**. Missing files are muted and labeled for assistive technology;
+only their small **×** removes them. Availability refreshes on focus and every
+30 seconds.
+
+Before typing, the compact picker shows **Recent in this thread**. When there
+are no pins, up to three recent files appear as one-click suggestions; otherwise
+the empty strip disappears. Suggestions come from the last 100 relevant SDK
+thread events: completed file additions/edits, user file mentions/attachments,
+and Markdown links in agent/user messages. An existing Markdown lexer extracts
+link destinations; it does not render content or parse Moss notes. The thread's
+current host resolves paths, checks availability and removes canonical duplicates
+and existing pins. History without a current environment, missing files and
+unavailable hosts produce no suggestions. Shell command text is not inspected.
 
 ```bash
 bb file-pins pin '~/Moss/Notes/Tweets/Tweets.md' --machine host_37m3sgpq59
@@ -43,8 +55,7 @@ A normal click on a Markdown note under the file host's `~/Moss/Notes/`, or a
 Markdown file containing a `moss-*` fence or `:::tabs` marker, opens the **Moss
 Mac app** on that host. Moss must be installed there. This explicit Moss rule
 overrides the default opener for the normal click. Other files retain bb's
-FileLink click behavior and opener choices. Pins have an Unpin context menu. Classification and launch run on the host; no Markdown or Moss parser
-or renderer is included.
+FileLink click behavior and opener choices. Pins have an Unpin context menu. Classification and launch run on the host; no custom Markdown/Moss parser or renderer is included.
 
 The SDK does not expose extensions for chat-file or file-tab context menus, or
 a reusable composer @ picker. The fallback uses bb UI components and the same

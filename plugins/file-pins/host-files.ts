@@ -6,6 +6,17 @@ import { basename, isAbsolute, relative, resolve } from "node:path";
 
 export async function home() { return { path: homedir() }; }
 
+export async function recentFiles({ paths, cwd }: { paths: string[]; cwd: string }) {
+  const files: Array<{ path: string; name: string; moss: boolean }> = [];
+  for (const path of paths) {
+    try {
+      const file = await resolveFile({ path, cwd });
+      if (!files.some((other) => other.path === file.path)) files.push({ ...file, moss: await isMossNote(file.path) });
+    } catch { /* History may refer to deleted files or folders; neither is a suggestion. */ }
+  }
+  return { files };
+}
+
 export async function inspect({ paths }: { paths: string[] }) {
   const files: Array<{ path: string; status: "available" | "missing" | "unavailable"; moss: boolean }> = [];
   // Serialize filesystem reads on the host; never read a Mac path on the server.

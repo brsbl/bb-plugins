@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
-import { definePluginApp, experimental_FileLink as FileLink, experimental_Icon as Icon, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
-import type { Reference, rpcContract } from "./contract.js";
-import { Button } from "./components/ui/button.js";
+import type { RecentFile, Reference, rpcContract } from "./contract.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./components/ui/context-menu.js";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./components/ui/dialog.js";
-import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover.js";
+import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger, PinPopoverAnchor } from "./pin-popover.js";
+import { CustomizePins } from "./customize-pins.js";
 import { FilePicker } from "./file-picker.js";
 import { ReferenceIcon } from "./reference-icon.js";
 
@@ -15,7 +14,7 @@ function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 }
 function PinContents({ pin }: { pin: Reference }) {
-  return <><ReferenceIcon name={pin.name} moss={pin.moss} status={pin.status} /><span className="truncate group-hover:underline">{pin.name}</span></>;
+  return <><ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate group-hover:underline">{pin.name}</span></>;
 }
 
 function PinStrip({ threadId }: { threadId: string }) {
@@ -23,8 +22,9 @@ function PinStrip({ threadId }: { threadId: string }) {
   const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
   const [pins, setPins] = useState<Reference[]>([]);
-  const [picker, setPicker] = useState<{ replacing?: Reference } | null>(null);
-  const [missing, setMissing] = useState<Reference | null>(null);
+  const [picker, setPicker] = useState(false);
+  const [customizing, setCustomizing] = useState(false);
+  const [recent, setRecent] = useState<RecentFile[]>([]);
   const [busy, setBusy] = useState(false);
   const [visible, setVisible] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -35,6 +35,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   const moreMeasure = useRef<HTMLSpanElement>(null);
   const generation = useRef(0);
   const alive = useRef(true);
+  const recentGeneration = useRef(0);
   const report = useCallback((cause: unknown) => { if (alive.current) toast.error(cause instanceof Error ? cause.message : String(cause)); }, []);
   const refresh = useCallback(async () => {
     const request = ++generation.current;
@@ -43,11 +44,22 @@ function PinStrip({ threadId }: { threadId: string }) {
       if (alive.current && request === generation.current) setPins(result.pins);
     } catch (cause) { report(cause); }
   }, [rpc, threadId, report]);
+  const refreshRecent = useCallback(async () => {
+    const request = ++recentGeneration.current;
+    try {
+      const result = await rpc.call("recent", { threadId });
+      if (alive.current && request === recentGeneration.current) setRecent(result.files);
+    } catch { /* A disconnected host must not obstruct existing pins. */ }
+  }, [rpc, threadId]);
+  useEffect(() => { void refreshRecent(); }, [refreshRecent, connection, pins]);
+  useRealtime("recent-changed", (payload) => {
+    if (payload && typeof payload === "object" && "threadId" in payload && payload.threadId === threadId) void refreshRecent();
+  });
   useEffect(() => {
     alive.current = true;
-    const launch = () => { setMoreOpen(false); setPicker({}); };
+    const launch = () => { setMoreOpen(false); setCustomizing(false); setPicker(true); };
     launchers.set(threadId, launch);
-    return () => { alive.current = false; generation.current++; if (launchers.get(threadId) === launch) launchers.delete(threadId); };
+    return () => { alive.current = false; generation.current++; recentGeneration.current++; if (launchers.get(threadId) === launch) launchers.delete(threadId); };
   }, [threadId]);
   useEffect(() => { void refresh(); }, [refresh, connection]);
   useEffect(() => {
@@ -75,13 +87,13 @@ function PinStrip({ threadId }: { threadId: string }) {
     const observer = new ResizeObserver(fit);
     observer.observe(row.current); observer.observe(measure.current);
     return () => observer.disconnect();
-  }, [pins]);
+  }, [pins, customizing]);
   async function unpin(pin: Reference) {
     if (busy) return;
     setBusy(true);
     try {
       const { undoToken } = await rpc.call("remove", { threadId, pinId: pin.id });
-      setMissing(null); setMoreOpen(false);
+      setMoreOpen(false);
       await refresh();
       if (undoToken) toast(`Unpinned ${pin.name}`, {
         duration: 10_000,
@@ -94,58 +106,75 @@ function PinStrip({ threadId }: { threadId: string }) {
   }
   function open(pin: Reference, event: MouseEvent<HTMLAnchorElement>) {
     if (!plainClick(event)) return;
-    if (pin.status !== "available") { event.preventDefault(); setMoreOpen(false); setMissing(pin); return; }
+    if (pin.status !== "available") { event.preventDefault(); report(new Error(`${pin.hostName} is unavailable. Reconnect the machine and try again.`)); return; }
     if (!/\.(?:md|markdown)$/i.test(pin.path)) return;
     event.preventDefault();
     void rpc.call("openMossNote", { threadId, pinId: pin.id }).then(({ opened }) => {
       if (!opened && alive.current) navigate.experimental_openFilePreview({ target: { kind: "host", hostId: pin.hostId, path: pin.path }, location: null });
     }).catch((error) => { report(error); void refresh(); });
   }
+  async function move(pinId: string, overId: string) {
+    if (busy) return;
+    setBusy(true);
+    try { await rpc.call("move", { threadId, pinId, overId }); await refresh(); }
+    catch (error) { report(error); }
+    finally { if (alive.current) setBusy(false); }
+  }
+  async function pinRecent(file: RecentFile) {
+    if (busy) return;
+    setBusy(true);
+    try { await rpc.call("pin", { threadId, hostId: file.hostId, path: file.path }); await refresh(); }
+    catch (error) { report(error); }
+    finally { if (alive.current) setBusy(false); }
+  }
+  function customize() { setPicker(false); setMoreOpen(false); setCustomizing(true); }
   function reference(pin: Reference, inList = false) {
+    const title = `${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
+    if (pin.status === "missing") return <span key={pin.id} className={`relative inline-flex min-w-0 ${inList ? "w-full" : "max-w-48"}`} title={title}>
+      <span aria-label={`${pin.name} (missing)`} className={`${linkClass} cursor-default pr-4 opacity-60 ${inList ? "w-full max-w-none" : ""}`}>
+        <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
+      </span>
+      <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void unpin(pin)}
+        className="absolute -right-0.5 -top-1 flex size-5 items-center justify-center rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
+    </span>;
     return <ContextMenu key={pin.id}>
       <ContextMenuTrigger asChild>
-        <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)}
-          title={`${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`}
-          aria-label={`Open ${pin.name}${pin.status === "missing" ? " (missing)" : ""}`}
-          className={`${linkClass} ${inList ? "w-full max-w-none" : ""} ${pin.status !== "available" ? "opacity-60" : ""}`}>
-          <PinContents pin={pin} />
-        </FileLink>
+        <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title}
+          aria-label={`Open ${pin.name}`} className={`${linkClass} ${inList ? "w-full max-w-none" : ""} ${pin.status !== "available" ? "opacity-60" : ""}`}><PinContents pin={pin} /></FileLink>
       </ContextMenuTrigger>
-      <ContextMenuContent><ContextMenuItem disabled={busy} onSelect={() => void unpin(pin)}><Icon name="PinOff" className="size-3.5" />Unpin</ContextMenuItem></ContextMenuContent>
+      <ContextMenuContent style={{ animation: "none", transition: "none" }}>
+        <ContextMenuItem disabled={busy} onSelect={() => void unpin(pin)}>Unpin</ContextMenuItem>
+        <ContextMenuItem onSelect={customize}>Customize pins</ContextMenuItem>
+      </ContextMenuContent>
     </ContextMenu>;
   }
   const overflow = pins.slice(visible);
   return <>
-    {pins.length > 0 && <section aria-label="Pinned files" className="relative min-w-0 px-1 py-1">
-      <div ref={row} className="flex min-w-0 items-center gap-1">
-        <span ref={label} className="mr-1 shrink-0 text-xs text-muted-foreground">Pinned</span>
-        {pins.slice(0, visible).map((pin) => reference(pin))}
-        {overflow.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-          <PopoverTrigger asChild><button type="button" aria-label={`${overflow.length} more pinned files`} className={`${linkClass} shrink-0 tabular-nums`}>+{overflow.length}</button></PopoverTrigger>
-          <PopoverContent align="start" side="top" className="w-72 p-1" mobileTitle="Pinned files">
-            <div className="max-h-64 space-y-0.5 overflow-y-auto" aria-label="More pinned files">{overflow.map((pin) => reference(pin, true))}</div>
-          </PopoverContent>
-        </Popover>}
-        <button ref={addButton} type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread" onClick={() => setPicker({})}><Icon name="Plus" className="size-3.5" /></button>
-      </div>
-      <div aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 h-0 w-0 overflow-hidden">
-        <div ref={measure} className="flex w-max">{pins.map((pin) => <span key={pin.id} className={`${linkClass} shrink-0`}><PinContents pin={pin} /></span>)}</div>
-        <span ref={moreMeasure} className={`${linkClass} w-max tabular-nums`}>+{pins.length}</span>
-      </div>
-    </section>}
-    {picker && <FilePicker threadId={threadId} replacing={picker.replacing} onClose={() => setPicker(null)} onPinned={refresh} />}
-    <Dialog open={missing !== null} onOpenChange={(open) => { if (!open) setMissing(null); }}>
-      {missing && <DialogContent className="sm:max-w-md">
-        <DialogTitle>{missing.status === "missing" ? `Can't find ${missing.name}` : `${missing.hostName} is unavailable`}</DialogTitle>
-        <DialogDescription>{missing.status === "missing" ? `The file may have moved or been deleted on ${missing.hostName}. Its pin is still here.` : "Reconnect the machine or check file permissions, then try again."}</DialogDescription>
-        <p className="break-all text-xs text-muted-foreground">{missing.path}</p>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void unpin(missing)}>Unpin</Button>
-          {missing.status === "missing" ? <Button size="sm" onClick={() => { setPicker({ replacing: missing }); setMissing(null); }}>Repin…</Button>
-            : <Button size="sm" onClick={() => { setMissing(null); void refresh(); }}>Retry</Button>}
-        </div>
-      </DialogContent>}
-    </Dialog>
+    {customizing ? <CustomizePins pins={pins} busy={busy} onMove={(id, over) => void move(id, over)} onRemove={(pin) => void unpin(pin)} onDone={() => setCustomizing(false)} /> :
+      <Popover open={picker} onOpenChange={setPicker}>
+        {pins.length > 0 ? <section aria-label="Pinned files" className="relative min-w-0 px-1 py-1">
+          <div ref={row} className="flex min-w-0 items-center gap-1">
+            <span ref={label} className="mr-1 shrink-0 text-xs text-muted-foreground">Pinned</span>
+            {pins.slice(0, visible).map((pin) => reference(pin))}
+            {overflow.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+              <PopoverTrigger asChild><button type="button" aria-label={`${overflow.length} more pinned files`} className={`${linkClass} shrink-0 tabular-nums`}>+{overflow.length}</button></PopoverTrigger>
+              <PopoverContent aria-label="More pinned files" className="w-72 p-1"><div className="max-h-64 space-y-0.5 overflow-y-auto">{overflow.map((pin) => reference(pin, true))}</div></PopoverContent>
+            </Popover>}
+            <PopoverTrigger asChild><button ref={addButton} type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
+          </div>
+          <div aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 h-0 w-0 overflow-hidden">
+            <div ref={measure} className="flex w-max">{pins.map((pin) => <span key={pin.id} className={`${linkClass} shrink-0 ${pin.status === "missing" ? "pr-4" : ""}`}><PinContents pin={pin} /></span>)}</div>
+            <span ref={moreMeasure} className={`${linkClass} w-max tabular-nums`}>+{pins.length}</span>
+          </div>
+        </section> : recent.length > 0 ? <section aria-label="Suggested pins" className="flex min-w-0 items-center gap-1 px-1 py-1">
+          <span className="shrink-0 text-xs text-muted-foreground">Recent</span>
+          <div className="flex min-w-0 flex-1 overflow-hidden">{recent.slice(0, 3).map((file) => <button key={file.path} type="button" disabled={busy} aria-label={`Pin ${file.name}`} title={`Pin ${file.path}`} className={linkClass} onClick={() => void pinRecent(file)}><ReferenceIcon name={file.name} moss={file.moss} /><span className="truncate">{file.name}</span></button>)}</div>
+          <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0`} aria-label="Pin to thread" title="Pin to thread">+</button></PopoverTrigger>
+        </section> : <PinPopoverAnchor asChild><span className="block h-0 w-0" /></PinPopoverAnchor>}
+        <PopoverContent aria-label="Pin to thread" onCloseAutoFocus={(event) => { if (pins.length === 0 && recent.length === 0) event.preventDefault(); }}>
+          <FilePicker threadId={threadId} recent={recent} hasPins={pins.length > 0} onClose={() => setPicker(false)} onPinned={refresh} onCustomize={customize} />
+        </PopoverContent>
+      </Popover>}
   </>;
 }
 function PinsBanner() {

@@ -13,8 +13,14 @@ export const CHANGED = "pins-changed";
 const status = z.enum(["available", "missing", "unavailable"]);
 export const referenceSchema = pinSchema.extend({ hostName: z.string(), status, moss: z.boolean() });
 export type Reference = z.infer<typeof referenceSchema>;
+export const recentSchema = z.object({ hostId: id, path: filePath, name: z.string(), moss: z.boolean() });
+export type RecentFile = z.infer<typeof recentSchema>;
 
 export const hostContract = defineRpcContract({
+  recentFiles: {
+    input: z.object({ paths: z.array(filePath).max(40), cwd: filePath }).strict(),
+    output: z.object({ files: z.array(z.object({ path: filePath, name: z.string(), moss: z.boolean() })) }),
+  },
   home: { input: z.object({}).strict(), output: z.object({ path: filePath }) },
   inspect: {
     input: z.object({ paths: z.array(filePath).max(MAX_PINS) }).strict(),
@@ -30,6 +36,14 @@ export const hostContract = defineRpcContract({
   },
 });
 export const rpcContract = defineRpcContract({
+  recent: {
+    input: z.object({ threadId: id }).strict(),
+    output: z.object({ files: z.array(recentSchema).max(12) }),
+  },
+  move: {
+    input: z.object({ threadId: id, pinId: id, overId: id }).strict(),
+    output: z.object({ pins: pinsSchema }),
+  },
   inspect: {
     input: z.object({ threadId: id }).strict(),
     output: z.object({ pins: z.array(referenceSchema).max(MAX_PINS) }),

@@ -20,5 +20,10 @@
     "use-media-query",
     "use-pointer-coarse",
     "utils"
+  ],
+  "adaptations": [
+    "command.tsx: optional search icon; file-pins hides it.",
+    "pin-popover.tsx: BB popover tokens and Radix primitives without animation or compact drawer conversion.",
+    "customize-pins.tsx: SidebarFooterCustomize header and list recipe, DnD sensors; no reorder animation."
   ]
 }

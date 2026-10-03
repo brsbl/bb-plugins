@@ -1,3 +1,4 @@
+import { recentPaths } from "./recent-files.js";
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { CHANGED, MAX_PINS, hostContract, pinsSchema, rpcContract, type Pin, type Reference } from "./contract.js";
@@ -59,6 +60,35 @@ export default function plugin(bb: BbPluginApi): void {
   });
 
   bb.rpc.register(rpcContract, {
+    recent: async ({ threadId }) => {
+      const target = await thread(threadId);
+      if (!target.environmentId) return { files: [] };
+      const environment = await bb.sdk.environments.get({ environmentId: target.environmentId });
+      if (!environment.path) return { files: [] };
+      const events = await bb.sdk.threads.events.list({
+        threadId, order: "desc", limit: "100",
+        types: ["item/completed", "client/turn/requested", "client/thread/start"],
+      });
+      const paths = recentPaths(events);
+      if (!paths.length) return { files: [] };
+      const { files } = await host.call("recentFiles", { paths, cwd: environment.path }, { hostId: environment.hostId }).catch(() => ({ files: [] }));
+      await writes;
+      const pins = await read(threadId);
+      return { files: files.filter((file) => !pins.some((pin) => pin.hostId === environment.hostId && pin.path === file.path))
+        .slice(0, 12).map((file) => ({ ...file, hostId: environment.hostId })) };
+    },
+    move: ({ threadId, pinId, overId }) => serialize(async () => {
+      await thread(threadId);
+      const pins = await read(threadId);
+      const from = pins.findIndex((pin) => pin.id === pinId);
+      const to = pins.findIndex((pin) => pin.id === overId);
+      if (from < 0 || to < 0) throw new Error("These pins changed. Try again.");
+      if (from !== to) {
+        pins.splice(to, 0, pins.splice(from, 1)[0]!);
+        await save(threadId, pins);
+      }
+      return { pins };
+    }),
     inspect: async ({ threadId }) => {
       const { pins } = await list(threadId);
       const hosts = await bb.sdk.hosts.list();
@@ -138,6 +168,8 @@ export default function plugin(bb: BbPluginApi): void {
     pin: ({ threadId, hostId, path }) => pin(threadId, hostId, path),
     unpin: ({ threadId, pinId }) => unpin(threadId, pinId),
   });
+  bb.events.on("thread.idle", ({ thread }) => bb.realtime.publish("recent-changed", { threadId: thread.id }));
+  bb.events.on("message.dispatched", ({ entry }) => bb.realtime.publish("recent-changed", { threadId: entry.threadId }));
   bb.events.on("thread.deleted", ({ thread: deleted }) => serialize(async () => {
     for (const [token, undo] of undos) if (undo.threadId === deleted.id) undos.delete(token);
     await bb.storage.kv.delete(key(deleted.id));
