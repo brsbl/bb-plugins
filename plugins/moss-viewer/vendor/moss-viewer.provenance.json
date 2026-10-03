@@ -1,0 +1,21 @@
+{
+  "package": "@moss-multi/viewer",
+  "version": "0.1.0",
+  "api": 1,
+  "repository": "https://github.com/brsbl/moss-multi",
+  "branch": "m0",
+  "sourceCommit": "6fb9f26283cf8805490f06c6c1471c98732aeed5",
+  "mossPin": "762abb7770714a49d912f6081384aabb958a7ea6",
+  "bundleHash": "8a2f6cf26cfd1cff4b2876859c5625ddd583423747f086b739cb761e34a49ad9",
+  "viewerJsonSha256": "e72eba3309ffcc41ac6f168f6966f86ff5471f2db38c67e03824e4f219ad962a",
+  "ci": {
+    "run": "https://github.com/brsbl/moss-multi/actions/runs/37107499094",
+    "job": "viewer",
+    "artifact": {
+      "name": "moss-viewer",
+      "id": 11268297120,
+      "digest": "sha256:9ab77fb987384f0b24960375a8ba5a593614bd3a6e1daaeb81c0465358acafc3"
+    }
+  },
+  "update": "Download the moss-viewer artifact from the newest successful viewer job on m0 (gh run download <run> -R brsbl/moss-multi -n moss-viewer), replace vendor/moss-viewer/ except LICENSE, and update every field here. The server refuses files whose hashes do not match viewer.json."
+}

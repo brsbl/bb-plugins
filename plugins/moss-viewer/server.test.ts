@@ -1,0 +1,189 @@
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
+import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import { afterEach, describe, expect, it } from "vitest";
+import { ASSET_CHUNK_BYTES } from "./contract.js";
+import plugin, { parseRange } from "./server.js";
+import { loadViewerBundle } from "./viewer-bundle.js";
+
+const vendor = fileURLToPath(new URL("./vendor/moss-viewer/", import.meta.url));
+const httpRoot = "/api/v1/plugins/moss-viewer/http";
+const video = Buffer.from(Array.from({ length: ASSET_CHUNK_BYTES * 2 + 10 }, (_, index) => index % 251));
+const notePath = "/Users/me/Moss/Notes/Clip/Clip.md";
+
+const disposers: Array<() => Promise<void>> = [];
+afterEach(async () => {
+  for (const dispose of disposers.splice(0)) await dispose();
+});
+
+async function setup() {
+  const { bb, harness } = createFakePluginHost({
+    pluginId: "moss-viewer",
+    experimental_hostEntry: true,
+    sdk: {
+      environments: { get: async () => ({ hostId: "mac", path: "/Users/me/project" }) },
+    } as never,
+    experimental_callHostRpc: async ({ method, input, hostId }) => {
+      if (hostId === "offline") throw new Error("Host offline");
+      const request = input as Record<string, unknown>;
+      if (method === "readNote") {
+        const path = request.path as string;
+        return path.includes("/Moss/")
+          ? { moss: true, path, markdown: "# Clip\n", layout: null, noteId: "clip", modifiedMs: 1 }
+          : { moss: false, path };
+      }
+      if (method === "listNotes") {
+        return { notes: [{ id: "clip", title: "Clip", path: notePath, folderPath: "Notes" }], truncated: false };
+      }
+      if (method === "openInMoss") return { opened: true };
+      if (method === "readAsset") {
+        if (request.ref === "assets/missing.mp4") return { ok: false, code: "not_found", message: "assets/missing.mp4 is not in this note's folder." };
+        const start = Math.min(request.offset as number, video.length);
+        const end = Math.min(start + (request.length as number), video.length);
+        return { ok: true, contentType: "video/mp4", size: video.length, modifiedMs: 1, offset: start, data: video.subarray(start, end).toString("base64") };
+      }
+      throw new Error(`unexpected ${method}`);
+    },
+  });
+  await plugin(bb);
+  disposers.push(() => harness.lifecycle.dispose());
+  return harness;
+}
+
+function assetPath(ref: string, host = "mac") {
+  return `/asset?${new URLSearchParams({ host, note: notePath, ref }).toString()}`;
+}
+
+async function bytes(response: Response): Promise<Buffer> {
+  return Buffer.from(await response.arrayBuffer());
+}
+
+describe("reading notes", () => {
+  it("reads host files on the named host or the thread's environment host, and workspace files inside the worktree", async () => {
+    const h = await setup();
+    const result = (await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: null, environmentId: "env" })) as Record<string, unknown>;
+    expect(result).toMatchObject({ moss: true, hostId: "mac", path: notePath, markdown: "# Clip\n", noteId: "clip", assetRoute: `${httpRoot}/asset` });
+    expect(result.frameUrl).toMatch(new RegExp(`^${httpRoot}/viewer/[0-9a-f]{16}/frame\\.html$`));
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "readNote", hostId: "mac", input: { path: notePath } });
+
+    await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "studio", environmentId: null });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ hostId: "studio" });
+
+    expect(await h.behavior.callRpc("read", { kind: "workspace", path: "docs/plan.md", hostId: null, environmentId: "env" })).toEqual({ moss: false });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ input: { path: "/Users/me/project/docs/plan.md" } });
+    await expect(h.behavior.callRpc("read", { kind: "workspace", path: "../secret.md", hostId: null, environmentId: "env" })).rejects.toThrow("inside its worktree");
+    await expect(h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: null, environmentId: null })).rejects.toThrow("no host");
+  });
+
+  it("lists notes and opens a note in Moss on the note's host", async () => {
+    const h = await setup();
+    expect(await h.behavior.callRpc("notes", { hostId: "mac" })).toEqual({
+      notes: [{ id: "clip", title: "Clip", path: notePath, folderPath: "Notes" }],
+    });
+    expect(await h.behavior.callRpc("openInMoss", { hostId: "mac", path: notePath })).toEqual({ opened: true });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "openInMoss", hostId: "mac", input: { path: notePath } });
+  });
+});
+
+describe("the viewer bundle", () => {
+  it("serves the verified bundle and its frame from one immutable prefix", async () => {
+    const h = await setup();
+    const { frameUrl } = (await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "mac", environmentId: null })) as { frameUrl: string };
+    const base = frameUrl.slice(httpRoot.length).replace(/\/frame\.html$/, "");
+
+    const frame = await h.behavior.fetchHttp("GET", `${base}/frame.html?theme=dark`);
+    expect(frame.status).toBe(200);
+    expect(frame.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(frame.headers.get("content-security-policy")).toContain("script-src 'self'");
+    const html = await frame.text();
+    for (const file of ["./theme.js", "./moss-viewer.css", "./frame.js"]) expect(html).toContain(file);
+    expect(await (await h.behavior.fetchHttp("GET", `${base}/frame.js`)).text()).toContain('from "./moss-viewer.js"');
+
+    const script = await h.behavior.fetchHttp("GET", `${base}/moss-viewer.js`, { headers: { "accept-encoding": "gzip, br" } });
+    expect(script.headers.get("content-encoding")).toBe("gzip");
+    expect(script.headers.get("cache-control")).toContain("immutable");
+    expect(gunzipSync(await bytes(script)).equals(await readFile(join(vendor, "moss-viewer.js")))).toBe(true);
+
+    const font = await h.behavior.fetchHttp("GET", `${base}/assets/inter-latin-wght-normal-Dx4kXJAl.woff2`);
+    expect(font.headers.get("content-type")).toBe("font/woff2");
+    expect(font.headers.get("content-encoding")).toBeNull();
+    expect((await bytes(font)).equals(await readFile(join(vendor, "assets/inter-latin-wght-normal-Dx4kXJAl.woff2")))).toBe(true);
+  });
+
+  it("records the provenance of the vendored bundle", async () => {
+    const provenance = JSON.parse(await readFile(join(vendor, "../moss-viewer.provenance.json"), "utf8")) as Record<string, unknown>;
+    const record = JSON.parse(await readFile(join(vendor, "viewer.json"), "utf8")) as Record<string, any>;
+    expect(provenance).toMatchObject({
+      version: record.version,
+      api: record.api,
+      sourceCommit: record.source.commit,
+      mossPin: record.moss.commit,
+      bundleHash: record.bundleHash,
+    });
+    expect((await loadViewerBundle(vendor)).bundleHash).toBe(record.bundleHash);
+  });
+
+  it("refuses a bundle whose files no longer match viewer.json", async () => {
+    const copy = await mkdtemp(join(tmpdir(), "moss-viewer-bundle-"));
+    try {
+      await cp(vendor, copy, { recursive: true });
+      await writeFile(join(copy, "moss-viewer.css"), `${await readFile(join(copy, "moss-viewer.css"), "utf8")}\n/* edited */`);
+      await expect(loadViewerBundle(copy)).rejects.toThrow("moss-viewer.css does not match viewer.json");
+    } finally {
+      await rm(copy, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("note media", () => {
+  it("answers Range requests with 206 in bounded chunks", async () => {
+    const h = await setup();
+    const open = await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4"), { headers: { range: "bytes=0-" } });
+    expect(open.status).toBe(206);
+    expect(open.headers.get("accept-ranges")).toBe("bytes");
+    expect(open.headers.get("content-type")).toBe("video/mp4");
+    expect(open.headers.get("content-range")).toBe(`bytes 0-${ASSET_CHUNK_BYTES - 1}/${video.length}`);
+    expect((await bytes(open)).equals(video.subarray(0, ASSET_CHUNK_BYTES))).toBe(true);
+
+    const middle = await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4"), { headers: { range: "bytes=5-9" } });
+    expect(middle.headers.get("content-range")).toBe(`bytes 5-9/${video.length}`);
+    expect((await bytes(middle)).equals(video.subarray(5, 10))).toBe(true);
+
+    const tail = await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4"), { headers: { range: "bytes=-4" } });
+    expect(tail.headers.get("content-range")).toBe(`bytes ${video.length - 4}-${video.length - 1}/${video.length}`);
+    expect((await bytes(tail)).equals(video.subarray(video.length - 4))).toBe(true);
+
+    const past = await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4"), { headers: { range: `bytes=${video.length}-` } });
+    expect(past.status).toBe(416);
+    expect(past.headers.get("content-range")).toBe(`bytes */${video.length}`);
+  });
+
+  it("streams a whole file across host reads when no range is asked for", async () => {
+    const h = await setup();
+    const whole = await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4"));
+    expect(whole.status).toBe(200);
+    expect(whole.headers.get("content-length")).toBe(String(video.length));
+    expect(whole.headers.get("x-content-type-options")).toBe("nosniff");
+    expect((await bytes(whole)).equals(video)).toBe(true);
+    expect(h.inspection.experimental_hostRpcCalls.filter((call) => call.method === "readAsset")).toHaveLength(3);
+  });
+
+  it("maps refusals and host failures to HTTP errors", async () => {
+    const h = await setup();
+    expect((await h.behavior.fetchHttp("GET", assetPath("assets/missing.mp4"))).status).toBe(404);
+    expect((await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4", "offline"))).status).toBe(502);
+    expect((await h.behavior.fetchHttp("GET", "/asset?host=mac")).status).toBe(400);
+  });
+
+  it("parses one byte range and ignores anything else", () => {
+    expect(parseRange("bytes=0-")).toEqual({ kind: "range", start: 0, end: null });
+    expect(parseRange("bytes=10-20")).toEqual({ kind: "range", start: 10, end: 20 });
+    expect(parseRange("bytes=-500")).toEqual({ kind: "suffix", length: 500 });
+    for (const header of [undefined, "bytes=20-10", "bytes=0-1,4-5", "items=0-1", "bytes=-"]) {
+      expect(parseRange(header)).toBeNull();
+    }
+  });
+});

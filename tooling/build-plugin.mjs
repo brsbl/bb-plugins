@@ -3,6 +3,7 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildPluginApp,
+  buildPluginHost,
   buildPluginServer,
   resolvePluginBuildToolchain,
 } from "./vendor/bb-plugin-build-0.43.4.mjs";
@@ -41,6 +42,11 @@ if (typeof manifest.bb?.app === "string") {
   files.push(app.jsPath, app.cssPath, app.metaPath);
 } else if (appOnly) {
   throw new Error(`${manifest.name}: --app-only requires bb.app`);
+}
+
+if (!appOnly && typeof manifest.bb?.host === "string") {
+  const host = await buildPluginHost(pluginPath, pluginBuildBbVersion, toolchain);
+  files.push(host.jsPath, host.mapPath, host.metaPath);
 }
 
 for (const file of files) console.log(file);
