@@ -54,7 +54,9 @@ function PinStrip({ threadId }: { threadId: string }) {
       if (alive.current && request === recentGeneration.current) setRecent(result.files);
     } catch { /* A disconnected host must not obstruct existing pins. */ }
   }, [rpc, threadId]);
-  useEffect(() => { void refreshRecent(); }, [refreshRecent, connection, pins]);
+  // Suggestions exclude pinned files, so refetch only when that set changes, not on every refresh.
+  const pinnedFiles = pins.map((pin) => `${pin.hostId}\0${pin.path}`).sort().join("\n");
+  useEffect(() => { void refreshRecent(); }, [refreshRecent, connection, pinnedFiles]);
   useRealtime("recent-changed", (payload) => {
     if (payload && typeof payload === "object" && "threadId" in payload && payload.threadId === threadId) void refreshRecent();
   });

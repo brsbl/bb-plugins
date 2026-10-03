@@ -38,7 +38,9 @@ export function movePin(layout: PinLayout<{ id: string }>, current: Arrangement,
   if (zone) {
     const next = move(zone, zone.indexOf(activeId), zone.indexOf(overId));
     let cursor = 0;
-    return { order: current.order.map((id) => (zone.includes(id) ? next[cursor++]! : id)), more: current.more };
+    const order = current.order.map((id) => (zone.includes(id) ? next[cursor++]! : id));
+    // Reordering More pins must not promote capacity-overflow pins into strip slots.
+    return { order, more: zone === more ? [...new Set([...current.more, ...more])] : current.more };
   }
   const order = move(current.order, current.order.indexOf(activeId), current.order.indexOf(overId));
   return strip.includes(overId)

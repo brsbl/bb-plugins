@@ -22,3 +22,10 @@ it("reorders within a zone and moves between zones at the drop target", () => {
   expect(movePin(layoutPins(pins, ["b", "c", "d"], 3), { order: current.order, more: ["b", "c", "d"] }, "d", null))
     .toEqual({ order: ["a", "d", "b", "c"], more: ["b", "c"] });
 });
+
+it("reorders More pins without promoting overflow pins onto the strip", () => {
+  const current = { order: ["a", "b", "c", "d"], more: ["a"] };
+  const next = movePin(layoutPins(pins, current.more, 2), current, "d", "a")!;
+  expect(next).toEqual({ order: ["d", "b", "c", "a"], more: ["a", "d"] });
+  expect(ids(layoutPins(next.order.map((id) => ({ id })), next.more, 2).strip)).toEqual(["b", "c"]);
+});

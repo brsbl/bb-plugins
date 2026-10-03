@@ -1,4 +1,4 @@
-import { recentPaths } from "./recent-files.js";
+import { recentPaths, type LinkCache } from "./recent-files.js";
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { CHANGED, MAX_PINS, hostContract, moreSchema, pinsSchema, rpcContract, type Pin, type Reference } from "./contract.js";
@@ -6,6 +6,7 @@ import { CHANGED, MAX_PINS, hostContract, moreSchema, pinsSchema, rpcContract, t
 export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({ contract: hostContract });
   const undos = new Map<string, { threadId: string; pin: Pin; index: number; more: boolean; expires: number }>();
+  const linkCache: LinkCache = new Map();
   // All read-modify-write operations share a queue so CLI/UI writes cannot lose pins.
   let writes = Promise.resolve();
   const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
@@ -77,7 +78,7 @@ export default function plugin(bb: BbPluginApi): void {
         threadId, order: "desc", limit: "100",
         types: ["item/completed", "client/turn/requested", "client/thread/start"],
       });
-      const paths = recentPaths(events);
+      const paths = recentPaths(events, linkCache, threadId);
       if (!paths.length) return { files: [] };
       const { files } = await host.call("recentFiles", { paths, cwd: environment.path }, { hostId: environment.hostId }).catch(() => ({ files: [] }));
       await writes;
