@@ -412,7 +412,7 @@ describe("workflow settings", () => {
     const app = await loadApp();
     const rendered = renderSlot<{}, typeof rpcContract>(app.settingsSections[0]!, {}, {
       sdk: { plugins: { list: async () => ({ plugins: [] }) } },
-      rpc: { getConfig: async () => configuredWorkflow() },
+      rpc: { getConfig: async () => configuredWorkflow(), saveConfig: async () => configuredWorkflow() },
     });
     const trigger = await rendered.findByRole("button", { name: "Edit entry prompt for Planning" });
     expect(trigger.textContent).toBe("Add prompt");
