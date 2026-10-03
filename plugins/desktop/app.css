@@ -1608,8 +1608,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 
 /*
  * The actions are the message's footer: a full-width bar over the bottom of its last line, buttons at the left. Behind
- * them, while bb shows them, the paper fades in from the top of the bar, so the last line shows through above the
- * buttons and the icons stay readable.
+ * them, while bb shows them, solid paper hides the text under the bar, softened only by a 4 px fade at its top edge.
  */
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 {
   right: 0;
@@ -1624,7 +1623,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(to bottom, transparent, var(--bbd-im-paper) 55%);
+  background: linear-gradient(to bottom, transparent, var(--bbd-im-paper) 4px);
   opacity: 0;
   transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
