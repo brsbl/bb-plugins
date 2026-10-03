@@ -1418,6 +1418,7 @@ export default async function plugin(bb: BbPluginApi) {
           ? await withdrawRuleFile(
               source,
               stored.writtenPath,
+              stored.proposal.title,
               `doctrine: cancel ${ruleId ?? `proposal ${proposalId}`}`,
             )
           : ({ kind: "unpublished" } as const);
@@ -1451,21 +1452,45 @@ export default async function plugin(bb: BbPluginApi) {
     return cancellation;
   }
 
+  // Harvests one thread per queue step and queues the next, so work queued
+  // between harvests (a cancel) waits for one thread rather than the backlog.
+  // Each pass tries every pending thread at most once; a request that arrives
+  // during a pass starts another pass when it ends.
+  let draining = false;
+  let drainRequested = false;
+
   function drainHarvest(): void {
+    drainRequested = true;
+    if (draining) return;
+    draining = true;
+    drainRequested = false;
+    drainStep(new Set());
+  }
+
+  function drainStep(attempted: Set<string>): void {
     harvestQueue = harvestQueue
       .then(async () => {
-        for (const {
-          threadId,
-          projectId,
-        } of harvest.pendingThreads()) {
-          if (await publicationInFlight()) return;
-          await harvest.harvestThread(threadId, projectId);
-        }
+        const next = harvest
+          .pendingThreads()
+          .find((thread) => !attempted.has(thread.threadId));
+        if (!next || (await publicationInFlight())) return false;
+        attempted.add(next.threadId);
+        await harvest.harvestThread(next.threadId, next.projectId);
+        return true;
       })
       .catch((error: unknown) => {
         bb.log.warn(
           `doctrine harvest: drain failed: ${error instanceof Error ? error.message : String(error)}`,
         );
+        return false;
+      })
+      .then((more) => {
+        if (more) {
+          drainStep(attempted);
+          return;
+        }
+        draining = false;
+        if (drainRequested) drainHarvest();
       });
   }
 

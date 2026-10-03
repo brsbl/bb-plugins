@@ -71,7 +71,7 @@ describe("Design Doctrine plugin contract", () => {
       harness.inspection.registrations.cli?.commands?.find(
         ({ name }) => name === "harvest",
       )?.usage,
-    ).toBe("bb doctrine harvest <activity|propose|verdict|status> [options]");
+    ).toBe("bb doctrine harvest <activity|cancel|propose|verdict|status> [options]");
     expect(
       harness.inspection.registrations.agentTools.map(({ name }) => name),
     ).toContain("design_doctrine_search");

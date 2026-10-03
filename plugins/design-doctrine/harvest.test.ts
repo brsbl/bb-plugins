@@ -391,6 +391,24 @@ describe("harvest pure helpers", () => {
       ),
       "utf8",
     );
+    await writeFile(
+      join(root, "rules", "visual", "ddr_004.md"),
+      renderRuleMarkdown(
+        makeProposal({
+          title: "Keep pending chips neutral",
+          strength: "required",
+          confidence: "high",
+          evidence: [
+            "Asked that an attention state stop using the error color.",
+            "Asked again that a pending chip stop looking like an error.",
+          ],
+        }),
+        "ddr_004",
+        "2026-08-19",
+        2,
+      ),
+      "utf8",
+    );
     const library = await loadDoctrine(root);
     expect(library.rules.find((rule) => rule.id === "ddr_002")).toMatchObject({
       strength: "default",
@@ -398,9 +416,12 @@ describe("harvest pure helpers", () => {
       supporting_episodes: 1,
     });
     expect(library.rules.find((rule) => rule.id === "ddr_003")).toMatchObject({
+      strength: "default",
+      confidence: "low",
+    });
+    expect(library.rules.find((rule) => rule.id === "ddr_004")).toMatchObject({
       strength: "required",
       confidence: "high",
-      supporting_episodes: 2,
     });
   });
 

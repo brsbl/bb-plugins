@@ -468,6 +468,19 @@ async function pullRequestState(
   return (JSON.parse(result.stdout) as { state: string }).state;
 }
 
+async function ruleFileTitled(
+  source: CorpusSource,
+  commit: string,
+  path: string,
+  title: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const content = await git(source.repositoryRoot, ["show", `${commit}:${path}`], signal).catch(
+    () => "",
+  );
+  return content.split("\n").some((line) => line.trim() === `# ${title}`);
+}
+
 /**
  * Removes one unmerged rule from the open doctrine pull request that adds it,
  * committing from a throwaway checkout and pushing only to that pull request's
@@ -479,6 +492,7 @@ async function pullRequestState(
 export async function withdrawRuleFile(
   source: CorpusSource,
   rulePath: string,
+  title: string,
   message: string,
   signal?: AbortSignal,
 ): Promise<RuleWithdrawal> {
@@ -486,17 +500,15 @@ export async function withdrawRuleFile(
   const path = join(prefix, rulePath);
   await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
   const base = await publishedBranchId(source, signal);
-  const published = await git(
-    repositoryRoot,
-    ["ls-tree", "--name-only", base, "--", path],
-    signal,
-  );
-  if (published.length > 0) return { kind: "published" };
+  // Rule IDs can be reused after a publication fails, so a path alone does not
+  // identify this proposal's rule; its title must match too.
+  if (await ruleFileTitled(source, base, path, title, signal)) return { kind: "published" };
 
   for (const publication of await readOpenPublications(source, signal)) {
     if (!PUBLICATION_BRANCH_PATTERN.test(publication.branch)) continue;
     const head = await fetchedCommit(source, publication.branch, signal);
     if (!(await addedRuleFiles(source, base, head, signal)).includes(path)) continue;
+    if (!(await ruleFileTitled(source, head, path, title, signal))) continue;
     const state = await pullRequestState(source, publication.url, signal);
     if (state === "MERGED") return { kind: "published" };
     if (state !== "OPEN") return { kind: "unpublished" };

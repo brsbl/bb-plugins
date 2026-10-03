@@ -299,7 +299,7 @@ esac
       const other = await git(origin, "rev-parse", "doctrine/other");
 
       expect(
-        await withdrawRuleFile(source, "rules/interaction/ddr_002.md", "doctrine: cancel ddr_002"),
+        await withdrawRuleFile(source, "rules/interaction/ddr_002.md", "ddr_002.md", "doctrine: cancel ddr_002"),
       ).toEqual({
         kind: "withdrawn",
         url: "https://github.com/example/doctrine/pull/first",
@@ -311,7 +311,7 @@ esac
       );
 
       expect(
-        await withdrawRuleFile(source, "rules/interaction/ddr_003.md", "doctrine: cancel ddr_003"),
+        await withdrawRuleFile(source, "rules/interaction/ddr_003.md", "ddr_003.md", "doctrine: cancel ddr_003"),
       ).toMatchObject({ kind: "withdrawn", remainingRules: 0 });
       expect(await branchRules("doctrine/first")).toEqual(["ddr_001.md"]);
       await closePublication(
@@ -333,14 +333,20 @@ esac
       const other = await git(origin, "rev-parse", "doctrine/other");
 
       expect(
-        await withdrawRuleFile(source, "rules/interaction/ddr_001.md", "doctrine: cancel ddr_001"),
+        await withdrawRuleFile(source, "rules/interaction/ddr_001.md", "ddr_001.md", "doctrine: cancel ddr_001"),
       ).toEqual({ kind: "published" });
       expect(
-        await withdrawRuleFile(source, "rules/interaction/ddr_009.md", "doctrine: cancel ddr_009"),
+        await withdrawRuleFile(source, "rules/interaction/ddr_009.md", "ddr_009.md", "doctrine: cancel ddr_009"),
+      ).toEqual({ kind: "unpublished" });
+      expect(
+        await withdrawRuleFile(source, "rules/interaction/ddr_004.md", "A reused ID", "doctrine: cancel ddr_004"),
+      ).toEqual({ kind: "unpublished" });
+      expect(
+        await withdrawRuleFile(source, "rules/interaction/ddr_001.md", "A reused ID", "doctrine: cancel ddr_001"),
       ).toEqual({ kind: "unpublished" });
       process.env.FAKE_GH_STATE = "MERGED";
       expect(
-        await withdrawRuleFile(source, "rules/interaction/ddr_004.md", "doctrine: cancel ddr_004"),
+        await withdrawRuleFile(source, "rules/interaction/ddr_004.md", "ddr_004.md", "doctrine: cancel ddr_004"),
       ).toEqual({ kind: "published" });
 
       expect(await git(origin, "rev-parse", "doctrine/first")).toBe(first);

@@ -214,8 +214,13 @@ function bulletList(values: readonly string[]): string {
  * never `required` and never more than `low` confidence, whatever the
  * harvester or reviewer concluded.
  */
-export function evidenceBoundedProposal(proposal: HarvestProposal): HarvestProposal {
-  if (proposal.evidence.length >= REQUIRED_RULE_EPISODES) return proposal;
+export function evidenceBoundedProposal(
+  proposal: HarvestProposal,
+  episodes: number,
+): HarvestProposal {
+  // Episodes are distinct threads. Several evidence lines quoted from one
+  // thread are still one episode.
+  if (episodes >= REQUIRED_RULE_EPISODES) return proposal;
   return {
     ...proposal,
     strength: proposal.strength === "required" ? "default" : proposal.strength,
@@ -232,8 +237,9 @@ export function renderRuleMarkdown(
   proposal: HarvestProposal,
   id: string,
   updated: string,
+  episodes = 1,
 ): string {
-  proposal = evidenceBoundedProposal(harvestProposalSchema.parse(proposal));
+  proposal = evidenceBoundedProposal(harvestProposalSchema.parse(proposal), episodes);
   const sections = [
     `# ${proposal.title}`,
     "",
@@ -1130,7 +1136,12 @@ export function createHarvest(dependencies: HarvestDependencies) {
             stored,
             file: {
               relativePath: ruleRelativePath(proposal.domain, id),
-              content: renderRuleMarkdown(proposal, id, isoDate(now())),
+              content: renderRuleMarkdown(
+                proposal,
+                id,
+                isoDate(now()),
+                recurrenceContext(stored.ruleKey, pendingThreadId).recurrence,
+              ),
             },
           };
         });
