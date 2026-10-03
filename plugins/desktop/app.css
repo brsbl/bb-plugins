@@ -1426,8 +1426,8 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 .bbd-im {
-  /* Larger than bb's 13 px so the serif transcript and its gray system lines read comfortably at a glance. */
-  --bbd-im-text: 16px;
+  /* Two sizes up from bb's: messages lead at 18 px and the gray system lines (tools, commands, steers) sit below them at 14 px. */
+  --bbd-im-text: 18px;
   --bbd-im-system-text: 14px;
   --bbd-im-face: color-mix(in oklch, var(--canvas) 92%, var(--ink));
   --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
