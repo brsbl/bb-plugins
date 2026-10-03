@@ -246,7 +246,7 @@ describe("thread placement precedence", () => {
         config,
         thread({ status: "active", lastReadAt: 0, latestAttentionAt: 10 }),
         "building",
-      ).key,
+      )?.key,
     ).toBe("building");
   });
 
@@ -256,17 +256,17 @@ describe("thread placement precedence", () => {
         config,
         thread({ status: "idle", lastReadAt: 0, latestAttentionAt: 10 }),
         "spec-review",
-      ).key,
+      )?.key,
     ).toBe("inbox");
     expect(
       core.placementForThread(
         config,
         thread({ sectionId: "sec_inbox" }),
         "spec-review",
-      ).key,
+      )?.key,
     ).toBe("inbox");
     expect(
-      core.placementForThread(config, thread(), "spec-review").key,
+      core.placementForThread(config, thread(), "spec-review")?.key,
     ).toBe("spec-review");
     expect(
       core.placementForThread(
@@ -274,13 +274,13 @@ describe("thread placement precedence", () => {
         thread({ sectionId: "sec_inbox" }),
         "on-hold",
         true,
-      ).key,
+      )?.key,
     ).toBe("on-hold");
   });
 
   it("falls back to the first non-Inbox stage when a remembered stage vanished", () => {
     expect(
-      core.placementForThread(config, thread(), "removed-stage").key,
+      core.placementForThread(config, thread(), "removed-stage")?.key,
     ).toBe("planning");
   });
 

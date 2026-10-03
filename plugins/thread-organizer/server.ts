@@ -558,7 +558,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           stage.key === state.rememberedStageKey && stage.role === "stage",
       )
     ) {
-      state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
+      state.rememberedStageKey = firstWorkflowStage(configSnapshot)?.key ?? null;
     }
 
     let matchedInbox: WorkflowStage | null = null;

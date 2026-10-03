@@ -786,6 +786,39 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("routes safely after removing the last workflow stage from an inbox-only setup", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    const edited = editableWorkflowConfig(await configFor(organizer));
+    edited.stages = [edited.stages[0]!, {
+      key: "digests", title: "Digests", role: "inbox",
+      catchesPluginId: "digests", rule: "Published issues.",
+    }];
+    const saved = await organizer.harness.behavior.callRpc("saveConfig", edited) as WorkflowConfig;
+    const sectionId = (key: string) => saved.stages.find((stage) => stage.key === key)!.sectionId;
+    expect(organizer.current().sectionId).toBeNull();
+    await expect(organizer.bb.storage.kv.get("thread:v3:thr_test"))
+      .resolves.toMatchObject({ rememberedStageKey: null });
+
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    organizer.setThread({ status: "active", lastReadAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", { thread: organizer.current() });
+    expect(organizer.current().sectionId).toBeNull();
+
+    organizer.pluginMetadata.set("digests", { inbox: true });
+    organizer.emitChanged("metadata-changed");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(sectionId("digests")));
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    await replacement.harness.lifecycle.dispose();
+  });
+
   it.each(["origin", "metadata"] as const)("claims %s plugin threads, stays after reading and restart, and respects moves", async (source) => {
     const organizer = createHarness();
     await plugin(organizer.bb);

@@ -432,8 +432,8 @@ export function inboxStage(config: WorkflowConfig): WorkflowStage {
   return config.stages.find((stage) => stage.key === "inbox")!;
 }
 
-export function firstWorkflowStage(config: WorkflowConfig): WorkflowStage {
-  return config.stages.find((stage) => stage.role === "stage")!;
+export function firstWorkflowStage(config: WorkflowConfig): WorkflowStage | null {
+  return config.stages.find((stage) => stage.role === "stage") ?? null;
 }
 
 export function stageForSectionId(
@@ -547,20 +547,6 @@ export function isUnreadThread(thread: OrganizableThread): boolean {
   return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
 }
 
-export function placementForThread(
-  config: WorkflowConfig,
-  thread: OrganizableThread,
-  rememberedStageKey: string,
-  leaveInbox?: boolean,
-  matchedInbox?: WorkflowStage | null,
-): WorkflowStage;
-export function placementForThread(
-  config: WorkflowConfig,
-  thread: OrganizableThread,
-  rememberedStageKey: string | null,
-  leaveInbox?: boolean,
-  matchedInbox?: WorkflowStage | null,
-): WorkflowStage | null;
 export function placementForThread(
   config: WorkflowConfig,
   thread: OrganizableThread,
