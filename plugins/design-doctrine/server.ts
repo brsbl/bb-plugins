@@ -17,6 +17,7 @@ import {
   openPublication,
   pluginDataDirectory,
   publishedBranchId,
+  readOpenPublications,
   readStalledPublications,
   remoteBranchId,
   resolveBaseBranch,
@@ -1106,6 +1107,20 @@ export default async function plugin(bb: BbPluginApi) {
   // the work off the archive event, which must stay instant.
   let harvestQueue: Promise<void> = Promise.resolve();
 
+  /**
+   * Each publication allocates rule IDs from a fresh checkout of the published
+   * branch, so a second one opened before the first merges would reuse its IDs
+   * and could never merge. Harvests wait instead; the merge changes the read
+   * copy, and rule-watch drains again.
+   */
+  async function publicationInFlight(): Promise<boolean> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return false;
+    const source = await resolveSource();
+    if (!source) return false;
+    return (await readOpenPublications(source)).length > 0;
+  }
+
   function drainHarvest(): void {
     harvestQueue = harvestQueue
       .then(async () => {
@@ -1113,6 +1128,7 @@ export default async function plugin(bb: BbPluginApi) {
           threadId,
           projectId,
         } of harvest.pendingThreads()) {
+          if (await publicationInFlight()) return;
           await harvest.harvestThread(threadId, projectId);
         }
       })

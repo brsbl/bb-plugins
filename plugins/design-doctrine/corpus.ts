@@ -329,14 +329,9 @@ export interface OpenPublication {
   ageHours: number;
 }
 
-/**
- * Reports doctrine pull requests that are open but not merging. Auto-merge
- * waits indefinitely, so without this a failing check or an unresolved comment
- * stops the corpus learning without ever saying so.
- */
-export async function readStalledPublications(
+/** Lists the doctrine pull requests that are still open. */
+export async function readOpenPublications(
   source: CorpusSource,
-  stallAfterHours = 6,
   signal?: AbortSignal,
 ): Promise<OpenPublication[]> {
   const result = await execFileAsync(
@@ -364,13 +359,25 @@ export async function readStalledPublications(
     mergeStateStatus: string;
     createdAt: string;
   }>;
-  return rows
-    .map((row) => ({
-      url: row.url,
-      branch: row.headRefName,
-      mergeStateStatus: row.mergeStateStatus,
-      ageHours: (Date.now() - Date.parse(row.createdAt)) / (60 * 60 * 1_000),
-    }))
+  return rows.map((row) => ({
+    url: row.url,
+    branch: row.headRefName,
+    mergeStateStatus: row.mergeStateStatus,
+    ageHours: (Date.now() - Date.parse(row.createdAt)) / (60 * 60 * 1_000),
+  }));
+}
+
+/**
+ * Reports doctrine pull requests that are open but not merging. Auto-merge
+ * waits indefinitely, so without this a failing check or an unresolved comment
+ * stops the corpus learning without ever saying so.
+ */
+export async function readStalledPublications(
+  source: CorpusSource,
+  stallAfterHours = 6,
+  signal?: AbortSignal,
+): Promise<OpenPublication[]> {
+  return (await readOpenPublications(source, signal))
     .filter((row) => row.ageHours >= stallAfterHours)
     .map((row) => ({ ...row, ageHours: Math.round(row.ageHours) }));
 }
