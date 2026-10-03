@@ -64,6 +64,7 @@ describe("Design Doctrine plugin contract", () => {
     expect(harness.inspection.registrations.rpcMethods).toEqual([
       "getLibrary",
       "getHarvestActivity",
+      "cancelProposal",
     ]);
     expect(harness.inspection.registrations.cli?.name).toBe("doctrine");
     expect(
@@ -223,6 +224,7 @@ describe("Design Doctrine plugin contract", () => {
     expect(harness.inspection.registrations.rpcMethods).toEqual([
       "getLibrary",
       "getHarvestActivity",
+      "cancelProposal",
     ]);
     expect(harness.inspection.registrations.cli?.name).toBe("doctrine");
     expect(
@@ -288,6 +290,7 @@ describe("Design Doctrine plugin contract", () => {
     expect(registrationsAtInventoryStart?.rpcMethods).toEqual([
       "getLibrary",
       "getHarvestActivity",
+      "cancelProposal",
     ]);
     expect(registrationsAtInventoryStart?.cliName).toBe("doctrine");
     expect(registrationsAtInventoryStart?.createdHandlers).toBe(1);

@@ -1242,7 +1242,7 @@ describe("harvest activity feed", () => {
     ] as const) {
       insertThread.run(threadId, processedAt, proposed ? "no-approvals" : "no-proposals");
       if (proposed) {
-        insertProposal.run(threadId, threadId, JSON.stringify(makeProposal({ title: `Rule from ${threadId}` })));
+        insertProposal.run(threadId, threadId, JSON.stringify(makeProposal({ title: `Rule number ${processedAt}` })));
       }
     }
 
