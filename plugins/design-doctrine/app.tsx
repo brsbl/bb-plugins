@@ -42,6 +42,7 @@ import type {
 
 const ACTIVITY_PAGE_SIZE = 25;
 const ACTIVITY_REFRESH_LIMIT = 100;
+const ACTIVITY_RELOAD_DELAY_MS = 400;
 
 const DOMAIN_STYLES: Record<
   string,
@@ -899,13 +900,41 @@ function HarvestActivity() {
     return () => window.clearInterval(timer);
   }, []);
 
-  useRealtime("harvest-changed", () => {
-    void load();
-  });
+  // A busy drain or a bulk archive emits bursts of events; collapse each burst
+  // into one reload, and never run two at once.
+  const reloadTimer = useRef<number | null>(null);
+  const reloading = useRef<Promise<void> | null>(null);
+  const reloadAgain = useRef(false);
+  const scheduleReload = useCallback(() => {
+    if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current);
+    reloadTimer.current = window.setTimeout(() => {
+      reloadTimer.current = null;
+      if (reloading.current) {
+        reloadAgain.current = true;
+        return;
+      }
+      const run = async () => {
+        do {
+          reloadAgain.current = false;
+          await load();
+        } while (reloadAgain.current);
+      };
+      reloading.current = run().finally(() => {
+        reloading.current = null;
+      });
+    }, ACTIVITY_RELOAD_DELAY_MS);
+  }, [load]);
 
-  useRealtime("rules-changed", () => {
-    void load();
-  });
+  useEffect(
+    () => () => {
+      if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current);
+    },
+    [],
+  );
+
+  useRealtime("harvest-changed", scheduleReload);
+
+  useRealtime("rules-changed", scheduleReload);
 
   useEffect(() => {
     const previous = previousConnectionState.current;

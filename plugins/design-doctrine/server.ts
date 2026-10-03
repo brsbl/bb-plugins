@@ -1156,7 +1156,6 @@ export default async function plugin(bb: BbPluginApi) {
   let publicationLookup: Promise<{ url: string } | null> | null = null;
 
   function notifyHarvestChanged(): void {
-    publicationCache = null;
     bb.realtime.publish("harvest-changed", { changed_at: new Date().toISOString() });
   }
 
