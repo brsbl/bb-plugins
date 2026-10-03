@@ -17,9 +17,11 @@ Automations, and Thread Organizer must be installed and running.
 
 `bb digest setup --project <project> --browser-host <host> --provider <provider> --model <model>`
 creates disabled Unread email, Money, Reading, and publish-only X scorecard
-definitions. It creates the Digests section through Thread Organizer settings,
-opting that section into Skip Inbox. This requires the Organizer version
-that supports that option. Existing sections keep their existing behavior.
+definitions. It creates a Digests inbox through Thread Organizer settings,
+with `role: "inbox"` and `catchesPluginId: "digests"`. This requires the Organizer
+version that supports additional inboxes. Do not use `organizer phase` to route
+issues: their origin or durable plugin metadata lets Organizer catch them.
+Read and unread issues remain there until the user moves or archives them.
 
 Review definitions with the user before enabling them in plugin settings.
 Never edit or remove existing automations as an incidental setup step. Migrate

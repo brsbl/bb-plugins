@@ -16,17 +16,11 @@ afterEach(async () => {
 function setup(options: { runs?: Array<{
   id: string; threadId: string | null; status: string; scheduledFor: number; startedAt: number;
   error: string | null; skipReason: string | null;
-}>; skipInbox?: boolean } = {}) {
+}>; stageSection?: boolean } = {}) {
   let signIn = { signedIn: true, signedOut: false };
   let tabCount = 0;
   let deliveryCount = 0;
   const threads = new Map<string, ReturnType<typeof makeThreadResponse>>();
-  const request = vi.fn(async (url: string, init?: RequestInit) => {
-    expect(url).toBe("http://127.0.0.1:38886/api/v1/plugins/thread-organizer/cli");
-    expect(JSON.parse(String(init?.body))).toMatchObject({ argv: ["phase", "digests"], projectId: "proj_digest" });
-    return new Response(JSON.stringify({ exitCode: 0, stdout: "", stderr: "" }), { status: 200 });
-  });
-  vi.stubGlobal("fetch", request);
   const { bb, harness } = createFakePluginHost({
     pluginId: "digests",
     sdk: {
@@ -34,6 +28,7 @@ function setup(options: { runs?: Array<{
         get: async ({ threadId }) => threads.get(threadId) ?? makeThreadResponse({ id: threadId, projectId: "proj_digest" }),
         update: async () => ({ ok: true }),
         markUnread: async () => ({ ok: true }),
+        updatePluginMetadata: async ({ set }) => set ?? {},
         send: async () => ({ ok: true }),
         archive: async () => ({ ok: true }),
         spawn: async () => ({ id: `thr_delivery_${++deliveryCount}` }),
@@ -51,7 +46,7 @@ function setup(options: { runs?: Array<{
         callRpc: async ({ pluginId, method, input, outputSchema }) => {
           let result: unknown;
           if (pluginId === "thread-organizer" && method === "getConfig") {
-            result = { version: 1, revision: 1, stages: [{ key: "digests", title: "Digests", role: "stage", rule: "Private briefings.", sectionId: "section_digests", skipInbox: options.skipInbox ?? true }] };
+            result = { version: 1, revision: 1, stages: [{ key: "digests", title: "Digests", role: options.stageSection ? "stage" : "inbox", rule: "Private briefings.", sectionId: "section_digests", ...(options.stageSection ? {} : { catchesPluginId: "digests" }) }] };
           } else if (pluginId === "thread-organizer" && method === "saveConfig") {
             result = { ...input as object, revision: 2, stages: (input as { stages: object[] }).stages.map((stage) => ({ ...stage, sectionId: "section_digests" })) };
           } else if (pluginId === "browser-automation" && method === "open") {
@@ -81,7 +76,7 @@ function setup(options: { runs?: Array<{
     providerId: "codex", model: "model-test", createdAt: NOW,
   });
   service.store.connections.put({ id: "gmail", name: "Gmail", url: "https://mail.google.com/", browserHostId: "host_browser" });
-  return { bb, harness, service, threads, request, setSignIn: (value: typeof signIn) => { signIn = value; } };
+  return { bb, harness, service, threads, setSignIn: (value: typeof signIn) => { signIn = value; } };
 }
 
 const payload = () => PublishInputSchema.parse({
@@ -91,19 +86,21 @@ const payload = () => PublishInputSchema.parse({
 });
 
 describe("digest issue lifecycle", () => {
-  it("opts an existing Digests section out of Inbox during setup without replacing its rule", async () => {
-    const { service, harness } = setup({ skipInbox: false });
+  it("turns an existing Digests section into an inbox without replacing its rule", async () => {
+    const { service, harness } = setup({ stageSection: true });
     await service.ensureSection(true);
     const saves = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: Record<string, unknown> }).filter((value) => value.method === "saveConfig");
     expect(saves).toHaveLength(1);
-    expect(saves[0]?.input).toMatchObject({ baseRevision: 1, stages: [{ key: "digests", title: "Digests", rule: "Private briefings.", skipInbox: true }] });
+    expect(saves[0]?.input).toMatchObject({ baseRevision: 1, stages: [{ key: "digests", title: "Digests", rule: "Private briefings.", role: "inbox", catchesPluginId: "digests" }] });
     expect(saves[0]?.input).not.toHaveProperty("stages.0.sectionId");
   });
 
   it("begins with fresh issue-owned tabs and trusts only a positive sign-in marker", async () => {
-    const { service, harness, setSignIn } = setup();
+    const { service, harness, threads, setSignIn } = setup();
+    threads.set("thr_first", makeThreadResponse({ id: "thr_first", projectId: "proj_digest", originPluginId: "automations" }));
     const first = await service.begin("reading", "thr_first");
     expect(first).toMatchObject({ complete: false, issue: { state: "collecting", threadId: "thr_first" } });
+    expect(harness.inspection.sdk.callsTo("threads.updatePluginMetadata")[0]?.[0]).toMatchObject({ threadId: "thr_first", pluginId: "digests", set: { inbox: true, issueId: first.issue.id, digestId: "reading" } });
     expect(first.sessions[0]).toMatchObject({ threadId: "thr_first", tabId: "tab_1", sessionId: "session_tab_1" });
     expect(service.store.connections.get("gmail")).toMatchObject({ status: "signed-in", detail: null });
 
@@ -182,6 +179,7 @@ describe("digest issue lifecycle", () => {
       complete: true, sessions: [], issue: { threadId: "thr_late", state: "failed", recovery: "retry", details: expect.stringContaining("delayed") },
     });
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toEqual([]);
+    expect(harness.inspection.sdk.callsTo("threads.updatePluginMetadata")[0]?.[0]).toMatchObject({ threadId: "thr_late", set: { inbox: true, issueId: delayed.issue.id } });
     expect(service.store.connections.get("gmail")?.status).toBe("unknown");
 
     await service.retry("thr_late", delayed.issue.id);

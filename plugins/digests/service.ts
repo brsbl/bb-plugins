@@ -8,7 +8,7 @@ import { deliveryPrompt, directive, issueTitle, runPrompt, collectionInstruction
 
 const automationSchema = z.object({ id: z.string(), enabled: z.boolean(), nextRunAt: z.number().nullable() }).passthrough();
 const runSchema = z.object({ id: z.string(), threadId: z.string().nullable(), status: z.string(), scheduledFor: z.number(), startedAt: z.number(), error: z.string().nullable(), skipReason: z.string().nullable() }).passthrough();
-const organizerSchema = z.object({ version: z.number(), revision: z.number().optional(), stages: z.array(z.object({ key: z.string(), title: z.string(), role: z.string(), rule: z.string(), sectionId: z.string().nullable(), skipInbox: z.boolean().optional() }).passthrough()) }).passthrough();
+const organizerSchema = z.object({ version: z.number(), revision: z.number().optional(), stages: z.array(z.object({ key: z.string(), title: z.string(), role: z.string(), rule: z.string(), sectionId: z.string().nullable(), catchesPluginId: z.string().optional() }).passthrough()) }).passthrough();
 
 export function createService(bb: BbPluginApi) {
   const store = createStore(bb);
@@ -39,32 +39,28 @@ export function createService(bb: BbPluginApi) {
   async function ensureSection(configureExisting = false) {
     const config = await organizer();
     const stage = config.stages.find((entry) => entry.key === "digests");
-    if (stage) {
-      if (stage.role !== "stage") throw new Error("The digests key belongs to Inbox. Choose a different Organizer key before setup.");
-      if (!configureExisting || stage.skipInbox) return stage;
-    }
+    if (stage?.role === "inbox" && stage.catchesPluginId === "digests") return stage;
+    if (stage && !configureExisting) throw new Error("Run Digests setup to configure its inbox in Thread Organizer.");
+    if (stage?.entryPrompt) throw new Error("Remove the Digests section entry prompt before converting it to an inbox.");
     const { revision, stages, ...base } = config;
-    const nextStages = stages.map(({ sectionId: _id, ...entry }) => entry.key === "digests" ? { ...entry, skipInbox: true } : entry);
-    if (!stage) nextStages.push({ key: "digests", role: "stage", title: "Digests", skipInbox: true, rule: "Private scheduled briefings and issues published by other threads." });
+    const nextStages = stages.map(({ sectionId: _id, ...entry }) => entry.key === "digests" ? { ...entry, role: "inbox", catchesPluginId: "digests" } : entry);
+    if (!stage) nextStages.push({ key: "digests", role: "inbox", title: "Digests", catchesPluginId: "digests", rule: "Private scheduled briefings and issues published by other threads." });
     const next = await bb.sdk.plugins.callRpc({
       pluginId: "thread-organizer", method: "saveConfig",
       input: JSON.parse(JSON.stringify({ ...base, baseRevision: revision ?? 0, stages: nextStages })), outputSchema: organizerSchema,
     });
     const saved = next.stages.find((entry) => entry.key === "digests");
-    if (!saved?.skipInbox) throw new Error("Update Thread Organizer to a version with Skip Inbox, then run Digests setup again.");
+    if (saved?.role !== "inbox" || saved.catchesPluginId !== "digests") throw new Error("Update Thread Organizer to a version with additional inboxes, then run Digests setup again.");
     return saved;
   }
 
-  async function place(threadId: string, projectId: string) {
-    // Organizer owns remembered stages and the protected Inbox. Its public CLI
-    // has thread-scoped context; direct section updates would bypass that state.
-    const response = await fetch(`${bb.server.loopbackBaseUrl}/api/v1/plugins/thread-organizer/cli`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ argv: ["phase", "digests"], threadId, projectId }), signal: AbortSignal.timeout(15000),
-    });
-    const result = z.object({ exitCode: z.number(), stderr: z.string().optional() }).passthrough().parse(await response.json());
-    if (!response.ok || result.exitCode !== 0) throw new Error(result.stderr || "Could not file this issue through Thread Organizer.");
+  async function claimInbox(issue: Issue) {
+    if (!issue.threadId) return;
+    // Native automation threads retain their Automations origin. A durable
+    // plugin metadata marker lets Organizer route them without rewriting it.
+    await bb.sdk.threads.updatePluginMetadata({ threadId: issue.threadId, set: { inbox: true, issueId: issue.id, digestId: issue.digestId } });
   }
+
   async function closeIssueBrowsers(issue: Issue) {
     const key = `browsers:${issue.id}`;
     const leases = await bb.storage.kv.get<BrowserLease[]>(key) ?? [];
@@ -95,10 +91,10 @@ export function createService(bb: BbPluginApi) {
       ...(definition.model ? { model: definition.model } : {}),
       permissionMode: definition.permissionMode,
       title: issueTitle(definition, issue.createdAt), input: [{ type: "text", text: deliveryPrompt(issue), mentions: [], visibility: "agent-only" }],
-      sectionId: stage.sectionId, pluginMetadata: { issueId: issue.id, digestId: definition.id },
+      sectionId: stage.sectionId, pluginMetadata: { inbox: true, issueId: issue.id, digestId: definition.id },
     });
     const bound = changed(store.issues.update(issue.id, { threadId: thread.id }));
-    await place(thread.id, definition.projectId);
+    await claimInbox(bound);
     await bb.sdk.threads.markUnread({ threadId: thread.id });
     return bound;
   }
@@ -129,6 +125,8 @@ export function createService(bb: BbPluginApi) {
         await bb.storage.kv.delete(`recovery:${issue.id}`);
         const requestedRetry = await bb.storage.kv.get<boolean>(`retry:${issue.id}`);
         await bb.storage.kv.delete(`retry:${issue.id}`);
+        await ensureSection();
+        await claimInbox(issue);
         if (definition.automationId && !requestedRetry) {
           const recent = await automation("automations_runs", { projectId: definition.projectId, automationId: definition.automationId, limit: 100 }, z.object({ runs: z.array(runSchema) }).passthrough());
           const run = recent.runs.find((entry) => entry.threadId === threadId);
@@ -136,9 +134,7 @@ export function createService(bb: BbPluginApi) {
             throw new Error("bb was unavailable or this run was delayed at the scheduled time. Retry to prepare this issue now.");
           }
         }
-        await ensureSection();
         await bb.sdk.threads.update({ threadId, title: issueTitle(definition, issue.createdAt) });
-        await place(threadId, definition.projectId);
         for (const connectionId of definition.connectionIds) {
           const connection = store.connections.get(connectionId);
           if (!connection) throw new Error(`Connection ${connectionId} is missing. Configure it in Digests, then Retry.`);
@@ -202,7 +198,7 @@ export function createService(bb: BbPluginApi) {
       if (result.run.threadId) {
         const issue = store.issues.getByThread(result.run.threadId) ?? newIssue(definition, result.run.threadId, `run:${result.run.id}`, result.run.scheduledFor);
         await bb.sdk.threads.update({ threadId: result.run.threadId, title: issueTitle(definition, issue.createdAt) });
-        await place(result.run.threadId, definition.projectId);
+        await claimInbox(issue);
       }
       return { threadId: result.run.threadId };
     });
@@ -257,7 +253,7 @@ export function createService(bb: BbPluginApi) {
   async function overview() {
     const plugins = await bb.sdk.plugins.list();
     let organizerReady = false;
-    try { organizerReady = (await organizer()).stages.some((entry) => entry.key === "digests" && entry.skipInbox === true); } catch { /* Settings shows setup guidance. */ }
+    try { organizerReady = (await organizer()).stages.some((entry) => entry.key === "digests" && entry.role === "inbox" && entry.catchesPluginId === "digests"); } catch { /* Settings shows setup guidance. */ }
     return { definitions: store.definitions.list(), connections: store.connections.list(), actionCardsAvailable: plugins.plugins.some((entry) => entry.id === "inline-action-cards" && entry.enabled && entry.status === "running"), organizerReady };
   }
   async function reconcile() {
@@ -273,7 +269,7 @@ export function createService(bb: BbPluginApi) {
           if (!issue) issue = newIssue(definition, run.threadId, `run:${run.id}`, run.scheduledFor);
           if (run.threadId && created) {
             await bb.sdk.threads.update({ threadId: run.threadId, title: issueTitle(definition, issue.createdAt) });
-            await place(run.threadId, definition.projectId);
+            await claimInbox(issue);
           }
           const late = run.startedAt - run.scheduledFor > 15 * 60 * 1000;
           if (["failed", "skipped"].includes(run.status) || (run.status === "succeeded" && issue.state === "collecting")) {
