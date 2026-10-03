@@ -105,6 +105,18 @@ describe("bb ThreadChat contract", () => {
     }
   });
 
+  it("shrinks the action slot under every message, a person's and the agent's", () => {
+    load();
+    const slots = matches(".bbd-im-chat [data-message-column] .relative.w-full.h-5");
+    expect(slots).toHaveLength(document.querySelectorAll(CHAT_CONTRACT_PROBES.message).length);
+    expect(slots.filter(isAgent).length).toBeGreaterThan(0);
+    expect(slots.filter(isPerson).length).toBeGreaterThan(0);
+    const buttons = matches(".bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 > button");
+    for (const slot of slots) {
+      expect(buttons.some((button) => slot.contains(button) && button.matches('[aria-label="Copy message"]'))).toBe(true);
+    }
+  });
+
   it("styles bb's live Working... line outside the rows", () => {
     const { live } = load();
     const working = matches(".bbd-im-chat .mt-4.min-h-7:has(> .animate-shine)");

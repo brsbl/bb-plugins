@@ -1467,10 +1467,21 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
  * messages, user rows (which include prompts sent by another agent or by bb), and warnings and errors (bb's `:error:` rows and
  * `:op:warning:` / `:op:error:` notices).
  */
-.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]),
 .bbd-im-chat .mt-4:has(> .rounded-md > .group\/timeline-row),
 .bbd-im-chat .mt-4.min-h-7:has(> .animate-shine) {
   display: none;
+}
+
+/*
+ * Hidden rows keep a 1 px sliver instead of display: none. bb windows a long thread's rows and counts a row that
+ * measures 0 px as unmeasured, holding open its 20 px guess plus the 8 px row gap: a blank line under each person's
+ * message, and a 28 px jump while the agent works. The negative margin gives the row gap back in a short thread.
+ */
+.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]) {
+  height: 1px;
+  margin-top: -9px;
+  overflow: hidden;
+  visibility: hidden;
 }
 
 /* A sunken XP field drawn inside the scroller, so the message box covers its lower edge instead of being clipped by it. */
@@ -1594,6 +1605,18 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 .bbd-im-chat [data-message-column] > .ml-auto > * {
   align-items: flex-start;
   justify-content: flex-start;
+}
+
+/*
+ * bb reserves a 20 px row under every message for its hover actions. Here the actions are 12 px tall and the slot
+ * keeps 4 px; bb's 8 px row gap holds the rest, so a hovered message's actions end where the next message starts.
+ */
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 {
+  height: 4px;
+}
+
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 > button {
+  height: 12px;
 }
 
 /* Every line starts at the left edge in AIM, so a person's message actions sit there too, as the agent's do. */
