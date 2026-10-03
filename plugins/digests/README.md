@@ -4,7 +4,7 @@ Private briefings delivered as threads, as short newsletters with a story headli
 and compact written sections. Supporting detail can expand in place. Issues arrive in a Digests inbox in the sidebar.
 Archive issues yourself when done. Find old issues with native thread search.
 
-![A Digests newsletter in its native thread](https://github.com/user-attachments/assets/3ba66b90-4747-48eb-b318-fb55d276e3d2)
+![A Digests newsletter in its native thread](https://github.com/user-attachments/assets/c06749c0-c715-427d-84e6-c5a7c4c5e4ca)
 
 ## Install
 
