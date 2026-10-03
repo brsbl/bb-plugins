@@ -1446,9 +1446,10 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 /*
  * AIM shows only what was said. Tool calls, thoughts, "Worked for" folds and the live Thinking/Working line are hidden
  * (the status bar already says the buddy is typing, and Open in bb shows the full thread). Kept: your and the agent's
- * messages, user rows (which include prompts sent by another agent or by bb), and warnings and errors.
+ * messages, user rows (which include prompts sent by another agent or by bb), and warnings and errors (bb's `:error:` rows and
+ * `:op:warning:` / `:op:error:` notices).
  */
-.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"]),
+.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]),
 .bbd-im-chat .mt-4:has(> .rounded-md > .group\/timeline-row),
 .bbd-im-chat .mt-4.min-h-7:has(> .animate-shine) {
   display: none;
@@ -1660,11 +1661,11 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   font-style: normal;
 }
 
-.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"]) > .rounded-md {
+.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]) > .rounded-md {
   color: var(--bbd-im-them);
 }
 
-.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"]) > .rounded-md button {
+.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]) > .rounded-md button {
   font-style: normal;
   color: var(--bbd-im-me);
   text-decoration: underline;
