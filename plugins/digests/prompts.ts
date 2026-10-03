@@ -6,8 +6,13 @@ export function issueTitle(definition: DigestDefinition, now: number): string {
   return `${definition.name} · ${part("weekday")} ${part("month")} ${part("day")}`;
 }
 
-export function directive(issue: Pick<Issue, "id">): string {
-  return `::digest-issue{id="${issue.id}"}`;
+export function directive(issue: Pick<Issue, "id" | "headline" | "metrics" | "details">): string {
+  // A directive label stays in the native assistant message's search index.
+  // The component reads canonical content from SQLite; the label also leaves
+  // useful text behind when the plugin is disabled.
+  const label = [issue.headline, ...issue.metrics.map(({ label, value }) => `${label}: ${value}`), issue.details]
+    .join(" — ").replace(/\s+/gu, " ").replace(/[\\[\]]/gu, "\\$&");
+  return `::digest-issue[${label}]{id="${issue.id}"}`;
 }
 
 export function runPrompt(definition: DigestDefinition): string {
