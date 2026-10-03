@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ProgramMenuBar } from "../apps/xp-chrome";
+import { BB_MARK } from "../art";
 import { windowOwnsKeys } from "../windows";
 import { advance, canStep, cellCenter, newRun, ratPosition, seededRandom, type MazeRun } from "./maze-core";
 
@@ -256,9 +257,10 @@ const FLAG_PANES = [
   ["M8.4 9.8 Q11.6 11 15 9.6 L14.2 14.4 Q11 15.6 7.6 14.6 Z", "oklch(0.86 0.16 90)"],
 ] as const;
 let flagPanes: [Path2D, string][] | null = null;
+let bbMark: Path2D | null = null;
 
 /**
- * The start sign: the screen saver's Start button slab, with bb's flag and "bb" where it said Start. A raised khaki
+ * The start sign: the screen saver's Start button slab, with bb's flag and bb's wordmark where it said Start. A raised khaki
  * button with a dark outline, a bevel and a dark underside, a little see-through, turning about its vertical axis
  * with its edge showing.
  */
@@ -306,10 +308,17 @@ function paintStartButton(ctx: CanvasRenderingContext2D, time: number) {
     ctx.stroke(pane);
   }
   ctx.restore();
+  // bb's own wordmark (the 491 × 397 logo path), set where the original said Start.
+  bbMark ??= new Path2D(BB_MARK);
   ctx.fillStyle = "#3d2a08";
-  ctx.font = "bold 11px Tahoma, Verdana, sans-serif";
-  ctx.textBaseline = "middle";
-  ctx.fillText("bb", -6, 0.5);
+  ctx.translate(-6, -4.6);
+  ctx.scale(9.2 / 397, 9.2 / 397);
+  ctx.fill(bbMark, "evenodd");
+  // A hairline of the same ink gives the mark the weight of the original lettering.
+  ctx.strokeStyle = "#3d2a08";
+  ctx.lineWidth = 26;
+  ctx.lineJoin = "round";
+  ctx.stroke(bbMark);
   ctx.restore();
 }
 
