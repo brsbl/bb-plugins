@@ -28,7 +28,7 @@ Never edit or remove existing automations as an incidental setup step. Migrate
 only after the user approves the exact old and new schedules. Defaults are
 weekdays 10am PT, Monday 10am PT, and Sunday 11am PT respectively.
 
-Settings lists signed-in sites and nests their digests. Refresh checks access
+Settings lists signed-in sites and nests their digests. Check sign-ins checks access
 on demand. The import button opens bb’s own Browser settings; the user chooses
 the browser/profile and consents there. Add digest opens an inline prompt form;
 Create saves it enabled and offers Run now to preview. Editing keeps its ID and
@@ -60,7 +60,11 @@ Publish with an outcome `headline` ("2 things need you today"), one short
 `lede` line ("14 new emails · 12 are routine"), and a structured `brief`.
 Use a `heading` such as Needs you, Read these 3, or Do next. Each `items` entry
 has a one-line `title`, short `text`, optional `context`, `urgency`
-(today/week/later), and `action: {label, url}`. A `secondaryAction` is optional.
+(today/week/later) for the accent bar, and `action: {label, url}`. A
+`secondaryAction` is optional. Add `deadline` only for a real source deadline
+that sharpens the headline, such as "Due Thu 3pm" or "This week". Otherwise omit
+it. Never repeat "Today" when the headline already says "need you today", and
+never invent a deadline from urgency.
 One filled primary button appears per numbered card. Every URL opens a source
 or review page; it must never perform a write. Use "Review sign-in", not "It
 was me", when a button only opens a security alert.

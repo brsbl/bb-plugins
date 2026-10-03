@@ -183,23 +183,27 @@ function RecoveryBanner() {
   return <IssueSummary key={issue.id} issue={issue} threadId={threadId} loadError={loadError} refresh={load} />;
 }
 
-function BriefCards({ brief }: { brief: NonNullable<Issue["brief"]> }) {
+function BriefCards({ brief, headline }: { brief: NonNullable<Issue["brief"]>; headline: string }) {
   const navigate = useBbNavigate();
   const open = (url: string) => { if (safeLink(url)) navigate.openUrl(url); };
   return <div className="digest-brief">
     {brief.items.length > 0 && <><h3>{brief.heading}</h3><ol className="digest-cards">
-      {brief.items.map((item, index) => <li className="digest-card" data-urgency={item.urgency ?? "later"} key={index}>
+      {brief.items.map((item, index) => {
+        const deadline = item.deadline?.trim();
+        const repeatsHeadline = deadline && /^(?:due )?(today|this week)$/iu.test(deadline)
+          && headline.toLowerCase().includes(deadline.replace(/^due /iu, "").toLowerCase());
+        return <li className="digest-card" data-urgency={item.urgency ?? "later"} key={index}>
         <span className="digest-card-number" aria-hidden>{index + 1}</span>
         <div className="digest-card-content">
           <div className="digest-card-heading"><h4>{item.title}</h4>{item.context && <span className="digest-chip">{item.context}</span>}
-            {item.urgency && item.urgency !== "later" && <span className="digest-urgency">{item.urgency === "today" ? "Today" : "This week"}</span>}</div>
+            {deadline && !repeatsHeadline && <span className="digest-urgency">{deadline}</span>}</div>
           {item.text && <p>{item.text}</p>}
           <div className="digest-card-actions">
             {item.secondaryAction && <Button variant="ghost" onClick={() => open(item.secondaryAction!.url)}>{item.secondaryAction.label}</Button>}
             <Button variant="default" onClick={() => open(item.action.url)}>{item.action.label}</Button>
           </div>
         </div>
-      </li>)}
+      </li>; })}
     </ol></>}
     {brief.later.length > 0 && <div className="digest-later"><h3>{brief.laterLabel}</h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></div>}
     {brief.tail && <details className="digest-more"><summary>{brief.tail.label}</summary><NewsletterText content={brief.tail.details} /></details>}
@@ -248,7 +252,7 @@ function IssueSummary({ issue, threadId, loadError, refresh }: {
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
       {issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
-      {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} />}
+      {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} />}
       {(!issue.brief || issue.state === "failed") && mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
       {!issue.brief && moreContent.trim() && <details className="digest-more">
         <summary>More detail</summary>
@@ -370,7 +374,7 @@ function DigestsSettings() {
       } else {
         const result = await rpc.call("run", { id: definition.id });
         if (result.threadId) navigate.toThread(result.threadId);
-        else setError("This digest didn’t return an issue. Refresh to check its status before trying again.");
+        else setError("This digest didn’t return an issue. Reload Settings to check its status before trying again.");
       }
     } catch (error) {
       setError(error instanceof Error && error.message.trim() ? error.message : action === "toggle"
@@ -389,7 +393,7 @@ function DigestsSettings() {
       setOverview((current) => current && { ...current, connections });
       const problem = connections.find((connection) => ["unavailable", "upgrade-required"].includes(connection.status));
       if (problem?.detail) setError(problem.detail);
-    } catch (error) { setError(error instanceof Error ? error.message : "Couldn’t check your sites. Try Refresh again."); }
+    } catch (error) { setError(error instanceof Error ? error.message : "Couldn’t check your sites. Try Check sign-ins again."); }
     finally { setPending(null); }
   };
   const save = async (input: SaveDigest) => {
@@ -411,15 +415,11 @@ function DigestsSettings() {
       {notice && <p className="digest-muted" role="status">{notice}</p>}
       {!overview && !error && <p className="digest-muted" role="status">Loading Digests…</p>}
       {overview && <>
-        {!overview.connections.some((site) => site.status === "signed-in") && <div className="digest-import">
-          <h3>Bring in your logins</h3>
-          <p className="digest-muted">Digests reads sites through bb’s browser. Import your logins from Chrome once and you’re set.</p>
-          <a className="digest-button digest-button-default" href="/settings/browser">Open browser import</a>
-          <p className="digest-import-help">In bb’s desktop app, choose your browser and profile. Then return here and press Refresh.</p>
-        </div>}
-        <div className="digest-group-header"><h3>Your sites</h3><Button disabled={pending !== null || loading} onClick={() => { void refreshSites(); }}>{pending === "sites" ? "Checking…" : "Refresh"}</Button></div>
-        <p className="digest-sites-help digest-muted">Uses the sites you’re signed into in bb’s browser. Each run checks access first.</p>
-        {sites.length === 0 && <p className="digest-empty">No signed-in sites found yet. Refresh after importing your logins.</p>}
+        <div className="digest-group-header"><h3>Your sites</h3><Button disabled={pending !== null || loading} onClick={() => { void refreshSites(); }}>{pending === "sites" ? "Checking…" : "Check sign-ins"}</Button></div>
+        <div className="digest-import">
+          <p>Digests read the sites you’re signed into in bb’s browser.</p>
+          <a href="/settings/browser">Import logins in Browser settings →</a>
+        </div>
         <div className="digest-sites">{sites.map((site) => {
           const definitions = overview.definitions.filter((definition) => definition.connectionIds.includes(site.id));
           const signedOut = ["signed-out", "expired"].includes(site.status);
@@ -438,7 +438,6 @@ function DigestsSettings() {
             {definitions.length === 0 && editing?.siteId !== site.id && <p className="digest-no-digests digest-muted">No digests yet</p>}
           </section>;
         })}</div>
-        <p className="digest-sites-help digest-muted">Can’t find a site? Sign in to it in bb’s browser.</p>
       </>}
     </section>
   );

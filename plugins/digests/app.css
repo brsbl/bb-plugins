@@ -127,11 +127,11 @@
 .digest-later .digest-button { color: var(--muted-foreground); }
 .digest-more { border-top: 1px solid var(--border); padding-top: 14px; }
 .digest-more summary { text-decoration: none; }
-.digest-import { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-lg, 8px); margin-bottom: 28px; }
-.digest-import h3 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
-.digest-import .digest-button { margin-top: 14px; text-decoration: none; }
-.digest-import .digest-import-help { margin-top: 10px; font-size: 12px; color: var(--muted-foreground); }
-.digest-sites-help { font-size: 12px; padding-bottom: 12px; }
+.digest-import { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg, 8px); background: var(--muted); margin-bottom: 16px; }
+.digest-import p { margin: 0; }
+.digest-import a { display: inline-block; margin-top: 6px; color: var(--foreground); font-size: 12px; font-weight: 500; text-decoration: none; text-underline-offset: 3px; }
+.digest-import a:hover { text-decoration: underline; }
+.digest-import a:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .digest-sites { border: 1px solid var(--border); border-radius: var(--radius-lg, 8px); overflow: hidden; }
 .digest-sites:empty { display: none; }
 .digest-site + .digest-site { border-top: 1px solid var(--border); }
@@ -151,7 +151,6 @@
 .digest-edit:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: var(--radius-sm, 4px); }
 .digest-edit:disabled { cursor: default; }
 .digest-no-digests { padding: 0 32px 16px; font-size: 12px; }
-.digest-empty { color: var(--muted-foreground); padding: 16px 0; }
 .digest-form { padding: 16px; display: grid; gap: 8px; background: var(--muted); }
 .digest-nested-item .digest-form { margin: 8px 0; border-radius: var(--radius-md, 6px); }
 .digest-form label { font-size: 12px; font-weight: 500; }

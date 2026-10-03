@@ -102,6 +102,7 @@ export const BriefSchema = z.object({
     text: z.string().trim().max(200),
     context: z.string().max(60).optional(),
     urgency: z.enum(["today", "week", "later"]).optional(),
+    deadline: z.string().trim().min(1).max(40).optional(),
     action: sourceLink,
     secondaryAction: sourceLink.optional(),
   }).strict()).max(8),

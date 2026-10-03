@@ -15,7 +15,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/digests --y
 ## Use
 
 Open **Settings → Plugins → Digests**. Import logins through bb’s own Browser
-settings if needed, then press Refresh. Under a signed-in site, choose **Add
+settings if needed, then press **Check sign-ins**. Under a signed-in site, choose **Add
 digest**, give it a name, describe what it should tell you, and choose when.
 Create turns it on; **Run now to preview** opens the first issue. Click a digest’s
 name to edit it in place. Schedules use your existing project agent defaults.

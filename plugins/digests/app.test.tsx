@@ -144,20 +144,21 @@ describe("Digests app", () => {
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_new_issue" });
   });
 
-  it("opens bb import, checks sites only on Refresh, and keeps signed-out digests visible", async () => {
+  it("opens bb import, checks sites only on Check sign-ins, and keeps signed-out digests visible", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const connections = [{ id: "gmail", name: "Gmail", status: "signed-out", detail: null }, { id: "x", name: "X", status: "unknown", detail: null }];
     const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
       overview: () => ({ definitions: [definition], connections, actionCardsAvailable: false, organizerReady: true }),
       checkConnections: () => connections.map((connection) => ({ ...connection, status: "signed-in", accountName: "fixture account" })),
     } });
-    expect((await slot.findByRole("link", { name: "Open browser import" })).getAttribute("href")).toBe("/settings/browser");
+    expect((await slot.findByRole("link", { name: "Import logins in Browser settings →" })).getAttribute("href")).toBe("/settings/browser");
     expect(slot.getByRole("link", { name: "Reconnect" }).getAttribute("href")).toBe("/settings/browser");
     expect(slot.getByText("Reading")).toBeDefined();
     expect(slot.queryByRole("region", { name: "X" })).toBeNull();
     expect(slot.inspection.rpcCalls).toHaveLength(1);
-    fireEvent.click(slot.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(slot.queryByRole("link", { name: "Open browser import" })).toBeNull());
+    fireEvent.click(slot.getByRole("button", { name: "Check sign-ins" }));
+    await slot.findByRole("region", { name: "X" });
+    expect(slot.getByRole("link", { name: "Import logins in Browser settings →" }).getAttribute("href")).toBe("/settings/browser");
     expect(slot.getByRole("region", { name: "X" })).toBeDefined();
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "checkConnections", input: {} });
   });
@@ -200,6 +201,23 @@ describe("Digests app", () => {
     fireEvent.click(action);
     expect(slot.inspection.rpcCalls).toHaveLength(1);
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: "https://example.test/reply" });
+  });
+
+  it.each([
+    [undefined, null],
+    ["Today", null],
+    ["Due Thu 3pm", "Due Thu 3pm"],
+    ["This week", "This week"],
+  ])("only shows a source deadline that adds to the headline: %s", async (deadline, expected) => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue,
+      headline: "2 things need you today", brief: {
+        heading: "Needs you", items: [{ title: "Confirm the meeting", text: "Confirm the time.", urgency: "today", ...(deadline ? { deadline } : {}), action: { label: "Review", url: "https://example.test/review" } }],
+        later: [], laterLabel: "Later",
+      },
+    }) } });
+    await slot.findByRole("button", { name: "Review" });
+    expect(document.querySelector(".digest-urgency")?.textContent ?? null).toBe(expected);
   });
 
   it("offers recovery when the agent fails before publishing a directive", async () => {
