@@ -64,14 +64,14 @@ function brick(): Uint32Array {
     const by = y % 32;
     const edge = Math.min(bx, 63 - bx, by, 31 - by);
     const noise = hash(x, y, 1);
-    if (edge < 2) {
+    if (edge < 1) {
       const value = 222 + noise * 33;
       return [value, value, value];
     }
-    if (edge < 3) return [181 + noise * 30, 174 + noise * 30, 170 + noise * 30];
+    if (edge < 2) return [181 + noise * 30, 174 + noise * 30, 170 + noise * 30];
     const coarse = hash(x >> 2, y >> 2, 2) * 28;
     const tone = hash(Math.floor((x + (row % 2) * 32) / 64), row, 3) * 12;
-    const bevel = edge < 5 ? -28 : 0;
+    const bevel = edge < 4 ? -28 : 0;
     return [108 + coarse + tone + noise * 18 + bevel, 4 + noise * 12, 3 + noise * 9];
   });
 }
@@ -299,8 +299,8 @@ function paintRat(ctx: CanvasRenderingContext2D, time: number) {
   ctx.fillStyle = "#8d7360";
   for (const x of [25, 43]) { ctx.beginPath(); ctx.ellipse(x + gait, 46, 5, 1.5, 0, 0, Math.PI * 2); ctx.fill(); }
   ctx.save(); ctx.beginPath();
-  ctx.ellipse(32, 36, 19, 11, -0.12, 0, Math.PI * 2);
-  ctx.moveTo(40, 30); ctx.lineTo(61, 39); ctx.lineTo(43, 44); ctx.closePath();
+  ctx.ellipse(32, 39, 19, 7, -0.12, 0, Math.PI * 2);
+  ctx.moveTo(40, 35); ctx.lineTo(61, 42); ctx.lineTo(43, 45); ctx.closePath();
   ctx.clip(); ctx.fillStyle = "#615143"; ctx.fillRect(0, 20, 64, 28);
   for (let i = 0; i < 650; i++) {
     const x = hash(i, 1, 10) * 64, y = 23 + hash(i, 2, 10) * 25;
@@ -309,8 +309,8 @@ function paintRat(ctx: CanvasRenderingContext2D, time: number) {
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 2, y - 1); ctx.stroke();
   }
   ctx.restore();
-  ctx.fillStyle = "#8d7666"; ctx.beginPath(); ctx.ellipse(47, 31, 3.5, 4.5, -0.4, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#16100e"; ctx.fillRect(54, 35, 2, 2); ctx.fillRect(60, 38, 2, 1);
+  ctx.fillStyle = "#8d7666"; ctx.beginPath(); ctx.ellipse(47, 36, 2.5, 3, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#16100e"; ctx.fillRect(54, 40, 2, 1); ctx.fillRect(60, 42, 2, 1);
 }
 
 type SpriteKind = "sign" | "polyhedron" | "smiley" | "rat";
