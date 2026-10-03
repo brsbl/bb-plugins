@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-desktop",
+  "version": "0.1.0",
+  "description": "A desktop for your threads: folders, a finder, and draggable thread windows.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "skills",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": ">=0.4.8"
+  },
+  "bb": {
+    "name": "Desktop",
+    "description": "Browse threads as folders and windows on a desktop.",
+    "branding": {
+      "icon": "AppWindow"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": [
+      "skills"
+    ]
+  }
+}
