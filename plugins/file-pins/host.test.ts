@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { resolveFile } from "./host.js";
+import { resolveFile } from "./host-files.js";
 
 it("resolves paths on the owning host, canonicalizes aliases, and refuses directories and missing files", async () => {
   const directory = await mkdtemp(join(tmpdir(), "file-pins-"));

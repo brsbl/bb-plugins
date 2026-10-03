@@ -27,11 +27,12 @@ describe("thread file pins", () => {
       h.behavior.callRpc("pin", { threadId: "one", hostId: "linux", path: "/Users/me/note.md" }),
       h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/Users/me/second.md" }),
     ]);
-    await h.lifecycle.reload(plugin);
-    const listed = await h.behavior.callRpc("list", { threadId: "one" }) as { pins: unknown[] };
+    const { harness: reloaded } = await h.lifecycle.reload(plugin);
+    disposers.push(() => reloaded.lifecycle.dispose());
+    const listed = await reloaded.behavior.callRpc("list", { threadId: "one" }) as { pins: unknown[] };
     expect(listed.pins).toHaveLength(3);
     expect(listed.pins).toContainEqual(first);
-    expect(await h.behavior.callRpc("list", { threadId: "two" })).toEqual({ pins: [] });
+    expect(await reloaded.behavior.callRpc("list", { threadId: "two" })).toEqual({ pins: [] });
     expect(h.inspection.experimental_hostRpcCalls[0]?.hostId).toBe("mac");
   });
   it("rejects missing-host files without creating pins; unpins without host access", async () => {
