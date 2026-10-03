@@ -1,115 +1,160 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
-import { definePluginApp, experimental_Icon as Icon, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
-import type { Pin, rpcContract } from "./contract.js";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import { definePluginApp, experimental_FileLink as FileLink, experimental_Icon as Icon, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
+import { toast } from "sonner";
+import type { Reference, rpcContract } from "./contract.js";
+import { Button } from "./components/ui/button.js";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./components/ui/context-menu.js";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./components/ui/dialog.js";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover.js";
+import { FilePicker } from "./file-picker.js";
+import { ReferenceIcon } from "./reference-icon.js";
 
-const control = "inline-flex h-7 items-center justify-center rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
-const field = "h-8 min-w-0 rounded-md border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-type Host = { id: string; name: string; connected: boolean };
+const linkClass = "group inline-flex h-7 min-w-0 max-w-48 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const launchers = new Map<string, () => void>();
+function plainClick(event: MouseEvent<HTMLAnchorElement>) {
+  return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+}
+function PinContents({ pin }: { pin: Reference }) {
+  return <><ReferenceIcon name={pin.name} moss={pin.moss} status={pin.status} /><span className="truncate group-hover:underline">{pin.name}</span></>;
+}
 
-function PinStrip({ threadId }: { threadId: string }) {
+function PinStrip({ threadId, composerKey }: { threadId: string; composerKey: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
-  const [pins, setPins] = useState<Pin[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [path, setPath] = useState("");
-  const [hosts, setHosts] = useState<Host[]>([]);
-  const [hostId, setHostId] = useState("");
+  const [pins, setPins] = useState<Reference[]>([]);
+  const [picker, setPicker] = useState<{ replacing?: Reference } | null>(null);
+  const [missing, setMissing] = useState<Reference | null>(null);
   const [busy, setBusy] = useState(false);
+  const [visible, setVisible] = useState(0);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const row = useRef<HTMLDivElement>(null);
+  const measure = useRef<HTMLDivElement>(null);
+  const label = useRef<HTMLSpanElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const moreMeasure = useRef<HTMLSpanElement>(null);
   const generation = useRef(0);
   const alive = useRef(true);
-  const input = useRef<HTMLInputElement>(null);
-  const report = useCallback((cause: unknown) => {
-    if (alive.current) setError(cause instanceof Error ? cause.message : String(cause));
-  }, []);
+  const report = useCallback((cause: unknown) => { if (alive.current) toast.error(cause instanceof Error ? cause.message : String(cause)); }, []);
   const refresh = useCallback(async () => {
     const request = ++generation.current;
     try {
-      const result = await rpc.call("list", { threadId });
-      if (alive.current && request === generation.current) {
-        setPins(result.pins);
-        setLoaded(true);
-      }
+      const result = await rpc.call("inspect", { threadId });
+      if (alive.current && request === generation.current) setPins(result.pins);
     } catch (cause) { report(cause); }
   }, [rpc, threadId, report]);
   useEffect(() => {
     alive.current = true;
-    return () => { alive.current = false; generation.current++; };
-  }, []);
+    const launch = () => { setMoreOpen(false); setPicker({}); };
+    launchers.set(composerKey, launch);
+    return () => { alive.current = false; generation.current++; if (launchers.get(composerKey) === launch) launchers.delete(composerKey); };
+  }, [composerKey]);
   useEffect(() => { void refresh(); }, [refresh, connection]);
+  useEffect(() => {
+    const check = () => { if (document.visibilityState === "visible") void refresh(); };
+    const timer = setInterval(check, 30_000);
+    window.addEventListener("focus", check);
+    return () => { clearInterval(timer); window.removeEventListener("focus", check); };
+  }, [refresh]);
   useRealtime("pins-changed", (payload) => {
     if (payload && typeof payload === "object" && "threadId" in payload && payload.threadId === threadId) void refresh();
   });
-  useEffect(() => {
-    if (!adding) return;
-    input.current?.focus();
-    let cancelled = false;
-    rpc.call("context", { threadId }).then((result) => {
-      if (cancelled) return;
-      setHosts(result.hosts);
-      setHostId((current) => current || result.defaultHostId || (result.hosts.length === 1 ? result.hosts[0]!.id : ""));
-    }, report);
-    return () => { cancelled = true; };
-  }, [adding, rpc, threadId, report]);
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  useLayoutEffect(() => {
+    if (!row.current || !measure.current) return;
+    const fit = () => {
+      const widths = Array.from(measure.current!.children, (child) => child.getBoundingClientRect().width);
+      const space = row.current!.clientWidth - (label.current?.offsetWidth ?? 0) - (addButton.current?.offsetWidth ?? 0) - 12;
+      const total = widths.reduce((sum, width) => sum + width + 4, 0);
+      if (total <= space) { setVisible(widths.length); return; }
+      const available = space - (moreMeasure.current?.offsetWidth ?? 36) - 4;
+      let used = 0, count = 0;
+      for (const width of widths) { if (used + width + 4 > available) break; used += width + 4; count++; }
+      setVisible(count);
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(row.current); observer.observe(measure.current);
+    return () => observer.disconnect();
+  }, [pins]);
+  async function unpin(pin: Reference) {
     if (busy) return;
-    setBusy(true); setError(null);
+    setBusy(true);
     try {
-      await rpc.call("pin", { threadId, hostId, path });
-      if (!alive.current) return;
-      setPath(""); setAdding(false);
+      const { undoToken } = await rpc.call("remove", { threadId, pinId: pin.id });
+      setMissing(null); setMoreOpen(false);
       await refresh();
+      if (undoToken) toast(`Unpinned ${pin.name}`, {
+        duration: 10_000,
+        action: { label: "Undo", onClick: () => {
+          void rpc.call("undo", { threadId, undoToken }).then(() => refresh()).catch(report);
+        } },
+      });
     } catch (cause) { report(cause); }
     finally { if (alive.current) setBusy(false); }
   }
-  async function unpin(pin: Pin) {
-    setBusy(true); setError(null);
-    try { await rpc.call("unpin", { threadId, pinId: pin.id }); await refresh(); }
-    catch (cause) { report(cause); }
-    finally { if (alive.current) setBusy(false); }
-  }
-  function open(pin: Pin, event: MouseEvent<HTMLAnchorElement>) {
-    if (!/\.(?:md|markdown)$/i.test(pin.path) || event.defaultPrevented || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  function open(pin: Reference, event: MouseEvent<HTMLAnchorElement>) {
+    if (!plainClick(event)) return;
+    if (pin.status !== "available") { event.preventDefault(); setMoreOpen(false); setMissing(pin); return; }
+    if (!/\.(?:md|markdown)$/i.test(pin.path)) return;
     event.preventDefault();
-    setError(null);
     void rpc.call("openMossNote", { threadId, pinId: pin.id }).then(({ opened }) => {
       if (!opened && alive.current) navigate.experimental_openFilePreview({ target: { kind: "host", hostId: pin.hostId, path: pin.path }, location: null });
-    }).catch(report);
+    }).catch((error) => { report(error); void refresh(); });
   }
-  return (
-    <section aria-label="Pinned files" className="min-w-0 space-y-2 px-1 py-1 text-foreground">
-      <div className="flex flex-wrap items-center gap-1.5">
-        {pins.length > 0 && <Icon name="Pin" className="size-3.5 shrink-0 text-muted-foreground" />}
-        {pins.map((pin) => (
-          <div key={pin.id} className="inline-flex max-w-full items-center rounded-md border border-border bg-background">
-            <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={`${pin.path}\nHost: ${pin.hostId}`} aria-label={`Open ${pin.name}`} className={`${control} min-w-0 max-w-64 justify-start text-foreground`}><span className="truncate">{pin.name}</span></FileLink>
-            <button type="button" className={`${control} w-7 shrink-0 px-0`} title={`Unpin ${pin.name}`} aria-label={`Unpin ${pin.name}`} disabled={busy} onClick={() => void unpin(pin)}><Icon name="X" className="size-3" /></button>
-          </div>
-        ))}
-        <button type="button" className={`${control} gap-1`} aria-label="Pin a file" title="Pin a file" aria-expanded={adding} disabled={busy} onClick={() => { setAdding(!adding); setError(null); }}>
-          <Icon name="Plus" className="size-3.5" />{pins.length === 0 && (loaded ? "Pin a file" : "Loading pins…")}
-        </button>
+  function reference(pin: Reference, inList = false) {
+    return <ContextMenu key={pin.id}>
+      <ContextMenuTrigger asChild>
+        <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)}
+          title={`${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`}
+          aria-label={`Open ${pin.name}${pin.status === "missing" ? " (missing)" : ""}`}
+          className={`${linkClass} ${inList ? "w-full max-w-none" : ""} ${pin.status !== "available" ? "opacity-60" : ""}`}>
+          <PinContents pin={pin} />
+        </FileLink>
+      </ContextMenuTrigger>
+      <ContextMenuContent><ContextMenuItem disabled={busy} onSelect={() => void unpin(pin)}><Icon name="PinOff" className="size-3.5" />Unpin</ContextMenuItem></ContextMenuContent>
+    </ContextMenu>;
+  }
+  const overflow = pins.slice(visible);
+  return <>
+    {pins.length > 0 && <section aria-label="Pinned files" className="relative min-w-0 px-1 py-1">
+      <div ref={row} className="flex min-w-0 items-center gap-1">
+        <span ref={label} className="mr-1 shrink-0 text-xs text-muted-foreground">Pinned</span>
+        {pins.slice(0, visible).map((pin) => reference(pin))}
+        {overflow.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+          <PopoverTrigger asChild><button type="button" aria-label={`${overflow.length} more pinned files`} className={`${linkClass} shrink-0 tabular-nums`}>+{overflow.length}</button></PopoverTrigger>
+          <PopoverContent align="start" side="top" className="w-72 p-1" mobileTitle="Pinned files">
+            <div className="max-h-64 space-y-0.5 overflow-y-auto" aria-label="More pinned files">{overflow.map((pin) => reference(pin, true))}</div>
+          </PopoverContent>
+        </Popover>}
+        <button ref={addButton} type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread" onClick={() => setPicker({})}><Icon name="Plus" className="size-3.5" /></button>
       </div>
-      {adding && <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
-        <label className="min-w-40 flex-1"><span className="sr-only">File path</span><input ref={input} className={`${field} w-full`} value={path} onChange={(event) => setPath(event.target.value)} placeholder="~/Moss/Notes/Tweets/Tweets.md" required disabled={busy} /></label>
-        <label><span className="sr-only">File host</span><select className={`${field} max-w-52`} value={hostId} onChange={(event) => setHostId(event.target.value)} required disabled={busy}>
-          <option value="" disabled>Choose a host</option>
-          {hosts.map((host) => <option key={host.id} value={host.id} disabled={!host.connected}>{host.name}{host.connected ? "" : " (offline)"}</option>)}
-        </select></label>
-        <button className={`${control} bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground`} type="submit" disabled={busy || !hostId || !path || !hosts.some((host) => host.id === hostId && host.connected)}>{busy ? "Pinning…" : "Pin"}</button>
-        <button className={control} type="button" disabled={busy} onClick={() => { setAdding(false); setError(null); }}>Cancel</button>
-      </form>}
-      {error && <div role="alert" className="flex items-center gap-2 text-xs text-destructive"><span>{error}</span><button className={control} type="button" onClick={() => { setError(null); void refresh(); }}>Retry</button></div>}
-    </section>
-  );
+      <div aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 h-0 w-0 overflow-hidden">
+        <div ref={measure} className="flex w-max">{pins.map((pin) => <span key={pin.id} className={`${linkClass} shrink-0`}><PinContents pin={pin} /></span>)}</div>
+        <span ref={moreMeasure} className={`${linkClass} w-max tabular-nums`}>+{pins.length}</span>
+      </div>
+    </section>}
+    {picker && <FilePicker threadId={threadId} replacing={picker.replacing} onClose={() => setPicker(null)} onPinned={refresh} />}
+    <Dialog open={missing !== null} onOpenChange={(open) => { if (!open) setMissing(null); }}>
+      {missing && <DialogContent className="sm:max-w-md">
+        <DialogTitle>{missing.status === "missing" ? `Can't find ${missing.name}` : `${missing.hostName} is unavailable`}</DialogTitle>
+        <DialogDescription>{missing.status === "missing" ? `The file may have moved or been deleted on ${missing.hostName}. Its pin is still here.` : "Reconnect the machine or check file permissions, then try again."}</DialogDescription>
+        <p className="break-all text-xs text-muted-foreground">{missing.path}</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void unpin(missing)}>Unpin</Button>
+          {missing.status === "missing" ? <Button size="sm" onClick={() => { setPicker({ replacing: missing }); setMissing(null); }}>Repin…</Button>
+            : <Button size="sm" onClick={() => { setMissing(null); void refresh(); }}>Retry</Button>}
+        </div>
+      </DialogContent>}
+    </Dialog>
+  </>;
 }
 function PinsBanner() {
   const composer = useComposer();
-  return composer.scope.kind === "thread" ? <PinStrip key={composer.scope.threadId} threadId={composer.scope.threadId} /> : null;
+  return composer.scope.kind === "thread" ? <PinStrip key={composer.scope.threadId} threadId={composer.scope.threadId} composerKey={composer.key} /> : null;
 }
 export default definePluginApp((app) => {
-  app.composer.customize({ id: "file-pins", scopes: ["thread"], banners: [{ id: "pins", chrome: "bare", component: PinsBanner }] });
+  app.composer.customize({
+    id: "file-pins", scopes: ["thread"], banners: [{ id: "pins", chrome: "bare", component: PinsBanner }],
+    plusMenu: [{ id: "pin-file", label: "Pin to thread", icon: "Pin", run: ({ composer }) => { launchers.get(composer.key)?.(); } }],
+  });
 });

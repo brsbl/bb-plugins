@@ -1,4 +1,4 @@
-import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import plugin from "./server.js";
 
@@ -7,12 +7,22 @@ afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose
 function setup() {
   const { bb, harness } = createFakePluginHost({
     pluginId: "file-pins", experimental_hostEntry: true,
-    sdk: { threads: { get: async ({ threadId }) => makeThreadResponse({ id: threadId, environmentId: "env-mac" }) }, environments: { get: async () => ({ hostId: "mac" }) } },
+    sdk: {
+      threads: { get: async ({ threadId }) => makeThreadResponse({ id: threadId, environmentId: "env-mac" }) },
+      environments: { get: async () => ({ hostId: "mac", path: "/Users/me/project" }) },
+      hosts: { list: async () => [makeHostResponse({ id: "mac", name: "My Mac", status: "connected" }), makeHostResponse({ id: "linux", name: "Worker", status: "disconnected" })] },
+      files: { listPaths: async ({ hostId, path }) => {
+        expect(path).toBe(hostId === "mac" ? "/Users/me/project" : "/home/worker");
+        return { paths: [{ path: "docs/note.md", name: "note.md", kind: "file", positions: [], score: 1 }], truncated: false };
+      } },
+    },
     experimental_callHostRpc: async ({ method, input, hostId }) => {
       if (hostId === "offline") throw new Error("Host offline");
       if (method === "openMossNote") return { opened: true };
+      if (method === "home") return { path: "/home/worker" };
+      if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available", moss: path.includes("moss") })) };
       const { path } = input as { path: string };
-      return { path: path === "~/note.md" ? "/Users/me/note.md" : path, name: "note.md" };
+      return { path: path === "~/note.md" ? "/Users/me/note.md" : path, name: path.split("/").at(-1)! };
     },
   });
   plugin(bb);
@@ -59,6 +69,46 @@ describe("thread file pins", () => {
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ hostId: "linux", input: { path: "/note.md" } });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)?.input).not.toHaveProperty("cwd");
     expect((await h.behavior.runCli(["list", "--thread", "destination", "--json"], { signal: new AbortController().signal })).stdout).toContain("/note.md");
+  });
+  it("restores a removed pin in place without accessing its host and scopes Undo to the thread", async () => {
+    const h = setup();
+    const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/gone.md" }) as { id: string };
+    const second = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/second.md" });
+    const calls = h.inspection.experimental_hostRpcCalls.length;
+    const { undoToken } = await h.behavior.callRpc("remove", { threadId: "one", pinId: first.id }) as { undoToken: string };
+    await expect(h.behavior.callRpc("undo", { threadId: "two", undoToken })).rejects.toThrow("expired");
+    expect(await h.behavior.callRpc("undo", { threadId: "one", undoToken })).toEqual(first);
+    expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [first, second] });
+    expect(h.inspection.experimental_hostRpcCalls).toHaveLength(calls);
+    await expect(h.behavior.callRpc("undo", { threadId: "one", undoToken })).rejects.toThrow("expired");
+  });
+  it("retains missing pins, distinguishes offline hosts, and supplies host-owned Moss classification", async () => {
+    const h = setup();
+    for (const [hostId, path] of [["mac", "/gone.md"], ["linux", "/offline.md"], ["mac", "/moss.md"]]) {
+      await h.behavior.callRpc("pin", { threadId: "one", hostId, path });
+    }
+    const result = await h.behavior.callRpc("inspect", { threadId: "one" }) as { pins: unknown[] };
+    expect(result.pins).toMatchObject([
+      { path: "/gone.md", status: "missing", hostName: "My Mac" },
+      { path: "/offline.md", status: "unavailable", hostName: "Worker" },
+      { path: "/moss.md", status: "available", moss: true },
+    ]);
+    expect((await h.behavior.callRpc("list", { threadId: "one" }) as { pins: unknown[] }).pins).toHaveLength(3);
+  });
+  it("searches the thread directory only on its host, otherwise the selected host home", async () => {
+    const h = setup();
+    expect(await h.behavior.callRpc("search", { threadId: "one", hostId: "mac", query: "note" })).toMatchObject({ paths: [{ path: "/Users/me/project/docs/note.md" }] });
+    expect(await h.behavior.callRpc("search", { threadId: "one", hostId: "linux", query: "note" })).toMatchObject({ paths: [{ path: "/home/worker/docs/note.md" }] });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "home", hostId: "linux" });
+  });
+  it("repins in place only after the replacement resolves successfully", async () => {
+    const h = setup();
+    const original = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/gone.md" }) as { id: string };
+    await expect(h.behavior.callRpc("repin", { threadId: "one", pinId: original.id, hostId: "offline", path: "/new.md" })).rejects.toThrow("offline");
+    expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [original] });
+    const replacement = await h.behavior.callRpc("repin", { threadId: "one", pinId: original.id, hostId: "mac", path: "/new.md" });
+    expect(replacement).toMatchObject({ id: original.id, path: "/new.md" });
+    expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [replacement] });
   });
   it("removes storage when a thread is deleted", async () => {
     const h = setup();

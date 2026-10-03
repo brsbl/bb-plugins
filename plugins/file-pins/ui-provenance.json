@@ -1,0 +1,24 @@
+{
+  "repository": "https://github.com/get-bb/bb",
+  "commit": "32efd2e3f2cd5fe072d56c880c6c94db61612089",
+  "registryItems": [
+    "button",
+    "coarse-pointer-sizing",
+    "command",
+    "context-menu",
+    "dialog",
+    "icon",
+    "input",
+    "menu-item-hover",
+    "motion",
+    "overlay-trigger",
+    "popover",
+    "portal-scope",
+    "responsive-overlay",
+    "use-browser-dimming-modal",
+    "use-compact-viewport",
+    "use-media-query",
+    "use-pointer-coarse",
+    "utils"
+  ]
+}

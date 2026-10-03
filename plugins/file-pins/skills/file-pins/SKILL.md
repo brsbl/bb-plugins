@@ -22,6 +22,6 @@ its pins. Pins do not copy file contents or automatically add them to agent cont
 
 A normal click on Markdown under the file host's `~/Moss/Notes/`, or Markdown
 containing `moss-*` fences or `:::tabs`, opens the Moss Mac app on that host.
-Other files retain bb's FileLink behavior. Right-click exposes bb's existing
-file menu. This plugin detects only distinctive markers; it has no parser or
+Other files retain bb's FileLink behavior. Right-click a pin to Unpin; its toast offers Undo. Missing files remain visible
+and offer Repin. Use the composer's + → Pin to thread to search or paste a path. This plugin detects only distinctive markers; it has no parser or
 renderer and does not depend on the Moss viewer plugin.

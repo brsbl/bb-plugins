@@ -3,7 +3,7 @@ import { homedir, platform, tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
-import { openMossNote, resolveFile } from "./host-files.js";
+import { inspect, openMossNote, resolveFile } from "./host-files.js";
 
 vi.mock("node:child_process", () => ({ execFile: vi.fn((_file, _args, _options, callback) => callback(null)) }));
 vi.mock("node:os", async (original) => ({ ...await original<typeof import("node:os")>(), homedir: vi.fn(), platform: vi.fn(() => "darwin") }));
@@ -49,4 +49,16 @@ it("detects Moss on the file host at click time and launches only the canonical 
     vi.mocked(platform).mockReturnValue("darwin");
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+it("keeps a deleted reference distinguishable from an existing Moss note without launching anything", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "file-pins-status-"));
+  vi.mocked(homedir).mockReturnValue(directory);
+  const path = join(directory, "status.md");
+  try {
+    await writeFile(path, ":::tabs\n@tab=One\nHello\n:::");
+    expect(await inspect({ paths: [path] })).toEqual({ files: [{ path, status: "available", moss: true }] });
+    await rm(path);
+    expect(await inspect({ paths: [path] })).toEqual({ files: [{ path, status: "missing", moss: false }] });
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

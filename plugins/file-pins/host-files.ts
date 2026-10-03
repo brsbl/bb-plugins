@@ -4,6 +4,23 @@ import { execFile } from "node:child_process";
 import { homedir, platform } from "node:os";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 
+export async function home() { return { path: homedir() }; }
+
+export async function inspect({ paths }: { paths: string[] }) {
+  const files: Array<{ path: string; status: "available" | "missing" | "unavailable"; moss: boolean }> = [];
+  // Serialize filesystem reads on the host; never read a Mac path on the server.
+  for (const path of paths) {
+    try {
+      if (!(await stat(path)).isFile()) { files.push({ path, status: "missing", moss: false }); continue; }
+      files.push({ path, status: "available", moss: await isMossNote(path) });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      files.push({ path, status: code === "ENOENT" || code === "ENOTDIR" ? "missing" : "unavailable", moss: false });
+    }
+  }
+  return { files };
+}
+
 export async function resolveFile({ path, cwd }: { path: string; cwd?: string }) {
   const expanded = path.startsWith("~/") ? resolve(homedir(), path.slice(2)) : path;
   if (!isAbsolute(expanded) && (!cwd || !isAbsolute(cwd))) {

@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
-import { CHANGED, MAX_PINS, hostContract, pinsSchema, rpcContract, type Pin } from "./contract.js";
+import { CHANGED, MAX_PINS, hostContract, pinsSchema, rpcContract, type Pin, type Reference } from "./contract.js";
 
 export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({ contract: hostContract });
+  const undos = new Map<string, { threadId: string; pin: Pin; index: number; expires: number }>();
   // All read-modify-write operations share a queue so CLI/UI writes cannot lose pins.
   let writes = Promise.resolve();
   const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
@@ -58,6 +59,71 @@ export default function plugin(bb: BbPluginApi): void {
   });
 
   bb.rpc.register(rpcContract, {
+    inspect: async ({ threadId }) => {
+      const { pins } = await list(threadId);
+      const hosts = await bb.sdk.hosts.list();
+      const result: Reference[] = [];
+      for (const hostId of new Set(pins.map((pin) => pin.hostId))) {
+        const owned = pins.filter((pin) => pin.hostId === hostId);
+        const machine = hosts.find((item) => item.id === hostId);
+        const facts = machine?.status === "connected"
+          ? await host.call("inspect", { paths: owned.map((pin) => pin.path) }, { hostId }).catch(() => null)
+          : null;
+        for (const pinned of owned) {
+          const fact = facts?.files.find((file) => file.path === pinned.path);
+          result.push({ ...pinned, hostName: machine?.name ?? hostId, status: fact?.status ?? "unavailable", moss: fact?.moss ?? false });
+        }
+      }
+      return { pins: pins.map((pin) => result.find((item) => item.id === pin.id)!) };
+    },
+    search: async ({ threadId, hostId, query }) => {
+      const target = await thread(threadId);
+      const environment = target.environmentId ? await bb.sdk.environments.get({ environmentId: target.environmentId }) : null;
+      const root = environment?.hostId === hostId ? environment.path : (await host.call("home", {}, { hostId })).path;
+      if (!query.trim()) return { root, paths: [], truncated: false };
+      const result = await bb.sdk.files.listPaths({ hostId, path: root, query: query.trim(), includeFiles: true, includeDirectories: false, limit: 20 });
+      return { root, paths: result.paths.map(({ path, name }) => ({ path: `${root.replace(/[\\/]$/, "")}/${path}`, name })), truncated: result.truncated };
+    },
+    remove: ({ threadId, pinId }) => serialize(async () => {
+      await thread(threadId);
+      const pins = await read(threadId);
+      const index = pins.findIndex((pin) => pin.id === pinId);
+      if (index < 0) return { undoToken: null };
+      await save(threadId, pins.filter((pin) => pin.id !== pinId));
+      for (const [token, undo] of undos) if (undo.expires < Date.now()) undos.delete(token);
+      if (undos.size >= 100) undos.delete(undos.keys().next().value!);
+      const undoToken = randomUUID();
+      undos.set(undoToken, { threadId, pin: pins[index]!, index, expires: Date.now() + 60_000 });
+      return { undoToken };
+    }),
+    undo: ({ threadId, undoToken }) => serialize(async () => {
+      await thread(threadId);
+      const undo = undos.get(undoToken);
+      if (!undo || undo.threadId !== threadId || undo.expires < Date.now()) throw new Error("Undo has expired. Pin the file again.");
+      const pins = await read(threadId);
+      const existing = pins.find((pin) => pin.id === undo.pin.id || (pin.hostId === undo.pin.hostId && pin.path === undo.pin.path));
+      if (existing) { undos.delete(undoToken); return existing; }
+      if (pins.length >= MAX_PINS) throw new Error("Unpin another file before restoring this pin.");
+      pins.splice(Math.min(undo.index, pins.length), 0, undo.pin);
+      await save(threadId, pins);
+      undos.delete(undoToken);
+      return undo.pin;
+    }),
+    repin: async ({ threadId, pinId, hostId, path }) => {
+      await thread(threadId);
+      const file = await host.call("resolveFile", { path }, { hostId });
+      return serialize(async () => {
+        await thread(threadId);
+        const pins = await read(threadId);
+        const index = pins.findIndex((pin) => pin.id === pinId);
+        if (index < 0) throw new Error("This file is no longer pinned.");
+        const existing = pins.find((pin) => pin.id !== pinId && pin.hostId === hostId && pin.path === file.path);
+        const replacement = existing ?? { ...pins[index]!, hostId, ...file };
+        if (existing) pins.splice(index, 1); else pins[index] = replacement;
+        await save(threadId, pins);
+        return replacement;
+      });
+    },
     openMossNote: async ({ threadId, pinId }) => {
       const { pins } = await list(threadId);
       const pinned = pins.find((item) => item.id === pinId);
@@ -73,6 +139,7 @@ export default function plugin(bb: BbPluginApi): void {
     unpin: ({ threadId, pinId }) => unpin(threadId, pinId),
   });
   bb.events.on("thread.deleted", ({ thread: deleted }) => serialize(async () => {
+    for (const [token, undo] of undos) if (undo.threadId === deleted.id) undos.delete(token);
     await bb.storage.kv.delete(key(deleted.id));
     bb.realtime.publish(CHANGED, { threadId: deleted.id });
   }));
