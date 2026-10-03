@@ -3,12 +3,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { ProgramMenuBar } from "../apps/xp-chrome";
 import { BB_MARK } from "../art";
 import { windowOwnsKeys } from "../windows";
-import { advance, canStep, cellCenter, newRun, ratPosition, seededRandom, type MazeRun } from "./maze-core";
+import { PICTURE_KINDS, advance, canStep, cellCenter, newRun, ratPosition, seededRandom, type MazeRun } from "./maze-core";
 
 const OPTIONS_KEY = "bb-desktop:maze:options:v1";
 const MAX_FRAME_SECONDS = 0.1;
-/** The view renders at most this many pixels and is scaled up to the window, like the screen saver's low-res mode. */
-const MAX_VIEW_PIXELS = 640 * 400;
+/**
+ * The view renders at most this many pixels and is scaled up to the window. The original drew at about 320 × 240 and
+ * stretched it, which is where its soft look comes from.
+ */
+const MAX_VIEW_PIXELS = 400 * 300;
 /** Half the horizontal field of view, as the camera plane's length relative to the view direction. */
 const FOV = 1;
 const TEXTURE = 128;
@@ -56,39 +59,37 @@ function texture(paint: (x: number, y: number) => [number, number, number]): Uin
   return pixels;
 }
 
-/** Four large courses, broad white mortar and dark red, softly bevelled brick. */
+/** Four large courses of mottled crimson brick in broad lavender-white mortar, each brick rimmed dark on its lower and right edges. */
 function brick(): Uint32Array {
+  const blotch = (x: number, y: number) => {
+    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+    const at = (i: number, j: number) => hash(i & 31, j & 31, 2);
+    return (at(ix, iy) * (1 - fx) + at(ix + 1, iy) * fx) * (1 - fy) + (at(ix, iy + 1) * (1 - fx) + at(ix + 1, iy + 1) * fx) * fy;
+  };
   return texture((x, y) => {
     const row = Math.floor(y / 32);
     const bx = (x + (row % 2) * 32) % 64;
     const by = y % 32;
-    const edge = Math.min(bx, 63 - bx, by, 31 - by);
     const noise = hash(x, y, 1);
-    if (edge < 1) {
-      const value = 222 + noise * 33;
-      return [value, value, value];
+    // Rounded corners: the mortar eats a little of each brick's corners.
+    const cx = Math.max(0, 4 - Math.min(bx, 63 - bx)), cy = Math.max(0, 4 - Math.min(by, 31 - by));
+    if (Math.min(bx, 63 - bx) < 2 || Math.min(by, 31 - by) < 2 || cx * cx + cy * cy > 5) {
+      const value = 226 + noise * 26;
+      return [value, value - 4, Math.min(255, value + 8)];
     }
-    if (edge < 2) return [181 + noise * 30, 174 + noise * 30, 170 + noise * 30];
-    const coarse = hash(x >> 2, y >> 2, 2) * 28;
-    const tone = hash(Math.floor((x + (row % 2) * 32) / 64), row, 3) * 12;
-    const bevel = edge < 4 ? -28 : 0;
-    return [108 + coarse + tone + noise * 18 + bevel, 4 + noise * 12, 3 + noise * 9];
+    if (by > 27 || bx > 59) return [62 + noise * 20, 0, 2];
+    if (by < 3 || bx < 3) return [104 + noise * 20, 2, 4];
+    const mottle = blotch(x / 6, y / 4) * 0.7 + blotch(x / 2, y / 2) * 0.3;
+    return [96 + mottle * 82 + noise * 14, mottle * 14 + noise * 5, 6 + mottle * 14 + noise * 5];
   });
 }
 
-/** Continuous golden wood grain, without the plank joints of a modern timber floor. */
-function wood(): Uint32Array {
-  const noise = (x: number, y: number) => {
-    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
-    const a = hash(ix & 15, iy & 15, 4), b = hash((ix + 1) & 15, iy & 15, 4);
-    const c = hash(ix & 15, (iy + 1) & 15, 4), d = hash((ix + 1) & 15, (iy + 1) & 15, 4);
-    return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
-  };
+/** Flat mustard with faint, short horizontal flecks, as the original floor reads. */
+function mustard(): Uint32Array {
   return texture((x, y) => {
-    const warp = noise(x / 8, y / 8) * 12 + noise(x / 4, y / 16) * 5;
-    const grain = Math.sin(x * Math.PI / 2 + warp) * 9 + Math.sin(x * Math.PI + warp * 2) * 4;
-    const speck = hash(x, y, 6) * 12;
-    return [179 + grain + speck, 125 + grain + speck, 35 + grain * 0.6 + speck];
+    const fleck = hash(x >> 1, y >> 1, 4) > 0.86 ? 5 + hash(x, y, 5) * 6 : 0;
+    const noise = hash(x, y, 6) * 4 - 2;
+    return [200 + fleck + noise, 142 + fleck * 1.3 + noise, 2 + fleck];
   });
 }
 
@@ -104,6 +105,76 @@ function stucco(): Uint32Array {
   });
 }
 
+/*
+ * Wall pictures, drawn in source. The original hung a few photographs on wall faces; these are Desktop's own: a globe
+ * on a toy-strewn table, a rolling green hill under a blue sky, and a bb poster.
+ */
+function paintPicture(ctx: CanvasRenderingContext2D, kind: number) {
+  const size = TEXTURE;
+  if (kind === 0) {
+    const room = ctx.createLinearGradient(0, 0, 0, size);
+    room.addColorStop(0, "#4b5f78"); room.addColorStop(0.62, "#7c8fa3"); room.addColorStop(0.63, "#6b3f1e"); room.addColorStop(1, "#3d220e");
+    ctx.fillStyle = room; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#e7f1d8"; ctx.fillRect(8, 10, 34, 40);
+    ctx.fillStyle = "#3f8a3a"; for (const [x, y, r] of [[16, 30, 9], [28, 24, 11], [36, 40, 8], [20, 44, 7]]) { ctx.beginPath(); ctx.arc(x!, y!, r!, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = "#f3f3f0"; ctx.lineWidth = 3; ctx.strokeRect(8, 10, 34, 40); ctx.beginPath(); ctx.moveTo(25, 10); ctx.lineTo(25, 50); ctx.moveTo(8, 30); ctx.lineTo(42, 30); ctx.stroke();
+    const sea = ctx.createRadialGradient(68, 40, 6, 80, 54, 42);
+    sea.addColorStop(0, "#5aa8ff"); sea.addColorStop(0.7, "#1d4fc4"); sea.addColorStop(1, "#0b2470");
+    ctx.fillStyle = sea; ctx.beginPath(); ctx.arc(80, 56, 38, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.arc(80, 56, 38, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = "#3e9b3c";
+    for (const [x, y, rx, ry] of [[64, 40, 14, 9], [92, 34, 10, 7], [96, 64, 13, 15], [66, 70, 8, 11], [82, 86, 9, 5]]) { ctx.beginPath(); ctx.ellipse(x!, y!, rx!, ry!, 0.4, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = "rgba(255,240,140,0.55)"; ctx.lineWidth = 1;
+    for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.ellipse(80, 56, Math.abs(i) * 12 + 2, 38, 0, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(42, 56 + i * 11); ctx.lineTo(118, 56 + i * 11); ctx.stroke(); }
+    ctx.restore();
+    ctx.fillStyle = "#c9a23a"; ctx.fillRect(76, 94, 8, 6); ctx.fillRect(66, 99, 28, 4);
+    const toys = ["#e8322a", "#f6c919", "#2ea043", "#2f6fe0", "#ef7a1a", "#9b3fd0"];
+    for (let i = 0; i < 16; i++) { ctx.fillStyle = toys[i % toys.length]!; ctx.fillRect(4 + hash(i, 1, 9) * 112, 104 + hash(i, 2, 9) * 18, 6 + hash(i, 3, 9) * 9, 4 + hash(i, 4, 9) * 4); }
+  } else if (kind === 1) {
+    const sky = ctx.createLinearGradient(0, 0, 0, size * 0.7);
+    sky.addColorStop(0, "#1f5fd8"); sky.addColorStop(1, "#9fd0ff");
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    for (const [x, y, r] of [[30, 26, 10], [42, 22, 13], [56, 28, 9], [92, 40, 8], [102, 36, 11]]) { ctx.beginPath(); ctx.arc(x!, y!, r!, 0, Math.PI * 2); ctx.fill(); }
+    const hill = ctx.createLinearGradient(0, 70, 0, size);
+    hill.addColorStop(0, "#6cc644"); hill.addColorStop(1, "#2f7d1f");
+    ctx.fillStyle = hill; ctx.beginPath(); ctx.moveTo(0, 92); ctx.quadraticCurveTo(48, 58, 128, 80); ctx.lineTo(128, 128); ctx.lineTo(0, 128); ctx.closePath(); ctx.fill();
+  } else {
+    const poster = ctx.createLinearGradient(0, 0, size, size);
+    poster.addColorStop(0, "#3a8dff"); poster.addColorStop(1, "#0b3fb8");
+    ctx.fillStyle = poster; ctx.fillRect(0, 0, size, size);
+    bbMark ??= new Path2D(BB_MARK);
+    ctx.save(); ctx.translate(18, 30); ctx.scale(92 / 491, 92 / 491);
+    ctx.fillStyle = "#ffffff"; ctx.fill(bbMark, "evenodd"); ctx.restore();
+  }
+}
+
+let pictures: Uint32Array[] | null = null;
+function loadPictures(): Uint32Array[] {
+  if (pictures) return pictures;
+  const canvas = document.createElement("canvas");
+  canvas.width = TEXTURE; canvas.height = TEXTURE;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  pictures = Array.from({ length: PICTURE_KINDS }, (_, kind) => {
+    if (!ctx) return loadTextures().wall;
+    ctx.clearRect(0, 0, TEXTURE, TEXTURE);
+    paintPicture(ctx, kind);
+    return new Uint32Array(ctx.getImageData(0, 0, TEXTURE, TEXTURE).data.buffer.slice(0));
+  });
+  return pictures;
+}
+
+/** Which wall faces show a picture, keyed by cell and direction, cached per run. */
+const pictureFaces = new WeakMap<MazeRun["pictures"], Map<number, number>>();
+function pictureAt(run: MazeRun, x: number, y: number, dir: number): number | undefined {
+  let faces = pictureFaces.get(run.pictures);
+  if (!faces) {
+    faces = new Map(run.pictures.map(({ cell, dir: face, kind }) => [(cell.y * run.maze.columns + cell.x) * 4 + face, kind]));
+    pictureFaces.set(run.pictures, faces);
+  }
+  return faces.get((y * run.maze.columns + x) * 4 + dir);
+}
+
 interface Textures {
   wall: Uint32Array;
   floor: Uint32Array;
@@ -112,7 +183,7 @@ interface Textures {
 
 let textures: Textures | null = null;
 function loadTextures(): Textures {
-  textures ??= { wall: brick(), floor: wood(), ceiling: stucco() };
+  textures ??= { wall: brick(), floor: mustard(), ceiling: stucco() };
   return textures;
 }
 
@@ -146,11 +217,11 @@ function castScene(pixels: Uint32Array, depth: Float32Array, width: number, heig
     const stepX = rayX < 0 ? -1 : 1, stepY = rayY < 0 ? -1 : 1;
     let sideX = (rayX < 0 ? px - mapX : mapX + 1 - px) * deltaX;
     let sideY = (rayY < 0 ? py - mapY : mapY + 1 - py) * deltaY;
-    let side = 0, distance = 1;
+    let side = 0, distance = 1, dir = 0;
     for (let guard = 0; guard < maze.columns + maze.rows + 2; guard++) {
       side = sideX < sideY ? 0 : 1;
       distance = side === 0 ? sideX : sideY;
-      const dir = side === 0 ? (stepX > 0 ? 0 : 2) : (stepY > 0 ? 1 : 3);
+      dir = side === 0 ? (stepX > 0 ? 0 : 2) : (stepY > 0 ? 1 : 3);
       if (!canStep(maze, { x: mapX, y: mapY }, dir)) break;
       if (side === 0) { sideX += deltaX; mapX += stepX; }
       else { sideY += deltaY; mapY += stepY; }
@@ -160,11 +231,13 @@ function castScene(pixels: Uint32Array, depth: Float32Array, width: number, heig
     const hit = side === 0 ? py + distance * rayY : px + distance * rayX;
     let tx = Math.floor((hit - Math.floor(hit)) * TEXTURE);
     if ((side === 0 && rayX < 0) || (side === 1 && rayY > 0)) tx = TEXTURE - 1 - tx;
+    const picture = pictureAt(run, mapX, mapY, dir);
+    const face = picture === undefined ? wall : loadPictures()[picture]!;
     const lineHeight = focal / distance, top = horizon - lineHeight / 2;
     const start = Math.max(0, Math.ceil(top)), end = Math.min(height, Math.ceil(horizon + lineHeight / 2));
     for (let y = start; y < end; y++) {
       const ty = Math.floor((y - top) * TEXTURE / lineHeight) & (TEXTURE - 1);
-      pixels[y * width + x] = wall[ty * TEXTURE + tx]!;
+      pixels[y * width + x] = face[ty * TEXTURE + tx]!;
     }
   }
 }
@@ -212,31 +285,50 @@ const DODECAHEDRON = (() => {
   return { vertices, faces };
 })();
 
-function paintPolyhedron(ctx: CanvasRenderingContext2D, time: number) {
+type Solid = { vertices: readonly (readonly number[])[]; faces: readonly (readonly number[])[] };
+const CUBE: Solid = {
+  vertices: [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]].map((v) => v.map((c) => c * 0.62)),
+  faces: [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [2, 3, 7, 6], [1, 2, 6, 5], [0, 3, 7, 4]],
+};
+const OCTAHEDRON: Solid = {
+  vertices: [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]],
+  faces: [[0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4], [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5]],
+};
+const TETRAHEDRON: Solid = {
+  vertices: [[1, 1, 1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]].map((v) => v.map((c) => c * 0.62)),
+  faces: [[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]],
+};
+/** The original's rocks come in several solids; each rock keeps one, chosen from its cell. */
+const SOLIDS: readonly Solid[] = [DODECAHEDRON, CUBE, TETRAHEDRON, OCTAHEDRON];
+
+function paintPolyhedron(ctx: CanvasRenderingContext2D, time: number, solid: Solid) {
   const a = time * 1.3;
   const b = time * 0.8;
-  const points = DODECAHEDRON.vertices.map(([x, y, z]) => {
+  const points = solid.vertices.map(([x, y, z]) => {
     const x1 = x! * Math.cos(a) + z! * Math.sin(a);
     const z1 = -x! * Math.sin(a) + z! * Math.cos(a);
     const y2 = y! * Math.cos(b) - z1 * Math.sin(b);
     const z2 = y! * Math.sin(b) + z1 * Math.cos(b);
     return [x1, y2, z2] as const;
   });
-  const faces = DODECAHEDRON.faces
+  const faces = solid.faces
     .map((face) => {
       const p = points[face[0]!]!, q = points[face[1]!]!, r = points[face[2]!]!;
       const ux = q[0] - p[0], uy = q[1] - p[1], uz = q[2] - p[2];
       const vx = r[0] - p[0], vy = r[1] - p[1], vz = r[2] - p[2];
-      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      // Point every normal away from the centre, whatever order the face lists its corners in.
+      const centre = [0, 1, 2].map((axis) => face.reduce((sum, index) => sum + points[index]![axis]!, 0) / face.length);
+      if (nx * centre[0]! + ny * centre[1]! + nz * centre[2]! < 0) { nx = -nx; ny = -ny; nz = -nz; }
       const length = Math.hypot(nx, ny, nz) || 1;
-      return { face, z: (p[2] + q[2] + r[2]) / 3, nz: nz / length, light: (nx * -0.4 + ny * -0.5 + nz * 0.77) / length };
+      return { face, z: centre[2]!, nz: nz / length, light: (nx * -0.4 + ny * -0.5 + nz * 0.77) / length };
     })
     .filter((face) => face.nz > 0)
     .sort((left, right) => left.z - right.z);
   const radius = SPRITE * 0.46;
   ctx.lineJoin = "round";
   for (const { face, light } of faces) {
-    const value = clamp(8 + Math.max(0, light) * 170);
+    const value = clamp(40 + Math.max(0, light) * 190);
     ctx.fillStyle = `rgb(${value} ${value} ${value})`;
     ctx.beginPath();
     face.forEach((index, i) => {
@@ -246,7 +338,19 @@ function paintPolyhedron(ctx: CanvasRenderingContext2D, time: number) {
     });
     ctx.closePath();
     ctx.fill();
+    // The original's rocks are stippled, like a dithered 16-colour fill.
+    stipple ??= ctx.createPattern(stippleTile(), "repeat");
+    if (stipple) { ctx.fillStyle = stipple; ctx.fill(); }
   }
+}
+
+let stipple: CanvasPattern | null = null;
+function stippleTile(): HTMLCanvasElement {
+  const tile = document.createElement("canvas");
+  tile.width = 2; tile.height = 2;
+  const ctx = tile.getContext("2d");
+  if (ctx) { ctx.fillStyle = "rgba(0,0,0,0.22)"; ctx.fillRect(0, 0, 1, 1); ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fillRect(1, 1, 1, 1); }
+  return tile;
 }
 
 /** The four waving panes of bb's taskbar flag (`StartFlag`), in its 18 px box. */
@@ -362,7 +466,7 @@ function paintRat(ctx: CanvasRenderingContext2D, time: number) {
 type SpriteKind = "sign" | "polyhedron" | "smiley" | "rat";
 
 /** World height of each sprite, as a fraction of a wall. */
-const SPRITE_SIZE: Record<SpriteKind, number> = { sign: 0.62, polyhedron: 0.45, smiley: 0.55, rat: 0.6 };
+const SPRITE_SIZE: Record<SpriteKind, number> = { sign: 0.62, polyhedron: 0.6, smiley: 0.55, rat: 0.6 };
 
 function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, depth: Float32Array, width: number, height: number, focal: number, run: MazeRun, time: number) {
   const cardContext = card.getContext("2d");
@@ -374,11 +478,11 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
   const planeX = -dirY * width / (2 * focal);
   const planeY = dirX * width / (2 * focal);
   const inverse = 1 / (planeX * dirY - dirX * planeY);
-  const sprites: { kind: SpriteKind; x: number; y: number }[] = [
+  const sprites: { kind: SpriteKind; x: number; y: number; solid?: Solid }[] = [
     { kind: "sign", ...run.sign },
     { kind: "rat", ...ratPosition(run) },
     { kind: "smiley", ...cellCenter(run.maze.exit) },
-    ...run.spinners.map((cell) => ({ kind: "polyhedron" as const, ...cellCenter(cell) })),
+    ...run.spinners.map((cell) => ({ kind: "polyhedron" as const, ...cellCenter(cell), solid: SOLIDS[(cell.x * 7 + cell.y * 3) % SOLIDS.length]! })),
   ];
   const placed = sprites
     .map((sprite) => {
@@ -392,14 +496,14 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
     cardContext.setTransform(1, 0, 0, 1, 0, 0);
     cardContext.clearRect(0, 0, CARD, CARD);
     cardContext.setTransform(CARD / SPRITE, 0, 0, CARD / SPRITE, 0, 0);
-    if (sprite.kind === "polyhedron") paintPolyhedron(cardContext, time);
+    if (sprite.kind === "polyhedron") paintPolyhedron(cardContext, time, sprite.solid ?? DODECAHEDRON);
     else if (sprite.kind === "rat") paintRat(cardContext, time);
     else if (sprite.kind === "smiley") paintSmiley(cardContext);
     else paintStartButton(cardContext, time);
     const size = (focal / sprite.forward) * SPRITE_SIZE[sprite.kind];
     const centerX = (width / 2) * (1 + sprite.side / sprite.forward);
-    // The rat's feet meet the floor; the rock hangs below eye level.
-    const bob = sprite.kind === "rat" ? focal / sprite.forward * (0.5 - SPRITE_SIZE.rat * 0.25) : sprite.kind === "polyhedron" ? focal / sprite.forward * 0.18 : 0;
+    // The rat's feet meet the floor; the rock floats low, just above it.
+    const bob = sprite.kind === "rat" ? focal / sprite.forward * (0.5 - SPRITE_SIZE.rat * 0.25) : sprite.kind === "polyhedron" ? focal / sprite.forward * 0.26 : 0;
     const top = height / 2 - size / 2 + bob;
     const left = Math.floor(centerX - size / 2);
     const right = Math.min(width, Math.ceil(centerX + size / 2));

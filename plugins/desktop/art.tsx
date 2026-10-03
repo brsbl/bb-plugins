@@ -100,6 +100,7 @@ const ICON = {
   mazeBrick: "oklch(0.52 0.14 35)",
   mazeBrickShade: "oklch(0.42 0.12 35)",
   mazeMortar: "oklch(0.78 0.03 70)",
+  mazeFloor: "oklch(0.7 0.15 75)",
   wmpGreen: "oklch(0.72 0.19 138)",
   wmpBlue: "oklch(0.55 0.19 258)",
   wmpYellow: "oklch(0.85 0.17 88)",
@@ -399,13 +400,13 @@ export function PinballArt({ size = 40 }: { size?: number }) {
   );
 }
 
-/** 3D Maze: looking down a brick corridor, with stucco above, wood below, and the smiley waiting at the far end. */
+/** 3D Maze: looking down a brick corridor, with stucco above, mustard below, and the smiley waiting at the far end. */
 export function MazeArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>
       <rect x="3" y="7" width="42" height="34" rx="2.5" fill={ICON.navyEdge} />
       <path d="M5 9h38l-12 10H17Z" fill={ICON.paperShade} />
-      <path d="M5 39h38l-12-10H17Z" fill={ICON.wood} stroke={ICON.runnerEdge} strokeWidth=".6" />
+      <path d="M5 39h38l-12-10H17Z" fill={ICON.mazeFloor} stroke={ICON.runnerEdge} strokeWidth=".6" />
       <path d="M5 9l12 10v10L5 39Z" fill={ICON.mazeBrick} />
       <path d="M43 9 31 19v10l12 10Z" fill={ICON.mazeBrickShade} />
       <rect x="17" y="19" width="14" height="10" fill={ICON.mazeBrick} />

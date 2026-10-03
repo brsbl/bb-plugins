@@ -105,6 +105,16 @@ describe("3D Maze", () => {
     expect(ratPosition(run)).toEqual({ x: 1.5, y: 1.5 });
   });
 
+  it("hangs pictures only on walls, one per face", () => {
+    for (const seed of [1, 4, 8]) {
+      const run = newRun(seededRandom(seed));
+      expect(run.pictures.length).toBeGreaterThan(0);
+      const faces = new Set(run.pictures.map(({ cell, dir }) => `${cell.x},${cell.y},${dir}`));
+      expect(faces.size).toBe(run.pictures.length);
+      for (const { cell, dir } of run.pictures) expect(canStep(run.maze, cell, dir)).toBe(false);
+    }
+  });
+
   it("runs faster in Turbo Mode", () => {
     const normal = newRun(seededRandom(11));
     const turbo = newRun(seededRandom(11));

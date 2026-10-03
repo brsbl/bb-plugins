@@ -9,6 +9,9 @@
 export const MAZE_COLUMNS = 10;
 export const MAZE_ROWS = 8;
 const SPINNER_COUNT = 3;
+/** How many wall faces carry a picture, and how many different pictures there are. */
+const PICTURE_COUNT = 4;
+export const PICTURE_KINDS = 3;
 
 /** Seconds to walk one cell, turn a quarter, roll over, and celebrate at the exit, before Turbo Mode. */
 const WALK_SECONDS = 0.65;
@@ -138,6 +141,8 @@ export interface MazeRun {
   sign: { x: number; y: number };
   /** Gray polyhedra still floating in the maze; walking into one rolls the view over. */
   spinners: Cell[];
+  /** Wall faces showing a picture instead of brick: the cell in front of the wall, the wall's direction, and which picture. */
+  pictures: { cell: Cell; dir: number; kind: number }[];
   rat: Rat;
   pose: Pose;
   move: Move | null;
@@ -164,6 +169,14 @@ export function newRun(random: Random, columns = MAZE_COLUMNS, rows = MAZE_ROWS)
   const visited = new Uint8Array(columns * rows);
   visited[0] = 1;
   const center = cellCenter(maze.start);
+  // Drawn last, so adding pictures leaves every earlier random choice (maze, rocks) as it was.
+  const pictures: MazeRun["pictures"] = [];
+  for (let tries = 0; pictures.length < PICTURE_COUNT && tries < 200; tries++) {
+    const cell = { x: Math.floor(random() * columns), y: Math.floor(random() * rows) };
+    const dir = Math.floor(random() * 4);
+    if (canStep(maze, cell, dir) || pictures.some((other) => sameCell(other.cell, cell) && other.dir === dir)) continue;
+    pictures.push({ cell, dir, kind: pictures.length % PICTURE_KINDS });
+  }
   return {
     maze,
     cell: { ...maze.start },
@@ -172,6 +185,7 @@ export function newRun(random: Random, columns = MAZE_COLUMNS, rows = MAZE_ROWS)
     visited,
     sign: { x: center.x + 2 * DX[heading]!, y: center.y + 2 * DY[heading]! },
     spinners,
+    pictures,
     rat: { cell: { ...maze.exit }, heading: [0, 1, 2, 3].find((dir) => canStep(maze, maze.exit, dir)) ?? 0, progress: 0 },
     pose: { x: center.x, y: center.y, angle: (heading * Math.PI) / 2, roll: 0 },
     move: null,
