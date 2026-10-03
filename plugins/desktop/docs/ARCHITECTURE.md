@@ -57,7 +57,7 @@ Each `Window` component renders its own `WindowFrame`, so a program controls its
 | --- | --- |
 | `programs/threads/` | Instant Message, Buddy List, Buddy Info, thread tabs, explorer windows (folder, My Threads, More, Recycle Bin), New folder, New thread |
 | `programs/` | bb Explorer (`internet-explorer.tsx`), Terminal (`command-prompt.tsx`), Media Player, third-party app windows |
-| `games/`, `apps/` | Minesweeper, Solitaire, Pinball, Paint |
+| `games/`, `apps/` | Minesweeper, Solitaire, Pinball, 3D Maze, Paint |
 
 Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, `describeStatus`, `typingLine`, `buddyRank`) live in `programs/threads/status.ts` as pure functions with tests; `status-ui.tsx` renders them.
 
@@ -102,7 +102,7 @@ These outlive a release. Changing one needs a migration.
 | Contract | Where |
 | --- | --- |
 | Open windows, `bb-desktop:windows:v1` in `localStorage` | `windows/specs.ts`, `windows/state.ts` |
-| Other `localStorage` keys: `bb-desktop:enabled`, `bb-desktop:notes:v1`, `bb-desktop:visualization`, `bb-desktop:minesweeper:difficulty`, `bb-desktop:pinball:*`, and the browser and terminal keys | `enabled.ts`, `page/sticky-notes.tsx`, `programs/media-player.tsx`, `games/`, `services/` |
+| Other `localStorage` keys: `bb-desktop:enabled`, `bb-desktop:notes:v1`, `bb-desktop:visualization`, `bb-desktop:minesweeper:difficulty`, `bb-desktop:pinball:*`, `bb-desktop:maze:options:v1`, and the browser and terminal keys | `enabled.ts`, `page/sticky-notes.tsx`, `programs/media-player.tsx`, `games/`, `services/` |
 | Native tab ids: `bb-desktop-internet-explorer`, `bb-desktop-thread-browser-<tab>`, `bb-desktop:command-prompt`, `bb-desktop:thread-terminal:<tab>` | `services/browser.ts`, `services/terminal.ts` |
 | Quick Launch launcher ids, defaulting to `DEFAULT_QUICK_LAUNCH`; the server accepts at most 24 ids of 160 characters | `programs/launcher-ids.ts`, `core.ts`, `server.ts` |
 | Desktop icon layout keys: `recycle-bin`, `more`, `note:<id>`, group keys | `shell/canvas.tsx`, `server.ts` |
