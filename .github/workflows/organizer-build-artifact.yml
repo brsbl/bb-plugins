@@ -1,0 +1,19 @@
+name: Organizer build artifact
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=bb-plugin-thread-organizer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: organizer-dist
+          path: plugins/thread-organizer/dist
