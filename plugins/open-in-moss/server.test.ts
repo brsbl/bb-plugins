@@ -35,6 +35,33 @@ async function post(
 }
 
 describe("POST /open", () => {
+  it("opens a Mac file through its host when the server runs on Linux", async () => {
+    const localOpen = vi.fn(async () => {});
+    const host = createFakePluginHost({
+      pluginId: "open-in-moss",
+      experimental_callHostRpc: async () => ({
+        ok: true,
+        path: "/Users/brsbl/Moss/Notes/Tweets/Tweets.md",
+      }),
+    });
+    await createOpenInMossPlugin(dependencies({ platform: "linux", open: localOpen }))(host.bb);
+    const response = await host.harness.fetchHttp("POST", "/open", {
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path: "/Users/brsbl/Moss/Notes/Tweets/Tweets.md",
+        hostId: "host_mac",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(host.harness.experimental_hostRpcCalls).toContainEqual(expect.objectContaining({
+      hostId: "host_mac",
+      method: "open",
+      input: { path: "/Users/brsbl/Moss/Notes/Tweets/Tweets.md" },
+    }));
+    expect(localOpen).not.toHaveBeenCalled();
+  });
+
   it("resolves and opens a Markdown file in Moss", async () => {
     const open = vi.fn(async () => {});
     const realpath = vi.fn(async () => "/real/notes/spec.md");
