@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { ConnectionSchema, DigestDefinitionSchema, IssuePatchSchema, IssueSchema, PublishInputSchema, ScheduleSchema } from "./model";
+import { EmojiSchema, ConnectionSchema, DigestDefinitionSchema, IssuePatchSchema, IssueSchema, PublishInputSchema, ScheduleSchema } from "./model";
 import { DIGEST_RECIPES } from "./recipes";
+import { collectionInstructions, issueTitle } from "./prompts";
 
 describe("digest contracts", () => {
   it("keeps new definitions disabled and supplies a complete project-default execution shape", () => {
@@ -45,18 +46,29 @@ describe("digest contracts", () => {
     expect(IssuePatchSchema.safeParse({ publishedAt: 10 }).success).toBe(false);
   });
 
-  it("keeps the settled schedules and requires source-based read-only newsletter tracking", () => {
+  it("keeps starters as editable intent and puts collection safeguards in the runtime", () => {
     expect(DIGEST_RECIPES.map(({ id, schedule }) => [id, schedule?.cron ?? null])).toEqual([
       ["unread-email", "0 10 * * 1-5"], ["money", "0 10 * * 1"], ["reading", "0 11 * * 0"], ["x-scorecard", null],
     ]);
-    const reading = DIGEST_RECIPES.find((recipe) => recipe.id === "reading")!;
-    expect(reading.instructions).toContain("Never mark newsletters read");
-    expect(reading.instructions).toContain("records IDs only when publication succeeds");
-    expect(reading.instructions).toContain("snippet-only");
     for (const recipe of DIGEST_RECIPES) {
-      expect(recipe.instructions).toContain("Only an explicit user click");
-      expect(recipe.instructions).toContain("Never open an unread Gmail message");
-      expect(recipe.instructions).not.toMatch(/thr_[a-z0-9]+|host_[a-z0-9]+|[\w.]+@gmail\.com/u);
+      expect(recipe.instructions).not.toMatch(/digest_processed|label:|is:unread|read.only|snippet|thread storage/iu);
+      const definition = DigestDefinitionSchema.parse({ ...recipe, projectId: "proj_test", createdAt: 1 });
+      const runtime = collectionInstructions(definition);
+      expect(runtime).toContain(recipe.instructions);
+      expect(runtime).toContain("Never send, reply, archive");
+      expect(runtime).toContain("digest_processed");
+      expect(runtime).toContain("No source is recorded as processed until publication succeeds");
+      expect(runtime).toContain("list rows/snippets");
+      expect(runtime).toContain("Only a user CLICK");
     }
+  });
+
+  it("accepts one emoji grapheme and keeps older definitions readable with an emoji title", () => {
+    for (const emoji of ["📬", "👩🏽‍💻", "🇺🇸", "1️⃣"]) expect(EmojiSchema.safeParse(emoji).success).toBe(true);
+    for (const emoji of ["", "A", "📬📚"]) expect(EmojiSchema.safeParse(emoji).success).toBe(false);
+    const old = DigestDefinitionSchema.parse({ id: "reading", name: "Reading", projectId: "proj_test", instructions: "My newsletters.", createdAt: 1 });
+    const date = Date.UTC(2026, 9, 5, 17);
+    expect(issueTitle(old, date)).toBe("📚 Reading · Mon Oct 5");
+    expect(issueTitle({ ...old, emoji: "👩🏽‍💻" }, date)).toBe("👩🏽‍💻 Reading · Mon Oct 5");
   });
 });

@@ -88,12 +88,12 @@ const payload = () => PublishInputSchema.parse({
 describe("digest issue lifecycle", () => {
   it("creates an enabled custom digest and updates that same automation without enabling migrated definitions", async () => {
     const { service, harness } = setup();
-    const input = { connectionId: "gmail", name: "Replies", instructions: "Only messages needing a reply.", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } };
+    const input = { connectionId: "gmail", name: "Replies", emoji: "💌", instructions: "Only messages needing a reply.", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } };
     const created = await service.saveDigest(input);
-    expect(created).toMatchObject({ enabled: true, automationId: "auto_digest_new", connectionIds: ["gmail"] });
+    expect(created).toMatchObject({ enabled: true, emoji: "💌", instructions: input.instructions, automationId: "auto_digest_new", connectionIds: ["gmail"] });
     expect(service.requiredDefinition("reading").enabled).toBe(false);
-    const updated = await service.saveDigest({ ...input, id: created.id, name: "Reply list", schedule: { cron: "0 11 * * 1-5", timezone: "America/Los_Angeles" } });
-    expect(updated).toMatchObject({ id: created.id, automationId: created.automationId, enabled: true, name: "Reply list" });
+    const updated = await service.saveDigest({ ...input, id: created.id, name: "Reply list", emoji: "📮", schedule: { cron: "0 11 * * 1-5", timezone: "America/Los_Angeles" } });
+    expect(updated).toMatchObject({ id: created.id, automationId: created.automationId, enabled: true, name: "Reply list", emoji: "📮", instructions: input.instructions });
     const calls = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: unknown });
     expect(calls.filter((call) => call.method === "automations_create")).toHaveLength(1);
     expect(calls.find((call) => call.method === "automations_update")?.input).toMatchObject({ automationId: created.automationId, name: "Digests · Reply list", trigger: { cron: "0 11 * * 1-5" } });

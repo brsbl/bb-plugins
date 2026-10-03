@@ -27,10 +27,16 @@ export const ScheduleSchema = z.object({
   timezone,
 }).strict();
 
+export const EmojiSchema = z.string().trim().min(1).max(32).refine((value) =>
+  [...new Intl.Segmenter("en", { granularity: "grapheme" }).segment(value)].length === 1
+    && /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20e3]/u.test(value),
+"Choose one emoji.");
+
 export const DigestDefinitionSchema = z.object({
   /** The stable, human-readable slug used by `bb digest --digest`. */
   id: DigestIdSchema,
   name: z.string().trim().min(1).max(100),
+  emoji: EmojiSchema.optional(),
   projectId: IdSchema,
   instructions: z.string().trim().min(1).max(30_000),
   connectionIds: z.array(DigestIdSchema).max(20).default([]).refine(
@@ -115,6 +121,7 @@ export const SaveDigestSchema = z.object({
   id: DigestIdSchema.optional(),
   connectionId: DigestIdSchema,
   name: DigestDefinitionSchema.shape.name,
+  emoji: EmojiSchema.optional(),
   instructions: DigestDefinitionSchema.shape.instructions,
   schedule: ScheduleSchema.nullable(),
 }).strict();

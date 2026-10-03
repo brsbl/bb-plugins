@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { defaultDigestEmoji, digestEmoji } from "./identity.js";
 import { createStore } from "./store.js";
 import { issueSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
@@ -133,7 +134,7 @@ export function createService(bb: BbPluginApi) {
       const defaults = previous ?? await settingsDefaults(input.connectionId);
       if (input.schedule && (!defaults.providerId || !defaults.model)) throw new Error("Choose a default agent and model in this digest's bb project, then save again.");
       await ensureSection(true);
-      let definition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, instructions: input.instructions,
+      let definition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, emoji: input.emoji ?? (previous ? digestEmoji(previous) : defaultDigestEmoji(input.connectionId)), instructions: input.instructions,
         connectionIds: previous?.connectionIds ?? [input.connectionId], schedule: input.schedule, enabled: previous?.enabled ?? false,
         automationId: previous?.automationId ?? null, permissionMode: previous?.permissionMode ?? "auto" as const, createdAt: previous?.createdAt ?? Date.now() };
       if (previous?.automationId) {
