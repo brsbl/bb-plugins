@@ -34,6 +34,13 @@ import {
   harvestProposalSchema,
   harvestVerdictSchema,
 } from "./harvest.js";
+import {
+  formatHarvestSummary,
+  harvestResult,
+  harvestSummary,
+  localDayStart,
+  proposalResult,
+} from "./activity.js";
 
 const execFileAsync = promisify(execFile);
 const HARVEST_AGENT_TIMEOUT_MS = 15 * 60 * 1_000;
@@ -46,6 +53,10 @@ const CORPUS_FRESHNESS_TTL_MS = 15 * 60 * 1_000;
 const CORPUS_DIRECTORY = "rules-cache";
 const MAX_WEBHOOK_BODY_BYTES = 2 * 1_024 * 1_024;
 const SEARCH_RESULT_LIMIT = 24;
+const HARVEST_ACTIVITY_PAGE_SIZE = 25;
+const HARVEST_ACTIVITY_MAX_LIMIT = 100;
+const PUBLICATION_LOOKUP_TIMEOUT_MS = 5_000;
+const PUBLICATION_CACHE_TTL_MS = 60_000;
 const AUTOMATIC_RULE_LIMIT = 4;
 const SEARCH_STOP_TOKENS = new Set([
   "build",
@@ -154,6 +165,48 @@ const librarySchema = z.object({
   domains: stringListSchema,
   status_counts: z.record(z.string(), z.number().int()),
   git: gitSchema,
+});
+
+const harvestActivityCursorSchema = z.object({
+  processedAt: z.number().int().nonnegative(),
+  threadId: z.string().min(1),
+});
+
+const harvestActivityInputSchema = z.object({
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(HARVEST_ACTIVITY_MAX_LIMIT)
+    .default(HARVEST_ACTIVITY_PAGE_SIZE),
+  before: harvestActivityCursorSchema.nullable().default(null),
+  /** Start of the caller's day; the server's local midnight when omitted. */
+  dayStart: z.number().int().nonnegative().optional(),
+});
+
+const harvestActivitySchema = z.object({
+  queued: z.number().int().nonnegative(),
+  processedToday: z.number().int().nonnegative(),
+  publication: z.object({ url: z.string() }).nullable(),
+  items: z.array(
+    z.object({
+      threadId: z.string(),
+      title: z.string().nullable(),
+      processedAt: z.number().int(),
+      result: z.enum(["added", "waiting", "rejected", "failed", "none"]),
+      addedRuleIds: stringListSchema,
+      proposals: z.array(
+        z.object({
+          id: z.number().int(),
+          title: z.string(),
+          result: z.enum(["added", "waiting", "rejected", "undecided"]),
+          reason: z.string().nullable(),
+          ruleId: z.string().nullable(),
+        }),
+      ),
+    }),
+  ),
+  nextCursor: harvestActivityCursorSchema.nullable(),
 });
 
 const githubPushEnvelopeSchema = z
@@ -280,10 +333,16 @@ async function readWebhookBody(request: Request): Promise<Uint8Array> {
 
 export const rpcContract = defineRpcContract({
   getLibrary: { input: z.null(), output: librarySchema },
+  getHarvestActivity: {
+    input: harvestActivityInputSchema,
+    output: harvestActivitySchema,
+  },
 });
 
 export type DoctrineRule = z.infer<typeof ruleSchema>;
 export type LibraryPayload = z.infer<typeof librarySchema>;
+export type HarvestActivityPayload = z.infer<typeof harvestActivitySchema>;
+export type HarvestActivityItem = HarvestActivityPayload["items"][number];
 
 /** Resolves a caller-supplied path against the caller's directory. */
 function resolveAgainst(cwd: string | undefined, input: string): string {
@@ -925,6 +984,47 @@ function requiredOption(argv: string[], name: string): string {
   return value;
 }
 
+/** Settles with `fallback` when `work` fails or outlives `ms`. */
+async function withDeadline<T>(
+  work: Promise<T>,
+  ms: number,
+  fallback: T,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work.catch(() => fallback),
+      new Promise<T>((resolveFallback) => {
+        timer = setTimeout(() => resolveFallback(fallback), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function formatHarvestActivity(activity: HarvestActivityPayload): string {
+  const header = [
+    `${activity.queued} ${activity.queued === 1 ? "thread" : "threads"} queued`,
+    `${activity.processedToday} processed today`,
+    ...(activity.publication
+      ? [`paused until ${activity.publication.url} merges`]
+      : []),
+  ].join(" · ");
+  const lines = activity.items.map((item) => {
+    const time = new Date(item.processedAt).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    return `${time} · ${item.title ?? item.threadId} · ${formatHarvestSummary(
+      harvestSummary(item),
+    )}`;
+  });
+  return `${[header, ...(lines.length ? lines : ["No threads processed yet."])].join("\n")}\n`;
+}
+
 export default async function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
     doctrinePath: {
@@ -1052,8 +1152,17 @@ export default async function plugin(bb: BbPluginApi) {
       return reason;
     },
   );
+  let publicationCache: { at: number; value: { url: string } | null } | null = null;
+  let publicationLookup: Promise<{ url: string } | null> | null = null;
+
+  function notifyHarvestChanged(): void {
+    publicationCache = null;
+    bb.realtime.publish("harvest-changed", { changed_at: new Date().toISOString() });
+  }
+
   const harvest = createHarvest({
     bb,
+    onChange: notifyHarvestChanged,
     openPublication: openRulePublication,
     listRuleIds: async (doctrineRoot) =>
       (await loadDoctrine(doctrineRoot)).rules.map((rule) => rule.id),
@@ -1120,6 +1229,10 @@ export default async function plugin(bb: BbPluginApi) {
     const source = await resolveSource();
     if (!source) return false;
     const open = await readOpenPublications(source);
+    publicationCache = {
+      at: Date.now(),
+      value: open[0] ? { url: open[0].url } : null,
+    };
     // Strict branch protection blocks auto-merge on a branch that fell behind
     // main, and nothing else updates it. Every drain retries, by which time
     // GitHub has recomputed the merge state.
@@ -1134,6 +1247,93 @@ export default async function plugin(bb: BbPluginApi) {
       });
     }
     return open.length > 0;
+  }
+
+  /**
+   * The open rule pull request, for display only. A missing or slow `gh` reads
+   * as none rather than failing or stalling the activity feed, and the answer
+   * is reused briefly so a burst of refreshes runs `gh` once.
+   */
+  async function displayedPublication(): Promise<{ url: string } | null> {
+    if (publicationCache && Date.now() - publicationCache.at < PUBLICATION_CACHE_TTL_MS) {
+      return publicationCache.value;
+    }
+    if (publicationLookup) return publicationLookup;
+    const request = (async () => {
+      const configured = expandPath((await settings.get()).doctrinePath);
+      if (configured !== DEFAULT_DOCTRINE_PATH) return null;
+      const signal = AbortSignal.timeout(PUBLICATION_LOOKUP_TIMEOUT_MS);
+      const value = await withDeadline(
+        (async () => {
+          const source = await resolveSource();
+          if (!source) return null;
+          const [open] = await readOpenPublications(source, signal);
+          return open ? { url: open.url } : null;
+        })(),
+        PUBLICATION_LOOKUP_TIMEOUT_MS,
+        null,
+      );
+      publicationCache = { at: Date.now(), value };
+      return value;
+    })();
+    publicationLookup = request;
+    try {
+      return await request;
+    } finally {
+      if (publicationLookup === request) publicationLookup = null;
+    }
+  }
+
+  async function threadTitle(threadId: string): Promise<string | null> {
+    try {
+      const thread = await bb.sdk.threads.get({ threadId });
+      return thread.title ?? thread.titleFallback ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function harvestActivity(
+    input: z.infer<typeof harvestActivityInputSchema>,
+  ): Promise<HarvestActivityPayload> {
+    const page = harvest.activityPage({ limit: input.limit, before: input.before });
+    const counts = harvest.activityCounts(input.dayStart ?? localDayStart(Date.now()));
+    const [publication, titles, publishedRuleIds] = await Promise.all([
+      displayedPublication(),
+      Promise.all(page.threads.map((thread) => threadTitle(thread.threadId))),
+      currentLibrary()
+        .then((library) => new Set(library.rules.map((rule) => rule.id)))
+        .catch(() => null),
+    ]);
+    const items = page.threads.map((thread, index) => {
+      const proposals = thread.proposals.map((proposal) => ({
+        id: proposal.id,
+        title: proposal.title ?? "Untitled proposal",
+        ...proposalResult(proposal.verdict, proposal.writtenPath, publishedRuleIds),
+        reason: proposal.reason,
+      }));
+      return {
+        threadId: thread.threadId,
+        title: titles[index],
+        processedAt: thread.processedAt,
+        result: harvestResult(thread.outcome, proposals),
+        addedRuleIds: proposals.flatMap((proposal) =>
+          proposal.result === "added" && proposal.ruleId ? [proposal.ruleId] : [],
+        ),
+        proposals,
+      };
+    });
+    const last = page.threads.at(-1);
+    return harvestActivitySchema.parse({
+      queued: counts.queued,
+      processedToday: counts.processedSince,
+      publication,
+      items,
+      nextCursor:
+        page.hasMore && last
+          ? { processedAt: last.processedAt, threadId: last.threadId }
+          : null,
+    });
   }
 
   function drainHarvest(): void {
@@ -1256,7 +1456,10 @@ export default async function plugin(bb: BbPluginApi) {
     },
     { auth: "none" },
   );
-  bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
+  bb.rpc.register(rpcContract, {
+    getLibrary: currentLibrary,
+    getHarvestActivity: harvestActivity,
+  });
   bb.agents.registerTool({
     name: "design_doctrine_search",
     description:
@@ -1298,7 +1501,7 @@ export default async function plugin(bb: BbPluginApi) {
       { name: "search", summary: "Search current rules", usage: "bb doctrine search <query> [--all] [--json]" },
       { name: "show", summary: "Show one rule", usage: "bb doctrine show <rule-id> [--json]" },
       { name: "history", summary: "Scan bb thread history through the SDK", usage: "bb doctrine history <scan|advance|release> [options]" },
-      { name: "harvest", summary: "Report archive-harvest proposals and verdicts", usage: "bb doctrine harvest <propose|verdict|status> [options]" },
+      { name: "harvest", summary: "Show archive-harvest activity, or report proposals and verdicts", usage: "bb doctrine harvest <activity|propose|verdict|status> [options]" },
       { name: "validate", summary: "Validate the personalized rule corpus", usage: "bb doctrine validate" },
     ],
     async run(argv, context) {
@@ -1359,6 +1562,24 @@ export default async function plugin(bb: BbPluginApi) {
         }
         if (command === "harvest") {
           const action = argv[1];
+          if (action === "activity") {
+            const activity = await harvestActivity({
+              limit: integerOption(
+                argv,
+                "--limit",
+                20,
+                1,
+                HARVEST_ACTIVITY_MAX_LIMIT,
+              ),
+              before: null,
+            });
+            return {
+              exitCode: 0,
+              stdout: json
+                ? `${JSON.stringify(activity, null, 2)}\n`
+                : formatHarvestActivity(activity),
+            };
+          }
           if (action === "propose") {
             const threadId = requiredOption(argv, "--thread");
             const token = requiredOption(argv, "--token");
@@ -1428,7 +1649,7 @@ export default async function plugin(bb: BbPluginApi) {
           return {
             exitCode: 2,
             stderr:
-              "Usage: bb doctrine harvest <propose|verdict|status> [options]\n",
+              "Usage: bb doctrine harvest <activity|propose|verdict|status> [options]\n",
           };
         }
         if (command === "validate") {

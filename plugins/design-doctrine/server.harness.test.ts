@@ -63,8 +63,14 @@ describe("Design Doctrine plugin contract", () => {
 
     expect(harness.inspection.registrations.rpcMethods).toEqual([
       "getLibrary",
+      "getHarvestActivity",
     ]);
     expect(harness.inspection.registrations.cli?.name).toBe("doctrine");
+    expect(
+      harness.inspection.registrations.cli?.commands?.find(
+        ({ name }) => name === "harvest",
+      )?.usage,
+    ).toBe("bb doctrine harvest <activity|propose|verdict|status> [options]");
     expect(
       harness.inspection.registrations.agentTools.map(({ name }) => name),
     ).toContain("design_doctrine_search");
@@ -216,6 +222,7 @@ describe("Design Doctrine plugin contract", () => {
     await expect(plugin(bb)).resolves.toBeUndefined();
     expect(harness.inspection.registrations.rpcMethods).toEqual([
       "getLibrary",
+      "getHarvestActivity",
     ]);
     expect(harness.inspection.registrations.cli?.name).toBe("doctrine");
     expect(
@@ -278,7 +285,10 @@ describe("Design Doctrine plugin contract", () => {
 
     await expect(plugin(bb)).resolves.toBeUndefined();
     await vi.waitFor(() => expect(registrationsAtInventoryStart).not.toBeNull());
-    expect(registrationsAtInventoryStart?.rpcMethods).toEqual(["getLibrary"]);
+    expect(registrationsAtInventoryStart?.rpcMethods).toEqual([
+      "getLibrary",
+      "getHarvestActivity",
+    ]);
     expect(registrationsAtInventoryStart?.cliName).toBe("doctrine");
     expect(registrationsAtInventoryStart?.createdHandlers).toBe(1);
     expect(registrationsAtInventoryStart?.idleHandlers).toBe(1);
