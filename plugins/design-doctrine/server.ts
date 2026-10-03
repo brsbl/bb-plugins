@@ -112,6 +112,7 @@ const ruleSchema = z.object({
   strength: z.enum(["required", "default", "preference", "warning"]),
   confidence: z.enum(["low", "medium", "high"]),
   status: z.enum(["active", "conflicted", "retired"]),
+  origin: z.enum(["user", "external"]).default("user"),
   domain: z.string().regex(/^[a-z-]+\.[a-z-]+$/),
   products: stringListSchema.min(1),
   activities: stringListSchema.min(1),
@@ -128,7 +129,8 @@ const ruleSchema = z.object({
   use_when: stringListSchema.min(1),
   not_when: stringListSchema,
   exceptions: stringListSchema,
-  evidence: stringListSchema.min(1),
+  evidence: stringListSchema,
+  sources: stringListSchema,
   checks: stringListSchema.min(1),
   canonical_path: z.string(),
 });
@@ -292,6 +294,19 @@ function expandPath(input: string): string {
   return resolve(input);
 }
 
+/**
+ * Externally sourced standards live one level deeper, in
+ * `rules/<domain>/external/`, so plugin versions that predate them (and only
+ * read `rules/<domain>/*.md`) skip them instead of rejecting the corpus.
+ */
+const EXTERNAL_RULE_DIRECTORY = "external";
+
+async function markdownFiles(directory: string): Promise<string[]> {
+  return (await readdir(directory, { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => join(directory, entry.name));
+}
+
 async function listRuleFiles(root: string): Promise<string[]> {
   const rulesRoot = join(root, "rules");
   const domains = await readdir(rulesRoot, { withFileTypes: true });
@@ -300,12 +315,21 @@ async function listRuleFiles(root: string): Promise<string[]> {
       .filter((entry) => entry.isDirectory())
       .map(async (domain) => {
         const directory = join(rulesRoot, domain.name);
-        return (await readdir(directory, { withFileTypes: true }))
-          .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-          .map((entry) => join(directory, entry.name));
+        const external = join(directory, EXTERNAL_RULE_DIRECTORY);
+        const hasExternal = (await readdir(directory, { withFileTypes: true }))
+          .some((entry) => entry.isDirectory() && entry.name === EXTERNAL_RULE_DIRECTORY);
+        return [
+          ...(await markdownFiles(directory)),
+          ...(hasExternal ? await markdownFiles(external) : []),
+        ];
       }),
   );
   return files.flat().sort();
+}
+
+function isExternalRulePath(canonicalPath: string): boolean {
+  const segments = canonicalPath.split(/[\\/]/);
+  return segments.length === 4 && segments[2] === EXTERNAL_RULE_DIRECTORY;
 }
 
 function parseValue(value: string): unknown {
@@ -380,6 +404,7 @@ async function parseRule(path: string, root: string): Promise<DoctrineRule> {
       not_when: sectionList(sections, "do not use when"),
       exceptions: sectionList(sections, "exceptions"),
       evidence: sectionList(sections, "evidence"),
+      sources: sectionList(sections, "sources"),
       checks: sectionList(sections, "check"),
       canonical_path: relative(root, path),
     });
@@ -435,6 +460,17 @@ function validateRelations(rules: DoctrineRule[]): void {
   for (const rule of rules) {
     if (rule.evidence.length !== rule.supporting_episodes + rule.challenging_episodes) {
       throw new Error(`${rule.id}: episode counts must match the Evidence lines`);
+    }
+    if (rule.origin === "user" && rule.evidence.length === 0) {
+      throw new Error(`${rule.id}: rules learned from the user need Evidence lines`);
+    }
+    if (rule.origin === "external" && rule.sources.length === 0) {
+      throw new Error(`${rule.id}: external standards need Sources lines`);
+    }
+    if ((rule.origin === "external") !== isExternalRulePath(rule.canonical_path)) {
+      throw new Error(
+        `${rule.id}: external standards, and only they, belong in rules/<domain>/${EXTERNAL_RULE_DIRECTORY}/`,
+      );
     }
     if (rule.status === "conflicted" && rule.challenging_episodes === 0) {
       throw new Error(`${rule.id}: conflicted rules need challenging evidence`);
@@ -500,6 +536,7 @@ function searchableText(rule: DoctrineRule): string {
     ...rule.not_when,
     ...rule.exceptions,
     ...rule.evidence,
+    ...rule.sources,
     ...rule.checks,
   ].join("\n").toLocaleLowerCase();
 }
@@ -557,7 +594,10 @@ function weightedSearchFields(rule: DoctrineRule): Array<{
       ].join(" "),
       weight: 3,
     },
-    { text: `${rule.why} ${rule.evidence.join(" ")}`, weight: 2 },
+    {
+      text: `${rule.why} ${rule.evidence.join(" ")} ${rule.sources.join(" ")}`,
+      weight: 2,
+    },
   ];
 }
 
@@ -655,7 +695,9 @@ export function formatAgentSearchResults(rules: DoctrineRule[]): string {
   return rules
     .map((rule) => {
       const lines = [
-        `${rule.id} · ${rule.strength} · ${rule.confidence} confidence · ${rule.title}`,
+        `${rule.id} · ${rule.strength} · ${rule.confidence} confidence${
+          rule.origin === "external" ? " · external standard" : ""
+        } · ${rule.title}`,
         rule.statement,
         `Use when: ${rule.use_when.join("; ")}`,
       ];
@@ -814,7 +856,9 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 function formatRule(rule: DoctrineRule): string {
   return [
     `${rule.id} — ${rule.title}`,
-    `${rule.strength} · ${rule.confidence} confidence · ${rule.domain}`,
+    `${rule.strength} · ${rule.confidence} confidence · ${rule.domain}${
+      rule.origin === "external" ? " · external standard, not learned from the user" : ""
+    }`,
     "",
     rule.statement,
     "",
@@ -826,9 +870,12 @@ function formatRule(rule: DoctrineRule): string {
     "Avoid:",
     ...rule.avoid.map((item) => `- ${item}`),
     "",
-    "Evidence:",
-    ...rule.evidence.map((item) => `- ${item}`),
-    "",
+    ...(rule.evidence.length > 0
+      ? ["Evidence:", ...rule.evidence.map((item) => `- ${item}`), ""]
+      : []),
+    ...(rule.sources.length > 0
+      ? ["Sources:", ...rule.sources.map((item) => `- ${item}`), ""]
+      : []),
     `Source: ${rule.canonical_path}`,
   ].join("\n");
 }

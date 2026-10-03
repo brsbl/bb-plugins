@@ -21,6 +21,7 @@ import {
 import {
   automaticDoctrineGuidance,
   classifyGitHubPush,
+  formatAgentSearchResults,
   gitStatusFingerprint,
   loadDoctrine,
   readGit,
@@ -329,6 +330,110 @@ describe("design doctrine library", () => {
     }
   });
 
+  it("loads external standards apart from learned rules", async () => {
+    const root = await mkdtemp(join(tmpdir(), "doctrine-external-"));
+    const rule = (
+      id: string,
+      origin: string,
+      episodes: number,
+      evidence: string[],
+      sources: string[],
+    ) => `---
+id: ${id}
+kind: standard
+strength: required
+confidence: high
+status: active
+origin: ${origin}
+domain: accessibility.operation
+products: ["global"]
+activities: ["design"]
+artifacts: ["component"]
+surfaces: ["dense rows"]
+relations: []
+supporting_episodes: ${episodes}
+challenging_episodes: 0
+updated: 2026-10-03
+---
+
+# Meet the accessibility floor
+
+Dense controls meet the WCAG 2.2 AA target size minimum.
+
+## Why
+
+Small targets are hard to operate for many people.
+
+## Prefer
+
+- Give every target at least 24 by 24 CSS pixels.
+
+## Avoid
+
+- Undersized icon-only targets.
+
+## Use when
+
+- A dense surface has small controls.
+
+## Evidence
+
+${evidence.map((line) => `- ${line}`).join("\n")}
+
+## Sources
+
+${sources.map((line) => `- ${line}`).join("\n")}
+
+## Check
+
+- Is every target at least 24 by 24 CSS pixels?
+`;
+    try {
+      await mkdir(join(root, "rules", "accessibility", "external"), { recursive: true });
+      await writeFile(
+        join(root, "rules", "accessibility", "ddr_001.md"),
+        rule("ddr_001", "user", 1, ["Asked for larger row targets."], []),
+      );
+      await writeFile(
+        join(root, "rules", "accessibility", "external", "ddr_002.md"),
+        rule("ddr_002", "external", 0, [], ["WCAG 2.2 SC 2.5.8 Target Size (Minimum)"]),
+      );
+
+      const library = await loadDoctrine(root);
+      const external = library.rules.find((item) => item.id === "ddr_002");
+      expect(library.rules.find((item) => item.id === "ddr_001")?.origin).toBe("user");
+      expect(external).toMatchObject({
+        origin: "external",
+        supporting_episodes: 0,
+        evidence: [],
+        sources: ["WCAG 2.2 SC 2.5.8 Target Size (Minimum)"],
+        canonical_path: join("rules", "accessibility", "external", "ddr_002.md"),
+      });
+      expect(formatAgentSearchResults([external!])).toContain("external standard");
+
+      await writeFile(
+        join(root, "rules", "accessibility", "ddr_003.md"),
+        rule("ddr_003", "external", 0, [], ["WCAG 2.2"]),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/belong in rules\/<domain>\/external/);
+      await rm(join(root, "rules", "accessibility", "ddr_003.md"));
+
+      await writeFile(
+        join(root, "rules", "accessibility", "external", "ddr_003.md"),
+        rule("ddr_003", "external", 0, [], []),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/need Sources lines/);
+      await rm(join(root, "rules", "accessibility", "external", "ddr_003.md"));
+
+      await writeFile(
+        join(root, "rules", "accessibility", "ddr_003.md"),
+        rule("ddr_003", "user", 0, [], []),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/need Evidence lines/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("episode selection", () => {

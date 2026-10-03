@@ -33,7 +33,7 @@ The library grew out of feedback I kept giving in bb threads: direct requests, c
 
 Every rule change is published as a pull request that merges itself once the repository's required checks pass, so the corpus is CI-validated without anyone reviewing a queue.
 
-Rules are plain Markdown files under `rules/<domain>/`, so their reasoning and revisions remain easy to inspect in Git. [`governance.md`](governance.md) explains what qualifies as evidence and when it should become a rule.
+Rules are plain Markdown files under `rules/<domain>/`, so their reasoning and revisions remain easy to inspect in Git. [`governance.md`](governance.md) explains what qualifies as evidence and when it should become a rule. A few cited external standards, such as the WCAG 2.2 AA floor, live separately under `rules/<domain>/external/` and are never counted as learned preferences; [`evals/scenarios.md`](evals/scenarios.md) holds held-out tasks for checking the doctrine after it changes.
 
 ## Develop
 
