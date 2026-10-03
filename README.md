@@ -1,6 +1,6 @@
 # bb plugins
 
-Fourteen bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Personal bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -17,6 +17,14 @@ Turns recurring product-design feedback into a searchable rule library that agen
 [Source](plugins/design-doctrine) · [README](plugins/design-doctrine/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
+
+### Digests
+
+Delivers private scheduled briefings as threads with compact visual summaries and expandable details. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own issues.
+
+[Source](plugins/digests) · [README](plugins/digests/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/digests --yes`
 
 ### GitHub Activity
 

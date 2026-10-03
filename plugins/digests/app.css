@@ -1,0 +1,72 @@
+.digest-issue,
+.digest-settings {
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm, 14px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.digest-issue {
+  margin: 12px 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 10px);
+  background: color-mix(in oklab, var(--card) 60%, transparent);
+}
+
+.digest-issue p,
+.digest-settings p { margin: 4px 0 0; }
+.digest-muted { color: var(--muted-foreground); }
+.digest-issue-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: var(--text-xs, 12px); }
+.digest-eyebrow { color: var(--muted-foreground); font-weight: 500; }
+.digest-issue[data-state="failed"] .digest-eyebrow { color: var(--warning-text, var(--foreground)); }
+.digest-headline { margin: 6px 0 0; font-size: 20px; font-weight: 600; line-height: 1.3; letter-spacing: -0.025em; }
+.digest-metrics { display: flex; flex-wrap: wrap; gap: 16px 28px; margin: 18px 0 0; }
+.digest-metrics > div { display: flex; flex-direction: column; min-width: 72px; max-width: 100%; }
+.digest-metrics dt { order: 1; color: var(--muted-foreground); font-size: var(--text-xs, 12px); }
+.digest-metrics dd { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.digest-details { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 10px; }
+.digest-details summary { width: fit-content; cursor: pointer; color: var(--muted-foreground); font-weight: 500; }
+.digest-details summary:hover { color: var(--foreground); }
+.digest-details[open] summary { margin-bottom: 12px; }
+.digest-details summary:focus-visible,
+.digest-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: var(--radius-sm, 4px); }
+.digest-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.digest-button { display: inline-flex; justify-content: center; align-items: center; min-height: 30px; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-md, 6px); background: transparent; color: var(--foreground); font: inherit; font-size: var(--text-xs, 12px); font-weight: 500; white-space: nowrap; cursor: pointer; }
+.digest-button:hover:not(:disabled) { background: var(--accent); }
+.digest-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.digest-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.digest-primary:hover:not(:disabled) { background: color-mix(in oklab, var(--primary) 90%, var(--background)); }
+.digest-recovery { margin-top: 12px; }
+.digest-recovery .digest-controls { margin-top: 10px; }
+.digest-error { color: var(--destructive-text, var(--foreground)); }
+.digest-refresh-error { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.digest-refresh-error > span { flex: 1; min-width: 160px; }
+.digest-settings { max-width: 680px; }
+.digest-settings-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.digest-settings h3,
+.digest-settings h4 { margin: 0; font: inherit; font-weight: 600; }
+.digest-settings-header h3 { font-size: 15px; }
+.digest-settings p { font-size: var(--text-xs, 12px); }
+.digest-icon-button { width: 30px; padding: 6px; flex: none; }
+.digest-icon-button svg { width: 16px; height: 16px; }
+.digest-definition-list,
+.digest-connection-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.digest-definition { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.digest-definition-copy { min-width: 0; }
+.digest-settings .digest-connections-title { margin-top: 24px; }
+.digest-connection { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 8px 0; }
+.digest-connection-name { font-weight: 500; }
+.digest-connection-status { color: var(--muted-foreground); font-size: var(--text-xs, 12px); flex: none; }
+.digest-connection-status[data-status="signed-in"] { color: var(--success-text, var(--foreground)); }
+.digest-connection-status[data-status="signed-out"],
+.digest-connection-status[data-status="expired"],
+.digest-connection-status[data-status="upgrade-required"] { color: var(--warning-text, var(--foreground)); }
+
+@media (max-width: 480px) {
+  .digest-issue { padding: 14px; }
+  .digest-definition { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .digest-headline { font-size: 18px; }
+  .digest-metrics { gap: 14px 22px; }
+}

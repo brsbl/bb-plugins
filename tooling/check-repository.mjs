@@ -266,7 +266,11 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     const screenshots = localImageTargets(pluginReadme).map((path) =>
       normalizeRelativePath(path, `${slug}: screenshot`),
     );
-    assert(screenshots.length > 0, `${slug}: README screenshot missing`);
+    // GitHub PR attachments keep screenshot binaries out of source packages.
+    const attachments = markdownImageTargets(pluginReadme).filter((target) =>
+      /^https:\/\/github\.com\/user-attachments\/assets\/[a-f0-9-]+$/i.test(target),
+    );
+    assert(screenshots.length + attachments.length > 0, `${slug}: README screenshot missing`);
     for (const screenshot of screenshots) {
       const details = await stat(resolve(directory, screenshot)).catch(() => null);
       assert(
@@ -279,7 +283,8 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       );
     }
     assert(
-      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)),
+      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)) ||
+        attachments.some((attachment) => rootImages.includes(attachment)),
       `${slug}: root representative screenshot missing`,
     );
     assert(
