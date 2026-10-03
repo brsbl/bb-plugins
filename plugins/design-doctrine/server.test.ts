@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -154,7 +154,7 @@ describe("design doctrine library", () => {
       searchDoctrine(library.rules, "Improve modal accessibility")
         .slice(0, 2)
         .map((rule) => rule.id),
-    ).toEqual(["ddr_041", "ddr_028"]);
+    ).toEqual(["ext_001", "ddr_028"]);
     expect(searchDoctrine(library.rules, "improve")).toEqual([]);
   });
 
@@ -330,6 +330,21 @@ describe("design doctrine library", () => {
     }
   });
 
+  it("keeps the shipped corpus loadable by versions that skip external standards", async () => {
+    const root = await mkdtemp(join(tmpdir(), "doctrine-learned-only-"));
+    try {
+      await cp(join(import.meta.dirname, "rules"), join(root, "rules"), {
+        recursive: true,
+        filter: (source) => !source.split(/[\\/]/).includes("external"),
+      });
+      const library = await loadDoctrine(root);
+      expect(library.rules.length).toBeGreaterThan(0);
+      expect(library.rules.every((item) => item.origin === "user")).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("loads external standards apart from learned rules", async () => {
     const root = await mkdtemp(join(tmpdir(), "doctrine-external-"));
     const rule = (
@@ -395,41 +410,58 @@ ${sources.map((line) => `- ${line}`).join("\n")}
         rule("ddr_001", "user", 1, ["Asked for larger row targets."], []),
       );
       await writeFile(
-        join(root, "rules", "accessibility", "external", "ddr_002.md"),
-        rule("ddr_002", "external", 0, [], ["WCAG 2.2 SC 2.5.8 Target Size (Minimum)"]),
+        join(root, "rules", "accessibility", "external", "ext_002.md"),
+        rule("ext_002", "external", 0, [], ["WCAG 2.2 SC 2.5.8 Target Size (Minimum)"]),
       );
 
       const library = await loadDoctrine(root);
-      const external = library.rules.find((item) => item.id === "ddr_002");
+      const external = library.rules.find((item) => item.id === "ext_002");
       expect(library.rules.find((item) => item.id === "ddr_001")?.origin).toBe("user");
       expect(external).toMatchObject({
         origin: "external",
         supporting_episodes: 0,
         evidence: [],
         sources: ["WCAG 2.2 SC 2.5.8 Target Size (Minimum)"],
-        canonical_path: join("rules", "accessibility", "external", "ddr_002.md"),
+        canonical_path: join("rules", "accessibility", "external", "ext_002.md"),
       });
       expect(formatAgentSearchResults([external!])).toContain("external standard");
 
       await writeFile(
-        join(root, "rules", "accessibility", "ddr_003.md"),
-        rule("ddr_003", "external", 0, [], ["WCAG 2.2"]),
+        join(root, "rules", "accessibility", "ext_003.md"),
+        rule("ext_003", "external", 0, [], ["WCAG 2.2"]),
       );
       await expect(loadDoctrine(root)).rejects.toThrow(/belong in rules\/<domain>\/external/);
-      await rm(join(root, "rules", "accessibility", "ddr_003.md"));
+      await rm(join(root, "rules", "accessibility", "ext_003.md"));
 
       await writeFile(
-        join(root, "rules", "accessibility", "external", "ddr_003.md"),
-        rule("ddr_003", "external", 0, [], []),
+        join(root, "rules", "accessibility", "external", "ext_003.md"),
+        rule("ext_003", "external", 0, [], []),
       );
       await expect(loadDoctrine(root)).rejects.toThrow(/need Sources lines/);
-      await rm(join(root, "rules", "accessibility", "external", "ddr_003.md"));
+      await rm(join(root, "rules", "accessibility", "external", "ext_003.md"));
 
       await writeFile(
         join(root, "rules", "accessibility", "ddr_003.md"),
         rule("ddr_003", "user", 0, [], []),
       );
       await expect(loadDoctrine(root)).rejects.toThrow(/need Evidence lines/);
+
+      await rm(join(root, "rules", "accessibility", "ddr_003.md"));
+      await writeFile(
+        join(root, "rules", "accessibility", "external", "ddr_003.md"),
+        rule("ddr_003", "external", 0, [], ["WCAG 2.2"]),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/use ext_ IDs/);
+      await rm(join(root, "rules", "accessibility", "external", "ddr_003.md"));
+
+      await writeFile(
+        join(root, "rules", "accessibility", "ddr_001.md"),
+        rule("ddr_001", "user", 1, ["Asked for larger row targets."], []).replace(
+          "relations: []",
+          'relations: ["relates:ext_002"]',
+        ),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/must not relate to external standards/);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

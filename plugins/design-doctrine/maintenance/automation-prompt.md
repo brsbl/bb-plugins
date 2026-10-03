@@ -68,8 +68,10 @@ root.
    `strength`, `confidence`, `status`, `domain`, `products`, `activities`,
    `artifacts`, `surfaces`, `relations`, `supporting_episodes`,
    `challenging_episodes`, `updated` — and the sections Why, Prefer, Avoid,
-   Use when, Do not use when, Evidence, Check. Give it the next ID after the
-   highest one under `rules/`, including the `external/` folders.
+   Use when, Do not use when, Evidence, Check. Give it the next `ddr_NNN` ID after
+   the highest `ddr_` ID under `rules/`; external standards use separate
+   `ext_NNN` IDs. Never list an external standard in a learned rule's
+   `relations`.
 
 5. Keep evidence lines short and anonymous: one line per episode, describing
    what the user asked for or corrected. Never paste transcripts, credentials,

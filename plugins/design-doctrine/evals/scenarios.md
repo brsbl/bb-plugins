@@ -22,7 +22,7 @@ narrowed rule would change the passing output.
 
 - **Task:** Redesign a thread header toolbar that has Refresh, Open logs, Copy
   link, Archive, and a primary Run action.
-- **Should apply:** ddr_001, ddr_040, ddr_041, ddr_042.
+- **Should apply:** ddr_001, ddr_040, ext_001, ext_002.
 - **Should not apply:** ddr_005 (nothing is empty).
 - **Passes when:**
   - Refresh, Open logs, and Copy link are icon-only with accessible names and
@@ -36,7 +36,7 @@ narrowed rule would change the passing output.
 - **Task:** A Plugins panel has no installed plugins, and its Update all action
   cannot run while offline. Design both states.
 - **Should apply:** ddr_005, ddr_039, ddr_036.
-- **Should not apply:** ddr_043 (nothing is being confirmed or undone).
+- **Should not apply:** ext_003 (nothing is being confirmed or undone).
 - **Passes when:**
   - The empty list collapses, or shows one compact explanation and its first
     useful action, with no placeholder card.
@@ -47,7 +47,7 @@ narrowed rule would change the passing output.
 
 - **Task:** Design the UI for an agent about to edit 40 files and run a
   database migration while the user works elsewhere.
-- **Should apply:** ddr_044, ddr_045, ddr_047, ddr_043, ddr_049.
+- **Should apply:** ext_004, ext_005, ext_007, ext_003, ext_009.
 - **Should not apply:** ddr_001 (the job is oversight, not toolbar density).
 - **Passes when:**
   - The plan is shown before work starts, and only the migration needs
@@ -62,7 +62,7 @@ narrowed rule would change the passing output.
 
 - **Task:** Fix a comment hover card that disappears when the pointer moves
   onto it, then report the fix.
-- **Should apply:** ddr_031, ddr_028, ddr_041.
+- **Should apply:** ddr_031, ddr_028, ext_001.
 - **Should not apply:** ddr_035 (no design decision is being requested).
 - **Passes when:**
   - The report includes a current rendered capture of the hover and keyboard
@@ -74,7 +74,7 @@ narrowed rule would change the passing output.
 ## 5. Reorderable list with delete
 
 - **Task:** Add drag-to-reorder and delete to a saved-prompts list.
-- **Should apply:** ddr_019, ddr_041, ddr_008, ddr_043, ddr_028.
+- **Should apply:** ddr_019, ext_001, ddr_008, ext_003, ddr_028.
 - **Should not apply:** ddr_014 (the list has no filters or facets).
 - **Passes when:**
   - The drag handle only drags, and keyboard or single-click move actions reach

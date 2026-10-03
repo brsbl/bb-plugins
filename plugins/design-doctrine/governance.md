@@ -28,14 +28,17 @@ rule. Only feedback the user gave directly does.
 
 Some rules are seeded from cited external guidance — WCAG, platform guidelines,
 and established design research — rather than learned from the user. They are
-marked `origin: external`, use `kind: standard`, live in
+marked `origin: external`, use `kind: standard` and `ext_NNN` IDs, live in
 `rules/<domain>/external/`, list their citations under `## Sources`, and carry
 `supporting_episodes: 0`. They are not the user's taste: never count them as
 evidence of a preference, and never cite them as "you said".
 
 An external rule is `default` unless it encodes a normative requirement such as
 WCAG 2.2 AA, which may be `required`. Only a deliberate, reviewed change adds or
-edits external rules; maintenance leaves them alone.
+edits external rules; maintenance leaves them alone. An external rule may
+relate to learned rules, but a learned rule never lists an external one in
+`relations`: plugin versions that predate external standards do not load them
+and would reject the whole corpus.
 
 ## Updates are automatic
 

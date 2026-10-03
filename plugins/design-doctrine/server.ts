@@ -106,7 +106,7 @@ function defineRpcContract<T>(contract: T): T {
 
 const stringListSchema = z.array(z.string());
 const ruleSchema = z.object({
-  id: z.string().regex(/^ddr_\d{3,}$/),
+  id: z.string().regex(/^(ddr|ext)_\d{3,}$/),
   title: z.string().min(3),
   kind: z.enum(["principle", "standard", "guideline", "taste", "anti_pattern"]),
   strength: z.enum(["required", "default", "preference", "warning"]),
@@ -297,7 +297,9 @@ function expandPath(input: string): string {
 /**
  * Externally sourced standards live one level deeper, in
  * `rules/<domain>/external/`, so plugin versions that predate them (and only
- * read `rules/<domain>/*.md`) skip them instead of rejecting the corpus.
+ * read `rules/<domain>/*.md`) skip them instead of rejecting the corpus. They
+ * use `ext_NNN` IDs so those versions never allocate a colliding `ddr_NNN`, and
+ * learned rules never relate to them.
  */
 const EXTERNAL_RULE_DIRECTORY = "external";
 
@@ -472,6 +474,9 @@ function validateRelations(rules: DoctrineRule[]): void {
         `${rule.id}: external standards, and only they, belong in rules/<domain>/${EXTERNAL_RULE_DIRECTORY}/`,
       );
     }
+    if ((rule.origin === "external") !== rule.id.startsWith("ext_")) {
+      throw new Error(`${rule.id}: external standards, and only they, use ext_ IDs`);
+    }
     if (rule.status === "conflicted" && rule.challenging_episodes === 0) {
       throw new Error(`${rule.id}: conflicted rules need challenging evidence`);
     }
@@ -481,6 +486,11 @@ function validateRelations(rules: DoctrineRule[]): void {
       const targetId = relation.slice(separator + 1);
       const target = byId.get(targetId);
       if (separator < 1 || !target) throw new Error(`${rule.id}: invalid relation ${relation}`);
+      if (rule.origin === "user" && target.origin === "external") {
+        throw new Error(
+          `${rule.id}: learned rules must not relate to external standards, which older plugin versions do not load`,
+        );
+      }
       if (type === "supersedes" && target.status !== "retired") {
         throw new Error(`${rule.id}: superseded rule ${targetId} must be retired`);
       }

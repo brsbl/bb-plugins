@@ -306,6 +306,7 @@ describe("harvest pure helpers", () => {
   it("allocates the next rule id after the highest existing one", () => {
     expect(allocateRuleId(["ddr_001", "ddr_036", "ddr_004"])).toBe("ddr_037");
     expect(allocateRuleId([])).toBe("ddr_001");
+    expect(allocateRuleId(["ddr_040", "ext_010"])).toBe("ddr_041");
   });
 
   it("places a rule under its domain category", () => {
