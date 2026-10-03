@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
+import type { ProposalVerdict } from "./activity";
 import {
   commitNewRuleFiles,
   ensureRuleTreeClean,
@@ -55,6 +56,8 @@ const HARVEST_SCHEMA = [
      ON harvest_proposals (rule_key)`,
   `CREATE INDEX IF NOT EXISTS harvest_threads_processed
      ON harvest_threads (processed_at, thread_id)`,
+  `CREATE INDEX IF NOT EXISTS harvest_proposals_thread
+     ON harvest_proposals (thread_id, id)`,
 ];
 
 /**
@@ -63,7 +66,10 @@ const HARVEST_SCHEMA = [
  * constant rather than a scanning subsystem.
  */
 export const RECURRENCE_APPROVAL_THRESHOLD = 3;
+/** Supporting episodes a rule needs before it may be `required`, per governance.md. */
+export const REQUIRED_RULE_EPISODES = 2;
 export const HARVEST_RULE_FILE_LIMIT = 5;
+export const CANCELLED_REASON = "Cancelled by you";
 const REVIEW_CATALOG_RETRY_LIMIT = 2;
 const HARVESTED_STATE = "pending:harvested";
 const HARVESTER_CAPABILITY_PREFIX = "pending:harvester:";
@@ -150,7 +156,7 @@ export interface StoredProposal {
   ruleKey: string;
   proposal: HarvestProposal;
   createdAt: number;
-  verdict: "approved" | "rejected" | null;
+  verdict: ProposalVerdict | null;
   reason: string | null;
   writtenPath: string | null;
 }
@@ -161,7 +167,7 @@ export interface RecurrenceContext {
   /** Whether recurrence has reached the threshold at which thin single-thread evidence is acceptable. */
   meetsRecurrenceThreshold: boolean;
   priorVerdicts: Array<{
-    verdict: "approved" | "rejected" | null;
+    verdict: ProposalVerdict | null;
     reason: string | null;
     at: number;
   }>;
@@ -204,6 +210,20 @@ function bulletList(values: readonly string[]): string {
 }
 
 /**
+ * Caps what a proposal may claim by how much feedback backs it: one episode is
+ * never `required` and never more than `low` confidence, whatever the
+ * harvester or reviewer concluded.
+ */
+export function evidenceBoundedProposal(proposal: HarvestProposal): HarvestProposal {
+  if (proposal.evidence.length >= REQUIRED_RULE_EPISODES) return proposal;
+  return {
+    ...proposal,
+    strength: proposal.strength === "required" ? "default" : proposal.strength,
+    confidence: "low",
+  };
+}
+
+/**
  * Render a proposal as a rule file that `parseRule` accepts. Evidence count is
  * the source of truth for `supporting_episodes`, which `validateRelations`
  * requires to match.
@@ -213,7 +233,7 @@ export function renderRuleMarkdown(
   id: string,
   updated: string,
 ): string {
-  proposal = harvestProposalSchema.parse(proposal);
+  proposal = evidenceBoundedProposal(harvestProposalSchema.parse(proposal));
   const sections = [
     `# ${proposal.title}`,
     "",
@@ -341,6 +361,11 @@ export interface HarvestActivityThread {
     writtenPath: string | null;
   }>;
 }
+
+const HAS_PROPOSALS = `EXISTS (
+  SELECT 1 FROM harvest_proposals
+  WHERE harvest_proposals.thread_id = harvest_threads.thread_id
+)`;
 
 const proposalTitleSchema = z.object({ title: z.string().min(1) });
 
@@ -619,7 +644,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
       .prepare(
         `UPDATE harvest_proposals
          SET verdict = ?, reason = ?, written_path = NULL
-         WHERE id = ?
+         WHERE id = ? AND verdict IS NOT 'cancelled'
            AND EXISTS (
              SELECT 1 FROM harvest_threads
              WHERE harvest_threads.thread_id = harvest_proposals.thread_id
@@ -669,6 +694,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
             `UPDATE harvest_proposals
              SET verdict = NULL, reason = NULL, written_path = NULL
              WHERE thread_id = ? AND written_path IS NULL
+               AND verdict IS NOT 'cancelled'
                AND id IN (${placeholders})`,
           )
           .run(threadId, ...proposalIds);
@@ -677,7 +703,8 @@ export function createHarvest(dependencies: HarvestDependencies) {
           .prepare(
             `UPDATE harvest_proposals
              SET verdict = NULL, reason = NULL, written_path = NULL
-             WHERE thread_id = ? AND written_path IS NULL`,
+             WHERE thread_id = ? AND written_path IS NULL
+               AND verdict IS NOT 'cancelled'`,
           )
           .run(threadId);
       }
@@ -762,6 +789,12 @@ export function createHarvest(dependencies: HarvestDependencies) {
       "- Only messages the user wrote are evidence. Assistant and subagent output never is.",
       "- One-off task constraints, tool failures, environment breakage, and general engineering or",
       "  PR-process direction are not doctrine.",
+      "- Process and tooling instructions are not doctrine, even when the user states them",
+      "  explicitly: where files or notes are saved, which app or build to launch, git, PR, CI,",
+      "  or review procedure, and how agents should operate. Propose only judgment about the",
+      "  product, its UX, UI, and interaction design.",
+      "- One episode supports at most a `default` rule at `low` confidence; `required` needs",
+      `  at least ${REQUIRED_RULE_EPISODES} independent episodes.`,
       "- Silence is the expected result. Most threads warrant nothing.",
       "",
       "Report exactly once, even when you found nothing, by running:",
@@ -801,6 +834,10 @@ export function createHarvest(dependencies: HarvestDependencies) {
       "1. It is genuinely new — not a duplicate or restatement of an existing rule below.",
       "2. It does not contradict an existing rule.",
       "3. It is supported by concrete feedback the user actually gave.",
+      "4. It is product, UX, UI, or interaction design judgment. Reject process and tooling",
+      "   instructions even when the user stated them explicitly: where files or notes are",
+      "   saved, which app or build to launch, git, PR, CI, or review procedure, and how agents",
+      "   should operate. Those belong in the user's agent guidelines, not in doctrine.",
       "",
       `This proposal has been raised in ${context.recurrence} distinct thread(s).`,
       context.meetsRecurrenceThreshold
@@ -811,6 +848,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
       priors,
       "",
       "If it was rejected before for a reason that still applies, reject it again for the same reason.",
+      "A cancelled verdict means the user withdrew that rule themselves; reject it again.",
       "",
       "Proposal:",
       JSON.stringify(stored.proposal, null, 2),
@@ -1152,6 +1190,32 @@ export function createHarvest(dependencies: HarvestDependencies) {
     recordVerdict,
     recurrenceContext,
     harvestThread,
+    proposal(proposalId: number): StoredProposal | null {
+      const row = db()
+        .prepare(`SELECT * FROM harvest_proposals WHERE id = ?`)
+        .get(proposalId);
+      if (!row) return null;
+      const proposal = readProposal(row as Record<string, unknown>);
+      return {
+        ...proposal,
+        reason: isReviewerCapability(proposal.reason) ? null : proposal.reason,
+      };
+    },
+    /**
+     * Withdraws an approval the user no longer wants. Only an approval can be
+     * cancelled; the verdict is final, so no review reset or carried-approval
+     * commit ever picks it up again.
+     */
+    recordCancellation(proposalId: number): boolean {
+      const result = db()
+        .prepare(
+          `UPDATE harvest_proposals SET verdict = 'cancelled', reason = ?
+           WHERE id = ? AND verdict = 'approved'`,
+        )
+        .run(CANCELLED_REASON, proposalId);
+      if (result.changes > 0) onChange();
+      return result.changes > 0;
+    },
     proposalsForThread(threadId: string): StoredProposal[] {
       return db()
         .prepare(
@@ -1165,9 +1229,9 @@ export function createHarvest(dependencies: HarvestDependencies) {
         }));
     },
     /**
-     * One page of processed threads, newest first, with their proposals. Keyset
-     * pagination keeps each page a bounded index range however long the
-     * archive backlog grows.
+     * One page of processed threads that proposed at least one rule, newest
+     * first, with their proposals. Filtering in the query keeps keyset pages
+     * full and their cursors exact however many threads proposed nothing.
      */
     activityPage(options: {
       limit: number;
@@ -1180,6 +1244,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
                 `SELECT thread_id, processed_at, outcome FROM harvest_threads
                  WHERE processed_at IS NOT NULL
                    AND (processed_at < ? OR (processed_at = ? AND thread_id < ?))
+                   AND ${HAS_PROPOSALS}
                  ORDER BY processed_at DESC, thread_id DESC
                  LIMIT ?`,
               )
@@ -1193,6 +1258,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
               .prepare(
                 `SELECT thread_id, processed_at, outcome FROM harvest_threads
                  WHERE processed_at IS NOT NULL
+                   AND ${HAS_PROPOSALS}
                  ORDER BY processed_at DESC, thread_id DESC
                  LIMIT ?`,
               )

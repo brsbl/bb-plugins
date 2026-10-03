@@ -19,10 +19,11 @@ bb doctrine search "<task and surface>"
 bb doctrine show ddr_001
 ```
 
-Switch the panel to **Activity** to watch the archive harvest learn: each processed thread, the rules it added, and why the reviewer rejected the rest. The same feed is available from the CLI:
+Switch the panel to **Activity** to watch the archive harvest learn: every rule proposed from a processed thread, whether it was added, is waiting to publish, or was rejected, and the reviewer's note. Cancel a rule that is still waiting to publish and it is removed from the open rule pull request, which closes once it has no rules left; a published rule is retired instead. The same feed and action are available from the CLI, where `activity --json` lists proposal IDs:
 
 ```bash
 bb doctrine harvest activity [--limit N] [--json]
+bb doctrine harvest cancel --proposal <id> [--json]
 ```
 
 The bundled `design-doctrine` skill validates each candidate against its applicability and exceptions before use. The doctrine adds personal design judgment; it does not replace product requirements, accessibility guidance, or platform conventions.

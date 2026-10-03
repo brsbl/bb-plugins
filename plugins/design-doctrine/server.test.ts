@@ -549,6 +549,10 @@ describe("harvest activity summaries", () => {
       ruleId: "ddr_042",
     });
     expect(proposalResult("rejected", null, published).result).toBe("rejected");
+    expect(proposalResult("cancelled", "rules/visual/ddr_041.md", published)).toEqual({
+      result: "cancelled",
+      ruleId: null,
+    });
     expect(proposalResult(null, null, published).result).toBe("undecided");
   });
 
@@ -556,6 +560,7 @@ describe("harvest activity summaries", () => {
     const added = { result: "added" as const, ruleId: "ddr_041" };
     const waiting = { result: "waiting" as const, ruleId: null };
     const rejected = { result: "rejected" as const, ruleId: null };
+    const cancelled = { result: "cancelled" as const, ruleId: null };
     const summarize = (
       outcome: string | null,
       proposals: Array<{ result: ProposalResult; ruleId: string | null }>,
@@ -573,5 +578,9 @@ describe("harvest activity summaries", () => {
       "2 proposals rejected",
     );
     expect(summarize("no-proposals", [])).toBe("No new rules");
+    expect(summarize("approved:1", [cancelled, rejected])).toBe(
+      "1 proposal cancelled",
+    );
+    expect(summarize("approved:2", [added, cancelled])).toBe("Added ddr_041");
   });
 });

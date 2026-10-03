@@ -14,11 +14,7 @@ import {
   useRpc,
 } from "@get-bb/plugin-sdk/app";
 
-import {
-  harvestSummary,
-  localDayStart,
-  type ProposalResult,
-} from "./activity";
+import { localDayStart, type ProposalResult } from "./activity";
 import {
   ACTIVITY_PATH,
   detailRowEndIndex,
@@ -680,13 +676,14 @@ const PROPOSAL_LABELS: Record<ProposalResult, string> = {
   added: "Added",
   waiting: "Waiting to publish",
   rejected: "Rejected",
+  cancelled: "Cancelled",
   undecided: "Not reviewed",
 };
 
 function ProposalBadge({ result }: { result: ProposalResult }) {
   return (
     <span
-      className={`shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium ${result === "added" ? "text-foreground" : "text-muted-foreground"}`}
+      className={`inline-flex whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-xs font-medium ${result === "added" ? "text-foreground" : "text-muted-foreground"}`}
     >
       {PROPOSAL_LABELS[result]}
     </span>
@@ -706,116 +703,88 @@ function RuleLink({ id, onOpen }: { id: string; onOpen: (id: string) => void }) 
   );
 }
 
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 4l4 4-4 4" />
-    </svg>
-  );
-}
+const ACTIVITY_CELL = "px-3 py-2 align-top";
 
-function ActivityRow({
+function ActivityGroup({
   item,
   now,
-  expanded,
-  onToggle,
+  cancelling,
+  cancelErrors,
   onOpenThread,
   onOpenRule,
+  onCancel,
 }: {
   item: HarvestActivityItem;
   now: number;
-  expanded: boolean;
-  onToggle: () => void;
+  cancelling: ReadonlySet<number>;
+  cancelErrors: ReadonlyMap<number, string>;
   onOpenThread: () => void;
   onOpenRule: (id: string) => void;
+  onCancel: (proposalId: number) => void;
 }) {
-  const summary = harvestSummary(item);
-  const detailId = `harvest-proposals-${item.threadId}`;
   const processedAt = new Date(item.processedAt);
-  const tone =
-    item.result === "added"
-      ? "text-foreground"
-      : item.result === "failed"
-        ? "text-destructive"
-        : "text-muted-foreground";
+  const rows = item.proposals.length;
   return (
-    <li className="px-4 py-3">
-      <div className="flex min-w-0 items-baseline gap-3">
-        <button
-          type="button"
-          className="min-w-0 truncate rounded-sm text-left text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={onOpenThread}
-        >
-          {item.title ?? "Untitled thread"}
-        </button>
-        <time
-          className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground"
-          dateTime={processedAt.toISOString()}
-          title={processedAt.toLocaleString()}
-        >
-          {relativeTime(item.processedAt, now)}
-        </time>
-      </div>
-      <div className="mt-1 flex min-w-0 items-center gap-3">
-        <p className="min-w-0 flex-1 text-xs leading-5">
-          <span className={tone}>{summary.label}</span>
-          {summary.ruleIds.map((id, index) => (
-            <Fragment key={id}>
-              {index === 0 ? " " : ", "}
-              <RuleLink id={id} onOpen={onOpenRule} />
-            </Fragment>
-          ))}
-          {summary.note ? (
-            <span className="text-muted-foreground"> · {summary.note}</span>
-          ) : null}
-        </p>
-        {item.proposals.length ? (
-          <button
-            type="button"
-            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-expanded={expanded}
-            aria-controls={detailId}
-            onClick={onToggle}
-          >
-            {item.proposals.length} {item.proposals.length === 1 ? "proposal" : "proposals"}
-            <Chevron open={expanded} />
-          </button>
-        ) : null}
-      </div>
-      {expanded ? (
-        <ul id={detailId} className="mt-2 space-y-2 border-l border-border pl-3">
-          {item.proposals.map((proposal) => (
-            <li key={proposal.id}>
-              <div className="flex min-w-0 items-start gap-2">
-                <span className="min-w-0 flex-1 text-sm leading-6 text-foreground">
-                  {proposal.title}
-                </span>
-                {proposal.result === "added" && proposal.ruleId ? (
-                  <span className="shrink-0 pt-0.5 text-xs">
-                    <RuleLink id={proposal.ruleId} onOpen={onOpenRule} />
-                  </span>
-                ) : null}
-                <ProposalBadge result={proposal.result} />
-              </div>
-              {proposal.result === "rejected" && proposal.reason ? (
-                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                  {proposal.reason}
-                </p>
+    <tbody className="border-t border-border">
+      {item.proposals.map((proposal, index) => {
+        const busy = cancelling.has(proposal.id);
+        const cancelError = cancelErrors.get(proposal.id);
+        return (
+          <tr key={proposal.id} className={index > 0 ? "border-t border-border/50" : undefined}>
+            {index === 0 ? (
+              <>
+                <th scope="rowgroup" rowSpan={rows} className={`${ACTIVITY_CELL} text-left font-normal`}>
+                  <button
+                    type="button"
+                    className="rounded-sm text-left text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={onOpenThread}
+                  >
+                    {item.title ?? "Untitled thread"}
+                  </button>
+                </th>
+                <td rowSpan={rows} className={`${ACTIVITY_CELL} whitespace-nowrap text-xs tabular-nums text-muted-foreground`}>
+                  <time dateTime={processedAt.toISOString()} title={processedAt.toLocaleString()}>
+                    {relativeTime(item.processedAt, now)}
+                  </time>
+                </td>
+              </>
+            ) : null}
+            <td className={`${ACTIVITY_CELL} text-sm text-foreground`}>{proposal.title}</td>
+            <td className={ACTIVITY_CELL}>
+              <ProposalBadge result={proposal.result} />
+            </td>
+            <td className={`${ACTIVITY_CELL} whitespace-nowrap text-xs`}>
+              {(proposal.result === "added" || proposal.result === "waiting") && proposal.ruleId ? (
+                <RuleLink id={proposal.ruleId} onOpen={onOpenRule} />
               ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </li>
+            </td>
+            <td className={`${ACTIVITY_CELL} text-xs leading-5 text-muted-foreground`}>
+              {proposal.reason}
+            </td>
+            <td className={`${ACTIVITY_CELL} text-right`}>
+              {proposal.result === "waiting" ? (
+                <>
+                  <button
+                    type="button"
+                    className="whitespace-nowrap rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                    aria-label={`Cancel rule: ${proposal.title}`}
+                    disabled={busy}
+                    onClick={() => onCancel(proposal.id)}
+                  >
+                    {busy ? "Cancelling…" : "Cancel"}
+                  </button>
+                  {cancelError ? (
+                    <p className="mt-1 max-w-56 text-left text-xs text-destructive" role="alert">
+                      {cancelError}
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+            </td>
+          </tr>
+        );
+      })}
+    </tbody>
   );
 }
 
@@ -832,7 +801,10 @@ function HarvestActivity() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const [cancelling, setCancelling] = useState<ReadonlySet<number>>(() => new Set());
+  const [cancelErrors, setCancelErrors] = useState<ReadonlyMap<number, string>>(
+    () => new Map(),
+  );
   const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
@@ -944,13 +916,30 @@ function HarvestActivity() {
     hasConnected.current = true;
   }, [connectionState, load]);
 
-  const toggle = useCallback((threadId: string) => {
-    setExpanded((previous) => {
-      const next = new Set(previous);
-      if (!next.delete(threadId)) next.add(threadId);
-      return next;
-    });
-  }, []);
+  const cancel = useCallback(
+    async (proposalId: number) => {
+      setCancelling((previous) => new Set(previous).add(proposalId));
+      setCancelErrors((previous) => {
+        const next = new Map(previous);
+        next.delete(proposalId);
+        return next;
+      });
+      try {
+        await rpc.call("cancelProposal", { proposalId });
+        await load();
+      } catch (nextError) {
+        const message = nextError instanceof Error ? nextError.message : String(nextError);
+        setCancelErrors((previous) => new Map(previous).set(proposalId, message));
+      } finally {
+        setCancelling((previous) => {
+          const next = new Set(previous);
+          next.delete(proposalId);
+          return next;
+        });
+      }
+    },
+    [load, rpc],
+  );
 
   const openRule = useCallback(
     (id: string) => navigate.toPluginPanel("library", { subPath: rulePath(id) }),
@@ -998,20 +987,36 @@ function HarvestActivity() {
         ) : loading && !activity ? (
           <div className="grid min-h-72 place-content-center text-sm text-muted-foreground">Loading activity…</div>
         ) : activity?.items.length ? (
-          <section className="mx-auto w-full max-w-3xl" aria-label="Processed threads">
-            <ol className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm">
-              {activity.items.map((item) => (
-                <ActivityRow
-                  key={item.threadId}
-                  item={item}
-                  now={now}
-                  expanded={expanded.has(item.threadId)}
-                  onToggle={() => toggle(item.threadId)}
-                  onOpenThread={() => navigate.toThread(item.threadId)}
-                  onOpenRule={openRule}
-                />
-              ))}
-            </ol>
+          <section className="w-full" aria-label="Proposed rules">
+            <div className="overflow-x-auto rounded-xl border border-border bg-card text-card-foreground shadow-sm">
+              <table className="w-full border-collapse text-left">
+                <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="min-w-40 px-3 py-2 font-medium">Thread</th>
+                    <th scope="col" className="px-3 py-2 font-medium">Processed</th>
+                    <th scope="col" className="min-w-48 px-3 py-2 font-medium">Proposed rule</th>
+                    <th scope="col" className="px-3 py-2 font-medium">Result</th>
+                    <th scope="col" className="px-3 py-2 font-medium">Rule</th>
+                    <th scope="col" className="min-w-64 px-3 py-2 font-medium">Reviewer note</th>
+                    <th scope="col" className="px-3 py-2 font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                {activity.items.map((item) => (
+                  <ActivityGroup
+                    key={item.threadId}
+                    item={item}
+                    now={now}
+                    cancelling={cancelling}
+                    cancelErrors={cancelErrors}
+                    onOpenThread={() => navigate.toThread(item.threadId)}
+                    onOpenRule={openRule}
+                    onCancel={(proposalId) => void cancel(proposalId)}
+                  />
+                ))}
+              </table>
+            </div>
             {activity.nextCursor ? (
               <div className="mt-3 flex flex-col items-center gap-1">
                 <button
@@ -1030,8 +1035,8 @@ function HarvestActivity() {
           </section>
         ) : (
           <div className="grid min-h-72 place-content-center text-center">
-            <strong className="text-sm font-semibold">No threads harvested yet</strong>
-            <p className="mt-1 text-sm text-muted-foreground">Archived threads appear here once the harvest reads them.</p>
+            <strong className="text-sm font-semibold">No rules proposed yet</strong>
+            <p className="mt-1 text-sm text-muted-foreground">Archived threads appear here once the harvest proposes a rule from them.</p>
           </div>
         )}
       </div>

@@ -4,8 +4,20 @@
  * so the three never disagree about what a thread contributed.
  */
 
-export type ProposalResult = "added" | "waiting" | "rejected" | "undecided";
-export type HarvestResult = "added" | "waiting" | "rejected" | "failed" | "none";
+export type ProposalVerdict = "approved" | "rejected" | "cancelled";
+export type ProposalResult =
+  | "added"
+  | "waiting"
+  | "rejected"
+  | "cancelled"
+  | "undecided";
+export type HarvestResult =
+  | "added"
+  | "waiting"
+  | "rejected"
+  | "cancelled"
+  | "failed"
+  | "none";
 
 const RULE_ID_PATTERN = /^(?:ddr|ext)_\d{3,}$/;
 
@@ -29,11 +41,12 @@ export function ruleIdFromWrittenPath(writtenPath: string | null): string | null
  * corpus could not be read, so the written path is trusted.
  */
 export function proposalResult(
-  verdict: "approved" | "rejected" | null,
+  verdict: ProposalVerdict | null,
   writtenPath: string | null,
   publishedRuleIds: ReadonlySet<string> | null,
 ): { result: ProposalResult; ruleId: string | null } {
   if (verdict === "rejected") return { result: "rejected", ruleId: null };
+  if (verdict === "cancelled") return { result: "cancelled", ruleId: null };
   if (verdict === null) return { result: "undecided", ruleId: null };
   const ruleId = ruleIdFromWrittenPath(writtenPath);
   if (ruleId && (!publishedRuleIds || publishedRuleIds.has(ruleId))) {
@@ -53,6 +66,7 @@ export function harvestResult(
   if (proposals.some((proposal) => proposal.result === "added")) return "added";
   if (proposals.some((proposal) => proposal.result === "waiting")) return "waiting";
   if (isFailedOutcome(outcome)) return "failed";
+  if (proposals.some((proposal) => proposal.result === "cancelled")) return "cancelled";
   if (proposals.some((proposal) => proposal.result === "rejected")) return "rejected";
   return "none";
 }
@@ -84,10 +98,11 @@ export function harvestSummary(item: {
       return { label: "Waiting to publish", ruleIds: [], note: null };
     case "failed":
       return { label: "Harvest failed", ruleIds: [], note: null };
+    case "cancelled":
     case "rejected": {
-      const rejected = count("rejected");
+      const matching = count(item.result);
       return {
-        label: `${rejected} ${rejected === 1 ? "proposal" : "proposals"} rejected`,
+        label: `${matching} ${matching === 1 ? "proposal" : "proposals"} ${item.result}`,
         ruleIds: [],
         note: null,
       };
