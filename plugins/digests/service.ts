@@ -134,7 +134,7 @@ export function createService(bb: BbPluginApi) {
       const defaults = previous ?? await settingsDefaults(input.connectionId);
       if (input.schedule && (!defaults.providerId || !defaults.model)) throw new Error("Choose a default agent and model in this digest's bb project, then save again.");
       await ensureSection(true);
-      let definition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, emoji: input.emoji ?? (previous ? digestEmoji(previous) : defaultDigestEmoji(input.connectionId)), instructions: input.instructions,
+      let definition: DigestDefinition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, emoji: input.emoji ?? (previous ? digestEmoji(previous) : defaultDigestEmoji(input.connectionId)), instructions: input.instructions,
         connectionIds: previous?.connectionIds ?? [input.connectionId], schedule: input.schedule, enabled: previous?.enabled ?? false,
         automationId: previous?.automationId ?? null, permissionMode: previous?.permissionMode ?? "auto" as const, createdAt: previous?.createdAt ?? Date.now() };
       if (previous?.automationId) {
