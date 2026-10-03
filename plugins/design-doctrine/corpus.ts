@@ -409,3 +409,157 @@ export async function readStalledPublications(
     .filter((row) => row.ageHours >= stallAfterHours)
     .map((row) => ({ ...row, ageHours: Math.round(row.ageHours) }));
 }
+
+const PUBLICATION_BRANCH_PATTERN = /^doctrine\/[A-Za-z0-9._-]+$/;
+
+export type RuleWithdrawal =
+  | { kind: "published" }
+  | { kind: "unpublished" }
+  | { kind: "withdrawn"; url: string; remainingRules: number };
+
+async function fetchedCommit(
+  source: CorpusSource,
+  branch: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const ref = `refs/remotes/origin/${branch}`;
+  await git(
+    source.repositoryRoot,
+    ["fetch", "--quiet", "origin", `+refs/heads/${branch}:${ref}`],
+    signal,
+  );
+  return git(source.repositoryRoot, ["rev-parse", "--verify", `${ref}^{commit}`], signal);
+}
+
+/** Rule files a commit adds relative to where it forked from `base`. */
+async function addedRuleFiles(
+  source: CorpusSource,
+  base: string,
+  head: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const output = await git(
+    source.repositoryRoot,
+    [
+      "diff",
+      "--name-only",
+      "--no-renames",
+      "--diff-filter=A",
+      `${base}...${head}`,
+      "--",
+      `${source.prefix}/rules`,
+    ],
+    signal,
+  );
+  return output.split("\n").filter(Boolean);
+}
+
+async function pullRequestState(
+  source: CorpusSource,
+  url: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const result = await execFileAsync("gh", ["pr", "view", url, "--json", "state"], {
+    cwd: source.repositoryRoot,
+    encoding: "utf8",
+    timeout: COMMAND_TIMEOUT_MS,
+    signal,
+  });
+  return (JSON.parse(result.stdout) as { state: string }).state;
+}
+
+async function ruleFileTitled(
+  source: CorpusSource,
+  commit: string,
+  path: string,
+  title: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const content = await git(source.repositoryRoot, ["show", `${commit}:${path}`], signal).catch(
+    () => "",
+  );
+  return content.split("\n").some((line) => line.trim() === `# ${title}`);
+}
+
+/**
+ * Removes one unmerged rule from the open doctrine pull request that adds it,
+ * committing from a throwaway checkout and pushing only to that pull request's
+ * branch. The push is never forced, so a branch that moved since it was read
+ * rejects it rather than losing someone else's commit. A rule already on the
+ * base branch, or in a pull request that merged meanwhile, is reported as
+ * published and nothing changes.
+ */
+export async function withdrawRuleFile(
+  source: CorpusSource,
+  rulePath: string,
+  title: string,
+  message: string,
+  signal?: AbortSignal,
+): Promise<RuleWithdrawal> {
+  const { repositoryRoot, baseBranch, prefix, workPath } = source;
+  const path = join(prefix, rulePath);
+  await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
+  const base = await publishedBranchId(source, signal);
+  // Rule IDs can be reused after a publication fails, so a path alone does not
+  // identify this proposal's rule; its title must match too.
+  if (await ruleFileTitled(source, base, path, title, signal)) return { kind: "published" };
+
+  for (const publication of await readOpenPublications(source, signal)) {
+    if (!PUBLICATION_BRANCH_PATTERN.test(publication.branch)) continue;
+    const head = await fetchedCommit(source, publication.branch, signal);
+    if (!(await addedRuleFiles(source, base, head, signal)).includes(path)) continue;
+    if (!(await ruleFileTitled(source, head, path, title, signal))) continue;
+    const state = await pullRequestState(source, publication.url, signal);
+    if (state === "MERGED") return { kind: "published" };
+    if (state !== "OPEN") return { kind: "unpublished" };
+
+    const directory = await mkdtemp(join(workPath, "cancel-"));
+    try {
+      await git(
+        repositoryRoot,
+        ["worktree", "add", "--detach", "--quiet", directory, head],
+        signal,
+      );
+      await git(directory, ["rm", "--quiet", "--", path], signal);
+      await git(directory, ["commit", "--quiet", "-m", message], signal);
+      await git(
+        directory,
+        ["push", "--quiet", "origin", `HEAD:refs/heads/${publication.branch}`],
+        signal,
+      );
+      const withdrawn = await git(directory, ["rev-parse", "HEAD"], signal);
+      return {
+        kind: "withdrawn",
+        url: publication.url,
+        remainingRules: (await addedRuleFiles(source, base, withdrawn, signal)).length,
+      };
+    } finally {
+      await git(
+        repositoryRoot,
+        ["worktree", "remove", "--force", directory],
+        signal,
+      ).catch(() => undefined);
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+  return { kind: "unpublished" };
+}
+
+/** Closes a doctrine pull request that no longer adds any rule, and deletes its branch. */
+export async function closePublication(
+  source: CorpusSource,
+  url: string,
+  comment: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await execFileAsync(
+    "gh",
+    ["pr", "close", url, "--delete-branch", "--comment", comment],
+    {
+      cwd: source.repositoryRoot,
+      encoding: "utf8",
+      timeout: COMMAND_TIMEOUT_MS,
+      signal,
+    },
+  );
+}

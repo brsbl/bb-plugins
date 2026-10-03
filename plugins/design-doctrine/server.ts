@@ -13,6 +13,7 @@ import {
   type CorpusSource,
   type OpenPublication,
   type Publication,
+  closePublication,
   materializeRules,
   openPublication,
   pluginDataDirectory,
@@ -24,6 +25,7 @@ import {
   resolveGitHubRepository,
   resolveRepositoryRoot,
   updatePublicationBranch,
+  withdrawRuleFile,
 } from "./corpus.js";
 import {
   createHistoryMaintenance,
@@ -193,13 +195,13 @@ const harvestActivitySchema = z.object({
       threadId: z.string(),
       title: z.string().nullable(),
       processedAt: z.number().int(),
-      result: z.enum(["added", "waiting", "rejected", "failed", "none"]),
+      result: z.enum(["added", "waiting", "rejected", "cancelled", "failed", "none"]),
       addedRuleIds: stringListSchema,
       proposals: z.array(
         z.object({
           id: z.number().int(),
           title: z.string(),
-          result: z.enum(["added", "waiting", "rejected", "undecided"]),
+          result: z.enum(["added", "waiting", "rejected", "cancelled", "undecided"]),
           reason: z.string().nullable(),
           ruleId: z.string().nullable(),
         }),
@@ -207,6 +209,17 @@ const harvestActivitySchema = z.object({
     }),
   ),
   nextCursor: harvestActivityCursorSchema.nullable(),
+});
+
+const cancelProposalInputSchema = z.object({
+  proposalId: z.number().int().positive(),
+});
+
+const cancelProposalSchema = z.object({
+  proposalId: z.number().int(),
+  ruleId: z.string().nullable(),
+  /** The open rule pull request the rule was removed from, if it had reached one. */
+  publication: z.object({ url: z.string(), closed: z.boolean() }).nullable(),
 });
 
 const githubPushEnvelopeSchema = z
@@ -337,12 +350,17 @@ export const rpcContract = defineRpcContract({
     input: harvestActivityInputSchema,
     output: harvestActivitySchema,
   },
+  cancelProposal: {
+    input: cancelProposalInputSchema,
+    output: cancelProposalSchema,
+  },
 });
 
 export type DoctrineRule = z.infer<typeof ruleSchema>;
 export type LibraryPayload = z.infer<typeof librarySchema>;
 export type HarvestActivityPayload = z.infer<typeof harvestActivitySchema>;
 export type HarvestActivityItem = HarvestActivityPayload["items"][number];
+export type CancelProposalPayload = z.infer<typeof cancelProposalSchema>;
 
 /** Resolves a caller-supplied path against the caller's directory. */
 function resolveAgainst(cwd: string | undefined, input: string): string {
@@ -1022,8 +1040,22 @@ export function formatHarvestActivity(activity: HarvestActivityPayload): string 
       harvestSummary(item),
     )}`;
   });
-  return `${[header, ...(lines.length ? lines : ["No threads processed yet."])].join("\n")}\n`;
+  return `${[header, ...(lines.length ? lines : ["No rules proposed yet."])].join("\n")}\n`;
 }
+
+export function formatCancellation(cancellation: CancelProposalPayload): string {
+  const subject = cancellation.ruleId ?? `proposal ${cancellation.proposalId}`;
+  if (!cancellation.publication) return `Cancelled ${subject}.\n`;
+  return cancellation.publication.closed
+    ? `Cancelled ${subject}; removed it from ${cancellation.publication.url} and closed that pull request, which had no other rules.\n`
+    : `Cancelled ${subject}; removed it from ${cancellation.publication.url}.\n`;
+}
+
+const NOT_CANCELLABLE: Record<"rejected" | "cancelled" | "undecided", string> = {
+  rejected: "was rejected",
+  cancelled: "is already cancelled",
+  undecided: "has not been reviewed",
+};
 
 export default async function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
@@ -1335,21 +1367,130 @@ export default async function plugin(bb: BbPluginApi) {
     });
   }
 
+  /** Runs `work` between harvests, so it never interleaves with a commit or publication. */
+  function betweenHarvests<T>(work: () => Promise<T>): Promise<T> {
+    const run = harvestQueue.then(work);
+    harvestQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  async function publicationSource(): Promise<CorpusSource | null> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return null;
+    return resolveSource();
+  }
+
+  /**
+   * Withdraws an approved rule that has not been published. A rule already on
+   * an open rule pull request is removed from that branch first, and the pull
+   * request is closed once it adds nothing; a rule that never reached one only
+   * needs its verdict changed. A published rule is retired, not cancelled.
+   */
+  async function cancelProposal({
+    proposalId,
+  }: z.infer<typeof cancelProposalInputSchema>): Promise<CancelProposalPayload> {
+    const cancellation = await betweenHarvests<CancelProposalPayload>(async () => {
+      const stored = harvest.proposal(proposalId);
+      if (!stored) throw new Error(`Proposal ${proposalId} not found`);
+      const publishedRuleIds = await currentLibrary()
+        .then((library) => new Set(library.rules.map((rule) => rule.id)))
+        .catch(() => null);
+      const { result, ruleId } = proposalResult(
+        stored.verdict,
+        stored.writtenPath,
+        publishedRuleIds,
+      );
+      const alreadyPublished = new Error(
+        `${ruleId ?? `Proposal ${proposalId}`} is already published; retire the rule instead`,
+      );
+      if (result === "added") throw alreadyPublished;
+      if (result !== "waiting") {
+        throw new Error(
+          `Proposal ${proposalId} ${NOT_CANCELLABLE[result]}; only rules waiting to publish can be cancelled`,
+        );
+      }
+      const source = stored.writtenPath ? await publicationSource() : null;
+      const withdrawal =
+        source && stored.writtenPath
+          ? await withdrawRuleFile(
+              source,
+              stored.writtenPath,
+              stored.proposal.title,
+              `doctrine: cancel ${ruleId ?? `proposal ${proposalId}`}`,
+            )
+          : ({ kind: "unpublished" } as const);
+      if (withdrawal.kind === "published") throw alreadyPublished;
+      if (!harvest.recordCancellation(proposalId)) {
+        throw new Error(`Proposal ${proposalId} is no longer waiting to publish`);
+      }
+      if (withdrawal.kind === "unpublished" || !source) {
+        return { proposalId, ruleId, publication: null };
+      }
+      publicationCache = null;
+      if (withdrawal.remainingRules > 0) {
+        return { proposalId, ruleId, publication: { url: withdrawal.url, closed: false } };
+      }
+      try {
+        await closePublication(
+          source,
+          withdrawal.url,
+          "Every rule in this pull request was cancelled from Design Doctrine, so there is nothing left to publish.",
+        );
+      } catch (error) {
+        throw new Error(
+          `Cancelled ${ruleId ?? `proposal ${proposalId}`} and removed it from ${withdrawal.url}, but could not close that pull request: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      return { proposalId, ruleId, publication: { url: withdrawal.url, closed: true } };
+    }).finally(notifyHarvestChanged);
+    if (cancellation.publication?.closed) drainHarvest();
+    return cancellation;
+  }
+
+  // Harvests one thread per queue step and queues the next, so work queued
+  // between harvests (a cancel) waits for one thread rather than the backlog.
+  // Each pass tries every pending thread at most once; a request that arrives
+  // during a pass starts another pass when it ends.
+  let draining = false;
+  let drainRequested = false;
+
   function drainHarvest(): void {
+    drainRequested = true;
+    if (draining) return;
+    draining = true;
+    drainRequested = false;
+    drainStep(new Set());
+  }
+
+  function drainStep(attempted: Set<string>): void {
     harvestQueue = harvestQueue
       .then(async () => {
-        for (const {
-          threadId,
-          projectId,
-        } of harvest.pendingThreads()) {
-          if (await publicationInFlight()) return;
-          await harvest.harvestThread(threadId, projectId);
-        }
+        const next = harvest
+          .pendingThreads()
+          .find((thread) => !attempted.has(thread.threadId));
+        if (!next || (await publicationInFlight())) return false;
+        attempted.add(next.threadId);
+        await harvest.harvestThread(next.threadId, next.projectId);
+        return true;
       })
       .catch((error: unknown) => {
         bb.log.warn(
           `doctrine harvest: drain failed: ${error instanceof Error ? error.message : String(error)}`,
         );
+        return false;
+      })
+      .then((more) => {
+        if (more) {
+          drainStep(attempted);
+          return;
+        }
+        draining = false;
+        if (drainRequested) drainHarvest();
       });
   }
 
@@ -1458,6 +1599,7 @@ export default async function plugin(bb: BbPluginApi) {
   bb.rpc.register(rpcContract, {
     getLibrary: currentLibrary,
     getHarvestActivity: harvestActivity,
+    cancelProposal,
   });
   bb.agents.registerTool({
     name: "design_doctrine_search",
@@ -1500,7 +1642,7 @@ export default async function plugin(bb: BbPluginApi) {
       { name: "search", summary: "Search current rules", usage: "bb doctrine search <query> [--all] [--json]" },
       { name: "show", summary: "Show one rule", usage: "bb doctrine show <rule-id> [--json]" },
       { name: "history", summary: "Scan bb thread history through the SDK", usage: "bb doctrine history <scan|advance|release> [options]" },
-      { name: "harvest", summary: "Show archive-harvest activity, or report proposals and verdicts", usage: "bb doctrine harvest <activity|propose|verdict|status> [options]" },
+      { name: "harvest", summary: "Show archive-harvest activity, cancel a rule waiting to publish, or report proposals and verdicts", usage: "bb doctrine harvest <activity|cancel|propose|verdict|status> [options]" },
       { name: "validate", summary: "Validate the personalized rule corpus", usage: "bb doctrine validate" },
     ],
     async run(argv, context) {
@@ -1579,6 +1721,19 @@ export default async function plugin(bb: BbPluginApi) {
                 : formatHarvestActivity(activity),
             };
           }
+          if (action === "cancel") {
+            const proposalId = Number(requiredOption(argv, "--proposal"));
+            if (!Number.isInteger(proposalId) || proposalId < 1) {
+              throw new Error("--proposal must be a positive integer");
+            }
+            const cancellation = await cancelProposal({ proposalId });
+            return {
+              exitCode: 0,
+              stdout: json
+                ? `${JSON.stringify(cancellation, null, 2)}\n`
+                : formatCancellation(cancellation),
+            };
+          }
           if (action === "propose") {
             const threadId = requiredOption(argv, "--thread");
             const token = requiredOption(argv, "--token");
@@ -1648,7 +1803,7 @@ export default async function plugin(bb: BbPluginApi) {
           return {
             exitCode: 2,
             stderr:
-              "Usage: bb doctrine harvest <activity|propose|verdict|status> [options]\n",
+              "Usage: bb doctrine harvest <activity|cancel|propose|verdict|status> [options]\n",
           };
         }
         if (command === "validate") {

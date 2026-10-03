@@ -362,6 +362,69 @@ describe("harvest pure helpers", () => {
     ).toContain("---\n\n# Reserve alarm color for errors");
   });
 
+  it("never renders a single-episode rule as required or above low confidence", async () => {
+    const root = await makeDoctrineRoot();
+    await mkdir(join(root, "rules", "visual"), { recursive: true });
+    await writeFile(
+      join(root, "rules", "visual", "ddr_002.md"),
+      renderRuleMarkdown(
+        makeProposal({ strength: "required", confidence: "high" }),
+        "ddr_002",
+        "2026-08-19",
+      ),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "rules", "visual", "ddr_003.md"),
+      renderRuleMarkdown(
+        makeProposal({
+          title: "Keep status chips neutral",
+          strength: "required",
+          confidence: "high",
+          evidence: [
+            "Asked that an attention state stop using the error color.",
+            "Asked again that a pending chip stop looking like an error.",
+          ],
+        }),
+        "ddr_003",
+        "2026-08-19",
+      ),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "rules", "visual", "ddr_004.md"),
+      renderRuleMarkdown(
+        makeProposal({
+          title: "Keep pending chips neutral",
+          strength: "required",
+          confidence: "high",
+          evidence: [
+            "Asked that an attention state stop using the error color.",
+            "Asked again that a pending chip stop looking like an error.",
+          ],
+        }),
+        "ddr_004",
+        "2026-08-19",
+        2,
+      ),
+      "utf8",
+    );
+    const library = await loadDoctrine(root);
+    expect(library.rules.find((rule) => rule.id === "ddr_002")).toMatchObject({
+      strength: "default",
+      confidence: "low",
+      supporting_episodes: 1,
+    });
+    expect(library.rules.find((rule) => rule.id === "ddr_003")).toMatchObject({
+      strength: "default",
+      confidence: "low",
+    });
+    expect(library.rules.find((rule) => rule.id === "ddr_004")).toMatchObject({
+      strength: "required",
+      confidence: "high",
+    });
+  });
+
   it("rejects identifiers, URLs, secrets, multiline text, and oversized rendered strings", () => {
     const base = makeProposal();
     const scalarFields = ["title", "statement", "domain", "why"] as const;
@@ -1170,6 +1233,181 @@ describe("harvest activity feed", () => {
     expect(cli.stdout).toMatch(/^1 thread queued · 0 processed today\n/);
     expect(cli.stdout).toContain("Title thr_b · Waiting to publish");
     expect(cli.stdout.trim().split("\n")).toHaveLength(2);
+    await harness.lifecycle.dispose();
+  });
+
+  it("lists only threads that proposed a rule, keeping keyset pages full", async () => {
+    const root = await makeDoctrineRoot();
+    const { bb, harness } = await startPlugin(root, {
+      propose: () => [],
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    });
+    await harness.behavior.callRpc("getHarvestActivity", {});
+    const database = bb.storage.database();
+    const insertThread = database.prepare(
+      `INSERT INTO harvest_threads (thread_id, project_id, queued_at, processed_at, outcome)
+       VALUES (?, 'proj_test', 0, ?, ?)`,
+    );
+    const insertProposal = database.prepare(
+      `INSERT INTO harvest_proposals (thread_id, rule_key, payload, created_at, verdict, reason)
+       VALUES (?, ?, ?, 0, 'rejected', 'one-off preference')`,
+    );
+    for (const [threadId, processedAt, proposed] of [
+      ["thr_1", 5_000, true],
+      ["thr_empty_a", 4_000, false],
+      ["thr_empty_b", 4_000, false],
+      ["thr_2", 3_000, true],
+      ["thr_empty_c", 2_000, false],
+      ["thr_3", 1_000, true],
+    ] as const) {
+      insertThread.run(threadId, processedAt, proposed ? "no-approvals" : "no-proposals");
+      if (proposed) {
+        insertProposal.run(threadId, threadId, JSON.stringify(makeProposal({ title: `Rule number ${processedAt}` })));
+      }
+    }
+
+    const first = (await harness.behavior.callRpc("getHarvestActivity", {
+      limit: 2,
+      dayStart: 0,
+    })) as ActivityPage;
+    expect(first.processedToday).toBe(6);
+    expect(first.items.map((item) => item.threadId)).toEqual(["thr_1", "thr_2"]);
+    expect(first.nextCursor).toEqual({ processedAt: 3_000, threadId: "thr_2" });
+    const second = (await harness.behavior.callRpc("getHarvestActivity", {
+      limit: 2,
+      before: first.nextCursor,
+      dayStart: 0,
+    })) as ActivityPage;
+    expect(second.items.map((item) => item.threadId)).toEqual(["thr_3"]);
+    expect(second.nextCursor).toBeNull();
+
+    const cli = await harness.behavior.runCli(["harvest", "activity"]);
+    expect(cli.stdout).not.toContain("thr_empty");
+    expect(cli.stdout.trim().split("\n")).toHaveLength(4);
+    await harness.lifecycle.dispose();
+  });
+
+  it("cancels a waiting rule so no carried approval can commit it", async () => {
+    const root = await makeDoctrineRoot();
+    const { bb, harness } = await startPlugin(root, {
+      propose: () => [],
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    });
+    await harness.behavior.callRpc("getHarvestActivity", {});
+    const head = (await execFileAsync("git", ["-C", root, "rev-parse", "HEAD"])).stdout.trim();
+    const database = bb.storage.database();
+    const insertProposal = database.prepare(
+      `INSERT INTO harvest_proposals (thread_id, rule_key, payload, created_at, verdict, reason, written_path)
+       VALUES (?, ?, ?, 0, 'approved', 'grounded', ?)`,
+    );
+    database
+      .prepare(
+        `INSERT INTO harvest_threads (thread_id, project_id, queued_at, processed_at, outcome)
+         VALUES ('thr_carried', 'proj_test', 0, NULL, ?)`,
+      )
+      .run(`pending:reviewed:${head}`);
+    const carried = Number(
+      insertProposal.run(
+        "thr_carried",
+        "carried",
+        JSON.stringify(makeProposal({ title: "Deliver notes through the workspace" })),
+        null,
+      ).lastInsertRowid,
+    );
+    database
+      .prepare(
+        `INSERT INTO harvest_threads (thread_id, project_id, queued_at, processed_at, outcome)
+         VALUES ('thr_stale', 'proj_test', 0, 2000, 'approved:1')`,
+      )
+      .run();
+    const stale = Number(
+      insertProposal.run(
+        "thr_stale",
+        "stale",
+        JSON.stringify(makeProposal({ title: "Never merged" })),
+        "rules/visual/ddr_009.md",
+      ).lastInsertRowid,
+    );
+
+    const cancelledCarried = await harness.behavior.runCli([
+      "harvest",
+      "cancel",
+      "--proposal",
+      String(carried),
+    ]);
+    expect(cancelledCarried).toMatchObject({ exitCode: 0 });
+    expect(cancelledCarried.stdout).toBe(`Cancelled proposal ${carried}.\n`);
+    expect(
+      await harness.behavior.callRpc("cancelProposal", { proposalId: stale }),
+    ).toEqual({ proposalId: stale, ruleId: "ddr_009", publication: null });
+    expect(
+      harness.inspection.realtimeSignals.some((signal) => signal.channel === "harvest-changed"),
+    ).toBe(true);
+
+    const settled = await archiveAndSettle(harness, "thr_carried");
+    expect(settled).toMatchObject({
+      thread: { outcome: "no-approvals" },
+      proposals: [{ id: carried, verdict: "cancelled", reason: "Cancelled by you", written_path: null }],
+    });
+    expect(await writtenRuleFiles(root)).toEqual(["interaction/ddr_001.md"]);
+
+    const activity = (await harness.behavior.callRpc("getHarvestActivity", {})) as ActivityPage;
+    expect(activity.items.find((item) => item.threadId === "thr_stale")).toMatchObject({
+      result: "cancelled",
+      proposals: [{ title: "Never merged", result: "cancelled", ruleId: null, reason: "Cancelled by you" }],
+    });
+    await harness.lifecycle.dispose();
+  });
+
+  it("refuses to cancel a rule that is not waiting to publish", async () => {
+    const root = await makeDoctrineRoot();
+    const { bb, harness } = await startPlugin(root, {
+      propose: () => [],
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    });
+    await harness.behavior.callRpc("getHarvestActivity", {});
+    const database = bb.storage.database();
+    database
+      .prepare(
+        `INSERT INTO harvest_threads (thread_id, project_id, queued_at, processed_at, outcome)
+         VALUES ('thr_done', 'proj_test', 0, 1000, 'approved:1')`,
+      )
+      .run();
+    const insertProposal = database.prepare(
+      `INSERT INTO harvest_proposals (thread_id, rule_key, payload, created_at, verdict, reason, written_path)
+       VALUES ('thr_done', ?, ?, 0, ?, ?, ?)`,
+    );
+    const published = Number(
+      insertProposal.run("p", JSON.stringify(makeProposal()), "approved", "grounded", "rules/interaction/ddr_001.md")
+        .lastInsertRowid,
+    );
+    const rejected = Number(
+      insertProposal.run("r", JSON.stringify(makeProposal({ title: "Thin idea" })), "rejected", "one-off", null)
+        .lastInsertRowid,
+    );
+    const statusBefore = await harness.behavior.runCli(["harvest", "status", "--thread", "thr_done"]);
+
+    await expect(
+      harness.behavior.callRpc("cancelProposal", { proposalId: published }),
+    ).rejects.toThrow("ddr_001 is already published; retire the rule instead");
+    const refusedRejected = await harness.behavior.runCli([
+      "harvest",
+      "cancel",
+      "--proposal",
+      String(rejected),
+    ]);
+    expect(refusedRejected.exitCode).toBe(1);
+    expect(refusedRejected.stderr).toContain(`Proposal ${rejected} was rejected`);
+    await expect(
+      harness.behavior.callRpc("cancelProposal", { proposalId: 9_999 }),
+    ).rejects.toThrow("Proposal 9999 not found");
+
+    expect(
+      (await harness.behavior.runCli(["harvest", "status", "--thread", "thr_done"])).stdout,
+    ).toBe(statusBefore.stdout);
     await harness.lifecycle.dispose();
   });
 
