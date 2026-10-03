@@ -362,6 +362,7 @@ function DigestsSettings() {
     if (pending) return;
     setPending(definition.id);
     setError(null);
+    setNotice(null);
     try {
       if (action === "toggle") {
         const updated = await rpc.call("setEnabled", { id: definition.id, enabled: !definition.enabled });
@@ -393,7 +394,7 @@ function DigestsSettings() {
   };
   const save = async (input: SaveDigest) => {
     if (pending) return;
-    setPending("save"); setError(null);
+    setPending("save"); setError(null); setNotice(null);
     try {
       const definition = await rpc.call("saveDigest", input);
       setEditing(null);
