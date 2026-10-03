@@ -15,15 +15,34 @@ import {
 } from "@get-bb/plugin-sdk/app";
 
 import {
+  harvestSummary,
+  localDayStart,
+  type ProposalResult,
+} from "./activity";
+import {
+  ACTIVITY_PATH,
   detailRowEndIndex,
   displayDomainIdentifier,
   domainFilterFromIdentifier,
   filterRules,
+  isActivityPath,
+  relativeTime,
   ruleIdFromPath,
+  rulePath,
   titleCaseDomainFilter,
   toggledRulePath,
 } from "./app-logic";
-import type { DoctrineRule, LibraryPayload, rpcContract } from "./server";
+import type {
+  DoctrineRule,
+  HarvestActivityItem,
+  HarvestActivityPayload,
+  LibraryPayload,
+  rpcContract,
+} from "./server";
+
+const ACTIVITY_PAGE_SIZE = 25;
+const ACTIVITY_REFRESH_LIMIT = 100;
+const ACTIVITY_RELOAD_DELAY_MS = 400;
 
 const DOMAIN_STYLES: Record<
   string,
@@ -167,6 +186,38 @@ function StatusBadge({ status }: { status: DoctrineRule["status"] }) {
     >
       {status}
     </span>
+  );
+}
+
+function ViewSwitch({ view }: { view: "rules" | "activity" }) {
+  const navigate = useBbNavigate();
+  const options = [
+    { id: "rules", label: "Rules", subPath: "" },
+    { id: "activity", label: "Activity", subPath: ACTIVITY_PATH },
+  ] as const;
+  return (
+    <div
+      className="inline-flex h-9 shrink-0 items-center rounded-lg border border-border bg-muted/40 p-0.5"
+      role="group"
+      aria-label="Design Doctrine view"
+    >
+      {options.map((option) => {
+        const selected = view === option.id;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            className={`h-full rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
+            aria-pressed={selected}
+            onClick={() => {
+              if (!selected) navigate.toPluginPanel("library", { subPath: option.subPath });
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -526,6 +577,7 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
   return (
     <main className="flex h-full min-h-0 flex-col bg-background text-foreground">
       <section className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3 lg:flex-nowrap" aria-label="Filter design doctrine">
+        <ViewSwitch view="rules" />
         <input
           type="search"
           className="h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:w-56 lg:w-64"
@@ -624,12 +676,379 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
   );
 }
 
+const PROPOSAL_LABELS: Record<ProposalResult, string> = {
+  added: "Added",
+  waiting: "Waiting to publish",
+  rejected: "Rejected",
+  undecided: "Not reviewed",
+};
+
+function ProposalBadge({ result }: { result: ProposalResult }) {
+  return (
+    <span
+      className={`shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium ${result === "added" ? "text-foreground" : "text-muted-foreground"}`}
+    >
+      {PROPOSAL_LABELS[result]}
+    </span>
+  );
+}
+
+function RuleLink({ id, onOpen }: { id: string; onOpen: (id: string) => void }) {
+  return (
+    <button
+      type="button"
+      className="rounded-sm font-mono text-foreground underline decoration-border underline-offset-2 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label={`Show rule ${id}`}
+      onClick={() => onOpen(id)}
+    >
+      {id}
+    </button>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 4l4 4-4 4" />
+    </svg>
+  );
+}
+
+function ActivityRow({
+  item,
+  now,
+  expanded,
+  onToggle,
+  onOpenThread,
+  onOpenRule,
+}: {
+  item: HarvestActivityItem;
+  now: number;
+  expanded: boolean;
+  onToggle: () => void;
+  onOpenThread: () => void;
+  onOpenRule: (id: string) => void;
+}) {
+  const summary = harvestSummary(item);
+  const detailId = `harvest-proposals-${item.threadId}`;
+  const processedAt = new Date(item.processedAt);
+  const tone =
+    item.result === "added"
+      ? "text-foreground"
+      : item.result === "failed"
+        ? "text-destructive"
+        : "text-muted-foreground";
+  return (
+    <li className="px-4 py-3">
+      <div className="flex min-w-0 items-baseline gap-3">
+        <button
+          type="button"
+          className="min-w-0 truncate rounded-sm text-left text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={onOpenThread}
+        >
+          {item.title ?? "Untitled thread"}
+        </button>
+        <time
+          className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground"
+          dateTime={processedAt.toISOString()}
+          title={processedAt.toLocaleString()}
+        >
+          {relativeTime(item.processedAt, now)}
+        </time>
+      </div>
+      <div className="mt-1 flex min-w-0 items-center gap-3">
+        <p className="min-w-0 flex-1 text-xs leading-5">
+          <span className={tone}>{summary.label}</span>
+          {summary.ruleIds.map((id, index) => (
+            <Fragment key={id}>
+              {index === 0 ? " " : ", "}
+              <RuleLink id={id} onOpen={onOpenRule} />
+            </Fragment>
+          ))}
+          {summary.note ? (
+            <span className="text-muted-foreground"> · {summary.note}</span>
+          ) : null}
+        </p>
+        {item.proposals.length ? (
+          <button
+            type="button"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-expanded={expanded}
+            aria-controls={detailId}
+            onClick={onToggle}
+          >
+            {item.proposals.length} {item.proposals.length === 1 ? "proposal" : "proposals"}
+            <Chevron open={expanded} />
+          </button>
+        ) : null}
+      </div>
+      {expanded ? (
+        <ul id={detailId} className="mt-2 space-y-2 border-l border-border pl-3">
+          {item.proposals.map((proposal) => (
+            <li key={proposal.id}>
+              <div className="flex min-w-0 items-start gap-2">
+                <span className="min-w-0 flex-1 text-sm leading-6 text-foreground">
+                  {proposal.title}
+                </span>
+                {proposal.result === "added" && proposal.ruleId ? (
+                  <span className="shrink-0 pt-0.5 text-xs">
+                    <RuleLink id={proposal.ruleId} onOpen={onOpenRule} />
+                  </span>
+                ) : null}
+                <ProposalBadge result={proposal.result} />
+              </div>
+              {proposal.result === "rejected" && proposal.reason ? (
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                  {proposal.reason}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+function HarvestActivity() {
+  const rpc = useRpc<typeof rpcContract>();
+  const navigate = useBbNavigate();
+  const connectionState = useRealtimeConnectionState();
+  const previousConnectionState = useRef(connectionState);
+  const hasConnected = useRef(connectionState !== "connecting");
+  const generation = useRef(0);
+  const loadedCount = useRef(0);
+  const [activity, setActivity] = useState<HarvestActivityPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const [now, setNow] = useState(() => Date.now());
+
+  const load = useCallback(async () => {
+    const request = ++generation.current;
+    setLoading(true);
+    try {
+      const next = await rpc.call("getHarvestActivity", {
+        limit: Math.min(
+          ACTIVITY_REFRESH_LIMIT,
+          Math.max(ACTIVITY_PAGE_SIZE, loadedCount.current),
+        ),
+        dayStart: localDayStart(Date.now()),
+      });
+      if (request !== generation.current) return;
+      loadedCount.current = next.items.length;
+      setActivity(next);
+      setNow(Date.now());
+      setError(null);
+      setMoreError(null);
+    } catch (nextError) {
+      if (request !== generation.current) return;
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      if (request === generation.current) setLoading(false);
+    }
+  }, [rpc]);
+
+  const loadMore = useCallback(async () => {
+    const cursor = activity?.nextCursor;
+    if (!cursor) return;
+    const request = generation.current;
+    setLoadingMore(true);
+    try {
+      const next = await rpc.call("getHarvestActivity", {
+        limit: ACTIVITY_PAGE_SIZE,
+        before: cursor,
+        dayStart: localDayStart(Date.now()),
+      });
+      if (request !== generation.current) return;
+      setActivity((previous) => {
+        if (!previous) return next;
+        const seen = new Set(previous.items.map((item) => item.threadId));
+        const items = [
+          ...previous.items,
+          ...next.items.filter((item) => !seen.has(item.threadId)),
+        ];
+        loadedCount.current = items.length;
+        return { ...next, items };
+      });
+      setMoreError(null);
+    } catch (nextError) {
+      if (request !== generation.current) return;
+      setMoreError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [activity?.nextCursor, rpc]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // A busy drain or a bulk archive emits bursts of events; collapse each burst
+  // into one reload, and never run two at once.
+  const reloadTimer = useRef<number | null>(null);
+  const reloading = useRef<Promise<void> | null>(null);
+  const reloadAgain = useRef(false);
+  const scheduleReload = useCallback(() => {
+    if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current);
+    reloadTimer.current = window.setTimeout(() => {
+      reloadTimer.current = null;
+      if (reloading.current) {
+        reloadAgain.current = true;
+        return;
+      }
+      const run = async () => {
+        do {
+          reloadAgain.current = false;
+          await load();
+        } while (reloadAgain.current);
+      };
+      reloading.current = run().finally(() => {
+        reloading.current = null;
+      });
+    }, ACTIVITY_RELOAD_DELAY_MS);
+  }, [load]);
+
+  useEffect(
+    () => () => {
+      if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current);
+    },
+    [],
+  );
+
+  useRealtime("harvest-changed", scheduleReload);
+
+  useRealtime("rules-changed", scheduleReload);
+
+  useEffect(() => {
+    const previous = previousConnectionState.current;
+    previousConnectionState.current = connectionState;
+    if (connectionState !== "connected" || previous === "connected") return;
+    if (hasConnected.current) void load();
+    hasConnected.current = true;
+  }, [connectionState, load]);
+
+  const toggle = useCallback((threadId: string) => {
+    setExpanded((previous) => {
+      const next = new Set(previous);
+      if (!next.delete(threadId)) next.add(threadId);
+      return next;
+    });
+  }, []);
+
+  const openRule = useCallback(
+    (id: string) => navigate.toPluginPanel("library", { subPath: rulePath(id) }),
+    [navigate],
+  );
+
+  return (
+    <main className="flex h-full min-h-0 flex-col bg-background text-foreground">
+      <section className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3 lg:flex-nowrap" aria-label="Harvest progress">
+        <ViewSwitch view="activity" />
+        {activity ? (
+          <p className="ml-auto flex min-h-9 items-center text-xs tabular-nums text-muted-foreground" role="status">
+            <span>
+              {activity.queued} {activity.queued === 1 ? "thread" : "threads"} queued
+              {" · "}
+              {activity.processedToday} processed today
+              {activity.publication ? (
+                <>
+                  {" · Paused until "}
+                  <a
+                    className="rounded-sm text-foreground underline decoration-border underline-offset-2 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    href={activity.publication.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    rule PR
+                  </a>
+                  {" merges"}
+                </>
+              ) : null}
+            </span>
+          </p>
+        ) : null}
+      </section>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {error ? (
+          <div className="grid min-h-72 place-content-center text-center">
+            <strong className="text-sm font-semibold">Could not load harvest activity</strong>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">{error}</p>
+            <button type="button" className="mx-auto mt-4 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted" onClick={() => void load()}>
+              Retry
+            </button>
+          </div>
+        ) : loading && !activity ? (
+          <div className="grid min-h-72 place-content-center text-sm text-muted-foreground">Loading activity…</div>
+        ) : activity?.items.length ? (
+          <section className="mx-auto w-full max-w-3xl" aria-label="Processed threads">
+            <ol className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm">
+              {activity.items.map((item) => (
+                <ActivityRow
+                  key={item.threadId}
+                  item={item}
+                  now={now}
+                  expanded={expanded.has(item.threadId)}
+                  onToggle={() => toggle(item.threadId)}
+                  onOpenThread={() => navigate.toThread(item.threadId)}
+                  onOpenRule={openRule}
+                />
+              ))}
+            </ol>
+            {activity.nextCursor ? (
+              <div className="mt-3 flex flex-col items-center gap-1">
+                <button
+                  type="button"
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-60"
+                  disabled={loadingMore}
+                  onClick={() => void loadMore()}
+                >
+                  {loadingMore ? "Loading…" : "Load more"}
+                </button>
+                {moreError ? (
+                  <p className="text-xs text-destructive">{moreError}</p>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+        ) : (
+          <div className="grid min-h-72 place-content-center text-center">
+            <strong className="text-sm font-semibold">No threads harvested yet</strong>
+            <p className="mt-1 text-sm text-muted-foreground">Archived threads appear here once the harvest reads them.</p>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function DoctrinePanel({ subPath }: { subPath: string }) {
+  return isActivityPath(subPath) ? <HarvestActivity /> : <DoctrineLibrary subPath={subPath} />;
+}
+
 export default definePluginApp((app) => {
   app.slots.navPanel({
     id: "library",
     title: "Design Doctrine",
     icon: "Palette",
     path: "library",
-    component: DoctrineLibrary,
+    component: DoctrinePanel,
   });
 });

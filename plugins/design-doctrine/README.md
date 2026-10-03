@@ -19,6 +19,12 @@ bb doctrine search "<task and surface>"
 bb doctrine show ddr_001
 ```
 
+Switch the panel to **Activity** to watch the archive harvest learn: each processed thread, the rules it added, and why the reviewer rejected the rest. The same feed is available from the CLI:
+
+```bash
+bb doctrine harvest activity [--limit N] [--json]
+```
+
 The bundled `design-doctrine` skill validates each candidate against its applicability and exceptions before use. The doctrine adds personal design judgment; it does not replace product requirements, accessibility guidance, or platform conventions.
 
 Maintenance needs no setup for correctness. When the plugin is installed from a checkout of this repository it keeps its own corpus checkout under bb's plugin data directory and reconciles a missed update on the next stale read with a lightweight remote-ref probe. An optional signature-verified GitHub push webhook at `/api/v1/plugins/design-doctrine/http/github` makes merged rule changes live within seconds; its shared secret is stored in the secret `githubWebhookSecret` setting. An install from the marketplace reads the rules it shipped with. Set `doctrinePath` only to read rules from somewhere else:

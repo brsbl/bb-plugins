@@ -53,6 +53,8 @@ const HARVEST_SCHEMA = [
    )`,
   `CREATE INDEX IF NOT EXISTS harvest_proposals_rule_key
      ON harvest_proposals (rule_key)`,
+  `CREATE INDEX IF NOT EXISTS harvest_threads_processed
+     ON harvest_threads (processed_at, thread_id)`,
 ];
 
 /**
@@ -316,7 +318,39 @@ export interface HarvestDependencies {
   validateRules: (doctrineRoot: string) => Promise<void>;
   /** Runs one hidden agent to completion. Injected so tests do not need a real host. */
   runAgent: (request: HarvestAgentRequest) => Promise<void>;
+  /** Called after the queue, a thread's outcome, a verdict, or a publication changes. */
+  onChange?: () => void;
   now?: () => number;
+}
+
+/** Keyset position in the activity feed: newest processed first, ties by thread id. */
+export interface HarvestActivityCursor {
+  processedAt: number;
+  threadId: string;
+}
+
+export interface HarvestActivityThread {
+  threadId: string;
+  processedAt: number;
+  outcome: string | null;
+  proposals: Array<{
+    id: number;
+    title: string | null;
+    verdict: StoredProposal["verdict"];
+    reason: string | null;
+    writtenPath: string | null;
+  }>;
+}
+
+const proposalTitleSchema = z.object({ title: z.string().min(1) });
+
+function proposalTitle(payload: unknown): string | null {
+  try {
+    const parsed = proposalTitleSchema.safeParse(JSON.parse(String(payload)));
+    return parsed.success ? parsed.data.title : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -340,6 +374,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
     runAgent,
   } = dependencies;
   const now = dependencies.now ?? (() => Date.now());
+  const onChange = dependencies.onChange ?? (() => undefined);
   let database: ReturnType<BbPluginApi["storage"]["database"]> | null = null;
 
   function db() {
@@ -424,6 +459,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
          ON CONFLICT (thread_id) DO NOTHING`,
       )
       .run(thread.id, thread.projectId, now());
+    if (result.changes > 0) onChange();
     return result.changes > 0;
   }
 
@@ -455,6 +491,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
          WHERE thread_id = ? AND processed_at IS NULL`,
       )
       .run(now(), outcome, threadId);
+    onChange();
   }
 
   function recordProposals(
@@ -554,6 +591,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
     if (result.changes !== 1) {
       throw new Error("invalid or expired reviewer capability");
     }
+    onChange();
   }
 
   function beginReviewer(proposalId: number): string | null {
@@ -589,6 +627,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
            )`,
       )
       .run(verdict, reason, proposalId);
+    onChange();
   }
 
   function setWrittenPath(proposalId: number, writtenPath: string): void {
@@ -822,7 +861,10 @@ export function createHarvest(dependencies: HarvestDependencies) {
           );
           return null;
         });
-      if (url) bb.log.info(`doctrine harvest: published ${url}`);
+      if (url) {
+        bb.log.info(`doctrine harvest: published ${url}`);
+        onChange();
+      }
     }
   }
 
@@ -1101,6 +1143,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
           .run(threadId);
       });
       purge();
+      onChange();
     },
     isPending,
     pendingThreads,
@@ -1120,6 +1163,90 @@ export function createHarvest(dependencies: HarvestDependencies) {
           ...proposal,
           reason: isReviewerCapability(proposal.reason) ? null : proposal.reason,
         }));
+    },
+    /**
+     * One page of processed threads, newest first, with their proposals. Keyset
+     * pagination keeps each page a bounded index range however long the
+     * archive backlog grows.
+     */
+    activityPage(options: {
+      limit: number;
+      before: HarvestActivityCursor | null;
+    }): { threads: HarvestActivityThread[]; hasMore: boolean } {
+      const rows = (
+        options.before
+          ? db()
+              .prepare(
+                `SELECT thread_id, processed_at, outcome FROM harvest_threads
+                 WHERE processed_at IS NOT NULL
+                   AND (processed_at < ? OR (processed_at = ? AND thread_id < ?))
+                 ORDER BY processed_at DESC, thread_id DESC
+                 LIMIT ?`,
+              )
+              .all(
+                options.before.processedAt,
+                options.before.processedAt,
+                options.before.threadId,
+                options.limit + 1,
+              )
+          : db()
+              .prepare(
+                `SELECT thread_id, processed_at, outcome FROM harvest_threads
+                 WHERE processed_at IS NOT NULL
+                 ORDER BY processed_at DESC, thread_id DESC
+                 LIMIT ?`,
+              )
+              .all(options.limit + 1)
+      ).map((row) => row as Record<string, unknown>);
+      const page = rows.slice(0, options.limit);
+      const threads = page.map(
+        (row): HarvestActivityThread => ({
+          threadId: String(row.thread_id),
+          processedAt: Number(row.processed_at),
+          outcome: (row.outcome as string | null) ?? null,
+          proposals: [],
+        }),
+      );
+      if (threads.length > 0) {
+        const byThread = new Map(threads.map((thread) => [thread.threadId, thread]));
+        const placeholders = threads.map(() => "?").join(", ");
+        const proposals = db()
+          .prepare(
+            `SELECT id, thread_id, payload, verdict, reason, written_path
+             FROM harvest_proposals
+             WHERE thread_id IN (${placeholders})
+             ORDER BY id`,
+          )
+          .all(...threads.map((thread) => thread.threadId))
+          .map((row) => row as Record<string, unknown>);
+        for (const row of proposals) {
+          const reason = (row.reason as string | null) ?? null;
+          byThread.get(String(row.thread_id))?.proposals.push({
+            id: Number(row.id),
+            title: proposalTitle(row.payload),
+            verdict: (row.verdict as StoredProposal["verdict"]) ?? null,
+            reason: isReviewerCapability(reason) ? null : reason,
+            writtenPath: (row.written_path as string | null) ?? null,
+          });
+        }
+      }
+      return { threads, hasMore: rows.length > options.limit };
+    },
+    activityCounts(processedSince: number): {
+      queued: number;
+      processedSince: number;
+    } {
+      const row = db()
+        .prepare(
+          `SELECT
+             (SELECT COUNT(*) FROM harvest_threads WHERE processed_at IS NULL) AS queued,
+             (SELECT COUNT(*) FROM harvest_threads WHERE processed_at >= ?) AS processed`,
+        )
+        .get(processedSince) as Record<string, unknown>;
+      return {
+        queued: Number(row.queued),
+        processedSince: Number(row.processed),
+      };
     },
     threadState(threadId: string): {
       queuedAt: number;

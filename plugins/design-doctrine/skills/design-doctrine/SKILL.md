@@ -31,6 +31,10 @@ substitute, or treat inherited agent context as the maintenance history source.
 Retain the returned lease exactly; the maintenance prompt owns advance and
 release.
 
+Archived threads are also harvested automatically. To see what that harvest
+processed and which rules each thread added, run
+`bb doctrine harvest activity [--limit N] [--json]`.
+
 ## Retrieve
 
 BB may provide a few rule candidates inferred from the thread title. Treat that
