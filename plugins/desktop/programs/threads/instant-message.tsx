@@ -1,4 +1,5 @@
-import { useEffect, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { ThreadChat, experimental_useSidebarThreadActions as useSidebarThreadActions } from "@get-bb/plugin-sdk/app";
 import { BuddyListArt, CommandPromptArt, DetailsArt, ExternalLinkGlyph, InternetExplorerArt, MoreGlyph, ThreadArt } from "../../art";
 import { playDoorClose, playDoorOpen } from "../../door-sounds";
@@ -8,6 +9,7 @@ import { useDesktop } from "../../shell/data";
 import { useMenu } from "../../shell/menu";
 import { threadMenu } from "../../shell/menus";
 import { WindowFrame, useWindowManager, viewportRect, windowId, type DesktopWindow, type ThreadTabKind } from "../../windows";
+import { inspectChatContract, type ChatContract } from "./chat-contract";
 import { statusKind, typingLine } from "./status";
 
 /** A thread as an AIM conversation, with the Buddy List and Buddy Info docked beside it. */
@@ -25,6 +27,9 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
   const working = thread === undefined ? null : statusKind(thread) === "working";
   const archived = thread?.isArchived === true;
   const wasWorking = useRef<boolean | null>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const contract = useChatContract(chatRef);
+  const restyled = contract !== "mismatch";
 
   useEffect(() => {
     if (working === null) return;
@@ -111,12 +116,15 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
           <button type="button" aria-haspopup="menu" disabled={thread === undefined} onClick={openThreadMenu}>Thread</button>
           <span title={`Screen name: ${buddy}`}>To: <strong>{buddy}</strong></span>
         </div>
+        {/* Without .bbd-im-chat no contract rule applies, including the one hiding an archived thread's message box, so that falls back to bb's composer-less timeline. */}
         <div
-          className="bbd-im-chat min-h-0 flex-1"
+          ref={chatRef}
+          className={`bbd-im-transcript ${restyled ? "bbd-im-chat " : ""}min-h-0 flex-1`}
           data-bbd-chat-thread={threadId}
+          data-bbd-chat-contract={contract}
           data-archived={archived}
         >
-          <ThreadChat threadId={threadId} variant="compact" layout="contained" permissionPolicy="editable" className="h-full" />
+          <ThreadChat threadId={threadId} variant={archived && !restyled ? "timeline" : "compact"} layout="contained" permissionPolicy="editable" className="h-full" />
         </div>
         {archived ? (
           <div className="bbd-im-archived flex-none" role="status">
@@ -170,4 +178,44 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
       </div>
     </WindowFrame>
   );
+}
+
+/**
+ * Whether bb's chat markup still fits the restyle (see chat-contract.ts), checked as bb renders and at most every
+ * 250 ms after the transcript appears, so streaming turns stay cheap. A mismatch is final for the window: it warns
+ * once and stays on bb's look rather than flickering between the two.
+ */
+function useChatContract(ref: RefObject<HTMLDivElement | null>): ChatContract {
+  const [contract, setContract] = useState<ChatContract>("pending");
+  useLayoutEffect(() => {
+    const root = ref.current;
+    if (root === null) return;
+    let latest: ChatContract = "pending";
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = (fromObserver: boolean) => {
+      timer = undefined;
+      const result = inspectChatContract(root);
+      latest = result.contract;
+      if (latest !== "mismatch") {
+        setContract(latest);
+        return;
+      }
+      observer.disconnect();
+      // Commit before the next paint, so an archived thread's message box is never drawn without the rule hiding it.
+      if (fromObserver) flushSync(() => setContract("mismatch"));
+      else setContract("mismatch");
+      console.warn(`[desktop] bb's chat markup is missing ${result.failed.join(", ")}; showing bb's own chat in this Instant Message window`);
+    };
+    const observer = new MutationObserver(() => {
+      if (latest === "pending") check(true);
+      else timer ??= setTimeout(() => check(true), 250);
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    check(false);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
+  }, [ref]);
+  return contract;
 }

@@ -1388,6 +1388,61 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   border-left: 1px solid var(--bbd-hairline);
 }
 
+.bbd-im,
+.bbd-buddies,
+.bbd-im-info {
+  --bbd-im-paper: var(--background);
+  --bbd-im-shadow: color-mix(in oklab, var(--ink) 32%, var(--canvas));
+  --bbd-im-light: color-mix(in oklch, var(--canvas) 98%, var(--bbd-white));
+  --bbd-im-system: color-mix(in oklch, var(--ink) 72%, var(--canvas));
+}
+
+.bbd-im {
+  /* Two sizes up from bb's: messages lead at 16 px and the gray system lines (tools, commands, steers) sit below them at 13 px. */
+  --bbd-im-text: 16px;
+  --bbd-im-system-text: 13px;
+  --bbd-im-face: color-mix(in oklch, var(--canvas) 92%, var(--ink));
+  --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
+  --bbd-im-me: light-dark(color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink)), oklch(0.76 0.13 262));
+  --bbd-im-them: light-dark(color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink)), oklch(0.75 0.13 27));
+}
+
+.bbd-im {
+  background: var(--bbd-im-face);
+}
+
+.bbd-im-archived {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 4px 0;
+  padding: 6px 8px;
+  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
+  color: var(--bbd-im-system);
+  background: var(--bbd-im-paper);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-im-shadow),
+    inset -1px -1px 0 var(--bbd-im-light);
+}
+
+.bbd-im-archived .bbd-button {
+  font-style: normal;
+}
+
+.bbd-im-transcript {
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 4px 0;
+}
+
+/*
+ * bb ThreadChat contract: every rule from here to the end marker restyles bb's ThreadChat through its private markup
+ * (row ids, message columns, Tailwind classes, the scroll footer, and the prompt box). ThreadWindow checks that markup
+ * with programs/threads/chat-contract.ts and drops the .bbd-im-chat class when it no longer fits, so a bb release that
+ * changes it leaves bb's own chat inside the AIM frame instead of half-styled lines. Keep every rule that depends on
+ * bb's chat markup in this section, and refresh programs/threads/__fixtures__/thread-chat.html when that markup changes.
+ */
+
 /* A sunken XP field drawn inside the scroller, so the message box covers its lower edge instead of being clipped by it. */
 .bbd-im-chat .thread-scrollbar {
   background: var(--bbd-im-paper);
@@ -1412,59 +1467,13 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   padding: 4px 0 2px;
 }
 
-.bbd-im,
-.bbd-buddies,
-.bbd-im-info {
-  --bbd-im-paper: var(--background);
-  --bbd-im-shadow: color-mix(in oklab, var(--ink) 32%, var(--canvas));
-  --bbd-im-light: color-mix(in oklch, var(--canvas) 98%, var(--bbd-white));
-  --bbd-im-system: color-mix(in oklch, var(--ink) 72%, var(--canvas));
-}
-
-.bbd-im {
-  /* Two sizes up from bb's: messages lead at 16 px and the gray system lines (tools, commands, steers) sit below them at 13 px. */
-  --bbd-im-text: 16px;
-  --bbd-im-system-text: 13px;
-  --bbd-im-face: color-mix(in oklch, var(--canvas) 92%, var(--ink));
-  --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
-  --bbd-im-me: light-dark(color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink)), oklch(0.76 0.13 262));
-  --bbd-im-them: light-dark(color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink)), oklch(0.75 0.13 27));
-}
-
-.bbd-im {
-  background: var(--bbd-im-face);
-}
-
 /*
  * Like bb's own thread view, an archived thread hides its message box and offers Unarchive in its place. The compact
- * chat is kept, rather than bb's composer-less timeline, because it opens at the latest message.
+ * chat is kept, rather than bb's composer-less timeline, because it opens at the latest message. On a contract
+ * mismatch this rule is off, so ThreadWindow switches the archived thread to that timeline instead.
  */
 .bbd-im-chat[data-archived="true"] [data-scroll-footer] {
   display: none;
-}
-
-.bbd-im-archived {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 4px 0;
-  padding: 6px 8px;
-  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
-  color: var(--bbd-im-system);
-  background: var(--bbd-im-paper);
-  box-shadow:
-    inset 1px 1px 0 var(--bbd-im-shadow),
-    inset -1px -1px 0 var(--bbd-im-light);
-}
-
-.bbd-im-archived .bbd-button {
-  font-style: normal;
-}
-
-.bbd-im-chat {
-  min-width: 0;
-  overflow: hidden;
-  padding: 4px 4px 0;
 }
 
 .bbd-im-chat [data-message-column]:has(> .ml-auto) {
@@ -1739,6 +1748,8 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   border-color: var(--bbd-accent-line);
   background: color-mix(in oklch, var(--canvas) 86%, var(--bbd-blue-sky));
 }
+
+/* End of the bb ThreadChat contract. */
 
 .bbd-window:has(.bbd-im) .bbd-titlebar,
 .bbd-window:has(.bbd-im) .bbd-statusbar {
