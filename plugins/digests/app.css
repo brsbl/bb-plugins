@@ -41,7 +41,8 @@
 .digest-rich .digest-routine-heading ~ p,
 .digest-rich .digest-routine-heading ~ ul { color: var(--muted-foreground); font-size: var(--text-sm, 14px); }
 .digest-rich .digest-item-actions { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: -6px 0 16px; font-size: var(--text-sm, 14px); }
-.digest-rich .digest-item-actions a:has(strong) { text-decoration-color: currentColor; }
+.digest-rich .digest-item-actions a:has(strong),
+.digest-rich .digest-item-actions strong a { text-decoration-color: currentColor; }
 .digest-more { margin-top: 22px; }
 .digest-more summary { width: fit-content; cursor: pointer; color: var(--muted-foreground); font-size: var(--text-sm, 14px); text-decoration: underline; text-underline-offset: 3px; }
 .digest-more summary:hover { color: var(--foreground); }

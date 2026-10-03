@@ -1,4 +1,4 @@
-import { Children, isValidElement, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Children, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -61,10 +61,11 @@ function NewsletterHeading({ children }: { children?: ReactNode }) {
 
 const newsletterComponents: Components = {
   a: NewsletterLink,
-  p: ({ children }) => {
-    const parts = Children.toArray(children);
-    const actions = parts.length > 0 && parts.some((part) => isValidElement(part) && part.type === NewsletterLink)
-      && parts.every((part) => typeof part === "string" ? /^[\s·|]*$/u.test(part) : isValidElement(part) && part.type === NewsletterLink);
+  p: ({ children, node }) => {
+    const actions = !!node?.children.length && node.children.every((part) =>
+      part.type === "text" ? /^[\s·|]*$/u.test(part.value) : part.type === "element" && (
+        part.tagName === "a" || (part.tagName === "strong" && part.children.every((child) => child.type === "element" && child.tagName === "a"))
+      ));
     return <p className={actions ? "digest-item-actions" : undefined}>{richText(children)}</p>;
   },
   strong: ({ children }) => <strong>{richText(children)}</strong>,

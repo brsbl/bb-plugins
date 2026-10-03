@@ -44,7 +44,7 @@ describe("Digests app", () => {
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
       rpc: { getIssue: () => ({ ...readyIssue,
         lede: "A quiet weekend: **14 new emails**, but only **2 need you**. Google flagged a sign-in to ==confirm today==.",
-        details: "## Reply to\n\n[**Felix Rieseberg**](https://example.test/felix) :chip[Anthropic] suggested **Thursday at 3pm**.\n\n[**Review reply**](https://example.test/reply)\n\n## The rest\n\nYour scorecard gained :gain[+12 followers]. An [unsafe link](javascript:alert%281%29) stays inert.\n\n<script>window.untrusted = true</script>\n\n<!-- more -->\n\nEarlier context: `:chip[not a chip]`.",
+        details: "## Reply to\n\n[**Felix Rieseberg**](https://example.test/felix) :chip[Anthropic] suggested **Thursday at 3pm**.\n\n**[Review reply](https://example.test/reply)**\n\n## The rest\n\nYour scorecard gained :gain[+12 followers]. An [unsafe link](javascript:alert%281%29) stays inert.\n\n<script>window.untrusted = true</script>\n\n<!-- more -->\n\nEarlier context: `:chip[not a chip]`.",
       }) },
     });
     expect(await slot.findByRole("heading", { name: readyIssue.headline })).toBeDefined();
