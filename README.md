@@ -58,7 +58,7 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 ![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
 
-![Thread Organizer workflow settings](https://github.com/user-attachments/assets/eb695bdc-99dc-4129-a168-8acfe42dd7d6)
+![Thread Organizer workflow settings](https://github.com/user-attachments/assets/66dfa261-cdf1-4463-b139-3f10558a5a56)
 
 [Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
 

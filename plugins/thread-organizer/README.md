@@ -5,7 +5,7 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
 
 ![Thread Organizer workflow sections in bb](docs/screenshot.png)
 
-![Thread Organizer workflow settings](https://github.com/user-attachments/assets/eb695bdc-99dc-4129-a168-8acfe42dd7d6)
+![Thread Organizer workflow settings](https://github.com/user-attachments/assets/66dfa261-cdf1-4463-b139-3f10558a5a56)
 
 ## Behavior
 
