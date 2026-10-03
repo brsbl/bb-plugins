@@ -453,7 +453,7 @@ function DigestsSettings() {
               {editing?.digestId === definition.id ? <DigestForm connection={site} definition={definition} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : <div className="digest-definition">
                 <button className="digest-edit" disabled={editing !== null || pending !== null} onClick={() => setEditing({ siteId: site.id, digestId: definition.id })} aria-label={`Edit ${definition.name}`} />
                 <div className="digest-definition-top"><div className="digest-definition-title"><h5><span aria-hidden>{digestEmoji(definition)}</span> {definition.name}</h5>
-                  {definition.schedule && <span className="digest-schedule-pill"><span aria-hidden>🗓</span> {scheduleLabel(definition.schedule)}</span>}</div>
+                  {definition.schedule && <span className="digest-schedule-pill"><Icon name="Calendar" className="digest-schedule-icon" aria-hidden /> {scheduleLabel(definition.schedule)}</span>}</div>
                   {definition.schedule && <Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} />}
                 </div>
                 <p className="digest-prompt-preview">{definition.instructions}</p>
