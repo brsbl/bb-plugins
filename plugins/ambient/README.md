@@ -31,7 +31,9 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ambient --y
 | `bb ambient` | `status`, `list`, `load`, `set <param or visibility/motion/glass>=<value>`, `palette`, `save`, `delete`, `on`, `off`, `reset <scene>`, `paint <description>`, `daily` |
 | Sidebar footer → Ambient → Daily scene | Creates a bb automation that runs after the hour you pick, in your time zone. Its agent asks the `ambient` tool for today's brief, then paints, checks, and saves a scene around a rotating concept. Pause, edit, or see run history in Automations; `bb ambient daily now` runs it immediately |
 
-Built-in scenes: **Tide**, **Fireflies**, **Contour**, **Atomic Comics**, **Poppy Hill**, **Lighthouse Cove**, **Starry Fjord**, **Jellyfish Tidepool**, **Koi Pond**, and **Red Alarm**.
+Built-in scenes: **Tide**, **Fireflies**, **Contour**, **Atomic Comics**, **Poppy Hill**, **Lighthouse Cove**, **Starry Fjord**, **Jellyfish Tidepool**, **Koi Pond**, **Fuzzy Dots**, and **Red Alarm**.
+
+**Fuzzy Dots** has twelve softly animated furry companions. Zoom moves gradually from the ensemble into individual fibers; Fiber length, Drift, Companions, Soft light, and Color strength tune the look. Load it with `bb ambient load fuzzy-dots`.
 
 ## Develop
 

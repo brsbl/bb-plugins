@@ -85,8 +85,8 @@ export function useSceneEditing(state: AmbientState | null) {
 
   const sendValue = useDebouncedCall(
     useCallback(
-      (id: string, value: number) => {
-        void rpc.call("setValues", { values: { [id]: value } }).then(receive);
+      (id: string, value: number, rollback: () => void) => {
+        void rpc.call("setValues", { values: { [id]: value } }).then(receive, rollback);
       },
       [rpc],
     ),
@@ -173,8 +173,8 @@ export function useSceneEditing(state: AmbientState | null) {
 
   const setValue = (id: string, value: number) => {
     record(`value:${id}`);
-    ambientStore.setValue(id, value);
-    sendValue(id, value);
+    const rollback = ambientStore.setValue(id, value);
+    sendValue(id, value, rollback);
   };
 
   const setPaletteColor = (index: number, color: string) => {
