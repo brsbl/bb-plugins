@@ -818,7 +818,7 @@ describe("Thread Organizer server", () => {
     organizer.setThread({ sectionId: sectionId("building") });
     organizer.emitChanged("order-changed");
     await vi.waitFor(async () => {
-      await expect(organizer.bb.storage.kv.get("thread:v3:thr_test"))
+      await expect(replacement.bb.storage.kv.get("thread:v3:thr_test"))
         .resolves.toMatchObject({ rememberedStageKey: "building" });
     });
     organizer.setThread({ lastReadAt: 20 });

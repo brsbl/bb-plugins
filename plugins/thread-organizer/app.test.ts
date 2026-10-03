@@ -256,7 +256,7 @@ describe("workflow settings", () => {
     const inboxRule = rendered.getByText(INBOX_RULE);
     expect(inboxTitle.disabled).toBe(false);
     expect(inboxRule.tagName).toBe("P");
-    expect(inboxRule.textContent).toContain("can’t be customized");
+    expect(inboxRule.textContent).toContain("unless their remembered section is set to return after reading");
     expect(rendered.queryByLabelText("Unread routing is automatic")).toBeNull();
 
     fireEvent.change(inboxTitle, { target: { value: "Needs Me" } });
