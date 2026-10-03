@@ -257,7 +257,7 @@ describe("workflow settings", () => {
       expect(rendered.getByDisplayValue("Inbox")).toBeTruthy(),
     );
     const inboxTitle = rendered.getByDisplayValue("Inbox") as HTMLInputElement;
-    const inboxRule = rendered.getByText(INBOX_DESCRIPTION);
+    const inboxRule = rendered.getByTitle(INBOX_DESCRIPTION).parentElement!;
     expect(inboxTitle.disabled).toBe(false);
     expect(inboxRule.tagName).toBe("P");
     expect(inboxRule.textContent).toContain("not claimed by another inbox");
@@ -354,7 +354,7 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
-  it("reveals and focuses the new section after Add section, keys it by its final title, and lists the prompt variables", async () => {
+  it("reveals and focuses the new section after Add section, keys it by its final title, and hides the template helper", async () => {
     const app = await loadApp();
     const initial = configuredWorkflow();
     const scrolled: Element[] = [];
@@ -396,6 +396,7 @@ describe("workflow settings", () => {
     await vi.waitFor(() => expect(scrolled).toContain(title));
 
     fireEvent.change(title, { target: { value: "Triage" } });
+    fireEvent.click(within(rendered.getByRole("dialog")).getByRole("button", { name: "Save" }));
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => expect(savedInput).not.toBeNull());
     expect(savedInput!.stages[savedInput!.stages.length - 1]).toMatchObject({
@@ -407,62 +408,27 @@ describe("workflow settings", () => {
       .scrollIntoView;
   });
 
-  it("collapses an empty entry prompt behind Add entry prompt and dismisses it again", async () => {
+  it("opens the prompt editor anchored to its row and cancels drafts", async () => {
     const app = await loadApp();
-    const initial = configuredWorkflow();
-    const rendered = renderSlot<{}, typeof rpcContract>(
-      app.settingsSections[0]!,
-      {},
-      {
-        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
-        rpc: {
-          getConfig: async () => initial,
-          saveConfig: async (input) => ({
-            ...input,
-            stages: input.stages.map((stage) => ({
-              ...stage,
-              sectionId:
-                initial.stages.find((candidate) => candidate.key === stage.key)
-                  ?.sectionId ?? null,
-            })),
-          }),
-        },
-      },
-    );
-
-    const planningTitle = await rendered.findByLabelText("Planning section title");
-    const planningCard = planningTitle.closest("article")!;
-    const prompt = rendered.getByLabelText("Entry prompt for Planning");
-    const promptLabel = prompt.closest("label")!;
-    expect(promptLabel.className).toContain("hidden");
-    expect(promptLabel.className).toContain("lg:col-start-5");
-    const add = within(planningCard).getByRole("button", {
-      name: "Add entry prompt",
+    const rendered = renderSlot<{}, typeof rpcContract>(app.settingsSections[0]!, {}, {
+      sdk: { plugins: { list: async () => ({ plugins: [] }) } },
+      rpc: { getConfig: async () => configuredWorkflow() },
     });
-    expect(add.className).toContain("lg:col-start-5");
-    expect(add.className).not.toContain("lg:hidden");
-
-    fireEvent.click(add);
-    await vi.waitFor(() =>
-      expect(promptLabel.className).not.toContain("hidden"),
-    );
-    expect(
-      within(planningCard).queryByRole("button", { name: "Add entry prompt" }),
-    ).toBeNull();
-    const dismiss = within(planningCard).getByRole("button", { name: "Dismiss" });
-    expect(dismiss.closest("label")).toBe(promptLabel);
-    expect(dismiss.className).not.toContain("lg:hidden");
-
-    fireEvent.change(prompt, { target: { value: "Run /slop-cop." } });
-    expect(
-      within(planningCard).queryByRole("button", { name: "Dismiss" }),
-    ).toBeNull();
-    fireEvent.change(prompt, { target: { value: "" } });
-    fireEvent.click(within(planningCard).getByRole("button", { name: "Dismiss" }));
-    await vi.waitFor(() => expect(promptLabel.className).toContain("hidden"));
-    expect(
-      within(planningCard).getByRole("button", { name: "Add entry prompt" }),
-    ).toBeTruthy();
+    const trigger = await rendered.findByRole("button", { name: "Edit entry prompt for Planning" });
+    expect(trigger.textContent).toBe("Add prompt");
+    fireEvent.click(trigger);
+    const editor = await rendered.findByRole("dialog", { name: "Entry prompt for Planning" });
+    const prompt = within(editor).getByRole("textbox");
+    await vi.waitFor(() => expect(document.activeElement).toBe(prompt));
+    fireEvent.change(prompt, { target: { value: "Discard this draft" } });
+    fireEvent.click(within(editor).getByRole("button", { name: "Cancel" }));
+    await vi.waitFor(() => expect(rendered.queryByRole("dialog")).toBeNull());
+    expect(trigger.textContent).toBe("Add prompt");
+    fireEvent.click(trigger);
+    expect((await rendered.findByRole("textbox", { name: "Entry prompt for Planning" }) as HTMLTextAreaElement).value).toBe("");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await vi.waitFor(() => expect(rendered.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(trigger);
     rendered.lifecycle.unmount();
   });
 
@@ -625,7 +591,7 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
-  it("saves an entry prompt typed into the section's field and clears it when emptied", async () => {
+  it("saves a popover prompt into its section and clears it when emptied", async () => {
     const app = await loadApp();
     const initial = configuredWorkflow();
     let savedInput: EditableWorkflowConfig | null = null;
@@ -653,15 +619,15 @@ describe("workflow settings", () => {
       },
     );
 
-    const prompt = (await rendered.findByLabelText(
-      "Entry prompt for Planning",
-    )) as HTMLTextAreaElement;
+    fireEvent.click(await rendered.findByRole("button", { name: "Edit entry prompt for Planning" }));
+    let prompt = (await rendered.findByRole("textbox", { name: "Entry prompt for Planning" })) as HTMLTextAreaElement;
     expect(prompt.value).toBe("");
     expect(rendered.queryByLabelText("Entry prompt for Inbox")).toBeNull();
 
     fireEvent.change(prompt, {
       target: { value: "Run /slop-cop on {{thread.title}}." },
     });
+    fireEvent.click(within(rendered.getByRole("dialog")).getByRole("button", { name: "Save" }));
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => expect(savedInput).not.toBeNull());
     expect(savedInput!.stages[1]).toMatchObject({
@@ -674,7 +640,10 @@ describe("workflow settings", () => {
       expect(rendered.getByRole("button", { name: "Saved" })).toBeTruthy(),
     );
 
+    fireEvent.click(rendered.getByRole("button", { name: "Edit entry prompt for Planning" }));
+    prompt = (await rendered.findByRole("textbox", { name: "Entry prompt for Planning" })) as HTMLTextAreaElement;
     fireEvent.change(prompt, { target: { value: "" } });
+    fireEvent.click(within(rendered.getByRole("dialog")).getByRole("button", { name: "Save" }));
     expect(rendered.getByRole("button", { name: "Save" })).toBeTruthy();
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() =>
@@ -812,7 +781,7 @@ describe("workflow settings", () => {
     const stageList = planningCard.parentElement!;
     const planningRuleLayout = planningRule.closest("label")!;
     expect(planningRuleLayout.parentElement).toBe(planningGrid);
-    expect(planningGrid.children).toHaveLength(7);
+    expect(planningGrid.children).toHaveLength(6);
     expect(planningGrid.className).toContain(
       "grid-cols-[minmax(0,1fr)_2rem]",
     );
@@ -836,8 +805,8 @@ describe("workflow settings", () => {
     expect(planningActions.className).not.toContain("col-start-3");
     expect(planningActions.className).not.toContain("lg:col-start-4");
     const planningPrompt = rendered
-      .getByLabelText("Entry prompt for Planning")
-      .closest("label")!;
+      .getByRole("button", { name: "Edit entry prompt for Planning" })
+      .parentElement!;
     expect(planningPrompt.parentElement).toBe(planningGrid);
     expect(planningPrompt.className).toContain("row-start-4");
     expect(planningPrompt.className).toContain("lg:col-start-5");
@@ -848,7 +817,7 @@ describe("workflow settings", () => {
     expect(planningTitle.className).toContain("border-transparent");
 
     const inboxTitle = rendered.getByLabelText("Inbox section title");
-    const inboxRule = rendered.getByText(INBOX_DESCRIPTION);
+    const inboxRule = rendered.getByTitle(INBOX_DESCRIPTION).parentElement!;
     const inboxGrid = inboxTitle.parentElement!;
     expect(inboxRule.parentElement).toBe(inboxGrid);
     expect(inboxGrid.children).toHaveLength(6);

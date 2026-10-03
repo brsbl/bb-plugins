@@ -5,6 +5,7 @@ import {
   useState,
   type DragEvent,
 } from "react";
+import * as Popover from "@radix-ui/react-popover";
 import {
   ArrowDown02Icon,
   ArrowUp02Icon,
@@ -57,7 +58,7 @@ const iconButtonClass =
 // One row per section; at lg each field is a column named once by the header
 // row, below lg the fields stack under the title with their own captions.
 const stageColumnsClass =
-  "lg:grid-cols-[2rem_max-content_max-content_minmax(0,1fr)_9rem_2rem]";
+  "lg:grid-cols-[1.5rem_max-content_max-content_minmax(0,1fr)_7rem_2rem]";
 const stageRowClass = `grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 lg:col-span-full lg:grid-cols-subgrid`;
 const stageHeaderClass = `hidden min-w-0 items-end gap-x-2 rounded-t-lg border-b border-border bg-muted/30 px-2 py-2 lg:col-span-full lg:grid lg:grid-cols-subgrid`;
 const stageTypeLayoutClass =
@@ -260,17 +261,8 @@ function StageCard({
     value: EditableWorkflowStage[Key],
   ) => onChange({ ...stage, [key]: value });
   const hasPrompt = (stage.entryPrompt ?? "").trim().length > 0;
-  const [promptExpanded, setPromptExpanded] = useState(hasPrompt);
-  const [promptEditing, setPromptEditing] = useState(false);
-  const [focusPromptPending, setFocusPromptPending] = useState(false);
-  const promptRef = useRef<HTMLTextAreaElement>(null);
-  const showPrompt = promptExpanded || hasPrompt;
-
-  useEffect(() => {
-    if (!focusPromptPending || promptRef.current === null) return;
-    setFocusPromptPending(false);
-    promptRef.current.focus();
-  }, [focusPromptPending]);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptDraft, setPromptDraft] = useState("");
 
   return (
     <article
@@ -369,7 +361,7 @@ function StageCard({
           <p
             className={`${stageRuleLayoutClass} px-1 py-1.5 text-sm leading-5 text-muted-foreground`}
           >
-            {INBOX_DESCRIPTION}
+            <span title={INBOX_DESCRIPTION}>Idle unread threads without another inbox arrive here.</span>
           </p>
         ) : (
           <label className={`${stageRuleLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
@@ -395,54 +387,40 @@ function StageCard({
             —
           </span>
         ) : (
-          <>
-            {showPrompt ? null : (
-              <button
-                className={`${stagePromptLayoutClass} mt-2 inline-flex h-8 items-center gap-1.5 justify-self-start rounded-md border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground hover:border-foreground/40 hover:text-foreground lg:mt-0`}
-                onClick={() => {
-                  setPromptExpanded(true);
-                  setFocusPromptPending(true);
-                }}
-                type="button"
-              >
-                <HugeiconsIcon
-                  aria-hidden="true"
-                  className="size-3.5"
-                  icon={PlusSignIcon}
-                />
-                Add entry prompt
-              </button>
-            )}
-            <label
-              className={`${stagePromptLayoutClass} mt-2 gap-0.5 lg:mt-0 ${showPrompt ? "grid" : "hidden"}`}
-            >
-              <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>
-                Entry prompt
-              </span>
-              <textarea
-                aria-label={`Entry prompt for ${stage.title}`}
-                className={`${fieldClass} min-h-8 resize-none leading-5 ${promptEditing ? "max-h-48 overflow-y-auto" : "h-12 overflow-hidden"}`}
-                onFocus={() => setPromptEditing(true)}
-                onBlur={() => setPromptEditing(false)}
-                title={stage.entryPrompt || undefined}
-                maxLength={ENTRY_PROMPT_MAX_LENGTH}
-                onChange={(event) => update("entryPrompt", event.target.value)}
-                ref={promptRef}
-                rows={2}
-                style={{ fieldSizing: promptEditing ? "content" : "fixed" }}
-                value={stage.entryPrompt ?? ""}
-              />
-              {hasPrompt ? null : (
-                <button
-                  className="justify-self-end text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => setPromptExpanded(false)}
-                  type="button"
-                >
-                  Dismiss
+          <div className={`${stagePromptLayoutClass} mt-2 grid gap-0.5 lg:mt-0`}>
+            <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>Entry prompt</span>
+            <Popover.Root open={promptOpen} onOpenChange={(open) => {
+              if (open) setPromptDraft(stage.entryPrompt ?? "");
+              setPromptOpen(open);
+            }}>
+              <Popover.Trigger asChild>
+                <button type="button" aria-label={`Edit entry prompt for ${stage.title}`} title={stage.entryPrompt || "Add an entry prompt"}
+                  className={`${quietFieldClass} h-8 truncate py-0 text-left`}>
+                  {hasPrompt ? stage.entryPrompt : "Add prompt"}
                 </button>
-              )}
-            </label>
-          </>
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Content align="end" sideOffset={6} collisionPadding={12} aria-label={`Entry prompt for ${stage.title}`}
+                  className="z-50 w-[560px] max-w-[calc(100vw-24px)] rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg outline-none">
+                  <form className="grid gap-3" onSubmit={(event) => {
+                    event.preventDefault();
+                    update("entryPrompt", promptDraft);
+                    setPromptOpen(false);
+                  }}>
+                    <label className="grid gap-2 text-sm font-medium">
+                      Entry prompt · {stage.title}
+                      <textarea aria-label={`Entry prompt for ${stage.title}`} className={`${fieldClass} min-h-40 resize-y font-normal leading-5`}
+                        maxLength={ENTRY_PROMPT_MAX_LENGTH} rows={6} value={promptDraft} onChange={(event) => setPromptDraft(event.target.value)} />
+                    </label>
+                    <div className="flex justify-end gap-2">
+                      <button type="button" className={outlineButtonClass} onClick={() => setPromptOpen(false)}>Cancel</button>
+                      <button type="submit" className={primaryButtonClass}>Save</button>
+                    </div>
+                  </form>
+                </Popover.Content>
+              </Popover.Portal>
+            </Popover.Root>
+          </div>
         )}
       </div>
     </article>
