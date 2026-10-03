@@ -35,6 +35,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const HARVEST_AGENT_TIMEOUT_MS = 15 * 60 * 1_000;
+const PERSONAL_PROJECT_ID = "proj_personal";
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DOCTRINE_PATH =
   basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
@@ -1064,17 +1065,17 @@ export default async function plugin(bb: BbPluginApi) {
     validateRules: async (doctrineRoot) => {
       await loadDoctrine(doctrineRoot);
     },
-    async runAgent({ projectId, title, prompt }) {
+    async runAgent({ title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
-        projectId,
+        // Both agents read the thread through bb's API and report through the
+        // doctrine CLI; neither opens a file. The personal workspace is the one
+        // bb provisions without a named host or checkout, so the harvest never
+        // depends on the archived thread's project or its destroyed workspace.
+        projectId: PERSONAL_PROJECT_ID,
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        // Both agents read the thread through bb's API and report through the
-        // doctrine CLI; neither opens a file. Reusing the archived thread's
-        // environment only tied the harvest to workspaces bb had already
-        // destroyed.
-        environment: { type: "host", workspace: { type: "unmanaged", path: null } },
+        environment: { type: "host", workspace: { type: "personal" } },
         title,
         prompt,
       });

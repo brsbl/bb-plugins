@@ -291,7 +291,6 @@ export interface HarvestAgentRequest {
   /** The archived thread being harvested, not the spawned agent's own thread. */
   threadId: string;
   projectId: string;
-  /** Environment of the archived thread, reused by the spawned agent when present. */
   title: string;
   prompt: string;
 }
