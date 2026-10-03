@@ -45,7 +45,8 @@ function occluded(element: HTMLElement, bounds: ViewBounds, z: number): boolean 
     if (candidate === own || own?.contains(candidate)) continue;
     const isWindow = candidate.classList.contains("bbd-window");
     if (!isWindow && candidate.closest(".bbd-window") !== null) continue;
-    if (isWindow && Number(candidate.style.zIndex) <= z) continue;
+    // Note pads are windows without a stacking z: their layer sits above every program window, so they always cover it.
+    if (isWindow && candidate.style.zIndex !== "" && Number(candidate.style.zIndex) <= z) continue;
     if (candidate.hidden) continue;
     if (overlaps(candidate.getBoundingClientRect(), bounds)) return true;
   }
