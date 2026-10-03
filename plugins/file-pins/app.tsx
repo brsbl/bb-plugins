@@ -148,7 +148,7 @@ function PinStrip({ threadId }: { threadId: string }) {
           <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
           {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
             <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more pinned files`} title="More pinned files" className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
-            <PopoverContent aria-label="More pinned files" className="w-72 p-1"><div className="max-h-64 space-y-0.5 overflow-y-auto">{layout.more.map((pin) => reference(pin, true))}</div></PopoverContent>
+            <PopoverContent aria-label="More pinned files" className="w-72 p-1"><div className="max-h-64 space-y-0.5 overflow-y-auto pb-0.5">{layout.more.map((pin) => reference(pin, true))}</div></PopoverContent>
           </Popover>}
         </div>
       </section> : recent.length > 0 ? <section aria-label="Suggested pins" className="flex min-w-0 items-center gap-1 px-1 py-1">
