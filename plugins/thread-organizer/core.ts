@@ -14,6 +14,8 @@ export const ENTRY_PROMPT_MAX_LENGTH = 2000;
 export const RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8000;
 
 export interface EditableWorkflowStage {
+  /** Return read Inbox threads to this stage; omitted means keep them in Inbox. */
+  clearFromInboxAfterRead?: boolean;
   /** Sent to a thread when it lands in this stage; omitted when unset. */
   entryPrompt?: string;
   key: string;
@@ -62,12 +64,13 @@ export interface OrganizableThread {
 }
 
 export const INBOX_RULE =
-  "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can’t be customized.";
+  "Idle unread threads appear here automatically. They stay until work resumes or you move them, unless their remembered section is set to return after reading.";
 
 export const HANDOFF_RULE =
   "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
 
 const PREVIOUS_INBOX_RULES = [
+  "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can’t be customized.",
   "Idle unread threads that need your attention appear here automatically and stay until work resumes. This behavior can’t be customized.",
   "Idle unread threads that need your attention appear here automatically. This behavior can’t be customized.",
   "Idle unread threads requiring the user's attention. This stage is managed automatically.",
@@ -188,6 +191,14 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
   if (role !== "inbox" && role !== "stage") {
     throw new Error(`Stage "${key}" has an invalid role.`);
   }
+  if (
+    value.clearFromInboxAfterRead !== undefined &&
+    typeof value.clearFromInboxAfterRead !== "boolean"
+  ) {
+    throw new Error(
+      `Stage "${key}" return-after-reading setting must be a boolean.`,
+    );
+  }
   if (entryPrompt.length > ENTRY_PROMPT_MAX_LENGTH) {
     throw new Error(
       `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`,
@@ -200,6 +211,9 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
     role,
     // Defaults are not persisted, so configs without prompts stay byte-stable.
     ...(entryPrompt.length > 0 ? { entryPrompt } : {}),
+    ...(value.clearFromInboxAfterRead === true
+      ? { clearFromInboxAfterRead: true }
+      : {}),
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null,
   };
 }
@@ -224,6 +238,9 @@ function validateStages(stages: WorkflowStage[]): void {
     titles.add(titleIdentity);
     if (stage.role === "inbox" && hasEntryPrompt(stage)) {
       throw new Error("Inbox cannot send an entry prompt.");
+    }
+    if (stage.role === "inbox" && stage.clearFromInboxAfterRead) {
+      throw new Error("Set return-after-reading on a workflow section, not Inbox.");
     }
   }
   const inboxes = stages.filter((stage) => stage.role === "inbox");
@@ -300,6 +317,14 @@ export function normalizeEditableWorkflowConfig(
 ): EditableWorkflowConfig {
   const stages = value.stages.map((stage) => {
     const parsed = parseStage(stage, false);
+    // Old editors may submit the previous protected Inbox copy. Accept it
+    // just as the persisted-config loader does, without changing their fields.
+    if (
+      parsed.key === "inbox" &&
+      PREVIOUS_INBOX_RULES.some((rule) => rule === parsed.rule)
+    ) {
+      parsed.rule = INBOX_RULE;
+    }
     const { sectionId: _sectionId, ...editable } = parsed;
     return editable;
   });
@@ -536,7 +561,9 @@ export function placementForThread(
   const belongsInInbox =
     !isRunningThread(thread) &&
     (isUnreadThread(thread) ||
-      (!leaveInbox && currentStage?.role === "inbox"));
+      (!leaveInbox &&
+        currentStage?.role === "inbox" &&
+        !(rememberedStageKey !== null && remembered.clearFromInboxAfterRead)));
   return belongsInInbox
     ? inboxStage(config)
     : rememberedStageKey === null ? null : remembered;
@@ -565,7 +592,12 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
         `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
     );
   return [
-    `**${escapeTableCell(inboxStage(config).title)}** is the protected Inbox section. Idle unread threads go there automatically and stay until work resumes or the user moves a read thread to another workflow section. This routing behavior can’t be customized; never choose Inbox yourself.`,
+    `**${escapeTableCell(inboxStage(config).title)}** is the protected Inbox section. Idle unread threads go there automatically and stay until work resumes or the user moves a read thread to another workflow section, unless their remembered section is set to return after reading. Never choose Inbox yourself.`,
+    ...config.stages
+      .filter((stage) => stage.role === "stage" && stage.clearFromInboxAfterRead)
+      .map((stage) =>
+        `Read threads return automatically from Inbox to **${escapeTableCell(stage.title)}** without a new entry prompt.`,
+      ),
     "",
     "| Key | Section | What belongs here |",
     "| --- | --- | --- |",

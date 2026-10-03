@@ -12,7 +12,10 @@ thread’s actual stage.
   moves them into a workflow stage. Reordering sections never assigns new work.
 - Running threads appear in their remembered workflow stage, or Threads when
   they have not been assigned one.
-- Idle unread threads appear in Inbox and stay there after being marked read.
+- Idle unread threads appear in Inbox and, by default, stay there after being marked read.
+- A section can opt into **Return here from Inbox after reading**. Its read
+  threads return to their remembered section automatically, without a new
+  entry prompt. Unread threads still stay in Inbox.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.
 - Starting work again restores the thread’s remembered stage.
@@ -54,6 +57,7 @@ Open Thread Organizer in bb’s plugin settings. The workflow editor lets you:
 - add, remove, reorder, and rename other sections;
 - describe what belongs in each section;
 - give a section an entry prompt that is sent to a thread when it lands there.
+- return its threads from Inbox automatically after they are read.
 
 The defaults are Planning, Spec Review, Building, Testing / Deploy, Handoff,
 and On Hold. When an agent has enough context to determine that its current
@@ -109,6 +113,9 @@ thread, without opening Settings:
 ```bash
 bb organizer section list
 bb organizer section add "Review" --after testing-deploy --rule "A PR is complete and needs its one review."
+bb organizer section after-read review              # stay (default) or return
+bb organizer section after-read review --set return # return after reading
+bb organizer section after-read review --set stay   # keep read threads in Inbox
 bb organizer prompt                      # every section and its prompt
 bb organizer prompt review               # one section's prompt
 bb organizer prompt review --set "Run /slop-cop on this PR, then /slim-pr, /write-pr, and /merge-ready."
@@ -126,6 +133,9 @@ prompt, titles must be unique, rules are limited to 240 characters, and
 prompts to 2000. Every save names the revision it was based on; a save based
 on a workflow that changed since then is refused, the settings page holds Save
 until you discard your edits and reload, and the sidebar refreshes its copy.
+Return-after-reading is an optional per-section setting. Existing settings
+keep their behavior until it is enabled; configuration version 2 remains
+supported, and turning it off restores sticky Inbox routing.
 
 ## Install
 

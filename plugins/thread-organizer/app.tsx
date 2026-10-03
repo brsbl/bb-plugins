@@ -395,6 +395,20 @@ function StageCard({
             </label>
           </>
         )}
+        {!inbox ? (
+          <label className="col-span-2 col-start-1 row-start-4 mt-2 inline-flex items-center gap-2 px-2.5 text-xs text-muted-foreground lg:col-start-3 lg:row-start-2">
+            <input
+              aria-label={`Return to ${stage.title} from Inbox after reading`}
+              checked={stage.clearFromInboxAfterRead ?? false}
+              className="size-3.5 accent-current"
+              onChange={(event) =>
+                update("clearFromInboxAfterRead", event.target.checked)
+              }
+              type="checkbox"
+            />
+            Return here from Inbox after reading
+          </label>
+        ) : null}
       </div>
     </article>
   );

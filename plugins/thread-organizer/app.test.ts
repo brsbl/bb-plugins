@@ -729,6 +729,40 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
+  it("saves the per-section return-after-reading opt-in and can turn it off", async () => {
+    const app = await loadApp();
+    let savedInput: EditableWorkflowConfig | null = null;
+    const rendered = renderSlot<{}, typeof rpcContract>(
+      app.settingsSections[0]!, {}, {
+        rpc: {
+          getConfig: async () => configuredWorkflow(),
+          saveConfig: async (input) => {
+            savedInput = input;
+            return {
+              ...input,
+              stages: input.stages.map((stage) => ({ ...stage, sectionId: `sec_${stage.key}` })),
+            };
+          },
+        },
+      },
+    );
+    const toggle = await rendered.findByRole("checkbox", {
+      name: "Return to Planning from Inbox after reading",
+    });
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    expect(rendered.queryByRole("checkbox", { name: "Return to Inbox from Inbox after reading" })).toBeNull();
+    fireEvent.click(toggle);
+    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(savedInput?.stages[1])
+      .toMatchObject({ clearFromInboxAfterRead: true }));
+    await rendered.findByRole("button", { name: "Saved" });
+    fireEvent.click(toggle);
+    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(savedInput?.stages[1])
+      .not.toHaveProperty("clearFromInboxAfterRead"));
+    rendered.lifecycle.unmount();
+  });
+
   it("keeps a shared desktop spine and aligns narrow descriptions under stage titles", async () => {
     const app = await loadApp();
     const rendered = renderSlot<{}, typeof rpcContract>(
@@ -757,7 +791,7 @@ describe("workflow settings", () => {
     const stageList = planningCard.parentElement!;
     const planningRuleLayout = planningRule.closest("label")!;
     expect(planningRuleLayout.parentElement).toBe(planningGrid);
-    expect(planningGrid.children).toHaveLength(6);
+    expect(planningGrid.children).toHaveLength(7);
     expect(planningGrid.className).toContain(
       "grid-cols-[minmax(0,1fr)_2rem]",
     );

@@ -101,6 +101,27 @@ describe("workflow configuration", () => {
     });
   });
 
+  it("loads existing sticky Inbox settings and preserves the optional return-after-reading flag", () => {
+    const legacy = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+    legacy.stages[0]!.rule = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can’t be customized.";
+    expect(core.parseWorkflowConfig(legacy)).toEqual(core.DEFAULT_WORKFLOW_CONFIG);
+    expect(core.normalizeEditableWorkflowConfig(core.editableWorkflowConfig(legacy)))
+      .toEqual(core.editableWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG));
+
+    legacy.stages[1]!.clearFromInboxAfterRead = true;
+    const loaded = core.parseWorkflowConfig(legacy)!;
+    expect(loaded.version).toBe(2);
+    expect(loaded.stages[1]!.clearFromInboxAfterRead).toBe(true);
+    const edited = core.editableWorkflowConfig(loaded);
+    edited.stages[1]!.clearFromInboxAfterRead = false;
+    expect(core.mergeEditableWorkflowConfig(loaded, edited).stages[1])
+      .not.toHaveProperty("clearFromInboxAfterRead");
+
+    edited.stages[0]!.clearFromInboxAfterRead = true;
+    expect(() => core.normalizeEditableWorkflowConfig(edited))
+      .toThrow("not Inbox");
+  });
+
   it("creates immutable, collision-free CLI keys for new stages", () => {
     expect(core.createStageKey("Design QA", ["planning"])).toBe("design-qa");
     expect(core.createStageKey("Design QA", ["design-qa"])).toBe("design-qa-2");
@@ -245,6 +266,24 @@ describe("thread placement precedence", () => {
     expect(
       core.placementForThread(config, thread(), "removed-stage").key,
     ).toBe("planning");
+  });
+
+  it("returns read Inbox threads only to an opted-in remembered stage", () => {
+    const optedIn = core.cloneWorkflowConfig(config);
+    optedIn.stages.find((stage) => stage.key === "spec-review")!
+      .clearFromInboxAfterRead = true;
+    const inInbox = thread({ sectionId: "sec_inbox" });
+    expect(core.placementForThread(optedIn, inInbox, "spec-review").key)
+      .toBe("spec-review");
+    expect(core.placementForThread(optedIn, inInbox, "building").key)
+      .toBe("inbox");
+    expect(core.placementForThread(optedIn, inInbox, null)?.key)
+      .toBe("inbox");
+    expect(core.placementForThread(
+      optedIn, { ...inInbox, lastReadAt: 0 }, "spec-review",
+    ).key).toBe("inbox");
+    expect(core.buildWorkflowSkillSlot(optedIn))
+      .toContain("Read threads return automatically from Inbox to **Spec Review**");
   });
 });
 
