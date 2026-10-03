@@ -22,6 +22,7 @@ describe("Quick Launch ids", () => {
       "run",
       "plugins",
       "skills",
+      "maze",
     ]);
   });
 
