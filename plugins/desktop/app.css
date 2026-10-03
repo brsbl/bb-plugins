@@ -1625,12 +1625,12 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 /*
- * The actions sit over the bottom-left of the message's last line. Behind them, while bb shows them, a solid paper fill
+ * The actions sit over the bottom-right of the message's last line. Behind them, while bb shows them, a solid paper fill
  * hugs just the buttons and fades out over 6 px above them, so no text shows behind the icons.
  */
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 {
-  right: auto;
-  left: 0;
+  right: 0;
+  left: auto;
   z-index: 0;
   margin: 0;
   padding: 0 4px;
