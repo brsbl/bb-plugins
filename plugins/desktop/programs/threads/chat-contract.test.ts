@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { CHAT_CONTRACT_PROBES, checkChatContract, inspectChatContract } from "./chat-contract";
 
 // Real ThreadChat markup captured from bb; see the comment at the top of the fixture for how to refresh it.
-const fixture = readFileSync(new URL("./__fixtures__/thread-chat.html", import.meta.url), "utf8");
-const css = readFileSync(new URL("../../app.css", import.meta.url), "utf8");
+const fixture = readFileSync(resolve(__dirname, "__fixtures__/thread-chat.html"), "utf8");
+const css = readFileSync(resolve(__dirname, "../../app.css"), "utf8");
 const contractStart = css.indexOf("/*\n * bb ThreadChat contract:");
 const contractEnd = css.indexOf("/* End of the bb ThreadChat contract. */");
 const contractCss = css.slice(contractStart, contractEnd);
