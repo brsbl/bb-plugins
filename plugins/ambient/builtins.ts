@@ -1,6 +1,7 @@
 import type { Scene } from "./contract.js";
 import { contour } from "./scenes/contour.js";
 import { fireflies } from "./scenes/fireflies.js";
+import { fuzzyDots } from "./scenes/fuzzy-dots.js";
 import { jellyfishTidepool } from "./scenes/jellyfish-tidepool.js";
 import { koiPond } from "./scenes/koi-pond.js";
 import type { BuiltInScene } from "./scenes/param.js";
@@ -25,6 +26,7 @@ export const BUILT_IN_SCENES: BuiltInScene[] = [
   screamingFjord,
   jellyfishTidepool,
   koiPond,
+  fuzzyDots,
   redAlarm,
 ];
 

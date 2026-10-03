@@ -23,6 +23,7 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
   const buddy = aimScreenName(thread?.providerId ?? "", threadId);
   const browserAvailable = nativeBrowser() !== null;
   const working = thread === undefined ? null : statusKind(thread) === "working";
+  const archived = thread?.isArchived === true;
   const wasWorking = useRef<boolean | null>(null);
 
   useEffect(() => {
@@ -110,9 +111,21 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
           <button type="button" aria-haspopup="menu" disabled={thread === undefined} onClick={openThreadMenu}>Thread</button>
           <span title={`Screen name: ${buddy}`}>To: <strong>{buddy}</strong></span>
         </div>
-        <div className="bbd-im-chat min-h-0 flex-1" data-bbd-chat-thread={threadId}>
+        <div
+          className="bbd-im-chat min-h-0 flex-1"
+          data-bbd-chat-thread={threadId}
+          data-archived={archived}
+        >
           <ThreadChat threadId={threadId} variant="compact" layout="contained" permissionPolicy="editable" className="h-full" />
         </div>
+        {archived ? (
+          <div className="bbd-im-archived flex-none" role="status">
+            <span className="flex-1 truncate">Thread is archived</span>
+            <button type="button" className="bbd-button bbd-bevel" onClick={() => void desktop.restoreThread(threadId)}>
+              Unarchive
+            </button>
+          </div>
+        ) : null}
         <div className="bbd-im-actions flex-none">
           <button
             type="button"

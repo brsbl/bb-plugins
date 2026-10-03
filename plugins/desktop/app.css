@@ -1450,6 +1450,32 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   background: var(--bbd-im-face);
 }
 
+/*
+ * Like bb's own thread view, an archived thread hides its message box and offers Unarchive in its place. The compact
+ * chat is kept, rather than bb's composer-less timeline, because it opens at the latest message.
+ */
+.bbd-im-chat[data-archived="true"] [data-scroll-footer] {
+  display: none;
+}
+
+.bbd-im-archived {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 4px 0;
+  padding: 6px 8px;
+  font: italic 12px/1.5 Tahoma, Verdana, sans-serif;
+  color: var(--bbd-im-system);
+  background: var(--bbd-im-paper);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-im-shadow),
+    inset -1px -1px 0 var(--bbd-im-light);
+}
+
+.bbd-im-archived .bbd-button {
+  font-style: normal;
+}
+
 .bbd-im-chat {
   min-width: 0;
   overflow: hidden;
@@ -1498,6 +1524,33 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   color: var(--bbd-im-me);
 }
 
+/*
+ * bb labels a steer on a line before the message. Left in flow it would sit beside "Me:" and push the message
+ * down a line, so it is lifted above the speaker as a system line and "Me:" stays with what was said.
+ */
+.bbd-im-chat [data-message-column]:has(> .ml-auto > .mb-1:first-child) {
+  padding-top: 20px;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child {
+  position: absolute;
+  top: 0;
+  left: 0.5rem;
+  margin: 0;
+  font: italic 12px/18px Tahoma, Verdana, sans-serif;
+  color: var(--bbd-im-system);
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child > span {
+  font: inherit;
+  color: inherit;
+  -webkit-text-fill-color: currentColor;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child svg {
+  display: none;
+}
+
 .bbd-im-chat [data-message-column] > .ml-auto {
   width: 100%;
   max-width: 100%;
@@ -1521,6 +1574,13 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 .bbd-im-chat [data-message-column] > .ml-auto > * {
   align-items: flex-start;
   justify-content: flex-start;
+}
+
+/* Every line starts at the left edge in AIM, so a person's message actions sit there too, as the agent's do. */
+.bbd-im-chat [data-message-column] > .ml-auto .relative.w-full > .absolute.top-0 {
+  right: auto;
+  left: 0;
+  margin-left: -0.25rem;
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto .rounded-xl {
@@ -1558,15 +1618,24 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   white-space: inherit;
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md {
+/* bb's live "Thinking…" and "Working..." lines sit below the rows rather than in one, so they are named alongside them. */
+.bbd-im-chat [data-timeline-row-id] > .rounded-md,
+.bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row),
+.bbd-im-chat .mt-4.min-h-7:has(> .animate-shine) {
   border-radius: 0;
   font: italic 12px/1.5 Tahoma, Verdana, sans-serif;
   color: var(--bbd-im-system);
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
+.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.text-sm, .text-muted-foreground, .text-subtle-foreground),
+.bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row) :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
   font-size: 12px;
   color: inherit;
+}
+
+/* bb paints shimmering text in the foreground; the sweep still runs over the system gray. */
+.bbd-im-chat :is([data-timeline-row-id] > .rounded-md, .mt-4 > .rounded-md, .mt-4.min-h-7) .animate-shine {
+  -webkit-text-fill-color: currentColor;
 }
 
 .bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.overflow-hidden, .truncate, .leading-5, .line-clamp-2) {
@@ -1578,7 +1647,8 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   opacity: 1;
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md svg[data-icon] {
+.bbd-im-chat [data-timeline-row-id] > .rounded-md svg[data-icon],
+.bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row) svg[data-icon] {
   display: none;
 }
 
