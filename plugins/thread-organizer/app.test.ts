@@ -329,8 +329,8 @@ describe("workflow settings", () => {
     const description = rendered.getByText(
       "Rename, reorder, and define the workflow your agents follow.",
     );
-    expect(description.className).toContain("ps-[var(--radius-lg,0.5rem)]");
-    expect(description.className).toContain("[text-indent:-0.088em]");
+    expect(description.className).not.toContain("ps-");
+    expect(description.className).not.toContain("text-indent");
     const planningTitle = rendered.getByLabelText("Planning section title");
     expect(description.parentElement?.parentElement).toBe(actions.parentElement);
     expect(actions.parentElement?.className).toContain("items-end");
