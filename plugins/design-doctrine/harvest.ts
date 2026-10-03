@@ -368,9 +368,13 @@ export interface HarvestActivityThread {
   }>;
 }
 
-const HAS_PROPOSALS = `EXISTS (
+// The feed shows what a harvest added or may still add; rejected and
+// cancelled proposals are left out, and so are threads with nothing else.
+const SHOWN_PROPOSAL = `(verdict IS NULL OR verdict NOT IN ('rejected', 'cancelled'))`;
+const HAS_SHOWN_PROPOSALS = `EXISTS (
   SELECT 1 FROM harvest_proposals
   WHERE harvest_proposals.thread_id = harvest_threads.thread_id
+    AND ${SHOWN_PROPOSAL}
 )`;
 
 const proposalTitleSchema = z.object({ title: z.string().min(1) });
@@ -1255,7 +1259,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
                 `SELECT thread_id, processed_at, outcome FROM harvest_threads
                  WHERE processed_at IS NOT NULL
                    AND (processed_at < ? OR (processed_at = ? AND thread_id < ?))
-                   AND ${HAS_PROPOSALS}
+                   AND ${HAS_SHOWN_PROPOSALS}
                  ORDER BY processed_at DESC, thread_id DESC
                  LIMIT ?`,
               )
@@ -1269,7 +1273,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
               .prepare(
                 `SELECT thread_id, processed_at, outcome FROM harvest_threads
                  WHERE processed_at IS NOT NULL
-                   AND ${HAS_PROPOSALS}
+                   AND ${HAS_SHOWN_PROPOSALS}
                  ORDER BY processed_at DESC, thread_id DESC
                  LIMIT ?`,
               )
@@ -1292,6 +1296,7 @@ export function createHarvest(dependencies: HarvestDependencies) {
             `SELECT id, thread_id, payload, verdict, reason, written_path
              FROM harvest_proposals
              WHERE thread_id IN (${placeholders})
+               AND ${SHOWN_PROPOSAL}
              ORDER BY id`,
           )
           .all(...threads.map((thread) => thread.threadId))
