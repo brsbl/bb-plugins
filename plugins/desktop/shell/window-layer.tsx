@@ -5,7 +5,7 @@ import { NeedsInputBalloon } from "../page/balloon";
 import { ProgramWindow } from "../programs/registry";
 import { PLUGIN_SCOPE } from "../slots";
 import { Taskbar, type DockFrame } from "../taskbar/taskbar";
-import { setWindowNudges, useWindowManager, workAreaRect } from "../windows";
+import { fitShift, setWindowNudges, useWindowManager, workAreaRect } from "../windows";
 import { AskTextDialog } from "./ask-text";
 import { useDesktop } from "./data";
 import { chatWebLink, linkedThreadId, openChatWebLink, opensLinksInAppBrowser } from "./links";
@@ -35,7 +35,8 @@ export function ComposerClearance() {
       for (const window of windowsRef.current) {
         if (window.minimized || window.restoreRect !== null) continue;
         const shift = clearanceShift(window.rect, obstacle, area);
-        if (shift !== null) next.set(window.id, shift);
+        const fitted = shift === null ? null : fitShift(window.rect, shift, area);
+        if (fitted !== null) next.set(window.id, fitted);
       }
       setWindowNudges(next);
     };

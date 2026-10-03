@@ -46,6 +46,17 @@ export function fitDragRect(rect: Rect, area: Rect, minimum: Size = { width: 280
   };
 }
 
+/**
+ * Limit a temporary nudge to where a window may actually sit, so pressing a nudged window saves the spot it is shown
+ * at rather than one the next layout pulls back on screen. Null when the window can't move at all.
+ */
+export function fitShift(rect: Rect, shift: Point, area: Rect): Point | null {
+  const fitted = fitDragRect({ ...rect, x: rect.x + shift.x, y: rect.y + shift.y }, area);
+  const x = fitted.x - rect.x;
+  const y = fitted.y - rect.y;
+  return x === 0 && y === 0 ? null : { x, y };
+}
+
 /** Resize without moving the opposite edge when the pointer reaches a boundary. */
 export function resizeInArea(rect: Rect, edge: ResizeEdge, delta: Point, area: Rect): Rect {
   const bounded = {

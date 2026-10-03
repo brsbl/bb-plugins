@@ -1,4 +1,4 @@
-export { TASKBAR_SELECTOR, chromeTop, defaultRect, fitDragRect, resizeInArea, viewportRect, workAreaRect, type Size } from "./geometry";
+export { TASKBAR_SELECTOR, chromeTop, defaultRect, fitDragRect, fitShift, resizeInArea, viewportRect, workAreaRect, type Size } from "./geometry";
 export { WindowManagerProvider, useWindowManager, type WindowManager } from "./manager";
 export { typingElsewhere, windowOwnsKeys } from "./focus";
 export { setWindowNudges } from "./nudges";
