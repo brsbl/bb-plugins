@@ -2595,6 +2595,38 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 .bbd-mine-cell[data-count="8"] { color: var(--bbd-mine-shade); }
 
 /* Pinball (games/pinball.tsx). */
+.bbd-maze {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.bbd-maze-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #000;
+}
+
+.bbd-maze-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.bbd-maze-paused {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 6px;
+  background: oklch(0 0 0 / 0.6);
+  color: #fff;
+}
+
 .bbd-pinball {
   --bbd-pinball-cabinet: #000;
   --bbd-pinball-panel: #666661;
