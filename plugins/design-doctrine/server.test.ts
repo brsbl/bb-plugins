@@ -554,6 +554,9 @@ describe("harvest activity summaries", () => {
       ruleId: null,
     });
     expect(proposalResult(null, null, published).result).toBe("undecided");
+    expect(
+      proposalResult("approved", "rules/visual/ddr_041.md", published, new Set(["ddr_041"])),
+    ).toEqual({ result: "retired", ruleId: "ddr_041" });
   });
 
   it("summarizes a thread by its most consequential result", () => {

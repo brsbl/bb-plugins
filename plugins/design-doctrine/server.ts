@@ -195,13 +195,13 @@ const harvestActivitySchema = z.object({
       threadId: z.string(),
       title: z.string().nullable(),
       processedAt: z.number().int(),
-      result: z.enum(["added", "waiting", "rejected", "cancelled", "failed", "none"]),
+      result: z.enum(["added", "retired", "waiting", "rejected", "cancelled", "failed", "none"]),
       addedRuleIds: stringListSchema,
       proposals: z.array(
         z.object({
           id: z.number().int(),
           title: z.string(),
-          result: z.enum(["added", "waiting", "rejected", "cancelled", "undecided"]),
+          result: z.enum(["added", "retired", "waiting", "rejected", "cancelled", "undecided"]),
           reason: z.string().nullable(),
           ruleId: z.string().nullable(),
         }),
@@ -1051,7 +1051,8 @@ export function formatCancellation(cancellation: CancelProposalPayload): string 
     : `Cancelled ${subject}; removed it from ${cancellation.publication.url}.\n`;
 }
 
-const NOT_CANCELLABLE: Record<"rejected" | "cancelled" | "undecided", string> = {
+const NOT_CANCELLABLE: Record<"retired" | "rejected" | "cancelled" | "undecided", string> = {
+  retired: "was published and later retired",
   rejected: "was rejected",
   cancelled: "is already cancelled",
   undecided: "has not been reviewed",
@@ -1329,18 +1330,25 @@ export default async function plugin(bb: BbPluginApi) {
   ): Promise<HarvestActivityPayload> {
     const page = harvest.activityPage({ limit: input.limit, before: input.before });
     const counts = harvest.activityCounts(input.dayStart ?? localDayStart(Date.now()));
-    const [publication, titles, publishedRuleIds] = await Promise.all([
+    const [publication, titles, library] = await Promise.all([
       displayedPublication(),
       Promise.all(page.threads.map((thread) => threadTitle(thread.threadId))),
-      currentLibrary()
-        .then((library) => new Set(library.rules.map((rule) => rule.id)))
-        .catch(() => null),
+      currentLibrary().catch(() => null),
     ]);
+    const publishedRuleIds = library ? new Set(library.rules.map((rule) => rule.id)) : null;
+    const retiredRuleIds = new Set(
+      library?.rules.filter((rule) => rule.status === "retired").map((rule) => rule.id) ?? [],
+    );
     const items = page.threads.map((thread, index) => {
       const proposals = thread.proposals.map((proposal) => ({
         id: proposal.id,
         title: proposal.title ?? "Untitled proposal",
-        ...proposalResult(proposal.verdict, proposal.writtenPath, publishedRuleIds),
+        ...proposalResult(
+          proposal.verdict,
+          proposal.writtenPath,
+          publishedRuleIds,
+          retiredRuleIds,
+        ),
         reason: proposal.reason,
       }));
       return {
@@ -1395,13 +1403,14 @@ export default async function plugin(bb: BbPluginApi) {
     const cancellation = await betweenHarvests<CancelProposalPayload>(async () => {
       const stored = harvest.proposal(proposalId);
       if (!stored) throw new Error(`Proposal ${proposalId} not found`);
-      const publishedRuleIds = await currentLibrary()
-        .then((library) => new Set(library.rules.map((rule) => rule.id)))
-        .catch(() => null);
+      const library = await currentLibrary().catch(() => null);
       const { result, ruleId } = proposalResult(
         stored.verdict,
         stored.writtenPath,
-        publishedRuleIds,
+        library ? new Set(library.rules.map((rule) => rule.id)) : null,
+        new Set(
+          library?.rules.filter((rule) => rule.status === "retired").map((rule) => rule.id) ?? [],
+        ),
       );
       const alreadyPublished = new Error(
         `${ruleId ?? `Proposal ${proposalId}`} is already published; retire the rule instead`,
