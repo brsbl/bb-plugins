@@ -1,8 +1,8 @@
 # Digests
 
-Private briefings delivered as threads, as short newsletters with a story headline, a lede,
-and compact written sections. Supporting detail can expand in place. Issues arrive in a Digests inbox in the sidebar.
-Archive issues yourself when done. Find old issues with native thread search.
+Private briefings delivered as threads: one clear headline, a few numbered
+items with review buttons, and routine details collapsed. Issues arrive in a
+Digests inbox. Archive them when done and find old issues with thread search.
 
 ![A Digests newsletter in its native thread](https://github.com/user-attachments/assets/c06749c0-c715-427d-84e6-c5a7c4c5e4ca)
 
@@ -14,11 +14,17 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/digests --y
 
 ## Use
 
-Ask an agent to set up Digests in the project where you want the issues. Setup
-creates disabled definitions; enable schedules in **Settings → Plugins → Digests**
-after reviewing them. Existing automations are never adopted or changed.
+Open **Settings → Plugins → Digests**. Import logins through bb’s own Browser
+settings if needed, then press Refresh. Under a signed-in site, choose **Add
+digest**, give it a name, describe what it should tell you, and choose when.
+Create turns it on; **Run now to preview** opens the first issue. Click a digest’s
+name to edit it in place. Schedules use your existing project agent defaults.
 
-| Template | Default time |
+Agent setup can prefill the following ordinary prompt digests from the existing
+recipes. These start disabled until you confirm migration. Existing automations
+are never adopted or changed.
+
+| Starter digest | Default time |
 | --- | --- |
 | Unread email | Weekdays, 10am PT |
 | Money | Monday, 10am PT |

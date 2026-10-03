@@ -20,7 +20,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/d
 
 ### Digests
 
-Delivers private scheduled briefings as short newsletter threads, with a story headline, linked sections, and optional supporting detail. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own issues.
+Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based digest under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own issues.
 
 ![A Digests newsletter in its native thread](https://github.com/user-attachments/assets/c06749c0-c715-427d-84e6-c5a7c4c5e4ca)
 
