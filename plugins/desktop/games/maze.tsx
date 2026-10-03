@@ -3,15 +3,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { ProgramMenuBar } from "../apps/xp-chrome";
 import { BB_MARK } from "../art";
 import { windowOwnsKeys } from "../windows";
-import { advance, cellCenter, isWall, newRun, seededRandom, type MazeRun } from "./maze-core";
+import { advance, canStep, cellCenter, newRun, ratPosition, seededRandom, type MazeRun } from "./maze-core";
 
 const OPTIONS_KEY = "bb-desktop:maze:options:v1";
 const MAX_FRAME_SECONDS = 0.1;
 /** The view renders at most this many pixels and is scaled up to the window, like the screen saver's low-res mode. */
 const MAX_VIEW_PIXELS = 640 * 400;
 /** Half the horizontal field of view, as the camera plane's length relative to the view direction. */
-const FOV = 0.66;
-const TEXTURE = 64;
+const FOV = 1;
+const TEXTURE = 128;
 const TURBO_SPEED = 3;
 
 interface Options {
@@ -56,40 +56,51 @@ function texture(paint: (x: number, y: number) => [number, number, number]): Uin
   return pixels;
 }
 
-/** Red brick in running bond with pale mortar, eight courses to a wall. */
+/** Four large courses, broad white mortar and dark red, softly bevelled brick. */
 function brick(): Uint32Array {
   return texture((x, y) => {
-    const row = Math.floor(y / 8);
-    const shifted = x + (row % 2) * 8;
-    const noise = hash(x, y, 1) * 22 - 11;
-    if (y % 8 === 0 || shifted % 16 === 0) return [168 + noise, 160 + noise, 146 + noise];
-    const tone = hash(Math.floor(shifted / 16), row, 2) * 34 - 17;
-    const speck = hash(x, y, 3) < 0.04 ? -30 : 0;
-    return [152 + tone + noise + speck, 64 + tone * 0.5 + noise + speck, 44 + tone * 0.4 + noise + speck];
+    const row = Math.floor(y / 32);
+    const bx = (x + (row % 2) * 32) % 64;
+    const by = y % 32;
+    const edge = Math.min(bx, 63 - bx, by, 31 - by);
+    const noise = hash(x, y, 1);
+    if (edge < 2) {
+      const value = 222 + noise * 33;
+      return [value, value, value];
+    }
+    if (edge < 3) return [181 + noise * 30, 174 + noise * 30, 170 + noise * 30];
+    const coarse = hash(x >> 2, y >> 2, 2) * 28;
+    const tone = hash(Math.floor((x + (row % 2) * 32) / 64), row, 3) * 12;
+    const bevel = edge < 5 ? -28 : 0;
+    return [108 + coarse + tone + noise * 18 + bevel, 4 + noise * 12, 3 + noise * 9];
   });
 }
 
-/** Warm wood planks running away from the viewer, with grain and staggered end joints. */
+/** Continuous golden wood grain, without the plank joints of a modern timber floor. */
 function wood(): Uint32Array {
+  const noise = (x: number, y: number) => {
+    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+    const a = hash(ix & 15, iy & 15, 4), b = hash((ix + 1) & 15, iy & 15, 4);
+    const c = hash(ix & 15, (iy + 1) & 15, 4), d = hash((ix + 1) & 15, (iy + 1) & 15, 4);
+    return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+  };
   return texture((x, y) => {
-    const plank = Math.floor(x / 16);
-    const joint = Math.floor(hash(plank, 0, 4) * 64);
-    if (x % 16 === 0 || y === joint) return [70, 42, 22];
-    const tone = hash(plank, Math.floor((y - joint + 64) / 64), 5) * 30 - 15;
-    const grain = Math.sin((x % 16) * 0.9 + Math.sin(y * 0.12 + plank * 2) * 2.6) * 12;
-    const noise = hash(x, y, 6) * 10 - 5;
-    return [150 + tone + grain + noise, 96 + tone * 0.7 + grain * 0.8 + noise, 52 + tone * 0.4 + grain * 0.5 + noise];
+    const warp = noise(x / 8, y / 8) * 12 + noise(x / 4, y / 16) * 5;
+    const grain = Math.sin(x * Math.PI / 2 + warp) * 9 + Math.sin(x * Math.PI + warp * 2) * 4;
+    const speck = hash(x, y, 6) * 12;
+    return [179 + grain + speck, 125 + grain + speck, 35 + grain * 0.6 + speck];
   });
 }
 
-/** Rough gray stucco. */
+/** Square acoustic ceiling tiles: raised white grid, gray seams and coarse white stipple. */
 function stucco(): Uint32Array {
   return texture((x, y) => {
-    const coarse = hash(x >> 2, y >> 2, 7) * 18;
-    const fine = hash(x, y, 8) * 26;
-    const pit = hash(x, y, 9) < 0.03 ? -34 : 0;
-    const value = 128 + coarse + fine + pit;
-    return [value, value, value - 4];
+    const tx = x % 32, ty = y % 32;
+    if (tx < 2 || ty < 2) return [250, 250, 250];
+    if (tx < 4 || ty < 4) return [155, 155, 160];
+    const coarse = hash(x >> 1, y >> 1, 7);
+    const value = coarse < 0.35 ? 154 + coarse * 120 : 224 + hash(x, y, 8) * 31;
+    return [value, value, Math.min(255, value + 2)];
   });
 }
 
@@ -105,94 +116,60 @@ function loadTextures(): Textures {
   return textures;
 }
 
-/** Darkens a packed pixel by `light` / 256, keeping alpha. */
-function shade(pixel: number, light: number): number {
-  const blue = (((pixel >>> 16) & 0xff) * light) >> 8;
-  const green = (((pixel >>> 8) & 0xff) * light) >> 8;
-  const red = ((pixel & 0xff) * light) >> 8;
-  return (0xff000000 | (blue << 16) | (green << 8) | red) >>> 0;
-}
-
-function lightAt(distance: number): number {
-  return Math.max(70, Math.min(256, Math.round(256 / (1 + distance * 0.09))));
-}
-
-/* The view: one ray per column for the walls, one span per row for the floor and ceiling. */
-
-function castScene(pixels: Uint32Array, depth: Float32Array, width: number, height: number, run: MazeRun) {
+/* Thin cell-boundary walls, like the original OpenGL planes, rather than solid tile blocks. */
+function castScene(pixels: Uint32Array, depth: Float32Array, width: number, height: number, focal: number, run: MazeRun) {
   const { wall, floor, ceiling } = loadTextures();
   const { maze } = run;
-  const { x: px, y: py, angle } = run.pose;
-  const dirX = Math.cos(angle);
-  const dirY = Math.sin(angle);
-  const planeX = -dirY * FOV;
-  const planeY = dirX * FOV;
+  const px = (run.pose.x - 0.5) / 2, py = (run.pose.y - 0.5) / 2;
+  const dirX = Math.cos(run.pose.angle), dirY = Math.sin(run.pose.angle);
+  const planeX = -dirY * width / (2 * focal), planeY = dirX * width / (2 * focal);
   const horizon = height / 2;
-
+  pixels.fill(floor[0]!);
   for (let y = Math.floor(horizon) + 1; y < height; y++) {
-    const distance = (0.5 * height) / (y - horizon);
-    const light = lightAt(distance);
-    const stepX = (distance * 2 * planeX) / width;
-    const stepY = (distance * 2 * planeY) / width;
-    let fx = px + distance * (dirX - planeX);
-    let fy = py + distance * (dirY - planeY);
-    const floorRow = y * width;
-    const ceilingRow = (height - 1 - y) * width;
+    const distance = focal * 0.5 / (y - horizon);
+    const stepX = distance * 2 * planeX / width, stepY = distance * 2 * planeY / width;
+    let fx = px + distance * (dirX - planeX), fy = py + distance * (dirY - planeY);
     for (let x = 0; x < width; x++) {
-      const tx = Math.floor((fx - Math.floor(fx)) * TEXTURE) & (TEXTURE - 1);
-      const ty = Math.floor((fy - Math.floor(fy)) * TEXTURE) & (TEXTURE - 1);
-      pixels[floorRow + x] = shade(floor[ty * TEXTURE + tx]!, light);
-      pixels[ceilingRow + x] = shade(ceiling[ty * TEXTURE + tx]!, light);
-      fx += stepX;
-      fy += stepY;
+      const tx = Math.floor(fx * TEXTURE) & (TEXTURE - 1);
+      const ty = Math.floor(fy * TEXTURE) & (TEXTURE - 1);
+      pixels[y * width + x] = floor[ty * TEXTURE + tx]!;
+      pixels[(height - 1 - y) * width + x] = ceiling[ty * TEXTURE + tx]!;
+      fx += stepX; fy += stepY;
     }
   }
-
   for (let x = 0; x < width; x++) {
-    const camera = (2 * x) / width - 1;
-    const rayX = dirX + planeX * camera;
-    const rayY = dirY + planeY * camera;
-    let mapX = Math.floor(px);
-    let mapY = Math.floor(py);
+    const camera = 2 * x / width - 1;
+    const rayX = dirX + planeX * camera, rayY = dirY + planeY * camera;
+    let mapX = Math.floor(px), mapY = Math.floor(py);
     const deltaX = rayX === 0 ? 1e30 : Math.abs(1 / rayX);
     const deltaY = rayY === 0 ? 1e30 : Math.abs(1 / rayY);
-    const stepX = rayX < 0 ? -1 : 1;
-    const stepY = rayY < 0 ? -1 : 1;
+    const stepX = rayX < 0 ? -1 : 1, stepY = rayY < 0 ? -1 : 1;
     let sideX = (rayX < 0 ? px - mapX : mapX + 1 - px) * deltaX;
     let sideY = (rayY < 0 ? py - mapY : mapY + 1 - py) * deltaY;
-    let side = 0;
-    for (let guard = 0; guard < 256; guard++) {
-      if (sideX < sideY) {
-        sideX += deltaX;
-        mapX += stepX;
-        side = 0;
-      } else {
-        sideY += deltaY;
-        mapY += stepY;
-        side = 1;
-      }
-      if (isWall(maze, mapX, mapY)) break;
+    let side = 0, distance = 1;
+    for (let guard = 0; guard < maze.columns + maze.rows + 2; guard++) {
+      side = sideX < sideY ? 0 : 1;
+      distance = side === 0 ? sideX : sideY;
+      const dir = side === 0 ? (stepX > 0 ? 0 : 2) : (stepY > 0 ? 1 : 3);
+      if (!canStep(maze, { x: mapX, y: mapY }, dir)) break;
+      if (side === 0) { sideX += deltaX; mapX += stepX; }
+      else { sideY += deltaY; mapY += stepY; }
     }
-    const distance = Math.max(1e-4, side === 0 ? sideX - deltaX : sideY - deltaY);
+    distance = Math.max(1e-4, distance);
     depth[x] = distance;
     const hit = side === 0 ? py + distance * rayY : px + distance * rayX;
     let tx = Math.floor((hit - Math.floor(hit)) * TEXTURE);
     if ((side === 0 && rayX < 0) || (side === 1 && rayY > 0)) tx = TEXTURE - 1 - tx;
-    const lineHeight = height / distance;
-    const top = horizon - lineHeight / 2;
-    const start = Math.max(0, Math.ceil(top));
-    const end = Math.min(height, Math.ceil(horizon + lineHeight / 2));
-    // Walls facing north and south read a little darker, the way a fixed light rakes across a corridor.
-    const light = (lightAt(distance) * (side === 1 ? 200 : 256)) >> 8;
-    const texStep = TEXTURE / lineHeight;
+    const lineHeight = focal / distance, top = horizon - lineHeight / 2;
+    const start = Math.max(0, Math.ceil(top)), end = Math.min(height, Math.ceil(horizon + lineHeight / 2));
     for (let y = start; y < end; y++) {
-      const ty = Math.floor((y - top) * texStep) & (TEXTURE - 1);
-      pixels[y * width + x] = shade(wall[ty * TEXTURE + tx]!, light);
+      const ty = Math.floor((y - top) * TEXTURE / lineHeight) & (TEXTURE - 1);
+      pixels[y * width + x] = wall[ty * TEXTURE + tx]!;
     }
   }
 }
 
-/* Sprites: the start sign, the gray polyhedra, and the smiley at the exit, redrawn each frame and billboarded. */
+/* Source-drawn sprites, projected and clipped against the wall depth buffer. */
 
 const SPRITE = 64;
 
@@ -215,19 +192,37 @@ const ICOSAHEDRON = (() => {
   return { vertices, faces };
 })();
 
+// Dual of the icosahedron: twelve pentagonal faces, matching the chunky original rock.
+const DODECAHEDRON = (() => {
+  const vertices = ICOSAHEDRON.faces.map((face) => {
+    const point = [0, 0, 0];
+    for (const index of face) for (let axis = 0; axis < 3; axis++) point[axis]! += ICOSAHEDRON.vertices[index]![axis]!;
+    const length = Math.hypot(...point);
+    return point.map((value) => value / length);
+  });
+  const faces = ICOSAHEDRON.vertices.map((normal, index) => {
+    const adjacent = ICOSAHEDRON.faces.flatMap((face, i) => (face as readonly number[]).includes(index) ? [i] : []);
+    const u = vertices[adjacent[0]!]!;
+    const v = [normal[1] * u[2]! - normal[2] * u[1]!, normal[2] * u[0]! - normal[0] * u[2]!, normal[0] * u[1]! - normal[1] * u[0]!];
+    const angle = (i: number) => Math.atan2(vertices[i]!.reduce((n, c, a) => n + c * v[a]!, 0), vertices[i]!.reduce((n, c, a) => n + c * u[a]!, 0));
+    return adjacent.sort((a, b) => angle(a) - angle(b));
+  });
+  return { vertices, faces };
+})();
+
 function paintPolyhedron(ctx: CanvasRenderingContext2D, time: number) {
   const a = time * 1.3;
   const b = time * 0.8;
-  const points = ICOSAHEDRON.vertices.map(([x, y, z]) => {
-    const x1 = x * Math.cos(a) + z * Math.sin(a);
-    const z1 = -x * Math.sin(a) + z * Math.cos(a);
-    const y2 = y * Math.cos(b) - z1 * Math.sin(b);
-    const z2 = y * Math.sin(b) + z1 * Math.cos(b);
+  const points = DODECAHEDRON.vertices.map(([x, y, z]) => {
+    const x1 = x! * Math.cos(a) + z! * Math.sin(a);
+    const z1 = -x! * Math.sin(a) + z! * Math.cos(a);
+    const y2 = y! * Math.cos(b) - z1 * Math.sin(b);
+    const z2 = y! * Math.sin(b) + z1 * Math.cos(b);
     return [x1, y2, z2] as const;
   });
-  const faces = ICOSAHEDRON.faces
+  const faces = DODECAHEDRON.faces
     .map((face) => {
-      const [p, q, r] = face.map((index) => points[index]!) as [typeof points[0], typeof points[0], typeof points[0]];
+      const p = points[face[0]!]!, q = points[face[1]!]!, r = points[face[2]!]!;
       const ux = q[0] - p[0], uy = q[1] - p[1], uz = q[2] - p[2];
       const vx = r[0] - p[0], vy = r[1] - p[1], vz = r[2] - p[2];
       const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
@@ -239,9 +234,8 @@ function paintPolyhedron(ctx: CanvasRenderingContext2D, time: number) {
   const radius = SPRITE * 0.46;
   ctx.lineJoin = "round";
   for (const { face, light } of faces) {
-    const value = clamp(96 + Math.max(0, light) * 150);
-    ctx.fillStyle = `rgb(${value} ${value} ${value + 6})`;
-    ctx.strokeStyle = `rgb(${value - 40} ${value - 40} ${value - 34})`;
+    const value = clamp(8 + Math.max(0, light) * 170);
+    ctx.fillStyle = `rgb(${value} ${value} ${value})`;
     ctx.beginPath();
     face.forEach((index, i) => {
       const [x, y] = points[index]!;
@@ -250,7 +244,6 @@ function paintPolyhedron(ctx: CanvasRenderingContext2D, time: number) {
     });
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
   }
 }
 
@@ -284,48 +277,67 @@ function paintSign(ctx: CanvasRenderingContext2D) {
 }
 
 function paintSmiley(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = "#ffd21f";
-  ctx.strokeStyle = "#5a3c00";
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.arc(32, 32, 28, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#2b1c00";
-  ctx.beginPath();
-  ctx.ellipse(23, 25, 3.5, 6, 0, 0, Math.PI * 2);
-  ctx.ellipse(41, 25, 3.5, 6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.lineWidth = 3.5;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.arc(32, 33, 15, 0.2 * Math.PI, 0.8 * Math.PI);
-  ctx.stroke();
+  const gold = ctx.createRadialGradient(24, 18, 2, 32, 32, 30);
+  gold.addColorStop(0, "rgba(255,255,60,0.6)");
+  gold.addColorStop(0.75, "rgba(255,230,0,0.68)");
+  gold.addColorStop(1, "rgba(190,162,0,0.75)");
+  ctx.fillStyle = gold;
+  ctx.beginPath(); ctx.ellipse(32, 32, 29, 22, 0, 0, Math.PI * 2); ctx.fill();
+  const blue = ctx.createLinearGradient(0, 21, 0, 47);
+  blue.addColorStop(0, "#5757ff"); blue.addColorStop(0.45, "#190b92"); blue.addColorStop(0.75, "#4b30e9"); blue.addColorStop(1, "#16045b");
+  ctx.fillStyle = blue;
+  for (const x of [20, 44]) { ctx.beginPath(); ctx.ellipse(x, 26, 3.8, 2.5, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = blue; ctx.lineWidth = 5; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(14, 37); ctx.quadraticCurveTo(32, 48, 50, 37); ctx.stroke();
 }
 
-type SpriteKind = "sign" | "polyhedron" | "smiley";
+/** An original brown fur sprite, kept deliberately low and side-on like the saver rat. */
+function paintRat(ctx: CanvasRenderingContext2D, time: number) {
+  const gait = Math.sin(time * 18) * 1.5;
+  ctx.strokeStyle = "#967a65"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(21, 43); ctx.bezierCurveTo(2, 46, 1, 35, 8, 36); ctx.stroke();
+  ctx.fillStyle = "#8d7360";
+  for (const x of [25, 43]) { ctx.beginPath(); ctx.ellipse(x + gait, 46, 5, 1.5, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.save(); ctx.beginPath();
+  ctx.ellipse(32, 36, 19, 11, -0.12, 0, Math.PI * 2);
+  ctx.moveTo(40, 30); ctx.lineTo(61, 39); ctx.lineTo(43, 44); ctx.closePath();
+  ctx.clip(); ctx.fillStyle = "#615143"; ctx.fillRect(0, 20, 64, 28);
+  for (let i = 0; i < 650; i++) {
+    const x = hash(i, 1, 10) * 64, y = 23 + hash(i, 2, 10) * 25;
+    const tone = 55 + hash(i, 3, 10) * 90;
+    ctx.strokeStyle = `rgb(${tone + 15} ${tone} ${tone - 16})`; ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 2, y - 1); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.fillStyle = "#8d7666"; ctx.beginPath(); ctx.ellipse(47, 31, 3.5, 4.5, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#16100e"; ctx.fillRect(54, 35, 2, 2); ctx.fillRect(60, 38, 2, 1);
+}
+
+type SpriteKind = "sign" | "polyhedron" | "smiley" | "rat";
 
 /** World height of each sprite, as a fraction of a wall. */
-const SPRITE_SIZE: Record<SpriteKind, number> = { sign: 0.62, polyhedron: 0.42, smiley: 0.5 };
+const SPRITE_SIZE: Record<SpriteKind, number> = { sign: 0.85, polyhedron: 0.45, smiley: 0.55, rat: 0.6 };
 
-function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, depth: Float32Array, width: number, height: number, run: MazeRun, time: number) {
+function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, depth: Float32Array, width: number, height: number, focal: number, run: MazeRun, time: number) {
   const cardContext = card.getContext("2d");
   if (!cardContext) return;
-  const { x: px, y: py, angle } = run.pose;
+  const px = (run.pose.x - 0.5) / 2, py = (run.pose.y - 0.5) / 2;
+  const { angle } = run.pose;
   const dirX = Math.cos(angle);
   const dirY = Math.sin(angle);
-  const planeX = -dirY * FOV;
-  const planeY = dirX * FOV;
+  const planeX = -dirY * width / (2 * focal);
+  const planeY = dirX * width / (2 * focal);
   const inverse = 1 / (planeX * dirY - dirX * planeY);
   const sprites: { kind: SpriteKind; x: number; y: number }[] = [
     { kind: "sign", ...run.sign },
+    { kind: "rat", ...ratPosition(run) },
     { kind: "smiley", ...cellCenter(run.maze.exit) },
     ...run.spinners.map((cell) => ({ kind: "polyhedron" as const, ...cellCenter(cell) })),
   ];
   const placed = sprites
     .map((sprite) => {
-      const dx = sprite.x - px;
-      const dy = sprite.y - py;
+      const dx = (sprite.x - 0.5) / 2 - px;
+      const dy = (sprite.y - 0.5) / 2 - py;
       return { ...sprite, side: inverse * (dirY * dx - dirX * dy), forward: inverse * (-planeY * dx + planeX * dy) };
     })
     .filter((sprite) => sprite.forward > 0.15)
@@ -333,11 +345,13 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
   for (const sprite of placed) {
     cardContext.clearRect(0, 0, SPRITE, SPRITE);
     if (sprite.kind === "polyhedron") paintPolyhedron(cardContext, time);
-    else paintTurning(cardContext, time, sprite.kind === "sign" ? paintSign : paintSmiley);
-    const size = (height / sprite.forward) * SPRITE_SIZE[sprite.kind];
+    else if (sprite.kind === "rat") paintRat(cardContext, time);
+    else if (sprite.kind === "smiley") paintSmiley(cardContext);
+    else paintTurning(cardContext, time, paintSign);
+    const size = (focal / sprite.forward) * SPRITE_SIZE[sprite.kind];
     const centerX = (width / 2) * (1 + sprite.side / sprite.forward);
-    // The sign and the smiley hang at eye level; the polyhedra bob gently.
-    const bob = sprite.kind === "polyhedron" ? Math.sin(time * 2 + sprite.x) * 0.06 * (height / sprite.forward) : 0;
+    // The rat's feet meet the floor; the rock hangs below eye level.
+    const bob = sprite.kind === "rat" ? focal / sprite.forward * (0.5 - SPRITE_SIZE.rat * 0.25) : sprite.kind === "polyhedron" ? focal / sprite.forward * 0.18 : 0;
     const top = height / 2 - size / 2 + bob;
     const left = Math.floor(centerX - size / 2);
     const right = Math.min(width, Math.ceil(centerX + size / 2));
@@ -349,42 +363,46 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
   }
 }
 
-/* The overhead map: the parts of the maze the walker has seen, drawn over the view's top-left corner. */
-
-function drawMap(ctx: CanvasRenderingContext2D, run: MazeRun, scale: number) {
+/* An unfilled, rotating line map with a blue viewer and the original marker colours. */
+function drawMap(ctx: CanvasRenderingContext2D, run: MazeRun, scale: number, time: number) {
   const { maze } = run;
-  const tile = Math.max(2, Math.floor(5 * scale));
-  const pad = Math.round(8 * scale);
-  // A tile is seen once the walker has stood in a cell beside it: cell (cx, cy) sits on tile (2cx + 1, 2cy + 1).
-  const near = (tile: number, cells: number) =>
-    [Math.floor((tile - 1) / 2), Math.ceil((tile - 1) / 2)].filter((cell) => cell >= 0 && cell < cells);
-  const seen = (x: number, y: number) =>
-    near(y, maze.rows).some((cy) => near(x, maze.columns).some((cx) => run.visited[cy * maze.columns + cx] === 1));
+  const size = 128 * scale, unit = 10 * scale, pad = 8 * scale;
   ctx.save();
-  ctx.globalAlpha = 0.85;
-  for (let y = 0; y < maze.height; y++) {
-    for (let x = 0; x < maze.width; x++) {
-      if (!seen(x, y)) continue;
-      ctx.fillStyle = isWall(maze, x, y) ? "#e8e8e8" : "#1a1a1a";
-      ctx.fillRect(pad + x * tile, pad + y * tile, tile, tile);
+  ctx.beginPath(); ctx.rect(pad, pad, size, size); ctx.clip();
+  ctx.translate(pad + size / 2, pad + size / 2);
+  ctx.rotate(-run.pose.angle - Math.PI / 2);
+  ctx.translate(-(run.pose.x - 0.5) / 2 * unit, -(run.pose.y - 0.5) / 2 * unit);
+  ctx.strokeStyle = "#ffffff"; ctx.lineWidth = scale;
+  ctx.beginPath();
+  for (let y = 0; y < maze.rows; y++) {
+    for (let x = 0; x < maze.columns; x++) {
+      if (!run.visited[y * maze.columns + x]) continue;
+      for (let dir = 0; dir < 4; dir++) {
+        if (canStep(maze, { x, y }, dir)) continue;
+        const edges = [[x + 1, y, x + 1, y + 1], [x, y + 1, x + 1, y + 1], [x, y, x, y + 1], [x, y, x + 1, y]][dir]!;
+        ctx.moveTo(edges[0]! * unit, edges[1]! * unit); ctx.lineTo(edges[2]! * unit, edges[3]! * unit);
+      }
     }
   }
-  ctx.globalAlpha = 1;
-  const { x, y, angle } = run.pose;
-  ctx.translate(pad + x * tile, pad + y * tile);
-  ctx.rotate(angle);
-  ctx.fillStyle = "#ff3b2f";
-  ctx.beginPath();
-  ctx.moveTo(tile * 0.9, 0);
-  ctx.lineTo(-tile * 0.6, tile * 0.6);
-  ctx.lineTo(-tile * 0.6, -tile * 0.6);
-  ctx.closePath();
-  ctx.fill();
+  ctx.stroke();
+  const marker = (x: number, y: number, colour: string, angle: number) => {
+    ctx.save(); ctx.translate((x - 0.5) / 2 * unit, (y - 0.5) / 2 * unit); ctx.rotate(angle);
+    ctx.fillStyle = colour; ctx.beginPath(); ctx.moveTo(unit * 0.35, 0); ctx.lineTo(-unit * 0.25, unit * 0.25); ctx.lineTo(-unit * 0.25, -unit * 0.25); ctx.closePath(); ctx.fill(); ctx.restore();
+  };
+  const start = cellCenter(maze.start), exit = cellCenter(maze.exit), rat = ratPosition(run);
+  marker(start.x, start.y, "#ff0000", 0);
+  if (run.visited[maze.exit.y * maze.columns + maze.exit.x]) marker(exit.x, exit.y, "#00ff00", 0);
+  for (const cell of run.spinners) if (run.visited[cell.y * maze.columns + cell.x]) {
+    const p = cellCenter(cell); marker(p.x, p.y, "#ffffff", time);
+  }
+  if (run.visited[run.rat.cell.y * maze.columns + run.rat.cell.x]) marker(rat.x, rat.y, "#ff8000", run.rat.heading * Math.PI / 2);
+  marker(run.pose.x, run.pose.y, "#0000ff", run.pose.angle);
   ctx.restore();
 }
 
 export function MazeScreenSaver({ active = true }: { active?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const elapsedRef = useRef(0);
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewRef = useRef<{ canvas: HTMLCanvasElement; image: ImageData; depth: Float32Array; card: HTMLCanvasElement } | null>(null);
@@ -404,24 +422,37 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
     const viewContext = view?.canvas.getContext("2d");
     if (!canvas || !view || !ctx || !viewContext) return;
     const run = runRef.current;
-    const { width, height } = view.image;
-    const time = performance.now() / 1000;
-    castScene(new Uint32Array(view.image.data.buffer), view.depth, width, height, run);
+    // Render beyond every viewport edge during a roll. Rotating a viewport-sized image exposes black corners.
+    const rolling = Math.abs(Math.sin(run.pose.roll)) > 0.001;
+    const fit = Math.min(1, Math.sqrt(MAX_VIEW_PIXELS / (canvas.width * canvas.height)));
+    const baseWidth = Math.max(1, Math.round(canvas.width * fit));
+    const baseHeight = Math.max(1, Math.round(canvas.height * fit));
+    const diagonal = Math.ceil(Math.hypot(baseWidth, baseHeight));
+    const width = rolling ? diagonal : baseWidth, height = rolling ? diagonal : baseHeight;
+    if (view.image.width !== width || view.image.height !== height) {
+      view.canvas.width = width; view.canvas.height = height;
+      view.image = new ImageData(width, height); view.depth = new Float32Array(width);
+    }
+    const time = elapsedRef.current;
+    const focal = baseWidth / (2 * FOV);
+    castScene(new Uint32Array(view.image.data.buffer), view.depth, width, height, focal, run);
     viewContext.putImageData(view.image, 0, 0);
-    drawSprites(viewContext, view.card, view.depth, width, height, run, time);
+    drawSprites(viewContext, view.card, view.depth, width, height, focal, run, time);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = true;
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(run.pose.roll);
-    ctx.drawImage(view.canvas, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+    const drawWidth = width / baseWidth * canvas.width, drawHeight = height / baseHeight * canvas.height;
+    ctx.drawImage(view.canvas, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (optionsRef.current.overheadMap) drawMap(ctx, run, canvas.width / Math.max(1, canvas.clientWidth));
+    if (optionsRef.current.overheadMap) drawMap(ctx, run, canvas.width / Math.max(1, canvas.clientWidth), time);
   }, []);
 
   const newMaze = useCallback(() => {
     runRef.current = freshRun();
+    elapsedRef.current = 0;
     render();
   }, [render]);
 
@@ -493,6 +524,7 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
     const tick = (now: number) => {
       const seconds = Math.min(MAX_FRAME_SECONDS, Math.max(0, (now - last) / 1000));
       last = now;
+      elapsedRef.current += seconds * (optionsRef.current.turbo ? TURBO_SPEED : 1);
       advance(runRef.current, seconds, optionsRef.current.turbo ? TURBO_SPEED : 1);
       if (runRef.current.finished) runRef.current = freshRun();
       render();

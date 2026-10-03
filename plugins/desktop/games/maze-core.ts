@@ -11,12 +11,13 @@ export const MAZE_ROWS = 8;
 const SPINNER_COUNT = 3;
 
 /** Seconds to walk one cell, turn a quarter, roll over, and celebrate at the exit, before Turbo Mode. */
-const WALK_SECONDS = 0.9;
-const TURN_SECONDS = 0.5;
-const FLIP_SECONDS = 0.9;
+const WALK_SECONDS = 0.65;
+const TURN_SECONDS = 0.4;
+const FLIP_SECONDS = 0.55;
 const EXIT_SECONDS = 1.6;
 /** How far into the exit cell the walker goes, so it stops facing the smiley rather than inside it. */
-const EXIT_REACH = 0.55;
+const EXIT_REACH = 0.2;
+const FLIP_REACH = 0.35;
 
 /** East, south, west, north. */
 const DX = [1, 0, -1, 0] as const;
@@ -105,7 +106,7 @@ export function cellCenter(cell: Cell): { x: number; y: number } {
 type Move =
   | { kind: "walk"; dir: number }
   | { kind: "turn"; from: number; to: number }
-  | { kind: "flip" }
+  | { kind: "flip"; dir: number }
   | { kind: "exit" };
 
 export interface Pose {
@@ -115,6 +116,13 @@ export interface Pose {
   angle: number;
   /** Roll about the view axis in radians; π is upside down. */
   roll: number;
+}
+
+/** The rat walks independently; cell is the start of its current passage. */
+export interface Rat {
+  cell: Cell;
+  heading: number;
+  progress: number;
 }
 
 export interface MazeRun {
@@ -130,6 +138,7 @@ export interface MazeRun {
   sign: { x: number; y: number };
   /** Gray polyhedra still floating in the maze; walking into one rolls the view over. */
   spinners: Cell[];
+  rat: Rat;
   pose: Pose;
   move: Move | null;
   /** Progress through `move`, from 0 to 1. */
@@ -163,6 +172,7 @@ export function newRun(random: Random, columns = MAZE_COLUMNS, rows = MAZE_ROWS)
     visited,
     sign: { x: center.x + 2 * DX[heading]!, y: center.y + 2 * DY[heading]! },
     spinners,
+    rat: { cell: { ...maze.exit }, heading: [0, 1, 2, 3].find((dir) => canStep(maze, maze.exit, dir)) ?? 0, progress: 0 },
     pose: { x: center.x, y: center.y, angle: (heading * Math.PI) / 2, roll: 0 },
     move: null,
     progress: 0,
@@ -220,10 +230,14 @@ function poseOf(run: MazeRun): Pose {
     case "turn":
       pose.angle = ((move.from + (move.to - move.from) * ease(t)) * Math.PI) / 2;
       return pose;
-    case "flip":
-      // `upsideDown` already holds the new state, so roll from the opposite one.
+    case "flip": {
+      // Hold in front of the rock while rolling, then continue the interrupted walk.
+      const d = ((move.dir % 4) + 4) % 4;
+      pose.x -= 2 * DX[d]! * (1 - FLIP_REACH);
+      pose.y -= 2 * DY[d]! * (1 - FLIP_REACH);
       pose.roll = roll + Math.PI * (ease(t) - 1);
       return pose;
+    }
     case "exit": {
       // Hold on the smiley for a beat before the caller builds a new maze.
       const d = ((run.heading % 4) + 4) % 4;
@@ -261,36 +275,59 @@ function settle(run: MazeRun, move: Move) {
         return;
       }
       break;
-    case "walk": {
-      const index = run.spinners.findIndex((spinner) => sameCell(spinner, run.cell));
-      if (index >= 0) {
-        run.spinners.splice(index, 1);
-        begin(run, { kind: "flip" });
-        return;
-      }
+    case "walk":
       break;
-    }
     case "flip":
-      break;
+      run.spinners = run.spinners.filter((spinner) => !sameCell(spinner, run.cell));
+      run.move = { kind: "walk", dir: move.dir };
+      run.progress = FLIP_REACH;
+      return;
   }
   begin(run, nextMove(run));
+}
+
+/** The rat's world position uses the same coordinates as the walker and never crosses walls. */
+export function ratPosition(run: MazeRun): { x: number; y: number } {
+  const { rat } = run;
+  const center = cellCenter(rat.cell);
+  if (!canStep(run.maze, rat.cell, rat.heading)) return center;
+  const d = ((rat.heading % 4) + 4) % 4;
+  return { x: center.x + 2 * DX[d]! * rat.progress, y: center.y + 2 * DY[d]! * rat.progress };
+}
+
+function advanceRat(run: MazeRun, seconds: number) {
+  const { rat, maze } = run;
+  if (!canStep(maze, rat.cell, rat.heading)) return;
+  rat.progress += seconds / 1.1;
+  for (let guard = 0; rat.progress >= 1 && guard < 64; guard++) {
+    const d = ((rat.heading % 4) + 4) % 4;
+    rat.cell = { x: rat.cell.x + DX[d]!, y: rat.cell.y + DY[d]! };
+    rat.progress -= 1;
+    const turn = [-1, 0, 1, 2].find((offset) => canStep(maze, rat.cell, rat.heading + offset)) ?? 2;
+    rat.heading = (rat.heading + turn + 4) % 4;
+  }
+  rat.progress = Math.min(rat.progress, 1);
 }
 
 /** Advances the walker by `seconds` (scaled by `speed` for Turbo Mode), mutating and returning the run. */
 export function advance(run: MazeRun, seconds: number, speed = 1): MazeRun {
   let budget = Math.max(0, seconds) * speed;
+  if (!run.finished) advanceRat(run, budget);
   // A long frame can finish several moves; the cap keeps a stalled tab from spinning here.
   for (let guard = 0; guard < 64 && budget > 0 && !run.finished; guard++) {
     if (run.move === null) begin(run, nextMove(run));
     const move = run.move!;
-    const remaining = (1 - run.progress) * duration(move);
+    const meetsRock = move.kind === "walk" && run.progress < FLIP_REACH && run.spinners.some((spinner) => sameCell(spinner, run.cell));
+    const end = meetsRock ? FLIP_REACH : 1;
+    const remaining = (end - run.progress) * duration(move);
     if (budget < remaining) {
       run.progress += budget / duration(move);
       budget = 0;
     } else {
       budget -= remaining;
-      run.progress = 1;
-      settle(run, move);
+      run.progress = end;
+      if (meetsRock && move.kind === "walk") begin(run, { kind: "flip", dir: move.dir });
+      else settle(run, move);
     }
   }
   run.pose = poseOf(run);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advance, canStep, generateMaze, isWall, newRun, seededRandom, type Maze } from "./maze-core";
+import { advance, canStep, generateMaze, isWall, newRun, ratPosition, seededRandom, type Maze } from "./maze-core";
 
 function reachableCells(maze: Maze): number {
   const seen = new Set<string>(["0,0"]);
@@ -69,6 +69,40 @@ describe("3D Maze", () => {
     expect(rolled).toBe(true);
     expect(run.spinners).toEqual([]);
     expect(run.pose.roll).toBeCloseTo(Math.PI);
+  });
+
+  it("holds in front of a visible rock for the roll, then resumes without a position jump", () => {
+    const run = newRun(seededRandom(3), 3, 1);
+    run.spinners = [{ x: 1, y: 0 }];
+    advance(run, 0.3);
+    expect(run.move?.kind).toBe("flip");
+    expect(run.spinners).toHaveLength(1);
+    const held = { x: run.pose.x, y: run.pose.y };
+    advance(run, 0.4);
+    expect(run.pose.x).toBeCloseTo(held.x);
+    expect(run.pose.y).toBeCloseTo(held.y);
+    advance(run, 0.08);
+    expect(run.move?.kind).toBe("walk");
+    expect(run.spinners).toHaveLength(0);
+    expect(Math.hypot(run.pose.x - held.x, run.pose.y - held.y)).toBeLessThan(0.02);
+  });
+
+  it("keeps the independent rat in open passages, including after turns", () => {
+    const run = newRun(seededRandom(7));
+    const cells = new Set<string>();
+    for (let frame = 0; frame < 900; frame++) {
+      advance(run, 1 / 30);
+      const rat = ratPosition(run);
+      expect(isWall(run.maze, Math.floor(rat.x), Math.floor(rat.y))).toBe(false);
+      cells.add(`${run.rat.cell.x},${run.rat.cell.y}`);
+    }
+    expect(cells.size).toBeGreaterThan(3);
+  });
+
+  it("holds a lone rat inside a one-cell maze", () => {
+    const run = newRun(seededRandom(1), 1, 1);
+    advance(run, 1);
+    expect(ratPosition(run)).toEqual({ x: 1.5, y: 1.5 });
   });
 
   it("runs faster in Turbo Mode", () => {
