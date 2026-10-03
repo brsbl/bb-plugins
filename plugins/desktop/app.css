@@ -1601,6 +1601,11 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   height: 12px;
 }
 
+/* The last message's actions would hang 8 px into the message box, so the transcript keeps that room below its rows. */
+.bbd-im-chat [data-timeline-row-list="top-level"] {
+  padding-bottom: 10px;
+}
+
 /* Every line starts at the left edge in AIM, so a person's message actions sit there too, as the agent's do. */
 .bbd-im-chat [data-message-column] > .ml-auto .relative.w-full > .absolute.top-0 {
   right: auto;
@@ -1621,7 +1626,9 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 
 /* AIM's serif, a size up from bb's messages; code keeps bb's monospace. */
 .bbd-im-chat [data-message-column],
-.bbd-im-chat [data-message-column] :is(.text-sm, .text-xs, .text-base) {
+.bbd-im-chat [data-message-column] :is(.text-sm, .text-xs, .text-base):not(code),
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md,
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md :is(.text-sm, .text-xs, .text-base):not(code) {
   font-family: "Times New Roman", Times, serif;
   font-size: var(--bbd-im-text);
   line-height: 1.625;
@@ -1646,8 +1653,11 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   white-space: inherit;
 }
 
-/* bb's live "Thinking…" and "Working..." lines sit below the rows rather than in one, so they are named alongside them. */
-.bbd-im-chat [data-timeline-row-id] > .rounded-md,
+/*
+ * bb's live "Thinking…" and "Working..." lines sit below the rows rather than in one, so they are named alongside them.
+ * A user row drawn as a row rather than a message column is a message from another agent or bb, styled further down.
+ */
+.bbd-im-chat [data-timeline-row-id]:not([data-timeline-row-id*=":user"]) > .rounded-md,
 .bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row),
 .bbd-im-chat .mt-4.min-h-7:has(> .animate-shine) {
   border-radius: 0;
@@ -1655,7 +1665,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   color: var(--bbd-im-system);
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.text-sm, .text-muted-foreground, .text-subtle-foreground),
+.bbd-im-chat [data-timeline-row-id]:not([data-timeline-row-id*=":user"]) > .rounded-md :is(.text-sm, .text-muted-foreground, .text-subtle-foreground),
 .bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row) :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
   font-size: var(--bbd-im-system-text);
   color: inherit;
@@ -1694,6 +1704,79 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   text-decoration: underline;
 }
 
+/*
+ * A message another agent or bb sent this thread is a user row that bb draws as an expandable row, not a message column
+ * (thread/timeline/GeneratedConversationMessage.tsx). It reads as a quoted IM: a small sunken field holding bb's own
+ * title ("Message from <thread>", "<thread> finished") as a bold speaker label, then the message in the transcript's
+ * Times. The label is green, since red is the buddy in this window and blue is you. The field's margin keeps the 12 px
+ * between messages, which a message gets from its action slot.
+ */
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md {
+  display: flow-root;
+  width: auto;
+  margin: 0 0.5rem 4px;
+  padding: 2px 6px;
+  border-radius: 0;
+  background: var(--bbd-im-paper);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-im-shadow),
+    inset -1px -1px 0 var(--bbd-im-face);
+}
+
+/* Above bb's message panel, which is positioned and would otherwise cover the label's link and toggle. */
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row {
+  position: relative;
+  z-index: 1;
+  float: left;
+  max-width: 100%;
+  margin-right: 6px;
+}
+
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row > * {
+  display: block;
+  width: auto;
+  padding: 0;
+  font: bold var(--bbd-im-text)/1.625 "Times New Roman", Times, serif;
+  color: light-dark(oklch(0.48 0.14 150), oklch(0.76 0.12 150));
+  text-align: left;
+}
+
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row :is(span, a) {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: none;
+  white-space: normal;
+  opacity: 1;
+}
+
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row a:hover {
+  text-decoration: underline;
+}
+
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row span[title] > :last-child::after {
+  content: ":";
+}
+
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row svg {
+  display: none;
+}
+
+/* bb indents the message three wrappers deep, behind a thread line; here it follows the label, as an IM line does. */
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative > div > div,
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative > div > div > div,
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative > div > div > div > div {
+  margin: 0;
+  padding: 0;
+}
+
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative > div > div > div::before {
+  display: none;
+}
+
 .bbd-im-chat :is(pre, div:has(> pre)) {
   border-radius: 0;
 }
@@ -1704,12 +1787,14 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   box-shadow: inset 1px 1px 0 color-mix(in oklab, var(--ink) 12%, transparent);
 }
 
-.bbd-im-chat [data-message-column] a:not([data-prompt-mention-resource]) {
+.bbd-im-chat [data-message-column] a:not([data-prompt-mention-resource]),
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative a:not([data-prompt-mention-resource]) {
   color: var(--bbd-im-me);
   text-decoration: underline;
 }
 
-.bbd-im-chat [data-message-column] [data-prompt-mention-resource] {
+.bbd-im-chat [data-message-column] [data-prompt-mention-resource],
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative [data-prompt-mention-resource] {
   padding: 0;
   border: 0;
   border-radius: 0;
