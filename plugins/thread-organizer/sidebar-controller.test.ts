@@ -371,8 +371,10 @@ describe("workflow sidebar controller", () => {
     controller.abort();
   });
 
-  it("keeps the protected Inbox first when it is dragged", async () => {
+  it.each(["stage", "inbox"] as const)("keeps the main Inbox first when another %s is dragged ahead", async (role) => {
     const config = workflow();
+    config.stages[1]!.role = role;
+    if (role === "inbox") config.stages[1]!.catchesPluginId = "digests";
     const saveConfig = vi.fn(async (edited: EditableWorkflowConfig) =>
       mergeEditableWorkflowConfig(config, edited),
     );

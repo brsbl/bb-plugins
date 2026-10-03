@@ -123,6 +123,7 @@ function createHarness(
   ];
   type TestThreadChange =
     | "archived-changed"
+    | "metadata-changed"
     | "order-changed"
     | "parent-changed"
     | "read-state-changed"
@@ -184,6 +185,10 @@ function createHarness(
       threads.set(threadId, updated);
       return updated;
     },
+  );
+  const pluginMetadata = new Map<string, Record<string, unknown>>();
+  const getPluginMetadata = vi.fn(async ({ pluginId }: { pluginId?: string }) =>
+    pluginMetadata.get(pluginId ?? "thread-organizer") ?? {},
   );
   const getThread = vi.fn(async ({ threadId }: { threadId: string }) =>
     getTestThread(threadId),
@@ -261,6 +266,7 @@ function createHarness(
       },
       threads: {
         get: getThread,
+        getPluginMetadata,
         list: listThreads,
         queuedMessages: { delete: deleteQueuedMessage },
         send: sendMessage,
@@ -275,6 +281,8 @@ function createHarness(
     create,
     deleteSection,
     getThread,
+    getPluginMetadata,
+    pluginMetadata,
     listSections,
     deleteQueuedMessage,
     listThreads,
@@ -778,6 +786,96 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("routes safely after removing the last workflow stage from an inbox-only setup", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    const edited = editableWorkflowConfig(await configFor(organizer));
+    edited.stages = [edited.stages[0]!, {
+      key: "digests", title: "Digests", role: "inbox",
+      catchesPluginId: "digests", rule: "Published issues.",
+    }];
+    const saved = await organizer.harness.behavior.callRpc("saveConfig", edited) as WorkflowConfig;
+    const sectionId = (key: string) => saved.stages.find((stage) => stage.key === key)!.sectionId;
+    expect(organizer.current().sectionId).toBeNull();
+    await expect(organizer.bb.storage.kv.get("thread:v3:thr_test"))
+      .resolves.toMatchObject({ rememberedStageKey: null });
+
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    organizer.setThread({ status: "active", lastReadAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", { thread: organizer.current() });
+    expect(organizer.current().sectionId).toBeNull();
+
+    organizer.pluginMetadata.set("digests", { inbox: true });
+    organizer.emitChanged("metadata-changed");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(sectionId("digests")));
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it.each(["origin", "metadata"] as const)("claims %s plugin threads, stays after reading and restart, and respects moves", async (source) => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const edited = editableWorkflowConfig(await configFor(organizer));
+    edited.stages.push({ key: "digests", title: "Digests", role: "inbox",
+      catchesPluginId: "digests", rule: "Published issues." });
+    const saved = await organizer.harness.behavior.callRpc("saveConfig", edited) as WorkflowConfig;
+    const sectionId = (key: string) => saved.stages.find((stage) => stage.key === key)!.sectionId;
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20,
+      originPluginId: source === "origin" ? "digests" : "automations" });
+    if (source === "metadata") organizer.pluginMetadata.set("digests", { inbox: true, issueId: "issue-1" });
+    organizer.emitChanged("metadata-changed");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(sectionId("digests")));
+    if (source === "metadata") expect(organizer.getPluginMetadata).toHaveBeenCalledWith({
+      threadId: "thr_test", pluginId: "digests",
+    });
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    organizer.setThread({ lastReadAt: 20 });
+    organizer.emitChanged();
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
+    organizer.setThread({ status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", { thread: organizer.current() });
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
+
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    const reloaded = await replacement.harness.behavior.callRpc("getConfig", {}) as WorkflowConfig;
+    expect(reloaded.stages.find((stage) => stage.key === "digests"))
+      .toMatchObject({ role: "inbox", catchesPluginId: "digests" });
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
+    await expect(replacement.bb.storage.kv.get("thread:v3:thr_test"))
+      .resolves.toMatchObject({ version: 5, claimedInboxKey: "digests" });
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+
+    // Even an explicit move to the main Inbox dismisses the plugin claim.
+    organizer.setThread({ status: "idle", sectionId: sectionId("inbox") });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(async () => {
+      await expect(replacement.bb.storage.kv.get("thread:v3:thr_test"))
+        .resolves.toMatchObject({ dismissedInboxPluginId: "digests" });
+    });
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    await replacement.harness.behavior.runCli(["phase", "on-hold"], { threadId: "thr_test" });
+    expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+    organizer.emitChanged("metadata-changed");
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+    await replacement.harness.lifecycle.dispose();
+  });
+
   it("routes lifecycle events from current state instead of event snapshots", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
@@ -1171,7 +1269,7 @@ describe("Thread Organizer server", () => {
       "| planning | Shaping | Clarifying the outcome and constraints. |",
     );
     expect(configuration.instructions).toContain(
-      "**Needs Me** is the protected Inbox section",
+      "**Needs Me** is the protected main Inbox",
     );
     expect(configuration.instructions).toContain(
       "generated from the user’s plugin settings",
@@ -1307,6 +1405,40 @@ describe("config CLI", () => {
     });
     const inbox = await cli(organizer, ["section", "rule", "inbox", "--set", "x"]);
     expect(inbox).toMatchObject({ exitCode: 2 });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("adds and changes plugin inboxes through the existing approval flow", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const added = await approved(organizer, [
+      "section", "add", "Digests", "--inbox", "--catches-plugin", "digests",
+    ]);
+    expect(added.result.exitCode).toBe(0);
+    expect(await stageOf(organizer, "digests"))
+      .toMatchObject({ role: "inbox", catchesPluginId: "digests" });
+    expect(await cli(organizer, ["section", "type", "digests"]))
+      .toMatchObject({ exitCode: 0, stdout: "inbox (digests)\n" });
+    expect(await cli(organizer, ["phase", "digests"]))
+      .toMatchObject({ exitCode: 2 });
+    expect(await cli(organizer, ["prompt", "digests", "--set", "Run work."]))
+      .toMatchObject({ exitCode: 2 });
+    await approved(organizer, ["section", "type", "digests", "--set", "stage"]);
+    expect(await stageOf(organizer, "digests")).toMatchObject({ role: "stage" });
+    expect(await stageOf(organizer, "digests")).not.toHaveProperty("catchesPluginId");
+    const inbox = await approved(organizer, [
+      "section", "type", "digests", "--set", "inbox", "--catches-plugin", "digests",
+    ]);
+    expect(inbox.result.exitCode).toBe(0);
+    expect(inbox.request.payload).toMatchObject({
+      summary: "Digests will receive threads from digests and keep them until you move or archive them.",
+    });
+    const count = pending(organizer).length;
+    expect(await cli(organizer, ["section", "type", "inbox", "--set", "stage"]))
+      .toMatchObject({ exitCode: 2 });
+    expect(await cli(organizer, ["section", "type", "planning", "--set", "inbox"]))
+      .toMatchObject({ exitCode: 2 });
+    expect(pending(organizer)).toHaveLength(count);
     await organizer.harness.lifecycle.dispose();
   });
 
