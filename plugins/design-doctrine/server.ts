@@ -23,6 +23,7 @@ import {
   resolveBaseBranch,
   resolveGitHubRepository,
   resolveRepositoryRoot,
+  updatePublicationBranch,
 } from "./corpus.js";
 import {
   createHistoryMaintenance,
@@ -1499,6 +1500,16 @@ export default async function plugin(bb: BbPluginApi) {
     signal?: AbortSignal,
   ): Promise<void> {
     try {
+      for (const publication of await readOpenPublications(source, signal)) {
+        if (publication.mergeStateStatus !== "BEHIND") continue;
+        await updatePublicationBranch(source, publication.url, signal).catch((error: unknown) => {
+          bb.log.warn(
+            `doctrine corpus: could not update ${publication.url}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
+      }
       stalledPublications = await readStalledPublications(
         source,
         undefined,

@@ -368,6 +368,24 @@ export async function readOpenPublications(
 }
 
 /**
+ * Merges the base branch into an open doctrine pull request. Strict branch
+ * protection blocks auto-merge on a branch that has fallen behind, and nothing
+ * else ever updates it, so the rules would wait forever.
+ */
+export async function updatePublicationBranch(
+  source: CorpusSource,
+  url: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await execFileAsync("gh", ["pr", "update-branch", url], {
+    cwd: source.repositoryRoot,
+    encoding: "utf8",
+    timeout: COMMAND_TIMEOUT_MS,
+    signal,
+  });
+}
+
+/**
  * Reports doctrine pull requests that are open but not merging. Auto-merge
  * waits indefinitely, so without this a failing check or an unresolved comment
  * stops the corpus learning without ever saying so.
