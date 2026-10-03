@@ -111,7 +111,7 @@ describe("thread file pins", () => {
     expect(replacement).toMatchObject({ id: original.id, path: "/new.md" });
     expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [replacement] });
   });
-  it("saves order and More pins together, rejects stale arrangements, and restores placement on Undo", async () => {
+  it("saves order and overflow pins together, rejects stale arrangements, and restores placement on Undo", async () => {
     const h = setup();
     const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/first.md" }) as { id: string };
     const second = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/second.md" }) as { id: string };

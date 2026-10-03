@@ -1,31 +1,28 @@
 import { expect, it } from "vitest";
-import { addToStrip, layoutPins, movePin, removeFromStrip } from "./pin-layout.js";
+import { layoutPins, moveToOverflow, moveToStrip } from "./pin-layout.js";
 
-const pins = ["a", "b", "c", "d"].map((id) => ({ id }));
+const order = ["a", "b", "c", "d", "e"];
+const pins = order.map((id) => ({ id }));
 const ids = (items: Array<{ id: string }>) => items.map((pin) => pin.id);
+const strip = (next: { order: string[]; more: string[] }, capacity: number) =>
+  ids(layoutPins(next.order.map((id) => ({ id })), next.more, capacity).strip);
 
-it("fills the strip to capacity and keeps freed slots empty like the sidebar footer", () => {
+it("shows pins outside overflow in order, as many as fit, with the rest behind +N", () => {
   const layout = layoutPins(pins, ["b"], 2);
-  expect([ids(layout.strip), ids(layout.more), layout.isFull]).toEqual([["a", "c"], ["b", "d"], true]);
-  const removed = removeFromStrip(layout, { order: ["a", "b", "c", "d"], more: ["b"] }, "a");
-  expect(ids(layoutPins(pins, removed.more, 2).strip)).toEqual(["c"]);
-  expect(addToStrip(layout, { order: ["a", "b", "c", "d"], more: ["b"] }, "d")).toBeNull();
-  expect(addToStrip(layoutPins(pins, removed.more, 2), removed, "d")).toEqual({ order: ["a", "b", "c", "d"], more: ["b", "a"] });
+  expect([ids(layout.strip), ids(layout.more), layout.isFull]).toEqual([["a", "c"], ["b", "d", "e"], true]);
 });
 
-it("reorders within a zone and moves between zones at the drop target", () => {
-  const layout = layoutPins(pins, ["b"], 2);
-  const current = { order: ["a", "b", "c", "d"], more: ["b"] };
-  expect(movePin(layout, current, "c", "a")).toEqual({ order: ["c", "b", "a", "d"], more: ["b"] });
-  expect(movePin(layout, current, "d", "a")).toEqual({ order: ["d", "a", "b", "c"], more: ["b"] });
-  expect(movePin(layout, current, "a", "d")).toEqual({ order: ["b", "c", "d", "a"], more: ["b", "d", "a"] });
-  expect(movePin(layoutPins(pins, ["b", "c", "d"], 3), { order: current.order, more: ["b", "c", "d"] }, "d", null))
-    .toEqual({ order: ["a", "d", "b", "c"], more: ["b", "c"] });
+it("moves only the clicked pin to overflow so the next pin takes its place", () => {
+  const next = moveToOverflow({ order, more: [] }, "b");
+  expect(next).toEqual({ order, more: ["b"] });
+  expect(strip(next, 2)).toEqual(["a", "c"]);
 });
 
-it("reorders More pins without promoting overflow pins onto the strip", () => {
-  const current = { order: ["a", "b", "c", "d"], more: ["a"] };
-  const next = movePin(layoutPins(pins, current.more, 2), current, "d", "a")!;
-  expect(next).toEqual({ order: ["d", "b", "c", "a"], more: ["a", "d"] });
-  expect(ids(layoutPins(next.order.map((id) => ({ id })), next.more, 2).strip)).toEqual(["b", "c"]);
+it("moves an overflow pin to the end of the strip, taking the last slot when full", () => {
+  const roomy = { order, more: ["b", "c", "d", "e"] };
+  expect(moveToStrip(layoutPins(pins, roomy.more, 2), roomy, "d")).toEqual({ order: ["a", "d", "b", "c", "e"], more: ["b", "c", "e"] });
+  const full = { order, more: ["b"] };
+  const next = moveToStrip(layoutPins(pins, full.more, 2), full, "e");
+  expect(next).toEqual({ order: ["a", "b", "e", "c", "d"], more: ["b"] });
+  expect(strip(next, 2)).toEqual(["a", "e"]);
 });

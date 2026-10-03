@@ -3,7 +3,6 @@
   "commit": "32efd2e3f2cd5fe072d56c880c6c94db61612089",
   "registryItems": [
     "button",
-    "chrome-style-tokens",
     "coarse-pointer-sizing",
     "command",
     "context-menu",
@@ -25,7 +24,6 @@
   ],
   "adaptations": [
     "pin-popover.tsx: BB popover tokens and Radix primitives without animation or compact drawer conversion.",
-    "customize-pins.tsx: SidebarFooterCustomize, its header, badges and sortable rows, adapted to fixed-width pin tiles with one DnD context so pins can move between the strip and More pins.",
-    "pin-layout.ts: sidebarFooterPreferences zone rules and useMeasureSidebarFooterCapacity, measured against fixed pin slots."
+    "pin-layout.ts: useMeasureSidebarFooterCapacity's slot measurement, used to fit fixed-width pins on the strip."
   ]
 }
