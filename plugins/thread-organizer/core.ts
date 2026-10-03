@@ -261,9 +261,6 @@ function validateStages(stages: WorkflowStage[]): void {
       "The workflow must contain the protected main Inbox.",
     );
   }
-  if (!stages.some((stage) => stage.role === "stage")) {
-    throw new Error("Keep at least one workflow stage alongside the inboxes.");
-  }
   if (mainInbox.rule !== INBOX_RULE) {
     throw new Error("Inbox routing and its system rule cannot be changed.");
   }
