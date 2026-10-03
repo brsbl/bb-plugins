@@ -441,7 +441,7 @@ describe("workflow settings", () => {
     const add = within(planningCard).getByRole("button", {
       name: "Add entry prompt",
     });
-    expect(add.className).toContain("lg:col-start-4");
+    expect(add.className).toContain("lg:col-start-5");
     expect(add.className).not.toContain("lg:hidden");
 
     fireEvent.click(add);
