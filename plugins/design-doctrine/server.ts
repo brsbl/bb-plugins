@@ -13,15 +13,19 @@ import {
   type CorpusSource,
   type OpenPublication,
   type Publication,
+  closePublication,
   materializeRules,
   openPublication,
   pluginDataDirectory,
   publishedBranchId,
+  readOpenPublications,
   readStalledPublications,
   remoteBranchId,
   resolveBaseBranch,
   resolveGitHubRepository,
   resolveRepositoryRoot,
+  updatePublicationBranch,
+  withdrawRuleFile,
 } from "./corpus.js";
 import {
   createHistoryMaintenance,
@@ -32,9 +36,17 @@ import {
   harvestProposalSchema,
   harvestVerdictSchema,
 } from "./harvest.js";
+import {
+  formatHarvestSummary,
+  harvestResult,
+  harvestSummary,
+  localDayStart,
+  proposalResult,
+} from "./activity.js";
 
 const execFileAsync = promisify(execFile);
 const HARVEST_AGENT_TIMEOUT_MS = 15 * 60 * 1_000;
+const PERSONAL_PROJECT_ID = "proj_personal";
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DOCTRINE_PATH =
   basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR;
@@ -43,6 +55,10 @@ const CORPUS_FRESHNESS_TTL_MS = 15 * 60 * 1_000;
 const CORPUS_DIRECTORY = "rules-cache";
 const MAX_WEBHOOK_BODY_BYTES = 2 * 1_024 * 1_024;
 const SEARCH_RESULT_LIMIT = 24;
+const HARVEST_ACTIVITY_PAGE_SIZE = 25;
+const HARVEST_ACTIVITY_MAX_LIMIT = 100;
+const PUBLICATION_LOOKUP_TIMEOUT_MS = 5_000;
+const PUBLICATION_CACHE_TTL_MS = 60_000;
 const AUTOMATIC_RULE_LIMIT = 4;
 const SEARCH_STOP_TOKENS = new Set([
   "build",
@@ -106,12 +122,13 @@ function defineRpcContract<T>(contract: T): T {
 
 const stringListSchema = z.array(z.string());
 const ruleSchema = z.object({
-  id: z.string().regex(/^ddr_\d{3,}$/),
+  id: z.string().regex(/^(ddr|ext)_\d{3,}$/),
   title: z.string().min(3),
   kind: z.enum(["principle", "standard", "guideline", "taste", "anti_pattern"]),
   strength: z.enum(["required", "default", "preference", "warning"]),
   confidence: z.enum(["low", "medium", "high"]),
   status: z.enum(["active", "conflicted", "retired"]),
+  origin: z.enum(["user", "external"]).default("user"),
   domain: z.string().regex(/^[a-z-]+\.[a-z-]+$/),
   products: stringListSchema.min(1),
   activities: stringListSchema.min(1),
@@ -128,7 +145,8 @@ const ruleSchema = z.object({
   use_when: stringListSchema.min(1),
   not_when: stringListSchema,
   exceptions: stringListSchema,
-  evidence: stringListSchema.min(1),
+  evidence: stringListSchema,
+  sources: stringListSchema,
   checks: stringListSchema.min(1),
   canonical_path: z.string(),
 });
@@ -149,6 +167,59 @@ const librarySchema = z.object({
   domains: stringListSchema,
   status_counts: z.record(z.string(), z.number().int()),
   git: gitSchema,
+});
+
+const harvestActivityCursorSchema = z.object({
+  processedAt: z.number().int().nonnegative(),
+  threadId: z.string().min(1),
+});
+
+const harvestActivityInputSchema = z.object({
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(HARVEST_ACTIVITY_MAX_LIMIT)
+    .default(HARVEST_ACTIVITY_PAGE_SIZE),
+  before: harvestActivityCursorSchema.nullable().default(null),
+  /** Start of the caller's day; the server's local midnight when omitted. */
+  dayStart: z.number().int().nonnegative().optional(),
+});
+
+const harvestActivitySchema = z.object({
+  queued: z.number().int().nonnegative(),
+  processedToday: z.number().int().nonnegative(),
+  publication: z.object({ url: z.string() }).nullable(),
+  items: z.array(
+    z.object({
+      threadId: z.string(),
+      title: z.string().nullable(),
+      processedAt: z.number().int(),
+      result: z.enum(["added", "retired", "waiting", "rejected", "cancelled", "failed", "none"]),
+      addedRuleIds: stringListSchema,
+      proposals: z.array(
+        z.object({
+          id: z.number().int(),
+          title: z.string(),
+          result: z.enum(["added", "retired", "waiting", "rejected", "cancelled", "undecided"]),
+          reason: z.string().nullable(),
+          ruleId: z.string().nullable(),
+        }),
+      ),
+    }),
+  ),
+  nextCursor: harvestActivityCursorSchema.nullable(),
+});
+
+const cancelProposalInputSchema = z.object({
+  proposalId: z.number().int().positive(),
+});
+
+const cancelProposalSchema = z.object({
+  proposalId: z.number().int(),
+  ruleId: z.string().nullable(),
+  /** The open rule pull request the rule was removed from, if it had reached one. */
+  publication: z.object({ url: z.string(), closed: z.boolean() }).nullable(),
 });
 
 const githubPushEnvelopeSchema = z
@@ -275,10 +346,21 @@ async function readWebhookBody(request: Request): Promise<Uint8Array> {
 
 export const rpcContract = defineRpcContract({
   getLibrary: { input: z.null(), output: librarySchema },
+  getHarvestActivity: {
+    input: harvestActivityInputSchema,
+    output: harvestActivitySchema,
+  },
+  cancelProposal: {
+    input: cancelProposalInputSchema,
+    output: cancelProposalSchema,
+  },
 });
 
 export type DoctrineRule = z.infer<typeof ruleSchema>;
 export type LibraryPayload = z.infer<typeof librarySchema>;
+export type HarvestActivityPayload = z.infer<typeof harvestActivitySchema>;
+export type HarvestActivityItem = HarvestActivityPayload["items"][number];
+export type CancelProposalPayload = z.infer<typeof cancelProposalSchema>;
 
 /** Resolves a caller-supplied path against the caller's directory. */
 function resolveAgainst(cwd: string | undefined, input: string): string {
@@ -292,6 +374,21 @@ function expandPath(input: string): string {
   return resolve(input);
 }
 
+/**
+ * Externally sourced standards live one level deeper, in
+ * `rules/<domain>/external/`, so plugin versions that predate them (and only
+ * read `rules/<domain>/*.md`) skip them instead of rejecting the corpus. They
+ * use `ext_NNN` IDs so those versions never allocate a colliding `ddr_NNN`, and
+ * learned rules never relate to them.
+ */
+const EXTERNAL_RULE_DIRECTORY = "external";
+
+async function markdownFiles(directory: string): Promise<string[]> {
+  return (await readdir(directory, { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => join(directory, entry.name));
+}
+
 async function listRuleFiles(root: string): Promise<string[]> {
   const rulesRoot = join(root, "rules");
   const domains = await readdir(rulesRoot, { withFileTypes: true });
@@ -300,12 +397,21 @@ async function listRuleFiles(root: string): Promise<string[]> {
       .filter((entry) => entry.isDirectory())
       .map(async (domain) => {
         const directory = join(rulesRoot, domain.name);
-        return (await readdir(directory, { withFileTypes: true }))
-          .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-          .map((entry) => join(directory, entry.name));
+        const external = join(directory, EXTERNAL_RULE_DIRECTORY);
+        const hasExternal = (await readdir(directory, { withFileTypes: true }))
+          .some((entry) => entry.isDirectory() && entry.name === EXTERNAL_RULE_DIRECTORY);
+        return [
+          ...(await markdownFiles(directory)),
+          ...(hasExternal ? await markdownFiles(external) : []),
+        ];
       }),
   );
   return files.flat().sort();
+}
+
+function isExternalRulePath(canonicalPath: string): boolean {
+  const segments = canonicalPath.split(/[\\/]/);
+  return segments.length === 4 && segments[2] === EXTERNAL_RULE_DIRECTORY;
 }
 
 function parseValue(value: string): unknown {
@@ -380,6 +486,7 @@ async function parseRule(path: string, root: string): Promise<DoctrineRule> {
       not_when: sectionList(sections, "do not use when"),
       exceptions: sectionList(sections, "exceptions"),
       evidence: sectionList(sections, "evidence"),
+      sources: sectionList(sections, "sources"),
       checks: sectionList(sections, "check"),
       canonical_path: relative(root, path),
     });
@@ -436,6 +543,20 @@ function validateRelations(rules: DoctrineRule[]): void {
     if (rule.evidence.length !== rule.supporting_episodes + rule.challenging_episodes) {
       throw new Error(`${rule.id}: episode counts must match the Evidence lines`);
     }
+    if (rule.origin === "user" && rule.evidence.length === 0) {
+      throw new Error(`${rule.id}: rules learned from the user need Evidence lines`);
+    }
+    if (rule.origin === "external" && rule.sources.length === 0) {
+      throw new Error(`${rule.id}: external standards need Sources lines`);
+    }
+    if ((rule.origin === "external") !== isExternalRulePath(rule.canonical_path)) {
+      throw new Error(
+        `${rule.id}: external standards, and only they, belong in rules/<domain>/${EXTERNAL_RULE_DIRECTORY}/`,
+      );
+    }
+    if ((rule.origin === "external") !== rule.id.startsWith("ext_")) {
+      throw new Error(`${rule.id}: external standards, and only they, use ext_ IDs`);
+    }
     if (rule.status === "conflicted" && rule.challenging_episodes === 0) {
       throw new Error(`${rule.id}: conflicted rules need challenging evidence`);
     }
@@ -445,6 +566,11 @@ function validateRelations(rules: DoctrineRule[]): void {
       const targetId = relation.slice(separator + 1);
       const target = byId.get(targetId);
       if (separator < 1 || !target) throw new Error(`${rule.id}: invalid relation ${relation}`);
+      if (rule.origin === "user" && target.origin === "external") {
+        throw new Error(
+          `${rule.id}: learned rules must not relate to external standards, which older plugin versions do not load`,
+        );
+      }
       if (type === "supersedes" && target.status !== "retired") {
         throw new Error(`${rule.id}: superseded rule ${targetId} must be retired`);
       }
@@ -500,6 +626,7 @@ function searchableText(rule: DoctrineRule): string {
     ...rule.not_when,
     ...rule.exceptions,
     ...rule.evidence,
+    ...rule.sources,
     ...rule.checks,
   ].join("\n").toLocaleLowerCase();
 }
@@ -557,7 +684,10 @@ function weightedSearchFields(rule: DoctrineRule): Array<{
       ].join(" "),
       weight: 3,
     },
-    { text: `${rule.why} ${rule.evidence.join(" ")}`, weight: 2 },
+    {
+      text: `${rule.why} ${rule.evidence.join(" ")} ${rule.sources.join(" ")}`,
+      weight: 2,
+    },
   ];
 }
 
@@ -655,7 +785,9 @@ export function formatAgentSearchResults(rules: DoctrineRule[]): string {
   return rules
     .map((rule) => {
       const lines = [
-        `${rule.id} · ${rule.strength} · ${rule.confidence} confidence · ${rule.title}`,
+        `${rule.id} · ${rule.strength} · ${rule.confidence} confidence${
+          rule.origin === "external" ? " · external standard" : ""
+        } · ${rule.title}`,
         rule.statement,
         `Use when: ${rule.use_when.join("; ")}`,
       ];
@@ -814,7 +946,9 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 function formatRule(rule: DoctrineRule): string {
   return [
     `${rule.id} — ${rule.title}`,
-    `${rule.strength} · ${rule.confidence} confidence · ${rule.domain}`,
+    `${rule.strength} · ${rule.confidence} confidence · ${rule.domain}${
+      rule.origin === "external" ? " · external standard, not learned from the user" : ""
+    }`,
     "",
     rule.statement,
     "",
@@ -826,9 +960,12 @@ function formatRule(rule: DoctrineRule): string {
     "Avoid:",
     ...rule.avoid.map((item) => `- ${item}`),
     "",
-    "Evidence:",
-    ...rule.evidence.map((item) => `- ${item}`),
-    "",
+    ...(rule.evidence.length > 0
+      ? ["Evidence:", ...rule.evidence.map((item) => `- ${item}`), ""]
+      : []),
+    ...(rule.sources.length > 0
+      ? ["Sources:", ...rule.sources.map((item) => `- ${item}`), ""]
+      : []),
     `Source: ${rule.canonical_path}`,
   ].join("\n");
 }
@@ -864,6 +1001,62 @@ function requiredOption(argv: string[], name: string): string {
   if (value === undefined) throw new Error(`${name} is required`);
   return value;
 }
+
+/** Settles with `fallback` when `work` fails or outlives `ms`. */
+async function withDeadline<T>(
+  work: Promise<T>,
+  ms: number,
+  fallback: T,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work.catch(() => fallback),
+      new Promise<T>((resolveFallback) => {
+        timer = setTimeout(() => resolveFallback(fallback), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function formatHarvestActivity(activity: HarvestActivityPayload): string {
+  const header = [
+    `${activity.queued} ${activity.queued === 1 ? "thread" : "threads"} queued`,
+    `${activity.processedToday} processed today`,
+    ...(activity.publication
+      ? [`paused until ${activity.publication.url} merges`]
+      : []),
+  ].join(" · ");
+  const lines = activity.items.map((item) => {
+    const time = new Date(item.processedAt).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    return `${time} · ${item.title ?? item.threadId} · ${formatHarvestSummary(
+      harvestSummary(item),
+    )}`;
+  });
+  return `${[header, ...(lines.length ? lines : ["No rules proposed yet."])].join("\n")}\n`;
+}
+
+export function formatCancellation(cancellation: CancelProposalPayload): string {
+  const subject = cancellation.ruleId ?? `proposal ${cancellation.proposalId}`;
+  if (!cancellation.publication) return `Cancelled ${subject}.\n`;
+  return cancellation.publication.closed
+    ? `Cancelled ${subject}; removed it from ${cancellation.publication.url} and closed that pull request, which had no other rules.\n`
+    : `Cancelled ${subject}; removed it from ${cancellation.publication.url}.\n`;
+}
+
+const NOT_CANCELLABLE: Record<"retired" | "rejected" | "cancelled" | "undecided", string> = {
+  retired: "was published and later retired",
+  rejected: "was rejected",
+  cancelled: "is already cancelled",
+  undecided: "has not been reviewed",
+};
 
 export default async function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
@@ -992,8 +1185,16 @@ export default async function plugin(bb: BbPluginApi) {
       return reason;
     },
   );
+  let publicationCache: { at: number; value: { url: string } | null } | null = null;
+  let publicationLookup: Promise<{ url: string } | null> | null = null;
+
+  function notifyHarvestChanged(): void {
+    bb.realtime.publish("harvest-changed", { changed_at: new Date().toISOString() });
+  }
+
   const harvest = createHarvest({
     bb,
+    onChange: notifyHarvestChanged,
     openPublication: openRulePublication,
     listRuleIds: async (doctrineRoot) =>
       (await loadDoctrine(doctrineRoot)).rules.map((rule) => rule.id),
@@ -1007,25 +1208,40 @@ export default async function plugin(bb: BbPluginApi) {
     validateRules: async (doctrineRoot) => {
       await loadDoctrine(doctrineRoot);
     },
-    async runAgent({ projectId, title, prompt }) {
+    async runAgent({ title, prompt }) {
       const spawned = await bb.sdk.threads.spawn({
-        projectId,
+        // Both agents read the thread through bb's API and report through the
+        // doctrine CLI; neither opens a file. The personal workspace is the one
+        // bb provisions without a named host or checkout, so the harvest never
+        // depends on the archived thread's project or its destroyed workspace.
+        projectId: PERSONAL_PROJECT_ID,
         // Hidden so the harvest never interrupts the user. `spawn` attributes
         // the thread to this plugin, which also keeps it out of its own queue.
         visibility: "hidden",
-        // Both agents read the thread through bb's API and report through the
-        // doctrine CLI; neither opens a file. Reusing the archived thread's
-        // environment only tied the harvest to workspaces bb had already
-        // destroyed.
-        environment: { type: "host", workspace: { type: "unmanaged", path: null } },
+        environment: { type: "host", workspace: { type: "personal" } },
         title,
         prompt,
       });
-      await bb.sdk.threads.wait({
-        threadId: spawned.id,
-        status: "idle",
-        timeoutMs: HARVEST_AGENT_TIMEOUT_MS,
-      });
+      // Each spawn provisions its own personal workspace, which bb removes only
+      // once the thread is archived, so a finished or stalled agent never lingers.
+      try {
+        await bb.sdk.threads.wait({
+          threadId: spawned.id,
+          status: "idle",
+          timeoutMs: HARVEST_AGENT_TIMEOUT_MS,
+        });
+      } catch (error) {
+        await bb.sdk.threads.stop({ threadId: spawned.id }).catch(() => undefined);
+        throw error;
+      } finally {
+        await bb.sdk.threads.archive({ threadId: spawned.id }).catch((error: unknown) => {
+          bb.log.warn(
+            `doctrine harvest: could not archive agent thread ${spawned.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
+      }
     },
   });
 
@@ -1033,20 +1249,257 @@ export default async function plugin(bb: BbPluginApi) {
   // the work off the archive event, which must stay instant.
   let harvestQueue: Promise<void> = Promise.resolve();
 
+  /**
+   * Each publication allocates rule IDs from a fresh checkout of the published
+   * branch, so a second one opened before the first merges would reuse its IDs
+   * and could never merge. Harvests wait instead; the merge changes the read
+   * copy, and rule-watch drains again.
+   */
+  async function publicationInFlight(): Promise<boolean> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return false;
+    const source = await resolveSource();
+    if (!source) return false;
+    const open = await readOpenPublications(source);
+    publicationCache = {
+      at: Date.now(),
+      value: open[0] ? { url: open[0].url } : null,
+    };
+    // Strict branch protection blocks auto-merge on a branch that fell behind
+    // main, and nothing else updates it. Every drain retries, by which time
+    // GitHub has recomputed the merge state.
+    for (const publication of open) {
+      if (publication.mergeStateStatus !== "BEHIND") continue;
+      await updatePublicationBranch(source, publication.url).catch((error: unknown) => {
+        bb.log.warn(
+          `doctrine harvest: could not update ${publication.url}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+    }
+    return open.length > 0;
+  }
+
+  /**
+   * The open rule pull request, for display only. A missing or slow `gh` reads
+   * as none rather than failing or stalling the activity feed, and the answer
+   * is reused briefly so a burst of refreshes runs `gh` once.
+   */
+  async function displayedPublication(): Promise<{ url: string } | null> {
+    if (publicationCache && Date.now() - publicationCache.at < PUBLICATION_CACHE_TTL_MS) {
+      return publicationCache.value;
+    }
+    if (publicationLookup) return publicationLookup;
+    const request = (async () => {
+      const configured = expandPath((await settings.get()).doctrinePath);
+      if (configured !== DEFAULT_DOCTRINE_PATH) return null;
+      const signal = AbortSignal.timeout(PUBLICATION_LOOKUP_TIMEOUT_MS);
+      const value = await withDeadline(
+        (async () => {
+          const source = await resolveSource();
+          if (!source) return null;
+          const [open] = await readOpenPublications(source, signal);
+          return open ? { url: open.url } : null;
+        })(),
+        PUBLICATION_LOOKUP_TIMEOUT_MS,
+        null,
+      );
+      publicationCache = { at: Date.now(), value };
+      return value;
+    })();
+    publicationLookup = request;
+    try {
+      return await request;
+    } finally {
+      if (publicationLookup === request) publicationLookup = null;
+    }
+  }
+
+  async function threadTitle(threadId: string): Promise<string | null> {
+    try {
+      const thread = await bb.sdk.threads.get({ threadId });
+      return thread.title ?? thread.titleFallback ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function harvestActivity(
+    input: z.infer<typeof harvestActivityInputSchema>,
+  ): Promise<HarvestActivityPayload> {
+    const page = harvest.activityPage({ limit: input.limit, before: input.before });
+    const counts = harvest.activityCounts(input.dayStart ?? localDayStart(Date.now()));
+    const [publication, titles, library] = await Promise.all([
+      displayedPublication(),
+      Promise.all(page.threads.map((thread) => threadTitle(thread.threadId))),
+      currentLibrary().catch(() => null),
+    ]);
+    const publishedRuleIds = library ? new Set(library.rules.map((rule) => rule.id)) : null;
+    const retiredRuleIds = new Set(
+      library?.rules.filter((rule) => rule.status === "retired").map((rule) => rule.id) ?? [],
+    );
+    const items = page.threads.map((thread, index) => {
+      const proposals = thread.proposals.map((proposal) => ({
+        id: proposal.id,
+        title: proposal.title ?? "Untitled proposal",
+        ...proposalResult(
+          proposal.verdict,
+          proposal.writtenPath,
+          publishedRuleIds,
+          retiredRuleIds,
+        ),
+        reason: proposal.reason,
+      }));
+      return {
+        threadId: thread.threadId,
+        title: titles[index],
+        processedAt: thread.processedAt,
+        result: harvestResult(thread.outcome, proposals),
+        addedRuleIds: proposals.flatMap((proposal) =>
+          proposal.result === "added" && proposal.ruleId ? [proposal.ruleId] : [],
+        ),
+        proposals,
+      };
+    });
+    const last = page.threads.at(-1);
+    return harvestActivitySchema.parse({
+      queued: counts.queued,
+      processedToday: counts.processedSince,
+      publication,
+      items,
+      nextCursor:
+        page.hasMore && last
+          ? { processedAt: last.processedAt, threadId: last.threadId }
+          : null,
+    });
+  }
+
+  /** Runs `work` between harvests, so it never interleaves with a commit or publication. */
+  function betweenHarvests<T>(work: () => Promise<T>): Promise<T> {
+    const run = harvestQueue.then(work);
+    harvestQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  async function publicationSource(): Promise<CorpusSource | null> {
+    const configured = expandPath((await settings.get()).doctrinePath);
+    if (configured !== DEFAULT_DOCTRINE_PATH) return null;
+    return resolveSource();
+  }
+
+  /**
+   * Withdraws an approved rule that has not been published. A rule already on
+   * an open rule pull request is removed from that branch first, and the pull
+   * request is closed once it adds nothing; a rule that never reached one only
+   * needs its verdict changed. A published rule is retired, not cancelled.
+   */
+  async function cancelProposal({
+    proposalId,
+  }: z.infer<typeof cancelProposalInputSchema>): Promise<CancelProposalPayload> {
+    const cancellation = await betweenHarvests<CancelProposalPayload>(async () => {
+      const stored = harvest.proposal(proposalId);
+      if (!stored) throw new Error(`Proposal ${proposalId} not found`);
+      const library = await currentLibrary().catch(() => null);
+      const { result, ruleId } = proposalResult(
+        stored.verdict,
+        stored.writtenPath,
+        library ? new Set(library.rules.map((rule) => rule.id)) : null,
+        new Set(
+          library?.rules.filter((rule) => rule.status === "retired").map((rule) => rule.id) ?? [],
+        ),
+      );
+      const alreadyPublished = new Error(
+        `${ruleId ?? `Proposal ${proposalId}`} is already published; retire the rule instead`,
+      );
+      if (result === "added") throw alreadyPublished;
+      if (result !== "waiting") {
+        throw new Error(
+          `Proposal ${proposalId} ${NOT_CANCELLABLE[result]}; only rules waiting to publish can be cancelled`,
+        );
+      }
+      const source = stored.writtenPath ? await publicationSource() : null;
+      const withdrawal =
+        source && stored.writtenPath
+          ? await withdrawRuleFile(
+              source,
+              stored.writtenPath,
+              stored.proposal.title,
+              `doctrine: cancel ${ruleId ?? `proposal ${proposalId}`}`,
+            )
+          : ({ kind: "unpublished" } as const);
+      if (withdrawal.kind === "published") throw alreadyPublished;
+      if (!harvest.recordCancellation(proposalId)) {
+        throw new Error(`Proposal ${proposalId} is no longer waiting to publish`);
+      }
+      if (withdrawal.kind === "unpublished" || !source) {
+        return { proposalId, ruleId, publication: null };
+      }
+      publicationCache = null;
+      if (withdrawal.remainingRules > 0) {
+        return { proposalId, ruleId, publication: { url: withdrawal.url, closed: false } };
+      }
+      try {
+        await closePublication(
+          source,
+          withdrawal.url,
+          "Every rule in this pull request was cancelled from Design Doctrine, so there is nothing left to publish.",
+        );
+      } catch (error) {
+        throw new Error(
+          `Cancelled ${ruleId ?? `proposal ${proposalId}`} and removed it from ${withdrawal.url}, but could not close that pull request: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      return { proposalId, ruleId, publication: { url: withdrawal.url, closed: true } };
+    }).finally(notifyHarvestChanged);
+    if (cancellation.publication?.closed) drainHarvest();
+    return cancellation;
+  }
+
+  // Harvests one thread per queue step and queues the next, so work queued
+  // between harvests (a cancel) waits for one thread rather than the backlog.
+  // Each pass tries every pending thread at most once; a request that arrives
+  // during a pass starts another pass when it ends.
+  let draining = false;
+  let drainRequested = false;
+
   function drainHarvest(): void {
+    drainRequested = true;
+    if (draining) return;
+    draining = true;
+    drainRequested = false;
+    drainStep(new Set());
+  }
+
+  function drainStep(attempted: Set<string>): void {
     harvestQueue = harvestQueue
       .then(async () => {
-        for (const {
-          threadId,
-          projectId,
-        } of harvest.pendingThreads()) {
-          await harvest.harvestThread(threadId, projectId);
-        }
+        const next = harvest
+          .pendingThreads()
+          .find((thread) => !attempted.has(thread.threadId));
+        if (!next || (await publicationInFlight())) return false;
+        attempted.add(next.threadId);
+        await harvest.harvestThread(next.threadId, next.projectId);
+        return true;
       })
       .catch((error: unknown) => {
         bb.log.warn(
           `doctrine harvest: drain failed: ${error instanceof Error ? error.message : String(error)}`,
         );
+        return false;
+      })
+      .then((more) => {
+        if (more) {
+          drainStep(attempted);
+          return;
+        }
+        draining = false;
+        if (drainRequested) drainHarvest();
       });
   }
 
@@ -1152,7 +1605,11 @@ export default async function plugin(bb: BbPluginApi) {
     },
     { auth: "none" },
   );
-  bb.rpc.register(rpcContract, { getLibrary: currentLibrary });
+  bb.rpc.register(rpcContract, {
+    getLibrary: currentLibrary,
+    getHarvestActivity: harvestActivity,
+    cancelProposal,
+  });
   bb.agents.registerTool({
     name: "design_doctrine_search",
     description:
@@ -1194,7 +1651,7 @@ export default async function plugin(bb: BbPluginApi) {
       { name: "search", summary: "Search current rules", usage: "bb doctrine search <query> [--all] [--json]" },
       { name: "show", summary: "Show one rule", usage: "bb doctrine show <rule-id> [--json]" },
       { name: "history", summary: "Scan bb thread history through the SDK", usage: "bb doctrine history <scan|advance|release> [options]" },
-      { name: "harvest", summary: "Report archive-harvest proposals and verdicts", usage: "bb doctrine harvest <propose|verdict|status> [options]" },
+      { name: "harvest", summary: "Show archive-harvest activity, cancel a rule waiting to publish, or report proposals and verdicts", usage: "bb doctrine harvest <activity|cancel|propose|verdict|status> [options]" },
       { name: "validate", summary: "Validate the personalized rule corpus", usage: "bb doctrine validate" },
     ],
     async run(argv, context) {
@@ -1255,6 +1712,37 @@ export default async function plugin(bb: BbPluginApi) {
         }
         if (command === "harvest") {
           const action = argv[1];
+          if (action === "activity") {
+            const activity = await harvestActivity({
+              limit: integerOption(
+                argv,
+                "--limit",
+                20,
+                1,
+                HARVEST_ACTIVITY_MAX_LIMIT,
+              ),
+              before: null,
+            });
+            return {
+              exitCode: 0,
+              stdout: json
+                ? `${JSON.stringify(activity, null, 2)}\n`
+                : formatHarvestActivity(activity),
+            };
+          }
+          if (action === "cancel") {
+            const proposalId = Number(requiredOption(argv, "--proposal"));
+            if (!Number.isInteger(proposalId) || proposalId < 1) {
+              throw new Error("--proposal must be a positive integer");
+            }
+            const cancellation = await cancelProposal({ proposalId });
+            return {
+              exitCode: 0,
+              stdout: json
+                ? `${JSON.stringify(cancellation, null, 2)}\n`
+                : formatCancellation(cancellation),
+            };
+          }
           if (action === "propose") {
             const threadId = requiredOption(argv, "--thread");
             const token = requiredOption(argv, "--token");
@@ -1324,7 +1812,7 @@ export default async function plugin(bb: BbPluginApi) {
           return {
             exitCode: 2,
             stderr:
-              "Usage: bb doctrine harvest <propose|verdict|status> [options]\n",
+              "Usage: bb doctrine harvest <activity|cancel|propose|verdict|status> [options]\n",
           };
         }
         if (command === "validate") {
