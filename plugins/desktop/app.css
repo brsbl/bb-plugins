@@ -1450,6 +1450,32 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   background: var(--bbd-im-face);
 }
 
+/*
+ * An archived thread is a buddy who has signed off: it can be read but not messaged. The compact chat is kept, rather
+ * than bb's composer-less timeline, because it opens at the latest message; only its message box is removed.
+ */
+.bbd-im-chat[data-archived="true"] .sticky.bottom-0 {
+  display: none;
+}
+
+.bbd-im-signed-off {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 4px 0;
+  padding: 6px 8px;
+  font: italic 12px/1.5 Tahoma, Verdana, sans-serif;
+  color: var(--bbd-im-system);
+  background: var(--bbd-im-paper);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-im-shadow),
+    inset -1px -1px 0 var(--bbd-im-light);
+}
+
+.bbd-im-signed-off .bbd-button {
+  font-style: normal;
+}
+
 .bbd-im-chat {
   min-width: 0;
   overflow: hidden;
@@ -1496,6 +1522,33 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 .bbd-im-chat [data-message-column]:has(> [class~="group/message"])::before {
   content: "Me:";
   color: var(--bbd-im-me);
+}
+
+/*
+ * bb labels a steer on a line before the message. Left in flow it would sit beside "Me:" and push the message
+ * down a line, so it is lifted above the speaker as a system line and "Me:" stays with what was said.
+ */
+.bbd-im-chat [data-message-column]:has(> .ml-auto > .mb-1:first-child) {
+  padding-top: 20px;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child {
+  position: absolute;
+  top: 0;
+  left: 0.5rem;
+  margin: 0;
+  font: italic 12px/18px Tahoma, Verdana, sans-serif;
+  color: var(--bbd-im-system);
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child > span {
+  font: inherit;
+  color: inherit;
+  -webkit-text-fill-color: currentColor;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child svg {
+  display: none;
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto {
@@ -1558,15 +1611,49 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   white-space: inherit;
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md {
+/* bb's live "Thinking…" and "Working..." lines sit below the rows rather than in one, so they are named alongside them. */
+.bbd-im-chat [data-timeline-row-id] > .rounded-md,
+.bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row),
+.bbd-im-chat .mt-4.min-h-7:has(> .animate-shine) {
   border-radius: 0;
   font: italic 12px/1.5 Tahoma, Verdana, sans-serif;
   color: var(--bbd-im-system);
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
+.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.text-sm, .text-muted-foreground, .text-subtle-foreground),
+.bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row) :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
   font-size: 12px;
   color: inherit;
+}
+
+/* bb paints shimmering text in the foreground; the sweep still runs over the system gray. */
+.bbd-im-chat :is([data-timeline-row-id] > .rounded-md, .mt-4 > .rounded-md, .mt-4.min-h-7) .animate-shine {
+  -webkit-text-fill-color: currentColor;
+}
+
+/*
+ * AIM shows a buddy typing, not their scratch work: while a turn runs, its thinking and tool rows stay one line
+ * each, and open again once the turn ends. Earlier turns bb has folded keep their own expansion.
+ */
+.bbd-im-chat[data-working="true"]
+  .rounded-md:has(> .group\/timeline-row):not(:is([data-timeline-row-id*=":turn:"]) *)
+  > :not(.group\/timeline-row) {
+  display: none;
+}
+
+.bbd-im-chat[data-working="true"]
+  .rounded-md:not(:is([data-timeline-row-id*=":turn:"]) *)
+  > .group\/timeline-row
+  > button[aria-expanded] {
+  pointer-events: none;
+}
+
+.bbd-im-chat[data-working="true"]
+  .rounded-md:not(:is([data-timeline-row-id*=":turn:"]) *)
+  > .group\/timeline-row
+  > button[aria-expanded]
+  > svg {
+  display: none;
 }
 
 .bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.overflow-hidden, .truncate, .leading-5, .line-clamp-2) {
@@ -1578,7 +1665,8 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   opacity: 1;
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md svg[data-icon] {
+.bbd-im-chat [data-timeline-row-id] > .rounded-md svg[data-icon],
+.bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row) svg[data-icon] {
   display: none;
 }
 
