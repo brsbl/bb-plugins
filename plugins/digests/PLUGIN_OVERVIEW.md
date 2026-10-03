@@ -1,8 +1,8 @@
 # Digests
 
 Private briefings that arrive as ordinary bb threads. Each issue opens with a
-story headline, a short lede, and linked written sections. Unread issues appear in Inbox;
-after reading they return to Digests and archive after seven days.
+story headline, a short lede, and linked written sections. Unread issues stay in the Digests section,
+which works as its own inbox. Archive them yourself when done.
 
 Includes Unread email, Money, Reading, and an X scorecard publishing template.
 Uses existing BB Browser sign-ins and shows Retry or Reconnect when collection

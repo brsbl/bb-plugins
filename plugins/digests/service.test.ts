@@ -1,7 +1,7 @@
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PublishInputSchema, type Issue } from "./model";
+import { PublishInputSchema } from "./model";
 import { createService } from "./service";
 
 const DAY = 86_400_000;
@@ -16,7 +16,7 @@ afterEach(async () => {
 function setup(options: { runs?: Array<{
   id: string; threadId: string | null; status: string; scheduledFor: number; startedAt: number;
   error: string | null; skipReason: string | null;
-}> } = {}) {
+}>; skipInbox?: boolean } = {}) {
   let signIn = { signedIn: true, signedOut: false };
   let tabCount = 0;
   let deliveryCount = 0;
@@ -51,7 +51,9 @@ function setup(options: { runs?: Array<{
         callRpc: async ({ pluginId, method, input, outputSchema }) => {
           let result: unknown;
           if (pluginId === "thread-organizer" && method === "getConfig") {
-            result = { version: 1, revision: 1, stages: [{ key: "digests", title: "Digests", role: "stage", rule: "Private briefings.", sectionId: "section_digests", clearFromInboxAfterRead: true }] };
+            result = { version: 1, revision: 1, stages: [{ key: "digests", title: "Digests", role: "stage", rule: "Private briefings.", sectionId: "section_digests", skipInbox: options.skipInbox ?? true }] };
+          } else if (pluginId === "thread-organizer" && method === "saveConfig") {
+            result = { ...input as object, revision: 2, stages: (input as { stages: object[] }).stages.map((stage) => ({ ...stage, sectionId: "section_digests" })) };
           } else if (pluginId === "browser-automation" && method === "open") {
             const selection = (input as { selection: { tabId: string } }).selection;
             result = { id: `session_${selection.tabId}` };
@@ -89,6 +91,15 @@ const payload = () => PublishInputSchema.parse({
 });
 
 describe("digest issue lifecycle", () => {
+  it("opts an existing Digests section out of Inbox during setup without replacing its rule", async () => {
+    const { service, harness } = setup({ skipInbox: false });
+    await service.ensureSection(true);
+    const saves = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value).filter((value) => value.method === "saveConfig");
+    expect(saves).toHaveLength(1);
+    expect(saves[0]?.input).toMatchObject({ baseRevision: 1, stages: [{ key: "digests", title: "Digests", rule: "Private briefings.", skipInbox: true }] });
+    expect(saves[0]?.input).not.toHaveProperty("stages.0.sectionId");
+  });
+
   it("begins with fresh issue-owned tabs and trusts only a positive sign-in marker", async () => {
     const { service, harness, setSignIn } = setup();
     const first = await service.begin("reading", "thr_first");
@@ -239,31 +250,15 @@ describe("digest issue lifecycle", () => {
     });
   });
 
-  it("archives only read and settled issues after seven days, preserving unread and running threads", async () => {
+  it("keeps old read issues until the user archives them", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     const { service, harness, threads } = setup();
-    function add(id: string, state: "idle" | "error" | "active", readAt: number | null, latestAttentionAt: number, lastReadAt: number | null, archivedAt: number | null = null) {
-      const issue: Issue = service.store.issues.create({
-        id, digestId: "reading", threadId: `thr_${id}`, headline: "A digest", createdAt: NOW - 10 * DAY, readAt,
-      });
-      threads.set(issue.threadId!, makeThreadResponse({
-        id: issue.threadId!, projectId: "proj_digest", status: state, lastReadAt, latestAttentionAt, archivedAt, deletedAt: null,
-      }));
-    }
-    add("old_read", "idle", NOW - 8 * DAY, NOW - 9 * DAY, NOW - 8 * DAY);
-    add("old_error", "error", NOW - 8 * DAY, NOW - 9 * DAY, NOW - 8 * DAY);
-    add("unread", "idle", NOW - 8 * DAY, NOW - DAY, NOW - 8 * DAY);
-    add("running", "active", NOW - 8 * DAY, NOW - 9 * DAY, NOW - 8 * DAY);
-    add("recent", "idle", NOW - DAY, NOW - 9 * DAY, NOW - DAY);
-    add("archived", "idle", NOW - 8 * DAY, NOW - 9 * DAY, NOW - 8 * DAY, NOW - DAY);
+    service.store.issues.create({ id: "old_read", digestId: "reading", threadId: "thr_old_read", headline: "A digest", createdAt: NOW - 30 * DAY, readAt: NOW - 20 * DAY });
+    threads.set("thr_old_read", makeThreadResponse({ id: "thr_old_read", projectId: "proj_digest", status: "idle", lastReadAt: NOW - 20 * DAY, latestAttentionAt: NOW - 21 * DAY }));
     await service.reconcile();
-    expect(harness.inspection.sdk.callsTo("threads.archive").map(([arg]) => arg)).toEqual([
-      { threadId: "thr_old_error" }, { threadId: "thr_old_read" },
-    ]);
-    expect(service.store.issues.get("unread")?.readAt).toBeNull();
-    expect(service.store.issues.get("running")?.readAt).toBeNull();
-    expect(service.store.issues.get("recent")?.readAt).toBe(NOW - DAY);
+    expect(harness.inspection.sdk.callsTo("threads.archive")).toEqual([]);
+    expect(service.store.issues.get("old_read")).not.toBeNull();
   });
 
   it("creates a disabled replacement and enables only its own automation", async () => {

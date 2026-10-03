@@ -1,8 +1,8 @@
 # Digests
 
 Private briefings delivered as threads, as short newsletters with a story headline, a lede,
-and compact written sections. Supporting detail can expand in place. Unread issues notify you in Inbox, return to Digests after
-reading, and archive seven days later. Find old issues with native thread search.
+and compact written sections. Supporting detail can expand in place. Unread issues stay in the Digests section, which works as its own inbox.
+Archive issues yourself when done. Find old issues with native thread search.
 
 ## Install
 
@@ -24,8 +24,8 @@ after reviewing them. Existing automations are never adopted or changed.
 | X scorecard | Published by another thread |
 
 Requires Automations, Browser Automation, and Thread Organizer with its optional
-**Return after read** section rule. Setup creates a Digests section with that
-rule. If the section already exists, enable the option in Organizer settings.
+**Skip Inbox** section rule. Setup creates or updates the Digests section
+with that rule so unread issues stay there.
 
 Browser collection requires **bb 0.45.0 or later** on the browser desktop and
 connected server. Fresh issue-owned tabs reuse your existing BB Browser sign-ins.

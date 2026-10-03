@@ -65,8 +65,8 @@ export default function plugin(bb: BbPluginApi) {
           for (const recipe of DIGEST_RECIPES) {
             if (!service.store.definitions.get(recipe.id)) await define({ ...recipe, projectId, providerId: input.options.provider, model: input.options.model, createdAt: Date.now() });
           }
-          await service.ensureSection();
-          return output({ definitions: service.store.definitions.list(), next: "Review and enable schedules in Digests plugin settings. Enable the Thread Organizer section's Return after read option for Digests. Existing automations were not changed." });
+          await service.ensureSection(true);
+          return output({ definitions: service.store.definitions.list(), next: "Review and enable schedules in Digests plugin settings. Digests skips Inbox, so unread issues stay in its own section. Archive issues yourself when done. Existing automations were not changed." });
         },
       }),
       define: cliCommand({ summary: "Create a disabled digest from a JSON definition", options: { file, json }, async run(input, ctx) { return output(await define(JSON.parse(await readFile(input.options.file, ctx)))); } }),

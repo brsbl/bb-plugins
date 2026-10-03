@@ -35,7 +35,8 @@
 .digest-rich td { padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); text-align: left; }
 .digest-rich mark { padding: 0 2px; border-radius: 3px; color: inherit; background: color-mix(in oklab, var(--warning) 30%, transparent); }
 .digest-rich .digest-chip { display: inline-block; padding: 0 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: var(--text-xs, 13px); font-weight: 400; line-height: 1.5; vertical-align: 1px; }
-.digest-rich .digest-gain { color: var(--success-foreground, var(--success)); font-weight: 600; }
+.digest-rich .digest-gain { color: #1f8a4c; font-weight: 600; }
+.dark .digest-rich .digest-gain { color: #4cd38a; }
 .digest-lede { margin-bottom: 22px; font-size: 17px; }
 .digest-lede p:last-child { margin-bottom: 0; }
 .digest-rich .digest-routine-heading ~ p,

@@ -8,8 +8,7 @@ import { deliveryPrompt, directive, issueTitle, runPrompt, collectionInstruction
 
 const automationSchema = z.object({ id: z.string(), enabled: z.boolean(), nextRunAt: z.number().nullable() }).passthrough();
 const runSchema = z.object({ id: z.string(), threadId: z.string().nullable(), status: z.string(), scheduledFor: z.number(), startedAt: z.number(), error: z.string().nullable(), skipReason: z.string().nullable() }).passthrough();
-const organizerSchema = z.object({ version: z.number(), revision: z.number().optional(), stages: z.array(z.object({ key: z.string(), title: z.string(), role: z.string(), rule: z.string(), sectionId: z.string().nullable(), clearFromInboxAfterRead: z.boolean().optional() }).passthrough()) }).passthrough();
-const DAY = 24 * 60 * 60 * 1000;
+const organizerSchema = z.object({ version: z.number(), revision: z.number().optional(), stages: z.array(z.object({ key: z.string(), title: z.string(), role: z.string(), rule: z.string(), sectionId: z.string().nullable(), skipInbox: z.boolean().optional() }).passthrough()) }).passthrough();
 
 export function createService(bb: BbPluginApi) {
   const store = createStore(bb);
@@ -37,22 +36,25 @@ export function createService(bb: BbPluginApi) {
   async function organizer() {
     return bb.sdk.plugins.callRpc({ pluginId: "thread-organizer", method: "getConfig", input: {}, outputSchema: organizerSchema });
   }
-  async function ensureSection() {
+  async function ensureSection(configureExisting = false) {
     const config = await organizer();
     const stage = config.stages.find((entry) => entry.key === "digests");
     if (stage) {
       if (stage.role !== "stage") throw new Error("The digests key belongs to Inbox. Choose a different Organizer key before setup.");
-      return stage;
+      if (!configureExisting || stage.skipInbox) return stage;
     }
     const { revision, stages, ...base } = config;
+    const nextStages = stages.map(({ sectionId: _id, ...entry }) => entry.key === "digests" ? { ...entry, skipInbox: true } : entry);
+    if (!stage) nextStages.push({ key: "digests", role: "stage", title: "Digests", skipInbox: true, rule: "Private scheduled briefings and issues published by other threads." });
     const next = await bb.sdk.plugins.callRpc({
       pluginId: "thread-organizer", method: "saveConfig",
-      input: JSON.parse(JSON.stringify({ ...base, baseRevision: revision ?? 0, stages: [...stages.map(({ sectionId: _id, ...entry }) => entry), {
-        key: "digests", role: "stage", title: "Digests", clearFromInboxAfterRead: true, rule: "Private scheduled briefings and issues published by other threads.",
-      }] })), outputSchema: organizerSchema,
+      input: JSON.parse(JSON.stringify({ ...base, baseRevision: revision ?? 0, stages: nextStages })), outputSchema: organizerSchema,
     });
-    return next.stages.find((entry) => entry.key === "digests")!;
+    const saved = next.stages.find((entry) => entry.key === "digests");
+    if (!saved?.skipInbox) throw new Error("Update Thread Organizer to a version with Skip Inbox, then run Digests setup again.");
+    return saved;
   }
+
   async function place(threadId: string, projectId: string) {
     // Organizer owns remembered stages and the protected Inbox. Its public CLI
     // has thread-scoped context; direct section updates would bypass that state.
@@ -255,7 +257,7 @@ export function createService(bb: BbPluginApi) {
   async function overview() {
     const plugins = await bb.sdk.plugins.list();
     let organizerReady = false;
-    try { organizerReady = (await organizer()).stages.some((entry) => entry.key === "digests" && entry.clearFromInboxAfterRead === true); } catch { /* Settings shows setup guidance. */ }
+    try { organizerReady = (await organizer()).stages.some((entry) => entry.key === "digests" && entry.skipInbox === true); } catch { /* Settings shows setup guidance. */ }
     return { definitions: store.definitions.list(), connections: store.connections.list(), actionCardsAvailable: plugins.plugins.some((entry) => entry.id === "inline-action-cards" && entry.enabled && entry.status === "running"), organizerReady };
   }
   async function reconcile() {
@@ -280,23 +282,6 @@ export function createService(bb: BbPluginApi) {
           }
         }
       } catch (error) { bb.log.warn(`Digest ${definition.id}: ${error instanceof Error ? error.message : String(error)}`); }
-    }
-    for (let offset = 0; ; offset += 100) {
-      const issues = store.issues.list({ limit: 100, offset });
-      for (const issue of issues) {
-        if (!issue.threadId) continue;
-        try {
-          const thread = await bb.sdk.threads.get({ threadId: issue.threadId });
-          if (thread.archivedAt !== null || thread.deletedAt !== null) continue;
-          if ((thread.lastReadAt ?? 0) < thread.latestAttentionAt || !["idle", "error"].includes(thread.status)) {
-            if (issue.readAt !== null) store.issues.update(issue.id, { readAt: null });
-            continue;
-          }
-          if (issue.readAt === null) store.issues.update(issue.id, { readAt: thread.lastReadAt ?? Date.now() });
-          else if (Date.now() - issue.readAt >= 7 * DAY) await bb.sdk.threads.archive({ threadId: issue.threadId });
-        } catch (error) { bb.log.warn(`Issue ${issue.id}: ${error instanceof Error ? error.message : String(error)}`); }
-      }
-      if (issues.length < 100) break;
     }
   }
   async function settled(threadId: string, failed: boolean) {

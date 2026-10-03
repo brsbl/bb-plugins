@@ -326,7 +326,7 @@ function DigestsSettings() {
   return (
     <section className="digest-settings" aria-label="Digests">
       <header className="digest-settings-header">
-        <div><h3>Digests</h3><p className="digest-muted">Briefings arrive as threads. Read issues archive after 7 days.</p></div>
+        <div><h3>Digests</h3><p className="digest-muted">Unread issues stay in Digests. Archive them yourself when done.</p></div>
         <button type="button" className="digest-button digest-icon-button" aria-label="Refresh Digests" title="Refresh Digests" disabled={loading} onClick={() => { void load(); }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.5-1.2L20 9M4 15l2.4 3.2A7 7 0 0 0 17.9 17"/></svg>
         </button>
