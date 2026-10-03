@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { CHAT_CONTRACT_PROBES, checkChatContract, inspectChatContract } from "./chat-contract";
 
 // Real ThreadChat markup captured from bb; see the comment at the top of the fixture for how to refresh it.
-const fixture = readFileSync(new URL("./__fixtures__/thread-chat.html", import.meta.url), "utf8");
-const css = readFileSync(new URL("../../app.css", import.meta.url), "utf8");
+const fixture = readFileSync(resolve(__dirname, "__fixtures__/thread-chat.html"), "utf8");
+const css = readFileSync(resolve(__dirname, "../../app.css"), "utf8");
 const contractStart = css.indexOf("/*\n * bb ThreadChat contract:");
 const contractEnd = css.indexOf("/* End of the bb ThreadChat contract. */");
 const contractCss = css.slice(contractStart, contractEnd);
@@ -43,6 +44,17 @@ describe("bb ThreadChat contract", () => {
     expect(archived.dataset.archived).toBe("true");
     expect(checkChatContract(live)).toBe("ok");
     expect(inspectChatContract(archived)).toEqual({ contract: "ok", failed: [] });
+  });
+
+  it("shows only what was said: messages and user rows stay, tool calls and thoughts hide", () => {
+    load();
+    const hidden = matches('.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"])');
+    const shown = Array.from(document.querySelectorAll(CHAT_CONTRACT_PROBES.row)).filter((row) => !hidden.includes(row));
+    expect(hidden.length).toBeGreaterThan(0);
+    expect(hidden.some((row) => rowOf(row).includes(":work-summary:") || rowOf(row).includes(":op:reasoning:"))).toBe(true);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.every((row) => isPerson(row) || isAgent(row))).toBe(true);
+    expect(document.querySelectorAll(CHAT_CONTRACT_PROBES.message).length).toBe(shown.filter((row) => row.querySelector(CHAT_CONTRACT_PROBES.message)).length);
   });
 
   it("labels speakers on both kinds of message, with Me: only on a person's", () => {

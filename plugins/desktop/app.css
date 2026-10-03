@@ -1443,6 +1443,17 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
  * bb's chat markup in this section, and refresh programs/threads/__fixtures__/thread-chat.html when that markup changes.
  */
 
+/*
+ * AIM shows only what was said. Tool calls, thoughts, "Worked for" folds and the live Thinking/Working line are hidden
+ * (the status bar already says the buddy is typing, and Open in bb shows the full thread). Kept: your and the agent's
+ * messages, user rows (which include prompts sent by another agent or by bb), and warnings and errors.
+ */
+.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"]),
+.bbd-im-chat .mt-4:has(> .rounded-md > .group\/timeline-row),
+.bbd-im-chat .mt-4.min-h-7:has(> .animate-shine) {
+  display: none;
+}
+
 /* A sunken XP field drawn inside the scroller, so the message box covers its lower edge instead of being clipped by it. */
 .bbd-im-chat .thread-scrollbar {
   background: var(--bbd-im-paper);
