@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { closestCenter, DndContext, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { horizontalListSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "./components/ui/button.js";
 import { ReferenceIcon } from "./reference-icon.js";
@@ -15,7 +15,7 @@ export function CustomizePins({ pins, busy, onMove, onRemove, onDone }: {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  return <section aria-label="Customize pins" className="flex min-w-0 items-center gap-1 px-1 py-1" onKeyDown={(event) => {
+  return <section aria-label="Customize pins" className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-2 px-1 py-1" onKeyDown={(event) => {
     if (event.key === "Escape" && !event.defaultPrevented && !dragging) { event.preventDefault(); onDone(); }
   }}>
     <span className="mr-1 shrink-0 text-xs text-muted-foreground">Pinned</span>
@@ -23,8 +23,8 @@ export function CustomizePins({ pins, busy, onMove, onRemove, onDone }: {
       setDragging(false);
       if (over && active.id !== over.id) onMove(String(active.id), String(over.id));
     }}>
-      <SortableContext items={pins.map((pin) => pin.id)} strategy={horizontalListSortingStrategy}>
-        <ul aria-label="Pinned files order" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1">
+      <SortableContext items={pins.map((pin) => pin.id)} strategy={rectSortingStrategy}>
+        <ul aria-label="Pinned files order" className="contents">
           {pins.map((pin) => <PinRow key={pin.id} pin={pin} busy={busy} reorderDisabled={busy || pins.length < 2} onRemove={() => onRemove(pin)} />)}
         </ul>
       </SortableContext>
