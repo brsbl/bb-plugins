@@ -14,7 +14,7 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
 - Unclaimed running threads appear in their remembered workflow stage, or Threads when
   they have not been assigned one.
 - Unclaimed idle unread threads appear in the main Inbox and stay after being marked read.
-- Additional inboxes catch threads from a selected plugin. Claimed threads stay
+- Additional inboxes receive threads from a selected plugin. Claimed threads stay
   in that inbox until you move or archive them, even after reading or resuming work.
   Opening a thread marks it read normally; it never also appears in the main Inbox.
 - After reading one, drag it to any workflow section to clear it from Inbox
@@ -58,7 +58,7 @@ Open Thread Organizer in bb’s plugin settings. The workflow editor lets you:
 - add, remove, reorder, and rename other sections;
 - describe what belongs in each section;
 - give a workflow section an entry prompt that is sent when a thread lands there;
-- choose **Inbox** as a section’s type and enter the plugin id it catches.
+- choose **Inbox · <Plugin name>** in the Type column to receive that plugin’s threads.
 
 The defaults are Planning, Spec Review, Building, Testing / Deploy, Handoff,
 and On Hold. When an agent has enough context to determine that its current

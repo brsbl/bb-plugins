@@ -126,7 +126,7 @@ describe("workflow configuration", () => {
     expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("needs a plugin");
     next.stages.at(-1)!.catchesPluginId = "digests";
     next.stages.push({ ...next.stages.at(-1)!, key: "more", title: "More" });
-    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("already caught");
+    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("already has another inbox");
     next.stages.pop();
     next.stages.at(-1)!.entryPrompt = "Run something.";
     expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("cannot send an entry prompt");

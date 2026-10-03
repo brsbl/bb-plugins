@@ -1303,7 +1303,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           stage.key === "inbox"
             ? "system-managed"
             : stage.role === "inbox"
-              ? `inbox · catches ${stage.catchesPluginId}`
+              ? `inbox · ${stage.catchesPluginId}`
             : stage.entryPrompt
               ? "entry prompt"
               : "";
@@ -1358,7 +1358,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return confirmAndSave(context, {
       title: `Add section "${title}"`,
       summary: (key) =>
-        `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}${inbox ? `, catching threads from ${catchesPluginId}` : ""}, with this rule for agents:`,
+        `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}${inbox ? `, for threads from ${catchesPluginId}` : ""}, with this rule for agents:`,
       field: "rule",
       apply: (current) => {
         const edited = editableWorkflowConfig(current);
@@ -1458,7 +1458,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (rest.length === 0) {
       return {
         exitCode: 0,
-        stdout: `${stage.role}${stage.key === "inbox" ? " (catch-all)" : stage.catchesPluginId ? ` (catches ${stage.catchesPluginId})` : ""}\n`,
+        stdout: `${stage.role}${stage.key === "inbox" ? " (everything)" : stage.catchesPluginId ? ` (${stage.catchesPluginId})` : ""}\n`,
       };
     }
     if (stage.key === "inbox") {
@@ -1476,7 +1476,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return confirmAndSave(context, {
       title: `Set the section type for ${stage.title}`,
       summary: () => role === "inbox"
-        ? `${stage.title} will catch threads from ${catchesPluginId} and keep them until you move or archive them.`
+        ? `${stage.title} will receive threads from ${catchesPluginId} and keep them until you move or archive them.`
         : `${stage.title} will be a workflow section with normal Inbox routing.`,
       field: null,
       apply: (current) => {

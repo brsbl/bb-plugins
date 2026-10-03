@@ -730,11 +730,15 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
-  it("saves an additional inbox filter and can turn it back into a workflow section", async () => {
+  it("chooses an installed plugin inbox in one step and can turn it back into a stage", async () => {
     const app = await loadApp();
     let savedInput: EditableWorkflowConfig | null = null;
     const rendered = renderSlot<{}, typeof rpcContract>(
       app.settingsSections[0]!, {}, {
+        sdk: { plugins: { list: async () => ({ plugins: [
+          { id: "digests", name: "Digests", status: "running", isOrphanedBuiltin: false },
+          { id: "missing-plugin", name: "Missing", status: "missing", isOrphanedBuiltin: false },
+        ] }) } },
         rpc: {
           getConfig: async () => configuredWorkflow(),
           saveConfig: async (input) => {
@@ -752,11 +756,11 @@ describe("workflow settings", () => {
     });
     expect((type as HTMLSelectElement).value).toBe("stage");
     expect(rendered.queryByRole("combobox", { name: "Section type for Inbox" })).toBeNull();
-    fireEvent.change(type, { target: { value: "inbox" } });
-    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
-    expect((await rendered.findByRole("alert")).textContent).toContain("needs a plugin");
-    expect(savedInput).toBeNull();
-    fireEvent.change(rendered.getByLabelText("Plugin caught by Planning"), { target: { value: "digests" } });
+    await rendered.findAllByRole("option", { name: "Inbox · Digests" });
+    expect(rendered.queryByRole("option", { name: "Inbox · Missing" })).toBeNull();
+    expect(rendered.getByText("Inbox · everything")).toBeTruthy();
+    expect(rendered.queryByLabelText("Plugin caught by Planning")).toBeNull();
+    fireEvent.change(type, { target: { value: "inbox:digests" } });
     expect(rendered.queryByLabelText("Entry prompt for Planning")).toBeNull();
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => expect(savedInput?.stages[1])
@@ -804,7 +808,7 @@ describe("workflow settings", () => {
       "grid-cols-[minmax(0,1fr)_2rem]",
     );
     expect(planningGrid.className).toContain(
-      "lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_minmax(0,1.25fr)_2rem]",
+      "lg:grid-cols-[2rem_minmax(7rem,0.9fr)_minmax(10rem,1fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_2rem]",
     );
     expect(planningGrid.className).toContain("gap-y-0");
     expect(planningCard.className).toContain("px-3");
@@ -814,22 +818,22 @@ describe("workflow settings", () => {
     expect(stageList.className).toContain("overflow-visible");
     expect(planningRuleLayout.className).toContain("col-span-2");
     expect(planningRuleLayout.className).toContain("col-start-1");
-    expect(planningRuleLayout.className).toContain("row-start-2");
-    expect(planningRuleLayout.className).toContain("lg:col-start-3");
+    expect(planningRuleLayout.className).toContain("row-start-3");
+    expect(planningRuleLayout.className).toContain("lg:col-start-4");
     expect(planningRuleLayout.className).toContain("lg:row-start-1");
     const planningActions = rendered.getByLabelText(
       "More actions for Planning",
     ).parentElement!;
     expect(planningActions.className).toContain("col-start-2");
-    expect(planningActions.className).toContain("lg:col-start-5");
+    expect(planningActions.className).toContain("lg:col-start-6");
     expect(planningActions.className).not.toContain("col-start-3");
     expect(planningActions.className).not.toContain("lg:col-start-4");
     const planningPrompt = rendered
       .getByLabelText("Entry prompt for Planning")
       .closest("label")!;
     expect(planningPrompt.parentElement).toBe(planningGrid);
-    expect(planningPrompt.className).toContain("row-start-3");
-    expect(planningPrompt.className).toContain("lg:col-start-4");
+    expect(planningPrompt.className).toContain("row-start-4");
+    expect(planningPrompt.className).toContain("lg:col-start-5");
     expect(planningPrompt.className).toContain("lg:row-start-1");
     expect(planningRule.className).toContain("border-transparent");
     expect(planningRule.className).toContain("resize-none");
@@ -840,12 +844,12 @@ describe("workflow settings", () => {
     const inboxRule = rendered.getByText(INBOX_DESCRIPTION);
     const inboxGrid = inboxTitle.parentElement!;
     expect(inboxRule.parentElement).toBe(inboxGrid);
-    expect(inboxGrid.children).toHaveLength(5);
+    expect(inboxGrid.children).toHaveLength(6);
     expect(inboxGrid.className).toBe(planningGrid.className);
     expect(inboxRule.className).toContain("col-span-2");
     expect(inboxRule.className).toContain("col-start-1");
-    expect(inboxRule.className).toContain("row-start-2");
-    expect(inboxRule.className).toContain("lg:col-start-3");
+    expect(inboxRule.className).toContain("row-start-3");
+    expect(inboxRule.className).toContain("lg:col-start-4");
     expect(inboxRule.className).toContain("lg:row-start-1");
     expect(inboxRule.className).toContain("px-2.5");
     expect(inboxRule.className).toContain("text-sm");

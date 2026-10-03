@@ -12,6 +12,7 @@ import {
   DragDropVerticalIcon,
   MoreHorizontalIcon,
   PlusSignIcon,
+  SquareLock02Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -19,6 +20,7 @@ import {
   definePluginApp,
   useRealtime,
   useRpc,
+  useSdk,
   type PluginPendingInteractionProps,
 } from "@get-bb/plugin-sdk/app";
 
@@ -55,13 +57,15 @@ const iconButtonClass =
 // One row per section; at lg each field is a column named once by the header
 // row, below lg the fields stack under the title with their own captions.
 const stageColumnsClass =
-  "lg:grid-cols-[2rem_minmax(7rem,9rem)_minmax(0,1fr)_minmax(0,1.25fr)_2rem]";
+  "lg:grid-cols-[2rem_minmax(7rem,0.9fr)_minmax(10rem,1fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_2rem]";
 const stageRowClass = `grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 ${stageColumnsClass}`;
 const stageHeaderClass = `hidden min-w-0 items-end gap-x-2 rounded-t-lg border-b border-border bg-muted/30 px-3 py-2 lg:grid ${stageColumnsClass}`;
-const stageRuleLayoutClass =
+const stageTypeLayoutClass =
   "col-span-2 col-start-1 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1";
-const stagePromptLayoutClass =
+const stageRuleLayoutClass =
   "col-span-2 col-start-1 row-start-3 min-w-0 lg:col-span-1 lg:col-start-4 lg:row-start-1";
+const stagePromptLayoutClass =
+  "col-span-2 col-start-1 row-start-4 min-w-0 lg:col-span-1 lg:col-start-5 lg:row-start-1";
 const fieldCaptionClass =
   "text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground";
 const fieldHintClass =
@@ -125,7 +129,7 @@ function StageActions({
 
   return (
     <div
-      className="relative col-start-2 row-start-1 shrink-0 lg:col-start-5"
+      className="relative col-start-2 row-start-1 shrink-0 lg:col-start-6"
       ref={rootRef}
     >
       <button
@@ -206,7 +210,10 @@ function StageActions({
   );
 }
 
+type InboxPlugin = { id: string; name: string };
+
 interface StageCardProps {
+  inboxPlugins: readonly InboxPlugin[];
   index: number;
   onChange(stage: EditableWorkflowStage): void;
   onDragStart(index: number): void;
@@ -240,6 +247,7 @@ function finalizeDraftKeys(
 }
 
 function StageCard({
+  inboxPlugins,
   index,
   onChange,
   onDragStart,
@@ -310,7 +318,7 @@ function StageCard({
         {protectedInbox ? (
           <span
             aria-hidden="true"
-            className="col-start-2 row-start-1 size-8 lg:col-start-5"
+            className="col-start-2 row-start-1 size-8 lg:col-start-6"
           />
         ) : (
           <StageActions
@@ -321,6 +329,45 @@ function StageCard({
             stageCount={stageCount}
           />
         )}
+        <div className={`${stageTypeLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
+          <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>Type</span>
+          {protectedInbox ? (
+            <span className="flex min-h-8 items-center gap-1.5 px-2.5 text-sm text-muted-foreground" title="The main Inbox is protected">
+              <HugeiconsIcon aria-hidden="true" className="size-3.5 shrink-0" icon={SquareLock02Icon} />
+              Inbox · everything
+            </span>
+          ) : (
+            <>
+              <select
+                aria-label={`Section type for ${stage.title}`}
+                className={`${quietFieldClass} h-8 py-0`}
+                onChange={(event) => {
+                  const { catchesPluginId: _filter, ...fields } = stage;
+                  const value = event.target.value;
+                  onChange(value === "stage"
+                    ? { ...fields, role: "stage" }
+                    : { ...fields, role: "inbox", catchesPluginId: value.slice(6) });
+                }}
+                value={inbox ? `inbox:${stage.catchesPluginId}` : "stage"}
+              >
+                <option value="stage">Stage</option>
+                {inbox && !inboxPlugins.some((plugin) => plugin.id === stage.catchesPluginId) ? (
+                  <option disabled value={`inbox:${stage.catchesPluginId}`}>
+                    Inbox · {stage.catchesPluginId} (unavailable)
+                  </option>
+                ) : null}
+                {inboxPlugins.map((plugin) => (
+                  <option disabled={hasPrompt} key={plugin.id} value={`inbox:${plugin.id}`}>
+                    Inbox · {plugin.name}
+                  </option>
+                ))}
+              </select>
+              {hasPrompt ? (
+                <span className="px-2.5 text-xs text-muted-foreground">Clear the entry prompt to choose an inbox.</span>
+              ) : null}
+            </>
+          )}
+        </div>
         {protectedInbox ? (
           <p
             className={`${stageRuleLayoutClass} px-2.5 py-1.5 text-sm leading-5 text-muted-foreground`}
@@ -397,40 +444,7 @@ function StageCard({
             </label>
           </>
         )}
-        {!protectedInbox ? (
-          <div className="col-span-2 col-start-1 row-start-4 mt-2 flex flex-wrap items-center gap-2 px-2.5 text-xs text-muted-foreground lg:col-start-3 lg:row-start-2">
-            <label className="inline-flex items-center gap-2">
-              Type
-              <select
-                aria-label={`Section type for ${stage.title}`}
-                className="h-7 rounded border border-border bg-background px-1.5 text-foreground"
-                onChange={(event) => {
-                  const { catchesPluginId: _filter, ...fields } = stage;
-                  onChange({ ...fields, role: event.target.value as "stage" | "inbox" });
-                }}
-                value={stage.role}
-              >
-                <option value="stage">Workflow section</option>
-                <option disabled={hasPrompt} value="inbox">Inbox</option>
-              </select>
-            </label>
-            {inbox ? (
-              <label className="inline-flex items-center gap-2">
-                Catches plugin
-                <input
-                  aria-label={`Plugin caught by ${stage.title}`}
-                  className="h-7 w-36 rounded border border-border bg-background px-2 text-foreground"
-                  maxLength={128}
-                  onChange={(event) => update("catchesPluginId", event.target.value)}
-                  placeholder="plugin-id"
-                  value={stage.catchesPluginId ?? ""}
-                />
-              </label>
-            ) : hasPrompt ? (
-              <span>Clear the entry prompt to make this an inbox.</span>
-            ) : null}
-          </div>
-        ) : null}
+
       </div>
     </article>
   );
@@ -438,6 +452,23 @@ function StageCard({
 
 export function WorkflowSettings() {
   const rpc = useRpc<typeof rpcContract>();
+  const sdk = useSdk();
+  const [inboxPlugins, setInboxPlugins] = useState<InboxPlugin[]>([]);
+  const [pluginsError, setPluginsError] = useState(false);
+  const loadPlugins = useCallback(async () => {
+    try {
+      const { plugins } = await sdk.plugins.list();
+      // The public SDK gives every installed plugin thread ownership; there
+      // is no separate manifest permission for spawning or marking threads.
+      setInboxPlugins(plugins.filter((plugin) => !plugin.isOrphanedBuiltin && plugin.status !== "missing")
+        .map((plugin) => ({ id: plugin.id, name: plugin.name || plugin.id }))
+        .sort((a, b) => a.name.localeCompare(b.name)));
+      setPluginsError(false);
+    } catch {
+      setPluginsError(true);
+    }
+  }, [sdk]);
+  useEffect(() => { void loadPlugins(); }, [loadPlugins]);
   const [config, setConfig] = useState<EditableWorkflowConfig | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -642,7 +673,7 @@ export function WorkflowSettings() {
   }
 
   return (
-    <div className="grid min-w-0 w-full max-w-3xl gap-4">
+    <div className="grid min-w-0 w-full max-w-5xl gap-4">
       <div className="flex min-w-0 flex-wrap items-end gap-x-4 gap-y-3">
         <div className="min-w-60 flex-1">
           <p className={workflowSettingsDescriptionClass}>
@@ -675,6 +706,12 @@ export function WorkflowSettings() {
         </div>
       </div>
 
+      {pluginsError ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          Couldn’t load inbox choices.{" "}
+          <button className="underline underline-offset-2" onClick={() => void loadPlugins()} type="button">Retry</button>
+        </p>
+      ) : null}
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -715,6 +752,7 @@ export function WorkflowSettings() {
         <div className={stageHeaderClass}>
           <span />
           <span className={`${fieldCaptionClass} px-2.5`}>Section</span>
+          <span className={`${fieldCaptionClass} px-2.5`}>Type</span>
           <span className={`${fieldCaptionClass} px-2.5`}>
             Rule
             <span className={fieldHintClass}>what belongs here</span>
@@ -729,6 +767,7 @@ export function WorkflowSettings() {
         </div>
         {config.stages.map((stage, index) => (
           <StageCard
+            inboxPlugins={inboxPlugins}
             index={index}
             key={stage.key}
             onChange={(next) => replaceStage(index, next)}

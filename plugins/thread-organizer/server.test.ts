@@ -1418,7 +1418,7 @@ describe("config CLI", () => {
     expect(await stageOf(organizer, "digests"))
       .toMatchObject({ role: "inbox", catchesPluginId: "digests" });
     expect(await cli(organizer, ["section", "type", "digests"]))
-      .toMatchObject({ exitCode: 0, stdout: "inbox (catches digests)\n" });
+      .toMatchObject({ exitCode: 0, stdout: "inbox (digests)\n" });
     expect(await cli(organizer, ["phase", "digests"]))
       .toMatchObject({ exitCode: 2 });
     expect(await cli(organizer, ["prompt", "digests", "--set", "Run work."]))
@@ -1431,7 +1431,7 @@ describe("config CLI", () => {
     ]);
     expect(inbox.result.exitCode).toBe(0);
     expect(inbox.request.payload).toMatchObject({
-      summary: "Digests will catch threads from digests and keep them until you move or archive them.",
+      summary: "Digests will receive threads from digests and keep them until you move or archive them.",
     });
     const count = pending(organizer).length;
     expect(await cli(organizer, ["section", "type", "inbox", "--set", "stage"]))

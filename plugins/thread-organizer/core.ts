@@ -246,9 +246,9 @@ function validateStages(stages: WorkflowStage[]): void {
       throw new Error("Inbox cannot send an entry prompt.");
     }
     if (stage.role === "inbox" && stage.key !== "inbox") {
-      if (!stage.catchesPluginId) throw new Error(`Inbox "${stage.title}" needs a plugin to catch.`);
+      if (!stage.catchesPluginId) throw new Error(`Inbox "${stage.title}" needs a plugin.`);
       if (caughtPlugins.has(stage.catchesPluginId)) {
-        throw new Error(`Plugin "${stage.catchesPluginId}" is already caught by another inbox.`);
+        throw new Error(`Plugin "${stage.catchesPluginId}" already has another inbox.`);
       }
       caughtPlugins.add(stage.catchesPluginId);
     } else if (stage.catchesPluginId !== undefined) {
