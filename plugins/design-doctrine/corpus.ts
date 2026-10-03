@@ -329,7 +329,12 @@ export interface OpenPublication {
   ageHours: number;
 }
 
-/** Lists the doctrine pull requests that are still open. */
+/**
+ * Lists the doctrine pull requests this plugin opened that are still open. The
+ * branch prefix alone is not proof: anyone can open a pull request from a fork
+ * branch named `doctrine/...`, so only same-repository pull requests authored
+ * by the account the plugin publishes with count.
+ */
 export async function readOpenPublications(
   source: CorpusSource,
   signal?: AbortSignal,
@@ -343,8 +348,10 @@ export async function readOpenPublications(
       "open",
       "--search",
       "head:doctrine/",
+      "--author",
+      "@me",
       "--json",
-      "url,headRefName,mergeStateStatus,createdAt",
+      "url,headRefName,mergeStateStatus,createdAt,isCrossRepository",
     ],
     {
       cwd: source.repositoryRoot,
@@ -358,13 +365,34 @@ export async function readOpenPublications(
     headRefName: string;
     mergeStateStatus: string;
     createdAt: string;
+    isCrossRepository: boolean;
   }>;
-  return rows.map((row) => ({
-    url: row.url,
-    branch: row.headRefName,
-    mergeStateStatus: row.mergeStateStatus,
-    ageHours: (Date.now() - Date.parse(row.createdAt)) / (60 * 60 * 1_000),
-  }));
+  return rows
+    .filter((row) => !row.isCrossRepository && row.headRefName.startsWith("doctrine/"))
+    .map((row) => ({
+      url: row.url,
+      branch: row.headRefName,
+      mergeStateStatus: row.mergeStateStatus,
+      ageHours: (Date.now() - Date.parse(row.createdAt)) / (60 * 60 * 1_000),
+    }));
+}
+
+/**
+ * Merges the base branch into an open doctrine pull request. Strict branch
+ * protection blocks auto-merge on a branch that has fallen behind, and nothing
+ * else ever updates it, so the rules would wait forever.
+ */
+export async function updatePublicationBranch(
+  source: CorpusSource,
+  url: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await execFileAsync("gh", ["pr", "update-branch", url], {
+    cwd: source.repositoryRoot,
+    encoding: "utf8",
+    timeout: COMMAND_TIMEOUT_MS,
+    signal,
+  });
 }
 
 /**

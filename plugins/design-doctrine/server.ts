@@ -23,6 +23,7 @@ import {
   resolveBaseBranch,
   resolveGitHubRepository,
   resolveRepositoryRoot,
+  updatePublicationBranch,
 } from "./corpus.js";
 import {
   createHistoryMaintenance,
@@ -1118,7 +1119,21 @@ export default async function plugin(bb: BbPluginApi) {
     if (configured !== DEFAULT_DOCTRINE_PATH) return false;
     const source = await resolveSource();
     if (!source) return false;
-    return (await readOpenPublications(source)).length > 0;
+    const open = await readOpenPublications(source);
+    // Strict branch protection blocks auto-merge on a branch that fell behind
+    // main, and nothing else updates it. Every drain retries, by which time
+    // GitHub has recomputed the merge state.
+    for (const publication of open) {
+      if (publication.mergeStateStatus !== "BEHIND") continue;
+      await updatePublicationBranch(source, publication.url).catch((error: unknown) => {
+        bb.log.warn(
+          `doctrine harvest: could not update ${publication.url}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+    }
+    return open.length > 0;
   }
 
   function drainHarvest(): void {
