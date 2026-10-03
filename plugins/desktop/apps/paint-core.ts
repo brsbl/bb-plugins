@@ -345,26 +345,36 @@ export function shapeColors(style: FillStyle, color: string, other: string): { s
   return { stroke: null, fill: color };
 }
 
-/** Breaks typed text into lines no wider than `maxWidth`, splitting a word only when it alone is too wide. */
-export function wrapText(text: string, maxWidth: number, measure: (text: string) => number): string[] {
+/**
+ * Breaks typed text into lines no wider than `maxWidth`, splitting a word only when it alone is too wide.
+ * Stops after `maxLines`, since lines past the box would be clipped anyway.
+ */
+export function wrapText(text: string, maxWidth: number, measure: (text: string) => number, maxLines = Infinity): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split("\n")) {
     let line = "";
     for (const word of paragraph.split(/(?<= )/)) {
+      if (lines.length >= maxLines) return lines.slice(0, maxLines);
       if (measure(line + word.trimEnd()) <= maxWidth || line === "") {
         line += word;
       } else {
         lines.push(line.trimEnd());
         line = word;
       }
-      while (measure(line.trimEnd()) > maxWidth && line.trimEnd().length > 1) {
-        let cut = line.length - 1;
-        while (cut > 1 && measure(line.slice(0, cut)) > maxWidth) cut -= 1;
+      while (lines.length < maxLines && measure(line.trimEnd()) > maxWidth && line.trimEnd().length > 1) {
+        // Widths grow with length, so binary-search the longest prefix that fits, never cutting fewer than one character.
+        let cut = 1;
+        let over = line.length;
+        while (over - cut > 1) {
+          const mid = Math.floor((cut + over) / 2);
+          if (measure(line.slice(0, mid)) <= maxWidth) cut = mid;
+          else over = mid;
+        }
         lines.push(line.slice(0, cut));
         line = line.slice(cut);
       }
     }
     lines.push(line.trimEnd());
   }
-  return lines;
+  return lines.slice(0, maxLines);
 }

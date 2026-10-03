@@ -554,7 +554,7 @@ export function PaintApp() {
   };
 
   const newPicture = () => {
-    if (dirty && !window.confirm("Clear the picture? Unsaved changes will be lost.")) return;
+    if ((dirty || hasPending()) && !window.confirm("Clear the picture? Unsaved changes will be lost.")) return;
     finishPending();
     remember();
     applySize(sizeRef.current, null);
@@ -620,7 +620,7 @@ export function PaintApp() {
   };
 
   const openPicture = async (summary: PictureSummary) => {
-    if (dirty && !window.confirm(`Open ${summary.name}? Unsaved changes will be lost.`)) return;
+    if ((dirty || hasPending()) && !window.confirm(`Open ${summary.name}? Unsaved changes will be lost.`)) return;
     try {
       const picture = await rpc.call("getPicture", { id: summary.id });
       const image = await decodeImage(`data:${picture.mimeType};base64,${picture.dataBase64}`);
@@ -639,7 +639,9 @@ export function PaintApp() {
 
   /** Saves the picture, then adds it to the message being written so the agent can see it. */
   const send = async () => {
-    const saved = dirty || pictureId === null ? await save() : null;
+    // Pending text or shapes aren't in `dirty` until they land, and this render's `dirty` wouldn't see it.
+    const landed = finishPending();
+    const saved = landed || dirty || pictureId === null ? await save() : null;
     const id = saved?.id ?? pictureId;
     if (id === null) return;
     sendToThread({ kind: PICTURE_MENTIONS, id, label: saved?.name ?? name });
@@ -787,7 +789,7 @@ export function PaintApp() {
     ctx.font = `${TEXT_SIZE}px ${TEXT_FONT}`;
     ctx.fillStyle = primary;
     ctx.textBaseline = "middle";
-    wrapText(typed, box.width, (line) => ctx.measureText(line).width).forEach((line, index) => {
+    wrapText(typed, box.width, (line) => ctx.measureText(line).width, Math.ceil(box.height / TEXT_LINE)).forEach((line, index) => {
       ctx.fillText(line, box.x, box.y + index * TEXT_LINE + TEXT_LINE / 2);
     });
     ctx.restore();
@@ -820,8 +822,16 @@ export function PaintApp() {
     if (ctx !== null) drawPolygon(ctx, polygon, polygon.points, true);
   };
 
-  /** Lands whatever a multi-step tool still holds: a selection, text, a curve or an open polygon. */
-  const finishPending = () => {
+  /** True when a multi-step tool holds work that landing it would put on the picture. */
+  const hasPending = () =>
+    selectionRef.current?.lifted != null ||
+    curveRef.current !== null ||
+    (polygonRef.current?.points.length ?? 0) >= 2 ||
+    (textBoxRef.current !== null && (textRef.current?.value ?? "").trim() !== "");
+
+  /** Lands whatever a multi-step tool still holds: a selection, text, a curve or an open polygon. True when it landed any. */
+  const finishPending = (): boolean => {
+    const landed = hasPending();
     dropSelection(true);
     commitText();
     const curve = curveRef.current;
@@ -834,6 +844,7 @@ export function PaintApp() {
       if (ctx !== null) drawCurve(ctx, curve);
     }
     if (polygon !== null) closePolygon(polygon);
+    return landed;
   };
 
   /** Throws it away instead. True when what it threw away never reached the undo history, so Undo is done. */
@@ -1022,12 +1033,17 @@ export function PaintApp() {
         gestureRef.current = false;
         showFrame(null);
         if (cancelled || !inside) return;
-        // A drag sets the box; a click, or a drag too small to type in, opens a one-line box at the pointer.
+        // A drag sets the box; a click, or a drag too small to type in, opens a one-line box at the pointer,
+        // nudged in from the right and bottom edges so it isn't clipped to a sliver.
         const dragged: Rect | null = rect;
+        const at = {
+          x: Math.max(0, Math.min(point.x, logicalSize.width - TEXT_WIDTH)),
+          y: Math.max(0, Math.min(point.y, logicalSize.height - TEXT_LINE)),
+        };
         const box =
           dragged !== null && dragged.width >= TEXT_SIZE && dragged.height >= TEXT_LINE / 2
             ? dragged
-            : clipRect({ x: point.x, y: point.y, width: TEXT_WIDTH, height: TEXT_LINE }, logicalSize.width, logicalSize.height);
+            : clipRect({ ...at, width: TEXT_WIDTH, height: TEXT_LINE }, logicalSize.width, logicalSize.height);
         if (box === null) return;
         textBoxRef.current = box;
         setTextBox(box);
@@ -1226,7 +1242,8 @@ export function PaintApp() {
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      void save(event.shiftKey);
+      // As with Undo, a curve or polygon mid-gesture would land twice: once by the save, again when the gesture ends.
+      if (!gestureRef.current) void save(event.shiftKey);
       return;
     }
     // Everything else typed into the text box is the text's own, Undo included.

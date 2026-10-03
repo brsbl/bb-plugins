@@ -297,4 +297,20 @@ describe("wrapText", () => {
   it("keeps blank lines", () => {
     expect(wrapText("one\n\ntwo", 10, measure)).toEqual(["one", "", "two"]);
   });
+
+  it("splits a long unbroken word in a logarithmic number of measurements per line", () => {
+    let calls = 0;
+    const counted = (text: string) => {
+      calls += 1;
+      return text.length * 6.5;
+    };
+    const lines = wrapText("x".repeat(3000), 160, counted);
+    expect(lines).toEqual(Array.from({ length: 125 }, () => "x".repeat(24)));
+    expect(calls).toBeLessThan(5000);
+  });
+
+  it("stops after the requested number of lines", () => {
+    expect(wrapText("one two three\nfour", 5, measure, 2)).toEqual(["one", "two"]);
+    expect(wrapText("abcdefghijkl", 5, measure, 1)).toEqual(["abcde"]);
+  });
 });
