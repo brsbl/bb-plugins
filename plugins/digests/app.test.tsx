@@ -180,7 +180,7 @@ describe("Digests app", () => {
     fireEvent.change(slot.getByLabelText("What should it tell you?"), { target: { value: "Only messages that need a reply." } });
     fireEvent.click(slot.getByRole("button", { name: "Create digest" }));
     expect(await slot.findByText("Run now to preview")).toBeDefined();
-    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { id: undefined, name: "My inbox", instructions: "Only messages that need a reply.", connectionId: "gmail", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", instructions: "Only messages that need a reply.", connectionId: "gmail", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
     fireEvent.click(slot.getByRole("button", { name: "Edit My inbox" }));
     fireEvent.change(slot.getByLabelText("Name"), { target: { value: "Replies" } });
     fireEvent.click(slot.getByRole("button", { name: "Save changes" }));
