@@ -200,9 +200,9 @@ See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template]
 
 Keep local files within reach in each thread with persistent pins above the composer. Add and remove pins from the thread or CLI, and open them through bb's file links.
 
-![Persistent thread file pins](https://github.com/user-attachments/assets/5bd17727-04ad-4f61-8d9f-c1beb1b3db52)
+![Persistent thread file pins](https://github.com/user-attachments/assets/99008f95-a09c-4b93-b158-1043cc635390)
 
-![Add a file from its host](https://github.com/user-attachments/assets/c4f8f926-ba44-4ee1-b498-8c23e2cb697e)
+![Search files on their host](https://github.com/user-attachments/assets/b59aa194-623a-4f03-b69f-2f7b0dd0a0f5)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 

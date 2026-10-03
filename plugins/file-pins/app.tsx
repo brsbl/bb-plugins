@@ -150,7 +150,7 @@ function PinStrip({ threadId }: { threadId: string }) {
 }
 function PinsBanner() {
   const composer = useComposer();
-  return composer.scope.kind === "thread" ? <PinStrip key={composer.scope.threadId} threadId={composer.scope.threadId}  /> : null;
+  return composer.scope.kind === "thread" ? <PinStrip key={composer.scope.threadId} threadId={composer.scope.threadId} /> : null;
 }
 export default definePluginApp((app) => {
   app.composer.customize({
