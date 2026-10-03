@@ -4,14 +4,10 @@ import { ProgramMenuBar } from "../apps/xp-chrome";
 import { BB_MARK } from "../art";
 import { windowOwnsKeys } from "../windows";
 import { PICTURE_KINDS, advance, canStep, cellCenter, newRun, ratPosition, seededRandom, type MazeRun } from "./maze-core";
+import { mazeShortcut, viewSize } from "./maze-view";
 
 const OPTIONS_KEY = "bb-desktop:maze:options:v1";
 const MAX_FRAME_SECONDS = 0.1;
-/**
- * The view renders at most this many pixels and is scaled up to the window. The original drew at about 320 × 240 and
- * stretched it, which is where its soft look comes from.
- */
-const MAX_VIEW_PIXELS = 400 * 300;
 /** Half the horizontal field of view, as the camera plane's length relative to the view direction. */
 const FOV = 1;
 /** Wall height as a fraction of the corridor's width: the original's corridors are wider than they are tall, about 4:3. */
@@ -31,6 +27,10 @@ function loadOptions(): Options {
   } catch {
     return { overheadMap: true, turbo: false };
   }
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function freshRun(): MazeRun {
@@ -537,13 +537,6 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
     .filter((sprite) => sprite.forward > 0.15)
     .sort((left, right) => right.forward - left.forward);
   for (const sprite of placed) {
-    cardContext.setTransform(1, 0, 0, 1, 0, 0);
-    cardContext.clearRect(0, 0, CARD, CARD);
-    cardContext.setTransform(CARD / SPRITE, 0, 0, CARD / SPRITE, 0, 0);
-    if (sprite.kind === "polyhedron") paintPolyhedron(cardContext, time, sprite.solid ?? DODECAHEDRON);
-    else if (sprite.kind === "rat") paintRat(cardContext, time);
-    else if (sprite.kind === "smiley") paintSmiley(cardContext);
-    else paintStartButton(cardContext, time);
     const size = (focal * WALL_HEIGHT / sprite.forward) * SPRITE_SIZE[sprite.kind];
     const centerX = (width / 2) * (1 + sprite.side / sprite.forward);
     // The rat's feet meet the floor; the rock floats low, just above it.
@@ -552,6 +545,17 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
     const top = height / 2 - size / 2 + bob;
     const left = Math.floor(centerX - size / 2);
     const right = Math.min(width, Math.ceil(centerX + size / 2));
+    // Paint a card only when some column of it is on screen and in front of the walls.
+    let visibleColumn = false;
+    for (let x = Math.max(0, left); x < right && !visibleColumn; x++) visibleColumn = sprite.forward < depth[x]!;
+    if (!visibleColumn) continue;
+    cardContext.setTransform(1, 0, 0, 1, 0, 0);
+    cardContext.clearRect(0, 0, CARD, CARD);
+    cardContext.setTransform(CARD / SPRITE, 0, 0, CARD / SPRITE, 0, 0);
+    if (sprite.kind === "polyhedron") paintPolyhedron(cardContext, time, sprite.solid ?? DODECAHEDRON);
+    else if (sprite.kind === "rat") paintRat(cardContext, time);
+    else if (sprite.kind === "smiley") paintSmiley(cardContext);
+    else paintStartButton(cardContext, time);
     for (let x = Math.max(0, left); x < right; x++) {
       if (sprite.forward >= depth[x]!) continue;
       const source = Math.floor(((x - (centerX - size / 2)) / size) * CARD);
@@ -610,7 +614,9 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
   optionsRef.current = options;
   const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
-  const running = active && visible && !paused;
+  // Desktop's motion rule: with Reduce Motion on, the maze holds a still frame instead of walking and rolling.
+  const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
+  const running = active && visible && !paused && !reducedMotion;
 
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -621,11 +627,7 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
     const run = runRef.current;
     // Render beyond every viewport edge during a roll. Rotating a viewport-sized image exposes black corners.
     const rolling = Math.abs(Math.sin(run.pose.roll)) > 0.001;
-    const fit = Math.min(1, Math.sqrt(MAX_VIEW_PIXELS / (canvas.width * canvas.height)));
-    const baseWidth = Math.max(1, Math.round(canvas.width * fit));
-    const baseHeight = Math.max(1, Math.round(canvas.height * fit));
-    const diagonal = Math.ceil(Math.hypot(baseWidth, baseHeight));
-    const width = rolling ? diagonal : baseWidth, height = rolling ? diagonal : baseHeight;
+    const { baseWidth, baseHeight, width, height } = viewSize(canvas.width, canvas.height, rolling);
     if (view.image.width !== width || view.image.height !== height) {
       view.canvas.width = width; view.canvas.height = height;
       view.image = new ImageData(width, height); view.depth = new Float32Array(width);
@@ -672,9 +674,7 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
       const ratio = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, Math.round(cssWidth * ratio));
       canvas.height = Math.max(1, Math.round(cssHeight * ratio));
-      const fit = Math.min(1, Math.sqrt(MAX_VIEW_PIXELS / (canvas.width * canvas.height)));
-      const width = Math.max(1, Math.round(canvas.width * fit));
-      const height = Math.max(1, Math.round(canvas.height * fit));
+      const { width, height } = viewSize(canvas.width, canvas.height, false);
       const view = viewRef.current;
       if (!view || view.image.width !== width || view.image.height !== height) {
         const viewCanvas = view?.canvas ?? document.createElement("canvas");
@@ -694,6 +694,14 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
   }, [render]);
 
   useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReducedMotion(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
     const onVisibility = () => setVisible(document.visibilityState !== "hidden");
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
@@ -702,13 +710,10 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!windowOwnsKeys(rootRef.current) || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.key === "F2") {
-        event.preventDefault();
-        newMaze();
-      } else if (event.key === "F3") {
-        event.preventDefault();
-        setPaused((value) => !value);
-      }
+      if (event.key === "F2" || event.key === "F3") event.preventDefault();
+      const shortcut = mazeShortcut(event);
+      if (shortcut === "new-maze") newMaze();
+      else if (shortcut === "pause") setPaused((value) => !value);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -753,7 +758,7 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
       />
       <div ref={stageRef} className="bbd-maze-stage" onDoubleClick={() => setPaused(!paused)}>
         <canvas ref={canvasRef} className="bbd-maze-canvas" role="img" aria-label="3D Maze: a walk through a brick maze" />
-        {paused ? <span className="bbd-maze-paused">Paused · F3 to resume</span> : null}
+        {paused ? <span className="bbd-maze-paused">Paused · F3 to resume</span> : reducedMotion ? <span className="bbd-maze-paused">Still · Reduce motion is on</span> : null}
       </div>
     </div>
   );
