@@ -154,7 +154,7 @@ describe("design doctrine library", () => {
       searchDoctrine(library.rules, "Improve modal accessibility")
         .slice(0, 2)
         .map((rule) => rule.id),
-    ).toEqual(["ddr_028", "ddr_026"]);
+    ).toEqual(["ddr_041", "ddr_028"]);
     expect(searchDoctrine(library.rules, "improve")).toEqual([]);
   });
 
@@ -222,7 +222,7 @@ describe("design doctrine library", () => {
 
     expect(results.map((item) => item.id)).toContain("ddr_011");
     expect(rule?.status).toBe("active");
-    expect(rule?.confidence).toBe("medium");
+    expect(rule?.confidence).toBe("low");
   });
 
   it("keeps published evidence free of private bb locators", async () => {
