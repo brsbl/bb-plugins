@@ -131,6 +131,7 @@ describe("Thread Organizer app registration", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => initial,
           saveConfig: async (input) => ({
@@ -178,6 +179,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => initial,
           saveConfig: async (input) => {
@@ -231,6 +233,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => initial,
           saveConfig: async (input) => {
@@ -286,6 +289,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => initial,
           saveConfig: async (input) => ({
@@ -365,6 +369,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => initial,
           saveConfig: async (input) => ((savedInput = input), {
@@ -411,6 +416,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => initial,
           saveConfig: async (input) => ({
@@ -431,7 +437,7 @@ describe("workflow settings", () => {
     const prompt = rendered.getByLabelText("Entry prompt for Planning");
     const promptLabel = prompt.closest("label")!;
     expect(promptLabel.className).toContain("hidden");
-    expect(promptLabel.className).toContain("lg:col-start-4");
+    expect(promptLabel.className).toContain("lg:col-start-5");
     const add = within(planningCard).getByRole("button", {
       name: "Add entry prompt",
     });
@@ -470,6 +476,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => {
             loads += 1;
@@ -546,6 +553,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => initial,
           saveConfig: async (input) => {
@@ -627,6 +635,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => initial,
           saveConfig: async (input) => {
@@ -682,6 +691,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => configuredWorkflow(),
           saveConfig: async (input) => ({
@@ -781,6 +791,7 @@ describe("workflow settings", () => {
       app.settingsSections[0]!,
       {},
       {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
           getConfig: async () => configuredWorkflow(),
           saveConfig: async (input) => ({

@@ -444,7 +444,6 @@ function StageCard({
             </label>
           </>
         )}
-
       </div>
     </article>
   );
