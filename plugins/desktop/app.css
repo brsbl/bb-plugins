@@ -1597,8 +1597,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 
 /*
  * bb reserves a 20 px row under every message for its hover actions. Here that row pulls up over the message's last
- * line instead, so it adds no height. Like the text, it starts after the speaker label when it shares the label's
- * line, so a one-line message keeps "Me:" or the buddy's name readable.
+ * line instead, so it adds no height.
  */
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 {
   display: flow-root;
@@ -1607,17 +1606,17 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   clear: none;
 }
 
-/* Every line starts at the left edge in AIM, so a person's message actions sit there too, as the agent's do. */
-.bbd-im-chat [data-message-column] > .ml-auto .relative.w-full > .absolute.top-0 {
-  right: auto;
-  left: 0;
-  margin-left: -0.25rem;
-}
-
-/* Behind the actions, while bb shows them, the paper fades in and out with the buttons, ending in a 20 px fade to the text. */
+/*
+ * The actions sit at the right end of the last line, a person's and the agent's alike, so a short last line stays
+ * readable beside them. Behind them, while bb shows them, the paper fades in and out with the buttons, starting with a
+ * 20 px fade from the text.
+ */
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 {
+  right: 0;
+  left: auto;
   z-index: 0;
-  padding-right: 20px;
+  margin: 0;
+  padding-left: 20px;
 }
 
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0::before {
@@ -1625,7 +1624,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(to right, var(--bbd-im-paper) calc(100% - 20px), transparent);
+  background: linear-gradient(to left, var(--bbd-im-paper) calc(100% - 20px), transparent);
   opacity: 0;
   transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
