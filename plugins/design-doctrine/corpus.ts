@@ -332,8 +332,10 @@ export interface OpenPublication {
 /**
  * Lists the doctrine pull requests this plugin opened that are still open. The
  * branch prefix alone is not proof: anyone can open a pull request from a fork
- * branch named `doctrine/...`, so only same-repository pull requests authored
- * by the account the plugin publishes with count.
+ * branch named `doctrine/...`, so only same-repository pull requests count,
+ * which need push access to open. This lists pull requests directly rather than
+ * through GitHub search, whose index can miss one opened seconds earlier and
+ * let a second publication reuse its rule IDs.
  */
 export async function readOpenPublications(
   source: CorpusSource,
@@ -346,10 +348,8 @@ export async function readOpenPublications(
       "list",
       "--state",
       "open",
-      "--search",
-      "head:doctrine/",
-      "--author",
-      "@me",
+      "--limit",
+      "200",
       "--json",
       "url,headRefName,mergeStateStatus,createdAt,isCrossRepository",
     ],
