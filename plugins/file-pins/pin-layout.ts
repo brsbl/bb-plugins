@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
 
 // One stored order plus the pins moved to overflow. The strip shows the other
-// pins in order, as many as fit; the rest sit behind +N.
+// pins in order, as many as fit; the rest sit behind ⋯.
 export const PIN_SLOT_CLASS = "w-[7rem]";
 export const PIN_MAX_WIDTH_CLASS = "max-w-[7rem]";
 

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { definePluginApp, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
-import { MAX_PINS, type RecentFile, type Reference, type rpcContract } from "./contract.js";
+import type { RecentFile, Reference, rpcContract } from "./contract.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./components/ui/context-menu.js";
+import { Icon } from "./components/ui/icon.js";
 import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger, PinPopoverAnchor } from "./pin-popover.js";
 import { FilePicker } from "./file-picker.js";
 import { layoutPins, moveToOverflow, moveToStrip, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
@@ -10,6 +11,8 @@ import { ReferenceIcon } from "./reference-icon.js";
 import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 ${PIN_MAX_WIDTH_CLASS} items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
+// The quiet file chip bb uses for composer attachments.
+const pinClass = cn(linkClass, "rounded-md bg-surface-recessed");
 const launchers = new Map<string, () => void>();
 function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -120,13 +123,13 @@ function PinStrip({ threadId }: { threadId: string }) {
   function reference(pin: Reference, inList = false) {
     const title = `${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
     const link = pin.status === "missing" ? <span className={`relative inline-flex min-w-0 ${inList ? "w-full" : PIN_MAX_WIDTH_CLASS}`} title={title}>
-      <span aria-label={`${pin.name} (missing)`} className={cn(linkClass, "cursor-default rounded-none pr-4 text-destructive/55 hover:text-destructive/55", inList && "w-full max-w-none")}>
+      <span aria-label={`${pin.name} (missing)`} className={cn(pinClass, "cursor-default pr-4 text-destructive/55 hover:text-destructive/55", inList && "w-full max-w-none")}>
         <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void unpin(pin)}
         className="absolute right-0 -top-1 flex size-5 items-center justify-center rounded-sm text-xs text-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
     </span> : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title}
-      aria-label={`Open ${pin.name}`} className={`${linkClass} ${inList ? "w-full max-w-none" : ""} ${pin.status !== "available" ? "opacity-60" : ""}`}><PinContents pin={pin} /></FileLink>;
+      aria-label={`Open ${pin.name}`} className={cn(pinClass, inList && "w-full max-w-none", pin.status !== "available" && "opacity-60")}><PinContents pin={pin} /></FileLink>;
     return <ContextMenu key={pin.id}>
       <ContextMenuTrigger asChild>{link}</ContextMenuTrigger>
       <ContextMenuContent style={{ animation: "none", transition: "none" }}>
@@ -141,10 +144,9 @@ function PinStrip({ threadId }: { threadId: string }) {
     <Popover open={picker} onOpenChange={setPicker}>
       {pins.length > 0 ? <section aria-label="Pinned files" className="min-w-0 px-1 py-1">
         <div className="flex min-w-0 items-center gap-1">
-          <span className="mr-1 shrink-0 text-xs text-muted-foreground">Pinned</span>
           {layout.strip.map((pin) => reference(pin))}
           {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-            <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more pinned files`} className={`${linkClass} shrink-0 tabular-nums`}>+{layout.more.length}</button></PopoverTrigger>
+            <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more pinned files`} title="More pinned files" className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
             <PopoverContent aria-label="More pinned files" className="w-72 p-1"><div className="max-h-64 space-y-0.5 overflow-y-auto">{layout.more.map((pin) => reference(pin, true))}</div></PopoverContent>
           </Popover>}
           <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
@@ -158,11 +160,10 @@ function PinStrip({ threadId }: { threadId: string }) {
         <FilePicker threadId={threadId} recent={recent} onClose={() => setPicker(false)} onPinned={refresh} />
       </PopoverContent>
     </Popover>
-    {/* Mirrors the strip row, with room for +N and +, to measure how many pin slots fit. */}
+    {/* Mirrors the strip row, with room for ⋯ and +, to measure how many pin slots fit. */}
     <div aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
-      <span className="mr-1 shrink-0 text-xs">Pinned</span>
       <span ref={zone} className="min-w-0 flex-1" />
-      <span className={`${linkClass} shrink-0 tabular-nums`}>+{MAX_PINS}</span>
+      <span className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></span>
       <span className={`${linkClass} shrink-0 px-1`}>+</span>
     </div>
     <span ref={slot} aria-hidden="true" className={cn(PIN_SLOT_CLASS, "pointer-events-none invisible absolute left-0 top-0 h-0")} />

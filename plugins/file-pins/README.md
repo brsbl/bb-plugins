@@ -18,9 +18,9 @@ thread's machine. Type an absolute or `~/` path in the same search field to pin 
 than one machine is enrolled, the search row lets you choose the file's machine. Its options menu contains
 **Paste a path…**.
 
-Pins read as quiet references above the composer, with extra files in **+N**.
+Pins read as quiet references above the composer, with extra files behind **⋯**.
 Hover a filename for its full path and machine. The strip shows pins in order, as many as fit.
-Right-click a pin on the strip for **Move to overflow** or **Remove**, or a pin in the **+N** list
+Right-click a pin on the strip for **Move to overflow** or **Remove**, or a pin in the **⋯** list
 for **Move to strip** or **Remove**. **Remove**'s toast offers **Undo**. Missing filenames and icons have a light red tint and are labeled for assistive technology;
 only their small **×** removes them. Availability refreshes on focus and every
 30 seconds.
