@@ -81,10 +81,8 @@ export function WindowFrame({
         other.node.dataset.dragging = "true";
         previewRect(other.node, fitDragRect(docked, area));
       });
-    }, (_cancelled, moved, escaped) => {
-      // Only Escape undoes a move or resize. Anything else that ends it early, such as the browser window losing focus,
-      // a viewport resize or lost pointer capture, keeps where the window got to, so it never springs back on release.
-      const commit = moved && !escaped;
+    }, (cancelled, moved) => {
+      const commit = moved && !cancelled;
       element.style.transform = "";
       previewRect(element, commit ? latest : rect);
       for (const other of attached) {
