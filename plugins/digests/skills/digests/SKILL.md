@@ -28,8 +28,7 @@ Never edit or remove existing automations as an incidental setup step. Migrate
 only after the user approves the exact old and new schedules. Defaults are
 weekdays 10am PT, Monday 10am PT, and Sunday 11am PT respectively.
 
-Settings lists signed-in sites and nests their digests. Check sign-ins checks access
-on demand. The import button opens bb’s own Browser settings; the user chooses
+Settings lists signed-in sites and nests their digests. Access is checked when Settings opens and before every run. Rapid reopenings reuse a real check for 30 seconds. The import link opens bb’s own Browser settings; the user chooses
 the browser/profile and consents there. Add digest opens an inline prompt form;
 Create saves it enabled and offers Run now to preview. Editing keeps its ID and
 existing enabled state. New schedules default to weekdays 10am PT.

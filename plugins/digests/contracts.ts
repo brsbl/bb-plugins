@@ -14,6 +14,9 @@ export const rpcContract = defineRpcContract({
       organizerReady: z.boolean(),
     }).strict(),
   },
+  settingsPreferences: { input: z.object({}).strict(), output: z.object({ importBannerDismissed: z.boolean() }).strict() },
+  dismissImportBanner: { input: z.object({}).strict(), output: z.boolean() },
+  checkSettingsConnections: { input: z.object({}).strict(), output: z.array(connectionSchema) },
   saveDigest: { input: SaveDigestSchema, output: digestDefinitionSchema },
   checkConnections: {
     input: z.object({ id: id.optional() }).strict(),

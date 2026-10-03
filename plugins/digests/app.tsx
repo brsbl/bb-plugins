@@ -340,6 +340,8 @@ function DigestsSettings() {
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ siteId: string; digestId?: string } | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [checkingSites, setCheckingSites] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState<boolean | null>(null);
   const generation = useRef(0);
   const load = useCallback(async () => {
     const request = ++generation.current;
@@ -356,9 +358,26 @@ function DigestsSettings() {
     }
   }, [rpc]);
   useEffect(() => {
+    let active = true;
     void load();
-    return () => { generation.current += 1; };
-  }, [load]);
+    void rpc.call("settingsPreferences", {}).then((preferences) => {
+      if (active) setBannerDismissed(preferences.importBannerDismissed);
+    }).catch(() => { if (active) setBannerDismissed(false); });
+    // Short visits do no browser work. The service coalesces rapid reopenings.
+    const timer = setTimeout(() => {
+      setCheckingSites(true);
+      void rpc.call("checkSettingsConnections", {}).then(async (connections) => {
+        if (!active) return;
+        await load();
+        if (!active) return;
+        const problem = connections.find((connection) => ["unavailable", "upgrade-required"].includes(connection.status));
+        if (problem?.detail) setError(problem.detail);
+      }).catch((error: unknown) => {
+        if (active) setError(error instanceof Error ? error.message : "Couldn’t check your sites. Reopen Settings to try again.");
+      }).finally(() => { if (active) setCheckingSites(false); });
+    }, 300);
+    return () => { active = false; clearTimeout(timer); generation.current += 1; };
+  }, [load, rpc]);
   useRealtime("issues", () => { void load(); });
   useReconnectRefresh(load);
 
@@ -385,16 +404,11 @@ function DigestsSettings() {
     }
   };
 
-  const refreshSites = async () => {
-    if (pending) return;
-    setPending("sites"); setError(null);
+  const dismissBanner = async () => {
     try {
-      const connections = await rpc.call("checkConnections", {});
-      setOverview((current) => current && { ...current, connections });
-      const problem = connections.find((connection) => ["unavailable", "upgrade-required"].includes(connection.status));
-      if (problem?.detail) setError(problem.detail);
-    } catch (error) { setError(error instanceof Error ? error.message : "Couldn’t check your sites. Try Check sign-ins again."); }
-    finally { setPending(null); }
+      await rpc.call("dismissImportBanner", {});
+      setBannerDismissed(true);
+    } catch { setError("Couldn’t save your preference. Try dismissing the banner again."); }
   };
   const save = async (input: SaveDigest) => {
     if (pending) return;
@@ -415,11 +429,13 @@ function DigestsSettings() {
       {notice && <p className="digest-muted" role="status">{notice}</p>}
       {!overview && !error && <p className="digest-muted" role="status">Loading Digests…</p>}
       {overview && <>
-        <div className="digest-group-header"><h3>Your sites</h3><Button disabled={pending !== null || loading} onClick={() => { void refreshSites(); }}>{pending === "sites" ? "Checking…" : "Check sign-ins"}</Button></div>
-        <div className="digest-import">
-          <p>Digests read the sites you’re signed into in bb’s browser.</p>
-          <a href="/settings/browser">Import logins in Browser settings →</a>
-        </div>
+        <div className="digest-group-header"><h3>Your sites</h3><a className="digest-import-link" href="/settings/browser">Import logins →</a></div>
+        {bannerDismissed === false && <div className="digest-import">
+          <div><p>Digests read the sites you’re signed into in bb’s browser.</p>
+          <a href="/settings/browser">Import logins in Browser settings →</a></div>
+          <Button variant="ghost" aria-label="Dismiss login banner" onClick={() => { void dismissBanner(); }}><Icon name="X" aria-hidden /></Button>
+        </div>}
+        {checkingSites && <p className="digest-checking digest-muted" role="status">Checking sign-ins…</p>}
         <div className="digest-sites">{sites.map((site) => {
           const definitions = overview.definitions.filter((definition) => definition.connectionIds.includes(site.id));
           const signedOut = ["signed-out", "expired"].includes(site.status);
@@ -431,8 +447,14 @@ function DigestsSettings() {
             {editing?.siteId === site.id && !editing.digestId && <DigestForm connection={site} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} />}
             <ul className="digest-nested-list">{definitions.map((definition) => <li className="digest-nested-item" key={definition.id}>
               {editing?.digestId === definition.id ? <DigestForm connection={site} definition={definition} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : <div className="digest-definition">
-                <button className="digest-edit" disabled={editing !== null || pending !== null} onClick={() => setEditing({ siteId: site.id, digestId: definition.id })} aria-label={`Edit ${definition.name}`}><span>{definition.name}</span><small>{definition.id === "x-scorecard" && !definition.schedule ? "Published by your X analytics thread" : scheduleLabel(definition.schedule)}</small></button>
-                {definition.schedule && <div className="digest-controls"><Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} /><Button aria-label={`Run ${definition.name} now`} disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>{createdId === definition.id ? "Run now to preview" : "Run now"}</Button></div>}
+                <button className="digest-edit" disabled={editing !== null || pending !== null} onClick={() => setEditing({ siteId: site.id, digestId: definition.id })} aria-label={`Edit ${definition.name}`} />
+                <div className="digest-definition-top"><h5>{definition.name}</h5>
+                  {definition.schedule && <Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} />}
+                </div>
+                <p className="digest-prompt-preview">{definition.instructions}</p>
+                <div className="digest-definition-footer"><small>{definition.id === "x-scorecard" && !definition.schedule ? "Published by your X analytics thread" : scheduleLabel(definition.schedule)}</small>
+                  {definition.schedule && <Button aria-label={`Run ${definition.name} now`} disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>{createdId === definition.id ? "Run now to preview" : "Run now"}</Button>}
+                </div>
               </div>}
             </li>)}</ul>
             {definitions.length === 0 && editing?.siteId !== site.id && <p className="digest-no-digests digest-muted">No digests yet</p>}

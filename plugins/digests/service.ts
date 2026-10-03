@@ -124,7 +124,7 @@ export function createService(bb: BbPluginApi) {
   async function saveDigest(input: SaveDigest) {
     return exclusive(`definition:${input.id ?? "new"}`, async () => {
       const previous = input.id ? requiredDefinition(input.id) : null;
-      if (!store.connections.get(input.connectionId)) throw new Error("Refresh Your sites before adding a digest.");
+      if (!store.connections.get(input.connectionId)) throw new Error("Reopen Settings to check your sites before adding a digest.");
       if (previous && !previous.connectionIds.includes(input.connectionId)) throw new Error("Edit this digest under its original site.");
       if (!previous && !input.schedule) throw new Error("Choose when this digest should run.");
       // Existing publishers keep their mode; editing a prompt does not convert
@@ -171,7 +171,7 @@ export function createService(bb: BbPluginApi) {
           candidates.push(...instances.map((instance) => ({ hostId: host.id, instanceId: instance.instanceId })));
         } catch { /* Offline hosts cannot supply the browser. */ }
       }
-      if (candidates.length !== 1) throw new Error(candidates.length ? "More than one bb browser is available. Ask an agent to set Digests' browser computer, then Refresh." : "Open bb on the computer with your browser sign-ins, then Refresh.");
+      if (candidates.length !== 1) throw new Error(candidates.length ? "More than one bb browser is available. Ask an agent to set Digests' browser computer, then reopen Settings." : "Open bb on the computer with your browser sign-ins, then reopen Settings.");
       browserHostId = candidates[0]!.hostId;
       desktopInstanceId = candidates[0]!.instanceId;
     }
@@ -367,6 +367,24 @@ export function createService(bb: BbPluginApi) {
       return store.connections.list();
     });
   }
+  let settingsCheck: Promise<Connection[]> | undefined;
+  let settingsCheckedAt: number | undefined;
+  function checkSettingsConnections(): Promise<Connection[]> {
+    if (settingsCheck) return settingsCheck;
+    if (settingsCheckedAt !== undefined && Date.now() - settingsCheckedAt < 30_000) return Promise.resolve(store.connections.list());
+    settingsCheck = checkConnections().then((connections) => {
+      settingsCheckedAt = Date.now();
+      return connections;
+    }).finally(() => { settingsCheck = undefined; });
+    return settingsCheck;
+  }
+  async function settingsPreferences() {
+    return { importBannerDismissed: await bb.storage.kv.get<boolean>("import-banner-dismissed") === true };
+  }
+  async function dismissImportBanner() {
+    await bb.storage.kv.set("import-banner-dismissed", true);
+    return true;
+  }
   async function reconnectConnection(id: string) {
     const connection = store.connections.get(id);
     if (!connection) throw new Error("Unknown connection.");
@@ -426,5 +444,5 @@ export function createService(bb: BbPluginApi) {
       details: `Your issue was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
     return null;
   }
-  return { store, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, checkConnections, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
+  return { store, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }

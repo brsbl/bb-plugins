@@ -130,6 +130,28 @@ describe("digest issue lifecycle", () => {
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab").at(-1)?.[0]).toMatchObject({ threadId: "thr_setup", presentation: "reveal", url: "https://mail.google.com/" });
   });
 
+  it("coalesces Settings checks but always checks each run, and persists banner dismissal", async () => {
+    const { service, harness, setSignIn } = setup();
+    const first = service.checkSettingsConnections();
+    const second = service.checkSettingsConnections();
+    expect(first).toBe(second);
+    await first;
+    const checked = harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab").length;
+    expect(checked).toBe(3);
+    await service.checkSettingsConnections();
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toHaveLength(checked);
+    setSignIn({ signedIn: false, signedOut: true });
+    expect(await service.begin("reading", "thr_fresh")).toMatchObject({ complete: true, issue: { state: "failed", recovery: "reconnect" } });
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toHaveLength(checked + 1);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31_000);
+    expect(await service.checkSettingsConnections()).toEqual(expect.arrayContaining([expect.objectContaining({ id: "gmail", status: "signed-out" })]));
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toHaveLength(checked + 4);
+    expect(await service.settingsPreferences()).toEqual({ importBannerDismissed: false });
+    await service.dismissImportBanner();
+    expect(await service.settingsPreferences()).toEqual({ importBannerDismissed: true });
+    vi.restoreAllMocks();
+  });
+
   it("falls back from an archived setup owner to a digest issue, without borrowing a tab", async () => {
     const { bb, service, threads, harness } = setup();
     await service.begin("reading", "thr_issue");

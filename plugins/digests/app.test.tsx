@@ -132,7 +132,7 @@ describe("Digests app", () => {
     });
     expect(await slot.findByText("Sundays · 11am PT")).toBeDefined();
     expect(slot.getByText("Not checked")).toBeDefined();
-    expect(slot.inspection.rpcCalls).toHaveLength(1);
+    expect(slot.inspection.rpcCalls.some((call) => call.method === "setEnabled")).toBe(false);
     fireEvent.click(slot.getByRole("switch", { name: "Reading schedule", checked: false }));
     await waitFor(() => expect(slot.getByRole("switch", { name: "Reading schedule", checked: true })).toBeDefined());
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "setEnabled", input: { id: "reading", enabled: true } });
@@ -144,23 +144,28 @@ describe("Digests app", () => {
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_new_issue" });
   });
 
-  it("opens bb import, checks sites only on Check sign-ins, and keeps signed-out digests visible", async () => {
+  it("checks sites automatically, persists banner dismissal, and retains the import link", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const connections = [{ id: "gmail", name: "Gmail", status: "signed-out", detail: null }, { id: "x", name: "X", status: "unknown", detail: null }];
     const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
       overview: () => ({ definitions: [definition], connections, actionCardsAvailable: false, organizerReady: true }),
-      checkConnections: () => connections.map((connection) => ({ ...connection, status: "signed-in", accountName: "fixture account" })),
+      settingsPreferences: () => ({ importBannerDismissed: false }),
+      dismissImportBanner: () => true,
+      checkSettingsConnections: () => { connections[1]!.status = "signed-in"; return connections; },
     } });
     expect((await slot.findByRole("link", { name: "Import logins in Browser settings →" })).getAttribute("href")).toBe("/settings/browser");
     expect(slot.getByRole("link", { name: "Reconnect" }).getAttribute("href")).toBe("/settings/browser");
     expect(slot.getByText("Reading")).toBeDefined();
     expect(slot.queryByRole("region", { name: "X" })).toBeNull();
-    expect(slot.inspection.rpcCalls).toHaveLength(1);
-    fireEvent.click(slot.getByRole("button", { name: "Check sign-ins" }));
+    expect(slot.queryByRole("button", { name: "Check sign-ins" })).toBeNull();
     await slot.findByRole("region", { name: "X" });
     expect(slot.getByRole("link", { name: "Import logins in Browser settings →" }).getAttribute("href")).toBe("/settings/browser");
     expect(slot.getByRole("region", { name: "X" })).toBeDefined();
-    expect(slot.inspection.rpcCalls).toContainEqual({ method: "checkConnections", input: {} });
+    expect(slot.inspection.rpcCalls.filter((call) => call.method === "checkSettingsConnections")).toHaveLength(1);
+    fireEvent.click(slot.getByRole("button", { name: "Dismiss login banner" }));
+    await waitFor(() => expect(slot.queryByRole("link", { name: "Import logins in Browser settings →" })).toBeNull());
+    expect(slot.getByRole("link", { name: "Import logins →" }).getAttribute("href")).toBe("/settings/browser");
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "dismissImportBanner", input: {} });
   });
 
   it("creates a prompt digest at 10am and edits the same nested row", async () => {
@@ -182,6 +187,7 @@ describe("Digests app", () => {
     fireEvent.click(slot.getByRole("button", { name: "Create digest" }));
     expect(await slot.findByText("Run now to preview")).toBeDefined();
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", instructions: "Only messages that need a reply.", connectionId: "gmail", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
+    expect(slot.getByText("Only messages that need a reply.").className).toContain("digest-prompt-preview");
     fireEvent.click(slot.getByRole("button", { name: "Edit My inbox" }));
     fireEvent.change(slot.getByLabelText("Name"), { target: { value: "Replies" } });
     fireEvent.click(slot.getByRole("button", { name: "Save changes" }));
