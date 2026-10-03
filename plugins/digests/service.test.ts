@@ -94,7 +94,7 @@ describe("digest issue lifecycle", () => {
   it("opts an existing Digests section out of Inbox during setup without replacing its rule", async () => {
     const { service, harness } = setup({ skipInbox: false });
     await service.ensureSection(true);
-    const saves = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value).filter((value) => value.method === "saveConfig");
+    const saves = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: Record<string, unknown> }).filter((value) => value.method === "saveConfig");
     expect(saves).toHaveLength(1);
     expect(saves[0]?.input).toMatchObject({ baseRevision: 1, stages: [{ key: "digests", title: "Digests", rule: "Private briefings.", skipInbox: true }] });
     expect(saves[0]?.input).not.toHaveProperty("stages.0.sectionId");
