@@ -11,6 +11,7 @@ import {
   MinesweeperArt,
   NewFolderArt,
   NewThreadArt,
+  MazeArt,
   PaintArt,
   PinballArt,
   RecycleBinArt,
@@ -19,6 +20,7 @@ import {
   ThreadsArt,
 } from "../art";
 import { findApp } from "../bridge";
+import { MazeScreenSaver } from "../games/maze";
 import { MinesweeperGame } from "../games/minesweeper";
 import { PinballGame } from "../games/pinball";
 import { SolitaireGame } from "../games/solitaire";
@@ -75,6 +77,14 @@ function PinballWindow({ window: desktopWindow }: { window: DesktopWindow }) {
   return (
     <WindowFrame window={desktopWindow} title="Pinball" icon={<PinballArt size={16} />} keepMounted>
       <PinballGame active={!desktopWindow.minimized && manager.focusedId === desktopWindow.id} />
+    </WindowFrame>
+  );
+}
+
+function MazeWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  return (
+    <WindowFrame window={desktopWindow} title="3D Maze" icon={<MazeArt size={16} />} keepMounted>
+      <MazeScreenSaver active={!desktopWindow.minimized} />
     </WindowFrame>
   );
 }
@@ -171,6 +181,12 @@ const PROGRAMS: { [K in WindowKind]: ProgramDefinition<K> } = {
     title: () => "Pinball",
     art: (_spec, _desktop, size) => <PinballArt size={size} />,
     Window: PinballWindow,
+  },
+  maze: {
+    size: fixed(640, 480),
+    title: () => "3D Maze",
+    art: (_spec, _desktop, size) => <MazeArt size={size} />,
+    Window: MazeWindow,
   },
   "command-prompt": {
     size: fixed(680, 420),

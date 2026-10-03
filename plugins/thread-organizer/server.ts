@@ -64,6 +64,7 @@ const editableStageSchema = z
     // section icons were removed keep validating.
     icon: z.unknown().optional(),
     entryPrompt: z.string().max(ENTRY_PROMPT_MAX_LENGTH).optional(),
+    catchesPluginId: z.string().max(128).optional(),
     // Accepted and discarded: written by the first entry-prompt build.
     entryPromptDelivery: z.unknown().optional(),
     entryPromptOnAgentMove: z.unknown().optional(),
@@ -146,6 +147,9 @@ interface EntryPromptRecord {
 }
 
 interface ThreadWorkflowState {
+  /** Tracks automatic inbox placement so later user moves can dismiss its claim. */
+  claimedInboxKey?: string;
+  dismissedInboxPluginId?: string;
   /** The last workflow stage the thread landed in; Inbox never counts. */
   lastLandedStageKey: string | null;
   pendingEntryPrompt: PendingEntryPrompt | null;
@@ -443,6 +447,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           state: {
             version: 5,
             rememberedStageKey: remembered?.key ?? null,
+            ...(typeof value.claimedInboxKey === "string" ? { claimedInboxKey: value.claimedInboxKey } : {}),
+            ...(typeof value.dismissedInboxPluginId === "string" ? { dismissedInboxPluginId: value.dismissedInboxPluginId } : {}),
             // Records written before landings were tracked already sat in
             // their remembered stage; seeding from it keeps an upgrade silent.
             lastLandedStageKey:
@@ -510,6 +516,21 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
 
+    const priorInbox = configSnapshot.stages.find(
+      (stage) => stage.key === state.claimedInboxKey && stage.role === "inbox",
+    );
+    if (
+      priorInbox &&
+      (explicitStageKey !== undefined || thread.sectionId !== priorInbox.sectionId)
+    ) {
+      if (priorInbox.catchesPluginId) {
+        state.dismissedInboxPluginId = priorInbox.catchesPluginId;
+      }
+      delete state.claimedInboxKey;
+    } else if (!priorInbox) {
+      delete state.claimedInboxKey;
+    }
+
     // A section no stage owns is the user's own bucket, not a misplacement.
     // Leave the thread where they put it and adopt the section so it becomes
     // a stage. An explicit stage move still wins, and a config sweep may
@@ -537,19 +558,47 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           stage.key === state.rememberedStageKey && stage.role === "stage",
       )
     ) {
-      state.rememberedStageKey = firstWorkflowStage(configSnapshot).key;
+      state.rememberedStageKey = firstWorkflowStage(configSnapshot)?.key ?? null;
     }
 
+    let matchedInbox: WorkflowStage | null = null;
+    if (
+      explicitStageKey === undefined && state.rememberedStageKey === null &&
+      (currentStage?.role !== "inbox" || currentStage.key === "inbox")
+    ) {
+      const candidates = configSnapshot.stages.filter((stage) =>
+        stage.role === "inbox" && stage.key !== "inbox" &&
+        stage.catchesPluginId !== state.dismissedInboxPluginId,
+      );
+      matchedInbox = candidates.find(
+        (stage) => stage.catchesPluginId === thread.originPluginId,
+      ) ?? null;
+      if (!matchedInbox) {
+        for (const stage of candidates) {
+          const metadata = await bb.sdk.threads.getPluginMetadata({
+            threadId, pluginId: stage.catchesPluginId!,
+          });
+          if (metadata.inbox === true) {
+            matchedInbox = stage;
+            break;
+          }
+        }
+      }
+    }
     const destination = placementForThread(
       configSnapshot,
       thread,
       state.rememberedStageKey,
       explicitStageKey !== undefined,
+      matchedInbox,
     );
     if (destination && !destination.sectionId) {
       throw new Error(`Stage ${destination.key} has no native section.`);
     }
     const destinationSectionId = destination?.sectionId ?? null;
+    if (destination?.role === "inbox" && destination.key !== "inbox") {
+      state.claimedInboxKey = destination.key;
+    }
     if (thread.sectionId !== destinationSectionId) {
       await bb.sdk.threads.update({
         threadId,
@@ -577,7 +626,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     // stage must not fire.
     if (
       state.pendingEntryPrompt !== null &&
-      state.pendingEntryPrompt.stageKey !== state.rememberedStageKey
+      (state.pendingEntryPrompt.stageKey !== state.rememberedStageKey ||
+        (destination?.role === "inbox" && destination.key !== "inbox"))
     ) {
       bb.log.info(
         `thread=${threadId} action=entry-prompt-dropped stage=${state.pendingEntryPrompt.stageKey} reason=re-targeted`,
@@ -586,7 +636,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     }
     if (
       state.queuedEntryPrompt !== null &&
-      state.queuedEntryPrompt.stageKey !== state.rememberedStageKey
+      (state.queuedEntryPrompt.stageKey !== state.rememberedStageKey ||
+        (destination?.role === "inbox" && destination.key !== "inbox"))
     ) {
       await retractQueuedEntryPrompt(threadId, state);
     }
@@ -907,7 +958,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         );
         const removed = previous.stages.filter(
           (stage) =>
-            stage.role === "stage" &&
+            stage.key !== "inbox" &&
             !nextKeys.has(stage.key) &&
             (stage.sectionId === null || !nextSectionIds.has(stage.sectionId)),
         );
@@ -984,8 +1035,9 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "  bb organizer phase <stage-key>",
     "  bb organizer prompt [<stage-key>] [--set <text> | --clear]",
     "  bb organizer section list",
-    "  bb organizer section add <title> [--after <stage-key>] [--rule <text>]",
+    "  bb organizer section add <title> [--after <stage-key>] [--rule <text>] [--inbox --catches-plugin <plugin-id>]",
     "  bb organizer section rule <stage-key> [--set <text>]",
+    "  bb organizer section type <stage-key> [--set stage|inbox] [--catches-plugin <plugin-id>]",
     "",
   ].join("\n");
   const SECTION_TITLE_MAX_LENGTH = 80;
@@ -1248,8 +1300,10 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (subcommand === undefined || subcommand === "list") {
       const lines = configSnapshot.stages.map((stage) => {
         const note =
-          stage.role === "inbox"
+          stage.key === "inbox"
             ? "system-managed"
+            : stage.role === "inbox"
+              ? `inbox · ${stage.catchesPluginId}`
             : stage.entryPrompt
               ? "entry prompt"
               : "";
@@ -1258,6 +1312,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       return { exitCode: 0, stdout: `${lines.join("\n")}\n` };
     }
     if (subcommand === "rule") return runSectionRule(rest, context);
+    if (subcommand === "type") return runSectionType(rest, context);
     if (subcommand !== "add") return { exitCode: 2, stderr: CLI_USAGE };
     const [rawTitle, ...options] = rest;
     const title = rawTitle?.trim() ?? "";
@@ -1272,6 +1327,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     }
     let after: string | undefined;
     let rule: string | undefined;
+    let inbox = false;
+    let catchesPluginId: string | undefined;
     for (let index = 0; index < options.length; index += 1) {
       const option = options[index];
       const value = options[index + 1];
@@ -1280,6 +1337,11 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         index += 1;
       } else if (option === "--rule" && value !== undefined) {
         rule = value;
+        index += 1;
+      } else if (option === "--inbox") {
+        inbox = true;
+      } else if (option === "--catches-plugin" && value !== undefined) {
+        catchesPluginId = value;
         index += 1;
       } else {
         return { exitCode: 2, stderr: CLI_USAGE };
@@ -1296,7 +1358,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return confirmAndSave(context, {
       title: `Add section "${title}"`,
       summary: (key) =>
-        `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}, with this rule for agents:`,
+        `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}${inbox ? `, for threads from ${catchesPluginId}` : ""}, with this rule for agents:`,
       field: "rule",
       apply: (current) => {
         const edited = editableWorkflowConfig(current);
@@ -1319,7 +1381,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         );
         edited.stages.splice(position, 0, {
           key,
-          role: "stage",
+          role: inbox ? "inbox" : "stage",
+          ...(catchesPluginId !== undefined ? { catchesPluginId } : {}),
           title,
           rule: finalRule,
         });
@@ -1346,7 +1409,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       };
     }
     if (rest.length === 0) return { exitCode: 0, stdout: `${stage.rule}\n` };
-    if (stage.role === "inbox") {
+    if (stage.key === "inbox") {
       return { exitCode: 2, stderr: "Inbox routing and its rule cannot be changed.\n" };
     }
     const text = rest[1];
@@ -1379,6 +1442,65 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     });
   }
 
+  async function runSectionType(
+    argv: readonly string[],
+    context: CliContext,
+  ): Promise<CliResult> {
+    const [rawKey, ...rest] = argv;
+    if (rawKey === undefined) return { exitCode: 2, stderr: CLI_USAGE };
+    const stage = findStage(configSnapshot, rawKey);
+    if (!stage) {
+      return {
+        exitCode: 2,
+        stderr: `Unknown stage: ${rawKey}\nAvailable: ${stageKeysLine(true)}\n`,
+      };
+    }
+    if (rest.length === 0) {
+      return {
+        exitCode: 0,
+        stdout: `${stage.role}${stage.key === "inbox" ? " (everything)" : stage.catchesPluginId ? ` (${stage.catchesPluginId})` : ""}\n`,
+      };
+    }
+    if (stage.key === "inbox") {
+      return { exitCode: 2, stderr: "The main Inbox is protected.\n" };
+    }
+    const role = rest[1];
+    if (
+      rest[0] !== "--set" ||
+      !((role === "stage" && rest.length === 2) ||
+        (role === "inbox" && rest.length === 4 && rest[2] === "--catches-plugin"))
+    ) {
+      return { exitCode: 2, stderr: CLI_USAGE };
+    }
+    const catchesPluginId = rest[3];
+    return confirmAndSave(context, {
+      title: `Set the section type for ${stage.title}`,
+      summary: () => role === "inbox"
+        ? `${stage.title} will receive threads from ${catchesPluginId} and keep them until you move or archive them.`
+        : `${stage.title} will be a workflow section with normal Inbox routing.`,
+      field: null,
+      apply: (current) => {
+        const edited = editableWorkflowConfig(current);
+        const index = edited.stages.findIndex((entry) => entry.key === stage.key);
+        const target = edited.stages[index];
+        if (target === undefined) {
+          throw new CliInputError(
+            `Stage ${stage.key} no longer exists; the workflow changed elsewhere.`,
+          );
+        }
+        const { catchesPluginId: _previousFilter, ...fields } = target;
+        edited.stages[index] = {
+          ...fields, role: role as "stage" | "inbox",
+          ...(role === "inbox" ? { catchesPluginId } : {}),
+        };
+        return {
+          edited, key: stage.key,
+          message: `Set ${stageLabel(stage)} to ${role}.`,
+        };
+      },
+    });
+  }
+
   bb.cli.register({
     name: "organizer",
     summary:
@@ -1400,7 +1522,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         summary:
           "List sections or add one (changes ask for approval in the thread)",
         usage:
-          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>] | rule <stage-key> [--set <text>]",
+          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>] [--inbox --catches-plugin <plugin-id>] | rule <stage-key> [--set <text>] | type <stage-key> [--set stage|inbox] [--catches-plugin <plugin-id>]",
       },
     ],
     async run(argv, context) {

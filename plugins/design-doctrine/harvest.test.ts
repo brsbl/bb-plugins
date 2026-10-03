@@ -86,16 +86,23 @@ const temporaryRoots: string[] = [];
 const execFileAsync = promisify(execFile);
 vi.setConfig({ testTimeout: 30_000 });
 
-async function makeDoctrineRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "doctrine-harvest-"));
-  temporaryRoots.push(root);
+async function makeDoctrineRoot({ nested = false } = {}): Promise<string> {
+  const repository = await mkdtemp(join(tmpdir(), "doctrine-harvest-"));
+  temporaryRoots.push(repository);
+  const root = nested ? join(repository, "plugins", "design-doctrine") : repository;
   await mkdir(join(root, "rules", "interaction"), { recursive: true });
   await writeFile(join(root, "rules", "interaction", "ddr_001.md"), SEED_RULE, "utf8");
-  await execFileAsync("git", ["-C", root, "init", "-b", "doctrine-maintenance"]);
-  await execFileAsync("git", ["-C", root, "config", "user.name", "Design Doctrine Test"]);
-  await execFileAsync("git", ["-C", root, "config", "user.email", "doctrine-test@example.com"]);
+  await execFileAsync("git", ["-C", repository, "init", "-b", "doctrine-maintenance"]);
+  await execFileAsync("git", ["-C", repository, "config", "user.name", "Design Doctrine Test"]);
+  await execFileAsync("git", [
+    "-C",
+    repository,
+    "config",
+    "user.email",
+    "doctrine-test@example.com",
+  ]);
   await execFileAsync("git", ["-C", root, "add", "rules/interaction/ddr_001.md"]);
-  await execFileAsync("git", ["-C", root, "commit", "-m", "seed rules"]);
+  await execFileAsync("git", ["-C", repository, "commit", "-m", "seed rules"]);
   return root;
 }
 
@@ -252,6 +259,7 @@ async function startPlugin(root: string, script: AgentScript) {
     return makeThreadResponse({ id: `spawned-${harness.sdk.calls.length}` });
   }) as never);
   harness.sdk.stub("threads.wait", (async () => ({ matched: true })) as never);
+  harness.sdk.stub("threads.archive", (async () => ({ ok: true })) as never);
 
   await plugin(bb);
   return host;
@@ -306,6 +314,7 @@ describe("harvest pure helpers", () => {
   it("allocates the next rule id after the highest existing one", () => {
     expect(allocateRuleId(["ddr_001", "ddr_036", "ddr_004"])).toBe("ddr_037");
     expect(allocateRuleId([])).toBe("ddr_001");
+    expect(allocateRuleId(["ddr_040", "ext_010"])).toBe("ddr_041");
   });
 
   it("places a rule under its domain category", () => {
@@ -452,6 +461,17 @@ describe("archive-triggered harvest", () => {
       "ddr_002",
     ]);
     expect(status.thread).toMatchObject({ outcome: "approved:1" });
+    const spawns = harness.sdk.callsTo("threads.spawn").map(([args]) => args);
+    expect(spawns).toHaveLength(2);
+    expect(spawns).toEqual(
+      spawns.map(() =>
+        expect.objectContaining({
+          projectId: "proj_personal",
+          environment: { type: "host", workspace: { type: "personal" } },
+        }),
+      ),
+    );
+    expect(harness.sdk.callsTo("threads.archive")).toHaveLength(spawns.length);
     const rulesStatus = await execFileAsync("git", [
       "-C",
       root,
@@ -476,6 +496,35 @@ describe("archive-triggered harvest", () => {
         entry.message.includes("committed rules/visual/ddr_002.md"),
       ),
     ).toBe(true);
+    await harness.lifecycle.dispose();
+  });
+
+  it("commits approved rules when the plugin is a subdirectory of its repository", async () => {
+    const root = await makeDoctrineRoot({ nested: true });
+    const script: AgentScript = {
+      propose: () => [makeProposal()],
+      review: () => ({ approve: true, reason: "new, and grounded in this thread" }),
+      reviewerPrompts: [],
+      harvesterPrompts: [],
+    };
+    const { harness } = await startPlugin(root, script);
+
+    const status = await archiveAndSettle(harness, "thr_nested");
+
+    expect(status.thread).toMatchObject({ outcome: "approved:1" });
+    expect(await writtenRuleFiles(root)).toEqual([
+      "interaction/ddr_001.md",
+      "visual/ddr_002.md",
+    ]);
+    const committed = await execFileAsync("git", [
+      "-C",
+      root,
+      "log",
+      "-1",
+      "--name-only",
+      "--format=%s",
+    ]);
+    expect(committed.stdout).toContain("plugins/design-doctrine/rules/visual/ddr_002.md");
     await harness.lifecycle.dispose();
   });
 
