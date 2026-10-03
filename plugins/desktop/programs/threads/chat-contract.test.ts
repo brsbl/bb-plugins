@@ -124,7 +124,7 @@ describe("bb ThreadChat contract", () => {
     expect(matches(`${QUOTED} > .relative [data-prompt-mention-resource]`).map((pill) => pill.textContent)).toEqual(["Release notes check"]);
   });
 
-  it("keeps room below the last message for its actions", () => {
+  it("sets the gap between messages on the transcript's row list", () => {
     load();
     const lists = matches('.bbd-im-chat [data-timeline-row-list="top-level"]');
     expect(lists).toHaveLength(3);
@@ -143,16 +143,37 @@ describe("bb ThreadChat contract", () => {
     }
   });
 
-  it("shrinks the action slot under every message, a person's and the agent's", () => {
+  it("lays every message's action row over its last line, a person's and the agent's", () => {
     load();
+    const columns = Array.from(document.querySelectorAll(CHAT_CONTRACT_PROBES.message));
     const slots = matches(".bbd-im-chat [data-message-column] .relative.w-full.h-5");
-    expect(slots).toHaveLength(document.querySelectorAll(CHAT_CONTRACT_PROBES.message).length);
+    expect(slots).toHaveLength(columns.length);
     expect(slots.filter(isAgent).length).toBeGreaterThan(0);
     expect(slots.filter(isPerson).length).toBeGreaterThan(0);
-    const buttons = matches(".bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 > button");
-    for (const slot of slots) {
-      expect(buttons.some((button) => slot.contains(button) && button.matches('[aria-label="Copy message"]'))).toBe(true);
+    // The slot follows the message text, so pulling it up puts it over the last line.
+    for (const slot of slots) expect(slot.previousElementSibling?.querySelector("[data-markdown-preview]")).not.toBeNull();
+    const rows = matches(".bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0");
+    expect(rows).toHaveLength(columns.length);
+    for (const row of rows) expect(row.querySelector('button[aria-label="Copy message"]')).not.toBeNull();
+  });
+
+  it("shows the fade behind the actions exactly when bb reveals them", () => {
+    load();
+    const rows = Array.from(document.querySelectorAll(".bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0"));
+    // bb reveals the buttons on hover or focus inside the message's group/message, or while the row's menu is open.
+    for (const button of rows.flatMap((row) => Array.from(row.querySelectorAll("button:not(.hidden)")))) {
+      expect(button.classList).toContain("opacity-0");
+      expect(button.classList).toContain("group-hover/message:opacity-100");
+      expect(button.classList).toContain("group-focus-within/message:opacity-100");
     }
+    for (const row of rows) expect(row.classList).toContain("data-[menu-open]:[&_button]:opacity-100");
+    const revealed = '.bbd-im-chat [class~="group/message"]:is(:hover, :focus-within) .relative.w-full.h-5 > .absolute.top-0::before';
+    expect(contractCss).toContain(revealed);
+    expect(Array.from(document.querySelectorAll(revealed.replace(":is(:hover, :focus-within)", "").replace("::before", "")))).toEqual(rows);
+    const menuOpen = ".bbd-im-chat [data-message-column] .relative.w-full.h-5 > [data-menu-open]";
+    expect(contractCss).toContain(`${menuOpen}::before`);
+    rows[0].setAttribute("data-menu-open", "");
+    expect(Array.from(document.querySelectorAll(menuOpen))).toEqual([rows[0]]);
   });
 
   it("styles bb's live Working... line outside the rows", () => {
