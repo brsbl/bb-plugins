@@ -448,12 +448,13 @@ function DigestsSettings() {
             <ul className="digest-nested-list">{definitions.map((definition) => <li className="digest-nested-item" key={definition.id}>
               {editing?.digestId === definition.id ? <DigestForm connection={site} definition={definition} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : <div className="digest-definition">
                 <button className="digest-edit" disabled={editing !== null || pending !== null} onClick={() => setEditing({ siteId: site.id, digestId: definition.id })} aria-label={`Edit ${definition.name}`} />
-                <div className="digest-definition-top"><div className="digest-definition-title"><h5>{definition.name}</h5>
-                  {definition.schedule && <span className="digest-schedule-label"><Icon name="Calendar" className="digest-schedule-icon" aria-hidden /> {scheduleLabel(definition.schedule)}</span>}</div>
+                <div className="digest-definition-top"><h5>{definition.name}</h5>
                   {definition.schedule && <Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} />}
                 </div>
                 <p className="digest-prompt-preview">{definition.instructions}</p>
-                <div className="digest-definition-footer">{!definition.schedule && <small>{definition.id === "x-scorecard" ? "Published by your X analytics thread" : "Published by another thread"}</small>}
+                <div className="digest-definition-footer">{definition.schedule
+                  ? <span className="digest-schedule-label"><Icon name="Calendar" className="digest-schedule-icon" aria-hidden /> {scheduleLabel(definition.schedule)}</span>
+                  : <small>{definition.id === "x-scorecard" ? "Published by your X analytics thread" : "Published by another thread"}</small>}
                   {definition.schedule && <Button aria-label={`Run ${definition.name} now`} disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>{createdId === definition.id ? "Run now to preview" : "Run now"}</Button>}
                 </div>
               </div>}

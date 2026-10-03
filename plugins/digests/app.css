@@ -149,11 +149,10 @@
 .digest-nested-list { display: grid; gap: 10px; list-style: none; padding: 0 16px 16px; margin: 0; }
 .digest-nested-item .digest-definition { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md, 6px); }
 .digest-definition-top, .digest-definition-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: none; }
-.digest-definition-title { flex: 1; min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
-.digest-schedule-label { display: inline-flex; flex: none; align-items: baseline; gap: 6px; max-width: 100%; color: var(--muted-foreground); font-size: var(--text-xs, 12px); font-weight: 400; }
+.digest-schedule-label { display: inline-flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 6px; max-width: 100%; color: var(--muted-foreground); font-size: var(--text-xs, 12px); font-weight: 400; }
 .digest-schedule-icon { align-self: center; width: 14px; height: 14px; flex-shrink: 0; color: var(--muted-foreground); }
 .digest-definition-footer { justify-content: flex-end; }
-.digest-definition-footer small { margin-right: auto; }
+.digest-definition-footer small, .digest-definition-footer .digest-schedule-label { margin-right: auto; }
 .digest-definition-top .digest-switch { flex-shrink: 0; align-self: flex-start; margin-top: 2.5px; }
 .digest-definition-top h5 { flex: 1 1 auto; max-width: 100%; margin: 0; color: var(--foreground); font-size: var(--text-sm, 14px); font-weight: 600; line-height: 21px; }
 .digest-definition-footer small { color: var(--muted-foreground); font-size: 12px; }
