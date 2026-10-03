@@ -2,6 +2,8 @@
 
 Read Moss notes in a bb panel the way Moss renders them, and open them in Moss to edit.
 
+![A Moss note with a wiki link pill and an embedded X post in bb's panel](https://github.com/user-attachments/assets/1f0ba527-c96d-4f11-9083-a2780231f7ef)
+
 ## Install
 
 ```bash
