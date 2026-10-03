@@ -48,13 +48,23 @@ describe("bb ThreadChat contract", () => {
 
   it("shows only what was said: messages and user rows stay, tool calls and thoughts hide", () => {
     load();
-    const hidden = matches('.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"])');
+    const hidden = matches('.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"])');
     const shown = Array.from(document.querySelectorAll(CHAT_CONTRACT_PROBES.row)).filter((row) => !hidden.includes(row));
     expect(hidden.length).toBeGreaterThan(0);
     expect(hidden.some((row) => rowOf(row).includes(":work-summary:") || rowOf(row).includes(":op:reasoning:"))).toBe(true);
     expect(shown.length).toBeGreaterThan(0);
     expect(shown.every((row) => isPerson(row) || isAgent(row))).toBe(true);
     expect(document.querySelectorAll(CHAT_CONTRACT_PROBES.message).length).toBe(shown.filter((row) => row.querySelector(CHAT_CONTRACT_PROBES.message)).length);
+  });
+
+  it("keeps error and warning rows visible", () => {
+    const { live } = load();
+    const items = live.querySelector(CHAT_CONTRACT_PROBES.row)!.parentElement!;
+    for (const id of ["thr_fixture:error:30", "thr_fixture:op:warning:1", "thr_fixture:op:error:2"]) {
+      items.insertAdjacentHTML("beforeend", `<div data-timeline-row-id="${id}"><div class="rounded-md"><div class="group/timeline-row">notice</div></div></div>`);
+    }
+    const hidden = matches('.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"])');
+    expect(hidden.map(rowOf).filter((id) => id.includes("error") || id.includes("warning"))).toEqual([]);
   });
 
   it("labels speakers on both kinds of message, with Me: only on a person's", () => {
