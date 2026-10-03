@@ -114,21 +114,15 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
         <div
           className="bbd-im-chat min-h-0 flex-1"
           data-bbd-chat-thread={threadId}
-          data-working={working === true}
           data-archived={archived}
         >
           <ThreadChat threadId={threadId} variant="compact" layout="contained" permissionPolicy="editable" className="h-full" />
         </div>
         {archived ? (
-          <div className="bbd-im-signed-off flex-none" role="status">
-            <span className="flex-1 truncate">{buddy} has signed off.</span>
-            <button
-              type="button"
-              className="bbd-button bbd-bevel"
-              title="Restore this thread from the Recycle Bin"
-              onClick={() => void desktop.restoreThread(threadId)}
-            >
-              Bring Back
+          <div className="bbd-im-archived flex-none" role="status">
+            <span className="flex-1 truncate">Thread is archived</span>
+            <button type="button" className="bbd-button bbd-bevel" onClick={() => void desktop.restoreThread(threadId)}>
+              Unarchive
             </button>
           </div>
         ) : null}

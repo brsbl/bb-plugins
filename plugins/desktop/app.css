@@ -1451,14 +1451,14 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 /*
- * An archived thread is a buddy who has signed off: it can be read but not messaged. The compact chat is kept, rather
- * than bb's composer-less timeline, because it opens at the latest message; only its message box is removed.
+ * Like bb's own thread view, an archived thread hides its message box and offers Unarchive in its place. The compact
+ * chat is kept, rather than bb's composer-less timeline, because it opens at the latest message.
  */
-.bbd-im-chat[data-archived="true"] .sticky.bottom-0 {
+.bbd-im-chat[data-archived="true"] [data-scroll-footer] {
   display: none;
 }
 
-.bbd-im-signed-off {
+.bbd-im-archived {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1472,7 +1472,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
     inset -1px -1px 0 var(--bbd-im-light);
 }
 
-.bbd-im-signed-off .bbd-button {
+.bbd-im-archived .bbd-button {
   font-style: normal;
 }
 
@@ -1576,6 +1576,13 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   justify-content: flex-start;
 }
 
+/* Every line starts at the left edge in AIM, so a person's message actions sit there too, as the agent's do. */
+.bbd-im-chat [data-message-column] > .ml-auto .relative.w-full > .absolute.top-0 {
+  right: auto;
+  left: 0;
+  margin-left: -0.25rem;
+}
+
 .bbd-im-chat [data-message-column] > .ml-auto .rounded-xl {
   padding: 0;
   border: 0;
@@ -1629,31 +1636,6 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 /* bb paints shimmering text in the foreground; the sweep still runs over the system gray. */
 .bbd-im-chat :is([data-timeline-row-id] > .rounded-md, .mt-4 > .rounded-md, .mt-4.min-h-7) .animate-shine {
   -webkit-text-fill-color: currentColor;
-}
-
-/*
- * AIM shows a buddy typing, not their scratch work: while a turn runs, its thinking and tool rows stay one line
- * each, and open again once the turn ends. Earlier turns bb has folded keep their own expansion.
- */
-.bbd-im-chat[data-working="true"]
-  .rounded-md:has(> .group\/timeline-row):not(:is([data-timeline-row-id*=":turn:"]) *)
-  > :not(.group\/timeline-row) {
-  display: none;
-}
-
-.bbd-im-chat[data-working="true"]
-  .rounded-md:not(:is([data-timeline-row-id*=":turn:"]) *)
-  > .group\/timeline-row
-  > button[aria-expanded] {
-  pointer-events: none;
-}
-
-.bbd-im-chat[data-working="true"]
-  .rounded-md:not(:is([data-timeline-row-id*=":turn:"]) *)
-  > .group\/timeline-row
-  > button[aria-expanded]
-  > svg {
-  display: none;
 }
 
 .bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.overflow-hidden, .truncate, .leading-5, .line-clamp-2) {
