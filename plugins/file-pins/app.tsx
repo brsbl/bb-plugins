@@ -131,11 +131,11 @@ function PinStrip({ threadId }: { threadId: string }) {
   function reference(pin: Reference, inList = false) {
     const title = `${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
     if (pin.status === "missing") return <span key={pin.id} className={`relative inline-flex min-w-0 ${inList ? "w-full" : "max-w-48"}`} title={title}>
-      <span aria-label={`${pin.name} (missing)`} className={`${linkClass} cursor-default pr-4 opacity-60 ${inList ? "w-full max-w-none" : ""}`}>
+      <span aria-label={`${pin.name} (missing)`} className={`${linkClass} cursor-default bg-destructive/10 pr-4 text-destructive hover:text-destructive ${inList ? "w-full max-w-none" : ""}`}>
         <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void unpin(pin)}
-        className="absolute right-0 -top-1 flex size-5 items-center justify-center rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
+        className="absolute right-0 -top-1 flex size-5 items-center justify-center rounded-sm text-xs text-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
     </span>;
     return <ContextMenu key={pin.id}>
       <ContextMenuTrigger asChild>

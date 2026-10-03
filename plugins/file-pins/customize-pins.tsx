@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { closestCenter, DndContext, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { horizontalListSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import type { Reference } from "./contract.js";
@@ -16,39 +15,35 @@ export function CustomizePins({ pins, busy, onMove, onRemove, onDone }: {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  return <section aria-label="Customize pins" className="rounded-lg bg-sidebar-accent/40 py-1" onKeyDown={(event) => {
+  return <section aria-label="Customize pins" className="flex min-w-0 items-center gap-1 px-1 py-1" onKeyDown={(event) => {
     if (event.key === "Escape" && !event.defaultPrevented && !dragging) { event.preventDefault(); onDone(); }
   }}>
-    <div className="flex items-center gap-1 px-1 pb-1">
-      <div className="min-w-0 flex-1 px-2 py-1 text-xs font-normal leading-5 text-subtle-foreground/75">Customize pins</div>
-      <Button autoFocus type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-xs text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent focus-visible:ring-2" onClick={onDone}>Done</Button>
-    </div>
+    <span className="mr-1 shrink-0 text-xs text-muted-foreground">Pinned</span>
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => setDragging(true)} onDragCancel={() => setDragging(false)} onDragEnd={({ active, over }) => {
       setDragging(false);
       if (over && active.id !== over.id) onMove(String(active.id), String(over.id));
     }}>
-      <SortableContext items={pins.map((pin) => pin.id)} strategy={verticalListSortingStrategy}>
-        <ul aria-label="Pinned files order" className="max-h-56 space-y-0.5 overflow-y-auto px-2">
+      <SortableContext items={pins.map((pin) => pin.id)} strategy={horizontalListSortingStrategy}>
+        <ul aria-label="Pinned files order" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1">
           {pins.map((pin) => <PinRow key={pin.id} pin={pin} busy={busy} reorderDisabled={busy || pins.length < 2} onRemove={() => onRemove(pin)} />)}
         </ul>
       </SortableContext>
     </DndContext>
-    {pins.length === 0 && <p className="px-3 py-1 text-xs text-muted-foreground">No pinned files.</p>}
-    {pins.length > 1 && <p className="px-3 pt-1 text-xs text-muted-foreground">Drag to reorder. Or press Space, then arrow keys.</p>}
+    {pins.length === 0 && <span className="min-w-0 flex-1 text-xs text-muted-foreground">No pinned files.</span>}
+    <Button autoFocus type="button" variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-xs text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent focus-visible:ring-2" onClick={onDone}>Done</Button>
+    <span className="sr-only">Drag horizontally to reorder. Or press Space, then arrow keys.</span>
   </section>;
 }
 function PinRow({ pin, busy, reorderDisabled, onRemove }: { pin: Reference; busy: boolean; reorderDisabled: boolean; onRemove(): void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useSortable({ id: pin.id, disabled: reorderDisabled, transition: null, animateLayoutChanges: () => false });
   return <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), position: isDragging ? "relative" : undefined, zIndex: isDragging ? 1 : undefined }}
-    className="flex min-h-7 items-center gap-1 rounded-md px-1 text-xs text-sidebar-foreground hover:bg-sidebar-accent focus-within:bg-sidebar-accent">
-    <button ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} disabled={reorderDisabled} aria-label={`Reorder ${pin.name}`}
-      title={`Reorder ${pin.name}: Space to pick up, arrow keys to move, Space to drop`}
-      className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-sm text-subtle-foreground/60 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing disabled:opacity-40">
-      <Icon name="DragDropVertical" className="size-4" />
+    className={`relative flex shrink-0 items-center rounded text-xs ${pin.status === "missing" ? "bg-destructive/10 text-destructive" : "text-muted-foreground hover:bg-state-hover"}`}>
+    <button ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} disabled={reorderDisabled} aria-label={`Reorder ${pin.name}${pin.status === "missing" ? " (missing)" : ""}`}
+      title={`${pin.path}\n${pin.hostName}\nSpace to pick up, arrow keys to move, Space to drop`}
+      className="inline-flex h-7 max-w-48 cursor-grab touch-none items-center gap-1.5 rounded pl-1.5 pr-5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing">
+      <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span>
     </button>
-    <ReferenceIcon name={pin.name} moss={pin.moss} />
-    <span className="min-w-0 flex-1 truncate px-1" title={`${pin.path}\n${pin.hostName}`}>{pin.name}{pin.status === "missing" && " (missing)"}</span>
     <button type="button" disabled={busy} aria-label={`Remove ${pin.name}`} title={`Remove ${pin.name}`} onClick={onRemove}
-      className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
+      className="absolute right-0 -top-1 flex size-5 items-center justify-center rounded-sm text-xs text-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
   </li>;
 }

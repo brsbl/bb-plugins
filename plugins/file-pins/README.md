@@ -14,14 +14,16 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins -
 ## Use
 
 Choose **Pin to thread** in the composer's **+** menu, then search files on the
-thread's machine. **Paste a path…** accepts an absolute or `~/` path. When more
-than one machine is enrolled, the picker lets you choose the file's machine.
+thread's machine. Type an absolute or `~/` path in the same search field to pin it directly. When more
+than one machine is enrolled, the search row lets you choose the file's machine. Its options menu contains
+**Paste a path…** and **Customize pins**.
 
 Pins read as quiet references above the composer, with extra files in **+N**.
 Hover a filename for its full path and machine. Right-click a pin to **Unpin**;
-the toast offers **Undo**. Choose **Customize pins** in the picker or a pin's
-context menu to reorder by dragging or Space/arrow keys, remove files, then
-choose **Done**. Missing files are muted and labeled for assistive technology;
+the toast offers **Undo**. Choose **Customize pins** in the picker options or a pin's
+context menu to edit the strip in place: drag horizontally or use Space/arrow
+keys to reorder, remove files, then
+choose **Done**. Missing files have a light danger tint and are labeled for assistive technology;
 only their small **×** removes them. Availability refreshes on focus and every
 30 seconds.
 

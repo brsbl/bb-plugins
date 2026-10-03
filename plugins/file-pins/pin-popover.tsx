@@ -11,7 +11,7 @@ export const PinPopoverTrigger = PopoverPrimitive.Trigger;
 export const PinPopoverContent = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>>(
   ({ className, ...props }, ref) => {
     const scope = usePortalScopeProps();
-    return <PopoverPrimitive.Portal><PopoverPrimitive.Content ref={ref} {...scope} side="top" align="start" sideOffset={6} collisionPadding={8}
+    return <PopoverPrimitive.Portal><PopoverPrimitive.Content ref={ref} {...scope} side="top" align="end" sideOffset={6} collisionPadding={8}
       className={cn("z-50 w-80 max-w-[calc(100vw-16px)] overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md outline-none", className)}
       style={{ maxHeight: "var(--radix-popover-content-available-height)" }} {...props} /></PopoverPrimitive.Portal>;
   },
