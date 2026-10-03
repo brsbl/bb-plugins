@@ -67,6 +67,19 @@ export function assetHref(
   return `${assetRoute}?${query.toString()}`;
 }
 
+/**
+ * A web or mail link a note may open, normalized; null for any other scheme,
+ * so a `javascript:` or `data:` link in a note can never run in bb's origin.
+ */
+export function safeExternalUrl(url: string, base?: string): string | null {
+  try {
+    const parsed = new URL(url, base);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:" ? parsed.href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The viewer entry the frame exposes once its module has run, or null when it failed to load. */
 export function frameViewer(frame: HTMLIFrameElement): NonNullable<FrameGlobals["mossViewer"]> | null {
   const viewer = (frame.contentWindow as (Window & FrameGlobals) | null)?.mossViewer;
@@ -95,13 +108,10 @@ export function routeFrameLinks(frame: HTMLIFrameElement, openUrl: (url: string)
     const anchor = target?.closest?.("a[href]");
     const href = anchor?.getAttribute("href");
     if (!href || href.startsWith("#")) return;
+    // Any other link does nothing rather than replacing the viewer.
     event.preventDefault();
-    try {
-      const url = new URL(href, document.baseURI);
-      if (url.protocol === "http:" || url.protocol === "https:" || url.protocol === "mailto:") openUrl(url.href);
-    } catch {
-      // Not a URL; a click on it does nothing rather than replacing the viewer.
-    }
+    const url = safeExternalUrl(href, document.baseURI);
+    if (url !== null) openUrl(url);
   };
   document.addEventListener("click", onClick);
   return () => document.removeEventListener("click", onClick);

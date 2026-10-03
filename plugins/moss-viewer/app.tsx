@@ -16,6 +16,7 @@ import {
   frameSource,
   frameViewer,
   routeFrameLinks,
+  safeExternalUrl,
   setFrameTheme,
   type MossViewerHandle,
   type MossViewerNote,
@@ -271,7 +272,8 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   }, []);
 
   const openUrl = useCallback((url: string) => {
-    if (!navigateRef.current.openUrl(url)) window.open(url, "_blank", "noopener,noreferrer");
+    const safe = safeExternalUrl(url);
+    if (safe !== null && !navigateRef.current.openUrl(safe)) window.open(safe, "_blank", "noopener,noreferrer");
   }, []);
 
   const readNote = useCallback(async (hostId: string, path: string): Promise<MossNote | null> => {

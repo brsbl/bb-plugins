@@ -17,36 +17,40 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
 
 /**
  * The viewer's own document. Moss's stylesheet styles the whole page, so it gets
- * a page of its own inside an iframe; scripts may come only from this bundle.
+ * a page of its own inside an iframe. That frame shares bb's origin so its
+ * requests carry bb's session, which is why scripts are limited to the two this
+ * document names by nonce and the modules they import.
  */
-const FRAME_CSP = [
-  "default-src 'none'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self' data:",
-  "img-src 'self' https: data: blob:",
-  "media-src 'self' https: blob:",
-  "frame-src https:",
-  "connect-src 'self'",
-  "worker-src 'self' blob:",
-  "base-uri 'none'",
-  "form-action 'none'",
-  "object-src 'none'",
-].join("; ");
-
-const FRAME_HTML = `<!doctype html>
+export function frameDocument(nonce: string): { html: string; csp: string } {
+  const csp = [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}' 'strict-dynamic'`,
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:",
+    "img-src 'self' https: data: blob:",
+    "media-src 'self' https: blob:",
+    "frame-src https:",
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "object-src 'none'",
+  ].join("; ");
+  const html = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="./theme.js"></script>
+<script nonce="${nonce}" src="./theme.js"></script>
 <link rel="stylesheet" href="./moss-viewer.css">
 <style>html, body, #moss-viewer { height: 100%; margin: 0; }</style>
-<script type="module" src="./frame.js"></script>
+<script type="module" nonce="${nonce}" src="./frame.js"></script>
 </head>
 <body><div id="moss-viewer"></div></body>
 </html>
 `;
+  return { html, csp };
+}
 
 // Runs before first paint so a dark bb never flashes moss's light canvas.
 const THEME_JS = `document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") === "dark" ? "dark" : "light";
@@ -64,14 +68,12 @@ export interface ViewerFile {
   contentType: string;
   /** Present for text files worth compressing; served when the client accepts gzip. */
   gzip?: Uint8Array<ArrayBuffer>;
-  /** Policy for the frame document only. */
-  csp?: string;
 }
 
 export interface ViewerBundle {
   version: string;
   bundleHash: string;
-  /** Route prefix that changes with the bundle or frame, so every file can be cached as immutable. */
+  /** Route prefix that changes with the bundle or frame, so every bundle file can be cached as immutable. */
   base: string;
   files: ReadonlyMap<string, ViewerFile>;
 }
@@ -147,17 +149,12 @@ export async function loadViewerBundle(directory: string): Promise<ViewerBundle>
   if (!files.has(record.entry) || !files.has(record.css)) {
     throw new Error("moss-viewer: viewer.json omits the viewer entry or stylesheet");
   }
-  files.set("frame.html", {
-    body: new TextEncoder().encode(FRAME_HTML),
-    contentType: "text/html; charset=utf-8",
-    csp: FRAME_CSP,
-  });
   files.set("theme.js", { body: new TextEncoder().encode(THEME_JS), contentType: CONTENT_TYPES[".js"]! });
   files.set("frame.js", { body: new TextEncoder().encode(FRAME_JS), contentType: CONTENT_TYPES[".js"]! });
   return {
     version: record.version,
     bundleHash: record.bundleHash,
-    base: `/viewer/${sha256(record.bundleHash + FRAME_CSP + FRAME_HTML + THEME_JS + FRAME_JS).slice(0, 16)}`,
+    base: `/viewer/${sha256(record.bundleHash + JSON.stringify(frameDocument("")) + THEME_JS + FRAME_JS).slice(0, 16)}`,
     files,
   };
 }

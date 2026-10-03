@@ -1,7 +1,8 @@
+import { randomBytes } from "node:crypto";
 import { posix } from "node:path";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { ASSET_CHUNK_BYTES, hostContract, rpcContract, type AssetRefusal } from "./contract.js";
-import { findViewerDirectory, loadViewerBundle } from "./viewer-bundle.js";
+import { findViewerDirectory, frameDocument, loadViewerBundle } from "./viewer-bundle.js";
 
 type HttpContext = Parameters<Parameters<BbPluginApi["http"]["route"]>[2]>[0];
 
@@ -82,6 +83,23 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     openInMoss: ({ hostId, path }) => host.call("openInMoss", { path }, { hostId }),
   });
 
+  bb.http.route(
+    "GET",
+    `${bundle.base}/frame.html`,
+    () => {
+      const { html, csp } = frameDocument(randomBytes(18).toString("base64"));
+      return new Response(html, {
+        headers: {
+          "cache-control": "no-store",
+          "content-security-policy": csp,
+          "content-type": "text/html; charset=utf-8",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    },
+    { auth: "local" },
+  );
+
   for (const [name, file] of bundle.files) {
     bb.http.route(
       "GET",
@@ -93,7 +111,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           "content-type": file.contentType,
           "x-content-type-options": "nosniff",
         };
-        if (file.csp) headers["content-security-policy"] = file.csp;
         if (file.gzip) headers.vary = "accept-encoding";
         if (gzip) headers["content-encoding"] = "gzip";
         return new Response(gzip ? file.gzip : file.body, { headers });

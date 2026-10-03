@@ -97,9 +97,15 @@ describe("the viewer bundle", () => {
     const frame = await h.behavior.fetchHttp("GET", `${base}/frame.html?theme=dark`);
     expect(frame.status).toBe(200);
     expect(frame.headers.get("content-type")).toBe("text/html; charset=utf-8");
-    expect(frame.headers.get("content-security-policy")).toContain("script-src 'self'");
+    expect(frame.headers.get("cache-control")).toBe("no-store");
+    const nonce = frame.headers.get("content-security-policy")?.match(/script-src 'nonce-([^']+)' 'strict-dynamic'/)?.[1];
+    expect(nonce).toBeTruthy();
     const html = await frame.text();
-    for (const file of ["./theme.js", "./moss-viewer.css", "./frame.js"]) expect(html).toContain(file);
+    expect(html).toContain(`<script nonce="${nonce}" src="./theme.js">`);
+    expect(html).toContain(`<script type="module" nonce="${nonce}" src="./frame.js">`);
+    expect(html).toContain("./moss-viewer.css");
+    const again = await h.behavior.fetchHttp("GET", `${base}/frame.html`);
+    expect(again.headers.get("content-security-policy")).not.toContain(`'nonce-${nonce}'`);
     expect(await (await h.behavior.fetchHttp("GET", `${base}/frame.js`)).text()).toContain('from "./moss-viewer.js"');
 
     const script = await h.behavior.fetchHttp("GET", `${base}/moss-viewer.js`, { headers: { "accept-encoding": "gzip, br" } });
