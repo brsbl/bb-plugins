@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { crossedDragThreshold, fitDragRect, fitShift, resizeInArea, trackPointer } from "./index";
+import { crossedDragThreshold, fitDragRect, resizeInArea, trackPointer } from "./index";
 import type { ResizeEdge } from "../core";
 
 const area = { x: 0, y: 48, width: 1000, height: 772 };
@@ -54,21 +54,6 @@ function gesture() {
 }
 
 afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ""; });
-
-describe("composer clearance nudges", () => {
-  it("stops a nudge at the edge of the desktop, so a pressed window stays where it was shown", () => {
-    const tall = { x: 200, y: 100, width: 400, height: 600 };
-    const shift = fitShift(tall, { x: 0, y: 300 }, area);
-    expect(shift).toEqual({ x: 0, y: 120 });
-    const shown = { ...tall, y: tall.y + (shift?.y ?? 0) };
-    expect(fitDragRect(shown, area)).toEqual(shown);
-  });
-
-  it("keeps a nudge that already fits and drops one with nowhere to go", () => {
-    expect(fitShift(rect, { x: 0, y: 100 }, area)).toEqual({ x: 0, y: 100 });
-    expect(fitShift({ ...rect, y: 520 }, { x: 0, y: 100 }, area)).toBeNull();
-  });
-});
 
 describe("pointer lifecycle", () => {
   it("coalesces movement and flushes the final position exactly once on drop", () => {

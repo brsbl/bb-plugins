@@ -28,7 +28,6 @@ The note pads and the needs-input balloon (`page/`) render on every bb page, not
 | `state.ts` | `windowReducer`, and `parseWindows`/`serializeWindows` for `bb-desktop:windows:v1` |
 | `geometry.ts` | `chromeTop`, `viewportRect`, `workAreaRect`, `fitDragRect`, `resizeInArea`, `defaultRect` |
 | `pointer.ts` | `trackPointer`, `usePointerTracker`, `crossedDragThreshold`, `previewRect` |
-| `nudges.ts` | The composer-clearance nudge store |
 | `focus.ts` | `windowOwnsKeys` and `typingElsewhere`, so window-wide shortcuts and focus-on-open leave bb's composer alone |
 | `manager.tsx` | `WindowManagerProvider` and `useWindowManager`, including `closeWhere` |
 | `frame.tsx` | `WindowTitleBar`, `WindowFrame` |
@@ -79,7 +78,7 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 | `menus.tsx` | Shared entry builders: `threadMenu`, `groupMenu`, `viewMenuEntries` |
 | `canvas.tsx`, `canvas-icons.tsx` | The icon canvas (layout, selection, marquee, multi-drag, arrange, tile) and its icons: folders, More, note pads, the Recycle Bin |
 | `page-menu.ts` | The background right-click menu on the rest of the homepage |
-| `window-layer.tsx` | The `document.body` portal: windows from the registry, link capture, composer clearance |
+| `window-layer.tsx` | The `document.body` portal: windows from the registry, link capture |
 | `links.ts` | Thread-link and chat web-link routing |
 | `commands.ts` | `runAppCommand` (bb keybindings), `navigateInApp` |
 | `thread-drag.ts` | Pointer thread drags onto `[data-thread-drop]` targets, which set `data-drop-target` while hovered |
