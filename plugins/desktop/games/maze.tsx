@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ProgramMenuBar } from "../apps/xp-chrome";
-import { BB_MARK } from "../art";
 import { windowOwnsKeys } from "../windows";
 import { advance, canStep, cellCenter, newRun, ratPosition, seededRandom, type MazeRun } from "./maze-core";
 
@@ -172,6 +171,8 @@ function castScene(pixels: Uint32Array, depth: Float32Array, width: number, heig
 /* Source-drawn sprites, projected and clipped against the wall depth buffer. */
 
 const SPRITE = 64;
+/** Sprites are painted in that 64-unit box onto a card at twice the resolution, so close-ups stay sharp. */
+const CARD = SPRITE * 2;
 
 const ICOSAHEDRON = (() => {
   const t = (1 + Math.sqrt(5)) / 2;
@@ -247,32 +248,68 @@ function paintPolyhedron(ctx: CanvasRenderingContext2D, time: number) {
   }
 }
 
-/** Draws `paint` on a 64 px card that turns about its vertical axis; both faces read the right way round. */
-function paintTurning(ctx: CanvasRenderingContext2D, time: number, paint: (ctx: CanvasRenderingContext2D) => void) {
+/** The four waving panes of bb's taskbar flag (`StartFlag`), in its 18 px box. */
+const FLAG_PANES = [
+  ["M2 3.2 Q4.8 2 8.2 3.4 L7.4 8.2 Q4.2 7 1.4 8 Z", "oklch(0.66 0.21 30)"],
+  ["M9.4 3.8 Q12.6 5 16 3.6 L15.2 8.4 Q12 9.6 8.6 8.6 Z", "oklch(0.74 0.19 140)"],
+  ["M1.2 9.2 Q4 8.2 7.2 9.4 L6.4 14.2 Q3.4 13 0.4 14 Z", "oklch(0.62 0.18 250)"],
+  ["M8.4 9.8 Q11.6 11 15 9.6 L14.2 14.4 Q11 15.6 7.6 14.6 Z", "oklch(0.86 0.16 90)"],
+] as const;
+let flagPanes: [Path2D, string][] | null = null;
+
+/**
+ * The start sign: the screen saver's Start button slab, with bb's flag and "bb" where it said Start. A raised khaki
+ * button with a dark outline, a bevel and a dark underside, a little see-through, turning about its vertical axis
+ * with its edge showing.
+ */
+function paintStartButton(ctx: CanvasRenderingContext2D, time: number) {
+  const angle = time * 1.6;
+  const face = Math.cos(angle);
+  const turnsLeft = Math.sin(angle) * face > 0;
+  const width = Math.max(1, 60 * Math.abs(face));
+  const edge = 5 * Math.abs(Math.sin(angle));
+  const height = 18;
+  const top = 32 - height / 2;
+  const left = 32 - (width + edge) / 2 + (turnsLeft ? edge : 0);
   ctx.save();
-  ctx.translate(SPRITE / 2, 0);
-  ctx.scale(Math.max(0.04, Math.abs(Math.cos(time * 1.6))), 1);
-  ctx.translate(-SPRITE / 2, 0);
-  paint(ctx);
+  ctx.globalAlpha = 0.68;
+  ctx.fillStyle = "#6a5220";
+  ctx.fillRect(turnsLeft ? left - edge : left + width, top, edge, height + 2);
+  ctx.fillStyle = "#4a3410";
+  ctx.fillRect(left - 0.75, top - 0.75, width + 1.5, height + 3.5);
+  ctx.fillStyle = "#dccb93";
+  ctx.fillRect(left, top, width, height);
+  ctx.fillStyle = "#a08850";
+  ctx.fillRect(left, top + height - 2, width, 2);
+  ctx.fillStyle = "#f7efcc";
+  ctx.fillRect(left, top, width, 1.2);
+  ctx.fillRect(left, top, 1.2, height - 2);
+  ctx.fillStyle = "#7a6434";
+  ctx.fillRect(left + width - 1.2, top, 1.2, height);
+  ctx.fillStyle = "#5e4818";
+  ctx.fillRect(left, top + height, width, 2);
+  // The label squashes with the face as it turns and always reads the right way round.
+  ctx.translate(left + width / 2, 32);
+  ctx.scale(width / 60, 1);
+  flagPanes ??= FLAG_PANES.map(([d, colour]) => [new Path2D(d), colour]);
+  ctx.fillStyle = "#6a5428";
+  for (const [x, y] of [[-26, -4], [-26, 0], [-26, 3], [-24, -2], [-24, 1.5]]) ctx.fillRect(x!, y!, 1.2, 1);
+  ctx.save();
+  ctx.translate(-23, -6.5);
+  ctx.scale(12 / 18, 12 / 18);
+  ctx.strokeStyle = "#3a2808";
+  ctx.lineWidth = 1.4;
+  ctx.lineJoin = "round";
+  for (const [pane, colour] of flagPanes) {
+    ctx.fillStyle = colour;
+    ctx.fill(pane);
+    ctx.stroke(pane);
+  }
   ctx.restore();
-}
-
-let bbMark: Path2D | null = null;
-
-function paintSign(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = "#1c3fa8";
-  ctx.strokeStyle = "#e6ecff";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.roundRect(4, 14, 56, 36, 5);
-  ctx.fill();
-  ctx.stroke();
-  bbMark ??= new Path2D(BB_MARK);
-  ctx.save();
-  ctx.translate(14, 19);
-  ctx.scale(36 / 491, 36 / 491);
-  ctx.fillStyle = "#fff";
-  ctx.fill(bbMark);
+  ctx.fillStyle = "#3d2a08";
+  ctx.font = "bold 11px Tahoma, Verdana, sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.fillText("bb", -6, 0.5);
   ctx.restore();
 }
 
@@ -316,7 +353,7 @@ function paintRat(ctx: CanvasRenderingContext2D, time: number) {
 type SpriteKind = "sign" | "polyhedron" | "smiley" | "rat";
 
 /** World height of each sprite, as a fraction of a wall. */
-const SPRITE_SIZE: Record<SpriteKind, number> = { sign: 0.85, polyhedron: 0.45, smiley: 0.55, rat: 0.6 };
+const SPRITE_SIZE: Record<SpriteKind, number> = { sign: 0.62, polyhedron: 0.45, smiley: 0.55, rat: 0.6 };
 
 function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, depth: Float32Array, width: number, height: number, focal: number, run: MazeRun, time: number) {
   const cardContext = card.getContext("2d");
@@ -343,11 +380,13 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
     .filter((sprite) => sprite.forward > 0.15)
     .sort((left, right) => right.forward - left.forward);
   for (const sprite of placed) {
-    cardContext.clearRect(0, 0, SPRITE, SPRITE);
+    cardContext.setTransform(1, 0, 0, 1, 0, 0);
+    cardContext.clearRect(0, 0, CARD, CARD);
+    cardContext.setTransform(CARD / SPRITE, 0, 0, CARD / SPRITE, 0, 0);
     if (sprite.kind === "polyhedron") paintPolyhedron(cardContext, time);
     else if (sprite.kind === "rat") paintRat(cardContext, time);
     else if (sprite.kind === "smiley") paintSmiley(cardContext);
-    else paintTurning(cardContext, time, paintSign);
+    else paintStartButton(cardContext, time);
     const size = (focal / sprite.forward) * SPRITE_SIZE[sprite.kind];
     const centerX = (width / 2) * (1 + sprite.side / sprite.forward);
     // The rat's feet meet the floor; the rock hangs below eye level.
@@ -357,8 +396,8 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
     const right = Math.min(width, Math.ceil(centerX + size / 2));
     for (let x = Math.max(0, left); x < right; x++) {
       if (sprite.forward >= depth[x]!) continue;
-      const source = Math.floor(((x - (centerX - size / 2)) / size) * SPRITE);
-      ctx.drawImage(card, Math.max(0, Math.min(SPRITE - 1, source)), 0, 1, SPRITE, x, top, 1, size);
+      const source = Math.floor(((x - (centerX - size / 2)) / size) * CARD);
+      ctx.drawImage(card, Math.max(0, Math.min(CARD - 1, source)), 0, 1, CARD, x, top, 1, size);
     }
   }
 }
@@ -484,8 +523,8 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
         viewCanvas.width = width;
         viewCanvas.height = height;
         const card = view?.card ?? document.createElement("canvas");
-        card.width = SPRITE;
-        card.height = SPRITE;
+        card.width = CARD;
+        card.height = CARD;
         viewRef.current = { canvas: viewCanvas, image: new ImageData(width, height), depth: new Float32Array(width), card };
       }
       render();
