@@ -1780,54 +1780,26 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   box-shadow: inset 1px 1px 0 color-mix(in oklab, var(--ink) 14%, transparent);
 }
 
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action] {
-  width: auto;
-  padding-inline: 14px;
-  border: 1px solid color-mix(in oklab, var(--ink) 30%, transparent);
-  border-radius: 3px;
-  background: linear-gradient(to bottom, color-mix(in oklch, var(--canvas) 98%, var(--ink)), color-mix(in oklch, var(--canvas) 86%, var(--ink)));
-  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 65%, transparent);
-}
-
-/* The same slot holds Send, Stop run, and voice input; relabel only Send and Stop. */
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"]) svg {
+/*
+ * AIM's IM window had one Send, in its bottom strip: the strip's Send (instant-message.tsx) clicks this button, so bb's
+ * own Send and Stop run are hidden here. Voice input, which takes the same slot on touch screens, keeps bb's button.
+ */
+.bbd-im-chat [data-scroll-footer] [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"]) {
   display: none;
 }
 
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"])::after {
-  content: "Send";
-  color: color-mix(in oklch, var(--ink) 88%, var(--canvas));
-  font-family: Tahoma, Verdana, sans-serif;
-  font-size: var(--text-xs);
-  font-weight: 700;
+/* What is left of bb's split Send is its options chevron (queue or steer), shown once there is a draft. */
+.bbd-im-chat [data-promptbox] [data-promptbox-send-menu]:not(:has(> button[aria-label="Send options"]:not([aria-hidden]))) {
+  display: none;
 }
 
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action][aria-label="Stop run"]::after {
-  content: "Stop";
-}
-
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action]:hover:not(:disabled) {
-  border-color: var(--bbd-accent-line);
-  background: color-mix(in oklch, var(--canvas) 86%, var(--bbd-blue-sky));
-}
-
-/* bb wraps Send and its options chevron in a dark split button and forces both transparent; give the wrapper the XP face instead. */
+/* bb's split button is dark and forces its buttons transparent; give the chevron an XP button face instead. */
 .bbd-im-chat [data-promptbox] [data-promptbox-send-menu] {
   border: 1px solid color-mix(in oklab, var(--ink) 30%, transparent);
   border-radius: 3px;
   background: linear-gradient(to bottom, color-mix(in oklch, var(--canvas) 98%, var(--ink)), color-mix(in oklch, var(--canvas) 86%, var(--ink)));
   box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 65%, transparent);
   color: color-mix(in oklch, var(--ink) 88%, var(--canvas));
-}
-
-.bbd-im-chat [data-promptbox] [data-promptbox-send-menu] button[data-promptbox-submit-action] {
-  border: 0;
-  box-shadow: none;
-}
-
-.bbd-im-chat [data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"]:not([aria-hidden]) {
-  border-left: 1px solid color-mix(in oklab, var(--ink) 22%, transparent);
-  border-radius: 0 2px 2px 0;
 }
 
 .bbd-im-chat [data-promptbox] [data-promptbox-send-menu]:has(button:hover:not(:disabled)) {
@@ -1926,6 +1898,43 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 .bbd-im-action:disabled svg {
   filter: grayscale(1);
   opacity: 0.45;
+}
+
+/* AIM's Send: the strip's last button, behind a groove at the far right, with a larger icon. */
+.bbd-im-send {
+  position: relative;
+  margin-left: auto;
+  min-width: 56px;
+  padding: 1px 10px 6px;
+}
+
+.bbd-im-send::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: -5px;
+  border-left: 1px solid var(--bbd-im-shadow);
+  border-right: 1px solid var(--bbd-im-light);
+}
+
+.bbd-im-action.bbd-im-send > svg {
+  height: 30px;
+}
+
+.bbd-im-send > span:not(.bbd-im-send-meter) {
+  font-weight: 700;
+}
+
+/* AIM's red bar under Send, shown while the agent works on the turn. */
+.bbd-im-send-meter {
+  position: absolute;
+  right: 6px;
+  bottom: 1px;
+  left: 6px;
+  height: 4px;
+  border: 1px solid color-mix(in oklab, var(--ink) 70%, transparent);
+  background: repeating-linear-gradient(to right, var(--bbd-im-red) 0 2px, color-mix(in oklch, var(--bbd-im-red) 45%, var(--ink)) 2px 3px);
 }
 
 .bbd-im-action:focus-visible,

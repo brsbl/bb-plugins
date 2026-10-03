@@ -9,7 +9,7 @@ export type ChatContract = "ok" | "mismatch" | "pending";
 /**
  * Markers bb renders for each structure the contract rules restyle, as of get-bb/bb 1e2cee69ad. A marker is only
  * required once the structure it names is on screen: rows and message columns once the transcript shows a message,
- * the footer and prompt box once there is a message box.
+ * the footer, prompt box and its submit button once there is a message box.
  */
 export const CHAT_CONTRACT_PROBES = {
   /** Every transcript row: `TimelineRowItemWrapper` in thread/timeline/ThreadTimelineRows.tsx. */
@@ -20,7 +20,23 @@ export const CHAT_CONTRACT_PROBES = {
   footer: "[data-scroll-footer]",
   /** The message box: promptbox/PromptBoxInternal.tsx. */
   promptbox: "[data-promptbox]",
+  /** The message box's Send, Stop run or voice input button, which the window's strip Send drives: PromptBoxInternal.tsx. */
+  submit: "button[data-promptbox-submit-action]",
 } as const;
+
+/** bb's Send or Stop run button in the window's message box (not an inline message editor's). */
+export const COMPOSER_SUBMIT = `${CHAT_CONTRACT_PROBES.footer} ${CHAT_CONTRACT_PROBES.promptbox} ${CHAT_CONTRACT_PROBES.submit}`;
+
+/** What bb's submit button offers right now, for the strip's Send to mirror. */
+export type ComposerSend = { action: "send" | "stop"; disabled: boolean; title: string };
+
+export function readComposerSend(button: HTMLButtonElement): ComposerSend {
+  const label = button.getAttribute("aria-label") ?? "";
+  if (label === "Stop run") return { action: "stop", disabled: button.disabled, title: label };
+  // The slot shows voice input instead (touch screens, empty draft): there is nothing to send yet.
+  if (button.type !== "submit") return { action: "send", disabled: true, title: "" };
+  return { action: "send", disabled: button.disabled, title: label };
+}
 
 /** Standard HTML, so it still finds the message box and message text when bb's own markers are gone. */
 const EDITOR = "[contenteditable], textarea";
@@ -40,6 +56,8 @@ export function inspectChatContract(root: Element): { contract: ChatContract; fa
     for (const probe of [CHAT_CONTRACT_PROBES.footer, CHAT_CONTRACT_PROBES.promptbox]) {
       if (composer.closest(probe) === null) failed.push(probe);
     }
+    const promptbox = composer.closest(CHAT_CONTRACT_PROBES.promptbox);
+    if (promptbox !== null && promptbox.querySelector(CHAT_CONTRACT_PROBES.submit) === null) failed.push(CHAT_CONTRACT_PROBES.submit);
   }
   // Loading skeletons and status lines carry no prose; a message does. bb only renders the rows on screen, so a long
   // thread can show nothing but an expanded Thought or tool row: that prose needs a row, not a message column.

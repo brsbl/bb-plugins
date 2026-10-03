@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { ThreadChat, experimental_useSidebarThreadActions as useSidebarThreadActions } from "@get-bb/plugin-sdk/app";
-import { BuddyListArt, CommandPromptArt, DetailsArt, ExternalLinkGlyph, InternetExplorerArt, MoreGlyph, ThreadArt } from "../../art";
+import { BuddyListArt, CommandPromptArt, DetailsArt, ExternalLinkGlyph, InternetExplorerArt, MoreGlyph, SendArt, StopArt, ThreadArt } from "../../art";
 import { playDoorClose, playDoorOpen } from "../../door-sounds";
 import { aimScreenName } from "../../screen-names";
 import { nativeBrowser } from "../../services/browser";
@@ -9,7 +9,7 @@ import { useDesktop } from "../../shell/data";
 import { useMenu } from "../../shell/menu";
 import { threadMenu } from "../../shell/menus";
 import { WindowFrame, useWindowManager, viewportRect, windowId, type DesktopWindow, type ThreadTabKind } from "../../windows";
-import { inspectChatContract, type ChatContract } from "./chat-contract";
+import { COMPOSER_SUBMIT, inspectChatContract, readComposerSend, type ChatContract, type ComposerSend } from "./chat-contract";
 import { statusKind, typingLine } from "./status";
 
 /** A thread as an AIM conversation, with the Buddy List and Buddy Info docked beside it. */
@@ -30,6 +30,9 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
   const chatRef = useRef<HTMLDivElement>(null);
   const contract = useChatContract(chatRef);
   const restyled = contract !== "mismatch";
+  // Only while the restyle (which hides bb's own Send) applies; otherwise bb's button in the message box is the way to send.
+  const send = useComposerSend(chatRef, restyled && !archived);
+  const stop = send?.action === "stop";
 
   useEffect(() => {
     if (working === null) return;
@@ -174,10 +177,66 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
             <CommandPromptArt size={24} />
             <span>Terminal</span>
           </button>
+          <button
+            type="button"
+            className="bbd-im-action bbd-im-send"
+            disabled={send === null || send.disabled}
+            aria-label={stop ? "Stop" : "Send"}
+            title={archived ? "Unarchive the thread to send" : send === null ? "Send from the message box" : send.title || (stop ? "Stop run" : "Send")}
+            // Like bb's own Send, keep the caret in the message box rather than taking focus on click.
+            onPointerDown={(event) => {
+              if (event.button === 0) event.preventDefault();
+            }}
+            onClick={() => {
+              const button = chatRef.current?.querySelector<HTMLButtonElement>(COMPOSER_SUBMIT);
+              // bb's button handles queue/steer, attachments and Stop; click it only if it still offers what this one shows.
+              if (button && send !== null && readComposerSend(button).action === send.action && !button.disabled) button.click();
+            }}
+          >
+            {stop ? <StopArt size={30} /> : <SendArt size={30} />}
+            <span>{stop ? "Stop" : "Send"}</span>
+            {working ? <span className="bbd-im-send-meter" aria-hidden /> : null}
+          </button>
         </div>
       </div>
     </WindowFrame>
   );
+}
+
+/**
+ * bb's Send/Stop button in this window's message box, mirrored for the strip's Send: null when there is none (loading,
+ * archived, or a contract mismatch), so the strip's Send is disabled. Re-read at most once a frame as bb renders.
+ */
+function useComposerSend(ref: RefObject<HTMLDivElement | null>, enabled: boolean): ComposerSend | null {
+  const [send, setSend] = useState<ComposerSend | null>(null);
+  useLayoutEffect(() => {
+    const root = ref.current;
+    if (root === null || !enabled) {
+      setSend(null);
+      return;
+    }
+    let frame: number | undefined;
+    const read = () => {
+      frame = undefined;
+      const button = root.querySelector<HTMLButtonElement>(COMPOSER_SUBMIT);
+      const next = button === null ? null : readComposerSend(button);
+      setSend((previous) =>
+        previous !== null && next !== null && previous.action === next.action && previous.disabled === next.disabled && previous.title === next.title
+          ? previous
+          : next,
+      );
+    };
+    const observer = new MutationObserver(() => {
+      frame ??= requestAnimationFrame(read);
+    });
+    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "aria-label", "type"] });
+    read();
+    return () => {
+      observer.disconnect();
+      if (frame !== undefined) cancelAnimationFrame(frame);
+    };
+  }, [ref, enabled]);
+  return send;
 }
 
 /**
