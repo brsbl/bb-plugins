@@ -735,7 +735,7 @@ describe("workflow settings", () => {
     let savedInput: EditableWorkflowConfig | null = null;
     const rendered = renderSlot<{}, typeof rpcContract>(
       app.settingsSections[0]!, {}, {
-        sdk: { plugins: { list: async () => ({ plugins: [
+        sdk: { plugins: { list: vi.fn().mockResolvedValue({ plugins: [
           { id: "digests", name: "Digests", status: "running", isOrphanedBuiltin: false },
           { id: "missing-plugin", name: "Missing", status: "missing", isOrphanedBuiltin: false },
         ] }) } },
