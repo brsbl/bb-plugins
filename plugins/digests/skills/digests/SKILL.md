@@ -59,7 +59,8 @@ tiles, bar charts, tables or pill tabs.
 
 Use `==confirm today==` sparingly for time-sensitive facts, `:chip[Anthropic]`
 for context and `:gain[+12 followers]` for gains. Under only items needing the
-user, put small source/review links on their own line; bold the primary link.
+user, put small source/review links on their own line; bold exactly one primary link, such as **[Review reply](url)**. The renderer adds
+its arrow; keep any secondary link unbolded beside it.
 These links can open information, never authorize writes. Routine items get
 one line at the end. Optional supporting detail follows a standalone
 `<!-- more -->` marker and appears under More detail. Emit the returned directive

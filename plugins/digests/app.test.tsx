@@ -120,7 +120,7 @@ describe("Digests app", () => {
     expect(await slot.findByRole("heading", { name: headline })).toBeDefined();
   });
 
-  it("shows Sunday 11am and changes a schedule only after Enable or Pause", async () => {
+  it("shows Sunday 11am and changes a schedule only after its switch is clicked", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.settingsSections[0]!, {}, {
       rpc: {
@@ -129,18 +129,39 @@ describe("Digests app", () => {
         run: () => ({ threadId: "thr_new_issue" }),
       },
     });
-    expect(await slot.findByText("Sundays · 11am PT · Paused")).toBeDefined();
-    expect(slot.getByText("Not checked yet")).toBeDefined();
+    expect(await slot.findByText("Sundays · 11am PT")).toBeDefined();
+    expect(slot.getByText("Not checked")).toBeDefined();
     expect(slot.inspection.rpcCalls).toHaveLength(1);
-    fireEvent.click(slot.getByRole("button", { name: "Enable Reading" }));
-    await waitFor(() => expect(slot.getByRole("button", { name: "Pause Reading" })).toBeDefined());
+    fireEvent.click(slot.getByRole("switch", { name: "Reading schedule", checked: false }));
+    await waitFor(() => expect(slot.getByRole("switch", { name: "Reading schedule", checked: true })).toBeDefined());
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "setEnabled", input: { id: "reading", enabled: true } });
-    fireEvent.click(slot.getByRole("button", { name: "Pause Reading" }));
-    await waitFor(() => expect(slot.getByRole("button", { name: "Enable Reading" })).toBeDefined());
+    fireEvent.click(slot.getByRole("switch", { name: "Reading schedule", checked: true }));
+    await waitFor(() => expect(slot.getByRole("switch", { name: "Reading schedule", checked: false })).toBeDefined());
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "setEnabled", input: { id: "reading", enabled: false } });
     fireEvent.click(slot.getByRole("button", { name: "Run Reading now" }));
     await waitFor(() => expect(slot.inspection.rpcCalls).toContainEqual({ method: "run", input: { id: "reading" } }));
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_new_issue" });
+  });
+
+  it("checks connections only on request and exposes connection failures", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const connections = [
+      { id: "gmail", name: "Gmail", status: "signed-out", detail: null },
+      { id: "x", name: "X", status: "unknown", detail: null },
+    ];
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [], connections, actionCardsAvailable: false, organizerReady: true }),
+      checkConnections: () => connections.map((connection) => ({ ...connection, status: "unavailable", detail: "Open bb on your browser computer, then try again." })),
+      reconnectConnection: () => { throw new Error("The bb browser is unavailable."); },
+    } });
+    fireEvent.click(await slot.findByRole("button", { name: "Reconnect Gmail" }));
+    expect((await slot.findByRole("alert")).textContent).toContain("The bb browser is unavailable.");
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "reconnectConnection", input: { id: "gmail" } });
+    fireEvent.click(slot.getByRole("button", { name: "Check X" }));
+    await waitFor(() => expect(slot.getByRole("alert").textContent).toContain("Open bb on your browser computer"));
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "checkConnections", input: { id: "x" } });
+    fireEvent.click(slot.getByRole("button", { name: "Check connections" }));
+    await waitFor(() => expect(slot.inspection.rpcCalls).toContainEqual({ method: "checkConnections", input: {} }));
   });
 
   it("offers recovery when the agent fails before publishing a directive", async () => {

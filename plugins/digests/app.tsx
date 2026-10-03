@@ -3,6 +3,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   definePluginApp,
+  experimental_Icon as Icon,
   useBbNavigate,
   useComposer,
   useRealtime,
@@ -13,6 +14,7 @@ import {
 
 import type { rpcContract } from "./contracts.js";
 import type { Connection, DigestDefinition, Issue } from "./model.js";
+import { Switch } from "./components/ui/switch.js";
 import "./app.css";
 
 type Overview = {
@@ -219,7 +221,7 @@ function IssueSummary({ issue, threadId, loadError, refresh }: {
 
   return (
     <article className="digest-issue" aria-label="Digest summary" data-state={issue.state}>
-      <h2 className="digest-headline">{issue.headline}</h2>
+      <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
       {issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
       {mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
@@ -264,10 +266,10 @@ function scheduleLabel(schedule: DigestDefinition["schedule"]): string {
 }
 
 const connectionLabels: Record<Connection["status"], string> = {
-  "unknown": "Not checked yet",
+  "unknown": "Not checked",
   "signed-in": "Signed in",
   "signed-out": "Reconnect needed",
-  "expired": "Sign-in expired",
+  "expired": "Reconnect needed",
   "unavailable": "Browser unavailable",
   "upgrade-required": "bb update needed",
 };
@@ -279,6 +281,7 @@ function DigestsSettings() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const generation = useRef(0);
   const load = useCallback(async () => {
     const request = ++generation.current;
@@ -323,40 +326,64 @@ function DigestsSettings() {
     }
   };
 
+  const connectionAction = async (action: "check" | "reconnect", id?: string) => {
+    if (pending) return;
+    setPending(id ?? "connections");
+    setError(null);
+    setNotice(null);
+    try {
+      if (action === "reconnect" && id) {
+        const result = await rpc.call("reconnectConnection", { id });
+        setNotice(result.message);
+        navigate.toThread(result.threadId);
+      } else {
+        const connections = await rpc.call("checkConnections", id ? { id } : {});
+        setOverview((current) => current && { ...current, connections });
+        const problem = connections.find((connection) => (!id || connection.id === id) && ["unavailable", "upgrade-required"].includes(connection.status));
+        if (problem?.detail) setError(problem.detail);
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Couldn’t check your connections. Try again.");
+    } finally {
+      setPending(null);
+    }
+  };
+
   return (
     <section className="digest-settings" aria-label="Digests">
-      <header className="digest-settings-header">
-        <div><h3>Digests</h3><p className="digest-muted">Issues arrive in the Digests inbox. Move or archive them when done.</p></div>
-        <button type="button" className="digest-button digest-icon-button" aria-label="Refresh Digests" title="Refresh Digests" disabled={loading} onClick={() => { void load(); }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.5-1.2L20 9M4 15l2.4 3.2A7 7 0 0 0 17.9 17"/></svg>
-        </button>
-      </header>
       {error && <div className="digest-refresh-error" role="alert"><span>{error}</span><button type="button" className="digest-button" disabled={loading} onClick={() => { void load(); }}>Retry</button></div>}
+      {notice && <p className="digest-muted" role="status">{notice}</p>}
       {!overview && !error && <p className="digest-muted" role="status">Loading Digests…</p>}
       {overview && <>
         {!overview.organizerReady && <p className="digest-error" role="status">The Digests section needs setup in Thread Organizer. Ask an agent to set up Digests before enabling schedules.</p>}
-        {overview.definitions.length === 0 && <p className="digest-muted">No digests yet. Ask an agent to set up your first briefing.</p>}
-        <ul className="digest-definition-list">
+        <div className="digest-group-header"><h3>Digests</h3></div>
+        {overview.definitions.length === 0 ? <p className="digest-muted">No digests yet. Ask an agent to set up your first briefing.</p> : <ul className="digest-group-list">
           {overview.definitions.map((definition) => <li className="digest-definition" key={definition.id}>
             <div className="digest-definition-copy">
               <h4>{definition.name}</h4>
-              <p className="digest-muted" title={definition.schedule?.cron}>{scheduleLabel(definition.schedule)}{definition.schedule && !definition.enabled ? " · Paused" : ""}</p>
+              <p className="digest-muted" title={definition.schedule?.cron}>{definition.id === "x-scorecard" && !definition.schedule ? "Published by your X analytics thread" : scheduleLabel(definition.schedule)}</p>
             </div>
-            <div className="digest-controls">
-              {definition.schedule && <button type="button" className="digest-button" aria-label={`${definition.enabled ? "Pause" : "Enable"} ${definition.name}`} disabled={pending !== null || (!definition.enabled && !overview.organizerReady)} onClick={() => { void update(definition, "toggle"); }}>
-                {pending === definition.id ? "Working…" : definition.enabled ? "Pause" : "Enable"}
-              </button>}
-              {definition.schedule && <button type="button" className="digest-button" aria-label={`Run ${definition.name} now`} disabled={pending !== null || !overview.organizerReady} onClick={() => { void update(definition, "run"); }}>Run now</button>}
-            </div>
+            {definition.schedule && <div className="digest-controls">
+              <Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null || (!definition.enabled && !overview.organizerReady)} onCheckedChange={() => { void update(definition, "toggle"); }} />
+              <button type="button" className="digest-button" aria-label={`Run ${definition.name} now`} disabled={pending !== null || !overview.organizerReady} onClick={() => { void update(definition, "run"); }}>Run now</button>
+            </div>}
           </li>)}
-        </ul>
-        <h4 className="digest-connections-title">Connections</h4>
-        <p className="digest-muted">Uses your existing bb Browser sign-ins. Each run checks access.</p>
-        {overview.connections.length === 0 ? <p className="digest-muted">No connections configured.</p> : <ul className="digest-connection-list">
-          {overview.connections.map((connection) => <li className="digest-connection" key={connection.id}>
-            <div><span className="digest-connection-name">{connection.name}</span>{connection.detail && <p className="digest-muted">{connection.detail}</p>}</div>
-            <span className="digest-connection-status" data-status={connection.status}>{connectionLabels[connection.status]}</span>
-          </li>)}
+        </ul>}
+        <div className="digest-group-header digest-connections-header">
+          <h3>Connections</h3>
+          <button type="button" className="digest-button" disabled={pending !== null || loading} onClick={() => { void connectionAction("check"); }}>{pending === "connections" ? "Checking…" : "Check connections"}</button>
+        </div>
+        {overview.connections.length === 0 ? <p className="digest-muted">No connections configured.</p> : <ul className="digest-group-list">
+          {overview.connections.map((connection) => {
+            const reconnect = connection.status === "signed-out" || connection.status === "expired";
+            return <li className="digest-connection" key={connection.id}>
+              <span className="digest-connection-name">{connection.name}</span>
+              <div className="digest-connection-controls">
+                <span className="digest-connection-status" data-status={connection.status} title={connection.detail ?? undefined}><span className="digest-status-dot" aria-hidden />{connectionLabels[connection.status]}</span>
+                {connection.status !== "signed-in" && <button type="button" className="digest-button" aria-label={`${reconnect ? "Reconnect" : "Check"} ${connection.name}`} disabled={pending !== null} onClick={() => { void connectionAction(reconnect ? "reconnect" : "check", connection.id); }}>{pending === connection.id ? "Working…" : reconnect ? "Reconnect" : "Check"}</button>}
+              </div>
+            </li>;
+          })}
         </ul>}
       </>}
     </section>

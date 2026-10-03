@@ -95,6 +95,28 @@ describe("digest issue lifecycle", () => {
     expect(saves[0]?.input).not.toHaveProperty("stages.0.sectionId");
   });
 
+  it("checks Settings connections in fresh setup-owned tabs and releases them on success or failure", async () => {
+    const { bb, service, harness, setSignIn } = setup();
+    await bb.storage.kv.set("connection-settings-thread", "thr_setup");
+    expect(await service.checkConnections("gmail")).toMatchObject([{ status: "signed-in" }]);
+    setSignIn({ signedIn: false, signedOut: true });
+    expect(await service.checkConnections("gmail")).toMatchObject([{ status: "signed-out" }]);
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toHaveLength(2);
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.closeTab")).toHaveLength(2);
+    expect(harness.inspection.sdk.callsTo("threads.spawn")).toHaveLength(0);
+    expect(await service.reconnectConnection("gmail")).toMatchObject({ threadId: "thr_setup" });
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab").at(-1)?.[0]).toMatchObject({ threadId: "thr_setup", presentation: "reveal", url: "https://mail.google.com/" });
+  });
+
+  it("falls back from an archived setup owner to a digest issue, without borrowing a tab", async () => {
+    const { bb, service, threads, harness } = setup();
+    await service.begin("reading", "thr_issue");
+    await bb.storage.kv.set("connection-settings-thread", "thr_old_setup");
+    threads.set("thr_old_setup", makeThreadResponse({ id: "thr_old_setup", archivedAt: NOW }));
+    await service.checkConnections("gmail");
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab").at(-1)?.[0]).toMatchObject({ threadId: "thr_issue", url: "about:blank" });
+  });
+
   it("begins with fresh issue-owned tabs and trusts only a positive sign-in marker", async () => {
     const { service, harness, threads, setSignIn } = setup();
     threads.set("thr_first", makeThreadResponse({ id: "thr_first", projectId: "proj_digest", originPluginId: "automations" }));

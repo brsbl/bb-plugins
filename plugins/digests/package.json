@@ -22,9 +22,9 @@
   },
   "bb": {
     "name": "Digests",
-    "description": "Short private newsletters delivered as threads, using your existing browser sign-ins.",
+    "description": "Issues arrive in the Digests inbox. Move or archive them when done.",
     "branding": {
-      "icon": "Newspaper"
+      "icon": "MailOpen"
     },
     "server": "./server.ts",
     "skills": [

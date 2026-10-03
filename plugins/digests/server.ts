@@ -7,7 +7,6 @@ import { createService } from "./service.js";
 import { connectionSchema, digestDefinitionSchema, publishInputSchema, IdSchema, DigestIdSchema } from "./model.js";
 import { DIGEST_RECIPES } from "./recipes.js";
 import { directive } from "./prompts.js";
-import { checkSignIn, closeBrowser, openBrowser, ConnectionError } from "./browser.js";
 
 const json = { type: "boolean", description: "Print JSON" } as const;
 const digest = { type: "string", required: true, description: "Digest ID, from bb digest list" } as const;
@@ -36,6 +35,8 @@ export default function plugin(bb: BbPluginApi) {
   }
   bb.rpc.register(rpcContract, {
     overview: service.overview,
+    checkConnections: ({ id }) => service.checkConnections(id),
+    reconnectConnection: ({ id }) => service.reconnectConnection(id),
     recoveryIssue: ({ threadId }) => service.recoveryIssue(threadId),
     getIssue: ({ threadId, id }) => service.requiredIssue(threadId, id),
     setEnabled: ({ id, enabled }) => service.setEnabled(id, enabled),
@@ -66,6 +67,7 @@ export default function plugin(bb: BbPluginApi) {
             if (!service.store.definitions.get(recipe.id)) await define({ ...recipe, projectId, providerId: input.options.provider, model: input.options.model, createdAt: Date.now() });
           }
           await service.ensureSection(true);
+          await bb.storage.kv.set("connection-settings-thread", requireThread(ctx));
           return output({ definitions: service.store.definitions.list(), next: "Review and enable schedules in Digests plugin settings. The Digests inbox catches its own issues. Archive issues yourself when done. Existing automations were not changed." });
         },
       }),
@@ -88,18 +90,7 @@ export default function plugin(bb: BbPluginApi) {
         return output(service.store.connections.put({ ...connection, status: "unknown", checkedAt: null, detail: null }));
       } }),
       "connections status": cliCommand({ summary: "Show saved connection checks, or check now using fresh signed-in tabs", options: { json, check: { type: "boolean", description: "Perform live read-only checks from this thread" } }, async run(input, ctx) {
-        if (input.options.check) {
-          for (const connection of service.store.connections.list()) {
-            let lease;
-            try {
-              lease = await openBrowser(bb, connection, requireThread(ctx));
-              await checkSignIn(bb, connection, lease);
-              service.store.connections.put({ ...connection, status: "signed-in", checkedAt: Date.now(), detail: null });
-            } catch (error) {
-              service.store.connections.put({ ...connection, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000) });
-            } finally { if (lease) await closeBrowser(bb, lease).catch((error: unknown) => bb.log.warn(String(error))); }
-          }
-        }
+        if (input.options.check) return output(await service.checkConnections(undefined, requireThread(ctx)));
         return output(service.store.connections.list());
       } }),
     },

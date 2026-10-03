@@ -14,6 +14,14 @@ export const rpcContract = defineRpcContract({
       organizerReady: z.boolean(),
     }).strict(),
   },
+  checkConnections: {
+    input: z.object({ id: id.optional() }).strict(),
+    output: z.array(connectionSchema),
+  },
+  reconnectConnection: {
+    input: z.object({ id }).strict(),
+    output: z.object({ message: z.string(), threadId: id }).strict(),
+  },
   getIssue: { input: issueRef, output: issueSchema },
   recoveryIssue: { input: z.object({ threadId: id }).strict(), output: issueSchema.nullable() },
   setEnabled: {

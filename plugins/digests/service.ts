@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { createStore } from "./store.js";
-import { issueSchema, type DigestDefinition, type Issue, type PublishInput } from "./model.js";
+import { issueSchema, type DigestDefinition, type Issue, type PublishInput, type Connection } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
 import { deliveryPrompt, directive, issueTitle, runPrompt, collectionInstructions } from "./prompts.js";
 
@@ -242,13 +242,58 @@ export function createService(bb: BbPluginApi) {
     const definition = requiredDefinition(issue.digestId);
     const connection = definition.connectionIds.map((value) => store.connections.get(value)).find((value) => value && value.status !== "signed-in");
     if (!connection) throw new Error("No connection needs reconnecting. Retry the issue.");
+    const result = await revealConnection(connection, threadId);
+    return { message: result.message };
+  }
+  async function revealConnection(connection: Connection, threadId: string) {
     const scope = await connectionScope(bb, connection, threadId);
     const tab = await bb.sdk.experimental_desktopBrowsers.createTab({ ...scope, url: connection.url, presentation: "reveal" });
     if (Object.hasOwn(tab.tab, "profile")) {
       await bb.sdk.experimental_desktopBrowsers.closeTab({ ...scope, tabId: tab.tab.tabId });
       throw new Error("Update bb to 0.45 or later first, then Retry. Your existing BB Browser sign-ins will be used.");
     }
-    return { message: `Opened ${connection.name} in this issue's bb browser. Complete sign-in there, then Retry.` };
+    return { message: `Opened ${connection.name} in bb Browser. Complete sign-in there, then check the connection again.`, threadId };
+  }
+  async function settingsConnectionThread(connectionId: string): Promise<string> {
+    // Setup is explicitly invoked from a thread. Reuse that ownership, never
+    // borrow one of its tabs. Existing installations can use a digest issue.
+    const setupThreadId = await bb.storage.kv.get<string>("connection-settings-thread");
+    const issues = store.issues.list({ limit: 100 }).filter((issue) =>
+      issue.threadId && store.definitions.get(issue.digestId)?.connectionIds.includes(connectionId));
+    const candidates = [...new Set([setupThreadId, ...issues.map((issue) => issue.threadId)])];
+    for (const threadId of candidates) {
+      if (!threadId) continue;
+      try {
+        const thread = await bb.sdk.threads.get({ threadId });
+        if (!thread.archivedAt) return threadId;
+      } catch { /* A deleted owner cannot own a fresh browser tab. */ }
+    }
+    throw new Error("Run bb digest setup from a current thread to reconnect Settings to your browser, then try again.");
+  }
+  async function checkConnections(id?: string, ownerThreadId?: string) {
+    return exclusive("connection-settings", async () => {
+      const selected = id ? [store.connections.get(id)] : store.connections.list();
+      for (const connection of selected) {
+        if (!connection) throw new Error("Unknown connection.");
+        let lease: BrowserLease | undefined;
+        try {
+          const threadId = ownerThreadId ?? await settingsConnectionThread(connection.id);
+          lease = await openBrowser(bb, connection, threadId);
+          await checkSignIn(bb, connection, lease);
+          store.connections.put({ ...connection, status: "signed-in", checkedAt: Date.now(), detail: null });
+        } catch (error) {
+          store.connections.put({ ...connection, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
+        } finally {
+          if (lease) await closeBrowser(bb, lease).catch((error: unknown) => bb.log.warn(String(error)));
+        }
+      }
+      return store.connections.list();
+    });
+  }
+  async function reconnectConnection(id: string) {
+    const connection = store.connections.get(id);
+    if (!connection) throw new Error("Unknown connection.");
+    return revealConnection(connection, await settingsConnectionThread(id));
   }
   async function overview() {
     const plugins = await bb.sdk.plugins.list();
@@ -304,5 +349,5 @@ export function createService(bb: BbPluginApi) {
       details: `Your issue was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
     return null;
   }
-  return { store, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
+  return { store, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, checkConnections, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }
