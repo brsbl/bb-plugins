@@ -101,6 +101,43 @@ describe("workflow configuration", () => {
     });
   });
 
+  it("loads shipped settings and preserves additional inbox filters without a version change", () => {
+    const legacy = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+    legacy.stages[0]!.rule = "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can’t be customized.";
+    expect(core.parseWorkflowConfig(legacy)).toEqual(core.DEFAULT_WORKFLOW_CONFIG);
+    expect(core.normalizeEditableWorkflowConfig(core.editableWorkflowConfig(legacy)))
+      .toEqual(core.editableWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG));
+
+    const extra = { key: "digests", title: "Digests", role: "inbox" as const,
+      catchesPluginId: "digests", rule: "Published issues.", sectionId: "sec_digests" };
+    expect(core.parseWorkflowConfig({ version: 2, stages: [legacy.stages[0], extra] })?.stages).toHaveLength(2);
+    legacy.stages.push(extra);
+    const loaded = core.parseWorkflowConfig(legacy)!;
+    expect(loaded.version).toBe(2);
+    expect(loaded.stages.at(-1)).toEqual(extra);
+    expect(core.mergeEditableWorkflowConfig(loaded, core.editableWorkflowConfig(loaded)))
+      .toEqual(loaded);
+    expect(core.inboxStage(loaded).key).toBe("inbox");
+  });
+
+  it("requires unique plugin filters on additional inboxes and protects the main Inbox", () => {
+    const next = editable();
+    next.stages.push({ key: "digests", title: "Digests", role: "inbox", rule: "Issues." });
+    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("needs a plugin");
+    next.stages.at(-1)!.catchesPluginId = "digests";
+    next.stages.push({ ...next.stages.at(-1)!, key: "more", title: "More" });
+    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("already has another inbox");
+    next.stages.pop();
+    next.stages.at(-1)!.entryPrompt = "Run something.";
+    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("cannot send an entry prompt");
+    delete next.stages.at(-1)!.entryPrompt;
+    next.stages[0]!.catchesPluginId = "other";
+    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("Only an additional inbox");
+    delete next.stages[0]!.catchesPluginId;
+    next.stages[0]!.role = "stage";
+    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("protected main Inbox");
+  });
+
   it("creates immutable, collision-free CLI keys for new stages", () => {
     expect(core.createStageKey("Design QA", ["planning"])).toBe("design-qa");
     expect(core.createStageKey("Design QA", ["design-qa"])).toBe("design-qa-2");
@@ -209,7 +246,7 @@ describe("thread placement precedence", () => {
         config,
         thread({ status: "active", lastReadAt: 0, latestAttentionAt: 10 }),
         "building",
-      ).key,
+      )?.key,
     ).toBe("building");
   });
 
@@ -219,17 +256,17 @@ describe("thread placement precedence", () => {
         config,
         thread({ status: "idle", lastReadAt: 0, latestAttentionAt: 10 }),
         "spec-review",
-      ).key,
+      )?.key,
     ).toBe("inbox");
     expect(
       core.placementForThread(
         config,
         thread({ sectionId: "sec_inbox" }),
         "spec-review",
-      ).key,
+      )?.key,
     ).toBe("inbox");
     expect(
-      core.placementForThread(config, thread(), "spec-review").key,
+      core.placementForThread(config, thread(), "spec-review")?.key,
     ).toBe("spec-review");
     expect(
       core.placementForThread(
@@ -237,14 +274,36 @@ describe("thread placement precedence", () => {
         thread({ sectionId: "sec_inbox" }),
         "on-hold",
         true,
-      ).key,
+      )?.key,
     ).toBe("on-hold");
   });
 
   it("falls back to the first non-Inbox stage when a remembered stage vanished", () => {
     expect(
-      core.placementForThread(config, thread(), "removed-stage").key,
+      core.placementForThread(config, thread(), "removed-stage")?.key,
     ).toBe("planning");
+  });
+
+  it("keeps claimed threads in their own inbox until an explicit move", () => {
+    const configured = core.cloneWorkflowConfig(config);
+    const inbox = { key: "digests", title: "Digests", role: "inbox" as const,
+      catchesPluginId: "digests", rule: "Issues.", sectionId: "sec_digests" };
+    configured.stages.push(inbox);
+    for (const status of ["active", "idle"] as const) {
+      for (const lastReadAt of [0, 100]) {
+        expect(core.placementForThread(configured, thread({ status, lastReadAt }), null, false, inbox))
+          .toBe(inbox);
+        expect(core.placementForThread(configured, thread({ status, lastReadAt, sectionId: inbox.sectionId }), null))
+          .toBe(inbox);
+      }
+    }
+    expect(core.placementForThread(configured, thread({ sectionId: inbox.sectionId }), "building", true)?.key)
+      .toBe("building");
+    expect(core.placementForThread(configured, thread({ lastReadAt: 0 }), null)?.key)
+      .toBe("inbox");
+    expect(core.buildWorkflowSkillSlot(configured)).toContain(
+      "**Digests** catches threads from plugin `digests` and keeps them after reading until the user moves or archives them.",
+    );
   });
 });
 
@@ -259,7 +318,7 @@ describe("agent guidance", () => {
     };
     const instructions = core.buildWorkflowSkillSlot(config);
 
-    expect(instructions).toContain("**Needs Me** is the protected Inbox");
+    expect(instructions).toContain("**Needs Me** is the protected main Inbox");
     expect(instructions).toContain("stay until work resumes");
     expect(instructions).toContain(
       "the user moves a read thread to another workflow section",
