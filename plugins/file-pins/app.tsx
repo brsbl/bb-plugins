@@ -12,7 +12,7 @@ import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 ${PIN_MAX_WIDTH_CLASS} items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 // The quiet file chip bb uses for composer attachments.
-const pinClass = cn(linkClass, "rounded-md bg-surface-recessed");
+const pinClass = cn(linkClass, "rounded-md bg-surface-recessed shadow-xs");
 const launchers = new Map<string, () => void>();
 function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -127,7 +127,7 @@ function PinStrip({ threadId }: { threadId: string }) {
         <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void unpin(pin)}
-        className="absolute right-0 -top-1 flex size-5 items-center justify-center rounded-sm text-xs text-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
+        className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
     </span> : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title}
       aria-label={`Open ${pin.name}`} className={cn(pinClass, inList && "w-full max-w-none", pin.status !== "available" && "opacity-60")}><PinContents pin={pin} /></FileLink>;
     return <ContextMenu key={pin.id}>
@@ -145,11 +145,11 @@ function PinStrip({ threadId }: { threadId: string }) {
       {pins.length > 0 ? <section aria-label="Pinned files" className="min-w-0 px-1 py-1">
         <div className="flex min-w-0 items-center gap-1">
           {layout.strip.map((pin) => reference(pin))}
+          <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
           {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
             <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more pinned files`} title="More pinned files" className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
             <PopoverContent aria-label="More pinned files" className="w-72 p-1"><div className="max-h-64 space-y-0.5 overflow-y-auto">{layout.more.map((pin) => reference(pin, true))}</div></PopoverContent>
           </Popover>}
-          <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
         </div>
       </section> : recent.length > 0 ? <section aria-label="Suggested pins" className="flex min-w-0 items-center gap-1 px-1 py-1">
         <span className="shrink-0 text-xs text-muted-foreground">Recent</span>
@@ -160,11 +160,11 @@ function PinStrip({ threadId }: { threadId: string }) {
         <FilePicker threadId={threadId} recent={recent} onClose={() => setPicker(false)} onPinned={refresh} />
       </PopoverContent>
     </Popover>
-    {/* Mirrors the strip row, with room for ⋯ and +, to measure how many pin slots fit. */}
+    {/* Mirrors the strip row, with room for + and ⋯, to measure how many pin slots fit. */}
     <div aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
       <span ref={zone} className="min-w-0 flex-1" />
-      <span className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></span>
       <span className={`${linkClass} shrink-0 px-1`}>+</span>
+      <span className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></span>
     </div>
     <span ref={slot} aria-hidden="true" className={cn(PIN_SLOT_CLASS, "pointer-events-none invisible absolute left-0 top-0 h-0")} />
   </div>;
