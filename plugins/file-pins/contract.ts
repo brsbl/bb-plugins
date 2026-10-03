@@ -12,12 +12,20 @@ export const MAX_PINS = 40;
 export const CHANGED = "pins-changed";
 
 export const hostContract = defineRpcContract({
+  openMossNote: {
+    input: z.object({ path: filePath }).strict(),
+    output: z.object({ opened: z.boolean() }).strict(),
+  },
   resolveFile: {
     input: z.object({ path: filePath, cwd: filePath.optional() }).strict(),
     output: z.object({ path: filePath, name: z.string().min(1) }).strict(),
   },
 });
 export const rpcContract = defineRpcContract({
+  openMossNote: {
+    input: z.object({ threadId: id, pinId: id }).strict(),
+    output: z.object({ opened: z.boolean() }).strict(),
+  },
   list: {
     input: z.object({ threadId: id }).strict(),
     output: z.object({ pins: pinsSchema }),

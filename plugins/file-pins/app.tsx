@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { definePluginApp, experimental_Icon as Icon, experimental_FileLink as FileLink, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { definePluginApp, experimental_Icon as Icon, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import type { Pin, rpcContract } from "./contract.js";
 
 const control = "inline-flex h-7 items-center justify-center rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
@@ -8,6 +8,7 @@ type Host = { id: string; name: string; connected: boolean };
 
 function PinStrip({ threadId }: { threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
+  const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
   const [pins, setPins] = useState<Pin[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -70,13 +71,21 @@ function PinStrip({ threadId }: { threadId: string }) {
     catch (cause) { report(cause); }
     finally { if (alive.current) setBusy(false); }
   }
+  function open(pin: Pin, event: MouseEvent<HTMLAnchorElement>) {
+    if (!/\.(?:md|markdown)$/i.test(pin.path) || event.defaultPrevented || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    setError(null);
+    void rpc.call("openMossNote", { threadId, pinId: pin.id }).then(({ opened }) => {
+      if (!opened && alive.current) navigate.experimental_openFilePreview({ target: { kind: "host", hostId: pin.hostId, path: pin.path }, location: null });
+    }).catch(report);
+  }
   return (
     <section aria-label="Pinned files" className="min-w-0 space-y-2 px-1 py-1 text-foreground">
       <div className="flex flex-wrap items-center gap-1.5">
         {pins.length > 0 && <Icon name="Pin" className="size-3.5 shrink-0 text-muted-foreground" />}
         {pins.map((pin) => (
           <div key={pin.id} className="inline-flex max-w-full items-center rounded-md border border-border bg-background">
-            <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} title={`${pin.path}\nHost: ${pin.hostId}`} aria-label={`Open ${pin.name}`} className={`${control} min-w-0 max-w-64 justify-start text-foreground`}><span className="truncate">{pin.name}</span></FileLink>
+            <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={`${pin.path}\nHost: ${pin.hostId}`} aria-label={`Open ${pin.name}`} className={`${control} min-w-0 max-w-64 justify-start text-foreground`}><span className="truncate">{pin.name}</span></FileLink>
             <button type="button" className={`${control} w-7 shrink-0 px-0`} title={`Unpin ${pin.name}`} aria-label={`Unpin ${pin.name}`} disabled={busy} onClick={() => void unpin(pin)}><Icon name="X" className="size-3" /></button>
           </div>
         ))}

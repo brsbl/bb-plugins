@@ -31,10 +31,13 @@ contents never enter pin storage. Pins survive reloads and thread environment
 changes and can be removed while a machine is offline. Deleting the thread
 removes its pins. Pinning does not send file content to the agent.
 
-Files open through bb's semantic host-file preview and its selected file opener.
-Moss rendering and detection belong to the separate **Moss viewer** plugin; that
-viewer and its routing integration must be installed for Moss-specific rendering.
-File Pins contains no Markdown or Moss parser.
+A normal click on a Markdown note under the file host's `~/Moss/Notes/`, or a
+Markdown file containing a `moss-*` fence or `:::tabs` marker, opens the **Moss
+Mac app** on that host. Moss must be installed there. This explicit Moss rule
+overrides the default opener for the normal click; the existing right-click
+menu stays available. Other files retain bb's FileLink behavior and its opener
+choices. Classification and launch run on the host; no Markdown or Moss parser
+or renderer is included.
 
 ## Develop
 

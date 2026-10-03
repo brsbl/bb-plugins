@@ -58,6 +58,12 @@ export default function plugin(bb: BbPluginApi): void {
   });
 
   bb.rpc.register(rpcContract, {
+    openMossNote: async ({ threadId, pinId }) => {
+      const { pins } = await list(threadId);
+      const pinned = pins.find((item) => item.id === pinId);
+      if (!pinned) throw new Error("This file is no longer pinned.");
+      return host.call("openMossNote", { path: pinned.path }, { hostId: pinned.hostId });
+    },
     list: ({ threadId }) => list(threadId),
     context: async ({ threadId }) => ({
       defaultHostId: await threadHost(threadId),

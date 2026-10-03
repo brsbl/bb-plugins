@@ -20,5 +20,8 @@ unpinning works while the file host is offline and never deletes the file.
 Pins retain their original host if the thread moves. Deleting the thread removes
 its pins. Pins do not copy file contents or automatically add them to agent context.
 
-Clicking uses bb's normal file-opening path. Install and select the Moss viewer
-plugin to view Moss notes; this plugin does not detect or render Moss syntax.
+A normal click on Markdown under the file host's `~/Moss/Notes/`, or Markdown
+containing `moss-*` fences or `:::tabs`, opens the Moss Mac app on that host.
+Other files retain bb's FileLink behavior. Right-click exposes bb's existing
+file menu. This plugin detects only distinctive markers; it has no parser or
+renderer and does not depend on the Moss viewer plugin.
