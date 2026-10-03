@@ -50,7 +50,9 @@
     "react-dom": "^19.0.0",
     "sonner": "^1.7.4",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.8",
+    "vitest": "^4.1.8"
+  },
+  "dependencies": {
     "zod": "^4.3.6"
   }
 }
