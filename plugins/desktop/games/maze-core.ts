@@ -235,7 +235,7 @@ function poseOf(run: MazeRun): Pose {
       const d = ((move.dir % 4) + 4) % 4;
       pose.x -= 2 * DX[d]! * (1 - FLIP_REACH);
       pose.y -= 2 * DY[d]! * (1 - FLIP_REACH);
-      pose.roll = roll + Math.PI * (ease(t) - 1);
+      pose.roll = roll + Math.PI * (1 - ease(t));
       return pose;
     }
     case "exit": {
