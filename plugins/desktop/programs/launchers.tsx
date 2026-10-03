@@ -94,6 +94,7 @@ export function useLaunchers(): LauncherCatalog {
     minesweeper: program({ kind: "minesweeper" }),
     solitaire: program({ kind: "solitaire" }),
     pinball: program({ kind: "pinball" }),
+    maze: program({ kind: "maze" }),
     "command-prompt": program({ kind: "command-prompt" }),
     paint: program({ kind: "paint" }),
     "sticky-note": {
