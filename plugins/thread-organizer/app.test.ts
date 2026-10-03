@@ -386,11 +386,9 @@ describe("workflow settings", () => {
     );
 
     await rendered.findByLabelText("Planning section title");
-    expect(rendered.getByText(/Entry prompts can use/).textContent).toContain(
-      "{{section.title}}",
-    );
+    expect(rendered.queryByText(/Entry prompts can use/)).toBeNull();
     const hints = rendered.getAllByText("sent on arrival", { exact: false });
-    expect(hints).toHaveLength(2);
+    expect(hints).toHaveLength(1);
     expect(hints.some((hint) => hint.closest("article") !== null)).toBe(false);
 
     fireEvent.click(rendered.getByRole("button", { name: "Add section" }));
@@ -818,13 +816,11 @@ describe("workflow settings", () => {
     expect(planningGrid.className).toContain(
       "grid-cols-[minmax(0,1fr)_2rem]",
     );
-    expect(planningGrid.className).toContain(
-      "lg:grid-cols-[2rem_minmax(7rem,0.9fr)_minmax(10rem,1fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_2rem]",
-    );
+    expect(planningGrid.className).toContain("lg:grid-cols-subgrid");
     expect(planningGrid.className).toContain("gap-y-0");
-    expect(planningCard.className).toContain("px-3");
-    expect(planningCard.className).toContain("py-2.5");
-    expect(planningCard.className).toContain("lg:p-3");
+    expect(planningCard.className).toContain("px-2");
+    expect(planningCard.className).toContain("py-2");
+    expect(planningCard.className).toContain("lg:grid-cols-subgrid");
     expect(planningCard.className).toContain("last:rounded-b-lg");
     expect(stageList.className).toContain("overflow-visible");
     expect(planningRuleLayout.className).toContain("col-span-2");
@@ -862,7 +858,7 @@ describe("workflow settings", () => {
     expect(inboxRule.className).toContain("row-start-3");
     expect(inboxRule.className).toContain("lg:col-start-4");
     expect(inboxRule.className).toContain("lg:row-start-1");
-    expect(inboxRule.className).toContain("px-2.5");
+    expect(inboxRule.className).toContain("px-1");
     expect(inboxRule.className).toContain("text-sm");
 
     rendered.lifecycle.unmount();

@@ -47,7 +47,7 @@ import {
 const fieldClass =
   "min-w-0 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-foreground/45 disabled:cursor-not-allowed disabled:opacity-60";
 const quietFieldClass =
-  "min-w-0 w-full rounded-md border border-transparent bg-transparent px-2.5 py-1.5 text-sm text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background disabled:cursor-not-allowed disabled:opacity-60";
+  "min-w-0 w-full rounded-md border border-transparent bg-transparent px-1 py-1.5 text-sm text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background disabled:cursor-not-allowed disabled:opacity-60";
 const buttonBaseClass =
   "inline-flex h-8 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
 const outlineButtonClass = `${buttonBaseClass} border border-input bg-transparent text-foreground hover:bg-muted`;
@@ -57,9 +57,9 @@ const iconButtonClass =
 // One row per section; at lg each field is a column named once by the header
 // row, below lg the fields stack under the title with their own captions.
 const stageColumnsClass =
-  "lg:grid-cols-[2rem_minmax(7rem,0.9fr)_minmax(10rem,1fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_2rem]";
-const stageRowClass = `grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 ${stageColumnsClass}`;
-const stageHeaderClass = `hidden min-w-0 items-end gap-x-2 rounded-t-lg border-b border-border bg-muted/30 px-3 py-2 lg:grid ${stageColumnsClass}`;
+  "lg:grid-cols-[2rem_max-content_max-content_minmax(0,1fr)_9rem_2rem]";
+const stageRowClass = `grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-start gap-x-2 gap-y-0 lg:col-span-full lg:grid-cols-subgrid`;
+const stageHeaderClass = `hidden min-w-0 items-end gap-x-2 rounded-t-lg border-b border-border bg-muted/30 px-2 py-2 lg:col-span-full lg:grid lg:grid-cols-subgrid`;
 const stageTypeLayoutClass =
   "col-span-2 col-start-1 row-start-2 min-w-0 lg:col-span-1 lg:col-start-3 lg:row-start-1";
 const stageRuleLayoutClass =
@@ -72,12 +72,8 @@ const fieldHintClass =
   "ml-1.5 font-normal normal-case tracking-normal text-muted-foreground/70";
 const workflowSettingsDescription =
   "Rename, reorder, and define the workflow your agents follow.";
-// Align the visible R to the rounded-lg panel's top-left tangent. Inter's
-// capital R starts 180/2048 em inside its advance box, so hang that sidebearing
-// back out of the shared radius inset rather than introducing a pixel nudge.
-// The fallback matches the host's rounded-lg token in isolated plugin roots.
 const workflowSettingsDescriptionClass =
-  "ps-[var(--radius-lg,0.5rem)] [text-indent:-0.088em] text-sm leading-5 text-muted-foreground";
+  "text-sm leading-5 text-muted-foreground";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -265,6 +261,7 @@ function StageCard({
   ) => onChange({ ...stage, [key]: value });
   const hasPrompt = (stage.entryPrompt ?? "").trim().length > 0;
   const [promptExpanded, setPromptExpanded] = useState(hasPrompt);
+  const [promptEditing, setPromptEditing] = useState(false);
   const [focusPromptPending, setFocusPromptPending] = useState(false);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const showPrompt = promptExpanded || hasPrompt;
@@ -277,7 +274,7 @@ function StageCard({
 
   return (
     <article
-      className="min-w-0 border-b border-border bg-background px-3 py-2.5 last:rounded-b-lg last:border-b-0 lg:p-3"
+      className="min-w-0 border-b border-border bg-background px-2 py-2 last:rounded-b-lg last:border-b-0 lg:col-span-full lg:grid lg:grid-cols-subgrid"
       onDragOver={(event) => {
         if (!protectedInbox) event.preventDefault();
       }}
@@ -310,7 +307,8 @@ function StageCard({
         <input
           aria-label={`${stage.title || "Untitled section"} section title`}
           data-stage-key={stage.key}
-          className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2.5 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background"
+          className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 text-sm font-semibold text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background"
+          style={{ fieldSizing: "content", minWidth: "6ch" }}
           maxLength={80}
           onChange={(event) => update("title", event.target.value)}
           value={stage.title}
@@ -330,9 +328,9 @@ function StageCard({
           />
         )}
         <div className={`${stageTypeLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
-          <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>Type</span>
+          <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>Type</span>
           {protectedInbox ? (
-            <span className="flex min-h-8 items-center gap-1.5 px-2.5 text-sm text-muted-foreground" title="The main Inbox is protected">
+            <span className="flex min-h-8 items-center gap-1.5 whitespace-nowrap px-1 text-sm text-muted-foreground" title="The main Inbox is protected">
               <HugeiconsIcon aria-hidden="true" className="size-3.5 shrink-0" icon={SquareLock02Icon} />
               Inbox · everything
             </span>
@@ -340,7 +338,9 @@ function StageCard({
             <>
               <select
                 aria-label={`Section type for ${stage.title}`}
-                className={`${quietFieldClass} h-8 py-0`}
+                className={`${quietFieldClass} h-8 whitespace-nowrap py-0`}
+                style={{ fieldSizing: "content" }}
+                title={hasPrompt ? "Clear the entry prompt to choose an inbox." : undefined}
                 onChange={(event) => {
                   const { catchesPluginId: _filter, ...fields } = stage;
                   const value = event.target.value;
@@ -362,21 +362,18 @@ function StageCard({
                   </option>
                 ))}
               </select>
-              {hasPrompt ? (
-                <span className="px-2.5 text-xs text-muted-foreground">Clear the entry prompt to choose an inbox.</span>
-              ) : null}
             </>
           )}
         </div>
         {protectedInbox ? (
           <p
-            className={`${stageRuleLayoutClass} px-2.5 py-1.5 text-sm leading-5 text-muted-foreground`}
+            className={`${stageRuleLayoutClass} px-1 py-1.5 text-sm leading-5 text-muted-foreground`}
           >
             {INBOX_DESCRIPTION}
           </p>
         ) : (
           <label className={`${stageRuleLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
-            <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
+            <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>
               Rule
             </span>
             <textarea
@@ -393,7 +390,7 @@ function StageCard({
         {inbox ? (
           <span
             aria-hidden="true"
-            className={`${stagePromptLayoutClass} hidden px-2.5 py-1.5 text-sm leading-5 text-muted-foreground lg:block`}
+            className={`${stagePromptLayoutClass} hidden px-1 py-1.5 text-sm leading-5 text-muted-foreground lg:block`}
           >
             —
           </span>
@@ -419,17 +416,20 @@ function StageCard({
             <label
               className={`${stagePromptLayoutClass} mt-2 gap-0.5 lg:mt-0 ${showPrompt ? "grid" : "hidden"}`}
             >
-              <span className={`${fieldCaptionClass} px-2.5 lg:sr-only`}>
+              <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>
                 Entry prompt
               </span>
               <textarea
                 aria-label={`Entry prompt for ${stage.title}`}
-                className={`${fieldClass} min-h-8 max-h-48 resize-none overflow-y-auto leading-5`}
+                className={`${fieldClass} min-h-8 resize-none leading-5 ${promptEditing ? "max-h-48 overflow-y-auto" : "h-12 overflow-hidden"}`}
+                onFocus={() => setPromptEditing(true)}
+                onBlur={() => setPromptEditing(false)}
+                title={stage.entryPrompt || undefined}
                 maxLength={ENTRY_PROMPT_MAX_LENGTH}
                 onChange={(event) => update("entryPrompt", event.target.value)}
                 ref={promptRef}
                 rows={2}
-                style={{ fieldSizing: "content" }}
+                style={{ fieldSizing: promptEditing ? "content" : "fixed" }}
                 value={stage.entryPrompt ?? ""}
               />
               {hasPrompt ? null : (
@@ -734,7 +734,7 @@ export function WorkflowSettings() {
       ) : null}
 
       <div
-        className="min-w-0 overflow-visible rounded-lg border border-border"
+        className={`min-w-0 overflow-visible rounded-lg border border-border lg:grid lg:gap-x-2 ${stageColumnsClass}`}
         ref={listRef}
       >
         <p
@@ -750,17 +750,14 @@ export function WorkflowSettings() {
         </p>
         <div className={stageHeaderClass}>
           <span />
-          <span className={`${fieldCaptionClass} px-2.5`}>Section</span>
-          <span className={`${fieldCaptionClass} px-2.5`}>Type</span>
-          <span className={`${fieldCaptionClass} px-2.5`}>
+          <span className={`${fieldCaptionClass} px-1 whitespace-nowrap`}>Section</span>
+          <span className={`${fieldCaptionClass} px-1 whitespace-nowrap`}>Type</span>
+          <span className={`${fieldCaptionClass} px-1 whitespace-nowrap`}>
             Rule
-            <span className={fieldHintClass}>what belongs here</span>
+
           </span>
-          <span className={`${fieldCaptionClass} px-2.5`}>
+          <span className={`${fieldCaptionClass} px-1 whitespace-nowrap`}>
             Entry prompt
-            <span className={fieldHintClass}>
-              sent on arrival
-            </span>
           </span>
           <span />
         </div>
@@ -784,13 +781,7 @@ export function WorkflowSettings() {
           />
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Entry prompts can use{" "}
-        <code className="font-mono">{"{{thread.title}}"}</code>,{" "}
-        <code className="font-mono">{"{{thread.id}}"}</code>,{" "}
-        <code className="font-mono">{"{{section.title}}"}</code>, and{" "}
-        <code className="font-mono">{"{{section.key}}"}</code>.
-      </p>
+
     </div>
   );
 }
