@@ -28,7 +28,13 @@ Never edit or remove existing automations as an incidental setup step. Migrate
 only after the user approves the exact old and new schedules. Defaults are
 weekdays 10am PT, Monday 10am PT, and Sunday 11am PT respectively.
 
-For a different briefing, use `bb digest define --file definition.json` with
+Settings lists signed-in sites and nests their digests. Refresh checks access
+on demand. The import button opens bb’s own Browser settings; the user chooses
+the browser/profile and consents there. Add digest opens an inline prompt form;
+Create saves it enabled and offers Run now to preview. Editing keeps its ID and
+existing enabled state. New schedules default to weekdays 10am PT.
+
+For agent-managed setup, use `bb digest define --file definition.json` with
 a new ID, name, projectId, instructions, connectionIds, createdAt timestamp,
 providerId, model, and optional `{cron, timezone}` schedule. Definitions start
 disabled. `bb digest connections set --file connection.json` stores only
@@ -50,21 +56,25 @@ and label incomplete coverage. Reading calls `digest_processed` with stable
 Gmail message IDs, excludes prior publications, and submits the IDs with
 `digest_publish`. Failed attempts never consume IDs.
 
-Publish a short morning newsletter using `digest_publish`: a story headline,
-a 1–2 sentence `lede`, short Markdown `details`, and source IDs. The thread title
-already has the category and date; never repeat a kicker. Use sections such as
-Reply to, Check, To do, Worth reading in full, and The rest. Put important counts
-and facts in **bold prose**, with linked names, subjects and articles. No stat
-tiles, bar charts, tables or pill tabs.
+Publish with an outcome `headline` ("2 things need you today"), one short
+`lede` line ("14 new emails · 12 are routine"), and a structured `brief`.
+Use a `heading` such as Needs you, Read these 3, or Do next. Each `items` entry
+has a one-line `title`, short `text`, optional `context`, `urgency`
+(today/week/later), and `action: {label, url}`. A `secondaryAction` is optional.
+One filled primary button appears per numbered card. Every URL opens a source
+or review page; it must never perform a write. Use "Review sign-in", not "It
+was me", when a button only opens a security alert.
 
-Use `==confirm today==` sparingly for time-sensitive facts, `:chip[Anthropic]`
-for context and `:gain[+12 followers]` for gains. Under only items needing the
-user, put small source/review links on their own line; bold exactly one primary link, such as **[Review reply](url)**. The renderer adds
-its arrow; keep any secondary link unbolded beside it.
-These links can open information, never authorize writes. Routine items get
-one line at the end. Optional supporting detail follows a standalone
-`<!-- more -->` marker and appears under More detail. Emit the returned directive
-first on its own line.
+Use `later` for quieter one-line items (`title`, optional `action`) and
+`laterLabel` for their heading. Put routine material in `tail: {label, details}`;
+it starts collapsed. Include the count in its label, such as "12 routine emails".
+Money uses needs-you cards and a spending line under This week. Reading uses
+three Read cards, with reading time in context, and a collapsed In brief tail.
+X leads with a number, one Do next card and muted counts in lede. No paragraph
+lede, serif type, stat tiles, charts or tabs. Include equivalent short Markdown
+`details` and source IDs for search and compatibility. Emit the returned
+directive first on its own line.
+
 Use `digest_fail` for an honest failure with Retry or Reconnect. Do not
 present an empty or partial collection as a successful complete briefing.
 
@@ -72,7 +82,8 @@ present an empty or partial collection as a successful complete briefing.
 
 `bb digest publish --digest x-scorecard --file brief.md`
 
-Optional `--headline`, `--lede`, `--metrics '[{"label":"Views","value":"12.4k"}]'`,
+Optional `--brief '{"heading":"Do next","items":[],"later":[]}'`,
+`--headline`, `--lede`, `--metrics '[{"label":"Views","value":"12.4k"}]'`,
 `--sources`, and `--key week-2026-10-05` customize the publication. Repeating
 the same key returns the existing issue. Put visible numbers in the prose;
 structured metrics are retained as data without rendering tiles. The file is read on the invoking

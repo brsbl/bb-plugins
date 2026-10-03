@@ -65,6 +65,7 @@ export const ConnectionSchema = z.object({
   browserHostId: IdSchema.nullable().default(null),
   desktopInstanceId: IdSchema.nullable().default(null),
   status: z.enum(["unknown", "signed-in", "signed-out", "expired", "unavailable", "upgrade-required"]).default("unknown"),
+  accountName: z.string().trim().max(160).nullable().optional(),
   checkedAt: timestamp.nullable().default(null),
   detail: z.string().max(2_000).nullable().default(null),
 }).strict();
@@ -85,10 +86,44 @@ const sources = z.array(SourceSchema).max(1_000).refine((items) => {
   return new Set(keys).size === keys.length;
 }, "Each source message must appear only once in an issue.");
 
+const sourceLink = z.object({
+  label: z.string().trim().min(1).max(40),
+  url: z.string().url().max(2048).refine((value) => {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password;
+  }, "Use an HTTPS source or review URL."),
+}).strict();
+
+/** Optional so existing Markdown publishers and stored issues remain valid. */
+export const BriefSchema = z.object({
+  heading: z.string().trim().min(1).max(60),
+  items: z.array(z.object({
+    title: z.string().trim().min(1).max(140),
+    text: z.string().trim().max(200),
+    context: z.string().max(60).optional(),
+    urgency: z.enum(["today", "week", "later"]).optional(),
+    action: sourceLink,
+    secondaryAction: sourceLink.optional(),
+  }).strict()).max(8),
+  later: z.array(z.object({ title: z.string().trim().min(1).max(180), action: sourceLink.optional() }).strict()).max(12).default([]),
+  laterLabel: z.string().max(60).default("Later"),
+  tail: z.object({ label: z.string().trim().min(1).max(80), details: z.string().trim().min(1).max(20000) }).strict().optional(),
+}).strict();
+
+export const SaveDigestSchema = z.object({
+  id: DigestIdSchema.optional(),
+  connectionId: DigestIdSchema,
+  name: DigestDefinitionSchema.shape.name,
+  instructions: DigestDefinitionSchema.shape.instructions,
+  schedule: ScheduleSchema.nullable(),
+}).strict();
+export type SaveDigest = z.infer<typeof SaveDigestSchema>;
+
 export const PublishInputSchema = z.object({
   headline: z.string().trim().min(1).max(240),
   lede: z.string().trim().max(2_000).default(""),
   metrics: z.array(MetricSchema).max(6).default([]),
+  brief: BriefSchema.optional(),
   details: z.string().trim().min(1).max(100_000),
   sources: sources.default([]),
 }).strict();
@@ -100,6 +135,7 @@ export const IssueSchema = z.object({
   headline: z.string().trim().min(1).max(240),
   lede: z.string().trim().max(2_000).default(""),
   metrics: z.array(MetricSchema).max(6).default([]),
+  brief: BriefSchema.optional(),
   details: z.string().max(100_000).default(""),
   state: z.enum(["collecting", "ready", "failed"]).default("collecting"),
   recovery: z.enum(["retry", "reconnect", "upgrade"]).nullable().default(null),
@@ -116,6 +152,7 @@ export const IssuePatchSchema = z.object({
   headline: IssueSchema.shape.headline.optional(),
   lede: z.string().trim().max(2_000).optional(),
   metrics: z.array(MetricSchema).max(6).optional(),
+  brief: BriefSchema.optional(),
   details: z.string().max(100_000).optional(),
   recovery: z.enum(["retry", "reconnect", "upgrade"]).nullable().optional(),
   readAt: timestamp.nullable().optional(),

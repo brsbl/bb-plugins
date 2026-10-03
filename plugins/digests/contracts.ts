@@ -1,6 +1,6 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { connectionSchema, digestDefinitionSchema, issueSchema } from "./model.js";
+import { connectionSchema, digestDefinitionSchema, issueSchema, SaveDigestSchema } from "./model.js";
 
 const id = z.string().min(1).max(160);
 const issueRef = z.object({ threadId: id, id }).strict();
@@ -14,6 +14,7 @@ export const rpcContract = defineRpcContract({
       organizerReady: z.boolean(),
     }).strict(),
   },
+  saveDigest: { input: SaveDigestSchema, output: digestDefinitionSchema },
   checkConnections: {
     input: z.object({ id: id.optional() }).strict(),
     output: z.array(connectionSchema),

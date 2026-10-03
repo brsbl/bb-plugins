@@ -1,4 +1,4 @@
-import { Children, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Children, useCallback, useEffect, useRef, useState, type ReactNode, useId } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -13,7 +13,8 @@ import {
 } from "@get-bb/plugin-sdk/app";
 
 import type { rpcContract } from "./contracts.js";
-import type { Connection, DigestDefinition, Issue } from "./model.js";
+import type { Connection, DigestDefinition, Issue, SaveDigest } from "./model.js";
+import { Button } from "./components/ui/button.js";
 import { Switch } from "./components/ui/switch.js";
 import "./app.css";
 
@@ -182,6 +183,29 @@ function RecoveryBanner() {
   return <IssueSummary key={issue.id} issue={issue} threadId={threadId} loadError={loadError} refresh={load} />;
 }
 
+function BriefCards({ brief }: { brief: NonNullable<Issue["brief"]> }) {
+  const navigate = useBbNavigate();
+  const open = (url: string) => { if (safeLink(url)) navigate.openUrl(url); };
+  return <div className="digest-brief">
+    {brief.items.length > 0 && <><h3>{brief.heading}</h3><ol className="digest-cards">
+      {brief.items.map((item, index) => <li className="digest-card" data-urgency={item.urgency ?? "later"} key={index}>
+        <span className="digest-card-number" aria-hidden>{index + 1}</span>
+        <div className="digest-card-content">
+          <div className="digest-card-heading"><h4>{item.title}</h4>{item.context && <span className="digest-chip">{item.context}</span>}
+            {item.urgency && item.urgency !== "later" && <span className="digest-urgency">{item.urgency === "today" ? "Today" : "This week"}</span>}</div>
+          {item.text && <p>{item.text}</p>}
+          <div className="digest-card-actions">
+            {item.secondaryAction && <Button variant="ghost" onClick={() => open(item.secondaryAction!.url)}>{item.secondaryAction.label}</Button>}
+            <Button variant="default" onClick={() => open(item.action.url)}>{item.action.label}</Button>
+          </div>
+        </div>
+      </li>)}
+    </ol></>}
+    {brief.later.length > 0 && <div className="digest-later"><h3>{brief.laterLabel}</h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></div>}
+    {brief.tail && <details className="digest-more"><summary>{brief.tail.label}</summary><NewsletterText content={brief.tail.details} /></details>}
+  </div>;
+}
+
 function IssueSummary({ issue, threadId, loadError, refresh }: {
   issue: Issue;
   threadId: string;
@@ -224,18 +248,19 @@ function IssueSummary({ issue, threadId, loadError, refresh }: {
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
       {issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
-      {mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
-      {moreContent.trim() && <details className="digest-more">
+      {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} />}
+      {(!issue.brief || issue.state === "failed") && mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
+      {!issue.brief && moreContent.trim() && <details className="digest-more">
         <summary>More detail</summary>
         <NewsletterText content={moreContent} />
       </details>}
       {issue.state === "failed" && <div className="digest-recovery">
         {issue.recovery === "upgrade" && <p>Update bb on your desktop and connected server to 0.45.0 or later, then retry. Your existing browser sign-ins can be reused after the update.</p>}
         <div className="digest-controls">
-          {issue.recovery === "reconnect" && <button type="button" className="digest-text-action digest-text-primary" disabled={pending !== null} onClick={() => { void recover("reconnect"); }}>
+          {issue.recovery === "reconnect" && <button type="button" className="digest-button digest-button-default" disabled={pending !== null} onClick={() => { void recover("reconnect"); }}>
             {pending === "reconnect" ? "Opening…" : "Reconnect"}
           </button>}
-          <button type="button" className={`digest-text-action ${issue.recovery === "reconnect" ? "" : "digest-text-primary"}`} disabled={pending !== null} onClick={() => { void recover("retry"); }}>
+          <button type="button" className={`digest-button ${issue.recovery === "reconnect" ? "digest-button-ghost" : "digest-button-default"}`} disabled={pending !== null} onClick={() => { void recover("retry"); }}>
             {pending === "retry" ? "Retrying…" : "Retry"}
           </button>
         </div>
@@ -265,14 +290,41 @@ function scheduleLabel(schedule: DigestDefinition["schedule"]): string {
   return `${schedule.cron} · ${zone}`;
 }
 
-const connectionLabels: Record<Connection["status"], string> = {
-  "unknown": "Not checked",
-  "signed-in": "Signed in",
-  "signed-out": "Reconnect needed",
-  "expired": "Reconnect needed",
-  "unavailable": "Browser unavailable",
-  "upgrade-required": "bb update needed",
-};
+const DAYS = [["1-5", "Weekdays"], ["*", "Every day"], ["1", "Mondays"], ["2", "Tuesdays"], ["3", "Wednesdays"], ["4", "Thursdays"], ["5", "Fridays"], ["6", "Saturdays"], ["0", "Sundays"]];
+
+function DigestForm({ connection, definition, pending, onCancel, onSave }: {
+  connection: Connection; definition?: DigestDefinition; pending: boolean; onCancel: () => void;
+  onSave: (input: { id?: string; connectionId: string; name: string; instructions: string; schedule: DigestDefinition["schedule"] }) => Promise<void>;
+}) {
+  const formId = useId();
+  const [name, setName] = useState(definition?.name ?? "");
+  const [instructions, setInstructions] = useState(definition?.instructions ?? "");
+  const [minute = "0", hour = "10", day = "*", month = "*", weekday = "1-5"] = definition?.schedule?.cron.split(/\s+/u) ?? [];
+  const simpleSchedule = day === "*" && month === "*" && DAYS.some(([value]) => value === weekday) && /^\d+$/u.test(hour) && /^\d+$/u.test(minute);
+  const [frequency, setFrequency] = useState(simpleSchedule ? weekday : "custom");
+  const [time, setTime] = useState(`${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`);
+  const publishOnly = !!definition && !definition.schedule;
+  const times = Array.from({ length: 48 }, (_, index) => `${String(Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`);
+  if (!times.includes(time)) times.push(time);
+  return <form className="digest-form" onSubmit={(event) => {
+    event.preventDefault();
+    const [hours, minutes] = time.split(":");
+    void onSave({ id: definition?.id, connectionId: connection.id, name, instructions,
+      schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone: definition?.schedule?.timezone ?? "America/Los_Angeles" } });
+  }}>
+    <label htmlFor={`${formId}-name`}>Name</label>
+    <input id={`${formId}-name`} autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Unread email" />
+    <label htmlFor={`${formId}-prompt`}>What should it tell you?</label>
+    <textarea id={`${formId}-prompt`} required maxLength={30000} rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={`e.g. ${connection.id === "gmail" ? "Unread emails that need a reply, newest first. Skip newsletters and recruiting." : `The updates from ${connection.name} that need my attention.`}`} />
+    {!publishOnly && <div className="digest-schedule-fields"><label htmlFor={`${formId}-days`}>When</label>
+      <select id={`${formId}-days`} value={frequency} onChange={(event) => setFrequency(event.target.value)}>
+        {!simpleSchedule && <option value="custom">Keep current schedule</option>}{DAYS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+      </select>
+      {frequency !== "custom" && <><span>at</span><select aria-label="Time" value={time} onChange={(event) => setTime(event.target.value)}>{times.sort().map((value) => { const [h, m] = value.split(":"); const n = Number(h); return <option key={value} value={value}>{n % 12 || 12}:{m} {n < 12 ? "AM" : "PM"}</option>; })}</select><span>{definition?.schedule?.timezone && definition.schedule.timezone !== "America/Los_Angeles" ? definition.schedule.timezone : "PT"}</span></>}
+    </div>}
+    <div className="digest-form-actions"><Button variant="ghost" disabled={pending} onClick={onCancel}>Cancel</Button><Button variant="default" type="submit" disabled={pending}>{pending ? "Saving…" : definition ? "Save changes" : "Create digest"}</Button></div>
+  </form>;
+}
 
 function DigestsSettings() {
   const rpc = useRpc<typeof rpcContract>();
@@ -282,6 +334,8 @@ function DigestsSettings() {
   const [pending, setPending] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ siteId: string; digestId?: string } | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
   const generation = useRef(0);
   const load = useCallback(async () => {
     const request = ++generation.current;
@@ -326,28 +380,29 @@ function DigestsSettings() {
     }
   };
 
-  const connectionAction = async (action: "check" | "reconnect", id?: string) => {
+  const refreshSites = async () => {
     if (pending) return;
-    setPending(id ?? "connections");
-    setError(null);
-    setNotice(null);
+    setPending("sites"); setError(null);
     try {
-      if (action === "reconnect" && id) {
-        const result = await rpc.call("reconnectConnection", { id });
-        setNotice(result.message);
-        navigate.toThread(result.threadId);
-      } else {
-        const connections = await rpc.call("checkConnections", id ? { id } : {});
-        setOverview((current) => current && { ...current, connections });
-        const problem = connections.find((connection) => (!id || connection.id === id) && ["unavailable", "upgrade-required"].includes(connection.status));
-        if (problem?.detail) setError(problem.detail);
-      }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Couldn’t check your connections. Try again.");
-    } finally {
-      setPending(null);
-    }
+      const connections = await rpc.call("checkConnections", {});
+      setOverview((current) => current && { ...current, connections });
+      const problem = connections.find((connection) => ["unavailable", "upgrade-required"].includes(connection.status));
+      if (problem?.detail) setError(problem.detail);
+    } catch (error) { setError(error instanceof Error ? error.message : "Couldn’t check your sites. Try Refresh again."); }
+    finally { setPending(null); }
   };
+  const save = async (input: SaveDigest) => {
+    if (pending) return;
+    setPending("save"); setError(null);
+    try {
+      const definition = await rpc.call("saveDigest", input);
+      setEditing(null);
+      if (!input.id) { setCreatedId(definition.id); setNotice(`${definition.name} is on. Run it now to preview your first issue.`); }
+      await load();
+    } catch (error) { await load(); setError(error instanceof Error ? error.message : "Couldn’t save this digest. Try again."); }
+    finally { setPending(null); }
+  };
+  const sites = overview?.connections.filter((site) => site.status === "signed-in" || overview.definitions.some((definition) => definition.connectionIds.includes(site.id))) ?? [];
 
   return (
     <section className="digest-settings" aria-label="Digests">
@@ -355,36 +410,33 @@ function DigestsSettings() {
       {notice && <p className="digest-muted" role="status">{notice}</p>}
       {!overview && !error && <p className="digest-muted" role="status">Loading Digests…</p>}
       {overview && <>
-        {!overview.organizerReady && <p className="digest-error" role="status">The Digests section needs setup in Thread Organizer. Ask an agent to set up Digests before enabling schedules.</p>}
-        <div className="digest-group-header"><h3>Digests</h3></div>
-        {overview.definitions.length === 0 ? <p className="digest-muted">No digests yet. Ask an agent to set up your first briefing.</p> : <ul className="digest-group-list">
-          {overview.definitions.map((definition) => <li className="digest-definition" key={definition.id}>
-            <div className="digest-definition-copy">
-              <h4>{definition.name}</h4>
-              <p className="digest-muted" title={definition.schedule?.cron}>{definition.id === "x-scorecard" && !definition.schedule ? "Published by your X analytics thread" : scheduleLabel(definition.schedule)}</p>
-            </div>
-            {definition.schedule && <div className="digest-controls">
-              <Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null || (!definition.enabled && !overview.organizerReady)} onCheckedChange={() => { void update(definition, "toggle"); }} />
-              <button type="button" className="digest-button" aria-label={`Run ${definition.name} now`} disabled={pending !== null || !overview.organizerReady} onClick={() => { void update(definition, "run"); }}>Run now</button>
-            </div>}
-          </li>)}
-        </ul>}
-        <div className="digest-group-header digest-connections-header">
-          <h3>Connections</h3>
-          <button type="button" className="digest-button" disabled={pending !== null || loading} onClick={() => { void connectionAction("check"); }}>{pending === "connections" ? "Checking…" : "Check connections"}</button>
-        </div>
-        {overview.connections.length === 0 ? <p className="digest-muted">No connections configured.</p> : <ul className="digest-group-list">
-          {overview.connections.map((connection) => {
-            const reconnect = connection.status === "signed-out" || connection.status === "expired";
-            return <li className="digest-connection" key={connection.id}>
-              <span className="digest-connection-name">{connection.name}</span>
-              <div className="digest-connection-controls">
-                <span className="digest-connection-status" data-status={connection.status} title={connection.detail ?? undefined}><span className="digest-status-dot" aria-hidden />{connectionLabels[connection.status]}</span>
-                {connection.status !== "signed-in" && <button type="button" className="digest-button" aria-label={`${reconnect ? "Reconnect" : "Check"} ${connection.name}`} disabled={pending !== null} onClick={() => { void connectionAction(reconnect ? "reconnect" : "check", connection.id); }}>{pending === connection.id ? "Working…" : reconnect ? "Reconnect" : "Check"}</button>}
-              </div>
-            </li>;
-          })}
-        </ul>}
+        {!overview.connections.some((site) => site.status === "signed-in") && <div className="digest-import">
+          <h3>Bring in your logins</h3>
+          <p className="digest-muted">Digests reads sites through bb’s browser. Import your logins from Chrome once and you’re set.</p>
+          <a className="digest-button digest-button-default" href="/settings/browser">Open browser import</a>
+          <p className="digest-import-help">In bb’s desktop app, choose your browser and profile. Then return here and press Refresh.</p>
+        </div>}
+        <div className="digest-group-header"><h3>Your sites</h3><Button disabled={pending !== null || loading} onClick={() => { void refreshSites(); }}>{pending === "sites" ? "Checking…" : "Refresh"}</Button></div>
+        <p className="digest-sites-help digest-muted">Uses the sites you’re signed into in bb’s browser. Each run checks access first.</p>
+        {sites.length === 0 && <p className="digest-empty">No signed-in sites found yet. Refresh after importing your logins.</p>}
+        <div className="digest-sites">{sites.map((site) => {
+          const definitions = overview.definitions.filter((definition) => definition.connectionIds.includes(site.id));
+          const signedOut = ["signed-out", "expired"].includes(site.status);
+          return <section className="digest-site" key={site.id} aria-label={site.name}>
+            <div className="digest-site-header"><div><h4>{site.name}</h4><span className="digest-site-account" data-status={site.status}>
+              {site.status === "signed-in" ? site.accountName || "Signed in" : signedOut ? "Signed out" : site.status === "unknown" ? "Not checked" : "Browser unavailable"}
+              {signedOut && <> · <a href="/settings/browser">Reconnect</a></>}
+            </span></div><Button variant="ghost" disabled={pending !== null || editing !== null} onClick={() => setEditing({ siteId: site.id })}>+ Add digest</Button></div>
+            <ul className="digest-nested-list">{definitions.map((definition) => <li className="digest-nested-item" key={definition.id}>
+              {editing?.digestId === definition.id ? <DigestForm connection={site} definition={definition} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : <div className="digest-definition">
+                <button className="digest-edit" disabled={editing !== null || pending !== null} onClick={() => setEditing({ siteId: site.id, digestId: definition.id })} aria-label={`Edit ${definition.name}`}><span>{definition.name}</span><small>{definition.id === "x-scorecard" && !definition.schedule ? "Published by your X analytics thread" : scheduleLabel(definition.schedule)}</small></button>
+                {definition.schedule && <div className="digest-controls"><Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} /><Button aria-label={`Run ${definition.name} now`} disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>{createdId === definition.id ? "Run now to preview" : "Run now"}</Button></div>}
+              </div>}
+            </li>)}</ul>
+            {editing?.siteId === site.id && !editing.digestId ? <DigestForm connection={site} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : definitions.length === 0 && <p className="digest-no-digests digest-muted">No digests yet</p>}
+          </section>;
+        })}</div>
+        <p className="digest-sites-help digest-muted">Can’t find a site? Sign in to it in bb’s browser.</p>
       </>}
     </section>
   );

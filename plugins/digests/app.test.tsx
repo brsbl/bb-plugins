@@ -29,6 +29,7 @@ const definition = {
   id: "reading",
   name: "Reading",
   instructions: "Summarize newsletters without marking them read.",
+  connectionIds: ["gmail"],
   schedule: { cron: "0 11 * * 0", timezone: "America/Los_Angeles" },
   enabled: false,
   automationId: null,
@@ -143,25 +144,62 @@ describe("Digests app", () => {
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_new_issue" });
   });
 
-  it("checks connections only on request and exposes connection failures", async () => {
+  it("opens bb import, checks sites only on Refresh, and keeps signed-out digests visible", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
-    const connections = [
-      { id: "gmail", name: "Gmail", status: "signed-out", detail: null },
-      { id: "x", name: "X", status: "unknown", detail: null },
-    ];
+    const connections = [{ id: "gmail", name: "Gmail", status: "signed-out", detail: null }, { id: "x", name: "X", status: "unknown", detail: null }];
     const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
-      overview: () => ({ definitions: [], connections, actionCardsAvailable: false, organizerReady: true }),
-      checkConnections: () => connections.map((connection) => ({ ...connection, status: "unavailable", detail: "Open bb on your browser computer, then try again." })),
-      reconnectConnection: () => { throw new Error("The bb browser is unavailable."); },
+      overview: () => ({ definitions: [definition], connections, actionCardsAvailable: false, organizerReady: true }),
+      checkConnections: () => connections.map((connection) => ({ ...connection, status: "signed-in", accountName: "fixture account" })),
     } });
-    fireEvent.click(await slot.findByRole("button", { name: "Reconnect Gmail" }));
-    expect((await slot.findByRole("alert")).textContent).toContain("The bb browser is unavailable.");
-    expect(slot.inspection.rpcCalls).toContainEqual({ method: "reconnectConnection", input: { id: "gmail" } });
-    fireEvent.click(slot.getByRole("button", { name: "Check X" }));
-    await waitFor(() => expect(slot.getByRole("alert").textContent).toContain("Open bb on your browser computer"));
-    expect(slot.inspection.rpcCalls).toContainEqual({ method: "checkConnections", input: { id: "x" } });
-    fireEvent.click(slot.getByRole("button", { name: "Check connections" }));
-    await waitFor(() => expect(slot.inspection.rpcCalls).toContainEqual({ method: "checkConnections", input: {} }));
+    expect((await slot.findByRole("link", { name: "Open browser import" })).getAttribute("href")).toBe("/settings/browser");
+    expect(slot.getByRole("link", { name: "Reconnect" }).getAttribute("href")).toBe("/settings/browser");
+    expect(slot.getByText("Reading")).toBeDefined();
+    expect(slot.queryByRole("region", { name: "X" })).toBeNull();
+    expect(slot.inspection.rpcCalls).toHaveLength(1);
+    fireEvent.click(slot.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(slot.queryByRole("link", { name: "Open browser import" })).toBeNull());
+    expect(slot.getByRole("region", { name: "X" })).toBeDefined();
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "checkConnections", input: {} });
+  });
+
+  it("creates a prompt digest at 10am and edits the same nested row", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    let definitions: typeof definition[] = [];
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions, connections: [{ id: "gmail", name: "Gmail", status: "signed-in" }], organizerReady: true, actionCardsAvailable: false }),
+      saveDigest: (input) => {
+        const value = input as { name: string; instructions: string; schedule: typeof definition.schedule };
+        const saved = { ...definition, ...value, id: "digest-new", enabled: true };
+        definitions = [saved]; return saved;
+      },
+    } });
+    fireEvent.click(await slot.findByRole("button", { name: "+ Add digest" }));
+    const name = slot.getByLabelText("Name");
+    expect(document.activeElement).toBe(name);
+    fireEvent.change(name, { target: { value: "My inbox" } });
+    fireEvent.change(slot.getByLabelText("What should it tell you?"), { target: { value: "Only messages that need a reply." } });
+    fireEvent.click(slot.getByRole("button", { name: "Create digest" }));
+    expect(await slot.findByText("Run now to preview")).toBeDefined();
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { id: undefined, name: "My inbox", instructions: "Only messages that need a reply.", connectionId: "gmail", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
+    fireEvent.click(slot.getByRole("button", { name: "Edit My inbox" }));
+    fireEvent.change(slot.getByLabelText("Name"), { target: { value: "Replies" } });
+    fireEvent.click(slot.getByRole("button", { name: "Save changes" }));
+    expect(await slot.findByRole("button", { name: "Edit Replies" })).toBeDefined();
+    expect(slot.inspection.rpcCalls.filter((call) => call.method === "saveDigest").at(-1)?.input).toMatchObject({ id: "digest-new", name: "Replies" });
+  });
+
+  it("shows numbered source cards and a collapsed tail without performing account actions", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      heading: "Needs you", items: [{ title: "Reply to Felix", text: "Coffee Thursday at 3pm.", urgency: "today", action: { label: "Review reply", url: "https://example.test/reply" } }],
+      later: [], laterLabel: "Later", tail: { label: "12 routine emails", details: "Receipts and newsletters." },
+    } }) } });
+    const action = await slot.findByRole("button", { name: "Review reply" });
+    expect(action.className).toContain("digest-button-default");
+    expect(slot.getByText("12 routine emails").closest("details")?.open).toBe(false);
+    fireEvent.click(action);
+    expect(slot.inspection.rpcCalls).toHaveLength(1);
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: "https://example.test/reply" });
   });
 
   it("offers recovery when the agent fails before publishing a directive", async () => {

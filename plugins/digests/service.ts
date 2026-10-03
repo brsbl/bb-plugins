@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { createStore } from "./store.js";
-import { issueSchema, type DigestDefinition, type Issue, type PublishInput, type Connection } from "./model.js";
+import { issueSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
+import { SITES } from "./sites.js";
 import { deliveryPrompt, directive, issueTitle, runPrompt, collectionInstructions } from "./prompts.js";
 
 const automationSchema = z.object({ id: z.string(), enabled: z.boolean(), nextRunAt: z.number().nullable() }).passthrough();
@@ -110,6 +111,75 @@ export function createService(bb: BbPluginApi) {
     }, automationSchema);
     return store.definitions.put({ ...definition, automationId: created.id });
   }
+  async function settingsDefaults(connectionId?: string) {
+    const definitions = store.definitions.list();
+    const existing = definitions.find((entry) => connectionId && entry.connectionIds.includes(connectionId)) ?? definitions[0];
+    if (existing) return { projectId: existing.projectId, providerId: existing.providerId, model: existing.model, reasoningLevel: existing.reasoningLevel, environment: existing.environment };
+    const projects = await bb.sdk.projects.list();
+    const personal = projects.find((project) => project.kind === "personal");
+    if (!personal) throw new Error("Open your personal project in bb before adding a digest.");
+    const defaults = await bb.sdk.projects.defaultExecutionOptions({ projectId: personal.id });
+    return { projectId: personal.id, providerId: defaults?.providerId ?? null, model: defaults?.model ?? null, reasoningLevel: defaults?.reasoningLevel ?? null, environment: { type: "project-default" as const } };
+  }
+  async function saveDigest(input: SaveDigest) {
+    return exclusive(`definition:${input.id ?? "new"}`, async () => {
+      const previous = input.id ? requiredDefinition(input.id) : null;
+      if (!store.connections.get(input.connectionId)) throw new Error("Refresh Your sites before adding a digest.");
+      if (previous && !previous.connectionIds.includes(input.connectionId)) throw new Error("Edit this digest under its original site.");
+      if (!previous && !input.schedule) throw new Error("Choose when this digest should run.");
+      // Existing publishers keep their mode; editing a prompt does not convert
+      // a publishing contract or silently pause an enabled automation.
+      if (previous && Boolean(previous.schedule) !== Boolean(input.schedule)) throw new Error("Keep this digest's existing scheduled or published mode.");
+      const defaults = previous ?? await settingsDefaults(input.connectionId);
+      if (input.schedule && (!defaults.providerId || !defaults.model)) throw new Error("Choose a default agent and model in this digest's bb project, then save again.");
+      await ensureSection(true);
+      let definition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, instructions: input.instructions,
+        connectionIds: previous?.connectionIds ?? [input.connectionId], schedule: input.schedule, enabled: previous?.enabled ?? false,
+        automationId: previous?.automationId ?? null, permissionMode: previous?.permissionMode ?? "auto" as const, createdAt: previous?.createdAt ?? Date.now() };
+      if (previous?.automationId) {
+        await automation("automations_update", { projectId: previous.projectId, automationId: previous.automationId,
+          name: `Digests · ${input.name}`, trigger: { triggerType: "schedule", ...input.schedule! },
+          agent: { prompt: runPrompt(definition) } }, automationSchema);
+      }
+      definition = store.definitions.put(definition);
+      if (!previous) {
+        definition = await ensureAutomation(definition);
+        try {
+          await automation("automations_resume", { projectId: definition.projectId, automationId: definition.automationId }, automationSchema);
+          definition = store.definitions.put({ ...definition, enabled: true });
+        } catch (error) {
+          // Preserve a discoverable paused definition for retry, rather than
+          // losing the association with the automation already created.
+          bb.realtime.publish("issues", {});
+          throw new Error(`Saved ${definition.name}, but could not turn it on. Try its switch again. ${error instanceof Error ? error.message : ""}`);
+        }
+      }
+      bb.realtime.publish("issues", {});
+      return definition;
+    });
+  }
+
+  async function discoverSites() {
+    const configured = store.connections.list().find((entry) => entry.browserHostId);
+    let browserHostId = configured?.browserHostId;
+    let desktopInstanceId = configured?.desktopInstanceId;
+    if (!browserHostId) {
+      const candidates: Array<{ hostId: string; instanceId: string }> = [];
+      for (const host of await bb.sdk.hosts.list()) {
+        try {
+          const { instances } = await bb.sdk.experimental_desktopBrowsers.listInstances({ hostId: host.id });
+          candidates.push(...instances.map((instance) => ({ hostId: host.id, instanceId: instance.instanceId })));
+        } catch { /* Offline hosts cannot supply the browser. */ }
+      }
+      if (candidates.length !== 1) throw new Error(candidates.length ? "More than one bb browser is available. Ask an agent to set Digests' browser computer, then Refresh." : "Open bb on the computer with your browser sign-ins, then Refresh.");
+      browserHostId = candidates[0]!.hostId;
+      desktopInstanceId = candidates[0]!.instanceId;
+    }
+    for (const site of SITES) {
+      if (!store.connections.get(site.id)) store.connections.put({ ...site, browserHostId, desktopInstanceId });
+    }
+  }
+
   async function begin(digestId: string, threadId: string) {
     return exclusive(`begin:${threadId}`, async () => {
       const definition = requiredDefinition(digestId);
@@ -142,10 +212,10 @@ export function createService(bb: BbPluginApi) {
             const lease = await openBrowser(bb, connection, threadId);
             sessions.push(lease);
             await bb.storage.kv.set(`browsers:${issue.id}`, sessions);
-            await checkSignIn(bb, connection, lease);
-            store.connections.put({ ...connection, status: "signed-in", checkedAt: Date.now(), detail: null });
+            const accountName = await checkSignIn(bb, connection, lease);
+            store.connections.put({ ...connection, accountName, status: "signed-in", checkedAt: Date.now(), detail: null });
           } catch (error) {
-            store.connections.put({ ...connection, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
+            store.connections.put({ ...connection, accountName: null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
             throw error;
           }
         }
@@ -182,7 +252,7 @@ export function createService(bb: BbPluginApi) {
       issue ??= newIssue(definition, null, key);
       // Create the searchable native thread before committing processed IDs.
       if (!issue.threadId) {
-        issue = store.issues.update(issue.id, { headline: payload.headline, lede: payload.lede, details: payload.details, metrics: payload.metrics });
+        issue = store.issues.update(issue.id, { headline: payload.headline, lede: payload.lede, details: payload.details, metrics: payload.metrics, brief: payload.brief });
         issue = await spawnDelivery(definition, issue);
       }
       // External publishers may retry a failed delivery with the same key.
@@ -268,10 +338,17 @@ export function createService(bb: BbPluginApi) {
         if (!thread.archivedAt) return threadId;
       } catch { /* A deleted owner cannot own a fresh browser tab. */ }
     }
-    throw new Error("Run bb digest setup from a current thread to reconnect Settings to your browser, then try again.");
+    const defaults = await settingsDefaults(connectionId);
+    // Empty input is a supported dormant thread: no agent turn or account work.
+    // It owns new check tabs only, never borrows an open user tab.
+    const thread = await bb.sdk.threads.spawn({ projectId: defaults.projectId, environment: defaults.environment,
+      title: "Digests browser checks", visibility: "hidden", input: [], pluginMetadata: { purpose: "connection-checks" } });
+    await bb.storage.kv.set("connection-settings-thread", thread.id);
+    return thread.id;
   }
   async function checkConnections(id?: string, ownerThreadId?: string) {
     return exclusive("connection-settings", async () => {
+      if (!id) await discoverSites();
       const selected = id ? [store.connections.get(id)] : store.connections.list();
       for (const connection of selected) {
         if (!connection) throw new Error("Unknown connection.");
@@ -279,10 +356,10 @@ export function createService(bb: BbPluginApi) {
         try {
           const threadId = ownerThreadId ?? await settingsConnectionThread(connection.id);
           lease = await openBrowser(bb, connection, threadId);
-          await checkSignIn(bb, connection, lease);
-          store.connections.put({ ...connection, status: "signed-in", checkedAt: Date.now(), detail: null });
+          const accountName = await checkSignIn(bb, connection, lease);
+          store.connections.put({ ...connection, accountName, status: "signed-in", checkedAt: Date.now(), detail: null });
         } catch (error) {
-          store.connections.put({ ...connection, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
+          store.connections.put({ ...connection, accountName: null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
         } finally {
           if (lease) await closeBrowser(bb, lease).catch((error: unknown) => bb.log.warn(String(error)));
         }
@@ -349,5 +426,5 @@ export function createService(bb: BbPluginApi) {
       details: `Your issue was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
     return null;
   }
-  return { store, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, checkConnections, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
+  return { store, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, checkConnections, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }

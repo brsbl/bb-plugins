@@ -66,7 +66,7 @@ export async function openBrowser(bb: BbPluginApi, connection: Connection, threa
 }
 
 /** Inspect only the page's sign-in controls; never export cookies or page content. */
-export async function checkSignIn(bb: BbPluginApi, connection: Connection, lease: BrowserLease): Promise<void> {
+export async function checkSignIn(bb: BbPluginApi, connection: Connection, lease: BrowserLease): Promise<string | null> {
   const script = `const p = await browser.getPage("connection");
 await p.goto(${JSON.stringify(connection.url)});
 await p.snapshot();
@@ -77,14 +77,21 @@ const status = await p.evaluate(() => {
   const signedIn = host === "mail.google.com" ? !!document.querySelector('[role="navigation"], [gh="cm"]')
     : /(^|\\.)x.com$/.test(host) ? !!document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]')
     : /(^|\\.)linkedin.com$/.test(host) ? !!document.querySelector('.global-nav__me, .global-nav__primary-link-me-menu-trigger') : false;
-  return { signedIn, signedOut };
+  const accountControl = host === "mail.google.com" ? document.querySelector('[aria-label^="Google Account:"]')
+    : /(^|\\.)x.com$/.test(host) ? document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]')
+    : document.querySelector('.global-nav__me img');
+  const accountText = accountControl?.getAttribute("aria-label") || accountControl?.getAttribute("alt") || accountControl?.textContent || "";
+  const accountName = host === "mail.google.com" ? accountText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i)?.[0]
+    : /(^|\\.)x.com$/.test(host) ? accountText.match(/@[A-Za-z0-9_]+/)?.[0] : accountText;
+  return { signedIn, signedOut, accountName: accountName?.trim().slice(0, 160) || null };
 });
 console.log("DIGEST_CONNECTION:" + JSON.stringify(status));`;
   const output = await browserRpc(bb, "run", { threadId: lease.threadId, sessionId: lease.sessionId, script, timeoutMs: 45000 }, z.object({ text: z.string(), exitCode: z.number() }).passthrough());
   const marker = output.text.match(/DIGEST_CONNECTION:(\{[^\n]*\})/);
-  let status: { signedIn: boolean; signedOut: boolean } | undefined;
-  try { if (marker) status = z.object({ signedIn: z.boolean(), signedOut: z.boolean() }).parse(JSON.parse(marker[1]!)); } catch { /* Invalid probe output is an unavailable connection. */ }
+  let status: { signedIn: boolean; signedOut: boolean; accountName?: string | null } | undefined;
+  try { if (marker) status = z.object({ signedIn: z.boolean(), signedOut: z.boolean(), accountName: z.string().max(160).nullable().optional() }).parse(JSON.parse(marker[1]!)); } catch { /* Invalid probe output is an unavailable connection. */ }
   if (output.exitCode !== 0 || !status) throw new ConnectionError(`Could not check ${connection.name}. Retry when the site is available.`, "unavailable", "retry");
   if (status.signedOut) throw new ConnectionError(`${connection.name} is signed out. Reconnect it in the bb browser, then Retry.`, "signed-out", "reconnect");
   if (!status.signedIn) throw new ConnectionError(`${connection.name} needs your attention. Open the connection to complete any sign-in or browser challenge, then Retry.`, "expired", "reconnect");
+  return status.accountName ?? null;
 }

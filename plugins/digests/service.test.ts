@@ -56,7 +56,7 @@ function setup(options: { runs?: Array<{
             result = { text: `DIGEST_CONNECTION:${JSON.stringify(signIn)}`, exitCode: 0 };
           } else if (pluginId === "browser-automation" && method === "close") {
             result = { ok: true };
-          } else if (pluginId === "automations" && ["automations_create", "automations_pause", "automations_resume"].includes(method)) {
+          } else if (pluginId === "automations" && ["automations_create", "automations_pause", "automations_resume", "automations_update"].includes(method)) {
             result = { id: "auto_digest_new", enabled: method === "automations_resume", nextRunAt: null };
           } else if (pluginId === "automations" && method === "automations_runs") {
             result = { runs: options.runs ?? [], nextCursor: null };
@@ -86,6 +86,28 @@ const payload = () => PublishInputSchema.parse({
 });
 
 describe("digest issue lifecycle", () => {
+  it("creates an enabled custom digest and updates that same automation without enabling migrated definitions", async () => {
+    const { service, harness } = setup();
+    const input = { connectionId: "gmail", name: "Replies", instructions: "Only messages needing a reply.", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } };
+    const created = await service.saveDigest(input);
+    expect(created).toMatchObject({ enabled: true, automationId: "auto_digest_new", connectionIds: ["gmail"] });
+    expect(service.requiredDefinition("reading").enabled).toBe(false);
+    const updated = await service.saveDigest({ ...input, id: created.id, name: "Reply list", schedule: { cron: "0 11 * * 1-5", timezone: "America/Los_Angeles" } });
+    expect(updated).toMatchObject({ id: created.id, automationId: created.automationId, enabled: true, name: "Reply list" });
+    const calls = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: unknown });
+    expect(calls.filter((call) => call.method === "automations_create")).toHaveLength(1);
+    expect(calls.find((call) => call.method === "automations_update")?.input).toMatchObject({ automationId: created.automationId, name: "Digests · Reply list", trigger: { cron: "0 11 * * 1-5" } });
+    await service.saveDigest({ ...input, id: "reading", name: "Reading", schedule: service.requiredDefinition("reading").schedule });
+    expect(service.requiredDefinition("reading").enabled).toBe(false);
+  });
+
+  it("creates a dormant settings owner when its previous owner no longer exists", async () => {
+    const { service, harness } = setup();
+    await service.checkConnections("gmail");
+    expect(harness.inspection.sdk.callsTo("threads.spawn")[0]?.[0]).toMatchObject({ input: [], visibility: "hidden", title: "Digests browser checks" });
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.closeTab")).toHaveLength(1);
+  });
+
   it("turns an existing Digests section into an inbox without replacing its rule", async () => {
     const { service, harness } = setup({ stageSection: true });
     await service.ensureSection(true);
