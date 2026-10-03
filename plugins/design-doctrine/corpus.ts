@@ -330,13 +330,13 @@ export interface OpenPublication {
 }
 
 /**
- * Reports doctrine pull requests that are open but not merging. Auto-merge
- * waits indefinitely, so without this a failing check or an unresolved comment
- * stops the corpus learning without ever saying so.
+ * Lists the doctrine pull requests this plugin opened that are still open. The
+ * branch prefix alone is not proof: anyone can open a pull request from a fork
+ * branch named `doctrine/...`, so only same-repository pull requests authored
+ * by the account the plugin publishes with count.
  */
-export async function readStalledPublications(
+export async function readOpenPublications(
   source: CorpusSource,
-  stallAfterHours = 6,
   signal?: AbortSignal,
 ): Promise<OpenPublication[]> {
   const result = await execFileAsync(
@@ -348,8 +348,10 @@ export async function readStalledPublications(
       "open",
       "--search",
       "head:doctrine/",
+      "--author",
+      "@me",
       "--json",
-      "url,headRefName,mergeStateStatus,createdAt",
+      "url,headRefName,mergeStateStatus,createdAt,isCrossRepository",
     ],
     {
       cwd: source.repositoryRoot,
@@ -363,14 +365,47 @@ export async function readStalledPublications(
     headRefName: string;
     mergeStateStatus: string;
     createdAt: string;
+    isCrossRepository: boolean;
   }>;
   return rows
+    .filter((row) => !row.isCrossRepository && row.headRefName.startsWith("doctrine/"))
     .map((row) => ({
       url: row.url,
       branch: row.headRefName,
       mergeStateStatus: row.mergeStateStatus,
       ageHours: (Date.now() - Date.parse(row.createdAt)) / (60 * 60 * 1_000),
-    }))
+    }));
+}
+
+/**
+ * Merges the base branch into an open doctrine pull request. Strict branch
+ * protection blocks auto-merge on a branch that has fallen behind, and nothing
+ * else ever updates it, so the rules would wait forever.
+ */
+export async function updatePublicationBranch(
+  source: CorpusSource,
+  url: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await execFileAsync("gh", ["pr", "update-branch", url], {
+    cwd: source.repositoryRoot,
+    encoding: "utf8",
+    timeout: COMMAND_TIMEOUT_MS,
+    signal,
+  });
+}
+
+/**
+ * Reports doctrine pull requests that are open but not merging. Auto-merge
+ * waits indefinitely, so without this a failing check or an unresolved comment
+ * stops the corpus learning without ever saying so.
+ */
+export async function readStalledPublications(
+  source: CorpusSource,
+  stallAfterHours = 6,
+  signal?: AbortSignal,
+): Promise<OpenPublication[]> {
+  return (await readOpenPublications(source, signal))
     .filter((row) => row.ageHours >= stallAfterHours)
     .map((row) => ({ ...row, ageHours: Math.round(row.ageHours) }));
 }
