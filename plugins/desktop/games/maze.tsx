@@ -492,6 +492,18 @@ function paintRat(ctx: CanvasRenderingContext2D, time: number) {
   ctx.beginPath(); ctx.moveTo(21, 43); ctx.bezierCurveTo(2, 46, 1, 35, 8, 36); ctx.stroke();
   ctx.fillStyle = "#8d7360";
   for (const x of [25, 43]) { ctx.beginPath(); ctx.ellipse(x + gait, 46, 5, 1.5, 0, 0, Math.PI * 2); ctx.fill(); }
+  // Only the feet move; the furred body is drawn once and reused.
+  ctx.drawImage(ratBody(), 0, 0, SPRITE, SPRITE);
+}
+
+let ratBodyCard: HTMLCanvasElement | null = null;
+function ratBody(): HTMLCanvasElement {
+  if (ratBodyCard) return ratBodyCard;
+  ratBodyCard = document.createElement("canvas");
+  ratBodyCard.width = CARD; ratBodyCard.height = CARD;
+  const ctx = ratBodyCard.getContext("2d");
+  if (!ctx) return ratBodyCard;
+  ctx.scale(CARD / SPRITE, CARD / SPRITE);
   ctx.save(); ctx.beginPath();
   ctx.ellipse(32, 39, 19, 7, -0.12, 0, Math.PI * 2);
   ctx.moveTo(40, 35); ctx.lineTo(61, 42); ctx.lineTo(43, 45); ctx.closePath();
@@ -505,6 +517,7 @@ function paintRat(ctx: CanvasRenderingContext2D, time: number) {
   ctx.restore();
   ctx.fillStyle = "#8d7666"; ctx.beginPath(); ctx.ellipse(47, 36, 2.5, 3, -0.4, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = "#16100e"; ctx.fillRect(54, 40, 2, 1); ctx.fillRect(60, 42, 2, 1);
+  return ratBodyCard;
 }
 
 type SpriteKind = "sign" | "polyhedron" | "smiley" | "rat";
@@ -545,7 +558,8 @@ function drawSprites(ctx: CanvasRenderingContext2D, card: HTMLCanvasElement, dep
     const top = height / 2 - size / 2 + bob;
     const left = Math.floor(centerX - size / 2);
     const right = Math.min(width, Math.ceil(centerX + size / 2));
-    // Paint a card only when some column of it is on screen and in front of the walls.
+    // Paint a card only when it is on screen vertically and some column of it is in front of the walls.
+    if (top >= height || top + size <= 0) continue;
     let visibleColumn = false;
     for (let x = Math.max(0, left); x < right && !visibleColumn; x++) visibleColumn = sprite.forward < depth[x]!;
     if (!visibleColumn) continue;
@@ -660,7 +674,11 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
     const next = { ...optionsRef.current, ...patch };
     optionsRef.current = next;
     setOptions(next);
-    localStorage.setItem(OPTIONS_KEY, JSON.stringify(next));
+    try {
+      localStorage.setItem(OPTIONS_KEY, JSON.stringify(next));
+    } catch {
+      // Storage can be full or blocked; the option still applies for this session.
+    }
     render();
   };
 
