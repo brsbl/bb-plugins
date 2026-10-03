@@ -427,13 +427,14 @@ function DigestsSettings() {
               {site.status === "signed-in" ? site.accountName || "Signed in" : signedOut ? "Signed out" : site.status === "unknown" ? "Not checked" : "Browser unavailable"}
               {signedOut && <> · <a href="/settings/browser">Reconnect</a></>}
             </span></div><Button variant="ghost" disabled={pending !== null || editing !== null} onClick={() => setEditing({ siteId: site.id })}>+ Add digest</Button></div>
+            {editing?.siteId === site.id && !editing.digestId && <DigestForm connection={site} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} />}
             <ul className="digest-nested-list">{definitions.map((definition) => <li className="digest-nested-item" key={definition.id}>
               {editing?.digestId === definition.id ? <DigestForm connection={site} definition={definition} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : <div className="digest-definition">
                 <button className="digest-edit" disabled={editing !== null || pending !== null} onClick={() => setEditing({ siteId: site.id, digestId: definition.id })} aria-label={`Edit ${definition.name}`}><span>{definition.name}</span><small>{definition.id === "x-scorecard" && !definition.schedule ? "Published by your X analytics thread" : scheduleLabel(definition.schedule)}</small></button>
                 {definition.schedule && <div className="digest-controls"><Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} /><Button aria-label={`Run ${definition.name} now`} disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>{createdId === definition.id ? "Run now to preview" : "Run now"}</Button></div>}
               </div>}
             </li>)}</ul>
-            {editing?.siteId === site.id && !editing.digestId ? <DigestForm connection={site} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : definitions.length === 0 && <p className="digest-no-digests digest-muted">No digests yet</p>}
+            {definitions.length === 0 && editing?.siteId !== site.id && <p className="digest-no-digests digest-muted">No digests yet</p>}
           </section>;
         })}</div>
         <p className="digest-sites-help digest-muted">Can’t find a site? Sign in to it in bb’s browser.</p>
