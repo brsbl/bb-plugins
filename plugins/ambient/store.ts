@@ -17,7 +17,11 @@ function readDeviceDetail(): number {
   }
 }
 
-type Override = { at: number; apply: (state: AmbientState) => AmbientState };
+type Override = {
+  at: number;
+  apply: (state: AmbientState) => AmbientState;
+  acknowledged?: (state: AmbientState) => boolean;
+};
 
 export interface AmbientSnapshot {
   state: AmbientState | null;
@@ -52,12 +56,18 @@ export class AmbientStore {
 
   receive(state: AmbientState): void {
     if (this.server && state.revision < this.server.revision) return;
+    for (const [key, override] of this.overrides) {
+      if (override.acknowledged && (
+        (this.server && state.sceneRevision !== this.server.sceneRevision) || override.acknowledged(state)
+      )) this.overrides.delete(key);
+    }
     this.server = state;
     this.publish();
   }
 
-  setValue(id: string, value: number): void {
-    this.override(`value:${id}`, (state) => ({
+  setValue(id: string, value: number): () => void {
+    // A slow save must not expire when another slider publishes its local edit.
+    return this.override(`value:${id}`, (state) => ({
       ...state,
       scene: {
         ...state.scene,
@@ -65,7 +75,7 @@ export class AmbientStore {
           entry.id === id ? { ...entry, value } : entry,
         ),
       },
-    }));
+    }), (state) => state.scene.params.find((entry) => entry.id === id)?.value === value);
   }
 
   setPaletteColor(index: number, color: string): void {
@@ -127,16 +137,22 @@ export class AmbientStore {
     return () => this.rippleListeners.delete(listener);
   }
 
-  private override(key: string, apply: Override["apply"]): void {
-    this.overrides.set(key, { at: Date.now(), apply });
+  private override(key: string, apply: Override["apply"], acknowledged?: Override["acknowledged"]): () => void {
+    const override = { at: Date.now(), apply, acknowledged };
+    this.overrides.set(key, override);
     this.publish();
+    return () => {
+      if (this.overrides.get(key) !== override) return;
+      this.overrides.delete(key);
+      this.publish();
+    };
   }
 
   private publish(): void {
     const now = Date.now();
     let state = this.server;
     for (const [key, override] of this.overrides) {
-      if (now - override.at > OVERRIDE_MS) {
+      if (!override.acknowledged && now - override.at > OVERRIDE_MS) {
         this.overrides.delete(key);
         continue;
       }
