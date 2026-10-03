@@ -1607,8 +1607,8 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 /*
- * The actions sit over the bottom-right of the message's last line. Behind them, while bb shows them, a solid paper fill
- * hugs just the buttons and fades out over 6 px above them, so no text shows behind the icons.
+ * The actions sit over the bottom-right of the message's last line. Behind them, while bb shows them, a glass fill hugs
+ * just the buttons and fades out over 6 px above them, so no text shows behind the icons.
  */
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 {
   right: 0;
@@ -1625,7 +1625,13 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   position: absolute;
   inset: -6px 0 0;
   z-index: -1;
-  background: linear-gradient(to bottom, transparent, var(--bbd-im-paper) 6px);
+  border-radius: 6px;
+  /* Desktop's glass (as its menus), blurred enough that no text reads through, fading out at the top. */
+  background-color: var(--bbd-glass-solid);
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
+  backdrop-filter: blur(12px) saturate(1.6);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 6px);
+  mask-image: linear-gradient(to bottom, transparent, #000 6px);
   opacity: 0;
   transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
