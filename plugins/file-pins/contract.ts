@@ -9,6 +9,8 @@ export const pinSchema = z.object({
 export type Pin = z.infer<typeof pinSchema>;
 export const pinsSchema = z.array(pinSchema).max(40);
 export const MAX_PINS = 40;
+/** Pin IDs kept behind the strip's overflow control, like bb's hidden footer items. */
+export const moreSchema = z.array(id).max(MAX_PINS);
 export const CHANGED = "pins-changed";
 const status = z.enum(["available", "missing", "unavailable"]);
 export const referenceSchema = pinSchema.extend({ hostName: z.string(), status, moss: z.boolean() });
@@ -40,13 +42,13 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: id }).strict(),
     output: z.object({ files: z.array(recentSchema).max(12) }),
   },
-  move: {
-    input: z.object({ threadId: id, pinId: id, overId: id }).strict(),
-    output: z.object({ pins: pinsSchema }),
+  arrange: {
+    input: z.object({ threadId: id, order: z.array(id).max(MAX_PINS), more: moreSchema }).strict(),
+    output: z.object({ pins: pinsSchema, more: moreSchema }),
   },
   inspect: {
     input: z.object({ threadId: id }).strict(),
-    output: z.object({ pins: z.array(referenceSchema).max(MAX_PINS) }),
+    output: z.object({ pins: z.array(referenceSchema).max(MAX_PINS), more: moreSchema }),
   },
   search: {
     input: z.object({ threadId: id, hostId: id, query: z.string().max(500) }).strict(),

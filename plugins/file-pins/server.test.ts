@@ -111,16 +111,22 @@ describe("thread file pins", () => {
     expect(replacement).toMatchObject({ id: original.id, path: "/new.md" });
     expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [replacement] });
   });
-  it("moves only existing pins and preserves concurrent additions and the saved order", async () => {
+  it("saves order and More pins together, rejects stale arrangements, and restores placement on Undo", async () => {
     const h = setup();
     const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/first.md" }) as { id: string };
     const second = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/second.md" }) as { id: string };
-    const third = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/third.md" });
-    await h.behavior.callRpc("move", { threadId: "one", pinId: second.id, overId: first.id });
+    const third = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/third.md" }) as { id: string };
+    await h.behavior.callRpc("arrange", { threadId: "one", order: [second.id, first.id, third.id], more: [third.id] });
     const { harness: reloaded } = await h.lifecycle.reload(plugin);
     disposers.push(() => reloaded.lifecycle.dispose());
     expect(await reloaded.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [second, first, third] });
-    await expect(reloaded.behavior.callRpc("move", { threadId: "two", pinId: first.id, overId: second.id })).rejects.toThrow("changed");
+    expect(await reloaded.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [third.id] });
+    await expect(reloaded.behavior.callRpc("arrange", { threadId: "one", order: [first.id, second.id], more: [] })).rejects.toThrow("changed");
+    await expect(reloaded.behavior.callRpc("arrange", { threadId: "two", order: [first.id], more: [] })).rejects.toThrow("changed");
+    const { undoToken } = await reloaded.behavior.callRpc("remove", { threadId: "one", pinId: third.id }) as { undoToken: string };
+    expect(await reloaded.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [] });
+    await reloaded.behavior.callRpc("undo", { threadId: "one", undoToken });
+    expect(await reloaded.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [third.id] });
   });
   it("suggests recent normalized changes and links, checks them on the host, and excludes existing pins", async () => {
     const h = setup([

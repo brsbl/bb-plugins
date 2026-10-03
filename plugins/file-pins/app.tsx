@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { definePluginApp, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
-import type { RecentFile, Reference, rpcContract } from "./contract.js";
+import { MAX_PINS, type RecentFile, type Reference, type rpcContract } from "./contract.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./components/ui/context-menu.js";
 import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger, PinPopoverAnchor } from "./pin-popover.js";
 import { CustomizePins } from "./customize-pins.js";
 import { FilePicker } from "./file-picker.js";
+import { addToStrip, layoutPins, movePin, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, removeFromStrip, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { cn } from "./lib/utils.js";
 
-const linkClass = "group inline-flex h-7 min-w-0 max-w-48 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const linkClass = `group inline-flex h-7 min-w-0 ${PIN_MAX_WIDTH_CLASS} items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 const launchers = new Map<string, () => void>();
 function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -23,17 +24,18 @@ function PinStrip({ threadId }: { threadId: string }) {
   const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
   const [pins, setPins] = useState<Reference[]>([]);
+  const [more, setMore] = useState<string[]>([]);
   const [picker, setPicker] = useState(false);
   const [customizing, setCustomizing] = useState(false);
   const [recent, setRecent] = useState<RecentFile[]>([]);
   const [busy, setBusy] = useState(false);
-  const [visible, setVisible] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
-  const row = useRef<HTMLDivElement>(null);
-  const measure = useRef<HTMLDivElement>(null);
-  const label = useRef<HTMLSpanElement>(null);
+  const zone = useRef<HTMLSpanElement>(null);
+  const slot = useRef<HTMLSpanElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
-  const moreMeasure = useRef<HTMLSpanElement>(null);
+  const restoreFocus = useRef(false);
+  const arranging = useRef({ pending: 0, queue: Promise.resolve() });
+  const capacity = useMeasurePinCapacity(zone, slot);
   const generation = useRef(0);
   const alive = useRef(true);
   const recentGeneration = useRef(0);
@@ -42,7 +44,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     const request = ++generation.current;
     try {
       const result = await rpc.call("inspect", { threadId });
-      if (alive.current && request === generation.current) setPins(result.pins);
+      if (alive.current && request === generation.current && arranging.current.pending === 0) { setPins(result.pins); setMore(result.more); }
     } catch (cause) { report(cause); }
   }, [rpc, threadId, report]);
   const refreshRecent = useCallback(async () => {
@@ -72,23 +74,11 @@ function PinStrip({ threadId }: { threadId: string }) {
   useRealtime("pins-changed", (payload) => {
     if (payload && typeof payload === "object" && "threadId" in payload && payload.threadId === threadId) void refresh();
   });
-  useLayoutEffect(() => {
-    if (!row.current || !measure.current) return;
-    const fit = () => {
-      const widths = Array.from(measure.current!.children, (child) => child.getBoundingClientRect().width);
-      const space = row.current!.clientWidth - (label.current?.offsetWidth ?? 0) - (addButton.current?.offsetWidth ?? 0) - 12;
-      const total = widths.reduce((sum, width) => sum + width + 4, 0);
-      if (total <= space) { setVisible(widths.length); return; }
-      const available = space - (moreMeasure.current?.offsetWidth ?? 36) - 4;
-      let used = 0, count = 0;
-      for (const width of widths) { if (used + width + 4 > available) break; used += width + 4; count++; }
-      setVisible(count);
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(row.current); observer.observe(measure.current);
-    return () => observer.disconnect();
-  }, [pins, customizing]);
+  useEffect(() => {
+    if (customizing || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    addButton.current?.focus();
+  }, [customizing]);
   async function unpin(pin: Reference) {
     if (busy) return;
     setBusy(true);
@@ -114,12 +104,19 @@ function PinStrip({ threadId }: { threadId: string }) {
       if (!opened && alive.current) navigate.experimental_openFilePreview({ target: { kind: "host", hostId: pin.hostId, path: pin.path }, location: null });
     }).catch((error) => { report(error); void refresh(); });
   }
-  async function move(pinId: string, overId: string) {
-    if (busy) return;
-    setBusy(true);
-    try { await rpc.call("move", { threadId, pinId, overId }); await refresh(); }
-    catch (error) { report(error); }
-    finally { if (alive.current) setBusy(false); }
+  const layout = layoutPins(pins, more, capacity);
+  const current: Arrangement = { order: pins.map((pin) => pin.id), more };
+  function arrange(next: Arrangement | null) {
+    if (!next) return;
+    // Apply locally first, like bb's footer preferences; saves run in order and
+    // refreshes wait until the last one lands so the strip never steps back.
+    generation.current++;
+    setPins(next.order.map((id) => pins.find((pin) => pin.id === id)!));
+    setMore(next.more);
+    const saves = arranging.current;
+    saves.pending++;
+    saves.queue = saves.queue.then(() => rpc.call("arrange", { threadId, ...next })).then(() => undefined, report)
+      .finally(() => { if (--saves.pending === 0) void refresh(); });
   }
   async function pinRecent(file: RecentFile) {
     if (busy) return;
@@ -129,9 +126,10 @@ function PinStrip({ threadId }: { threadId: string }) {
     finally { if (alive.current) setBusy(false); }
   }
   function customize() { setPicker(false); setMoreOpen(false); setCustomizing(true); }
+  function doneCustomizing() { restoreFocus.current = true; setCustomizing(false); }
   function reference(pin: Reference, inList = false) {
     const title = `${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
-    if (pin.status === "missing") return <span key={pin.id} className={`relative inline-flex min-w-0 ${inList ? "w-full" : "max-w-48"}`} title={title}>
+    if (pin.status === "missing") return <span key={pin.id} className={`relative inline-flex min-w-0 ${inList ? "w-full" : PIN_MAX_WIDTH_CLASS}`} title={title}>
       <span aria-label={`${pin.name} (missing)`} className={cn(linkClass, "cursor-default rounded-none pr-4 text-destructive/55 hover:text-destructive/55", inList && "w-full max-w-none")}>
         <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
@@ -149,23 +147,26 @@ function PinStrip({ threadId }: { threadId: string }) {
       </ContextMenuContent>
     </ContextMenu>;
   }
-  const overflow = pins.slice(visible);
-  return <>
-    {customizing ? <CustomizePins pins={pins} busy={busy} onMove={(id, over) => void move(id, over)} onRemove={(pin) => void unpin(pin)} onDone={() => setCustomizing(false)} /> :
+  return <div className="relative min-w-0">
+    {customizing ? <CustomizePins layout={layout} capacity={capacity} busy={busy} onDone={doneCustomizing}
+      onRemoveFromStrip={(id) => arrange(removeFromStrip(layout, current, id))}
+      onAddToStrip={(id) => arrange(addToStrip(layout, current, id))}
+      onMove={(id, overId) => arrange(movePin(layout, current, id, overId))}
+      onUnpin={(pin) => void unpin(pin)} /> :
       <Popover open={picker} onOpenChange={setPicker}>
-        {pins.length > 0 ? <section aria-label="Pinned files" className="relative min-w-0 px-1 py-1">
-          <div ref={row} className="flex min-w-0 items-center gap-1">
-            <span ref={label} className="mr-1 shrink-0 text-xs text-muted-foreground">Pinned</span>
-            {pins.slice(0, visible).map((pin) => reference(pin))}
-            {overflow.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-              <PopoverTrigger asChild><button type="button" aria-label={`${overflow.length} more pinned files`} className={`${linkClass} shrink-0 tabular-nums`}>+{overflow.length}</button></PopoverTrigger>
-              <PopoverContent aria-label="More pinned files" className="w-72 p-1"><div className="max-h-64 space-y-0.5 overflow-y-auto">{overflow.map((pin) => reference(pin, true))}</div></PopoverContent>
+        {pins.length > 0 ? <section aria-label="Pinned files" className="min-w-0 px-1 py-1">
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="mr-1 shrink-0 text-xs text-muted-foreground">Pinned</span>
+            {layout.strip.map((pin) => reference(pin))}
+            {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+              <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more pinned files`} className={`${linkClass} shrink-0 tabular-nums`}>+{layout.more.length}</button></PopoverTrigger>
+              <PopoverContent aria-label="More pinned files" className="w-72 p-1">
+                <div className="max-h-64 space-y-0.5 overflow-y-auto">{layout.more.map((pin) => reference(pin, true))}</div>
+                <div role="separator" className="-mx-1 my-1 h-px bg-muted" />
+                <button type="button" className={cn(linkClass, "w-full max-w-none")} onClick={customize}>Customize pins</button>
+              </PopoverContent>
             </Popover>}
             <PopoverTrigger asChild><button ref={addButton} type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
-          </div>
-          <div aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 h-0 w-0 overflow-hidden">
-            <div ref={measure} className="flex w-max">{pins.map((pin) => <span key={pin.id} className={`${linkClass} shrink-0 ${pin.status === "missing" ? "pr-4" : ""}`}><PinContents pin={pin} /></span>)}</div>
-            <span ref={moreMeasure} className={`${linkClass} w-max tabular-nums`}>+{pins.length}</span>
           </div>
         </section> : recent.length > 0 ? <section aria-label="Suggested pins" className="flex min-w-0 items-center gap-1 px-1 py-1">
           <span className="shrink-0 text-xs text-muted-foreground">Recent</span>
@@ -176,7 +177,15 @@ function PinStrip({ threadId }: { threadId: string }) {
           <FilePicker threadId={threadId} recent={recent} hasPins={pins.length > 0} onClose={() => setPicker(false)} onPinned={refresh} onCustomize={customize} />
         </PopoverContent>
       </Popover>}
-  </>;
+    {/* Mirrors the strip row so capacity is the same in the strip and in Customize pins. */}
+    <div aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
+      <span className="mr-1 shrink-0 text-xs">Pinned</span>
+      <span ref={zone} className="min-w-0 flex-1" />
+      <span className={`${linkClass} shrink-0 tabular-nums`}>+{MAX_PINS}</span>
+      <span className={`${linkClass} shrink-0 px-1`}>+</span>
+    </div>
+    <span ref={slot} aria-hidden="true" className={cn(PIN_SLOT_CLASS, "pointer-events-none invisible absolute left-0 top-0 h-0")} />
+  </div>;
 }
 function PinsBanner() {
   const composer = useComposer();

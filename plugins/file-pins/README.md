@@ -20,10 +20,11 @@ than one machine is enrolled, the search row lets you choose the file's machine.
 
 Pins read as quiet references above the composer, with extra files in **+N**.
 Hover a filename for its full path and machine. Right-click a pin to **Unpin**;
-the toast offers **Undo**. Choose **Customize pins** in the picker options or a pin's
-context menu to edit the strip in place: drag horizontally or use Space/arrow
-keys to reorder, remove files, then
-choose **Done**. Missing filenames and icons have a light red tint and are labeled for assistive technology;
+the toast offers **Undo**. **Customize pins** (in the picker options, the **+N** list or a
+pin's context menu) works like bb's sidebar footer customization: the strip row shows as
+many pins as fit, with dashed empty slots, and **More pins** lists the rest. Drag or use
+Space/arrow keys to reorder within or between them, use the − and + badges to move a pin,
+× to unpin it, then choose **Done** or press Escape. Missing filenames and icons have a light red tint and are labeled for assistive technology;
 only their small **×** removes them. Availability refreshes on focus and every
 30 seconds.
 

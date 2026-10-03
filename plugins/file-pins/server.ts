@@ -1,11 +1,11 @@
 import { recentPaths } from "./recent-files.js";
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
-import { CHANGED, MAX_PINS, hostContract, pinsSchema, rpcContract, type Pin, type Reference } from "./contract.js";
+import { CHANGED, MAX_PINS, hostContract, moreSchema, pinsSchema, rpcContract, type Pin, type Reference } from "./contract.js";
 
 export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({ contract: hostContract });
-  const undos = new Map<string, { threadId: string; pin: Pin; index: number; expires: number }>();
+  const undos = new Map<string, { threadId: string; pin: Pin; index: number; more: boolean; expires: number }>();
   // All read-modify-write operations share a queue so CLI/UI writes cannot lose pins.
   let writes = Promise.resolve();
   const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
@@ -14,10 +14,14 @@ export default function plugin(bb: BbPluginApi): void {
     return result;
   };
   const key = (threadId: string) => `thread:${threadId}:pins:v1`;
+  const moreKey = (threadId: string) => `thread:${threadId}:more:v1`;
   const read = async (threadId: string): Promise<Pin[]> =>
     pinsSchema.parse((await bb.storage.kv.get(key(threadId))) ?? []);
-  const save = async (threadId: string, pins: Pin[]) => {
+  const readMore = async (threadId: string, pins: Pin[]): Promise<string[]> =>
+    moreSchema.parse((await bb.storage.kv.get(moreKey(threadId))) ?? []).filter((id) => pins.some((pin) => pin.id === id));
+  const save = async (threadId: string, pins: Pin[], more?: string[]) => {
     await bb.storage.kv.set(key(threadId), pins);
+    if (more) await bb.storage.kv.set(moreKey(threadId), more);
     bb.realtime.publish(CHANGED, { threadId });
   };
   const thread = async (threadId: string) => {
@@ -36,6 +40,11 @@ export default function plugin(bb: BbPluginApi): void {
     await writes;
     return { pins: await read(threadId) };
   };
+  const without = async (threadId: string, pins: Pin[], pinId: string) => {
+    const more = await readMore(threadId, pins);
+    await save(threadId, pins.filter((item) => item.id !== pinId), more.filter((id) => id !== pinId));
+    return more.includes(pinId);
+  };
   const pin = async (threadId: string, hostId: string, path: string, cwd?: string, signal?: AbortSignal) => {
     await thread(threadId);
     const file = await host.call("resolveFile", { path, ...(cwd ? { cwd } : {}) }, { hostId, signal });
@@ -53,9 +62,8 @@ export default function plugin(bb: BbPluginApi): void {
   const unpin = (threadId: string, pinId: string) => serialize(async () => {
     await thread(threadId);
     const pins = await read(threadId);
-    const remaining = pins.filter((item) => item.id !== pinId);
-    if (remaining.length === pins.length) return { removed: false };
-    await save(threadId, remaining);
+    if (!pins.some((item) => item.id === pinId)) return { removed: false };
+    await without(threadId, pins, pinId);
     return { removed: true };
   });
 
@@ -77,17 +85,16 @@ export default function plugin(bb: BbPluginApi): void {
       return { files: files.filter((file) => !pins.some((pin) => pin.hostId === environment.hostId && pin.path === file.path))
         .slice(0, 12).map((file) => ({ ...file, hostId: environment.hostId })) };
     },
-    move: ({ threadId, pinId, overId }) => serialize(async () => {
+    arrange: ({ threadId, order, more }) => serialize(async () => {
       await thread(threadId);
       const pins = await read(threadId);
-      const from = pins.findIndex((pin) => pin.id === pinId);
-      const to = pins.findIndex((pin) => pin.id === overId);
-      if (from < 0 || to < 0) throw new Error("These pins changed. Try again.");
-      if (from !== to) {
-        pins.splice(to, 0, pins.splice(from, 1)[0]!);
-        await save(threadId, pins);
+      const arranged = order.map((pinId) => pins.find((pin) => pin.id === pinId));
+      if (order.length !== pins.length || new Set(order).size !== pins.length || arranged.some((pin) => !pin) || more.some((pinId) => !order.includes(pinId))) {
+        throw new Error("These pins changed. Try again.");
       }
-      return { pins };
+      const next = { pins: arranged as Pin[], more: [...new Set(more)] };
+      await save(threadId, next.pins, next.more);
+      return next;
     }),
     inspect: async ({ threadId }) => {
       const { pins } = await list(threadId);
@@ -104,7 +111,7 @@ export default function plugin(bb: BbPluginApi): void {
           result.push({ ...pinned, hostName: machine?.name ?? hostId, status: fact?.status ?? "unavailable", moss: fact?.moss ?? false });
         }
       }
-      return { pins: pins.map((pin) => result.find((item) => item.id === pin.id)!) };
+      return { pins: pins.map((pin) => result.find((item) => item.id === pin.id)!), more: await readMore(threadId, pins) };
     },
     search: async ({ threadId, hostId, query }) => {
       const target = await thread(threadId);
@@ -119,11 +126,11 @@ export default function plugin(bb: BbPluginApi): void {
       const pins = await read(threadId);
       const index = pins.findIndex((pin) => pin.id === pinId);
       if (index < 0) return { undoToken: null };
-      await save(threadId, pins.filter((pin) => pin.id !== pinId));
+      const more = await without(threadId, pins, pinId);
       for (const [token, undo] of undos) if (undo.expires < Date.now()) undos.delete(token);
       if (undos.size >= 100) undos.delete(undos.keys().next().value!);
       const undoToken = randomUUID();
-      undos.set(undoToken, { threadId, pin: pins[index]!, index, expires: Date.now() + 60_000 });
+      undos.set(undoToken, { threadId, pin: pins[index]!, index, more, expires: Date.now() + 60_000 });
       return { undoToken };
     }),
     undo: ({ threadId, undoToken }) => serialize(async () => {
@@ -134,8 +141,9 @@ export default function plugin(bb: BbPluginApi): void {
       const existing = pins.find((pin) => pin.id === undo.pin.id || (pin.hostId === undo.pin.hostId && pin.path === undo.pin.path));
       if (existing) { undos.delete(undoToken); return existing; }
       if (pins.length >= MAX_PINS) throw new Error("Unpin another file before restoring this pin.");
+      const more = await readMore(threadId, pins);
       pins.splice(Math.min(undo.index, pins.length), 0, undo.pin);
-      await save(threadId, pins);
+      await save(threadId, pins, undo.more ? [...more, undo.pin.id] : more);
       undos.delete(undoToken);
       return undo.pin;
     }),
@@ -173,6 +181,7 @@ export default function plugin(bb: BbPluginApi): void {
   bb.events.on("thread.deleted", ({ thread: deleted }) => serialize(async () => {
     for (const [token, undo] of undos) if (undo.threadId === deleted.id) undos.delete(token);
     await bb.storage.kv.delete(key(deleted.id));
+    await bb.storage.kv.delete(moreKey(deleted.id));
     bb.realtime.publish(CHANGED, { threadId: deleted.id });
   }));
 
