@@ -132,17 +132,6 @@ describe("bb ThreadChat contract", () => {
     expect(columns.every((column) => lists.some((list) => list.contains(column)))).toBe(true);
   });
 
-  it("moves only a person's message actions", () => {
-    load();
-    const actions = matches(".bbd-im-chat [data-message-column] > .ml-auto .relative.w-full > .absolute.top-0");
-    expect(actions).toHaveLength(3);
-    for (const row of actions) {
-      expect(isPerson(row)).toBe(true);
-      expect(row.querySelector('button[aria-label="Copy message"]')).not.toBeNull();
-      expect(row.querySelector("[data-markdown-preview]")).toBeNull();
-    }
-  });
-
   it("lays every message's action row over its last line, a person's and the agent's", () => {
     load();
     const columns = Array.from(document.querySelectorAll(CHAT_CONTRACT_PROBES.message));
