@@ -1,21 +1,25 @@
 # Thread Organizer
 
 Thread Organizer turns native bb thread sections into a configurable workflow.
-It keeps unread agent output in one attention queue without losing each
-thread’s actual stage.
+It keeps unread agent output in Inbox and lets plugins have their own inboxes.
 
 ![Thread Organizer workflow sections in bb](docs/screenshot.png)
+
+![Thread Organizer workflow settings](https://github.com/user-attachments/assets/4dba26ce-4033-4f4a-929d-98c630e72e57)
 
 ## Behavior
 
 - New threads stay in the native Threads section until a user or agent explicitly
   moves them into a workflow stage. Reordering sections never assigns new work.
-- Running threads appear in their remembered workflow stage, or Threads when
+- Unclaimed running threads appear in their remembered workflow stage, or Threads when
   they have not been assigned one.
-- Idle unread threads appear in Inbox and stay there after being marked read.
+- Unclaimed idle unread threads appear in the main Inbox and stay after being marked read.
+- Additional inboxes receive threads from a selected plugin. Claimed threads stay
+  in that inbox until you move or archive them, even after reading or resuming work.
+  Opening a thread marks it read normally; it never also appears in the main Inbox.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.
-- Starting work again restores the thread’s remembered stage.
+- Starting unclaimed work again restores the thread’s remembered stage.
 - A user move changes the remembered stage. `bb organizer phase <stage-key>`
   moves it explicitly.
 - Inbox keeps that system behavior even when its visible title changes.
@@ -31,7 +35,7 @@ thread’s actual stage.
   `bb organizer section rule <stage-key> --set <text>`.
 - Section expansion and collapse are owned by bb and the user; Thread Organizer
   never changes them automatically.
-- Reordering a non-Inbox stage in the native sidebar saves the same workflow
+- Reordering a section other than the main Inbox in the native sidebar saves the same workflow
   order used by plugin settings and future agent instructions.
 - Automation-origin root threads follow the same workflow as ordinary roots.
 - Thread Organizer never renames threads. Moving between workflow stages leaves
@@ -53,7 +57,8 @@ Open Thread Organizer in bb’s plugin settings. The workflow editor lets you:
 - rename Inbox while leaving its routing protected;
 - add, remove, reorder, and rename other sections;
 - describe what belongs in each section;
-- give a section an entry prompt that is sent to a thread when it lands there.
+- give a workflow section an entry prompt that is sent when a thread lands there;
+- choose **Inbox · <Plugin name>** in the Type column to receive that plugin’s threads.
 
 The defaults are Planning, Spec Review, Building, Testing / Deploy, Handoff,
 and On Hold. When an agent has enough context to determine that its current
@@ -62,7 +67,7 @@ the context is insufficient, the thread stays where it is.
 
 ### Entry prompts
 
-Every section has an **Entry prompt** field beside its rule. Whenever a thread
+Workflow sections can have an **Entry prompt** beside their rule. Inboxes never send entry prompts. Clear an existing prompt before changing a workflow section into an inbox. Whenever a thread
 lands in that section — you dragged it there, `bb thread update --section`
 moved it, or its agent ran `bb organizer phase <key>` — the plugin sends the
 prompt to that thread as a follow-up message. It appears in the thread as a
@@ -95,7 +100,7 @@ bb organizer phase testing-deploy
 bb organizer phase on-hold
 ```
 
-Inbox is system-managed and cannot be selected by the CLI. The bundled
+Inboxes are managed automatically and cannot be selected by `bb organizer phase`. The bundled
 `thread-phase-organizer` skill contains only the invariant movement protocol.
 The plugin adds the current saved stage table—the source of truth for section
 names and rules—to the agent’s dynamic instructions whenever a session starts
@@ -109,6 +114,10 @@ thread, without opening Settings:
 ```bash
 bb organizer section list
 bb organizer section add "Review" --after testing-deploy --rule "A PR is complete and needs its one review."
+bb organizer section add "Digests" --inbox --catches-plugin digests --rule "Published digest issues."
+bb organizer section type digests
+bb organizer section type digests --set stage
+bb organizer section type digests --set inbox --catches-plugin digests
 bb organizer prompt                      # every section and its prompt
 bb organizer prompt review               # one section's prompt
 bb organizer prompt review --set "Run /slop-cop on this PR, then /slim-pr, /write-pr, and /merge-ready."
@@ -126,6 +135,22 @@ prompt, titles must be unique, rules are limited to 240 characters, and
 prompts to 2000. Every save names the revision it was based on; a save based
 on a workflow that changed since then is refused, the settings page holds Save
 until you discard your edits and reload, and the sidebar refreshes its copy.
+Each additional inbox needs a unique plugin id. Existing settings keep their
+behavior without migration; configuration version 2 and thread-state version 5
+remain supported. **Downgrading after adding another inbox requires converting
+extra inboxes back to workflow sections first.** Older Organizer releases reject
+configurations containing more than one inbox.
+
+### Plugin integration
+
+An inbox matches a root thread’s `originPluginId` or an explicit `{ inbox: true }`
+marker in the matching plugin’s thread metadata. A plugin can mark an automation
+run with `bb.sdk.threads.updatePluginMetadata({ threadId, set: { inbox: true } })`;
+Organizer reads that namespace with `getPluginMetadata({ threadId, pluginId })`.
+No title guessing or access to another plugin’s private storage is involved.
+Unassigned matching threads are claimed automatically; a thread already filed in
+a workflow section stays under the normal workflow rules. Moving a claimed thread
+out dismisses that plugin’s claim. The main Inbox remains the protected catch-all.
 
 ## Install
 
