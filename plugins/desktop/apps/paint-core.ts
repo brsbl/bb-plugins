@@ -1,10 +1,36 @@
-export type ToolId = "pencil" | "brush" | "eraser" | "fill" | "line" | "rectangle" | "ellipse" | "picker";
+export type ToolId =
+  | "freeform"
+  | "select"
+  | "eraser"
+  | "fill"
+  | "picker"
+  | "magnifier"
+  | "pencil"
+  | "brush"
+  | "airbrush"
+  | "text"
+  | "line"
+  | "curve"
+  | "rectangle"
+  | "polygon"
+  | "ellipse"
+  | "rounded";
+
+/** XP's three shape styles: outline only, outline filled with the other color, or a solid fill. */
+export type FillStyle = "outline" | "both" | "fill";
 
 export type Rgba = [number, number, number, number];
 
 export interface Point {
   x: number;
   y: number;
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export const TOOLS: readonly { id: ToolId; label: string }[] = [
@@ -16,7 +42,24 @@ export const TOOLS: readonly { id: ToolId; label: string }[] = [
   { id: "picker", label: "Pick color" },
   { id: "rectangle", label: "Rectangle" },
   { id: "ellipse", label: "Ellipse" },
+  { id: "freeform", label: "Free-form select" },
+  { id: "select", label: "Select" },
+  { id: "magnifier", label: "Magnifier" },
+  { id: "airbrush", label: "Airbrush" },
+  { id: "text", label: "Text" },
+  { id: "curve", label: "Curve" },
+  { id: "polygon", label: "Polygon" },
+  { id: "rounded", label: "Rounded rectangle" },
 ];
+
+/** Tools whose options box offers XP's fill styles. */
+export const FILLED_TOOLS: readonly ToolId[] = ["rectangle", "polygon", "ellipse", "rounded"];
+
+/** Tools whose options box offers XP's opaque and transparent backgrounds. */
+export const BACKGROUND_TOOLS: readonly ToolId[] = ["freeform", "select", "text"];
+
+/** The Magnifier's levels, as XP offered them. */
+export const ZOOM_LEVELS: readonly number[] = [1, 2, 6, 8];
 
 export const PALETTE: readonly string[] = [
   "#000000",
@@ -88,6 +131,15 @@ export const TOOL_SIZES: Record<ToolId, readonly number[]> = {
   rectangle: [1, 2, 3, 4, 5],
   ellipse: [1, 2, 3, 4, 5],
   picker: [],
+  freeform: [],
+  select: [],
+  magnifier: [],
+  /** Spray radii. */
+  airbrush: [4, 8, 12],
+  text: [],
+  curve: [1, 2, 3, 4, 5],
+  polygon: [1, 2, 3, 4, 5],
+  rounded: [1, 2, 3, 4, 5],
 };
 
 export function defaultSizes(): Record<ToolId, number> {
@@ -100,6 +152,14 @@ export function defaultSizes(): Record<ToolId, number> {
     rectangle: 1,
     ellipse: 1,
     picker: 1,
+    freeform: 1,
+    select: 1,
+    magnifier: 1,
+    airbrush: 4,
+    text: 1,
+    curve: 1,
+    polygon: 1,
+    rounded: 1,
   };
 }
 
@@ -148,7 +208,7 @@ export function linePoints(from: Point, to: Point): Point[] {
   }
 }
 
-export function shapeBounds(from: Point, to: Point, square: boolean): { x: number; y: number; width: number; height: number } {
+export function shapeBounds(from: Point, to: Point, square: boolean): Rect {
   let dx = to.x - from.x;
   let dy = to.y - from.y;
   if (square) {
@@ -222,4 +282,89 @@ export function floodFill(
       }
     }
   }
+}
+
+/** Shift's constraint for line-like edges: the end moves to the nearest horizontal, vertical or 45° direction. */
+export function snapAngle(from: Point, to: Point): Point {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const step = (((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8);
+  if (step === 0 || step === 4) return { x: to.x, y: from.y };
+  if (step === 2 || step === 6) return { x: from.x, y: to.y };
+  const side = Math.max(Math.abs(dx), Math.abs(dy));
+  return { x: from.x + (step === 1 || step === 7 ? side : -side), y: from.y + (step === 1 || step === 3 ? side : -side) };
+}
+
+/** Up to `count` random pixels inside a circle, as one burst of the Airbrush. */
+export function sprayDots(center: Point, radius: number, count: number, random: () => number = Math.random): Point[] {
+  const dots: Point[] = [];
+  // Sampling the square and rejecting its corners keeps the cloud uniform; the attempt cap keeps a bad source finite.
+  for (let attempt = 0; attempt < count * 4 && dots.length < count; attempt += 1) {
+    const dx = Math.round((random() * 2 - 1) * radius);
+    const dy = Math.round((random() * 2 - 1) * radius);
+    if (dx * dx + dy * dy <= radius * radius) dots.push({ x: center.x + dx, y: center.y + dy });
+  }
+  return dots;
+}
+
+/** The part of a rect inside a width × height picture, or null when nothing is left. */
+export function clipRect(rect: Rect, width: number, height: number): Rect | null {
+  const left = Math.max(0, Math.min(rect.x, rect.x + rect.width));
+  const top = Math.max(0, Math.min(rect.y, rect.y + rect.height));
+  const right = Math.min(width, Math.max(rect.x, rect.x + rect.width));
+  const bottom = Math.min(height, Math.max(rect.y, rect.y + rect.height));
+  if (right <= left || bottom <= top) return null;
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+/** The pixels a free-form outline covers, clipped to the picture; each point is a whole pixel. */
+export function pathBounds(points: readonly Point[], width: number, height: number): Rect | null {
+  if (points.length === 0) return null;
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  return clipRect({ x: left, y: top, width: Math.max(...xs) - left + 1, height: Math.max(...ys) - top + 1 }, width, height);
+}
+
+export function containsPoint(rect: Rect, point: Point): boolean {
+  return point.x >= rect.x && point.y >= rect.y && point.x < rect.x + rect.width && point.y < rect.y + rect.height;
+}
+
+/** A transparent selection drops its pixels that match the background color, as XP's did. */
+export function knockOut(pixels: Uint8ClampedArray, rgba: Rgba): void {
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index] === rgba[0] && pixels[index + 1] === rgba[1] && pixels[index + 2] === rgba[2]) pixels[index + 3] = 0;
+  }
+}
+
+/** Which colors outline and fill a shape: the fill is the other color, and a solid shape uses the drawing color. */
+export function shapeColors(style: FillStyle, color: string, other: string): { stroke: string | null; fill: string | null } {
+  if (style === "outline") return { stroke: color, fill: null };
+  if (style === "both") return { stroke: color, fill: other };
+  return { stroke: null, fill: color };
+}
+
+/** Breaks typed text into lines no wider than `maxWidth`, splitting a word only when it alone is too wide. */
+export function wrapText(text: string, maxWidth: number, measure: (text: string) => number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    let line = "";
+    for (const word of paragraph.split(/(?<= )/)) {
+      if (measure(line + word.trimEnd()) <= maxWidth || line === "") {
+        line += word;
+      } else {
+        lines.push(line.trimEnd());
+        line = word;
+      }
+      while (measure(line.trimEnd()) > maxWidth && line.trimEnd().length > 1) {
+        let cut = line.length - 1;
+        while (cut > 1 && measure(line.slice(0, cut)) > maxWidth) cut -= 1;
+        lines.push(line.slice(0, cut));
+        line = line.slice(cut);
+      }
+    }
+    lines.push(line.trimEnd());
+  }
+  return lines;
 }
