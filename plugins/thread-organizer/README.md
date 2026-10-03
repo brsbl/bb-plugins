@@ -6,6 +6,8 @@ thread’s actual stage.
 
 ![Thread Organizer workflow sections in bb](docs/screenshot.png)
 
+![Optional return from Inbox after reading](https://github.com/user-attachments/assets/c08d8be0-43ca-4c6e-9f1b-11f99d20fbff)
+
 ## Behavior
 
 - New threads stay in the native Threads section until a user or agent explicitly
