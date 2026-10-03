@@ -67,17 +67,28 @@ describe("pointer lifecycle", () => {
     expect(g.target.releasePointerCapture).toHaveBeenCalledWith(1);
     expect(document.querySelector(".bbd-drag-shield")).toBeNull();
   });
-  it.each(["pointercancel", "lostpointercapture", "unmount"])("cancels on %s and releases everything", (reason) => {
+  it.each(["pointercancel", "lostpointercapture"])("ends a moved drag where it got to on %s, so a window never springs back", (reason) => {
     document.documentElement.style.userSelect = "text";
     const g = gesture();
     g.target.dispatchEvent(pointer("pointermove", 10));
-    if (reason === "unmount") g.cancel();
-    else g.target.dispatchEvent(pointer(reason, 10));
+    g.target.dispatchEvent(pointer(reason, 10));
     g.target.dispatchEvent(pointer("pointerup", 20));
-    expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true);
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
     expect(document.documentElement.style.userSelect).toBe("text");
     expect(document.querySelector(".bbd-drag-shield")).toBeNull();
     expect(g.target.releasePointerCapture).toHaveBeenCalledTimes(1);
+  });
+  it.each(["lostpointercapture", "unmount"])("cancels on %s before the pointer moves, or on unmount", (reason) => {
+    const g = gesture();
+    if (reason === "unmount") {
+      g.target.dispatchEvent(pointer("pointermove", 10));
+      g.cancel();
+      expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true);
+    } else {
+      g.target.dispatchEvent(pointer(reason, 0));
+      expect(g.end).toHaveBeenCalledExactlyOnceWith(true, false);
+    }
+    expect(document.querySelector(".bbd-drag-shield")).toBeNull();
   });
   it.each(["blur", "resize", "contextmenu", "keydown"])("keeps dragging through a window %s, as bb's resizers do", (type) => {
     const g = gesture();
