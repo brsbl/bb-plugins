@@ -1,5 +1,8 @@
 name: Organizer build artifact
-on: workflow_dispatch
+on:
+  push:
+    branches: [bb/organizer-return-after-read-thr_w2pahn78bi]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
