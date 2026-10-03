@@ -260,7 +260,7 @@ describe("workflow settings", () => {
     const inboxRule = rendered.getByTitle(INBOX_DESCRIPTION).parentElement!;
     expect(inboxTitle.disabled).toBe(false);
     expect(inboxRule.tagName).toBe("P");
-    expect(inboxRule.textContent).toContain("not claimed by another inbox");
+    expect(inboxRule.textContent).toContain("without another inbox");
     expect(rendered.queryByLabelText("Unread routing is automatic")).toBeNull();
 
     fireEvent.change(inboxTitle, { target: { value: "Needs Me" } });
@@ -396,7 +396,6 @@ describe("workflow settings", () => {
     await vi.waitFor(() => expect(scrolled).toContain(title));
 
     fireEvent.change(title, { target: { value: "Triage" } });
-    fireEvent.click(within(rendered.getByRole("dialog")).getByRole("button", { name: "Save" }));
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => expect(savedInput).not.toBeNull());
     expect(savedInput!.stages[savedInput!.stages.length - 1]).toMatchObject({
