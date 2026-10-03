@@ -593,6 +593,16 @@ export function BuddyListArt({ size = 40 }: { size?: number }) {
   );
 }
 
+function SentEnvelope() {
+  return (
+    <g transform="rotate(-16 36 14)">
+      <rect x="26.5" y="7" width="19" height="13.5" rx="1.5" fill={ICON.paper} stroke={ICON.paperEdge} />
+      <path d="M27 7.6 36 15.2 45 7.6" fill="none" stroke={ICON.paperEdge} strokeWidth="0.9" strokeLinejoin="round" />
+      <path d="M27.4 20 33.4 14.4M44.6 20 38.6 14.4" stroke={ICON.paperShade} strokeWidth="0.9" />
+    </g>
+  );
+}
+
 /** AIM's Send: the running figure dashing off with an envelope, speed lines behind it. */
 export function SendArt({ size = 40 }: { size?: number }) {
   return (
@@ -601,22 +611,21 @@ export function SendArt({ size = 40 }: { size?: number }) {
       <g transform="translate(-3 7) scale(0.82)">
         <Runner />
       </g>
-      <g transform="rotate(-16 36 14)">
-        <rect x="26.5" y="7" width="19" height="13.5" rx="1.5" fill={ICON.paper} stroke={ICON.paperEdge} />
-        <path d="M27 7.6 36 15.2 45 7.6" fill="none" stroke={ICON.paperEdge} strokeWidth="0.9" strokeLinejoin="round" />
-        <path d="M27.4 20 33.4 14.4M44.6 20 38.6 14.4" stroke={ICON.paperShade} strokeWidth="0.9" />
-      </g>
+      <SentEnvelope />
     </IconSvg>
   );
 }
 
-/** Stop for a running turn: a glossy red stop sign, ringed in white and without its lettering. */
+/** Stop for a running turn: Send's runner and envelope, halted (no speed lines), with a red stop badge. */
 export function StopArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>
-      <path d="M17.5 7.3h13l9.2 9.2v13l-9.2 9.2h-13l-9.2-9.2v-13Z" fill="url(#bbd-g-red)" stroke={ICON.redEdge} strokeLinejoin="round" />
-      <path d="M18.6 10.1h10.8l7.6 7.6v10.8l-7.6 7.6H18.6l-7.6-7.6V17.7Z" fill="none" stroke={ICON.paper} strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M14.5 18.5a10.5 10.5 0 0 1 8-6" stroke={ICON.paper} strokeOpacity="0.6" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <g transform="translate(-3 7) scale(0.82)">
+        <Runner />
+      </g>
+      <SentEnvelope />
+      <circle cx="37" cy="36" r="8.5" fill="url(#bbd-g-red)" stroke={ICON.redEdge} />
+      <rect x="33.6" y="32.6" width="6.8" height="6.8" rx="1" fill={ICON.paper} />
     </IconSvg>
   );
 }
