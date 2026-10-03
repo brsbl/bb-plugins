@@ -19,14 +19,14 @@ export default function plugin(bb: BbPluginApi): void {
     bb.realtime.publish(CHANGED, { threadId });
   };
   const thread = async (threadId: string) => {
-    const result = await bb.sdk.threads.get({ id: threadId });
+    const result = await bb.sdk.threads.get({ threadId });
     if (result.deletedAt !== null) throw new Error("This thread has been deleted.");
     return result;
   };
   const threadHost = async (threadId: string): Promise<string | null> => {
     const target = await thread(threadId);
     if (!target.environmentId) return null;
-    const environment = await bb.sdk.environments.get({ id: target.environmentId });
+    const environment = await bb.sdk.environments.get({ environmentId: target.environmentId });
     return environment.hostId;
   };
   const list = async (threadId: string) => {

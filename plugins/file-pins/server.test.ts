@@ -7,7 +7,7 @@ afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose
 function setup() {
   const { bb, harness } = createFakePluginHost({
     pluginId: "file-pins", experimental_hostEntry: true,
-    sdk: { threads: { get: async ({ id }) => makeThreadResponse({ id, environmentId: "env-mac" }) }, environments: { get: async () => ({ hostId: "mac" }) } },
+    sdk: { threads: { get: async ({ threadId }) => makeThreadResponse({ id: threadId, environmentId: "env-mac" }) }, environments: { get: async () => ({ hostId: "mac" }) } },
     experimental_callHostRpc: async ({ input, hostId }) => {
       if (hostId === "offline") throw new Error("Host offline");
       const { path } = input as { path: string };
