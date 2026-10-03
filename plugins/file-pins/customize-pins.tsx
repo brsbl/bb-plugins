@@ -37,7 +37,7 @@ export function CustomizePins({ pins, busy, onMove, onRemove, onDone }: {
 function PinRow({ pin, busy, reorderDisabled, onRemove }: { pin: Reference; busy: boolean; reorderDisabled: boolean; onRemove(): void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useSortable({ id: pin.id, disabled: reorderDisabled, transition: null, animateLayoutChanges: () => false });
   return <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), position: isDragging ? "relative" : undefined, zIndex: isDragging ? 1 : undefined }}
-    className={`relative flex shrink-0 items-center rounded text-xs ${pin.status === "missing" ? "bg-destructive/10 text-destructive" : "text-muted-foreground hover:bg-state-hover"}`}>
+    className={`relative flex shrink-0 items-center text-xs ${pin.status === "missing" ? "text-destructive/55" : "rounded text-muted-foreground hover:bg-state-hover"}`}>
     <button ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} disabled={reorderDisabled} aria-label={`Reorder ${pin.name}${pin.status === "missing" ? " (missing)" : ""}`}
       title={`${pin.path}\n${pin.hostName}\nSpace to pick up, arrow keys to move, Space to drop`}
       className="inline-flex h-7 max-w-48 cursor-grab touch-none items-center gap-1.5 rounded pl-1.5 pr-5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing">

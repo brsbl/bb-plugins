@@ -23,7 +23,7 @@ Hover a filename for its full path and machine. Right-click a pin to **Unpin**;
 the toast offers **Undo**. Choose **Customize pins** in the picker options or a pin's
 context menu to edit the strip in place: drag horizontally or use Space/arrow
 keys to reorder, remove files, then
-choose **Done**. Missing files have a light danger tint and are labeled for assistive technology;
+choose **Done**. Missing filenames and icons have a light red tint and are labeled for assistive technology;
 only their small **×** removes them. Availability refreshes on focus and every
 30 seconds.
 

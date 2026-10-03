@@ -7,6 +7,7 @@ import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverT
 import { CustomizePins } from "./customize-pins.js";
 import { FilePicker } from "./file-picker.js";
 import { ReferenceIcon } from "./reference-icon.js";
+import { cn } from "./lib/utils.js";
 
 const linkClass = "group inline-flex h-7 min-w-0 max-w-48 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const launchers = new Map<string, () => void>();
@@ -131,7 +132,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   function reference(pin: Reference, inList = false) {
     const title = `${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
     if (pin.status === "missing") return <span key={pin.id} className={`relative inline-flex min-w-0 ${inList ? "w-full" : "max-w-48"}`} title={title}>
-      <span aria-label={`${pin.name} (missing)`} className={`${linkClass} cursor-default bg-destructive/10 pr-4 text-destructive hover:text-destructive ${inList ? "w-full max-w-none" : ""}`}>
+      <span aria-label={`${pin.name} (missing)`} className={cn(linkClass, "cursor-default rounded-none pr-4 text-destructive/55 hover:text-destructive/55", inList && "w-full max-w-none")}>
         <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void unpin(pin)}
