@@ -674,6 +674,7 @@ function DoctrineLibrary({ subPath }: { subPath: string }) {
 
 const PROPOSAL_LABELS: Record<ProposalResult, string> = {
   added: "Added",
+  retired: "Retired",
   waiting: "Waiting to publish",
   rejected: "Rejected",
   cancelled: "Cancelled",
@@ -754,7 +755,10 @@ function ActivityGroup({
               <ProposalBadge result={proposal.result} />
             </td>
             <td className={`${ACTIVITY_CELL} whitespace-nowrap text-xs`}>
-              {(proposal.result === "added" || proposal.result === "waiting") && proposal.ruleId ? (
+              {(proposal.result === "added" ||
+                proposal.result === "retired" ||
+                proposal.result === "waiting") &&
+              proposal.ruleId ? (
                 <RuleLink id={proposal.ruleId} onOpen={onOpenRule} />
               ) : null}
             </td>

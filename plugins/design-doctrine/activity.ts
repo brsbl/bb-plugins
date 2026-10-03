@@ -7,12 +7,14 @@
 export type ProposalVerdict = "approved" | "rejected" | "cancelled";
 export type ProposalResult =
   | "added"
+  | "retired"
   | "waiting"
   | "rejected"
   | "cancelled"
   | "undecided";
 export type HarvestResult =
   | "added"
+  | "retired"
   | "waiting"
   | "rejected"
   | "cancelled"
@@ -38,19 +40,21 @@ export function ruleIdFromWrittenPath(writtenPath: string | null): string | null
  * An approval counts as added only once its rule is in the corpus being read.
  * An approval that never reached a commit, or a rule committed to a publication
  * that has not merged, is still waiting. A null `publishedRuleIds` means the
- * corpus could not be read, so the written path is trusted.
+ * corpus could not be read, so the written path is trusted. A published rule
+ * that was later retired is reported as retired rather than added.
  */
 export function proposalResult(
   verdict: ProposalVerdict | null,
   writtenPath: string | null,
   publishedRuleIds: ReadonlySet<string> | null,
+  retiredRuleIds: ReadonlySet<string> = new Set(),
 ): { result: ProposalResult; ruleId: string | null } {
   if (verdict === "rejected") return { result: "rejected", ruleId: null };
   if (verdict === "cancelled") return { result: "cancelled", ruleId: null };
   if (verdict === null) return { result: "undecided", ruleId: null };
   const ruleId = ruleIdFromWrittenPath(writtenPath);
   if (ruleId && (!publishedRuleIds || publishedRuleIds.has(ruleId))) {
-    return { result: "added", ruleId };
+    return { result: retiredRuleIds.has(ruleId) ? "retired" : "added", ruleId };
   }
   return { result: "waiting", ruleId };
 }
@@ -65,6 +69,7 @@ export function harvestResult(
 ): HarvestResult {
   if (proposals.some((proposal) => proposal.result === "added")) return "added";
   if (proposals.some((proposal) => proposal.result === "waiting")) return "waiting";
+  if (proposals.some((proposal) => proposal.result === "retired")) return "retired";
   if (isFailedOutcome(outcome)) return "failed";
   if (proposals.some((proposal) => proposal.result === "cancelled")) return "cancelled";
   if (proposals.some((proposal) => proposal.result === "rejected")) return "rejected";
@@ -94,6 +99,14 @@ export function harvestSummary(item: {
         note: waiting > 0 ? `${waiting} waiting to publish` : null,
       };
     }
+    case "retired":
+      return {
+        label: "Retired",
+        ruleIds: item.proposals.flatMap((proposal) =>
+          proposal.result === "retired" && proposal.ruleId ? [proposal.ruleId] : [],
+        ),
+        note: null,
+      };
     case "waiting":
       return { label: "Waiting to publish", ruleIds: [], note: null };
     case "failed":
