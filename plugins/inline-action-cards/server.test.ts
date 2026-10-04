@@ -16,7 +16,7 @@ it("contributes decision guidance to every thread without loading the skill", ()
   const instructions = provider!({ threadId: "thr_fresh", projectId: "proj_fresh" });
   expect(instructions).toBeTruthy();
   expect(instructions!.length).toBeLessThan(800);
-  for (const text of ["decision or approval", "sending an email", "merging/shipping", "switching a setting", "applying a change", "two options", "instead of asking in prose", "bb action-cards create", '::action{id="..."}', "own line", "what Yes does", "No declines", "3+ similar items", "bb action-cards create-table", '::actions{id="..."}', "bb action-cards claim", "bb action-cards report", "inline-action-cards skill"]) {
+  for (const text of ["decision or approval", "sending an email", "merging/shipping", "switching a setting", "applying a change", "two options", "instead of asking in prose", "bb action-cards create", '::action{id="..."}', "own line", "what Yes does", "No declines", "3+ similar items", "bb action-cards create-table", '::actions{id="..."}', "bb action-cards claim", "bb action-cards report", "inline-action-cards skill", "follow its note as part of approval", "If the note conflicts, do not act", "intent comment grants no approval"]) {
     expect(instructions).toContain(text);
   }
   expect(provider!({ threadId: "thr_other", projectId: "proj_other" })).toBe(instructions);

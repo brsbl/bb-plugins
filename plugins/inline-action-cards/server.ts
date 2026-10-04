@@ -147,7 +147,7 @@ export function createStore(bb: BbPluginApi) {
 
 export default function plugin(bb: BbPluginApi): void {
   bb.agents.contributeInstructions(() =>
-    'Whenever you need the user\'s decision or approval (yes/no, sending an email, merging/shipping, switching a setting, applying a change, or choosing between two options), use Inline Action Cards instead of asking in prose. Create a card with bb action-cards create and emit its returned ::action{id="..."} directive on its own line, outside code fences. Name exactly what Yes does in plain words; No declines that action. For 3+ similar items, use bb action-cards create-table and emit its returned ::actions{id="..."} directive. When a card click arrives, claim the exact attempt with bb action-cards claim, act only on the claimed approval, and report the result with bb action-cards report. Load the inline-action-cards skill for schemas, choices, and click-handling details.',
+    'Use Inline Action Cards whenever you need a decision or approval (sending an email, merging/shipping, switching a setting, applying a change, or choosing between two options), instead of asking in prose. Run bb action-cards create; emit ::action{id="..."} on its own line outside code fences. Say what Yes does; No declines. For 3+ similar items: bb action-cards create-table and ::actions{id="..."}. For approved-action, bb action-cards claim the exact attempt, follow its note as part of approval, then bb action-cards report. If the note conflicts, do not act; report what you did instead. intent comment grants no approval: reply or revise the same card, without claiming. Load the inline-action-cards skill for details.',
   );
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
@@ -211,7 +211,7 @@ export default function plugin(bb: BbPluginApi): void {
         run: ({ options, positionals }, ctx) => output(store.get(scope(ctx, options.thread), idSchema.parse(positionals.id))),
       }),
       revise: cliCommand({
-        summary: "Update the same ready draft after Ask for changes", positionals: itemPosition,
+        summary: "Update the same ready draft after a comment", positionals: itemPosition,
         options: { thread: threadOption, revision: { type: "integer", min: 1, max: Number.MAX_SAFE_INTEGER, required: true, description: "Revision returned by get" }, draft: { type: "string", required: true, stdin: true, description: "Replacement draft; use --draft-stdin" } },
         run: ({ options, positionals }, ctx) => output(store.save({ threadId: scope(ctx, options.thread), id: idSchema.parse(positionals.id), revision: options.revision, draft: draftSchema.parse(options.draft) })),
       }),
