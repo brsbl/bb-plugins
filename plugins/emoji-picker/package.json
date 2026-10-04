@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-emoji-picker",
   "version": "0.1.0",
-  "description": "Find, copy, and insert emojis without leaving bb.",
+  "description": "Type : in a composer to pick and insert an emoji.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -15,7 +15,7 @@
   },
   "bb": {
     "name": "Emoji Picker",
-    "description": "Find, copy, and insert emojis without leaving bb.",
+    "description": "Type : in a composer to pick and insert an emoji.",
     "branding": {
       "icon": "./assets/emoji-picker.svg"
     },

@@ -1,6 +1,6 @@
 # Emoji Picker
 
-Find, copy, and insert emojis without leaving bb. Search by name, keyword, shortcode, or emoji; browse eight categories; choose a skin tone; and return to recently used emojis.
+Type `:` in a composer to open the emoji picker. Pick an emoji to replace that colon, keeping the rest of your draft. Search by name, keyword, shortcode, or emoji; browse eight categories; choose a skin tone; and return to recently used emojis.
 
 ![Browse emoji categories](https://github.com/user-attachments/assets/0ae6cd21-7e7a-4538-8229-c41f40aace13)
 
@@ -16,9 +16,9 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/emoji-picke
 
 ## Use
 
-Open **Emoji Picker** in the sidebar and click an emoji to copy it. Use the smile button in a message composer to append an emoji to that draft. Picking never sends a message.
+Type `:` wherever you want an emoji in your draft, then search or browse the picker and select one. The chosen emoji replaces the colon. Dismiss the picker to keep the colon as punctuation. Picking never sends a message.
 
-Use the arrow keys to browse and Enter to select. From search, Down focuses the first result. Skin tone and the last 24 choices are remembered in this browser. If clipboard access is denied, the picker offers a selectable emoji for manual copying.
+Use the arrow keys to browse and Enter to select. From search, Down focuses the first result. Skin tone and the last 24 choices are remembered in this browser.
 
 The [Emoji Mart](https://github.com/missive/emoji-mart) Unicode 15 dataset is bundled for offline use. Emoji appearance and support depend on your operating system. The plugin sends no search or usage data to a server.
 

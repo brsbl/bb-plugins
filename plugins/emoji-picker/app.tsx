@@ -2,12 +2,10 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { definePluginApp, experimental_Icon as Icon, useComposer } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "./components/ui/popover";
 import { categories, categoryEmojis, emojis, nativeEmoji, readPreferences, searchEmojis, storageKey, tones, toneSamples, type Emoji, type Preferences } from "./emojis";
 
-function SmileIcon() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="size-4"><circle cx="12" cy="12" r="9" /><path d="M8 14a4.5 4.5 0 0 0 8 0" /><path d="M8 9h.01M16 9h.01" strokeWidth="3" /></svg>;
-}
+import { insertedColon } from "./trigger";
 
 const preferencesEvent = "bb:emoji-picker:preferences-changed";
 
@@ -35,13 +33,12 @@ function usePreferences() {
   return { preferences, update };
 }
 
-export function EmojiPicker({ onSelect, mode = "copy" }: { onSelect?: (value: string) => void; mode?: "copy" | "insert" }) {
+export function EmojiPicker({ onSelect }: { onSelect: (value: string) => void }) {
   const { preferences, update } = usePreferences();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("people");
   const [active, setActive] = useState<Emoji | null>(null);
   const [status, setStatus] = useState("");
-  const [copyFailed, setCopyFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const grid = useRef<HTMLDivElement>(null);
@@ -56,23 +53,19 @@ export function EmojiPicker({ onSelect, mode = "copy" }: { onSelect?: (value: st
     grid.current?.scrollTo?.({ top: 0 });
     setActive(null);
     setStatus("");
-    setCopyFailed(null);
   }, [query, category]);
 
-  async function pick(emoji: Emoji) {
+  function pick(emoji: Emoji) {
     if (busyRef.current) return;
     const value = nativeEmoji(emoji, preferences.tone);
     busyRef.current = true;
     setBusy(true);
-    setCopyFailed(null);
     try {
-      if (onSelect) onSelect(value);
-      else await navigator.clipboard.writeText(value);
+      onSelect(value);
       update((current) => ({ ...current, recent: [emoji.id, ...current.recent.filter((id) => id !== emoji.id)].slice(0, 24) }));
-      setStatus(`${value} ${mode === "copy" ? "Copied" : "Inserted"}`);
+
     } catch {
-      setStatus("Copy unavailable. Select the emoji below and copy it.");
-      setCopyFailed(value);
+      setStatus("The draft changed. Close this picker and type : again.");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -129,7 +122,7 @@ export function EmojiPicker({ onSelect, mode = "copy" }: { onSelect?: (value: st
       <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center text-2xl">{active ? nativeEmoji(active, preferences.tone) : "✨"}</span>
-          <div className="min-w-0 text-xs"><p className="truncate font-medium">{active?.name ?? (mode === "copy" ? "Click an emoji to copy" : "Click an emoji to insert")}</p><p className="truncate text-muted-foreground">{active ? `:${active.id}:` : "Find just the right expression"}</p></div>
+          <div className="min-w-0 text-xs"><p className="truncate font-medium">{active?.name ?? "Click an emoji to insert"}</p><p className="truncate text-muted-foreground">{active ? `:${active.id}:` : "Find just the right expression"}</p></div>
         </div>
         <label className="relative shrink-0 rounded-md border border-border bg-background p-1.5 focus-within:ring-2 focus-within:ring-ring" title="Skin tone">
           <span aria-hidden="true" className="text-xl">{toneSamples[preferences.tone]}</span>
@@ -137,29 +130,45 @@ export function EmojiPicker({ onSelect, mode = "copy" }: { onSelect?: (value: st
         </label>
       </div>
       <div className="min-h-7 px-4 pb-2 text-xs text-muted-foreground" role="status" aria-live="polite">{status || "↑ ↓ ← → to browse · Enter to select"}</div>
-      {copyFailed && <Input aria-label="Emoji to copy manually" readOnly value={copyFailed} className="mb-3 text-center" onFocus={(event) => event.target.select()} />}
     </section>
   );
 }
 
-function EmojiPage() {
-  return <div className="h-full overflow-y-auto p-4"><div className="mx-auto w-full max-w-sm overflow-hidden rounded-xl border border-border bg-card"><EmojiPicker /></div></div>;
-}
-
 export function ComposerEmojiPicker() {
   const composer = useComposer();
-  const [open, setOpen] = useState(false);
+  const scope = JSON.stringify(composer.scope);
+  const previous = useRef({ scope, text: composer.text });
+  const [trigger, setTrigger] = useState<{ scope: string; text: string; index: number } | null>(null);
+
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = { scope, text: composer.text };
+    if (before.scope !== scope) { setTrigger(null); return; }
+    if (before.text === composer.text) return;
+    const index = insertedColon(before.text, composer.text);
+    setTrigger(index === null ? null : { scope, text: composer.text, index });
+  }, [composer.text, scope]);
+
+  // Never apply a saved replacement to a different scope or a changed draft.
+  const open = !!trigger && trigger.scope === scope && trigger.text === composer.text;
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <span title="Insert emoji"><PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Insert emoji"><SmileIcon /></Button></PopoverTrigger></span>
+    <Popover open={open} onOpenChange={(open) => { if (!open) setTrigger(null); }}>
+      <PopoverAnchor asChild><span aria-hidden="true" className="pointer-events-none absolute h-0 w-0" /></PopoverAnchor>
       <PopoverContent aria-label="Insert emoji" side="top" align="start" className="w-96 max-w-[calc(100vw-2rem)] p-0" mobileTitle="Insert emoji" onMobileContentAnimationEnd={(isOpen) => { if (!isOpen) composer.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); composer.focus(); }}>
-        <EmojiPicker mode="insert" onSelect={(value) => { composer.updateText((current) => current + value); setOpen(false); }} />
+        <EmojiPicker key={open ? "open" : "closed"} onSelect={(value) => {
+          if (!trigger || trigger.scope !== JSON.stringify(composer.scope)) throw new Error("Draft changed");
+          composer.updateText((current) => {
+            if (current !== trigger.text) throw new Error("Draft changed");
+            return current.slice(0, trigger.index) + value + current.slice(trigger.index + 1);
+          });
+          setTrigger(null);
+          composer.focus();
+        }} />
       </PopoverContent>
     </Popover>
   );
 }
 
 export default definePluginApp((app) => {
-  app.slots.navPanel({ id: "picker", title: "Emoji Picker", icon: "Smile", path: "picker", component: EmojiPage });
-  app.composer.customize({ id: "emoji-picker", actions: [{ id: "insert-emoji", component: ComposerEmojiPicker }] });
+  app.composer.customize({ id: "emoji-picker", banners: [{ id: "colon-picker", chrome: "bare", component: ComposerEmojiPicker }] });
 });

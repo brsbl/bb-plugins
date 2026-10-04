@@ -110,7 +110,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/m
 
 ### Emoji Picker
 
-Find, copy, and insert emojis without leaving bb. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
+Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
 
 ![Browse emoji categories](https://github.com/user-attachments/assets/0ae6cd21-7e7a-4538-8229-c41f40aace13)
 
