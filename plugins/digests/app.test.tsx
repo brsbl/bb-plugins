@@ -156,6 +156,22 @@ describe("Digests app", () => {
     expect(slot.inspection.rpcCalls.some((call) => call.method === "setEnabled")).toBe(false);
   });
 
+  it("opens a dispatched issue even when realtime clears pending before its response arrives", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    let startingIds = ["reading"];
+    let finish: ((value: { threadId: string }) => void) | undefined;
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [definition], connections: [{ id: "gmail", name: "Gmail", status: "unknown" }], organizerReady: true, actionCardsAvailable: false, startingIds }),
+      runStatus: () => new Promise((resolve) => { finish = resolve; }),
+    } });
+    await waitFor(() => expect(finish).toBeDefined(), { timeout: 2000 });
+    startingIds = [];
+    await slot.behavior.emitRealtime("issues", {});
+    await waitFor(() => expect(slot.queryByText("Starting this issue…")).toBeNull());
+    finish!({ threadId: "thr_async" });
+    await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_async" }));
+  });
+
   it("checks sites automatically, persists banner dismissal, and retains the import link", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const connections = [{ id: "gmail", name: "Gmail", status: "signed-out", detail: null }, { id: "x", name: "X", status: "unknown", detail: null }];

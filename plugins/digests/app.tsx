@@ -373,6 +373,8 @@ function DigestsSettings() {
   const [checkingSites, setCheckingSites] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState<boolean | null>(null);
   const generation = useRef(0);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const load = useCallback(async () => {
     const request = ++generation.current;
     setLoading(true);
@@ -419,7 +421,7 @@ function DigestsSettings() {
       void Promise.all(startingKey.split(",").map(async (id) => {
         try {
           const result = await rpc.call("runStatus", { id });
-          if (active && result.threadId) navigate.toThread(result.threadId);
+          if (mounted.current && result.threadId) navigate.toThread(result.threadId);
         } catch { /* The persisted card error is loaded below. */ }
       })).finally(() => { if (active) void load(); });
     }, 1000);
