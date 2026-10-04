@@ -14,8 +14,11 @@ vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
     return new Proxy(composer, { get(target, key) {
       if (key === "experimental_submit") return async (options: Parameters<typeof composer.experimental_submit>[0]) => {
         submittedMessages.push(message);
-        return composer.experimental_submit(options);
+        const result = await composer.experimental_submit(options);
+        message = "";
+        return result;
       };
+      if (key === "text") return message;
       if (key === "setText") return (value: string) => { message = value; composer.setText(value); };
       if (key === "updateText") return (update: (value: string) => string) => composer.updateText((value) => { message = update(value); return message; });
       return Reflect.get(target, key);
@@ -246,7 +249,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
     fireEvent.click(screen.getByRole("button", { name: "Comment" }));
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
     expect(submittedMessages[0]).toContain(note);
-    expect(submittedMessages[0]).not.toMatch(/^(Send|Switch) /);
+    expect(submittedMessages[0]).toMatch(type === "reply" ? /^Escrow follow-up / : /^Switch digests /);
     const mention = slot.inspection.composer.mentions[0]!;
     host = await host.harness.lifecycle.reload(plugin);
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
