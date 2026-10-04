@@ -13,11 +13,11 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins -
 
 ## Use
 
-Click the pin button in the composer's action row. It adds a **Pinned Files** pill and
-"Pin this file: " at the cursor; finish the sentence with a path or a file name and send it.
-The pill carries this plugin's [skill](skills/file-pins/SKILL.md) to the agent, which finds the
-file (absolute, `~/`, or relative to the workspace or the thread's files), asks when it's
-ambiguous, pins it with `bb file-pins pin`, and confirms.
+Click the pin button in the composer's action row. It adds a **Pin files** pill at the cursor;
+type one or more paths or file names after it and send. The pill carries this plugin's
+[skill](skills/file-pins/SKILL.md) to the agent, which finds each file (absolute, `~/`, or relative
+to the workspace or the thread's files), asks about any that are ambiguous, pins them with
+`bb file-pins pin`, and confirms.
 
 Pinned files read as quiet file chips above the composer, in order, as many as fit; the strip never
 scrolls. Files that aren't pinned sit in the **⋯** list. File icons follow bb's file panel. Hover a filename for its full path and machine.
