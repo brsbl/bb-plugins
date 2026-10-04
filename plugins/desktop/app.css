@@ -1635,9 +1635,22 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   justify-content: flex-start;
 }
 
+/* bb's attachment row has its own end alignment, nested below the message wrappers above. */
+.bbd-im-chat [data-message-column] .mt-2.space-y-2:has(> .flex > button.cursor-zoom-in) {
+  clear: both;
+  display: flow-root;
+  margin-top: 6px;
+}
+
+.bbd-im-chat [data-message-column] .flex:has(> button.cursor-zoom-in) {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
 /* Messages sit 6 px apart, as close as AIM's lines, with nothing reserved for their actions below. */
 .bbd-im-chat [data-timeline-row-list="top-level"] {
   row-gap: 6px;
+  padding-inline: 4px;
 }
 
 /*
@@ -1653,12 +1666,12 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 /*
- * The actions sit over the bottom-right of the message's last line. Behind them, while bb shows them, a glass fill hugs
+ * The actions sit over the bottom-left of the message's last line. Behind them, while bb shows them, a glass fill hugs
  * just the buttons and fades out over 6 px above them, so no text shows behind the icons.
  */
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 {
-  right: 0;
-  left: auto;
+  right: auto;
+  left: 0;
   z-index: 0;
   margin: 0;
   padding: 0 4px;
@@ -1700,6 +1713,13 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 
 .bbd-im-chat [data-message-column] :is([data-markdown-preview], p, li, blockquote) {
   overflow-wrap: anywhere;
+}
+
+/* A quote is a block beneath the floated speaker label, never a border running through the name. */
+.bbd-im-chat [data-message-column] blockquote {
+  clear: both;
+  display: flow-root;
+  margin-block: 6px;
 }
 
 /* AIM's serif, a size up from bb's messages; code keeps bb's monospace. */
