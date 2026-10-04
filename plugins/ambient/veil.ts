@@ -159,7 +159,7 @@ ${ROOT} [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { ${HI
 ${COMPACT_COMPOSER} [data-overflow-fade] { ${HIDE} }
 ${COMPACT_COMPOSER} > .bg-background { background-color: transparent; }
 /* The shell also contains banners and footer controls. Only the input owns the glass. */
-${ROOT} [data-app-composer] [data-promptbox] { ${GLASS_SURFACE} }
+${ROOT} [data-app-composer] [data-promptbox] { ${BLUR} }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
 ${ROOT} [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
 ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
