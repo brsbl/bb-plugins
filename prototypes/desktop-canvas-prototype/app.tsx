@@ -303,7 +303,7 @@ function Desktop() {
       event.preventDefault(); const name = folderName.trim(); if (!name || (!folderEditor.id && layout.folders.length >= 100)) return;
       const id = folderEditor.id ?? `folder:${crypto.randomUUID()}`;
       setLayout(current => folderEditor.id ? { ...current, folders: current.folders.map(f => f.id === id ? { ...f, name } : f) }
-        : { ...current, folders: [...current.folders, { id, name }], positions: { ...current.positions, [id]: { x: (size.width / 2 - current.camera.x) / current.camera.zoom - FOLDER_WIDTH / 2, y: (size.height / 2 - current.camera.y) / current.camera.zoom - FOLDER_HEIGHT / 2 } } }));
+        : { ...current, folders: [...current.folders, { id, name }], positions: { ...current.positions, [id]: { x: (size.width / 2 - current.camera.x) / current.camera.zoom - FOLDER_WIDTH / 2, y: (size.height / 2 - current.camera.y) / current.camera.zoom - FOLDER_HEIGHT / 2 } } });
       setSelectedFolder(id); setFolderEditor(null); setFolderName("");
     }}><label>{folderEditor.id ? "Rename folder" : "New folder"}<input autoFocus aria-label="Folder name" maxLength={80} placeholder="Folder name" value={folderName} onChange={e => setFolderName(e.target.value)} /></label><div><Button variant="ghost" size="sm" onClick={() => setFolderEditor(null)}>Cancel</Button><Button size="sm" type="submit">{folderEditor.id ? "Save" : "Create"}</Button></div></form>}
 
