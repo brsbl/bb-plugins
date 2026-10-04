@@ -35,7 +35,6 @@
 .pr-group-title { display:flex; align-items:center; gap:6px; color:var(--muted-foreground); font-size:13px; padding:9px 10px; background:none; border:0; }
 .pr-group-title svg { transition:transform .15s ease; }
 .pr-group-title .pr-collapsed { transform:rotate(-90deg); }
-.pr-group-empty { padding:3px 10px 6px; font-size:12px; color:var(--muted-foreground); }
 .pr-row { display:flex; align-items:center; gap:3px; min-width:0; height:36px; margin:1px 0; padding:0 9px 0 5px; border-radius:8px; }
 .pr-row:hover { background:color-mix(in srgb,var(--muted) 60%,transparent); }
 .pr-row-selected { background:var(--muted); }
@@ -147,7 +146,12 @@
 .pr-undo>span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pr-undo>button:not(.pr-icon-button) { border:0; background:none; color:var(--foreground); text-decoration:underline; }
 .pr-changes { min-height:100%; }
-.pr-changes-loading { display:flex; align-items:center; gap:9px; color:var(--muted-foreground); padding:35px; }
+.pr-changes-loading { padding:28px; }
+.pr-loading { min-height:100px; width:100%; }
+.pr-loading>div { display:grid; gap:12px; padding:8px 0; animation:pr-pulse 2s ease-in-out infinite; }
+.pr-loading>div>div { height:14px; border-radius:6px; background:var(--muted); }
+.pr-loading>div>div:nth-child(2) { width:86%; }
+.pr-loading>div>div:last-child { width:62%; }
 .pr-changes-revision { display:flex; align-items:center; gap:10px; padding:14px 25px; border-bottom:1px solid var(--border); color:var(--muted-foreground); font-size:10px; }
 .pr-changes-revision .pr-subtle-link { margin-left:auto; }
 .pr-changes-layout { display:grid; grid-template-columns:minmax(140px,23%) minmax(0,1fr); min-height:350px; }
@@ -184,9 +188,10 @@
 .pr-link-preview p { font-size:11px; color:var(--muted-foreground); margin-top:7px; }
 .pr-link-preview small { display:block; font-size:10px; color:var(--muted-foreground); margin-top:8px; }
 .pr-sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+@keyframes pr-pulse { 50% { opacity:.5; } }
 @keyframes pr-spin { to { transform:rotate(360deg); } }
 .pr-spin { animation:pr-spin 1.2s linear infinite; }
-@media (prefers-reduced-motion:reduce) { .pr-spin { animation:none; } }
+@media (prefers-reduced-motion:reduce) { .pr-spin, .pr-loading>div { animation:none; } }
 @container (max-width: 1050px) {
   .pr-summary { display:flex; flex-direction:column; gap:0; padding:16px 24px 32px; }
   .pr-summary-main { display:contents; }

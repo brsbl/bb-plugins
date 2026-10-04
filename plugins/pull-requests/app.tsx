@@ -16,7 +16,7 @@ import { InboxMenu, type Sort } from "./inbox-menu";
 import "./app.css";
 
 type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
-type Group = "pinned" | "authored" | "review" | "other" | "history";
+type Group = "pinned" | "history";
 type Tab = "summary" | "changes";
 type Presentation = { icon: LucideIcon; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
 type ThreadContext = { threads: ThreadChoice[]; hosts: { id: string; name: string; connected: boolean }[]; nextCursor: string | null };
@@ -151,6 +151,12 @@ function External({ href, children, className = "" }: { href: string | null | un
 function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return <div className="pr-empty"><GitPullRequest size={28} strokeWidth={1.3} aria-hidden="true" /><h2>{title}</h2>{children && <p>{children}</p>}</div>;
 }
+// Match bb's DelayedLoading: keep the shell stable, reveal placeholders after 200ms.
+function Loading({ label }: { label: string }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { const timer = window.setTimeout(() => setVisible(true), 200); return () => window.clearTimeout(timer); }, []);
+  return <div className="pr-loading" role="status" aria-busy="true" aria-label={label}>{visible && <div aria-hidden="true"><div /><div /><div /></div>}</div>;
+}
 
 export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const rpc = useRpc<typeof rpcContract>();
@@ -168,6 +174,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const [collapsed, setCollapsed] = useState<Group[]>(session.collapsed);
   const [query, setQuery] = useState(session.query);
   const [booting, setBooting] = useState(true);
+  const [listLoading, setListLoading] = useState(true);
+  const [detailFailure, setDetailFailure] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
@@ -178,6 +186,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const [undo, setUndo] = useState<{ token: string; title: string } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const readGeneration = useRef(0);
+  const detailGeneration = useRef(0);
+  const detailRequest = useRef<{ id: string; promise: Promise<void> } | null>(null);
   const mounted = useRef(true);
   const order = useRef<string[]>([]);
   const selection = parseSelection(subPath);
@@ -192,40 +202,61 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const visibleItems = useMemo(() => items.map((item) => ({ ...item, links: item.links.filter((link) => !hiddenThreads.has(link.threadId)) })).filter((item) => item.links.length > 0), [items, hiddenThreads]);
   const selectedValue = detail?.id === selection.id ? detail : visibleItems.find((item) => item.id === selection.id) ?? null;
   const selected = selectedValue ? { ...selectedValue, links: selectedValue.links.filter((link) => !hiddenThreads.has(link.threadId)) } : null;
+  const detailLoading = !!selection.id && detail?.id !== selection.id && detailFailure !== selection.id;
   const applyItem = useCallback((item: PullRequestItem) => {
     ++readGeneration.current;
+    setListLoading(false); setBooting(false);
+    ++detailGeneration.current;
+    detailRequest.current = null;
     if (item.id === selectedId.current) setDetail(item);
     setItems((current) => { const existing = current.some((entry) => entry.id === item.id); return existing ? current.map((entry) => entry.id === item.id ? item : entry) : [...current, item]; });
   }, []);
+  const loadDetail = useCallback((id: string): Promise<void> => {
+    if (detailRequest.current?.id === id) return detailRequest.current.promise;
+    const generation = ++detailGeneration.current;
+    setDetailFailure(null);
+    const current = () => mounted.current && generation === detailGeneration.current && selectedId.current === id;
+    const promise = rpc.call("show", { id }).then((item) => {
+      if (current()) setDetail(item);
+    }).catch((reason) => {
+      if (!current()) return;
+      setDetail(null); setDetailFailure(id);
+      setItems((items) => items.map((item) => item.id === id ? { ...item, snapshot: null, sourceState: "unavailable", sourceMessage: message(reason) } : item));
+      setError(message(reason));
+    }).finally(() => { if (detailRequest.current?.promise === promise) detailRequest.current = null; });
+    detailRequest.current = { id, promise };
+    return promise;
+  }, [rpc]);
   const load = useCallback(async (reorder = false) => {
     const generation = ++readGeneration.current;
-    const all: PullRequestItem[] = [];
-    let cursor: string | undefined;
-    let result: Listing | null = null;
-    for (let page = 0; page < pageLimit; page++) {
-      result = await rpc.call("list", { view: "all", limit: 100, ...(cursor ? { cursor } : {}) });
-      all.push(...result.items); cursor = result.nextCursor ?? undefined;
-      if (!cursor) break;
-    }
-    if (!mounted.current || generation !== readGeneration.current || !result) return;
-    const byId = new Map(all.map((item) => [item.id, item]));
-    if (reorder || order.current.length === 0) order.current = [...byId.keys()];
-    else order.current = [...order.current.filter((id) => byId.has(id)), ...[...byId.keys()].filter((id) => !order.current.includes(id))];
-    setItems(order.current.map((id) => byId.get(id)!).filter(Boolean));
-    setCoverage(result.coverage); setTotal(result.total); setNextCursor(result.nextCursor);
-    const requestedId = selectedId.current;
-    if (requestedId) {
-      // Revoke private content immediately when the summary reports lost access.
-      const summary = byId.get(requestedId);
-      if (summary && !summary.snapshot) setDetail(summary);
-      try {
-        const current = await rpc.call("show", { id: requestedId });
-        if (mounted.current && generation === readGeneration.current && selectedId.current === requestedId) setDetail(current);
-      } catch (reason) {
-        if (mounted.current && generation === readGeneration.current && selectedId.current === requestedId) { setDetail(null); setItems((current) => current.map((item) => item.id === requestedId ? { ...item, snapshot: null, sourceState: "unavailable", sourceMessage: message(reason) } : item)); setError(message(reason)); }
+    setListLoading(true);
+    try {
+      const all: PullRequestItem[] = [];
+      let cursor: string | undefined;
+      let result: Listing | null = null;
+      for (let page = 0; page < pageLimit; page++) {
+        result = await rpc.call("list", { view: "all", limit: 100, ...(cursor ? { cursor } : {}) });
+        all.push(...result.items); cursor = result.nextCursor ?? undefined;
+        if (!cursor) break;
       }
-    }
-  }, [rpc, pageLimit]);
+      if (!mounted.current || generation !== readGeneration.current || !result) return;
+      const byId = new Map(all.map((item) => [item.id, item]));
+      if (reorder || order.current.length === 0) order.current = [...byId.keys()];
+      else order.current = [...order.current.filter((id) => byId.has(id)), ...[...byId.keys()].filter((id) => !order.current.includes(id))];
+      setItems(order.current.map((id) => byId.get(id)!).filter(Boolean));
+      setCoverage(result.coverage); setTotal(result.total); setNextCursor(result.nextCursor);
+      const requestedId = selectedId.current;
+      if (requestedId) {
+        // Revoke private content immediately when the summary reports lost access.
+        const summary = byId.get(requestedId);
+        if (summary && !summary.snapshot) {
+          ++detailGeneration.current; detailRequest.current = null;
+          setDetail(summary);
+        }
+        void loadDetail(requestedId);
+      }
+    } finally { if (mounted.current && generation === readGeneration.current) { setBooting(false); setListLoading(false); } }
+  }, [rpc, pageLimit, loadDetail]);
   const loadContext = useCallback(async () => {
     const result = await rpc.call("context", {});
     if (mounted.current) { setContext((current) => ({ ...result, threads: [...new Map([...current.threads, ...result.threads].map((thread) => [thread.id, thread])).values()] })); setContextEpoch((value) => value + 1); }
@@ -254,7 +285,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       await load(reorder);
       if (discover) await loadContext();
     } catch (reason) { if (mounted.current) setError(message(reason)); }
-    finally { if (mounted.current) { setRefreshing(false); setBooting(false); } }
+    finally { if (mounted.current) setRefreshing(false); }
   }, [rpc, load, loadContext]);
   const refreshRef = useRef(refresh); refreshRef.current = refresh;
   const loadRef = useRef(load); loadRef.current = load;
@@ -265,7 +296,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     const timer = window.setInterval(() => { setClock(Date.now()); if (document.visibilityState === "visible") void refreshRef.current(false); }, 60_000);
     const visibility = () => { if (document.visibilityState === "visible") { setClock(Date.now()); void refreshRef.current(false); } };
     document.addEventListener("visibilitychange", visibility);
-    return () => { mounted.current = false; ++readGeneration.current; window.clearInterval(timer); document.removeEventListener("visibilitychange", visibility); };
+    return () => { mounted.current = false; ++readGeneration.current; ++detailGeneration.current; window.clearInterval(timer); document.removeEventListener("visibilitychange", visibility); };
   }, [loadContext]);
   useEffect(() => { if (pageLimit > 1) void load().catch((reason) => setError(message(reason))); }, [pageLimit, load]);
   const wasConnected = useRef(false);
@@ -274,13 +305,11 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = session.scrollTop; }, []);
   useEffect(() => { Object.assign(session, { query, author, reviewer, sort, collapsed }); }, [query, author, reviewer, sort, collapsed]);
   useEffect(() => {
-    if (!selection.id) return;
-    let cancelled = false;
-    const generation = ++readGeneration.current;
+    ++detailGeneration.current;
+    detailRequest.current = null;
     setDetail(null);
-    void rpc.call("show", { id: selection.id }).then((item) => { if (!cancelled && generation === readGeneration.current) setDetail(item); }).catch((reason) => { if (!cancelled && generation === readGeneration.current) { setItems((current) => current.map((item) => item.id === selection.id ? { ...item, snapshot: null, sourceState: "unavailable", sourceMessage: message(reason) } : item)); setError(message(reason)); } });
-    return () => { cancelled = true; };
-  }, [selection.id, rpc]);
+    if (selection.id) void loadDetail(selection.id);
+  }, [selection.id, loadDetail]);
   const select = (id: string | null, tab: Tab = "summary") => navigate.toPluginPanel("requests", { subPath: id ? `${id}/${tab}` : "" });
   const sameLogin = (left: string | null | undefined, right: string | null | undefined) => !!left && !!right && left.toLowerCase() === right.toLowerCase();
   const authoredByMe = (item: PullRequestItem) => sameLogin(item.snapshot?.author, item.reader?.login);
@@ -297,10 +326,10 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     const time = (item: PullRequestItem) => Date.parse(item.snapshot?.updatedAt ?? "") || 0;
     return (sort === "title" ? (a.snapshot?.title ?? "").localeCompare(b.snapshot?.title ?? "") : sort === "oldest" ? time(a) - time(b) : time(b) - time(a)) || a.id.localeCompare(b.id);
   });
-  const groupFor = (item: PullRequestItem): Group => item.pinned ? "pinned" : ["merged", "closed"].includes(item.snapshot?.state ?? "") ? "history" : authoredByMe(item) ? "authored" : requestedFromMe(item) ? "review" : "other";
-  const groups = ([
-    ["pinned", "Pinned"], ["authored", "Authored by me"], ["review", "Needs my review"], ["other", "Other pull requests"], ["history", "Merged and closed"],
-  ] as const).map(([id, label]) => ({ id, label, items: filtered.filter((item) => groupFor(item) === id) }));
+  const isHistory = (item: PullRequestItem) => ["merged", "closed"].includes(item.snapshot?.state ?? "");
+  const pinned = filtered.filter((item) => item.pinned);
+  const active = filtered.filter((item) => !item.pinned && !isHistory(item));
+  const history = filtered.filter((item) => !item.pinned && isHistory(item));
   const hasFilters = !!(query || author || reviewer);
   const resetFilters = () => { setQuery(""); setAuthor(""); setReviewer(""); };
   const mutate = async (action: () => Promise<PullRequestItem>) => { try { const item = await action(); if (mounted.current) { applyItem(item); setError(null); } } catch (reason) { if (mounted.current) setError(message(reason)); } };
@@ -320,6 +349,10 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       <time className="pr-row-time" dateTime={snapshot?.updatedAt} title={snapshot ? `Updated ${new Date(snapshot.updatedAt).toLocaleString()}` : undefined}>{snapshot ? age(snapshot.updatedAt).replace(" ago", "").replace("just now", "now") : "—"}</time>
     </div>;
   };
+  const renderSection = (id: Group, label: string, items: PullRequestItem[]) => items.length > 0 && <section className="pr-list-group">
+    <button className="pr-group-title" type="button" aria-expanded={!collapsed.includes(id)} aria-controls={`pr-group-${id}`} onClick={() => setCollapsed((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])}>{label}<ChevronDown size={14} className={collapsed.includes(id) ? "pr-collapsed" : undefined} aria-hidden="true" /></button>
+    {!collapsed.includes(id) && <div id={`pr-group-${id}`}>{items.map(renderRow)}</div>}
+  </section>;
   return <main className={`pr-plugin${selection.id ? " pr-has-selection" : ""}`}>
     <aside className="pr-sidebar" aria-label="Pull requests">
       <header className="pr-list-header"><h1>Pull Requests</h1>
@@ -330,27 +363,26 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       <form className="pr-list-toolbar" onSubmit={(event) => { event.preventDefault(); const known = visibleItems.find((item) => item.url === query.trim().replace(/[?#].*$/, "")); if (known) select(known.id); else if (/^https:\/\/github\.com\//i.test(query.trim())) setLinking({ url: query.trim() }); }}><label className="pr-search"><Search size={17} aria-hidden="true" /><input aria-label="Search pull requests" placeholder="Search or paste a PR link" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <IconButton icon={X} label="Clear search" onClick={() => setQuery("")} />}</label></form>
       {hasFilters && <div className="pr-active-filters"><span>{filtered.length} matching pull requests</span><button type="button" className="pr-text-button" onClick={resetFilters}>Clear</button></div>}
       <div ref={listRef} className="pr-list-scroll" onScroll={(event) => { session.scrollTop = event.currentTarget.scrollTop; }}>
-        {groups.filter((group) => group.items.length > 0 || (!hasFilters && ["authored", "review"].includes(group.id))).map((group) => <section className="pr-list-group" key={group.id}>
-          <button className="pr-group-title" type="button" aria-expanded={!collapsed.includes(group.id)} aria-controls={`pr-group-${group.id}`} onClick={() => setCollapsed((current) => current.includes(group.id) ? current.filter((id) => id !== group.id) : [...current, group.id])}>{group.label}<ChevronDown size={14} className={collapsed.includes(group.id) ? "pr-collapsed" : undefined} aria-hidden="true" /></button>
-          {!collapsed.includes(group.id) && <div id={`pr-group-${group.id}`}>{group.items.map(renderRow)}{group.items.length === 0 && <p className="pr-group-empty">No pull requests</p>}</div>}
-        </section>)}
-        {filtered.length === 0 && (booting || coverage.running ? <div className="pr-list-empty" role="status"><Loader2 className="pr-spin" size={18} /><p>Discovering pull requests…</p>{coverage.total > 0 && <small>{coverage.checked} of {coverage.total} environments checked</small>}</div> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests linked yet"}</p><small>{hasFilters ? "Try another search or filter." : "Pull requests from your bb threads appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
-        {nextCursor && <button className="pr-load-more" type="button" onClick={() => setPageLimit((current) => current + 1)}>Load more · {items.length} of {total}</button>}
+        {renderSection("pinned", "Pinned", pinned)}
+        {active.map(renderRow)}
+        {renderSection("history", "Merged and closed", history)}
+        {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests linked yet"}</p><small>{hasFilters ? "Try another search or filter." : "Pull requests from your bb threads appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
+        {nextCursor && <button className="pr-load-more" type="button" disabled={listLoading} onClick={() => setPageLimit((current) => current + 1)}>{listLoading ? "Loading more…" : `Load more · ${items.length} of ${total}`}</button>}
       </div>
       <div className="pr-list-footer">{coverage.running ? <span role="status">Discovering · {coverage.checked}/{coverage.total}</span> : <span>{coverage.unavailable > 0 ? `${coverage.unavailable} environments unavailable` : `${visibleItems.length} pull requests`}{coverage.incomplete ? " · partial coverage" : ""}</span>}<IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true, true)} /></div>
       {nextCursor && <p className="pr-pagination-note">Filters and sorting apply to {items.length} loaded pull requests.</p>}
     </aside>
     <section className="pr-detail" aria-label="Pull request detail">
       {error && <div className="pr-error" role="alert"><AlertTriangle size={16} /><span>{error}</span><button className="pr-text-button" type="button" onClick={() => void refresh(true)}>Retry</button><IconButton icon={X} label="Dismiss error" onClick={() => setError(null)} /></div>}
-      {selected ? <PullRequestDetail key={selected.id} item={selected} tab={selection.tab} now={clock} context={context} choices={choices} liveThreads={liveThreads} rpc={rpc} onBack={() => select(null)} onTab={(tab) => select(selected.id, tab)} onThread={(id) => navigate.toThread(id)} onUpdate={mutate} onRefresh={() => void refresh(false, false, selected.id)} onLink={() => setLinking({ url: selected.url })} onUnlink={(threadId) => void onUnlink(selected, threadId)} /> : selection.id ? <Empty title={booting ? "Loading pull request…" : "Pull request unavailable"}><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty> : <Empty title={booting ? "Discovering pull requests" : "Select a pull request"}>Choose one from the sidebar to review its changes.</Empty>}
+      {selected ? <PullRequestDetail key={selected.id} item={selected} loading={detailLoading} tab={selection.tab} now={clock} context={context} choices={choices} liveThreads={liveThreads} rpc={rpc} onBack={() => select(null)} onTab={(tab) => select(selected.id, tab)} onThread={(id) => navigate.toThread(id)} onUpdate={mutate} onRefresh={() => void refresh(false, false, selected.id)} onLink={() => setLinking({ url: selected.url })} onUnlink={(threadId) => void onUnlink(selected, threadId)} /> : selection.id ? detailLoading ? <div className="pr-empty"><Loading label="Loading pull request details" /><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></div> : <Empty title="Pull request unavailable"><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty> : <Empty title="Select a pull request">Choose one from the sidebar to review its changes.</Empty>}
     </section>
     {undo && <div className="pr-undo" role="status"><span>Removed link to {undo.title}</span><button type="button" onClick={() => void mutate(async () => { const restored = await rpc.call("undo", { token: undo.token }); setUndo(null); return restored; })}>Undo</button><IconButton icon={X} label="Dismiss undo" onClick={() => setUndo(null)} /></div>}
     {linking && <LinkDialog rpc={rpc} initialUrl={linking.url ?? ""} choices={[...choices.values()]} hosts={context.hosts} onClose={() => setLinking(null)} onLinked={(item) => { applyItem(item); setLinking(null); select(item.id); }} />}
   </main>;
 }
 
-function PullRequestDetail({ item, tab, now, context, choices, liveThreads, rpc, onBack, onTab, onThread, onUpdate, onRefresh, onLink, onUnlink }: {
-  item: PullRequestItem; tab: Tab; now: number; context: ThreadContext; choices: ReadonlyMap<string, ThreadChoice>; liveThreads: ReadonlyMap<string, PluginSidebarThread>; rpc: Rpc;
+function PullRequestDetail({ item, loading, tab, now, context, choices, liveThreads, rpc, onBack, onTab, onThread, onUpdate, onRefresh, onLink, onUnlink }: {
+  item: PullRequestItem; loading: boolean; tab: Tab; now: number; context: ThreadContext; choices: ReadonlyMap<string, ThreadChoice>; liveThreads: ReadonlyMap<string, PluginSidebarThread>; rpc: Rpc;
   onBack(): void; onTab(tab: Tab): void; onThread(id: string): void; onUpdate(action: () => Promise<PullRequestItem>): Promise<void>; onRefresh(): void; onLink(): void; onUnlink(threadId: string): void;
 }) {
   const snapshot = item.snapshot;
@@ -399,7 +431,7 @@ function PullRequestDetail({ item, tab, now, context, choices, liveThreads, rpc,
           <h1>{snapshot?.title ?? "Pull request unavailable"}</h1>
           {snapshot && <div className="pr-branch-line"><span className="pr-author">{snapshot.author ? `@${snapshot.author}` : "Unknown author"}</span><time dateTime={snapshot.updatedAt} title={`Updated ${new Date(snapshot.updatedAt).toLocaleString()}`}>{age(snapshot.updatedAt)}</time><span aria-hidden="true">·</span><code>{snapshot.headBranch}</code><ArrowRight size={12} aria-hidden="true" /><code>{snapshot.baseBranch}</code></div>}
         </header>
-        {snapshot ? <section className="pr-description" aria-label="Description">{snapshot.body ? <Markdown content={snapshot.body} className="pr-markdown" /> : <p className="pr-muted">No description provided.</p>}</section> : <p className="pr-unavailable">This source cannot currently read the pull request. Verify its GitHub access below.</p>}
+        {snapshot ? <section className="pr-description" aria-label="Description">{loading ? <Loading label="Loading pull request details" /> : snapshot.body ? <Markdown content={snapshot.body} className="pr-markdown" /> : <p className="pr-muted">No description provided.</p>}</section> : <p className="pr-unavailable">This source cannot currently read the pull request. Verify its GitHub access below.</p>}
         <section className="pr-threads" ref={threadsSection} tabIndex={-1} aria-label="Related threads"><div className="pr-section-heading"><h2>Threads <span>{item.links.length}</span></h2><button type="button" className="pr-text-button" aria-expanded={manage} onClick={() => setManage(!manage)}>{manage ? "Done" : "Manage threads"}</button></div>{item.links.map((link) => {
           const thread = choices.get(link.threadId);
           const live = liveThreads.get(link.threadId);
@@ -407,7 +439,7 @@ function PullRequestDetail({ item, tab, now, context, choices, liveThreads, rpc,
         })}{manage && <button className="pr-text-button pr-add-thread" type="button" onClick={onLink}><Plus size={14} />Link another thread</button>}</section>
         <details className="pr-source"><summary>Source <span>{sourceName}{item.reader ? ` · @${item.reader.login}` : ""}</span><ChevronDown size={14} /></summary><div><p>Read from GitHub on {sourceName}. Last attempt {age(item.lastAttemptAt)}.</p><label>Source machine<select value={sourceHost} onChange={(event) => setSourceHost(event.target.value)}><option value="" disabled>Select a machine</option>{context.hosts.map((host) => <option key={host.id} value={host.id} disabled={!host.connected}>{host.name}{host.connected ? "" : " · offline"}</option>)}</select></label><button type="button" className="pr-button" disabled={!sourceHost || sourceBusy} onClick={() => { setSourceBusy(true); void onUpdate(() => rpc.call("source", { id: item.id, hostId: sourceHost })).finally(() => setSourceBusy(false)); }}>{sourceBusy ? "Verifying…" : "Verify source"}</button></div></details>
         </div>
-        {snapshot && <SummaryStatusRail snapshot={snapshot} url={item.url}>{/* Stack relationships stay beside the review state. */}
+        {loading ? <aside className="pr-status-rail"><Loading label="Loading pull request status" /></aside> : snapshot && <SummaryStatusRail snapshot={snapshot} url={item.url}>{/* Stack relationships stay beside the review state. */}
         {snapshot?.stack.state === "available" && snapshot.stack.items.length > 0 && <section className="pr-stack"><h2>Stack</h2>{snapshot.stack.items.map((entry) => <div key={entry.url}><StatusIcon {...lifecycle(["open", "draft", "merged", "closed"].includes(entry.state.toLowerCase()) ? { state: entry.state.toLowerCase() as Snapshot["state"] } : null)} /><External href={entry.url}>{entry.title}<span>#{entry.number}</span></External></div>)}</section>}
         {snapshot?.stack.state === "unavailable" && <p className="pr-muted pr-stack-unavailable">Stack information unavailable.</p>}
         </SummaryStatusRail>}
@@ -438,7 +470,7 @@ function SummaryStatusRail({ snapshot, url, children }: { snapshot: Snapshot; ur
 function ChangesView({ item, rpc }: { item: PullRequestItem; rpc: Rpc }) {
   const [changes, setChanges] = useState<Changes | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
   const [file, setFile] = useState("");
   useEffect(() => {
@@ -448,7 +480,7 @@ function ChangesView({ item, rpc }: { item: PullRequestItem; rpc: Rpc }) {
     return () => { cancelled = true; };
   }, [item.id, item.snapshot?.headSha, rpc, attempt]);
   if (!item.snapshot) return <Empty title="Changes unavailable">Verify the source in Summary to read this pull request.</Empty>;
-  if (loading) return <div className="pr-changes-loading" role="status"><Loader2 className="pr-spin" size={18} />Loading changes…</div>;
+  if (loading) return <div className="pr-changes-loading"><Loading label="Loading changes" /></div>;
   if (error) return <div className="pr-error" role="alert"><span>{error}</span><button type="button" className="pr-text-button" onClick={() => setAttempt((value) => value + 1)}>Retry</button></div>;
   if (!changes) return null;
   const selected = changes.files.find((entry) => entry.path === file);

@@ -55,6 +55,36 @@ describe("Pull Requests access and detail lifetime", () => {
     slot.lifecycle.unmount();
   });
 
+  it("ignores a late selection response and keeps loaded details visible during refresh", async () => {
+    const first = fixture();
+    const second = { ...first, id: "github:PR_124", snapshot: { ...first.snapshot!, title: "Second PR", body: "Second description" } };
+    const summaries = [first, second].map((item) => ({ ...item, snapshot: { ...item.snapshot!, body: "" } }));
+    let finishFirst!: (value: PullRequestItem) => void;
+    const firstRead = new Promise<PullRequestItem>((resolve) => { finishFirst = resolve; });
+    let finishRefresh!: (value: PullRequestItem) => void;
+    const refreshRead = new Promise<PullRequestItem>((resolve) => { finishRefresh = resolve; });
+    let refreshing = false;
+    const app = await loadPluginApp(() => import("./app"));
+    const Panel = app.navPanels[0]!.component;
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
+      list: () => ({ items: summaries, nextCursor: null, total: 2, coverage }), refresh: () => coverage,
+      show: (raw) => (raw as { id: string }).id === first.id ? firstRead : refreshing ? refreshRead : second,
+      context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
+    } });
+    await screen.findByRole("button", { name: "Second PR" });
+    slot.lifecycle.rerender(<Panel subPath="github:PR_124/summary" />);
+    await screen.findByText("Second description");
+    await act(async () => { finishFirst(first); await firstRead; });
+    expect(screen.queryByText("Private description")).toBeNull();
+    refreshing = true;
+    await slot.behavior.emitRealtime(CHANGED, {});
+    expect(screen.getByText("Second description")).toBeDefined();
+    expect(screen.queryByRole("status", { name: "Loading pull request details" })).toBeNull();
+    await act(async () => { finishRefresh({ ...second, snapshot: { ...second.snapshot, body: "Updated description" } }); await refreshRead; });
+    await screen.findByText("Updated description");
+    slot.lifecycle.unmount();
+  });
+
   it("shows passing checks and expands the remaining checks without leaving Summary", async () => {
     const item = fixture();
     item.snapshot!.checks = { state: "passing", passing: 7, failing: 0, pending: 0, total: 7, complete: true, items: Array.from({ length: 7 }, (_, index) => ({ name: `Check ${index + 1}`, state: "passing", url: `https://github.com/example/repo/actions/runs/${index + 1}` })) };
@@ -104,7 +134,7 @@ describe("Pull Requests access and detail lifetime", () => {
       list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }), changes: () => pending,
     } });
-    expect(await screen.findByText("Loading changes…")).toBeDefined();
+    expect(await screen.findByRole("status", { name: "Loading changes" })).toBeDefined();
     item = { ...item, snapshot: null, sourceState: "auth-changed", sourceMessage: "Account changed" };
     await slot.behavior.emitRealtime(CHANGED, {});
     await screen.findByText("Changes unavailable");
@@ -177,17 +207,23 @@ describe("Pull Requests thread selection", () => {
 
 
 describe("Compact pull request inbox", () => {
-  it("combines author and requested reviewer filters, sorts within sections, and preserves them across navigation", async () => {
+  it("combines author and requested reviewer filters, sorts across authors and reviewers, and preserves them across navigation", async () => {
     const first = fixture();
     first.snapshot = { ...first.snapshot!, title: "Zebra fix", author: "author", updatedAt: "2026-10-01T00:00:00Z", requestedReviewers: ["reviewer", "acme/design"], reviewRequestsComplete: true };
     const second = { ...first, id: "github:PR_124", snapshot: { ...first.snapshot, title: "Alpha fix", updatedAt: "2026-10-02T00:00:00Z", requestedReviewers: ["reviewer"] } };
-    const third = { ...first, id: "github:PR_125", snapshot: { ...first.snapshot, title: "Other author", author: "bob", requestedReviewers: ["AUTHOR"] } };
+    const third = { ...first, id: "github:PR_125", snapshot: { ...first.snapshot, title: "Other author", author: "bob", updatedAt: "2026-10-03T00:00:00Z", requestedReviewers: ["AUTHOR"] } };
+    const closed = { ...first, id: "github:PR_126", snapshot: { ...first.snapshot, title: "Closed fix", state: "closed" as const, requestedReviewers: [] } };
     const app = await loadPluginApp(() => import("./app"));
-    const options = { rpc: { list: () => ({ items: [first, second, third], nextCursor: null, total: 3, coverage }), refresh: () => coverage, context: () => ({ threads: [thread], hosts: [], nextCursor: null }) } };
+    const options = { rpc: { list: () => ({ items: [first, second, third, closed], nextCursor: null, total: 4, coverage }), refresh: () => coverage, context: () => ({ threads: [thread], hosts: [], nextCursor: null }) } };
     let slot = renderSlot(app.navPanels[0]!, { subPath: "" }, options);
     await screen.findByRole("button", { name: "Zebra fix" });
     const titles = () => Array.from(document.querySelectorAll(".pr-row-title")).map((element) => element.textContent);
-    expect(titles()).toEqual(["Alpha fix", "Zebra fix", "Other author"]);
+    expect(titles()).toEqual(["Other author", "Alpha fix", "Zebra fix"]);
+    expect(screen.queryByText("Authored by me")).toBeNull();
+    expect(screen.queryByText("Needs my review")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Merged and closed/ }));
+    expect(titles()).toEqual(["Other author", "Alpha fix", "Zebra fix", "Closed fix"]);
+    fireEvent.click(screen.getByRole("button", { name: /Merged and closed/ }));
     const openMenu = () => { fireEvent.click(screen.getByLabelText("Filters and sort")); };
     const choose = (name: string, value: string) => fireEvent.change(screen.getByRole("combobox", { name }), { target: { value } });
     openMenu();
