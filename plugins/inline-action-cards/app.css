@@ -6,7 +6,9 @@
 .iac-muted, .iac-consequence, .iac-save, .iac-progress, .iac-result-line time { color: var(--muted-foreground); }
 .iac-question { padding-top: 4px; font-weight: 500; overflow-wrap: anywhere; }
 .iac-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
-.iac-footer { margin-top: 8px; }
+.iac-footer { margin-top: 8px; flex-wrap: wrap; }
+.iac-pending-control { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--iac-gap); max-width: 100%; }
+.iac-pending-status { font-size: 12px; }
 .iac-actions button { font-size: 12px; }
 .iac-progress { font-style: italic; }
 .iac-button-label { display: grid; }
@@ -56,7 +58,7 @@
 .iac-row-description { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .iac-row-description .iac-consequence { font-size: 12px; }
 .iac-row-line > .iac-footer { margin-top: 0; min-width: 160px; }
-.iac-row .iac-footer > button:last-child { min-width: 64px; }
+.iac-row .iac-footer > .iac-pending-control:last-child button { min-width: 64px; }
 .iac-row-expanded { margin-top: 12px; }
 .iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: 12px; box-shadow: var(--shadow-md); }
 .iac-menu { min-width: 170px; padding: 4px; }

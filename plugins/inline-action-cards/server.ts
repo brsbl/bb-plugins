@@ -108,6 +108,7 @@ export function createStore(bb: BbPluginApi) {
       return change(threadId, id, null, (item) => {
         if (item.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.claimed) throw new Error("This attempt is stale or already claimed. Read its status and reconcile the external result; do not act again.");
         item.attempt.claimed = true;
+        item.attempt.claimedAt = new Date().toISOString();
       });
     },
     report(threadId: string, id: string, attemptId: string, outcome: "succeeded" | "failed", message: string, retryable: boolean) {

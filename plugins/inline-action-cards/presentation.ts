@@ -37,3 +37,14 @@ export function pendingLabel(item: Item, action = item.attempt?.action): string 
   const ongoing = (Object.hasOwn(irregular, verb) ? irregular[verb] : undefined) ?? (verb.endsWith("e") && !/(ee|ye|oe)$/.test(verb) ? `${verb.slice(0, -1)}ing` : `${verb}ing`);
   return `${ongoing[0]!.toUpperCase()}${ongoing.slice(1)}…`;
 }
+
+export function pendingStatus(item: Item, now: number): string | null {
+  if (item.state !== "pending" || !item.attempt) return null;
+  if (!item.attempt.claimed) return now - Date.parse(item.updatedAt) >= 120_000 ? "Not picked up yet" : null;
+  // Older pending records used updatedAt for the claim's timestamp.
+  const since = Date.parse(item.attempt.claimedAt ?? item.updatedAt);
+  if (!Number.isFinite(since)) return "Agent is working on it";
+  const seconds = Math.max(0, Math.floor((now - since) / 1_000));
+  const elapsed = seconds < 60 ? `${seconds} sec` : `${Math.floor(seconds / 60)} min`;
+  return `Agent is working on it · ${elapsed}`;
+}

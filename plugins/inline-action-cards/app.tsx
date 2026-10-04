@@ -3,7 +3,7 @@ import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, typ
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
 import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
-import { insertActionMention, pendingLabel } from "./presentation.js";
+import { insertActionMention, pendingLabel, pendingStatus } from "./presentation.js";
 import "./app.css";
 
 // Several cards may share one composer. A double click must never submit two drafts.
@@ -23,6 +23,13 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const view = useRef(composerView);
   view.current = composerView;
   const [item, setItem] = useState<Item | null>(initialItem ?? null);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (item?.state !== "pending") return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [item?.state, item?.attempt?.id, item?.attempt?.claimed]);
   const current = useRef<Item | null>(initialItem ?? null);
   const [draft, setDraft] = useState(initialItem?.content.type === "reply" ? initialItem.content.draft : "");
   const text = useRef(draft);
@@ -181,14 +188,17 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     <IconButton label="Remind me later" disabled={disabled} onClick={() => void act("later")}><ClockIcon /></IconButton>
     <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
   </div>;
+  const progress = pendingStatus(item, now);
+  const progressLine = progress && <span className="iac-muted iac-pending-status" role="status">{progress}</span>;
   const controls = <div className="iac-actions iac-footer">
     {ready || pending ? <>
       <span className="iac-menu-slot">{pending
         ? <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>
         : reply && <MoreMenu disabled={disabled}><MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction></MoreMenu>}</span>
+      {pending && !["yes", "no", "send"].includes(item.attempt?.action ?? "") && progressLine}
       {reply ? <ActionButton disabled={disabled} onClick={() => void askForChanges()}>Ask for changes</ActionButton>
-        : <PendingButton pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
-      <PendingButton variant="default" pending={pending && item.attempt?.action === (reply ? "send" : "yes")} pendingLabel={pendingLabel(item, reply ? "send" : "yes")} disabled={disabled} onClick={() => void act(reply ? "send" : "yes")}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
+        : <span className="iac-pending-control"><PendingButton pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>{item.attempt?.action === "no" && progressLine}</span>}
+      <span className="iac-pending-control"><PendingButton variant="default" pending={pending && item.attempt?.action === (reply ? "send" : "yes")} pendingLabel={pendingLabel(item, reply ? "send" : "yes")} disabled={disabled} onClick={() => void act(reply ? "send" : "yes")}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>{item.attempt?.action === (reply ? "send" : "yes") && progressLine}</span>
     </> : null}
   </div>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">

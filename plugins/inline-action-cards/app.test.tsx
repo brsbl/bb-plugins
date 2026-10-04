@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Item } from "./model.js";
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], cc: [], bcc: [], original: { from: "Escrow", body: "Your refund is on its way." }, draft: "Original draft" } });
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 async function setup(composerText = "", saveFailure = false, initialItem = fixture()) {
   let item = initialItem;
   const calls: string[] = [];
@@ -177,10 +177,10 @@ it("restores elapsed time from the stored claim and updates it live until the re
   expect(screen.getByText("Agent is working on it · 3 min")).toBeTruthy();
   expect(screen.queryByText("Not picked up yet")).toBeNull();
   expect(screen.getByRole("button", { name: "Merging…" }).getAttribute("aria-busy")).toBe("true");
-  vi.useFakeTimers();
-  await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
-  expect(screen.getByText("Agent is working on it · 4 min")).toBeTruthy();
-  vi.useRealTimers();
+  const later = Date.now() + 60_000;
+  vi.spyOn(Date, "now").mockReturnValue(later);
+  await waitFor(() => expect(screen.getByText("Agent is working on it · 4 min")).toBeTruthy(), { timeout: 2_000 });
+  vi.restoreAllMocks();
   await reportSuccess();
   await screen.findByText(/Sent/);
   expect(screen.queryByText(/Agent is working/)).toBeNull();

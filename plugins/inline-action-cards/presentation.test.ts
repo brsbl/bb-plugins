@@ -1,7 +1,7 @@
 import type { PluginComposerApi } from "@get-bb/plugin-sdk/app";
 import { expect, it, vi } from "vitest";
 import type { Action, Item } from "./model.js";
-import { insertActionMention, pendingLabel } from "./presentation.js";
+import { insertActionMention, pendingLabel, pendingStatus } from "./presentation.js";
 
 function pending(action: Action, label?: string): Item {
   return { id: "switch", threadId: "thr_test", revision: 2, state: "pending", result: null, updatedAt: "2026-10-04T10:00:00Z",
@@ -51,4 +51,21 @@ it("trims trailing question marks and whitespace only in the inserted pill", () 
   insertActionMention({ insertMention } as unknown as PluginComposerApi, item);
   expect(insertMention.mock.calls[0]![0].label).toBe("Keep A? Switch B");
   expect(item.content.question).toBe("Keep A? Switch B??  ");
+});
+
+it("uses stored claim time, including older records, without counting pre-claim waiting", () => {
+  const item = pending("yes", "Merge");
+  item.attempt!.claimed = true;
+  const now = Date.parse("2026-10-04T10:03:00Z");
+  expect(pendingStatus(item, now)).toBe("Agent is working on it · 3 min");
+  item.attempt!.claimedAt = "2026-10-04T10:02:30Z";
+  expect(pendingStatus(item, now)).toBe("Agent is working on it · 30 sec");
+  expect(pendingStatus(item, now - 60_000)).toBe("Agent is working on it · 0 sec");
+});
+it("marks only unclaimed requests overdue at two minutes", () => {
+  const item = pending("yes", "Merge");
+  const sent = Date.parse(item.updatedAt);
+  expect(pendingStatus(item, sent + 119_999)).toBeNull();
+  expect(pendingStatus(item, sent + 120_000)).toBe("Not picked up yet");
+  expect(pendingStatus({ ...item, state: "succeeded" }, sent + 180_000)).toBeNull();
 });
