@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { candidateForElement, mountUrlPills, type IconResult } from './decoration';
 import { cssString } from './stylesheet';
-import { captureComposerEdit } from './composer-edit';
 
 const URL_TEXT = 'https://example.com/a?private=yes#part';
 let frames: Map<number, FrameRequestCallback>;
@@ -42,24 +41,6 @@ afterEach(() => {
 });
 
 describe('DOM-only URL decoration', () => {
-  it('keeps an open editor anchored when the host composer moves after losing focus', async () => {
-    const span = composer();
-    let top = 300;
-    vi.spyOn(span, 'getBoundingClientRect').mockImplementation(() => ({
-      x: 40, y: top, left: 40, right: 200, top, bottom: top + 22, width: 160, height: 22,
-    }) as DOMRect);
-    const mounted = mountUrlPills({ signal: abort.signal });
-    span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-    await settle();
-    const panel = document.querySelector<HTMLElement>('[data-bb-url-pill-inspector]')!;
-    expect(panel.style.top).toBe('292px');
-    // Host layout/transform animation does not change the URL or emit a scroll.
-    top = 398;
-    await settle();
-    expect(panel.style.top).toBe('390px');
-    mounted.dispose();
-    expect(frames.size).toBe(0);
-  });
   it('decorates all three surfaces without altering nodes, href, copied source or click ownership', () => {
     const draft = composer(), user = message(), agent = message(false);
     const originals = [draft, user, agent].map((el) => el.firstChild);
@@ -236,14 +217,6 @@ describe('DOM-only URL decoration', () => {
     expect(first.style.getPropertyValue('--bb-url-pill-icon')).toBe('');
     expect(second.style.getPropertyValue('--bb-url-pill-icon')).toBe('');
   });
-  it('supports keyboard inspection of the full destination and Escape restores link focus', () => {
-    const anchor = message(); mountUrlPills({ signal: abort.signal }); anchor.focus();
-    anchor.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true }));
-    const address = document.querySelector('input')!;
-    expect(address.value).toBe(URL_TEXT); expect(document.activeElement).toBe(address);
-    address.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-    expect(document.querySelector('[data-bb-url-pill-inspector]')).toBeNull(); expect(document.activeElement).toBe(anchor);
-  });
   it('opens a compact composer URL through the host opener without moving the caret or changing text', async () => {
     const span = composer(), editor = span.closest('[contenteditable]')!;
     const original = editor.outerHTML, openUrl = vi.fn(() => true);
@@ -254,68 +227,5 @@ describe('DOM-only URL decoration', () => {
     expect(composerCss()).toContain('--bb-url-pill-label');
     span.click(); expect(openUrl).toHaveBeenCalledExactlyOnceWith(URL_TEXT);
     expect(editor.outerHTML).toBe(original);
-  });
-  it('offers editing only in the link menu and restores the caret on keyboard dismissal', async () => {
-    const span = composer(), editor = span.closest<HTMLElement>('[contenteditable]')!;
-    editor.tabIndex = 0;
-    const original = editor.outerHTML;
-    const source = { text: `Review ${URL_TEXT} please`, updateText: vi.fn() };
-    const mounted = mountUrlPills({ signal: abort.signal, editComposer: (element) => captureComposerEdit(element, source) });
-    span.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
-    expect(document.querySelector('[data-bb-url-pill-edit]')).toBeNull();
-    const range = document.createRange(); range.setStart(span.firstChild!, URL_TEXT.length); range.collapse(true);
-    document.getSelection()!.removeAllRanges(); document.getSelection()!.addRange(range);
-    editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true }));
-    await settle();
-    const item = document.querySelector<HTMLButtonElement>('[role=menuitem]')!;
-    expect(item.textContent).toBe('Edit Link'); expect(document.activeElement).toBe(item);
-    expect(document.querySelector('[role=dialog]')).toBeNull();
-    item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-    expect(document.querySelector('[role=menu]')).toBeNull(); expect(document.activeElement).toBe(editor);
-    expect(document.getSelection()?.anchorNode).toBe(span.firstChild);
-    expect(document.getSelection()?.anchorOffset).toBe(URL_TEXT.length);
-    span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 80 }));
-    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
-    expect(document.querySelector('[role=menu]')).toBeNull();
-    span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    mounted.dispose(); expect(document.querySelector('[role=menu]')).toBeNull();
-    expect(editor.outerHTML).toBe(original); expect(source.updateText).not.toHaveBeenCalled();
-  });
-  it('edits through the composer owner and cancels without writing or submitting', async () => {
-    const span = composer(), editor = span.closest('[contenteditable]')!;
-    let text = `Review ${URL_TEXT} please`;
-    const updateText = vi.fn((update: (current: string) => string) => { text = update(text); });
-    const submit = vi.fn(); editor.addEventListener('keydown', submit);
-    const source = { get text() { return text; }, updateText };
-    mountUrlPills({ signal: abort.signal, editComposer: (element) => captureComposerEdit(element, source) });
-    span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    document.querySelector<HTMLButtonElement>('[role=menuitem]')!.click();
-    await settle();
-    const address = document.querySelector('input')!;
-    expect(address.readOnly).toBe(false); expect(document.activeElement).toBe(address);
-    expect(document.querySelector('[role=dialog]')?.getAttribute('aria-label')).toBe('Edit link');
-    expect(composerCss()).toContain('--bb-url-pill-label');
-    address.value = 'new.example/path?exact=yes#part';
-    address.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-    expect(updateText).not.toHaveBeenCalled(); expect(text).toBe(`Review ${URL_TEXT} please`);
-    span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    document.querySelector<HTMLButtonElement>('[role=menuitem]')!.click();
-    const input = document.querySelector('input')!; input.value = 'new.example/path?exact=yes#part';
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    expect(text).toBe('Review https://new.example/path?exact=yes#part please');
-    expect(submit).not.toHaveBeenCalled(); expect(span.textContent).toBe(URL_TEXT);
-    expect(document.querySelector('[role=dialog]')).toBeNull();
-  });
-  it('rejects unsafe edits, then dismisses when the source changes instead of overwriting it', async () => {
-    const span = composer(); let text = `Review ${URL_TEXT} please`;
-    const source = { get text() { return text; }, updateText: (fn: (value: string) => string) => { text = fn(text); } };
-    mountUrlPills({ signal: abort.signal, editComposer: (element) => captureComposerEdit(element, source) });
-    span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    document.querySelector<HTMLButtonElement>('[role=menuitem]')!.click();
-    const input = document.querySelector('input')!; input.value = 'javascript:alert(1)';
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    expect(text).toBe(`Review ${URL_TEXT} please`); expect(input.getAttribute('aria-invalid')).toBe('true');
-    text += ' elsewhere'; document.dispatchEvent(new Event('selectionchange')); await settle();
-    expect(document.querySelector('[role=dialog]')).toBeNull(); expect(text).toContain('elsewhere');
   });
 });

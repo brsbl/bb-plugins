@@ -1,6 +1,5 @@
 import { parsePillUrl, type PillUrl } from "./urls";
 import { cssString, pillStyles, STYLESHEET } from "./stylesheet";
-import type { ComposerEdit } from './composer-edit';
 
 export const EFFECT_CLASS = "bb-url-pill-range";
 const ATTR = "data-bb-url-pill";
@@ -22,7 +21,6 @@ export interface DecorationOptions {
   iconsEnabled?: boolean;
   fetchIcon?: (origin: string, signal: AbortSignal) => Promise<IconResult>;
   openUrl?: (url: string) => boolean;
-  editComposer?: (element: HTMLElement) => ComposerEdit | null;
 }
 interface Entry { url: PillUrl; composer: boolean; visible: boolean; selector?: string; expanded?: boolean }
 
@@ -106,20 +104,9 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   let enabled = options.iconsEnabled ?? false;
   let disposed = false;
   let frame: number | null = null;
-  let positionFrame: number | null = null;
   let composition: HTMLElement | null = null;
   let explicitEdit: HTMLElement | null = null;
   let inputEdit: HTMLElement | null = null;
-  let inspector: HTMLElement | null = null;
-  let inspected: HTMLElement | null = null;
-  let editing: ComposerEdit | null = null;
-  let savedSelection: Range | null = null;
-  let linkMenu: { element: HTMLElement; anchor: HTMLElement; url: string; selection: Range | null } | null = null;
-  let inspectUrl = '';
-  let touchTimer: ReturnType<typeof setTimeout> | null = null;
-  let touchStart: { x: number; y: number; anchor: HTMLElement } | null = null;
-  let suppressClick: HTMLElement | null = null;
-  let suppressUntil = 0;
   const entries = new Map<HTMLElement, Entry>();
   const cache = new Map<string, { value: string | null; expires: number }>();
   const requests = new Map<string, AbortController>();
@@ -160,7 +147,6 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   }
 
   function updateComposerStyle(): void {
-    const activeAnchor = inspected ?? linkMenu?.anchor;
     const compact: { selector: string; entry: Entry }[] = [];
     for (const [element, entry] of entries) {
       if (entry.composer && !entry.expanded && entry.selector && element.isConnected && element.matches(entry.selector) && element.textContent === entry.url.text) {
@@ -171,8 +157,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       + compact.map(({ selector, entry }) => {
         const icon = iconValue(entry);
         return `${selector} { --bb-url-pill-label: ${cssString(entry.url.label)};${icon ? ` ${ICON}: url(${cssString(icon)}); ${MASK}: none; ${ICON_BACKGROUND}: #fff;` : ''} }`;
-      }).join('\n') + (activeAnchor && entries.get(activeAnchor)?.selector
-        ? `${entries.get(activeAnchor)!.selector} { outline: 1px solid var(--ring, #8888); outline-offset: 2px; }` : '');
+      }).join('\n');
     if (composerStyle.textContent !== rules) composerStyle.textContent = rules;
   }
 
@@ -231,161 +216,6 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     syncRequests();
   });
 
-  function closeInspector(restoreFocus = true): void {
-    if (positionFrame !== null) cancelAnimationFrame(positionFrame);
-    positionFrame = null;
-    inspector?.remove(); inspector = null;
-    if (restoreFocus && inspected?.isConnected) {
-      const editor = inspected.closest<HTMLElement>(EDITOR);
-      (editor ?? inspected).focus({ preventScroll: true });
-      if (editor && savedSelection && editor.contains(savedSelection.startContainer)) {
-        const selection = document.getSelection();
-        selection?.removeAllRanges(); selection?.addRange(savedSelection);
-      }
-    }
-    inspected = null; inspectUrl = ''; editing = null; savedSelection = null;
-    queue();
-  }
-
-  function action(label: string, path: string): HTMLButtonElement {
-    const button = document.createElement('button'); button.type = 'button';
-    button.setAttribute('aria-label', label); button.title = label;
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
-    const shape = document.createElementNS(svg.namespaceURI, 'path'); shape.setAttribute('d', path);
-    svg.append(shape); button.append(svg); return button;
-  }
-
-  function positionPanel(panel: HTMLElement, anchor: HTMLElement, above: boolean): void {
-    const rect = anchor.getBoundingClientRect();
-    const viewport = window.visualViewport;
-    const left = (viewport?.offsetLeft ?? 0) + 12, top = (viewport?.offsetTop ?? 0) + 12;
-    const right = left + (viewport?.width ?? innerWidth) - 24;
-    const bottom = top + (viewport?.height ?? innerHeight) - 24;
-    const upper = rect.top - panel.offsetHeight - 8;
-    const lower = rect.bottom + 8;
-    const y = above ? (upper >= top ? upper : lower) : (lower + panel.offsetHeight <= bottom ? lower : upper);
-    const xValue = `${Math.max(left, Math.min(rect.left, right - panel.offsetWidth))}px`;
-    const yValue = `${Math.max(top, Math.min(y, bottom - panel.offsetHeight))}px`;
-    if (panel.style.left !== xValue) panel.style.left = xValue;
-    if (panel.style.top !== yValue) panel.style.top = yValue;
-  }
-
-  function trackInspectorPosition(): void {
-    positionFrame = null;
-    if (disposed || !inspector || !inspected) return;
-    if (!inspected.isConnected) { closeInspector(false); return; }
-    // The host can animate its composer after focus leaves, without a scroll
-    // or URL mutation. Follow only this anchor while its editor is open.
-    positionPanel(inspector, inspected, !!entries.get(inspected)?.composer);
-    positionFrame = requestAnimationFrame(trackInspectorPosition);
-  }
-
-  function closeLinkMenu(restoreFocus = true): void {
-    const menu = linkMenu;
-    if (!menu) return;
-    linkMenu = null; menu.element.remove();
-    const editor = menu.anchor.closest<HTMLElement>(EDITOR);
-    if (restoreFocus && editor?.isConnected) {
-      editor.focus({ preventScroll: true });
-      if (menu.selection && editor.contains(menu.selection.startContainer)) {
-        const selection = document.getSelection();
-        selection?.removeAllRanges(); selection?.addRange(menu.selection);
-      }
-    }
-    queue();
-  }
-
-  function showLinkActions(anchor: HTMLElement, point?: { x: number; y: number }): void {
-    if (!entries.get(anchor)?.composer || !options.editComposer) { showInspector(anchor); return; }
-    closeLinkMenu(false); closeInspector(false);
-    const selection = document.getSelection();
-    const element = document.createElement('div'); element.dataset.bbUrlPillMenu = '';
-    element.setAttribute('role', 'menu'); element.setAttribute('aria-label', 'Link');
-    const button = action('Edit Link', 'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2');
-    button.setAttribute('role', 'menuitem');
-    const label = document.createElement('span'); label.textContent = 'Edit Link'; button.append(label);
-    button.addEventListener('click', () => {
-      const saved = linkMenu?.selection;
-      closeLinkMenu(false); showInspector(anchor, saved);
-    });
-    element.addEventListener('keydown', (event) => {
-      event.stopPropagation();
-      if (event.key === 'Escape' || event.key === 'Tab') { event.preventDefault(); closeLinkMenu(); }
-      if (['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) { event.preventDefault(); button.focus(); }
-    });
-    element.append(button); document.body.append(element);
-    linkMenu = { element, anchor, url: anchor.textContent ?? '', selection: selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null };
-    if (point) {
-      const viewport = window.visualViewport;
-      const left = (viewport?.offsetLeft ?? 0) + 12, top = (viewport?.offsetTop ?? 0) + 12;
-      element.style.left = `${Math.max(left, Math.min(point.x, left + (viewport?.width ?? innerWidth) - 24 - element.offsetWidth))}px`;
-      element.style.top = `${Math.max(top, Math.min(point.y, top + (viewport?.height ?? innerHeight) - 24 - element.offsetHeight))}px`;
-    } else positionPanel(element, anchor, false);
-    button.focus({ preventScroll: true }); queue();
-  }
-
-  function showInspector(anchor: HTMLElement, selectionOverride?: Range | null): void {
-    const entry = entries.get(anchor);
-    if (!entry || anchor.textContent !== entry.url.text) return;
-    closeLinkMenu(false);
-    closeInspector(false);
-    editing = entry.composer ? options.editComposer?.(anchor) ?? null : null;
-    const selection = document.getSelection();
-    savedSelection = selectionOverride ?? (selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null);
-    inspected = anchor; inspectUrl = entry.url.text;
-    const panel = document.createElement('div');
-    panel.dataset.bbUrlPillInspector = '';
-    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', editing ? 'Edit link' : 'Link destination');
-    const row = document.createElement('div'); row.dataset.bbUrlPillRow = '';
-    const address = document.createElement('input'); address.type = 'text'; address.inputMode = 'url'; address.readOnly = !editing; address.value = inspectUrl;
-    address.setAttribute('aria-label', editing ? 'URL' : 'Full destination'); address.spellcheck = false;
-    address.autocomplete = 'off';
-    const copy = action('Copy link', 'M9 9h11v11H9z M15 5V3H3v12h2');
-    const apply = editing ? action('Apply link changes', 'M19 4v10H5 M9 10l-4 4 4 4') : null;
-    const status = document.createElement('div'); status.setAttribute('role', 'status');
-    function commit(): void {
-      const value = address.value.trim();
-      const url = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
-      if (!value || !parsePillUrl(url, location.origin)) {
-        status.textContent = 'Enter a valid http or https URL.'; address.setAttribute('aria-invalid', 'true'); return;
-      }
-      if (!editing?.apply(url)) { status.textContent = 'The draft changed. Reopen this link to edit it.'; return; }
-      // The host owns the edit, mention reconciliation and undo transaction.
-      const editor = anchor.closest<HTMLElement>(EDITOR);
-      closeInspector(false);
-      editor?.focus({ preventScroll: true });
-    }
-    apply?.addEventListener('click', commit);
-    address.addEventListener('input', () => { status.textContent = ''; address.removeAttribute('aria-invalid'); });
-    copy.addEventListener('click', () => {
-      const url = address.value;
-      void Promise.resolve().then(() => navigator.clipboard.writeText(url)).then(() => {
-        if (inspector === panel && !editing) closeInspector();
-      }).catch(() => {
-        if (inspector !== panel) return;
-        status.textContent = 'Select and copy the address above.'; address.focus(); address.select();
-      });
-    });
-    panel.addEventListener('keydown', (event) => {
-      event.stopPropagation();
-      if (event.key === 'Enter' && event.target === address && !event.isComposing && editing) { event.preventDefault(); commit(); }
-      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeInspector(); }
-      if (event.key === 'Tab') {
-        const focusable: HTMLElement[] = apply ? [address, apply, copy] : [address, copy];
-        const index = focusable.indexOf(document.activeElement as HTMLElement);
-        event.preventDefault(); focusable[(index + (event.shiftKey ? focusable.length - 1 : 1)) % focusable.length].focus();
-      }
-    });
-    row.append(address); if (apply) row.append(apply); row.append(copy);
-    panel.append(row, status); document.body.append(panel); inspector = panel;
-    positionPanel(panel, anchor, entry.composer);
-    address.focus({ preventScroll: true });
-    address.setSelectionRange(0, 0);
-    positionFrame = requestAnimationFrame(trackInspectorPosition);
-    queue();
-  }
-
   function scan(): void {
     frame = null;
     if (disposed) return;
@@ -403,7 +233,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       }
       if (entry.composer) {
         entry.selector = composerSelector(element);
-        entry.expanded = element !== inspected && element !== linkMenu?.anchor && !!(explicitEdit === element || composition?.contains(element)
+        entry.expanded = !!(explicitEdit === element || composition?.contains(element)
           || (inputEdit?.contains(element) && caretTouches(element)) || revealForSelection(element));
       } else {
         if (element.getAttribute(ATTR) !== 'message') element.setAttribute(ATTR, 'message');
@@ -420,9 +250,6 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       composerRoots.delete(root);
     }
     updateComposerStyle();
-    if (inspected && (!entries.has(inspected) || entries.get(inspected)?.url.text !== inspectUrl || (editing && !editing.current()))) closeInspector(false);
-    if (inspector && inspected) positionPanel(inspector, inspected, !!entries.get(inspected)?.composer);
-    if (linkMenu && (!entries.has(linkMenu.anchor) || linkMenu.anchor.textContent !== linkMenu.url)) closeLinkMenu(false);
     syncRequests();
     // Only owned attribute/style mutations occurred during this synchronous pass.
     observer.takeRecords();
@@ -432,7 +259,6 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   const observer = new MutationObserver((records) => {
     const relevant = records.some((record) => {
       const target = record.target instanceof Element ? record.target : record.target.parentElement;
-      if (target?.closest('[data-bb-url-pill-inspector]')) return false;
       if (target?.closest('[data-app-composer], [data-message-column]')) return true;
       return [...Array.from(record.addedNodes), ...Array.from(record.removedNodes)].some((node) => node instanceof Element
         && (node.matches('[data-app-composer], [data-message-column]')
@@ -473,12 +299,8 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     const pill = target instanceof Element ? target.closest<HTMLElement>(`.${EFFECT_CLASS}, a[${ATTR}="message"]`) : null;
     return pill && entries.has(pill) ? pill : null;
   }
-  function cancelTouch(): void { if (touchTimer) clearTimeout(touchTimer); touchTimer = null; touchStart = null; }
   function pointerDown(event: PointerEvent): void {
-    if (event.target instanceof Node && (inspector?.contains(event.target) || linkMenu?.element.contains(event.target))) return;
-    closeLinkMenu(false);
     inputEdit = null;
-    if (inspector && event.target instanceof Node && !inspector.contains(event.target)) closeInspector(false);
     const range = event.target instanceof Element ? event.target.closest<HTMLElement>(`.${EFFECT_CLASS}`) : null;
     const navigable = range && entries.get(range)?.composer && !entries.get(range)?.expanded && options.openUrl;
     explicitEdit = !navigable && range && entries.get(range)?.composer ? range : null;
@@ -486,36 +308,11 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     // Keep geometry unchanged while the browser places the caret. The next
     // frame reveals only the explicitly clicked range or actual selection.
     queue();
-    const anchor = pillAt(event.target);
-    if (event.pointerType === 'touch' && anchor) {
-      touchStart = { x: event.clientX, y: event.clientY, anchor };
-      touchTimer = setTimeout(() => {
-        touchTimer = null; suppressClick = anchor; suppressUntil = Date.now() + 1200;
-        showLinkActions(anchor, touchStart ? { x: touchStart.x, y: touchStart.y } : undefined);
-      }, 550);
-    }
   }
-  function pointerMove(event: PointerEvent): void {
-    if (touchStart && Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y) > 8) cancelTouch();
-  }
-  function pointerUp(): void { cancelTouch(); queue(); }
   function keyDown(event: KeyboardEvent): void {
-    const editor = event.target instanceof Element ? event.target.closest(EDITOR) : null;
-    const anchor = pillAt(event.target) ?? (editor ? Array.from(entries).find(([element, entry]) => entry.composer && editor.contains(element) && caretTouches(element))?.[0] : null);
-    if (anchor && (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
-      event.preventDefault(); event.stopPropagation(); showLinkActions(anchor); return;
-    }
     if (event.target instanceof Element && event.target.closest(EDITOR)) queue();
   }
-  function contextMenu(event: MouseEvent): void {
-    const anchor = pillAt(event.target);
-    if (anchor) { event.preventDefault(); event.stopPropagation(); cancelTouch(); showLinkActions(anchor, { x: event.clientX, y: event.clientY }); }
-  }
   function click(event: MouseEvent): void {
-    if (suppressClick && event.target instanceof Node && suppressClick.contains(event.target) && Date.now() < suppressUntil) {
-      event.preventDefault(); event.stopPropagation(); suppressClick = null;
-      return;
-    }
     const pill = pillAt(event.target);
     const entry = pill ? entries.get(pill) : null;
     if (pill && entry?.composer && !entry.expanded && pill.textContent === entry.url.text && options.openUrl && event.button === 0) {
@@ -541,20 +338,19 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     if (editor === inputEdit) inputEdit = null;
     queue();
   }
-  function scroll(): void { cancelTouch(); closeLinkMenu(false); queue(); }
   const listeners: [string, EventListener][] = [
-    ['selectionchange', queue], ['pointerdown', pointerDown as EventListener], ['pointermove', pointerMove as EventListener],
-    ['pointerup', pointerUp], ['pointercancel', pointerUp], ['keydown', keyDown as EventListener],
-    ['contextmenu', contextMenu as EventListener], ['click', click as EventListener],
+    ['selectionchange', queue], ['pointerdown', pointerDown as EventListener],
+    ['pointerup', queue], ['pointercancel', queue], ['keydown', keyDown as EventListener],
+    ['click', click as EventListener],
     ['compositionstart', compositionStart as EventListener], ['compositionend', compositionEnd],
     ['beforeinput', beforeInput as EventListener], ['paste', paste],
     ['focusout', focusOut as EventListener], ['visibilitychange', queue],
   ];
   for (const [type, listener] of listeners) document.addEventListener(type, listener, true);
-  window.addEventListener('resize', scroll);
-  window.addEventListener('scroll', scroll, true);
-  window.visualViewport?.addEventListener('resize', scroll);
-  window.visualViewport?.addEventListener('scroll', scroll);
+  window.addEventListener('resize', queue);
+  window.addEventListener('scroll', queue, true);
+  window.visualViewport?.addEventListener('resize', queue);
+  window.visualViewport?.addEventListener('scroll', queue);
 
   function setIconsEnabled(value: boolean): void {
     if (disposed || enabled === value) return;
@@ -571,16 +367,16 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     if (disposed) return;
     disposed = true;
     if (frame !== null) cancelAnimationFrame(frame);
-    observer.disconnect(); visibility?.disconnect(); cancelTouch(); closeInspector(false); closeLinkMenu(false);
+    observer.disconnect(); visibility?.disconnect();
     for (const controller of requests.values()) controller.abort();
     requests.clear(); cache.clear();
     for (const [element, entry] of entries) if (!entry.composer) removeDecoration(element);
     for (const [root, id] of composerRoots) if (root.getAttribute(COMPOSER_ROOT) === id) root.removeAttribute(COMPOSER_ROOT);
     composerRoots.clear(); entries.clear(); style.remove(); composerStyle.remove();
     for (const [type, listener] of listeners) document.removeEventListener(type, listener, true);
-    window.removeEventListener('resize', scroll); window.removeEventListener('scroll', scroll, true);
-    window.visualViewport?.removeEventListener('resize', scroll);
-    window.visualViewport?.removeEventListener('scroll', scroll);
+    window.removeEventListener('resize', queue); window.removeEventListener('scroll', queue, true);
+    window.visualViewport?.removeEventListener('resize', queue);
+    window.visualViewport?.removeEventListener('scroll', queue);
     signal.removeEventListener('abort', dispose);
   }
   signal.addEventListener('abort', dispose, { once: true });

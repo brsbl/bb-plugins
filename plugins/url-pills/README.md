@@ -2,11 +2,9 @@
 
 ## Use
 
-Website URLs appear as compact favicon pills in the composer, sent messages and agent replies. Click a pill to open it using bb's browser preference. In the composer, right-click and choose **Edit Link** to edit the URL in a small anchored field. Enter applies; Escape cancels. Long-press and the keyboard context-menu command also open the link menu. Keyboard text editing still reveals the original URL inline.
+Paste a website URL to create a compact favicon pill in the composer. Pills also appear in sent messages and agent replies. Click a pill to open the exact URL using bb's browser preference.
 
-In messages, right-click, long-press or use the keyboard context-menu command to inspect and copy the full destination.
-
-Copying, editing and sending retain the original URL, including its query and fragment. Authored Markdown labels, code, quotes and native bb thread references keep their own presentation. Sent-message editing uses native text. A trailing streamed URL stays expanded when its completion cannot be established safely.
+Copying and sending retain the original URL, including its query and fragment. Authored Markdown labels, code, quotes and native bb thread references keep their own presentation. Sent-message editing uses native text. A trailing streamed URL stays expanded when its completion cannot be established safely.
 
 ![Favicon pills in drafts and conversations](https://github.com/user-attachments/assets/9157a554-9245-4443-b28e-cd3f448925a3)
 

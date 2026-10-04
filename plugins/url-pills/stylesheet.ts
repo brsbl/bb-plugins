@@ -54,42 +54,6 @@ ${after} {
 export const STYLESHEET = pillStyles(['[data-bb-url-pill]:not([data-bb-url-pill-expanded])'], 'attr(data-bb-url-pill-label)') + `
 a[data-bb-url-pill]:hover { background: var(--accent, #8882); }
 a[data-bb-url-pill]:focus-visible { outline: 2px solid var(--ring, #748dff); outline-offset: 2px; }
-[data-bb-url-pill-inspector], [data-bb-url-pill-menu] {
-  position: fixed;
-  z-index: 10000;
-  box-sizing: border-box;
-  border: 1px solid var(--border, #8883);
-  border-radius: 12px;
-  background: var(--popover, var(--background, #fff));
-  color: var(--popover-foreground, var(--foreground, #222));
-  box-shadow: 0 2px 8px #00000012;
-  font: 12px/1.5 var(--font-sans, system-ui, sans-serif);
-}
-[data-bb-url-pill-inspector] { width: min(288px, calc(100vw - 24px)); padding: 6px 8px; }
-[data-bb-url-pill-row] { display: flex; align-items: center; gap: 4px; min-height: 24px; }
-[data-bb-url-pill-inspector] input {
-  box-sizing: border-box; flex: 1; min-width: 0; height: 24px;
-  padding: 2px 4px 2px 0; border: 0; outline: none;
-  background: transparent; color: inherit; font: inherit;
-}
-[data-bb-url-pill-inspector] button {
-  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 24px; height: 24px; padding: 4px; color: var(--muted-foreground, #737373); cursor: pointer;
-}
-[data-bb-url-pill-inspector] button { border: 0; border-radius: 6px; background: transparent; }
-[data-bb-url-pill-menu] { min-width: 160px; padding: 4px; border-radius: 8px; }
-[data-bb-url-pill-menu] button {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px;
-  border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit;
-  text-align: left; cursor: pointer;
-}
-[data-bb-url-pill-inspector] button:hover, [data-bb-url-pill-menu] button:hover,
-[data-bb-url-pill-menu] button:focus { background: var(--accent, #8882); color: var(--foreground); }
-[data-bb-url-pill-inspector] svg, [data-bb-url-pill-menu] svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-[data-bb-url-pill-inspector] button:focus-visible, [data-bb-url-pill-menu] button:focus-visible { outline: 2px solid var(--ring, #748dff); outline-offset: 1px; }
-[data-bb-url-pill-inspector] [role=status]:empty { display: none; }
-[data-bb-url-pill-inspector] [role=status] { margin-top: 4px; color: var(--muted-foreground); }
-
 `;
 
 /** CSS strings, unlike JSON strings, require hexadecimal escapes for controls. */
