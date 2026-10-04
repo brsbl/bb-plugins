@@ -1391,6 +1391,52 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   text-decoration: underline;
 }
 
+.bbd-ie-page-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 16px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--background) 94%, var(--bbd-blue-sky)), var(--background));
+  color: var(--foreground);
+}
+
+.bbd-ie-page-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(100%, 320px);
+}
+
+.bbd-ie-page-icon {
+  display: flex;
+  flex: none;
+}
+
+.bbd-ie-page-labels {
+  min-width: 0;
+}
+
+.bbd-ie-page-title,
+.bbd-ie-page-host {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bbd-ie-page-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bbd-ie-page-host {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+}
+
 .bbd-ie-status {
   display: flex;
   gap: 12px;
