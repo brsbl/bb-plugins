@@ -150,10 +150,11 @@
   box-shadow: none;
 }
 
-/* Keep controls on a solid theme surface, even when Ambient thins --background. */
-:root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt) > [data-promptbox]:not([data-promptbox-compact]) [data-promptbox-action-row] {
+/* The project/environment/permission row below the form needs its own solid strip. */
+:root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt) > [data-promptbox] + .mt-1 {
   background: var(--canvas);
-  border-radius: 0 0 calc(var(--radius) + 3px) calc(var(--radius) + 3px);
+  border-radius: var(--radius);
+  padding-block: 4px;
 }
 
 .bbd-window {
