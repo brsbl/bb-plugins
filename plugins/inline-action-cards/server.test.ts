@@ -20,6 +20,8 @@ describe("durable inline actions", () => {
     expect(actionMessage(pending)).toBe("Send ");
     expect(() => store.prepare({ ...ref, revision: pending.revision, action: "send" })).toThrow("in progress");
     const claimed = store.claim(ref.threadId, ref.id, pending.attempt!.id);
+    expect(claimed.attempt).toMatchObject({ claimed: true, claimedAt: claimed.updatedAt });
+    expect(createStore(hosts[hosts.length - 1]!.bb).get(ref.threadId, ref.id).attempt).toEqual(claimed.attempt);
     expect(claimed.content).toMatchObject({ draft: "User's exact edited draft" });
     expect(() => store.claim(ref.threadId, ref.id, pending.attempt!.id)).toThrow("already claimed");
     expect(() => store.save({ ...ref, revision: claimed.revision, draft: "Too late" })).toThrow("cannot be edited");

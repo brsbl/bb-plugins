@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import type { Item } from "./model.js";
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], cc: [], bcc: [], original: { from: "Escrow", body: "Your refund is on its way." }, draft: "Original draft" } });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 async function setup(composerText = "", saveFailure = false, initialItem = fixture()) {
   let item = initialItem;
   const calls: string[] = [];
@@ -154,4 +154,34 @@ it("keeps the bulk button busy until its own attempts finish, without treating a
   items = items.map((item) => item.id === "two" ? { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Switched", retryable: false } } : item);
   await slot.behavior.emitRealtime("items", {});
   await waitFor(() => expect(button.getAttribute("aria-busy")).toBeNull());
+});
+
+const pendingDecision = (claimed: boolean): Item => ({ ...fixture(), state: "pending", updatedAt: new Date(Date.now() - 300_000).toISOString(),
+  content: { type: "decide", question: "Merge this PR?", consequence: "CI must pass first.", yesLabel: "Merge" },
+  attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed,
+    ...(claimed ? { claimedAt: new Date(Date.now() - 180_000).toISOString() } : {}) },
+});
+it("keeps a fresh unclaimed choice loading without claiming the agent has it", async () => {
+  await setup("", false, { ...pendingDecision(false), updatedAt: new Date().toISOString() });
+  expect(screen.getByRole("button", { name: "Merging…" }).getAttribute("aria-busy")).toBe("true");
+  expect(screen.queryByText(/Agent is working|Not picked up/)).toBeNull();
+});
+it("shows an overdue unclaimed choice with the existing resend menu", async () => {
+  await setup("", false, pendingDecision(false));
+  expect(screen.getByText("Not picked up yet")).toBeTruthy();
+  fireEvent.pointerDown(screen.getByRole("button", { name: "More actions" }), { button: 0, ctrlKey: false });
+  await screen.findByRole("menuitem", { name: "Resend request" });
+});
+it("restores elapsed time from the stored claim and updates it live until the result", async () => {
+  const { reportSuccess } = await setup("", false, pendingDecision(true));
+  expect(screen.getByText("Agent is working on it · 3 min")).toBeTruthy();
+  expect(screen.queryByText("Not picked up yet")).toBeNull();
+  expect(screen.getByRole("button", { name: "Merging…" }).getAttribute("aria-busy")).toBe("true");
+  vi.useFakeTimers();
+  await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+  expect(screen.getByText("Agent is working on it · 4 min")).toBeTruthy();
+  vi.useRealTimers();
+  await reportSuccess();
+  await screen.findByText(/Sent/);
+  expect(screen.queryByText(/Agent is working/)).toBeNull();
 });
