@@ -7,41 +7,30 @@ export function crossedDragThreshold(delta: Point, threshold = DRAG_THRESHOLD): 
   return Math.hypot(delta.x, delta.y) >= threshold;
 }
 
-let cancelActivePointer: (() => void) | undefined;
-
 /**
- * Captures one primary-pointer gesture. `onMove` runs at most once per frame after the drag threshold;
- * Escape, blur, resize, context menus, lost capture and a second pointer cancel it. Returns the cancel function.
+ * One primary-pointer gesture, the way bb's own split resizers track one: capture the pointer on the pressed element
+ * and listen there for move, up, cancel and lost capture. Up ends it normally, and so does a cancelled or lost pointer
+ * once it has moved; before it moves, or on unmount, the gesture ends cancelled. `onMove` starts once the pointer
+ * crosses the threshold (bb's dnd-kit drags use the same 4 px), so a press stays a click. Beyond bb's pattern, Desktop needs three things its dividers don't: the click that follows a drag is
+ * swallowed, text selection is held off, and a shield covers native web views (bb Explorer) so they don't take the
+ * pointer. Returns the cancel function.
  */
 export function trackPointer(
   event: ReactPointerEvent<HTMLElement>,
   onMove: (delta: Point, event: PointerEvent) => void,
   onEnd?: (cancelled: boolean, moved: boolean) => void,
-  options: { threshold?: number; samples?: boolean } = {},
+  options: { threshold?: number; samples?: boolean; windowDrag?: boolean } = {},
 ): () => void {
   if (event.button !== 0 || event.isPrimary === false) return () => {};
-  cancelActivePointer?.();
   const target = event.currentTarget;
   const pointerId = event.pointerId;
   const start = { x: event.clientX, y: event.clientY };
   let moved = false;
   let ended = false;
-  let frame = 0;
-  let latest: PointerEvent | null = null;
-  let samples: PointerEvent[] = [];
   const selection = document.documentElement.style.userSelect;
   const shield = document.createElement("div");
   shield.className = "bbd-drag-shield";
-  const blockSelection = (selectionEvent: Event) => selectionEvent.preventDefault();
-  const flush = () => {
-    frame = 0;
-    if (latest === null) return;
-    const next = latest;
-    latest = null;
-    const batch = options.samples ? samples : [next];
-    samples = [];
-    for (const sample of batch) onMove({ x: sample.clientX - start.x, y: sample.clientY - start.y }, sample);
-  };
+  if (options.windowDrag) shield.dataset.windowDrag = "true";
   const move = (next: PointerEvent) => {
     if (next.pointerId !== pointerId) return;
     const delta = { x: next.clientX - start.x, y: next.clientY - start.y };
@@ -49,83 +38,51 @@ export function trackPointer(
     if (!moved) {
       moved = true;
       document.documentElement.style.userSelect = "none";
-      document.addEventListener("selectstart", blockSelection);
       window.getSelection()?.removeAllRanges();
       document.body.append(shield);
-      window.dispatchEvent(new Event("bbd-drag-state"));
+      if (!options.windowDrag) window.dispatchEvent(new Event("bbd-drag-state"));
     }
-    latest = next;
-    if (options.samples) {
-      const coalesced = next.getCoalescedEvents?.() ?? [];
-      samples.push(...(coalesced.length ? coalesced : [next]));
-    }
-    if (!frame) frame = requestAnimationFrame(flush);
+    const samples = options.samples ? next.getCoalescedEvents?.() ?? [] : [];
+    for (const sample of samples.length ? samples : [next]) onMove({ x: sample.clientX - start.x, y: sample.clientY - start.y }, sample);
+    // Window geometry is previewed synchronously. Native views must check the new bounds before the next move.
+    if (options.windowDrag) window.dispatchEvent(new Event("bbd-drag-state"));
   };
-  const end = (cancelled: boolean) => {
+  const finish = (cancelled: boolean) => {
     if (ended) return;
     ended = true;
-    cancelAnimationFrame(frame);
-    if (!cancelled) flush();
-    window.removeEventListener("pointermove", move, true);
-    window.removeEventListener("pointerup", up, true);
-    window.removeEventListener("pointercancel", cancelPointer, true);
-    window.removeEventListener("pointerdown", cancel, true);
-    window.removeEventListener("keydown", key, true);
-    window.removeEventListener("blur", cancel);
-    window.removeEventListener("resize", cancel);
-    window.removeEventListener("contextmenu", cancel, true);
-    document.removeEventListener("visibilitychange", cancel);
-    target.removeEventListener("lostpointercapture", cancelPointer);
-    document.removeEventListener("selectstart", blockSelection);
-    if (moved) document.documentElement.style.userSelect = selection;
-    shield.remove();
-    if (cancelActivePointer === cancel) cancelActivePointer = undefined;
+    target.removeEventListener("pointermove", move);
+    target.removeEventListener("pointerup", up);
+    target.removeEventListener("pointercancel", lost);
+    target.removeEventListener("lostpointercapture", lost);
     if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
-    // Cancellation can precede pointerup (Escape/blur). Keep its click suppressed
-    // until release, but never consume a subsequent gesture or keyboard activation.
-    if (moved || cancelled) {
+    if (moved) {
+      document.documentElement.style.userSelect = selection;
+      shield.remove();
+      // The release lands on the captured element as a click; a drag isn't one.
       const suppress = (click: MouseEvent) => {
-        if (click.detail === 0) return;
-        click.preventDefault(); click.stopImmediatePropagation();
+        click.preventDefault();
+        click.stopImmediatePropagation();
       };
-      const clear = () => {
-        window.removeEventListener("click", suppress, true);
-        window.removeEventListener("dblclick", suppress, true);
-        window.removeEventListener("pointerdown", clear, true);
-        window.removeEventListener("pointerup", afterUp, true);
-      };
-      const afterUp = () => { setTimeout(clear, 0); };
-      window.addEventListener("click", suppress, true);
-      window.addEventListener("dblclick", suppress, true);
-      window.addEventListener("pointerdown", clear, true);
-      if (cancelled) {
-        window.addEventListener("pointerup", afterUp, true);
-      } else afterUp();
+      window.addEventListener("click", suppress, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener("click", suppress, true), 0);
     }
     onEnd?.(cancelled, moved);
-    window.dispatchEvent(new Event("bbd-drag-state"));
+    if (moved) window.dispatchEvent(new Event("bbd-drag-state"));
   };
-  const cancel = () => end(true);
-  const cancelPointer = (next: PointerEvent) => { if (next.pointerId === pointerId) cancel(); };
-  const key = (next: KeyboardEvent) => { if (next.key === "Escape") { next.preventDefault(); cancel(); } };
   const up = (next: PointerEvent) => {
-    if (next.pointerId !== pointerId) return;
-    if (moved) move(next);
-    end(false);
+    if (next.pointerId === pointerId) finish(false);
+  };
+  // bb's dividers revert here; a desktop window can't, since some hosts drop capture right at release. Once the pointer
+  // has moved, losing it ends the gesture where it got to; before that, it was never a drag.
+  const lost = (next: PointerEvent) => {
+    if (next.pointerId === pointerId) finish(!moved);
   };
   target.setPointerCapture(pointerId);
-  cancelActivePointer = cancel;
-  window.addEventListener("pointermove", move, true);
-  window.addEventListener("pointerup", up, true);
-  window.addEventListener("pointercancel", cancelPointer, true);
-  window.addEventListener("pointerdown", cancel, true);
-  window.addEventListener("keydown", key, true);
-  window.addEventListener("blur", cancel);
-  window.addEventListener("resize", cancel);
-  window.addEventListener("contextmenu", cancel, true);
-  document.addEventListener("visibilitychange", cancel);
-  target.addEventListener("lostpointercapture", cancelPointer);
-  return cancel;
+  target.addEventListener("pointermove", move);
+  target.addEventListener("pointerup", up);
+  target.addEventListener("pointercancel", lost);
+  target.addEventListener("lostpointercapture", lost);
+  return () => finish(true);
 }
 
 /** Component ownership also cancels capture when a window/app unmounts. */

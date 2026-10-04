@@ -170,10 +170,10 @@ describe("windows docked to a thread", () => {
     expect(rectOf(moved, "panel:thr_b")).toEqual(rectOf(docked, "panel:thr_b"));
   });
 
-  it("leaves docked windows in place when the thread moves without a drag, such as a composer nudge", () => {
-    const nudged = windowReducer(docked, { type: "move", id: "thread:thr_a", rect: { ...thread, x: 360 } });
-    expect(rectOf(nudged, "buddy-list:thr_a")).toEqual(rectOf(docked, "buddy-list:thr_a"));
-    expect(rectOf(nudged, "panel:thr_a")).toEqual(rectOf(docked, "panel:thr_a"));
+  it("leaves docked windows in place when the thread moves without a drag", () => {
+    const moved = windowReducer(docked, { type: "move", id: "thread:thr_a", rect: { ...thread, x: 360 } });
+    expect(rectOf(moved, "buddy-list:thr_a")).toEqual(rectOf(docked, "buddy-list:thr_a"));
+    expect(rectOf(moved, "panel:thr_a")).toEqual(rectOf(docked, "panel:thr_a"));
   });
 
   it("minimizes and restores them together, raising the thread above them", () => {
