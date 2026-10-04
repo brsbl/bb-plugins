@@ -31,6 +31,7 @@ describe("colon picker workflow", () => {
   it("leaves a dismissed colon intact and does not reopen for saved or changed drafts", async () => {
     const slot = renderSlot(banner, {}, { composer: { text: "Saved:" } });
     expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    await slot.behavior.setComposerText("Saved: ");
     await slot.behavior.setComposerText("Saved: :");
     fireEvent.keyDown(await slot.findByLabelText("Search emojis"), { key: "Escape" });
     await waitFor(() => expect(slot.queryByLabelText("Search emojis")).toBeNull());

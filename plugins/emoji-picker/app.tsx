@@ -4,7 +4,6 @@ import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "./components/ui/popover";
 import { categories, categoryEmojis, emojis, nativeEmoji, readPreferences, searchEmojis, storageKey, tones, toneSamples, type Emoji, type Preferences } from "./emojis";
-
 import { insertedColon } from "./trigger";
 
 const preferencesEvent = "bb:emoji-picker:preferences-changed";
@@ -63,7 +62,6 @@ export function EmojiPicker({ onSelect }: { onSelect: (value: string) => void })
     try {
       onSelect(value);
       update((current) => ({ ...current, recent: [emoji.id, ...current.recent.filter((id) => id !== emoji.id)].slice(0, 24) }));
-
     } catch {
       setStatus("The draft changed. Close this picker and type : again.");
     } finally {
