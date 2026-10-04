@@ -144,17 +144,15 @@
   display: none;
 }
 
-/* The editor reveals the desktop; Ambient's outer glass still protects text contrast over its scene. */
-:root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt) > [data-promptbox] {
+/* Keep the follow-up editor transparent, with an opaque backing for its lower controls. */
+:root:has(.bbd-window-layer) [data-follow-up-composer] > [data-promptbox] {
   background: transparent;
   box-shadow: none;
 }
 
-/* The project/environment/permission row below the form needs its own solid strip. */
-:root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt) > [data-promptbox] + .mt-1 {
+:root:has(.bbd-window-layer) [data-follow-up-composer-footer] {
   background: var(--canvas);
   border-radius: var(--radius);
-  padding-block: 4px;
 }
 
 .bbd-window {
