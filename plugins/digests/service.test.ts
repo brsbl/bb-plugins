@@ -145,7 +145,7 @@ describe("digest issue lifecycle", () => {
   it("keeps a dispatch failure visible across Settings reloads and retries the run", async () => {
     const options = { dispatchFailure: true };
     const { service, harness } = setup(options);
-    await expect(service.run("reading")).rejects.toThrow("Couldn’t open this digest’s workspace");
+    await expect(service.run("reading")).rejects.toThrow("Couldn’t open this brief’s workspace");
     expect((await service.overview()).runErrors.reading).toContain("Retry");
     expect((await service.overview()).runErrors.reading).not.toContain("HTTP 404");
     options.dispatchFailure = false;

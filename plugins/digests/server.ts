@@ -53,7 +53,7 @@ export default function plugin(bb: BbPluginApi) {
   bb.cli.register(defineCli({
     name: "digest", summary: "Define private briefings, run them, or publish a brief in a native thread",
     commands: {
-      list: cliCommand({ summary: "List digest definitions and their schedules", options: { json }, run: () => output(service.store.definitions.list()) }),
+      list: cliCommand({ summary: "List brief definitions and their schedules", options: { json }, run: () => output(service.store.definitions.list()) }),
       templates: cliCommand({ summary: "Show the Unread email, Money, Reading, and X scorecard recipes", options: { json }, run: () => output(DIGEST_RECIPES) }),
       setup: cliCommand({
         summary: "Create or bind disabled starters to their browser workspace; leaves existing automations untouched",
@@ -80,7 +80,7 @@ export default function plugin(bb: BbPluginApi) {
         },
       }),
       define: cliCommand({ summary: "Create a disabled digest from a JSON definition", options: { file, json }, async run(input, ctx) { return output(await define(JSON.parse(await readFile(input.options.file, ctx)))); } }),
-      run: cliCommand({ summary: "Run a digest now in its own brief thread", options: { digest, json }, async run(input) { return output(await service.run(input.options.digest)); } }),
+      run: cliCommand({ summary: "Run a brief now in its own thread", options: { digest, json }, async run(input) { return output(await service.run(input.options.digest)); } }),
       status: cliCommand({ summary: "Follow a pending manual run without starting another", options: { digest, json }, async run(input) { return output(await service.runStatus(input.options.digest)); } }),
       publish: cliCommand({
         summary: "Publish Markdown as a new brief from any thread, or finish this run's brief",
@@ -128,7 +128,7 @@ export default function plugin(bb: BbPluginApi) {
     },
   });
   bb.agents.registerTool({
-    name: "digest_processed", description: "Check which candidate Gmail message IDs this digest already summarized. This never marks Gmail messages read.",
+    name: "digest_processed", description: "Check which candidate Gmail message IDs this brief already summarized. This never marks Gmail messages read.",
     parameters: z.object({ connectionId: DigestIdSchema, messageIds: z.array(IdSchema).max(1000) }).strict(),
     execute: (input, ctx) => {
       const issue = service.requiredIssue(ctx.threadId);

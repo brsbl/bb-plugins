@@ -114,7 +114,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
   };
 
   const issues = {
-    /** Returns the existing issue when the digest's idempotency key was already used. */
+    /** Returns the existing issue when the brief's idempotency key was already used. */
     create(input: z.input<typeof IssueSchema>): Issue {
       const value = IssueSchema.parse(input);
       if (value.state === "ready" || value.publishedAt !== null || value.sources.length > 0) {
@@ -183,7 +183,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
           WHERE digest_id = ? AND connection_id = ? AND message_id = ?`);
         for (const source of payload.sources) {
           if (!definition.connectionIds.includes(source.connectionId)) {
-            throw new Error(`Connection ${source.connectionId} is not listed on this digest.`);
+            throw new Error(`Connection ${source.connectionId} is not listed on this brief.`);
           }
           if (source.deduplicate !== false && findProcessed.get(previous.digestId, source.connectionId, source.messageId) !== undefined) {
             throw new Error(`Message ${source.messageId} from ${source.connectionId} was already digested. Remove it and revise the brief before publishing.`);

@@ -121,7 +121,7 @@ export function createService(bb: BbPluginApi) {
   }
   async function ensureAutomation(definition: DigestDefinition) {
     if (!definition.schedule) throw new Error("This digest accepts published briefs and has no schedule.");
-    if (!definition.providerId || !definition.model) throw new Error("Choose a provider and model when defining this digest before enabling its schedule.");
+    if (!definition.providerId || !definition.model) throw new Error("Choose a provider and model when defining this brief before enabling its schedule.");
     definition = await bindDefinition(definition);
     const target = await targetFor(definition);
     if (definition.automationId && automationProject(definition) === target.projectId) {
@@ -163,13 +163,13 @@ export function createService(bb: BbPluginApi) {
     return exclusive(`definition:${input.id ?? "new"}`, async () => {
       const previous = input.id ? requiredDefinition(input.id) : null;
       if (!store.connections.get(input.connectionId)) throw new Error("Reopen Settings to check your sites before adding a digest.");
-      if (previous && !previous.connectionIds.includes(input.connectionId)) throw new Error("Edit this digest under its original site.");
-      if (!previous && !input.schedule) throw new Error("Choose when this digest should run.");
+      if (previous && !previous.connectionIds.includes(input.connectionId)) throw new Error("Edit this brief under its original site.");
+      if (!previous && !input.schedule) throw new Error("Choose when this brief should run.");
       // Existing publishers keep their mode; editing a prompt does not convert
       // a publishing contract or silently pause an enabled automation.
-      if (previous && Boolean(previous.schedule) !== Boolean(input.schedule)) throw new Error("Keep this digest's existing scheduled or published mode.");
+      if (previous && Boolean(previous.schedule) !== Boolean(input.schedule)) throw new Error("Keep this brief's existing scheduled or published mode.");
       const defaults = previous ?? await settingsDefaults(input.connectionId);
-      if (input.schedule && (!defaults.providerId || !defaults.model)) throw new Error("Choose a default agent and model in this digest's bb project, then save again.");
+      if (input.schedule && (!defaults.providerId || !defaults.model)) throw new Error("Choose a default agent and model in this brief's bb project, then save again.");
       await ensureSection(true);
       let definition: DigestDefinition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, ...(input.emoji !== undefined ? { emoji: input.emoji } : {}), instructions: input.instructions,
         ...(input.afterReading !== undefined ? { afterReading: input.afterReading } : {}),
@@ -295,7 +295,7 @@ export function createService(bb: BbPluginApi) {
     if (issue.state === "failed") throw new Error("This run failed its connection check. Retry before publishing account data.");
     const definition = requiredDefinition(issue.digestId);
     for (const source of payload.sources) {
-      if (!definition.connectionIds.includes(source.connectionId)) throw new Error("The source is outside this digest's declared connections.");
+      if (!definition.connectionIds.includes(source.connectionId)) throw new Error("The source is outside this brief's declared connections.");
     }
     const published = changed(store.issues.publish(issue.id, payload, Date.now()));
     await bb.storage.kv.delete(`recovery:${issue.id}`);
@@ -336,7 +336,7 @@ export function createService(bb: BbPluginApi) {
       let issue = store.issues.getByKey(digestId, key);
       if (issue?.state === "ready") return { issue, directive: directive(issue) };
       for (const source of payload.sources) {
-        if (!definition.connectionIds.includes(source.connectionId)) throw new Error("The source is outside this digest's declared connections.");
+        if (!definition.connectionIds.includes(source.connectionId)) throw new Error("The source is outside this brief's declared connections.");
         if (store.processed(digestId, source.connectionId, [source.messageId]).length) throw new Error(`Message ${source.messageId} was already digested. Revise the report before publishing.`);
       }
       issue ??= newIssue(definition, null, key);

@@ -24,7 +24,7 @@ Agent setup can prefill the following ordinary prompt digests from the existing
 recipes. These start disabled until you confirm migration. Existing automations
 are never adopted or changed.
 
-| Starter digest | Default time |
+| Starter brief | Default time |
 | --- | --- |
 | Unread email | Weekdays, 10am PT |
 | Money | Monday, 10am PT |
@@ -37,7 +37,7 @@ briefs. Read and unread briefs stay there until you move or archive them.
 
 Browser collection requires **bb 0.45.0 or later** on the browser desktop and
 connected server. Fresh brief-owned tabs reuse your existing BB Browser sign-ins.
-No cookie copying or permanently open tab is needed. A computer or workspace that cannot start a run shows a persistent error with Retry on its digest card. Older runtimes show an
+No cookie copying or permanently open tab is needed. A computer or workspace that cannot start a run shows a persistent error with Retry on its brief card. Older runtimes show an
 update-needed brief. Signed-out connections show Reconnect; unavailable or
 interrupted runs show Retry. A missed run is reported when bb resumes.
 

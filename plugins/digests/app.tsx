@@ -511,7 +511,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
         </>}
       </>}
     </details>
-    <div className="digest-form-actions"><Button variant="ghost" disabled={pending} onClick={onCancel}>Cancel</Button><Button variant="default" type="submit" disabled={pending}>{pending ? "Saving…" : definition ? "Save changes" : "Create digest"}</Button></div>
+    <div className="digest-form-actions"><Button variant="ghost" disabled={pending} onClick={onCancel}>Cancel</Button><Button variant="default" type="submit" disabled={pending}>{pending ? "Saving…" : definition ? "Save changes" : "Create brief"}</Button></div>
   </form>;
 }
 
@@ -596,7 +596,7 @@ function DigestsSettings() {
         const result = await rpc.call("run", { id: definition.id });
         if (result.threadId) navigate.toThread(result.threadId);
         else if (result.pending) await load();
-        else setError("Couldn’t start this digest. Retry from its card.");
+        else setError("Couldn’t start this brief. Retry from its card.");
       }
     } catch (error) {
       const message = error instanceof Error && error.message.trim() ? error.message : `Couldn’t start ${definition.name}. Check that bb is running and try again.`;
@@ -623,7 +623,7 @@ function DigestsSettings() {
       setEditing(null);
       if (!input.id) { setCreatedId(definition.id); setNotice(`${definition.name} is on. Run it now to preview your first brief.`); }
       await load();
-    } catch (error) { await load(); setError(error instanceof Error ? error.message : "Couldn’t save this digest. Try again."); }
+    } catch (error) { await load(); setError(error instanceof Error ? error.message : "Couldn’t save this brief. Try again."); }
     finally { setPending(null); }
   };
   const sites = overview?.connections.filter((site) => site.status === "signed-in" || overview.definitions.some((definition) => definition.connectionIds.includes(site.id))) ?? [];
@@ -648,7 +648,7 @@ function DigestsSettings() {
             <div className="digest-site-header"><div><h4>{site.name}</h4><span className="digest-site-account" data-status={site.status}>
               {site.status === "signed-in" ? site.accountName || "Signed in" : signedOut ? "Signed out" : site.status === "unknown" ? "Not checked" : "Browser unavailable"}
               {signedOut && <> · <a href="/settings/browser">Reconnect</a></>}
-            </span></div><Button variant="ghost" disabled={pending !== null || editing !== null} onClick={() => setEditing({ siteId: site.id })}>+ Add digest</Button></div>
+            </span></div><Button variant="ghost" disabled={pending !== null || editing !== null} onClick={() => setEditing({ siteId: site.id })}>+ Add brief</Button></div>
             {editing?.siteId === site.id && !editing.digestId && <DigestForm connection={site} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} />}
             <ul className="digest-nested-list">{definitions.map((definition) => <li className="digest-nested-item" key={definition.id}>
               {editing?.digestId === definition.id ? <DigestForm connection={site} definition={definition} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : <div className="digest-definition">
@@ -666,7 +666,7 @@ function DigestsSettings() {
                 </div>
               </div>}
             </li>)}</ul>
-            {definitions.length === 0 && editing?.siteId !== site.id && <p className="digest-no-digests digest-muted">No digests yet</p>}
+            {definitions.length === 0 && editing?.siteId !== site.id && <p className="digest-no-digests digest-muted">No briefs yet</p>}
           </section>;
         })}</div>
       </>}

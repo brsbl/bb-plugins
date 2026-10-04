@@ -23,7 +23,7 @@ version that supports additional inboxes. Do not use `organizer phase` to route
 briefs: their origin or durable plugin metadata lets Organizer catch them.
 Read and unread briefs remain there until the user moves or archives them.
 
-Every dispatch resolves an explicit host and environment. Prefer the Personal project’s personal-workspace on the connection’s browserHostId, never a project default on the server. A definition can store an optional `execution: {projectId, hostId, environmentId?}` fallback; the Settings edit form offers it under Where it runs. Legacy definitions still parse. Only plugin-owned replacement automations may be rebound; the original user automations remain untouched. If no thread can be created, keep the failure visible on the digest card with Retry.
+Every dispatch resolves an explicit host and environment. Prefer the Personal project’s personal-workspace on the connection’s browserHostId, never a project default on the server. A definition can store an optional `execution: {projectId, hostId, environmentId?}` fallback; the Settings edit form offers it under Where it runs. Legacy definitions still parse. Only plugin-owned replacement automations may be rebound; the original user automations remain untouched. If no thread can be created, keep the failure visible on the brief card with Retry.
 
 Review definitions with the user before enabling them in plugin settings.
 Never edit or remove existing automations as an incidental setup step. Migrate
@@ -31,7 +31,7 @@ only after the user approves the exact old and new schedules. Defaults are
 weekdays 10am PT, Monday 10am PT, and Sunday 11am PT respectively.
 
 Settings lists signed-in sites and nests their digests. Access is checked when Settings opens and before every run. Rapid reopenings reuse a real check for 30 seconds. The import link opens bb’s own Browser settings; the user chooses
-the browser/profile and consents there. Add digest opens an inline prompt form;
+the browser/profile and consents there. Add brief opens an inline prompt form;
 Create saves it enabled and offers Run now to preview. Editing keeps its ID and
 existing enabled state. New schedules default to weekdays 10am PT.
 
