@@ -146,9 +146,6 @@ export function createStore(bb: BbPluginApi) {
 }
 
 export default function plugin(bb: BbPluginApi): void {
-  bb.agents.contributeInstructions(() =>
-    'Use Inline Action Cards whenever you need a decision or approval (sending an email, merging/shipping, switching a setting, applying a change, or choosing between two options), instead of asking in prose. Run bb action-cards create; emit ::action{id="..."} on its own line outside code fences. Say what Yes does; No declines. For 3+ similar items: bb action-cards create-table and ::actions{id="..."}. For approved-action, bb action-cards claim the exact attempt, follow its note as part of approval, then bb action-cards report. If the note conflicts, do not act; report what you did instead. intent comment grants no approval: reply or revise the same card, without claiming. Load the inline-action-cards skill for details.',
-  );
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
     get: ({ threadId, id }) => store.get(threadId, id),
