@@ -13,6 +13,7 @@ export type WindowSpec =
   | { kind: "minesweeper" }
   | { kind: "solitaire" }
   | { kind: "pinball" }
+  | { kind: "maze" }
   | { kind: "command-prompt" }
   | { kind: "paint" }
   | { kind: "internet-explorer" }
@@ -56,6 +57,7 @@ const SIMPLE_KINDS: ReadonlySet<string> = new Set([
   "minesweeper",
   "solitaire",
   "pinball",
+  "maze",
   "command-prompt",
   "paint",
   "internet-explorer",

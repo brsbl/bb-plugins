@@ -54,11 +54,11 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 ### Thread Organizer
 
-Organizes work into configurable workflow sections that agents follow, and keeps unread idle threads in Inbox until work resumes or you move a read thread elsewhere. Each section can carry an entry prompt that every arriving thread receives, so a review section can start a review and a testing section can ask for evidence.
+Organizes work into configurable workflow sections that agents follow, and keeps unread idle threads in Inbox. Sections can opt out of Inbox so their unread threads stay in place. Each section can carry an entry prompt that every arriving thread receives, so a review section can start a review and a testing section can ask for evidence.
 
 ![Thread Organizer showing the current development-phase sections in bb's sidebar](plugins/thread-organizer/docs/screenshot.png)
 
-![Thread Organizer's settings grid with a rule and an entry prompt for each section, and the collapsed Add entry prompt control on a section without one](plugins/thread-organizer/docs/screenshot-entry-prompts.png)
+![Thread Organizer workflow settings](https://github.com/user-attachments/assets/4dba26ce-4033-4f4a-929d-98c630e72e57)
 
 [Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
 
