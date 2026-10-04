@@ -26,6 +26,33 @@ describe("Ambient plugin", () => {
     expect(harness.inspection.logEntries.at(-1)?.message).toBe("Ambient loaded");
     await harness.lifecycle.dispose();
   });
+
+  it("logs context loss and restoration without changing the selected scene", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    const before = await harness.behavior.callRpc("loadScene", { id: "tide" });
+    const report = {
+      occurredAt: "2026-10-03T21:00:00.000Z",
+      rendererId: "c497d254-daf0-48e8-87ce-21e5c564b611",
+      sceneRevision: 1,
+      visible: true,
+      drawingScene: true,
+      width: 1920,
+      height: 1080,
+      detail: 0.5,
+    };
+    for (const event of ["lost", "restored"] as const) {
+      const input = { ...report, event, drawingScene: event === "lost" };
+      expect(await harness.behavior.callRpc("reportContext", input)).toEqual({ accepted: true });
+      const entry = harness.inspection.logEntries.at(-1)!;
+      expect(entry.level).toBe(event === "lost" ? "warn" : "info");
+      const prefix = `Ambient WebGL context ${event}: `;
+      expect(entry.message.startsWith(prefix)).toBe(true);
+      expect(JSON.parse(entry.message.slice(prefix.length))).toEqual(input);
+    }
+    expect(await harness.behavior.callRpc("state", null)).toEqual(before);
+    await harness.lifecycle.dispose();
+  });
 });
 
 describe("display controls", () => {
