@@ -225,12 +225,11 @@ export function createService(bb: BbPluginApi) {
       const definition = await bindDefinition(requiredDefinition(digestId));
       const thread = await bb.sdk.threads.get({ threadId });
       const existing = store.issues.getByThread(threadId);
+      if (!existing && thread.projectId !== definition.projectId && thread.projectId !== automationProject(definition)) {
+        throw new Error("This thread isn’t a digest issue. Open Digests settings and choose Run now to create one.");
+      }
       let issue = existing ?? newIssue(definition, threadId, `thread:${threadId}`);
       if (issue.digestId !== digestId) throw new Error("This thread already belongs to another digest.");
-      if (!existing && thread.projectId !== definition.projectId && thread.projectId !== automationProject(definition)) {
-        issue = await fail(issue, "This issue couldn’t open its workspace. Open Digests settings and choose Run now to create it in the right place.");
-        return { issue, directive: directive(issue), sessions: [], complete: true };
-      }
       if (issue.state === "ready") return { issue, directive: directive(issue), sessions: [], complete: true };
       await closeIssueBrowsers(issue);
       issue = changed(store.issues.update(issue.id, { state: "collecting", headline: `Preparing ${definition.name}`, details: "The briefing is being prepared.", recovery: null }));

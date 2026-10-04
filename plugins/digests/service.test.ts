@@ -139,6 +139,14 @@ describe("digest issue lifecycle", () => {
     expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([value]) => ["automations_create", "automations_update", "automations_resume", "automations_pause"].includes((value as { method: string }).method))).toEqual([]);
   });
 
+  it("never gives a rejected thread issue ownership on a later attempt", async () => {
+    const { service, threads, harness } = setup({ personal: true });
+    threads.set("thr_other", makeThreadResponse({ id: "thr_other", projectId: "proj_other" }));
+    for (let attempt = 0; attempt < 2; attempt++) await expect(service.begin("reading", "thr_other")).rejects.toThrow("Open Digests settings");
+    expect(service.store.issues.getByThread("thr_other")).toBeNull();
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toEqual([]);
+  });
+
   it("reports an offline execution host before dispatching an agent", async () => {
     const { service, harness } = setup({ offline: true });
     await expect(service.run("reading")).rejects.toThrow("My Mac is offline");

@@ -68,9 +68,9 @@ export const DigestDefinitionSchema = z.object({
   model: z.string().min(1).max(160).nullable().default(null),
   reasoningLevel: z.enum(["none", "low", "medium", "high", "xhigh", "max", "ultra", "ultracode"]).nullable().default(null),
   permissionMode: z.enum(["accept-edits", "auto", "full"]).default("auto"),
-  environment: z.discriminatedUnion("type", [
+  environment: z.union([
     z.object({ type: z.literal("project-default") }).strict(),
-    z.object({ type: z.literal("reuse"), environmentId: IdSchema }).strict(),
+    ExplicitEnvironmentSchema,
   ]).default({ type: "project-default" }),
   createdAt: timestamp,
 }).strict();
