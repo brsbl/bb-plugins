@@ -1529,7 +1529,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   margin-right: 6px;
   content: var(--bbd-im-buddy);
   /* Same size and line height as the message text, as in AIM, so the name sits on its first line. */
-  font: bold var(--bbd-im-text)/1.625 "Times New Roman", Times, serif;
+  font: bold var(--bbd-im-text)/1.45 "Times New Roman", Times, serif;
   /* AIM's colors: the buddy in blue, your own name in red. */
   color: var(--bbd-im-blue);
   min-width: 0;
@@ -1662,7 +1662,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 .bbd-im-chat [data-message-column] :is(.text-sm, .text-xs, .text-base):not(code) {
   font-family: "Times New Roman", Times, serif;
   font-size: var(--bbd-im-text);
-  line-height: 1.625;
+  line-height: 1.45;
 }
 
 /* Times is small on the line, so inline code drops a size to stay with the words around it. */
@@ -1752,7 +1752,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 
 .bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative,
 .bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative :is(.text-sm, .text-xs, .text-base, .text-muted-foreground, .text-subtle-foreground):not(code) {
-  font: normal var(--bbd-im-text)/1.625 "Times New Roman", Times, serif;
+  font: normal var(--bbd-im-text)/1.45 "Times New Roman", Times, serif;
   color: var(--foreground);
 }
 
