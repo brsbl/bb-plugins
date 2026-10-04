@@ -73,23 +73,25 @@
   .iac-result-line > .iac-actions { margin-left: auto; }
 }
 
-.iac-log { --iac-gap: 8px; container-type: inline-size; padding: 16px 24px 24px; color: var(--foreground); font-size: 13px; line-height: 1.5; }
-.iac-log-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
+.iac-log { --iac-gap: 8px; --iac-log-button: 6.5rem; container-type: inline-size; padding: 16px 24px 24px; color: var(--foreground); font-size: 13px; line-height: 1.5; }
+.iac-log-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding-bottom: 4px; }
 .iac-log h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; }
 .iac-log-count { color: var(--muted-foreground); font-weight: 400; font-variant-numeric: tabular-nums; }
 .iac-log-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--attention, var(--primary)); }
-.iac-log select { height: 28px; background: var(--background); color: var(--foreground); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 0 8px; font: inherit; font-size: 12px; }
+.iac-log-see-all { color: var(--muted-foreground); font-size: 12px; text-decoration: none; }
+.iac-log-see-all:hover { color: var(--foreground); text-decoration: underline; }
+.iac-log-see-all:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
 .iac-log-done { margin-top: 28px; }
-.iac-log-done h2 { color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
-.iac-log-empty { margin: 0; padding: 12px 0; color: var(--muted-foreground); }
+.iac-log-done h2 { color: var(--muted-foreground); font-weight: 500; }
+.iac-log-empty { margin: 0; padding: 12px 0; border-top: 1px solid var(--border); color: var(--muted-foreground); }
 .iac-log > .iac-log-group > .iac-error { margin: 4px 0; }
-/* Every row shares one anatomy: type icon, title over thread · time, then status or actions on the right. */
+/* Every row shares one anatomy: type icon, title over thread · time, then ⋯ and fixed secondary and primary columns. */
 .iac-log-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
-.iac-log-kind { display: flex; align-self: start; margin-top: 2px; color: var(--muted-foreground); }
-.iac-log-kind svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.iac-log-kind { display: flex; align-self: start; margin-top: 3px; color: var(--muted-foreground); }
+.iac-log-kind svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .iac-log-main { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
 .iac-log-title, .iac-log-meta, .iac-log-meta > *, .iac-log-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iac-log-title { font-size: 14px; font-weight: 500; }
+.iac-log-title { font-size: 14px; font-weight: 600; }
 .iac-log-meta { display: flex; color: var(--muted-foreground); font-size: 12px; }
 .iac-log-meta > * { flex-shrink: 1; }
 .iac-log-meta > :not(:first-child)::before { content: "·"; padding: 0 6px; color: var(--muted-foreground); }
@@ -100,10 +102,16 @@
 .iac-log-thread { color: inherit; text-decoration: none; cursor: pointer; }
 .iac-log-thread:hover { color: var(--foreground); text-decoration: underline; }
 .iac-log-thread:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
-.iac-log-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
-.iac-log-quiet { padding: 7px 0; }
-.iac-log-quiet .iac-log-title { color: var(--muted-foreground); font-size: 13px; font-weight: 400; }
-.iac-log-status { max-width: 14rem; color: var(--muted-foreground); font-size: 12px; }
+.iac-log-actions { display: grid; grid-template-columns: 28px var(--iac-log-button) var(--iac-log-button); align-items: center; gap: var(--iac-gap); }
+.iac-log-menu { grid-column: 1; display: inline-flex; width: 28px; height: 28px; }
+.iac-log-secondary { grid-column: 2; display: flex; min-width: 0; }
+.iac-log-primary { grid-column: 3; display: flex; min-width: 0; }
+.iac-log-button { width: 100%; min-width: 0; }
+.iac-log-button > span, .iac-log-button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iac-log-status { box-sizing: border-box; width: 100%; padding-right: 2px; color: var(--muted-foreground); opacity: .75; font-size: 12px; font-style: italic; text-align: right; }
+/* Done status needs no button, so it may use both columns. */
+.iac-log-quiet .iac-log-secondary { grid-column: 2 / 4; }
+.iac-log-quiet .iac-log-title, .iac-log-later .iac-log-title { color: var(--muted-foreground); }
 .iac-log-draft, .iac-log-row > .iac-error { grid-column: 2 / -1; }
 .iac-log-draft { margin-top: 8px; }
 .iac-log-draft p { margin: 0 0 4px; font-size: 12px; overflow-wrap: anywhere; }
@@ -112,8 +120,7 @@
 .iac-log-more { margin: 6px 0 0 20px; color: var(--muted-foreground); }
 /* Narrow pages and thread panels move actions below the text instead of squeezing the title. */
 @container (max-width: 560px) {
-  .iac-log-actions { grid-column: 2 / -1; grid-row: 3; margin-top: 8px; }
-  .iac-log-quiet .iac-log-actions { grid-column: 3; grid-row: 1; margin-top: 0; }
+  .iac-log-actions { grid-column: 2 / -1; grid-row: 3; justify-content: end; margin-top: 8px; }
   .iac-log-draft { grid-row: 2; }
   .iac-log-meta:has(> .iac-failed) { flex-wrap: wrap; }
   .iac-log-meta > .iac-failed { flex-basis: 100%; }

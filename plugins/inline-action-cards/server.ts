@@ -74,8 +74,10 @@ export function createStore(bb: BbPluginApi) {
       })));
       const sorted = items.map((item) => ({ ...item, threadTitle: titles.get(item.threadId)!.title, threadProjectId: titles.get(item.threadId)!.projectId }))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
-      // Failures need the user to retry or check the outcome, so they stay in Waiting on you.
-      return { waiting: sorted.filter((item) => item.state !== "succeeded"), done: sorted.filter((item) => item.state === "succeeded") };
+      // Failures need a retry and Later cards need a Resume, so both stay in Waiting on you; Later sorts last.
+      const later = (item: Item) => item.state === "succeeded" && item.attempt?.action === "later";
+      return { waiting: [...sorted.filter((item) => item.state !== "succeeded"), ...sorted.filter(later)],
+        done: sorted.filter((item) => item.state === "succeeded" && !later(item)) };
     },
     table,
     createTable(threadId: string, id: string, raw: unknown) {

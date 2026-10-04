@@ -88,7 +88,7 @@ it("bulk approval atomically reserves only the displayed ready rows of a matchin
   expect(() => store.table("thr_other", "news")).toThrow("unavailable");
 });
 
-it("lists every card once, keeps pending and failed cards waiting, and sorts newest first", async () => {
+it("lists every card once, keeps pending, failed and Later cards waiting with Later last, and sorts newest first", async () => {
   const { store } = setup();
   store.create("thr_one", "same-id", reply);
   store.create("thr_two", "same-id", reply);
@@ -101,14 +101,22 @@ it("lists every card once, keeps pending and failed cards waiting, and sorts new
   const sent = store.prepare({ threadId: "thr_two", id: "same-id", revision: 1, action: "send" });
   store.claim("thr_two", "same-id", sent.attempt!.id);
   store.report("thr_two", "same-id", sent.attempt!.id, "succeeded", "Sent", false);
+  for (const [id, action] of [["later", "later"], ["skipped", "skip"]] as const) {
+    store.create("thr_one", id, reply);
+    const attempt = store.prepare({ threadId: "thr_one", id, revision: 1, action });
+    store.claim("thr_one", id, attempt.attempt!.id);
+    store.report("thr_one", id, attempt.attempt!.id, "succeeded", action === "later" ? "Later" : "Skipped", false);
+  }
   const log = await store.log();
+  expect(log.waiting.at(-1)).toMatchObject({ id: "later", state: "succeeded" });
+  expect(log.done.map((item) => item.id).sort()).toEqual(["same-id", "skipped"]);
+  log.waiting.pop();
   expect(log.waiting.map((item) => item.state).sort()).toEqual(["failed", "pending", "ready"]);
   expect(log.waiting.find((item) => item.id === "pending")?.attempt?.id).toBe(pending.attempt!.id);
   expect(log.waiting.map((item) => item.updatedAt)).toEqual(log.waiting.map((item) => item.updatedAt).sort().reverse());
-  expect(log.done.map((item) => item.state)).toEqual(["succeeded"]);
   const scoped = await store.log("thr_one");
-  expect(scoped.waiting).toHaveLength(2);
-  expect(scoped.done).toEqual([]);
+  expect(scoped.waiting.map((item) => item.id)).toEqual(expect.arrayContaining(["same-id", "pending", "later"]));
+  expect(scoped.done.map((item) => item.id)).toEqual(["skipped"]);
   expect((await store.log("thr_empty")).waiting).toEqual([]);
 });
 

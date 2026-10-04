@@ -23,7 +23,7 @@
     "name": "Inline Action Cards",
     "description": "Make decisions in agent messages and track choices and results across threads.",
     "branding": {
-      "icon": "MousePointerClick"
+      "icon": "ListTodo"
     },
     "server": "./server.ts",
     "skills": [
