@@ -74,6 +74,23 @@ describe("colon picker workflow", () => {
     await waitFor(() => expect(slot.queryByLabelText("Search emojis")).toBeNull());
   });
 
+  it("dismisses the compact drawer with Space from its initial panel focus", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(max-width: 767px)",
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const slot = renderSlot(banner, {}, { composer: { text: "Note" } });
+    await slot.behavior.setComposerText("Note:");
+    const dialog = await slot.findByRole("dialog", { name: "Insert emoji" });
+    expect(document.activeElement).toBe(dialog);
+    expect(fireEvent.keyDown(dialog, { key: " " })).toBe(false);
+    await waitFor(() => expect(slot.queryByRole("dialog", { name: "Insert emoji" })).toBeNull());
+    expect(slot.inspection.composer.text).toBe("Note:");
+    await waitFor(() => expect(slot.inspection.composer.focusCount).toBeGreaterThan(0));
+  });
+
   it("inserts a preferred skin tone with the keyboard and remembers recent choices", async () => {
     const slot = renderSlot(banner, {});
     await slot.behavior.setComposerText(":");
