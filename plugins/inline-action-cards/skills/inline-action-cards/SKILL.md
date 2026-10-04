@@ -1,6 +1,6 @@
 ---
 name: inline-action-cards
-description: Use whenever you need a user decision or approval in any thread, including merges or shipping, sending emails, applying changes, switching settings, or choosing between options. Create inline action cards instead of prose confirmation questions, handle card clicks, and report outcomes on the cards.
+description: Use whenever you need a user decision or approval in any thread, including merges or shipping, sending emails, applying changes, switching settings, or choosing between options. Use Action Cards cards instead of prose confirmation questions, handle card clicks, and report outcomes on the cards.
 ---
 
 # Inline Action Cards
@@ -96,6 +96,10 @@ TEXT
 
 A revision conflict means the user edited the draft meanwhile. Re-read and incorporate their edit rather than overwriting it. A revision is not approval to send. The original card refreshes in place; do not create another card for the revised draft. Failed actions must be reconciled or safely reopened before editing. Later/Skip cards have Resume in their ⋯ menu. Safe failures put Edit draft / Choose again there too.
 
+## Decision log
+
+Point users to **Action Cards** in the sidebar for waiting cards and past choices across threads. Read the log with `bb action-cards log --json`, or add `--thread <id>` to scope it to one thread.
+
 ## Limits
 
-Reply and Decide only; inline only. No Gmail credentials, Gmail transport, autonomous send, scheduled reminder, Undo, or side panel is included. Agents supply the connected service and must report outcomes. The editor is a small autosaving plain-text field; it does not implement Docs rich text or proposal acceptance. Docs' private editor cannot be embedded or flushed safely by another plugin through the public SDK.
+Reply and Decide cards, plus a decision log. No Gmail credentials, Gmail transport, autonomous send, scheduled reminder, Undo is included. Agents supply the connected service and must report outcomes. The editor is a small autosaving plain-text field; it does not implement Docs rich text or proposal acceptance. Docs' private editor cannot be embedded or flushed safely by another plugin through the public SDK.

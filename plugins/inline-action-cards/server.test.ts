@@ -87,3 +87,42 @@ it("bulk approval atomically reserves only the displayed ready rows of a matchin
   expect(() => store.prepareTable({ ...args, id: "mixed", items: [{ id: "other", revision: 1 }] })).toThrow("do not share");
   expect(() => store.table("thr_other", "news")).toThrow("unavailable");
 });
+
+it("lists every card once, groups pending with ready, and sorts decided newest first", async () => {
+  const { store } = setup();
+  store.create("thr_one", "same-id", reply);
+  store.create("thr_two", "same-id", reply);
+  store.create("thr_one", "pending", reply);
+  store.create("thr_two", "failed", reply);
+  const pending = store.prepare({ threadId: "thr_one", id: "pending", revision: 1, action: "send" });
+  const fail = store.prepare({ threadId: "thr_two", id: "failed", revision: 1, action: "send" });
+  store.claim("thr_two", "failed", fail.attempt!.id);
+  store.report("thr_two", "failed", fail.attempt!.id, "failed", "Reconnect Gmail", true);
+  const sent = store.prepare({ threadId: "thr_two", id: "same-id", revision: 1, action: "send" });
+  store.claim("thr_two", "same-id", sent.attempt!.id);
+  store.report("thr_two", "same-id", sent.attempt!.id, "succeeded", "Sent", false);
+  const log = await store.log();
+  expect(log.waiting.map((item) => item.state).sort()).toEqual(["pending", "ready"]);
+  expect(log.waiting.find((item) => item.id === "pending")?.attempt?.id).toBe(pending.attempt!.id);
+  expect(log.decided.map((item) => item.updatedAt)).toEqual(log.decided.map((item) => item.updatedAt).sort().reverse());
+  expect(log.decided.map((item) => item.state).sort()).toEqual(["failed", "succeeded"]);
+  const scoped = await store.log("thr_one");
+  expect(scoped.waiting).toHaveLength(2);
+  expect(scoped.decided).toEqual([]);
+  expect((await store.log("thr_empty")).waiting).toEqual([]);
+});
+
+it("CLI log defaults to all threads, supports JSON and explicit thread filters", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  for (const threadId of ["thr_one", "thr_two"]) await host.harness.behavior.runCli(["create", "reply", "--thread", threadId, "--item", JSON.stringify(reply)]);
+  const all = await host.harness.behavior.runCli(["log", "--json"]);
+  expect(JSON.parse(all.stdout!).waiting).toHaveLength(2);
+  const scoped = await host.harness.behavior.runCli(["log", "--thread", "thr_two", "--json"]);
+  expect(JSON.parse(scoped.stdout!).waiting).toMatchObject([{ threadId: "thr_two" }]);
+  const text = await host.harness.behavior.runCli(["log"]);
+  expect(text.stdout).toContain("Waiting on you\n");
+  expect(text.stdout).toContain("Escrow follow-up");
+  expect(text.stdout).toContain("Decided\n");
+  const invalid = await host.harness.behavior.runCli(["log", "--thread", "../escape"]);
+  expect(invalid.exitCode).not.toBe(0);
+});

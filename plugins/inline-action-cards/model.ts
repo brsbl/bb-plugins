@@ -34,7 +34,7 @@ export const itemSchema = z.object({
   content: contentSchema,
   state: z.enum(["ready", "pending", "succeeded", "failed"]),
   attempt: z.object({
-    id: z.string().uuid(), action: actionSchema, claimed: z.boolean(),
+    id: z.string().uuid(), action: actionSchema, claimed: z.boolean(), note: z.string().max(1000).optional(),
   }).strict().nullable(),
   result: z.object({ message: z.string().min(1).max(500), retryable: z.boolean() }).strict().nullable(),
   updatedAt: z.string(),
@@ -85,3 +85,9 @@ export function actionMessage(item: Item): string {
   if (!item.attempt) throw new Error("Choose an action first.");
   return item.state === "failed" && !item.result?.retryable ? "Check outcome for " : `${actionLabel(item, item.attempt.action)} `;
 }
+
+export const logSchema = z.object({
+  waiting: z.array(itemSchema.extend({ threadTitle: z.string() })),
+  decided: z.array(itemSchema.extend({ threadTitle: z.string() })),
+});
+export type DecisionLog = z.infer<typeof logSchema>;

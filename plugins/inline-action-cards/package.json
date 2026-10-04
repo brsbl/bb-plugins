@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-inline-action-cards",
   "version": "0.1.0",
-  "description": "Edit email replies and approve decisions directly inside agent messages.",
+  "description": "Make decisions in agent messages and track choices and results across threads.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -21,7 +21,7 @@
   },
   "bb": {
     "name": "Inline Action Cards",
-    "description": "Edit email replies and approve decisions directly inside agent messages.",
+    "description": "Make decisions in agent messages and track choices and results across threads.",
     "branding": {
       "icon": "MousePointerClick"
     },
