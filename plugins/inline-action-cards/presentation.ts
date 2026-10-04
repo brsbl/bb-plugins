@@ -16,8 +16,15 @@ type IconComposer = PluginComposerApi & {
 };
 
 export function insertActionMention(composer: PluginComposerApi, item: Item, changes = false): void {
-  composer.insertMention({ provider: "action", id: mentionId(item, changes), label: title(item).replace(/[?\s]+$/, "") });
-  const icon = changes ? "Edit" : actionIcons[item.attempt!.action];
+  insertMention(composer, item, mentionId(item, changes), changes ? "Edit" : actionIcons[item.attempt!.action]);
+}
+
+export function insertCommentMention(composer: PluginComposerApi, item: Item, commentId: string): void {
+  insertMention(composer, item, `${item.threadId}:${item.id}:comment_${commentId}`, "MessageCircle");
+}
+
+function insertMention(composer: PluginComposerApi, item: Item, id: string, icon: string): void {
+  composer.insertMention({ provider: "action", id, label: title(item).replace(/[?\s]+$/, "") });
   // insertMention appends the new pill; retain the host-assigned plugin identity,
   // ranges and surrounding draft rather than reconstructing a mention resource.
   (composer as IconComposer).replace?.((draft) => ({

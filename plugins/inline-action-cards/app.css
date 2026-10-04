@@ -78,3 +78,6 @@
 .iac-row-line:has(.iac-note-field) > .iac-choice { flex-basis: 100%; }
 .iac-card .iac-note-field, .iac-row .iac-note-field { padding: 4px 8px; max-height: 100px; overflow-y: auto; box-shadow: 0 0 0 1px var(--border); }
 .iac-result-note { margin-top: 2px; white-space: pre-wrap; font-size: 12px; overflow-wrap: anywhere; }
+
+.iac-note-entry { display: flex; align-items: flex-end; gap: var(--iac-gap); margin-top: 8px; }
+.iac-note-entry .iac-note-field { flex: 1; min-width: 0; }

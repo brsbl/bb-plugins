@@ -73,9 +73,11 @@ The card shows Retry. A new click creates a new attempt, which must be claimed a
 
 Every ready card and table row offers Add note. It focuses a short field above the buttons. Choosing an action submits the note visibly after the mention pill and includes it as `note` in hidden context. The note is saved on the attempt, returned by claim/get, and shown under the result. Empty notes keep the usual behavior; Escape or clearing the field dismisses it. Bulk approval carries each row’s own note.
 
-## Ask for changes
+## Comment without choosing
 
-This button saves current edits, inserts a readable prompt with a `request-changes` mention, and focuses the composer without submitting. Wait for the user's requested changes. Read the current item, then update the **same** draft using its revision:
+When the note field contains text, Comment sends just the note with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `threadId`, and `itemId`; it has no action or attempt. This is not approval. The card stays ready and its choices remain usable. Reply to the comment; if it asks for a change, read the latest item and revise the **same** Reply draft using its revision. Decide question/consequence updates are not supported; explain the requested change instead of creating a replacement card or acting.
+
+Comment replaces Reply’s Ask for changes button. Existing `request-changes` messages remain valid requests to revise, never approval. For a Reply change:
 
 ```sh
 bb action-cards get esc-1
