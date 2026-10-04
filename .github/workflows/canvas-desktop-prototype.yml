@@ -1,0 +1,27 @@
+name: Canvas Desktop Prototype
+
+on:
+  push:
+    paths:
+      - prototypes/desktop-canvas-prototype/**
+      - .github/workflows/canvas-desktop-prototype.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prototype:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+      - run: npm ci
+      - run: npm ci --prefix prototypes/desktop-canvas-prototype
+      - run: npm run check --prefix prototypes/desktop-canvas-prototype
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-canvas-prototype-bundle
+          path: prototypes/desktop-canvas-prototype/dist/
