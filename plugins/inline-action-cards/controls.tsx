@@ -26,8 +26,18 @@ export function MoreMenu({ children, disabled }: { children: ReactNode; disabled
     <Menu.Content className="iac-menu" align="end" sideOffset={5}>{children}</Menu.Content>
   </Menu.Root>;
 }
+// Mirrors the composer's split Send button: the chevron offers other ways to send.
+export function SendOptions({ children, disabled }: { children: ReactNode; disabled?: boolean }) {
+  return <Menu.Root><Menu.Trigger asChild><ActionButton variant="default" className="iac-split-chevron" aria-label="Send options" disabled={disabled}><ChevronIcon /></ActionButton></Menu.Trigger>
+    <Menu.Content className="iac-menu" align="end" sideOffset={5}>{children}</Menu.Content>
+  </Menu.Root>;
+}
+export function MenuLabel({ children }: { children: ReactNode }) {
+  return <Menu.Label className="iac-menu-label">{children}</Menu.Label>;
+}
 export function MenuAction({ children, onSelect }: { children: ReactNode; onSelect: () => void }) {
   return <Menu.Item className="iac-menu-item" onSelect={onSelect}>{children}</Menu.Item>;
 }
 export function ClockIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>; }
 export function SkipIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>; }
+function ChevronIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>; }

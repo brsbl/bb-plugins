@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
+import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { actionSchema, assertAction, bulkLabel, contentSchema, draftSchema, idSchema, itemSchema, tableContentSchema, tableSchema, tableViewSchema, type Item } from "./model.js";
 
@@ -12,7 +12,9 @@ export const rpcContract = defineRpcContract({
   reopen: { input: versioned, output: itemSchema },
   table: { input: ref, output: tableViewSchema },
   prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
+  submitted: { input: ref.extend({ attemptId: z.string().uuid(), queued: z.boolean(), sendAt: z.number().int().positive().optional() }), output: itemSchema },
 });
+type QueueEntry = PluginThreadEventPayloads["message.queued"]["entry"];
 
 export function createStore(bb: BbPluginApi) {
   const db = bb.storage.database();
@@ -108,8 +110,30 @@ export function createStore(bb: BbPluginApi) {
       return change(threadId, id, null, (item) => {
         if (item.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.claimed) throw new Error("This attempt is stale or already claimed. Read its status and reconcile the external result; do not act again.");
         item.attempt.claimed = true;
-        item.attempt.claimedAt = new Date().toISOString();
+        // A claim proves the request reached the agent, even if a queue event was missed.
+        if (item.attempt.queued || !item.attempt.sentAt) sent(item);
       });
+    },
+    // The composer accepted the request. Queue events are authoritative, so only fill a gap.
+    submitted(input: z.infer<typeof rpcContract.submitted.input>) {
+      const item = get(input.threadId, input.id);
+      if (item.state !== "pending" || item.attempt?.id !== input.attemptId || item.attempt.claimed || item.attempt.sentAt || item.attempt.queued) return item;
+      return change(input.threadId, input.id, null, (next) => {
+        if (input.queued) Object.assign(next.attempt!, { queued: true, sendAt: input.sendAt });
+        else sent(next);
+      });
+    },
+    queue(event: "queued" | "dispatched" | "cancelled", entry: QueueEntry) {
+      for (const { threadId, id, attemptId } of attemptRefs(bb.pluginId, entry)) {
+        const item = read.get(threadId, id) ? get(threadId, id) : null;
+        if (item?.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.claimed) continue;
+        change(threadId, id, null, (next) => {
+          // A request deleted from the queue was never sent; let the user choose again.
+          if (event === "cancelled") { next.state = "ready"; next.attempt = null; }
+          else if (event === "dispatched") sent(next);
+          else { Object.assign(next.attempt!, { queued: true, sendAt: entry.sendAt ?? undefined }); delete next.attempt!.sentAt; }
+        });
+      }
     },
     report(threadId: string, id: string, attemptId: string, outcome: "succeeded" | "failed", message: string, retryable: boolean) {
       return change(threadId, id, null, (item) => {
@@ -128,13 +152,33 @@ export function createStore(bb: BbPluginApi) {
   };
 }
 
+function sent(item: Item) {
+  item.attempt!.sentAt = new Date().toISOString();
+  delete item.attempt!.queued; delete item.attempt!.sendAt;
+}
+
+// Card requests carry an action mention whose id is threadId:itemId:attemptId.
+function attemptRefs(pluginId: string, entry: QueueEntry) {
+  return entry.content.flatMap((block) => block.type === "text" ? block.mentions : []).flatMap(({ resource }) => {
+    if (resource.kind !== "plugin" || resource.pluginId !== pluginId || !resource.itemId.startsWith("action:")) return [];
+    const [threadId, id, attemptId, extra] = resource.itemId.slice("action:".length).split(":");
+    const parsed = z.object({ threadId: idSchema, id: idSchema, attemptId: z.string().uuid() }).safeParse({ threadId, id, attemptId });
+    return parsed.success && !extra && threadId === entry.threadId ? [parsed.data] : [];
+  });
+}
+
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
     get: ({ threadId, id }) => store.get(threadId, id),
     save: store.save, prepare: store.prepare, reopen: store.reopen,
-    table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable,
+    table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable, submitted: store.submitted,
   });
+  for (const event of ["queued", "dispatched", "cancelled"] as const) {
+    bb.events.on(`message.${event}`, ({ entry }) => {
+      try { store.queue(event, entry); } catch (err) { bb.log.warn(`Could not update an action card from a queue event: ${err instanceof Error ? err.message : String(err)}`); }
+    });
+  }
   bb.ui.registerMentionProvider({
     id: "action", label: "Action cards", search: () => [],
     resolve(value) {

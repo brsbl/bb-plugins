@@ -38,13 +38,24 @@ export function pendingLabel(item: Item, action = item.attempt?.action): string 
   return `${ongoing[0]!.toUpperCase()}${ongoing.slice(1)}…`;
 }
 
-export function pendingStatus(item: Item, now: number): string | null {
-  if (item.state !== "pending" || !item.attempt) return null;
-  if (!item.attempt.claimed) return now - Date.parse(item.updatedAt) >= 120_000 ? "Not picked up yet" : null;
-  // Older pending records used updatedAt for the claim's timestamp.
-  const since = Date.parse(item.attempt.claimedAt ?? item.updatedAt);
-  if (!Number.isFinite(since)) return "Agent is working on it";
-  const seconds = Math.max(0, Math.floor((now - since) / 1_000));
-  const elapsed = seconds < 60 ? `${seconds} sec` : `${Math.floor(seconds / 60)} min`;
-  return `Agent is working on it · ${elapsed}`;
+const clock = (at: number | string) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+// Once the request leaves the composer the buttons are done; the card shows what was sent.
+export function sentStatus(item: Item): { label: string; time: string | null; queued: boolean } | null {
+  const attempt = item.attempt;
+  if (item.state !== "pending" || !attempt || !(attempt.queued || attempt.sentAt || attempt.claimed)) return null;
+  const choice = attempt.action === "send" ? "Send request" : actionLabel(item, attempt.action);
+  if (attempt.queued) return { label: `${choice} queued${attempt.sendAt ? ` · sends ${clock(attempt.sendAt)}` : ""}`, time: null, queued: true };
+  // Older records were claimed before sentAt existed.
+  return { label: `${choice} sent`, time: attempt.sentAt ?? item.updatedAt, queued: false };
+}
+
+// The composer's Send later presets.
+export function sendLaterOptions(now = new Date()): { label: string; at: number }[] {
+  const at = (days: number, hour: number) => { const date = new Date(now); date.setDate(date.getDate() + days); date.setHours(hour, 0, 0, 0); return date.getTime(); };
+  const minutes = (count: number) => now.getTime() + count * 60_000;
+  return [
+    { label: "In 30 minutes", at: minutes(30) }, { label: "In 1 hour", at: minutes(60) }, { label: "In 2 hours", at: minutes(120) },
+    { label: "This evening", at: at(0, 18) }, { label: "Tomorrow morning", at: at(1, 9) },
+  ].filter((option) => option.at > now.getTime());
 }

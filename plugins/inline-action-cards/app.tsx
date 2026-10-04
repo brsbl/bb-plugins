@@ -2,8 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
-import { insertActionMention, pendingLabel, pendingStatus } from "./presentation.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, MenuLabel, SendOptions, ClockIcon, SkipIcon } from "./controls.js";
+import { insertActionMention, pendingLabel, sendLaterOptions, sentStatus } from "./presentation.js";
 import "./app.css";
 
 // Several cards may share one composer. A double click must never submit two drafts.
@@ -23,19 +23,13 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const view = useRef(composerView);
   view.current = composerView;
   const [item, setItem] = useState<Item | null>(initialItem ?? null);
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (item?.state !== "pending") return;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [item?.state, item?.attempt?.id, item?.attempt?.claimed]);
   const current = useRef<Item | null>(initialItem ?? null);
   const [draft, setDraft] = useState(initialItem?.content.type === "reply" ? initialItem.content.draft : "");
   const text = useRef(draft);
   const dirty = useRef(false);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -113,20 +107,22 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   }, [draft, flush]);
   useEffect(() => () => { void flush().catch(() => {}); }, [flush]);
 
-  const sendMessage = async (next: Item) => {
+  const sendMessage = async (next: Item, sendAt?: number) => {
     // Check again after asynchronous saves; the user may have started typing.
     if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to respond.");
     if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try the card again.");
     composer.setText(actionMessage(next));
     insertActionMention(composer, next);
     const submittedText = composer.text;
-    await composer.experimental_submit({ experimental_data: { itemId: id } });
+    const queued = sendAt !== undefined || view.current.run.isRunning;
+    await composer.experimental_submit(sendAt ? { sendAt, experimental_data: { itemId: id } } : { experimental_data: { itemId: id } });
     if (composer.text === submittedText) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
+    adopt(await rpc.call("submitted", { id, threadId, attemptId: next.attempt!.id, queued, sendAt }));
   };
 
-  const act = async (action?: Action) => {
+  const act = async (action?: Action, sendAt?: number) => {
     if (lock.current || submitting.has(threadId)) return;
-    lock.current = true; submitting.add(threadId); setBusy(true); setError(null);
+    lock.current = true; submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
     try {
       await flush();
       let next = current.current;
@@ -139,9 +135,9 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
         adopt(next);
       }
       // Resending a pending request keeps its attempt ID; claim refuses duplicates.
-      await sendMessage(next);
+      await sendMessage(next, sendAt);
     } catch (err) { setError(readableError(err)); }
-    finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
+    finally { lock.current = false; submitting.delete(threadId); setBusy(false); setSending(null); }
   };
   const askForChanges = async () => {
     if (lock.current) return;
@@ -166,7 +162,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const reply = item?.content.type === "reply" ? item.content : null;
   const ready = item?.state === "ready";
   const pending = item?.state === "pending";
-  const done = item?.state === "succeeded" || item?.state === "failed";
+  const status = item && !busy ? sentStatus(item) : null;
+  const done = item?.state === "succeeded" || item?.state === "failed" || !!status;
   const showBody = row ? expanded : !done || viewResult;
   const editor = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
@@ -188,30 +185,40 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     <IconButton label="Remind me later" disabled={disabled} onClick={() => void act("later")}><ClockIcon /></IconButton>
     <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
   </div>;
-  const progress = pendingStatus(item, now);
-  const progressLine = progress && <span className="iac-muted iac-pending-status" role="status">{progress}</span>;
+  const primary: Action = reply ? "send" : "yes";
   const controls = <div className="iac-actions iac-footer">
     {ready || pending ? <>
       <span className="iac-menu-slot">{pending
         ? <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>
         : reply && <MoreMenu disabled={disabled}><MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction></MoreMenu>}</span>
-      {pending && !["yes", "no", "send"].includes(item.attempt?.action ?? "") && progressLine}
       {reply ? <ActionButton disabled={disabled} onClick={() => void askForChanges()}>Ask for changes</ActionButton>
-        : <span className="iac-pending-control"><PendingButton pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>{item.attempt?.action === "no" && progressLine}</span>}
-      <span className="iac-pending-control"><PendingButton variant="default" pending={pending && item.attempt?.action === (reply ? "send" : "yes")} pendingLabel={pendingLabel(item, reply ? "send" : "yes")} disabled={disabled} onClick={() => void act(reply ? "send" : "yes")}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>{item.attempt?.action === (reply ? "send" : "yes") && progressLine}</span>
+        : <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
+      <span className="iac-split">
+        <PendingButton variant="default" pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled} onClick={() => void act(primary)}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
+        <SendOptions disabled={disabled}>
+          <MenuLabel>Send later</MenuLabel>
+          {sendLaterOptions().map(({ label }) => <MenuAction key={label} onSelect={() => {
+            // Relative presets are timed from the click, not from when the card rendered.
+            const at = sendLaterOptions().find((option) => option.label === label)?.at;
+            if (at) void act(primary, at); else setError("That time has passed. Choose another time.");
+          }}>{label}</MenuAction>)}
+        </SendOptions>
+      </span>
     </> : null}
   </div>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
   </div></div>;
+  const time = status ? status.time : item.updatedAt;
   const result = <div className="iac-result-line">
-    <span className={item.state === "failed" ? "iac-failed" : "iac-result"} role="status">
-      <span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> {resultLabel(item)}
+    <span className={item.state === "failed" ? "iac-failed" : status?.queued ? "iac-muted" : "iac-result"} role="status">
+      {!status?.queued && <><span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> </>}{status ? status.label : resultLabel(item)}
       {row && <span className="iac-muted"> · {title(item)}</span>}
-      <time dateTime={item.updatedAt}> · {new Date(item.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
+      {time && <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>}
     </span>
     <div className="iac-actions">
+      {status && !status.queued && !item.attempt?.claimed && <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>}
       {(deferred || (item.state === "failed" && item.result?.retryable)) && <MoreMenu disabled={busy}><MenuAction onSelect={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</MenuAction></MoreMenu>}
       <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
       {item.state === "failed" && <ActionButton variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined)}>{item.result?.retryable ? "Retry" : "Check outcome"}</ActionButton>}
@@ -261,7 +268,6 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
   const [table, setTable] = useState<TableView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [bulkAttempts, setBulkAttempts] = useState<string[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const lock = useRef(false);
   const load = useCallback(async () => {
@@ -283,7 +289,6 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
       };
       checkComposer();
       const items = await rpc.call("prepareTable", { id, threadId, items: table.items.filter((item) => item.state === "ready").map(({ id, revision }) => ({ id, revision })) });
-      setBulkAttempts(items.map((item) => item.attempt!.id));
       items.forEach(updateItem);
       checkComposer();
       composer.setText(`${actionLabel(items[0]!, "yes")} `);
@@ -292,16 +297,17 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
         insertActionMention(composer, item);
       });
       const submittedText = composer.text;
+      const queued = view.current.run.isRunning;
       await composer.experimental_submit({ experimental_data: { tableId: id } });
       if (composer.text === submittedText) throw new Error("The request was not submitted. Send the prepared composer message, or resend each pending row.");
+      (await Promise.all(items.map((item) => rpc.call("submitted", { id: item.id, threadId, attemptId: item.attempt!.id, queued })))).forEach(updateItem);
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
   };
   if (!table) return <div className="iac-card" role="status">{error ?? "Loading actions…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const label = bulkLabel(table.items);
-  const bulkPending = table.items.some((item) => item.state === "pending" && bulkAttempts.includes(item.attempt!.id));
   return <section className="iac-table" aria-label={table.title}>
-    <div className="iac-table-header"><span>{table.title}</span>{label && <PendingButton pending={busy || bulkPending} pendingLabel={pendingLabel(table.items[0]!, "yes")} disabled={!table.items.some((item) => item.state === "ready")} onClick={() => void bulk()}>{label}</PendingButton>}</div>
+    <div className="iac-table-header"><span>{table.title}</span>{label && <PendingButton pending={busy} pendingLabel={pendingLabel(table.items[0]!, "yes")} disabled={!table.items.some((item) => item.state === "ready")} onClick={() => void bulk()}>{label}</PendingButton>}</div>
     {error && <div className="iac-error" role="alert">{error}</div>}
     {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row expanded={open === item.id} onExpand={(expanded) => setOpen((value) => expanded ? item.id : value === item.id ? null : value)} onItem={updateItem} />)}
   </section>;

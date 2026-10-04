@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import type { Item } from "./model.js";
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], cc: [], bcc: [], original: { from: "Escrow", body: "Your refund is on its way." }, draft: "Original draft" } });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
-async function setup(composerText = "", saveFailure = false, initialItem = fixture()) {
+afterEach(cleanup);
+async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>) {
   let item = initialItem;
   const calls: string[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
@@ -25,6 +25,13 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         calls.push("prepare"); expect(input.revision).toBe(item.revision);
         item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false } }; return item;
       },
+      submitted: async (raw) => {
+        const input = raw as { queued: boolean; sendAt?: number };
+        await beforeSubmitted;
+        calls.push(input.sendAt ? "scheduled" : "submitted");
+        item = { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, ...(input.queued ? { queued: true, sendAt: input.sendAt } : { sentAt: "2026-10-01T19:09:00Z" }) } };
+        return item;
+      },
     },
   });
   await screen.findByRole("article");
@@ -38,11 +45,12 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "My latest edit" } });
   fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-  expect(calls).toEqual(["save", "prepare"]);
+  await waitFor(() => expect(calls).toEqual(["save", "prepare", "submitted"]));
+  expect(slot.inspection.composer.submits).toHaveLength(1);
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Escrow follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
-  expect(screen.getByRole("textbox").getAttribute("readonly")).not.toBeNull();
+  await screen.findByText("Send request sent");
+  expect(screen.queryByRole("textbox")).toBeNull();
 });
 it("keeps Ask for changes in the composer without submitting", async () => {
   const { slot } = await setup();
@@ -91,6 +99,11 @@ it("keeps the expanded table reply in place while Send is pending", async () => 
         items = items.map((item): Item => item.id === id ? { ...item, revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: false } } : item);
         return items.find((item) => item.id === id);
       },
+      submitted: (raw) => {
+        const id = (raw as { id: string }).id;
+        items = items.map((item): Item => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item);
+        return items.find((item) => item.id === id);
+      },
     },
   });
   const reviews = await screen.findAllByRole("button", { name: /Review/ });
@@ -100,21 +113,16 @@ it("keeps the expanded table reply in place while Send is pending", async () => 
   expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  await screen.findByText("Send request sent");
   expect(screen.getByRole("textbox", { name: "Draft" }).getAttribute("readonly")).not.toBeNull();
-  expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
-  fireEvent.click(screen.getByRole("button", { name: /Close/ }));
-  expect(screen.queryByRole("textbox", { name: "Draft" })).toBeNull();
-  const pendingReview = screen.getAllByRole("button", { name: /Review/ })[1]!;
-  expect((pendingReview as HTMLButtonElement).disabled).toBe(false);
-  fireEvent.click(pendingReview);
-  expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
+  expect(screen.queryByRole("button", { name: "Sending…" })).toBeNull();
 });
 
-it.each(["send", "yes", "no"] as const)("keeps %s on the pressed button and disables its siblings", async (action) => {
+it.each(["send", "yes", "no"] as const)("shows %s loading only while it is sent, then settles", async (action) => {
   const item = fixture();
   if (action !== "send") item.content = { type: "decide", question: "Switch digests?", consequence: "Keep schedules", yesLabel: "Switch", noLabel: "Keep" };
-  const { slot } = await setup("", false, item);
+  let release!: () => void;
+  const { slot } = await setup("", false, item, new Promise<void>((resolve) => { release = resolve; }));
   const label = action === "send" ? "Send" : action === "yes" ? "Switch" : "Keep";
   const button = screen.getByRole("button", { name: label });
   const classes = button.className;
@@ -124,17 +132,33 @@ it.each(["send", "yes", "no"] as const)("keeps %s on the pressed button and disa
   expect(pending).toBe(button);
   expect(pending.className).toBe(classes);
   expect(pending.getAttribute("aria-busy")).toBe("true");
-  expect((pending as HTMLButtonElement).disabled).toBe(true);
-  const other = screen.getByRole("button", { name: action === "send" ? "Ask for changes" : action === "yes" ? "Keep" : "Switch" });
-  expect((other as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: action === "send" ? "Ask for changes" : action === "yes" ? "Keep" : "Switch" }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: "Skip" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
+  release();
+  const status = await screen.findByRole("status");
+  expect(status.textContent).toMatch(new RegExp(`^✓ ${action === "send" ? "Send request" : label} sent · `));
+  expect(screen.queryByRole("button", { name: label })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
 });
 
-it("keeps the bulk button busy until its own attempts finish, without treating a row click as bulk", async () => {
+it("queues the primary action from Send options and shows it as queued", async () => {
+  const item = fixture();
+  item.content = { type: "decide", question: "Merge PR?", consequence: "Squash into main", yesLabel: "Merge" };
+  const { slot, calls } = await setup("", false, item);
+  const options = screen.getByRole("button", { name: "Send options" });
+  fireEvent.keyDown(options, { key: "Enter" });
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Tomorrow morning" }));
+  await waitFor(() => expect(calls).toEqual(["prepare", "scheduled"]));
+  const submit = slot.inspection.composer.submits[0] as { sendAt?: number };
+  expect(submit.sendAt).toBeGreaterThan(Date.now());
+  expect((await screen.findByRole("status")).textContent).toMatch(/^Merge queued · sends /);
+});
+
+it("keeps the bulk button busy only while sending, without treating a row click as bulk", async () => {
   let items: Item[] = ["one", "two"].map((id) => ({ ...fixture(), id, content: { type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", actionKey: "switch" } }));
   const app = await loadPluginApp(() => import("./app.js"));
   const prepare = (item: Item): Item => ({ ...item, revision: item.revision + 1, state: "pending", attempt: { id: item.id === "one" ? "ea45f71a-c216-4da4-a226-65736f4eccfd" : "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "yes", claimed: false } });
+  const settle = (id: string) => { items = items.map((item) => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item); return items.find((item) => item.id === id); };
   const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
     composer: { scope: { kind: "thread", threadId: "thr_test" } },
     rpc: {
@@ -142,6 +166,7 @@ it("keeps the bulk button busy until its own attempts finish, without treating a
       get: (raw) => items.find((item) => item.id === (raw as { id: string }).id),
       prepare: (raw) => { items = items.map((item) => item.id === (raw as { id: string }).id ? prepare(item) : item); return items[0]; },
       prepareTable: () => { items = items.map((item) => item.state === "ready" ? prepare(item) : item); return [items[1]]; },
+      submitted: (raw) => settle((raw as { id: string }).id),
     },
   });
   const button = await screen.findByRole("button", { name: "Switch all" });
@@ -150,38 +175,6 @@ it("keeps the bulk button busy until its own attempts finish, without treating a
   expect(button.getAttribute("aria-busy")).toBeNull();
   fireEvent.click(button);
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(2));
-  expect(button.getAttribute("aria-busy")).toBe("true");
-  items = items.map((item) => item.id === "two" ? { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Switched", retryable: false } } : item);
-  await slot.behavior.emitRealtime("items", {});
   await waitFor(() => expect(button.getAttribute("aria-busy")).toBeNull());
-});
-
-const pendingDecision = (claimed: boolean): Item => ({ ...fixture(), state: "pending", updatedAt: new Date(Date.now() - 300_000).toISOString(),
-  content: { type: "decide", question: "Merge this PR?", consequence: "CI must pass first.", yesLabel: "Merge" },
-  attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed,
-    ...(claimed ? { claimedAt: new Date(Date.now() - 180_000).toISOString() } : {}) },
-});
-it("keeps a fresh unclaimed choice loading without claiming the agent has it", async () => {
-  await setup("", false, { ...pendingDecision(false), updatedAt: new Date().toISOString() });
-  expect(screen.getByRole("button", { name: "Merging…" }).getAttribute("aria-busy")).toBe("true");
-  expect(screen.queryByText(/Agent is working|Not picked up/)).toBeNull();
-});
-it("shows an overdue unclaimed choice with the existing resend menu", async () => {
-  await setup("", false, pendingDecision(false));
-  expect(screen.getByText("Not picked up yet")).toBeTruthy();
-  fireEvent.pointerDown(screen.getByRole("button", { name: "More actions" }), { button: 0, ctrlKey: false });
-  await screen.findByRole("menuitem", { name: "Resend request" });
-});
-it("restores elapsed time from the stored claim and updates it live until the result", async () => {
-  const { reportSuccess } = await setup("", false, pendingDecision(true));
-  expect(screen.getByText("Agent is working on it · 3 min")).toBeTruthy();
-  expect(screen.queryByText("Not picked up yet")).toBeNull();
-  expect(screen.getByRole("button", { name: "Merging…" }).getAttribute("aria-busy")).toBe("true");
-  const later = Date.now() + 60_000;
-  vi.spyOn(Date, "now").mockReturnValue(later);
-  await waitFor(() => expect(screen.getByText("Agent is working on it · 4 min")).toBeTruthy(), { timeout: 2_000 });
-  vi.restoreAllMocks();
-  await reportSuccess();
-  await screen.findByText(/Sent/);
-  expect(screen.queryByText(/Agent is working/)).toBeNull();
+  await waitFor(() => expect(screen.getAllByText("Switch sent")).toHaveLength(2));
 });
