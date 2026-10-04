@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
-import { ActionButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
 import { insertActionMention, pendingLabel } from "./presentation.js";
 import "./app.css";
 
@@ -41,7 +41,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     current.current = next;
     if (alive.current) {
       setItem(next); onItemRef.current?.(next);
-      if (changedState && next.state !== "ready") onExpandRef.current?.(false);
+      if (changedState && (next.state === "succeeded" || next.state === "failed")) onExpandRef.current?.(false);
       if (changedState && (next.state === "succeeded" || next.state === "failed")) setError(null);
     }
   }, []);
@@ -158,6 +158,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   };
   const reply = item?.content.type === "reply" ? item.content : null;
   const ready = item?.state === "ready";
+  const pending = item?.state === "pending";
   const done = item?.state === "succeeded" || item?.state === "failed";
   const showBody = row ? expanded : !done || viewResult;
   const editor = useRef<HTMLTextAreaElement>(null);
@@ -173,7 +174,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     return () => window.removeEventListener("resize", resize);
   }, [draft, showBody]);
   if (!item) return <div className="iac-card" role="status">{error ?? "Loading card…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
-  const disabled = busy || loadError;
+  const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = (open: boolean) => row ? onExpand?.(open) : setViewResult(open);
   const utilities = <div className="iac-actions">
@@ -181,13 +182,13 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
   </div>;
   const controls = <div className="iac-actions iac-footer">
-    {ready ? <>
-      {reply && <MoreMenu disabled={disabled}><MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction></MoreMenu>}
-      <ActionButton disabled={disabled} onClick={() => reply ? void askForChanges() : void act("no")}>{reply ? "Ask for changes" : actionLabel(item, "no")}</ActionButton>
-      <ActionButton variant="default" disabled={disabled} onClick={() => void act(reply ? "send" : "yes")}>{reply ? "Send" : actionLabel(item, "yes")}</ActionButton>
-    </> : item.state === "pending" ? <>
-      <span className="iac-progress" role="status">{pendingLabel(item)}</span>
-      <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>
+    {ready || pending ? <>
+      <span className="iac-menu-slot">{pending
+        ? <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>
+        : reply && <MoreMenu disabled={disabled}><MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction></MoreMenu>}</span>
+      {reply ? <ActionButton disabled={disabled} onClick={() => void askForChanges()}>Ask for changes</ActionButton>
+        : <PendingButton pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
+      <PendingButton variant="default" pending={pending && item.attempt?.action === (reply ? "send" : "yes")} pendingLabel={pendingLabel(item, reply ? "send" : "yes")} disabled={disabled} onClick={() => void act(reply ? "send" : "yes")}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
     </> : null}
   </div>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
@@ -211,7 +212,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       {reply ? <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
         {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
       </div> : <span className="iac-question">{title(item)}</span>}
-      {ready && utilities}
+      {(ready || pending) && utilities}
     </div>
     {reply ? <>
       <details className="iac-original"><summary><span>{displayName(reply.original.from)}{reply.original.date ? `, ${reply.original.date}` : ""}: “{reply.original.body.replace(/\s+/g, " ").slice(0, 160)}”</span></summary>
@@ -229,7 +230,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       <div className="iac-row-description"><span>{reply ? `${displayName(reply.to[0]!)} · ${reply.subject}` : title(item)}</span>
         {!reply && <p className="iac-consequence">{item.content.type === "decide" && item.content.consequence}</p>}
       </div>
-      {reply && item.state === "ready" ? <ActionButton aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton> : controls}
+      {reply ? <ActionButton disabled={disabled} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton> : controls}
     </div> : null}
     {showBody && <div className={row ? "iac-row-expanded" : "iac-body"}>{details}</div>}
     {failure}
@@ -250,6 +251,7 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
   const [table, setTable] = useState<TableView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [bulkAttempts, setBulkAttempts] = useState<string[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const lock = useRef(false);
   const load = useCallback(async () => {
@@ -271,6 +273,7 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
       };
       checkComposer();
       const items = await rpc.call("prepareTable", { id, threadId, items: table.items.filter((item) => item.state === "ready").map(({ id, revision }) => ({ id, revision })) });
+      setBulkAttempts(items.map((item) => item.attempt!.id));
       items.forEach(updateItem);
       checkComposer();
       composer.setText(`${actionLabel(items[0]!, "yes")} `);
@@ -286,8 +289,9 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
   };
   if (!table) return <div className="iac-card" role="status">{error ?? "Loading actions…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const label = bulkLabel(table.items);
+  const bulkPending = table.items.some((item) => item.state === "pending" && bulkAttempts.includes(item.attempt!.id));
   return <section className="iac-table" aria-label={table.title}>
-    <div className="iac-table-header"><span>{table.title}</span>{label && <ActionButton disabled={busy || !table.items.some((item) => item.state === "ready")} onClick={() => void bulk()}>{busy ? "Submitting…" : label}</ActionButton>}</div>
+    <div className="iac-table-header"><span>{table.title}</span>{label && <PendingButton pending={busy || bulkPending} pendingLabel={pendingLabel(table.items[0]!, "yes")} disabled={!table.items.some((item) => item.state === "ready")} onClick={() => void bulk()}>{label}</PendingButton>}</div>
     {error && <div className="iac-error" role="alert">{error}</div>}
     {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row expanded={open === item.id} onExpand={(expanded) => setOpen((value) => expanded ? item.id : value === item.id ? null : value)} onItem={updateItem} />)}
   </section>;
