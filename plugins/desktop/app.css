@@ -145,12 +145,12 @@
 }
 
 /* Keep the follow-up editor transparent, with an opaque backing for its lower controls. */
-:root:has(.bbd-window-layer) [data-follow-up-composer] > [data-promptbox] {
+[data-follow-up-composer] > [data-promptbox] {
   background: transparent;
   box-shadow: none;
 }
 
-:root:has(.bbd-window-layer) [data-follow-up-composer-footer] {
+[data-follow-up-composer-footer] {
   background: var(--canvas);
   border-radius: var(--radius);
 }
