@@ -15,6 +15,7 @@ import type {
 import {
   ACTION_LABELS,
   advanceItem,
+  classifyUnmatchedCommand,
   composeBriefing,
   decideAction,
   evaluateCheck,
@@ -666,6 +667,23 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
     const command = clip(request.command, 160);
     const action = matchGatedCommand(request.command);
     if (!action) {
+      const risk = classifyUnmatchedCommand(request.command);
+      if (risk === "self_rpc") {
+        // Agents must not drive Coordinator Mode's own controls (approve, link, turn off).
+        if (await resolve("deny")) {
+          log(coordinator.threadId, item?.id ?? null, "command_denied",
+            `Denied \`${command}\` in ${where}: only you can use Coordinator Mode's controls.`);
+        }
+        publish(coordinator.threadId);
+        return;
+      }
+      if (risk === "risky") {
+        // Can't tell which gated action this is, so leave it for you to answer.
+        log(coordinator.threadId, item?.id ?? null, "action_asked",
+          `Left \`${command}\` in ${where} for you to answer: it may be a gated action.`);
+        publish(coordinator.threadId);
+        return;
+      }
       if (coordinator.autoApprove && await resolve("allow_once")) {
         log(coordinator.threadId, item?.id ?? null, "command_approved", `Approved \`${command}\` in ${where}.`);
       }

@@ -198,6 +198,26 @@ function matchCommandDepth(command: string, depth: number): GatedAction | null {
  * call these commands, `eval`, and flags that take a value before the subcommand
  * (`gh -R o/r pr merge`) are not detected. The first gated command in the string wins.
  */
+/**
+ * Second line of defense for commands `matchGatedCommand` doesn't recognize.
+ * "self_rpc" reaches Coordinator Mode's own RPC or HTTP surface, which an agent
+ * could use to approve its own items, so it is always denied. "risky" mentions a
+ * gated operation in a form the matcher can't parse, so it is never approved
+ * automatically. Everything else is "safe".
+ */
+export function classifyUnmatchedCommand(command: string): "self_rpc" | "risky" | "safe" {
+  if (/\bplugin\s+rpc\b|\/plugins\/coordinator-mode\b|\bplugin\s+(?:run|disable|remove|uninstall|config)\s+coordinator-mode\b/i.test(command)) {
+    return "self_rpc";
+  }
+  if (
+    /\bmerge\b|\beval\b|\bdigest\s+publish\b|\bthread\s+(?:archive|spawn|create|delete)\b/i.test(command) ||
+    /\bgh\s+api\b[\s\S]*(?:-X|--method)\s*(?:PUT|POST|PATCH|DELETE)\b/i.test(command)
+  ) {
+    return "risky";
+  }
+  return "safe";
+}
+
 export function matchGatedCommand(command: string): GatedAction | null {
   return matchCommandDepth(command, 0);
 }

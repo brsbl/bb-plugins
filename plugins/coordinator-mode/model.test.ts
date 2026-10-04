@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CoordinatorItem, CoordinatorTemplate, LogEntry, PendingApproval } from "./contracts";
 import {
   advanceItem,
+  classifyUnmatchedCommand,
   composeBriefing,
   decideAction,
   evaluateCheck,
@@ -238,5 +239,23 @@ describe("instructionsFor", () => {
       rules: Array.from({ length: 40 }, () => ({ kind: "instruction" as const, column: "never" as const, text: "x".repeat(500) })),
     };
     expect(instructionsFor(huge).length).toBeLessThanOrEqual(MAX_INSTRUCTIONS_LENGTH);
+  });
+});
+
+describe("classifyUnmatchedCommand", () => {
+  it("denies calls into Coordinator Mode's own RPC", () => {
+    expect(classifyUnmatchedCommand("bb plugin rpc call coordinator-mode approveItem --input '{}'")).toBe("self_rpc");
+    expect(classifyUnmatchedCommand("curl -X POST http://127.0.0.1:1/api/v1/plugins/coordinator-mode/rpc/approveItem")).toBe("self_rpc");
+    expect(classifyUnmatchedCommand("bb plugin disable coordinator-mode")).toBe("self_rpc");
+  });
+  it("never auto-approves gated operations the matcher can't parse", () => {
+    expect(classifyUnmatchedCommand("gh -R o/r pr merge 12")).toBe("risky");
+    expect(classifyUnmatchedCommand("gh api -X PUT repos/o/r/pulls/12/merge")).toBe("risky");
+    expect(classifyUnmatchedCommand("eval \"$CMD\"")).toBe("risky");
+  });
+  it("leaves ordinary commands alone", () => {
+    expect(classifyUnmatchedCommand("npm test")).toBe("safe");
+    expect(classifyUnmatchedCommand("git status")).toBe("safe");
+    expect(classifyUnmatchedCommand("bb coordinator-mode status")).toBe("safe");
   });
 });
