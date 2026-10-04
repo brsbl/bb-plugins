@@ -15,7 +15,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/pull-reques
 Open **Pull Requests** from plugin navigation. The sidebar combines pull requests linked to visible bb threads across projects and machines. Select one to inspect its Summary or read-only Changes, then open the linked thread to continue.
 
 - The compact sidebar groups **Authored by me**, **Needs my review**, other PRs, and history. Titles stay on one line with update times at the end. Pin a PR to keep it nearby.
-- The **…** menu opens **Sort by** (update time or title) and **Filter → Author / Reviewer** (including requested teams). “Me” means the GitHub account reading each PR. Filters and sorting cover loaded PRs; Load more expands that set.
+- The **…** menu contains **Author**, **Reviewer** (including requested teams), and **Sort by** dropdowns. “Me” means the GitHub account reading each PR. Filters and sorting cover loaded PRs; Load more expands that set.
 - **Link pull request** previews a GitHub URL before associating it with an existing thread. Manage links and the preferred thread in detail.
 - Status icons distinguish GitHub checks and reviews from live thread activity. Hover, focus, or tap an icon for its meaning.
 

@@ -153,59 +153,34 @@ describe("Compact pull request inbox", () => {
     await screen.findByRole("button", { name: "Zebra fix" });
     const titles = () => Array.from(document.querySelectorAll(".pr-row-title")).map((element) => element.textContent);
     expect(titles()).toEqual(["Alpha fix", "Zebra fix", "Other author"]);
-    const choose = async (path: string[], label: string) => {
-      fireEvent.keyDown(screen.getByRole("button", { name: "Filters and sort" }), { key: "ArrowDown" });
-      for (const name of path) fireEvent.keyDown(await screen.findByRole("menuitem", { name }), { key: "ArrowRight" });
-      fireEvent.click(await screen.findByRole("menuitemradio", { name: label }));
-      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-    };
-    await choose(["Filter", "Author"], "Me");
-    await choose(["Filter", "Reviewer"], "acme/design");
+    const openMenu = () => { fireEvent.click(screen.getByLabelText("Filters and sort")); };
+    const choose = (name: string, value: string) => fireEvent.change(screen.getByRole("combobox", { name }), { target: { value } });
+    openMenu();
+    choose("Author", "@me");
+    choose("Reviewer", "acme/design");
     expect(titles()).toEqual(["Zebra fix"]);
-    await choose(["Filter", "Reviewer"], "reviewer");
-    await choose(["Sort by"], "Oldest updated");
+    choose("Reviewer", "reviewer");
+    choose("Sort by", "oldest");
     expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
     slot.lifecycle.unmount();
     slot = renderSlot(app.navPanels[0]!, { subPath: "" }, options);
     await screen.findByRole("button", { name: "Zebra fix" });
     expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-    await choose(["Filter", "Reviewer"], "Me");
+    openMenu();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    choose("Reviewer", "@me");
     expect(titles()).toEqual(["Other author"]);
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-    await choose(["Sort by"], "Recently updated");
-    fireEvent.keyDown(screen.getByRole("button", { name: "Filters and sort" }), { key: "ArrowDown" });
-    await screen.findByRole("menuitem", { name: "Filter" });
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    choose("Sort by", "updated");
     expect(screen.queryByText("Link pull request")).toBeNull();
     expect(screen.queryByText("Discover archived threads")).toBeNull();
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Filters and sort" })));
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Sort by" }), { key: "Escape" });
+    expect((screen.getByLabelText("Filters and sort").closest("details") as HTMLDetailsElement).open).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText("Filters and sort"));
+    openMenu();
+    fireEvent.pointerDown(screen.getByRole("textbox", { name: "Search pull requests" }));
+    expect((screen.getByLabelText("Filters and sort").closest("details") as HTMLDetailsElement).open).toBe(false);
     slot.lifecycle.unmount();
-  });
-
-  it("drills into mobile filters and returns through the hierarchy with Escape", async () => {
-    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
-    try {
-      const item = fixture();
-      const app = await loadPluginApp(() => import("./app"));
-      const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
-        list: () => ({ items: [item], nextCursor: null, total: 1, coverage }), refresh: () => coverage,
-        context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
-      } });
-      await screen.findByRole("button", { name: "Private pull request" });
-      fireEvent.keyDown(screen.getByRole("button", { name: "Filters and sort" }), { key: "ArrowDown" });
-      fireEvent.click(await screen.findByRole("menuitem", { name: "Filter" }));
-      fireEvent.click(await screen.findByRole("menuitem", { name: "Author" }));
-      await screen.findByRole("menuitemradio", { name: "All authors" });
-      expect(screen.getAllByRole("menu")).toHaveLength(1);
-      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-      await screen.findByRole("menuitem", { name: "Reviewer" });
-      fireEvent.click(screen.getByRole("menuitem", { name: "Back to Filters and sort" }));
-      await screen.findByRole("menuitem", { name: "Sort by" });
-      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Filters and sort" })));
-      slot.lifecycle.unmount();
-    } finally { vi.unstubAllGlobals(); }
   });
 
   it("opens a known pasted URL and keeps legacy snapshots without reviewer metadata readable", async () => {
