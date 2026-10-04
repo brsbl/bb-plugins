@@ -1,22 +1,17 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
-import { CHANGED, MAX_PINS, hostContract, moreSchema, pinsSchema, rpcContract, scopeSchema, type Pin, type Reference, type Scope } from "./contract.js";
+import { CHANGED, MAX_PINS, PIN_MENTION, hostContract, moreSchema, pinsSchema, rpcContract, type Pin, type Reference } from "./contract.js";
+
+// The shipped skill is the one source of the pinning instructions; the composer pill sends it to the agent.
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const SKILL_PATH = join(basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR, "skills", "file-pins", "SKILL.md");
 
 export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({ contract: hostContract });
   const undos = new Map<string, { threadId: string; pin: Pin; index: number; more: boolean; expires: number }>();
-  // Machine lookups that may hit a sleeping or unreachable host give up quickly.
-  const HOST_TIMEOUT = 2_000;
-  const timeBoxed = <T>(work: Promise<T>) => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("The machine did not respond.")), HOST_TIMEOUT); });
-    return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
-  };
-  const joinPath = (root: string, path: string) => `${root.replace(/[\\/]$/, "")}/${path}`;
-  const connectedHost = async (hostId: string) => {
-    const machine = (await bb.sdk.hosts.list()).find((item) => item.id === hostId);
-    if (machine?.status !== "connected") throw new Error(`${machine?.name ?? "This machine"} is offline.`);
-  };
   // All read-modify-write operations share a queue so CLI/UI writes cannot lose pins.
   let writes = Promise.resolve();
   const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
@@ -26,8 +21,8 @@ export default function plugin(bb: BbPluginApi): void {
   };
   const key = (threadId: string) => `thread:${threadId}:pins:v1`;
   const moreKey = (threadId: string) => `thread:${threadId}:more:v1`;
-  const scopeKey = (threadId: string) => `thread:${threadId}:scope:v1`;
-  const lastScopeKey = "scope:last:v1";
+  // Folder the removed file picker remembered per thread; still cleared with the thread.
+  const legacyScopeKey = (threadId: string) => `thread:${threadId}:scope:v1`;
   const environmentOf = async (threadId: string) => {
     const target = await thread(threadId);
     return target.environmentId ? bb.sdk.environments.get({ environmentId: target.environmentId }) : null;
@@ -62,7 +57,7 @@ export default function plugin(bb: BbPluginApi): void {
     await save(threadId, pins.filter((item) => item.id !== pinId), more.filter((id) => id !== pinId));
     return more.includes(pinId);
   };
-  const pin = async (threadId: string, hostId: string, path: string, cwd?: string, signal?: AbortSignal, unpinned = false) => {
+  const pin = async (threadId: string, hostId: string, path: string, cwd?: string, signal?: AbortSignal) => {
     await thread(threadId);
     const file = await host.call("resolveFile", { path, ...(cwd ? { cwd } : {}) }, { hostId, signal });
     return serialize(async () => {
@@ -72,7 +67,7 @@ export default function plugin(bb: BbPluginApi): void {
       if (existing) return existing;
       if (pins.length >= MAX_PINS) throw new Error(`A thread can hold up to ${MAX_PINS} pins. Remove a file first.`);
       const entry: Pin = { id: randomUUID(), hostId, ...file, createdAt: new Date().toISOString() };
-      await save(threadId, [...pins, entry], unpinned ? [...await readMore(threadId, pins), entry.id] : undefined);
+      await save(threadId, [...pins, entry]);
       return entry;
     });
   };
@@ -112,26 +107,6 @@ export default function plugin(bb: BbPluginApi): void {
         }
       }
       return { pins: pins.map((pin) => result.find((item) => item.id === pin.id)!), more: await readMore(threadId, pins) };
-    },
-    search: async ({ threadId, hostId, root: chosen, query }) => {
-      const environment = await environmentOf(threadId);
-      await connectedHost(hostId);
-      const root = chosen ?? (environment?.hostId === hostId && environment.path ? environment.path : (await timeBoxed(host.call("home", {}, { hostId }))).path);
-      const text = query.trim();
-      if (!text) return { root, paths: [], truncated: false };
-      const result = await bb.sdk.files.listPaths({ hostId, path: root, query: text, includeFiles: true, includeDirectories: false, limit: 20 });
-      return { root, paths: result.paths.map(({ path, name }) => ({ path: joinPath(root, path), name })), truncated: result.truncated };
-    },
-    directory: async ({ threadId, hostId, path }) => {
-      await thread(threadId);
-      await connectedHost(hostId);
-      return bb.sdk.hosts.directory({ hostId, ...(path ? { path } : {}) });
-    },
-    setScope: async ({ threadId, scope }) => {
-      await thread(threadId);
-      await bb.storage.kv.set(scopeKey(threadId), scope);
-      await bb.storage.kv.set(lastScopeKey, scope);
-      return { scope };
     },
     remove: ({ threadId, pinId }) => serialize(async () => {
       await thread(threadId);
@@ -175,35 +150,27 @@ export default function plugin(bb: BbPluginApi): void {
       });
     },
     list: ({ threadId }) => list(threadId),
-    context: async ({ threadId }) => {
+    pin: async ({ threadId, hostId, path }) => {
+      // Relative paths resolve against the thread's workspace on its own machine.
       const environment = await environmentOf(threadId);
-      const hosts = (await bb.sdk.hosts.list()).map(({ id, name, status }) => ({ id, name, connected: status === "connected" }));
-      let scope: Scope | null = null;
-      for (const key of [lastScopeKey, scopeKey(threadId)]) {
-        const saved = scopeSchema.safeParse(await bb.storage.kv.get(key));
-        if (saved.success && hosts.some((item) => item.id === saved.data.hostId)) {
-          scope = saved.data;
-          break;
-        }
-      }
-      if (!scope && environment?.path) scope = { hostId: environment.hostId, path: environment.path };
-      const homeHost = environment?.hostId ?? hosts.find((item) => item.connected)?.id;
-      if (!scope && homeHost) scope = await timeBoxed(host.call("home", {}, { hostId: homeHost })).then(({ path }) => ({ hostId: homeHost, path }), () => null);
-      return { defaultHostId: environment?.hostId ?? null, hosts, scope };
-    },
-    pin: async ({ threadId, hostId, path, cwd, unpinned }) => {
-      // Relative paths resolve against the chosen scope, else the thread's workspace on its own machine.
-      const environment = await environmentOf(threadId);
-      const base = cwd ?? (environment?.hostId === hostId && environment.path ? environment.path : undefined);
-      return pin(threadId, hostId, path, base, undefined, unpinned);
+      const base = environment?.hostId === hostId && environment.path ? environment.path : undefined;
+      return pin(threadId, hostId, path, base);
     },
     unpin: ({ threadId, pinId }) => removePin(threadId, pinId),
+  });
+  // Only the composer's pin button inserts this pill, so it never appears in the @ menu.
+  bb.ui.registerMentionProvider({
+    id: PIN_MENTION.provider, label: PIN_MENTION.label, search: () => [],
+    async resolve(itemId) {
+      if (itemId !== PIN_MENTION.id) throw new Error("This pill is out of date. Use the pin button again.");
+      return { context: (await readFile(SKILL_PATH, "utf8")).replace(/^---\n[\s\S]*?\n---\n/, "").trim() };
+    },
   });
   bb.events.on("thread.deleted", ({ thread: deleted }) => serialize(async () => {
     for (const [token, undo] of undos) if (undo.threadId === deleted.id) undos.delete(token);
     await bb.storage.kv.delete(key(deleted.id));
     await bb.storage.kv.delete(moreKey(deleted.id));
-    await bb.storage.kv.delete(scopeKey(deleted.id));
+    await bb.storage.kv.delete(legacyScopeKey(deleted.id));
     bb.realtime.publish(CHANGED, { threadId: deleted.id });
   }));
 
