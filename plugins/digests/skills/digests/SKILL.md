@@ -71,11 +71,11 @@ Never send, reply, archive, delete, accept, label, create drafts, or change
 settings. Other sites remain read-only. Reading calls `digest_processed` with
 stable Gmail message IDs before opening newsletters, excludes prior
 publications, and submits the IDs with `digest_publish`. Failed attempts never
-consume IDs. Never invent full-body summaries when a body couldn't be read.
+consume IDs. Ordinary inbox and money updates set `deduplicate:false` on published sources so previous coverage never substitutes for a requested fresh full read; newsletter/reading digests keep source deduplication on. Never invent full-body summaries when a body couldn't be read.
 
 Publish with an outcome `headline` ("2 things need you today"), one short
 `lede` line ("14 new emails · 12 are routine"), and a structured `brief`.
-Make each count clickable with `brief.summaryLinks`: `{label, section}` (items, later, tail) for an existing issue section, or `{label, url}` for the actual matching HTTPS search. Keep the same plain count line in lede for search.
+Make every count expand an in-issue section with `brief.summaryLinks`: `{label, section}` (items, later, tail, all). Never use Gmail-search links for counts. Include `brief.all: {label: "All unread (N)", items}` at the end with every email read as a compact `{title, text, url}` row; use All emails when some were already read. Each count must have a matching section. Keep the plain count line in lede for search.
 Use a `heading` such as Needs you, Read these 3, or Do next. Each `items` entry
 has a one-line `title`, short `text`, optional `context`, `urgency`
 (today/week/later) for the accent bar, and `action: {label, url}`. A

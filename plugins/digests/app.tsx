@@ -246,6 +246,11 @@ function BriefCards({ brief, headline, prefix }: { brief: NonNullable<Issue["bri
         <a href={safeLink(item.url)} onClick={(event) => { event.preventDefault(); open(item.url); }}><strong>{item.title}</strong>{item.text && <span title={item.text}>{item.text}</span>}</a>
       </li>)}</ul> : <NewsletterText content={brief.tail.details} />}
     </details>}
+    {brief.all && <details className="digest-more" id={`${prefix}-all`}><summary>{brief.all.label}</summary>
+      <ul className="digest-routine-cards">{brief.all.items.map((item, index) => <li key={index}>
+        <a href={safeLink(item.url)} onClick={(event) => { event.preventDefault(); open(item.url); }}><strong>{item.title}</strong>{item.text && <span title={item.text}>{item.text}</span>}</a>
+      </li>)}</ul>
+    </details>}
   </div>;
 }
 
@@ -305,15 +310,14 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
     <article className="digest-issue" aria-label="Digest summary" data-state={issue.state}>
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
       {issue.brief?.summaryLinks?.length && issue.state === "ready" ? <div className="digest-lede digest-summary-links">{issue.brief.summaryLinks.map((link, index) => <span key={index}>
-        {index > 0 && <span aria-hidden> · </span>}<a href={"section" in link ? `#${prefix}-${link.section}` : safeLink(link.url)} onClick={(event) => {
+        {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a href={`#${prefix}-${link.section}`} onClick={(event) => {
           event.preventDefault();
-          if ("url" in link) { if (safeLink(link.url)) navigate.openUrl(link.url); return; }
           const target = document.getElementById(`${prefix}-${link.section}`);
           if (target instanceof HTMLDetailsElement) target.open = true;
           const focus = target?.querySelector("summary") ?? target;
           focus?.scrollIntoView?.({ block: "nearest" });
           (focus as HTMLElement | null)?.focus();
-        }}>{link.label}</a>
+        }}>{link.label}</a> : <span>{link.label}</span>}
       </span>)}</div> : issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
       {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} />}

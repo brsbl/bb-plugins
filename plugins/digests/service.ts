@@ -312,12 +312,13 @@ export function createService(bb: BbPluginApi) {
     const reads = [...(issue.emailReads ?? [])];
     const index = reads.findIndex((read) => read.messageId === input.messageId);
     if (input.status === "opening") {
+      if (input.wasUnread === undefined) throw new Error("Check and pass wasUnread as a boolean before opening this email.");
       // Never overwrite the original unread state on retry or a repeated open.
       if (index >= 0) {
         reads[index] = { ...reads[index]!, status: "opening" };
       } else {
         if (reads.length >= 1000) throw new Error("Finish this issue before opening more email.");
-        reads.push({ ...input, afterReading: definition.afterReading ?? "keep-unread" });
+        reads.push({ ...input, wasUnread: input.wasUnread, afterReading: definition.afterReading ?? "keep-unread" });
       }
     } else {
       const read = reads[index];

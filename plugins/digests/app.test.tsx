@@ -269,8 +269,9 @@ describe("Digests app", () => {
   it("jumps from counts to a collapsed routine section and opens each source", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
-      summaryLinks: [{ label: "4 unread emails", url: "https://mail.google.com/mail/u/0/#search/is%3Aunread" }, { label: "2 routine", section: "tail" }],
+      summaryLinks: [{ label: "4 unread emails", section: "all" }, { label: "2 routine", section: "tail" }],
       heading: "Needs you", items: [], later: [], laterLabel: "Later",
+      all: { label: "All unread (4)", items: [{ title: "Meeting", text: "Confirm Thursday.", url: "https://example.test/meeting" }] },
       tail: { label: "Routine (2)", details: "Old Markdown fallback.", items: [
         { title: "Amex · Autopay processed", text: "Payment complete.", url: "https://example.test/amex" },
         { title: "Newsletter · This week", text: "Product news.", url: "https://example.test/news" },
@@ -283,8 +284,9 @@ describe("Digests app", () => {
     fireEvent.click(slot.getByRole("link", { name: "4 unread emails" }));
     expect(slot.inspection.navigateCalls).toEqual([
       { method: "openUrl", url: "https://example.test/amex" },
-      { method: "openUrl", url: "https://mail.google.com/mail/u/0/#search/is%3Aunread" },
     ]);
+    expect(slot.getByText("All unread (4)").closest("details")?.open).toBe(true);
+    expect(document.activeElement).toBe(slot.getByText("All unread (4)"));
     expect(slot.queryByText("Old Markdown fallback.")).toBeNull();
   });
 

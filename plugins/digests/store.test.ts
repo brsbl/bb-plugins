@@ -77,6 +77,18 @@ describe("digest store", () => {
     expect(store.issues.publish("iss_next", publication(["new"]), 40).sources).toEqual([source("new")]);
   });
 
+  it("allows an explicit fresh inbox read while preserving legacy newsletter deduplication", () => {
+    const { store } = harness();
+    store.issues.create(issue("iss_snippet"));
+    store.issues.publish("iss_snippet", publication(["mail1"]), 20);
+    store.issues.create(issue("iss_full"));
+    const refreshed = store.issues.publish("iss_full", { ...publication([]), sources: [{ ...source("mail1"), deduplicate: false }] }, 30);
+    expect(refreshed.state).toBe("ready");
+    expect(store.processed("reading", "gmail", ["mail1"])).toEqual(["mail1"]);
+    store.issues.create(issue("iss_newsletter"));
+    expect(() => store.issues.publish("iss_newsletter", publication(["mail1"]), 40)).toThrow("already digested");
+  });
+
   it("rolls back the issue and sources if a database write fails during publication", () => {
     const { store, db } = harness();
     store.issues.create(issue("iss_failure"));

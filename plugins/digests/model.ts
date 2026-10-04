@@ -104,6 +104,8 @@ export const SourceSchema = z.object({
   connectionId: DigestIdSchema,
   messageId: IdSchema,
   threadId: IdSchema.optional(),
+  /** Ordinary inbox updates can revisit mail; newsletter dedup stays on. */
+  deduplicate: z.boolean().optional(),
 }).strict();
 
 const sources = z.array(SourceSchema).max(1_000).refine((items) => {
@@ -128,15 +130,19 @@ export const EmailReadSchema = z.object({
   afterReading: z.enum(["keep-unread", "mark-read"]),
   status: z.enum(["opening", "restored-unread", "left-read", "unchanged-read", "restore-failed"]),
 }).strict();
-export const EmailReadInputSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("opening"), messageId: IdSchema, threadId: IdSchema.optional(), wasUnread: z.boolean(), title: EmailReadSchema.shape.title, url: EmailReadSchema.shape.url }).strict(),
-  z.object({ status: z.enum(["restored-unread", "left-read", "unchanged-read", "restore-failed"]), messageId: IdSchema }).strict(),
-]);
+// Tool transports need root object properties to preserve boolean argument types.
+export const EmailReadInputSchema = z.object({
+  status: EmailReadSchema.shape.status, messageId: IdSchema, threadId: IdSchema.optional(),
+  wasUnread: z.boolean().optional(), title: EmailReadSchema.shape.title, url: EmailReadSchema.shape.url,
+}).strict();
+
+const emailRow = z.object({ title: z.string().trim().min(1).max(180), text: z.string().trim().max(200), url: sourceLink.shape.url }).strict();
 
 /** Optional so existing Markdown publishers and stored issues remain valid. */
 export const BriefSchema = z.object({
   summaryLinks: z.array(z.union([
-    z.object({ label: z.string().trim().min(1).max(80), section: z.enum(["items", "later", "tail"]) }).strict(),
+    z.object({ label: z.string().trim().min(1).max(80), section: z.enum(["items", "later", "tail", "all"]) }).strict(),
+    // Retain old saved links, but never open them from a count in the renderer.
     sourceLink,
   ])).max(6).optional(),
   heading: z.string().trim().min(1).max(60),
@@ -152,8 +158,9 @@ export const BriefSchema = z.object({
   later: z.array(z.object({ title: z.string().trim().min(1).max(180), action: sourceLink.optional() }).strict()).max(12).default([]),
   laterLabel: z.string().max(60).default("Later"),
   tail: z.object({ label: z.string().trim().min(1).max(80), details: z.string().trim().min(1).max(20000),
-    items: z.array(z.object({ title: z.string().trim().min(1).max(180), text: z.string().trim().max(200), url: sourceLink.shape.url }).strict()).max(100).optional(),
+    items: z.array(emailRow).max(100).optional(),
   }).strict().optional(),
+  all: z.object({ label: z.string().trim().min(1).max(80), items: z.array(emailRow).max(1000) }).strict().optional(),
 }).strict();
 
 export const SaveDigestSchema = z.object({
@@ -176,7 +183,15 @@ export const PublishInputSchema = z.object({
   brief: BriefSchema.optional(),
   details: z.string().trim().min(1).max(100_000),
   sources: sources.default([]),
-}).strict();
+}).strict().superRefine((input, ctx) => {
+  const brief = input.brief;
+  if (!brief) return;
+  brief.summaryLinks?.forEach((link, index) => {
+    if (!("section" in link)) return;
+    const target = brief[link.section];
+    if (!target || (Array.isArray(target) && !target.length)) ctx.addIssue({ code: "custom", path: ["brief", "summaryLinks", index, "section"], message: "Each count needs a matching section in this issue." });
+  });
+});
 
 export const IssueSchema = z.object({
   id: IdSchema,

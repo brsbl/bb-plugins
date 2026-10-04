@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EmojiSchema, ConnectionSchema, DigestDefinitionSchema, IssuePatchSchema, IssueSchema, PublishInputSchema, ScheduleSchema } from "./model";
+import { EmailReadInputSchema, EmojiSchema, ConnectionSchema, DigestDefinitionSchema, IssuePatchSchema, IssueSchema, PublishInputSchema, ScheduleSchema } from "./model";
 import { DIGEST_RECIPES } from "./recipes";
 import { collectionInstructions, issueTitle } from "./prompts";
 
@@ -63,6 +63,19 @@ describe("digest contracts", () => {
       expect(runtime).toContain("Keep unread (default)");
       expect(runtime).toContain("only a user CLICK");
     }
+  });
+
+  it("exposes the journal boolean as a root tool property and keeps validation strict", () => {
+    expect(EmailReadInputSchema.toJSONSchema().properties?.wasUnread).toMatchObject({ type: "boolean" });
+    expect(EmailReadInputSchema.safeParse({ status: "opening", messageId: "mail1", wasUnread: "true" }).success).toBe(false);
+    expect(EmailReadInputSchema.parse({ status: "opening", messageId: "mail1", wasUnread: true }).wasUnread).toBe(true);
+  });
+
+  it("requires new count links to reference a section while retaining old saved issues", () => {
+    const brief = { heading: "Needs you", items: [], summaryLinks: [{ label: "2 routine", section: "tail" }] };
+    expect(PublishInputSchema.safeParse({ headline: "A quiet day", details: "Two updates.", brief }).success).toBe(false);
+    expect(IssueSchema.safeParse({ id: "old", digestId: "reading", headline: "Old issue", createdAt: 1, brief }).success).toBe(true);
+    expect(PublishInputSchema.safeParse({ headline: "A quiet day", details: "Two updates.", brief: { ...brief, tail: { label: "Routine (2)", details: "Two updates." } } }).success).toBe(true);
   });
 
   it("accepts legacy emoji metadata without adding it to issue titles", () => {

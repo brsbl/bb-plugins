@@ -181,14 +181,15 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
           if (!definition.connectionIds.includes(source.connectionId)) {
             throw new Error(`Connection ${source.connectionId} is not listed on this digest.`);
           }
-          if (findProcessed.get(previous.digestId, source.connectionId, source.messageId) !== undefined) {
+          if (source.deduplicate !== false && findProcessed.get(previous.digestId, source.connectionId, source.messageId) !== undefined) {
             throw new Error(`Message ${source.messageId} from ${source.connectionId} was already digested. Remove it and revise the issue before publishing.`);
           }
         }
         const result = IssueSchema.parse({ ...previous, ...payload, state: "ready", recovery: null, publishedAt });
         writeIssue(result);
         const insertProcessed = db.prepare(`INSERT INTO digest_processed_sources
-          (digest_id, connection_id, message_id, thread_id, issue_id, processed_at) VALUES (?, ?, ?, ?, ?, ?)`);
+          (digest_id, connection_id, message_id, thread_id, issue_id, processed_at) VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(digest_id, connection_id, message_id) DO NOTHING`);
         for (const source of payload.sources) {
           insertProcessed.run(previous.digestId, source.connectionId, source.messageId, source.threadId ?? null, id, publishedAt);
         }
