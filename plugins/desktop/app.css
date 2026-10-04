@@ -1622,6 +1622,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 /* Messages sit 6 px apart, as close as AIM's lines, with nothing reserved for their actions below. */
 .bbd-im-chat [data-timeline-row-list="top-level"] {
   row-gap: 6px;
+  padding-inline: 4px;
 }
 
 /*
