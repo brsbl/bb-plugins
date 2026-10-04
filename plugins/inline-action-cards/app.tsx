@@ -230,7 +230,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       <div className="iac-row-description"><span>{reply ? `${displayName(reply.to[0]!)} · ${reply.subject}` : title(item)}</span>
         {!reply && <p className="iac-consequence">{item.content.type === "decide" && item.content.consequence}</p>}
       </div>
-      {reply ? <ActionButton disabled={disabled} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton> : controls}
+      {reply ? <ActionButton disabled={busy || loadError} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton> : controls}
     </div> : null}
     {showBody && <div className={row ? "iac-row-expanded" : "iac-body"}>{details}</div>}
     {failure}

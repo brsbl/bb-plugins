@@ -102,6 +102,13 @@ it("keeps the expanded table reply in place while Send is pending", async () => 
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(screen.getByRole("textbox", { name: "Draft" }).getAttribute("readonly")).not.toBeNull();
   expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: /Close/ }));
+  expect(screen.queryByRole("textbox", { name: "Draft" })).toBeNull();
+  const pendingReview = screen.getAllByRole("button", { name: /Review/ })[1]!;
+  expect((pendingReview as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(pendingReview);
+  expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
 });
 
 it.each(["send", "yes", "no"] as const)("keeps %s on the pressed button and disables its siblings", async (action) => {
