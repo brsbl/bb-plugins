@@ -37,3 +37,7 @@ export function pendingLabel(item: Item, action = item.attempt?.action): string 
   const ongoing = (Object.hasOwn(irregular, verb) ? irregular[verb] : undefined) ?? (verb.endsWith("e") && !/(ee|ye|oe)$/.test(verb) ? `${verb.slice(0, -1)}ing` : `${verb}ing`);
   return `${ongoing[0]!.toUpperCase()}${ongoing.slice(1)}…`;
 }
+
+export function appendActionNote(composer: PluginComposerApi, item: Item): void {
+  if (item.attempt?.note) composer.updateText((value) => `${value} — ${item.attempt!.note}`);
+}

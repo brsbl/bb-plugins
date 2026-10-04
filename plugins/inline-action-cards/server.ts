@@ -1,17 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionSchema, assertAction, bulkLabel, contentSchema, draftSchema, idSchema, itemSchema, tableContentSchema, tableSchema, tableViewSchema, type Item } from "./model.js";
+import { actionSchema, assertAction, bulkLabel, contentSchema, draftSchema, idSchema, itemSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type Item } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
 export const rpcContract = defineRpcContract({
   get: { input: ref, output: itemSchema },
   save: { input: versioned.extend({ draft: draftSchema }), output: itemSchema },
-  prepare: { input: versioned.extend({ action: actionSchema }), output: itemSchema },
+  prepare: { input: versioned.extend({ action: actionSchema, note: noteSchema.optional() }), output: itemSchema },
   reopen: { input: versioned, output: itemSchema },
   table: { input: ref, output: tableViewSchema },
-  prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
+  prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive(), note: noteSchema.optional() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
 });
 
 export function createStore(bb: BbPluginApi) {
@@ -51,12 +51,13 @@ export function createStore(bb: BbPluginApi) {
     const value = tableSchema.parse(JSON.parse(row.value));
     return { ...value, items: value.ids.map((itemId) => get(threadId, itemId)) };
   };
-  const prepare = (item: Item, action: z.infer<typeof actionSchema>) => {
+  const prepare = (item: Item, action: z.infer<typeof actionSchema>, note?: string) => {
     if (item.state !== "ready" && !(item.state === "failed" && item.result?.retryable)) throw new Error("This card already has an action in progress or has finished.");
     assertAction(item, action);
     if (item.state === "failed" && action !== item.attempt?.action) throw new Error("Retry the original action, or reopen the card to choose another.");
+    const attemptNote = noteSchema.parse(note ?? (item.state === "failed" ? item.attempt?.note : undefined) ?? "");
     item.state = "pending";
-    item.attempt = { id: randomUUID(), action, claimed: false };
+    item.attempt = { id: randomUUID(), action, claimed: false, ...(attemptNote ? { note: attemptNote } : {}) };
     item.result = null;
   };
   return {
@@ -79,7 +80,7 @@ export function createStore(bb: BbPluginApi) {
         const ready = group.items.filter((item) => item.state === "ready");
         if (!ready.length || ready.length !== input.items.length || new Set(input.items.map((item) => item.id)).size !== input.items.length || ready.some((item) => !input.items.some((candidate) => candidate.id === item.id && candidate.revision === item.revision))) throw new Error("This table changed. Review the remaining rows, then try again.");
         return ready.map((item) => {
-          prepare(item, "yes"); item.revision++; item.updatedAt = new Date().toISOString();
+          prepare(item, "yes", input.items.find((candidate) => candidate.id === item.id)?.note); item.revision++; item.updatedAt = new Date().toISOString();
           return persist(item);
         });
       })();
@@ -101,7 +102,7 @@ export function createStore(bb: BbPluginApi) {
     },
     prepare(input: z.infer<typeof rpcContract.prepare.input>) {
       return change(input.threadId, input.id, input.revision, (item) => {
-        prepare(item, input.action);
+        prepare(item, input.action, input.note);
       });
     },
     claim(threadId: string, id: string, attemptId: string) {
@@ -146,8 +147,9 @@ export default function plugin(bb: BbPluginApi): void {
         kind: "inline-action-card", threadId: item.threadId, itemId: item.id,
         intent: changes ? "request-changes" : item.state === "failed" ? "check-outcome" : "approved-action",
         attemptId: changes ? null : item.attempt!.id, action: changes ? null : item.attempt!.action,
+        ...(!changes && item.attempt?.note ? { note: item.attempt.note } : {}),
         instruction: changes ? "Read the latest saved item and revise that same draft. This is not approval to act."
-          : "Claim this exact attempt once with bb action-cards claim before acting. Use the returned latest saved content. A failed/claimed/completed attempt authorizes reconciliation only; never repeat its side effect. Report the verified result with bb action-cards report.",
+          : "Claim this exact attempt once with bb action-cards claim before acting. Use the returned latest saved content and note. The note is part of the approval: follow it. If it conflicts with the action (for example Yes, but do not send yet), do not perform the action; report what you did instead. A failed/claimed/completed attempt authorizes reconciliation only; never repeat its side effect. Report the verified result with bb action-cards report.",
       }) };
     },
   });

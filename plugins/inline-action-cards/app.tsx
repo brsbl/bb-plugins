@@ -3,17 +3,27 @@ import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, typ
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
 import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
-import { insertActionMention, pendingLabel } from "./presentation.js";
+import { appendActionNote, insertActionMention, pendingLabel } from "./presentation.js";
 import "./app.css";
 
 // Several cards may share one composer. A double click must never submit two drafts.
 const submitting = new Set<string>();
 const readableError = (error: unknown) => error instanceof Error ? error.message : "The card could not be updated. Try again.";
 
-function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem }: {
+function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, onNote }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
-  initialItem?: Item; onItem?: (item: Item) => void;
+  initialItem?: Item; onItem?: (item: Item) => void; onNote?: (id: string, note: string) => void;
 }) {
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const noteEditor = useRef<HTMLTextAreaElement>(null);
+  const changeNote = (value: string) => { setNote(value); onNote?.(id, value); };
+  const closeNote = () => { changeNote(""); setNoteOpen(false); };
+  useLayoutEffect(() => {
+    if (!noteOpen || !noteEditor.current) return;
+    noteEditor.current.style.height = "0px";
+    noteEditor.current.style.height = `${Math.min(noteEditor.current.scrollHeight, 100)}px`;
+  }, [note, noteOpen, expanded]);
   const [viewResult, setViewResult] = useState(false);
   const onItemRef = useRef(onItem); onItemRef.current = onItem;
   const onExpandRef = useRef(onExpand); onExpandRef.current = onExpand;
@@ -112,6 +122,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try the card again.");
     composer.setText(actionMessage(next));
     insertActionMention(composer, next);
+    appendActionNote(composer, next);
     const submittedText = composer.text;
     await composer.experimental_submit({ experimental_data: { itemId: id } });
     if (composer.text === submittedText) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
@@ -128,7 +139,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       if (composer.text.trim() || view.current.draft.attachmentCount) throw new Error("Send or clear your current composer message first, then try the card again.");
       if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to respond.");
       if (action) {
-        next = await rpc.call("prepare", { id, threadId, revision: next.revision, action });
+        next = await rpc.call("prepare", { id, threadId, revision: next.revision, action, ...(next.state === "ready" ? { note } : {}) });
         adopt(next);
       }
       // Resending a pending request keeps its attempt ID; claim refuses duplicates.
@@ -144,7 +155,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to ask for changes.");
       composer.updateText((value) => `${value}${value.trim() ? "\n\n" : ""}Ask for changes to `);
       insertActionMention(composer, current.current!, true);
-      composer.updateText((value) => `${value}\n`);
+      composer.updateText((value) => `${value}${note.trim() ? ` — ${note.trim()}` : ""}\n`);
       composer.focus();
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; setBusy(false); }
@@ -181,7 +192,14 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     <IconButton label="Remind me later" disabled={disabled} onClick={() => void act("later")}><ClockIcon /></IconButton>
     <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
   </div>;
-  const controls = <div className="iac-actions iac-footer">
+  const addNote = ready && <ActionButton className="iac-muted" disabled={disabled} onClick={() => { setNoteOpen(true); if (row && reply) onExpand?.(true); }}>Add note</ActionButton>;
+  const noteField = ready && noteOpen && <textarea className="iac-note-field" ref={noteEditor} aria-label="Note for your choice" placeholder="Add a note…" value={note} autoFocus rows={1} maxLength={1000} disabled={busy}
+    onChange={(event) => { changeNote(event.target.value); if (!event.target.value) setNoteOpen(false); }}
+    onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeNote(); } }} />;
+  const controls = <div className="iac-choice">
+    {noteField}
+    <div className="iac-actions iac-footer">
+      {addNote}
     {ready || pending ? <>
       <span className="iac-menu-slot">{pending
         ? <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>
@@ -190,17 +208,19 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
         : <PendingButton pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
       <PendingButton variant="default" pending={pending && item.attempt?.action === (reply ? "send" : "yes")} pendingLabel={pendingLabel(item, reply ? "send" : "yes")} disabled={disabled} onClick={() => void act(reply ? "send" : "yes")}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
     </> : null}
+    </div>
   </div>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
   </div></div>;
   const result = <div className="iac-result-line">
-    <span className={item.state === "failed" ? "iac-failed" : "iac-result"} role="status">
+    <div className="iac-result-copy"><span className={item.state === "failed" ? "iac-failed" : "iac-result"} role="status">
       <span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> {resultLabel(item)}
       {row && <span className="iac-muted"> · {title(item)}</span>}
       <time dateTime={item.updatedAt}> · {new Date(item.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
     </span>
+    {item.attempt?.note && <div className="iac-muted iac-result-note">{item.attempt.note}</div>}</div>
     <div className="iac-actions">
       {(deferred || (item.state === "failed" && item.result?.retryable)) && <MoreMenu disabled={busy}><MenuAction onSelect={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</MenuAction></MoreMenu>}
       <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
@@ -230,7 +250,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       <div className="iac-row-description"><span>{reply ? `${displayName(reply.to[0]!)} · ${reply.subject}` : title(item)}</span>
         {!reply && <p className="iac-consequence">{item.content.type === "decide" && item.content.consequence}</p>}
       </div>
-      {reply ? <ActionButton disabled={busy || loadError} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton> : controls}
+      {reply ? <div className="iac-actions">{!expanded && addNote}<ActionButton disabled={busy || loadError} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton></div> : controls}
     </div> : null}
     {showBody && <div className={row ? "iac-row-expanded" : "iac-body"}>{details}</div>}
     {failure}
@@ -252,6 +272,7 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [bulkAttempts, setBulkAttempts] = useState<string[]>([]);
+  const notes = useRef<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const lock = useRef(false);
   const load = useCallback(async () => {
@@ -272,7 +293,7 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
         if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try again.");
       };
       checkComposer();
-      const items = await rpc.call("prepareTable", { id, threadId, items: table.items.filter((item) => item.state === "ready").map(({ id, revision }) => ({ id, revision })) });
+      const items = await rpc.call("prepareTable", { id, threadId, items: table.items.filter((item) => item.state === "ready").map(({ id, revision }) => ({ id, revision, note: notes.current[id] ?? "" })) });
       setBulkAttempts(items.map((item) => item.attempt!.id));
       items.forEach(updateItem);
       checkComposer();
@@ -280,6 +301,7 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
       items.forEach((item, index) => {
         if (index) composer.updateText((value) => `${value}, `);
         insertActionMention(composer, item);
+        appendActionNote(composer, item);
       });
       const submittedText = composer.text;
       await composer.experimental_submit({ experimental_data: { tableId: id } });
@@ -293,7 +315,7 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
   return <section className="iac-table" aria-label={table.title}>
     <div className="iac-table-header"><span>{table.title}</span>{label && <PendingButton pending={busy || bulkPending} pendingLabel={pendingLabel(table.items[0]!, "yes")} disabled={!table.items.some((item) => item.state === "ready")} onClick={() => void bulk()}>{label}</PendingButton>}</div>
     {error && <div className="iac-error" role="alert">{error}</div>}
-    {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row expanded={open === item.id} onExpand={(expanded) => setOpen((value) => expanded ? item.id : value === item.id ? null : value)} onItem={updateItem} />)}
+    {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row expanded={open === item.id} onExpand={(expanded) => setOpen((value) => expanded ? item.id : value === item.id ? null : value)} onItem={updateItem} onNote={(id, value) => { notes.current[id] = value; }} />)}
   </section>;
 }
 export function ActionDirective({ attributes, message }: PluginMessageDirectiveProps) {

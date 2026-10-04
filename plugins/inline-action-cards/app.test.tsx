@@ -2,6 +2,8 @@
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, expect, it } from "vitest";
+import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import plugin from "./server.js";
 import type { Item } from "./model.js";
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], cc: [], bcc: [], original: { from: "Escrow", body: "Your refund is on its way." }, draft: "Original draft" } });
 afterEach(cleanup);
@@ -21,9 +23,9 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         return item;
       },
       prepare: (raw) => {
-        const input = raw as { action: "send"; revision: number };
+        const input = raw as { action: "send"; revision: number; note?: string };
         calls.push("prepare"); expect(input.revision).toBe(item.revision);
-        item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false } }; return item;
+        item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false, note: input.note } }; return item;
       },
     },
   });
@@ -154,4 +156,60 @@ it("keeps the bulk button busy until its own attempts finish, without treating a
   items = items.map((item) => item.id === "two" ? { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Switched", retryable: false } } : item);
   await slot.behavior.emitRealtime("items", {});
   await waitFor(() => expect(button.getAttribute("aria-busy")).toBeNull());
+});
+
+it.each(["reply", "decide"] as const)("round-trips a %s note through click, message context, CLI claim, reload and result", async (type) => {
+  let host = createFakePluginHost({ pluginId: "inline-action-cards" });
+  plugin(host.bb);
+  const item = fixture();
+  if (type === "decide") item.content = { type: "decide", question: "Switch digests?", consequence: "Switch the email digests", yesLabel: "Switch" };
+  const note = "but keep Money on the old automation";
+  try {
+    await host.harness.behavior.runCli(["create", item.id, "--thread", item.threadId, "--item", JSON.stringify(item.content)]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: item.threadId, turnId: null, projectId: null }, openWorkspaceFile: null }, {
+      composer: { scope: { kind: "thread", threadId: item.threadId } },
+      rpc: {
+        get: (input) => host.harness.behavior.callRpc("get", input),
+        prepare: (input) => host.harness.behavior.callRpc("prepare", input),
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Add note" }));
+    const field = screen.getByRole("textbox", { name: "Note for your choice" });
+    expect(document.activeElement).toBe(field);
+    fireEvent.change(field, { target: { value: note } });
+    fireEvent.click(screen.getByRole("button", { name: type === "reply" ? "Send" : "Switch" }));
+    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+    expect(JSON.stringify(slot.inspection.composer.submits)).toContain(` — ${note}`);
+    const mention = slot.inspection.composer.mentions[0]!;
+    const resolved = await host.harness.registrations.mentionProviders[0]!.resolve(mention.id);
+    const context = JSON.parse(resolved.context);
+    expect(context).toMatchObject({ note, intent: "approved-action" });
+    const claimed = await host.harness.behavior.runCli(["claim", item.id, "--thread", item.threadId, "--attempt", context.attemptId]);
+    expect(JSON.parse(claimed.stdout!).attempt).toMatchObject({ note, claimed: true });
+    host = await host.harness.lifecycle.reload(plugin);
+    const saved = await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId]);
+    expect(JSON.parse(saved.stdout!).attempt.note).toBe(note);
+    await host.harness.behavior.runCli(["report", item.id, "--thread", item.threadId, "--attempt", context.attemptId, "--outcome", "succeeded", "--message", "Switched"]);
+    await slot.behavior.emitRealtime("items", {});
+    await screen.findByText("Switched");
+    expect(screen.getByText(note).className).toContain("iac-result-note");
+    slot.lifecycle.unmount();
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it("dismisses a note with Escape or clearing, keeping empty approval unchanged", async () => {
+  const { slot, get } = await setup();
+  fireEvent.click(screen.getByRole("button", { name: "Add note" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: "Do not send" } });
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Note for your choice" }), { key: "Escape" });
+  expect(screen.queryByRole("textbox", { name: "Note for your choice" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Add note" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: "Temporary" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: "" } });
+  expect(screen.queryByRole("textbox", { name: "Note for your choice" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(get().attempt?.note).toBe("");
+  expect(JSON.stringify(slot.inspection.composer.submits)).not.toContain(" — ");
 });
