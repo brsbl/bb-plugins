@@ -48,3 +48,12 @@ export function pendingLabel(item: Item, action = item.attempt?.action): string 
 export function appendActionNote(composer: PluginComposerApi, item: Item): void {
   if (item.attempt?.note) composer.updateText((value) => `${value} — ${item.attempt!.note}`);
 }
+
+// Once the request leaves the composer the buttons are done; the card shows what was sent.
+export function sentStatus(item: Item): { label: string; time: string } | null {
+  const attempt = item.attempt;
+  if (item.state !== "pending" || !attempt || !(attempt.sentAt || attempt.claimed)) return null;
+  const label = attempt.action === "send" ? "Approved to send" : `${actionLabel(item, attempt.action)} sent`;
+  // Older records were claimed before sentAt existed.
+  return { label, time: attempt.sentAt ?? item.updatedAt };
+}
