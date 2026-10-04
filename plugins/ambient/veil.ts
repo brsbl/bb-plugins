@@ -100,7 +100,6 @@ const NO_BLUR = "-webkit-backdrop-filter: none; backdrop-filter: none;";
 const BLUR = "-webkit-backdrop-filter: var(--ambient-blur); backdrop-filter: var(--ambient-blur);";
 const INK_WASH = mix("var(--ink)", "9%");
 const EDGE = `border: 1px solid ${INK_WASH};`;
-const SHEEN = `linear-gradient(to bottom, ${mix("var(--canvas)", "28%")}, transparent 45%)`;
 const LAYER = "content: \"\"; position: absolute; z-index: -1; pointer-events: none;";
 /** Glass without the blur: fill, edge and lift. */
 const GLASS_PANE = `background-color: var(--ambient-glass-fill); ${EDGE}
@@ -150,8 +149,6 @@ ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: 
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: ${mix("var(--ink)", "8%")}; }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
-${THREAD} [data-scroll-footer] { isolation: isolate; padding-top: 16px; }
-${THREAD} [data-scroll-footer]::before { ${LAYER} top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; border-radius: 20px; background: ${SHEEN}, var(--ambient-background); ${EDGE} box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "70%")}, inset 0 0 0 1px ${mix("var(--canvas)", "18%")}; }
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
 ${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { ${GLASS_SURFACE} top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { ${HIDE} }
@@ -159,9 +156,10 @@ ${COMPACT_HOME} [data-testid="root-compose-compact-scroll-viewport"] > .px-4 { p
 ${ROOT} [data-root-compose-mobile-recents] { padding-block: 0 6px; }
 ${ROOT} [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; ${NO_BLUR} padding-block-start: 16px; }
 ${ROOT} [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { ${HIDE} }
-${COMPACT_COMPOSER} > [data-overflow-fade] { ${HIDE} }
-${COMPACT_COMPOSER} > .bg-background { background: ${SHEEN}, var(--ambient-glass-fill); ${BLUR} margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; ${EDGE} box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "70%")}, 0 -10px 24px -18px ${mix("var(--ink)", "40%")}; }
-${ROOT} [data-app-composer]:not([data-thread-window] *, [data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
+${COMPACT_COMPOSER} [data-overflow-fade] { ${HIDE} }
+${COMPACT_COMPOSER} > .bg-background { background-color: transparent; }
+/* The shell also contains banners and footer controls. Only the input owns the glass. */
+${ROOT} [data-app-composer] [data-promptbox] { ${GLASS_SURFACE} }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
 ${ROOT} [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
 ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
