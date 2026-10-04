@@ -108,6 +108,14 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
 
+### Emoji Picker
+
+Find, copy, and insert emojis without leaving bb. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
+
+[Source](plugins/emoji-picker) · [README](plugins/emoji-picker/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/emoji-picker --yes`
+
 ### Endless
 
 Frank Ocean's *Endless* as a bb palette — achromatic, grained, squared. Ten years to the day.
