@@ -210,19 +210,19 @@ function PinStrip({ threadId }: { threadId: string }) {
       {pins.length > 0 ? <section aria-label="Pinned files" className="min-w-0 overflow-hidden px-1 py-1">
         <div className="flex min-w-0 items-center gap-1">
           {layout.strip.map((pin) => stripPin(pin))}
-          <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
+          <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0 cursor-pointer px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
           {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-            <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "file" : "files"}`} title="More files" className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
+            <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "file" : "files"}`} title="More files" className={`${linkClass} shrink-0 cursor-pointer px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
             <PopoverContent aria-label="More files" className="w-56 p-1"><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
           </Popover>}
         </div>
       </section> : recent.length > 0 ? <section aria-label="Suggested pins" className="flex min-w-0 items-center gap-1 px-1 py-1">
         <span className="shrink-0 text-xs text-subtle-foreground">Recent</span>
-        <div className="flex min-w-0 flex-1 overflow-hidden">{recent.slice(0, 3).map((file) => <button key={file.path} type="button" disabled={busy} aria-label={`Pin ${file.name}`} title={`Pin ${file.path}`} className={cn(linkClass, recentClass, "max-w-48")} onClick={() => void pinRecent(file)}><ReferenceIcon path={file.path} /><span className="truncate">{file.name}</span></button>)}</div>
-        <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0`} aria-label="Pin to thread" title="Pin to thread">+</button></PopoverTrigger>
+        <div className="flex min-w-0 overflow-hidden">{recent.slice(0, 3).map((file) => <button key={file.path} type="button" disabled={busy} aria-label={`Pin ${file.name}`} title={`Pin ${file.path}`} className={cn(linkClass, recentClass, "max-w-48 cursor-pointer")} onClick={() => void pinRecent(file)}><ReferenceIcon path={file.path} /><span className="truncate">{file.name}</span></button>)}</div>
+        <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0 cursor-pointer`} aria-label="Pin to thread" title="Pin to thread">+</button></PopoverTrigger>
       </section> : <section aria-label="Pinned files" className="flex min-w-0 items-center px-1 py-0.5">
         {/* An empty thread keeps only the quiet +, so pinning is always one click away. */}
-        <PopoverTrigger asChild><button type="button" className={cn(linkClass, "h-6 shrink-0 px-1")} aria-label="Pin to thread" title="Pin to thread">+</button></PopoverTrigger>
+        <PopoverTrigger asChild><button type="button" className={cn(linkClass, "h-6 shrink-0 cursor-pointer px-1")} aria-label="Pin to thread" title="Pin to thread">+</button></PopoverTrigger>
       </section>}
       <PopoverContent aria-label="Pin to thread" align={pins.length > 0 || recent.length > 0 ? "end" : "start"}
         onInteractOutside={keepOpenForChooser} onFocusOutside={keepOpenForChooser}
