@@ -12,8 +12,8 @@ import "./app.css";
 
 const WINDOW_WIDTH = 680;
 const WINDOW_HEIGHT = 530;
-const FOLDER_WIDTH = 112;
-const FOLDER_HEIGHT = 112;
+const FOLDER_WIDTH = 88;
+const FOLDER_HEIGHT = 88;
 const ALL_THREADS = "all-threads";
 
 function Action({ icon, label, onClick, pressed }: { icon: string; label: string; onClick: () => void; pressed?: boolean }) {
@@ -53,7 +53,7 @@ function Desktop() {
     ...data.projects.map(p => ({ id: `project:${p.id}`, name: p.name, custom: false })),
     ...layout.folders.map(f => ({ ...f, custom: true })),
   ], [data.projects, layout.folders]);
-  const folderPosition = (id: string, index: number) => layout.positions[id] ?? { x: 48 + (index % 5) * 136, y: 80 + Math.floor(index / 5) * 136 };
+  const folderPosition = (id: string, index: number) => layout.positions[id] ?? { x: 48 + (index % 5) * 112, y: 80 + Math.floor(index / 5) * 112 };
   const folderThreads = (id: string) => id === ALL_THREADS ? threads : threads.filter(t => folderFor(t, layout) === id);
   const windowTitle = (win: Layout["windows"][number]) => win.kind === "folder" ? (win.id === ALL_THREADS ? "Threads" : folders.find(f => f.id === win.id)?.name ?? "Folder") : threadMap.get(win.id) ? titleOf(threadMap.get(win.id)!) : "Thread";
   const camera = layout.camera;
