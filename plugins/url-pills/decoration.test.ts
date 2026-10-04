@@ -190,6 +190,8 @@ describe('DOM-only URL decoration', () => {
   });
   it('does no discovery or CSS construction for scrolling and unchanged selection in a large draft', async () => {
     const span = composer();
+    const editor = span.closest<HTMLElement>('[contenteditable]')!;
+    editor.className = 'tiptap ProseMirror ProseMirror-focused';
     for (let i = 1; i < 256; i++) {
       const next = span.cloneNode(true) as HTMLElement;
       next.textContent = `https://example.com/path-${i}`;
@@ -200,6 +202,8 @@ describe('DOM-only URL decoration', () => {
     mountUrlPills({ signal: abort.signal }); await settle();
     parse.mockClear(); styles.mockClear();
     for (let i = 0; i < 3; i++) {
+      // The real editor reapplies this identical attribute on selection changes.
+      editor.setAttribute('class', editor.className);
       window.dispatchEvent(new Event('scroll'));
       anchor.parentElement!.dispatchEvent(new Event('scroll'));
       document.dispatchEvent(new Event('selectionchange'));
