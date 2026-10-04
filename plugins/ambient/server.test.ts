@@ -26,6 +26,33 @@ describe("Ambient plugin", () => {
     expect(harness.inspection.logEntries.at(-1)?.message).toBe("Ambient loaded");
     await harness.lifecycle.dispose();
   });
+
+  it("logs context loss and restoration without changing the selected scene", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    const before = await harness.behavior.callRpc("loadScene", { id: "tide" });
+    const report = {
+      occurredAt: "2026-10-03T21:00:00.000Z",
+      rendererId: "c497d254-daf0-48e8-87ce-21e5c564b611",
+      sceneRevision: 1,
+      visible: true,
+      drawingScene: true,
+      width: 1920,
+      height: 1080,
+      detail: 0.5,
+    };
+    for (const event of ["lost", "restored"] as const) {
+      const input = { ...report, event, drawingScene: event === "lost" };
+      expect(await harness.behavior.callRpc("reportContext", input)).toEqual({ accepted: true });
+      const entry = harness.inspection.logEntries.at(-1)!;
+      expect(entry.level).toBe(event === "lost" ? "warn" : "info");
+      const prefix = `Ambient WebGL context ${event}: `;
+      expect(entry.message.startsWith(prefix)).toBe(true);
+      expect(JSON.parse(entry.message.slice(prefix.length))).toEqual(input);
+    }
+    expect(await harness.behavior.callRpc("state", null)).toEqual(before);
+    await harness.lifecycle.dispose();
+  });
 });
 
 describe("display controls", () => {
@@ -368,6 +395,42 @@ describe("scene inputs", () => {
 });
 
 describe("built-in scenes", () => {
+  it.each([
+    {
+      name: "retired sliders",
+      values: { scale: 2.2, density: 36, relief: 0.4, trails: 0.7 },
+      expected: { scale: 2.2, density: 30, lines: 0.38, bright: 0.9, lift: 0.3, sat: 0.85 },
+    },
+    {
+      name: "night-map sliders",
+      values: { lines: 0.2, bright: 0.7, sat: 0.3 },
+      expected: { lines: 0.2, bright: 0.7, lift: 0.3, sat: 0.3 },
+    },
+    {
+      name: "base-lightness slider",
+      values: { lines: 0.38, bright: 0.9, lift: 0.65, sat: 0.45 },
+      expected: { lines: 0.38, bright: 0.9, lift: 0.65, sat: 0.45 },
+    },
+  ])("loads persisted Contour $name and keeps saved copies usable", async ({ values, expected }) => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
+    plugin(bb);
+    const palette = ["#a88b67", "#9ecae8", "#cfe1b6", "#f3f0e7"];
+    await bb.storage.kv.set("tweaks/contour", { values, palette });
+    await harness.behavior.callRpc("loadScene", { id: "contour" });
+    const { id } = (await harness.behavior.callRpc("saveScene", { name: "My Contour" })) as { id: string };
+    await harness.behavior.callRpc("loadScene", { id: "tide" });
+    const restored = (await harness.behavior.callRpc("loadScene", { id })) as {
+      scene: { palette: string[]; params: { id: string; value: number }[] };
+    };
+    const restoredValues = Object.fromEntries(restored.scene.params.map((entry) => [entry.id, entry.value]));
+    expect(restoredValues).toMatchObject(expected);
+    expect(restoredValues).not.toHaveProperty("relief");
+    expect(restoredValues).not.toHaveProperty("trails");
+    expect(restored.scene.palette).toEqual(palette);
+    expect(harness.inspection.logEntries.filter((entry) => entry.level === "warn" || entry.level === "error")).toEqual([]);
+    await harness.lifecycle.dispose();
+  });
+
   it("rebuild from code while keeping the user's values and colors", () => {
     const stored = {
       ...sceneOf(BUILT_IN_SCENES[0]!),
