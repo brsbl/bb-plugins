@@ -30,6 +30,42 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const windowState = (minimized: boolean) => ({ id: "thread:fixture", minimized } as DesktopWindow);
 
 describe("AIM restored transcript", () => {
+  it("relabels only the live working text and releases it on host updates, root replacement and fallback", async () => {
+    const view = render(<ThreadWindow window={windowState(false)} threadId="fixture" />);
+    const addIndicator = () => {
+      const root = view.container.querySelector(".bbd-im-chat")!;
+      const status = document.createElement("div");
+      status.className = "mt-4 min-h-7";
+      status.setAttribute("role", "status");
+      const label = document.createElement("span");
+      label.className = "animate-shine";
+      const text = document.createTextNode("Working...");
+      label.append(text);
+      status.append(label);
+      act(() => root.append(status));
+      return { status, text };
+    };
+    const first = addIndicator();
+    await waitFor(() => expect(first.text.data).toBe("Typing..."));
+    expect(first.status.getAttribute("role")).toBe("status");
+    for (const label of ["Thinking…", "Loading..."]) {
+      act(() => { first.text.data = label; });
+      await act(async () => {});
+      expect(first.text.data).toBe(label);
+    }
+    act(() => { first.text.data = "Working..."; });
+    await waitFor(() => expect(first.text.data).toBe("Typing..."));
+    view.rerender(<ThreadWindow window={windowState(true)} threadId="fixture" />);
+    expect(first.text.data).toBe("Working...");
+    view.rerender(<ThreadWindow window={windowState(false)} threadId="fixture" />);
+    const second = addIndicator();
+    await waitFor(() => expect(second.text.data).toBe("Typing..."));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    act(() => view.container.querySelector("[data-promptbox-submit-action]")!.remove());
+    await waitFor(() => expect(view.container.querySelector(".bbd-im-chat")).toBeNull());
+    expect(second.text.data).toBe("Working...");
+  });
+
   it.each([false, true])("reconnects Send/Stop and contract checks (initially minimized: %s)", async (initiallyMinimized) => {
     const view = render(<ThreadWindow window={windowState(initiallyMinimized)} threadId="fixture" />);
     if (!initiallyMinimized) view.rerender(<ThreadWindow window={windowState(true)} threadId="fixture" />);

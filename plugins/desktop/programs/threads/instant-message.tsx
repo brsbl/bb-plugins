@@ -250,15 +250,34 @@ function useChatContract(root: HTMLDivElement | null): ChatContract {
     if (root === null || mismatch) return;
     let latest: ChatContract = "pending";
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let typingLabel: Text | null = null;
+    const restoreLabel = () => {
+      if (typingLabel?.data === "Typing...") typingLabel.data = "Working...";
+      typingLabel = null;
+    };
+    // ThreadChat has no label prop. Keep the live non-thinking span and its semantics; only own this exact text.
+    const relabelWorking = () => {
+      const span = root.querySelector(".mt-4.min-h-7 > .animate-shine");
+      const node = span?.childNodes.length === 1 && span.firstChild instanceof Text ? span.firstChild : null;
+      if (typingLabel !== node) restoreLabel();
+      if (node?.data === "Working...") {
+        typingLabel = node;
+        node.data = "Typing...";
+      } else if (node?.data !== "Typing...") {
+        typingLabel = null;
+      }
+    };
     const check = (fromObserver: boolean) => {
       timer = undefined;
       const result = inspectChatContract(root);
       latest = result.contract;
       if (latest !== "mismatch") {
+        relabelWorking();
         setContract(latest);
         return;
       }
       observer.disconnect();
+      restoreLabel();
       // Commit before the next paint, so an archived thread's message box is never drawn without the rule hiding it.
       if (fromObserver) flushSync(() => setContract("mismatch"));
       else setContract("mismatch");
@@ -266,13 +285,17 @@ function useChatContract(root: HTMLDivElement | null): ChatContract {
     };
     const observer = new MutationObserver(() => {
       if (latest === "pending") check(true);
-      else timer ??= setTimeout(() => check(true), 250);
+      else {
+        relabelWorking();
+        timer ??= setTimeout(() => check(true), 250);
+      }
     });
-    observer.observe(root, { childList: true, subtree: true });
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
     check(false);
     return () => {
       observer.disconnect();
       clearTimeout(timer);
+      restoreLabel();
     };
   }, [root, mismatch]);
   return contract;
