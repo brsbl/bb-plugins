@@ -1,7 +1,8 @@
 Keep the files you return to beside the conversation they belong to.
 
-Click the pin button in the composer’s action row and finish "Pin this file: " with a path
-or a file name; the agent finds the file, asks if it’s ambiguous, and pins it. Or run
+Click the pin button in the composer’s action row and type one or more paths or file names
+after the **Pin files** pill; the agent finds each file, asks about any that are ambiguous, and
+pins them. Or run
 `bb file-pins pin`. Quiet file references stay above the composer, with
 files that aren't pinned behind **⋯**. Clicking a file uses bb’s usual file-opening
 behavior.
