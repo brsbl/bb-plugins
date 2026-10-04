@@ -45,8 +45,8 @@
 .cdc-finder footer > span { flex: 1; font-size: var(--text-xs); color: var(--muted-foreground); }
 .cdc-finder select { max-width: 180px; min-height: 30px; padding: 4px 8px; border: 1px solid var(--input); border-radius: var(--radius); background: var(--background); }
 .cdc-empty { padding: 24px 12px; color: var(--muted-foreground); }
-.cdc-heading { position: absolute; top: 18px; left: 24px; display: flex; align-items: center; gap: 10px; height: 28px; pointer-events: none; font-weight: 500; }
 .cdc-prompt { position: absolute; z-index: 70; width: min(720px, calc(100% - 64px)); }
+.cdc-prompt > div { background: var(--background); border-radius: var(--radius); }
 .cdc-prompt-center { top: 46%; left: 50%; transform: translate(-50%, -50%); }
 .cdc-prompt-float { padding-top: 12px; cursor: grab; }
 .cdc-prompt-float > * { cursor: auto; }
@@ -70,4 +70,4 @@
 .cdc-folder-editor > div { display: flex; justify-content: flex-end; gap: 8px; }
 .cdc-notice { position: absolute; z-index: 110; bottom: 88px; right: 24px; max-width: 420px; display: flex; gap: 12px; align-items: center; background: var(--background); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius); }
 .cdc-loading { position: absolute; top: 65px; left: 24px; color: var(--muted-foreground); }
-@media (max-width: 760px) { .cdc-heading { left: 12px; } .cdc-camera { top: 52px; right: 12px; } .cdc-prompt { width: calc(100% - 32px); } .cdc-window.cdc-focused { top: 100px !important; height: calc(100% - 180px); } }
+@media (max-width: 760px) { .cdc-camera { top: 52px; right: 12px; } .cdc-prompt { width: calc(100% - 32px); } .cdc-window.cdc-focused { top: 100px !important; height: calc(100% - 180px); } }

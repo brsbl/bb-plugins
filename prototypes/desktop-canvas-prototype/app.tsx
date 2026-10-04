@@ -267,7 +267,6 @@ function Desktop() {
       </div>
     </div>
 
-    <div className="cdc-heading" data-screen><Icon name="AppWindow" /><span>Canvas Desktop</span></div>
     <div className={`cdc-prompt cdc-prompt-${layout.composer}`} data-screen style={layout.composer === "float" ? { left: floatPoint.x, top: floatPoint.y } : undefined} aria-hidden={layout.composer === "hidden"} inert={layout.composer === "hidden"}
       tabIndex={layout.composer === "float" ? 0 : -1} aria-label="Composer. Drag the top edge or use arrow keys to move."
       onPointerDown={event => { if (layout.composer === "float" && event.target === event.currentTarget) startDrag(event, "prompt", "main", floatPoint); }}
@@ -305,7 +304,7 @@ function Desktop() {
       setLayout(current => folderEditor.id ? { ...current, folders: current.folders.map(f => f.id === id ? { ...f, name } : f) }
         : { ...current, folders: [...current.folders, { id, name }], positions: { ...current.positions, [id]: { x: (size.width / 2 - current.camera.x) / current.camera.zoom - FOLDER_WIDTH / 2, y: (size.height / 2 - current.camera.y) / current.camera.zoom - FOLDER_HEIGHT / 2 } } });
       setSelectedFolder(id); setFolderEditor(null); setFolderName("");
-    }}><label>{folderEditor.id ? "Rename folder" : "New folder"}<input autoFocus aria-label="Folder name" maxLength={80} placeholder="Folder name" value={folderName} onChange={e => setFolderName(e.target.value)} /></label><div><Button variant="ghost" size="sm" onClick={() => setFolderEditor(null)}>Cancel</Button><Button size="sm" type="submit">{folderEditor.id ? "Save" : "Create"}</Button></div></form>}
+    }}><label>{folderEditor.id ? "Rename folder" : "New folder"}<input autoFocus aria-label="Folder name" maxLength={80} placeholder="Folder name" value={folderName} onChange={e => setFolderName(e.target.value)} /></label><div><Button type="button" variant="ghost" size="sm" onClick={() => setFolderEditor(null)}>Cancel</Button><Button size="sm" type="submit">{folderEditor.id ? "Save" : "Create"}</Button></div></form>}
 
     <div className="cdc-camera" data-screen aria-label="Canvas controls">
       <Action icon="Minus" label="Zoom out" onClick={() => moveCamera(zoom - 0.1)} />

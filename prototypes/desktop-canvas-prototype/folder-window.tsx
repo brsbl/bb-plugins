@@ -38,7 +38,7 @@ export function FolderWindow({ name, threads, folders, projectNames, openThread,
       {!matched.length && <p className="cdc-empty">{query ? "No matching threads." : "No threads in this folder."}</p>}
       {matched.length > limit && <Button variant="ghost" size="sm" onClick={() => setLimit(value => value + 60)}>Show more</Button>}
     </div>
-    <footer><span>{matched.length} threads</span>{selected && <>
+    <footer><span>{matched.length} {matched.length === 1 ? "thread" : "threads"}</span>{selected && <>
       <Button size="sm" variant="ghost" onClick={() => openThread(selected.id)}>Open</Button>
       <select aria-label={`Move ${threadTitle(selected)} to folder`} value="" onChange={event => { if (event.target.value) moveThread(selected.id, event.target.value); }}>
         <option value="" disabled>Move to…</option>
