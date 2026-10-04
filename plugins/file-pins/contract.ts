@@ -12,20 +12,13 @@ export const MAX_PINS = 40;
 /** Pin IDs kept behind the strip's overflow control, like bb's hidden footer items. */
 export const moreSchema = z.array(id).max(MAX_PINS);
 export const CHANGED = "pins-changed";
+/** The composer pill that asks the agent to pin a file; it resolves to the shipped skill. */
+export const PIN_MENTION = { provider: "pin", id: "file", label: "Pinned Files" } as const;
 const status = z.enum(["available", "missing", "unavailable"]);
 export const referenceSchema = pinSchema.extend({ hostName: z.string(), status });
 export type Reference = z.infer<typeof referenceSchema>;
-/** Where the pin picker searches: a folder on one machine. */
-export const scopeSchema = z.object({ hostId: id, path: filePath }).strict();
-export type Scope = z.infer<typeof scopeSchema>;
-const listingSchema = z.object({
-  directory: z.string(), parent: z.string().nullable(),
-  entries: z.array(z.object({ kind: z.enum(["directory", "file"]), name: z.string(), path: z.string() })),
-});
-export type DirectoryListing = z.infer<typeof listingSchema>;
 
 export const hostContract = defineRpcContract({
-  home: { input: z.object({}).strict(), output: z.object({ path: filePath }) },
   inspect: {
     input: z.object({ paths: z.array(filePath).max(MAX_PINS) }).strict(),
     output: z.object({ files: z.array(z.object({ path: filePath, status })) }),
@@ -44,19 +37,6 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: id }).strict(),
     output: z.object({ pins: z.array(referenceSchema).max(MAX_PINS), more: moreSchema }),
   },
-  search: {
-    /** `root` defaults to the thread's workspace on its machine, otherwise the machine's home. */
-    input: z.object({ threadId: id, hostId: id, root: filePath.optional(), query: z.string().max(500) }).strict(),
-    output: z.object({ root: filePath, paths: z.array(z.object({ path: filePath, name: z.string() })), truncated: z.boolean() }),
-  },
-  directory: {
-    input: z.object({ threadId: id, hostId: id, path: filePath.optional() }).strict(),
-    output: listingSchema,
-  },
-  setScope: {
-    input: z.object({ threadId: id, scope: scopeSchema }).strict(),
-    output: z.object({ scope: scopeSchema }),
-  },
   remove: {
     input: z.object({ threadId: id, pinId: id }).strict(),
     output: z.object({ undoToken: id.nullable() }),
@@ -73,18 +53,8 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: id }).strict(),
     output: z.object({ pins: pinsSchema }),
   },
-  context: {
-    input: z.object({ threadId: id }).strict(),
-    output: z.object({
-      defaultHostId: id.nullable(),
-      hosts: z.array(z.object({ id, name: z.string(), connected: z.boolean() })),
-      /** Global last scope, then legacy thread scope (when their host is listed), then thread workspace, then machine's home. */
-      scope: scopeSchema.nullable(),
-    }),
-  },
   pin: {
-    /** `unpinned` adds a new file to the ⋯ list instead of the strip. */
-    input: z.object({ threadId: id, hostId: id, path: filePath, cwd: filePath.optional(), unpinned: z.boolean().optional() }).strict(),
+    input: z.object({ threadId: id, hostId: id, path: filePath }).strict(),
     output: pinSchema,
   },
   unpin: {

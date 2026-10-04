@@ -1,9 +1,17 @@
 ---
 name: file-pins
-description: Pin, remove, or list local files attached to a bb thread.
+description: Pin, remove, or list local files in a bb thread's Pinned Files. Use when the user asks to pin a file.
 ---
 
-Pins remain visible above the thread composer, independently of open viewer tabs.
+## Pin the file the user names
+
+1. Find the file: an absolute path, a `~/` path, or a path relative to the
+   workspace or this thread's files. Look it up by name when that is all they give.
+2. If several files match or none does, ask which one they mean. Never pin a guess.
+3. Run `bb file-pins pin <path>` in this thread, passing an absolute or `~/` path.
+4. Confirm in one short sentence, such as "Pinned `notes.md`."
+
+## Commands
 
 - `bb file-pins pin <path> [--thread <id>] [--machine <host-id>] [--json]`
 - `bb file-pins list [--thread <id>] [--json]`
@@ -20,5 +28,9 @@ pairs are idempotent. There are at most 40 pins per thread. `list` supplies IDs;
 Pins retain their original host if the thread moves. Deleting the thread removes
 its pins. Pins do not copy file contents or automatically add them to agent context.
 
-A normal click follows bb's FileLink behavior. In the UI, Unpin moves a file from the strip to the ⋯ list and Pin moves it back while the strip has room; Remove deletes it with an Undo toast. The CLI `remove` command matches the UI's Remove, without the Undo toast. Missing files remain visible
-with an accessible missing label and a small × to remove them. Use the pin button in the composer's action row to search one chosen folder or paste a path; the folder defaults to the thread workspace and is remembered per thread.
+Pinned files show above the thread composer. In the UI, Unpin moves a file from
+the strip to the ⋯ list and Pin moves it back while the strip has room; Remove
+deletes it with an Undo toast. The CLI `remove` command matches the UI's Remove,
+without the Undo toast. Missing files stay visible with a small × to remove them.
+The composer's pin button adds a Pinned Files pill and "Pin this file: " for the
+user to finish; the pill sends this skill to you.
