@@ -7,6 +7,7 @@ import {
 } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import {
+  ArrowDown01Icon,
   ArrowDown02Icon,
   ArrowTurnBackwardIcon,
   ArrowUp02Icon,
@@ -52,6 +53,8 @@ const fieldClass =
   "min-w-0 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-foreground/45 disabled:cursor-not-allowed disabled:opacity-60";
 const quietFieldClass =
   "min-w-0 w-full rounded-md border border-transparent bg-transparent px-1 py-1.5 text-sm text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background disabled:cursor-not-allowed disabled:opacity-60";
+const typeSelectClass =
+  "h-8 min-w-0 cursor-pointer appearance-none whitespace-nowrap rounded-md border border-transparent bg-transparent py-0 pl-1 pr-5 text-sm text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background disabled:cursor-not-allowed disabled:opacity-60";
 const buttonBaseClass =
   "inline-flex h-8 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
 const outlineButtonClass = `${buttonBaseClass} border border-input bg-transparent text-foreground hover:bg-muted`;
@@ -374,10 +377,10 @@ function StageCard({
                 Inbox · everything
               </span>
             ) : (
-              <>
+              <span className="relative inline-flex min-w-0">
                 <select
                   aria-label={`Section type for ${stage.title}`}
-                  className={`${quietFieldClass} h-8 whitespace-nowrap py-0`}
+                  className={typeSelectClass}
                   style={{ fieldSizing: "content" }}
                   title={hasPrompt ? "Clear the entry prompt to choose an inbox." : undefined}
                   onChange={(event) => {
@@ -404,7 +407,13 @@ function StageCard({
                     </option>
                   ))}
                 </select>
-              </>
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-1 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                  icon={ArrowDown01Icon}
+                  strokeWidth={1.5}
+                />
+              </span>
             )}
             {inbox ? (
               <AfterReadToggle
