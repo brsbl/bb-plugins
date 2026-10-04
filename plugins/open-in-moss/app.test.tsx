@@ -123,6 +123,43 @@ describe("Markdown link interception", () => {
     });
   });
 
+  it.each([
+    ["unsupported_platform", 409],
+    ["not_found", 404],
+  ])("falls back to bb without a toast when no Mac has the file (%s)", async (code, status) => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      status,
+      json: async () => ({ ok: false, error: { code, message: "" } }),
+    })));
+    const anchor = link(`./${encodeURIComponent("/srv/notes/spec.md")}`);
+    const bbPreview = vi.fn((event: Event) => event.preventDefault());
+    anchor.addEventListener("click", bbPreview);
+
+    click(anchor);
+
+    await vi.waitFor(() => expect(bbPreview).toHaveBeenCalledOnce());
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("still warns when Moss fails to open a file it has", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      status: 502,
+      json: async () => ({ ok: false, error: { code: "open_failed", message: "" } }),
+    })));
+    const anchor = link("file:///Users/brsbl/notes/spec.md");
+    const bbPreview = vi.fn((event: Event) => event.preventDefault());
+    anchor.addEventListener("click", bbPreview);
+
+    click(anchor);
+
+    await vi.waitFor(() => expect(bbPreview).toHaveBeenCalledOnce());
+    expect(toast.error).toHaveBeenCalledWith("Moss couldn’t open this file", {
+      description: "It was opened in bb instead.",
+    });
+  });
+
   it("intercepts modified primary clicks so they cannot open bb's viewer", async () => {
     const fetch = vi.fn(async () => ({ ok: true }));
     vi.stubGlobal("fetch", fetch);

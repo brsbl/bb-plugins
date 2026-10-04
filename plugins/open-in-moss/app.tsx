@@ -3,6 +3,8 @@ import { toast } from "sonner";
 
 const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/iu;
 const fallbackEvents = new WeakSet<Event>();
+// Other errors mean no Mac has the file, so bb opens it without a toast.
+const MOSS_FAILURES = new Set<unknown>(["open_failed", "host_unavailable"]);
 
 interface MarkdownFileLink {
   anchor: HTMLAnchorElement;
@@ -83,7 +85,16 @@ async function requestMossOpen(
         body: JSON.stringify({ path: link.path }),
       },
     );
-    if (!response.ok) throw new Error("Moss did not accept the file");
+    if (response.ok) return;
+    const code = await response
+      .json()
+      .then((body: { error?: { code?: unknown } }) => body.error?.code)
+      .catch(() => undefined);
+    if (code !== undefined && !MOSS_FAILURES.has(code)) {
+      openInBb(link.anchor);
+      return;
+    }
+    throw new Error("Moss did not accept the file");
   } catch {
     const openedInBb = openInBb(link.anchor);
     toast.error("Moss couldn’t open this file", {
