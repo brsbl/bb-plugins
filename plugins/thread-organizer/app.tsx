@@ -722,7 +722,7 @@ export function WorkflowSettings() {
   };
 
   const removeStage = (index: number) => {
-    if (index <= 0 || config === null) return;
+    if (config === null || config.stages[index]?.key === "inbox") return;
     const stages = config.stages.filter(
       (_, stageIndex) => stageIndex !== index,
     );

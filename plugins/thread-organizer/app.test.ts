@@ -786,6 +786,25 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
+  it("removes a section above the main inbox but never the main inbox", async () => {
+    const initial = configuredWorkflow();
+    initial.stages = [initial.stages[1]!, initial.stages[0]!, ...initial.stages.slice(2)];
+    const saved = { current: null as EditableWorkflowConfig | null };
+    const rendered = await renderMenus(initial, saved);
+    fireEvent.click(await rendered.findByLabelText("More actions for Inbox"));
+    expect(rendered.queryByRole("menuitem", { name: "Remove section" })).toBeNull();
+    fireEvent.click(rendered.getByLabelText("More actions for Inbox"));
+    fireEvent.click(rendered.getByLabelText("More actions for Planning"));
+    fireEvent.click(rendered.getByRole("menuitem", { name: "Remove section" }));
+    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => {
+      const keys = saved.current?.stages.map((stage) => stage.key);
+      expect(keys).not.toContain("planning");
+      expect(keys?.[0]).toBe("inbox");
+    });
+    rendered.lifecycle.unmount();
+  });
+
   it("makes a manual inbox filled by you that keeps threads after reading", async () => {
     const saved = { current: null as EditableWorkflowConfig | null };
     const rendered = await renderMenus(configuredWorkflow(), saved);

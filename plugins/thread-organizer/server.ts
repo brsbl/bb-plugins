@@ -529,6 +529,16 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
+    // A sweep must not empty an inbox filled by hand: threads dropped there
+    // are usually already read, so only a real read event may release them.
+    const release =
+      releaseRead &&
+      !(
+        seedLanding &&
+        currentStage?.role === "inbox" &&
+        currentStage.key !== "inbox" &&
+        currentStage.catchesPluginId === undefined
+      );
 
     const priorInbox = configSnapshot.stages.find(
       (stage) => stage.key === state.claimedInboxKey && stage.role === "inbox",
@@ -605,7 +615,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       state.rememberedStageKey,
       explicitStageKey !== undefined,
       matchedInbox,
-      releaseRead,
+      release,
     );
     if (destination && !destination.sectionId) {
       throw new Error(`Stage ${destination.key} has no native section.`);
@@ -634,7 +644,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       !created &&
       !seedLanding &&
       // Reading a thread must not start another agent turn.
-      !(releaseRead && returnsAfterRead(currentStage, thread)) &&
+      !(release && returnsAfterRead(currentStage, thread)) &&
       landedStageKey !== null &&
       landedStageKey !== state.lastLandedStageKey;
     state.lastLandedStageKey = landedStageKey;

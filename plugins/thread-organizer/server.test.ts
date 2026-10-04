@@ -854,6 +854,33 @@ describe("Thread Organizer server", () => {
     await replacement.harness.lifecycle.dispose();
   });
 
+  it("keeps hand-moved read threads in a returning manual inbox until a real read", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    const config = await saveStagePatch(organizer, "handoff", { role: "inbox", returnAfterRead: true });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+
+    organizer.setThread({ status: "idle", lastReadAt: 20, latestAttentionAt: 20,
+      sectionId: sectionId("handoff") });
+    organizer.emitChanged("order-changed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await saveStagePatch(organizer, "building", { rule: "Build it." });
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+
+    organizer.setThread({ lastReadAt: 0, latestAttentionAt: 30 });
+    organizer.emitChanged("order-changed");
+    organizer.setThread({ lastReadAt: 30 });
+    organizer.emitChanged(["read-state-changed"]);
+    await vi.waitFor(() =>
+      expect(organizer.current().sectionId).toBe(sectionId("planning")),
+    );
+    await replacement.harness.lifecycle.dispose();
+  });
+
   it("releases threads already read in Inbox when it is set to return them", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
