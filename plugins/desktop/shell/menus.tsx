@@ -179,27 +179,35 @@ const SORT_LABELS: Record<SortKey, string> = {
 export function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
   const { preferences } = desktop.snapshot;
   return [
-    { heading: "Organize by" },
     {
-      label: "Same as sidebar",
-      checked: preferences.organize === "sidebar",
-      run: () => desktop.setPreferences({ organize: "sidebar" }),
+      label: "Organize by",
+      submenu: [
+        {
+          label: "Same as sidebar",
+          checked: preferences.organize === "sidebar",
+          run: () => desktop.setPreferences({ organize: "sidebar" }),
+        },
+        ...(["section", "project", "machine"] as const).map((organize) => ({
+          label: ORGANIZE_LABELS[organize],
+          checked: preferences.organize === organize,
+          run: () => desktop.setPreferences({ organize }),
+        })),
+      ],
     },
-    ...(["section", "project", "machine"] as const).map((organize) => ({
-      label: ORGANIZE_LABELS[organize],
-      checked: preferences.organize === organize,
-      run: () => desktop.setPreferences({ organize }),
-    })),
-    { heading: "Sort by" },
     {
-      label: "Same as sidebar",
-      checked: preferences.sort === "sidebar",
-      run: () => desktop.setPreferences({ sort: "sidebar" }),
+      label: "Sort by",
+      submenu: [
+        {
+          label: "Same as sidebar",
+          checked: preferences.sort === "sidebar",
+          run: () => desktop.setPreferences({ sort: "sidebar" }),
+        },
+        ...(["updated", "created", "alpha"] as const).map((sort) => ({
+          label: SORT_LABELS[sort],
+          checked: preferences.sort === sort,
+          run: () => desktop.setPreferences({ sort }),
+        })),
+      ],
     },
-    ...(["updated", "created", "alpha"] as const).map((sort) => ({
-      label: SORT_LABELS[sort],
-      checked: preferences.sort === sort,
-      run: () => desktop.setPreferences({ sort }),
-    })),
   ];
 }
