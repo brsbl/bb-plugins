@@ -13,6 +13,7 @@ import { FALLBACK_SCENE, valuesOf } from "./contract.js";
 import { AmbientRenderer, releaseContext, type CompileResult, type FrameInput, type ThemeColors } from "./engine.js";
 import { colorParser } from "./pixels.js";
 import { isQuarantined, quarantine } from "./quarantine.js";
+import { createRendererId } from "./renderer-id.js";
 import type { ambientRpcContract } from "./rpc.js";
 import { FrameScheduler, MIN_AUTO_SCALE } from "./scheduler.js";
 import { ambientStore, useAmbient } from "./store.js";
@@ -175,7 +176,7 @@ export function AmbientOverlay() {
     }
     rendererRef.current = renderer;
     compiledRevision.current = null;
-    const rendererId = crypto.randomUUID();
+    const rendererId = createRendererId();
     const reportContext = (event: "lost" | "restored") => {
       void rpc.call("reportContext", {
         event,
