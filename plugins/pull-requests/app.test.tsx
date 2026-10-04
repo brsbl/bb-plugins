@@ -20,6 +20,24 @@ function fixture(): PullRequestItem {
 const thread = { id: "thr_archived", title: "Archived implementation thread", projectId: "proj_1", environmentId: null, hostId: "host_1", archived: true };
 
 describe("Pull Requests access and detail lifetime", () => {
+  it("shows passing checks and expands the remaining checks without leaving Summary", async () => {
+    const item = fixture();
+    item.snapshot!.checks = { state: "passing", passing: 7, failing: 0, pending: 0, total: 7, complete: true, items: Array.from({ length: 7 }, (_, index) => ({ name: `Check ${index + 1}`, state: "passing", url: `https://github.com/example/repo/actions/runs/${index + 1}` })) };
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
+      list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
+      context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
+    } });
+    expect(await screen.findByRole("link", { name: "Check 1" })).toBeDefined();
+    expect(screen.queryByRole("link", { name: "Check 7" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View 1 more checks" }));
+    expect(screen.getByRole("link", { name: "Check 7" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer checks" }));
+    expect(screen.queryByRole("link", { name: "Check 7" })).toBeNull();
+    expect(slot.inspection.navigateCalls).toEqual([]);
+    slot.lifecycle.unmount();
+  });
+
   it("keeps a deep-linked PR outside the list page, then removes private content after access is denied", async () => {
     let item = fixture();
     const app = await loadPluginApp(() => import("./app"));

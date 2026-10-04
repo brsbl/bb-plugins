@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { createPortal } from "react-dom";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown,
-  Circle, CircleHelp, Clock, ExternalLink, FileCode2, GitMerge, GitPullRequest,
+  Circle, CircleHelp, Clock, ExternalLink, FileCode2, Github, GitMerge, GitPullRequest,
   GitPullRequestClosed, GitPullRequestDraft, Link2, Loader2, MessageCircle, MoreHorizontal,
   Pin, PinOff, Plus, RefreshCw, Search, Unlink, X, XCircle, type LucideIcon,
 } from "lucide-react";
@@ -411,25 +411,60 @@ function PullRequestDetail({ item, tab, now, context, choices, liveThreads, rpc,
   useEffect(() => { setSourceHost(item.reader?.hostId ?? ""); setManage(false); }, [item.id, item.reader?.hostId]);
   const sourceName = context.hosts.find((host) => host.id === item.reader?.hostId)?.name ?? "Source machine";
   return <>
-    <div className="pr-detail-toolbar"><button type="button" className="pr-back" onClick={onBack}><ArrowLeft size={15} />Pull requests</button><span className="pr-detail-repo">{snapshot ? `${snapshot.repository} #${snapshot.number}` : "Pull request"}</span><div className="pr-toolbar-actions"><IconButton icon={item.pinned ? PinOff : Pin} label={item.pinned ? "Unpin pull request" : "Pin pull request"} active={item.pinned} onClick={() => void onUpdate(() => rpc.call("pin", { id: item.id, pinned: !item.pinned }))} /><External className="pr-button pr-button-subtle" href={item.url}>GitHub<ExternalLink size={13} /></External><button className="pr-button pr-button-primary" type="button" onClick={openThread}>{preferred && choices.has(preferred.threadId) ? "Open thread" : "Choose thread"}<ArrowRight size={14} /></button></div></div>
-    <header className="pr-detail-heading"><div className="pr-title-line"><StatusIcon {...lifecycle(snapshot)} /><h1>{snapshot?.title ?? "Pull request unavailable"}</h1></div>{snapshot && <div className="pr-branch-line"><span>{snapshot.author ? `@${snapshot.author}` : "Unknown author"}</span><span>wants to merge</span><code>{snapshot.headBranch}</code><ArrowRight size={12} aria-hidden="true" /><code>{snapshot.baseBranch}</code></div>}</header>
-    <nav className="pr-detail-tabs" aria-label="Pull request detail"><button type="button" aria-current={tab === "summary" ? "page" : undefined} onClick={() => onTab("summary")}>Summary</button><button type="button" aria-current={tab === "changes" ? "page" : undefined} onClick={() => onTab("changes")}>Changes{snapshot && <span>{snapshot.changedFiles}</span>}</button>{snapshot && <span className="pr-diff-total"><span className="pr-tone-success">+{snapshot.additions}</span><span className="pr-tone-danger">−{snapshot.deletions}</span></span>}</nav>
+    <div className="pr-detail-toolbar">
+      <button type="button" className="pr-back" onClick={onBack}><ArrowLeft size={15} />Pull requests</button>
+      <nav className="pr-detail-tabs" aria-label="Pull request detail">
+        <button type="button" aria-current={tab === "summary" ? "page" : undefined} onClick={() => onTab("summary")}>Summary</button>
+        <button type="button" aria-current={tab === "changes" ? "page" : undefined} onClick={() => onTab("changes")}>Changes{snapshot && <span className="pr-diff-total"><span className="pr-tone-success">+{snapshot.additions}</span><span className="pr-tone-danger">−{snapshot.deletions}</span></span>}</button>
+      </nav>
+      <div className="pr-toolbar-actions">
+        <div className="pr-action-group"><IconButton icon={item.pinned ? PinOff : Pin} label={item.pinned ? "Unpin pull request" : "Pin pull request"} active={item.pinned} onClick={() => void onUpdate(() => rpc.call("pin", { id: item.id, pinned: !item.pinned }))} /><External className="pr-icon-link" href={item.url}><Github size={16} aria-hidden="true" /><span className="pr-sr-only">Open pull request on GitHub</span></External></div>
+        <button className="pr-button pr-button-primary" type="button" onClick={openThread}>{preferred && choices.has(preferred.threadId) ? "Open thread" : "Choose thread"}<ArrowRight size={14} /></button>
+      </div>
+    </div>
     <div className="pr-detail-scroll">
       {(!githubFresh(item, now) || item.sourceMessage) && <div className="pr-source-notice"><StatusIcon icon={item.sourceState === "denied" || item.sourceState === "auth-changed" ? AlertTriangle : Clock} tone="warning" label={item.sourceState.replaceAll("-", " ")} /><span>{item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}.`}{snapshot && " Showing the last known snapshot."}</span><button type="button" className="pr-text-button" onClick={onRefresh}>Retry</button></div>}
       {tab === "changes" ? <ChangesView key={`${item.id}:${item.reader?.hostId ?? ""}:${item.reader?.accountId ?? ""}:${item.sourceState}:${snapshot?.headSha ?? "unavailable"}`} item={item} rpc={rpc} /> : <div className="pr-summary">
-        {snapshot ? <><section className="pr-description"><h2>Description</h2>{snapshot.body ? <Markdown content={snapshot.body} className="pr-markdown" /> : <p className="pr-muted">No description provided.</p>}</section>
-          <section className="pr-facts"><h2>Checks and review</h2><div className="pr-fact-line"><span>Checks</span><StatusIcon {...checksPresentation(snapshot)} count={snapshot.checks.total > 0 ? `${snapshot.checks.passing}/${snapshot.checks.total}` : undefined} /><External href={`${item.url}/checks`} className="pr-subtle-link">View checks<ExternalLink size={12} /></External></div>{snapshot.checks.items.filter((check) => check.state === "failing" || check.state === "pending").map((check, index) => <div className="pr-check-line" key={`${check.name}:${index}`}><StatusIcon icon={check.state === "failing" ? XCircle : Clock} label={`${check.name}: ${check.state}`} tone={check.state === "failing" ? "danger" : "warning"} /><External href={check.url}>{check.name}</External></div>)}<div className="pr-fact-line"><span>Review</span><StatusIcon {...reviewPresentation(snapshot.review)} /></div><div className="pr-fact-line"><span>Mergeability</span><StatusIcon {...mergePresentation(snapshot.mergeability)} />{snapshot.queued && <StatusIcon icon={Clock} label="In merge queue" tone="warning" />}{snapshot.autoMerge && <StatusIcon icon={GitMerge} label="Auto-merge enabled on GitHub" tone="muted" />}</div><p className="pr-facts-note">Snapshot at <code>{snapshot.headSha.slice(0, 7)}</code> · {age(snapshot.fetchedAt)}</p></section></> : <p className="pr-unavailable">This source cannot currently read the pull request. Verify its GitHub access below.</p>}
+        <div className="pr-summary-main">
+        <header className="pr-detail-heading">
+          <div className="pr-detail-meta"><StatusIcon {...lifecycle(snapshot)} /><span>{snapshot ? `${snapshot.repository} #${snapshot.number}` : "Pull request"}</span></div>
+          <h1>{snapshot?.title ?? "Pull request unavailable"}</h1>
+          {snapshot && <div className="pr-branch-line"><span className="pr-author">{snapshot.author ? `@${snapshot.author}` : "Unknown author"}</span><time dateTime={snapshot.updatedAt} title={`Updated ${new Date(snapshot.updatedAt).toLocaleString()}`}>{age(snapshot.updatedAt)}</time><span aria-hidden="true">·</span><code>{snapshot.headBranch}</code><ArrowRight size={12} aria-hidden="true" /><code>{snapshot.baseBranch}</code></div>}
+        </header>
+        {snapshot ? <section className="pr-description" aria-label="Description">{snapshot.body ? <Markdown content={snapshot.body} className="pr-markdown" /> : <p className="pr-muted">No description provided.</p>}</section> : <p className="pr-unavailable">This source cannot currently read the pull request. Verify its GitHub access below.</p>}
         <section className="pr-threads" ref={threadsSection} tabIndex={-1} aria-label="Related threads"><div className="pr-section-heading"><h2>Threads <span>{item.links.length}</span></h2><button type="button" className="pr-text-button" aria-expanded={manage} onClick={() => setManage(!manage)}>{manage ? "Done" : "Manage threads"}</button></div>{item.links.map((link) => {
           const thread = choices.get(link.threadId);
           const live = liveThreads.get(link.threadId);
           return <div className="pr-related-thread" key={link.threadId}><StatusIcon {...threadPresentation(live, thread?.archived)} /><div className="pr-related-thread-content"><button type="button" className="pr-thread-link" disabled={!thread} onClick={() => onThread(link.threadId)}>{live?.displayTitle ?? thread?.title ?? "Unavailable thread"}</button><span className="pr-thread-evidence">{link.origin ? "Originating thread" : link.evidence === "environment" ? "Related checkout" : "Linked thread"}{thread?.archived ? " · archived" : ""}{item.preferredThreadId === link.threadId ? " · preferred" : ""}</span></div>{manage ? <><IconButton icon={Check} label={item.preferredThreadId === link.threadId ? "Clear preferred thread" : "Use as preferred thread"} active={item.preferredThreadId === link.threadId} onClick={() => void onUpdate(() => rpc.call("prefer", { id: item.id, threadId: item.preferredThreadId === link.threadId ? null : link.threadId }))} /><IconButton icon={Unlink} label={`Remove link to ${thread?.title ?? link.threadId}`} onClick={() => onUnlink(link.threadId)} /></> : <IconButton icon={ArrowRight} label={`Open ${thread?.title ?? "thread"}`} disabled={!thread} onClick={() => onThread(link.threadId)} />}</div>;
         })}{manage && <button className="pr-text-button pr-add-thread" type="button" onClick={onLink}><Plus size={14} />Link another thread</button>}</section>
+        <details className="pr-source"><summary>Source <span>{sourceName}{item.reader ? ` · @${item.reader.login}` : ""}</span><ChevronDown size={14} /></summary><div><p>Read from GitHub on {sourceName}. Last attempt {age(item.lastAttemptAt)}.</p><label>Source machine<select value={sourceHost} onChange={(event) => setSourceHost(event.target.value)}><option value="" disabled>Select a machine</option>{context.hosts.map((host) => <option key={host.id} value={host.id} disabled={!host.connected}>{host.name}{host.connected ? "" : " · offline"}</option>)}</select></label><button type="button" className="pr-button" disabled={!sourceHost || sourceBusy} onClick={() => { setSourceBusy(true); void onUpdate(() => rpc.call("source", { id: item.id, hostId: sourceHost })).finally(() => setSourceBusy(false)); }}>{sourceBusy ? "Verifying…" : "Verify source"}</button></div></details>
+        </div>
+        {snapshot && <SummaryStatusRail snapshot={snapshot} url={item.url}>{/* Stack relationships stay beside the review state. */}
         {snapshot?.stack.state === "available" && snapshot.stack.items.length > 0 && <section className="pr-stack"><h2>Stack</h2>{snapshot.stack.items.map((entry) => <div key={entry.url}><StatusIcon {...lifecycle(["open", "draft", "merged", "closed"].includes(entry.state.toLowerCase()) ? { state: entry.state.toLowerCase() as Snapshot["state"] } : null)} /><External href={entry.url}>{entry.title}<span>#{entry.number}</span></External></div>)}</section>}
         {snapshot?.stack.state === "unavailable" && <p className="pr-muted pr-stack-unavailable">Stack information unavailable.</p>}
-        <details className="pr-source"><summary>Source <span>{sourceName}{item.reader ? ` · @${item.reader.login}` : ""}</span><ChevronDown size={14} /></summary><div><p>Read from GitHub on {sourceName}. Last attempt {age(item.lastAttemptAt)}.</p><label>Source machine<select value={sourceHost} onChange={(event) => setSourceHost(event.target.value)}><option value="" disabled>Select a machine</option>{context.hosts.map((host) => <option key={host.id} value={host.id} disabled={!host.connected}>{host.name}{host.connected ? "" : " · offline"}</option>)}</select></label><button type="button" className="pr-button" disabled={!sourceHost || sourceBusy} onClick={() => { setSourceBusy(true); void onUpdate(() => rpc.call("source", { id: item.id, hostId: sourceHost })).finally(() => setSourceBusy(false)); }}>{sourceBusy ? "Verifying…" : "Verify source"}</button></div></details>
+        </SummaryStatusRail>}
       </div>}
     </div>
   </>;
+}
+
+function SummaryStatusRail({ snapshot, url, children }: { snapshot: Snapshot; url: string; children: ReactNode }) {
+  const [allChecks, setAllChecks] = useState(false);
+  const checks = allChecks ? snapshot.checks.items : snapshot.checks.items.slice(0, 6);
+  const merge = mergePresentation(snapshot.mergeability);
+  const review = reviewPresentation(snapshot.review);
+  return <aside className="pr-status-rail" aria-label="Pull request status">
+    <section><h2>Merge status</h2><div className="pr-rail-status"><StatusIcon {...merge} /><span>{merge.label}</span>{snapshot.queued && <StatusIcon icon={Clock} label="In merge queue" tone="warning" />}{snapshot.autoMerge && <StatusIcon icon={GitMerge} label="Auto-merge enabled on GitHub" />}</div></section>
+    <section><h2>Reviews</h2><div className="pr-rail-status"><StatusIcon {...review} /><span>{review.label}</span></div>{snapshot.requestedReviewers?.map((reviewer) => <p className="pr-requested-reviewer" key={reviewer}>@{reviewer}</p>)}{snapshot.reviewRequestsComplete === false && <p className="pr-muted">Reviewer list incomplete.</p>}</section>
+    <section><div className="pr-section-heading"><h2>Checks</h2><StatusIcon {...checksPresentation(snapshot)} count={snapshot.checks.total > 0 ? `${snapshot.checks.passing}/${snapshot.checks.total}` : undefined} /></div>
+      {checks.map((check, index) => <div className="pr-check-line" key={`${check.name}:${index}`}><StatusIcon icon={check.state === "passing" ? CheckCircle2 : check.state === "failing" ? XCircle : check.state === "pending" ? Clock : check.state === "neutral" ? Circle : CircleHelp} label={`${check.name}: ${check.state}`} tone={check.state === "passing" ? "success" : check.state === "failing" ? "danger" : check.state === "pending" ? "warning" : "muted"} /><External href={check.url}>{check.name}</External></div>)}
+      {snapshot.checks.items.length > 6 && <button type="button" className="pr-text-button" aria-expanded={allChecks} onClick={() => setAllChecks(!allChecks)}>{allChecks ? "Show fewer checks" : `View ${snapshot.checks.items.length - 6} more checks`}</button>}
+      {!snapshot.checks.complete && <p className="pr-muted">Check results incomplete.</p>}
+      <External href={`${url}/checks`} className="pr-subtle-link">Open checks on GitHub<ExternalLink size={12} /></External>
+    </section>
+    {children}
+    <p className="pr-facts-note">Snapshot at <code>{snapshot.headSha.slice(0, 7)}</code> · {age(snapshot.fetchedAt)}</p>
+  </aside>;
 }
 
 function ChangesView({ item, rpc }: { item: PullRequestItem; rpc: Rpc }) {
