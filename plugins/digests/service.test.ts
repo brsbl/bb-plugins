@@ -89,7 +89,7 @@ describe("digest issue lifecycle", () => {
   it("dispatches on the browser host in Personal rather than the server project default", async () => {
     const { bb, service, harness } = setup();
     vi.spyOn(bb.sdk.projects, "list").mockResolvedValue([{ id: "proj_personal", kind: "personal", name: "Personal", sources: [], gitRemoteUrl: null, createdAt: 1, updatedAt: 1 }]);
-    vi.spyOn(bb.sdk.hosts, "get").mockResolvedValue(makeHostResponse({ id: "host_browser", status: "connected" }));
+    vi.spyOn(bb.sdk.hosts, "get").mockResolvedValue({ ...makeHostResponse({ id: "host_browser", status: "connected" }), connectMachineId: null });
     vi.spyOn(bb.sdk.environments, "listProviders").mockResolvedValue([{ id: "personal-workspace", displayName: "Personal workspace", description: "", icon: "Folder", logoUrl: null, pluginId: "environment-personal-workspace", machineProviderId: null, requires: { projectCheckout: false, gitCheckout: false, gitRemote: false, projectless: true }, inputs: null, acceptsEmptyInputs: true, availability: null, machineAvailability: {} }]);
     await service.ensureAutomation(service.requiredDefinition("reading"));
     const create = harness.inspection.sdk.callsTo("plugins.callRpc").map(([call]) => call as { method: string; input: unknown }).find((call) => call.method === "automations_create");
