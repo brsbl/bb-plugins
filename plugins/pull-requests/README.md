@@ -2,7 +2,7 @@
 
 See pull requests across bb threads and continue the work in the right conversation.
 
-![Compact sidebar and pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/f7e7b9bc-134b-4b4e-8999-7d1ccd7aca4e)
+![Compact sidebar and pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/1ed45e6e-163d-44e9-852a-7e818eef0c2c)
 
 ## Install
 
