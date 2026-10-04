@@ -150,10 +150,10 @@ ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-messa
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
-${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { ${GLASS_SURFACE} top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
+${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { ${HIDE} }
-${COMPACT_HOME} [data-testid="root-compose-compact-scroll-viewport"] > .px-4 { padding-inline: 0; }
-${ROOT} [data-root-compose-mobile-recents] { padding-block: 0 6px; }
+${COMPACT_HOME} [data-testid="root-compose-compact-scroll-content"] > .px-4 { padding-inline: 0; }
+${ROOT} [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20px; padding-block: 0 6px; }
 ${ROOT} [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; ${NO_BLUR} padding-block-start: 16px; }
 ${ROOT} [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { ${HIDE} }
 ${COMPACT_COMPOSER} [data-overflow-fade] { ${HIDE} }
