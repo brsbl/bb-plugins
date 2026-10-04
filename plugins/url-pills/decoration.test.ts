@@ -43,6 +43,19 @@ afterEach(() => {
 });
 
 describe('DOM-only URL decoration', () => {
+  it.each([false, true])('leaves overlapping host decorations native (nested marks: %s)', (nested) => {
+    const span = composer(), editor = span.closest('[contenteditable]')!;
+    const prefix = '<span class="bb-url-pill-range">https://example.com/docs/</span>';
+    const middle = '<span class="bb-url-pill-range ultracode">ultracode</span>';
+    span.parentElement!.innerHTML = prefix + (nested ? `<strong>${middle}</strong>` : middle)
+      + '<span class="bb-url-pill-range">/setup?mode=1#quickstart</span>';
+    const original = editor.outerHTML, openUrl = vi.fn(() => true);
+    mountUrlPills({ signal: abort.signal, openUrl });
+    expect(composerCss()).toBe('');
+    for (const fragment of editor.querySelectorAll<HTMLElement>('.bb-url-pill-range')) fragment.click();
+    expect(openUrl).not.toHaveBeenCalled();
+    expect(editor.outerHTML).toBe(original);
+  });
   it('decorates all three surfaces without altering nodes, href, copied source or click ownership', () => {
     const draft = composer(), user = message(), agent = message(false);
     const originals = [draft, user, agent].map((el) => el.firstChild);
