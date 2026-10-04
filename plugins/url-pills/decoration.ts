@@ -106,6 +106,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   let enabled = options.iconsEnabled ?? false;
   let disposed = false;
   let frame: number | null = null;
+  let positionFrame: number | null = null;
   let composition: HTMLElement | null = null;
   let explicitEdit: HTMLElement | null = null;
   let inputEdit: HTMLElement | null = null;
@@ -231,6 +232,8 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   });
 
   function closeInspector(restoreFocus = true): void {
+    if (positionFrame !== null) cancelAnimationFrame(positionFrame);
+    positionFrame = null;
     inspector?.remove(); inspector = null;
     if (restoreFocus && inspected?.isConnected) {
       const editor = inspected.closest<HTMLElement>(EDITOR);
@@ -262,8 +265,20 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     const upper = rect.top - panel.offsetHeight - 8;
     const lower = rect.bottom + 8;
     const y = above ? (upper >= top ? upper : lower) : (lower + panel.offsetHeight <= bottom ? lower : upper);
-    panel.style.left = `${Math.max(left, Math.min(rect.left, right - panel.offsetWidth))}px`;
-    panel.style.top = `${Math.max(top, Math.min(y, bottom - panel.offsetHeight))}px`;
+    const xValue = `${Math.max(left, Math.min(rect.left, right - panel.offsetWidth))}px`;
+    const yValue = `${Math.max(top, Math.min(y, bottom - panel.offsetHeight))}px`;
+    if (panel.style.left !== xValue) panel.style.left = xValue;
+    if (panel.style.top !== yValue) panel.style.top = yValue;
+  }
+
+  function trackInspectorPosition(): void {
+    positionFrame = null;
+    if (disposed || !inspector || !inspected) return;
+    if (!inspected.isConnected) { closeInspector(false); return; }
+    // The host can animate its composer after focus leaves, without a scroll
+    // or URL mutation. Follow only this anchor while its editor is open.
+    positionPanel(inspector, inspected, !!entries.get(inspected)?.composer);
+    positionFrame = requestAnimationFrame(trackInspectorPosition);
   }
 
   function hideEditButton(): void { editButton?.remove(); editButton = null; hovered = null; }
@@ -336,6 +351,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     positionPanel(panel, anchor, entry.composer);
     address.focus({ preventScroll: true });
     address.setSelectionRange(0, 0);
+    positionFrame = requestAnimationFrame(trackInspectorPosition);
     queue();
   }
 
