@@ -39,6 +39,9 @@ function readBounds(element: HTMLElement): ViewBounds {
 }
 
 function occluded(element: HTMLElement, bounds: ViewBounds, z: number): boolean {
+  // Browser Automation expands into a portaled dialog, not document fullscreen. Its backdrop covers all views;
+  // keep them hidden through the exit animation, until the dialog unmounts.
+  if (document.querySelector('[data-bb-plugin="browser-automation"][data-bb-portaled-overlay][role="dialog"]')) return true;
   if (document.querySelector(".bbd-drag-shield")) return true;
   const own = element.closest(".bbd-window");
   for (const candidate of document.querySelectorAll<HTMLElement>(`${OCCLUDERS}, .bbd-window`)) {
