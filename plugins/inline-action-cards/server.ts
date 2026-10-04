@@ -146,6 +146,9 @@ export function createStore(bb: BbPluginApi) {
 }
 
 export default function plugin(bb: BbPluginApi): void {
+  bb.agents.contributeInstructions(() =>
+    'Whenever you need the user\'s decision or approval (yes/no, sending an email, merging/shipping, switching a setting, applying a change, or choosing between two options), use Inline Action Cards instead of asking in prose. Create a card with bb action-cards create and emit its returned ::action{id="..."} directive on its own line, outside code fences. Name exactly what Yes does in plain words; No declines that action. For 3+ similar items, use bb action-cards create-table and emit its returned ::actions{id="..."} directive. When a card click arrives, claim the exact attempt with bb action-cards claim, act only on the claimed approval, and report the result with bb action-cards report. Load the inline-action-cards skill for schemas, choices, and click-handling details.',
+  );
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
     get: ({ threadId, id }) => store.get(threadId, id),
