@@ -8,6 +8,13 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 import {
+  formatHarvestSummary,
+  harvestResult,
+  harvestSummary,
+  proposalResult,
+  type ProposalResult,
+} from "./activity";
+import {
   detailRowEndIndex,
   displayDomainIdentifier,
   domainFilterFromIdentifier,
@@ -518,5 +525,65 @@ describe("episode selection", () => {
         recent,
       ),
     ).toBe("older than the review window");
+  });
+});
+
+describe("harvest activity summaries", () => {
+  const published = new Set(["ddr_041"]);
+
+  it("reports an approval as added only once its rule is in the read corpus", () => {
+    expect(proposalResult("approved", null, published)).toEqual({
+      result: "waiting",
+      ruleId: null,
+    });
+    expect(proposalResult("approved", "rules/visual/ddr_042.md", published)).toEqual({
+      result: "waiting",
+      ruleId: "ddr_042",
+    });
+    expect(proposalResult("approved", "rules/visual/ddr_041.md", published)).toEqual({
+      result: "added",
+      ruleId: "ddr_041",
+    });
+    expect(proposalResult("approved", "rules/visual/ddr_042.md", null)).toEqual({
+      result: "added",
+      ruleId: "ddr_042",
+    });
+    expect(proposalResult("rejected", null, published).result).toBe("rejected");
+    expect(proposalResult("cancelled", "rules/visual/ddr_041.md", published)).toEqual({
+      result: "cancelled",
+      ruleId: null,
+    });
+    expect(proposalResult(null, null, published).result).toBe("undecided");
+    expect(
+      proposalResult("approved", "rules/visual/ddr_041.md", published, new Set(["ddr_041"])),
+    ).toEqual({ result: "retired", ruleId: "ddr_041" });
+  });
+
+  it("summarizes a thread by its most consequential result", () => {
+    const added = { result: "added" as const, ruleId: "ddr_041" };
+    const waiting = { result: "waiting" as const, ruleId: null };
+    const rejected = { result: "rejected" as const, ruleId: null };
+    const cancelled = { result: "cancelled" as const, ruleId: null };
+    const summarize = (
+      outcome: string | null,
+      proposals: Array<{ result: ProposalResult; ruleId: string | null }>,
+    ) =>
+      formatHarvestSummary(
+        harvestSummary({ result: harvestResult(outcome, proposals), proposals }),
+      );
+
+    expect(summarize("approved:2", [added, waiting])).toBe(
+      "Added ddr_041 · 1 waiting to publish",
+    );
+    expect(summarize("approved:1", [waiting])).toBe("Waiting to publish");
+    expect(summarize("harvester-failed", [])).toBe("Harvest failed");
+    expect(summarize("no-approvals", [rejected, rejected])).toBe(
+      "2 proposals rejected",
+    );
+    expect(summarize("no-proposals", [])).toBe("No new rules");
+    expect(summarize("approved:1", [cancelled, rejected])).toBe(
+      "1 proposal cancelled",
+    );
+    expect(summarize("approved:2", [added, cancelled])).toBe("Added ddr_041");
   });
 });

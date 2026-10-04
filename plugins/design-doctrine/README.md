@@ -19,6 +19,13 @@ bb doctrine search "<task and surface>"
 bb doctrine show ddr_001
 ```
 
+Switch the panel to **Activity** to watch the archive harvest learn: every rule proposed from a processed thread, whether it was added, is waiting to publish, or was rejected, and the reviewer's note. Cancel a rule that is still waiting to publish and it is removed from the open rule pull request, which closes once it has no rules left; a published rule is retired instead. The same feed and action are available from the CLI, where `activity --json` lists proposal IDs:
+
+```bash
+bb doctrine harvest activity [--limit N] [--json]
+bb doctrine harvest cancel --proposal <id> [--json]
+```
+
 The bundled `design-doctrine` skill validates each candidate against its applicability and exceptions before use. The doctrine adds personal design judgment; it does not replace product requirements, accessibility guidance, or platform conventions.
 
 Maintenance needs no setup for correctness. When the plugin is installed from a checkout of this repository it keeps its own corpus checkout under bb's plugin data directory and reconciles a missed update on the next stale read with a lightweight remote-ref probe. An optional signature-verified GitHub push webhook at `/api/v1/plugins/design-doctrine/http/github` makes merged rule changes live within seconds; its shared secret is stored in the secret `githubWebhookSecret` setting. An install from the marketplace reads the rules it shipped with. Set `doctrinePath` only to read rules from somewhere else:

@@ -31,6 +31,12 @@ substitute, or treat inherited agent context as the maintenance history source.
 Retain the returned lease exactly; the maintenance prompt owns advance and
 release.
 
+Archived threads are also harvested automatically. To see the rules that
+harvest proposed and what became of each, run
+`bb doctrine harvest activity [--limit N] [--json]`. To withdraw a rule that is
+still waiting to publish, run `bb doctrine harvest cancel --proposal <id> [--json]`
+with a proposal ID from the JSON feed; a published rule is retired instead.
+
 ## Retrieve
 
 BB may provide a few rule candidates inferred from the thread title. Treat that
