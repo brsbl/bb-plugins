@@ -746,16 +746,11 @@ describe("workflow settings", () => {
     });
     expect(rendered.queryByLabelText("Entry prompt for Planning")).toBeNull();
     await choose("Inbox", "Inbox · everything", "Move back after reading");
-    await choose("Spec Review", "Inbox · Manual", "Keep after reading");
-    await rendered.findByRole("button", { name: "Section type for Spec Review: Inbox · Manual" });
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => {
       expect(savedInput?.stages[0]).toMatchObject({ key: "inbox", returnAfterRead: true });
       expect(savedInput?.stages[1])
         .toMatchObject({ role: "inbox", catchesPluginId: "digests", returnAfterRead: true });
-      expect(savedInput?.stages[2]).toMatchObject({ role: "inbox" });
-      expect(savedInput?.stages[2]).not.toHaveProperty("catchesPluginId");
-      expect(savedInput?.stages[2]).not.toHaveProperty("returnAfterRead");
     });
     await rendered.findByRole("button", { name: "Saved" });
     fireEvent.keyDown(typeOf("Planning"), { key: "Enter" });
@@ -765,6 +760,41 @@ describe("workflow settings", () => {
       expect(savedInput?.stages[1]).toMatchObject({ role: "stage" });
       expect(savedInput?.stages[1]).not.toHaveProperty("catchesPluginId");
       expect(savedInput?.stages[1]).not.toHaveProperty("returnAfterRead");
+    });
+    rendered.lifecycle.unmount();
+  });
+
+  it("makes a manual inbox that keeps threads after reading", async () => {
+    const app = await loadApp();
+    let savedInput: EditableWorkflowConfig | null = null;
+    const rendered = renderSlot<{}, typeof rpcContract>(
+      app.settingsSections[0]!, {}, {
+        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
+        rpc: {
+          getConfig: async () => configuredWorkflow(),
+          saveConfig: async (input) => {
+            savedInput = input;
+            return {
+              ...input,
+              stages: input.stages.map((stage) => ({ ...stage, sectionId: `sec_${stage.key}` })),
+            };
+          },
+        },
+      },
+    );
+    fireEvent.keyDown(
+      await rendered.findByRole("button", { name: "Section type for Handoff: Stage" }),
+      { key: "Enter" },
+    );
+    fireEvent.click(await rendered.findByRole("menuitem", { name: "Inbox · Manual" }));
+    fireEvent.click(await rendered.findByRole("menuitem", { name: "Keep after reading" }));
+    await rendered.findByRole("button", { name: "Section type for Handoff: Inbox · Manual" });
+    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => {
+      const handoff = savedInput?.stages.find((stage) => stage.key === "handoff");
+      expect(handoff).toMatchObject({ role: "inbox" });
+      expect(handoff).not.toHaveProperty("catchesPluginId");
+      expect(handoff).not.toHaveProperty("returnAfterRead");
     });
     rendered.lifecycle.unmount();
   });
