@@ -12,9 +12,9 @@ export const rpcContract = defineRpcContract({
   reopen: { input: versioned, output: itemSchema },
   table: { input: ref, output: tableViewSchema },
   prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
-  submitted: { input: ref.extend({ attemptId: z.string().uuid(), queued: z.boolean(), sendAt: z.number().int().positive().optional() }), output: itemSchema },
+  submitted: { input: ref.extend({ attemptId: z.string().uuid() }), output: itemSchema },
 });
-type QueueEntry = PluginThreadEventPayloads["message.queued"]["entry"];
+type QueueEntry = PluginThreadEventPayloads["message.cancelled"]["entry"];
 
 export function createStore(bb: BbPluginApi) {
   const db = bb.storage.database();
@@ -110,29 +110,22 @@ export function createStore(bb: BbPluginApi) {
       return change(threadId, id, null, (item) => {
         if (item.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.claimed) throw new Error("This attempt is stale or already claimed. Read its status and reconcile the external result; do not act again.");
         item.attempt.claimed = true;
-        // A claim proves the request reached the agent, even if a queue event was missed.
-        if (item.attempt.queued || !item.attempt.sentAt) sent(item);
+        // A claim proves the request was sent, even if the composer's acknowledgement was lost.
+        item.attempt.sentAt ??= new Date().toISOString();
       });
     },
-    // The composer accepted the request. Queue events are authoritative, so only fill a gap.
+    // The composer accepted the request (sent now, or queued behind a busy agent).
     submitted(input: z.infer<typeof rpcContract.submitted.input>) {
       const item = get(input.threadId, input.id);
-      if (item.state !== "pending" || item.attempt?.id !== input.attemptId || item.attempt.claimed || item.attempt.sentAt || item.attempt.queued) return item;
-      return change(input.threadId, input.id, null, (next) => {
-        if (input.queued) queued(next, input.sendAt);
-        else sent(next);
-      });
+      if (item.state !== "pending" || item.attempt?.id !== input.attemptId || item.attempt.claimed || item.attempt.sentAt) return item;
+      return change(input.threadId, input.id, null, (next) => { next.attempt!.sentAt = new Date().toISOString(); });
     },
-    queue(event: "queued" | "dispatched" | "cancelled", entry: QueueEntry) {
+    // A request deleted from the thread's queue never reached the agent; let the user choose again.
+    cancelled(entry: QueueEntry) {
       for (const { threadId, id, attemptId } of attemptRefs(bb.pluginId, entry)) {
         const item = read.get(threadId, id) ? get(threadId, id) : null;
         if (item?.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.claimed) continue;
-        change(threadId, id, null, (next) => {
-          // A request deleted from the queue was never sent; let the user choose again.
-          if (event === "cancelled") { next.state = "ready"; next.attempt = null; }
-          else if (event === "dispatched") sent(next);
-          else queued(next, entry.sendAt);
-        });
+        change(threadId, id, null, (next) => { next.state = "ready"; next.attempt = null; });
       }
     },
     report(threadId: string, id: string, attemptId: string, outcome: "succeeded" | "failed", message: string, retryable: boolean) {
@@ -152,17 +145,6 @@ export function createStore(bb: BbPluginApi) {
   };
 }
 
-function sent(item: Item) {
-  item.attempt!.sentAt = new Date().toISOString();
-  delete item.attempt!.queued; delete item.attempt!.sendAt;
-}
-// RPC results must be JSON, so absent values are deleted rather than set to undefined.
-function queued(item: Item, sendAt?: number | null) {
-  item.attempt!.queued = true;
-  delete item.attempt!.sentAt;
-  if (sendAt) item.attempt!.sendAt = sendAt; else delete item.attempt!.sendAt;
-}
-
 // Card requests carry an action mention whose id is threadId:itemId:attemptId.
 function attemptRefs(pluginId: string, entry: QueueEntry) {
   return entry.content.flatMap((block) => block.type === "text" ? block.mentions : []).flatMap(({ resource }) => {
@@ -180,11 +162,9 @@ export default function plugin(bb: BbPluginApi): void {
     save: store.save, prepare: store.prepare, reopen: store.reopen,
     table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable, submitted: store.submitted,
   });
-  for (const event of ["queued", "dispatched", "cancelled"] as const) {
-    bb.events.on(`message.${event}`, ({ entry }) => {
-      try { store.queue(event, entry); } catch (err) { bb.log.warn(`Could not update an action card from a queue event: ${err instanceof Error ? err.message : String(err)}`); }
-    });
-  }
+  bb.events.on("message.cancelled", ({ entry }) => {
+    try { store.cancelled(entry); } catch (err) { bb.log.warn(`Could not reopen an action card after its queued request was deleted: ${err instanceof Error ? err.message : String(err)}`); }
+  });
   bb.ui.registerMentionProvider({
     id: "action", label: "Action cards", search: () => [],
     resolve(value) {

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type ExperimentalComposerSubmitOptions, type PluginComposerApi, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, MenuLabel, SendOptions, ClockIcon, SkipIcon } from "./controls.js";
-import { insertActionMention, pendingLabel, sendLaterOptions, sentStatus } from "./presentation.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
+import { insertActionMention, pendingLabel, sentStatus } from "./presentation.js";
 import "./app.css";
 
 // Several cards may share one composer. A double click must never submit two drafts.
@@ -115,20 +115,17 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   }, [draft, flush]);
   useEffect(() => () => { void flush().catch(() => {}); }, [flush]);
 
-  const sendMessage = async (next: Item, sendAt?: number) => {
+  const sendMessage = async (next: Item) => {
     // Check again after asynchronous saves; the user may have started typing.
     if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to respond.");
     if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try the card again.");
     composer.setText(actionMessage(next));
     insertActionMention(composer, next);
-    // A scheduled send always waits in the queue; anything else is queued only if bb reports it.
-    const queued = sendAt !== undefined;
-    if (!await submitDraft(composer, sendAt ? { sendAt, experimental_data: { itemId: id } } : { experimental_data: { itemId: id } })) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
-    // RPC input must be JSON, so omit sendAt rather than sending undefined.
-    adopt(await rpc.call("submitted", { id, threadId, attemptId: next.attempt!.id, queued, ...(sendAt ? { sendAt } : {}) }));
+    if (!await submitDraft(composer, { experimental_data: { itemId: id } })) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
+    adopt(await rpc.call("submitted", { id, threadId, attemptId: next.attempt!.id }));
   };
 
-  const act = async (action?: Action, sendAt?: number) => {
+  const act = async (action?: Action) => {
     if (lock.current || submitting.has(threadId)) return;
     lock.current = true; submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
     try {
@@ -143,7 +140,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
         adopt(next);
       }
       // Resending a pending request keeps its attempt ID; claim refuses duplicates.
-      await sendMessage(next, sendAt);
+      await sendMessage(next);
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; submitting.delete(threadId); setBusy(false); setSending(null); }
   };
@@ -201,17 +198,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
         : reply && <MoreMenu disabled={disabled}><MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction></MoreMenu>}</span>
       {reply ? <ActionButton disabled={disabled} onClick={() => void askForChanges()}>Ask for changes</ActionButton>
         : <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
-      <span className="iac-split">
-        <PendingButton variant="default" pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled} onClick={() => void act(primary)}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
-        <SendOptions disabled={disabled}>
-          <MenuLabel>Send later</MenuLabel>
-          {sendLaterOptions().map(({ label }) => <MenuAction key={label} onSelect={() => {
-            // Relative presets are timed from the click, not from when the card rendered.
-            const at = sendLaterOptions().find((option) => option.label === label)?.at;
-            if (at) void act(primary, at); else setError("That time has passed. Choose another time.");
-          }}>{label}</MenuAction>)}
-        </SendOptions>
-      </span>
+      <PendingButton variant="default" pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled} onClick={() => void act(primary)}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
     </> : null}
   </div>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
@@ -220,10 +207,10 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   </div></div>;
   const time = status ? status.time : item.updatedAt;
   const result = <div className="iac-result-line">
-    <span className={item.state === "failed" ? "iac-failed" : status?.queued ? "iac-muted" : "iac-result"} role="status">
-      {!status?.queued && <><span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> </>}{status ? status.label : resultLabel(item)}
+    <span className={item.state === "failed" ? "iac-failed" : "iac-result"} role="status">
+      <span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> {status ? status.label : resultLabel(item)}
       {row && <span className="iac-muted"> · {title(item)}</span>}
-      {time && <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>}
+      <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
     </span>
     <div className="iac-actions">
       {status && !item.attempt?.claimed && <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>}
@@ -305,7 +292,7 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
         insertActionMention(composer, item);
       });
       if (!await submitDraft(composer, { experimental_data: { tableId: id } })) throw new Error("The request was not submitted. Send the prepared composer message, or resend each pending row.");
-      (await Promise.all(items.map((item) => rpc.call("submitted", { id: item.id, threadId, attemptId: item.attempt!.id, queued: false })))).forEach(updateItem);
+      (await Promise.all(items.map((item) => rpc.call("submitted", { id: item.id, threadId, attemptId: item.attempt!.id })))).forEach(updateItem);
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
   };

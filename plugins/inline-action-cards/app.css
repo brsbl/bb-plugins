@@ -56,15 +56,10 @@
 .iac-row-description { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .iac-row-description .iac-consequence { font-size: 12px; }
 .iac-row-line > .iac-footer { margin-top: 0; min-width: 160px; }
-.iac-row .iac-footer > .iac-split > button:first-child { min-width: 64px; }
+.iac-row .iac-footer > button:last-child { min-width: 64px; }
 .iac-row-expanded { margin-top: 12px; }
 .iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: 12px; box-shadow: var(--shadow-md); }
 .iac-menu { min-width: 170px; padding: 4px; }
-.iac-split { display: inline-flex; }
-.iac-split > button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.iac-split > .iac-split-chevron { width: 22px; padding: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; box-shadow: inset 1px 0 0 color-mix(in srgb, var(--background) 30%, transparent); }
-.iac-split-chevron svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.iac-menu-label { padding: 4px 8px 2px; color: var(--muted-foreground); font-size: 11px; }
 .iac-menu-item { padding: 6px 8px; border-radius: var(--radius-sm, .25rem); cursor: pointer; outline: none; }
 .iac-menu-item[data-highlighted] { background: var(--state-hover, var(--muted)); }
 .iac-tooltip { padding: 4px 8px; }

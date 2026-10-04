@@ -25,13 +25,10 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         calls.push("prepare"); expect(input.revision).toBe(item.revision);
         item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false } }; return item;
       },
-      submitted: async (raw) => {
-        const input = raw as { queued: boolean; sendAt?: number };
-        // Host RPC rejects undefined values, so an immediate send must omit sendAt.
-        expect("sendAt" in input && input.sendAt === undefined).toBe(false);
+      submitted: async () => {
         await beforeSubmitted;
-        calls.push(input.sendAt ? "scheduled" : "submitted");
-        item = { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, ...(input.queued ? { queued: true, sendAt: input.sendAt } : { sentAt: "2026-10-01T19:09:00Z" }) } };
+        calls.push("submitted");
+        item = { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } };
         return item;
       },
     },
@@ -52,7 +49,7 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   expect(slot.inspection.composer.submits).toHaveLength(1);
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Escrow follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
-  await screen.findByText("Send request sent");
+  await screen.findByText("Approved to send");
   expect(screen.queryByRole("textbox")).toBeNull();
 });
 it("keeps Ask for changes in the composer without submitting", async () => {
@@ -116,7 +113,7 @@ it("keeps the expanded table reply in place while Send is pending", async () => 
   expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-  await screen.findByText("Send request sent");
+  await screen.findByText("Approved to send");
   expect(screen.getByRole("textbox", { name: "Draft" }).getAttribute("readonly")).not.toBeNull();
   expect(screen.queryByRole("button", { name: "Sending…" })).toBeNull();
 });
@@ -139,24 +136,9 @@ it.each(["send", "yes", "no"] as const)("shows %s loading only while it is sent,
   expect((screen.getByRole("button", { name: "Skip" }) as HTMLButtonElement).disabled).toBe(true);
   release();
   const status = await screen.findByRole("status");
-  expect(status.textContent).toMatch(new RegExp(`^✓ ${action === "send" ? "Send request" : label} sent · `));
+  expect(status.textContent).toMatch(new RegExp(`^✓ ${action === "send" ? "Approved to send" : `${label} sent`} · `));
   expect(screen.queryByRole("button", { name: label })).toBeNull();
   expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
-});
-
-it("queues the primary action from Send options and shows it as queued", async () => {
-  // Radix positions the menu with ResizeObserver, which jsdom lacks.
-  globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
-  const item = fixture();
-  item.content = { type: "decide", question: "Merge PR?", consequence: "Squash into main", yesLabel: "Merge" };
-  const { slot, calls } = await setup("", false, item);
-  const options = screen.getByRole("button", { name: "Send options" });
-  fireEvent.keyDown(options, { key: "Enter" });
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Tomorrow morning" }));
-  await waitFor(() => expect(calls).toEqual(["prepare", "scheduled"]));
-  const submit = slot.inspection.composer.submits[0] as { sendAt?: number };
-  expect(submit.sendAt).toBeGreaterThan(Date.now());
-  expect((await screen.findByRole("status")).textContent).toMatch(/^Merge queued · sends /);
 });
 
 it("keeps the bulk button busy only while sending, without treating a row click as bulk", async () => {

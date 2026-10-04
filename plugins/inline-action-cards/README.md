@@ -14,7 +14,7 @@ The install branch is published after the source PR merges. For a source checkou
 
 ## Use
 
-Ask an agent to use the **inline-action-cards** skill. It creates an item with `bb action-cards create` and emits `::action{id="esc-1"}`. Click Send, Yes/No, Later, or Skip (Save to Gmail drafts is in ⋯) to send the choice right away, or use the chevron beside the main button to send it later. Once the message is sent, the card shows what you sent, or that it's queued, until the agent reports a result. Ask for changes fills the composer so you can type. Finish or clear any existing composer message before clicking an action.
+Ask an agent to use the **inline-action-cards** skill. It creates an item with `bb action-cards create` and emits `::action{id="esc-1"}`. Click Send, Yes/No, Later, or Skip (Save to Gmail drafts is in ⋯) to send the choice right away; if the agent is busy, it waits in the thread's queue. Once the message is sent, the card shows what you sent until the agent reports a result. Ask for changes fills the composer so you can type. Finish or clear any existing composer message before clicking an action.
 
 Reply cards show recipients, an expandable original excerpt, and an autosaving draft that edits like plain body text. Results collapse to one line with View and recovery in place. IDs travel in hidden mention context. Sending waits for pending saves. Agents claim each attempt once, use the saved draft, and report its outcome through `bb action-cards report`. Verified failures offer Retry; uncertain outcomes offer Check outcome to avoid duplicate sends. The [agent skill](skills/inline-action-cards/SKILL.md) documents the full workflow.
 

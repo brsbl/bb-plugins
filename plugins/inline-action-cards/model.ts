@@ -35,8 +35,8 @@ export const itemSchema = z.object({
   state: z.enum(["ready", "pending", "succeeded", "failed"]),
   attempt: z.object({
     id: z.string().uuid(), action: actionSchema, claimed: z.boolean(),
-    // When the request left the composer, or whether it is still waiting in the thread's queue.
-    sentAt: z.iso.datetime().optional(), queued: z.boolean().optional(), sendAt: z.number().int().positive().optional(),
+    // When the composer accepted the request; the card's buttons are done after that.
+    sentAt: z.iso.datetime().optional(),
   }).strict().nullable(),
   result: z.object({ message: z.string().min(1).max(500), retryable: z.boolean() }).strict().nullable(),
   updatedAt: z.string(),

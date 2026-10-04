@@ -1,7 +1,7 @@
 import type { PluginComposerApi } from "@get-bb/plugin-sdk/app";
 import { expect, it, vi } from "vitest";
 import type { Action, Item } from "./model.js";
-import { insertActionMention, pendingLabel, sendLaterOptions, sentStatus } from "./presentation.js";
+import { insertActionMention, pendingLabel, sentStatus } from "./presentation.js";
 
 function pending(action: Action, label?: string): Item {
   return { id: "switch", threadId: "thr_test", revision: 2, state: "pending", result: null, updatedAt: "2026-10-04T10:00:00Z",
@@ -53,17 +53,11 @@ it("trims trailing question marks and whitespace only in the inserted pill", () 
   expect(item.content.question).toBe("Keep A? Switch B??  ");
 });
 
-it("settles once the request is sent or queued, including older claimed records", () => {
+it("settles once the request is sent, including older claimed records", () => {
   const item = pending("yes", "Merge");
   expect(sentStatus(item)).toBeNull();
-  expect(sentStatus({ ...item, attempt: { ...item.attempt!, sentAt: "2026-10-04T19:09:00Z" } })).toEqual({ label: "Merge sent", time: "2026-10-04T19:09:00Z", queued: false });
-  expect(sentStatus({ ...item, attempt: { ...item.attempt!, claimed: true } })).toMatchObject({ label: "Merge sent", time: item.updatedAt });
-  expect(sentStatus({ ...item, attempt: { ...item.attempt!, queued: true } })).toEqual({ label: "Merge queued", time: null, queued: true });
-  expect(sentStatus({ ...item, attempt: { ...item.attempt!, queued: true, sendAt: Date.parse("2026-10-05T09:00:00") } })?.label).toMatch(/^Merge queued · sends 9:00/);
+  expect(sentStatus({ ...item, attempt: { ...item.attempt!, sentAt: "2026-10-04T19:09:00Z" } })).toEqual({ label: "Merge sent", time: "2026-10-04T19:09:00Z" });
+  expect(sentStatus({ ...item, attempt: { ...item.attempt!, claimed: true } })).toEqual({ label: "Merge sent", time: item.updatedAt });
+  expect(sentStatus({ ...item, attempt: { ...item.attempt!, action: "send", sentAt: "2026-10-04T19:09:00Z" } })?.label).toBe("Approved to send");
   expect(sentStatus({ ...item, state: "succeeded", attempt: { ...item.attempt!, sentAt: "2026-10-04T19:09:00Z" } })).toBeNull();
-});
-
-it("offers the composer's Send later presets that are still ahead", () => {
-  expect(sendLaterOptions(new Date("2026-10-04T10:00:00")).map((option) => option.label)).toEqual(["In 30 minutes", "In 1 hour", "In 2 hours", "This evening", "Tomorrow morning"]);
-  expect(sendLaterOptions(new Date("2026-10-04T19:00:00")).map((option) => option.label)).toEqual(["In 30 minutes", "In 1 hour", "In 2 hours", "Tomorrow morning"]);
 });
