@@ -7,6 +7,8 @@ import { ThreadWindow } from "./instant-message";
 
 vi.mock("@get-bb/plugin-sdk/app", () => ({
   experimental_useSidebarThreadActions: () => ({}),
+  useSdk: () => ({ plugins: {} }),
+  useBbNavigate: () => ({}),
   ThreadChat: () => (
     <div data-scroll-footer="">
       <div data-promptbox-shell=""><div data-follow-up-composer-anchor="">
