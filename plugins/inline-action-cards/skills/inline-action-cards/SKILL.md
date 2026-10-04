@@ -9,6 +9,8 @@ Whenever you need the user's decision or approval, create an action card instead
 
 Use a single card for one important item. Use a table for three or more similar items, or a mixed group that should stay together. Create the item first, then emit the returned `::action{id="..."}` directive on its own line, outside code fences. Cards appear only inside assistant messages. IDs are unique within the owning thread; never reuse one for another email or decision. Use concise, task-specific IDs.
 
+**Reshare, don't point back.** When a card you created earlier is still waiting and you mention it again, emit the same `::action{id="..."}` (or `::actions{id="..."}`) directive again in your new message, so the user can act right there. Don't write "the card above is still waiting on your choice." Reuse the existing ID; the same live card renders in both places. Don't create a new item for it.
+
 All item data and drafts live in the plugin's SQLite storage. Never put them in thread storage. CLI JSON travels to the server; local paths do not.
 
 ## Create
