@@ -27,6 +27,7 @@ export default function plugin(bb: BbPluginApi): void {
   const key = (threadId: string) => `thread:${threadId}:pins:v1`;
   const moreKey = (threadId: string) => `thread:${threadId}:more:v1`;
   const scopeKey = (threadId: string) => `thread:${threadId}:scope:v1`;
+  const lastScopeKey = "scope:last:v1";
   const environmentOf = async (threadId: string) => {
     const target = await thread(threadId);
     return target.environmentId ? bb.sdk.environments.get({ environmentId: target.environmentId }) : null;
@@ -129,6 +130,7 @@ export default function plugin(bb: BbPluginApi): void {
     setScope: async ({ threadId, scope }) => {
       await thread(threadId);
       await bb.storage.kv.set(scopeKey(threadId), scope);
+      await bb.storage.kv.set(lastScopeKey, scope);
       return { scope };
     },
     remove: ({ threadId, pinId }) => serialize(async () => {
@@ -176,8 +178,14 @@ export default function plugin(bb: BbPluginApi): void {
     context: async ({ threadId }) => {
       const environment = await environmentOf(threadId);
       const hosts = (await bb.sdk.hosts.list()).map(({ id, name, status }) => ({ id, name, connected: status === "connected" }));
-      const saved = scopeSchema.safeParse(await bb.storage.kv.get(scopeKey(threadId)));
-      let scope: Scope | null = saved.success && hosts.some((item) => item.id === saved.data.hostId) ? saved.data : null;
+      let scope: Scope | null = null;
+      for (const key of [lastScopeKey, scopeKey(threadId)]) {
+        const saved = scopeSchema.safeParse(await bb.storage.kv.get(key));
+        if (saved.success && hosts.some((item) => item.id === saved.data.hostId)) {
+          scope = saved.data;
+          break;
+        }
+      }
       if (!scope && environment?.path) scope = { hostId: environment.hostId, path: environment.path };
       const homeHost = environment?.hostId ?? hosts.find((item) => item.connected)?.id;
       if (!scope && homeHost) scope = await timeBoxed(host.call("home", {}, { hostId: homeHost })).then(({ path }) => ({ hostId: homeHost, path }), () => null);

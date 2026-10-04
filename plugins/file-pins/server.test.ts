@@ -28,7 +28,7 @@ function setup() {
   });
   plugin(bb);
   disposers.push(() => harness.lifecycle.dispose());
-  return harness;
+  return { ...harness, bb };
 }
 describe("thread file pins", () => {
   it("preserves concurrent pins, deduplicates canonical paths, isolates threads, and survives reload", async () => {
@@ -106,16 +106,36 @@ describe("thread file pins", () => {
     await expect(h.behavior.callRpc("directory", { threadId: "one", hostId: "linux" })).rejects.toThrow("Worker is offline");
     expect(await h.behavior.callRpc("directory", { threadId: "one", hostId: "pi", path: "/srv" })).toEqual({ directory: "/srv", parent: "/home", entries: [{ kind: "directory", name: "docs", path: "/srv/docs" }] });
   });
-  it("defaults the search scope to the thread workspace and remembers the chosen folder per thread", async () => {
+  it("remembers the last chosen folder across existing and new threads, reloads, and thread deletion", async () => {
     const h = setup();
     expect(await h.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ defaultHostId: "mac", scope: { hostId: "mac", path: "/Users/me/project" } });
-    await h.behavior.callRpc("setScope", { threadId: "one", scope: { hostId: "pi", path: "/srv/notes" } });
+    await h.bb.storage.kv.set("thread:two:scope:v1", { hostId: "mac", path: "/Users/me/old-notes" });
+    const scope = { hostId: "pi", path: "/srv/notes" };
+    expect(await h.behavior.callRpc("setScope", { threadId: "one", scope })).toEqual({ scope });
+    expect(await h.bb.storage.kv.get("thread:one:scope:v1")).toEqual(scope);
+    expect(await h.behavior.callRpc("context", { threadId: "two" })).toMatchObject({ scope });
     const { harness: reloaded } = await h.lifecycle.reload(plugin);
     disposers.push(() => reloaded.lifecycle.dispose());
-    expect(await reloaded.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ scope: { hostId: "pi", path: "/srv/notes" } });
-    expect(await reloaded.behavior.callRpc("context", { threadId: "two" })).toMatchObject({ scope: { hostId: "mac", path: "/Users/me/project" } });
+    expect(await reloaded.behavior.callRpc("context", { threadId: "new" })).toMatchObject({ scope });
     await reloaded.behavior.emitThreadEvent("thread.deleted", { thread: makeThreadResponse({ id: "one" }) });
-    expect(await reloaded.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ scope: { hostId: "mac", path: "/Users/me/project" } });
+    expect(await reloaded.behavior.callRpc("context", { threadId: "two" })).toMatchObject({ scope });
+    const next = { hostId: "mac", path: "/Users/me/notes" };
+    await reloaded.behavior.callRpc("setScope", { threadId: "two", scope: next });
+    expect(await reloaded.behavior.callRpc("context", { threadId: "new" })).toMatchObject({ scope: next });
+  });
+  it.each([false, true])("falls back to legacy thread scope when the global scope is absent or its host is unavailable (%s)", async (unavailable) => {
+    const h = setup();
+    const scope = { hostId: "pi", path: "/srv/legacy-notes" };
+    await h.bb.storage.kv.set("thread:two:scope:v1", scope);
+    if (unavailable) await h.behavior.callRpc("setScope", { threadId: "one", scope: { hostId: "removed", path: "/notes" } });
+    expect(await h.behavior.callRpc("context", { threadId: "two" })).toMatchObject({ scope });
+  });
+  it("falls back to workspace then home when both saved scopes have unavailable hosts", async () => {
+    const h = setup();
+    await h.behavior.callRpc("setScope", { threadId: "one", scope: { hostId: "removed", path: "/notes" } });
+    expect(await h.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ scope: { hostId: "mac", path: "/Users/me/project" } });
+    h.sdk.stub("environments.get", async () => ({ hostId: "mac", path: null }));
+    expect(await h.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ scope: { hostId: "mac", path: "/home/worker" } });
   });
   it("resolves relative picker paths against the search folder, else the thread workspace on its own machine", async () => {
     const h = setup();
