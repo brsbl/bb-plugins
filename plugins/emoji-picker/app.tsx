@@ -157,7 +157,12 @@ export function ComposerEmojiPicker() {
   return (
     <Popover open={open} onOpenChange={(open) => { if (!open) setTrigger(null); }}>
       <PopoverAnchor asChild virtualRef={trigger?.anchor ? { current: trigger.anchor } : undefined}><span ref={anchorElement} aria-hidden="true" className="pointer-events-none absolute h-0 w-0" /></PopoverAnchor>
-      <PopoverContent aria-label="Insert emoji" side="top" align="start" updatePositionStrategy="always" collisionPadding={8} className="w-96 max-w-[calc(100vw-2rem)] p-0" mobileTitle="Insert emoji" onMobileContentAnimationEnd={(isOpen) => { if (!isOpen) composer.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); composer.focus(); }}>
+      <PopoverContent aria-label="Insert emoji" side="top" align="start" updatePositionStrategy="always" collisionPadding={8} className="w-96 max-w-[calc(100vw-2rem)] p-0" mobileTitle="Insert emoji" onMobileContentAnimationEnd={(isOpen) => { if (!isOpen) composer.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); composer.focus(); }} onKeyDownCapture={(event) => {
+        if (event.key !== " " || event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setTrigger(null);
+      }}>
         <EmojiPicker key={open ? "open" : "closed"} onSelect={(value) => {
           if (!trigger || trigger.scope !== JSON.stringify(composer.scope)) throw new Error("Draft changed");
           composer.updateText((current) => {
