@@ -155,8 +155,8 @@ describe("Compact pull request inbox", () => {
     expect(titles()).toEqual(["Alpha fix", "Zebra fix", "Other author"]);
     const choose = async (path: string[], label: string) => {
       fireEvent.keyDown(screen.getByRole("button", { name: "Filters and sort" }), { key: "ArrowDown" });
-      for (const name of path) fireEvent.keyDown(await screen.findByRole("menuitem", { name, exact: true }), { key: "ArrowRight" });
-      fireEvent.click(await screen.findByRole("menuitemradio", { name: label, exact: true }));
+      for (const name of path) fireEvent.keyDown(await screen.findByRole("menuitem", { name }), { key: "ArrowRight" });
+      fireEvent.click(await screen.findByRole("menuitemradio", { name: label }));
       await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     };
     await choose(["Filter", "Author"], "Me");
@@ -169,13 +169,13 @@ describe("Compact pull request inbox", () => {
     slot = renderSlot(app.navPanels[0]!, { subPath: "" }, options);
     await screen.findByRole("button", { name: "Zebra fix" });
     expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
-    fireEvent.click(screen.getByRole("button", { name: "Clear", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     await choose(["Filter", "Reviewer"], "Me");
     expect(titles()).toEqual(["Other author"]);
-    fireEvent.click(screen.getByRole("button", { name: "Clear", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     await choose(["Sort by"], "Recently updated");
     fireEvent.keyDown(screen.getByRole("button", { name: "Filters and sort" }), { key: "ArrowDown" });
-    await screen.findByRole("menuitem", { name: "Filter", exact: true });
+    await screen.findByRole("menuitem", { name: "Filter" });
     expect(screen.queryByText("Link pull request")).toBeNull();
     expect(screen.queryByText("Discover archived threads")).toBeNull();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
@@ -194,12 +194,12 @@ describe("Compact pull request inbox", () => {
       } });
       await screen.findByRole("button", { name: "Private pull request" });
       fireEvent.keyDown(screen.getByRole("button", { name: "Filters and sort" }), { key: "ArrowDown" });
-      fireEvent.click(await screen.findByRole("menuitem", { name: "Filter", exact: true }));
-      fireEvent.click(await screen.findByRole("menuitem", { name: "Author", exact: true }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Filter" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Author" }));
       await screen.findByRole("menuitemradio", { name: "All authors" });
       expect(screen.getAllByRole("menu")).toHaveLength(1);
       fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-      await screen.findByRole("menuitem", { name: "Reviewer", exact: true });
+      await screen.findByRole("menuitem", { name: "Reviewer" });
       fireEvent.click(screen.getByRole("menuitem", { name: "Back to Filters and sort" }));
       await screen.findByRole("menuitem", { name: "Sort by" });
       fireEvent.keyDown(document.activeElement!, { key: "Escape" });
