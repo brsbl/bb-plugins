@@ -66,7 +66,7 @@
 .digest-text-action:disabled { opacity: 0.5; cursor: not-allowed; }
 .digest-text-primary { color: var(--foreground); font-weight: 500; }
 .digest-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.digest-button { display: inline-flex; justify-content: center; align-items: center; min-height: 30px; padding: 4px 10px; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, 6px); background: transparent; color: var(--foreground); font: inherit; font-size: var(--text-xs, 12px); font-weight: 500; white-space: nowrap; cursor: pointer; }
+.digest-button { display: inline-flex; justify-content: center; align-items: center; height: 28px; min-height: 28px; padding: 0 8px; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, 6px); background: transparent; color: var(--foreground); font: inherit; font-size: var(--text-xs, 12px); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .digest-button:hover:not(:disabled) { background: var(--state-hover, var(--accent)); }
 .digest-button:disabled { opacity: 0.5; cursor: not-allowed; }
 .digest-recovery { margin-top: 12px; }
@@ -102,25 +102,24 @@
 }
 
 /* Shared-ui Button and form control tokens, scoped to the plugin. */
-.digest-button-default { border-color: var(--foreground); background: var(--foreground); color: var(--background); }
-.digest-button-default:hover:not(:disabled) { background: color-mix(in oklab, var(--foreground) 90%, transparent); }
+.digest-button.digest-button-default { border-color: var(--foreground); background: var(--foreground); color: var(--background); }
+.digest-button.digest-button-default:hover:not(:disabled) { background: color-mix(in oklab, var(--foreground) 90%, transparent); }
 .digest-button-ghost { border-color: transparent; background: transparent; }
 .digest-brief h3 { margin: 24px 0 10px; font-size: 15px; font-weight: 600; }
 .digest-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.digest-card { display: flex; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius-md, 6px); }
+.digest-card { display: flex; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius-md, 6px); }
 .digest-card[data-urgency="today"] { border-left-color: var(--warning); }
 .digest-card[data-urgency="week"] { border-left-color: var(--info, var(--muted-foreground)); }
 .digest-card:first-child { background: var(--card, var(--background)); }
 .digest-card-number { padding-top: 1px; color: var(--muted-foreground); font-size: 14px; font-weight: 600; }
 .digest-card-content { flex: 1; min-width: 0; }
 .digest-card-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
-.digest-card-heading h4 { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.4; }
-.digest-card-content p { margin: 4px 0 0; font-size: 14px; line-height: 1.45; }
+.digest-card-heading h4 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.digest-card-content p { margin: 3px 0 0; font-size: 13px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted-foreground); }
 .digest-chip { padding: 1px 6px; border-radius: var(--radius-sm, 4px); background: var(--muted); color: var(--muted-foreground); font-size: 11px; font-weight: 400; }
 .digest-urgency { margin-left: auto; white-space: nowrap; font-size: 11px; line-height: 1.5; padding: 1px 6px; border-radius: var(--radius-sm, 4px); background: var(--muted); color: var(--muted-foreground); }
 [data-urgency="today"] .digest-urgency { color: var(--warning-text); background: var(--warning-subtle); }
-.digest-card-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin-top: 12px; }
-.digest-card-actions .digest-button { min-height: 32px; font-size: 13px; padding: 4px 12px; }
+.digest-card-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; margin-top: 6px; }
 .digest-later { color: var(--muted-foreground); }
 .digest-later ul { list-style: none; margin: 0; padding: 0; }
 .digest-later li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; padding: 5px 0; }
@@ -175,7 +174,7 @@
 .digest-schedule-fields select { width: auto; }
 .digest-form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 @media (max-width: 600px) {
-  .digest-card { padding: 12px; gap: 8px; }
+  .digest-card { padding: 10px; gap: 8px; }
   .digest-site-header { padding: 12px; align-items: flex-start; }
   .digest-site-header > div { flex-direction: column; gap: 2px; }
   .digest-nested-list { padding-left: 12px; padding-right: 12px; }
@@ -191,3 +190,17 @@
 .digest-execution summary { cursor: pointer; color: var(--muted-foreground); }
 .digest-execution label { display: block; margin: 12px 0 6px; }
 .digest-execution select { width: 100%; }
+
+.digest-summary-links a { color: inherit; text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+.digest-summary-links a:hover { color: var(--foreground); text-decoration-color: currentColor; }
+.digest-summary-links a:focus-visible, .digest-routine-cards a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.digest-routine-cards { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.digest-routine-cards a { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md, 6px); color: var(--foreground); text-decoration: none; }
+.digest-routine-cards a:hover { background: var(--state-hover, var(--accent)); }
+.digest-routine-cards strong { font-size: 13px; font-weight: 500; line-height: 1.5; }
+.digest-routine-cards span { color: var(--muted-foreground); font-size: 12px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.digest-read-status { margin-top: 16px; color: var(--muted-foreground); font-size: 12px; }
+.digest-read-warning { margin-top: 16px; padding: 10px 12px; background: var(--warning-subtle); color: var(--warning-text); border-radius: var(--radius-md, 6px); font-size: 13px; }
+.digest-read-warning p { margin: 0; }
+.digest-read-warning ul { margin: 6px 0 0; padding-left: 16px; }
+.digest-read-warning a { color: inherit; text-decoration: underline; }

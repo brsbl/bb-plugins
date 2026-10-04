@@ -93,6 +93,34 @@ const payload = () => PublishInputSchema.parse({
 });
 
 describe("digest issue lifecycle", () => {
+  it("journals unread state before opening and retains it across retry and publication", async () => {
+    const { service } = setup();
+    const { issue } = await service.begin("reading", "thr_journal");
+    const initial = service.emailRead("thr_journal", { messageId: "mail1", status: "opening", wasUnread: true });
+    expect(initial.afterReading).toBe("keep-unread");
+    expect(() => service.emailRead("thr_journal", { messageId: "mail1", status: "left-read" })).toThrow("Restore");
+    await service.fail(issue, "Browser connection lost.");
+    expect(service.requiredIssue("thr_journal").emailReads?.[0]).toMatchObject({ wasUnread: true, status: "opening" });
+    await service.begin("reading", "thr_journal");
+    service.emailRead("thr_journal", { messageId: "mail1", status: "opening", wasUnread: false });
+    expect(service.requiredIssue("thr_journal").emailReads?.[0]?.wasUnread).toBe(true);
+    service.emailRead("thr_journal", { messageId: "mail1", status: "restored-unread" });
+    const result = await service.publishCurrent("thr_journal", payload());
+    expect(result.issue.emailReads?.[0]?.status).toBe("restored-unread");
+  });
+
+  it("permits leaving opened mail read only by explicit preference and never changes originally read state", async () => {
+    const { service } = setup();
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), afterReading: "mark-read" });
+    await service.begin("reading", "thr_mark_read");
+    service.emailRead("thr_mark_read", { messageId: "mail1", status: "opening", wasUnread: true });
+    expect(service.emailRead("thr_mark_read", { messageId: "mail1", status: "left-read" }).status).toBe("left-read");
+    service.emailRead("thr_mark_read", { messageId: "mail2", status: "opening", wasUnread: false });
+    expect(() => service.emailRead("thr_mark_read", { messageId: "mail2", status: "restored-unread" })).toThrow("originally read");
+    expect(service.emailRead("thr_mark_read", { messageId: "mail2", status: "unchanged-read" }).status).toBe("unchanged-read");
+    expect(() => service.emailRead("thr_mark_read", { messageId: "unrecorded", status: "left-read" })).toThrow("Record");
+  });
+
   it("dispatches on the browser host in Personal rather than the server project default", async () => {
     const { service, harness } = setup({ personal: true });
     await service.ensureAutomation(service.requiredDefinition("reading"));

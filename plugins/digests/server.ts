@@ -4,7 +4,7 @@ import { cliCommand, defineCli, type BbPluginApi, type PluginCliContext } from "
 import { z } from "zod";
 import { rpcContract } from "./contracts.js";
 import { createService } from "./service.js";
-import { connectionSchema, digestDefinitionSchema, publishInputSchema, IdSchema, DigestIdSchema } from "./model.js";
+import { connectionSchema, digestDefinitionSchema, publishInputSchema, EmailReadInputSchema, IdSchema, DigestIdSchema } from "./model.js";
 import { DIGEST_RECIPES } from "./recipes.js";
 import { directive } from "./prompts.js";
 
@@ -110,6 +110,11 @@ export default function plugin(bb: BbPluginApi) {
     execute: async ({ digestId }, ctx) => JSON.stringify(await service.begin(digestId, ctx.threadId)),
   });
   bb.agents.registerTool({
+    name: "digest_email_read", description: "Record each Gmail message's original unread state BEFORE opening it. Then record the verified unread/read result, or restore-failed. This journal survives interrupted runs and appears in the issue; it does not operate Gmail.",
+    parameters: EmailReadInputSchema,
+    execute: (input, ctx) => JSON.stringify(service.emailRead(ctx.threadId, input)),
+  });
+  bb.agents.registerTool({
     name: "digest_publish", description: "Publish this run's visual summary and atomically record its source message IDs. Emit the returned directive first in your final reply.",
     parameters: publishInputSchema,
     execute: async (input, ctx) => JSON.stringify(await service.publishCurrent(ctx.threadId, input)),
@@ -132,7 +137,7 @@ export default function plugin(bb: BbPluginApi) {
       return JSON.stringify(service.store.processed(issue.digestId, input.connectionId, input.messageIds));
     },
   });
-  bb.agents.configure(() => ({ tools: ["digest_begin", "digest_publish", "digest_fail", "digest_processed"], skills: ["digests"] }));
+  bb.agents.configure(() => ({ tools: ["digest_begin", "digest_email_read", "digest_publish", "digest_fail", "digest_processed"], skills: ["digests"] }));
   bb.events.on("thread.idle", ({ thread }) => service.settled(thread.id, false));
   bb.events.on("thread.failed", ({ thread }) => service.settled(thread.id, true));
   for (const event of ["thread.archived", "thread.deleted"] as const) bb.events.on(event, async ({ thread }) => {

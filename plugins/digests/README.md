@@ -41,7 +41,7 @@ No cookie copying or permanently open tab is needed. A computer or workspace tha
 update-needed issue. Signed-out connections show Reconnect; unavailable or
 interrupted runs show Retry. A missed run is reported when bb resumes.
 
-Collection never changes Gmail or other accounts. Reading records Gmail message
+Gmail collection reads the full email and needed reply-chain context. **After reading** defaults to **Keep unread**: each originally unread message is restored and checked immediately after reading. Choose **Mark as read** to leave opened mail read. Already-read mail stays read. The only explicit Gmail write allowed is restoring unread state; Digests never sends, archives, labels, or deletes mail. A saved per-message journal makes failed or unverified restoration visible in the issue, including after interruption. Other sites are read-only. Reading records Gmail message
 IDs in plugin-owned SQLite only after successful publication, so newsletters
 are summarized once without marking them read. Snippet-only coverage is labeled.
 Optional Inline Action Cards provide click-approved proposals; without that

@@ -218,11 +218,11 @@ function RecoveryBanner() {
   return <IssueSummary key={issue.id} issue={issue} threadId={threadId} loadError={loadError} refresh={load} />;
 }
 
-function BriefCards({ brief, headline }: { brief: NonNullable<Issue["brief"]>; headline: string }) {
+function BriefCards({ brief, headline, prefix }: { brief: NonNullable<Issue["brief"]>; headline: string; prefix: string }) {
   const navigate = useBbNavigate();
   const open = (url: string) => { if (safeLink(url)) navigate.openUrl(url); };
   return <div className="digest-brief">
-    {brief.items.length > 0 && <><h3>{brief.heading}</h3><ol className="digest-cards">
+    {brief.items.length > 0 && <><h3 id={`${prefix}-items`} tabIndex={-1}>{brief.heading}</h3><ol className="digest-cards">
       {brief.items.map((item, index) => {
         const deadline = item.deadline?.trim();
         const repeatsHeadline = deadline && /^(?:due )?(today|this week)$/iu.test(deadline)
@@ -232,7 +232,7 @@ function BriefCards({ brief, headline }: { brief: NonNullable<Issue["brief"]>; h
         <div className="digest-card-content">
           <div className="digest-card-heading"><h4>{item.title}</h4>{item.context && <span className="digest-chip">{item.context}</span>}
             {deadline && !repeatsHeadline && <span className="digest-urgency">{deadline}</span>}</div>
-          {item.text && <p>{item.text}</p>}
+          {item.text && <p title={item.text}>{item.text}</p>}
           <div className="digest-card-actions">
             {item.secondaryAction && <Button variant="ghost" onClick={() => open(item.secondaryAction!.url)}>{item.secondaryAction.label}</Button>}
             <Button variant="default" onClick={() => open(item.action.url)}>{item.action.label}</Button>
@@ -240,9 +240,26 @@ function BriefCards({ brief, headline }: { brief: NonNullable<Issue["brief"]>; h
         </div>
       </li>; })}
     </ol></>}
-    {brief.later.length > 0 && <div className="digest-later"><h3>{brief.laterLabel}</h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></div>}
-    {brief.tail && <details className="digest-more"><summary>{brief.tail.label}</summary><NewsletterText content={brief.tail.details} /></details>}
+    {brief.later.length > 0 && <div className="digest-later"><h3 id={`${prefix}-later`} tabIndex={-1}>{brief.laterLabel}</h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></div>}
+    {brief.tail && <details className="digest-more" id={`${prefix}-tail`}><summary>{brief.tail.label}</summary>
+      {brief.tail.items?.length ? <ul className="digest-routine-cards">{brief.tail.items.map((item, index) => <li key={index}>
+        <a href={safeLink(item.url)} onClick={(event) => { event.preventDefault(); open(item.url); }}><strong>{item.title}</strong>{item.text && <span title={item.text}>{item.text}</span>}</a>
+      </li>)}</ul> : <NewsletterText content={brief.tail.details} />}
+    </details>}
   </div>;
+}
+
+function EmailReadStatus({ issue }: { issue: Issue }) {
+  if (!issue.emailReads?.length || issue.state === "collecting") return null;
+  const uncertain = issue.emailReads.filter((read) => read.wasUnread && read.afterReading === "keep-unread" && read.status !== "restored-unread");
+  if (uncertain.length) return <div className="digest-read-warning" role="alert">
+    <p>Couldn’t confirm {uncertain.length === 1 ? "1 email is" : `${uncertain.length} emails are`} unread again. Check these in Gmail and mark them unread if needed.</p>
+    <ul>{uncertain.map((read) => <li key={read.messageId}>{read.url ? <NewsletterLink href={safeLink(read.url)}>{read.title ?? "Review email"}</NewsletterLink> : read.title ?? "Email with an unconfirmed unread state"}</li>)}</ul>
+  </div>;
+  const kept = issue.emailReads.filter((read) => read.status === "restored-unread").length;
+  const left = issue.emailReads.filter((read) => read.status === "left-read").length;
+  const unchanged = issue.emailReads.filter((read) => read.status === "unchanged-read").length;
+  return <p className="digest-read-status">{[kept && `${kept} restored to unread`, left && `${left} left read`, unchanged && `${unchanged} already read`].filter(Boolean).join(" · ")}</p>;
 }
 
 function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
@@ -253,6 +270,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
 }) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
+  const prefix = useId();
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState<"retry" | "reconnect" | null>(null);
@@ -286,9 +304,20 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
   return (
     <article className="digest-issue" aria-label="Digest summary" data-state={issue.state}>
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
-      {issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
+      {issue.brief?.summaryLinks?.length && issue.state === "ready" ? <div className="digest-lede digest-summary-links">{issue.brief.summaryLinks.map((link, index) => <span key={index}>
+        {index > 0 && <span aria-hidden> · </span>}<a href={"section" in link ? `#${prefix}-${link.section}` : safeLink(link.url)} onClick={(event) => {
+          event.preventDefault();
+          if ("url" in link) { if (safeLink(link.url)) navigate.openUrl(link.url); return; }
+          const target = document.getElementById(`${prefix}-${link.section}`);
+          if (target instanceof HTMLDetailsElement) target.open = true;
+          const focus = target?.querySelector("summary") ?? target;
+          focus?.scrollIntoView?.({ block: "nearest" });
+          (focus as HTMLElement | null)?.focus();
+        }}>{link.label}</a>
+      </span>)}</div> : issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
-      {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} />}
+      {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} />}
+      <EmailReadStatus issue={issue} />
       {(!issue.brief || issue.state === "failed") && mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
       {!issue.brief && moreContent.trim() && <details className="digest-more">
         <summary>More detail</summary>
@@ -344,6 +373,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   const loadExecution = () => { void rpc.call("executionOptions", {}).then(setOptions).catch(() => setExecutionError("Couldn’t load computers and workspaces. Close and reopen this form to try again.")); };
   const [name, setName] = useState(definition?.name ?? "");
   const [instructions, setInstructions] = useState(definition?.instructions ?? "");
+  const [afterReading, setAfterReading] = useState<NonNullable<DigestDefinition["afterReading"]>>(definition?.afterReading ?? "keep-unread");
   const [minute = "0", hour = "10", day = "*", month = "*", weekday = "1-5"] = definition?.schedule?.cron.split(/\s+/u) ?? [];
   const simpleSchedule = day === "*" && month === "*" && DAYS.some(([value]) => value === weekday) && /^\d+$/u.test(hour) && /^\d+$/u.test(minute);
   const [frequency, setFrequency] = useState(simpleSchedule ? weekday : "custom");
@@ -355,6 +385,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
     event.preventDefault();
     const [hours, minutes] = time.split(":");
     void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, instructions, ...(execution || definition?.execution ? { execution } : {}),
+      ...(connection.id === "gmail" ? { afterReading } : {}),
       schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone: definition?.schedule?.timezone ?? "America/Los_Angeles" } });
   }}>
     <label htmlFor={`${formId}-name`}>Name</label>
@@ -367,6 +398,10 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
       </select>
       {frequency !== "custom" && <><span>at</span><select aria-label="Time" value={time} onChange={(event) => setTime(event.target.value)}>{times.sort().map((value) => { const [h, m] = value.split(":"); const n = Number(h); return <option key={value} value={value}>{n % 12 || 12}:{m} {n < 12 ? "AM" : "PM"}</option>; })}</select><span>{definition?.schedule?.timezone && definition.schedule.timezone !== "America/Los_Angeles" ? definition.schedule.timezone : "PT"}</span></>}
     </div>}
+    {connection.id === "gmail" && <><label htmlFor={`${formId}-after-reading`}>After reading</label>
+      <select id={`${formId}-after-reading`} value={afterReading} onChange={(event) => setAfterReading(event.target.value as typeof afterReading)}>
+        <option value="keep-unread">Keep unread (default)</option><option value="mark-read">Mark as read</option>
+      </select><p className="digest-muted">Reads the full email and needed thread context. Keep unread restores messages that were unread before the run; already-read mail stays read.</p></>}
     <details className="digest-execution" onToggle={(event) => { if (event.currentTarget.open && !options) loadExecution(); }}>
       <summary>Where it runs</summary>
       <p className="digest-muted">Uses a Personal workspace on the computer with your browser sign-ins.</p>

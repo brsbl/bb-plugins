@@ -53,6 +53,7 @@ export const DigestDefinitionSchema = z.object({
   emoji: EmojiSchema.optional(),
   projectId: IdSchema,
   instructions: z.string().trim().min(1).max(30_000),
+  afterReading: z.enum(["keep-unread", "mark-read"]).optional(),
   connectionIds: z.array(DigestIdSchema).max(20).default([]).refine(
     (ids) => new Set(ids).size === ids.length,
     "List each connection only once.",
@@ -118,8 +119,26 @@ const sourceLink = z.object({
   }, "Use an HTTPS source or review URL."),
 }).strict();
 
+export const EmailReadSchema = z.object({
+  messageId: IdSchema,
+  threadId: IdSchema.optional(),
+  wasUnread: z.boolean(),
+  title: z.string().trim().min(1).max(180).optional(),
+  url: sourceLink.shape.url.optional(),
+  afterReading: z.enum(["keep-unread", "mark-read"]),
+  status: z.enum(["opening", "restored-unread", "left-read", "unchanged-read", "restore-failed"]),
+}).strict();
+export const EmailReadInputSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("opening"), messageId: IdSchema, threadId: IdSchema.optional(), wasUnread: z.boolean(), title: EmailReadSchema.shape.title, url: EmailReadSchema.shape.url }).strict(),
+  z.object({ status: z.enum(["restored-unread", "left-read", "unchanged-read", "restore-failed"]), messageId: IdSchema }).strict(),
+]);
+
 /** Optional so existing Markdown publishers and stored issues remain valid. */
 export const BriefSchema = z.object({
+  summaryLinks: z.array(z.union([
+    z.object({ label: z.string().trim().min(1).max(80), section: z.enum(["items", "later", "tail"]) }).strict(),
+    sourceLink,
+  ])).max(6).optional(),
   heading: z.string().trim().min(1).max(60),
   items: z.array(z.object({
     title: z.string().trim().min(1).max(140),
@@ -132,7 +151,9 @@ export const BriefSchema = z.object({
   }).strict()).max(8),
   later: z.array(z.object({ title: z.string().trim().min(1).max(180), action: sourceLink.optional() }).strict()).max(12).default([]),
   laterLabel: z.string().max(60).default("Later"),
-  tail: z.object({ label: z.string().trim().min(1).max(80), details: z.string().trim().min(1).max(20000) }).strict().optional(),
+  tail: z.object({ label: z.string().trim().min(1).max(80), details: z.string().trim().min(1).max(20000),
+    items: z.array(z.object({ title: z.string().trim().min(1).max(180), text: z.string().trim().max(200), url: sourceLink.shape.url }).strict()).max(100).optional(),
+  }).strict().optional(),
 }).strict();
 
 export const SaveDigestSchema = z.object({
@@ -142,6 +163,7 @@ export const SaveDigestSchema = z.object({
   // Retained for saved definitions and existing clients; never rendered.
   emoji: EmojiSchema.optional(),
   instructions: DigestDefinitionSchema.shape.instructions,
+  afterReading: DigestDefinitionSchema.shape.afterReading,
   schedule: ScheduleSchema.nullable(),
   execution: ExecutionChoiceSchema.nullable().optional(),
 }).strict();
@@ -172,6 +194,7 @@ export const IssueSchema = z.object({
   readAt: timestamp.nullable().default(null),
   dedupeKey: z.string().min(1).max(240).nullable().default(null),
   sources: sources.default([]),
+  emailReads: z.array(EmailReadSchema).max(1000).optional(),
 }).strict();
 
 /** Successful publication and processed sources have one atomic write path. */
@@ -185,6 +208,7 @@ export const IssuePatchSchema = z.object({
   recovery: z.enum(["retry", "reconnect", "upgrade"]).nullable().optional(),
   readAt: timestamp.nullable().optional(),
   state: z.enum(["collecting", "failed"]).optional(),
+  emailReads: IssueSchema.shape.emailReads,
 }).strict();
 
 export const IssueListInputSchema = z.object({

@@ -58,8 +58,10 @@ describe("digest contracts", () => {
       expect(runtime).toContain("Never send, reply, archive");
       expect(runtime).toContain("digest_processed");
       expect(runtime).toContain("No source is recorded as processed until publication succeeds");
-      expect(runtime).toContain("list rows/snippets");
-      expect(runtime).toContain("Only a user CLICK");
+      expect(runtime).toContain("read their full bodies");
+      expect(runtime).toContain("digest_email_read");
+      expect(runtime).toContain("Keep unread (default)");
+      expect(runtime).toContain("only a user CLICK");
     }
   });
 

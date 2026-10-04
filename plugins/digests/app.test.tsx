@@ -235,19 +235,21 @@ describe("Digests app", () => {
     const name = slot.getByLabelText("Name");
     expect(document.activeElement).toBe(name);
     expect(slot.queryByLabelText("Emoji")).toBeNull();
+    expect((slot.getByLabelText("After reading") as HTMLSelectElement).value).toBe("keep-unread");
     fireEvent.change(name, { target: { value: "My inbox" } });
     fireEvent.change(slot.getByLabelText("What should it tell you?"), { target: { value: "Only messages that need a reply." } });
     fireEvent.click(slot.getByRole("button", { name: "Create digest" }));
     expect(await slot.findByText("Run now to preview")).toBeDefined();
-    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", instructions: "Only messages that need a reply.", connectionId: "gmail", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", instructions: "Only messages that need a reply.", connectionId: "gmail", afterReading: "keep-unread", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
     expect(slot.getByText("Only messages that need a reply.").className).toContain("digest-prompt-preview");
     expect(slot.getByRole("heading", { name: "My inbox" }).textContent).toBe("My inbox");
     fireEvent.click(slot.getByRole("button", { name: "Edit My inbox" }));
     expect(slot.queryByLabelText("Emoji")).toBeNull();
     fireEvent.change(slot.getByLabelText("Name"), { target: { value: "Replies" } });
+    fireEvent.change(slot.getByLabelText("After reading"), { target: { value: "mark-read" } });
     fireEvent.click(slot.getByRole("button", { name: "Save changes" }));
     expect(await slot.findByRole("button", { name: "Edit Replies" })).toBeDefined();
-    expect(slot.inspection.rpcCalls.filter((call) => call.method === "saveDigest").at(-1)?.input).toMatchObject({ id: "digest-new", name: "Replies" });
+    expect(slot.inspection.rpcCalls.filter((call) => call.method === "saveDigest").at(-1)?.input).toMatchObject({ id: "digest-new", name: "Replies", afterReading: "mark-read" });
   });
 
   it("shows numbered source cards and a collapsed tail without performing account actions", async () => {
@@ -262,6 +264,37 @@ describe("Digests app", () => {
     fireEvent.click(action);
     expect(slot.inspection.rpcCalls).toHaveLength(1);
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: "https://example.test/reply" });
+  });
+
+  it("jumps from counts to a collapsed routine section and opens each source", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      summaryLinks: [{ label: "4 unread emails", url: "https://mail.google.com/mail/u/0/#search/is%3Aunread" }, { label: "2 routine", section: "tail" }],
+      heading: "Needs you", items: [], later: [], laterLabel: "Later",
+      tail: { label: "Routine (2)", details: "Old Markdown fallback.", items: [
+        { title: "Amex · Autopay processed", text: "Payment complete.", url: "https://example.test/amex" },
+        { title: "Newsletter · This week", text: "Product news.", url: "https://example.test/news" },
+      ] },
+    } }) } });
+    fireEvent.click(await slot.findByRole("link", { name: "2 routine" }));
+    expect(slot.getByText("Routine (2)").closest("details")?.open).toBe(true);
+    expect(document.activeElement).toBe(slot.getByText("Routine (2)"));
+    fireEvent.click(slot.getByRole("link", { name: "Amex · Autopay processed Payment complete." }));
+    fireEvent.click(slot.getByRole("link", { name: "4 unread emails" }));
+    expect(slot.inspection.navigateCalls).toEqual([
+      { method: "openUrl", url: "https://example.test/amex" },
+      { method: "openUrl", url: "https://mail.google.com/mail/u/0/#search/is%3Aunread" },
+    ]);
+    expect(slot.queryByText("Old Markdown fallback.")).toBeNull();
+  });
+
+  it("keeps an unverified unread restoration visible even in a published issue", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue,
+      emailReads: [{ messageId: "mail1", title: "Payment receipt", url: "https://example.test/mail1", wasUnread: true, afterReading: "keep-unread", status: "opening" }],
+    }) } });
+    expect((await slot.findByRole("alert")).textContent).toContain("Couldn’t confirm 1 email is unread again");
+    expect(slot.getByRole("link", { name: "Payment receipt" }).getAttribute("href")).toBe("https://example.test/mail1");
   });
 
   it.each([

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { createStore } from "./store.js";
-import { issueSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
+import { issueSchema, EmailReadInputSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
 import { executionTarget, executionFailure, ExecutionError } from "./execution.js";
 import { SITES } from "./sites.js";
@@ -165,6 +165,7 @@ export function createService(bb: BbPluginApi) {
       if (input.schedule && (!defaults.providerId || !defaults.model)) throw new Error("Choose a default agent and model in this digest's bb project, then save again.");
       await ensureSection(true);
       let definition: DigestDefinition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, ...(input.emoji !== undefined ? { emoji: input.emoji } : {}), instructions: input.instructions,
+        ...(input.afterReading !== undefined ? { afterReading: input.afterReading } : {}),
         connectionIds: previous?.connectionIds ?? [input.connectionId], ...(input.execution ? { execution: input.execution } : {}), schedule: input.schedule, enabled: previous?.enabled ?? false,
         automationId: previous?.automationId ?? null, permissionMode: previous?.permissionMode ?? "auto" as const, createdAt: previous?.createdAt ?? Date.now() };
       if (input.execution === null) delete definition.execution;
@@ -282,6 +283,32 @@ export function createService(bb: BbPluginApi) {
     await closeIssueBrowsers(published);
     await bb.sdk.threads.markUnread({ threadId });
     return { issue: published, directive: directive(published) };
+  }
+  function emailRead(threadId: string, input: z.infer<typeof EmailReadInputSchema>) {
+    const issue = requiredIssue(threadId);
+    if (issue.state !== "collecting") throw new Error("Begin or retry this issue before reading email.");
+    const definition = requiredDefinition(issue.digestId);
+    if (!definition.connectionIds.includes("gmail")) throw new Error("This digest does not read Gmail.");
+    const reads = [...(issue.emailReads ?? [])];
+    const index = reads.findIndex((read) => read.messageId === input.messageId);
+    if (input.status === "opening") {
+      // Never overwrite the original unread state on retry or a repeated open.
+      if (index >= 0) {
+        reads[index] = { ...reads[index]!, status: "opening" };
+      } else {
+        if (reads.length >= 1000) throw new Error("Finish this issue before opening more email.");
+        reads.push({ ...input, afterReading: definition.afterReading ?? "keep-unread" });
+      }
+    } else {
+      const read = reads[index];
+      if (!read) throw new Error("Record the original unread state before opening this email.");
+      if (input.status === "left-read" && read.wasUnread && read.afterReading !== "mark-read") throw new Error("Restore this email to unread, verify it, or report restore-failed.");
+      if (input.status === "unchanged-read" && read.wasUnread) throw new Error("This email was originally unread.");
+      if (input.status === "restored-unread" && !read.wasUnread) throw new Error("Do not mark an originally read email unread.");
+      reads[index] = { ...read, status: input.status };
+    }
+    changed(store.issues.update(issue.id, { emailReads: reads }));
+    return reads.find((read) => read.messageId === input.messageId)!;
   }
   async function publishExternal(digestId: string, payload: PublishInput, key: string) {
     return exclusive(`publish:${digestId}`, async () => {
@@ -530,5 +557,5 @@ export function createService(bb: BbPluginApi) {
       details: `Your issue was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
     return null;
   }
-  return { store, bindDefinition, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, runStatus, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
+  return { store, emailRead, bindDefinition, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, runStatus, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }
