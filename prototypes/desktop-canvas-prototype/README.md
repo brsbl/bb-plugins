@@ -4,7 +4,7 @@ A standalone **prototype** of a spatial bb workspace. Open `/plugins/desktop-can
 
 Project folders collect your existing threads. Like Desktop, click a folder to select it, double-click or press Enter to open it, and drag it to arrange the canvas. Each folder opens a movable Finder-style window with search, list/icon views, and thread selection. Double-click a thread (or select it and press Open) to open its native bb conversation. Drag threads into canvas folders or use Move to; this never changes their underlying project or section. Right-click a canvas folder to rename it.
 
-The launcher contains Composer, Threads, and New folder. Composer opens the native bb prompt without an extra title bar or panel. Its placement menu in the taskbar offers Center, Float, and Hide. The same editor remains mounted across modes. Move the floating composer by dragging its top edge, or focus that edge and use arrow keys.
+The launcher contains Composer, Threads, and New folder. Composer opens the native bb prompt directly above the taskbar. Drag its top grip to move it, or focus the grip and use arrow keys. The top-right minus minimizes it; Composer in the taskbar reopens it above the taskbar. The same editor and draft remain mounted while minimized.
 
 Pinch anywhere over the canvas, including folder and conversation content, to zoom around the gesture. Trackpad pinch, Ctrl/⌘ + scroll, and two-finger touch are supported. Ordinary scrolling inside a window stays inside that window; scrolling elsewhere pans the canvas. Fit all recovers offscreen items. Focus the canvas for arrow-key pan and +/−/0 zoom. Focus a folder or window title for arrow-key movement (Shift moves farther).
 

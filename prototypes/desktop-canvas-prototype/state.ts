@@ -16,7 +16,7 @@ export const layoutSchema = z.object({
 export type Layout = z.infer<typeof layoutSchema>;
 export type Point = { x: number; y: number };
 export type Camera = Layout["camera"];
-export const initialLayout = (): Layout => ({ version: 1, camera: { x: 0, y: 0, zoom: 1 }, folders: [], membership: {}, positions: {}, collapsed: [], windows: [], promptPosition: null, composer: "center" });
+export const initialLayout = (): Layout => ({ version: 1, camera: { x: 0, y: 0, zoom: 1 }, folders: [], membership: {}, positions: {}, collapsed: [], windows: [], promptPosition: null, composer: "float" });
 
 export function readLayout(raw: string | null): Layout {
   try { return layoutSchema.parse(JSON.parse(raw ?? "null")); } catch { return initialLayout(); }

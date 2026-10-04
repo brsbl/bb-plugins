@@ -27,6 +27,8 @@ function Desktop() {
   const sdk = useSdk();
   const navigate = useBbNavigate();
   const root = useRef<HTMLDivElement>(null);
+  const promptRef = useRef<HTMLDivElement>(null);
+  const composerButton = useRef<HTMLButtonElement>(null);
   const [layout, setLayout] = useState<Layout>(() => {
     try { return readLayout(localStorage.getItem(storageKey)); } catch { return readLayout(null); }
   });
@@ -35,7 +37,6 @@ function Desktop() {
   const [focused, setFocused] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [launcher, setLauncher] = useState(false);
-  const [composerMenu, setComposerMenu] = useState(false);
   const [folderEditor, setFolderEditor] = useState<{ id?: string } | null>(null);
   const [folderName, setFolderName] = useState("");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; folderId?: string } | null>(null);
@@ -126,14 +127,14 @@ function Desktop() {
     };
   }, [focused]);
   useEffect(() => {
-    if (!launcher && !composerMenu && !contextMenu) return;
+    if (!launcher && !contextMenu) return;
     const close = (event: globalThis.PointerEvent) => {
       if (!(event.target instanceof Element) || event.target.closest("[data-menu], [data-menu-toggle]")) return;
-      setLauncher(false); setComposerMenu(false); setContextMenu(null);
+      setLauncher(false); setContextMenu(null);
     };
     window.addEventListener("pointerdown", close, true);
     return () => window.removeEventListener("pointerdown", close, true);
-  }, [launcher, composerMenu, contextMenu]);
+  }, [launcher, contextMenu]);
 
   function moveCamera(nextZoom: number) {
     setFocused(null);
@@ -145,11 +146,12 @@ function Desktop() {
     bounds.push(...visibleWindows.map(w => ({ x: w.x, y: w.y, width: WINDOW_WIDTH, height: WINDOW_HEIGHT })));
     setLayout(current => ({ ...current, camera: fitCamera(bounds, size.width, size.height) }));
   }
-  function showPrompt(mode: Layout["composer"] = "float") {
+  function showPrompt(open = true) {
     setFocused(null);
-    setLayout(current => ({ ...current, composer: mode }));
-    if (mode !== "hidden") setFocusPrompt(value => value + 1);
-    setLauncher(false); setComposerMenu(false);
+    setLayout(current => ({ ...current, composer: open ? "float" : "hidden", promptPosition: open ? null : current.promptPosition }));
+    if (open) setFocusPrompt(value => value + 1);
+    else composerButton.current?.focus();
+    setLauncher(false);
   }
   function openWindow(id: string, kind: "thread" | "folder") {
     setActive(id); setFocused(null); setLauncher(false); setContextMenu(null);
@@ -178,7 +180,8 @@ function Desktop() {
     event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = { pointer: event.pointerId, start: { x: event.clientX, y: event.clientY }, origin, kind, id, zoom };
     if (kind === "window") setActive(id);
-    if (kind === "folder") { setSelectedFolder(id); (event.currentTarget as HTMLElement).focus(); }
+    if (kind === "folder") setSelectedFolder(id);
+    if (kind === "folder" || kind === "prompt") (event.currentTarget as HTMLElement).focus();
   }
   function dragMove(event: PointerEvent) {
     const current = drag.current;
@@ -190,7 +193,16 @@ function Desktop() {
       : current.kind === "folder" ? { ...state, positions: { ...state.positions, [current.id]: point } }
       : { ...state, windows: state.windows.map(w => w.id === current.id ? { ...w, ...point } : w) });
   }
-  function clampPrompt(point: Point): Point { return { x: Math.max(16, Math.min(size.width - Math.min(720, size.width - 64) - 16, point.x)), y: Math.max(56, Math.min(size.height - 300, point.y)) }; }
+  function clampPrompt(point: Point): Point {
+    const width = promptRef.current?.offsetWidth ?? Math.min(720, size.width - 64);
+    const height = promptRef.current?.offsetHeight ?? 220;
+    return { x: Math.max(16, Math.min(size.width - width - 16, point.x)), y: Math.max(16, Math.min(size.height - height - 88, point.y)) };
+  }
+  function promptPoint(): Point {
+    const prompt = promptRef.current?.getBoundingClientRect();
+    const bounds = root.current?.getBoundingClientRect();
+    return prompt && bounds ? { x: prompt.left - bounds.left, y: prompt.top - bounds.top } : { x: 16, y: 16 };
+  }
   function nudge(event: KeyboardEvent, kind: "folder" | "window" | "prompt", id: string, point: Point) {
     const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
     if (!delta || focused) return;
@@ -209,10 +221,10 @@ function Desktop() {
     setFolderName(id ? folders.find(f => f.id === id)?.name ?? "" : "");
     setFolderEditor(id ? { id } : {}); setLauncher(false); setContextMenu(null);
   }
-  const floatPoint = clampPrompt(layout.promptPosition ?? { x: size.width - 744, y: size.height - 380 });
+  const floatPoint = layout.promptPosition ? clampPrompt(layout.promptPosition) : null;
 
   return <div className="cdc-desktop" ref={root} onPointerMove={dragMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
-    onKeyDown={event => { if (event.key === "Escape") { setLauncher(false); setComposerMenu(false); setContextMenu(null); setFolderEditor(null); setFocused(null); } }}>
+    onKeyDown={event => { if (event.key === "Escape") { setLauncher(false); setContextMenu(null); setFolderEditor(null); setFocused(null); } }}>
     <div className="cdc-canvas" tabIndex={0} aria-label="Canvas. Arrow keys pan, plus and minus zoom, zero resets zoom."
       onPointerDown={event => { if (event.target === event.currentTarget) { setSelectedFolder(null); startDrag(event, "camera", "", camera); } }}
       onContextMenu={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); const rect = root.current!.getBoundingClientRect(); setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top }); }}
@@ -267,10 +279,13 @@ function Desktop() {
       </div>
     </div>
 
-    <div className={`cdc-prompt cdc-prompt-${layout.composer}`} data-screen style={layout.composer === "float" ? { left: floatPoint.x, top: floatPoint.y } : undefined} aria-hidden={layout.composer === "hidden"} inert={layout.composer === "hidden"}
-      tabIndex={layout.composer === "float" ? 0 : -1} aria-label="Composer. Drag the top edge or use arrow keys to move."
-      onPointerDown={event => { if (layout.composer === "float" && event.target === event.currentTarget) startDrag(event, "prompt", "main", floatPoint); }}
-      onKeyDown={event => { if (layout.composer === "float" && event.target === event.currentTarget) nudge(event, "prompt", "main", floatPoint); }}>
+    <div ref={promptRef} className={`cdc-prompt ${layout.composer === "hidden" ? "cdc-prompt-hidden" : ""}`} data-screen
+      style={floatPoint ? { left: floatPoint.x, top: floatPoint.y, bottom: "auto", transform: "none" } : undefined}
+      aria-hidden={layout.composer === "hidden"} inert={layout.composer === "hidden"}>
+      <button type="button" className="cdc-prompt-move" aria-label="Move composer. Drag or use arrow keys."
+        onPointerDown={event => startDrag(event, "prompt", "main", promptPoint())}
+        onKeyDown={event => nudge(event, "prompt", "main", promptPoint())} />
+      <Button type="button" className="cdc-prompt-minimize" variant="ghost" size="icon" aria-label="Minimize composer" onClick={() => showPrompt(false)}><Icon name="Minus" /></Button>
       <NewThreadComposer key="main-composer" draftKey={`${pluginId}:main`} layout="document" focusRequest={focusPrompt} placeholder="Ask anything, or start something new…"
         onSubmit={async request => {
           const created = await sdk.threads.spawn(request);
@@ -283,14 +298,9 @@ function Desktop() {
     {data.status === "loading" && <div className="cdc-loading" role="status">Loading your workspace…</div>}
 
     {launcher && <div className="cdc-menu cdc-launcher" data-screen data-menu aria-label="Launcher">
-      <Button autoFocus variant="ghost" onClick={() => showPrompt("float")}><Icon name="MessageSquarePlus" />Composer</Button>
+      <Button autoFocus variant="ghost" onClick={() => showPrompt()}><Icon name="MessageSquarePlus" />Composer</Button>
       <Button variant="ghost" onClick={() => openWindow(ALL_THREADS, "folder")}><Icon name="Folder" />Threads</Button>
       <Button variant="ghost" onClick={() => editFolder()}><Icon name="FolderPlus" />New folder</Button>
-    </div>}
-    {composerMenu && <div className="cdc-menu cdc-composer-menu" data-screen data-menu aria-label="Composer placement">
-      <Button autoFocus variant="ghost" onClick={() => showPrompt("center")}><Icon name="Target" />Center</Button>
-      <Button variant="ghost" onClick={() => showPrompt("float")}><Icon name="PanelBottom" />Float</Button>
-      <Button variant="ghost" onClick={() => showPrompt("hidden")}><Icon name="Minus" />Hide</Button>
     </div>}
     {contextMenu && <div className="cdc-menu cdc-context-menu" data-screen data-menu style={{ left: Math.max(8, Math.min(contextMenu.x, size.width - 200)), top: Math.max(8, Math.min(contextMenu.y, size.height - 160)) }}>
       {contextMenu.folderId && <Button autoFocus variant="ghost" onClick={() => openWindow(contextMenu.folderId!, "folder")}>Open</Button>}
@@ -313,10 +323,9 @@ function Desktop() {
       <Button variant="ghost" size="sm" onClick={fitAll}>Fit all</Button>
     </div>
     <nav className="cdc-dock" data-screen aria-label="Workspace taskbar">
-      <Button data-menu-toggle variant={launcher ? "secondary" : "ghost"} size="sm" aria-expanded={launcher} onClick={() => { setLauncher(value => !value); setComposerMenu(false); }}><Icon name="GridView" />Launcher</Button>
+      <Button data-menu-toggle variant={launcher ? "secondary" : "ghost"} size="sm" aria-expanded={launcher} onClick={() => setLauncher(value => !value)}><Icon name="GridView" />Launcher</Button>
       <span className="cdc-divider" />
-      <Button variant={layout.composer !== "hidden" ? "secondary" : "ghost"} size="sm" onClick={() => showPrompt(layout.composer === "hidden" ? "float" : layout.composer)}><Icon name="MessageSquarePlus" />Composer</Button>
-      <Button data-menu-toggle variant="ghost" size="icon" aria-label="Composer placement" aria-expanded={composerMenu} onClick={() => { setComposerMenu(value => !value); setLauncher(false); }}><Icon name="ChevronUp" /></Button>
+      <Button ref={composerButton} variant={layout.composer !== "hidden" ? "secondary" : "ghost"} size="sm" aria-expanded={layout.composer !== "hidden"} onClick={() => showPrompt()}><Icon name="MessageSquarePlus" />Composer</Button>
       {layout.windows.length > 0 && <span className="cdc-divider" />}
       <div className="cdc-tasks">{layout.windows.map(win => <Button key={win.id} className="cdc-task" variant={active === win.id && !win.minimized ? "secondary" : "ghost"} size="sm" aria-label={`${win.minimized ? "Restore" : "Show"} ${windowTitle(win)}`} onClick={() => openWindow(win.id, win.kind ?? "thread")}><Icon name={win.kind === "folder" ? "Folder" : "MessageSquare"} /><span>{windowTitle(win)}</span>{win.minimized && <Icon name="Minus" />}</Button>)}</div>
     </nav>

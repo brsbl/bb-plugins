@@ -45,17 +45,18 @@
 .cdc-finder footer > span { flex: 1; font-size: var(--text-xs); color: var(--muted-foreground); }
 .cdc-finder select { max-width: 180px; min-height: 30px; padding: 4px 8px; border: 1px solid var(--input); border-radius: var(--radius); background: var(--background); }
 .cdc-empty { padding: 24px 12px; color: var(--muted-foreground); }
-.cdc-prompt { position: absolute; z-index: 70; width: min(720px, calc(100% - 64px)); }
+.cdc-prompt { position: absolute; z-index: 70; width: min(720px, calc(100% - 64px)); left: 50%; bottom: 88px; transform: translateX(-50%); padding-top: 28px; }
 .cdc-prompt > div { background: var(--background); border-radius: var(--radius); }
-.cdc-prompt-center { top: 46%; left: 50%; transform: translate(-50%, -50%); }
-.cdc-prompt-float { padding-top: 12px; cursor: grab; }
-.cdc-prompt-float > * { cursor: auto; }
-.cdc-prompt-hidden { bottom: 120px; right: 24px; visibility: hidden; pointer-events: none; }
+.cdc-prompt-move { position: absolute; top: 0; left: 0; width: calc(100% - 32px); height: 24px; border: 0; border-radius: var(--radius); background: transparent; cursor: grab !important; touch-action: none; }
+.cdc-prompt-move::after { content: ""; position: absolute; width: 24px; height: 3px; left: 50%; top: 10px; transform: translateX(-50%); border-radius: 2px; background: var(--muted-foreground); opacity: 0.65; }
+.cdc-prompt-move:hover { background: var(--state-hover); }
+.cdc-prompt-move:active { cursor: grabbing !important; }
+.cdc-prompt .cdc-prompt-minimize { position: absolute; top: 0; right: 0; width: 24px; height: 24px; color: var(--muted-foreground); }
+.cdc-prompt-hidden { visibility: hidden; pointer-events: none; }
 .cdc-camera { position: absolute; top: 16px; right: 20px; z-index: 80; display: flex; align-items: center; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); box-shadow: var(--shadow-sm); }
 .cdc-camera button { height: 30px; }
 .cdc-dock { position: absolute; z-index: 90; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; align-items: center; max-width: calc(100% - 40px); padding: 6px 8px; border: 1px solid var(--border); border-radius: 18px; background: var(--background); box-shadow: var(--shadow-lg); }
 .cdc-dock > button { flex-shrink: 0; height: 36px; border-radius: 10px; }
-.cdc-dock > button[aria-label="Composer placement"] { width: 28px; margin-left: -4px; }
 .cdc-divider { flex-shrink: 0; height: 20px; width: 1px; background: var(--border); margin: 0 3px; }
 .cdc-tasks { display: flex; min-width: 0; gap: 3px; overflow-x: auto; padding: 3px; }
 .cdc-task { max-width: 180px; flex-shrink: 0; border-radius: 9px; height: 36px; }
@@ -63,7 +64,6 @@
 .cdc-menu { position: absolute; z-index: 100; display: flex; flex-direction: column; width: 192px; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); box-shadow: var(--shadow-lg); }
 .cdc-menu > button { justify-content: flex-start; min-height: 36px; }
 .cdc-launcher { bottom: 80px; left: max(20px, calc(50% - 240px)); }
-.cdc-composer-menu { bottom: 80px; left: calc(50% - 96px); }
 .cdc-folder-editor { position: absolute; z-index: 110; top: 35%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 16px; width: 320px; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); box-shadow: var(--shadow-lg); }
 .cdc-folder-editor label { display: flex; flex-direction: column; gap: 12px; font-weight: 500; }
 .cdc-folder-editor input { width: 100%; padding: 8px 10px; border: 1px solid var(--input); border-radius: var(--radius); background: var(--background); font-weight: 400; }
