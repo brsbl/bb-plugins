@@ -4,11 +4,11 @@ import plugin from "./server.js";
 
 const disposers: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); });
-function setup(events: unknown[] = []) {
+function setup() {
   const { bb, harness } = createFakePluginHost({
     pluginId: "file-pins", experimental_hostEntry: true,
     sdk: {
-      threads: { get: async ({ threadId }) => makeThreadResponse({ id: threadId, environmentId: "env-mac" }), events: { list: async () => events as never } },
+      threads: { get: async ({ threadId }) => makeThreadResponse({ id: threadId, environmentId: "env-mac" }) },
       environments: { get: async () => ({ hostId: "mac", path: "/Users/me/project" }) },
       hosts: { list: async () => [
         makeHostResponse({ id: "mac", name: "My Mac", status: "connected" }),
@@ -21,7 +21,6 @@ function setup(events: unknown[] = []) {
     experimental_callHostRpc: async ({ method, input, hostId }) => {
       if (hostId === "offline") throw new Error("Host offline");
       if (method === "home") return { path: "/home/worker" };
-      if (method === "recentFiles") return { files: (input as { paths: string[] }).paths.filter((path) => !path.includes("gone")).map((path) => ({ path: path.startsWith("/") ? path : `/Users/me/project/${path}`, name: path.split("/").at(-1)! })) };
       if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available" })) };
       const { path } = input as { path: string };
       return { path: path === "~/note.md" ? "/Users/me/note.md" : path, name: path.split("/").at(-1)! };
@@ -158,18 +157,6 @@ describe("thread file pins", () => {
     expect(await h.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [second.id] });
     expect(await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/first.md", unpinned: true })).toEqual(first);
     expect(await h.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [second.id] });
-  });
-  it("suggests recent normalized changes and links, checks them on the host, and excludes existing pins", async () => {
-    const h = setup([
-      { seq: 1, type: "item/completed", data: { item: { type: "fileChange", status: "completed", changes: [{ kind: "add", path: "created.md" }] } } },
-      { seq: 3, type: "client/turn/requested", data: { initiator: "user", input: [{ type: "text", text: "Here", mentions: [{ resource: { kind: "path", entryKind: "file", path: "mentioned.md" } }] }] } },
-      { seq: 2, type: "item/completed", data: { item: { type: "agentMessage", text: "[Linked](linked.md) and [gone](gone.md)" } } },
-    ]);
-    await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/Users/me/project/created.md" });
-    expect(await h.behavior.callRpc("recent", { threadId: "one" })).toMatchObject({ files: [
-      { path: "/Users/me/project/mentioned.md", hostId: "mac" }, { path: "/Users/me/project/linked.md", hostId: "mac" },
-    ] });
-    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "recentFiles", hostId: "mac", input: { cwd: "/Users/me/project" } });
   });
   it("removes storage when a thread is deleted", async () => {
     const h = setup();

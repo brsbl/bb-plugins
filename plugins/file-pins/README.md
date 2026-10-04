@@ -13,7 +13,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins -
 
 ## Use
 
-Choose **Pin to thread** in the composer's **+** menu, then search files in one folder. The
+Click the pin button in the composer's action row, then search files in one folder. The
 row under the search field shows that folder (and its machine when more than one is enrolled); click it to choose
 another machine and folder in bb's folder browser, by browsing or editing the path. The folder
 starts as the thread's workspace, or the machine's home without one, and each thread remembers the
@@ -26,20 +26,12 @@ scrolls. Files that aren't pinned sit in the **⋯** list. File icons follow bb'
 Right-click a strip file for bb's **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin** (moves it to the **⋯** list) or **Remove**. In the **⋯** list, a
 row's hover **⋯** button or right-click offers the same file options, then **Pin** or **Remove**;
-**Pin** is unavailable when the strip has no room, and files added with **+** then join the **⋯** list. If the window narrows, pinned files that no longer fit lead the **⋯** list until
+**Pin** is unavailable when the strip has no room, and files added from the picker then join the **⋯** list. If the window narrows, pinned files that no longer fit lead the **⋯** list until
 there is room again. **Remove**'s toast offers **Undo**. Missing filenames and icons have a light red tint and are labeled for assistive technology;
 only their small **×** removes them. Availability refreshes on focus and every
 30 seconds.
 
-Before typing, the compact picker shows **Recent in this thread**. When there
-are no pins, up to three recent files appear as quieter one-click suggestions; a
-thread with neither shows only **+**. Suggestions come from the last 100 relevant SDK
-thread events: completed file additions/edits, user file mentions/attachments,
-and Markdown links in agent/user messages. An existing Markdown lexer extracts
-link destinations; it does not render content. The thread's
-current host resolves paths, checks availability and removes canonical duplicates
-and existing pins. History without a current environment, missing files and
-unavailable hosts produce no suggestions. Shell command text is not inspected.
+A thread without pins shows no strip; the pin button is always in the action row.
 
 ```bash
 bb file-pins pin '~/Moss/Notes/Tweets/Tweets.md' --machine host_37m3sgpq59

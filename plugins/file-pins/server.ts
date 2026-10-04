@@ -1,4 +1,3 @@
-import { recentPaths, type LinkCache } from "./recent-files.js";
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { CHANGED, MAX_PINS, hostContract, moreSchema, pinsSchema, rpcContract, scopeSchema, type Pin, type Reference, type Scope } from "./contract.js";
@@ -6,7 +5,6 @@ import { CHANGED, MAX_PINS, hostContract, moreSchema, pinsSchema, rpcContract, s
 export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({ contract: hostContract });
   const undos = new Map<string, { threadId: string; pin: Pin; index: number; more: boolean; expires: number }>();
-  const linkCache: LinkCache = new Map();
   // Machine lookups that may hit a sleeping or unreachable host give up quickly.
   const HOST_TIMEOUT = 2_000;
   const timeBoxed = <T>(work: Promise<T>) => {
@@ -86,23 +84,6 @@ export default function plugin(bb: BbPluginApi): void {
   });
 
   bb.rpc.register(rpcContract, {
-    recent: async ({ threadId }) => {
-      const target = await thread(threadId);
-      if (!target.environmentId) return { files: [] };
-      const environment = await bb.sdk.environments.get({ environmentId: target.environmentId });
-      if (!environment.path) return { files: [] };
-      const events = await bb.sdk.threads.events.list({
-        threadId, order: "desc", limit: "100",
-        types: ["item/completed", "client/turn/requested", "client/thread/start"],
-      });
-      const paths = recentPaths(events, linkCache, threadId);
-      if (!paths.length) return { files: [] };
-      const { files } = await host.call("recentFiles", { paths, cwd: environment.path }, { hostId: environment.hostId }).catch(() => ({ files: [] }));
-      await writes;
-      const pins = await read(threadId);
-      return { files: files.filter((file) => !pins.some((pin) => pin.hostId === environment.hostId && pin.path === file.path))
-        .slice(0, 12).map((file) => ({ ...file, hostId: environment.hostId })) };
-    },
     arrange: ({ threadId, order, more }) => serialize(async () => {
       await thread(threadId);
       const pins = await read(threadId);
@@ -210,8 +191,6 @@ export default function plugin(bb: BbPluginApi): void {
     },
     unpin: ({ threadId, pinId }) => removePin(threadId, pinId),
   });
-  bb.events.on("thread.idle", ({ thread }) => bb.realtime.publish("recent-changed", { threadId: thread.id }));
-  bb.events.on("message.dispatched", ({ entry }) => bb.realtime.publish("recent-changed", { threadId: entry.threadId }));
   bb.events.on("thread.deleted", ({ thread: deleted }) => serialize(async () => {
     for (const [token, undo] of undos) if (undo.threadId === deleted.id) undos.delete(token);
     await bb.storage.kv.delete(key(deleted.id));

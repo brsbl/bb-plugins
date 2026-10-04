@@ -6,6 +6,7 @@ import { cn } from "./lib/utils.js";
 // The bb popover recipe without drawer conversion or motion: these controls
 // stay attached to their trigger on compact viewports as well.
 export const PinPopover = PopoverPrimitive.Root;
+export const PinPopoverAnchor = PopoverPrimitive.Anchor;
 export const PinPopoverTrigger = PopoverPrimitive.Trigger;
 export const PinPopoverContent = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>>(
   ({ className, ...props }, ref) => {

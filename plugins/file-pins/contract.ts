@@ -15,8 +15,7 @@ export const CHANGED = "pins-changed";
 const status = z.enum(["available", "missing", "unavailable"]);
 export const referenceSchema = pinSchema.extend({ hostName: z.string(), status });
 export type Reference = z.infer<typeof referenceSchema>;
-export const recentSchema = z.object({ hostId: id, path: filePath, name: z.string() });
-/** Where the + picker searches: a folder on one machine. */
+/** Where the pin picker searches: a folder on one machine. */
 export const scopeSchema = z.object({ hostId: id, path: filePath }).strict();
 export type Scope = z.infer<typeof scopeSchema>;
 const listingSchema = z.object({
@@ -24,13 +23,8 @@ const listingSchema = z.object({
   entries: z.array(z.object({ kind: z.enum(["directory", "file"]), name: z.string(), path: z.string() })),
 });
 export type DirectoryListing = z.infer<typeof listingSchema>;
-export type RecentFile = z.infer<typeof recentSchema>;
 
 export const hostContract = defineRpcContract({
-  recentFiles: {
-    input: z.object({ paths: z.array(filePath).max(40), cwd: filePath }).strict(),
-    output: z.object({ files: z.array(z.object({ path: filePath, name: z.string() })) }),
-  },
   home: { input: z.object({}).strict(), output: z.object({ path: filePath }) },
   inspect: {
     input: z.object({ paths: z.array(filePath).max(MAX_PINS) }).strict(),
@@ -42,10 +36,6 @@ export const hostContract = defineRpcContract({
   },
 });
 export const rpcContract = defineRpcContract({
-  recent: {
-    input: z.object({ threadId: id }).strict(),
-    output: z.object({ files: z.array(recentSchema).max(12) }),
-  },
   arrange: {
     input: z.object({ threadId: id, order: z.array(id).max(MAX_PINS), more: moreSchema }).strict(),
     output: z.object({ pins: pinsSchema, more: moreSchema }),

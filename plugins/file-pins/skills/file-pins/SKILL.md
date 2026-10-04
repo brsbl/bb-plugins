@@ -21,4 +21,4 @@ Pins retain their original host if the thread moves. Deleting the thread removes
 its pins. Pins do not copy file contents or automatically add them to agent context.
 
 A normal click follows bb's FileLink behavior. In the UI, Unpin moves a file from the strip to the ⋯ list and Pin moves it back while the strip has room; Remove deletes it with an Undo toast. The CLI `remove` command matches the UI's Remove, without the Undo toast. Missing files remain visible
-with an accessible missing label and a small × to remove them. Use the composer's + → Pin to thread to search one chosen folder or paste a path; the folder defaults to the thread workspace and is remembered per thread. The picker offers recent thread files.
+with an accessible missing label and a small × to remove them. Use the pin button in the composer's action row to search one chosen folder or paste a path; the folder defaults to the thread workspace and is remembered per thread.

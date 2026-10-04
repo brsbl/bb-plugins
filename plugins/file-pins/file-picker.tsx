@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
-import type { RecentFile, Scope, rpcContract } from "./contract.js";
+import type { Scope, rpcContract } from "./contract.js";
 import { Command, CommandInput, CommandItem, CommandList } from "./components/ui/command.js";
 import { Icon } from "./components/ui/icon.js";
 import { formatHomePathForDisplay } from "./lib/utils.js";
@@ -11,8 +11,8 @@ type Result = { path: string; name: string; hostId: string };
 
 const folderName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 
-export function FilePicker({ threadId, recent, stripFull, choosingFolder, onChoosingFolderChange, onClose, onPinned }: {
-  threadId: string; recent: RecentFile[]; stripFull: boolean; choosingFolder: boolean;
+export function FilePicker({ threadId, stripFull, choosingFolder, onChoosingFolderChange, onClose, onPinned }: {
+  threadId: string; stripFull: boolean; choosingFolder: boolean;
   onChoosingFolderChange(open: boolean): void; onClose(): void; onPinned(): Promise<void>;
 }) {
   const rpc = useRpc<typeof rpcContract>();
@@ -65,9 +65,7 @@ export function FilePicker({ threadId, recent, stripFull, choosingFolder, onChoo
     setScope(next); onChoosingFolderChange(false);
     rpc.call("setScope", { threadId, scope: next }).catch((error: Error) => setError(error.message));
   }
-  const files: Result[] = text ? results : recent;
-  const hostName = (id: string) => hosts.find((host) => host.id === id)?.name;
-  const showMachines = hosts.length > 1 && new Set(files.map((file) => file.hostId)).size > 1;
+  const files: Result[] = text ? results : [];
   const scopeLabel = scope ? folderName(scope.path) : loaded ? "Choose a folder" : "…";
   // The machine is named only when there is more than one.
   const machine = hosts.length > 1 && scopeHost ? scopeHost.name : null;
@@ -84,7 +82,6 @@ export function FilePicker({ threadId, recent, stripFull, choosingFolder, onChoo
         <span className="min-w-0 max-w-full shrink-0 truncate text-foreground">{scopeLabel}</span>
         {machine ? <span className="min-w-0 truncate">· {machine}</span> : null}
       </button>
-      {!text && files.length > 0 && <p className="px-3 pb-1 pt-2 text-xs text-subtle-foreground">Recent in this thread</p>}
       <CommandList aria-label="Files" aria-busy={searching || busy} className="max-h-56 p-1">
         {typedPath && <CommandItem value={`path:${text}`} disabled={busy || !scope} onSelect={() => { if (scope) void pin(scope.hostId, text, scope.path); }} title={text}>
           <ReferenceIcon path={text} />
@@ -94,7 +91,7 @@ export function FilePicker({ threadId, recent, stripFull, choosingFolder, onChoo
           <ReferenceIcon path={file.path} />
           <span className="min-w-0">
             <span className="block truncate">{file.name}</span>
-            <span className="block truncate text-xs text-muted-foreground" title={file.path}>{showMachines ? `${hostName(file.hostId) ?? "Unknown machine"} · ${file.path}` : file.path}</span>
+            <span className="block truncate text-xs text-muted-foreground" title={file.path}>{file.path}</span>
           </span>
         </CommandItem>)}
         {!typedPath && files.length === 0 && <p className="px-2 py-3 text-xs text-muted-foreground" role="status">

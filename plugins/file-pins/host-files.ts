@@ -4,17 +4,6 @@ import { basename, isAbsolute, resolve } from "node:path";
 
 export async function home() { return { path: homedir() }; }
 
-export async function recentFiles({ paths, cwd }: { paths: string[]; cwd: string }) {
-  const files: Array<{ path: string; name: string }> = [];
-  for (const path of paths) {
-    try {
-      const file = await resolveFile({ path, cwd });
-      if (!files.some((other) => other.path === file.path)) files.push(file);
-    } catch { /* History may refer to deleted files or folders; neither is a suggestion. */ }
-  }
-  return { files };
-}
-
 export async function inspect({ paths }: { paths: string[] }) {
   const files: Array<{ path: string; status: "available" | "missing" | "unavailable" }> = [];
   // Serialize filesystem reads on the host; never read a Mac path on the server.
