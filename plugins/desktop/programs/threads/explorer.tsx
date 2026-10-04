@@ -317,7 +317,7 @@ export function DesktopFinderWindow({ window: desktopWindow }: { window: Desktop
   const needle = query.trim().toLocaleLowerCase();
   const visible = entries.filter((entry) => needle === "" || entry.title.toLocaleLowerCase().includes(needle));
   return (
-    <WindowFrame window={desktopWindow} title="Desktop — Finder" icon={<FolderArt kind="section" size={16} />}
+    <WindowFrame window={desktopWindow} title="Desktop" icon={<FolderArt kind="section" size={16} />}
       statusBar={<span>{visible.length} {visible.length === 1 ? "item" : "items"} · double-click or press Enter to open</span>}
     >
       <div className="flex h-full flex-col">

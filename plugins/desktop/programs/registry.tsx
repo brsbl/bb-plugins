@@ -105,7 +105,7 @@ function fixed(width: number, height: number): () => Size {
 const PROGRAMS: { [K in WindowKind]: ProgramDefinition<K> } = {
   "desktop-finder": {
     size: fixed(560, 400),
-    title: () => "Desktop — Finder",
+    title: () => "Desktop",
     art: (_spec, _desktop, size) => <FolderArt kind="section" size={size} />,
     Window: DesktopFinderWindow,
   },

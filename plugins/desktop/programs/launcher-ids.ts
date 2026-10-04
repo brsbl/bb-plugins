@@ -45,7 +45,7 @@ export const LAUNCHER_LABELS: Record<LauncherId, string> = {
   plugins: "Plugins",
   skills: "Skills",
   maze: "3D Maze",
-  finder: "Finder",
+  finder: "Desktop",
 };
 
 /** A program another plugin registered through `window.bbDesktopApps`. */
