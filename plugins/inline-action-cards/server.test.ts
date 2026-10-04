@@ -9,6 +9,19 @@ const hosts: ReturnType<typeof createFakePluginHost>[] = [];
 function setup() { const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); return { ...host, store: createStore(host.bb) }; }
 afterEach(async () => { for (const host of hosts.splice(0)) await host.harness.lifecycle.dispose(); });
 
+it("contributes decision guidance to every thread without loading the skill", () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  const provider = host.harness.registrations.instructionProvider;
+  expect(provider).toBeTypeOf("function");
+  const instructions = provider!({ threadId: "thr_fresh", projectId: "proj_fresh" });
+  expect(instructions).toBeTruthy();
+  expect(instructions!.length).toBeLessThan(800);
+  for (const text of ["decision or approval", "sending an email", "merging/shipping", "switching a setting", "applying a change", "two options", "instead of asking in prose", "bb action-cards create", '::action{id="..."}', "own line", "what Yes does", "No declines", "3+ similar items", "bb action-cards create-table", '::actions{id="..."}', "bb action-cards claim", "bb action-cards report", "inline-action-cards skill"]) {
+    expect(instructions).toContain(text);
+  }
+  expect(provider!({ threadId: "thr_other", projectId: "proj_other" })).toBe(instructions);
+});
+
 describe("durable inline actions", () => {
   it("claims the latest saved draft once and refuses stale writes, clicks, and reports", () => {
     const { store } = setup();
