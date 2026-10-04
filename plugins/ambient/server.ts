@@ -159,6 +159,12 @@ export default function plugin(bb: BbPluginApi): void {
     async reportCompile({ sceneRevision, ok, log }) {
       return { accepted: await ops.reportCompile(sceneRevision, { ok, ...(log === undefined ? {} : { log }) }) };
     },
+    reportContext(report) {
+      const message = `Ambient WebGL context ${report.event}: ${JSON.stringify(report)}`;
+      if (report.event === "lost") bb.log.warn(message);
+      else bb.log.info(message);
+      return { accepted: true };
+    },
     submitCapture({ requestId, context, ...report }) {
       return { accepted: ops.submitCapture(requestId, { ...report, context: context ?? null }) };
     },
