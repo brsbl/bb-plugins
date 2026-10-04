@@ -102,7 +102,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   let disposed = false;
   let frame: number | null = null;
   let composition: HTMLElement | null = null;
-  let dragging = false;
+  let explicitEdit: HTMLElement | null = null;
   let inspector: HTMLElement | null = null;
   let inspected: HTMLAnchorElement | null = null;
   let inspectUrl = '';
@@ -267,6 +267,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   function scan(): void {
     frame = null;
     if (disposed) return;
+    if (explicitEdit && (!explicitEdit.isConnected || !caretTouches(explicitEdit))) explicitEdit = null;
     const found = new Set<HTMLElement>();
     const candidates = document.querySelectorAll<HTMLElement>(`${EDITOR} .${EFFECT_CLASS}, ${ANCHOR}`);
     for (const element of Array.from(candidates)) {
@@ -280,7 +281,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       }
       if (entry.composer) {
         entry.selector = composerSelector(element);
-        entry.expanded = !!(dragging || composition?.contains(element) || revealForSelection(element));
+        entry.expanded = !!(explicitEdit === element || composition?.contains(element) || revealForSelection(element));
       } else {
         if (element.getAttribute(ATTR) !== 'message') element.setAttribute(ATTR, 'message');
         if (element.getAttribute(LABEL) !== entry.url.label) element.setAttribute(LABEL, entry.url.label);
@@ -324,7 +325,18 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   });
   observer.observe(document.body, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['href', 'class', 'contenteditable'] });
 
-  function revealEditor(target: EventTarget | null): HTMLElement | null {
+  function caretTouches(element: HTMLElement): boolean {
+    const selection = document.getSelection();
+    if (!selection?.isCollapsed || !selection.anchorNode || !element.parentElement) return false;
+    const bounds = document.createRange();
+    bounds.selectNode(element);
+    if (bounds.comparePoint(selection.anchorNode, selection.anchorOffset) === 0) return true;
+    // Browsers may represent the same visual edge using an adjacent Text node.
+    const node = selection.anchorNode;
+    return node instanceof Text && ((selection.anchorOffset === 0 && node.previousSibling === element)
+      || (selection.anchorOffset === node.length && node.nextSibling === element));
+  }
+  function revealForComposition(target: EventTarget | null): HTMLElement | null {
     const editor = target instanceof Element ? target.closest<HTMLElement>(EDITOR) : null;
     if (editor) {
       for (const [element, entry] of entries) if (entry.composer && editor.contains(element)) entry.expanded = true;
@@ -339,7 +351,11 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   function cancelTouch(): void { if (touchTimer) clearTimeout(touchTimer); touchTimer = null; touchStart = null; }
   function pointerDown(event: PointerEvent): void {
     if (inspector && event.target instanceof Node && !inspector.contains(event.target)) closeInspector(false);
-    dragging = !!revealEditor(event.target);
+    const range = event.target instanceof Element ? event.target.closest<HTMLElement>(`.${EFFECT_CLASS}`) : null;
+    explicitEdit = range && entries.get(range)?.composer ? range : null;
+    // Keep geometry unchanged while the browser places the caret. The next
+    // frame reveals only the explicitly clicked range or actual selection.
+    queue();
     const anchor = messageAnchor(event.target);
     if (event.pointerType === 'touch' && anchor) {
       touchStart = { x: event.clientX, y: event.clientY, anchor };
@@ -351,13 +367,13 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   function pointerMove(event: PointerEvent): void {
     if (touchStart && Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y) > 8) cancelTouch();
   }
-  function pointerUp(): void { dragging = false; cancelTouch(); queue(); }
+  function pointerUp(): void { cancelTouch(); queue(); }
   function keyDown(event: KeyboardEvent): void {
     const anchor = messageAnchor(event.target);
     if (anchor && (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
       event.preventDefault(); event.stopPropagation(); showInspector(anchor); return;
     }
-    if (revealEditor(event.target)) queue();
+    if (event.target instanceof Element && event.target.closest(EDITOR)) queue();
   }
   function contextMenu(event: MouseEvent): void {
     const anchor = messageAnchor(event.target);
@@ -368,14 +384,19 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       event.preventDefault(); event.stopPropagation(); suppressClick = null;
     }
   }
-  function compositionStart(event: CompositionEvent): void { composition = revealEditor(event.target); }
+  function compositionStart(event: CompositionEvent): void { composition = revealForComposition(event.target); }
   function compositionEnd(): void { composition = null; queue(); }
+  function focusOut(event: FocusEvent): void {
+    const editor = event.target instanceof Element ? event.target.closest(EDITOR) : null;
+    if (explicitEdit && editor?.contains(explicitEdit)) explicitEdit = null;
+    queue();
+  }
   const listeners: [string, EventListener][] = [
     ['selectionchange', queue], ['pointerdown', pointerDown as EventListener], ['pointermove', pointerMove as EventListener],
     ['pointerup', pointerUp], ['pointercancel', pointerUp], ['keydown', keyDown as EventListener],
     ['contextmenu', contextMenu as EventListener], ['click', click as EventListener],
     ['compositionstart', compositionStart as EventListener], ['compositionend', compositionEnd],
-    ['focusout', queue], ['visibilitychange', queue],
+    ['focusout', focusOut as EventListener], ['visibilitychange', queue],
   ];
   for (const [type, listener] of listeners) document.addEventListener(type, listener, true);
   window.addEventListener('resize', queue);

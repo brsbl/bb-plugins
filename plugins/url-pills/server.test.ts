@@ -43,12 +43,18 @@ it("evicts old origins at both the count and byte budgets", () => {
   const current = host();
   let time = 1;
   const cache = createIconCache(current.bb, () => time++);
-  for (let index = 0; index <= ICON_LIMITS.entries; index++) cache.put(`https://host${index}.example.com`, null);
+  // Batch fixture writes so remote filesystem sync speed is not the assertion.
+  const db = current.bb.storage.database();
+  db.transaction(() => {
+    for (let index = 0; index <= ICON_LIMITS.entries; index++) cache.put(`https://host${index}.example.com`, null);
+  })();
   expect(cache.get("https://host0.example.com")).toBeUndefined();
   expect(cache.get("https://host500.example.com")).toBeNull();
   // Each item is within the RPC's image bound; their aggregate hits 32 MiB.
   const image = "data:image/png;base64," + "A".repeat(100_000);
-  for (let index = 0; index < 350; index++) cache.put(`https://image${index}.example.com`, image);
+  db.transaction(() => {
+    for (let index = 0; index < 350; index++) cache.put(`https://image${index}.example.com`, image);
+  })();
   const stored = current.bb.storage.database().prepare("SELECT COUNT(*) AS count, SUM(bytes) AS bytes FROM icons").get() as { count: number; bytes: number };
   expect(stored.count).toBeLessThanOrEqual(ICON_LIMITS.entries);
   expect(stored.bytes).toBeLessThanOrEqual(ICON_LIMITS.cacheBytes);

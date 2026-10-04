@@ -86,6 +86,53 @@ describe('DOM-only URL decoration', () => {
     expect(span.getAttributeNames()).toEqual(['class']);
     expect(selection.anchorOffset).toBe(URL_TEXT.length);
   });
+  it('preserves geometry until native pointer placement and keyboard navigation finish', async () => {
+    const span = composer(); const editor = span.closest('[contenteditable]')!;
+    mountUrlPills({ signal: abort.signal });
+    const compact = composerCss();
+    const trailing = span.nextSibling!;
+    span.parentElement!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    expect(composerCss()).toBe(compact);
+    const selection = document.getSelection()!;
+    const range = document.createRange(); range.setStart(trailing, 3); range.collapse(true);
+    selection.removeAllRanges(); selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange')); await settle();
+    expect(composerCss()).toBe(compact);
+    expect(selection.anchorNode).toBe(trailing); expect(selection.anchorOffset).toBe(3);
+    editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    expect(composerCss()).toBe(compact);
+    range.setStart(span.firstChild!, 10); range.collapse(true);
+    selection.removeAllRanges(); selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange')); await settle();
+    expect(composerCss()).toBe('');
+    expect(selection.anchorNode).toBe(span.firstChild); expect(selection.anchorOffset).toBe(10);
+  });
+  it('reveals only a directly clicked pill after native placement, including its edge', async () => {
+    const span = composer();
+    const other = document.createElement('span'); other.className = 'bb-url-pill-range'; other.textContent = 'https://other.example/path';
+    span.parentElement!.append(document.createTextNode(' '), other);
+    mountUrlPills({ signal: abort.signal });
+    const compact = composerCss();
+    span.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    expect(composerCss()).toBe(compact);
+    const selection = document.getSelection()!;
+    const range = document.createRange(); range.setStart(span.firstChild!, URL_TEXT.length); range.collapse(true);
+    selection.removeAllRanges(); selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange')); await settle();
+    expect(composerCss()).not.toContain('--bb-url-pill-label: "example.com/a"');
+    expect(composerCss()).toContain('--bb-url-pill-label: "other.example/path"');
+    expect(selection.anchorNode).toBe(span.firstChild); expect(selection.anchorOffset).toBe(URL_TEXT.length);
+    // Blur ends explicit edge editing even if the browser retains its selection.
+    span.closest('[contenteditable]')!.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); await settle();
+    expect(composerCss()).toContain('--bb-url-pill-label: "example.com/a"');
+    span.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })); await settle();
+    expect(composerCss()).not.toContain('--bb-url-pill-label: "example.com/a"');
+    span.parentElement!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    expect(composerCss()).not.toContain('--bb-url-pill-label: "example.com/a"');
+    range.setStart(span.nextSibling!, 3); range.collapse(true); selection.removeAllRanges(); selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange')); await settle();
+    expect(composerCss()).toContain('--bb-url-pill-label: "example.com/a"');
+  });
   it('reveals during composition and never writes to changed host text on cleanup', async () => {
     const span = composer(); mountUrlPills({ signal: abort.signal });
     span.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
