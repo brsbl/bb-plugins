@@ -46,10 +46,10 @@ describe("AIM side chat", () => {
   });
 
   it.each([
-    [],
-    [{ id: "side-chat", enabled: false, status: "disabled" }],
-    [{ id: "side-chat", enabled: true, status: "error" }],
-  ])("omits unavailable Side chat actions: %j", async (plugins) => {
+    { plugins: [] },
+    { plugins: [{ id: "side-chat", enabled: false, status: "disabled" }] },
+    { plugins: [{ id: "side-chat", enabled: true, status: "error" }] },
+  ])("omits unavailable Side chat actions: %j", async ({ plugins }) => {
     mocks.plugins.list.mockResolvedValue({ plugins });
     const { result } = renderHook(() => useSideChatActions(true));
     await act(async () => {});
