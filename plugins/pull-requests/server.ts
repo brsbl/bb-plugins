@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { CHANGED, hostContract, rpcContract, type Link, type PullRequestItem, type ReadResult, type SearchResult, type Reader, type Snapshot, type ThreadChoice } from "./contract.js";
-import { mapConcurrent, parsePullRequestUrl } from "./core.js";
+import { mapConcurrent, parsePullRequestUrl, referencedThreadIds } from "./core.js";
 import { createStore } from "./store.js";
 
 type Thread = Pick<Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>, "id" | "title" | "titleFallback" | "projectId" | "environmentId" | "archivedAt" | "deletedAt" | "visibility">;
@@ -131,13 +131,28 @@ export default function plugin(bb: BbPluginApi): void {
       if (epoch !== connectionEpoch(reader) || generation !== (itemEpochs.get(id) ?? 0)) return store.get(id);
       if (!result.ok) fail(item, result);
       else if (result.snapshot.nodeId !== item.snapshot?.nodeId && `github:${result.snapshot.nodeId}` !== item.id) fail(item, { ok: false, kind: "unavailable", message: "This URL now resolves to a different pull request. Relink it explicitly." });
-      else { store.upsert(result.snapshot, { ...reader, login: result.login }); changed(); }
+      else { const current = store.upsert(result.snapshot, { ...reader, login: result.login }); changed(); await associateBodyThreads(current); changed(); }
       return store.get(id);
     })().finally(() => { if (inFlight.get(id) === operation) inFlight.delete(id); });
     inFlight.set(id, operation);
     return operation;
   }
-  const makeLink = (thread: ThreadChoice, evidence: Link["evidence"], actor: string, origin = false): Link => ({ threadId: thread.id, environmentId: thread.environmentId, evidence, origin, actor, createdAt: now() });
+  const makeLink = (thread: Pick<ThreadChoice, "id" | "environmentId">, evidence: Link["evidence"], actor: string, origin = false): Link => ({ threadId: thread.id, environmentId: thread.environmentId, evidence, origin, actor, createdAt: now() });
+  async function associateBodyThreads(item: PullRequestItem) {
+    const { snapshot, reader } = item;
+    if (!snapshot || !reader) return;
+    const epoch = connectionEpoch(reader), generation = itemEpochs.get(item.id) ?? 0;
+    for (const threadId of referencedThreadIds(snapshot.body)) {
+      if (item.links.some((link) => link.threadId === threadId)) continue;
+      try {
+        const thread = await eligibleThread(threadId);
+        const current = store.get(item.id);
+        if (lifetime.signal.aborted || epoch !== connectionEpoch(reader) || generation !== (itemEpochs.get(item.id) ?? 0) || current.snapshot?.body !== snapshot.body || current.reader?.hostId !== reader.hostId || current.reader.accountId !== reader.accountId) return;
+        // A mention establishes an association, not origin or permission to access a thread.
+        store.link(item.id, makeLink(thread, "body-marker", "discovery"));
+      } catch { /* Ignore missing, hidden or deleted threads; keep existing associations. */ }
+    }
+  }
   async function visibleThreads(includeArchived = false) {
     const threads: Thread[] = [];
     let incomplete = false;
@@ -225,14 +240,17 @@ export default function plugin(bb: BbPluginApi): void {
             const key = `${machine.id}:${result.accountId}`;
             if (hostGeneration !== (hostInvalidations.get(machine.id) ?? 0) || (connections.get(key) ?? 0) !== (connectionEpochs.get(key) ?? 0)) throw new Error("GitHub access changed during search. Retry.");
             if (!reader) reader = { hostId: machine.id, accountId: result.accountId, login: result.login };
+            const imported: PullRequestItem[] = [];
             for (const snapshot of result.snapshots) {
               const id = `github:${snapshot.nodeId}`;
               if ((generations.get(id) ?? 0) !== (itemEpochs.get(id) ?? 0)) continue;
               const item = store.upsert(snapshot, reader);
               if (item.reader?.hostId !== reader.hostId || item.reader.accountId !== reader.accountId) continue;
-              store.save({ ...item, discoveredFromGitHub: true });
+              imported.push(store.save({ ...item, discoveredFromGitHub: true }));
               refreshedInBatch.add(id);
             }
+            changed();
+            await mapConcurrent(imported, 4, associateBodyThreads);
             changed();
             cursor = result.nextCursor ?? undefined;
             if (!cursor) break;

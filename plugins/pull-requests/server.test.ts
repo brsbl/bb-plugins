@@ -93,6 +93,38 @@ describe("PR registry and host identity", () => {
     expect(listing.items.find((item) => item.id === "github:PR_1")?.reader?.hostId).toBe("host_a");
     expect(listing.items.find((item) => item.id === "github:PR_2")?.reader?.hostId).toBe("host_b");
   });
+  it("associates description references on search and refresh while preserving explicit unlinks", async () => {
+    const h = setup();
+    h.threads.push(makeThreadResponse({ id: "thr_hidden", visibility: "hidden" }), makeThreadResponse({ id: "thr_deleted", deletedAt: "2026-10-04T00:00:00Z" }));
+    h.threads[1]!.archivedAt = "2026-10-04T00:00:00Z";
+    const value = { ...snapshot(), body: "BB-Thread-ID: thr_a\n[Review](https://brsbl.getbb.app/threads/thr_b)\n@thread:thr_a thr_hidden thr_deleted thr_unknown" };
+    h.setSearchResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [value], nextCursor: null }));
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    const item = await h.rpc<PullRequestItem>("show", { id: "github:PR_1" });
+    expect(item.links.map((link) => link.threadId)).toEqual(["thr_a", "thr_b"]);
+    expect(item.links.every((link) => link.evidence === "body-marker" && !link.origin)).toBe(true);
+    expect(h.harness.inspection.sdk.callsTo("threads.list")).toHaveLength(0);
+    expect(h.harness.inspection.sdk.callsTo("environments.get")).toHaveLength(0);
+    await h.rpc("unlink", { id: item.id, threadId: "thr_b" });
+    h.threads.push(makeThreadResponse({ id: "thr_later", environmentId: null }));
+    h.setResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshot: { ...value, body: value.body + "\nAdded thr_later" } }));
+    await h.rpc("refresh", { id: item.id }); await h.settle();
+    expect((await h.rpc<PullRequestItem>("show", { id: item.id })).links.map((link) => link.threadId)).toEqual(["thr_a", "thr_later"]);
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    expect((await h.rpc<PullRequestItem>("show", { id: item.id })).links.map((link) => link.threadId)).toEqual(["thr_a", "thr_later"]);
+  });
+  it("does not associate a delayed body reference after GitHub access is revoked", async () => {
+    const h = setup(); let release!: () => void;
+    h.setBeforeThreadRead(() => new Promise<void>((resolve) => { release = resolve; }));
+    h.setSearchResponse(async (input, hostId) => input.scope === "authored" && hostId === "host_a"
+      ? { ok: true, accountId: "U_A", login: "alice", snapshots: [{ ...snapshot(), body: "Related: thr_b" }], nextCursor: null }
+      : { ok: false, kind: "authentication-required", message: "Access lost" });
+    await h.rpc("refresh", { discover: true }); await vi.waitFor(() => expect(release).toBeDefined());
+    h.setResponse(async () => ({ ok: false, kind: "authentication-required", message: "Access lost" }));
+    await expect(h.rpc("changes", { id: "github:PR_1" })).rejects.toThrow("Access lost");
+    h.setBeforeThreadRead(async () => {}); release(); await h.settle();
+    expect(await h.rpc("show", { id: "github:PR_1" })).toMatchObject({ snapshot: null, links: [] });
+  });
   it.each(["auth-changed", "authentication-required"] as const)("rejects delayed history after Changes reports %s", async (kind) => {
     const h = setup(); const item = await h.link(); const store = createStore(h.bb);
     store.save({ ...item, snapshot: { ...item.snapshot!, state: "closed" } });

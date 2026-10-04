@@ -11,6 +11,10 @@ export function parsePullRequestUrl(raw: string) {
 export function originMarkers(body: string): string[] {
   return [...new Set(Array.from(body.matchAll(/^BB-Thread-ID: (thr_[a-zA-Z0-9]+)\s*$/gm), (match) => match[1]!))];
 }
+export function referencedThreadIds(body: string): string[] {
+  // IDs also appear in @thread mentions, Markdown links and bb deep links.
+  return [...new Set(Array.from(body.matchAll(/(?<![a-zA-Z0-9_])thr_[a-zA-Z0-9]+(?![a-zA-Z0-9_-])/g), (match) => match[0]))];
+}
 /** Pending work never becomes an actionable failure just because GitHub says BLOCKED. */
 export function githubNeedsAttention(snapshot: Snapshot): boolean {
   if (snapshot.state === "merged" || snapshot.state === "closed") return false;

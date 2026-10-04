@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { projectSnapshot, readChanges, readPullRequest, searchPullRequests, type GhRunner } from "./github.js";
-import { githubNeedsAttention, originMarkers, parsePullRequestUrl } from "./core.js";
+import { githubNeedsAttention, originMarkers, parsePullRequestUrl, referencedThreadIds } from "./core.js";
 
 const url = "https://github.com/acme/repo/pull/42";
 const account = { node_id: "U_A", login: "alice" };
@@ -17,6 +17,9 @@ function runner(pr = rawPr()): GhRunner {
   };
 }
 describe("GitHub read boundary", () => {
+  it("deduplicates description IDs, mentions and thread links without matching partial IDs", () => {
+    expect(referencedThreadIds("BB-Thread-ID: thr_a\nRelated: thr_b, @thread:thr_a\n[Review](https://brsbl.getbb.app/projects/proj_a/threads/thr_c)\n[Chat](bb://thread/thr_d)\nnot_thr_other thr_partial_suffix thr_partial-suffix")).toEqual(["thr_a", "thr_b", "thr_c", "thr_d"]);
+  });
   it("queries account-wide authored and requested-review PRs with bounded cursor pagination", async () => {
     for (const [scope, qualifier] of [["authored", "author:alice is:open"], ["review", "is:open review-requested:alice"], ["history", "author:alice is:closed"]] as const) {
       const run = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockResolvedValueOnce(JSON.stringify({ data: { viewer, search: { pageInfo: { hasNextPage: true, endCursor: "next" }, nodes: [rawPr()] } } })).mockResolvedValueOnce(JSON.stringify(account));
