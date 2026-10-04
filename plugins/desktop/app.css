@@ -140,6 +140,12 @@
   display: none;
 }
 
+/* Timeline content scrolls behind these controls; their backing must stay opaque. */
+[data-follow-up-composer-footer] {
+  background: var(--canvas);
+  border-radius: var(--radius);
+}
+
 .bbd-window {
   position: absolute;
   display: flex;
@@ -151,11 +157,11 @@
   app-region: no-drag;
   border-radius: 14px 14px 12px 12px;
   background:
-    linear-gradient(color-mix(in oklab, var(--bbd-blue) 14%, transparent), color-mix(in oklab, var(--bbd-blue) 14%, transparent)),
+    linear-gradient(color-mix(in oklab, var(--bbd-blue) 6%, transparent), color-mix(in oklab, var(--bbd-blue) 6%, transparent)),
     var(--bbd-glass);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   backdrop-filter: blur(24px) saturate(1.6);
-  border: 1px solid color-mix(in oklab, var(--bbd-blue-deep) 65%, transparent);
+  border: 1px solid color-mix(in oklab, var(--bbd-blue) 20%, var(--bbd-hairline));
   box-shadow:
     0 24px 56px -24px color-mix(in oklab, var(--ink) 50%, transparent);
   color: var(--foreground);
@@ -163,9 +169,9 @@
 
 .bbd-window:not([data-focused="true"]) {
   background:
-    linear-gradient(color-mix(in oklab, var(--bbd-blue-sky) 12%, transparent), color-mix(in oklab, var(--bbd-blue-sky) 12%, transparent)),
+    linear-gradient(color-mix(in oklab, var(--bbd-blue-sky) 4%, transparent), color-mix(in oklab, var(--bbd-blue-sky) 4%, transparent)),
     var(--bbd-glass);
-  border-color: color-mix(in oklab, var(--bbd-blue) 30%, transparent);
+  border-color: var(--bbd-hairline);
   box-shadow: var(--bbd-highlight), var(--bbd-lift);
 }
 
@@ -189,7 +195,7 @@
   height: 32px;
   padding: 0 3px 0 6px;
   flex: none;
-  color: color-mix(in oklab, var(--bbd-blue-deep) 55%, var(--foreground));
+  color: color-mix(in oklab, var(--bbd-blue) 12%, var(--foreground));
   font-size: var(--text-sm);
   font-weight: 600;
   user-select: none;
@@ -239,7 +245,7 @@
   overflow: hidden;
   border-radius: 8px;
   background: var(--bbd-glass-solid);
-  border: 1px solid color-mix(in oklab, var(--bbd-blue-deep) 35%, transparent);
+  border: 1px solid var(--bbd-hairline);
 }
 
 .bbd-resize {
@@ -286,12 +292,12 @@
   color: var(--foreground);
 }
 
-/* Over Ambient's moving scene, labels are XP's white text with a dark outline so they read on any color. */
-body[data-ambient-glass] .bbd-icon .bbd-icon-label {
+/* A soft shadow lifts XP's white labels off Ambient without a heavy outline. Selection supplies its own contrast. */
+body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   color: var(--bbd-white);
   text-shadow:
-    1px 1px 1px oklch(0.16 0.03 262 / 0.9),
-    0 0 2px oklch(0.16 0.03 262 / 0.6);
+    0.5px 1px 1px oklch(0.16 0.03 262 / 0.78),
+    0 0 2px oklch(0.16 0.03 262 / 0.3);
 }
 
 .bbd-marquee {
@@ -1066,6 +1072,12 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   display: none;
 }
 
+/* Desktop has no compact homepage content; its empty section must not push Recent away from the composer. */
+[data-testid="root-compose-compact-home"]
+  [data-testid="plugin-homepage-sections"]:has(> [id="plugin-homepage:desktop:desktop"]:only-child) {
+  display: none;
+}
+
 .bbd-notes-layer {
   position: fixed;
   inset: 0;
@@ -1373,6 +1385,52 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   text-decoration: underline;
 }
 
+.bbd-ie-page-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 16px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--background) 94%, var(--bbd-blue-sky)), var(--background));
+  color: var(--foreground);
+}
+
+.bbd-ie-page-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(100%, 320px);
+}
+
+.bbd-ie-page-icon {
+  display: flex;
+  flex: none;
+}
+
+.bbd-ie-page-labels {
+  min-width: 0;
+}
+
+.bbd-ie-page-title,
+.bbd-ie-page-host {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bbd-ie-page-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bbd-ie-page-host {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+}
+
 .bbd-ie-status {
   display: flex;
   gap: 12px;
@@ -1386,6 +1444,83 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   flex: none;
   padding-left: 12px;
   border-left: 1px solid var(--bbd-hairline);
+}
+
+.bbd-im,
+.bbd-buddies,
+.bbd-im-info {
+  --bbd-im-paper: var(--background);
+  --bbd-im-shadow: color-mix(in oklab, var(--ink) 32%, var(--canvas));
+  --bbd-im-light: color-mix(in oklch, var(--canvas) 98%, var(--bbd-white));
+  --bbd-im-system: color-mix(in oklch, var(--ink) 72%, var(--canvas));
+}
+
+.bbd-im {
+  /* Messages lead at 14 px; system lines use 13 px, with a smaller Steer label below. */
+  --bbd-im-text: 14px;
+  --bbd-im-system-text: 13px;
+  --bbd-im-face: color-mix(in oklch, var(--canvas) 92%, var(--ink));
+  --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
+  --bbd-im-blue: light-dark(color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink)), oklch(0.76 0.13 262));
+  --bbd-im-red: light-dark(color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink)), oklch(0.75 0.13 27));
+}
+
+.bbd-im {
+  background: var(--bbd-im-face);
+}
+
+.bbd-im-archived {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 4px 0;
+  padding: 6px 8px;
+  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
+  color: var(--bbd-im-system);
+  background: var(--bbd-im-paper);
+  box-shadow:
+    inset 1px 1px 0 var(--bbd-im-shadow),
+    inset -1px -1px 0 var(--bbd-im-light);
+}
+
+.bbd-im-archived .bbd-button {
+  font-style: normal;
+}
+
+.bbd-im-transcript {
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 4px 0;
+}
+
+/*
+ * bb ThreadChat contract: every rule from here to the end marker restyles bb's ThreadChat through its private markup
+ * (row ids, message columns, Tailwind classes, the scroll footer, and the prompt box). ThreadWindow checks that markup
+ * with programs/threads/chat-contract.ts and drops the .bbd-im-chat class when it no longer fits, so a bb release that
+ * changes it leaves bb's own chat inside the AIM frame instead of half-styled lines. Keep every rule that depends on
+ * bb's chat markup in this section, and refresh programs/threads/__fixtures__/thread-chat.html when that markup changes.
+ */
+
+/*
+ * AIM hides historical tool calls, thoughts and "Worked for" folds. The live Thinking/Working indicator stays visible
+ * while a turn runs; Open in bb shows the full history. Kept: your and the agent's
+ * messages, user rows (which include prompts sent by another agent or by bb), and warnings and errors (bb's `:error:` rows and
+ * `:op:warning:` / `:op:error:` notices).
+ */
+.bbd-im-chat .mt-4:has(> .rounded-md > .group\/timeline-row) {
+  display: none;
+}
+
+/*
+ * Hidden rows keep a 1 px sliver instead of display: none. bb windows a long thread's rows and counts a row that
+ * measures 0 px as unmeasured, holding open its 20 px guess plus the 8 px row gap: a blank line under each person's
+ * message, and a 28 px jump while the agent works. The negative margin gives the row gap back in a short thread.
+ */
+.bbd-im-chat [data-timeline-row-id]:not(:has([data-message-column]), [data-timeline-row-id*=":user"], [data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]) {
+  height: 1px;
+  margin-top: -7px;
+  overflow: hidden;
+  visibility: hidden;
 }
 
 /* A sunken XP field drawn inside the scroller, so the message box covers its lower edge instead of being clipped by it. */
@@ -1412,30 +1547,13 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   padding: 4px 0 2px;
 }
 
-.bbd-im,
-.bbd-buddies,
-.bbd-im-info {
-  --bbd-im-paper: var(--background);
-  --bbd-im-shadow: color-mix(in oklab, var(--ink) 32%, var(--canvas));
-  --bbd-im-light: color-mix(in oklch, var(--canvas) 98%, var(--bbd-white));
-  --bbd-im-system: color-mix(in oklch, var(--ink) 72%, var(--canvas));
-}
-
-.bbd-im {
-  --bbd-im-face: color-mix(in oklch, var(--canvas) 92%, var(--ink));
-  --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
-  --bbd-im-me: light-dark(color-mix(in oklch, oklch(0.5 0.22 262) 82%, var(--ink)), oklch(0.76 0.13 262));
-  --bbd-im-them: light-dark(color-mix(in oklch, oklch(0.55 0.21 27) 82%, var(--ink)), oklch(0.75 0.13 27));
-}
-
-.bbd-im {
-  background: var(--bbd-im-face);
-}
-
-.bbd-im-chat {
-  min-width: 0;
-  overflow: hidden;
-  padding: 4px 4px 0;
+/*
+ * Like bb's own thread view, an archived thread hides its message box and offers Unarchive in its place. The compact
+ * chat is kept, rather than bb's composer-less timeline, because it opens at the latest message. On a contract
+ * mismatch this rule is off, so ThreadWindow switches the archived thread to that timeline instead.
+ */
+.bbd-im-chat[data-archived="true"] [data-scroll-footer] {
+  display: none;
 }
 
 .bbd-im-chat [data-message-column]:has(> .ml-auto) {
@@ -1468,8 +1586,9 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   margin-right: 6px;
   content: var(--bbd-im-buddy);
   /* Same size and line height as the message text, as in AIM, so the name sits on its first line. */
-  font: bold var(--text-sm)/calc(var(--text-sm) * 1.625) "Times New Roman", Times, serif;
-  color: var(--bbd-im-them);
+  font: bold var(--bbd-im-text)/1.45 "Times New Roman", Times, serif;
+  /* AIM's colors: the buddy in blue, your own name in red. */
+  color: var(--bbd-im-blue);
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -1477,7 +1596,30 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 
 .bbd-im-chat [data-message-column]:has(> [class~="group/message"])::before {
   content: "Me:";
-  color: var(--bbd-im-me);
+  color: var(--bbd-im-red);
+}
+
+/*
+ * bb labels a steer on a line before the message. Left in flow it would sit beside "Me:" and push the message
+ * down a line, so it is lifted above the speaker as a system line and "Me:" stays with what was said.
+ */
+.bbd-im-chat [data-message-column]:has(> .ml-auto > .mb-1:first-child) {
+  padding-top: 20px;
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child {
+  position: absolute;
+  top: 3px;
+  left: 0.5rem;
+  margin: 0;
+  font: italic 11px/1.4 Tahoma, Verdana, sans-serif;
+  color: var(--bbd-im-system);
+}
+
+.bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child > span {
+  font: inherit;
+  color: inherit;
+  -webkit-text-fill-color: currentColor;
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto {
@@ -1505,6 +1647,75 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   justify-content: flex-start;
 }
 
+/* bb's attachment row has its own end alignment, nested below the message wrappers above. */
+.bbd-im-chat [data-message-column] .mt-2.space-y-2:has(> .flex > button.cursor-zoom-in) {
+  clear: both;
+  display: flow-root;
+  margin-top: 6px;
+}
+
+.bbd-im-chat [data-message-column] .flex:has(> button.cursor-zoom-in) {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+/* Messages sit 6 px apart, as close as AIM's lines, with nothing reserved for their actions below. */
+.bbd-im-chat [data-timeline-row-list="top-level"] {
+  row-gap: 6px;
+  padding-inline: 4px;
+}
+
+/*
+ * bb reserves a 20 px row under every message for its hover actions. Here that row pulls up over the message's last
+ * line instead, so it adds no height.
+ */
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 {
+  display: flow-root;
+  width: auto;
+  margin-top: -1.25rem;
+  clear: none;
+  pointer-events: none;
+}
+
+/*
+ * The actions sit flush with the right edge over the bottom-right of the message's last line. Behind them, while bb shows them, a glass fill hugs
+ * just the buttons and fades out over 6 px above them, so no text shows behind the icons.
+ */
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 {
+  right: 0;
+  left: auto;
+  z-index: 0;
+  margin: 0;
+  padding: 0;
+  /* bb clips this row; the fade above the buttons sits outside it. */
+  overflow: visible;
+}
+
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 button {
+  pointer-events: auto;
+}
+
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0::before {
+  content: "";
+  position: absolute;
+  inset: -6px 0 0;
+  z-index: -1;
+  border-radius: 6px;
+  /* Desktop's glass (as its menus), blurred enough that no text reads through, fading out at the top. */
+  background-color: var(--bbd-glass-solid);
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
+  backdrop-filter: blur(12px) saturate(1.6);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 6px);
+  mask-image: linear-gradient(to bottom, transparent, #000 6px);
+  opacity: 0;
+  transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bbd-im-chat [class~="group/message"]:is(:hover, :focus-within) .relative.w-full.h-5 > .absolute.top-0::before,
+.bbd-im-chat [data-message-column] .relative.w-full.h-5 > [data-menu-open]::before {
+  opacity: 1;
+}
+
 .bbd-im-chat [data-message-column] > .ml-auto .rounded-xl {
   padding: 0;
   border: 0;
@@ -1516,9 +1727,19 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   overflow-wrap: anywhere;
 }
 
-/* AIM's serif at bb's message size; code keeps bb's monospace. */
-.bbd-im-chat [data-message-column] {
+/* A quote is a block beneath the floated speaker label, never a border running through the name. */
+.bbd-im-chat [data-message-column] blockquote {
+  clear: both;
+  display: flow-root;
+  margin-block: 6px;
+}
+
+/* AIM's serif, a size up from bb's messages; code keeps bb's monospace. */
+.bbd-im-chat [data-message-column],
+.bbd-im-chat [data-message-column] :is(.text-sm, .text-xs, .text-base):not(code) {
   font-family: "Times New Roman", Times, serif;
+  font-size: var(--bbd-im-text);
+  line-height: 1.45;
 }
 
 /* Times is small on the line, so inline code drops a size to stay with the words around it. */
@@ -1540,15 +1761,27 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   white-space: inherit;
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md {
+/*
+ * bb's live "Thinking…" and "Working..." lines sit below the rows rather than in one, so they are named alongside them.
+ * A user row drawn as a row rather than a message column is a message from another agent or bb, styled further down.
+ */
+.bbd-im-chat [data-timeline-row-id]:not([data-timeline-row-id*=":user"]) > .rounded-md,
+.bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row),
+.bbd-im-chat .mt-4.min-h-7:has(> .animate-shine) {
   border-radius: 0;
-  font: italic 12px/1.5 Tahoma, Verdana, sans-serif;
+  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
   color: var(--bbd-im-system);
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
-  font-size: 12px;
+.bbd-im-chat [data-timeline-row-id]:not([data-timeline-row-id*=":user"]) > .rounded-md :is(.text-sm, .text-muted-foreground, .text-subtle-foreground),
+.bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row) :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
+  font-size: var(--bbd-im-system-text);
   color: inherit;
+}
+
+/* bb paints shimmering text in the foreground; the sweep still runs over the system gray. */
+.bbd-im-chat :is([data-timeline-row-id] > .rounded-md, .mt-4 > .rounded-md, .mt-4.min-h-7) .animate-shine {
+  -webkit-text-fill-color: currentColor;
 }
 
 .bbd-im-chat [data-timeline-row-id] > .rounded-md :is(.overflow-hidden, .truncate, .leading-5, .line-clamp-2) {
@@ -1560,7 +1793,8 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   opacity: 1;
 }
 
-.bbd-im-chat [data-timeline-row-id] > .rounded-md svg[data-icon] {
+.bbd-im-chat [data-timeline-row-id] > .rounded-md svg[data-icon],
+.bbd-im-chat .mt-4 > .rounded-md:has(> .group\/timeline-row) svg[data-icon] {
   display: none;
 }
 
@@ -1568,14 +1802,35 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   font-style: normal;
 }
 
-.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"]) > .rounded-md {
-  color: var(--bbd-im-them);
+.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]) > .rounded-md {
+  color: var(--bbd-im-red);
 }
 
-.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":op:error:"]) > .rounded-md button {
+.bbd-im-chat :is([data-timeline-row-id*=":op:warning:"], [data-timeline-row-id*=":error:"]) > .rounded-md button {
   font-style: normal;
-  color: var(--bbd-im-me);
+  color: var(--bbd-im-blue);
   text-decoration: underline;
+}
+
+/*
+ * A message another agent or bb sent this thread is a user row that bb draws as an expandable row
+ * (thread/timeline/GeneratedConversationMessage.tsx). It keeps bb's layout: the "Message from <thread>" header reads as
+ * a system line, and the message, indented under bb's thread line, is set like the transcript's messages.
+ */
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row {
+  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
+  color: var(--bbd-im-system);
+}
+
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .group\/timeline-row :is(.text-sm, .text-muted-foreground, .text-subtle-foreground) {
+  font-size: var(--bbd-im-system-text);
+  color: inherit;
+}
+
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative,
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative :is(.text-sm, .text-xs, .text-base, .text-muted-foreground, .text-subtle-foreground):not(code) {
+  font: normal var(--bbd-im-text)/1.45 "Times New Roman", Times, serif;
+  color: var(--foreground);
 }
 
 .bbd-im-chat :is(pre, div:has(> pre)) {
@@ -1588,17 +1843,19 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   box-shadow: inset 1px 1px 0 color-mix(in oklab, var(--ink) 12%, transparent);
 }
 
-.bbd-im-chat [data-message-column] a:not([data-prompt-mention-resource]) {
-  color: var(--bbd-im-me);
+.bbd-im-chat [data-message-column] a:not([data-prompt-mention-resource]),
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative a:not([data-prompt-mention-resource]) {
+  color: var(--bbd-im-blue);
   text-decoration: underline;
 }
 
-.bbd-im-chat [data-message-column] [data-prompt-mention-resource] {
+.bbd-im-chat [data-message-column] [data-prompt-mention-resource],
+.bbd-im-chat [data-timeline-row-id*=":user"] > .rounded-md > .relative [data-prompt-mention-resource] {
   padding: 0;
   border: 0;
   border-radius: 0;
   background: none;
-  color: var(--bbd-im-me);
+  color: var(--bbd-im-blue);
   text-decoration: underline;
 }
 
@@ -1613,38 +1870,20 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   box-shadow: inset 1px 1px 0 color-mix(in oklab, var(--ink) 14%, transparent);
 }
 
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action] {
-  width: auto;
-  padding-inline: 14px;
-  border: 1px solid color-mix(in oklab, var(--ink) 30%, transparent);
-  border-radius: 3px;
-  background: linear-gradient(to bottom, color-mix(in oklch, var(--canvas) 98%, var(--ink)), color-mix(in oklch, var(--canvas) 86%, var(--ink)));
-  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--canvas) 65%, transparent);
-}
-
-/* The same slot holds Send, Stop run, and voice input; relabel only Send and Stop. */
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"]) svg {
+/*
+ * AIM's IM window had one Send, in its bottom strip: the strip's Send (instant-message.tsx) clicks this button, so bb's
+ * own Send and Stop run are hidden here. Voice input, which takes the same slot on touch screens, keeps bb's button.
+ */
+.bbd-im-chat [data-scroll-footer] [data-promptbox-shell]:not([data-promptbox-shell] [data-promptbox-shell]) > [data-follow-up-composer-anchor] [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"]) {
   display: none;
 }
 
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"])::after {
-  content: "Send";
-  color: color-mix(in oklch, var(--ink) 88%, var(--canvas));
-  font-family: Tahoma, Verdana, sans-serif;
-  font-size: var(--text-xs);
-  font-weight: 700;
+/* What is left of bb's split Send is its options chevron (queue or steer), shown once there is a draft. */
+.bbd-im-chat [data-scroll-footer] [data-promptbox-shell]:not([data-promptbox-shell] [data-promptbox-shell]) > [data-follow-up-composer-anchor] [data-promptbox] [data-promptbox-send-menu]:not(:has(> button[aria-label="Send options"]:not([aria-hidden]))) {
+  display: none;
 }
 
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action][aria-label="Stop run"]::after {
-  content: "Stop";
-}
-
-.bbd-im-chat [data-promptbox] button[data-promptbox-submit-action]:hover:not(:disabled) {
-  border-color: var(--bbd-accent-line);
-  background: color-mix(in oklch, var(--canvas) 86%, var(--bbd-blue-sky));
-}
-
-/* bb wraps Send and its options chevron in a dark split button and forces both transparent; give the wrapper the XP face instead. */
+/* bb's split button is dark and forces its buttons transparent; give the chevron an XP button face instead. */
 .bbd-im-chat [data-promptbox] [data-promptbox-send-menu] {
   border: 1px solid color-mix(in oklab, var(--ink) 30%, transparent);
   border-radius: 3px;
@@ -1653,20 +1892,12 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   color: color-mix(in oklch, var(--ink) 88%, var(--canvas));
 }
 
-.bbd-im-chat [data-promptbox] [data-promptbox-send-menu] button[data-promptbox-submit-action] {
-  border: 0;
-  box-shadow: none;
-}
-
-.bbd-im-chat [data-promptbox] [data-promptbox-send-menu] button[aria-label="Send options"]:not([aria-hidden]) {
-  border-left: 1px solid color-mix(in oklab, var(--ink) 22%, transparent);
-  border-radius: 0 2px 2px 0;
-}
-
 .bbd-im-chat [data-promptbox] [data-promptbox-send-menu]:has(button:hover:not(:disabled)) {
   border-color: var(--bbd-accent-line);
   background: color-mix(in oklch, var(--canvas) 86%, var(--bbd-blue-sky));
 }
+
+/* End of the bb ThreadChat contract. */
 
 .bbd-window:has(.bbd-im) .bbd-titlebar,
 .bbd-window:has(.bbd-im) .bbd-statusbar {
@@ -1757,6 +1988,43 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 .bbd-im-action:disabled svg {
   filter: grayscale(1);
   opacity: 0.45;
+}
+
+/* AIM's Send: the strip's last button, behind a groove at the far right, with a larger icon. */
+.bbd-im-send {
+  position: relative;
+  margin-left: auto;
+  min-width: 56px;
+  padding: 1px 10px 6px;
+}
+
+.bbd-im-send::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: -5px;
+  border-left: 1px solid var(--bbd-im-shadow);
+  border-right: 1px solid var(--bbd-im-light);
+}
+
+.bbd-im-action.bbd-im-send > svg {
+  height: 30px;
+}
+
+.bbd-im-send > span:not(.bbd-im-send-meter) {
+  font-weight: 700;
+}
+
+/* AIM's red bar under Send, shown while the agent works on the turn. */
+.bbd-im-send-meter {
+  position: absolute;
+  right: 6px;
+  bottom: 1px;
+  left: 6px;
+  height: 4px;
+  border: 1px solid color-mix(in oklab, var(--ink) 70%, transparent);
+  background: repeating-linear-gradient(to right, var(--bbd-im-red) 0 2px, color-mix(in oklch, var(--bbd-im-red) 45%, var(--ink)) 2px 3px);
 }
 
 .bbd-im-action:focus-visible,
@@ -2247,6 +2515,15 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   fill: var(--bbd-white);
 }
 
+/* Fill-style and background glyphs keep their outlines as outlines when inverted. */
+.bbd-paint-size[data-pressed="true"] svg [fill="none"] {
+  fill: none;
+}
+
+.bbd-paint-size[data-pressed="true"] svg [stroke] {
+  stroke: var(--bbd-white);
+}
+
 .bbd-paint-work {
   overflow: auto;
   padding: 4px 12px 12px 4px;
@@ -2279,8 +2556,46 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   cursor: cell;
 }
 
+.bbd-paint-canvas[data-tool="magnifier"] {
+  cursor: zoom-in;
+}
+
+.bbd-paint-canvas[data-tool="text"] {
+  cursor: text;
+}
+
+.bbd-paint-canvas[data-tool="select"][data-over="true"],
+.bbd-paint-canvas[data-tool="freeform"][data-over="true"] {
+  cursor: move;
+}
+
+/* Zoomed pictures show their pixels as crisp squares, as the Magnifier did. */
+.bbd-paint-sheet[data-zoomed="true"] canvas {
+  image-rendering: pixelated;
+}
+
 .bbd-paint-overlay {
   pointer-events: none;
+}
+
+.bbd-paint-frame {
+  position: absolute;
+  outline: 1px dashed var(--bbd-paint-handle);
+  pointer-events: none;
+}
+
+.bbd-paint-text {
+  position: absolute;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 1px dashed var(--bbd-paint-handle);
+  overflow: hidden;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 .bbd-paint-ghost {
@@ -2364,8 +2679,6 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
     inset -1px -1px 0 var(--bbd-paint-light);
   cursor: default;
 }
-
-.bbd-paint-tool:disabled { color: var(--bbd-paint-shade); box-shadow: none; }
 
 /* Minesweeper (games/minesweeper.tsx). */
 .bbd-mine {

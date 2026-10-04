@@ -25,6 +25,7 @@ const hostEntryMinimumBb = [0, 43, 4];
 // instead of raising the compatibility floor for every package.
 const pluginBbEngineOverrides = new Map([
   ["context-katamari", ">=0.43.0"],
+  ["file-pins", ">=0.43.4"],
   ["improve-prompt", ">=0.40.0"],
   ["open-in-moss", ">=0.43.4"],
   ["theme-preview", ">=0.38.0"],
@@ -277,7 +278,10 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     const screenshots = localImageTargets(pluginReadme).map((path) =>
       normalizeRelativePath(path, `${slug}: screenshot`),
     );
-    assert(screenshots.length > 0, `${slug}: README screenshot missing`);
+    const attachedScreenshots = markdownImageTargets(pluginReadme).filter((path) =>
+      /^https:\/\/github\.com\/user-attachments\/assets\/[a-f0-9-]+$/i.test(path),
+    );
+    assert(screenshots.length + attachedScreenshots.length > 0, `${slug}: README screenshot missing`);
     for (const screenshot of screenshots) {
       const details = await stat(resolve(directory, screenshot)).catch(() => null);
       assert(
@@ -290,7 +294,8 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       );
     }
     assert(
-      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)),
+      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)) ||
+        attachedScreenshots.some((screenshot) => rootImages.includes(screenshot)),
       `${slug}: root representative screenshot missing`,
     );
     assert(

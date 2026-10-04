@@ -60,6 +60,17 @@ describe("stored windows (v1)", () => {
     expect(again).toEqual(windows);
   });
 
+  it("adds Desktop Finder alongside shipped folder windows without changing their identities", () => {
+    const loaded = parseWindows(STORED_V1, area);
+    const opened = windowReducer(loaded, { type: "open", spec: { kind: "desktop-finder" }, rect: area });
+    const restored = parseWindows(serializeWindows(opened.windows), area);
+    expect(restored.windows.map((window) => window.id)).toEqual([...loaded.windows.map((window) => window.id), "desktop-finder"]);
+    const navigated = windowReducer(restored, { type: "navigate", id: "desktop-finder", spec: { kind: "finder", key: "section:sec_1" } });
+    const back = windowReducer(navigated, { type: "go", id: "finder:section:sec_1", direction: "back" });
+    expect(back.windows.at(-1)?.spec).toEqual({ kind: "desktop-finder" });
+    expect(back.windows.filter((window) => window.spec.kind === "finder")).toHaveLength(0);
+  });
+
   it("never stores form windows", () => {
     expect(parseSpec({ kind: "new-folder" })).toBeNull();
     expect(parseSpec({ kind: "new-thread", groupKey: null })).toBeNull();
