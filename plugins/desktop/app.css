@@ -1462,13 +1462,12 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
  */
 
 /*
- * AIM shows only what was said. Tool calls, thoughts, "Worked for" folds and the live Thinking/Working line are hidden
- * (the status bar already says the buddy is typing, and Open in bb shows the full thread). Kept: your and the agent's
+ * AIM hides historical tool calls, thoughts and "Worked for" folds. The live Thinking/Working indicator stays visible
+ * while a turn runs; Open in bb shows the full history. Kept: your and the agent's
  * messages, user rows (which include prompts sent by another agent or by bb), and warnings and errors (bb's `:error:` rows and
  * `:op:warning:` / `:op:error:` notices).
  */
-.bbd-im-chat .mt-4:has(> .rounded-md > .group\/timeline-row),
-.bbd-im-chat .mt-4.min-h-7:has(> .animate-shine) {
+.bbd-im-chat .mt-4:has(> .rounded-md > .group\/timeline-row) {
   display: none;
 }
 
