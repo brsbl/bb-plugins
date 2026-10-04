@@ -236,6 +236,8 @@ Keep local files within reach in each thread with persistent pins above the comp
 
 ![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
 
+![The pin button adds a Pinned Files pill and "Pin this file:" to the composer](https://github.com/user-attachments/assets/89e7bb7d-e56d-48f5-8859-791d49927422)
+
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins --yes`
