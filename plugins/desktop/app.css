@@ -144,6 +144,13 @@
   display: none;
 }
 
+/* Clear the home composer's fills, including Ambient's shell, without fading its text or controls. */
+:root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt),
+:root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt) > [data-promptbox] {
+  background: transparent;
+  box-shadow: none;
+}
+
 .bbd-window {
   position: absolute;
   display: flex;
