@@ -10,6 +10,7 @@
   .iac-table > .iac-error { padding: 4px 12px 0; }
   .iac-row-line { flex-direction: column; align-items: stretch; gap: 4px; }
   .iac-row-line > :not(.iac-row-description) { align-self: flex-end; min-width: 0; margin-left: 0; }
+  .iac-row-line > .iac-choice:has(.iac-note-field) { align-self: stretch; }
   .iac-footer { margin-top: 4px; }
   .iac-menu-slot:empty { display: none; }
   .iac-question, .iac-recipient-line { padding-top: 2px; }
@@ -18,7 +19,7 @@
   .iac-consequence[role="button"] { cursor: pointer; border-radius: var(--radius-sm, .25rem); }
   .iac-consequence[role="button"]:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
   .iac-result-line { align-items: flex-start; flex-wrap: wrap; }
-  .iac-result-line > span { flex-basis: 160px; }
+  .iac-result-line > :first-child { flex-basis: 160px; }
   .iac-result-line > .iac-actions { margin-left: auto; }
   .iac-result-line + .iac-body, .iac-result-line + .iac-row-expanded, .iac-row-expanded { margin-top: 8px; }
 }

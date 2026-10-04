@@ -1,17 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionSchema, assertAction, bulkLabel, contentSchema, draftSchema, idSchema, itemSchema, tableContentSchema, tableSchema, tableViewSchema, type Item } from "./model.js";
+import { actionSchema, assertAction, bulkLabel, contentSchema, draftSchema, idSchema, itemSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type Item } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
 export const rpcContract = defineRpcContract({
   get: { input: ref, output: itemSchema },
   save: { input: versioned.extend({ draft: draftSchema }), output: itemSchema },
-  prepare: { input: versioned.extend({ action: actionSchema }), output: itemSchema },
+  prepare: { input: versioned.extend({ action: actionSchema, note: noteSchema.optional() }), output: itemSchema },
+  comment: { input: versioned.extend({ note: noteSchema.refine((value) => value.length > 0, "Write a comment first.") }), output: z.object({ item: itemSchema, commentId: z.string().uuid(), note: noteSchema }).strict() },
   reopen: { input: versioned, output: itemSchema },
   table: { input: ref, output: tableViewSchema },
-  prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
+  prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive(), note: noteSchema.optional() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
 });
 
 export function createStore(bb: BbPluginApi) {
@@ -19,6 +20,7 @@ export function createStore(bb: BbPluginApi) {
   bb.storage.migrate(db, [
     "CREATE TABLE action_items (thread_id TEXT NOT NULL, item_id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (thread_id, item_id))",
     "CREATE TABLE action_tables (thread_id TEXT NOT NULL, table_id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (thread_id, table_id))",
+    "CREATE TABLE action_comments (thread_id TEXT NOT NULL, item_id TEXT NOT NULL, comment_id TEXT NOT NULL, note TEXT NOT NULL, PRIMARY KEY (thread_id, item_id, comment_id))",
   ]);
   const read = db.prepare("SELECT value FROM action_items WHERE thread_id = ? AND item_id = ?");
   const write = db.prepare("INSERT INTO action_items VALUES (?, ?, ?) ON CONFLICT(thread_id, item_id) DO UPDATE SET value=excluded.value");
@@ -51,17 +53,33 @@ export function createStore(bb: BbPluginApi) {
     const value = tableSchema.parse(JSON.parse(row.value));
     return { ...value, items: value.ids.map((itemId) => get(threadId, itemId)) };
   };
-  const prepare = (item: Item, action: z.infer<typeof actionSchema>) => {
+  const prepare = (item: Item, action: z.infer<typeof actionSchema>, note?: string) => {
     if (item.state !== "ready" && !(item.state === "failed" && item.result?.retryable)) throw new Error("This card already has an action in progress or has finished.");
     assertAction(item, action);
     if (item.state === "failed" && action !== item.attempt?.action) throw new Error("Retry the original action, or reopen the card to choose another.");
+    const attemptNote = noteSchema.parse(note ?? (item.state === "failed" ? item.attempt?.note : undefined) ?? "");
     item.state = "pending";
-    item.attempt = { id: randomUUID(), action, claimed: false };
+    item.attempt = { id: randomUUID(), action, claimed: false, ...(attemptNote ? { note: attemptNote } : {}) };
     item.result = null;
   };
   return {
     get,
     table,
+    comment(input: z.infer<typeof rpcContract.comment.input>) {
+      return db.transaction(() => {
+        const item = get(input.threadId, input.id);
+        if (item.revision !== input.revision || item.state !== "ready") throw new Error("This card changed. Review it before commenting.");
+        const note = rpcContract.comment.input.parse(input).note;
+        const commentId = randomUUID();
+        db.prepare("INSERT INTO action_comments VALUES (?, ?, ?, ?)").run(item.threadId, item.id, commentId, note);
+        return { item, commentId, note };
+      })();
+    },
+    getComment(threadId: string, id: string, commentId: string) {
+      const row = db.prepare("SELECT note FROM action_comments WHERE thread_id = ? AND item_id = ? AND comment_id = ?").get(threadId, id, z.string().uuid().parse(commentId)) as { note: string } | undefined;
+      if (!row) throw new Error("This comment is unavailable. Use the card again.");
+      return noteSchema.parse(row.note);
+    },
     createTable(threadId: string, id: string, raw: unknown) {
       const content = tableContentSchema.parse(raw);
       return db.transaction(() => {
@@ -79,7 +97,7 @@ export function createStore(bb: BbPluginApi) {
         const ready = group.items.filter((item) => item.state === "ready");
         if (!ready.length || ready.length !== input.items.length || new Set(input.items.map((item) => item.id)).size !== input.items.length || ready.some((item) => !input.items.some((candidate) => candidate.id === item.id && candidate.revision === item.revision))) throw new Error("This table changed. Review the remaining rows, then try again.");
         return ready.map((item) => {
-          prepare(item, "yes"); item.revision++; item.updatedAt = new Date().toISOString();
+          prepare(item, "yes", input.items.find((candidate) => candidate.id === item.id)?.note); item.revision++; item.updatedAt = new Date().toISOString();
           return persist(item);
         });
       })();
@@ -101,7 +119,7 @@ export function createStore(bb: BbPluginApi) {
     },
     prepare(input: z.infer<typeof rpcContract.prepare.input>) {
       return change(input.threadId, input.id, input.revision, (item) => {
-        prepare(item, input.action);
+        prepare(item, input.action, input.note);
       });
     },
     claim(threadId: string, id: string, attemptId: string) {
@@ -131,7 +149,7 @@ export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
     get: ({ threadId, id }) => store.get(threadId, id),
-    save: store.save, prepare: store.prepare, reopen: store.reopen,
+    save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen,
     table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable,
   });
   bb.ui.registerMentionProvider({
@@ -140,14 +158,22 @@ export default function plugin(bb: BbPluginApi): void {
       const [thread, id, attempt, extra] = value.split(":");
       if (extra || !attempt) throw new Error("This action reference is incomplete. Use the card again.");
       const item = store.get(idSchema.parse(thread), idSchema.parse(id));
+      if (attempt.startsWith("comment_")) {
+        const note = store.getComment(item.threadId, item.id, attempt.slice("comment_".length));
+        return { context: JSON.stringify({
+          kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "comment", note,
+          instruction: "This is a comment, not approval for an action. Reply to the note. If it requests a change, revise the same Reply draft using its latest revision. For Decide cards, explain the requested change; question/consequence updates are not supported. Do not execute an action or create/claim an attempt.",
+        }) };
+      }
       const changes = attempt === "changes";
       if (!changes && item.attempt?.id !== attempt) throw new Error("This action was replaced. Use the latest card.");
       return { context: JSON.stringify({
         kind: "inline-action-card", threadId: item.threadId, itemId: item.id,
         intent: changes ? "request-changes" : item.state === "failed" ? "check-outcome" : "approved-action",
         attemptId: changes ? null : item.attempt!.id, action: changes ? null : item.attempt!.action,
+        ...(!changes && item.attempt?.note ? { note: item.attempt.note } : {}),
         instruction: changes ? "Read the latest saved item and revise that same draft. This is not approval to act."
-          : "Claim this exact attempt once with bb action-cards claim before acting. Use the returned latest saved content. A failed/claimed/completed attempt authorizes reconciliation only; never repeat its side effect. Report the verified result with bb action-cards report.",
+          : "Claim this exact attempt once with bb action-cards claim before acting. Use the returned latest saved content and note. The note is part of the approval: follow it. If it conflicts with the action (for example Yes, but do not send yet), do not perform the action; report --outcome failed --retryable with a message saying what you held and why, so the user can choose again. A failed/claimed/completed attempt authorizes reconciliation only; never repeat its side effect. Report the verified result with bb action-cards report.",
       }) };
     },
   });
@@ -182,7 +208,7 @@ export default function plugin(bb: BbPluginApi): void {
         run: ({ options, positionals }, ctx) => output(store.get(scope(ctx, options.thread), idSchema.parse(positionals.id))),
       }),
       revise: cliCommand({
-        summary: "Update the same ready draft after Ask for changes", positionals: itemPosition,
+        summary: "Update the same ready draft after a comment", positionals: itemPosition,
         options: { thread: threadOption, revision: { type: "integer", min: 1, max: Number.MAX_SAFE_INTEGER, required: true, description: "Revision returned by get" }, draft: { type: "string", required: true, stdin: true, description: "Replacement draft; use --draft-stdin" } },
         run: ({ options, positionals }, ctx) => output(store.save({ threadId: scope(ctx, options.thread), id: idSchema.parse(positionals.id), revision: options.revision, draft: draftSchema.parse(options.draft) })),
       }),
