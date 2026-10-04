@@ -14,9 +14,9 @@ The install branch is published after the source PR merges. For a source checkou
 
 ## Use
 
-Ask an agent to use the **inline-action-cards** skill. It creates an item with `bb action-cards create` and emits `::action{id="esc-1"}`. Click Send, Yes/No, Later, or Skip (Save to Gmail drafts is in ⋯) to submit the choice immediately. Ask for changes fills the composer so you can type. Finish or clear any existing composer message before clicking an action.
+Ask an agent to use the **inline-action-cards** skill. It creates an item with `bb action-cards create` and emits `::action{id="esc-1"}`. Click Send, Yes/No, Later, or Skip (Save to Gmail drafts is in ⋯) to submit the choice immediately. Add note (the speech-bubble button, or ⋯ on table rows) opens a short field. Choose an action to include the note, or press Comment to send it without choosing; the card stays ready. Comment also replaces Reply’s Ask for changes. Finish or clear any existing composer message before clicking an action.
 
-Reply cards show recipients, an expandable original excerpt, and an autosaving draft that edits like plain body text. Results collapse to one line with View and recovery in place. IDs travel in hidden mention context. Sending waits for pending saves. Agents claim each attempt once, use the saved draft, and report its outcome through `bb action-cards report`. Verified failures offer Retry; uncertain outcomes offer Check outcome to avoid duplicate sends. The [agent skill](skills/inline-action-cards/SKILL.md) documents the full workflow.
+Reply cards show recipients, an expandable original excerpt, and an autosaving draft that edits like plain body text. Results collapse with the submitted note underneath, plus View and recovery in place. IDs travel in hidden mention context. Sending waits for pending saves. Agents claim each attempt once, honor its note as part of the approval, use the saved draft, and report its outcome through `bb action-cards report`. Verified failures offer Retry; uncertain outcomes offer Check outcome to avoid duplicate sends. The [agent skill](skills/inline-action-cards/SKILL.md) documents the full workflow.
 
 A choice card lists 2–6 short options under one question. Pick one, then click “Use <option>”. A recommended option is tagged and preselected.
 

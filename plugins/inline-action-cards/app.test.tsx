@@ -1,10 +1,38 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
+import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import plugin from "./server.js";
 import type { Item } from "./model.js";
+const submittedMessages = vi.hoisted(() => [] as string[]);
+vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
+  const sdk = await importOriginal<typeof import("@get-bb/plugin-sdk/app")>();
+  return { ...sdk, useComposer: () => {
+    const composer = sdk.useComposer();
+    let message = composer.text;
+    return new Proxy(composer, { get(target, key) {
+      if (key === "experimental_submit") return async (options: Parameters<typeof composer.experimental_submit>[0]) => {
+        submittedMessages.push(message);
+        const result = await composer.experimental_submit(options);
+        message = "";
+        return result;
+      };
+      if (key === "text") return message;
+      if (key === "setText") return (value: string) => { message = value; composer.setText(value); };
+      if (key === "updateText") return (update: (value: string) => string) => composer.updateText((value) => { message = update(value); return message; });
+      return Reflect.get(target, key);
+    } });
+  } };
+});
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], cc: [], bcc: [], original: { from: "Escrow", body: "Your refund is on its way." }, draft: "Original draft" } });
-afterEach(cleanup);
+afterEach(() => { cleanup(); submittedMessages.length = 0; });
+// Radix menus measure their content; jsdom has no ResizeObserver.
+globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+async function addRowNote(row: HTMLElement) {
+  fireEvent.keyDown(within(row).getByRole("button", { name: "More actions" }), { key: "Enter" });
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Add note" }));
+}
 async function setup(composerText = "", saveFailure = false, initialItem = fixture()) {
   let item = initialItem;
   const calls: string[] = [];
@@ -27,9 +55,9 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "choose", claimed: false, choice: { id: option!.id, label: option!.label } } }; return item;
       },
       prepare: (raw) => {
-        const input = raw as { action: "send"; revision: number };
+        const input = raw as { action: "send"; revision: number; note?: string };
         calls.push("prepare"); expect(input.revision).toBe(item.revision);
-        item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false } }; return item;
+        item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false, note: input.note } }; return item;
       },
     },
   });
@@ -49,13 +77,6 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Escrow follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
   expect(screen.getByRole("textbox").getAttribute("readonly")).not.toBeNull();
-});
-it("keeps Ask for changes in the composer without submitting", async () => {
-  const { slot } = await setup();
-  fireEvent.click(screen.getByRole("button", { name: "Ask for changes" }));
-  await waitFor(() => expect(slot.inspection.composer.text).toContain("Ask for changes to"));
-  expect(slot.inspection.composer.submits).toHaveLength(0);
-  expect(slot.inspection.composer.focusCount).toBeGreaterThan(0);
 });
 it("preserves an existing composer message", async () => {
   const { slot, calls } = await setup("Please also check another message");
@@ -113,7 +134,7 @@ it("keeps the expanded table reply in place while Send is pending", async () => 
   const pendingReview = screen.getAllByRole("button", { name: /Review/ })[1]!;
   expect((pendingReview as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(pendingReview);
-  expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
+  expect(within(screen.getAllByRole("article")[1]!).getByRole("button", { name: "More actions" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
 });
 
@@ -131,7 +152,7 @@ it.each(["send", "yes", "no"] as const)("keeps %s on the pressed button and disa
   expect(pending.className).toBe(classes);
   expect(pending.getAttribute("aria-busy")).toBe("true");
   expect((pending as HTMLButtonElement).disabled).toBe(true);
-  const other = screen.getByRole("button", { name: action === "send" ? "Ask for changes" : action === "yes" ? "Keep" : "Switch" });
+  const other = screen.getByRole("button", { name: action === "send" ? "Add note" : action === "yes" ? "Keep" : "Switch" });
   expect((other as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: "Skip" }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
@@ -187,4 +208,166 @@ it("disables the primary button until an option is picked when nothing is recomm
   expect((button as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(screen.getByRole("radio", { name: "Plan B" }));
   expect((screen.getByRole("button", { name: "Use Plan B" }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+it.each(["reply", "decide"] as const)("round-trips a %s note through click, message context, CLI claim, reload and result", async (type) => {
+  let host = createFakePluginHost({ pluginId: "inline-action-cards" });
+  plugin(host.bb);
+  const item = fixture();
+  if (type === "decide") item.content = { type: "decide", question: "Switch digests?", consequence: "Switch the email digests", yesLabel: "Switch" };
+  const note = "but keep Money on the old automation";
+  try {
+    await host.harness.behavior.runCli(["create", item.id, "--thread", item.threadId, "--item", JSON.stringify(item.content)]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: item.threadId, turnId: null, projectId: null }, openWorkspaceFile: null }, {
+      composer: { scope: { kind: "thread", threadId: item.threadId } },
+      rpc: {
+        get: (input) => host.harness.behavior.callRpc("get", input),
+        prepare: (input) => host.harness.behavior.callRpc("prepare", input),
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Add note" }));
+    const field = screen.getByRole("textbox", { name: "Note for your choice" });
+    expect(document.activeElement).toBe(field);
+    fireEvent.change(field, { target: { value: note } });
+    fireEvent.click(screen.getByRole("button", { name: type === "reply" ? "Send" : "Switch" }));
+    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+    expect(submittedMessages[0]).toContain(` — ${note}`);
+    const mention = slot.inspection.composer.mentions[0]!;
+    const resolved = await host.harness.registrations.mentionProviders[0]!.resolve(mention.id);
+    const context = JSON.parse(resolved.context);
+    expect(context).toMatchObject({ note, intent: "approved-action" });
+    const claimed = await host.harness.behavior.runCli(["claim", item.id, "--thread", item.threadId, "--attempt", context.attemptId]);
+    expect(JSON.parse(claimed.stdout!).attempt).toMatchObject({ note, claimed: true });
+    host = await host.harness.lifecycle.reload(plugin);
+    const saved = await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId]);
+    expect(JSON.parse(saved.stdout!).attempt.note).toBe(note);
+    await host.harness.behavior.runCli(["report", item.id, "--thread", item.threadId, "--attempt", context.attemptId, "--outcome", "succeeded", "--message", "Switched"]);
+    await slot.behavior.emitRealtime("items", {});
+    await screen.findByText("Switched");
+    expect(screen.getByText(note).className).toContain("iac-result-note");
+    slot.lifecycle.unmount();
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it("dismisses a note with Escape or clearing, keeping empty approval unchanged", async () => {
+  const { slot, get } = await setup();
+  fireEvent.click(screen.getByRole("button", { name: "Add note" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: "Do not send" } });
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Note for your choice" }), { key: "Escape" });
+  expect(screen.queryByRole("textbox", { name: "Note for your choice" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Add note" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: "Temporary" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: "" } });
+  expect(screen.queryByRole("textbox", { name: "Note for your choice" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(get().attempt?.note).toBe("");
+  expect(submittedMessages[0]).not.toContain(" — ");
+});
+
+it.each(["reply", "decide"] as const)("round-trips a %s comment without reserving an attempt or disabling choices", async (type) => {
+  let host = createFakePluginHost({ pluginId: "inline-action-cards" });
+  plugin(host.bb);
+  const item = fixture();
+  if (type === "decide") item.content = { type: "decide", question: "Switch digests?", consequence: "Switch the email digests", yesLabel: "Switch" };
+  try {
+    await host.harness.behavior.runCli(["create", item.id, "--thread", item.threadId, "--item", JSON.stringify(item.content)]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: item.threadId, turnId: null, projectId: null }, openWorkspaceFile: null }, {
+      composer: { scope: { kind: "thread", threadId: item.threadId } },
+      rpc: {
+        get: (input) => host.harness.behavior.callRpc("get", input),
+        comment: (input) => host.harness.behavior.callRpc("comment", input),
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Add note" }));
+    expect(screen.queryByRole("button", { name: "Comment" })).toBeNull();
+    const note = "Can you keep Money on the old one?";
+    fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: note } });
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+    expect(submittedMessages[0]).toContain(note);
+    expect(submittedMessages[0]).toMatch(type === "reply" ? /^Escrow follow-up / : /^Switch digests /);
+    const mention = slot.inspection.composer.mentions[0]!;
+    host = await host.harness.lifecycle.reload(plugin);
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
+    expect(context).toMatchObject({ intent: "comment", note, itemId: item.id });
+    expect(context).not.toHaveProperty("action");
+    expect(context).not.toHaveProperty("attemptId");
+    const saved = JSON.parse((await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId])).stdout!);
+    expect(saved).toMatchObject({ state: "ready", attempt: null, revision: 1 });
+    expect((screen.getByRole("button", { name: type === "reply" ? "Send" : "Switch" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole("textbox", { name: "Note for your choice" })).toBeNull();
+    slot.lifecycle.unmount();
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it("keeps separate row notes on bulk choices and offers comments on collapsed Reply rows", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" });
+  plugin(host.bb);
+  try {
+    for (const id of ["one", "two"]) await host.harness.behavior.runCli(["create", id, "--thread", "thr_test", "--item", JSON.stringify({ type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", actionKey: "switch" })]);
+    await host.harness.behavior.runCli(["create-table", "digests", "--thread", "thr_test", "--table", JSON.stringify({ title: "Digests", ids: ["one", "two"] })]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+      composer: { scope: { kind: "thread", threadId: "thr_test" } },
+      rpc: {
+        table: (input) => host.harness.behavior.callRpc("table", input),
+        get: (input) => host.harness.behavior.callRpc("get", input),
+        prepareTable: (input) => host.harness.behavior.callRpc("prepareTable", input),
+      },
+    });
+    await screen.findByRole("button", { name: "Switch all" });
+    expect(screen.queryByRole("alert")).toBeNull();
+    const rows = screen.getAllByRole("article");
+    for (const [index, row] of rows.entries()) {
+      expect(within(row).queryByRole("button", { name: "Add note" })).toBeNull();
+      await addRowNote(row);
+      fireEvent.change(await within(row).findByRole("textbox", { name: "Note for your choice" }), { target: { value: `Condition ${index}` } });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Switch all" }));
+    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+    expect(submittedMessages[0]).toContain(" — Condition 0");
+    expect(submittedMessages[0]).toContain(" — Condition 1");
+    for (const [index, mention] of slot.inspection.composer.mentions.entries()) {
+      const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
+      const claimed = JSON.parse((await host.harness.behavior.runCli(["claim", context.itemId, "--thread", "thr_test", "--attempt", context.attemptId])).stdout!);
+      expect(claimed.attempt.note).toBe(`Condition ${index}`);
+    }
+    slot.lifecycle.unmount();
+  } finally { await host.harness.lifecycle.dispose(); }
+
+  const app = await loadPluginApp(() => import("./app.js"));
+  const item = fixture();
+  const replySlot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "replies" }, source: '::actions{id="replies"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+    composer: { scope: { kind: "thread", threadId: "thr_test" } },
+    rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: [item.id], items: [item] }), get: () => item },
+  });
+  await addRowNote(await screen.findByRole("article"));
+  expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Note for your choice" })));
+  replySlot.lifecycle.unmount();
+});
+
+it("carries a trimmed note from the choice card's ⋯ menu into the chosen attempt", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" });
+  plugin(host.bb);
+  try {
+    const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "UserSingle" }, { id: "multi", label: "UserMultiple" }] };
+    await host.harness.behavior.runCli(["create", "setup", "--thread", "thr_test", "--item", JSON.stringify(content)]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: "setup" }, source: '::action{id="setup"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+      composer: { scope: { kind: "thread", threadId: "thr_test" } },
+      rpc: { get: (input) => host.harness.behavior.callRpc("get", input), choose: (input) => host.harness.behavior.callRpc("choose", input) },
+    });
+    await addRowNote(await screen.findByRole("article"));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Note for your choice" }), { target: { value: "  only for new threads  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Use UserMultiple" }));
+    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+    expect(submittedMessages[0]).toContain("Use UserMultiple");
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(slot.inspection.composer.mentions[0]!.id)).context);
+    expect(context).toMatchObject({ action: "choose", choice: { id: "multi", label: "UserMultiple" }, note: "only for new threads" });
+    slot.lifecycle.unmount();
+  } finally { await host.harness.lifecycle.dispose(); }
 });
