@@ -21,7 +21,7 @@
     "skipLibCheck": false
   },
   "include": [
-    "server.ts",
+    "*.ts",
     "app.tsx",
     "*.test.ts",
     "*.test.tsx",
