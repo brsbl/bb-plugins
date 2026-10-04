@@ -1666,15 +1666,15 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 /*
- * The actions sit over the bottom-left of the message's last line. Behind them, while bb shows them, a glass fill hugs
+ * The actions sit flush with the right edge over the bottom-right of the message's last line. Behind them, while bb shows them, a glass fill hugs
  * just the buttons and fades out over 6 px above them, so no text shows behind the icons.
  */
 .bbd-im-chat [data-message-column] .relative.w-full.h-5 > .absolute.top-0 {
-  right: auto;
-  left: 0;
+  right: 0;
+  left: auto;
   z-index: 0;
   margin: 0;
-  padding: 0 4px;
+  padding: 0;
   /* bb clips this row; the fade above the buttons sits outside it. */
   overflow: visible;
 }
