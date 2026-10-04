@@ -248,7 +248,15 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
     );
   }
 
+  if (manifest.bb.host) {
+    await requireNonEmpty(resolve(directory, "dist/host.js"));
+    await validateMetadata(resolve(directory, "dist/host.meta.json"), manifest, id, buildBbVersion);
+  }
+
   const files = packedFiles(directory);
+  if (manifest.bb.host) {
+    for (const path of ["dist/host.js", "dist/host.meta.json"]) requirePacked(files, path, directory);
+  }
   for (const path of ["package.json", "README.md", "dist/server.js", "dist/server.meta.json"]) {
     requirePacked(files, path, directory);
   }
