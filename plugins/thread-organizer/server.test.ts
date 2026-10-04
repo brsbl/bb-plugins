@@ -1541,6 +1541,17 @@ describe("config CLI", () => {
     await approved(organizer, ["section", "after-read", "inbox", "--set", "stay"]);
     expect(await stageOf(organizer, "inbox")).not.toHaveProperty("returnAfterRead");
 
+    await approved(organizer, ["section", "add", "Digests", "--inbox", "--catches-plugin", "digests"]);
+    await approved(organizer, ["section", "after-read", "digests", "--set", "return"]);
+    const switched = await approved(organizer, [
+      "section", "type", "digests", "--set", "inbox", "--catches-plugin", "drafts",
+    ]);
+    expect(switched.request.payload).toMatchObject({
+      summary: "Digests will receive threads from drafts and move them back once you read them.",
+    });
+    expect(await stageOf(organizer, "digests"))
+      .toMatchObject({ catchesPluginId: "drafts", returnAfterRead: true });
+
     const count = pending(organizer).length;
     expect(await cli(organizer, ["section", "after-read", "planning", "--set", "return"]))
       .toMatchObject({ exitCode: 2 });

@@ -1499,7 +1499,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return confirmAndSave(context, {
       title: `Set the section type for ${stage.title}`,
       summary: () => role === "inbox"
-        ? `${stage.title} will receive threads from ${catchesPluginId} and keep them until you move or archive them.`
+        ? `${stage.title} will receive threads from ${catchesPluginId} and ${stage.role === "inbox" && stage.returnAfterRead ? "move them back once you read them" : "keep them until you move or archive them"}.`
         : `${stage.title} will be a workflow section with normal Inbox routing.`,
       field: null,
       apply: (current) => {
