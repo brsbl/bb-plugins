@@ -290,12 +290,12 @@
   color: var(--foreground);
 }
 
-/* Over Ambient's moving scene, labels are XP's white text with a dark outline so they read on any color. */
-body[data-ambient-glass] .bbd-icon .bbd-icon-label {
+/* A soft shadow lifts XP's white labels off Ambient without a heavy outline. Selection supplies its own contrast. */
+body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   color: var(--bbd-white);
   text-shadow:
-    1px 1px 1px oklch(0.16 0.03 262 / 0.9),
-    0 0 2px oklch(0.16 0.03 262 / 0.6);
+    0.5px 1px 1px oklch(0.16 0.03 262 / 0.78),
+    0 0 2px oklch(0.16 0.03 262 / 0.3);
 }
 
 .bbd-marquee {
