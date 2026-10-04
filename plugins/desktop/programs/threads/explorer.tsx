@@ -1,18 +1,20 @@
-import { useState } from "react";
+import { useState, type HTMLAttributes, type ReactNode } from "react";
 import { toast } from "sonner";
-import { FolderArt, GridViewGlyph, ListViewGlyph, NewThreadArt, RecycleBinArt, ThreadsArt } from "../../art";
+import { FolderArt, GridViewGlyph, ListViewGlyph, NewThreadArt, NotePadArt, RecycleBinArt, ThreadsArt } from "../../art";
 import { acceptsDrop, sortThreads, type DesktopGroup } from "../../core";
+import { openNote } from "../../page/sticky-notes";
 import { errorMessage, useDesktop } from "../../shell/data";
+import { useDesktopEntries, type DesktopEntry } from "../../shell/desktop-entries";
 import { useMenu } from "../../shell/menu";
 import { groupMenu } from "../../shell/menus";
-import { threadDropTarget } from "../../shell/thread-drag";
+import { RECYCLE_BIN_DROP, threadDropTarget } from "../../shell/thread-drag";
 import { WindowFrame, useWindowManager, type DesktopWindow } from "../../windows";
 import { NavArt } from "../internet-explorer";
 import { ThreadCollection } from "./collection";
 import { folderSummary, groupTone } from "./status";
 import { StatusDot } from "./status-ui";
 
-/** Explorer-style windows that list threads: a folder, My Threads, More, and the Recycle Bin. */
+/** Explorer-style windows for the Desktop, its folders, My Threads, More, and the Recycle Bin. */
 
 /** Explorer's Back and Forward through the places this window has shown. */
 function ExplorerNav({ window: desktopWindow }: { window: DesktopWindow }) {
@@ -232,36 +234,114 @@ export function RecycleBinWindow({ window: desktopWindow }: { window: DesktopWin
 }
 
 
-function MoreFolderItem({ group, windowId }: { group: DesktopGroup; windowId: string }) {
+function ExplorerItem({ title, detail, art, view = "icons", open, ...props }: {
+  title: string;
+  detail: string;
+  art: ReactNode;
+  view?: "icons" | "list";
+  open: () => void;
+} & Omit<HTMLAttributes<HTMLDivElement>, "title">) {
+  return (
+    <div
+      className={view === "icons" ? "bbd-finder-item" : "bbd-row min-h-8 grid-cols-[1fr_112px]"}
+      role="button"
+      tabIndex={0}
+      aria-label={`${title} — ${detail}`}
+      title={`${title} — ${detail}`}
+      onDoubleClick={open}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          open();
+        }
+      }}
+      {...props}
+    >
+      <span className={view === "icons" ? "bbd-icon-art relative" : "flex min-w-0 items-center gap-2"}>
+        {art}
+        {view === "list" ? <span className="truncate">{title}</span> : null}
+      </span>
+      {view === "icons" ? <span className="bbd-icon-label">{title}</span> : <span className="truncate text-muted-foreground">{detail}</span>}
+    </div>
+  );
+}
+
+function FolderItem({ group, windowId, view = "icons" }: { group: DesktopGroup; windowId: string; view?: "icons" | "list" }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
   const menu = useMenu();
-  // A folder opened inside More takes over this window, as in Explorer; Back returns to More.
+  // Folders take over this window; Back returns to the place they were opened from.
   const open = () => manager.navigate(windowId, { kind: "finder", key: group.key });
   const members = desktop.membersOf(group);
   const { tone, toneCount, unreadCount } = groupTone(members);
   const summary = folderSummary(group.name, members.length, tone, toneCount, unreadCount);
   return (
-    <div
-      className="bbd-finder-item"
-      role="option"
-      tabIndex={0}
-      aria-selected={false}
+    <ExplorerItem
+      title={group.name}
+      detail={`${members.length} threads`}
+      view={view}
+      open={open}
       aria-label={summary}
-      title={summary}
-      onDoubleClick={open}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") open();
-      }}
       onContextMenu={(event) => menu.open(event, groupMenu(desktop, manager, group, open))}
       {...threadDropTarget(group)}
+      art={<>
+        <FolderArt kind={group.kind} empty={members.length === 0} size={view === "list" ? 20 : 40} />
+        {view === "icons" ? <StatusDot members={members} /> : null}
+      </>}
+    />
+  );
+}
+
+function DesktopItem({ entry, windowId, view }: { entry: DesktopEntry; windowId: string; view: "icons" | "list" }) {
+  const desktop = useDesktop();
+  const manager = useWindowManager();
+  const menu = useMenu();
+  if (entry.kind === "group") return <FolderItem group={entry.group} windowId={windowId} view={view} />;
+  const size = view === "list" ? 20 : 40;
+  const open = () => entry.kind === "note" ? openNote(entry.note.id) : manager.navigate(windowId, { kind: entry.kind });
+  const detail = entry.kind === "note" ? "Note pad" : entry.kind === "more"
+    ? `${desktop.moreGroups.length} folders` : `${desktop.archivedThreads.length} archived threads`;
+  const art = entry.kind === "note" ? <NotePadArt size={size} /> : entry.kind === "more"
+    ? <FolderArt kind="section" size={size} /> : <RecycleBinArt size={size} full={desktop.archivedThreads.length > 0} />;
+  return <ExplorerItem title={entry.title} detail={detail} art={art} view={view} open={open}
+    onContextMenu={(event) => menu.open(event, [{ label: "Open", run: open }])}
+    {...(entry.kind === "recycle-bin" ? { "data-thread-drop": RECYCLE_BIN_DROP } : {})}
+  />;
+}
+
+export function DesktopFinderWindow({ window: desktopWindow }: { window: DesktopWindow }) {
+  const entries = useDesktopEntries();
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<"icons" | "list">("list");
+  const needle = query.trim().toLocaleLowerCase();
+  const visible = entries.filter((entry) => needle === "" || entry.title.toLocaleLowerCase().includes(needle));
+  return (
+    <WindowFrame window={desktopWindow} title="Desktop — Finder" icon={<FolderArt kind="section" size={16} />}
+      statusBar={<span>{visible.length} items · double-click or press Enter to open</span>}
     >
-      <span className="bbd-icon-art relative">
-        <FolderArt kind={group.kind} empty={members.length === 0} />
-        <StatusDot members={members} />
-      </span>
-      <span className="bbd-icon-label">{group.name}</span>
-    </div>
+      <div className="flex h-full flex-col">
+        <div className="bbd-menubar flex-none">
+          <ExplorerNav window={desktopWindow} />
+          <input className="bbd-field bbd-sunken min-w-0 flex-1" placeholder="Search desktop items" aria-label="Search desktop items"
+            value={query} onChange={(event) => setQuery(event.target.value)} />
+          <div className="ml-auto flex flex-none gap-1">
+            <button type="button" className="bbd-button bbd-bevel px-2" aria-label="Icon view" aria-pressed={view === "icons"} data-pressed={view === "icons"} onClick={() => setView("icons")}>
+              <GridViewGlyph className="size-3.5" />
+            </button>
+            <button type="button" className="bbd-button bbd-bevel px-2" aria-label="List view" aria-pressed={view === "list"} data-pressed={view === "list"} onClick={() => setView("list")}>
+              <ListViewGlyph className="size-3.5" />
+            </button>
+          </div>
+        </div>
+        <div className="bbd-sunken min-h-0 flex-1 overflow-auto">
+          {visible.length === 0 ? <p className="p-6 text-center text-xs text-muted-foreground">No desktop items match “{query.trim()}”. Clear the search to see all items.</p> : (
+            <div className={view === "icons" ? "bbd-finder-grid" : "py-1"} role="group" aria-label="Desktop items">
+              {visible.map((entry) => <DesktopItem key={entry.key} entry={entry} windowId={desktopWindow.id} view={view} />)}
+            </div>
+          )}
+        </div>
+      </div>
+    </WindowFrame>
   );
 }
 
@@ -288,9 +368,9 @@ export function MoreWindow({ window: desktopWindow }: { window: DesktopWindow })
               Nothing here. Groups you move into More in the sidebar show up in this folder.
             </p>
           ) : (
-            <div className="bbd-finder-grid" role="listbox" aria-label="Folders">
+            <div className="bbd-finder-grid" role="group" aria-label="Folders">
               {desktop.moreGroups.map((group) => (
-                <MoreFolderItem key={group.key} group={group} windowId={desktopWindow.id} />
+                <FolderItem key={group.key} group={group} windowId={desktopWindow.id} />
               ))}
             </div>
           )}
@@ -299,4 +379,3 @@ export function MoreWindow({ window: desktopWindow }: { window: DesktopWindow })
     </WindowFrame>
   );
 }
-

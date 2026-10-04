@@ -35,7 +35,7 @@ import { InternetExplorerWindow } from "./internet-explorer";
 import { MediaPlayerWindow } from "./media-player";
 import { PanelWindow } from "./threads/buddy-info";
 import { BuddyListWindow, buddyListTitle } from "./threads/buddy-list";
-import { FinderWindow, MoreWindow, RecycleBinWindow, ThreadsWindow } from "./threads/explorer";
+import { DesktopFinderWindow, FinderWindow, MoreWindow, RecycleBinWindow, ThreadsWindow } from "./threads/explorer";
 import { ThreadWindow } from "./threads/instant-message";
 import { NewFolderWindow } from "./threads/new-folder";
 import { NewThreadWindow } from "./threads/new-thread";
@@ -103,6 +103,12 @@ function fixed(width: number, height: number): () => Size {
 }
 
 const PROGRAMS: { [K in WindowKind]: ProgramDefinition<K> } = {
+  "desktop-finder": {
+    size: fixed(560, 400),
+    title: () => "Desktop — Finder",
+    art: (_spec, _desktop, size) => <FolderArt kind="section" size={size} />,
+    Window: DesktopFinderWindow,
+  },
   finder: {
     size: fixed(560, 400),
     title: (spec, desktop) => desktop.groupByKey.get(spec.key)?.name ?? "Folder",
