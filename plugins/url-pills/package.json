@@ -19,7 +19,7 @@
     "bbPluginSdk": "^0.5.9"
   },
   "bb": {
-    "name": "URL Pills",
+    "name": "Compact Links",
     "description": "Recognize website links at a glance with favicon pills in drafts and conversations.",
     "branding": {
       "icon": "Link"

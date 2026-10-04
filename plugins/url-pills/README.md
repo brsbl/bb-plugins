@@ -1,4 +1,4 @@
-# URL Pills
+# Compact Links
 
 ## Use
 
