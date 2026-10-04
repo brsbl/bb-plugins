@@ -34,9 +34,10 @@ export async function closeBrowser(bb: BbPluginApi, lease: BrowserLease): Promis
 export async function connectionScope(bb: BbPluginApi, connection: Connection, threadId: string) {
   if (!connection.browserHostId) throw new ConnectionError("Choose the computer running your signed-in bb browser in this connection, then Retry.", "unavailable", "retry");
   const { instances } = await bb.sdk.experimental_desktopBrowsers.listInstances({ hostId: connection.browserHostId });
-  const instance = connection.desktopInstanceId
-    ? instances.find((entry) => entry.instanceId === connection.desktopInstanceId)
-    : instances.length === 1 ? instances[0] : undefined;
+  // Window IDs change when bb restarts. Honor a live selection, otherwise
+  // recover only when the configured computer has one unambiguous window.
+  const instance = instances.find((entry) => entry.instanceId === connection.desktopInstanceId)
+    ?? (instances.length === 1 ? instances[0] : undefined);
   if (!instance) throw new ConnectionError(instances.length === 0
     ? "The bb browser is unavailable. Open bb on your browser computer, then Retry."
     : "Choose the bb browser window for this connection, then Retry.", "unavailable", "retry");

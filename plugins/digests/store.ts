@@ -139,6 +139,10 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
       }).immediate();
     },
     get: issueGet,
+    collectingIds(): string[] {
+      // Reconciliation must also find old owners outside the paginated UI list.
+      return (db.prepare("SELECT id FROM digest_issues WHERE state = 'collecting'").all() as { id: string }[]).map(({ id }) => id);
+    },
     getByThread(threadId: string): Issue | null {
       return parseRow(db.prepare("SELECT data FROM digest_issues WHERE thread_id = ?").get(IdSchema.parse(threadId)), IssueSchema);
     },

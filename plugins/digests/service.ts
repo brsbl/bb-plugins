@@ -210,7 +210,7 @@ export function createService(bb: BbPluginApi) {
   async function discoverSites() {
     const configured = store.connections.list().find((entry) => entry.browserHostId);
     let browserHostId = configured?.browserHostId;
-    let desktopInstanceId = configured?.desktopInstanceId;
+    const desktopInstanceId = configured?.desktopInstanceId;
     if (!browserHostId) {
       const candidates: Array<{ hostId: string; instanceId: string }> = [];
       for (const host of await bb.sdk.hosts.list()) {
@@ -221,7 +221,6 @@ export function createService(bb: BbPluginApi) {
       }
       if (candidates.length !== 1) throw new Error(candidates.length ? "More than one bb browser is available. Ask an agent to set Digests' browser computer, then reopen Settings." : "Open bb on the computer with your browser sign-ins, then reopen Settings.");
       browserHostId = candidates[0]!.hostId;
-      desktopInstanceId = candidates[0]!.instanceId;
     }
     for (const site of SITES) {
       if (!store.connections.get(site.id)) store.connections.put({ ...site, browserHostId, desktopInstanceId });
@@ -527,6 +526,22 @@ export function createService(bb: BbPluginApi) {
     return { startingIds, runErrors, definitions: store.definitions.list(), connections: store.connections.list(), actionCardsAvailable: plugins.plugins.some((entry) => entry.id === "inline-action-cards" && entry.enabled && entry.status === "running"), organizerReady };
   }
   async function reconcile() {
+    // Retry turns outlive the original automation result. Recover missed
+    // settlement events after reload from the current native thread instead.
+    for (const id of store.issues.collectingIds()) {
+      try {
+        await exclusive(`retry:${id}`, async () => {
+          const issue = store.issues.get(id);
+          if (issue?.state !== "collecting" || !issue.threadId || !await bb.storage.kv.get<boolean>(`manual-retry:${id}`)) return;
+          const thread = await bb.sdk.threads.get({ threadId: issue.threadId });
+          const terminal = ["idle", "error"].includes(thread.status) && ["idle", "error"].includes(thread.runtime.displayStatus)
+            && thread.queuedMessageCount === 0 && thread.activeBackgroundAgentCount === 0;
+          if (!terminal && thread.archivedAt === null && thread.deletedAt === null) return;
+          await fail(issue, "This retry stopped before the issue was ready. Retry to finish it.", "retry", true);
+          await bb.storage.kv.delete(`retry:${id}`);
+        });
+      } catch (error) { bb.log.warn(`Digest retry ${id}: ${error instanceof Error ? error.message : String(error)}`); }
+    }
     for (const definition of store.definitions.list()) {
       if (!definition.automationId) continue;
       try {
