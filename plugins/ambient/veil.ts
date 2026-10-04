@@ -151,6 +151,8 @@ ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: 
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: ${mix("var(--ink)", "8%")}; }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
+/* Pending forms overlap the scrolling timeline, so their surface must be fully opaque. */
+${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interaction-shell"]) { background-color: var(--ambient-background); }
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
 ${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 0; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { ${HIDE} }
