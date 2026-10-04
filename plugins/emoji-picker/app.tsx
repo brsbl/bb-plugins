@@ -160,6 +160,7 @@ export function ComposerEmojiPicker() {
       event.preventDefault();
       event.stopPropagation();
       setTrigger(null);
+      composer.focus();
     }}>
     <Popover open={open} onOpenChange={(open) => { if (!open) setTrigger(null); }}>
       <PopoverAnchor asChild virtualRef={trigger?.anchor ? { current: trigger.anchor } : undefined}><span ref={anchorElement} aria-hidden="true" className="pointer-events-none absolute h-0 w-0" /></PopoverAnchor>
