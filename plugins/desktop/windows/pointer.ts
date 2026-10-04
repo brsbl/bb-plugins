@@ -54,6 +54,8 @@ export function trackPointer(
     target.removeEventListener("pointerup", up);
     target.removeEventListener("pointercancel", lost);
     target.removeEventListener("lostpointercapture", lost);
+    document.removeEventListener("pointerup", up, true);
+    document.removeEventListener("pointercancel", lost, true);
     document.removeEventListener("lostpointercapture", detached);
     if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
     if (moved) {
@@ -71,12 +73,12 @@ export function trackPointer(
     if (moved) window.dispatchEvent(new Event("bbd-drag-state"));
   };
   const up = (next: PointerEvent) => {
-    if (next.pointerId === pointerId) finish(false);
+    if (next.pointerId === pointerId) finish(!target.isConnected);
   };
   // bb's dividers revert here; a desktop window can't, since some hosts drop capture right at release. Once the pointer
   // has moved, losing it ends the gesture where it got to; before that, it was never a drag.
   const lost = (next: PointerEvent) => {
-    if (next.pointerId === pointerId) finish(!moved);
+    if (next.pointerId === pointerId) finish(!moved || !target.isConnected);
   };
   // Removing a captured child (for example on re-deal) sends capture loss to the document instead.
   const detached = (next: PointerEvent) => {
@@ -87,6 +89,10 @@ export function trackPointer(
   target.addEventListener("pointerup", up);
   target.addEventListener("pointercancel", lost);
   target.addEventListener("lostpointercapture", lost);
+  // Native view transitions can send release to the shield instead of the captured element.
+  // Keep movement target-scoped, but always release this pointer's shield when it ends.
+  document.addEventListener("pointerup", up, true);
+  document.addEventListener("pointercancel", lost, true);
   document.addEventListener("lostpointercapture", detached);
   return () => finish(true);
 }
