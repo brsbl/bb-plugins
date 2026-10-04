@@ -175,7 +175,7 @@ it("Action log refresh updates the reviewed draft while preserving unsaved local
   expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Unsaved local edit");
 });
 
-it("Action log keeps failures and Later cards waiting, gives every row one ⋯ menu, and collapses Done", async () => {
+it("Action log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
   const entry = { threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
   const attempt = { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true } as const;
   const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
@@ -183,17 +183,17 @@ it("Action log keeps failures and Later cards waiting, gives every row one ⋯ m
   const done = Array.from({ length: 6 }, (_, index) => ({ ...fixture(), id: `sent-${index}`, revision: 3, state: "succeeded", attempt, result: { message: "Sent", retryable: false }, ...entry } as const));
   const app = await loadPluginApp(() => import("./app.js"));
   expect([app.navPanels[0]!.title, app.threadPanelActions[0]!.title]).toEqual(["Action log", "Action log"]);
-  expect([app.navPanels[0]!.icon, app.threadPanelActions[0]!.icon]).toEqual(["ListTodo", "ListTodo"]);
+  expect([app.navPanels[0]!.icon, app.threadPanelActions[0]!.icon]).toEqual(["inline-action-cards/action-log", "inline-action-cards/action-log"]);
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
   const [ready, failure, deferred] = within(waiting).getAllByRole("article");
-  expect(within(ready!).getAllByRole("button")).toHaveLength(3);
-  for (const name of ["More actions", "Review", "Send"]) expect(within(ready!).getByRole("button", { name })).toBeTruthy();
+  // Icon peers first, then secondary, with the primary always rightmost.
+  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Review", "More actions", "Ask for changes", "SendSending…"]);
   expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
   expect(within(failure!).getByText(/Reconnect Gmail/)).toBeTruthy();
   expect(within(failure!).getByRole("button", { name: "Retry" })).toBeTruthy();
   expect(within(deferred!).getByText("Later")).toBeTruthy();
-  expect(within(deferred!).getByRole("button", { name: "Resume" })).toBeTruthy();
+  expect(within(deferred!).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Review", "More actions", "Ask for changes", "Resume"]);
   const doneGroup = screen.getByRole("region", { name: "Done" });
   expect(within(doneGroup).getAllByRole("article")).toHaveLength(5);
   expect(within(doneGroup).getAllByRole("button", { name: "More actions" })).toHaveLength(5);

@@ -5,6 +5,7 @@
   "type": "module",
   "license": "UNLICENSED",
   "files": [
+    "assets",
     "dist",
     "README.md",
     "skills"
@@ -23,7 +24,10 @@
     "name": "Inline Action Cards",
     "description": "Make decisions in agent messages and track choices and results across threads.",
     "branding": {
-      "icon": "ListTodo"
+      "icon": "./assets/action-log.svg",
+      "experimental_icons": {
+        "action-log": "./assets/action-log.svg"
+      }
     },
     "server": "./server.ts",
     "skills": [

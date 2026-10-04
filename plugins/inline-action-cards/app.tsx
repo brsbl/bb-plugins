@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon, MailIcon, SignpostIcon } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon, MailIcon, SignpostIcon, ViewIcon } from "./controls.js";
 import { insertActionMention, pendingLabel } from "./presentation.js";
 import "./app.css";
 
@@ -248,23 +248,30 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     const toggleCard = <MenuAction onSelect={() => setViewResult(!viewResult)}>{viewResult ? "Hide card" : "View card"}</MenuAction>;
     const button = (label: string, onClick: () => void, variant: "default" | "outline", isDisabled = busy) =>
       <ActionButton className="iac-log-button" variant={variant} disabled={isDisabled} onClick={onClick}>{label}</ActionButton>;
-    // Every row shares one action grid: ⋯, then a secondary and a primary column of fixed width.
-    let menu: ReactNode, secondary: ReactNode = null, primary: ReactNode = null;
-    if (quiet || later) {
-      menu = <>{toggleCard}<MenuAction onSelect={openThread}>Open thread</MenuAction>{deferred && !later && <MenuAction onSelect={() => void reopen()}>Resume</MenuAction>}</>;
-      if (later) { secondary = <span className="iac-log-status">Later</span>; primary = button("Resume", () => void reopen(), "default"); }
-      else secondary = <span className="iac-log-status iac-log-result" title={item.result?.message}>{item.result?.message ?? "Done"}</span>;
+    // A Later card reopens before taking its secondary choice, as if Resume came first.
+    const choose = async (action: Action) => {
+      if (later) { await reopen(); if (current.current?.state !== "ready") return; }
+      await act(action);
+    };
+    // Every row shares one action grid: Review and ⋯ as icon peers, then fixed secondary and primary columns; primary is always rightmost.
+    let menu: ReactNode, review: ReactNode = null, secondary: ReactNode = null, primary: ReactNode = null;
+    if (!quiet) review = <IconButton label={reply ? (viewResult ? "Hide draft" : "Review") : (viewResult ? "Hide card" : "Review")} aria-expanded={viewResult} disabled={loadError} onClick={() => setViewResult(!viewResult)}><ViewIcon /></IconButton>;
+    if (quiet) {
+      menu = <>{toggleCard}<MenuAction onSelect={openThread}>Open thread</MenuAction>{deferred && <MenuAction onSelect={() => void reopen()}>Resume</MenuAction>}</>;
+      secondary = <span className="iac-log-status iac-log-result" title={item.result?.message}>{item.result?.message ?? "Done"}</span>;
+    } else if (later) {
+      menu = <MenuAction onSelect={openThread}>Open thread</MenuAction>;
+      secondary = reply ? button("Ask for changes", () => void askForChanges(), "outline") : button(actionLabel(item, "no"), () => void choose("no"), "outline");
+      primary = button("Resume", () => void reopen(), "default");
     } else if (failed) {
-      menu = <>{retryable && <MenuAction onSelect={() => void reopen()}>{reply ? "Edit draft" : "Choose again"}</MenuAction>}{!reply && toggleCard}<MenuAction onSelect={openThread}>Open thread</MenuAction></>;
-      secondary = reply && button(viewResult ? "Hide draft" : "Review", () => setViewResult(!viewResult), "outline", loadError);
+      menu = <MenuAction onSelect={openThread}>Open thread</MenuAction>;
+      secondary = retryable && button(reply ? "Edit draft" : "Choose again", () => void reopen(), "outline");
       primary = retryable ? button("Retry", () => void act(item.attempt!.action), "default") : button("Open thread", openThread, "default", false);
     } else {
-      menu = <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction> : reply
-        ? <><MenuAction onSelect={() => void askForChanges()}>Ask for changes</MenuAction><MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction></> : null}
-        {!reply && toggleCard}
-        {!pending && <><MenuAction onSelect={() => void act("later")}>Remind me later</MenuAction><MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
+      menu = <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
+        : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}<MenuAction onSelect={() => void act("later")}>Remind me later</MenuAction><MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
         <MenuAction onSelect={openThread}>Open thread</MenuAction></>;
-      secondary = reply ? button(viewResult ? "Hide draft" : "Review", () => setViewResult(!viewResult), "outline", loadError)
+      secondary = reply ? button("Ask for changes", () => void askForChanges(), "outline", disabled)
         : <PendingButton className="iac-log-button" variant="outline" pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>;
       primary = <PendingButton className="iac-log-button" variant="default" pending={pending && item.attempt?.action === primaryAction} pendingLabel={pendingLabel(item, primaryAction)} disabled={disabled} onClick={() => void act(primaryAction)}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>;
     }
@@ -273,6 +280,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       <div className="iac-log-main">
         <span className="iac-log-title" title={heading}>{heading}</span>
         <span className="iac-log-meta">
+          {later && <span>Later</span>}
           {failed && <span className="iac-failed" title={item.result?.message}><span role="img" aria-label="Failed">⚠</span> {item.result?.message}</span>}
           {logEntry.showThread && <a className="iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); openThread(); }}>{logEntry.threadTitle}</a>}
           <time dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
@@ -280,6 +288,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
         </span>
       </div>
       <div className="iac-log-actions">
+        {review && <span className="iac-log-review">{review}</span>}
         <span className="iac-log-menu"><MoreMenu disabled={busy || loadError}>{menu}</MoreMenu></span>
         {secondary && <span className="iac-log-secondary">{secondary}</span>}
         {primary && <span className="iac-log-primary">{primary}</span>}
@@ -410,7 +419,7 @@ export function ActionLogView({ threadId }: { threadId?: string }) {
   return <section className="iac-log" aria-label="Action log">
     <section className="iac-log-group" aria-label="Waiting on you">
       <header className="iac-log-heading">
-        <h2><span className="iac-log-dot" aria-hidden="true" />Waiting on you{log && <span className="iac-log-count">{log.waiting.length}</span>}</h2>
+        <h2><span className="iac-log-mark" aria-hidden="true"><span className="iac-log-dot" /></span>Waiting on you{log && <span className="iac-log-count">{log.waiting.length}</span>}</h2>
         {threadId && <a className="iac-log-see-all" href="/plugins/inline-action-cards/log" onClick={(event) => { event.preventDefault(); navigate.toPluginPanel("log"); }}>See all</a>}
       </header>
       {error && <div className="iac-error" role="alert">{error}<ActionButton onClick={() => void load()}>Retry</ActionButton></div>}
@@ -419,15 +428,15 @@ export function ActionLogView({ threadId }: { threadId?: string }) {
       {log?.waiting.map(row)}
     </section>
     {log && log.done.length > 0 && <section className="iac-log-group iac-log-done" aria-label="Done">
-      <header className="iac-log-heading"><h2>Done<span className="iac-log-count">{log.done.length}</span></h2></header>
+      <header className="iac-log-heading"><h2><span className="iac-log-mark" aria-hidden="true"><svg className="iac-log-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span>Done<span className="iac-log-count">{log.done.length}</span></h2></header>
       {(showAllDone ? log.done : log.done.slice(0, DONE_PREVIEW)).map(row)}
       {log.done.length > DONE_PREVIEW && <ActionButton className="iac-log-more" aria-expanded={showAllDone} onClick={() => setShowAllDone(!showAllDone)}>{showAllDone ? "Show fewer" : `Show all ${log.done.length}`}</ActionButton>}
     </section>}
   </section>;
 }
 export default definePluginApp((app) => {
-  app.slots.navPanel({ id: "log", path: "log", title: "Action log", icon: "ListTodo", component: () => <ActionLogView /> });
-  app.slots.threadPanelAction({ id: "log", title: "Action log", icon: "ListTodo", component: ({ threadId }) => <ActionLogView threadId={threadId} /> });
+  app.slots.navPanel({ id: "log", path: "log", title: "Action log", icon: "inline-action-cards/action-log", component: () => <ActionLogView /> });
+  app.slots.threadPanelAction({ id: "log", title: "Action log", icon: "inline-action-cards/action-log", component: ({ threadId }) => <ActionLogView threadId={threadId} /> });
   // Skip-forward has no built-in host glyph; publish it through the SDK registry.
   app.experimental_icons.register({ name: "inline-action-cards/skip-forward", component: ({ className }) =>
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 4 11 8-11 8V4ZM19 4v16" /></svg> });
