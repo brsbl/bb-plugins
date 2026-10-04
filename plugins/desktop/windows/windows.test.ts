@@ -55,6 +55,31 @@ function gesture() {
 afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ""; });
 
 describe("pointer lifecycle", () => {
+  it("publishes window drag bounds after every move and clears the scoped shield on release", () => {
+    const g = gesture();
+    g.cancel();
+    const positions: string[] = [];
+    const read = () => positions.push(g.target.style.left);
+    window.addEventListener("bbd-drag-state", read);
+    const cancel = trackPointer(
+      { currentTarget: g.target, clientX: 0, clientY: 0, pointerId: 1, button: 0 } as unknown as ReactPointerEvent<HTMLElement>,
+      (delta) => { g.target.style.left = `${delta.x}px`; },
+      undefined,
+      { threshold: 4, windowDrag: true } as Parameters<typeof trackPointer>[3],
+    );
+    try {
+      g.target.dispatchEvent(pointer("pointermove", 20));
+      expect(document.querySelector<HTMLElement>(".bbd-drag-shield")?.dataset.windowDrag).toBe("true");
+      g.target.dispatchEvent(pointer("pointermove", 40));
+      expect(positions).toEqual(["20px", "40px"]);
+      g.target.dispatchEvent(pointer("pointerup", 40));
+      expect(document.querySelector(".bbd-drag-shield")).toBeNull();
+      expect(positions).toEqual(["20px", "40px", "40px"]);
+    } finally {
+      cancel();
+      window.removeEventListener("bbd-drag-state", read);
+    }
+  });
   it("follows the captured pointer past the threshold and commits on release", () => {
     const g = gesture();
     g.target.dispatchEvent(pointer("pointermove", 2));

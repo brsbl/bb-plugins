@@ -19,7 +19,7 @@ export function trackPointer(
   event: ReactPointerEvent<HTMLElement>,
   onMove: (delta: Point, event: PointerEvent) => void,
   onEnd?: (cancelled: boolean, moved: boolean) => void,
-  options: { threshold?: number; samples?: boolean } = {},
+  options: { threshold?: number; samples?: boolean; windowDrag?: boolean } = {},
 ): () => void {
   if (event.button !== 0 || event.isPrimary === false) return () => {};
   const target = event.currentTarget;
@@ -30,6 +30,7 @@ export function trackPointer(
   const selection = document.documentElement.style.userSelect;
   const shield = document.createElement("div");
   shield.className = "bbd-drag-shield";
+  if (options.windowDrag) shield.dataset.windowDrag = "true";
   const move = (next: PointerEvent) => {
     if (next.pointerId !== pointerId) return;
     const delta = { x: next.clientX - start.x, y: next.clientY - start.y };
@@ -39,10 +40,12 @@ export function trackPointer(
       document.documentElement.style.userSelect = "none";
       window.getSelection()?.removeAllRanges();
       document.body.append(shield);
-      window.dispatchEvent(new Event("bbd-drag-state"));
+      if (!options.windowDrag) window.dispatchEvent(new Event("bbd-drag-state"));
     }
     const samples = options.samples ? next.getCoalescedEvents?.() ?? [] : [];
     for (const sample of samples.length ? samples : [next]) onMove({ x: sample.clientX - start.x, y: sample.clientY - start.y }, sample);
+    // Window geometry is previewed synchronously. Native views must check the new bounds before the next move.
+    if (options.windowDrag) window.dispatchEvent(new Event("bbd-drag-state"));
   };
   const finish = (cancelled: boolean) => {
     if (ended) return;

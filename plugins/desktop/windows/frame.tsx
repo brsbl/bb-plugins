@@ -98,7 +98,7 @@ export function WindowFrame({
         const docked = dockedTo(latest);
         manager.move(id, latest, Object.fromEntries(attached.map((other, index) => [other.id, docked[index]!])));
       }
-    });
+    }, { windowDrag: true });
   };
 
   const startMove = (event: ReactPointerEvent<HTMLElement>) => startDrag(event);

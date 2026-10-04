@@ -113,3 +113,5 @@ These outlive a release. Changing one needs a migration.
 ## Tests
 
 Pure modules have co-located `*.test.ts` files. `windows/state.test.ts` loads a stored v1 fixture so an incompatible change to window persistence fails CI, `programs/launcher-ids.test.ts` pins the Quick Launch ids, and `programs/threads/status.test.ts` pins thread status wording. `programs/threads/chat-contract.test.ts` runs the contract check and the key contract selectors from `app.css` against `programs/threads/__fixtures__/thread-chat.html`, real `ThreadChat` markup captured from the bb web app with the bb commit it came from noted at its top; recapture it whenever bb's chat markup changes, then update the contract rules to match. Tests run in Node without a DOM unless they opt into jsdom, as the window and chat contract tests do, so a module a test imports must not import a browser-only dependency.
+
+During window moves and resizes, native browser visibility follows the previewed window bounds on every pointer move. Moving a browser hides its own native page; other browser pages stay visible unless covered. Other gesture types retain the global native-view shield.
