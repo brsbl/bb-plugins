@@ -1674,6 +1674,13 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   overflow-wrap: anywhere;
 }
 
+/* A quote is a block beneath the floated speaker label, never a border running through the name. */
+.bbd-im-chat [data-message-column] blockquote {
+  clear: both;
+  display: flow-root;
+  margin-block: 6px;
+}
+
 /* AIM's serif, a size up from bb's messages; code keeps bb's monospace. */
 .bbd-im-chat [data-message-column],
 .bbd-im-chat [data-message-column] :is(.text-sm, .text-xs, .text-base):not(code) {
