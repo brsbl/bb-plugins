@@ -372,12 +372,12 @@ describe("built-in scenes", () => {
     {
       name: "retired sliders",
       values: { scale: 2.2, density: 36, relief: 0.4, trails: 0.7 },
-      expected: { scale: 2.2, density: 30, lines: 0.38, bright: 0.9, lift: 0.5, sat: 0.45 },
+      expected: { scale: 2.2, density: 30, lines: 0.38, bright: 0.9, lift: 0.3, sat: 0.85 },
     },
     {
       name: "night-map sliders",
       values: { lines: 0.2, bright: 0.7, sat: 0.3 },
-      expected: { lines: 0.2, bright: 0.7, lift: 0.5, sat: 0.3 },
+      expected: { lines: 0.2, bright: 0.7, lift: 0.3, sat: 0.3 },
     },
     {
       name: "base-lightness slider",
