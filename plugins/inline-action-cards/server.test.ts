@@ -126,3 +126,23 @@ it("CLI log defaults to all threads, supports JSON and explicit thread filters",
   const invalid = await host.harness.behavior.runCli(["log", "--thread", "../escape"]);
   expect(invalid.exitCode).not.toBe(0);
 });
+
+it("log choices submit to their owning thread and resend the same durable attempt", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: {
+    get: ({ threadId }) => ({ title: threadId === "thr_other" ? "Refund follow-up" : "Inbox review" }),
+    send: () => ({ kind: "queued" }),
+  } } }); hosts.push(host); plugin(host.bb);
+  await host.harness.behavior.runCli(["create", ref.id, "--thread", "thr_other", "--item", JSON.stringify(reply)]);
+  const args = { threadId: "thr_other", id: ref.id, revision: 1, action: "send" };
+  const pending = await host.harness.behavior.callRpc("decideFromLog", args) as Item;
+  expect(pending.state).toBe("pending");
+  const send = host.harness.sdk.callsTo("threads.send")[0]![0];
+  expect(send).toMatchObject({ threadId: "thr_other", mode: "queue-if-active", input: [{ text: "Send Escrow follow-up", mentions: [{
+    start: 5, end: 21, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:thr_other:${ref.id}:${pending.attempt!.id}` },
+  }] }] });
+  await expect(host.harness.behavior.callRpc("decideFromLog", args)).rejects.toThrow("changed");
+  const resent = await host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: pending.revision }) as Item;
+  expect(resent.attempt!.id).toBe(pending.attempt!.id);
+  const log = await host.harness.behavior.callRpc("log", {});
+  expect(log).toMatchObject({ waiting: [{ threadTitle: "Refund follow-up" }] });
+});

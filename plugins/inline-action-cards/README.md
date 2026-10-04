@@ -28,7 +28,7 @@ Docs was evaluated at `plugins/docs/app.tsx` and `document-session.ts` in bb. It
 
 ## Decision log
 
-Open **Action Cards** in the sidebar to review **Waiting on you** and **Decided**. Choose All threads or This thread; thread titles open their conversations. Waiting rows keep the card actions, and choices submit to their owning thread. Notes appear when supplied by a choice.
+Open **Action Cards** in the sidebar or **Decision log** in a thread’s panel launcher to review **Waiting on you** and **Decided**. Choose All threads or This thread; thread titles open their conversations. Waiting rows keep the card actions, and choices submit to their owning thread. Notes appear when supplied by a choice.
 
 Agents can read the same log with `bb action-cards log [--thread <id>] [--json]`. Without `--thread`, it includes all threads.
 
