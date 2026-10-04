@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { definePluginApp, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import type { RecentFile, Reference, rpcContract } from "./contract.js";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./components/ui/context-menu.js";
-import { DropdownMenuContent, DropdownMenuItem } from "./components/ui/dropdown-menu.js";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "./components/ui/context-menu.js";
+import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/ui/dropdown-menu.js";
 import { Icon } from "./components/ui/icon.js";
 import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger, PinPopoverAnchor } from "./pin-popover.js";
 import { FilePicker } from "./file-picker.js";
@@ -20,6 +20,9 @@ const rowLinkClass = "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-
 const rowActionClass = "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100";
 const noMotion = { animation: "none", transition: "none" };
 type PinAction = { label: string; hint?: string; disabled?: boolean; run(): void };
+async function copyText(text: string, copied: string, failed: string) {
+  try { await navigator.clipboard.writeText(text); toast.success(copied); } catch { toast.error(failed); }
+}
 function ActionLabel({ action }: { action: PinAction }) {
   return action.hint ? <span className="min-w-0"><span className="block">{action.label}</span><span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{action.hint}</span></span> : <>{action.label}</>;
 }
@@ -146,9 +149,29 @@ function PinStrip({ threadId }: { threadId: string }) {
       { label: "Remove", disabled: busy, run: () => void remove(pin) },
     ];
   }
+  // bb's FileLink menu items that the public SDK can reproduce, then this plugin's actions.
+  // "Open with" and "Open in" need core-only openers and local app targets, so they are left out.
+  function menuGroups(pin: Reference): PinAction[][] {
+    if (pin.status === "missing") return [actions(pin)];
+    const file = { target: { kind: "host" as const, hostId: pin.hostId, path: pin.path }, location: null };
+    return [
+      [
+        { label: "Open preview", run: () => { setMoreOpen(false); navigate.experimental_openFilePreview(file); } },
+        { label: "Open externally", disabled: pin.status !== "available", run: () => { setMoreOpen(false); navigate.experimental_openFileExternally(file); } },
+      ],
+      [
+        { label: "Copy file path", run: () => void copyText(pin.path, "File path copied", "Failed to copy file path") },
+        { label: "Copy file name", run: () => void copyText(pin.name, "File name copied", "Failed to copy file name") },
+      ],
+      actions(pin),
+    ];
+  }
   function contextMenu(pin: Reference) {
-    return <ContextMenuContent style={noMotion}>
-      {actions(pin).map((action) => <ContextMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></ContextMenuItem>)}
+    return <ContextMenuContent style={noMotion} className="min-w-52">
+      {menuGroups(pin).map((group, index) => <Fragment key={index}>
+        {index > 0 && <ContextMenuSeparator />}
+        {group.map((action) => <ContextMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></ContextMenuItem>)}
+      </Fragment>)}
     </ContextMenuContent>;
   }
   function stripPin(pin: Reference) {
@@ -173,8 +196,11 @@ function PinStrip({ threadId }: { threadId: string }) {
       <ContextMenu><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>
       <Menu.Root modal={false}>
         <Menu.Trigger asChild><button type="button" aria-label={`Actions for ${pin.name}`} title="Actions" className={rowActionClass}><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
-        <DropdownMenuContent align="end" style={noMotion}>
-          {actions(pin).map((action) => <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
+        <DropdownMenuContent align="end" style={noMotion} className="min-w-52">
+          {menuGroups(pin).map((group, index) => <Fragment key={index}>
+            {index > 0 && <DropdownMenuSeparator />}
+            {group.map((action) => <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
+          </Fragment>)}
         </DropdownMenuContent>
       </Menu.Root>
     </div>;
@@ -186,7 +212,7 @@ function PinStrip({ threadId }: { threadId: string }) {
           {layout.strip.map((pin) => stripPin(pin))}
           <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0 px-1`} title="Pin to thread" aria-label="Pin to thread">+</button></PopoverTrigger>
           {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-            <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more files`} title="More files" className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
+            <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "file" : "files"}`} title="More files" className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
             <PopoverContent aria-label="More files" className="w-56 p-1"><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
           </Popover>}
         </div>
@@ -196,7 +222,7 @@ function PinStrip({ threadId }: { threadId: string }) {
         <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0`} aria-label="Pin to thread" title="Pin to thread">+</button></PopoverTrigger>
       </section> : <PinPopoverAnchor asChild><span className="block h-0 w-0" /></PinPopoverAnchor>}
       <PopoverContent aria-label="Pin to thread" align={pins.length > 0 || recent.length > 0 ? "end" : "start"} onCloseAutoFocus={(event) => { if (pins.length === 0 && recent.length === 0) event.preventDefault(); }}>
-        <FilePicker threadId={threadId} recent={recent} onClose={() => setPicker(false)} onPinned={refresh} />
+        <FilePicker threadId={threadId} recent={recent} stripFull={!layout.canPin} onClose={() => setPicker(false)} onPinned={refresh} />
       </PopoverContent>
     </Popover>
     {/* Mirrors the strip row, with room for + and ⋯, to measure how many pin slots fit. */}

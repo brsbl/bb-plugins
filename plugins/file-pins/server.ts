@@ -46,7 +46,7 @@ export default function plugin(bb: BbPluginApi): void {
     await save(threadId, pins.filter((item) => item.id !== pinId), more.filter((id) => id !== pinId));
     return more.includes(pinId);
   };
-  const pin = async (threadId: string, hostId: string, path: string, cwd?: string, signal?: AbortSignal) => {
+  const pin = async (threadId: string, hostId: string, path: string, cwd?: string, signal?: AbortSignal, unpinned = false) => {
     await thread(threadId);
     const file = await host.call("resolveFile", { path, ...(cwd ? { cwd } : {}) }, { hostId, signal });
     return serialize(async () => {
@@ -54,9 +54,9 @@ export default function plugin(bb: BbPluginApi): void {
       const pins = await read(threadId);
       const existing = pins.find((item) => item.hostId === hostId && item.path === file.path);
       if (existing) return existing;
-      if (pins.length >= MAX_PINS) throw new Error(`A thread can hold up to ${MAX_PINS} pins. Unpin a file first.`);
+      if (pins.length >= MAX_PINS) throw new Error(`A thread can hold up to ${MAX_PINS} pins. Remove a file first.`);
       const entry: Pin = { id: randomUUID(), hostId, ...file, createdAt: new Date().toISOString() };
-      await save(threadId, [...pins, entry]);
+      await save(threadId, [...pins, entry], unpinned ? [...await readMore(threadId, pins), entry.id] : undefined);
       return entry;
     });
   };
@@ -174,7 +174,7 @@ export default function plugin(bb: BbPluginApi): void {
       defaultHostId: await threadHost(threadId),
       hosts: (await bb.sdk.hosts.list()).map(({ id, name, status }) => ({ id, name, connected: status === "connected" })),
     }),
-    pin: ({ threadId, hostId, path }) => pin(threadId, hostId, path),
+    pin: ({ threadId, hostId, path, unpinned }) => pin(threadId, hostId, path, undefined, undefined, unpinned),
     unpin: ({ threadId, pinId }) => removePin(threadId, pinId),
   });
   bb.events.on("thread.idle", ({ thread }) => bb.realtime.publish("recent-changed", { threadId: thread.id }));

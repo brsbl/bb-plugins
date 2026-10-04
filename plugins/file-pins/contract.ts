@@ -82,7 +82,8 @@ export const rpcContract = defineRpcContract({
     }),
   },
   pin: {
-    input: z.object({ threadId: id, hostId: id, path: filePath }).strict(),
+    /** `unpinned` adds a new file to the ⋯ list instead of the strip. */
+    input: z.object({ threadId: id, hostId: id, path: filePath, unpinned: z.boolean().optional() }).strict(),
     output: pinSchema,
   },
   unpin: {

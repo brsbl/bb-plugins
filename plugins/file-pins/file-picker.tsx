@@ -7,8 +7,8 @@ import { DropdownMenuContent, DropdownMenuItem } from "./components/ui/dropdown-
 import { Icon } from "./components/ui/icon.js";
 import { ReferenceIcon } from "./reference-icon.js";
 
-export function FilePicker({ threadId, recent, onClose, onPinned }: {
-  threadId: string; recent: RecentFile[]; onClose(): void; onPinned(): Promise<void>;
+export function FilePicker({ threadId, recent, stripFull, onClose, onPinned }: {
+  threadId: string; recent: RecentFile[]; stripFull: boolean; onClose(): void; onPinned(): Promise<void>;
 }) {
   const rpc = useRpc<typeof rpcContract>();
   const input = useRef<HTMLInputElement>(null);
@@ -47,7 +47,8 @@ export function FilePicker({ threadId, recent, onClose, onPinned }: {
     if (busy || !hostId) return;
     setBusy(true); setError(null);
     try {
-      await rpc.call("pin", { threadId, hostId, path });
+      // With no room on the strip, new files join the ⋯ list instead.
+      await rpc.call("pin", { threadId, hostId, path, ...(stripFull ? { unpinned: true } : {}) });
       await onPinned(); onClose();
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); setBusy(false); }
   }

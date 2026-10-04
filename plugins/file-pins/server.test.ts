@@ -132,6 +132,14 @@ describe("thread file pins", () => {
     await reloaded.behavior.callRpc("undo", { threadId: "one", undoToken });
     expect(await reloaded.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [third.id] });
   });
+  it("adds new files to the ⋯ list when asked and leaves existing pins where they are", async () => {
+    const h = setup();
+    const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/first.md" }) as { id: string };
+    const second = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/second.md", unpinned: true }) as { id: string };
+    expect(await h.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [second.id] });
+    expect(await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/first.md", unpinned: true })).toEqual(first);
+    expect(await h.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [second.id] });
+  });
   it("suggests recent normalized changes and links, checks them on the host, and excludes existing pins", async () => {
     const h = setup([
       { seq: 1, type: "item/completed", data: { item: { type: "fileChange", status: "completed", changes: [{ kind: "add", path: "created.md" }] } } },

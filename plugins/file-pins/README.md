@@ -20,9 +20,10 @@ than one machine is enrolled, the search row lets you choose the file's machine.
 
 Pinned files read as quiet file chips above the composer, in order, as many as fit; the strip never
 scrolls. Files that aren't pinned sit in the **⋯** list. Hover a filename for its full path and machine.
-Right-click a strip file for **Unpin** (moves it to the **⋯** list) or **Remove**. In the **⋯** list,
-a row's hover **⋯** button or right-click offers **Pin** or **Remove**; **Pin** is unavailable when the
-strip has no room. If the window narrows, pinned files that no longer fit lead the **⋯** list until
+Right-click a strip file for bb's **Open preview**, **Open externally**, **Copy file path** and
+**Copy file name**, then **Unpin** (moves it to the **⋯** list) or **Remove**. In the **⋯** list, a
+row's hover **⋯** button or right-click offers the same file options, then **Pin** or **Remove**;
+**Pin** is unavailable when the strip has no room, and files added with **+** then join the **⋯** list. If the window narrows, pinned files that no longer fit lead the **⋯** list until
 there is room again. **Remove**'s toast offers **Undo**. Missing filenames and icons have a light red tint and are labeled for assistive technology;
 only their small **×** removes them. Availability refreshes on focus and every
 30 seconds.
@@ -57,7 +58,7 @@ A normal click on a Markdown note under the file host's `~/Moss/Notes/`, or a
 Markdown file containing a `moss-*` fence or `:::tabs` marker, opens the **Moss
 Mac app** on that host. Moss must be installed there. This explicit Moss rule
 overrides the default opener for the normal click. Other files retain bb's
-FileLink click behavior and opener choices. Pins have their own Pin/Unpin and Remove menus. Classification and launch run on the host; no custom Markdown/Moss parser or renderer is included.
+FileLink click behavior and opener choices. Pin menus start with bb's open and copy items, then Pin/Unpin and Remove. Classification and launch run on the host; no custom Markdown/Moss parser or renderer is included.
 
 The SDK does not expose extensions for chat-file or file-tab context menus, or
 a reusable composer @ picker. The fallback uses bb UI components and the same
