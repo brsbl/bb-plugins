@@ -731,16 +731,15 @@ describe("workflow settings", () => {
       rendered.getByRole("button", { name: new RegExp(`^Section type for ${title}`) });
     const choose = async (title: string, inbox: string, afterRead: string) => {
       fireEvent.keyDown(typeOf(title), { key: "Enter" });
-      fireEvent.keyDown(await rendered.findByRole("menuitem", { name: inbox }), { key: "ArrowRight" });
+      const subTrigger = await rendered.findByRole("menuitem", { name: inbox });
+      if (title === "Planning") {
+        expect(rendered.getByRole("menuitem", { name: "Inbox · Manual" })).toBeTruthy();
+        expect(rendered.queryByRole("menuitem", { name: "Inbox · Missing" })).toBeNull();
+      }
+      fireEvent.click(subTrigger);
       fireEvent.click(await rendered.findByRole("menuitem", { name: afterRead }));
     };
     await rendered.findByRole("button", { name: "Section type for Planning: Stage" });
-    fireEvent.keyDown(typeOf("Planning"), { key: "Enter" });
-    await rendered.findByRole("menuitem", { name: "Inbox · Digests" });
-    expect(rendered.getByRole("menuitem", { name: "Inbox · Manual" })).toBeTruthy();
-    expect(rendered.queryByRole("menuitem", { name: "Inbox · Missing" })).toBeNull();
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-
     await choose("Planning", "Inbox · Digests", "Move back after reading");
     await rendered.findByRole("button", {
       name: "Section type for Planning: Inbox · Digests, moves back after reading",
