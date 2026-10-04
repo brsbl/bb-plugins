@@ -260,13 +260,13 @@ describe("Digests app", () => {
     } }) } });
     const action = await slot.findByRole("button", { name: "Review reply" });
     expect(action.className).toContain("digest-button-outline");
-    expect(slot.getByText("No action needed").closest("details")?.open).toBe(false);
+    expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(false);
     fireEvent.click(action);
     expect(slot.inspection.rpcCalls).toHaveLength(1);
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: "https://example.test/reply" });
   });
 
-  it("jumps from counts to a collapsed routine section and opens each source", async () => {
+  it("opens one email section at a time from counts and preserves source links", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
       summaryLinks: [{ label: "4 unread emails", section: "all" }, { label: "2 routine", section: "tail" }],
@@ -278,15 +278,15 @@ describe("Digests app", () => {
       ] },
     } }) } });
     fireEvent.click(await slot.findByRole("link", { name: "2 No action needed" }));
-    expect(slot.getByText("No action needed").closest("details")?.open).toBe(true);
-    expect(document.activeElement).toBe(slot.getByText("No action needed").closest("summary"));
+    expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(true);
+    expect(document.activeElement).toBe(slot.container.querySelector("details[id$='-tail'] > summary"));
     fireEvent.click(slot.getByRole("link", { name: /Amex · Autopay processed/ }));
     fireEvent.click(slot.getByRole("link", { name: "4 unread emails" }));
     expect(slot.inspection.navigateCalls).toEqual([
       { method: "openUrl", url: "https://example.test/amex" },
     ]);
     expect(slot.getByText("All unread").closest("details")?.open).toBe(true);
-    expect(slot.getByText("No action needed").closest("details")?.open).toBe(false);
+    expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(false);
     expect(document.activeElement).toBe(slot.getByText("All unread").closest("summary"));
     expect(slot.queryByText("Old Markdown fallback.")).toBeNull();
   });
@@ -305,7 +305,7 @@ describe("Digests app", () => {
     } }) } });
     expect((await slot.findByRole("button", { name: "Review reply" })).closest("li")?.dataset.tone).toBe("warning");
     expect(slot.getByRole("button", { name: "Review alert" }).closest("li")?.dataset.tone).toBe("danger");
-    const summary = slot.getByText("No action needed").closest("summary")!;
+    const summary = slot.container.querySelector("details[id$='-tail'] > summary")!;
     expect(summary.querySelector(".digest-count")?.textContent).toBe("5");
     expect(summary.textContent).not.toContain("(5)");
     expect(summary.querySelector(".digest-chevron")).not.toBeNull();
