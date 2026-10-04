@@ -47,7 +47,7 @@ export function StartMenu({ onClose }: { onClose: () => void }) {
   const places: { section: string; items: Launcher[] }[] = [
     ...(apps.length === 0 ? [] : [{ section: "Programs", items: apps }]),
     { section: "Accessories", items: [launcher("paint"), launcher("command-prompt")] },
-    { section: "Games", items: [launcher("minesweeper"), launcher("solitaire"), launcher("pinball")] },
+    { section: "Games", items: [launcher("minesweeper"), launcher("solitaire"), launcher("pinball"), launcher("maze")] },
     { section: "", items: [launcher("search"), launcher("run")] },
   ];
   const itemProps = (item: Launcher) => ({

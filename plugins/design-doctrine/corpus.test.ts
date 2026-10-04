@@ -1,9 +1,11 @@
 import { execFile } from "node:child_process";
 import {
   access,
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
+  readFile,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -15,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   type CorpusSource,
+  closePublication,
   githubRepositoryFromRemote,
   materializeRules,
   openPublication,
@@ -24,6 +27,7 @@ import {
   remoteBranchId,
   resolveBaseBranch,
   resolveRepositoryRoot,
+  withdrawRuleFile,
 } from "./corpus";
 
 const execFileAsync = promisify(execFile);
@@ -232,5 +236,122 @@ describe("doctrine corpus", () => {
     );
 
     await second.finish(false);
+  });
+
+  describe("withdrawing a rule from its open pull request", () => {
+    const FAKE_GH = `#!/bin/sh
+echo "$*" >> "$FAKE_GH_LOG"
+case "$1 $2" in
+  "pr list") printf '%s' "$FAKE_GH_LIST" ;;
+  "pr view") printf '{"state":"%s"}' "$FAKE_GH_STATE" ;;
+esac
+`;
+    const savedPath = process.env.PATH;
+    let origin: string;
+    let log: string;
+
+    async function openPullRequest(branch: string, ...rules: string[]): Promise<void> {
+      await git(repository, "checkout", "--quiet", "-b", branch, "origin/main");
+      for (const rule of rules) await commitRule(repository, rule);
+      await git(repository, "push", "--quiet", "origin", branch);
+      await git(repository, "checkout", "--quiet", "main");
+    }
+
+    async function branchRules(branch: string): Promise<string[]> {
+      return (await git(origin, "ls-tree", "--name-only", branch, `${PREFIX}/rules/interaction/`))
+        .split("\n")
+        .map((path) => path.slice(path.lastIndexOf("/") + 1));
+    }
+
+    beforeEach(async () => {
+      origin = join(workspace, "origin.git");
+      log = join(workspace, "gh.log");
+      const bin = join(workspace, "bin");
+      await mkdir(bin);
+      await writeFile(join(bin, "gh"), FAKE_GH, "utf8");
+      await chmod(join(bin, "gh"), 0o755);
+      await openPullRequest("doctrine/first", "ddr_002.md", "ddr_003.md");
+      await openPullRequest("doctrine/other", "ddr_004.md");
+      const createdAt = new Date().toISOString();
+      process.env.PATH = `${bin}:${process.env.PATH ?? ""}`;
+      process.env.FAKE_GH_LOG = log;
+      process.env.FAKE_GH_STATE = "OPEN";
+      process.env.FAKE_GH_LIST = JSON.stringify(
+        ["other", "first"].map((name) => ({
+          url: `https://github.com/example/doctrine/pull/${name}`,
+          headRefName: `doctrine/${name}`,
+          mergeStateStatus: "BLOCKED",
+          createdAt,
+          isCrossRepository: false,
+        })),
+      );
+    });
+
+    afterEach(() => {
+      process.env.PATH = savedPath;
+      delete process.env.FAKE_GH_LOG;
+      delete process.env.FAKE_GH_STATE;
+      delete process.env.FAKE_GH_LIST;
+    });
+
+    it("removes the rule from only the branch that adds it, then reports when nothing is left", async () => {
+      const main = await git(origin, "rev-parse", "main");
+      const other = await git(origin, "rev-parse", "doctrine/other");
+
+      expect(
+        await withdrawRuleFile(source, "rules/interaction/ddr_002.md", "ddr_002.md", "doctrine: cancel ddr_002"),
+      ).toEqual({
+        kind: "withdrawn",
+        url: "https://github.com/example/doctrine/pull/first",
+        remainingRules: 1,
+      });
+      expect(await branchRules("doctrine/first")).toEqual(["ddr_001.md", "ddr_003.md"]);
+      expect(await git(origin, "log", "-1", "--format=%s", "doctrine/first")).toBe(
+        "doctrine: cancel ddr_002",
+      );
+
+      expect(
+        await withdrawRuleFile(source, "rules/interaction/ddr_003.md", "ddr_003.md", "doctrine: cancel ddr_003"),
+      ).toMatchObject({ kind: "withdrawn", remainingRules: 0 });
+      expect(await branchRules("doctrine/first")).toEqual(["ddr_001.md"]);
+      await closePublication(
+        source,
+        "https://github.com/example/doctrine/pull/first",
+        "Nothing left to publish.",
+      );
+      expect(await readFile(log, "utf8")).toContain(
+        "pr close https://github.com/example/doctrine/pull/first --delete-branch --comment Nothing left to publish.",
+      );
+
+      expect(await git(origin, "rev-parse", "main")).toBe(main);
+      expect(await git(origin, "rev-parse", "doctrine/other")).toBe(other);
+      expect(await git(repository, "worktree", "list")).not.toContain("cancel-");
+    });
+
+    it("changes nothing for a published, merged, or unpublished rule", async () => {
+      const first = await git(origin, "rev-parse", "doctrine/first");
+      const other = await git(origin, "rev-parse", "doctrine/other");
+
+      expect(
+        await withdrawRuleFile(source, "rules/interaction/ddr_001.md", "ddr_001.md", "doctrine: cancel ddr_001"),
+      ).toEqual({ kind: "published" });
+      expect(
+        await withdrawRuleFile(source, "rules/interaction/ddr_009.md", "ddr_009.md", "doctrine: cancel ddr_009"),
+      ).toEqual({ kind: "unpublished" });
+      expect(
+        await withdrawRuleFile(source, "rules/interaction/ddr_004.md", "A reused ID", "doctrine: cancel ddr_004"),
+      ).toEqual({ kind: "unpublished" });
+      expect(
+        await withdrawRuleFile(source, "rules/interaction/ddr_001.md", "A reused ID", "doctrine: cancel ddr_001"),
+      ).toEqual({ kind: "unpublished" });
+      process.env.FAKE_GH_STATE = "MERGED";
+      expect(
+        await withdrawRuleFile(source, "rules/interaction/ddr_004.md", "ddr_004.md", "doctrine: cancel ddr_004"),
+      ).toEqual({ kind: "published" });
+
+      expect(await git(origin, "rev-parse", "doctrine/first")).toBe(first);
+      expect(await git(origin, "rev-parse", "doctrine/other")).toBe(other);
+      expect(await readFile(log, "utf8")).not.toContain("pr close");
+    });
   });
 });
