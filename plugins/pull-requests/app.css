@@ -18,7 +18,6 @@
 .pr-menu-item>svg { flex-shrink:0; }
 .pr-menu-item>span:first-of-type { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pr-menu-item[data-highlighted], .pr-menu-item[data-state=open] { background:var(--muted); }
-.pr-menu-item:focus-visible { box-shadow:inset 0 0 0 1px var(--muted-foreground); }
 .pr-menu-chevron, .pr-menu-check { margin-left:auto; flex-shrink:0; display:flex; }
 .pr-menu-dot { width:4px; height:4px; flex-shrink:0; border-radius:50%; background:var(--muted-foreground); }
 .pr-menu-separator { height:1px; margin:5px -5px; background:var(--border); }
