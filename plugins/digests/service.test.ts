@@ -16,7 +16,7 @@ afterEach(async () => {
 function setup(options: { runs?: Array<{
   id: string; threadId: string | null; status: string; scheduledFor: number; startedAt: number;
   error: string | null; skipReason: string | null;
-}>; stageSection?: boolean } = {}) {
+}>; personal?: boolean; offline?: boolean; stageSection?: boolean } = {}) {
   let signIn = { signedIn: true, signedOut: false };
   let tabCount = 0;
   let deliveryCount = 0;
@@ -24,6 +24,10 @@ function setup(options: { runs?: Array<{
   const { bb, harness } = createFakePluginHost({
     pluginId: "digests",
     sdk: {
+      hosts: { get: async () => ({ ...makeHostResponse({ id: "host_browser", status: options.offline ? "disconnected" : "connected", name: "My Mac" }), connectMachineId: null }) },
+      projects: { list: async () => options.personal ? [{ id: "proj_personal", kind: "personal", name: "Personal", sources: [], gitRemoteUrl: null, createdAt: 1, updatedAt: 1 }] : [{ id: "proj_digest", kind: "standard", name: "Digest project", gitRemoteUrl: null, createdAt: 1, updatedAt: 1,
+        sources: [{ id: "source_browser", projectId: "proj_digest", type: "local_path", hostId: "host_browser", path: "/digest-workspace", isDefault: true, createdAt: 1, updatedAt: 1 }] }] },
+      environments: { listProviders: async () => options.personal ? [{ id: "personal-workspace", displayName: "Personal workspace", description: "", icon: "Folder", logoUrl: null, pluginId: "environment-personal-workspace", machineProviderId: null, requires: { projectCheckout: false, gitCheckout: false, gitRemote: false, projectless: true }, inputs: null, acceptsEmptyInputs: true, availability: null, machineAvailability: {} }] : [] },
       threads: {
         get: async ({ threadId }) => threads.get(threadId) ?? makeThreadResponse({ id: threadId, projectId: "proj_digest" }),
         update: async () => ({ ok: true }),
@@ -87,10 +91,7 @@ const payload = () => PublishInputSchema.parse({
 
 describe("digest issue lifecycle", () => {
   it("dispatches on the browser host in Personal rather than the server project default", async () => {
-    const { bb, service, harness } = setup();
-    vi.spyOn(bb.sdk.projects, "list").mockResolvedValue([{ id: "proj_personal", kind: "personal", name: "Personal", sources: [], gitRemoteUrl: null, createdAt: 1, updatedAt: 1 }]);
-    vi.spyOn(bb.sdk.hosts, "get").mockResolvedValue({ ...makeHostResponse({ id: "host_browser", status: "connected" }), connectMachineId: null });
-    vi.spyOn(bb.sdk.environments, "listProviders").mockResolvedValue([{ id: "personal-workspace", displayName: "Personal workspace", description: "", icon: "Folder", logoUrl: null, pluginId: "environment-personal-workspace", machineProviderId: null, requires: { projectCheckout: false, gitCheckout: false, gitRemote: false, projectless: true }, inputs: null, acceptsEmptyInputs: true, availability: null, machineAvailability: {} }]);
+    const { service, harness } = setup({ personal: true });
     await service.ensureAutomation(service.requiredDefinition("reading"));
     const create = harness.inspection.sdk.callsTo("plugins.callRpc").map(([call]) => call as { method: string; input: unknown }).find((call) => call.method === "automations_create");
     expect(create?.input).toMatchObject({ projectId: "proj_personal", enabled: false, execution: { environment: { type: "host", hostId: "host_browser", workspace: { type: "personal" } } } });
