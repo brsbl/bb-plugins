@@ -6,6 +6,7 @@ import type { Reference, rpcContract } from "./contract.js";
 import { Button } from "./components/ui/button.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "./components/ui/context-menu.js";
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/ui/dropdown-menu.js";
+import { useIsCompactViewport } from "./components/ui/hooks/use-compact-viewport.js";
 import { Icon } from "./components/ui/icon.js";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip.js";
 import { PinPopover as Popover, PinPopoverAnchor as PopoverAnchor, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
@@ -48,6 +49,8 @@ function PinStrip({ threadId }: { threadId: string }) {
   const [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [rowMenu, setRowMenu] = useState<string | null>(null);
+  // Phones have no room beside the list, so row menus open below the row there.
+  const compact = useIsCompactViewport();
   const zone = useRef<HTMLSpanElement>(null);
   const slot = useRef<HTMLSpanElement>(null);
   const arranging = useRef({ pending: 0, queue: Promise.resolve() });
@@ -184,7 +187,7 @@ function PinStrip({ threadId }: { threadId: string }) {
       {link}
       <Menu.Root modal={false} open={rowMenu === pin.id} onOpenChange={(open) => setRowMenu(open ? pin.id : null)}>
         <Menu.Trigger asChild><button type="button" aria-label={`Actions for ${pin.name}`} title="Actions" className={rowActionClass}><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
-        <DropdownMenuContent side="right" align="start" alignOffset={-4} sideOffset={8} collisionPadding={8} style={noMotion} className="min-w-52">
+        <DropdownMenuContent side={compact ? "bottom" : "right"} align={compact ? "end" : "start"} alignOffset={compact ? 0 : -4} sideOffset={compact ? 4 : 8} collisionPadding={8} style={noMotion} className="min-w-52">
           {menuGroups(pin).map((group, index) => <Fragment key={index}>
             {index > 0 && <DropdownMenuSeparator />}
             {group.map((action) => <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
