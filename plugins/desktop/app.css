@@ -1416,8 +1416,8 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 }
 
 .bbd-im {
-  /* Two sizes up from bb's: messages lead at 15 px and the gray system lines (tools, commands, steers) sit below them at 13 px. */
-  --bbd-im-text: 15px;
+  /* Messages lead at 14 px; system lines use 13 px, with a smaller Steer label below. */
+  --bbd-im-text: 14px;
   --bbd-im-system-text: 13px;
   --bbd-im-face: color-mix(in oklch, var(--canvas) 92%, var(--ink));
   --bbd-im-field: color-mix(in oklch, oklch(0.66 0.07 245) 85%, var(--ink));
