@@ -88,6 +88,15 @@ describe("digest contracts", () => {
     expect(PublishInputSchema.safeParse({ ...next, brief: { ...next.brief, tone: "urgent" } }).success).toBe(false);
   });
 
+  it("accepts optional source date and type without requiring them on older rows", () => {
+    const row = { title: "Receipt", text: "Payment complete.", url: "https://example.test/mail" };
+    const payload = (item: unknown) => ({ headline: "All caught up", details: "One receipt.", brief: { heading: "Needs you", items: [], all: { label: "All unread", items: [item] } } });
+    expect(PublishInputSchema.safeParse(payload(row)).success).toBe(true);
+    expect(PublishInputSchema.parse(payload({ ...row, receivedAt: 1791000000000, kind: "receipt" })).brief?.all?.items[0]).toMatchObject({ receivedAt: 1791000000000, kind: "receipt" });
+    expect(PublishInputSchema.safeParse(payload({ ...row, receivedAt: -1 })).success).toBe(false);
+    expect(PublishInputSchema.safeParse(payload({ ...row, kind: "urgent" })).success).toBe(false);
+  });
+
   it("accepts legacy emoji metadata without adding it to issue titles", () => {
     for (const emoji of ["📬", "👩🏽‍💻", "🇺🇸", "1️⃣"]) expect(EmojiSchema.safeParse(emoji).success).toBe(true);
     for (const emoji of ["", "A", "📬📚"]) expect(EmojiSchema.safeParse(emoji).success).toBe(false);

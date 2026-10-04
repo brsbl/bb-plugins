@@ -142,6 +142,8 @@ const emailRow = z.object({
   // Older issues retain their combined title; new issues can identify senders precisely.
   sender: z.string().trim().min(1).max(160).optional(),
   subject: z.string().trim().min(1).max(180).optional(),
+  receivedAt: timestamp.max(8_640_000_000_000_000).optional(),
+  kind: z.enum(["receipt", "bill", "event", "newsletter", "shipping"]).optional(),
 }).strict();
 
 /** Optional so existing Markdown publishers and stored issues remain valid. */

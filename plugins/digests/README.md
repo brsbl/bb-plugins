@@ -1,7 +1,7 @@
 # Digests
 
 Private briefings delivered as threads: one clear headline, a few numbered
-items with review buttons, and routine details collapsed. Issues arrive in a
+items with compact review buttons, and a flat “No action needed” email table collapsed. Issues arrive in a
 Digests inbox. Archive them when done and find old issues with thread search.
 
 ![A Digests issue with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
@@ -43,7 +43,7 @@ interrupted runs show Retry. A missed run is reported when bb resumes.
 
 Gmail collection reads the full email and needed reply-chain context. **After reading** defaults to **Keep unread**: each originally unread message is restored and checked immediately after reading. Choose **Mark as read** to leave opened mail read. Already-read mail stays read. The only explicit Gmail write allowed is restoring unread state; Digests never sends, archives, labels, or deletes mail. A saved per-message journal makes failed or unverified restoration visible in the issue, including after interruption. Other sites are read-only. Reading records Gmail message
 IDs in plugin-owned SQLite only after successful publication, so newsletters
-are summarized once without marking them read. Snippet-only coverage is labeled.
+are summarized once without marking them read. Emails are read in full; the issue reports any unread state it could not restore.
 Optional Inline Action Cards provide click-approved proposals; without that
 plugin, actions are plain text and nothing is executed.
 

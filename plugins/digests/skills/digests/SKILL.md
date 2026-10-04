@@ -74,11 +74,11 @@ publications, and submits the IDs with `digest_publish`. Failed attempts never
 consume IDs. Ordinary inbox and money updates set `deduplicate:false` on published sources so previous coverage never substitutes for a requested fresh full read; newsletter/reading digests keep source deduplication on. Never invent full-body summaries when a body couldn't be read.
 
 Publish with an outcome `headline` ("2 things need you today"), one short
-`lede` line ("14 new emails · 12 are routine"), and a structured `brief`.
+`lede` line ("14 new emails · 12 need no action"), and a structured `brief`.
 Make every count expand an in-issue section with `brief.summaryLinks`: `{label, section}` (items, later, tail, all). Never use Gmail-search links for counts. Include `brief.all: {label: "All unread", items}` at the end with every email read as a compact `{title, text, url}` row; use All emails when some were already read. Each count must have a matching section. Keep the plain count line in lede for search.
 Use a `heading` such as Needs you, Read these, or Do next. Each `items` entry
 has a one-line `title`, short `text`, optional `context`, `tone`
-(neutral/warning/danger/success) for the accent bar, and `action: {label, url}`. A
+(neutral/warning/danger/success) for the status dot, and `action: {label, url}`. A
 `secondaryAction` is optional. Add `deadline` only for a real source deadline
 that sharpens the headline, such as "Due Thu 3pm" or "This week". Otherwise omit
 it. Never repeat "Today" when the headline already says "need you today", and
@@ -88,8 +88,8 @@ or review page; it must never perform a write. Use "Review sign-in", not "It
 was me", when a button only opens a security alert.
 
 Use `later` for quieter one-line items (`title`, optional `action`) and
-`laterLabel` for their heading. Put routine email in `tail: {label: "Routine", details, items}`. Each item has `title: "Sender · Subject"`, one short `text` line, and its HTTPS `url`. It starts collapsed; keep details for existing Markdown consumers.
-The plugin renders count badges and groups three or more emails from the same sender. Omit numbers from section labels; keep numeric summaryLinks labels. Include sender and subject separately on every email row, as well as the legacy combined title. Choose warning for needs-attention, danger only for true alerts such as security or failed payments, success for gains or completed items, neutral for routine. Set brief.tone for its heading and item.tone for exceptions; urgency alone is not an alert. No whole-card colored backgrounds. Money uses needs-you cards and a spending line under This week. Reading uses
+`laterLabel` for their heading. Put routine email in `tail: {label: "No action needed", details, items}`. Each item has `title: "Sender · Subject"`, one short `text` line, and its HTTPS `url`. It starts collapsed; keep details for existing Markdown consumers.
+The plugin renders count badges and a flat email table. Keep every email as its own row, including repeat senders; never create nested sender groups. Omit numbers from section labels; keep numeric summaryLinks labels. Include sender and subject separately on every email row, as well as the legacy combined title. Include receivedAt as epoch milliseconds and kind (receipt, bill, event, newsletter, shipping) when the source supports them. Never infer a date or type that is not known; omit unknown metadata. Summaries stay one short line. "No action needed" replaces "Routine" in the section and count labels. Choose warning for needs-attention, danger only for true alerts such as security or failed payments, success for gains or completed items, neutral for routine. Set brief.tone for its heading and item.tone for exceptions; urgency alone is not an alert. No whole-card colored backgrounds. Money uses needs-you cards and a spending line under This week. Reading uses
 three Read cards, with reading time in context, and a collapsed In brief tail.
 X leads with a number, one Do next card and muted counts in lede. No paragraph
 lede, serif type, stat tiles, charts or tabs. Include equivalent short Markdown

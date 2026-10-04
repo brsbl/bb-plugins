@@ -234,10 +234,6 @@ function CountLabel({ label, count, parse = true }: { label: string; count?: num
   return <>{leading && value !== undefined && <><span className="digest-count">{value}</span>{" "}</>}<span>{text}</span>{!leading && value !== undefined && <>{" "}<span className="digest-count">{value}</span></>}</>;
 }
 
-function SectionIcon({ tone = "neutral" }: { tone?: Tone }) {
-  return <Icon name={tone === "success" ? "CircleCheck" : tone === "danger" ? "ShieldAlert" : tone === "warning" ? "AlertTriangle" : "Mail"} className="digest-section-icon" aria-hidden />;
-}
-
 function emailParts(item: EmailRow) {
   const separator = item.title.indexOf(" · ");
   return {
@@ -246,74 +242,72 @@ function emailParts(item: EmailRow) {
   };
 }
 
-function EmailList({ items }: { items: EmailRow[] }) {
+function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: string; issueDate: number }) {
   const navigate = useBbNavigate();
-  const groups = new Map<string, EmailRow[]>();
-  for (const item of items) {
-    const sender = emailParts(item).sender.toLocaleLowerCase();
-    if (sender) {
-      const group = groups.get(sender);
-      if (group) group.push(item);
-      else groups.set(sender, [item]);
-    }
-  }
-  const shown = new Set<string>();
-  const row = (item: EmailRow, grouped = false) => {
-    const { sender, subject } = emailParts(item);
-    return <a className="digest-email-row" data-sender={Boolean(sender) && !grouped} href={safeLink(item.url)}
-      title={[sender, subject, item.text].filter(Boolean).join(" · ")}
-      aria-label={[sender, subject, item.text].filter(Boolean).join(" · ")}
-      onClick={(event) => { event.preventDefault(); if (safeLink(item.url)) navigate.openUrl(item.url); }}>
-      {sender && !grouped && <span className="digest-email-sender">{sender}</span>}
-      <span className="digest-email-subject">{subject}</span>
-      {item.text && <span className="digest-email-detail">{item.text}</span>}
-    </a>;
-  };
-  return <ul className="digest-email-list">{items.map((item, index) => {
-    const { sender } = emailParts(item);
-    const key = sender.toLocaleLowerCase();
-    const group = groups.get(key);
-    if (group && group.length >= 3) {
-      if (shown.has(key)) return null;
-      shown.add(key);
-      return <li key={index}><details className="digest-sender-group"><summary aria-label={`${sender}, ${group.length} emails`}>
-        <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><CountLabel label={sender} count={group.length} parse={false} />
-      </summary><ul>{group.map((mail, child) => <li key={child}>{row(mail, true)}</li>)}</ul></details></li>;
-    }
-    return <li key={index}>{row(item)}</li>;
-  })}</ul>;
+  const kindLabels = { receipt: "Receipt", bill: "Bill", event: "Event", newsletter: "Newsletter", shipping: "Shipping" };
+  return <div className="digest-email-scroll" role="region" aria-label={label} tabIndex={0}>
+    <table className="digest-email-table">
+      <colgroup><col className="digest-col-sender" /><col className="digest-col-subject" /><col className="digest-col-detail" /><col className="digest-col-kind" /><col className="digest-col-date" /></colgroup>
+      <thead><tr><th scope="col">Sender</th><th scope="col">Subject</th><th scope="col">Summary</th><th scope="col">Type</th><th scope="col">Received</th></tr></thead>
+      <tbody>{items.map((item, index) => {
+        const { sender, subject } = emailParts(item);
+        const date = item.receivedAt === undefined ? null : new Date(item.receivedAt);
+        const sameDay = date?.toDateString() === new Date(issueDate).toDateString();
+        const dateLabel = date ? new Intl.DateTimeFormat(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric" }).format(date) : "";
+        return <tr key={index} className="digest-email-row" onClick={(event) => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          if (safeLink(item.url)) navigate.openUrl(item.url);
+        }}>
+          <td className="digest-email-sender" title={sender}><a href={safeLink(item.url)} aria-label={[sender, subject, item.text].filter(Boolean).join(" · ")}>{sender || "Email"}</a></td>
+          <td title={subject}>{subject}</td>
+          <td className="digest-email-detail" title={item.text}>{item.text}</td>
+          <td>{item.kind && <span className="digest-email-kind" data-kind={item.kind}>{kindLabels[item.kind]}</span>}</td>
+          <td className="digest-email-date">{date && <time dateTime={date.toISOString()} title={date.toLocaleString()}>{dateLabel}</time>}</td>
+        </tr>;
+      })}</tbody>
+    </table>
+  </div>;
 }
 
-function BriefCards({ brief, headline, prefix }: { brief: NonNullable<Issue["brief"]>; headline: string; prefix: string }) {
+function sectionLabel(label: string): string {
+  return label.replace(/\broutine(?: emails)?\b/giu, "No action needed");
+}
+
+function BriefCards({ brief, headline, prefix, issueDate, expanded, setExpanded }: {
+  brief: Brief; headline: string; prefix: string; issueDate: number;
+  expanded: "tail" | "all" | null; setExpanded: (section: "tail" | "all" | null) => void;
+}) {
   const navigate = useBbNavigate();
   const open = (url: string) => { if (safeLink(url)) navigate.openUrl(url); };
   const tone = headingTone(brief);
   return <div className="digest-brief">
-    {brief.items.length > 0 && <><h3 id={`${prefix}-items`} className="digest-section-heading" data-tone={tone} tabIndex={-1}><SectionIcon tone={tone} /><CountLabel label={brief.heading} count={brief.items.length} /></h3><ol className="digest-cards">
+    {brief.items.length > 0 && <section className="digest-group"><h3 id={`${prefix}-items`} className="digest-section-heading" data-tone={tone} tabIndex={-1}><CountLabel label={brief.heading} count={brief.items.length} /></h3><ol className="digest-cards">
       {brief.items.map((item, index) => {
         const deadline = item.deadline?.trim();
         const repeatsHeadline = deadline && /^(?:due )?(today|this week)$/iu.test(deadline)
           && headline.toLowerCase().includes(deadline.replace(/^due /iu, "").toLowerCase());
         return <li className="digest-card" data-urgency={item.urgency ?? "later"} data-tone={item.tone ?? tone} key={index}>
-        <span className="digest-card-number" aria-hidden>{index + 1}</span>
+        <span className="digest-card-dot" aria-hidden />
         <div className="digest-card-content">
-          <div className="digest-card-heading"><h4>{item.title}</h4>{item.context && <span className="digest-chip">{item.context}</span>}
-            {deadline && !repeatsHeadline && <span className="digest-urgency">{deadline}</span>}</div>
+          <h4>{item.title}</h4>
           {item.text && <p title={item.text}>{item.text}</p>}
-          <div className="digest-card-actions">
-            {item.secondaryAction && <Button variant="ghost" onClick={() => open(item.secondaryAction!.url)}>{item.secondaryAction.label}</Button>}
-            <Button variant="default" onClick={() => open(item.action.url)}>{item.action.label}</Button>
-          </div>
+        </div>
+        <div className="digest-card-meta">
+          {item.context && <span className="digest-chip">{item.context}</span>}
+          {deadline && !repeatsHeadline && <span className="digest-urgency">{deadline}</span>}
+          {item.secondaryAction && <Button variant="ghost" onClick={() => open(item.secondaryAction!.url)}>{item.secondaryAction.label}</Button>}
+          <Button variant="outline" onClick={() => open(item.action.url)}>{item.action.label}</Button>
         </div>
       </li>; })}
-    </ol></>}
-    {brief.later.length > 0 && <div className="digest-later"><h3 id={`${prefix}-later`} className="digest-section-heading" data-tone="neutral" tabIndex={-1}><SectionIcon /><CountLabel label={brief.laterLabel} count={brief.later.length} /></h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></div>}
-    {brief.tail && <details className="digest-more" id={`${prefix}-tail`} data-tone="neutral"><summary>
-      <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><SectionIcon /><CountLabel label={brief.tail.label} count={brief.tail.items?.length} />
-    </summary>{brief.tail.items?.length ? <EmailList items={brief.tail.items} /> : <NewsletterText content={brief.tail.details} />}</details>}
-    {brief.all && <details className="digest-more" id={`${prefix}-all`} data-tone="neutral"><summary>
-      <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><SectionIcon /><CountLabel label={brief.all.label} count={brief.all.items.length} />
-    </summary><EmailList items={brief.all.items} /></details>}
+    </ol></section>}
+    {brief.later.length > 0 && <section className="digest-group digest-later"><h3 id={`${prefix}-later`} className="digest-section-heading" data-tone="neutral" tabIndex={-1}><CountLabel label={brief.laterLabel} count={brief.later.length} /></h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></section>}
+    {brief.tail && <details className="digest-more" id={`${prefix}-tail`} data-tone="neutral" open={expanded === "tail"}><summary onClick={(event) => { event.preventDefault(); setExpanded(expanded === "tail" ? null : "tail"); }}>
+      <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><CountLabel label={sectionLabel(brief.tail.label)} count={brief.tail.items?.length} />
+    </summary>{brief.tail.items?.length ? <EmailList items={brief.tail.items} label={sectionLabel(brief.tail.label)} issueDate={issueDate} /> : <NewsletterText content={brief.tail.details} />}</details>}
+    {brief.all && <details className="digest-more" id={`${prefix}-all`} data-tone="neutral" open={expanded === "all"}><summary onClick={(event) => { event.preventDefault(); setExpanded(expanded === "all" ? null : "all"); }}>
+      <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><CountLabel label={brief.all.label} count={brief.all.items.length} />
+    </summary><EmailList items={brief.all.items} label={brief.all.label} issueDate={issueDate} /></details>}
   </div>;
 }
 
@@ -339,6 +333,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const prefix = useId();
+  const [expanded, setExpanded] = useState<"tail" | "all" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState<"retry" | "reconnect" | null>(null);
@@ -373,21 +368,23 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
     <article className="digest-issue" aria-label="Digest summary" data-state={issue.state}>
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
       {issue.brief?.summaryLinks?.length && issue.state === "ready" ? <div className="digest-lede digest-summary-links">{issue.brief.summaryLinks.map((link, index) => <span key={index}>
-        {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a aria-label={link.label} data-tone={link.section === "items" ? headingTone(issue.brief!) : "neutral"} href={`#${prefix}-${link.section}`} onClick={(event) => {
+        {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a aria-label={sectionLabel(link.label)} data-tone={link.section === "items" ? headingTone(issue.brief!) : "neutral"} href={`#${prefix}-${link.section}`} onClick={(event) => {
           event.preventDefault();
           const target = document.getElementById(`${prefix}-${link.section}`);
-          if (target instanceof HTMLDetailsElement) target.open = true;
+          if (link.section === "tail" || link.section === "all") setExpanded(link.section);
           const focus = target?.querySelector("summary") ?? target;
-          focus?.scrollIntoView?.({ block: "nearest" });
-          (focus as HTMLElement | null)?.focus();
-        }}><CountLabel label={link.label} /></a> : <span><CountLabel label={link.label} /></span>}
+          // Email sections stay bounded inside this slot; growing the host timeline
+          // and scrolling it concurrently fights the host's bottom anchoring.
+          if (link.section === "items" || link.section === "later") focus?.scrollIntoView?.({ block: "nearest" });
+          (focus as HTMLElement | null)?.focus({ preventScroll: true });
+        }}><CountLabel label={sectionLabel(link.label)} /></a> : <span><CountLabel label={sectionLabel(link.label)} /></span>}
       </span>)}</div> : issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
-      {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} />}
+      {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} issueDate={issue.createdAt} expanded={expanded} setExpanded={setExpanded} />}
       <EmailReadStatus issue={issue} />
       {(!issue.brief || issue.state === "failed") && mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
       {!issue.brief && moreContent.trim() && <details className="digest-more">
-        <summary><Icon name="ChevronRight" className="digest-chevron" aria-hidden /><SectionIcon />More detail</summary>
+        <summary><Icon name="ChevronRight" className="digest-chevron" aria-hidden />More detail</summary>
         <NewsletterText content={moreContent} />
       </details>}
       {issue.state === "failed" && <div className="digest-recovery">
