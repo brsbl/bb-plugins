@@ -2,15 +2,15 @@ import { Fragment, useCallback, useEffect, useRef, useState, type MouseEvent } f
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { definePluginApp, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
-import type { Reference, rpcContract } from "./contract.js";
+import { PIN_MENTION, type Reference, type rpcContract } from "./contract.js";
 import { Button } from "./components/ui/button.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "./components/ui/context-menu.js";
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/ui/dropdown-menu.js";
 import { useIsCompactViewport } from "./components/ui/hooks/use-compact-viewport.js";
+import { usePointerCoarse } from "./components/ui/hooks/use-pointer-coarse.js";
 import { Icon } from "./components/ui/icon.js";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip.js";
-import { PinPopover as Popover, PinPopoverAnchor as PopoverAnchor, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
-import { FilePicker } from "./file-picker.js";
+import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
 import { layoutPins, pinFile, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, unpinFile, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { cn } from "./lib/utils.js";
@@ -29,8 +29,6 @@ async function copyText(text: string, copied: string, failed: string) {
 function ActionLabel({ action }: { action: PinAction }) {
   return action.hint ? <span className="min-w-0"><span className="block">{action.label}</span><span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{action.hint}</span></span> : <>{action.label}</>;
 }
-// The composer action opens the picker owned by its thread's strip.
-const launchers = new Map<string, (anchor: HTMLElement) => void>();
 function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 }
@@ -44,8 +42,6 @@ function PinStrip({ threadId }: { threadId: string }) {
   const connection = useRealtimeConnectionState();
   const [pins, setPins] = useState<Reference[]>([]);
   const [more, setMore] = useState<string[]>([]);
-  const [picker, setPicker] = useState(false);
-  const [choosingFolder, setChoosingFolder] = useState(false);
   const [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [rowMenu, setRowMenu] = useState<string | null>(null);
@@ -57,13 +53,6 @@ function PinStrip({ threadId }: { threadId: string }) {
   const capacity = useMeasurePinCapacity(zone, slot);
   const generation = useRef(0);
   const alive = useRef(true);
-  // The picker opens at the composer action that launched it; keep its last position if that unmounts.
-  const anchorElement = useRef<HTMLElement | null>(null);
-  const anchorRect = useRef(new DOMRect());
-  const anchor = useRef({ getBoundingClientRect: () => {
-    if (anchorElement.current?.isConnected) anchorRect.current = anchorElement.current.getBoundingClientRect();
-    return anchorRect.current;
-  } });
   const report = useCallback((cause: unknown) => { if (alive.current) toast.error(cause instanceof Error ? cause.message : String(cause)); }, []);
   const refresh = useCallback(async () => {
     const request = ++generation.current;
@@ -74,9 +63,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   }, [rpc, threadId, report]);
   useEffect(() => {
     alive.current = true;
-    const launch = (element: HTMLElement) => { setMoreOpen(false); anchorElement.current = element; setPicker(true); };
-    launchers.set(threadId, launch);
-    return () => { alive.current = false; generation.current++; if (launchers.get(threadId) === launch) launchers.delete(threadId); };
+    return () => { alive.current = false; generation.current++; };
   }, [threadId]);
   useEffect(() => { void refresh(); }, [refresh, connection]);
   useEffect(() => {
@@ -109,8 +96,6 @@ function PinStrip({ threadId }: { threadId: string }) {
     if (pin.status !== "available") { event.preventDefault(); report(new Error(`${pin.hostName} is unavailable. Reconnect the machine and try again.`)); }
   }
   const layout = layoutPins(pins, more, capacity);
-  // The folder chooser sits above the picker (a drawer on phones); using or closing it must not close the picker.
-  const keepOpenForChooser = (event: Event) => { if (choosingFolder) event.preventDefault(); };
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
     // Apply locally first; saves run in order and
@@ -197,25 +182,15 @@ function PinStrip({ threadId }: { threadId: string }) {
     </div>;
   }
   return <div className="relative min-w-0">
-    <Popover open={picker} onOpenChange={(open) => { setPicker(open); if (!open) setChoosingFolder(false); }}>
-      <PopoverAnchor virtualRef={anchor} />
-      {pins.length > 0 && <section aria-label="Pinned files" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
-        <div className="flex min-w-0 items-center gap-1">
-          {layout.strip.map((pin) => stripPin(pin))}
-          {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-            <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "file" : "files"}`} title="More files" className={`${linkClass} shrink-0 cursor-pointer px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
-            <PopoverContent aria-label="More files" className="w-56 p-1"><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
-          </Popover>}
-        </div>
-      </section>}
-      <PopoverContent aria-label="Pin to thread" align="end"
-        // Focus goes back to the composer action that opened the picker.
-        onCloseAutoFocus={(event) => { event.preventDefault(); if (anchorElement.current?.isConnected) anchorElement.current.focus(); }}
-        onInteractOutside={keepOpenForChooser} onFocusOutside={keepOpenForChooser}
-        onEscapeKeyDown={(event) => { if (choosingFolder) { event.preventDefault(); setChoosingFolder(false); } }}>
-        <FilePicker threadId={threadId} stripFull={!layout.canPin} choosingFolder={choosingFolder} onChoosingFolderChange={setChoosingFolder} onClose={() => setPicker(false)} onPinned={refresh} />
-      </PopoverContent>
-    </Popover>
+    {pins.length > 0 && <section aria-label="Pinned files" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
+      <div className="flex min-w-0 items-center gap-1">
+        {layout.strip.map((pin) => stripPin(pin))}
+        {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+          <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "file" : "files"}`} title="More files" className={`${linkClass} shrink-0 cursor-pointer px-1`}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
+          <PopoverContent aria-label="More files" className="w-56 p-1"><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
+        </Popover>}
+      </div>
+    </section>}
     {/* Mirrors the strip row, with room for ⋯, to measure how many pin slots fit. */}
     <div aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
       <span ref={zone} className="min-w-0 flex-1" />
@@ -228,17 +203,24 @@ function PinsBanner() {
   const composer = useComposer();
   return composer.scope.kind === "thread" ? <PinStrip key={composer.scope.threadId} threadId={composer.scope.threadId} /> : null;
 }
-// The entry point for pinning, in the composer's action row beside other plugins' actions.
+// The entry point for pinning: a pill carrying the skill's instructions; the user types which files.
 function PinAction() {
   const composer = useComposer();
+  const coarse = usePointerCoarse();
   if (composer.scope.kind !== "thread") return null;
-  const threadId = composer.scope.threadId;
+  function start() {
+    // `insert` (bb 0.45+) places the pill and a space at the cursor and focuses the editor except on touch screens.
+    const insert = (composer as { insert?: (parts: readonly unknown[], options: { at: "cursor" }) => void }).insert;
+    if (insert) insert.call(composer, [PIN_MENTION, " "], { at: "cursor" });
+    else { composer.insertMention(PIN_MENTION); composer.updateText((text) => `${text.trimEnd()} `); }
+    if (!insert || coarse) composer.focus();
+  }
   return <TooltipProvider delayDuration={300}><Tooltip>
     <TooltipTrigger asChild>
-      <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Pin files" aria-haspopup="dialog"
-        // Narrow composers collapse their action row on blur; keep it until the click lands.
+      <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Pin files"
+        // Narrow composers collapse their action row on blur; keep it, and the editor's cursor, until the click lands.
         onMouseDown={(event) => event.preventDefault()}
-        onClick={(event) => launchers.get(threadId)?.(event.currentTarget)}>
+        onClick={start}>
         <Icon name="Pin" className="size-4" />
       </Button>
     </TooltipTrigger>

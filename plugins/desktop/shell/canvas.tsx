@@ -13,7 +13,7 @@ import {
   MediaPlayerArt,
   NewFolderArt,
   NewThreadArt,
-  NotePadGlyph,
+  NotePadArt,
   RecycleBinArt,
   ThreadsArt,
   TileGlyph,
@@ -38,7 +38,7 @@ import { errorMessage, useDesktop } from "./data";
 import { useMenu, type MenuEntry, type MenuTrigger } from "./menu";
 import { viewMenuEntries } from "./menus";
 import { usePageBackgroundMenu } from "./page-menu";
-import { useWindowShortcuts } from "./window-shortcuts";
+import { useWindowCycle } from "./window-cycle";
 
 const ICON_BOX = { width: 88, height: 84 } as const;
 
@@ -81,7 +81,7 @@ interface SavedPosition {
  * selection, a marquee selects, and positions persist through the `setLayout` RPC.
  */
 export function DesktopCanvas() {
-  const { cycle, canCycle } = useWindowShortcuts();
+  const { cycle, canCycle } = useWindowCycle();
   const desktop = useDesktop();
   const manager = useWindowManager();
   const menu = useMenu();
@@ -380,14 +380,14 @@ export function DesktopCanvas() {
       disabled: manager.windows.length === 0,
       run: tileWindows,
     },
-    { label: "Next window (Ctrl+`)", disabled: !canCycle, run: () => cycle(1) },
-    { label: "Previous window (Ctrl+Shift+`)", disabled: !canCycle, run: () => cycle(-1) },
+    { label: "Next window", disabled: !canCycle, run: () => cycle(1) },
+    { label: "Previous window", disabled: !canCycle, run: () => cycle(-1) },
   ];
   const canvasMenu = (event: MenuTrigger): MenuEntry[] => [
     ...commands.slice(0, 2),
     {
       label: "New note pad",
-      icon: <NotePadGlyph className="size-3.5" />,
+      icon: <NotePadArt size={16} />,
       run: () => addStickyNote({ left: event.clientX, top: event.clientY }),
     },
     ...commands.slice(2),

@@ -1,6 +1,6 @@
 ## What you get
 
-Your sidebar sections become a workflow: Inbox, then the stages you name, in the order you choose. Every agent working in a thread receives that table of stages and rules in its instructions and moves its own thread with one command when its work clearly matches a rule. Idle threads that need your attention collect in Inbox and go back to their stage when work resumes, so the queue of things to read never hides where a thread actually is.
+Your sidebar sections become a workflow: Inbox, then the stages you name, in the order you choose. Every agent working in a thread receives that table of stages and rules in its instructions and moves its own thread with one command when its work clearly matches a rule. Idle threads that need your attention collect in Inbox and go back to their stage when work resumes or a message is queued, so the queue of things to read never hides where a thread actually is.
 
 ## Entry prompts
 
