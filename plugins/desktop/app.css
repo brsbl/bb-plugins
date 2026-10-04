@@ -151,7 +151,7 @@
 }
 
 /* Keep controls on a solid theme surface, even when Ambient thins --background. */
-:root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt) > [data-promptbox] [data-promptbox-action-row] {
+:root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt) > [data-promptbox]:not([data-promptbox-compact]) [data-promptbox-action-row] {
   background: var(--canvas);
   border-radius: 0 0 calc(var(--radius-xl) - 1px) calc(var(--radius-xl) - 1px);
 }
