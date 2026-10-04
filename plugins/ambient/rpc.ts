@@ -273,6 +273,20 @@ export const ambientRpcContract = defineRpcContract({
       .strict(),
     output: z.object({ accepted: z.boolean() }),
   },
+  reportContext: {
+    input: z.object({
+      event: z.enum(["lost", "restored"]),
+      occurredAt: z.iso.datetime(),
+      rendererId: z.uuid(),
+      sceneRevision: z.number().int().nonnegative().nullable(),
+      visible: z.boolean(),
+      drawingScene: z.boolean(),
+      width: z.number().int().nonnegative(),
+      height: z.number().int().nonnegative(),
+      detail: z.number().min(0).max(1),
+    }).strict(),
+    output: z.object({ accepted: z.boolean() }),
+  },
   submitCapture: {
     input: captureSubmissionSchema,
     output: z.object({ accepted: z.boolean() }),
