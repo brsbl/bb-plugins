@@ -62,19 +62,25 @@ export function trackPointer(
     if (moved) {
       document.documentElement.style.userSelect = selection;
       shield.remove();
-      // The release lands on the captured element as a click; a drag isn't one.
+      // A drag release can produce both click and dblclick; neither should activate its target.
       const suppress = (click: MouseEvent) => {
         click.preventDefault();
         click.stopImmediatePropagation();
       };
       window.addEventListener("click", suppress, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener("click", suppress, true), 0);
+      window.addEventListener("dblclick", suppress, { capture: true, once: true });
+      setTimeout(() => {
+        window.removeEventListener("click", suppress, true);
+        window.removeEventListener("dblclick", suppress, true);
+      }, 0);
     }
     onEnd?.(cancelled, moved);
     if (moved) window.dispatchEvent(new Event("bbd-drag-state"));
   };
   const up = (next: PointerEvent) => {
-    if (next.pointerId === pointerId) finish(!target.isConnected);
+    if (ended || next.pointerId !== pointerId) return;
+    if (moved && target.isConnected) move(next);
+    finish(!target.isConnected);
   };
   // bb's dividers revert here; a desktop window can't, since some hosts drop capture right at release. Once the pointer
   // has moved, losing it ends the gesture where it got to; before that, it was never a drag.

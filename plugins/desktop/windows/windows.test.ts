@@ -76,10 +76,12 @@ describe("pointer lifecycle", () => {
     const shield = document.querySelector(".bbd-drag-shield")!;
     shield.dispatchEvent(pointer("pointerup", 80, 2));
     expect(g.move).toHaveBeenCalledTimes(1);
-    g.end.mockImplementation(() => expect(g.move).toHaveBeenLastCalledWith({ x: 80, y: 0 }, expect.anything()));
+    let releasePosition;
+    g.end.mockImplementation(() => { releasePosition = g.move.mock.lastCall?.[0]; });
     shield.dispatchEvent(pointer("pointerup", 80));
     g.target.dispatchEvent(pointer("pointerup", 100));
     expect(g.move).toHaveBeenCalledTimes(2);
+    expect(releasePosition).toEqual({ x: 80, y: 0 });
     expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
   });
   it("does not apply release coordinates after the dragged target is removed", () => {
