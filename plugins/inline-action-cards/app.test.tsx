@@ -274,6 +274,7 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
       },
     });
     await screen.findByRole("button", { name: "Switch all" });
+    expect(screen.queryByRole("alert")).toBeNull();
     const rows = screen.getAllByRole("article");
     rows.forEach((row, index) => {
       fireEvent.click(within(row).getByRole("button", { name: "Add note" }));

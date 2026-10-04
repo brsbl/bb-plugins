@@ -286,7 +286,7 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
   const [open, setOpen] = useState<string | null>(null);
   const lock = useRef(false);
   const load = useCallback(async () => {
-    try { setTable(await rpc.call("table", { id, threadId })); setError(null); closeNote(); }
+    try { setTable(await rpc.call("table", { id, threadId })); setError(null); }
     catch (err) { setError(readableError(err)); }
   }, [rpc, id, threadId]);
   useEffect(() => { void load(); }, [load]);
