@@ -33,6 +33,8 @@ ${before} {
   width: 16px;
   height: 16px;
   background: var(--bb-url-pill-icon, var(--pill-icon, var(--foreground))) center / contain no-repeat;
+  background-color: var(--bb-url-pill-icon-background, var(--pill-icon, var(--foreground)));
+  border-radius: 3px;
   mask: var(--bb-url-pill-mask, url("data:image/svg+xml,${generic}")) center / contain no-repeat;
 }
 ${after} {

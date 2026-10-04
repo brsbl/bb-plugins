@@ -7,6 +7,7 @@ const EXPANDED = "data-bb-url-pill-expanded";
 const LABEL = "data-bb-url-pill-label";
 const ICON = "--bb-url-pill-icon";
 const MASK = "--bb-url-pill-mask";
+const ICON_BACKGROUND = "--bb-url-pill-icon-background";
 const EDITOR = '[data-app-composer] [contenteditable="true"]';
 const ANCHOR = '[data-message-column] [data-markdown-preview] a[href]';
 const EXCLUDED = 'code, pre, blockquote, [data-prompt-mention], [data-prompt-mention-serialized-text], [data-citation], [role="doc-noteref"]';
@@ -93,6 +94,7 @@ function removeDecoration(element: HTMLElement): void {
   element.removeAttribute(LABEL);
   element.style.removeProperty(ICON);
   element.style.removeProperty(MASK);
+  element.style.removeProperty(ICON_BACKGROUND);
 }
 
 /** Composer content is read-only: only its outer wrapper and an owned stylesheet are changed. */
@@ -159,7 +161,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     const rules = pillStyles(compact.map(({ selector }) => selector), 'var(--bb-url-pill-label)')
       + compact.map(({ selector, entry }) => {
         const icon = iconValue(entry);
-        return `${selector} { --bb-url-pill-label: ${cssString(entry.url.label)};${icon ? ` ${ICON}: url(${cssString(icon)}); ${MASK}: none;` : ''} }`;
+        return `${selector} { --bb-url-pill-label: ${cssString(entry.url.label)};${icon ? ` ${ICON}: url(${cssString(icon)}); ${MASK}: none; ${ICON_BACKGROUND}: #fff;` : ''} }`;
       }).join('\n');
     if (composerStyle.textContent !== rules) composerStyle.textContent = rules;
   }
@@ -167,8 +169,8 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   function syncIcon(element: HTMLElement, entry: Entry): void {
     if (entry.composer) return;
     const value = iconValue(entry);
-    if (value) { element.style.setProperty(ICON, `url("${value}")`); element.style.setProperty(MASK, "none"); }
-    else { element.style.removeProperty(ICON); element.style.removeProperty(MASK); }
+    if (value) { element.style.setProperty(ICON, `url("${value}")`); element.style.setProperty(MASK, "none"); element.style.setProperty(ICON_BACKGROUND, "#fff"); }
+    else { element.style.removeProperty(ICON); element.style.removeProperty(MASK); element.style.removeProperty(ICON_BACKGROUND); }
   }
 
   function syncRequests(): void {
