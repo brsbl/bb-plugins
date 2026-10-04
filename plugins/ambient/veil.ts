@@ -165,9 +165,10 @@ ${COMPACT_HOME} [data-root-compose-mobile-recents] { border-radius: 20px 20px 0 
 ${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { background: var(--ambient-glass-fill); border-radius: 0 0 20px 20px; border-block-start: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
 ${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
-/* Only follow-ups get a solid input and a separate glass footer strip. */
+/* The opaque follow-up shell fills the seam behind the input and its footer lip. */
+${ROOT} [data-follow-up-composer] { background-color: var(--ambient-background); border-radius: 12px; }
 ${ROOT} [data-follow-up-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
-${ROOT} [data-follow-up-composer-footer] { ${GLASS_CHIP} border-width: 0; border-radius: 12px; padding-inline: 4px; }
+${ROOT} [data-follow-up-composer-footer] { border-radius: 0 0 12px 12px; padding-inline: 4px; }
 ${ROOT} [data-follow-up-composer-footer] button { background-color: transparent; }
 ${ROOT} [data-follow-up-composer-footer] button:hover { background-color: ${INK_WASH}; }
 ${ROOT} [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
