@@ -174,7 +174,7 @@ Paints a living generative background behind bb that reacts to your agents: work
 
 ![Ambient's Tide scene behind bb with two working agents as lights and the Ambient controls open in the sidebar](plugins/ambient/docs/screenshot.png)
 
-![Ambient's Contour scene with a waiting agent raised as a peak in the contour lines](plugins/ambient/docs/contour.png)
+Contour draws a calm night map with muted gold lines and agent peaks.
 
 [Source](plugins/ambient) · [README](plugins/ambient/README.md)
 
