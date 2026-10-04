@@ -86,8 +86,6 @@ export function actionMessage(item: Item): string {
   return item.state === "failed" && !item.result?.retryable ? "Check outcome for " : `${actionLabel(item, item.attempt.action)} `;
 }
 
-export const logSchema = z.object({
-  waiting: z.array(itemSchema.extend({ threadTitle: z.string(), threadProjectId: z.string().nullable() })),
-  decided: z.array(itemSchema.extend({ threadTitle: z.string(), threadProjectId: z.string().nullable() })),
-});
-export type DecisionLog = z.infer<typeof logSchema>;
+const logEntrySchema = itemSchema.extend({ threadTitle: z.string(), threadProjectId: z.string().nullable() });
+export const logSchema = z.object({ waiting: z.array(logEntrySchema), done: z.array(logEntrySchema) });
+export type ActionLog = z.infer<typeof logSchema>;

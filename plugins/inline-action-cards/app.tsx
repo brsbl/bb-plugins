@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { definePluginApp, useBbNavigate, useBbContext, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView, type DecisionLog } from "./model.js";
+import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
 import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
 import { insertActionMention, pendingLabel } from "./presentation.js";
 import "./app.css";
@@ -237,22 +237,26 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     </> : <p className="iac-consequence">{item.content.type === "decide" && item.content.consequence}</p>}
     {!done && controls}
   </>;
-  if (logEntry) return <article className={`iac-log-row ${item.state === "failed" ? "iac-failed" : ""}`} aria-label={`${reply ? "Reply" : "Decision"}: ${title(item)}`}>
-    <div className="iac-log-line">
-      <span className="iac-log-question" title={title(item)}>{title(item)}</span>
-      <a className="iac-muted iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); navigate.toThread(threadId); }}>{logEntry.threadTitle}</a>
-      {item.attempt && <span className="iac-muted" title={actionLabel(item, item.attempt.action)}>{actionLabel(item, item.attempt.action)}</span>}
-      {done && <span className={item.state === "failed" ? "iac-failed" : "iac-muted"} title={item.result?.message}>{item.result?.message}</span>}
-      {item.attempt?.note && <span className="iac-muted iac-log-note" title={item.attempt.note}>{item.attempt.note}</span>}
-      <time className="iac-muted" dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{new Date(item.updatedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
-      {(ready || pending) && <>{utilities}{reply && <ActionButton aria-expanded={viewResult} onClick={() => setViewResult(!viewResult)}>{viewResult ? "Hide" : "Review"}</ActionButton>}{controls}</>}
-    </div>
-    {reply && viewResult && <div className="iac-log-draft"><p className="iac-muted">To {reply.to.join(", ")} · {reply.subject}</p>
-      <textarea ref={editor} aria-label="Draft" value={draft} readOnly={!ready || busy} rows={1} maxLength={40000}
-        onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }} onBlur={() => void flush().catch(() => {})} />
-    </div>}
-    {failure}
-  </article>;
+  if (logEntry) {
+    const choice = item.attempt ? actionLabel(item, item.attempt.action) : null;
+    const message = done ? item.result?.message ?? "Completed" : null;
+    // Skip the choice when the result already says it, as in Send · Sent.
+    const outcome = [choice && !sameStem(choice, message) ? choice : null, message].filter(Boolean).join(" · ");
+    const failed = item.state === "failed";
+    return <article className="iac-log-row" aria-label={`${reply ? "Reply" : "Decision"}: ${title(item)}`}>
+      <span className="iac-log-title" title={title(item)}>{title(item)}</span>
+      <a className="iac-log-thread" title={logEntry.threadTitle} href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); navigate.toThread(threadId); }}>{logEntry.threadTitle}</a>
+      {done ? <span className={failed ? "iac-log-result iac-failed" : "iac-log-result"} title={[outcome, item.attempt?.note].filter(Boolean).join(" · ")}>
+        {failed && <span role="img" aria-label="Failed">⚠ </span>}{outcome}{item.attempt?.note && <span className="iac-muted"> · {item.attempt.note}</span>}
+      </span> : <div className="iac-log-actions">{utilities}{reply && <ActionButton aria-expanded={viewResult} onClick={() => setViewResult(!viewResult)}>{viewResult ? "Hide" : "Review"}</ActionButton>}{controls}</div>}
+      <time className="iac-log-time" dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
+      {reply && viewResult && <div className="iac-log-draft"><p className="iac-muted">To {reply.to.join(", ")} · {reply.subject}</p>
+        <textarea ref={editor} aria-label="Draft" value={draft} readOnly={!ready || busy} rows={1} maxLength={40000}
+          onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }} onBlur={() => void flush().catch(() => {})} />
+      </div>}
+      {failure}
+    </article>;
+  }
   return <article className={row ? "iac-row" : "iac-card"} aria-label={`${reply ? "Reply" : "Decision"}: ${title(item)}`}>
     {done ? result : row ? <div className="iac-row-line">
       <div className="iac-row-description"><span>{reply ? `${displayName(reply.to[0]!)} · ${reply.subject}` : title(item)}</span>
@@ -265,6 +269,15 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   </article>;
 }
 
+function sameStem(choice: string, message: string | null): boolean {
+  return !!message && message.slice(0, 3).toLowerCase() === choice.slice(0, 3).toLowerCase();
+}
+function shortTime(value: string): string {
+  const date = new Date(value);
+  return date.toDateString() === new Date().toDateString()
+    ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 function displayName(value: string): string { return value.replace(/\s*<[^>]+>/, "").trim() || value; }
 function resultLabel(item: Item): string {
   if (item.result?.message === "Sent" && item.content.type === "reply") return `Sent to ${item.content.to.map(displayName).join(", ")}`;
@@ -334,12 +347,12 @@ export function ActionsDirective({ attributes, message }: PluginMessageDirective
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This table has an invalid ID. Ask the agent to recreate its link.</div>;
   return <ActionTable key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} />;
 }
-export function DecisionLogView({ threadId: owningThread }: { threadId?: string }) {
+export function ActionLogView({ threadId: owningThread }: { threadId?: string }) {
   const context = useBbContext();
   const threadId = owningThread ?? context.threadId ?? undefined;
   const rpc = useRpc<typeof rpcContract>();
   const [scope, setScope] = useState("all");
-  const [log, setLog] = useState<DecisionLog | null>(null);
+  const [log, setLog] = useState<ActionLog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
   const load = useCallback(async () => {
@@ -355,22 +368,25 @@ export function DecisionLogView({ threadId: owningThread }: { threadId?: string 
     return () => { request.current++; clearInterval(timer); };
   }, [load]);
   useRealtime("items", () => void load());
-  return <section className="iac-log" aria-label="Decision log">
-    <header className="iac-log-header"><h1>Decision log</h1><select aria-label="Threads" value={scope} onChange={(event) => setScope(event.target.value)}>
+  return <section className="iac-log" aria-label="Action log">
+    <header className="iac-log-header"><h1>Action log</h1><select aria-label="Threads" value={scope} onChange={(event) => setScope(event.target.value)}>
       <option value="all">All threads</option><option value="thread" disabled={!threadId}>This thread</option>
     </select></header>
     {error && <div className="iac-error" role="alert">{error}<ActionButton onClick={() => void load()}>Retry</ActionButton></div>}
-    {!log && !error && <p role="status">Loading decisions…</p>}
-    {log && ([['waiting', 'Waiting on you'], ['decided', 'Decided']] as const).map(([key, heading]) => <section key={key} aria-label={heading}>
-      <h2>{heading} <span className="iac-muted">{log[key].length}</span></h2>
-      {!log[key].length && <p className="iac-muted">{key === 'waiting' ? 'No waiting decisions.' : 'No decided cards yet.'}</p>}
-      <div className="iac-log-scroll">{log[key].map((item) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item} logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId }} onItem={() => void load()} />)}</div>
-    </section>)}
+    {!log && !error && <p className="iac-muted" role="status">Loading…</p>}
+    {log && <div className="iac-log-grid">
+      <div className="iac-log-columns" aria-hidden="true"><span>Action</span><span>Thread</span><span>Result</span><span className="iac-log-time">Updated</span></div>
+      {([["waiting", "Waiting on you", "Nothing is waiting on you."], ["done", "Done", "Nothing done yet."]] as const).map(([key, heading, empty]) => <section key={key} className={`iac-log-group iac-log-${key}`} aria-label={heading}>
+        <h2>{key === "waiting" && <span className="iac-log-dot" aria-hidden="true" />}{heading} <span className="iac-log-count">{log[key].length}</span></h2>
+        {!log[key].length && <p className="iac-log-empty">{empty}</p>}
+        {log[key].map((item) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item} logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId }} onItem={() => void load()} />)}
+      </section>)}
+    </div>}
   </section>;
 }
 export default definePluginApp((app) => {
-  app.slots.navPanel({ id: "log", path: "log", title: "Action Cards", icon: "MousePointerClick", component: () => <DecisionLogView /> });
-  app.slots.threadPanelAction({ id: "log", title: "Decision log", icon: "MousePointerClick", component: ({ threadId }) => <DecisionLogView threadId={threadId} /> });
+  app.slots.navPanel({ id: "log", path: "log", title: "Action log", icon: "MousePointerClick", component: () => <ActionLogView /> });
+  app.slots.threadPanelAction({ id: "log", title: "Action log", icon: "MousePointerClick", component: ({ threadId }) => <ActionLogView threadId={threadId} /> });
   // Skip-forward has no built-in host glyph; publish it through the SDK registry.
   app.experimental_icons.register({ name: "inline-action-cards/skip-forward", component: ({ className }) =>
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 4 11 8-11 8V4ZM19 4v16" /></svg> });

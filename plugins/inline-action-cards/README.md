@@ -26,9 +26,9 @@ Items live in plugin-owned SQLite storage, scoped to their thread. Gmail access 
 
 Docs was evaluated at `plugins/docs/app.tsx` and `document-session.ts` in bb. Its inline editor and flush handle are private, and the public Markdown component cannot mount another plugin's directive as a controlled editor. A separate Docs card cannot guarantee its pending autosave finishes before Send. V1 therefore uses a minimal plain-text editor with revision-checked autosave and save-before-submit. It preserves the same draft in place without copying Docs' rich editor or adding a core API dependency.
 
-## Decision log
+## Action log
 
-Open **Action Cards** in the sidebar or **Decision log** in a thread’s panel launcher to review **Waiting on you** and **Decided**. Choose All threads or This thread; thread titles open their conversations. Waiting rows keep the card actions, and choices submit to their owning thread. Notes appear when supplied by a choice.
+Open **Action log** in the sidebar or in a thread’s panel launcher. It lists cards **Waiting on you** first, then **Done**, one row per card with its thread, result, and time. Choose All threads or This thread; thread titles open their conversations. Waiting rows keep the card actions, and choices go to the card’s own thread. Notes appear when a choice includes one.
 
 Agents can read the same log with `bb action-cards log [--thread <id>] [--json]`. Without `--thread`, it includes all threads.
 
@@ -39,4 +39,4 @@ npm ci
 npm run check --workspace=bb-plugin-inline-action-cards
 ```
 
-Run checks in remote CI. For local interaction verification, install the plugin only into an isolated source dev app. The Action Cards navigation page lists waiting and decided cards across threads.
+Run checks in remote CI. For local interaction verification, install the plugin only into an isolated source dev app. The Action log page lists waiting and done cards across threads.

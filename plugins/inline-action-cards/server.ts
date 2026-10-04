@@ -75,7 +75,7 @@ export function createStore(bb: BbPluginApi) {
       const sorted = items.map((item) => ({ ...item, threadTitle: titles.get(item.threadId)!.title, threadProjectId: titles.get(item.threadId)!.projectId }))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
       return { waiting: sorted.filter((item) => item.state === "ready" || item.state === "pending"),
-        decided: sorted.filter((item) => item.state === "succeeded" || item.state === "failed") };
+        done: sorted.filter((item) => item.state === "succeeded" || item.state === "failed") };
     },
     table,
     createTable(threadId: string, id: string, raw: unknown) {
@@ -187,7 +187,7 @@ export default function plugin(bb: BbPluginApi): void {
     name: "action-cards", summary: "Create inline cards, read saved drafts, and report action results",
     commands: {
       log: cliCommand({
-        summary: "Read waiting decisions and results across threads",
+        summary: "Read the Action log: waiting cards and results across threads",
         options: { thread: { type: "string", description: "Filter to this thread ID; defaults to all threads" }, json: { type: "boolean", description: "Print structured JSON" } },
         async run({ options }) {
           const log = await store.log(options.thread === undefined ? undefined : idSchema.parse(options.thread));
@@ -195,7 +195,7 @@ export default function plugin(bb: BbPluginApi): void {
           const line = (item: typeof log.waiting[number]) => [title(item), item.threadTitle, item.threadId,
             item.attempt ? actionLabel(item, item.attempt.action) : "Awaiting choice", item.result?.message ?? item.state,
             item.attempt?.note, item.updatedAt].filter(Boolean).join(" · ").replace(/[\r\n\t]+/g, " ");
-          return { exitCode: 0, stdout: `Waiting on you\n${log.waiting.map(line).join("\n")}\n\nDecided\n${log.decided.map(line).join("\n")}\n` };
+          return { exitCode: 0, stdout: `Waiting on you\n${log.waiting.map(line).join("\n")}\n\nDone\n${log.done.map(line).join("\n")}\n` };
         },
       }),
       "create-table": cliCommand({

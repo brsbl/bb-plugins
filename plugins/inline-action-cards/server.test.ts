@@ -88,7 +88,7 @@ it("bulk approval atomically reserves only the displayed ready rows of a matchin
   expect(() => store.table("thr_other", "news")).toThrow("unavailable");
 });
 
-it("lists every card once, groups pending with ready, and sorts decided newest first", async () => {
+it("lists every card once, groups pending with ready, and sorts done cards newest first", async () => {
   const { store } = setup();
   store.create("thr_one", "same-id", reply);
   store.create("thr_two", "same-id", reply);
@@ -104,11 +104,11 @@ it("lists every card once, groups pending with ready, and sorts decided newest f
   const log = await store.log();
   expect(log.waiting.map((item) => item.state).sort()).toEqual(["pending", "ready"]);
   expect(log.waiting.find((item) => item.id === "pending")?.attempt?.id).toBe(pending.attempt!.id);
-  expect(log.decided.map((item) => item.updatedAt)).toEqual(log.decided.map((item) => item.updatedAt).sort().reverse());
-  expect(log.decided.map((item) => item.state).sort()).toEqual(["failed", "succeeded"]);
+  expect(log.done.map((item) => item.updatedAt)).toEqual(log.done.map((item) => item.updatedAt).sort().reverse());
+  expect(log.done.map((item) => item.state).sort()).toEqual(["failed", "succeeded"]);
   const scoped = await store.log("thr_one");
   expect(scoped.waiting).toHaveLength(2);
-  expect(scoped.decided).toEqual([]);
+  expect(scoped.done).toEqual([]);
   expect((await store.log("thr_empty")).waiting).toEqual([]);
 });
 
@@ -122,7 +122,7 @@ it("CLI log defaults to all threads, supports JSON and explicit thread filters",
   const text = await host.harness.behavior.runCli(["log"]);
   expect(text.stdout).toContain("Waiting on you\n");
   expect(text.stdout).toContain("Escrow follow-up");
-  expect(text.stdout).toContain("Decided\n");
+  expect(text.stdout).toContain("Done\n");
   const invalid = await host.harness.behavior.runCli(["log", "--thread", "../escape"]);
   expect(invalid.exitCode).not.toBe(0);
 });

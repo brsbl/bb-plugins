@@ -73,24 +73,46 @@
   .iac-result-line > .iac-actions { margin-left: auto; }
 }
 
-.iac-log { padding: 20px; color: var(--foreground); font-size: 13px; }
-.iac-log-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.iac-log { container-type: inline-size; padding: 20px 24px; color: var(--foreground); font-size: 13px; line-height: 1.5; }
+.iac-log-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .iac-log h1 { font-size: 18px; font-weight: 600; margin: 0; }
-.iac-log h2 { font-size: 13px; font-weight: 500; margin: 24px 0 8px; }
-.iac-log section[aria-label="Waiting on you"] h2 { color: var(--primary); }
-.iac-log select { background: var(--background); color: var(--foreground); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 5px 8px; }
-.iac-log-scroll { overflow-x: auto; }
-.iac-log-row { border-bottom: 1px solid var(--border); }
-.iac-log-line { display: flex; align-items: center; gap: 12px; min-width: 760px; min-height: 48px; white-space: nowrap; }
-.iac-log-line > span, .iac-log-thread { overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-.iac-log-question { flex: 1; min-width: 180px; font-weight: 500; color: var(--foreground); }
-.iac-log-thread { min-width: 100px; }
-.iac-log-line time { font-size: 11px; }
-.iac-log-line .iac-footer { margin: 0; }
-.iac-log-draft { padding: 8px 0; }
-.iac-log-draft textarea { box-sizing: border-box; width: 100%; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--border); padding: 8px; }
-@media (max-width: 480px) { .iac-log { padding: 12px; } }
-/* Keep the expanded editor visible while a narrow log scrolls to its actions. */
-.iac-log-scroll { container-type: inline-size; }
-.iac-log-row { min-width: 760px; }
-.iac-log-draft { position: sticky; left: 0; width: 100cqw; box-sizing: border-box; }
+.iac-log select { height: 28px; background: var(--background); color: var(--foreground); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 0 8px; font: inherit; font-size: 12px; }
+/* One grid owns the columns; groups and rows share it through subgrid so every column lines up. */
+.iac-log-grid { display: grid; grid-template-columns: minmax(12rem, 2fr) minmax(8rem, 1fr) auto 4.5rem; column-gap: 16px; }
+.iac-log-columns, .iac-log-group, .iac-log-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
+.iac-log-columns { padding-bottom: 6px; border-bottom: 1px solid var(--border); color: var(--muted-foreground); font-size: 11px; font-weight: 500; }
+.iac-log-group h2, .iac-log-empty, .iac-log-draft, .iac-log-row > .iac-error { grid-column: 1 / -1; }
+.iac-log-group h2 { display: flex; align-items: center; gap: 6px; margin: 20px 0 4px; font-size: 13px; font-weight: 600; }
+.iac-log-done h2 { color: var(--muted-foreground); font-weight: 500; }
+.iac-log-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--attention, var(--primary)); }
+.iac-log-count { color: var(--muted-foreground); font-weight: 400; font-variant-numeric: tabular-nums; }
+.iac-log-empty { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--border); color: var(--muted-foreground); }
+.iac-log-row { align-items: center; min-height: 44px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.iac-log-row > span, .iac-log-row > a, .iac-log-row > time { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.iac-log-title { font-weight: 500; }
+.iac-log-thread, .iac-log-time, .iac-log-result { color: var(--muted-foreground); }
+.iac-log-thread { cursor: pointer; text-decoration: none; }
+.iac-log-thread:hover { color: var(--foreground); text-decoration: underline; }
+.iac-log-thread:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
+.iac-log-result { max-width: 26rem; }
+.iac-log-result.iac-failed { color: var(--destructive); }
+.iac-log-time { font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.iac-log-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--iac-gap, 8px); }
+.iac-log-row .iac-footer { margin: 0; }
+.iac-log-draft { padding: 0 0 12px; white-space: normal; }
+.iac-log-draft p { margin: 0 0 4px; font-size: 12px; }
+.iac-log-draft textarea { display: block; box-sizing: border-box; width: 100%; resize: none; font: inherit; line-height: 1.6; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 8px; }
+.iac-log-row > .iac-error { margin: 0 0 8px; white-space: normal; }
+/* Narrow pages and thread panels stack each row: title and time, then thread and result, then actions. */
+@container (max-width: 720px) {
+  .iac-log-grid { grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; }
+  .iac-log-columns { display: none; }
+  .iac-log-row { padding: 10px 0; row-gap: 2px; }
+  .iac-log-title { grid-row: 1; grid-column: 1 / 3; }
+  .iac-log-time { grid-row: 1; grid-column: 3; }
+  .iac-log-thread { grid-column: 1; max-width: 45cqw; font-size: 12px; }
+  .iac-log-result { grid-column: 2 / -1; max-width: none; font-size: 12px; }
+  .iac-log-actions { grid-column: 1 / -1; flex-wrap: wrap; margin-top: 4px; }
+  .iac-log-draft { padding-top: 6px; }
+}
+@media (max-width: 480px) { .iac-log { padding: 12px 16px; } }
