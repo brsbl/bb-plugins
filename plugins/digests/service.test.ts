@@ -1,4 +1,4 @@
-import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PublishInputSchema } from "./model";
@@ -86,6 +86,17 @@ const payload = () => PublishInputSchema.parse({
 });
 
 describe("digest issue lifecycle", () => {
+  it("dispatches on the browser host in Personal rather than the server project default", async () => {
+    const { bb, service, harness } = setup();
+    vi.spyOn(bb.sdk.projects, "list").mockResolvedValue([{ id: "proj_personal", kind: "personal", name: "Personal", sources: [], gitRemoteUrl: null, createdAt: 1, updatedAt: 1 }]);
+    vi.spyOn(bb.sdk.hosts, "get").mockResolvedValue(makeHostResponse({ id: "host_browser", status: "connected" }));
+    vi.spyOn(bb.sdk.environments, "listProviders").mockResolvedValue([{ id: "personal-workspace", displayName: "Personal workspace", description: "", icon: "Folder", logoUrl: null, pluginId: "environment-personal-workspace", machineProviderId: null, requires: { projectCheckout: false, gitCheckout: false, gitRemote: false, projectless: true }, inputs: null, acceptsEmptyInputs: true, availability: null, machineAvailability: {} }]);
+    await service.ensureAutomation(service.requiredDefinition("reading"));
+    const create = harness.inspection.sdk.callsTo("plugins.callRpc").map(([call]) => call as { method: string; input: unknown }).find((call) => call.method === "automations_create");
+    expect(create?.input).toMatchObject({ projectId: "proj_personal", enabled: false, execution: { environment: { type: "host", hostId: "host_browser", workspace: { type: "personal" } } } });
+    expect(service.requiredDefinition("reading").enabled).toBe(false);
+  });
+
   it("creates an enabled custom digest and updates that same automation without enabling migrated definitions", async () => {
     const { service, harness } = setup();
     const input = { connectionId: "gmail", name: "Replies", emoji: "💌", instructions: "Only messages needing a reply.", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } };
