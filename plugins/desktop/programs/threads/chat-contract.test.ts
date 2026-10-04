@@ -186,7 +186,7 @@ describe("bb ThreadChat contract", () => {
 
   it("hands Send and Stop to the strip's Send: hides bb's, which the strip finds and mirrors", () => {
     const { live, archived } = load();
-    const hidden = matches('.bbd-im-chat [data-scroll-footer] [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"])');
+    const hidden = matches('.bbd-im-chat [data-scroll-footer] [data-promptbox-shell]:not([data-promptbox-shell] [data-promptbox-shell]) > [data-follow-up-composer-anchor] [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"])');
     expect(hidden).toEqual([live.querySelector(COMPOSER_SUBMIT), archived.querySelector(COMPOSER_SUBMIT)]);
     const button = hidden[0] as HTMLButtonElement;
     expect(readComposerSend(button)).toEqual({ action: "send", disabled: true, title: "Submit (Enter)" });
@@ -198,7 +198,7 @@ describe("bb ThreadChat contract", () => {
     button.setAttribute("aria-label", "Start voice input");
     expect(readComposerSend(button).disabled).toBe(true);
     // With no draft the chevron is hidden, so its wrapper goes too; with one, the chevron stays usable.
-    const empty = '.bbd-im-chat [data-promptbox] [data-promptbox-send-menu]:not(:has(> button[aria-label="Send options"]:not([aria-hidden])))';
+    const empty = '.bbd-im-chat [data-scroll-footer] [data-promptbox-shell]:not([data-promptbox-shell] [data-promptbox-shell]) > [data-follow-up-composer-anchor] [data-promptbox] [data-promptbox-send-menu]:not(:has(> button[aria-label="Send options"]:not([aria-hidden])))';
     expect(matches(empty)).toHaveLength(2);
     live.querySelector('button[aria-label="Send options"]')!.removeAttribute("aria-hidden");
     expect(Array.from(document.querySelectorAll(empty))).toHaveLength(1);
@@ -233,6 +233,12 @@ describe("bb ThreadChat contract", () => {
     const { live } = load(fixture.replaceAll("data-promptbox-submit-action=", "data-promptbox-primary-action="));
     expect(inspectChatContract(live)).toEqual({ contract: "mismatch", failed: [CHAT_CONTRACT_PROBES.submit] });
     expect(live.querySelector(COMPOSER_SUBMIT)).toBeNull();
+  });
+
+  it.each(["data-promptbox-shell", "data-follow-up-composer-anchor"])("falls back if composer ownership marker %s disappears", (marker) => {
+    const { live } = load();
+    live.querySelector(`[${marker}]`)!.removeAttribute(marker);
+    expect(checkChatContract(live)).toBe("mismatch");
   });
 
   it("waits while bb is still loading the transcript", () => {
