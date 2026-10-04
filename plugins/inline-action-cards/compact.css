@@ -1,0 +1,24 @@
+/* Narrow containers (phones, slim thread panels): stack content above one action line. */
+.iac-container { container-type: inline-size; margin: 12px 0; }
+.iac-container > .iac-card, .iac-container > .iac-table { margin: 0; }
+@container (max-width: 520px) {
+  .iac-card, .iac-table { --iac-gap: 6px; line-height: 1.5; }
+  .iac-card { padding: 10px 12px; }
+  .iac-row { padding: 8px 12px; }
+  .iac-table-header { padding: 8px 12px 0; font-size: 11px; }
+  .iac-table-header + .iac-row, .iac-table > .iac-error + .iac-row { border-top: 0; }
+  .iac-table > .iac-error { padding: 4px 12px 0; }
+  .iac-row-line { flex-direction: column; align-items: stretch; gap: 4px; }
+  .iac-row-line > :not(.iac-row-description) { align-self: flex-end; min-width: 0; margin-left: 0; }
+  .iac-footer { margin-top: 4px; }
+  .iac-menu-slot:empty { display: none; }
+  .iac-question, .iac-recipient-line { padding-top: 2px; }
+  .iac-consequence { margin-top: 2px; }
+  .iac-consequence:not([data-open]) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  .iac-consequence[role="button"] { cursor: pointer; border-radius: var(--radius-sm, .25rem); }
+  .iac-consequence[role="button"]:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
+  .iac-result-line { align-items: flex-start; flex-wrap: wrap; }
+  .iac-result-line > span { flex-basis: 160px; }
+  .iac-result-line > .iac-actions { margin-left: auto; }
+  .iac-result-line + .iac-body, .iac-result-line + .iac-row-expanded, .iac-row-expanded { margin-top: 8px; }
+}
