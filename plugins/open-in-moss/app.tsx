@@ -24,6 +24,29 @@ function markdownFileLinkFromClick(event: MouseEvent): MarkdownFileLink | null {
     );
   if (!anchor) return null;
 
+  const encodedPath = encodedFilePath(anchor);
+  if (encodedPath === null) return null;
+
+  let filePath: string;
+  try {
+    filePath = decodeURIComponent(encodedPath);
+  } catch {
+    return null;
+  }
+  if (!filePath.startsWith("/") || !MARKDOWN_EXTENSION.test(filePath)) {
+    return null;
+  }
+  return { anchor, path: filePath };
+}
+
+// bb's experimental_FileLink renders `./${encodeURIComponent(path)}`, so its
+// whole path is one href segment with no raw `/`, `?`, or `#`.
+const BB_FILE_LINK_HREF = /^\.\/([^/?#]+)$/u;
+
+function encodedFilePath(anchor: HTMLAnchorElement): string | null {
+  const fileLink = BB_FILE_LINK_HREF.exec(anchor.getAttribute("href") ?? "");
+  if (fileLink) return fileLink[1]!;
+
   let url: URL;
   try {
     url = new URL(anchor.href);
@@ -33,17 +56,7 @@ function markdownFileLinkFromClick(event: MouseEvent): MarkdownFileLink | null {
   if (url.protocol !== "file:" || url.hostname !== "" || url.search !== "") {
     return null;
   }
-
-  let filePath: string;
-  try {
-    filePath = decodeURIComponent(url.pathname);
-  } catch {
-    return null;
-  }
-  if (!filePath.startsWith("/") || !MARKDOWN_EXTENSION.test(filePath)) {
-    return null;
-  }
-  return { anchor, path: filePath };
+  return url.pathname;
 }
 
 function openInBb(anchor: HTMLAnchorElement): boolean {
