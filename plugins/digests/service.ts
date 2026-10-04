@@ -375,7 +375,7 @@ export function createService(bb: BbPluginApi) {
       } catch (error) {
         await bb.storage.kv.delete(`retry:${id}`);
         if (!previousManualRetry) await bb.storage.kv.delete(`manual-retry:${id}`);
-        if (!deliveryFailed) changed(store.issues.update(id, { state: issue.state, headline: issue.headline, lede: issue.lede, details: issue.details, recovery: issue.recovery }));
+        if (issue.state === "failed") changed(store.issues.update(id, { state: issue.state, headline: issue.headline, lede: issue.lede, details: issue.details, recovery: issue.recovery }));
         throw new Error("Couldn’t start the retry. Check that bb is connected on your browser’s computer, then Retry.");
       }
       return { threadId };
