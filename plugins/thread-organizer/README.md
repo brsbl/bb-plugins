@@ -46,8 +46,10 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
   `bb organizer section rule <stage-key> --set <text>`.
 - Section expansion and collapse are owned by bb and the user; Thread Organizer
   never changes them automatically.
-- Reordering a section other than the main Inbox in the native sidebar saves the same workflow
-  order used by plugin settings and future agent instructions.
+- The sidebar owns section order. Dragging any section, the main Inbox included,
+  saves that order as the workflow order used by plugin settings and agent
+  instructions. Reordering in settings changes only the workflow order; drag in
+  the sidebar to move sections there.
 - Automation-origin root threads follow the same workflow as ordinary roots.
 - Thread Organizer never renames threads. Moving between workflow stages leaves
   the user’s thread title unchanged.

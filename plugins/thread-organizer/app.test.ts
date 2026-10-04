@@ -16,7 +16,6 @@ import {
   type WorkflowConfig,
 } from "./core.js";
 import type { rpcContract } from "./server.js";
-import { cacheWorkflowConfig } from "./sidebar-controller.js";
 
 async function loadApp() {
   return loadPluginApp(() => import("./app.js"));
@@ -66,103 +65,6 @@ describe("Thread Organizer app registration", () => {
       "/api/v1/plugins/thread-organizer-from-main/rpc/getConfig",
     );
     await mounted.lifecycle.dispose();
-  });
-
-  it("applies a settings reorder to the mounted sidebar", async () => {
-    const app = await loadApp();
-    const initial = configuredWorkflow();
-    cacheWorkflowConfig(initial);
-    const sidebar = document.createElement("aside");
-    sidebar.dataset.sidebar = "sidebar";
-    for (const stage of initial.stages) {
-      const group = document.createElement("div");
-      group.dataset.sidebarStickyGroup = "";
-      group.dataset.sidebarSectionId = stage.sectionId!;
-      const button = document.createElement("button");
-      button.setAttribute("aria-expanded", "false");
-      button.setAttribute("aria-label", `Expand ${stage.title} section`);
-      button.addEventListener("click", () => {
-        const expanded = button.getAttribute("aria-expanded") === "true";
-        button.setAttribute("aria-expanded", String(!expanded));
-        button.setAttribute(
-          "aria-label",
-          `${expanded ? "Expand" : "Collapse"} ${stage.title} section`,
-        );
-      });
-      group.append(button);
-      sidebar.append(group);
-    }
-    document.body.append(sidebar);
-    // bb's synced sidebar order, served the way the real endpoint serves it.
-    const preference = {
-      revision: 1,
-      value: initial.stages.map((stage) => `section:${stage.sectionId}`),
-    };
-    const json = (status: number, body: unknown) =>
-      ({ ok: status < 300, status, json: async () => body }) as Response;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        if (url === "/api/v1/preferences/ui") {
-          return json(200, {
-            preferences: { "sidebar.manualSectionOrder": preference },
-          });
-        }
-        if (url === "/api/v1/preferences/ui/sidebar.manualSectionOrder") {
-          const body = JSON.parse(String(init?.body)) as {
-            expectedRevision: number;
-            value: string[];
-          };
-          if (body.expectedRevision !== preference.revision) {
-            return json(409, { details: { currentRevision: preference.revision } });
-          }
-          preference.revision += 1;
-          preference.value = body.value;
-          return json(200, { key: "sidebar.manualSectionOrder", ...preference });
-        }
-        return json(404, { code: "not_found" });
-      }),
-    );
-    const scripts = await mountPluginContentScripts(app, {
-      pluginId: "thread-organizer",
-    });
-    const rendered = renderSlot<{}, typeof rpcContract>(
-      app.settingsSections[0]!,
-      {},
-      {
-        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
-        rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
-          saveConfig: async (input) => ({
-            ...input,
-            stages: input.stages.map((stage) => ({
-              ...stage,
-              sectionId:
-                initial.stages.find((candidate) => candidate.key === stage.key)
-                  ?.sectionId ?? null,
-            })),
-          }),
-        },
-      },
-    );
-    await rendered.findByLabelText("More actions for Planning");
-
-    fireEvent.click(rendered.getByLabelText("More actions for Planning"));
-    fireEvent.click(rendered.getByRole("menuitem", { name: "Move down" }));
-    fireEvent.click(rendered.getByRole("button", { name: "Save" }));
-
-    await vi.waitFor(() =>
-      expect(preference.value.slice(0, 4)).toEqual([
-        "section:sec_inbox",
-        "section:sec_spec-review",
-        "section:sec_planning",
-        "section:sec_building",
-      ]),
-    );
-    rendered.lifecycle.unmount();
-    await scripts.lifecycle.dispose();
-    vi.unstubAllGlobals();
   });
 });
 
