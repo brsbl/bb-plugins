@@ -6,6 +6,14 @@ import { basename, isAbsolute, relative, resolve } from "node:path";
 
 export async function home() { return { path: homedir() }; }
 
+// ~/Moss/Notes with symlinks resolved, or null when this machine has none.
+const mossNotesPath = () => realpath(resolve(homedir(), "Moss/Notes")).catch(() => null);
+
+export async function mossRoot() {
+  const path = await mossNotesPath();
+  return { path: path && (await stat(path).then((info) => info.isDirectory(), () => false)) ? path : null };
+}
+
 export async function recentFiles({ paths, cwd }: { paths: string[]; cwd: string }) {
   const files: Array<{ path: string; name: string; moss: boolean }> = [];
   for (const path of paths) {
@@ -53,7 +61,7 @@ export async function resolveFile({ path, cwd }: { path: string; cwd?: string })
 // Recognize distinctive Moss markers only; rendering belongs to the Moss app.
 async function isMossNote(path: string): Promise<boolean> {
   if (!/\.(?:md|markdown)$/i.test(path)) return false;
-  const notes = await realpath(resolve(homedir(), "Moss/Notes")).catch(() => resolve(homedir(), "Moss/Notes"));
+  const notes = (await mossNotesPath()) ?? resolve(homedir(), "Moss/Notes");
   const within = relative(notes, path);
   if (within && within !== ".." && !within.startsWith("../") && !isAbsolute(within)) return true;
   const marker = /\n[ \t]{0,3}(?:(?:`{3,}|~{3,})moss-[a-z][\w-]*\b|:::tabs\b)/;

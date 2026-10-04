@@ -24,6 +24,7 @@ export const hostContract = defineRpcContract({
     output: z.object({ files: z.array(z.object({ path: filePath, name: z.string(), moss: z.boolean() })) }),
   },
   home: { input: z.object({}).strict(), output: z.object({ path: filePath }) },
+  mossRoot: { input: z.object({}).strict(), output: z.object({ path: filePath.nullable() }) },
   inspect: {
     input: z.object({ paths: z.array(filePath).max(MAX_PINS) }).strict(),
     output: z.object({ files: z.array(z.object({ path: filePath, status, moss: z.boolean() })) }),
@@ -52,7 +53,11 @@ export const rpcContract = defineRpcContract({
   },
   search: {
     input: z.object({ threadId: id, hostId: id, query: z.string().max(500) }).strict(),
-    output: z.object({ root: filePath, paths: z.array(z.object({ path: filePath, name: z.string() })), truncated: z.boolean() }),
+    output: z.object({
+      root: filePath,
+      paths: z.array(z.object({ path: filePath, name: z.string(), hostId: id, hostName: z.string(), moss: z.boolean() })),
+      truncated: z.boolean(),
+    }),
   },
   remove: {
     input: z.object({ threadId: id, pinId: id }).strict(),

@@ -14,9 +14,10 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins -
 ## Use
 
 Choose **Pin to thread** in the composer's **+** menu, then search files on the
-thread's machine. Type an absolute or `~/` path in the same search field to pin it directly. When more
-than one machine is enrolled, the search row lets you choose the file's machine. Its options menu contains
-**Paste a path…**.
+thread's machine. Search also covers `~/Moss/Notes` on every connected machine and lists those
+notes first; a machine that is asleep or unreachable is skipped. Type or paste an absolute, `~/` or
+workspace-relative path in the same field to get **Pin <path>** as the first result. When more than one
+machine is enrolled, the search row lets you choose the workspace machine.
 
 Pinned files read as quiet file chips above the composer, in order, as many as fit; the strip never
 scrolls. Files that aren't pinned sit in the **⋯** list. Hover a filename for its full path and machine.

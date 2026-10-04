@@ -10,8 +10,16 @@ function setup(events: unknown[] = []) {
     sdk: {
       threads: { get: async ({ threadId }) => makeThreadResponse({ id: threadId, environmentId: "env-mac" }), events: { list: async () => events as never } },
       environments: { get: async () => ({ hostId: "mac", path: "/Users/me/project" }) },
-      hosts: { list: async () => [makeHostResponse({ id: "mac", name: "My Mac", status: "connected" }), makeHostResponse({ id: "linux", name: "Worker", status: "disconnected" })] },
+      hosts: { list: async () => [
+        makeHostResponse({ id: "mac", name: "My Mac", status: "connected" }),
+        makeHostResponse({ id: "linux", name: "Worker", status: "disconnected" }),
+        makeHostResponse({ id: "sleepy", name: "Sleepy", status: "connected" }),
+      ] },
       files: { listPaths: async ({ hostId, path }) => {
+        if (path === "/Users/me/Moss/Notes") return { paths: [
+          { path: "Launch/Launch.md", name: "Launch.md", kind: "file", positions: [], score: 1 },
+          { path: "Launch/layout.json", name: "layout.json", kind: "file", positions: [], score: 1 },
+        ], truncated: false };
         expect(path).toBe(hostId === "mac" ? "/Users/me/project" : "/home/worker");
         return { paths: [{ path: "docs/note.md", name: "note.md", kind: "file", positions: [], score: 1 }], truncated: false };
       } },
@@ -20,6 +28,7 @@ function setup(events: unknown[] = []) {
       if (hostId === "offline") throw new Error("Host offline");
       if (method === "openMossNote") return { opened: true };
       if (method === "home") return { path: "/home/worker" };
+      if (method === "mossRoot") return hostId === "sleepy" ? new Promise(() => {}) : { path: hostId === "mac" ? "/Users/me/Moss/Notes" : null };
       if (method === "recentFiles") return { files: (input as { paths: string[] }).paths.filter((path) => !path.includes("gone")).map((path) => ({ path: path.startsWith("/") ? path : `/Users/me/project/${path}`, name: path.split("/").at(-1)!, moss: false })) };
       if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available", moss: path.includes("moss") })) };
       const { path } = input as { path: string };
@@ -100,11 +109,20 @@ describe("thread file pins", () => {
     ]);
     expect((await h.behavior.callRpc("list", { threadId: "one" }) as { pins: unknown[] }).pins).toHaveLength(3);
   });
-  it("searches the thread directory only on its host, otherwise the selected host home", async () => {
+  it("searches the thread workspace or selected host home, with Moss notes from connected machines first", async () => {
     const h = setup();
-    expect(await h.behavior.callRpc("search", { threadId: "one", hostId: "mac", query: "note" })).toMatchObject({ paths: [{ path: "/Users/me/project/docs/note.md" }] });
-    expect(await h.behavior.callRpc("search", { threadId: "one", hostId: "linux", query: "note" })).toMatchObject({ paths: [{ path: "/home/worker/docs/note.md" }] });
+    expect(await h.behavior.callRpc("search", { threadId: "one", hostId: "mac", query: "note" })).toEqual({ root: "/Users/me/project", truncated: false, paths: [
+      { path: "/Users/me/Moss/Notes/Launch/Launch.md", name: "Launch.md", hostId: "mac", hostName: "My Mac", moss: true },
+      { path: "/Users/me/project/docs/note.md", name: "note.md", hostId: "mac", hostName: "My Mac", moss: false },
+    ] });
+    const linux = await h.behavior.callRpc("search", { threadId: "one", hostId: "linux", query: "note" }) as { paths: Array<{ path: string }> };
+    expect(linux.paths.map((file) => file.path)).toEqual(["/Users/me/Moss/Notes/Launch/Launch.md", "/home/worker/docs/note.md"]);
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "home", hostId: "linux" });
+  }, 10_000);
+  it("resolves relative picker paths against the thread workspace on its own machine", async () => {
+    const h = setup();
+    await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "docs/note.md" });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "mac", input: { path: "docs/note.md", cwd: "/Users/me/project" } });
   });
   it("repins in place only after the replacement resolves successfully", async () => {
     const h = setup();

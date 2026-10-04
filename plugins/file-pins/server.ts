@@ -7,6 +7,30 @@ export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({ contract: hostContract });
   const undos = new Map<string, { threadId: string; pin: Pin; index: number; more: boolean; expires: number }>();
   const linkCache: LinkCache = new Map();
+  // Each connected machine's ~/Moss/Notes. Lookups are time-boxed and briefly
+  // remembered, so a sleeping Mac never slows or fails workspace search.
+  const MOSS_TIMEOUT = 2_000;
+  const mossRoots = new Map<string, { root: string | null; expires: number }>();
+  const timeBoxed = <T>(work: Promise<T>) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Timed out")), MOSS_TIMEOUT); });
+    return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+  };
+  const mossRoot = async (hostId: string) => {
+    const cached = mossRoots.get(hostId);
+    if (cached && cached.expires > Date.now()) return cached.root;
+    const root = await timeBoxed(host.call("mossRoot", {}, { hostId })).then(({ path }) => path, () => null);
+    mossRoots.set(hostId, { root, expires: Date.now() + (root ? 300_000 : 30_000) });
+    return root;
+  };
+  const joinPath = (root: string, path: string) => `${root.replace(/[\\/]$/, "")}/${path}`;
+  const searchMossNotes = async (hostId: string, hostName: string, query: string) => {
+    const root = await mossRoot(hostId);
+    if (!root) return [];
+    const result = await timeBoxed(bb.sdk.files.listPaths({ hostId, path: root, query, includeFiles: true, includeDirectories: false, limit: 20 }));
+    return result.paths.filter(({ name }) => /\.(?:md|markdown)$/i.test(name))
+      .map(({ path, name }) => ({ path: joinPath(root, path), name, hostId, hostName, moss: true }));
+  };
   // All read-modify-write operations share a queue so CLI/UI writes cannot lose pins.
   let writes = Promise.resolve();
   const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
@@ -118,9 +142,23 @@ export default function plugin(bb: BbPluginApi): void {
       const target = await thread(threadId);
       const environment = target.environmentId ? await bb.sdk.environments.get({ environmentId: target.environmentId }) : null;
       const root = environment?.hostId === hostId && environment.path ? environment.path : (await host.call("home", {}, { hostId })).path;
-      if (!query.trim()) return { root, paths: [], truncated: false };
-      const result = await bb.sdk.files.listPaths({ hostId, path: root, query: query.trim(), includeFiles: true, includeDirectories: false, limit: 20 });
-      return { root, paths: result.paths.map(({ path, name }) => ({ path: `${root.replace(/[\\/]$/, "")}/${path}`, name })), truncated: result.truncated };
+      const text = query.trim();
+      if (!text) return { root, paths: [], truncated: false };
+      const hosts = await bb.sdk.hosts.list();
+      const hostName = (id: string) => hosts.find((item) => item.id === id)?.name ?? id;
+      // Moss notes from every connected machine come first, then the workspace files.
+      const [workspace, ...moss] = await Promise.allSettled([
+        bb.sdk.files.listPaths({ hostId, path: root, query: text, includeFiles: true, includeDirectories: false, limit: 20 }),
+        ...hosts.filter((item) => item.status === "connected").map((item) => searchMossNotes(item.id, item.name, text)),
+      ]);
+      if (workspace.status === "rejected") throw workspace.reason;
+      const notes = moss.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+      const notesRoot = mossRoots.get(hostId)?.root;
+      const files = workspace.value.paths.map(({ path, name }) => {
+        const file = joinPath(root, path);
+        return { path: file, name, hostId, hostName: hostName(hostId), moss: !!notesRoot && file.startsWith(`${notesRoot}/`) && /\.(?:md|markdown)$/i.test(name) };
+      }).filter((file) => !notes.some((note) => note.hostId === file.hostId && note.path === file.path));
+      return { root, paths: [...notes, ...files], truncated: workspace.value.truncated };
     },
     remove: ({ threadId, pinId }) => serialize(async () => {
       await thread(threadId);
@@ -174,7 +212,13 @@ export default function plugin(bb: BbPluginApi): void {
       defaultHostId: await threadHost(threadId),
       hosts: (await bb.sdk.hosts.list()).map(({ id, name, status }) => ({ id, name, connected: status === "connected" })),
     }),
-    pin: ({ threadId, hostId, path, unpinned }) => pin(threadId, hostId, path, undefined, undefined, unpinned),
+    pin: async ({ threadId, hostId, path, unpinned }) => {
+      // Relative paths typed into the picker resolve against the thread's workspace on its own machine.
+      const target = await thread(threadId);
+      const environment = target.environmentId ? await bb.sdk.environments.get({ environmentId: target.environmentId }) : null;
+      const cwd = environment?.hostId === hostId && environment.path ? environment.path : undefined;
+      return pin(threadId, hostId, path, cwd, undefined, unpinned);
+    },
     unpin: ({ threadId, pinId }) => removePin(threadId, pinId),
   });
   bb.events.on("thread.idle", ({ thread }) => bb.realtime.publish("recent-changed", { threadId: thread.id }));
