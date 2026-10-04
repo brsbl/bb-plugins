@@ -20,6 +20,31 @@ function fixture(): PullRequestItem {
 const thread = { id: "thr_archived", title: "Archived implementation thread", projectId: "proj_1", environmentId: null, hostId: "host_1", archived: true };
 
 describe("Pull Requests access and detail lifetime", () => {
+  it("does not restore private content from a pin response delivered after access invalidation", async () => {
+    const item = fixture();
+    let current = item;
+    let release!: (value: PullRequestItem) => void;
+    const pending = new Promise<PullRequestItem>((resolve) => { release = resolve; });
+    const pin = vi.fn(() => pending);
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
+      list: () => ({ items: [current], nextCursor: null, total: 1, coverage }), show: () => current, pin,
+      refresh: () => coverage, context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
+    } });
+    await screen.findByText("Private description");
+    fireEvent.click(screen.getByRole("button", { name: "Pin pull request" }));
+    await waitFor(() => expect(pin).toHaveBeenCalled());
+    current = { ...item, pinned: true, snapshot: null, sourceState: "denied", sourceMessage: "Access denied" };
+    await slot.behavior.emitRealtime(CHANGED, {});
+    await screen.findByText("Access denied");
+    expect(screen.queryByText("Private description")).toBeNull();
+    await act(async () => { release({ ...item, pinned: true }); await pending; });
+    expect(screen.queryByText("Private description")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Private pull request" })).toBeNull();
+    expect(await screen.findByRole("button", { name: "Unpin pull request" })).toBeDefined();
+    slot.lifecycle.unmount();
+  });
+
   it("renders the first cached list before starting discovery or unrelated thread hydration", async () => {
     const item = fixture();
     let finish!: (value: { items: PullRequestItem[]; nextCursor: null; total: number; coverage: typeof coverage }) => void;

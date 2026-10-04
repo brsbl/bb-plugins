@@ -80,6 +80,47 @@ describe("PR registry and host identity", () => {
     expect((await h.rpc<PullRequestItem>("show", { id: listing.items[0]!.id })).links).toHaveLength(1);
     await expect(h.rpc("preview", { url: snapshot(2).url, threadId: "thr_b" })).rejects.toThrow("hidden");
   });
+  it("invalidates cached accounts on a mid-read switch during a new-URL preview and rejects older reads", async () => {
+    const h = setup(); const one = await h.link(1), two = await h.link(2);
+    let release!: (value: ReadResult) => void;
+    h.setResponse(async (input) => input.url === one.url ? new Promise((resolve) => { release = resolve; }) : { ok: false, kind: "auth-changed", accountId: "U_A", message: "Account switched" });
+    await h.rpc("refresh", { id: one.id });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    await expect(h.rpc("preview", { url: snapshot(3).url, threadId: "thr_a" })).rejects.toThrow("Account switched");
+    for (const item of [one, two]) expect(await h.rpc("show", { id: item.id })).toMatchObject({ snapshot: null, sourceState: "auth-changed" });
+    release({ ok: true, accountId: "U_A", login: "alice", snapshot: snapshot(1) });
+    await h.settle();
+    expect(await h.rpc("show", { id: one.id })).toMatchObject({ snapshot: null, sourceState: "auth-changed" });
+  });
+  it("rejects an older summary after Changes reports repository access denied", async () => {
+    const h = setup(); const item = await h.link();
+    let release!: (value: ReadResult) => void;
+    h.setResponse(async () => new Promise((resolve) => { release = resolve; }));
+    await h.rpc("refresh", { id: item.id });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    h.setResponse(async () => ({ ok: false, kind: "denied", message: "Access denied" }));
+    await expect(h.rpc("changes", { id: item.id })).rejects.toThrow("Access denied");
+    release({ ok: true, accountId: "U_A", login: "alice", snapshot: snapshot() });
+    await h.settle();
+    expect(await h.rpc("show", { id: item.id })).toMatchObject({ snapshot: null, sourceState: "denied" });
+  });
+  it("returns current access state when a pin response waits on thread eligibility", async () => {
+    const h = setup(); const item = await h.link();
+    const store = createStore(h.bb);
+    const original = h.bb.sdk.threads.get;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    let waiting = false;
+    vi.spyOn(h.bb.sdk.threads, "get").mockImplementation(async (input) => {
+      if (store.get(item.id).pinned) { waiting = true; await pending; }
+      return original(input);
+    });
+    const pin = h.rpc<PullRequestItem>("pin", { id: item.id, pinned: true });
+    await vi.waitFor(() => expect(waiting).toBe(true));
+    store.invalidateConnection(item.reader!, "auth-changed", "Account switched");
+    release();
+    expect(await pin).toMatchObject({ pinned: true, snapshot: null, sourceState: "auth-changed" });
+  });
   it("discards late refresh replies after an explicit source change", async () => {
     const h = setup(); const item = await h.link(); await h.link(1, "thr_b");
     let release: ((value: ReadResult) => void) | undefined;
