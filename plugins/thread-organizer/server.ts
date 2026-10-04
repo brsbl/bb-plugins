@@ -164,8 +164,8 @@ interface ThreadWorkflowState {
 
 interface ReconcileOptions {
   explicitStageKey?: string;
-  /** The user just read the thread, so an inbox set to return it may let go. */
-  justRead?: boolean;
+  /** Let an inbox set to return read threads release this one if it is idle and read. */
+  releaseRead?: boolean;
   /** Record where the thread sits without treating it as an entry. */
   seedLanding?: boolean;
   /**
@@ -515,7 +515,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   ): Promise<EntryPromptOutcome> {
     const {
       explicitStageKey,
-      justRead = false,
+      releaseRead = false,
       seedLanding = false,
       evictFromSectionIds,
     } = options;
@@ -599,7 +599,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       state.rememberedStageKey,
       explicitStageKey !== undefined,
       matchedInbox,
-      justRead,
+      releaseRead,
     );
     if (destination && !destination.sectionId) {
       throw new Error(`Stage ${destination.key} has no native section.`);
@@ -628,7 +628,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       !created &&
       !seedLanding &&
       // Reading a thread must not start another agent turn.
-      !(justRead && returnsAfterRead(currentStage, thread)) &&
+      !(releaseRead && returnsAfterRead(currentStage, thread)) &&
       landedStageKey !== null &&
       landedStageKey !== state.lastLandedStageKey;
     state.lastLandedStageKey = landedStageKey;
@@ -802,7 +802,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     for (const threadId of await listManageableThreadIds(signal)) {
       if (signal?.aborted) return;
       await schedule(threadId, async () => {
-        await reconcileThread(threadId, { seedLanding: true });
+        await reconcileThread(threadId, { releaseRead: true, seedLanding: true });
       });
     }
   }
@@ -831,6 +831,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       try {
         await enqueue(threadId, async () => {
           await reconcileThread(threadId, {
+            releaseRead: true,
             seedLanding: true,
             evictFromSectionIds,
           });
@@ -1689,7 +1690,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           if (!isUnreadThread(thread)) {
             const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
             if (!returnsAfterRead(currentStage, thread)) return;
-            await reconcileThread(threadId, { justRead: true });
+            await reconcileThread(threadId, { releaseRead: true });
             return;
           }
         }

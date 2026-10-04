@@ -21,7 +21,8 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
   without starting another agent turn.
 - Set any inbox to **Move back after reading** to skip that drag: as soon as you
   read an idle thread there, it returns to its remembered stage (or Threads when it has
-  none) without sending an entry prompt. A thread moved out of a plugin inbox
+  none) without sending an entry prompt. Turning the setting on also releases
+  threads you had already read there. A thread moved out of a plugin inbox
   this way is not claimed by it again.
 - Starting unclaimed work again restores the thread’s remembered stage.
 - A user move changes the remembered stage. `bb organizer phase <stage-key>`

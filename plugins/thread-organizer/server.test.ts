@@ -814,6 +814,29 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("releases threads already read in Inbox when it is set to return them", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    const config = await configFor(organizer);
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    organizer.setThread({ lastReadAt: 20 });
+    organizer.emitChanged(["read-state-changed"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    const sentBefore = organizer.sendMessage.mock.calls.length;
+
+    await saveStagePatch(organizer, "inbox", { returnAfterRead: true });
+    expect(organizer.current().sectionId).toBe(sectionId("planning"));
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(sentBefore);
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("releases a read plugin-inbox thread only when that inbox returns it", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);

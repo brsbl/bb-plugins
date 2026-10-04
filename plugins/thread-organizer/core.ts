@@ -577,7 +577,7 @@ export function placementForThread(
   rememberedStageKey: string | null,
   leaveInbox = false,
   matchedInbox: WorkflowStage | null = null,
-  justRead = false,
+  releaseRead = false,
 ): WorkflowStage | null {
   const remembered =
     config.stages.find(
@@ -586,7 +586,7 @@ export function placementForThread(
   const currentStage = stageForSectionId(config, thread.sectionId);
   const keepInInbox =
     !leaveInbox &&
-    !(justRead && returnsAfterRead(currentStage, thread));
+    !(releaseRead && returnsAfterRead(currentStage, thread));
   if (keepInInbox) {
     if (matchedInbox) return matchedInbox;
     if (currentStage?.role === "inbox" && currentStage.key !== "inbox") return currentStage;
