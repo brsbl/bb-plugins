@@ -43,7 +43,8 @@ function tick() {
 }
 
 function visible(id: string) {
-  return vi.mocked(browser.setVisibleWithoutFocus!).mock.calls.filter(([request]) => request.tabId === id).at(-1)?.[0].visible;
+  return vi.mocked(browser.setVisibleWithoutFocus!).mock.calls.filter(([request]) => request.tabId === id).at(-1)?.[0].visible
+    ?? vi.mocked(browser.attach).mock.calls.find(([request]) => request.tabId === id)?.[0].visible;
 }
 
 beforeEach(() => {
@@ -109,7 +110,7 @@ it("does not restore a hidden document or a destroyed browser when the preview u
   dialog.remove();
   vi.mocked(browser.setVisibleWithoutFocus!).mockClear();
   act(() => vi.advanceTimersByTime(1200));
-  expect(visible("first")).toBeUndefined();
+  expect(vi.mocked(browser.setVisibleWithoutFocus!).mock.calls.some(([request]) => request.tabId === "first")).toBe(false);
   expect(visible("second")).toBe(false);
   vi.spyOn(document, "hidden", "get").mockReturnValue(false);
   tick();
