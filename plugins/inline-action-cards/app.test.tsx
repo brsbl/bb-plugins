@@ -199,7 +199,8 @@ it("submits the selected option from a choice card, starting from the recommenda
   const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [
     { id: "single", label: "UserSingle", hint: "One account for every thread" }, { id: "multi", label: "UserMultiple" }, { id: "pool", label: "Pool" },
   ] };
-  const { slot, calls, get } = await setup("", false, { ...fixture(), id: "setup", content });
+  let release!: () => void;
+  const { slot, calls, get } = await setup("", false, { ...fixture(), id: "setup", content }, new Promise<void>((resolve) => { release = resolve; }));
   await screen.findByRole("radiogroup", { name: "Which account setup?" });
   expect(screen.getByText("Recommended")).toBeTruthy();
   expect((screen.getByRole("radio", { name: /UserMultiple/ }) as HTMLInputElement).checked).toBe(true);
@@ -212,6 +213,10 @@ it("submits the selected option from a choice card, starting from the recommenda
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:setup:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Which account setup" }]);
   expect(screen.getByRole("button", { name: "Using…" }).getAttribute("aria-busy")).toBe("true");
   expect((screen.getByRole("radio", { name: /UserMultiple/ }) as HTMLInputElement).disabled).toBe(true);
+  release();
+  expect((await screen.findByRole("status")).textContent).toMatch(/^✓ UserSingle chosen · /);
+  expect(calls).toEqual(["choose", "submitted"]);
+  expect(screen.queryByRole("button", { name: "Using…" })).toBeNull();
 });
 it("disables the primary button until an option is picked when nothing is recommended", async () => {
   const content = { type: "choice" as const, question: "Pick a plan", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] };
