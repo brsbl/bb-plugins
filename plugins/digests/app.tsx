@@ -319,7 +319,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   return <form className="digest-form" onSubmit={(event) => {
     event.preventDefault();
     const [hours, minutes] = time.split(":");
-    void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, instructions, execution,
+    void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, instructions, ...(execution || definition?.execution ? { execution } : {}),
       schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone: definition?.schedule?.timezone ?? "America/Los_Angeles" } });
   }}>
     <label htmlFor={`${formId}-name`}>Name</label>

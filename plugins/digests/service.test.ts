@@ -47,6 +47,7 @@ function setup(options: { runs?: Array<{
         },
       },
       plugins: {
+        list: async () => ({ plugins: [] }),
         callRpc: async ({ pluginId, method, input, outputSchema }) => {
           let result: unknown;
           if (pluginId === "thread-organizer" && method === "getConfig") {
