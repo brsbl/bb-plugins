@@ -204,6 +204,19 @@ describe("bb ThreadChat contract", () => {
     expect(Array.from(document.querySelectorAll(empty))).toHaveLength(1);
   });
 
+  it("keeps a queued editor's submit separate from the bottom composer", () => {
+    const { live } = load();
+    const bottom = live.querySelector<HTMLButtonElement>(COMPOSER_SUBMIT)!;
+    const shell = bottom.closest("[data-promptbox-shell]")!;
+    const queued = shell.cloneNode(true) as HTMLElement;
+    shell.firstElementChild!.append(queued);
+    const inline = queued.querySelector<HTMLButtonElement>(CHAT_CONTRACT_PROBES.submit)!;
+    inline.disabled = false;
+    expect(live.querySelector(COMPOSER_SUBMIT)).toBe(bottom);
+    // The selector shared with CSS must never hide the queued editor's action.
+    expect(inline.matches(COMPOSER_SUBMIT)).toBe(false);
+  });
+
   it("reports a mismatch when bb renames its row and message markers", () => {
     const renamed = fixture.replaceAll("data-timeline-row-id=", "data-timeline-row-key=").replaceAll("data-message-column=", "data-message-body=");
     const { live, archived } = load(renamed);
