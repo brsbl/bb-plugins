@@ -252,6 +252,13 @@ export function InternetExplorer({
 
   const loading = state?.isLoading === true;
   const disabled = browser === null || threadId === null;
+  const pageTitle = state?.title?.trim() || "bb Explorer";
+  let pageHostname = "";
+  try {
+    pageHostname = new URL(state?.url ?? "").hostname;
+  } catch {
+    // No page identity until the browser reports a valid URL.
+  }
   const status = error !== null
     ? `Could not open the browser: ${error}`
     : browser === null
@@ -321,7 +328,17 @@ export function InternetExplorer({
         </button>
       </form>
       <div ref={viewRef} className="bbd-ie-view min-h-0 flex-1" data-shown={shown}>
-        {shown ? null : (
+        {shown ? null : browser !== null ? (
+          <div className="bbd-ie-page-placeholder">
+            <div className="bbd-ie-page-identity">
+              <span className="bbd-ie-page-icon" aria-hidden><InternetExplorerArt size={40} /></span>
+              <div className="bbd-ie-page-labels">
+                <p className="bbd-ie-page-title" title={pageTitle}>{pageTitle}</p>
+                {pageHostname ? <p className="bbd-ie-page-host" title={pageHostname}>{pageHostname}</p> : null}
+              </div>
+            </div>
+          </div>
+        ) : (
           <div className="bbd-ie-placeholder">
             <p>{state?.title ?? (browser === null ? "" : "bb Explorer")}</p>
             {browser === null ? <p>Open bb's desktop app to browse here, or use the link below.</p> : null}
