@@ -68,8 +68,8 @@ export function createStore(bb: BbPluginApi) {
         ? db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId)
         : db.prepare("SELECT value FROM action_items").all()) as { value: string }[];
       const items = rows.map((row) => itemSchema.parse(JSON.parse(row.value)));
-      const titles = new Map(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => {
-        try { const thread = await bb.sdk.threads.get({ threadId: id }); return [id, { title: thread.title, projectId: thread.projectId }] as const; }
+      const titles = new Map<string, { title: string; projectId: string | null }>(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => {
+        try { const thread = await bb.sdk.threads.get({ threadId: id }); return [id, { title: thread.title ?? "Untitled thread", projectId: thread.projectId }] as const; }
         catch { return [id, { title: "Unavailable thread", projectId: null }] as const; }
       })));
       const sorted = items.map((item) => ({ ...item, threadTitle: titles.get(item.threadId)!.title, threadProjectId: titles.get(item.threadId)!.projectId }))
