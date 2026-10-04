@@ -275,8 +275,9 @@ describe("workflow settings", () => {
       title: "Needs Me",
       rule: INBOX_RULE,
     });
-    expect(rendered.inspection.rpcCalls.map(({ method }) => method)).toEqual([
+    expect(rendered.inspection.rpcCalls.map(({ method }) => method).sort()).toEqual([
       "getConfig",
+      "listThreadSourcePlugins",
       "saveConfig",
     ]);
     rendered.lifecycle.unmount();

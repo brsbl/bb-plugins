@@ -366,6 +366,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
       "getConfig",
       "saveConfig",
+      "listThreadSourcePlugins",
     ]);
     expect(
       organizer.harness.inspection.registrations.agentConfigurationProvider,
@@ -394,6 +395,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
       "getConfig",
       "saveConfig",
+      "listThreadSourcePlugins",
     ]);
     expect(
       organizer.harness.inspection.registrations.agentConfigurationProvider,
