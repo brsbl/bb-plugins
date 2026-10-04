@@ -58,8 +58,8 @@
 .iac-row-line > .iac-footer { margin-top: 0; min-width: 160px; }
 .iac-row .iac-footer > button:last-child { min-width: 64px; }
 .iac-row-expanded { margin-top: 12px; }
-.iac-options { display: grid; gap: 2px; margin: 8px -8px 0; }
-.iac-option { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 4px 8px; border-radius: var(--radius-md, .5rem); cursor: pointer; }
+.iac-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 8px -8px 0; }
+.iac-option { display: flex; min-width: 0; align-items: center; gap: 10px; min-height: 32px; padding: 4px 8px; border-radius: var(--radius-md, .5rem); cursor: pointer; }
 .iac-option:hover:not(:has(input:disabled)) { background: var(--state-hover, var(--muted)); }
 .iac-option:has(input:checked) { background: var(--state-selected, var(--muted)); }
 .iac-option:has(input:disabled) { cursor: default; }
