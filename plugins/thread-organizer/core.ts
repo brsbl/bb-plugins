@@ -74,7 +74,7 @@ export const INBOX_DESCRIPTION =
   "Idle unread threads without queued messages and not claimed by another inbox appear here automatically. They stay until work resumes, a message is queued, or you move a read thread to another section.";
 
 export const RETURNING_INBOX_DESCRIPTION =
-  "Idle unread threads without queued messages and not claimed by another inbox appear here automatically. They move back when you read them, work resumes, or a message is queued.";
+  "Idle unread threads without queued messages and not claimed by another inbox appear here automatically and move back to their section once you read them. Resuming work or queuing a message also moves them back.";
 
 export const HANDOFF_RULE =
   "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
@@ -629,7 +629,7 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
         `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
     );
   return [
-    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads without queued messages and not claimed by another inbox go there automatically. They leave when work resumes or a message is queued, and ${inboxStage(config).returnAfterRead ? "return to their workflow section once the user reads them" : "otherwise stay until the user moves a read thread to another workflow section"}. Never choose an inbox with \`bb organizer phase\`.`,
+    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads without queued messages and not claimed by another inbox go there automatically and ${inboxStage(config).returnAfterRead ? "return to their workflow section once the user reads them" : "stay until work resumes or the user moves a read thread to another workflow section"}. Queuing a message also returns the thread to its workflow section. Never choose an inbox with \`bb organizer phase\`.`,
     ...config.stages
       .filter((stage) => stage.role === "inbox" && stage.key !== "inbox")
       .map((stage) =>
