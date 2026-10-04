@@ -6,6 +6,8 @@ Website URLs appear as compact favicon pills in the composer, sent messages and 
 
 Copying, editing and sending retain the original URL, including its query and fragment. Authored Markdown labels, code, quotes and native bb thread references keep their own presentation. Sent-message editing uses native text. A trailing streamed URL stays expanded when its completion cannot be established safely.
 
+![Favicon pills in drafts and conversations](https://github.com/user-attachments/assets/9157a554-9245-4443-b28e-cd3f448925a3)
+
 ## Website icons
 
 **Load website icons** is on by default in the plugin settings. It contacts public HTTPS websites using only their origin, without browser cookies or the pasted path, query or fragment. Private addresses, nonstandard ports and unsupported or missing images use a generic icon. Turning it off cancels lookups and removes cached icons from view.

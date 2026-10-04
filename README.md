@@ -152,6 +152,10 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 Turns website URLs into compact favicon pills in the composer, sent messages and agent replies. Inspect the full destination or edit the original URL in place.
 
+![Favicon pills in drafts and conversations](https://github.com/user-attachments/assets/9157a554-9245-4443-b28e-cd3f448925a3)
+
+![Full URL inspector](https://github.com/user-attachments/assets/a8cd4527-6068-429d-b240-8b922ad61939)
+
 [Source](plugins/url-pills) · [README](plugins/url-pills/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/url-pills --yes`
