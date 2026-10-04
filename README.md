@@ -232,11 +232,11 @@ See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template]
 
 ### Pinned Files
 
-Keep local files within reach in each thread with persistent pins above the composer. Ask the agent to pin a file from the composer's pin button or use the CLI, and open pins through bb's file links.
+Keep local files within reach in each thread with persistent pins above the composer. Ask the agent to pin files from the composer's pin button or use the CLI, and open pins through bb's file links.
 
 ![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
 
-![The pin button adds a Pinned Files pill and "Pin this file:" to the composer](https://github.com/user-attachments/assets/89e7bb7d-e56d-48f5-8859-791d49927422)
+![The pin button adds a Pin files pill to the composer](https://github.com/user-attachments/assets/4749c71d-891c-4581-817d-33bc93e678ca)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 
