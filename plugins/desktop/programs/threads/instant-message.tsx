@@ -11,6 +11,7 @@ import { threadMenu } from "../../shell/menus";
 import { WindowFrame, useWindowManager, viewportRect, windowId, type DesktopWindow, type ThreadTabKind } from "../../windows";
 import { COMPOSER_SUBMIT, inspectChatContract, readComposerSend, type ChatContract, type ComposerSend } from "./chat-contract";
 import { statusKind, typingLine } from "./status";
+import { useSideChatActions } from "./side-chat";
 
 /** A thread as an AIM conversation, with the Buddy List and Buddy Info docked beside it. */
 
@@ -26,6 +27,7 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
   const browserAvailable = nativeBrowser() !== null;
   const working = thread === undefined ? null : statusKind(thread) === "working";
   const archived = thread?.isArchived === true;
+  const messageActions = useSideChatActions(thread !== undefined && !archived);
   const wasWorking = useRef<boolean | null>(null);
   const [chatRoot, setChatRoot] = useState<HTMLDivElement | null>(null);
   const contract = useChatContract(chatRoot);
@@ -127,7 +129,7 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
           data-bbd-chat-contract={contract}
           data-archived={archived}
         >
-          <ThreadChat threadId={threadId} variant={archived && !restyled ? "timeline" : "compact"} layout="contained" permissionPolicy="editable" className="h-full" />
+          <ThreadChat threadId={threadId} variant={archived && !restyled ? "timeline" : "compact"} layout="contained" permissionPolicy="editable" messageActions={messageActions} className="h-full" />
         </div>
         {archived ? (
           <div className="bbd-im-archived flex-none" role="status">
