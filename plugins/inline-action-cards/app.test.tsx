@@ -237,6 +237,7 @@ it("thread panel Action log lists only its thread, drops thread names, and links
   expect(screen.queryByRole("combobox")).toBeNull();
   fireEvent.click(screen.getByRole("link", { name: "See all" }));
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
+});
 
 it.each(["reply", "decide"] as const)("round-trips a %s note through click, message context, CLI claim, reload and result", async (type) => {
   let host = createFakePluginHost({ pluginId: "inline-action-cards" });

@@ -153,6 +153,7 @@ it("log choices submit to their owning thread and resend the same durable attemp
   expect(resent.attempt!.id).toBe(pending.attempt!.id);
   const log = await host.harness.behavior.callRpc("log", {});
   expect(log).toMatchObject({ waiting: [{ threadTitle: "Refund follow-up" }] });
+});
 
 it("lets a choice held by its note return to ready for a new choice", () => {
   const { store } = setup();
