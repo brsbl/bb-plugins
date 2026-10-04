@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, expect, it } from "vitest";
 import type { Item } from "./model.js";
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], cc: [], bcc: [], original: { from: "Escrow", body: "Your refund is on its way." }, draft: "Original draft" } });
 afterEach(cleanup);
-async function setup(composerText = "", saveFailure = false) {
-  let item = fixture();
+async function setup(composerText = "", saveFailure = false, initialItem = fixture()) {
+  let item = initialItem;
   const calls: string[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
@@ -27,7 +27,7 @@ async function setup(composerText = "", saveFailure = false) {
       },
     },
   });
-  await screen.findByRole("textbox", { name: "Draft" });
+  await screen.findByRole("article");
   return { slot, calls, get: () => item, reportSuccess: async () => {
     item = { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Sent", retryable: false } };
     await slot.behavior.emitRealtime("items", {});
@@ -78,7 +78,7 @@ it("keeps an unsaved edit visible and offers recovery without submitting", async
   expect(slot.inspection.composer.submits).toHaveLength(0);
 });
 
-it("opens only one table reply and collapses it after Send", async () => {
+it("keeps the expanded table reply in place while Send is pending", async () => {
   let items = [fixture(), { ...fixture(), id: "esc-2" }];
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "inbox" }, source: '::actions{id="inbox"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
@@ -100,5 +100,58 @@ it("opens only one table reply and collapses it after Send", async () => {
   expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(screen.getByRole("textbox", { name: "Draft" }).getAttribute("readonly")).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: /Close/ }));
   expect(screen.queryByRole("textbox", { name: "Draft" })).toBeNull();
+  const pendingReview = screen.getAllByRole("button", { name: /Review/ })[1]!;
+  expect((pendingReview as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(pendingReview);
+  expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
+});
+
+it.each(["send", "yes", "no"] as const)("keeps %s on the pressed button and disables its siblings", async (action) => {
+  const item = fixture();
+  if (action !== "send") item.content = { type: "decide", question: "Switch digests?", consequence: "Keep schedules", yesLabel: "Switch", noLabel: "Keep" };
+  const { slot } = await setup("", false, item);
+  const label = action === "send" ? "Send" : action === "yes" ? "Switch" : "Keep";
+  const button = screen.getByRole("button", { name: label });
+  const classes = button.className;
+  fireEvent.click(button);
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  const pending = screen.getByRole("button", { name: action === "send" ? "Sending…" : action === "yes" ? "Switching…" : "Keeping…" });
+  expect(pending).toBe(button);
+  expect(pending.className).toBe(classes);
+  expect(pending.getAttribute("aria-busy")).toBe("true");
+  expect((pending as HTMLButtonElement).disabled).toBe(true);
+  const other = screen.getByRole("button", { name: action === "send" ? "Ask for changes" : action === "yes" ? "Keep" : "Switch" });
+  expect((other as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Skip" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
+});
+
+it("keeps the bulk button busy until its own attempts finish, without treating a row click as bulk", async () => {
+  let items: Item[] = ["one", "two"].map((id) => ({ ...fixture(), id, content: { type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", actionKey: "switch" } }));
+  const app = await loadPluginApp(() => import("./app.js"));
+  const prepare = (item: Item): Item => ({ ...item, revision: item.revision + 1, state: "pending", attempt: { id: item.id === "one" ? "ea45f71a-c216-4da4-a226-65736f4eccfd" : "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "yes", claimed: false } });
+  const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+    composer: { scope: { kind: "thread", threadId: "thr_test" } },
+    rpc: {
+      table: () => ({ id: "digests", threadId: "thr_test", title: "Digests", ids: items.map((item) => item.id), items }),
+      get: (raw) => items.find((item) => item.id === (raw as { id: string }).id),
+      prepare: (raw) => { items = items.map((item) => item.id === (raw as { id: string }).id ? prepare(item) : item); return items[0]; },
+      prepareTable: () => { items = items.map((item) => item.state === "ready" ? prepare(item) : item); return [items[1]]; },
+    },
+  });
+  const button = await screen.findByRole("button", { name: "Switch all" });
+  fireEvent.click(within(screen.getAllByRole("article")[0]!).getByRole("button", { name: "Switch" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(button.getAttribute("aria-busy")).toBeNull();
+  fireEvent.click(button);
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(2));
+  expect(button.getAttribute("aria-busy")).toBe("true");
+  items = items.map((item) => item.id === "two" ? { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Switched", retryable: false } } : item);
+  await slot.behavior.emitRealtime("items", {});
+  await waitFor(() => expect(button.getAttribute("aria-busy")).toBeNull());
 });
