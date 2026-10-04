@@ -18,8 +18,11 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
 - Additional inboxes receive threads from a selected plugin. Claimed threads stay
   in that inbox until you move or archive them, even after reading or resuming work.
   Opening a thread marks it read normally; it never also appears in the main Inbox.
-- A manual inbox catches nothing automatically. It holds the threads you move
-  there by hand, and keeps them after reading until you move or archive them.
+- Each additional inbox is **Filled by** a plugin or by **You**. A plugin inbox
+  catches the threads that plugin creates; the list offers only plugins that
+  have created threads. An inbox filled by You catches nothing automatically: it
+  holds the threads you move there, even after reading or new agent output,
+  until you move or archive them.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.
 - Set any inbox to **Move back after reading** to skip that drag: as soon as you

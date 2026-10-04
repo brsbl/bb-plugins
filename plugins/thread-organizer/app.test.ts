@@ -133,7 +133,7 @@ describe("Thread Organizer app registration", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({
@@ -181,7 +181,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => {
             submitted = input;
             return saveResponse;
@@ -235,7 +235,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => {
             savedInput = input;
             return {
@@ -291,7 +291,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({
@@ -371,7 +371,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => ((savedInput = input), {
             ...input,
             stages: input.stages.map((stage) => ({
@@ -411,7 +411,7 @@ describe("workflow settings", () => {
     const app = await loadApp();
     const rendered = renderSlot<{}, typeof rpcContract>(app.settingsSections[0]!, {}, {
       sdk: { plugins: { list: async () => ({ plugins: [] }) } },
-      rpc: { getConfig: async () => configuredWorkflow(), saveConfig: async () => configuredWorkflow() },
+      rpc: { listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(), saveConfig: async () => configuredWorkflow() },
     });
     const trigger = await rendered.findByRole("button", { name: "Edit entry prompt for Planning" });
     expect(trigger.textContent).toBe("Add prompt");
@@ -441,7 +441,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => {
+          listThreadSourcePlugins: async () => [], getConfig: async () => {
             loads += 1;
             return initial;
           },
@@ -518,7 +518,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => {
             submitted = input;
             throw new Error(
@@ -600,7 +600,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => initial,
+          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => {
             savedInput = input;
             return {
@@ -659,7 +659,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => configuredWorkflow(),
+          listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(),
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({
@@ -706,19 +706,18 @@ describe("workflow settings", () => {
     rendered.lifecycle.unmount();
   });
 
-  it("chooses inboxes and their after-reading behavior from the type menu", async () => {
-    const app = await loadApp();
-    let savedInput: EditableWorkflowConfig | null = null;
-    const rendered = renderSlot<{}, typeof rpcContract>(
+  function renderMenus(initial: WorkflowConfig, saved: { current: EditableWorkflowConfig | null }) {
+    return loadApp().then((app) => renderSlot<{}, typeof rpcContract>(
       app.settingsSections[0]!, {}, {
         sdk: { plugins: { list: vi.fn().mockResolvedValue({ plugins: [
           { id: "digests", name: "Digests", status: "running", isOrphanedBuiltin: false },
-          { id: "missing-plugin", name: "Missing", status: "missing", isOrphanedBuiltin: false },
+          { id: "keep-awake", name: "Keep Awake", status: "running", isOrphanedBuiltin: false },
         ] }) } },
         rpc: {
-          getConfig: async () => configuredWorkflow(),
+          listThreadSourcePlugins: async () => ["digests"],
+          getConfig: async () => initial,
           saveConfig: async (input) => {
-            savedInput = input;
+            saved.current = input;
             return {
               ...input,
               stages: input.stages.map((stage) => ({ ...stage, sectionId: `sec_${stage.key}` })),
@@ -726,72 +725,75 @@ describe("workflow settings", () => {
           },
         },
       },
-    );
-    const typeOf = (title: string) =>
-      rendered.getByRole("button", { name: new RegExp(`^Section type for ${title}`) });
-    const choose = async (title: string, inbox: string, afterRead: string) => {
-      fireEvent.keyDown(typeOf(title), { key: "Enter" });
-      const subTrigger = await rendered.findByRole("menuitem", { name: inbox });
-      if (title === "Planning") {
-        expect(rendered.getByRole("menuitem", { name: "Inbox · Manual" })).toBeTruthy();
-        expect(rendered.queryByRole("menuitem", { name: "Inbox · Missing" })).toBeNull();
-      }
-      fireEvent.click(subTrigger);
-      fireEvent.click(await rendered.findByRole("menuitem", { name: afterRead }));
-    };
-    await rendered.findByRole("button", { name: "Section type for Planning: Stage" });
-    await choose("Planning", "Inbox · Digests", "Move back after reading");
+    ));
+  }
+  const openSubmenu = async (
+    rendered: Awaited<ReturnType<typeof renderMenus>>,
+    trigger: RegExp,
+    submenu: string,
+  ) => {
+    fireEvent.keyDown(await rendered.findByRole("button", { name: trigger }), { key: "Enter" });
+    fireEvent.click(await rendered.findByRole("menuitem", { name: submenu }));
+  };
+
+  it("makes a section an inbox filled by a plugin that creates threads", async () => {
+    const saved = { current: null as EditableWorkflowConfig | null };
+    const rendered = await renderMenus(configuredWorkflow(), saved);
+    await openSubmenu(rendered, /^Section type for Planning: Stage$/, "Inbox");
+    fireEvent.click(await rendered.findByRole("menuitem", { name: "Move back after reading" }));
     await rendered.findByRole("button", {
-      name: "Section type for Planning: Inbox · Digests, moves back after reading",
+      name: "Section type for Planning: Inbox, moves back after reading",
     });
     expect(rendered.queryByLabelText("Entry prompt for Planning")).toBeNull();
-    await choose("Inbox", "Inbox · everything", "Move back after reading");
+
+    fireEvent.keyDown(rendered.getByRole("button", { name: "Who fills Planning: You" }), { key: "Enter" });
+    const digests = await rendered.findByRole("menuitem", { name: "Digests" });
+    expect(rendered.getByRole("menuitem", { name: "You" })).toBeTruthy();
+    expect(rendered.queryByRole("menuitem", { name: "Keep Awake" })).toBeNull();
+    fireEvent.click(digests);
+    await rendered.findByRole("button", { name: "Who fills Planning: Digests" });
+    expect(rendered.queryByRole("button", { name: /^Who fills Inbox/ })).toBeNull();
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
-    await vi.waitFor(() => {
-      expect(savedInput?.stages[0]).toMatchObject({ key: "inbox", returnAfterRead: true });
-      expect(savedInput?.stages[1])
-        .toMatchObject({ role: "inbox", catchesPluginId: "digests", returnAfterRead: true });
+    await vi.waitFor(() => expect(saved.current?.stages[1])
+      .toMatchObject({ role: "inbox", catchesPluginId: "digests", returnAfterRead: true }));
+    rendered.lifecycle.unmount();
+  });
+
+  it("sets the main inbox to move back and turns an inbox back into a stage", async () => {
+    const initial = configuredWorkflow();
+    initial.stages[1] = { ...initial.stages[1]!, role: "inbox", catchesPluginId: "digests", returnAfterRead: true };
+    const saved = { current: null as EditableWorkflowConfig | null };
+    const rendered = await renderMenus(initial, saved);
+    await openSubmenu(rendered, /^Section type for Inbox: Main inbox$/, "Main inbox");
+    expect(rendered.queryByRole("menuitem", { name: "Stage" })).toBeNull();
+    fireEvent.click(await rendered.findByRole("menuitem", { name: "Move back after reading" }));
+    await rendered.findByRole("button", {
+      name: "Section type for Inbox: Main inbox, moves back after reading",
     });
-    await rendered.findByRole("button", { name: "Saved" });
-    fireEvent.keyDown(typeOf("Planning"), { key: "Enter" });
+    fireEvent.keyDown(
+      rendered.getByRole("button", { name: /^Section type for Planning: Inbox/ }),
+      { key: "Enter" },
+    );
     fireEvent.click(await rendered.findByRole("menuitem", { name: "Stage" }));
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => {
-      expect(savedInput?.stages[1]).toMatchObject({ role: "stage" });
-      expect(savedInput?.stages[1]).not.toHaveProperty("catchesPluginId");
-      expect(savedInput?.stages[1]).not.toHaveProperty("returnAfterRead");
+      expect(saved.current?.stages[0]).toMatchObject({ key: "inbox", returnAfterRead: true });
+      expect(saved.current?.stages[1]).toMatchObject({ role: "stage" });
+      expect(saved.current?.stages[1]).not.toHaveProperty("catchesPluginId");
+      expect(saved.current?.stages[1]).not.toHaveProperty("returnAfterRead");
     });
     rendered.lifecycle.unmount();
   });
 
-  it("makes a manual inbox that keeps threads after reading", async () => {
-    const app = await loadApp();
-    let savedInput: EditableWorkflowConfig | null = null;
-    const rendered = renderSlot<{}, typeof rpcContract>(
-      app.settingsSections[0]!, {}, {
-        sdk: { plugins: { list: async () => ({ plugins: [] }) } },
-        rpc: {
-          getConfig: async () => configuredWorkflow(),
-          saveConfig: async (input) => {
-            savedInput = input;
-            return {
-              ...input,
-              stages: input.stages.map((stage) => ({ ...stage, sectionId: `sec_${stage.key}` })),
-            };
-          },
-        },
-      },
-    );
-    fireEvent.keyDown(
-      await rendered.findByRole("button", { name: "Section type for Handoff: Stage" }),
-      { key: "Enter" },
-    );
-    fireEvent.click(await rendered.findByRole("menuitem", { name: "Inbox · Manual" }));
+  it("makes a manual inbox filled by you that keeps threads after reading", async () => {
+    const saved = { current: null as EditableWorkflowConfig | null };
+    const rendered = await renderMenus(configuredWorkflow(), saved);
+    await openSubmenu(rendered, /^Section type for Handoff: Stage$/, "Inbox");
     fireEvent.click(await rendered.findByRole("menuitem", { name: "Keep after reading" }));
-    await rendered.findByRole("button", { name: "Section type for Handoff: Inbox · Manual" });
+    await rendered.findByRole("button", { name: "Who fills Handoff: You" });
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => {
-      const handoff = savedInput?.stages.find((stage) => stage.key === "handoff");
+      const handoff = saved.current?.stages.find((stage) => stage.key === "handoff");
       expect(handoff).toMatchObject({ role: "inbox" });
       expect(handoff).not.toHaveProperty("catchesPluginId");
       expect(handoff).not.toHaveProperty("returnAfterRead");
@@ -807,7 +809,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          getConfig: async () => configuredWorkflow(),
+          listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(),
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({

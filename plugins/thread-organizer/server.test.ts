@@ -814,6 +814,16 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("lists only plugins that created open root threads as inbox sources", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    expect(await organizer.harness.behavior.callRpc("listThreadSourcePlugins", {})).toEqual([]);
+    organizer.setThread({ originPluginId: "digests" });
+    expect(await organizer.harness.behavior.callRpc("listThreadSourcePlugins", {}))
+      .toEqual(["digests"]);
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("keeps read threads moved into a manual inbox and never claims threads for it", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);

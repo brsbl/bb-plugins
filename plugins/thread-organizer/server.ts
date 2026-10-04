@@ -122,6 +122,11 @@ export const rpcContract = defineRpcContract({
     input: saveConfigInputSchema,
     output: workflowConfigSchema,
   },
+  /** Plugins that created at least one open root thread, so they can fill an inbox. */
+  listThreadSourcePlugins: {
+    input: z.object({}).strict(),
+    output: z.array(z.string()),
+  },
 });
 
 type Thread = OrganizableThread & {
@@ -1025,6 +1030,22 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       return cloneWorkflowConfig(configSnapshot);
     },
     saveConfig,
+    async listThreadSourcePlugins() {
+      const sources = new Set<string>();
+      for (let offset = 0; ; offset += THREAD_LIST_PAGE_SIZE) {
+        const page = await bb.sdk.threads.list({
+          archived: false,
+          hasParent: false,
+          limit: THREAD_LIST_PAGE_SIZE,
+          offset,
+        });
+        for (const thread of page) {
+          if (thread.originPluginId !== null) sources.add(thread.originPluginId);
+        }
+        if (page.length < THREAD_LIST_PAGE_SIZE) break;
+      }
+      return [...sources].sort();
+    },
   });
 
   type CliResult = { exitCode: number; stdout?: string; stderr?: string };
