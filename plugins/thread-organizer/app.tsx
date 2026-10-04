@@ -603,7 +603,7 @@ export function WorkflowSettings() {
     try {
       const [{ plugins }, sources] = await Promise.all([
         sdk.plugins.list(),
-        rpc.listThreadSourcePlugins({}),
+        rpc.call("listThreadSourcePlugins", {}),
       ]);
       // Only plugins that have actually created threads can fill an inbox.
       const names = new Map(plugins.map((plugin) => [plugin.id, plugin.name || plugin.id]));
