@@ -20,7 +20,7 @@ export function insertActionMention(composer: PluginComposerApi, item: Item, cha
 }
 
 export function insertCommentMention(composer: PluginComposerApi, item: Item, commentId: string): void {
-  insertMention(composer, item, `${item.threadId}:${item.id}:comment_${commentId}`, "MessageCircle");
+  insertMention(composer, item, `${item.threadId}:${item.id}:comment_${commentId}`, "MessageSquare");
 }
 
 function insertMention(composer: PluginComposerApi, item: Item, id: string, icon: string): void {
