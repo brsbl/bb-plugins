@@ -20,6 +20,24 @@ function fixture(): PullRequestItem {
 const thread = { id: "thr_archived", title: "Archived implementation thread", projectId: "proj_1", environmentId: null, hostId: "host_1", archived: true };
 
 describe("Pull Requests access and detail lifetime", () => {
+  it("renders the first cached list before starting discovery or unrelated thread hydration", async () => {
+    const item = fixture();
+    let finish!: (value: { items: PullRequestItem[]; nextCursor: null; total: number; coverage: typeof coverage }) => void;
+    const pending = new Promise<{ items: PullRequestItem[]; nextCursor: null; total: number; coverage: typeof coverage }>((resolve) => { finish = resolve; });
+    const list = vi.fn(() => pending);
+    const refresh = vi.fn(() => coverage);
+    const context = vi.fn(() => ({ threads: [thread], hosts: [], nextCursor: null }));
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { list, refresh, context } });
+    await waitFor(() => expect(list).toHaveBeenCalled());
+    expect(refresh).not.toHaveBeenCalled();
+    expect(context).not.toHaveBeenCalled();
+    await act(async () => { finish({ items: [item], nextCursor: null, total: 1, coverage }); await pending; });
+    expect(await screen.findByRole("button", { name: "Private pull request" })).toBeDefined();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    slot.lifecycle.unmount();
+  });
+
   it("keeps summary-only data pending until the full detail read completes", async () => {
     const item = fixture();
     const summary = { ...item, snapshot: { ...item.snapshot!, body: "", checks: { ...item.snapshot!.checks, items: [] } } };
