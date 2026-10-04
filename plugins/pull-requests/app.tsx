@@ -16,7 +16,7 @@ import { InboxMenu, type Sort } from "./inbox-menu";
 import "./app.css";
 
 type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
-type Group = "pinned" | "history";
+type Group = "history";
 type Tab = "summary" | "changes";
 type Presentation = { icon: LucideIcon; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
 type ThreadContext = { threads: ThreadChoice[]; hosts: { id: string; name: string; connected: boolean }[]; nextCursor: string | null };
@@ -341,18 +341,13 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   };
   const renderRow = (item: PullRequestItem) => {
     const snapshot = item.snapshot;
-    const fresh = githubFresh(item, clock);
     const blocking = snapshot?.mergeability === "conflicts" ? mergePresentation("conflicts") : snapshot?.review === "changes-requested" ? reviewPresentation("changes-requested") : snapshot?.mergeability === "blocked" && githubNeedsAttention(snapshot) && snapshot.checks.state !== "failing" ? { icon: AlertTriangle, label: "Merge blocked; repository requirements need attention", tone: "warning" as const } : null;
     const threadsNeedingInput = item.links.filter((link) => needsThread(liveThreads.get(link.threadId)));
     const working = item.links.map((link) => liveThreads.get(link.threadId)).find((thread) => thread && ["active", "starting", "stopping"].includes(thread.status));
-    const githubStatus = fresh ? blocking ?? (snapshot && snapshot.checks.state !== "none" ? checksPresentation(snapshot) : null) : null;
-    const threadStatus = threadsNeedingInput.length > 0 ? { ...threadPresentation(liveThreads.get(threadsNeedingInput[0]!.threadId)), label: `${threadsNeedingInput.length} ${threadsNeedingInput.length === 1 ? "thread needs" : "threads need"} attention` } : working ? threadPresentation(working) : null;
-    const status = threadsNeedingInput.length > 0 ? threadStatus : githubStatus && (blocking || githubStatus.tone === "danger") ? githubStatus : threadStatus ?? githubStatus;
-    const state = lifecycle(snapshot);
     return <div className={`pr-row${selection.id === item.id ? " pr-row-selected" : ""}`} key={item.id}>
-      <StatusIcon {...state} label={fresh ? state.label : `${state.label} · ${item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}`}`} />
+      <StatusIcon {...lifecycle(snapshot)} />
       <button type="button" className="pr-row-title" onClick={() => select(item.id)} aria-current={selection.id === item.id ? "page" : undefined} title={snapshot ? `${snapshot.title} · ${snapshot.repository} #${snapshot.number}` : item.url}>{snapshot?.title ?? "Pull request unavailable"}</button>
-      <div className="pr-row-statuses">{status && <StatusIcon {...status} label={[githubStatus?.label, threadStatus?.label].filter(Boolean).join(" · ")} />}</div>
+      <div className="pr-row-statuses"><span>{!githubFresh(item, clock) ? <StatusIcon icon={Clock} label={item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}`} tone="muted" /> : blocking ? <StatusIcon {...blocking} /> : snapshot && snapshot.checks.state !== "none" && <StatusIcon {...checksPresentation(snapshot)} />}</span><span>{threadsNeedingInput.length > 0 ? <StatusIcon {...threadPresentation(liveThreads.get(threadsNeedingInput[0]!.threadId))} label={`${threadsNeedingInput.length} ${threadsNeedingInput.length === 1 ? "thread needs" : "threads need"} attention`} /> : working ? <StatusIcon {...threadPresentation(working)} /> : null}</span></div>
       <time className="pr-row-time" dateTime={snapshot?.updatedAt} title={snapshot ? `Updated ${new Date(snapshot.updatedAt).toLocaleString()}` : undefined}>{snapshot ? age(snapshot.updatedAt).replace(" ago", "").replace("just now", "now") : "—"}</time>
     </div>;
   };
@@ -370,7 +365,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       <form className="pr-list-toolbar" onSubmit={(event) => { event.preventDefault(); const known = visibleItems.find((item) => item.url === query.trim().replace(/[?#].*$/, "")); if (known) select(known.id); else if (/^https:\/\/github\.com\//i.test(query.trim())) setLinking({ url: query.trim() }); }}><label className="pr-search"><Search size={17} aria-hidden="true" /><input aria-label="Search pull requests" placeholder="Search or paste a PR link" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <IconButton icon={X} label="Clear search" onClick={() => setQuery("")} />}</label></form>
       {hasFilters && <div className="pr-active-filters"><span>{filtered.length} matching pull requests</span><button type="button" className="pr-text-button" onClick={resetFilters}>Clear</button></div>}
       <div ref={listRef} className="pr-list-scroll" onScroll={(event) => { session.scrollTop = event.currentTarget.scrollTop; }}>
-        {renderSection("pinned", "Pinned", pinned)}
+        {pinned.map(renderRow)}
         {active.map(renderRow)}
         {renderSection("history", "Merged and closed", history)}
         {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests found"}</p><small>{hasFilters ? "Try another search or filter." : "Your authored pull requests and review requests on GitHub appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
