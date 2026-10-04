@@ -148,6 +148,14 @@ Renders an inline swatch beside every color literal in a thread — hex, `rgb()`
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatches --yes`
 
+### URL Pills
+
+Turns website URLs into compact favicon pills in the composer, sent messages and agent replies. Inspect the full destination or edit the original URL in place.
+
+[Source](plugins/url-pills) · [README](plugins/url-pills/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/url-pills --yes`
+
 ### Open in Moss
 
 Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as the fallback.
