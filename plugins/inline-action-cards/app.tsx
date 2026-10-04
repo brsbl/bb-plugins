@@ -47,7 +47,11 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     }
   }, []);
   useEffect(() => {
-    if (initialItem && initialItem.revision > (current.current?.revision ?? 0) && !dirty.current && !lock.current) adopt(initialItem);
+    if (initialItem && initialItem.revision > (current.current?.revision ?? 0) && !dirty.current && !flight.current && !lock.current) {
+      adopt(initialItem);
+      text.current = initialItem.content.type === "reply" ? initialItem.content.draft : "";
+      setDraft(text.current);
+    }
   }, [initialItem, adopt]);
   const load = useCallback(async (discard = false) => {
     try {

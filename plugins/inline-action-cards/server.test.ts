@@ -1,7 +1,7 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import plugin, { createStore } from "./server.js";
-import { actionMessage } from "./model.js";
+import { actionMessage, type Item } from "./model.js";
 
 const ref = { threadId: "thr_test", id: "esc-1" };
 const reply = { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], original: { from: "Escrow", body: "Your refund is on the way." }, draft: "Original draft" };

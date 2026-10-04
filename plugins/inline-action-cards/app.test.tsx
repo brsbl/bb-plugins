@@ -155,3 +155,22 @@ it("keeps the bulk button busy until its own attempts finish, without treating a
   await slot.behavior.emitRealtime("items", {});
   await waitFor(() => expect(button.getAttribute("aria-busy")).toBeNull());
 });
+
+it("log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
+  let item = { ...fixture(), threadTitle: "Refund follow-up" };
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
+    log: () => ({ waiting: [item], decided: [] }),
+    save: () => { throw new Error("Offline: keep local changes"); },
+  } });
+  await screen.findByRole("button", { name: "Review" });
+  fireEvent.click(screen.getByRole("button", { name: "Review" }));
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Original draft");
+  item = { ...item, revision: 2, content: { ...item.content, draft: "Updated elsewhere" } } as typeof item;
+  await slot.behavior.emitRealtime("items", {});
+  await waitFor(() => expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Updated elsewhere"));
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Unsaved local edit" } });
+  item = { ...item, revision: 3, content: { ...item.content, draft: "Another remote update" } } as typeof item;
+  await slot.behavior.emitRealtime("items", {});
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Unsaved local edit");
+});
