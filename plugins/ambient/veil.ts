@@ -100,6 +100,7 @@ const NO_BLUR = "-webkit-backdrop-filter: none; backdrop-filter: none;";
 const BLUR = "-webkit-backdrop-filter: var(--ambient-blur); backdrop-filter: var(--ambient-blur);";
 const INK_WASH = mix("var(--ink)", "9%");
 const EDGE = `border: 1px solid ${INK_WASH};`;
+const SHEEN = `linear-gradient(to bottom, ${mix("var(--canvas)", "28%")}, transparent 45%)`;
 const LAYER = "content: \"\"; position: absolute; z-index: -1; pointer-events: none;";
 /** Glass without the blur: fill, edge and lift. */
 const GLASS_PANE = `background-color: var(--ambient-glass-fill); ${EDGE}
@@ -158,13 +159,14 @@ ${ROOT} [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20p
 ${ROOT} [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; ${NO_BLUR} padding-block-start: 16px; }
 ${ROOT} [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { ${HIDE} }
 ${COMPACT_COMPOSER} [data-overflow-fade] { ${HIDE} }
-${COMPACT_COMPOSER} > .bg-background { background-color: transparent; }
-/* Keep the input and footer as separate surfaces, without painting the surrounding shell. */
-${ROOT} [data-app-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
+${COMPACT_COMPOSER} > .bg-background { background: ${SHEEN}, var(--ambient-glass-fill); ${BLUR} margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; ${EDGE} box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "70%")}, 0 -10px 24px -18px ${mix("var(--ink)", "40%")}; }
+${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
-${ROOT} [data-new-thread-footer] { ${GLASS_CHIP} border-radius: 12px; margin-block-start: 4px; padding-inline: 4px; }
-${ROOT} [data-new-thread-footer] button { background-color: transparent; }
-${ROOT} [data-new-thread-footer] button:hover { background-color: ${INK_WASH}; }
+/* Only follow-ups get a solid input and a separate glass footer strip. */
+${ROOT} [data-follow-up-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
+${ROOT} [data-follow-up-composer-footer] { ${GLASS_CHIP} border-width: 0; border-radius: 12px; padding-inline: 4px; }
+${ROOT} [data-follow-up-composer-footer] button { background-color: transparent; }
+${ROOT} [data-follow-up-composer-footer] button:hover { background-color: ${INK_WASH}; }
 ${ROOT} [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
 ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
 ${ROOT} div.fixed > ${RIGHT_PANEL_BUTTON} { ${GLASS_CHIP} border-radius: 12px; }
