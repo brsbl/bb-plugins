@@ -144,6 +144,12 @@
   display: none;
 }
 
+/* Timeline content scrolls behind these controls; their backing must stay opaque. */
+[data-follow-up-composer-footer] {
+  background: var(--canvas);
+  border-radius: var(--radius);
+}
+
 .bbd-window {
   position: absolute;
   display: flex;
