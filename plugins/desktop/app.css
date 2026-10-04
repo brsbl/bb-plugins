@@ -293,7 +293,9 @@
 /* A soft shadow lifts XP's white labels off Ambient without a heavy outline. Selection supplies its own contrast. */
 body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   color: var(--bbd-white);
-  text-shadow: 0 1px 1px oklch(0.16 0.03 262 / 0.65);
+  text-shadow:
+    0.5px 1px 1px oklch(0.16 0.03 262 / 0.78),
+    0 0 2px oklch(0.16 0.03 262 / 0.3);
 }
 
 .bbd-marquee {
