@@ -23,7 +23,7 @@
 .pr-options-panel>.pr-text-button { margin-top:12px; }
 .pr-options-panel .pr-options-note { margin-top:10px; color:var(--muted-foreground); font-size:11px; }
 @media (max-width:630px) { .pr-options-panel select { min-height:40px; } }
-.pr-list-toolbar { display:flex; padding:0 10px 8px; }
+.pr-list-toolbar { display:flex; padding:0 18px 12px; }
 .pr-search { display:flex; min-width:0; flex:1; align-items:center; gap:8px; border-radius:22px; height:36px; padding:0 12px; color:var(--muted-foreground); background:var(--muted); }
 .pr-search input { border:0; outline:0; min-width:0; width:100%; padding:0; background:none; color:var(--foreground); font-size:13px; }
 .pr-search:has(input:focus-visible) { outline:1px solid color-mix(in srgb,var(--muted-foreground) 45%,transparent); outline-offset:2px; }
