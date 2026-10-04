@@ -123,8 +123,7 @@ describe("Pull Requests thread selection", () => {
           return { threads: offset === 500 ? [thread] : [], hosts: [], nextCursor: offset < 500 ? String(offset + 100) : null };
         },
       } });
-      fireEvent.click(screen.getByLabelText("Filters and sort"));
-      fireEvent.click(screen.getAllByRole("button", { name: "Link pull request" })[0]!);
+      fireEvent.click(await screen.findByRole("button", { name: "Link a pull request" }));
       fireEvent.click(await screen.findByRole("button", { name: "Search more threads" }));
       expect(await screen.findByRole("option", { name: "Archived implementation thread · archived" })).toBeDefined();
       const select = screen.getByRole("combobox", { name: "Thread" }) as HTMLSelectElement;
@@ -154,24 +153,59 @@ describe("Compact pull request inbox", () => {
     await screen.findByRole("button", { name: "Zebra fix" });
     const titles = () => Array.from(document.querySelectorAll(".pr-row-title")).map((element) => element.textContent);
     expect(titles()).toEqual(["Alpha fix", "Zebra fix", "Other author"]);
-    fireEvent.click(screen.getByLabelText("Filters and sort"));
-    fireEvent.change(screen.getByRole("combobox", { name: "Author" }), { target: { value: "@me" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Requested reviewer" }), { target: { value: "acme/design" } });
+    const choose = async (path: string[], label: string) => {
+      fireEvent.keyDown(screen.getByRole("button", { name: "Filters and sort" }), { key: "ArrowDown" });
+      for (const name of path) fireEvent.keyDown(await screen.findByRole("menuitem", { name, exact: true }), { key: "ArrowRight" });
+      fireEvent.click(await screen.findByRole("menuitemradio", { name: label, exact: true }));
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    };
+    await choose(["Filter", "Author"], "Me");
+    await choose(["Filter", "Reviewer"], "acme/design");
     expect(titles()).toEqual(["Zebra fix"]);
-    fireEvent.change(screen.getByRole("combobox", { name: "Requested reviewer" }), { target: { value: "reviewer" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Sort pull requests" }), { target: { value: "oldest" } });
+    await choose(["Filter", "Reviewer"], "reviewer");
+    await choose(["Sort by"], "Oldest updated");
     expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
     slot.lifecycle.unmount();
     slot = renderSlot(app.navPanels[0]!, { subPath: "" }, options);
     await screen.findByRole("button", { name: "Zebra fix" });
     expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
-    fireEvent.click(screen.getByLabelText("Filters and sort"));
-    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Requested reviewer" }), { target: { value: "@me" } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear", exact: true }));
+    await choose(["Filter", "Reviewer"], "Me");
     expect(titles()).toEqual(["Other author"]);
-    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Sort pull requests" }), { target: { value: "updated" } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear", exact: true }));
+    await choose(["Sort by"], "Recently updated");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Filters and sort" }), { key: "ArrowDown" });
+    await screen.findByRole("menuitem", { name: "Filter", exact: true });
+    expect(screen.queryByText("Link pull request")).toBeNull();
+    expect(screen.queryByText("Discover archived threads")).toBeNull();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Filters and sort" })));
     slot.lifecycle.unmount();
+  });
+
+  it("drills into mobile filters and returns through the hierarchy with Escape", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
+    try {
+      const item = fixture();
+      const app = await loadPluginApp(() => import("./app"));
+      const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
+        list: () => ({ items: [item], nextCursor: null, total: 1, coverage }), refresh: () => coverage,
+        context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
+      } });
+      await screen.findByRole("button", { name: "Private pull request" });
+      fireEvent.keyDown(screen.getByRole("button", { name: "Filters and sort" }), { key: "ArrowDown" });
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Filter", exact: true }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Author", exact: true }));
+      await screen.findByRole("menuitemradio", { name: "All authors" });
+      expect(screen.getAllByRole("menu")).toHaveLength(1);
+      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      await screen.findByRole("menuitem", { name: "Reviewer", exact: true });
+      fireEvent.click(screen.getByRole("menuitem", { name: "Back to Filters and sort" }));
+      await screen.findByRole("menuitem", { name: "Sort by" });
+      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Filters and sort" })));
+      slot.lifecycle.unmount();
+    } finally { vi.unstubAllGlobals(); }
   });
 
   it("opens a known pasted URL and keeps legacy snapshots without reviewer metadata readable", async () => {

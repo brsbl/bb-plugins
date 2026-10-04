@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown,
   Circle, CircleHelp, Clock, ExternalLink, FileCode2, Github, GitMerge, GitPullRequest,
-  GitPullRequestClosed, GitPullRequestDraft, Link2, Loader2, MessageCircle, MoreHorizontal,
+  GitPullRequestClosed, GitPullRequestDraft, Link2, Loader2, MessageCircle,
   Pin, PinOff, Plus, RefreshCw, Search, Unlink, X, XCircle, type LucideIcon,
 } from "lucide-react";
 import {
@@ -12,16 +12,16 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { CHANGED, type Changes, type Listing, type PullRequestItem, type Snapshot, type ThreadChoice, type rpcContract } from "./contract";
 import { githubNeedsAttention } from "./core";
+import { InboxMenu, type Sort } from "./inbox-menu";
 import "./app.css";
 
 type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
-type Sort = "updated" | "oldest" | "title";
 type Group = "pinned" | "authored" | "review" | "other" | "history";
 type Tab = "summary" | "changes";
 type Presentation = { icon: LucideIcon; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
 type ThreadContext = { threads: ThreadChoice[]; hosts: { id: string; name: string; connected: boolean }[]; nextCursor: string | null };
 type Preview = { token: string; snapshot: Snapshot; reader: { login: string; hostId: string }; thread: ThreadChoice };
-const session = { query: "", projectId: "", author: "", reviewer: "", sort: "updated" as Sort, attention: false, collapsed: ["history"] as Group[], scrollTop: 0 };
+const session = { query: "", author: "", reviewer: "", sort: "updated" as Sort, collapsed: ["history"] as Group[], scrollTop: 0 };
 const EMPTY_COVERAGE: Listing["coverage"] = { running: false, checked: 0, total: 0, unavailable: 0, incomplete: false, lastDiscoveryAt: null, includesArchived: false };
 
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
@@ -165,11 +165,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const [author, setAuthor] = useState(session.author);
   const [reviewer, setReviewer] = useState(session.reviewer);
   const [sort, setSort] = useState<Sort>(session.sort);
-  const [attention, setAttention] = useState(session.attention);
   const [collapsed, setCollapsed] = useState<Group[]>(session.collapsed);
-  const optionsRef = useRef<HTMLDetailsElement>(null);
   const [query, setQuery] = useState(session.query);
-  const [projectId, setProjectId] = useState(session.projectId);
   const [booting, setBooting] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +174,6 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [pageLimit, setPageLimit] = useState(1);
   const [clock, setClock] = useState(Date.now());
-  const [includeArchived, setIncludeArchived] = useState(false);
   const [linking, setLinking] = useState<{ url?: string } | null>(null);
   const [undo, setUndo] = useState<{ token: string; title: string } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -253,13 +249,13 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const refresh = useCallback(async (discover: boolean, reorder = false, id?: string) => {
     setRefreshing(true); setError(null);
     try {
-      const next = await rpc.call("refresh", { discover, includeArchived: discover && includeArchived, ...(id ? { id } : {}) });
+      const next = await rpc.call("refresh", { discover, includeArchived: false, ...(id ? { id } : {}) });
       if (mounted.current) setCoverage(next);
       await load(reorder);
       if (discover) await loadContext();
     } catch (reason) { if (mounted.current) setError(message(reason)); }
     finally { if (mounted.current) { setRefreshing(false); setBooting(false); } }
-  }, [rpc, load, loadContext, includeArchived]);
+  }, [rpc, load, loadContext]);
   const refreshRef = useRef(refresh); refreshRef.current = refresh;
   const loadRef = useRef(load); loadRef.current = load;
   useEffect(() => {
@@ -276,19 +272,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   useEffect(() => { if (connection === "connected") { if (wasConnected.current) void loadRef.current().catch((reason) => setError(message(reason))); wasConnected.current = true; } }, [connection]);
   useRealtime(CHANGED, () => { void loadRef.current().catch((reason) => setError(message(reason))); });
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = session.scrollTop; }, []);
-  useEffect(() => { Object.assign(session, { query, projectId, author, reviewer, sort, attention, collapsed }); }, [query, projectId, author, reviewer, sort, attention, collapsed]);
-  useEffect(() => {
-    const dismiss = (event: Event) => {
-      const options = optionsRef.current;
-      if (!options?.open) return;
-      if (event.type === "keydown") {
-        if ((event as KeyboardEvent).key !== "Escape") return;
-        options.open = false; options.querySelector("summary")?.focus();
-      } else if (!options.contains(event.target as Node)) options.open = false;
-    };
-    document.addEventListener("pointerdown", dismiss); document.addEventListener("keydown", dismiss);
-    return () => { document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", dismiss); };
-  }, []);
+  useEffect(() => { Object.assign(session, { query, author, reviewer, sort, collapsed }); }, [query, author, reviewer, sort, collapsed]);
   useEffect(() => {
     if (!selection.id) return;
     let cancelled = false;
@@ -305,10 +289,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const reviewers = [...new Set(visibleItems.flatMap((item) => item.snapshot?.requestedReviewers ?? []))].sort();
   const filtered = visibleItems.filter((item) => {
     const snapshot = item.snapshot;
-    if (projectId && !item.links.some((link) => choices.get(link.threadId)?.projectId === projectId)) return false;
     if (author && !(author === "@me" ? authoredByMe(item) : sameLogin(snapshot?.author, author))) return false;
     if (reviewer && !(reviewer === "@me" ? requestedFromMe(item) : snapshot?.requestedReviewers?.some((login) => sameLogin(login, reviewer)))) return false;
-    if (attention && !needsAttention(item, liveThreads, clock)) return false;
     const haystack = [snapshot?.title, snapshot?.repository, snapshot?.number, snapshot?.headBranch, snapshot?.baseBranch, item.url, ...item.links.map((link) => choices.get(link.threadId)?.title ?? "")].join(" ").toLocaleLowerCase();
     return haystack.includes(query.trim().toLocaleLowerCase());
   }).sort((a, b) => {
@@ -319,8 +301,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const groups = ([
     ["pinned", "Pinned"], ["authored", "Authored by me"], ["review", "Needs my review"], ["other", "Other pull requests"], ["history", "Merged and closed"],
   ] as const).map(([id, label]) => ({ id, label, items: filtered.filter((item) => groupFor(item) === id) }));
-  const hasFilters = !!(query || projectId || author || reviewer || attention);
-  const resetFilters = () => { setQuery(""); setProjectId(""); setAuthor(""); setReviewer(""); setAttention(false); };
+  const hasFilters = !!(query || author || reviewer);
+  const resetFilters = () => { setQuery(""); setAuthor(""); setReviewer(""); };
   const mutate = async (action: () => Promise<PullRequestItem>) => { try { const item = await action(); if (mounted.current) { applyItem(item); setError(null); } } catch (reason) { if (mounted.current) setError(message(reason)); } };
   const onUnlink = async (item: PullRequestItem, threadId: string) => {
     try { const result = await rpc.call("unlink", { id: item.id, threadId }); if (result.undoToken) setUndo({ token: result.undoToken, title: choices.get(threadId)?.title ?? "Thread" }); await load(); }
@@ -341,23 +323,9 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   return <main className={`pr-plugin${selection.id ? " pr-has-selection" : ""}`}>
     <aside className="pr-sidebar" aria-label="Pull requests">
       <header className="pr-list-header"><h1>Pull Requests</h1>
-        <details className="pr-list-options" ref={optionsRef}>
-          <summary aria-label="Filters and sort" title="Filters and sort" className={hasFilters ? "pr-is-active" : undefined}><MoreHorizontal size={19} aria-hidden="true" /></summary>
-          <div className="pr-options-panel">
-            <label>Author<select aria-label="Author" value={author} onChange={(event) => setAuthor(event.target.value)}><option value="">All authors</option><option value="@me">Me</option>{[...new Set([...authors, ...(author && author !== "@me" ? [author] : [])])].map((login) => <option key={login} value={login}>{login}</option>)}</select></label>
-            <label>Requested reviewer<select aria-label="Requested reviewer" value={reviewer} onChange={(event) => setReviewer(event.target.value)}><option value="">Anyone</option><option value="@me">Me</option>{[...new Set([...reviewers, ...(reviewer && reviewer !== "@me" ? [reviewer] : [])])].map((login) => <option key={login} value={login}>{login}</option>)}</select></label>
-            <label>Sort<select aria-label="Sort pull requests" value={sort} onChange={(event) => setSort(event.target.value as Sort)}><option value="updated">Recently updated</option><option value="oldest">Oldest updated</option><option value="title">Title A–Z</option></select></label>
-            <div className="pr-options-divider" />
-            <label>Project<select aria-label="Project" value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">All projects</option>{sidebar.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label>
-            <label className="pr-option-check"><input type="checkbox" checked={attention} onChange={(event) => setAttention(event.target.checked)} />Needs attention only</label>
-            {hasFilters && <button className="pr-text-button" type="button" onClick={resetFilters}>Clear filters</button>}
-            {reviewer && visibleItems.some((item) => item.snapshot && !item.snapshot.reviewRequestsComplete) && <p className="pr-options-note">Some reviewer data is incomplete. Refresh to update it.</p>}
-            <div className="pr-options-divider" />
-            <button className="pr-option-action" type="button" onClick={() => { optionsRef.current!.open = false; setLinking({}); }}><Plus size={15} />Link pull request</button>
-            <label className="pr-option-check"><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />Discover archived threads</label>
-            <p className="pr-options-note">Archived threads are included on the next refresh.</p>
-          </div>
-        </details>
+        <InboxMenu author={author} reviewer={reviewer} sort={sort} authors={authors} reviewers={reviewers}
+          onAuthor={setAuthor} onReviewer={setReviewer} onSort={setSort}
+          reviewerDataIncomplete={visibleItems.some((item) => item.snapshot && !item.snapshot.reviewRequestsComplete)} />
       </header>
       <form className="pr-list-toolbar" onSubmit={(event) => { event.preventDefault(); const known = visibleItems.find((item) => item.url === query.trim().replace(/[?#].*$/, "")); if (known) select(known.id); else if (/^https:\/\/github\.com\//i.test(query.trim())) setLinking({ url: query.trim() }); }}><label className="pr-search"><Search size={17} aria-hidden="true" /><input aria-label="Search pull requests" placeholder="Search or paste a PR link" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <IconButton icon={X} label="Clear search" onClick={() => setQuery("")} />}</label></form>
       {hasFilters && <div className="pr-active-filters"><span>{filtered.length} matching pull requests</span><button type="button" className="pr-text-button" onClick={resetFilters}>Clear</button></div>}
