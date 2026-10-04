@@ -315,8 +315,12 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
           const target = document.getElementById(`${prefix}-${link.section}`);
           if (target instanceof HTMLDetailsElement) target.open = true;
           const focus = target?.querySelector("summary") ?? target;
-          focus?.scrollIntoView?.({ block: "nearest" });
-          (focus as HTMLElement | null)?.focus();
+          (focus as HTMLElement | null)?.focus({ preventScroll: true });
+          // Let the expanded list settle before revealing its heading. The
+          // enclosing thread adjusts its bottom anchor when content grows.
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (focus?.isConnected) focus.scrollIntoView({ block: "start", inline: "nearest" });
+          }));
         }}>{link.label}</a> : <span>{link.label}</span>}
       </span>)}</div> : issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
