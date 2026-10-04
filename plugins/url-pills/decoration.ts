@@ -277,6 +277,10 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   }
   function queue(): void { if (!disposed && frame === null) frame = requestAnimationFrame(flush); }
   const observer = new MutationObserver((records) => {
+    // ProseMirror reapplies identical editor classes when selection changes.
+    records = records.filter((record) => record.type !== 'attributes'
+      || record.oldValue !== (record.target as Element).getAttribute(record.attributeName!));
+    if (!records.length) return;
     let relevant = false;
     for (const record of records) {
       const target = record.target instanceof Element ? record.target : record.target.parentElement;
@@ -298,7 +302,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       queue();
     }
   });
-  observer.observe(document.body, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['href', 'class', 'contenteditable'] });
+  observer.observe(document.body, { childList: true, characterData: true, subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ['href', 'class', 'contenteditable'] });
 
   function caretTouches(element: HTMLElement): boolean {
     const selection = document.getSelection();
