@@ -70,6 +70,28 @@ describe("pointer lifecycle", () => {
     g.cancel();
     expect(g.end).toHaveBeenCalledTimes(1);
   });
+  it("applies the release position before committing once, including a release on the shield", () => {
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 64));
+    const shield = document.querySelector(".bbd-drag-shield")!;
+    shield.dispatchEvent(pointer("pointerup", 80, 2));
+    expect(g.move).toHaveBeenCalledTimes(1);
+    let releasePosition;
+    g.end.mockImplementation(() => { releasePosition = g.move.mock.lastCall?.[0]; });
+    shield.dispatchEvent(pointer("pointerup", 80));
+    g.target.dispatchEvent(pointer("pointerup", 100));
+    expect(g.move).toHaveBeenCalledTimes(2);
+    expect(releasePosition).toEqual({ x: 80, y: 0 });
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
+  });
+  it("does not apply release coordinates after the dragged target is removed", () => {
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 64));
+    g.target.remove();
+    document.dispatchEvent(pointer("pointerup", 80));
+    expect(g.move).toHaveBeenCalledTimes(1);
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true);
+  });
   it("cancels a removed captured child without leaving the renderer blocked", () => {
     document.documentElement.style.userSelect = "text";
     const g = gesture();
@@ -103,9 +125,9 @@ describe("pointer lifecycle", () => {
       expect(document.querySelector<HTMLElement>(".bbd-drag-shield")?.dataset.windowDrag).toBe("true");
       g.target.dispatchEvent(pointer("pointermove", 40));
       expect(positions).toEqual(["20px", "40px"]);
-      g.target.dispatchEvent(pointer("pointerup", 40));
+      g.target.dispatchEvent(pointer("pointerup", 80));
       expect(document.querySelector(".bbd-drag-shield")).toBeNull();
-      expect(positions).toEqual(["20px", "40px", "40px"]);
+      expect(positions).toEqual(["20px", "40px", "80px", "80px"]);
     } finally {
       cancel();
       window.removeEventListener("bbd-drag-state", read);
@@ -155,17 +177,20 @@ describe("pointer lifecycle", () => {
     expect(g.move).toHaveBeenLastCalledWith({ x: 30, y: 0 }, expect.anything());
     expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
   });
-  it("swallows the click that follows a drag, but not a later plain click", async () => {
+  it("swallows drag-associated click and double-click, but allows later ordinary clicks", async () => {
     const g = gesture();
     g.target.dispatchEvent(pointer("pointermove", 10));
     g.target.dispatchEvent(pointer("pointerup", 10));
     const click = () => new MouseEvent("click", { detail: 1, bubbles: true, cancelable: true });
     expect(g.target.dispatchEvent(click())).toBe(false);
+    const doubleClick = () => new MouseEvent("dblclick", { detail: 2, bubbles: true, cancelable: true });
+    expect(g.target.dispatchEvent(doubleClick())).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 0));
     const plain = gesture();
     plain.target.dispatchEvent(pointer("pointerup", 0));
     expect(plain.end).toHaveBeenCalledExactlyOnceWith(false, false);
     expect(plain.target.dispatchEvent(click())).toBe(true);
+    expect(plain.target.dispatchEvent(doubleClick())).toBe(true);
   });
   it.each([1, 2])("does not capture button %s", (button) => {
     const target = document.createElement("div");
