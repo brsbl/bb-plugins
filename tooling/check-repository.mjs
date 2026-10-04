@@ -19,11 +19,15 @@ const nativeLoaderLockPaths = Object.freeze([
   "node_modules/@tailwindcss/node/node_modules/lightningcss",
 ]);
 const defaultBbEngine = ">=0.0.34";
+// Plugin host entries (`bb.host`) need host RPC, first shipped in bb 0.43.4.
+const hostEntryMinimumBb = [0, 43, 4];
 // Keep newer host requirements scoped to the plugin that consumes them
 // instead of raising the compatibility floor for every package.
 const pluginBbEngineOverrides = new Map([
   ["context-katamari", ">=0.43.0"],
+  ["file-pins", ">=0.43.4"],
   ["improve-prompt", ">=0.40.0"],
+  ["open-in-moss", ">=0.43.4"],
   ["theme-preview", ">=0.38.0"],
 ]);
 
@@ -218,6 +222,14 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     assert(manifest.files.includes("README.md"), `${slug}: README missing from package files`);
     const expectedBbEngine = pluginBbEngineOverrides.get(slug) ?? defaultBbEngine;
     assert(manifest.engines?.bb === expectedBbEngine, `${slug}: bb engine drift`);
+    if (manifest.bb?.host !== undefined) {
+      const floor = /^>=(\d+)\.(\d+)\.(\d+)$/.exec(manifest.engines.bb)?.slice(1).map(Number);
+      const order = floor?.map((part, index) => part - hostEntryMinimumBb[index]).find((delta) => delta !== 0) ?? 0;
+      assert(
+        floor !== undefined && order >= 0,
+        `${slug}: bb.host requires engines.bb >=${hostEntryMinimumBb.join(".")}`,
+      );
+    }
     assert(
       sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion),
       `${slug}: SDK floor is newer than vendored SDK ${pluginSdkVersion}`,
@@ -266,7 +278,10 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
     const screenshots = localImageTargets(pluginReadme).map((path) =>
       normalizeRelativePath(path, `${slug}: screenshot`),
     );
-    assert(screenshots.length > 0, `${slug}: README screenshot missing`);
+    const attachedScreenshots = markdownImageTargets(pluginReadme).filter((path) =>
+      /^https:\/\/github\.com\/user-attachments\/assets\/[a-f0-9-]+$/i.test(path),
+    );
+    assert(screenshots.length + attachedScreenshots.length > 0, `${slug}: README screenshot missing`);
     for (const screenshot of screenshots) {
       const details = await stat(resolve(directory, screenshot)).catch(() => null);
       assert(
@@ -279,7 +294,8 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
       );
     }
     assert(
-      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)),
+      screenshots.some((screenshot) => rootImages.includes(`${source}/${screenshot}`)) ||
+        attachedScreenshots.some((screenshot) => rootImages.includes(screenshot)),
       `${slug}: root representative screenshot missing`,
     );
     assert(

@@ -75,6 +75,7 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 | File | Contents |
 | --- | --- |
 | `data.tsx` | The snapshot fetch (realtime refresh, stale responses dropped, sidebar preferences at most every 15 seconds), `DesktopDataProvider`, `useDesktop`, and actions: `openThread`, `dropThread`, `restoreThread`, `archiveThread`, `setPreferences` |
+| `desktop-entries.ts` | The shared live inventory and layout keys for the canvas and Finder: groups, saved notes, More, and Recycle Bin |
 | `menu.tsx` | `MenuEntry`, `MenuProvider`, `useMenu().open(event, entries)` |
 | `menus.tsx` | Shared entry builders: `threadMenu`, `groupMenu`, `viewMenuEntries` |
 | `canvas.tsx`, `canvas-icons.tsx` | The icon canvas (layout, selection, marquee, multi-drag, arrange, tile) and its icons: folders, More, note pads, the Recycle Bin |
@@ -114,3 +115,5 @@ These outlive a release. Changing one needs a migration.
 ## Tests
 
 Pure modules have co-located `*.test.ts` files. `windows/state.test.ts` loads a stored v1 fixture so an incompatible change to window persistence fails CI, `programs/launcher-ids.test.ts` pins the Quick Launch ids, and `programs/threads/status.test.ts` pins thread status wording. `programs/threads/chat-contract.test.ts` runs the contract check and the key contract selectors from `app.css` against `programs/threads/__fixtures__/thread-chat.html`, real `ThreadChat` markup captured from the bb web app with the bb commit it came from noted at its top; recapture it whenever bb's chat markup changes, then update the contract rules to match. Tests run in Node without a DOM unless they opt into jsdom, as the window and chat contract tests do, so a module a test imports must not import a browser-only dependency.
+
+Finder's Desktop root adds the `desktop-finder` window kind and `finder` launcher; existing `finder` window specs still require a group key. The root reads live entries rather than storing item IDs. A restored folder whose key no longer exists uses the existing missing-folder message; deleted notes disappear from the live inventory and the note store ignores stale open requests. Navigation history remains session-only.
