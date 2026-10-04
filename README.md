@@ -56,9 +56,9 @@ See pull requests across bb threads, inspect checks and changes, and continue in
 
 ![Compact Pull Requests sidebar with status icons and timestamps](https://github.com/user-attachments/assets/568a70fb-8226-4a65-bcec-23e1c4081e41)
 
-![Read-only changed file selection](https://github.com/user-attachments/assets/45b86d40-81ea-4895-ba0e-6aa3073ae6ef)
+![Pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/f7e7b9bc-134b-4b4e-8999-7d1ccd7aca4e)
 
-![Verified pull request link to a bb thread](https://github.com/user-attachments/assets/b9e4d5e7-390b-4261-914b-515e3d364a2c)
+![Read-only changed file selection](https://github.com/user-attachments/assets/93be96e5-32a8-4162-ac97-dc68fa492325)
 
 [Source](plugins/pull-requests) · [README](plugins/pull-requests/README.md)
 
