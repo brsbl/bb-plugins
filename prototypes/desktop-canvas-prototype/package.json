@@ -22,7 +22,7 @@
     "name": "Canvas Desktop",
     "description": "Prototype spatial desktop for bb threads and folders.",
     "branding": {
-      "icon": "PanelsTopLeft"
+      "icon": "AppWindow"
     },
     "server": "./server.ts",
     "skills": [],

@@ -4,6 +4,8 @@ A standalone **prototype** of a spatial bb workspace. Open `/plugins/desktop-can
 
 Project folders collect your existing threads. Create canvas folders in Launcher and move membership with the folder selector in Find threads. Arrange folders and conversation windows by dragging their title bars, or focus a title and use arrow keys (Shift moves farther). These changes stay in this plugin; they never change a thread's project or section.
 
+Launcher opens the floating composer. Drag its title bar or use arrow keys to move it in screen space; its position is remembered. Center is an explicit action.
+
 The real bb composer stays mounted as you center, float, hide, and restore it. Creation uses bb's normal submission behavior. Conversations use `ThreadChat`; choose Read at 100%, Focus, or Open in bb for readable editing. Minimize restores from the bottom taskbar; close removes only the window. Fit all and Find threads recover offscreen items. Scroll pans; Ctrl/⌘ + scroll zooms. Focus the canvas for arrow-key pan and +/−/0 zoom controls. Escape closes the launcher or focused view.
 
 Layout and folders persist per browser in a separate plugin namespace; the host owns thread drafts. This prototype does not replace the global home page or shortcuts, install Desktop, or add browser/terminal integrations. It is intended for a desktop-sized viewport. Only the selected conversation renders a live chat; the others remain lightweight overview windows.

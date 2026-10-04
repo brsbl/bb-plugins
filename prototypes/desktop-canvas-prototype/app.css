@@ -6,7 +6,7 @@
 .cdc-canvas { position: absolute; inset: 0; overflow: hidden; touch-action: none; background-image: radial-gradient(circle, color-mix(in oklab, var(--ink) 14%, transparent) 1px, transparent 1px); background-size: 24px 24px; cursor: grab; }
 .cdc-canvas:active { cursor: grabbing; }
 .cdc-world { position: absolute; inset: 0; transform-origin: 0 0; pointer-events: none; }
-.cdc-folder, .cdc-window { pointer-events: auto; position: absolute; border: 1px solid var(--border); background: var(--background); border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); overflow: hidden; cursor: default; }
+.cdc-folder, .cdc-window { pointer-events: auto; position: absolute; border: 1px solid var(--border); background: var(--background); border-radius: calc(var(--radius) + 4px); box-shadow: var(--shadow-sm); overflow: hidden; cursor: default; }
 .cdc-pan .cdc-world { pointer-events: none; }
 .cdc-pan .cdc-world * { pointer-events: none; }
 .cdc-folder { width: 256px; }
@@ -15,7 +15,7 @@
 .cdc-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cdc-title small { color: var(--muted-foreground); margin-left: auto; font-weight: 400; }
 .cdc-folder-items { padding: 8px; }
-.cdc-thread-row { display: flex; gap: 9px; align-items: center; text-align: left; width: 100%; min-height: 38px; padding: 6px 8px; border-radius: var(--radius-md); color: var(--foreground); background: none; border: none; }
+.cdc-thread-row { display: flex; gap: 9px; align-items: center; text-align: left; width: 100%; min-height: 38px; padding: 6px 8px; border-radius: calc(var(--radius) - 2px); color: var(--foreground); background: none; border: none; }
 .cdc-thread-row:hover, .cdc-result button:hover { background: var(--state-hover); }
 .cdc-thread-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
 .cdc-thread-row [data-icon-root] { color: var(--muted-foreground); }
@@ -36,7 +36,7 @@
 .cdc-heading { position: absolute; top: 18px; left: 24px; display: flex; align-items: center; gap: 10px; height: 28px; pointer-events: none; }
 .cdc-heading span { font-weight: 500; }
 .cdc-heading small { color: var(--muted-foreground); font-size: var(--text-xs); border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; background: var(--background); }
-.cdc-prompt { position: absolute; z-index: 70; width: min(720px, calc(100% - 64px)); padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--background); box-shadow: var(--shadow-lg); }
+.cdc-prompt { position: absolute; z-index: 70; width: min(720px, calc(100% - 64px)); padding: 18px; border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); background: var(--background); box-shadow: var(--shadow-lg); }
 .cdc-prompt-center { top: 46%; left: 50%; transform: translate(-50%, -50%); }
 .cdc-prompt-float { bottom: 120px; right: 24px; }
 .cdc-prompt-hidden { bottom: 120px; right: 24px; visibility: hidden; pointer-events: none; }
@@ -47,7 +47,7 @@
 .cdc-prompt-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-left: 4px; color: var(--muted-foreground); }
 .cdc-prompt-toolbar > div { display: flex; }
 .cdc-prompt-toolbar button { width: 32px; height: 32px; }
-.cdc-camera { position: absolute; top: 16px; right: 20px; z-index: 80; display: flex; align-items: center; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background); box-shadow: var(--shadow-sm); }
+.cdc-camera { position: absolute; top: 16px; right: 20px; z-index: 80; display: flex; align-items: center; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); box-shadow: var(--shadow-sm); }
 .cdc-camera button { height: 30px; }
 .cdc-camera button[aria-label="Pan canvas"] { width: 30px; }
 .cdc-help { position: absolute; bottom: 86px; left: 50%; transform: translateX(-50%); color: var(--muted-foreground); font-size: var(--text-xs); white-space: nowrap; pointer-events: none; background: var(--background); padding: 4px 10px; border-radius: 8px; }
@@ -57,7 +57,7 @@
 .cdc-tasks { display: flex; min-width: 0; gap: 3px; overflow-x: auto; padding: 3px; }
 .cdc-task { max-width: 180px; flex-shrink: 0; border-radius: 9px; height: 36px; }
 .cdc-task > span { overflow: hidden; text-overflow: ellipsis; }
-.cdc-launcher { position: absolute; bottom: 82px; left: 24px; width: min(440px, calc(100% - 48px)); max-height: calc(100% - 150px); z-index: 100; display: flex; flex-direction: column; background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-xl); overflow: hidden; }
+.cdc-launcher { position: absolute; bottom: 82px; left: 24px; width: min(440px, calc(100% - 48px)); max-height: calc(100% - 150px); z-index: 100; display: flex; flex-direction: column; background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); box-shadow: var(--shadow-xl); overflow: hidden; }
 .cdc-launcher > header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 4px 18px; }
 .cdc-launcher-actions { display: flex; gap: 3px; padding: 6px 12px 10px; }
 .cdc-launcher-actions button { padding-left: 8px; padding-right: 8px; }
@@ -66,16 +66,16 @@
 .cdc-folder-list { display: flex; flex-direction: column; }
 .cdc-folder-list button { justify-content: flex-start; }
 .cdc-folder-list small { margin-left: auto; color: var(--muted-foreground); }
-.cdc-search { display: flex; align-items: center; gap: 8px; margin: 0 12px 6px; padding: 8px 10px; border: 1px solid var(--input); border-radius: var(--radius-md); }
+.cdc-search { display: flex; align-items: center; gap: 8px; margin: 0 12px 6px; padding: 8px 10px; border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); }
 .cdc-search input { width: 100%; outline: none; background: transparent; }
 .cdc-new-folder { display: flex; gap: 6px; padding: 0 12px 10px; }
-.cdc-new-folder input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--input); border-radius: var(--radius-md); background: transparent; }
+.cdc-new-folder input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); background: transparent; }
 .cdc-result { display: flex; align-items: center; gap: 4px; padding: 3px 0; }
-.cdc-result > button { display: flex; flex: 1; min-width: 0; align-items: center; gap: 9px; text-align: left; border: none; background: none; padding: 8px 6px; border-radius: var(--radius-md); }
+.cdc-result > button { display: flex; flex: 1; min-width: 0; align-items: center; gap: 9px; text-align: left; border: none; background: none; padding: 8px 6px; border-radius: calc(var(--radius) - 2px); }
 .cdc-result > button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cdc-result small { display: block; color: var(--muted-foreground); font-size: var(--text-xs); margin-top: 3px; }
-.cdc-result select { width: 104px; min-height: 32px; padding: 4px; background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-md); font-size: var(--text-xs); }
+.cdc-result select { width: 104px; min-height: 32px; padding: 4px; background: var(--background); border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); font-size: var(--text-xs); }
 .cdc-launcher footer { padding: 12px 18px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: var(--text-xs); }
-.cdc-notice { position: absolute; z-index: 110; bottom: 88px; right: 24px; max-width: 420px; display: flex; gap: 12px; align-items: center; background: var(--background); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-lg); }
+.cdc-notice { position: absolute; z-index: 110; bottom: 88px; right: 24px; max-width: 420px; display: flex; gap: 12px; align-items: center; background: var(--background); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius); }
 .cdc-loading { position: absolute; top: 65px; left: 24px; color: var(--muted-foreground); }
 @media (max-width: 760px) { .cdc-heading small, .cdc-help { display: none; } .cdc-heading { left: 12px; } .cdc-camera { top: 52px; right: 12px; } .cdc-prompt { width: calc(100% - 32px); padding: 12px; } .cdc-prompt-float { right: 16px; bottom: 90px; } .cdc-window.cdc-focused { top: 100px !important; height: calc(100% - 180px); } }

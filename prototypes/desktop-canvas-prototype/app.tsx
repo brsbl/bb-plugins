@@ -213,11 +213,11 @@ function Desktop() {
       </div>
     </div>
 
-    <div className="cdc-heading" data-screen><Icon name="PanelsTopLeft" /><span>Canvas Desktop</span><small>Prototype</small></div>
+    <div className="cdc-heading" data-screen><Icon name="AppWindow" /><span>Canvas Desktop</span><small>Prototype</small></div>
     <div className={`cdc-prompt cdc-prompt-${layout.composer}`} data-screen style={layout.composer === "float" ? { left: floatPoint.x, top: floatPoint.y, right: "auto", bottom: "auto" } : undefined} aria-hidden={layout.composer === "hidden"} inert={layout.composer === "hidden"}>
       <div className="cdc-prompt-intro"><p>Your workspace, spread out.</p><h1>What would you like to work on?</h1></div>
       <div className="cdc-prompt-toolbar" onPointerDown={event => { if (layout.composer === "float") startDrag(event, "prompt", "main", floatPoint); }}><button className="cdc-title" aria-label="Move floating composer with arrow keys" onKeyDown={event => { if (layout.composer === "float") nudge(event, "prompt", "main", floatPoint); }}>New thread</button><div data-no-drag>
-        <Action icon="AlignCenter" label="Center composer" pressed={layout.composer === "center"} onClick={() => showPrompt("center")} />
+        <Action icon="Target" label="Center composer" pressed={layout.composer === "center"} onClick={() => showPrompt("center")} />
         <Action icon="PanelBottom" label="Float composer" pressed={layout.composer === "float"} onClick={() => showPrompt("float")} />
         <Action icon="Minus" label="Hide composer" onClick={() => setLayout(current => ({ ...current, composer: "hidden" }))} />
       </div></div>
@@ -234,7 +234,7 @@ function Desktop() {
 
     {launcher && <aside className="cdc-launcher" data-screen aria-label="Launcher">
       <header><strong>Workspace</strong><Action icon="X" label="Close launcher" onClick={() => setLauncher(false)} /></header>
-      <div className="cdc-launcher-actions"><Button variant="secondary" size="sm" onClick={() => showPrompt("float")}><Icon name="Plus" />New thread</Button><Button variant="ghost" size="sm" onClick={() => setNewFolder(value => !value)}><Icon name="FolderPlus" />New folder</Button><Button variant="ghost" size="sm" onClick={fitAll}><Icon name="Scan" />Fit all</Button></div>
+      <div className="cdc-launcher-actions"><Button variant="secondary" size="sm" onClick={() => showPrompt("float")}><Icon name="Plus" />New thread</Button><Button variant="ghost" size="sm" onClick={() => setNewFolder(value => !value)}><Icon name="FolderPlus" />New folder</Button><Button variant="ghost" size="sm" onClick={fitAll}><Icon name="Maximize2" />Fit all</Button></div>
       {newFolder && <form className="cdc-new-folder" onSubmit={event => {
         event.preventDefault(); const name = folderName.trim(); if (!name || layout.folders.length >= 100) return;
         const id = `folder:${crypto.randomUUID()}`;
@@ -258,7 +258,7 @@ function Desktop() {
     </aside>}
 
     <div className="cdc-camera" data-screen aria-label="Canvas controls">
-      <Action icon="Hand" label="Pan canvas" pressed={panMode} onClick={() => { setFocused(null); setPanMode(value => !value); }} />
+      <Action icon="MoveTo" label="Pan canvas" pressed={panMode} onClick={() => { setFocused(null); setPanMode(value => !value); }} />
       <Action icon="Minus" label="Zoom out" onClick={() => moveCamera(zoom - 0.1)} />
       <Button variant="ghost" size="sm" aria-label="Reset zoom to 100 percent" onClick={() => moveCamera(1)}>{Math.round(zoom * 100)}%</Button>
       <Action icon="Plus" label="Zoom in" onClick={() => moveCamera(zoom + 0.1)} />
@@ -266,9 +266,9 @@ function Desktop() {
     </div>
     <div className="cdc-help" data-screen>Drag to arrange · Scroll to pan · Ctrl + scroll to zoom</div>
     <nav className="cdc-dock" data-screen aria-label="Workspace taskbar">
-      <Button variant={launcher ? "secondary" : "ghost"} size="sm" aria-expanded={launcher} onClick={() => setLauncher(value => !value)}><Icon name="Grid2X2" />Launcher</Button>
+      <Button variant={launcher ? "secondary" : "ghost"} size="sm" aria-expanded={launcher} onClick={() => setLauncher(value => !value)}><Icon name="GridView" />Launcher</Button>
       <span className="cdc-divider" />
-      <Button variant={layout.composer !== "hidden" ? "secondary" : "ghost"} size="sm" onClick={() => showPrompt(layout.composer === "hidden" ? "float" : layout.composer)}><Icon name="SquarePen" />{layout.composer === "hidden" ? "Restore prompt" : "New thread"}</Button>
+      <Button variant={layout.composer !== "hidden" ? "secondary" : "ghost"} size="sm" onClick={() => showPrompt(layout.composer === "hidden" ? "float" : layout.composer)}><Icon name="MessageSquarePlus" />{layout.composer === "hidden" ? "Restore prompt" : "New thread"}</Button>
       {layout.windows.length > 0 && <span className="cdc-divider" />}
       <div className="cdc-tasks">{layout.windows.map(win => <Button key={win.id} className="cdc-task" variant={active === win.id && !win.minimized ? "secondary" : "ghost"} size="sm" aria-label={`${win.minimized ? "Restore" : "Show"} ${threadMap.get(win.id) ? titleOf(threadMap.get(win.id)!) : "thread"}`} onClick={() => openThread(win.id)}><Icon name="MessageSquare" /><span>{threadMap.get(win.id) ? titleOf(threadMap.get(win.id)!) : "Thread"}</span>{win.minimized && <Icon name="Minus" />}</Button>)}</div>
       <Action icon="Search" label="Find threads" onClick={() => { setLauncher(true); setQuery(""); }} />
@@ -277,5 +277,5 @@ function Desktop() {
 }
 
 export default definePluginApp(app => {
-  app.slots.navPanel({ id: "desktop", path: "desktop", title: "Canvas Desktop", icon: "PanelsTopLeft", component: Desktop });
+  app.slots.navPanel({ id: "desktop", path: "desktop", title: "Canvas Desktop", icon: "AppWindow", component: Desktop });
 });
