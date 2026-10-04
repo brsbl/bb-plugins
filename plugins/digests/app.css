@@ -246,3 +246,7 @@
 .digest-read-warning p { margin: 0; }
 .digest-read-warning ul { margin: 6px 0 0; padding-left: 16px; }
 .digest-read-warning a { color: inherit; text-decoration: underline; }
+
+.digest-name-fields { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 8px; }
+.digest-name-fields input { display: block; margin: 4px 0 0; font-weight: 400; }
+.digest-name-fields input[id$="-emoji"] { text-align: center; }

@@ -14,6 +14,7 @@ import {
 
 import type { rpcContract } from "./contracts.js";
 import type { Connection, DigestDefinition, Issue, SaveDigest } from "./model.js";
+import { digestEmoji } from "./emoji.js";
 import { Button } from "./components/ui/button.js";
 import { Switch } from "./components/ui/switch.js";
 import "./app.css";
@@ -436,6 +437,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   const [executionError, setExecutionError] = useState<string | null>(null);
   const loadExecution = () => { void rpc.call("executionOptions", {}).then(setOptions).catch(() => setExecutionError("Couldn’t load computers and workspaces. Close and reopen this form to try again.")); };
   const [name, setName] = useState(definition?.name ?? "");
+  const [emoji, setEmoji] = useState(digestEmoji(definition ?? { id: "digest-new", connectionIds: [connection.id] }));
   const [instructions, setInstructions] = useState(definition?.instructions ?? "");
   const [afterReading, setAfterReading] = useState<NonNullable<DigestDefinition["afterReading"]>>(definition?.afterReading ?? "keep-unread");
   const [minute = "0", hour = "10", day = "*", month = "*", weekday = "1-5"] = definition?.schedule?.cron.split(/\s+/u) ?? [];
@@ -448,12 +450,14 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   return <form className="digest-form" onSubmit={(event) => {
     event.preventDefault();
     const [hours, minutes] = time.split(":");
-    void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, instructions, ...(execution || definition?.execution ? { execution } : {}),
+    void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, ...(emoji.trim() ? { emoji: emoji.trim() } : {}), instructions, ...(execution || definition?.execution ? { execution } : {}),
       ...(connection.id === "gmail" ? { afterReading } : {}),
       schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone: definition?.schedule?.timezone ?? "America/Los_Angeles" } });
   }}>
-    <label htmlFor={`${formId}-name`}>Name</label>
-    <input id={`${formId}-name`} autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Unread email" />
+    <div className="digest-name-fields">
+      <label htmlFor={`${formId}-name`}>Name<input id={`${formId}-name`} autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Unread email" /></label>
+      <label htmlFor={`${formId}-emoji`}>Emoji<input id={`${formId}-emoji`} maxLength={32} value={emoji} onChange={(event) => setEmoji(event.target.value)} placeholder="📰" /></label>
+    </div>
     <label htmlFor={`${formId}-prompt`}>What should it tell you?</label>
     <textarea id={`${formId}-prompt`} required maxLength={30000} rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={`e.g. ${connection.id === "gmail" ? "Unread emails that need a reply, newest first. Skip newsletters and recruiting." : `The updates from ${connection.name} that need my attention.`}`} />
     {!publishOnly && <div className="digest-schedule-fields"><label htmlFor={`${formId}-days`}>When</label>
