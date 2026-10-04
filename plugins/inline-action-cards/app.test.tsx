@@ -33,7 +33,7 @@ async function addRowNote(row: HTMLElement) {
   fireEvent.keyDown(within(row).getByRole("button", { name: "More actions" }), { key: "Enter" });
   fireEvent.click(await screen.findByRole("menuitem", { name: "Add note" }));
 }
-async function setup(composerText = "", saveFailure = false, initialItem = fixture()) {
+async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>) {
   let item = initialItem;
   const calls: string[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
@@ -59,6 +59,12 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         calls.push("prepare"); expect(input.revision).toBe(item.revision);
         item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false, note: input.note } }; return item;
       },
+      submitted: async () => {
+        await beforeSubmitted;
+        calls.push("submitted");
+        item = { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } };
+        return item;
+      },
     },
   });
   await screen.findByRole("article");
@@ -70,13 +76,15 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
 it("flushes an immediate edit before submitting Send exactly once", async () => {
   const { slot, calls, get } = await setup();
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "My latest edit" } });
-  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
-  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-  expect(calls).toEqual(["save", "prepare"]);
+  const send = screen.getByRole("button", { name: /^Send$/ });
+  fireEvent.click(send);
+  fireEvent.click(send);
+  await waitFor(() => expect(calls).toEqual(["save", "prepare", "submitted"]));
+  expect(slot.inspection.composer.submits).toHaveLength(1);
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Escrow follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
-  expect(screen.getByRole("textbox").getAttribute("readonly")).not.toBeNull();
+  await screen.findByText("Approved to send");
+  expect(screen.queryByRole("textbox")).toBeNull();
 });
 it("preserves an existing composer message", async () => {
   const { slot, calls } = await setup("Please also check another message");
@@ -118,6 +126,11 @@ it("keeps the expanded table reply in place while Send is pending", async () => 
         items = items.map((item): Item => item.id === id ? { ...item, revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: false } } : item);
         return items.find((item) => item.id === id);
       },
+      submitted: (raw) => {
+        const id = (raw as { id: string }).id;
+        items = items.map((item): Item => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item);
+        return items.find((item) => item.id === id);
+      },
     },
   });
   const reviews = await screen.findAllByRole("button", { name: /Review/ });
@@ -127,21 +140,16 @@ it("keeps the expanded table reply in place while Send is pending", async () => 
   expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  await screen.findByText("Approved to send");
   expect(screen.getByRole("textbox", { name: "Draft" }).getAttribute("readonly")).not.toBeNull();
-  expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
-  fireEvent.click(screen.getByRole("button", { name: /Close/ }));
-  expect(screen.queryByRole("textbox", { name: "Draft" })).toBeNull();
-  const pendingReview = screen.getAllByRole("button", { name: /Review/ })[1]!;
-  expect((pendingReview as HTMLButtonElement).disabled).toBe(false);
-  fireEvent.click(pendingReview);
-  expect(within(screen.getAllByRole("article")[1]!).getByRole("button", { name: "More actions" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
+  expect(screen.queryByRole("button", { name: "Sending…" })).toBeNull();
 });
 
-it.each(["send", "yes", "no"] as const)("keeps %s on the pressed button and disables its siblings", async (action) => {
+it.each(["send", "yes", "no"] as const)("shows %s loading only while it is sent, then settles", async (action) => {
   const item = fixture();
   if (action !== "send") item.content = { type: "decide", question: "Switch digests?", consequence: "Keep schedules", yesLabel: "Switch", noLabel: "Keep" };
-  const { slot } = await setup("", false, item);
+  let release!: () => void;
+  const { slot } = await setup("", false, item, new Promise<void>((resolve) => { release = resolve; }));
   const label = action === "send" ? "Send" : action === "yes" ? "Switch" : "Keep";
   const button = screen.getByRole("button", { name: label });
   const classes = button.className;
@@ -155,13 +163,18 @@ it.each(["send", "yes", "no"] as const)("keeps %s on the pressed button and disa
   const other = screen.getByRole("button", { name: action === "send" ? "Add note" : action === "yes" ? "Keep" : "Switch" });
   expect((other as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: "Skip" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
+  release();
+  const status = await screen.findByRole("status");
+  expect(status.textContent).toMatch(new RegExp(`^✓ ${action === "send" ? "Approved to send" : `${label} sent`} · `));
+  expect(screen.queryByRole("button", { name: label })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
 });
 
-it("keeps the bulk button busy until its own attempts finish, without treating a row click as bulk", async () => {
+it("keeps the bulk button busy only while sending, without treating a row click as bulk", async () => {
   let items: Item[] = ["one", "two"].map((id) => ({ ...fixture(), id, content: { type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", actionKey: "switch" } }));
   const app = await loadPluginApp(() => import("./app.js"));
   const prepare = (item: Item): Item => ({ ...item, revision: item.revision + 1, state: "pending", attempt: { id: item.id === "one" ? "ea45f71a-c216-4da4-a226-65736f4eccfd" : "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "yes", claimed: false } });
+  const settle = (id: string) => { items = items.map((item) => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item); return items.find((item) => item.id === id); };
   const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
     composer: { scope: { kind: "thread", threadId: "thr_test" } },
     rpc: {
@@ -169,6 +182,7 @@ it("keeps the bulk button busy until its own attempts finish, without treating a
       get: (raw) => items.find((item) => item.id === (raw as { id: string }).id),
       prepare: (raw) => { items = items.map((item) => item.id === (raw as { id: string }).id ? prepare(item) : item); return items[0]; },
       prepareTable: () => { items = items.map((item) => item.state === "ready" ? prepare(item) : item); return [items[1]]; },
+      submitted: (raw) => settle((raw as { id: string }).id),
     },
   });
   const button = await screen.findByRole("button", { name: "Switch all" });
@@ -177,10 +191,8 @@ it("keeps the bulk button busy until its own attempts finish, without treating a
   expect(button.getAttribute("aria-busy")).toBeNull();
   fireEvent.click(button);
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(2));
-  expect(button.getAttribute("aria-busy")).toBe("true");
-  items = items.map((item) => item.id === "two" ? { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Switched", retryable: false } } : item);
-  await slot.behavior.emitRealtime("items", {});
   await waitFor(() => expect(button.getAttribute("aria-busy")).toBeNull());
+  await waitFor(() => expect(screen.getAllByText("Switch sent")).toHaveLength(2));
 });
 
 it("submits the selected option from a choice card, starting from the recommendation", async () => {
@@ -224,6 +236,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
       rpc: {
         get: (input) => host.harness.behavior.callRpc("get", input),
         prepare: (input) => host.harness.behavior.callRpc("prepare", input),
+        submitted: (input) => host.harness.behavior.callRpc("submitted", input),
       },
     });
     fireEvent.click(await screen.findByRole("button", { name: "Add note" }));
@@ -316,6 +329,7 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
         table: (input) => host.harness.behavior.callRpc("table", input),
         get: (input) => host.harness.behavior.callRpc("get", input),
         prepareTable: (input) => host.harness.behavior.callRpc("prepareTable", input),
+        submitted: (input) => host.harness.behavior.callRpc("submitted", input),
       },
     });
     await screen.findByRole("button", { name: "Switch all" });
@@ -348,26 +362,4 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
   expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Note for your choice" })));
   replySlot.lifecycle.unmount();
-});
-
-it("carries a trimmed note from the choice card's ⋯ menu into the chosen attempt", async () => {
-  const host = createFakePluginHost({ pluginId: "inline-action-cards" });
-  plugin(host.bb);
-  try {
-    const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "UserSingle" }, { id: "multi", label: "UserMultiple" }] };
-    await host.harness.behavior.runCli(["create", "setup", "--thread", "thr_test", "--item", JSON.stringify(content)]);
-    const app = await loadPluginApp(() => import("./app.js"));
-    const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: "setup" }, source: '::action{id="setup"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
-      composer: { scope: { kind: "thread", threadId: "thr_test" } },
-      rpc: { get: (input) => host.harness.behavior.callRpc("get", input), choose: (input) => host.harness.behavior.callRpc("choose", input) },
-    });
-    await addRowNote(await screen.findByRole("article"));
-    fireEvent.change(await screen.findByRole("textbox", { name: "Note for your choice" }), { target: { value: "  only for new threads  " } });
-    fireEvent.click(screen.getByRole("button", { name: "Use UserMultiple" }));
-    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-    expect(submittedMessages[0]).toContain("Use UserMultiple");
-    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(slot.inspection.composer.mentions[0]!.id)).context);
-    expect(context).toMatchObject({ action: "choose", choice: { id: "multi", label: "UserMultiple" }, note: "only for new threads" });
-    slot.lifecycle.unmount();
-  } finally { await host.harness.lifecycle.dispose(); }
 });

@@ -46,7 +46,7 @@ bb action-cards create account-setup --item-stdin <<'JSON'
 JSON
 ```
 
-Explain tradeoffs before the card rather than in hints. A click carries `action: "choose"` and `choice: {"id","label"}` in its hidden context; act on that option only. Claim and report like Decide, for example `--message 'UserMultiple chosen'`. Add note, Later and Skip live in the card's ⋯ menu; a note travels with the chosen option like on other cards. Choice cards stand alone; tables do not accept them.
+Explain tradeoffs before the card rather than in hints. A click carries `action: "choose"` and `choice: {"id","label"}` in its hidden context; act on that option only. Claim and report like Decide, for example `--message 'UserMultiple chosen'`. Later and Skip live in the card's ⋯ menu. Choice cards stand alone; tables do not accept them.
 
 ## Group items in a table
 

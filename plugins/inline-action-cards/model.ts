@@ -46,6 +46,8 @@ export const itemSchema = z.object({
   state: z.enum(["ready", "pending", "succeeded", "failed"]),
   attempt: z.object({
     id: z.string().uuid(), action: actionSchema, claimed: z.boolean(), note: noteSchema.optional(),
+    // When the composer accepted the request; the card's buttons are done after that.
+    sentAt: z.iso.datetime().optional(),
     // The option a choice card's "choose" attempt approves.
     choice: z.object({ id: idSchema, label }).strict().optional(),
   }).strict().nullable(),
