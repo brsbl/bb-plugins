@@ -83,7 +83,7 @@ The card shows Retry. A new click creates a new attempt, which must be claimed a
 
 ## Add a note
 
-Every ready card and table row offers Add note. It focuses a short field above the buttons. Choosing an action submits the note visibly after the mention pill and includes it as `note` in hidden context. The note is saved on the attempt, returned by claim/get, and shown under the result. Empty notes keep the usual behavior; Escape or clearing the field dismisses it. Bulk approval carries each row’s own note.
+Every ready card offers Add note as a speech-bubble button next to Remind me later and Skip; table rows offer it in their ⋯ menu. It focuses a short field above the buttons. Choosing an action submits the note visibly after the mention pill and includes it as `note` in hidden context. The note is saved on the attempt, returned by claim/get, and shown under the result. Empty notes keep the usual behavior; Escape or clearing the field dismisses it. Bulk approval carries each row’s own note.
 
 ## Comment without choosing
 

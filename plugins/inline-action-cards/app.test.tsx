@@ -27,6 +27,12 @@ vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
 });
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], cc: [], bcc: [], original: { from: "Escrow", body: "Your refund is on its way." }, draft: "Original draft" } });
 afterEach(() => { cleanup(); submittedMessages.length = 0; });
+// Radix menus measure their content; jsdom has no ResizeObserver.
+globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+async function addRowNote(row: HTMLElement) {
+  fireEvent.keyDown(within(row).getByRole("button", { name: "More actions" }), { key: "Enter" });
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Add note" }));
+}
 async function setup(composerText = "", saveFailure = false, initialItem = fixture()) {
   let item = initialItem;
   const calls: string[] = [];
@@ -122,7 +128,7 @@ it("keeps the expanded table reply in place while Send is pending", async () => 
   const pendingReview = screen.getAllByRole("button", { name: /Review/ })[1]!;
   expect((pendingReview as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(pendingReview);
-  expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
+  expect(within(screen.getAllByRole("article")[1]!).getByRole("button", { name: "More actions" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Sending…" }).getAttribute("aria-busy")).toBe("true");
 });
 
@@ -282,10 +288,11 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
     await screen.findByRole("button", { name: "Switch all" });
     expect(screen.queryByRole("alert")).toBeNull();
     const rows = screen.getAllByRole("article");
-    rows.forEach((row, index) => {
-      fireEvent.click(within(row).getByRole("button", { name: "Add note" }));
-      fireEvent.change(within(row).getByRole("textbox", { name: "Note for your choice" }), { target: { value: `Condition ${index}` } });
-    });
+    for (const [index, row] of rows.entries()) {
+      expect(within(row).queryByRole("button", { name: "Add note" })).toBeNull();
+      await addRowNote(row);
+      fireEvent.change(await within(row).findByRole("textbox", { name: "Note for your choice" }), { target: { value: `Condition ${index}` } });
+    }
     fireEvent.click(screen.getByRole("button", { name: "Switch all" }));
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
     expect(submittedMessages[0]).toContain(" — Condition 0");
@@ -304,8 +311,8 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
     composer: { scope: { kind: "thread", threadId: "thr_test" } },
     rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: [item.id], items: [item] }), get: () => item },
   });
-  fireEvent.click(await screen.findByRole("button", { name: "Add note" }));
+  await addRowNote(await screen.findByRole("article"));
   expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
-  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Note for your choice" }));
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Note for your choice" })));
   replySlot.lifecycle.unmount();
 });

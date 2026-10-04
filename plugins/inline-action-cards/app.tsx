@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, NoteIcon, SkipIcon } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel } from "./presentation.js";
 import "./app.css";
 
@@ -19,6 +19,9 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const noteEditor = useRef<HTMLTextAreaElement>(null);
   const changeNote = (value: string) => { setNote(value); onNote?.(id, value); };
   const closeNote = () => { changeNote(""); setNoteOpen(false); };
+  // Menus return focus to their trigger on close; send it to the note field instead.
+  const focusNote = useRef(false);
+  const noteMenuFocus = (event: Event) => { if (!focusNote.current) return; focusNote.current = false; event.preventDefault(); noteEditor.current?.focus(); };
   useLayoutEffect(() => {
     if (!noteOpen || !noteEditor.current) return;
     noteEditor.current.style.height = "0px";
@@ -197,11 +200,13 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = (open: boolean) => row ? onExpand?.(open) : setViewResult(open);
+  const openNote = () => { setNoteOpen(true); noteEditor.current?.focus(); if (row && reply) onExpand?.(true); };
+  const noteMenuAction = ready && <MenuAction onSelect={() => { focusNote.current = true; openNote(); }}>Add note</MenuAction>;
   const utilities = <div className="iac-actions">
+    {!row && <IconButton label="Add note" disabled={disabled} onClick={openNote}><NoteIcon /></IconButton>}
     <IconButton label="Remind me later" disabled={disabled} onClick={() => void act("later")}><ClockIcon /></IconButton>
     <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
   </div>;
-  const addNote = (ready || pending) && <ActionButton className="iac-muted" disabled={disabled} onClick={() => { setNoteOpen(true); noteEditor.current?.focus(); if (row && reply) onExpand?.(true); }}>Add note</ActionButton>;
   const noteField = ready && noteOpen && <div className="iac-note-entry"><textarea className="iac-note-field" ref={noteEditor} aria-label="Note for your choice" placeholder="Add a note…" value={note} autoFocus rows={1} maxLength={1000} disabled={busy}
     onChange={(event) => { changeNote(event.target.value); if (!event.target.value) setNoteOpen(false); }}
     onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeNote(); } }} />
@@ -210,11 +215,13 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const controls = <div className="iac-choice">
     {noteField}
     <div className="iac-actions iac-footer">
-      {addNote}
     {ready || pending ? <>
       <span className="iac-menu-slot">{pending
         ? <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>
-        : reply && <MoreMenu disabled={disabled}><MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction></MoreMenu>}</span>
+        : (reply || row) && <MoreMenu disabled={disabled} onCloseAutoFocus={noteMenuFocus}>
+          {row && noteMenuAction}
+          {reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}
+        </MoreMenu>}</span>
       {!reply && <PendingButton pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
       <PendingButton variant="default" pending={pending && item.attempt?.action === (reply ? "send" : "yes")} pendingLabel={pendingLabel(item, reply ? "send" : "yes")} disabled={disabled} onClick={() => void act(reply ? "send" : "yes")}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
     </> : null}
@@ -260,7 +267,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       <div className="iac-row-description"><span>{reply ? `${displayName(reply.to[0]!)} · ${reply.subject}` : title(item)}</span>
         {!reply && <p className="iac-consequence">{item.content.type === "decide" && item.content.consequence}</p>}
       </div>
-      {reply ? <div className="iac-actions">{!expanded && addNote}<ActionButton disabled={busy || loadError} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton></div> : controls}
+      {reply ? <div className="iac-actions">{ready && !expanded && <MoreMenu disabled={disabled} onCloseAutoFocus={noteMenuFocus}>{noteMenuAction}</MoreMenu>}<ActionButton disabled={busy || loadError} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton></div> : controls}
     </div> : null}
     {showBody && <div className={row ? "iac-row-expanded" : "iac-body"}>{details}</div>}
     {failure}
