@@ -87,7 +87,7 @@ export function actionMessage(item: Item): string {
 }
 
 export const logSchema = z.object({
-  waiting: z.array(itemSchema.extend({ threadTitle: z.string() })),
-  decided: z.array(itemSchema.extend({ threadTitle: z.string() })),
+  waiting: z.array(itemSchema.extend({ threadTitle: z.string(), threadProjectId: z.string().nullable() })),
+  decided: z.array(itemSchema.extend({ threadTitle: z.string(), threadProjectId: z.string().nullable() })),
 });
 export type DecisionLog = z.infer<typeof logSchema>;

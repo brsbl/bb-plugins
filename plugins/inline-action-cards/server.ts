@@ -69,10 +69,10 @@ export function createStore(bb: BbPluginApi) {
         : db.prepare("SELECT value FROM action_items").all()) as { value: string }[];
       const items = rows.map((row) => itemSchema.parse(JSON.parse(row.value)));
       const titles = new Map(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => {
-        try { return [id, (await bb.sdk.threads.get({ threadId: id })).title] as const; }
-        catch { return [id, "Unavailable thread"] as const; }
+        try { const thread = await bb.sdk.threads.get({ threadId: id }); return [id, { title: thread.title, projectId: thread.projectId }] as const; }
+        catch { return [id, { title: "Unavailable thread", projectId: null }] as const; }
       })));
-      const sorted = items.map((item) => ({ ...item, threadTitle: titles.get(item.threadId)! }))
+      const sorted = items.map((item) => ({ ...item, threadTitle: titles.get(item.threadId)!.title, threadProjectId: titles.get(item.threadId)!.projectId }))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
       return { waiting: sorted.filter((item) => item.state === "ready" || item.state === "pending"),
         decided: sorted.filter((item) => item.state === "succeeded" || item.state === "failed") };

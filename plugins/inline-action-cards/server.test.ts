@@ -129,7 +129,7 @@ it("CLI log defaults to all threads, supports JSON and explicit thread filters",
 
 it("log choices submit to their owning thread and resend the same durable attempt", async () => {
   const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: {
-    get: ({ threadId }) => ({ title: threadId === "thr_other" ? "Refund follow-up" : "Inbox review" }),
+    get: ({ threadId }) => ({ title: threadId === "thr_other" ? "Refund follow-up" : "Inbox review", projectId: "proj_cards" }),
     send: () => ({ kind: "queued" }),
   } } }); hosts.push(host); plugin(host.bb);
   await host.harness.behavior.runCli(["create", ref.id, "--thread", "thr_other", "--item", JSON.stringify(reply)]);

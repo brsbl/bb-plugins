@@ -12,7 +12,7 @@ const readableError = (error: unknown) => error instanceof Error ? error.message
 
 function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, logEntry }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
-  initialItem?: Item; onItem?: (item: Item) => void; logEntry?: { threadTitle: string };
+  initialItem?: Item; onItem?: (item: Item) => void; logEntry?: { threadTitle: string; threadProjectId: string | null };
 }) {
   const navigate = useBbNavigate();
   const [viewResult, setViewResult] = useState(false);
@@ -240,7 +240,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   if (logEntry) return <article className={`iac-log-row ${item.state === "failed" ? "iac-failed" : ""}`} aria-label={`${reply ? "Reply" : "Decision"}: ${title(item)}`}>
     <div className="iac-log-line">
       <span className="iac-log-question" title={title(item)}>{title(item)}</span>
-      <a className="iac-muted iac-log-thread" href={`/threads/${threadId}`} onClick={(event) => { event.preventDefault(); navigate.toThread(threadId); }}>{logEntry.threadTitle}</a>
+      <a className="iac-muted iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); navigate.toThread(threadId); }}>{logEntry.threadTitle}</a>
       {item.attempt && <span className="iac-muted" title={actionLabel(item, item.attempt.action)}>{actionLabel(item, item.attempt.action)}</span>}
       {done && <span className={item.state === "failed" ? "iac-failed" : "iac-muted"} title={item.result?.message}>{item.result?.message}</span>}
       {item.attempt?.note && <span className="iac-muted iac-log-note" title={item.attempt.note}>{item.attempt.note}</span>}
@@ -364,7 +364,7 @@ export function DecisionLogView({ threadId: owningThread }: { threadId?: string 
     {log && ([['waiting', 'Waiting on you'], ['decided', 'Decided']] as const).map(([key, heading]) => <section key={key} aria-label={heading}>
       <h2>{heading} <span className="iac-muted">{log[key].length}</span></h2>
       {!log[key].length && <p className="iac-muted">{key === 'waiting' ? 'No waiting decisions.' : 'No decided cards yet.'}</p>}
-      <div className="iac-log-scroll">{log[key].map((item) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item} logEntry={{ threadTitle: item.threadTitle }} onItem={() => void load()} />)}</div>
+      <div className="iac-log-scroll">{log[key].map((item) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item} logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId }} onItem={() => void load()} />)}</div>
     </section>)}
   </section>;
 }

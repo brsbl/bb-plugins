@@ -157,7 +157,7 @@ it("keeps the bulk button busy until its own attempts finish, without treating a
 });
 
 it("log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
-  let item = { ...fixture(), threadTitle: "Refund follow-up" };
+  let item = { ...fixture(), threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
     log: () => ({ waiting: [item], decided: [] }),
