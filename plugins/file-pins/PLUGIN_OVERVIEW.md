@@ -1,6 +1,6 @@
 Keep the files you return to beside the conversation they belong to.
 
-Choose **Pin to thread** from the composer’s **+** menu, search or paste a path,
+Choose **Pin to thread** from the composer’s **+** menu, search a folder you choose or paste a path,
 or use `bb file-pins pin`. Quiet file references stay above the composer, with
 files that aren't pinned behind **⋯**. Moss notes open in Moss on the file’s Mac; other files
 use bb’s usual file-opening behavior.

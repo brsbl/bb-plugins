@@ -8,6 +8,7 @@
     "context-menu",
     "dialog",
     "dropdown-menu",
+    "empty-state",
     "icon",
     "input",
     "menu-item-hover",
@@ -24,6 +25,8 @@
   ],
   "adaptations": [
     "pin-popover.tsx: BB popover tokens and Radix primitives without animation or compact drawer conversion.",
-    "pin-layout.ts: useMeasureSidebarFooterCapacity's slot measurement, used to fit fixed-width pins on the strip."
+    "pin-layout.ts: useMeasureSidebarFooterCapacity's slot measurement, used to fit fixed-width pins on the strip.",
+    "folder-chooser.tsx: apps/app/src/components/dialogs/ProjectPathDialog.tsx and RemotePathBrowser.tsx, with MachineStatusDot from apps/app/src/components/machines/MachineStatusDot.tsx, trimmed to choosing a machine and a folder (no project copy or new folder) and rendered without list virtualization; listings come from the SDK's hosts.directory.",
+    "reference-icon.tsx: resolveRightPanelFileIconName from apps/app/src/components/secondary-panel/rightPanelFileVisuals.ts."
   ]
 }

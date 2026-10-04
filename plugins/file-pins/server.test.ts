@@ -13,24 +13,17 @@ function setup(events: unknown[] = []) {
       hosts: { list: async () => [
         makeHostResponse({ id: "mac", name: "My Mac", status: "connected" }),
         makeHostResponse({ id: "linux", name: "Worker", status: "disconnected" }),
-        makeHostResponse({ id: "sleepy", name: "Sleepy", status: "connected" }),
-      ] },
-      files: { listPaths: async ({ hostId, path }) => {
-        if (path === "/Users/me/Moss/Notes") return { paths: [
-          { path: "Launch/Launch.md", name: "Launch.md", kind: "file", positions: [], score: 1 },
-          { path: "Launch/layout.json", name: "layout.json", kind: "file", positions: [], score: 1 },
-        ], truncated: false };
-        expect(path).toBe(hostId === "mac" ? "/Users/me/project" : "/home/worker");
-        return { paths: [{ path: "docs/note.md", name: "note.md", kind: "file", positions: [], score: 1 }], truncated: false };
-      } },
+        makeHostResponse({ id: "pi", name: "Pi", status: "connected" }),
+      ],
+      directory: async ({ hostId, path }) => ({ directory: path ?? `/home/${hostId}`, parent: "/home", entries: [{ kind: "directory", name: "docs", path: `${path ?? `/home/${hostId}`}/docs` }] }) },
+      files: { listPaths: async () => ({ paths: [{ path: "docs/note.md", name: "note.md", kind: "file", positions: [], score: 1 }], truncated: false }) },
     },
     experimental_callHostRpc: async ({ method, input, hostId }) => {
       if (hostId === "offline") throw new Error("Host offline");
       if (method === "openMossNote") return { opened: true };
       if (method === "home") return { path: "/home/worker" };
-      if (method === "mossRoot") return hostId === "sleepy" ? new Promise(() => {}) : { path: hostId === "mac" ? "/Users/me/Moss/Notes" : null };
-      if (method === "recentFiles") return { files: (input as { paths: string[] }).paths.filter((path) => !path.includes("gone")).map((path) => ({ path: path.startsWith("/") ? path : `/Users/me/project/${path}`, name: path.split("/").at(-1)!, moss: false })) };
-      if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available", moss: path.includes("moss") })) };
+      if (method === "recentFiles") return { files: (input as { paths: string[] }).paths.filter((path) => !path.includes("gone")).map((path) => ({ path: path.startsWith("/") ? path : `/Users/me/project/${path}`, name: path.split("/").at(-1)! })) };
+      if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available" })) };
       const { path } = input as { path: string };
       return { path: path === "~/note.md" ? "/Users/me/note.md" : path, name: path.split("/").at(-1)! };
     },
@@ -96,33 +89,49 @@ describe("thread file pins", () => {
     expect(h.inspection.experimental_hostRpcCalls).toHaveLength(calls);
     await expect(h.behavior.callRpc("undo", { threadId: "one", undoToken })).rejects.toThrow("expired");
   });
-  it("retains missing pins, distinguishes offline hosts, and supplies host-owned Moss classification", async () => {
+  it("retains missing pins and distinguishes offline hosts", async () => {
     const h = setup();
-    for (const [hostId, path] of [["mac", "/gone.md"], ["linux", "/offline.md"], ["mac", "/moss.md"]]) {
+    for (const [hostId, path] of [["mac", "/gone.md"], ["linux", "/offline.md"], ["mac", "/here.md"]]) {
       await h.behavior.callRpc("pin", { threadId: "one", hostId, path });
     }
     const result = await h.behavior.callRpc("inspect", { threadId: "one" }) as { pins: unknown[] };
     expect(result.pins).toMatchObject([
       { path: "/gone.md", status: "missing", hostName: "My Mac" },
       { path: "/offline.md", status: "unavailable", hostName: "Worker" },
-      { path: "/moss.md", status: "available", moss: true },
+      { path: "/here.md", status: "available" },
     ]);
     expect((await h.behavior.callRpc("list", { threadId: "one" }) as { pins: unknown[] }).pins).toHaveLength(3);
   });
-  it("searches the thread workspace or selected host home, with Moss notes from connected machines first", async () => {
+  it("searches the chosen folder, defaulting to the thread workspace or the machine's home, and refuses offline machines", async () => {
     const h = setup();
     expect(await h.behavior.callRpc("search", { threadId: "one", hostId: "mac", query: "note" })).toEqual({ root: "/Users/me/project", truncated: false, paths: [
-      { path: "/Users/me/Moss/Notes/Launch/Launch.md", name: "Launch.md", hostId: "mac", hostName: "My Mac", moss: true },
-      { path: "/Users/me/project/docs/note.md", name: "note.md", hostId: "mac", hostName: "My Mac", moss: false },
+      { path: "/Users/me/project/docs/note.md", name: "note.md" },
     ] });
-    const linux = await h.behavior.callRpc("search", { threadId: "one", hostId: "linux", query: "note" }) as { paths: Array<{ path: string }> };
-    expect(linux.paths.map((file) => file.path)).toEqual(["/Users/me/Moss/Notes/Launch/Launch.md", "/home/worker/docs/note.md"]);
-    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "home", hostId: "linux" });
-  }, 10_000);
-  it("resolves relative picker paths against the thread workspace on its own machine", async () => {
+    const chosen = await h.behavior.callRpc("search", { threadId: "one", hostId: "mac", root: "/Users/me/notes/", query: "note" }) as { paths: Array<{ path: string }> };
+    expect(chosen.paths.map((file) => file.path)).toEqual(["/Users/me/notes/docs/note.md"]);
+    const pi = await h.behavior.callRpc("search", { threadId: "one", hostId: "pi", query: "note" }) as { root: string };
+    expect(pi.root).toBe("/home/worker");
+    await expect(h.behavior.callRpc("search", { threadId: "one", hostId: "linux", query: "note" })).rejects.toThrow("Worker is offline");
+    await expect(h.behavior.callRpc("directory", { threadId: "one", hostId: "linux" })).rejects.toThrow("Worker is offline");
+    expect(await h.behavior.callRpc("directory", { threadId: "one", hostId: "pi", path: "/srv" })).toEqual({ directory: "/srv", parent: "/home", entries: [{ kind: "directory", name: "docs", path: "/srv/docs" }] });
+  });
+  it("defaults the search scope to the thread workspace and remembers the chosen folder per thread", async () => {
+    const h = setup();
+    expect(await h.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ defaultHostId: "mac", scope: { hostId: "mac", path: "/Users/me/project" } });
+    await h.behavior.callRpc("setScope", { threadId: "one", scope: { hostId: "pi", path: "/srv/notes" } });
+    const { harness: reloaded } = await h.lifecycle.reload(plugin);
+    disposers.push(() => reloaded.lifecycle.dispose());
+    expect(await reloaded.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ scope: { hostId: "pi", path: "/srv/notes" } });
+    expect(await reloaded.behavior.callRpc("context", { threadId: "two" })).toMatchObject({ scope: { hostId: "mac", path: "/Users/me/project" } });
+    await reloaded.behavior.emitThreadEvent("thread.deleted", { thread: makeThreadResponse({ id: "one" }) });
+    expect(await reloaded.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ scope: { hostId: "mac", path: "/Users/me/project" } });
+  });
+  it("resolves relative picker paths against the search folder, else the thread workspace on its own machine", async () => {
     const h = setup();
     await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "docs/note.md" });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "mac", input: { path: "docs/note.md", cwd: "/Users/me/project" } });
+    await h.behavior.callRpc("pin", { threadId: "one", hostId: "pi", path: "docs/note.md", cwd: "/srv/notes" });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "pi", input: { path: "docs/note.md", cwd: "/srv/notes" } });
   });
   it("repins in place only after the replacement resolves successfully", async () => {
     const h = setup();

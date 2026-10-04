@@ -1,18 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
-import type { RecentFile, rpcContract } from "./contract.js";
-import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "./components/ui/command.js";
+import type { RecentFile, Scope, rpcContract } from "./contract.js";
+import { Command, CommandInput, CommandItem, CommandList } from "./components/ui/command.js";
+import { Icon } from "./components/ui/icon.js";
+import { formatHomePathForDisplay } from "./lib/utils.js";
+import { FolderChooser, type ChooserHost } from "./folder-chooser.js";
 import { ReferenceIcon } from "./reference-icon.js";
 
-type Result = { path: string; name: string; hostId: string; hostName?: string; moss: boolean };
-const groupClass = "p-0 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:font-normal";
+type Result = { path: string; name: string; hostId: string };
 
-export function FilePicker({ threadId, recent, stripFull, onClose, onPinned }: {
-  threadId: string; recent: RecentFile[]; stripFull: boolean; onClose(): void; onPinned(): Promise<void>;
+const folderName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+
+export function FilePicker({ threadId, recent, stripFull, choosingFolder, onChoosingFolderChange, onClose, onPinned }: {
+  threadId: string; recent: RecentFile[]; stripFull: boolean; choosingFolder: boolean;
+  onChoosingFolderChange(open: boolean): void; onClose(): void; onPinned(): Promise<void>;
 }) {
   const rpc = useRpc<typeof rpcContract>();
-  const [hosts, setHosts] = useState<Array<{ id: string; name: string; connected: boolean }>>([]);
-  const [hostId, setHostId] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [hosts, setHosts] = useState<ChooserHost[]>([]);
+  const [scope, setScope] = useState<Scope | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Result[]>([]);
   const [searching, setSearching] = useState(false);
@@ -21,69 +28,82 @@ export function FilePicker({ threadId, recent, stripFull, onClose, onPinned }: {
   const text = query.trim();
   // An absolute, ~/ or relative path offers itself first, alongside search matches.
   const typedPath = text.includes("/");
+  const scopeHost = hosts.find((host) => host.id === scope?.hostId);
   useEffect(() => {
     let cancelled = false;
     rpc.call("context", { threadId }).then((result) => {
       if (cancelled) return;
       setHosts(result.hosts);
-      setHostId(result.defaultHostId || result.hosts.find((host) => host.connected)?.id || "");
-    }).catch((error: Error) => { if (!cancelled) setError(error.message); });
+      setScope(result.scope);
+    }).catch((error: Error) => { if (!cancelled) setError(error.message); })
+      .finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
   }, [rpc, threadId]);
   useEffect(() => {
     setResults([]); setError(null); setSearching(false);
-    if (!hostId || !text) return;
+    if (!scope || !text) return;
     let cancelled = false;
     setSearching(true);
     const timeout = setTimeout(() => {
-      rpc.call("search", { threadId, hostId, query: text }).then((result) => {
-        if (!cancelled) setResults(result.paths);
+      rpc.call("search", { threadId, hostId: scope.hostId, root: scope.path, query: text }).then((result) => {
+        if (!cancelled) setResults(result.paths.map((file) => ({ ...file, hostId: scope.hostId })));
       }).catch((error: Error) => { if (!cancelled && !typedPath) setError(error.message); })
         .finally(() => { if (!cancelled) setSearching(false); });
     }, 120);
     return () => { cancelled = true; clearTimeout(timeout); };
-  }, [hostId, rpc, text, threadId, typedPath]);
-  async function pin(fileHostId: string, path: string) {
-    if (busy || !fileHostId) return;
+  }, [rpc, scope, text, threadId, typedPath]);
+  async function pin(fileHostId: string, path: string, cwd?: string) {
+    if (busy) return;
     setBusy(true); setError(null);
     try {
       // With no room on the strip, new files join the ⋯ list instead.
-      await rpc.call("pin", { threadId, hostId: fileHostId, path, ...(stripFull ? { unpinned: true } : {}) });
+      await rpc.call("pin", { threadId, hostId: fileHostId, path, ...(cwd ? { cwd } : {}), ...(stripFull ? { unpinned: true } : {}) });
       await onPinned(); onClose();
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); setBusy(false); }
   }
-  const files: Result[] = text ? results : recent.filter((file) => file.hostId === hostId);
-  const notes = text ? files.filter((file) => file.moss) : [];
-  const others = files.filter((file) => !notes.includes(file));
-  const showMachines = new Set(files.map((file) => file.hostId)).size > 1;
-  const row = (file: Result) => <CommandItem key={`${file.hostId}:${file.path}`} value={`${file.hostId}:${file.path}`} disabled={busy} onSelect={() => void pin(file.hostId, file.path)}>
-    <ReferenceIcon name={file.name} moss={file.moss} />
-    <span className="min-w-0">
-      <span className="block truncate">{file.name}</span>
-      <span className="block truncate text-xs text-muted-foreground" title={file.path}>{showMachines && file.hostName ? `${file.hostName} · ${file.path}` : file.path}</span>
-    </span>
-  </CommandItem>;
+  function choose(next: Scope) {
+    setScope(next); onChoosingFolderChange(false);
+    rpc.call("setScope", { threadId, scope: next }).catch((error: Error) => setError(error.message));
+  }
+  const files: Result[] = text ? results : recent;
+  const hostName = (id: string) => hosts.find((host) => host.id === id)?.name;
+  const showMachines = hosts.length > 1 && new Set(files.map((file) => file.hostId)).size > 1;
+  const scopeLabel = scope ? folderName(scope.path) : loaded ? "Choose a folder" : "…";
   return <div aria-label="Pin to thread">
     <Command shouldFilter={false} label="Choose a file to pin">
       <div className="flex items-center border-b pr-1">
         <div className="min-w-0 flex-1 [&_[cmdk-input-wrapper]]:border-b-0">
-          <CommandInput autoFocus placeholder="Search files…" value={query} onValueChange={setQuery} disabled={busy} maxLength={4096} />
+          <CommandInput ref={inputRef} autoFocus placeholder="Search files…" value={query} onValueChange={setQuery} disabled={busy} maxLength={4096} />
         </div>
-        {hosts.length > 1 && <select aria-label="Machine" title="Search machine" className="h-7 max-w-24 shrink-0 rounded bg-transparent text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" value={hostId} disabled={busy} onChange={(event) => setHostId(event.target.value)}>
-          {hosts.map((host) => <option key={host.id} value={host.id} disabled={!host.connected}>{host.name}{host.connected ? "" : " (offline)"}</option>)}
-        </select>}
+        <button type="button" disabled={busy || !loaded} onClick={() => onChoosingFolderChange(true)}
+          aria-label={scope ? `Search in ${scope.path}${hosts.length > 1 && scopeHost ? ` on ${scopeHost.name}` : ""}. Change folder` : "Choose a folder to search"}
+          title={scope ? formatHomePathForDisplay(scope.path) : undefined}
+          className="flex h-7 min-w-0 max-w-[60%] shrink-0 items-center gap-1 rounded px-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none">
+          <Icon name="Folder" className="size-3.5 shrink-0" />
+          <span className="min-w-0 max-w-full shrink-0 truncate">{scopeLabel}</span>
+          {hosts.length > 1 && scopeHost ? <span className="min-w-0 truncate text-subtle-foreground">· {scopeHost.name}</span> : null}
+        </button>
       </div>
       {!text && files.length > 0 && <p className="px-3 pb-1 pt-2 text-xs text-muted-foreground">Recent in this thread</p>}
       <CommandList aria-label="Files" aria-busy={searching || busy} className="max-h-56 p-1">
-        {typedPath && <CommandItem value={`path:${text}`} disabled={busy || !hostId} onSelect={() => void pin(hostId, text)} title={text}>
-          <ReferenceIcon name={text.split("/").pop() || text} moss={false} />
+        {typedPath && <CommandItem value={`path:${text}`} disabled={busy || !scope} onSelect={() => { if (scope) void pin(scope.hostId, text, scope.path); }} title={text}>
+          <ReferenceIcon path={text} />
           <span className="min-w-0 truncate">Pin {text}</span>
         </CommandItem>}
-        {notes.length > 0 && <CommandGroup heading="Moss notes" className={groupClass}>{notes.map(row)}</CommandGroup>}
-        {others.length > 0 && (notes.length > 0 ? <CommandGroup heading="Files" className={groupClass}>{others.map(row)}</CommandGroup> : others.map(row))}
-        {!typedPath && files.length === 0 && <p className="px-2 py-3 text-xs text-muted-foreground" role="status">{searching ? "Searching…" : text ? "No files found." : "Search for a file to pin."}</p>}
+        {files.map((file) => <CommandItem key={`${file.hostId}:${file.path}`} value={`${file.hostId}:${file.path}`} disabled={busy} onSelect={() => void pin(file.hostId, file.path)}>
+          <ReferenceIcon path={file.path} />
+          <span className="min-w-0">
+            <span className="block truncate">{file.name}</span>
+            <span className="block truncate text-xs text-muted-foreground" title={file.path}>{showMachines ? `${hostName(file.hostId) ?? "Unknown machine"} · ${file.path}` : file.path}</span>
+          </span>
+        </CommandItem>)}
+        {!typedPath && files.length === 0 && <p className="px-2 py-3 text-xs text-muted-foreground" role="status">
+          {!loaded ? "Loading…" : !scope ? "No machine is online." : searching ? "Searching…" : text ? `No files found in ${folderName(scope.path)}.` : "Search for a file to pin."}
+        </p>}
       </CommandList>
     </Command>
     {error && <p role="alert" className="px-3 py-2 text-xs text-destructive">{error}</p>}
+    <FolderChooser open={choosingFolder} threadId={threadId} hosts={hosts} scope={scope} onChoose={choose}
+      onOpenChange={onChoosingFolderChange} onClosed={() => inputRef.current?.focus()} />
   </div>;
 }

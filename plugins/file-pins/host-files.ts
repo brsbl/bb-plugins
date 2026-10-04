@@ -6,35 +6,26 @@ import { basename, isAbsolute, relative, resolve } from "node:path";
 
 export async function home() { return { path: homedir() }; }
 
-// ~/Moss/Notes with symlinks resolved, or null when this machine has none.
-const mossNotesPath = () => realpath(resolve(homedir(), "Moss/Notes")).catch(() => null);
-
-export async function mossRoot() {
-  const path = await mossNotesPath();
-  return { path: path && (await stat(path).then((info) => info.isDirectory(), () => false)) ? path : null };
-}
-
 export async function recentFiles({ paths, cwd }: { paths: string[]; cwd: string }) {
-  const files: Array<{ path: string; name: string; moss: boolean }> = [];
+  const files: Array<{ path: string; name: string }> = [];
   for (const path of paths) {
     try {
       const file = await resolveFile({ path, cwd });
-      if (!files.some((other) => other.path === file.path)) files.push({ ...file, moss: await isMossNote(file.path) });
+      if (!files.some((other) => other.path === file.path)) files.push(file);
     } catch { /* History may refer to deleted files or folders; neither is a suggestion. */ }
   }
   return { files };
 }
 
 export async function inspect({ paths }: { paths: string[] }) {
-  const files: Array<{ path: string; status: "available" | "missing" | "unavailable"; moss: boolean }> = [];
+  const files: Array<{ path: string; status: "available" | "missing" | "unavailable" }> = [];
   // Serialize filesystem reads on the host; never read a Mac path on the server.
   for (const path of paths) {
     try {
-      if (!(await stat(path)).isFile()) { files.push({ path, status: "missing", moss: false }); continue; }
-      files.push({ path, status: "available", moss: await isMossNote(path) });
+      files.push({ path, status: (await stat(path)).isFile() ? "available" : "missing" });
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
-      files.push({ path, status: code === "ENOENT" || code === "ENOTDIR" ? "missing" : "unavailable", moss: false });
+      files.push({ path, status: code === "ENOENT" || code === "ENOTDIR" ? "missing" : "unavailable" });
     }
   }
   return { files };
@@ -61,7 +52,7 @@ export async function resolveFile({ path, cwd }: { path: string; cwd?: string })
 // Recognize distinctive Moss markers only; rendering belongs to the Moss app.
 async function isMossNote(path: string): Promise<boolean> {
   if (!/\.(?:md|markdown)$/i.test(path)) return false;
-  const notes = (await mossNotesPath()) ?? resolve(homedir(), "Moss/Notes");
+  const notes = await realpath(resolve(homedir(), "Moss/Notes")).catch(() => resolve(homedir(), "Moss/Notes"));
   const within = relative(notes, path);
   if (within && within !== ".." && !within.startsWith("../") && !isAbsolute(within)) return true;
   const marker = /\n[ \t]{0,3}(?:(?:`{3,}|~{3,})moss-[a-z][\w-]*\b|:::tabs\b)/;

@@ -51,14 +51,14 @@ it("detects Moss on the file host at click time and launches only the canonical 
   }
 });
 
-it("keeps a deleted reference distinguishable from an existing Moss note without launching anything", async () => {
+it("reports a deleted reference as missing without launching anything", async () => {
   const directory = await mkdtemp(join(tmpdir(), "file-pins-status-"));
   vi.mocked(homedir).mockReturnValue(directory);
   const path = join(directory, "status.md");
   try {
     await writeFile(path, ":::tabs\n@tab=One\nHello\n:::");
-    expect(await inspect({ paths: [path] })).toEqual({ files: [{ path, status: "available", moss: true }] });
+    expect(await inspect({ paths: [path] })).toEqual({ files: [{ path, status: "available" }] });
     await rm(path);
-    expect(await inspect({ paths: [path] })).toEqual({ files: [{ path, status: "missing", moss: false }] });
+    expect(await inspect({ paths: [path] })).toEqual({ files: [{ path, status: "missing" }] });
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

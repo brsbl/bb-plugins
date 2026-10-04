@@ -31,7 +31,7 @@ function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 }
 function PinContents({ pin }: { pin: Reference }) {
-  return <><ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate group-hover:underline">{pin.name}</span></>;
+  return <><ReferenceIcon path={pin.path} /><span className="truncate group-hover:underline">{pin.name}</span></>;
 }
 
 function PinStrip({ threadId }: { threadId: string }) {
@@ -41,6 +41,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   const [pins, setPins] = useState<Reference[]>([]);
   const [more, setMore] = useState<string[]>([]);
   const [picker, setPicker] = useState(false);
+  const [choosingFolder, setChoosingFolder] = useState(false);
   const [recent, setRecent] = useState<RecentFile[]>([]);
   const [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -114,6 +115,8 @@ function PinStrip({ threadId }: { threadId: string }) {
     }).catch((error) => { report(error); void refresh(); });
   }
   const layout = layoutPins(pins, more, capacity);
+  // The folder chooser sits above the + picker (a drawer on phones); using or closing it must not close the picker.
+  const keepOpenForChooser = (event: Event) => { if (choosingFolder) event.preventDefault(); };
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
     // Apply locally first; saves run in order and
@@ -134,7 +137,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     finally { if (alive.current) setBusy(false); }
   }
   function title(pin: Reference) {
-    return `${pin.path}\n${pin.hostName}${pin.moss ? " · Moss note" : ""}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
+    return `${pin.path}\n${pin.hostName}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
   }
   // Pinned files offer Unpin (to the ⋯ list); other files offer Pin while the strip has room.
   function actions(pin: Reference): PinAction[] {
@@ -177,7 +180,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   function stripPin(pin: Reference) {
     const link = pin.status === "missing" ? <span className={`relative inline-flex min-w-0 ${PIN_MAX_WIDTH_CLASS}`} title={title(pin)}>
       <span aria-label={`${pin.name} (missing)`} className={cn(pinClass, "cursor-default pr-4 text-destructive/55 hover:text-destructive/55")}>
-        <ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
+        <ReferenceIcon path={pin.path} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void remove(pin)}
         className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
@@ -186,7 +189,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     return <ContextMenu key={pin.id}><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>;
   }
   function listRow(pin: Reference) {
-    const name = <><ReferenceIcon name={pin.name} moss={pin.moss} /><span className="truncate">{pin.name}</span></>;
+    const name = <><ReferenceIcon path={pin.path} /><span className="truncate">{pin.name}</span></>;
     const link = pin.status === "missing"
       ? <span aria-label={`${pin.name} (missing)`} title={title(pin)} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
       : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title(pin)}
@@ -206,7 +209,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     </div>;
   }
   return <div className="relative min-w-0">
-    <Popover open={picker} onOpenChange={setPicker}>
+    <Popover open={picker} onOpenChange={(open) => { setPicker(open); if (!open) setChoosingFolder(false); }}>
       {pins.length > 0 ? <section aria-label="Pinned files" className="min-w-0 overflow-hidden px-1 py-1">
         <div className="flex min-w-0 items-center gap-1">
           {layout.strip.map((pin) => stripPin(pin))}
@@ -218,11 +221,13 @@ function PinStrip({ threadId }: { threadId: string }) {
         </div>
       </section> : recent.length > 0 ? <section aria-label="Suggested pins" className="flex min-w-0 items-center gap-1 px-1 py-1">
         <span className="shrink-0 text-xs text-muted-foreground">Recent</span>
-        <div className="flex min-w-0 flex-1 overflow-hidden">{recent.slice(0, 3).map((file) => <button key={file.path} type="button" disabled={busy} aria-label={`Pin ${file.name}`} title={`Pin ${file.path}`} className={cn(linkClass, "max-w-48")} onClick={() => void pinRecent(file)}><ReferenceIcon name={file.name} moss={file.moss} /><span className="truncate">{file.name}</span></button>)}</div>
+        <div className="flex min-w-0 flex-1 overflow-hidden">{recent.slice(0, 3).map((file) => <button key={file.path} type="button" disabled={busy} aria-label={`Pin ${file.name}`} title={`Pin ${file.path}`} className={cn(linkClass, "max-w-48")} onClick={() => void pinRecent(file)}><ReferenceIcon path={file.path} /><span className="truncate">{file.name}</span></button>)}</div>
         <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0`} aria-label="Pin to thread" title="Pin to thread">+</button></PopoverTrigger>
       </section> : <PinPopoverAnchor asChild><span className="block h-0 w-0" /></PinPopoverAnchor>}
-      <PopoverContent aria-label="Pin to thread" align={pins.length > 0 || recent.length > 0 ? "end" : "start"} onCloseAutoFocus={(event) => { if (pins.length === 0 && recent.length === 0) event.preventDefault(); }}>
-        <FilePicker threadId={threadId} recent={recent} stripFull={!layout.canPin} onClose={() => setPicker(false)} onPinned={refresh} />
+      <PopoverContent aria-label="Pin to thread" align={pins.length > 0 || recent.length > 0 ? "end" : "start"} onCloseAutoFocus={(event) => { if (pins.length === 0 && recent.length === 0) event.preventDefault(); }}
+        onInteractOutside={keepOpenForChooser} onFocusOutside={keepOpenForChooser}
+        onEscapeKeyDown={(event) => { if (choosingFolder) { event.preventDefault(); setChoosingFolder(false); } }}>
+        <FilePicker threadId={threadId} recent={recent} stripFull={!layout.canPin} choosingFolder={choosingFolder} onChoosingFolderChange={setChoosingFolder} onClose={() => setPicker(false)} onPinned={refresh} />
       </PopoverContent>
     </Popover>
     {/* Mirrors the strip row, with room for + and ⋯, to measure how many pin slots fit. */}

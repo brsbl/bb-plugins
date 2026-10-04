@@ -13,21 +13,28 @@ export const MAX_PINS = 40;
 export const moreSchema = z.array(id).max(MAX_PINS);
 export const CHANGED = "pins-changed";
 const status = z.enum(["available", "missing", "unavailable"]);
-export const referenceSchema = pinSchema.extend({ hostName: z.string(), status, moss: z.boolean() });
+export const referenceSchema = pinSchema.extend({ hostName: z.string(), status });
 export type Reference = z.infer<typeof referenceSchema>;
-export const recentSchema = z.object({ hostId: id, path: filePath, name: z.string(), moss: z.boolean() });
+export const recentSchema = z.object({ hostId: id, path: filePath, name: z.string() });
+/** Where the + picker searches: a folder on one machine. */
+export const scopeSchema = z.object({ hostId: id, path: filePath }).strict();
+export type Scope = z.infer<typeof scopeSchema>;
+const listingSchema = z.object({
+  directory: z.string(), parent: z.string().nullable(),
+  entries: z.array(z.object({ kind: z.enum(["directory", "file"]), name: z.string(), path: z.string() })),
+});
+export type DirectoryListing = z.infer<typeof listingSchema>;
 export type RecentFile = z.infer<typeof recentSchema>;
 
 export const hostContract = defineRpcContract({
   recentFiles: {
     input: z.object({ paths: z.array(filePath).max(40), cwd: filePath }).strict(),
-    output: z.object({ files: z.array(z.object({ path: filePath, name: z.string(), moss: z.boolean() })) }),
+    output: z.object({ files: z.array(z.object({ path: filePath, name: z.string() })) }),
   },
   home: { input: z.object({}).strict(), output: z.object({ path: filePath }) },
-  mossRoot: { input: z.object({}).strict(), output: z.object({ path: filePath.nullable() }) },
   inspect: {
     input: z.object({ paths: z.array(filePath).max(MAX_PINS) }).strict(),
-    output: z.object({ files: z.array(z.object({ path: filePath, status, moss: z.boolean() })) }),
+    output: z.object({ files: z.array(z.object({ path: filePath, status })) }),
   },
   openMossNote: {
     input: z.object({ path: filePath }).strict(),
@@ -52,12 +59,17 @@ export const rpcContract = defineRpcContract({
     output: z.object({ pins: z.array(referenceSchema).max(MAX_PINS), more: moreSchema }),
   },
   search: {
-    input: z.object({ threadId: id, hostId: id, query: z.string().max(500) }).strict(),
-    output: z.object({
-      root: filePath,
-      paths: z.array(z.object({ path: filePath, name: z.string(), hostId: id, hostName: z.string(), moss: z.boolean() })),
-      truncated: z.boolean(),
-    }),
+    /** `root` defaults to the thread's workspace on its machine, otherwise the machine's home. */
+    input: z.object({ threadId: id, hostId: id, root: filePath.optional(), query: z.string().max(500) }).strict(),
+    output: z.object({ root: filePath, paths: z.array(z.object({ path: filePath, name: z.string() })), truncated: z.boolean() }),
+  },
+  directory: {
+    input: z.object({ threadId: id, hostId: id, path: filePath.optional() }).strict(),
+    output: listingSchema,
+  },
+  setScope: {
+    input: z.object({ threadId: id, scope: scopeSchema }).strict(),
+    output: z.object({ scope: scopeSchema }),
   },
   remove: {
     input: z.object({ threadId: id, pinId: id }).strict(),
@@ -84,11 +96,13 @@ export const rpcContract = defineRpcContract({
     output: z.object({
       defaultHostId: id.nullable(),
       hosts: z.array(z.object({ id, name: z.string(), connected: z.boolean() })),
+      /** The last chosen search scope, else the thread workspace, else the machine's home. */
+      scope: scopeSchema.nullable(),
     }),
   },
   pin: {
     /** `unpinned` adds a new file to the ⋯ list instead of the strip. */
-    input: z.object({ threadId: id, hostId: id, path: filePath, unpinned: z.boolean().optional() }).strict(),
+    input: z.object({ threadId: id, hostId: id, path: filePath, cwd: filePath.optional(), unpinned: z.boolean().optional() }).strict(),
     output: pinSchema,
   },
   unpin: {

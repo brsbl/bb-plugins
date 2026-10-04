@@ -13,14 +13,16 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins -
 
 ## Use
 
-Choose **Pin to thread** in the composer's **+** menu, then search files on the
-thread's machine. Search also covers `~/Moss/Notes` on every connected machine and lists those
-notes first; a machine that is asleep or unreachable is skipped. Type or paste an absolute, `~/` or
-workspace-relative path in the same field to get **Pin <path>** as the first result. When more than one
-machine is enrolled, the search row lets you choose the workspace machine.
+Choose **Pin to thread** in the composer's **+** menu, then search files in one folder. The
+search row shows that folder (and its machine when more than one is enrolled); click it to choose
+another machine and folder in bb's folder browser, by browsing or editing the path. The folder
+starts as the thread's workspace, or the machine's home without one, and each thread remembers the
+last folder chosen. An offline or unresponsive machine reports an error instead of searching. Type or
+paste an absolute, `~/` or folder-relative path in the same field to get **Pin <path>** as the first
+result.
 
 Pinned files read as quiet file chips above the composer, in order, as many as fit; the strip never
-scrolls. Files that aren't pinned sit in the **⋯** list. Hover a filename for its full path and machine.
+scrolls. Files that aren't pinned sit in the **⋯** list. File icons follow bb's file panel. Hover a filename for its full path and machine.
 Right-click a strip file for bb's **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin** (moves it to the **⋯** list) or **Remove**. In the **⋯** list, a
 row's hover **⋯** button or right-click offers the same file options, then **Pin** or **Remove**;
@@ -62,9 +64,9 @@ overrides the default opener for the normal click. Other files retain bb's
 FileLink click behavior and opener choices. Pin menus start with bb's open and copy items, then Pin/Unpin and Remove. Classification and launch run on the host; no custom Markdown/Moss parser or renderer is included.
 
 The SDK does not expose extensions for chat-file or file-tab context menus, or
-a reusable composer @ picker. The fallback uses bb UI components and the same
-host file-search API as mentions, scoped to the thread directory (or the chosen
-machine's home directory for another host). No core or SDK APIs are added.
+a reusable composer @ picker. The fallback uses bb UI components, the same host
+file-search API as mentions, and the host directory API behind bb's project
+folder browser. No core or SDK APIs are added.
 
 ## Develop
 
