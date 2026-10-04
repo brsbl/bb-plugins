@@ -1565,7 +1565,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
  * down a line, so it is lifted above the speaker as a system line and "Me:" stays with what was said.
  */
 .bbd-im-chat [data-message-column]:has(> .ml-auto > .mb-1:first-child) {
-  padding-top: 24px;
+  padding-top: 20px;
 }
 
 .bbd-im-chat [data-message-column] > .ml-auto > .mb-1:first-child {
@@ -1573,7 +1573,7 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   top: 0;
   left: 0.5rem;
   margin: 0;
-  font: italic var(--bbd-im-system-text)/1.5 Tahoma, Verdana, sans-serif;
+  font: italic 11px/1.4 Tahoma, Verdana, sans-serif;
   color: var(--bbd-im-system);
 }
 
