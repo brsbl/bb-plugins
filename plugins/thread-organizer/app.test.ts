@@ -736,17 +736,27 @@ describe("workflow settings", () => {
     expect(rendered.queryByRole("option", { name: "Inbox · Missing" })).toBeNull();
     expect(rendered.getByText("Inbox · everything")).toBeTruthy();
     expect(rendered.queryByLabelText("Plugin caught by Planning")).toBeNull();
+    expect(rendered.queryByRole("combobox", { name: "After reading a thread in Planning" })).toBeNull();
     fireEvent.change(type, { target: { value: "inbox:digests" } });
     expect(rendered.queryByLabelText("Entry prompt for Planning")).toBeNull();
+    const afterRead = rendered.getByRole("combobox", { name: "After reading a thread in Planning" });
+    expect((afterRead as HTMLSelectElement).value).toBe("stay");
+    fireEvent.change(afterRead, { target: { value: "return" } });
+    fireEvent.change(rendered.getByRole("combobox", { name: "After reading a thread in Inbox" }),
+      { target: { value: "return" } });
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
-    await vi.waitFor(() => expect(savedInput?.stages[1])
-      .toMatchObject({ role: "inbox", catchesPluginId: "digests" }));
+    await vi.waitFor(() => {
+      expect(savedInput?.stages[0]).toMatchObject({ key: "inbox", returnAfterRead: true });
+      expect(savedInput?.stages[1])
+        .toMatchObject({ role: "inbox", catchesPluginId: "digests", returnAfterRead: true });
+    });
     await rendered.findByRole("button", { name: "Saved" });
     fireEvent.change(type, { target: { value: "stage" } });
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => {
       expect(savedInput?.stages[1]).toMatchObject({ role: "stage" });
       expect(savedInput?.stages[1]).not.toHaveProperty("catchesPluginId");
+      expect(savedInput?.stages[1]).not.toHaveProperty("returnAfterRead");
     });
     rendered.lifecycle.unmount();
   });

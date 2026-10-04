@@ -334,11 +334,14 @@ function StageCard({
                 style={{ fieldSizing: "content" }}
                 title={hasPrompt ? "Clear the entry prompt to choose an inbox." : undefined}
                 onChange={(event) => {
-                  const { catchesPluginId: _filter, ...fields } = stage;
+                  const { catchesPluginId: _filter, returnAfterRead, ...fields } = stage;
                   const value = event.target.value;
                   onChange(value === "stage"
                     ? { ...fields, role: "stage" }
-                    : { ...fields, role: "inbox", catchesPluginId: value.slice(6) });
+                    : {
+                        ...fields, role: "inbox", catchesPluginId: value.slice(6),
+                        ...(returnAfterRead ? { returnAfterRead } : {}),
+                      });
                 }}
                 value={inbox ? `inbox:${stage.catchesPluginId}` : "stage"}
               >
@@ -356,6 +359,23 @@ function StageCard({
               </select>
             </>
           )}
+          {inbox ? (
+            <select
+              aria-label={`After reading a thread in ${stage.title}`}
+              className={`${quietFieldClass} h-8 whitespace-nowrap py-0`}
+              style={{ fieldSizing: "content" }}
+              onChange={(event) => {
+                const { returnAfterRead: _previous, ...fields } = stage;
+                onChange(event.target.value === "return"
+                  ? { ...fields, returnAfterRead: true }
+                  : fields);
+              }}
+              value={stage.returnAfterRead ? "return" : "stay"}
+            >
+              <option value="stay">Keep after reading</option>
+              <option value="return">Move back after reading</option>
+            </select>
+          ) : null}
         </div>
         {protectedInbox ? (
           <p

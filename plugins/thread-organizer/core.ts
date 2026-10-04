@@ -19,6 +19,8 @@ export interface EditableWorkflowStage {
   /** Sent to a thread when it lands in this stage; omitted when unset. */
   entryPrompt?: string;
   key: string;
+  /** Inboxes only: move a thread out once it is read; omitted keeps it until moved. */
+  returnAfterRead?: boolean;
   role: WorkflowStageRole;
   rule: string;
   title: string;
@@ -204,6 +206,12 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
       `Section "${key}" needs a plugin id using lowercase letters, digits, and hyphens.`,
     );
   }
+  if (
+    value.returnAfterRead !== undefined &&
+    typeof value.returnAfterRead !== "boolean"
+  ) {
+    throw new Error(`Section "${key}" after-reading setting must be a boolean.`);
+  }
   if (entryPrompt.length > ENTRY_PROMPT_MAX_LENGTH) {
     throw new Error(
       `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`,
@@ -219,6 +227,7 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
     ...(typeof value.catchesPluginId === "string"
       ? { catchesPluginId: value.catchesPluginId }
       : {}),
+    ...(value.returnAfterRead === true ? { returnAfterRead: true } : {}),
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null,
   };
 }
@@ -244,6 +253,9 @@ function validateStages(stages: WorkflowStage[]): void {
     titles.add(titleIdentity);
     if (stage.role === "inbox" && hasEntryPrompt(stage)) {
       throw new Error("Inbox cannot send an entry prompt.");
+    }
+    if (stage.role !== "inbox" && stage.returnAfterRead) {
+      throw new Error("Only an inbox can move threads back after reading.");
     }
     if (stage.role === "inbox" && stage.key !== "inbox") {
       if (!stage.catchesPluginId) throw new Error(`Inbox "${stage.title}" needs a plugin.`);
@@ -547,26 +559,41 @@ export function isUnreadThread(thread: OrganizableThread): boolean {
   return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
 }
 
+export function returnsAfterRead(
+  stage: WorkflowStage | null,
+  thread: OrganizableThread,
+): boolean {
+  return (
+    stage?.role === "inbox" &&
+    stage.returnAfterRead === true &&
+    !isUnreadThread(thread)
+  );
+}
+
 export function placementForThread(
   config: WorkflowConfig,
   thread: OrganizableThread,
   rememberedStageKey: string | null,
   leaveInbox = false,
   matchedInbox: WorkflowStage | null = null,
+  justRead = false,
 ): WorkflowStage | null {
   const remembered =
     config.stages.find(
       (stage) => stage.key === rememberedStageKey && stage.role === "stage",
     ) ?? firstWorkflowStage(config);
   const currentStage = stageForSectionId(config, thread.sectionId);
-  if (!leaveInbox) {
+  const keepInInbox =
+    !leaveInbox &&
+    !(justRead && returnsAfterRead(currentStage, thread));
+  if (keepInInbox) {
     if (matchedInbox) return matchedInbox;
     if (currentStage?.role === "inbox" && currentStage.key !== "inbox") return currentStage;
   }
   const belongsInInbox =
     !isRunningThread(thread) &&
     (isUnreadThread(thread) ||
-      (!leaveInbox && currentStage?.role === "inbox"));
+      (keepInInbox && currentStage?.role === "inbox"));
   return belongsInInbox
     ? inboxStage(config)
     : rememberedStageKey === null ? null : remembered;
@@ -595,11 +622,11 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
         `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
     );
   return [
-    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads not claimed by another inbox go there automatically and stay until work resumes or the user moves a read thread to another workflow section. Never choose an inbox with \`bb organizer phase\`.`,
+    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads not claimed by another inbox go there automatically and ${inboxStage(config).returnAfterRead ? "return to their workflow section once the user reads them" : "stay until work resumes or the user moves a read thread to another workflow section"}. Never choose an inbox with \`bb organizer phase\`.`,
     ...config.stages
       .filter((stage) => stage.role === "inbox" && stage.key !== "inbox")
       .map((stage) =>
-        `**${escapeTableCell(stage.title)}** catches threads from plugin \`${stage.catchesPluginId}\` and keeps them after reading until the user moves or archives them.`,
+        `**${escapeTableCell(stage.title)}** catches threads from plugin \`${stage.catchesPluginId}\` and ${stage.returnAfterRead ? "moves them back out once the user reads them" : "keeps them after reading until the user moves or archives them"}.`,
       ),
     "",
     "| Key | Section | What belongs here |",

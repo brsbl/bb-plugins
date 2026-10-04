@@ -25,6 +25,7 @@ import {
   normalizeEditableWorkflowConfig,
   parseWorkflowConfig,
   placementForThread,
+  returnsAfterRead,
   stageForSectionId,
   type EditableWorkflowConfig,
   type EditableWorkflowStage,
@@ -65,6 +66,7 @@ const editableStageSchema = z
     icon: z.unknown().optional(),
     entryPrompt: z.string().max(ENTRY_PROMPT_MAX_LENGTH).optional(),
     catchesPluginId: z.string().max(128).optional(),
+    returnAfterRead: z.boolean().optional(),
     // Accepted and discarded: written by the first entry-prompt build.
     entryPromptDelivery: z.unknown().optional(),
     entryPromptOnAgentMove: z.unknown().optional(),
@@ -162,6 +164,8 @@ interface ThreadWorkflowState {
 
 interface ReconcileOptions {
   explicitStageKey?: string;
+  /** The user just read the thread, so an inbox set to return it may let go. */
+  justRead?: boolean;
   /** Record where the thread sits without treating it as an entry. */
   seedLanding?: boolean;
   /**
@@ -509,8 +513,12 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     threadId: string,
     options: ReconcileOptions = {},
   ): Promise<EntryPromptOutcome> {
-    const { explicitStageKey, seedLanding = false, evictFromSectionIds } =
-      options;
+    const {
+      explicitStageKey,
+      justRead = false,
+      seedLanding = false,
+      evictFromSectionIds,
+    } = options;
     const thread = await bb.sdk.threads.get({ threadId });
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
@@ -591,6 +599,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       state.rememberedStageKey,
       explicitStageKey !== undefined,
       matchedInbox,
+      justRead,
     );
     if (destination && !destination.sectionId) {
       throw new Error(`Stage ${destination.key} has no native section.`);
@@ -618,6 +627,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const entered =
       !created &&
       !seedLanding &&
+      // Reading a thread must not start another agent turn.
+      !(justRead && returnsAfterRead(currentStage, thread)) &&
       landedStageKey !== null &&
       landedStageKey !== state.lastLandedStageKey;
     state.lastLandedStageKey = landedStageKey;
@@ -1038,6 +1049,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "  bb organizer section add <title> [--after <stage-key>] [--rule <text>] [--inbox --catches-plugin <plugin-id>]",
     "  bb organizer section rule <stage-key> [--set <text>]",
     "  bb organizer section type <stage-key> [--set stage|inbox] [--catches-plugin <plugin-id>]",
+    "  bb organizer section after-read <inbox-key> [--set stay|return]",
     "",
   ].join("\n");
   const SECTION_TITLE_MAX_LENGTH = 80;
@@ -1299,7 +1311,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const [subcommand, ...rest] = argv;
     if (subcommand === undefined || subcommand === "list") {
       const lines = configSnapshot.stages.map((stage) => {
-        const note =
+        const kind =
           stage.key === "inbox"
             ? "system-managed"
             : stage.role === "inbox"
@@ -1307,12 +1319,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
             : stage.entryPrompt
               ? "entry prompt"
               : "";
+        const note = stage.returnAfterRead ? `${kind} · returns after read` : kind;
         return `${stage.key.padEnd(17)} ${stage.title}${note ? `  [${note}]` : ""}`;
       });
       return { exitCode: 0, stdout: `${lines.join("\n")}\n` };
     }
     if (subcommand === "rule") return runSectionRule(rest, context);
     if (subcommand === "type") return runSectionType(rest, context);
+    if (subcommand === "after-read") return runSectionAfterRead(rest, context);
     if (subcommand !== "add") return { exitCode: 2, stderr: CLI_USAGE };
     const [rawTitle, ...options] = rest;
     const title = rawTitle?.trim() ?? "";
@@ -1488,14 +1502,82 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
             `Stage ${stage.key} no longer exists; the workflow changed elsewhere.`,
           );
         }
-        const { catchesPluginId: _previousFilter, ...fields } = target;
+        const {
+          catchesPluginId: _previousFilter,
+          returnAfterRead,
+          ...fields
+        } = target;
         edited.stages[index] = {
           ...fields, role: role as "stage" | "inbox",
           ...(role === "inbox" ? { catchesPluginId } : {}),
+          ...(role === "inbox" && returnAfterRead ? { returnAfterRead } : {}),
         };
         return {
           edited, key: stage.key,
           message: `Set ${stageLabel(stage)} to ${role}.`,
+        };
+      },
+    });
+  }
+
+  async function runSectionAfterRead(
+    argv: readonly string[],
+    context: CliContext,
+  ): Promise<CliResult> {
+    const [rawKey, ...rest] = argv;
+    if (rawKey === undefined) return { exitCode: 2, stderr: CLI_USAGE };
+    const stage = findStage(configSnapshot, rawKey);
+    if (!stage) {
+      return {
+        exitCode: 2,
+        stderr: `Unknown stage: ${rawKey}\nAvailable: ${stageKeysLine(true)}\n`,
+      };
+    }
+    if (stage.role !== "inbox") {
+      return {
+        exitCode: 2,
+        stderr: `${stage.title} is not an inbox; only inboxes hold threads until they are read.\n`,
+      };
+    }
+    if (rest.length === 0) {
+      return {
+        exitCode: 0,
+        stdout: `${stage.returnAfterRead ? "return" : "stay"}\n`,
+      };
+    }
+    const choice = rest[1];
+    if (
+      rest.length !== 2 ||
+      rest[0] !== "--set" ||
+      (choice !== "stay" && choice !== "return")
+    ) {
+      return { exitCode: 2, stderr: CLI_USAGE };
+    }
+    const returnAfterRead = choice === "return";
+    return confirmAndSave(context, {
+      title: `Set after-reading behavior for ${stage.title}`,
+      summary: () => returnAfterRead
+        ? `Threads in ${stage.title} will move back to their workflow section as soon as you read them.`
+        : `Read threads will stay in ${stage.title} until work resumes or you move them.`,
+      field: null,
+      apply: (current) => {
+        const edited = editableWorkflowConfig(current);
+        const index = edited.stages.findIndex((entry) => entry.key === stage.key);
+        const target = edited.stages[index];
+        if (target?.role !== "inbox") {
+          throw new CliInputError(
+            `Inbox ${stage.key} no longer exists; the workflow changed elsewhere.`,
+          );
+        }
+        const { returnAfterRead: _previous, ...fields } = target;
+        edited.stages[index] = {
+          ...fields,
+          ...(returnAfterRead ? { returnAfterRead } : {}),
+        };
+        return {
+          edited,
+          key: stage.key,
+          message: `Set ${stageLabel(stage)} to ${choice} after reading.`,
         };
       },
     });
@@ -1522,7 +1604,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         summary:
           "List sections or add one (changes ask for approval in the thread)",
         usage:
-          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>] [--inbox --catches-plugin <plugin-id>] | rule <stage-key> [--set <text>] | type <stage-key> [--set stage|inbox] [--catches-plugin <plugin-id>]",
+          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>] [--inbox --catches-plugin <plugin-id>] | rule <stage-key> [--set <text>] | type <stage-key> [--set stage|inbox] [--catches-plugin <plugin-id>] | after-read <inbox-key> [--set stay|return]",
       },
     ],
     async run(argv, context) {
@@ -1604,7 +1686,12 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       void schedule(threadId, async () => {
         if (readStateChanged) {
           const thread = await bb.sdk.threads.get({ threadId });
-          if (!isUnreadThread(thread)) return;
+          if (!isUnreadThread(thread)) {
+            const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
+            if (!returnsAfterRead(currentStage, thread)) return;
+            await reconcileThread(threadId, { justRead: true });
+            return;
+          }
         }
         await reconcileThread(threadId);
       });

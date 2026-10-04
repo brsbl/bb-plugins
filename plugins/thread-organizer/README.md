@@ -19,6 +19,10 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
   Opening a thread marks it read normally; it never also appears in the main Inbox.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.
+- Set any inbox to **Move back after reading** to skip that drag: as soon as you
+  read a thread there, it returns to its remembered stage (or Threads when it has
+  none) without sending an entry prompt. A thread moved out of a plugin inbox
+  this way is not claimed by it again.
 - Starting unclaimed work again restores the thread’s remembered stage.
 - A user move changes the remembered stage. `bb organizer phase <stage-key>`
   moves it explicitly.
@@ -118,6 +122,8 @@ bb organizer section add "Digests" --inbox --catches-plugin digests --rule "Publ
 bb organizer section type digests
 bb organizer section type digests --set stage
 bb organizer section type digests --set inbox --catches-plugin digests
+bb organizer section after-read inbox
+bb organizer section after-read digests --set return
 bb organizer prompt                      # every section and its prompt
 bb organizer prompt review               # one section's prompt
 bb organizer prompt review --set "Run /slop-cop on this PR, then /slim-pr, /write-pr, and /merge-ready."
