@@ -279,7 +279,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     void rpc.call("show", { id: selection.id }).then((item) => { if (!cancelled && generation === readGeneration.current) setDetail(item); }).catch((reason) => { if (!cancelled && generation === readGeneration.current) { setItems((current) => current.map((item) => item.id === selection.id ? { ...item, snapshot: null, sourceState: "unavailable", sourceMessage: message(reason) } : item)); setError(message(reason)); } });
     return () => { cancelled = true; };
   }, [selection.id, rpc]);
-  const select = (id: string | null, tab: Tab = "summary") => navigate.toPluginPanel("requests", { subPath: id ? `${encodeURIComponent(id)}/${tab}` : "" });
+  const select = (id: string | null, tab: Tab = "summary") => navigate.toPluginPanel("requests", { subPath: id ? `${id}/${tab}` : "" });
   const filtered = visibleItems.filter((item) => {
     const snapshot = item.snapshot;
     if (projectId && !item.links.some((link) => choices.get(link.threadId)?.projectId === projectId)) return false;
