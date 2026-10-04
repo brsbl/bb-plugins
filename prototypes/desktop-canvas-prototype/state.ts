@@ -9,7 +9,7 @@ export const layoutSchema = z.object({
   membership: z.record(z.string().max(200), z.string().max(100)),
   positions: z.record(z.string().max(250), point),
   collapsed: z.array(z.string().max(100)).max(500),
-  windows: z.array(point.extend({ id: z.string().max(200), minimized: z.boolean() })).max(50),
+  windows: z.array(point.extend({ id: z.string().max(200), kind: z.enum(["thread", "folder"]).optional(), minimized: z.boolean() })).max(50),
   promptPosition: point.nullable().default(null),
   composer: z.enum(["center", "float", "hidden"]),
 });

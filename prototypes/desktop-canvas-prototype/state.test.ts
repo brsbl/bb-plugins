@@ -20,6 +20,13 @@ describe("persisted canvas state", () => {
     loaded.folders = [];
     expect(folderFor(thread, loaded)).toBe("project:real-project");
   });
+  it("adds folder windows without resetting layouts saved before window kinds existed", () => {
+    const legacy = { ...initialLayout(), windows: [{ id: "thr_existing", x: 210, y: -80, minimized: true }] };
+    const loaded = readLayout(JSON.stringify(legacy));
+    expect(loaded).toEqual(legacy);
+    loaded.windows.push({ id: "project:real-project", kind: "folder", x: 100, y: 120, minimized: false });
+    expect(readLayout(JSON.stringify(loaded))).toEqual(loaded);
+  });
   it("keeps the point under the pointer fixed while zooming, including the zoom limit", () => {
     const camera = { x: 80, y: -50, zoom: 0.75 };
     const anchor = { x: 520, y: 300 };
