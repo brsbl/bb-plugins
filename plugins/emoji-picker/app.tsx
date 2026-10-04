@@ -5,6 +5,7 @@ import { Input } from "./components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "./components/ui/popover";
 import { categories, categoryEmojis, emojis, nativeEmoji, readPreferences, searchEmojis, storageKey, tones, toneSamples, type Emoji, type Preferences } from "./emojis";
 import { insertedColon } from "./trigger";
+import { captureColonAnchor } from "./colon-anchor";
 
 const preferencesEvent = "bb:emoji-picker:preferences-changed";
 
@@ -136,7 +137,8 @@ export function ComposerEmojiPicker() {
   const composer = useComposer();
   const scope = JSON.stringify(composer.scope);
   const previous = useRef({ scope, text: composer.text });
-  const [trigger, setTrigger] = useState<{ scope: string; text: string; index: number } | null>(null);
+  const anchorElement = useRef<HTMLSpanElement>(null);
+  const [trigger, setTrigger] = useState<{ scope: string; text: string; index: number; anchor: ReturnType<typeof captureColonAnchor> } | null>(null);
 
   useEffect(() => {
     const before = previous.current;
@@ -144,15 +146,18 @@ export function ComposerEmojiPicker() {
     if (before.scope !== scope) { setTrigger(null); return; }
     if (before.text === composer.text) return;
     const index = insertedColon(before.text, composer.text);
-    setTrigger(index === null ? null : { scope, text: composer.text, index });
+    setTrigger(index === null ? null : {
+      scope, text: composer.text, index,
+      anchor: captureColonAnchor(anchorElement.current?.closest("[data-app-composer]") ?? null),
+    });
   }, [composer.text, scope]);
 
   // Never apply a saved replacement to a different scope or a changed draft.
   const open = !!trigger && trigger.scope === scope && trigger.text === composer.text;
   return (
     <Popover open={open} onOpenChange={(open) => { if (!open) setTrigger(null); }}>
-      <PopoverAnchor asChild><span aria-hidden="true" className="pointer-events-none absolute h-0 w-0" /></PopoverAnchor>
-      <PopoverContent aria-label="Insert emoji" side="top" align="start" className="w-96 max-w-[calc(100vw-2rem)] p-0" mobileTitle="Insert emoji" onMobileContentAnimationEnd={(isOpen) => { if (!isOpen) composer.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); composer.focus(); }}>
+      <PopoverAnchor asChild virtualRef={trigger?.anchor ? { current: trigger.anchor } : undefined}><span ref={anchorElement} aria-hidden="true" className="pointer-events-none absolute h-0 w-0" /></PopoverAnchor>
+      <PopoverContent aria-label="Insert emoji" side="top" align="start" updatePositionStrategy="always" collisionPadding={8} className="w-96 max-w-[calc(100vw-2rem)] p-0" mobileTitle="Insert emoji" onMobileContentAnimationEnd={(isOpen) => { if (!isOpen) composer.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); composer.focus(); }}>
         <EmojiPicker key={open ? "open" : "closed"} onSelect={(value) => {
           if (!trigger || trigger.scope !== JSON.stringify(composer.scope)) throw new Error("Draft changed");
           composer.updateText((current) => {
