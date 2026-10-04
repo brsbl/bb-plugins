@@ -279,7 +279,7 @@ describe("Digests app", () => {
     fireEvent.click(await slot.findByRole("link", { name: "2 routine" }));
     expect(slot.getByText("Routine (2)").closest("details")?.open).toBe(true);
     expect(document.activeElement).toBe(slot.getByText("Routine (2)"));
-    fireEvent.click(slot.getByRole("link", { name: "Amex · Autopay processed Payment complete." }));
+    fireEvent.click(slot.getByRole("link", { name: /Amex · Autopay processed/ }));
     fireEvent.click(slot.getByRole("link", { name: "4 unread emails" }));
     expect(slot.inspection.navigateCalls).toEqual([
       { method: "openUrl", url: "https://example.test/amex" },

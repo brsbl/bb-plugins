@@ -249,6 +249,19 @@ export function createService(bb: BbPluginApi) {
           }
         }
         await bb.sdk.threads.update({ threadId, title: issueTitle(definition, issue.createdAt) });
+        if (definition.connectionIds.includes("gmail")) {
+          // Inspecting original unread state is part of collection ownership:
+          // two simultaneous runs must not observe each other's temporary reads.
+          const acquired = await exclusive("gmail-collector", async () => {
+            const ownerId = await bb.storage.kv.get<string>("gmail-collector");
+            const owner = ownerId ? store.issues.get(ownerId) : null;
+            if (owner && owner.id !== issue.id && owner.state === "collecting") return false;
+            await bb.storage.kv.set("gmail-collector", issue.id);
+            return true;
+          });
+          if (!acquired) return { issue, directive: directive(issue), sessions: [], complete: false,
+            instructions: "Another digest is reading Gmail. Do not inspect or open any email yet. Wait 10 seconds, then call digest_begin again. Repeat for up to 10 minutes. If it still cannot start, call digest_fail: Another digest is still reading Gmail. Retry after it finishes. Keep this wait out of the final briefing." };
+        }
         for (const connectionId of definition.connectionIds) {
           const connection = store.connections.get(connectionId);
           if (!connection) throw new Error(`Connection ${connectionId} is missing. Configure it in Digests, then Retry.`);

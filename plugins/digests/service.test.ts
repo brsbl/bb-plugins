@@ -93,6 +93,19 @@ const payload = () => PublishInputSchema.parse({
 });
 
 describe("digest issue lifecycle", () => {
+  it("waits for another Gmail collection before exposing a browser or observing unread state", async () => {
+    const { service, harness } = setup();
+    await service.begin("reading", "thr_first");
+    const waiting = await service.begin("reading", "thr_second");
+    expect(waiting.complete).toBe(false);
+    expect(waiting.sessions).toEqual([]);
+    expect(waiting.instructions).toContain("Do not inspect or open any email");
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toHaveLength(1);
+    await service.publishCurrent("thr_first", payload());
+    const next = await service.begin("reading", "thr_second");
+    expect(next.sessions).toHaveLength(1);
+  });
+
   it("journals unread state before opening and retains it across retry and publication", async () => {
     const { service } = setup();
     const { issue } = await service.begin("reading", "thr_journal");
