@@ -8,6 +8,28 @@
 .iac-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
 .iac-footer { margin-top: 8px; }
 .iac-actions button { font-size: 12px; }
+.iac-progress { font-style: italic; }
+.iac-button-label { display: grid; }
+.iac-button-label > span { grid-area: 1 / 1; }
+.iac-button-label .iac-progress { color: inherit; }
+.iac-menu-slot { display: inline-flex; width: 28px; height: 28px; flex-shrink: 0; }
+.iac-card button[aria-busy="true"], .iac-table button[aria-busy="true"] { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .iac-progress {
+    background: linear-gradient(100deg, var(--muted-foreground) 35%, var(--foreground) 50%, var(--muted-foreground) 65%);
+    background-size: 250% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: iac-progress-shimmer 2.4s linear infinite;
+  }
+  .iac-button-label .iac-progress {
+    background-image: linear-gradient(100deg, currentColor 35%, transparent 50%, currentColor 65%);
+    color: inherit;
+    -webkit-text-fill-color: transparent;
+  }
+}
+@keyframes iac-progress-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
 .iac-icon { width: 28px; height: 28px; padding: 5px; color: var(--muted-foreground); }
 .iac-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 .iac-original { margin: 8px 0 12px; min-width: 0; font-size: 12px; }

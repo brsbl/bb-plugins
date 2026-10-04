@@ -122,6 +122,16 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
 
+### Emoji Picker
+
+Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
+
+![Emoji picker with category browsing and skin tone selection](https://github.com/user-attachments/assets/a74d890d-9ad9-46e5-a7a0-2995b386e054)
+
+[Source](plugins/emoji-picker) · [README](plugins/emoji-picker/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/emoji-picker --yes`
+
 ### Endless
 
 Frank Ocean's *Endless* as a bb palette — achromatic, grained, squared. Ten years to the day.
@@ -212,7 +222,7 @@ Paints a living generative background behind bb that reacts to your agents: work
 
 ![Ambient's Tide scene behind bb with two working agents as lights and the Ambient controls open in the sidebar](plugins/ambient/docs/screenshot.png)
 
-![Ambient's Contour scene with a waiting agent raised as a peak in the contour lines](plugins/ambient/docs/contour.png)
+Contour draws a calm night map with muted gold lines and agent peaks.
 
 [Source](plugins/ambient) · [README](plugins/ambient/README.md)
 

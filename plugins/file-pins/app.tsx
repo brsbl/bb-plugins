@@ -6,6 +6,7 @@ import type { Reference, rpcContract } from "./contract.js";
 import { Button } from "./components/ui/button.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "./components/ui/context-menu.js";
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/ui/dropdown-menu.js";
+import { useIsCompactViewport } from "./components/ui/hooks/use-compact-viewport.js";
 import { Icon } from "./components/ui/icon.js";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip.js";
 import { PinPopover as Popover, PinPopoverAnchor as PopoverAnchor, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
@@ -16,7 +17,7 @@ import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 ${PIN_MAX_WIDTH_CLASS} items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 // The quiet file chip bb uses for composer attachments.
-const pinClass = cn(linkClass, "rounded-md bg-surface-recessed shadow-xs");
+const pinClass = cn(linkClass, "rounded-md bg-surface-recessed-solid shadow-xs");
 // ⋯ list rows use bb's menu item density; their ⋯ shows on hover, keyboard focus and touch.
 const rowLinkClass = "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring";
 const rowActionClass = "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100";
@@ -47,6 +48,9 @@ function PinStrip({ threadId }: { threadId: string }) {
   const [choosingFolder, setChoosingFolder] = useState(false);
   const [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [rowMenu, setRowMenu] = useState<string | null>(null);
+  // Phones have no room beside the list, so row menus open below the row there.
+  const compact = useIsCompactViewport();
   const zone = useRef<HTMLSpanElement>(null);
   const slot = useRef<HTMLSpanElement>(null);
   const arranging = useRef({ pending: 0, queue: Promise.resolve() });
@@ -168,21 +172,22 @@ function PinStrip({ threadId }: { threadId: string }) {
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void remove(pin)}
         className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
     </span> : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title(pin)}
-      aria-label={`Open ${pin.name}`} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "opacity-60")}><PinContents pin={pin} /></FileLink>;
+      aria-label={`Open ${pin.name}`} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "[&>*]:opacity-60")}><PinContents pin={pin} /></FileLink>;
     return <ContextMenu key={pin.id}><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>;
   }
   function listRow(pin: Reference) {
     const name = <><ReferenceIcon path={pin.path} /><span className="truncate">{pin.name}</span></>;
+    // Right-click opens the row's ⋯ menu, anchored beside the row, in place of FileLink's own menu.
+    const onContextMenu = (event: MouseEvent) => { event.preventDefault(); setRowMenu(pin.id); };
     const link = pin.status === "missing"
-      ? <span aria-label={`${pin.name} (missing)`} title={title(pin)} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
-      : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title(pin)}
+      ? <span aria-label={`${pin.name} (missing)`} title={title(pin)} onContextMenu={onContextMenu} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
+      : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} onContextMenu={onContextMenu} title={title(pin)}
         aria-label={`Open ${pin.name}`} className={cn(rowLinkClass, pin.status === "available" ? "cursor-pointer" : "opacity-60")}>{name}</FileLink>;
-    // The menu trigger sits on the link itself, as on the strip, so it replaces FileLink's own menu.
     return <div key={pin.id} className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover has-[:focus-visible]:bg-state-hover has-[[data-state=open]]:bg-state-hover">
-      <ContextMenu><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>
-      <Menu.Root modal={false}>
+      {link}
+      <Menu.Root modal={false} open={rowMenu === pin.id} onOpenChange={(open) => setRowMenu(open ? pin.id : null)}>
         <Menu.Trigger asChild><button type="button" aria-label={`Actions for ${pin.name}`} title="Actions" className={rowActionClass}><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
-        <DropdownMenuContent align="end" style={noMotion} className="min-w-52">
+        <DropdownMenuContent side={compact ? "bottom" : "right"} align={compact ? "end" : "start"} alignOffset={compact ? 0 : -4} sideOffset={compact ? 4 : 8} collisionPadding={8} style={noMotion} className="min-w-52">
           {menuGroups(pin).map((group, index) => <Fragment key={index}>
             {index > 0 && <DropdownMenuSeparator />}
             {group.map((action) => <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
@@ -194,7 +199,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   return <div className="relative min-w-0">
     <Popover open={picker} onOpenChange={(open) => { setPicker(open); if (!open) setChoosingFolder(false); }}>
       <PopoverAnchor virtualRef={anchor} />
-      {pins.length > 0 && <section aria-label="Pinned files" className="min-w-0 overflow-hidden px-1 py-1">
+      {pins.length > 0 && <section aria-label="Pinned files" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
         <div className="flex min-w-0 items-center gap-1">
           {layout.strip.map((pin) => stripPin(pin))}
           {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
