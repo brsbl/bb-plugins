@@ -257,3 +257,48 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
     slot.lifecycle.unmount();
   } finally { await host.harness.lifecycle.dispose(); }
 });
+
+it("keeps separate row notes on bulk choices and offers comments on collapsed Reply rows", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" });
+  plugin(host.bb);
+  try {
+    for (const id of ["one", "two"]) await host.harness.behavior.runCli(["create", id, "--thread", "thr_test", "--item", JSON.stringify({ type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", actionKey: "switch" })]);
+    await host.harness.behavior.runCli(["create-table", "digests", "--thread", "thr_test", "--table", JSON.stringify({ title: "Digests", ids: ["one", "two"] })]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+      composer: { scope: { kind: "thread", threadId: "thr_test" } },
+      rpc: {
+        table: (input) => host.harness.behavior.callRpc("table", input),
+        get: (input) => host.harness.behavior.callRpc("get", input),
+        prepareTable: (input) => host.harness.behavior.callRpc("prepareTable", input),
+      },
+    });
+    await screen.findByRole("button", { name: "Switch all" });
+    const rows = screen.getAllByRole("article");
+    rows.forEach((row, index) => {
+      fireEvent.click(within(row).getByRole("button", { name: "Add note" }));
+      fireEvent.change(within(row).getByRole("textbox", { name: "Note for your choice" }), { target: { value: `Condition ${index}` } });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Switch all" }));
+    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+    expect(submittedMessages[0]).toContain(" — Condition 0");
+    expect(submittedMessages[0]).toContain(" — Condition 1");
+    for (const [index, mention] of slot.inspection.composer.mentions.entries()) {
+      const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
+      const claimed = JSON.parse((await host.harness.behavior.runCli(["claim", context.itemId, "--thread", "thr_test", "--attempt", context.attemptId])).stdout!);
+      expect(claimed.attempt.note).toBe(`Condition ${index}`);
+    }
+    slot.lifecycle.unmount();
+  } finally { await host.harness.lifecycle.dispose(); }
+
+  const app = await loadPluginApp(() => import("./app.js"));
+  const item = fixture();
+  const replySlot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "replies" }, source: '::actions{id="replies"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+    composer: { scope: { kind: "thread", threadId: "thr_test" } },
+    rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: [item.id], items: [item] }), get: () => item },
+  });
+  fireEvent.click(await screen.findByRole("button", { name: "Add note" }));
+  expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
+  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Note for your choice" }));
+  replySlot.lifecycle.unmount();
+});
