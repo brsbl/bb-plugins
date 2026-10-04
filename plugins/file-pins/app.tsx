@@ -196,7 +196,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   return <div className="relative min-w-0">
     <Popover open={picker} onOpenChange={(open) => { setPicker(open); if (!open) setChoosingFolder(false); }}>
       <PopoverAnchor virtualRef={anchor} />
-      {pins.length > 0 && <section aria-label="Pinned files" className="min-w-0 overflow-hidden bg-sidebar px-1 py-1">
+      {pins.length > 0 && <section aria-label="Pinned files" className="min-w-0 overflow-hidden rounded-lg bg-surface-raised-solid px-1 py-1">
         <div className="flex min-w-0 items-center gap-1">
           {layout.strip.map((pin) => stripPin(pin))}
           {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
