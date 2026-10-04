@@ -260,7 +260,7 @@ describe("Digests app", () => {
     } }) } });
     const action = await slot.findByRole("button", { name: "Review reply" });
     expect(action.className).toContain("digest-button-default");
-    expect(slot.getByText("12 routine emails").closest("details")?.open).toBe(false);
+    expect(slot.getByText("routine emails").closest("details")?.open).toBe(false);
     fireEvent.click(action);
     expect(slot.inspection.rpcCalls).toHaveLength(1);
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: "https://example.test/reply" });
@@ -278,16 +278,45 @@ describe("Digests app", () => {
       ] },
     } }) } });
     fireEvent.click(await slot.findByRole("link", { name: "2 routine" }));
-    expect(slot.getByText("Routine (2)").closest("details")?.open).toBe(true);
-    expect(document.activeElement).toBe(slot.getByText("Routine (2)"));
+    expect(slot.getByText("Routine").closest("details")?.open).toBe(true);
+    expect(document.activeElement).toBe(slot.getByText("Routine").closest("summary"));
     fireEvent.click(slot.getByRole("link", { name: /Amex · Autopay processed/ }));
     fireEvent.click(slot.getByRole("link", { name: "4 unread emails" }));
     expect(slot.inspection.navigateCalls).toEqual([
       { method: "openUrl", url: "https://example.test/amex" },
     ]);
-    expect(slot.getByText("All unread (4)").closest("details")?.open).toBe(true);
-    expect(document.activeElement).toBe(slot.getByText("All unread (4)"));
+    expect(slot.getByText("All unread").closest("details")?.open).toBe(true);
+    expect(document.activeElement).toBe(slot.getByText("All unread").closest("summary"));
     expect(slot.queryByText("Old Markdown fallback.")).toBeNull();
+  });
+
+  it("groups three same-sender emails and preserves every source link and semantic accent", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const rows = ["Robinhood", "Figma", "robinhood", "Robinhood", "Figma"].map((sender, index) => ({
+      title: `${sender} · Notice ${index}`, text: `Detail ${index}`, url: `https://example.test/mail/${index}`,
+    }));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      heading: "Needs you", items: [
+        { title: "Reply to Felix", text: "Confirm Thursday.", action: { label: "Review reply", url: "https://example.test/reply" } },
+        { title: "Check a new sign-in", tone: "danger", text: "An unfamiliar device.", action: { label: "Review alert", url: "https://example.test/alert" } },
+      ], later: [], laterLabel: "Later", tail: { label: "Routine (5)", details: "", items: rows },
+    } }) } });
+    expect((await slot.findByRole("button", { name: "Review reply" })).closest("li")?.dataset.tone).toBe("warning");
+    expect(slot.getByRole("button", { name: "Review alert" }).closest("li")?.dataset.tone).toBe("danger");
+    const summary = slot.getByText("Routine").closest("summary")!;
+    expect(summary.querySelector(".digest-count")?.textContent).toBe("5");
+    expect(summary.textContent).not.toContain("(5)");
+    expect(summary.querySelector(".digest-chevron")).not.toBeNull();
+    fireEvent.click(summary);
+    const group = slot.getByLabelText("Robinhood, 3 emails").closest("details")!;
+    expect(group.open).toBe(false);
+    expect(document.querySelectorAll(".digest-sender-group")).toHaveLength(1);
+    fireEvent.click(group.querySelector("summary")!);
+    expect(group.open).toBe(true);
+    for (let index = 0; index < rows.length; index++) {
+      fireEvent.click(slot.getByRole("link", { name: new RegExp(`Notice ${index}`) }));
+      expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: rows[index]!.url });
+    }
   });
 
   it("keeps an unverified unread restoration visible even in a published issue", async () => {

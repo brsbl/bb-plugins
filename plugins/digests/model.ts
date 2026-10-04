@@ -136,7 +136,13 @@ export const EmailReadInputSchema = z.object({
   wasUnread: z.boolean().optional(), title: EmailReadSchema.shape.title, url: EmailReadSchema.shape.url,
 }).strict();
 
-const emailRow = z.object({ title: z.string().trim().min(1).max(180), text: z.string().trim().max(200), url: sourceLink.shape.url }).strict();
+const tone = z.enum(["neutral", "warning", "danger", "success"]);
+const emailRow = z.object({
+  title: z.string().trim().min(1).max(180), text: z.string().trim().max(200), url: sourceLink.shape.url,
+  // Older issues retain their combined title; new issues can identify senders precisely.
+  sender: z.string().trim().min(1).max(160).optional(),
+  subject: z.string().trim().min(1).max(180).optional(),
+}).strict();
 
 /** Optional so existing Markdown publishers and stored issues remain valid. */
 export const BriefSchema = z.object({
@@ -146,11 +152,13 @@ export const BriefSchema = z.object({
     sourceLink,
   ])).max(6).optional(),
   heading: z.string().trim().min(1).max(60),
+  tone: tone.optional(),
   items: z.array(z.object({
     title: z.string().trim().min(1).max(140),
     text: z.string().trim().max(200),
     context: z.string().max(60).optional(),
     urgency: z.enum(["today", "week", "later"]).optional(),
+    tone: tone.optional(),
     deadline: z.string().trim().min(1).max(40).optional(),
     action: sourceLink,
     secondaryAction: sourceLink.optional(),

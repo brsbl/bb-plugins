@@ -218,16 +218,83 @@ function RecoveryBanner() {
   return <IssueSummary key={issue.id} issue={issue} threadId={threadId} loadError={loadError} refresh={load} />;
 }
 
+type Brief = NonNullable<Issue["brief"]>;
+type Tone = NonNullable<Brief["tone"]>;
+type EmailRow = NonNullable<Brief["all"]>["items"][number];
+
+function headingTone(brief: Brief): Tone {
+  return brief.tone ?? (/needs you|attention/iu.test(brief.heading) ? "warning" : "neutral");
+}
+
+function CountLabel({ label, count, parse = true }: { label: string; count?: number; parse?: boolean }) {
+  const match = parse ? label.match(/^(.*?)\s*\((\d+)\)$/u) ?? label.match(/^(.*?)\s+(\d+)$/u) : null;
+  const leading = parse ? label.match(/^(\d+)\s+(.+)$/u) : null;
+  const text = match ? match[1]!.trim() : leading ? leading[2]! : label;
+  const value = count ?? (match ? Number(match[2]) : leading ? Number(leading[1]) : undefined);
+  return <>{leading && value !== undefined && <><span className="digest-count">{value}</span>{" "}</>}<span>{text}</span>{!leading && value !== undefined && <>{" "}<span className="digest-count">{value}</span></>}</>;
+}
+
+function SectionIcon({ tone = "neutral" }: { tone?: Tone }) {
+  return <Icon name={tone === "success" ? "CircleCheck" : tone === "danger" ? "ShieldAlert" : tone === "warning" ? "AlertTriangle" : "Mail"} className="digest-section-icon" aria-hidden />;
+}
+
+function emailParts(item: EmailRow) {
+  const separator = item.title.indexOf(" · ");
+  return {
+    sender: item.sender ?? (separator > 0 ? item.title.slice(0, separator) : ""),
+    subject: item.subject ?? (separator > 0 ? item.title.slice(separator + 3) : item.title),
+  };
+}
+
+function EmailList({ items }: { items: EmailRow[] }) {
+  const navigate = useBbNavigate();
+  const groups = new Map<string, EmailRow[]>();
+  for (const item of items) {
+    const sender = emailParts(item).sender.toLocaleLowerCase();
+    if (sender) {
+      const group = groups.get(sender);
+      if (group) group.push(item);
+      else groups.set(sender, [item]);
+    }
+  }
+  const shown = new Set<string>();
+  const row = (item: EmailRow, grouped = false) => {
+    const { sender, subject } = emailParts(item);
+    return <a className="digest-email-row" data-sender={Boolean(sender) && !grouped} href={safeLink(item.url)}
+      title={[sender, subject, item.text].filter(Boolean).join(" · ")}
+      aria-label={[sender, subject, item.text].filter(Boolean).join(" · ")}
+      onClick={(event) => { event.preventDefault(); if (safeLink(item.url)) navigate.openUrl(item.url); }}>
+      {sender && !grouped && <span className="digest-email-sender">{sender}</span>}
+      <span className="digest-email-subject">{subject}</span>
+      {item.text && <span className="digest-email-detail">{item.text}</span>}
+    </a>;
+  };
+  return <ul className="digest-email-list">{items.map((item, index) => {
+    const { sender } = emailParts(item);
+    const key = sender.toLocaleLowerCase();
+    const group = groups.get(key);
+    if (group && group.length >= 3) {
+      if (shown.has(key)) return null;
+      shown.add(key);
+      return <li key={index}><details className="digest-sender-group"><summary aria-label={`${sender}, ${group.length} emails`}>
+        <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><CountLabel label={sender} count={group.length} parse={false} />
+      </summary><ul>{group.map((mail, child) => <li key={child}>{row(mail, true)}</li>)}</ul></details></li>;
+    }
+    return <li key={index}>{row(item)}</li>;
+  })}</ul>;
+}
+
 function BriefCards({ brief, headline, prefix }: { brief: NonNullable<Issue["brief"]>; headline: string; prefix: string }) {
   const navigate = useBbNavigate();
   const open = (url: string) => { if (safeLink(url)) navigate.openUrl(url); };
+  const tone = headingTone(brief);
   return <div className="digest-brief">
-    {brief.items.length > 0 && <><h3 id={`${prefix}-items`} tabIndex={-1}>{brief.heading}</h3><ol className="digest-cards">
+    {brief.items.length > 0 && <><h3 id={`${prefix}-items`} className="digest-section-heading" data-tone={tone} tabIndex={-1}><SectionIcon tone={tone} /><CountLabel label={brief.heading} count={brief.items.length} /></h3><ol className="digest-cards">
       {brief.items.map((item, index) => {
         const deadline = item.deadline?.trim();
         const repeatsHeadline = deadline && /^(?:due )?(today|this week)$/iu.test(deadline)
           && headline.toLowerCase().includes(deadline.replace(/^due /iu, "").toLowerCase());
-        return <li className="digest-card" data-urgency={item.urgency ?? "later"} key={index}>
+        return <li className="digest-card" data-urgency={item.urgency ?? "later"} data-tone={item.tone ?? tone} key={index}>
         <span className="digest-card-number" aria-hidden>{index + 1}</span>
         <div className="digest-card-content">
           <div className="digest-card-heading"><h4>{item.title}</h4>{item.context && <span className="digest-chip">{item.context}</span>}
@@ -240,17 +307,13 @@ function BriefCards({ brief, headline, prefix }: { brief: NonNullable<Issue["bri
         </div>
       </li>; })}
     </ol></>}
-    {brief.later.length > 0 && <div className="digest-later"><h3 id={`${prefix}-later`} tabIndex={-1}>{brief.laterLabel}</h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></div>}
-    {brief.tail && <details className="digest-more" id={`${prefix}-tail`}><summary>{brief.tail.label}</summary>
-      {brief.tail.items?.length ? <ul className="digest-routine-cards">{brief.tail.items.map((item, index) => <li key={index}>
-        <a href={safeLink(item.url)} onClick={(event) => { event.preventDefault(); open(item.url); }}><strong>{item.title}</strong>{item.text && <span title={item.text}>{item.text}</span>}</a>
-      </li>)}</ul> : <NewsletterText content={brief.tail.details} />}
-    </details>}
-    {brief.all && <details className="digest-more" id={`${prefix}-all`}><summary>{brief.all.label}</summary>
-      <ul className="digest-routine-cards">{brief.all.items.map((item, index) => <li key={index}>
-        <a href={safeLink(item.url)} onClick={(event) => { event.preventDefault(); open(item.url); }}><strong>{item.title}</strong>{item.text && <span title={item.text}>{item.text}</span>}</a>
-      </li>)}</ul>
-    </details>}
+    {brief.later.length > 0 && <div className="digest-later"><h3 id={`${prefix}-later`} className="digest-section-heading" data-tone="neutral" tabIndex={-1}><SectionIcon /><CountLabel label={brief.laterLabel} count={brief.later.length} /></h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></div>}
+    {brief.tail && <details className="digest-more" id={`${prefix}-tail`} data-tone="neutral"><summary>
+      <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><SectionIcon /><CountLabel label={brief.tail.label} count={brief.tail.items?.length} />
+    </summary>{brief.tail.items?.length ? <EmailList items={brief.tail.items} /> : <NewsletterText content={brief.tail.details} />}</details>}
+    {brief.all && <details className="digest-more" id={`${prefix}-all`} data-tone="neutral"><summary>
+      <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><SectionIcon /><CountLabel label={brief.all.label} count={brief.all.items.length} />
+    </summary><EmailList items={brief.all.items} /></details>}
   </div>;
 }
 
@@ -310,21 +373,21 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
     <article className="digest-issue" aria-label="Digest summary" data-state={issue.state}>
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
       {issue.brief?.summaryLinks?.length && issue.state === "ready" ? <div className="digest-lede digest-summary-links">{issue.brief.summaryLinks.map((link, index) => <span key={index}>
-        {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a href={`#${prefix}-${link.section}`} onClick={(event) => {
+        {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a aria-label={link.label} data-tone={link.section === "items" ? headingTone(issue.brief!) : "neutral"} href={`#${prefix}-${link.section}`} onClick={(event) => {
           event.preventDefault();
           const target = document.getElementById(`${prefix}-${link.section}`);
           if (target instanceof HTMLDetailsElement) target.open = true;
           const focus = target?.querySelector("summary") ?? target;
           focus?.scrollIntoView?.({ block: "nearest" });
           (focus as HTMLElement | null)?.focus();
-        }}>{link.label}</a> : <span>{link.label}</span>}
+        }}><CountLabel label={link.label} /></a> : <span><CountLabel label={link.label} /></span>}
       </span>)}</div> : issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
       {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} />}
       <EmailReadStatus issue={issue} />
       {(!issue.brief || issue.state === "failed") && mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
       {!issue.brief && moreContent.trim() && <details className="digest-more">
-        <summary>More detail</summary>
+        <summary><Icon name="ChevronRight" className="digest-chevron" aria-hidden /><SectionIcon />More detail</summary>
         <NewsletterText content={moreContent} />
       </details>}
       {issue.state === "failed" && <div className="digest-recovery">

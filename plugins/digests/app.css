@@ -53,9 +53,9 @@
 .digest-item-actions > strong:first-of-type a::after,
 .digest-item-actions > a:first-child::after { content: " →"; }
 .digest-more { margin-top: 22px; }
-.digest-more summary { width: fit-content; cursor: pointer; color: var(--muted-foreground); font-size: var(--text-sm, 14px); text-decoration: underline; text-underline-offset: 3px; }
+.digest-more > summary { display: flex; align-items: center; gap: 6px; width: fit-content; cursor: pointer; color: var(--muted-foreground); font-size: var(--text-sm, 14px); list-style: none; }
 .digest-more summary:hover { color: var(--foreground); }
-.digest-more[open] summary { margin-bottom: 12px; }
+.digest-more[open] > summary { margin-bottom: 8px; }
 .digest-more summary:focus-visible,
 .digest-rich a:focus-visible,
 .digest-text-action:focus-visible,
@@ -108,8 +108,7 @@
 .digest-brief h3 { margin: 24px 0 10px; font-size: 15px; font-weight: 600; }
 .digest-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .digest-card { display: flex; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius-md, 6px); }
-.digest-card[data-urgency="today"] { border-left-color: var(--warning); }
-.digest-card[data-urgency="week"] { border-left-color: var(--info, var(--muted-foreground)); }
+.digest-card { border-left-color: var(--digest-accent, var(--border)); }
 .digest-card:first-child { background: var(--card, var(--background)); }
 .digest-card-number { padding-top: 1px; color: var(--muted-foreground); font-size: 14px; font-weight: 600; }
 .digest-card-content { flex: 1; min-width: 0; }
@@ -191,14 +190,31 @@
 .digest-execution label { display: block; margin: 12px 0 6px; }
 .digest-execution select { width: 100%; }
 
-.digest-summary-links a { color: inherit; text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+.digest-summary-links a { display: inline-flex; align-items: center; gap: 4px; color: inherit; text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
 .digest-summary-links a:hover { color: var(--foreground); text-decoration-color: currentColor; }
-.digest-summary-links a:focus-visible, .digest-routine-cards a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.digest-routine-cards { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.digest-routine-cards a { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md, 6px); color: var(--foreground); text-decoration: none; }
-.digest-routine-cards a:hover { background: var(--state-hover, var(--accent)); }
-.digest-routine-cards strong { font-size: 13px; font-weight: 500; line-height: 1.5; }
-.digest-routine-cards span { color: var(--muted-foreground); font-size: 12px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Semantic accents stay on small landmarks; mail rows keep a neutral surface. */
+.digest-issue [data-tone="neutral"] { --digest-accent: var(--border); --digest-tone-text: var(--muted-foreground); --digest-tone-fill: var(--muted); }
+.digest-issue [data-tone="warning"] { --digest-accent: var(--warning); --digest-tone-text: var(--warning-text, var(--warning)); --digest-tone-fill: var(--warning-subtle, color-mix(in oklab, var(--warning) 12%, transparent)); }
+.digest-issue [data-tone="danger"] { --digest-accent: var(--destructive); --digest-tone-text: var(--destructive-text, var(--destructive)); --digest-tone-fill: var(--destructive-subtle, color-mix(in oklab, var(--destructive) 12%, transparent)); }
+.digest-issue [data-tone="success"] { --digest-accent: var(--success); --digest-tone-text: var(--success-text, var(--success)); --digest-tone-fill: var(--success-subtle, color-mix(in oklab, var(--success) 12%, transparent)); }
+.digest-section-heading { display: flex; align-items: center; gap: 6px; }
+.digest-section-icon { width: 14px; height: 14px; flex: none; color: var(--digest-tone-text, var(--muted-foreground)); }
+.digest-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--digest-tone-fill, var(--muted)); color: var(--digest-tone-text, var(--muted-foreground)); font-size: 11px; font-weight: 500; line-height: 1; text-decoration: none; }
+.digest-chevron { width: 14px; height: 14px; flex: none; transition: transform 150ms; color: var(--muted-foreground); }
+.digest-more > summary::-webkit-details-marker, .digest-sender-group > summary::-webkit-details-marker { display: none; }
+.digest-more[open] > summary > .digest-chevron, .digest-sender-group[open] > summary > .digest-chevron { transform: rotate(90deg); }
+.digest-summary-links a:focus-visible, .digest-email-row:focus-visible, .digest-sender-group > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.digest-email-list, .digest-sender-group > ul { list-style: none; margin: 0; padding: 0; }
+.digest-email-list > li + li, .digest-sender-group > ul > li { border-top: 1px solid var(--border); }
+.digest-email-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px; min-height: 32px; padding: 5px 2px; color: var(--foreground); font-size: 12px; line-height: 20px; text-decoration: none; }
+.digest-email-row[data-sender="true"] { grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.2fr) minmax(0, 1fr); }
+.digest-email-row:hover, .digest-sender-group > summary:hover { background: var(--state-hover, var(--accent)); }
+.digest-email-row > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.digest-email-sender { font-weight: 500; }
+.digest-email-detail { color: var(--muted-foreground); }
+.digest-sender-group > summary { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 2px; color: var(--foreground); font-size: 12px; font-weight: 500; list-style: none; cursor: pointer; }
+.digest-sender-group .digest-email-row { padding-left: 22px; }
+@media (prefers-reduced-motion: reduce) { .digest-chevron { transition: none; } }
 .digest-read-status { margin-top: 16px; color: var(--muted-foreground); font-size: 12px; }
 .digest-read-warning { margin-top: 16px; padding: 10px 12px; background: var(--warning-subtle); color: var(--warning-text); border-radius: var(--radius-md, 6px); font-size: 13px; }
 .digest-read-warning p { margin: 0; }
