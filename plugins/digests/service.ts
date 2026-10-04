@@ -297,7 +297,7 @@ export function createService(bb: BbPluginApi) {
     if (!run.threadId) {
       if (run.status === "running") return { threadId: null, pending: true };
       await bb.storage.kv.delete(`dispatch:${id}`);
-      throw new Error(await runError(id, new Error(run.error ?? "No issue thread was created")));
+      throw new ExecutionError(await runError(id, new Error(run.error ?? "No issue thread was created")));
     }
     const definition = requiredDefinition(id);
     const issue = store.issues.getByThread(run.threadId) ?? newIssue(definition, run.threadId, `run:${run.id}`, run.scheduledFor);
@@ -329,7 +329,7 @@ export function createService(bb: BbPluginApi) {
         bb.realtime.publish("issues", {});
         return status;
       } catch (error) {
-        const message = await bb.storage.kv.get<string>(`run-error:${id}`) ?? await runError(id, error);
+        const message = await runError(id, error);
         throw new Error(message);
       }
     });

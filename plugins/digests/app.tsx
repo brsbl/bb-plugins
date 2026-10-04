@@ -438,7 +438,7 @@ function DigestsSettings() {
       } else {
         const result = await rpc.call("run", { id: definition.id });
         if (result.threadId) navigate.toThread(result.threadId);
-        else if (result.pending) { setNotice(`Starting ${definition.name}… Its issue will open when ready.`); await load(); }
+        else if (result.pending) await load();
         else setError("Couldn’t start this digest. Retry from its card.");
       }
     } catch (error) {
