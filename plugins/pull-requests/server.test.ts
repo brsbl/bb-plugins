@@ -10,10 +10,11 @@ function snapshot(number = 1): Snapshot {
   return { nodeId: `PR_${number}`, url: `https://github.com/acme/repo/pull/${number}`, repository: "acme/repo", number, title: `PR ${number}`, body: "Private description", author: "alice", state: "open", headSha: "abc", headBranch: "fix", baseBranch: "main", updatedAt: "2026-10-04T00:00:00Z", fetchedAt: "2026-10-04T00:00:00Z", checks: { state: "passing", passing: 1, failing: 0, pending: 0, total: 1, complete: true, items: [{ name: "CI", state: "passing", url: null }] }, review: "approved", mergeability: "mergeable", queued: false, autoMerge: false, additions: 1, deletions: 1, changedFiles: 1, originThreadIds: [], stack: { state: "none", items: [] } };
 }
 function setup() {
+  let beforeThreadRead = async () => {};
   let response: (input: { url: string; expectedAccountId?: string }, hostId: string) => Promise<ReadResult> = async (input) => ({ ok: true, accountId: "U_A", login: "alice", snapshot: snapshot(Number(input.url.split("/").at(-1))) });
   const threads = [makeThreadResponse({ id: "thr_a", environmentId: "env_a", title: "Implementation" }), makeThreadResponse({ id: "thr_b", environmentId: "env_b", title: "Review" })];
   const { bb, harness } = createFakePluginHost({ pluginId: "pull-requests", experimental_hostEntry: true, sdk: {
-    threads: { get: async ({ threadId }) => { const thread = threads.find((entry) => entry.id === threadId); if (!thread) throw new Error("No thread"); return thread; }, list: async ({ offset = 0, environmentId } = {}) => offset ? [] : threads.filter((thread) => !environmentId || thread.environmentId === environmentId) },
+    threads: { get: async ({ threadId }) => { await beforeThreadRead(); const thread = threads.find((entry) => entry.id === threadId); if (!thread) throw new Error("No thread"); return thread; }, list: async ({ offset = 0, environmentId } = {}) => offset ? [] : threads.filter((thread) => !environmentId || thread.environmentId === environmentId) },
     environments: { get: async ({ environmentId }) => ({ hostId: environmentId === "env_b" ? "host_b" : "host_a", path: "/repo" }), pullRequest: async () => ({ outcome: "available", pullRequest: { url: snapshot().url } }) },
     hosts: { list: async () => [makeHostResponse({ id: "host_a", status: "connected" }), makeHostResponse({ id: "host_b", status: "connected" })] },
   }, experimental_callHostRpc: async ({ input, hostId }) => response(input as { url: string; expectedAccountId?: string }, hostId) });
@@ -24,7 +25,7 @@ function setup() {
     return rpc<PullRequestItem>("link", { token: preview.token });
   };
   const settle = async () => { await vi.waitFor(async () => expect(await rpc("list", {})).toMatchObject({ coverage: { running: false } })); };
-  return { bb, harness, rpc, link, settle, threads, setResponse: (next: typeof response) => { response = next; } };
+  return { bb, harness, rpc, link, settle, threads, setBeforeThreadRead: (next: typeof beforeThreadRead) => { beforeThreadRead = next; }, setResponse: (next: typeof response) => { response = next; } };
 }
 describe("PR registry and host identity", () => {
   it("persists deduplicated links, suppression and preferred navigation independently of GitHub", async () => {
@@ -107,13 +108,11 @@ describe("PR registry and host identity", () => {
   it("returns current access state when a pin response waits on thread eligibility", async () => {
     const h = setup(); const item = await h.link();
     const store = createStore(h.bb);
-    const original = h.bb.sdk.threads.get;
     let release!: () => void;
     const pending = new Promise<void>((resolve) => { release = resolve; });
     let waiting = false;
-    vi.spyOn(h.bb.sdk.threads, "get").mockImplementation(async (input) => {
+    h.setBeforeThreadRead(async () => {
       if (store.get(item.id).pinned) { waiting = true; await pending; }
-      return original(input);
     });
     const pin = h.rpc<PullRequestItem>("pin", { id: item.id, pinned: true });
     await vi.waitFor(() => expect(waiting).toBe(true));
