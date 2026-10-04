@@ -28,7 +28,6 @@ The note pads and the needs-input balloon (`page/`) render on every bb page, not
 | `state.ts` | `windowReducer`, and `parseWindows`/`serializeWindows` for `bb-desktop:windows:v1` |
 | `geometry.ts` | `chromeTop`, `viewportRect`, `workAreaRect`, `fitDragRect`, `resizeInArea`, `defaultRect` |
 | `pointer.ts` | `trackPointer`, `usePointerTracker`, `crossedDragThreshold`, `previewRect` |
-| `nudges.ts` | The composer-clearance nudge store |
 | `focus.ts` | `windowOwnsKeys` and `typingElsewhere`, so window-wide shortcuts and focus-on-open leave bb's composer alone |
 | `manager.tsx` | `WindowManagerProvider` and `useWindowManager`, including `closeWhere` |
 | `frame.tsx` | `WindowTitleBar`, `WindowFrame` |
@@ -80,7 +79,7 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 | `menus.tsx` | Shared entry builders: `threadMenu`, `groupMenu`, `viewMenuEntries` |
 | `canvas.tsx`, `canvas-icons.tsx` | The icon canvas (layout, selection, marquee, multi-drag, arrange, tile) and its icons: folders, More, note pads, the Recycle Bin |
 | `page-menu.ts` | The background right-click menu on the rest of the homepage |
-| `window-layer.tsx` | The `document.body` portal: windows from the registry, link capture, composer clearance |
+| `window-layer.tsx` | The `document.body` portal: windows from the registry, link capture |
 | `links.ts` | Thread-link and chat web-link routing |
 | `commands.ts` | `runAppCommand` (bb keybindings), `navigateInApp` |
 | `thread-drag.ts` | Pointer thread drags onto `[data-thread-drop]` targets, which set `data-drop-target` while hovered |
@@ -117,3 +116,5 @@ These outlive a release. Changing one needs a migration.
 Pure modules have co-located `*.test.ts` files. `windows/state.test.ts` loads a stored v1 fixture so an incompatible change to window persistence fails CI, `programs/launcher-ids.test.ts` pins the Quick Launch ids, and `programs/threads/status.test.ts` pins thread status wording. `programs/threads/chat-contract.test.ts` runs the contract check and the key contract selectors from `app.css` against `programs/threads/__fixtures__/thread-chat.html`, real `ThreadChat` markup captured from the bb web app with the bb commit it came from noted at its top; recapture it whenever bb's chat markup changes, then update the contract rules to match. Tests run in Node without a DOM unless they opt into jsdom, as the window and chat contract tests do, so a module a test imports must not import a browser-only dependency.
 
 Finder's Desktop root adds the `desktop-finder` window kind and `finder` launcher; existing `finder` window specs still require a group key. The root reads live entries rather than storing item IDs. A restored folder whose key no longer exists uses the existing missing-folder message; deleted notes disappear from the live inventory and the note store ignores stale open requests. Navigation history remains session-only.
+
+During window moves and resizes, native browser visibility follows the previewed window bounds on every pointer move. Moving a browser hides its own native page; other browser pages stay visible unless covered. Other gesture types retain the global native-view shield.

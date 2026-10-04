@@ -39,13 +39,20 @@ function readBounds(element: HTMLElement): ViewBounds {
 }
 
 function occluded(element: HTMLElement, bounds: ViewBounds, z: number): boolean {
-  if (document.querySelector(".bbd-drag-shield")) return true;
-  const own = element.closest(".bbd-window");
+  // Browser Automation expands into a portaled dialog, not document fullscreen. Its backdrop covers all views;
+  // keep them hidden through the exit animation, until the dialog unmounts.
+  if (document.querySelector('[data-bb-plugin="browser-automation"][data-bb-portaled-overlay][role="dialog"]')) return true;
+  const shield = document.querySelector<HTMLElement>(".bbd-drag-shield");
+  const own = element.closest<HTMLElement>(".bbd-window");
+  // Window drags publish their actual bounds on each move; unrelated windows do not cover this page.
+  // Other gesture types still need the global native-view shield. Moving this browser (including attachments) hides it.
+  if (shield && (shield.dataset.windowDrag !== "true" || own?.dataset.dragging === "true")) return true;
   for (const candidate of document.querySelectorAll<HTMLElement>(`${OCCLUDERS}, .bbd-window`)) {
     if (candidate === own || own?.contains(candidate)) continue;
     const isWindow = candidate.classList.contains("bbd-window");
     if (!isWindow && candidate.closest(".bbd-window") !== null) continue;
-    if (isWindow && Number(candidate.style.zIndex) <= z) continue;
+    // Note pads are windows without a stacking z: their layer sits above every program window, so they always cover it.
+    if (isWindow && candidate.style.zIndex !== "" && Number(candidate.style.zIndex) <= z) continue;
     if (candidate.hidden) continue;
     if (overlaps(candidate.getBoundingClientRect(), bounds)) return true;
   }
