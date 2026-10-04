@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type ExperimentalComposerSubmitOptions, type PluginComposerApi, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
 import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, NoteIcon, SkipIcon } from "./controls.js";
-import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel } from "./presentation.js";
+import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
 import { Consequence } from "./consequence.js";
 import "./app.css";
 import "./compact.css";
@@ -11,6 +11,14 @@ import "./compact.css";
 // Several cards may share one composer. A double click must never submit two drafts.
 const submitting = new Set<string>();
 const readableError = (error: unknown) => error instanceof Error ? error.message : "The card could not be updated. Try again.";
+// The host reports accepted submissions, including queued ones; older hosts only clear the draft.
+async function submitDraft(composer: PluginComposerApi, options: ExperimentalComposerSubmitOptions): Promise<boolean> {
+  const submittedText = composer.text;
+  let accepted = false;
+  const stop = composer.experimental_onSubmitted?.(() => { accepted = true; });
+  try { await composer.experimental_submit(options); } finally { stop?.(); }
+  return accepted || composer.text !== submittedText;
+}
 
 function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, onNote }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
@@ -44,6 +52,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const dirty = useRef(false);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -128,14 +137,13 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     composer.setText(actionMessage(next));
     insertActionMention(composer, next);
     appendActionNote(composer, next);
-    const submittedText = composer.text;
-    await composer.experimental_submit({ experimental_data: { itemId: id } });
-    if (composer.text === submittedText) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
+    if (!await submitDraft(composer, { experimental_data: { itemId: id } })) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
+    adopt(await rpc.call("submitted", { id, threadId, attemptId: next.attempt!.id }));
   };
 
   const act = async (action?: Action) => {
     if (lock.current || submitting.has(threadId)) return;
-    lock.current = true; submitting.add(threadId); setBusy(true); setError(null);
+    lock.current = true; submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
     try {
       await flush();
       let next = current.current;
@@ -150,7 +158,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       // Resending a pending request keeps its attempt ID; claim refuses duplicates.
       await sendMessage(next);
     } catch (err) { setError(readableError(err)); }
-    finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
+    finally { lock.current = false; submitting.delete(threadId); setBusy(false); setSending(null); }
   };
   const comment = async () => {
     if (lock.current || submitting.has(threadId) || !note.trim()) return;
@@ -184,7 +192,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const reply = item?.content.type === "reply" ? item.content : null;
   const ready = item?.state === "ready";
   const pending = item?.state === "pending";
-  const done = item?.state === "succeeded" || item?.state === "failed";
+  const status = item && !busy ? sentStatus(item) : null;
+  const done = item?.state === "succeeded" || item?.state === "failed" || !!status;
   const showBody = row ? expanded : !done || viewResult;
   const editor = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
@@ -209,6 +218,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     <IconButton label="Remind me later" disabled={disabled} onClick={() => void act("later")}><ClockIcon /></IconButton>
     <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
   </div>;
+  const primary: Action = reply ? "send" : "yes";
   const noteField = ready && noteOpen && <div className="iac-note-entry"><textarea className="iac-note-field" ref={noteEditor} aria-label="Note for your choice" placeholder="Add a note…" value={note} autoFocus rows={1} maxLength={1000} disabled={busy}
     onChange={(event) => { changeNote(event.target.value); if (!event.target.value) setNoteOpen(false); }}
     onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeNote(); } }} />
@@ -224,8 +234,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
           {row && noteMenuAction}
           {reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}
         </MoreMenu>}</span>
-      {!reply && <PendingButton pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
-      <PendingButton variant="default" pending={pending && item.attempt?.action === (reply ? "send" : "yes")} pendingLabel={pendingLabel(item, reply ? "send" : "yes")} disabled={disabled} onClick={() => void act(reply ? "send" : "yes")}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
+      {!reply && <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
+      <PendingButton variant="default" pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled} onClick={() => void act(primary)}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
     </> : null}
     </div>
   </div>;
@@ -233,14 +243,16 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
   </div></div>;
+  const time = status ? status.time : item.updatedAt;
   const result = <div className="iac-result-line">
     <div className="iac-result-copy"><span className={item.state === "failed" ? "iac-failed" : "iac-result"} role="status">
-      <span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> {resultLabel(item)}
+      <span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> {status ? status.label : resultLabel(item)}
       {row && <span className="iac-muted"> · {title(item)}</span>}
-      <time dateTime={item.updatedAt}> · {new Date(item.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
+      <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
     </span>
     {item.attempt?.note && <div className="iac-muted iac-result-note">{item.attempt.note}</div>}</div>
     <div className="iac-actions">
+      {status && !item.attempt?.claimed && <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>}
       {(deferred || (item.state === "failed" && item.result?.retryable)) && <MoreMenu disabled={busy}><MenuAction onSelect={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</MenuAction></MoreMenu>}
       <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
       {item.state === "failed" && <ActionButton variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined)}>{item.result?.retryable ? "Retry" : "Check outcome"}</ActionButton>}
@@ -290,7 +302,6 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
   const [table, setTable] = useState<TableView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [bulkAttempts, setBulkAttempts] = useState<string[]>([]);
   const notes = useRef<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const lock = useRef(false);
@@ -313,7 +324,6 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
       };
       checkComposer();
       const items = await rpc.call("prepareTable", { id, threadId, items: table.items.filter((item) => item.state === "ready").map(({ id, revision }) => ({ id, revision, note: notes.current[id] ?? "" })) });
-      setBulkAttempts(items.map((item) => item.attempt!.id));
       items.forEach(updateItem);
       checkComposer();
       composer.setText(`${actionLabel(items[0]!, "yes")} `);
@@ -322,17 +332,15 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
         insertActionMention(composer, item);
         appendActionNote(composer, item);
       });
-      const submittedText = composer.text;
-      await composer.experimental_submit({ experimental_data: { tableId: id } });
-      if (composer.text === submittedText) throw new Error("The request was not submitted. Send the prepared composer message, or resend each pending row.");
+      if (!await submitDraft(composer, { experimental_data: { tableId: id } })) throw new Error("The request was not submitted. Send the prepared composer message, or resend each pending row.");
+      (await Promise.all(items.map((item) => rpc.call("submitted", { id: item.id, threadId, attemptId: item.attempt!.id })))).forEach(updateItem);
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
   };
   if (!table) return <div className="iac-card" role="status">{error ?? "Loading actions…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const label = bulkLabel(table.items);
-  const bulkPending = table.items.some((item) => item.state === "pending" && bulkAttempts.includes(item.attempt!.id));
   return <section className="iac-table" aria-label={table.title}>
-    <div className="iac-table-header"><span>{table.title}</span>{label && <PendingButton pending={busy || bulkPending} pendingLabel={pendingLabel(table.items[0]!, "yes")} disabled={!table.items.some((item) => item.state === "ready")} onClick={() => void bulk()}>{label}</PendingButton>}</div>
+    <div className="iac-table-header"><span>{table.title}</span>{label && <PendingButton pending={busy} pendingLabel={pendingLabel(table.items[0]!, "yes")} disabled={!table.items.some((item) => item.state === "ready")} onClick={() => void bulk()}>{label}</PendingButton>}</div>
     {error && <div className="iac-error" role="alert">{error}</div>}
     {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row expanded={open === item.id} onExpand={(expanded) => setOpen((value) => expanded ? item.id : value === item.id ? null : value)} onItem={updateItem} onNote={(id, value) => { notes.current[id] = value; }} />)}
   </section>;

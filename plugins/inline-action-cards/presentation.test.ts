@@ -1,7 +1,7 @@
 import type { PluginComposerApi } from "@get-bb/plugin-sdk/app";
 import { expect, it, vi } from "vitest";
 import type { Action, Item } from "./model.js";
-import { insertActionMention, pendingLabel } from "./presentation.js";
+import { insertActionMention, pendingLabel, sentStatus } from "./presentation.js";
 
 function pending(action: Action, label?: string): Item {
   return { id: "switch", threadId: "thr_test", revision: 2, state: "pending", result: null, updatedAt: "2026-10-04T10:00:00Z",
@@ -51,4 +51,13 @@ it("trims trailing question marks and whitespace only in the inserted pill", () 
   insertActionMention({ insertMention } as unknown as PluginComposerApi, item);
   expect(insertMention.mock.calls[0]![0].label).toBe("Keep A? Switch B");
   expect(item.content.question).toBe("Keep A? Switch B??  ");
+});
+
+it("settles once the request is sent, including older claimed records", () => {
+  const item = pending("yes", "Merge");
+  expect(sentStatus(item)).toBeNull();
+  expect(sentStatus({ ...item, attempt: { ...item.attempt!, sentAt: "2026-10-04T19:09:00Z" } })).toEqual({ label: "Merge sent", time: "2026-10-04T19:09:00Z" });
+  expect(sentStatus({ ...item, attempt: { ...item.attempt!, claimed: true } })).toEqual({ label: "Merge sent", time: item.updatedAt });
+  expect(sentStatus({ ...item, attempt: { ...item.attempt!, action: "send", sentAt: "2026-10-04T19:09:00Z" } })?.label).toBe("Approved to send");
+  expect(sentStatus({ ...item, state: "succeeded", attempt: { ...item.attempt!, sentAt: "2026-10-04T19:09:00Z" } })).toBeNull();
 });
