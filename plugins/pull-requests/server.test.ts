@@ -95,9 +95,9 @@ describe("PR registry and host identity", () => {
   });
   it("associates description references on search and refresh while preserving explicit unlinks", async () => {
     const h = setup();
-    h.threads.push(makeThreadResponse({ id: "thr_hidden", visibility: "hidden" }), makeThreadResponse({ id: "thr_deleted", deletedAt: "2026-10-04T00:00:00Z" }));
-    h.threads[1]!.archivedAt = "2026-10-04T00:00:00Z";
-    const value = { ...snapshot(), body: "BB-Thread-ID: thr_a\n[Review](https://brsbl.getbb.app/threads/thr_b)\n@thread:thr_a thr_hidden thr_deleted thr_unknown" };
+    h.threads.push(makeThreadResponse({ id: "thr_hidden", visibility: "hidden" }), makeThreadResponse({ id: "thr_deleted", deletedAt: Date.now() }));
+    h.threads[1]!.archivedAt = Date.now();
+    const value = { ...snapshot(), body: "BB-Thread-ID: thr_a\n[Review](https://brsbl.getbb.app/threads/thr_b)\n@thread:thr_a thr_hidden thr_deleted thr_unknown", originThreadIds: ["thr_a"] };
     h.setSearchResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [value], nextCursor: null }));
     await h.rpc("refresh", { discover: true }); await h.settle();
     const item = await h.rpc<PullRequestItem>("show", { id: "github:PR_1" });
@@ -105,6 +105,9 @@ describe("PR registry and host identity", () => {
     expect(item.links.every((link) => link.evidence === "body-marker" && !link.origin)).toBe(true);
     expect(h.harness.inspection.sdk.callsTo("threads.list")).toHaveLength(0);
     expect(h.harness.inspection.sdk.callsTo("environments.get")).toHaveLength(0);
+    h.setResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshot: value }));
+    await h.rpc("refresh", { discover: true, includeArchived: true }); await h.settle();
+    expect((await h.rpc<PullRequestItem>("show", { id: item.id })).links.map((link) => [link.threadId, link.origin])).toEqual([["thr_a", true], ["thr_b", false]]);
     await h.rpc("unlink", { id: item.id, threadId: "thr_b" });
     h.threads.push(makeThreadResponse({ id: "thr_later", environmentId: null }));
     h.setResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshot: { ...value, body: value.body + "\nAdded thr_later" } }));

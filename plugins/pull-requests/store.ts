@@ -40,7 +40,7 @@ export function createStore(bb: BbPluginApi) {
       if (row.suppressed) return get(id);
       const previous = JSON.parse(row.value) as Link;
       // An origin marker upgrades provenance, but cannot overwrite explicit correction.
-      if (previous.evidence !== "environment" || !value.origin) return get(id);
+      if ((previous.evidence !== "environment" && previous.evidence !== "body-marker") || !value.origin) return get(id);
     }
     if (row && explicit) value = { ...value, origin: value.origin || (JSON.parse(row.value) as Link).origin };
     db.prepare("INSERT INTO pull_request_links VALUES(?,?,?,0) ON CONFLICT(pr_id,thread_id) DO UPDATE SET value=excluded.value,suppressed=0").run(id, value.threadId, JSON.stringify(value));
