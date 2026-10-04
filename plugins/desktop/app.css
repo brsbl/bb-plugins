@@ -155,11 +155,11 @@
   app-region: no-drag;
   border-radius: 14px 14px 12px 12px;
   background:
-    linear-gradient(color-mix(in oklab, var(--bbd-blue) 14%, transparent), color-mix(in oklab, var(--bbd-blue) 14%, transparent)),
+    linear-gradient(color-mix(in oklab, var(--bbd-blue) 6%, transparent), color-mix(in oklab, var(--bbd-blue) 6%, transparent)),
     var(--bbd-glass);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   backdrop-filter: blur(24px) saturate(1.6);
-  border: 1px solid color-mix(in oklab, var(--bbd-blue-deep) 65%, transparent);
+  border: 1px solid color-mix(in oklab, var(--bbd-blue) 20%, var(--bbd-hairline));
   box-shadow:
     0 24px 56px -24px color-mix(in oklab, var(--ink) 50%, transparent);
   color: var(--foreground);
@@ -167,9 +167,9 @@
 
 .bbd-window:not([data-focused="true"]) {
   background:
-    linear-gradient(color-mix(in oklab, var(--bbd-blue-sky) 12%, transparent), color-mix(in oklab, var(--bbd-blue-sky) 12%, transparent)),
+    linear-gradient(color-mix(in oklab, var(--bbd-blue-sky) 4%, transparent), color-mix(in oklab, var(--bbd-blue-sky) 4%, transparent)),
     var(--bbd-glass);
-  border-color: color-mix(in oklab, var(--bbd-blue) 30%, transparent);
+  border-color: var(--bbd-hairline);
   box-shadow: var(--bbd-highlight), var(--bbd-lift);
 }
 
@@ -193,7 +193,7 @@
   height: 32px;
   padding: 0 3px 0 6px;
   flex: none;
-  color: color-mix(in oklab, var(--bbd-blue-deep) 55%, var(--foreground));
+  color: color-mix(in oklab, var(--bbd-blue) 12%, var(--foreground));
   font-size: var(--text-sm);
   font-weight: 600;
   user-select: none;
@@ -243,7 +243,7 @@
   overflow: hidden;
   border-radius: 8px;
   background: var(--bbd-glass-solid);
-  border: 1px solid color-mix(in oklab, var(--bbd-blue-deep) 35%, transparent);
+  border: 1px solid var(--bbd-hairline);
 }
 
 .bbd-resize {
