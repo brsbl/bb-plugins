@@ -13,7 +13,7 @@ import {
   MediaPlayerArt,
   NewFolderArt,
   NewThreadArt,
-  NotePadGlyph,
+  NotePadArt,
   RecycleBinArt,
   ThreadsArt,
   TileGlyph,
@@ -387,7 +387,7 @@ export function DesktopCanvas() {
     ...commands.slice(0, 2),
     {
       label: "New note pad",
-      icon: <NotePadGlyph className="size-3.5" />,
+      icon: <NotePadArt size={16} />,
       run: () => addStickyNote({ left: event.clientX, top: event.clientY }),
     },
     ...commands.slice(2),
