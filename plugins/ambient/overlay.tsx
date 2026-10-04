@@ -13,6 +13,7 @@ import { FALLBACK_SCENE, valuesOf } from "./contract.js";
 import { AmbientRenderer, releaseContext, type CompileResult, type FrameInput, type ThemeColors } from "./engine.js";
 import { colorParser } from "./pixels.js";
 import { isQuarantined, quarantine } from "./quarantine.js";
+import { createRendererId } from "./renderer-id.js";
 import type { ambientRpcContract } from "./rpc.js";
 import { FrameScheduler, MIN_AUTO_SCALE } from "./scheduler.js";
 import { ambientStore, useAmbient } from "./store.js";
@@ -175,13 +176,31 @@ export function AmbientOverlay() {
     }
     rendererRef.current = renderer;
     compiledRevision.current = null;
+    const rendererId = createRendererId();
+    const reportContext = (event: "lost" | "restored") => {
+      void rpc.call("reportContext", {
+        event,
+        occurredAt: new Date().toISOString(),
+        rendererId,
+        sceneRevision: compiledRevision.current,
+        visible: !document.hidden,
+        drawingScene: drawingRef.current !== null,
+        width: canvas.width,
+        height: canvas.height,
+        detail: detail(),
+      }).catch((error: unknown) => console.warn("Ambient could not report WebGL context event", error));
+    };
     const lost = (event: Event) => {
       event.preventDefault();
+      reportContext("lost");
       // A visible page losing its context while drawing a scene points at the scene.
       if (drawingRef.current !== null && !document.hidden) quarantine(drawingRef.current);
       drawingRef.current = null;
     };
-    const restored = () => setRendererEpoch((epoch) => epoch + 1);
+    const restored = () => {
+      reportContext("restored");
+      setRendererEpoch((epoch) => epoch + 1);
+    };
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
     return () => {
@@ -190,7 +209,7 @@ export function AmbientOverlay() {
       renderer.dispose();
       rendererRef.current = null;
     };
-  }, [canvas, rendererEpoch]);
+  }, [canvas, detail, rendererEpoch, rpc]);
 
   // Declared after the renderer effect so its listeners are gone first: releasing fires webglcontextlost.
   useEffect(() => {

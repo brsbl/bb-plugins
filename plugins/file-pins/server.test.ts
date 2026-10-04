@@ -1,0 +1,187 @@
+import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
+import { afterEach, describe, expect, it } from "vitest";
+import plugin from "./server.js";
+
+const disposers: Array<() => Promise<void>> = [];
+afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); });
+function setup() {
+  const { bb, harness } = createFakePluginHost({
+    pluginId: "file-pins", experimental_hostEntry: true,
+    sdk: {
+      threads: { get: async ({ threadId }) => makeThreadResponse({ id: threadId, environmentId: "env-mac" }) },
+      environments: { get: async () => ({ hostId: "mac", path: "/Users/me/project" }) },
+      hosts: { list: async () => [
+        makeHostResponse({ id: "mac", name: "My Mac", status: "connected" }),
+        makeHostResponse({ id: "linux", name: "Worker", status: "disconnected" }),
+        makeHostResponse({ id: "pi", name: "Pi", status: "connected" }),
+      ],
+      directory: async ({ hostId, path }) => ({ directory: path ?? `/home/${hostId}`, parent: "/home", entries: [{ kind: "directory", name: "docs", path: `${path ?? `/home/${hostId}`}/docs` }] }) },
+      files: { listPaths: async () => ({ paths: [{ path: "docs/note.md", name: "note.md", kind: "file", positions: [], score: 1 }], truncated: false }) },
+    },
+    experimental_callHostRpc: async ({ method, input, hostId }) => {
+      if (hostId === "offline") throw new Error("Host offline");
+      if (method === "home") return { path: "/home/worker" };
+      if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available" })) };
+      const { path } = input as { path: string };
+      return { path: path === "~/note.md" ? "/Users/me/note.md" : path, name: path.split("/").at(-1)! };
+    },
+  });
+  plugin(bb);
+  disposers.push(() => harness.lifecycle.dispose());
+  return { ...harness, bb };
+}
+describe("thread file pins", () => {
+  it("preserves concurrent pins, deduplicates canonical paths, isolates threads, and survives reload", async () => {
+    const h = setup();
+    const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "~/note.md" });
+    await Promise.all([
+      h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/Users/me/note.md" }),
+      h.behavior.callRpc("pin", { threadId: "one", hostId: "linux", path: "/Users/me/note.md" }),
+      h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/Users/me/second.md" }),
+    ]);
+    const { harness: reloaded } = await h.lifecycle.reload(plugin);
+    disposers.push(() => reloaded.lifecycle.dispose());
+    const listed = await reloaded.behavior.callRpc("list", { threadId: "one" }) as { pins: unknown[] };
+    expect(listed.pins).toHaveLength(3);
+    expect(listed.pins).toContainEqual(first);
+    expect(await reloaded.behavior.callRpc("list", { threadId: "two" })).toEqual({ pins: [] });
+    expect(h.inspection.experimental_hostRpcCalls[0]?.hostId).toBe("mac");
+  });
+  it("rejects missing-host files without creating pins; unpins without host access", async () => {
+    const h = setup();
+    await expect(h.behavior.callRpc("pin", { threadId: "one", hostId: "offline", path: "/note.md" })).rejects.toThrow();
+    const pin = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/note.md" }) as { id: string };
+    const calls = h.inspection.experimental_hostRpcCalls.length;
+    expect(await h.behavior.callRpc("unpin", { threadId: "one", pinId: pin.id })).toEqual({ removed: true });
+    expect(h.inspection.experimental_hostRpcCalls).toHaveLength(calls);
+    expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [] });
+  });
+  it("routes explicit-machine CLI pins to that host without forwarding another host's cwd", async () => {
+    const h = setup();
+    const response = await h.behavior.runCli(["pin", "/note.md", "--machine", "linux", "--thread", "destination", "--json"], { threadId: "invoking", cwd: "/Users/me/project", signal: new AbortController().signal });
+    expect(response.exitCode).toBe(0);
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ hostId: "linux", input: { path: "/note.md" } });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)?.input).not.toHaveProperty("cwd");
+    expect((await h.behavior.runCli(["list", "--thread", "destination", "--json"], { signal: new AbortController().signal })).stdout).toContain("/note.md");
+    const { id } = JSON.parse(response.stdout ?? "") as { id: string };
+    const removed = await h.behavior.runCli(["remove", id, "--thread", "destination", "--json"], { signal: new AbortController().signal });
+    expect(JSON.parse(removed.stdout ?? "")).toEqual({ removed: true });
+    expect(await h.behavior.callRpc("list", { threadId: "destination" })).toEqual({ pins: [] });
+  });
+  it("restores a removed pin in place without accessing its host and scopes Undo to the thread", async () => {
+    const h = setup();
+    const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/gone.md" }) as { id: string };
+    const second = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/second.md" });
+    const calls = h.inspection.experimental_hostRpcCalls.length;
+    const { undoToken } = await h.behavior.callRpc("remove", { threadId: "one", pinId: first.id }) as { undoToken: string };
+    await expect(h.behavior.callRpc("undo", { threadId: "two", undoToken })).rejects.toThrow("expired");
+    expect(await h.behavior.callRpc("undo", { threadId: "one", undoToken })).toEqual(first);
+    expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [first, second] });
+    expect(h.inspection.experimental_hostRpcCalls).toHaveLength(calls);
+    await expect(h.behavior.callRpc("undo", { threadId: "one", undoToken })).rejects.toThrow("expired");
+  });
+  it("retains missing pins and distinguishes offline hosts", async () => {
+    const h = setup();
+    for (const [hostId, path] of [["mac", "/gone.md"], ["linux", "/offline.md"], ["mac", "/here.md"]]) {
+      await h.behavior.callRpc("pin", { threadId: "one", hostId, path });
+    }
+    const result = await h.behavior.callRpc("inspect", { threadId: "one" }) as { pins: unknown[] };
+    expect(result.pins).toMatchObject([
+      { path: "/gone.md", status: "missing", hostName: "My Mac" },
+      { path: "/offline.md", status: "unavailable", hostName: "Worker" },
+      { path: "/here.md", status: "available" },
+    ]);
+    expect((await h.behavior.callRpc("list", { threadId: "one" }) as { pins: unknown[] }).pins).toHaveLength(3);
+  });
+  it("searches the chosen folder, defaulting to the thread workspace or the machine's home, and refuses offline machines", async () => {
+    const h = setup();
+    expect(await h.behavior.callRpc("search", { threadId: "one", hostId: "mac", query: "note" })).toEqual({ root: "/Users/me/project", truncated: false, paths: [
+      { path: "/Users/me/project/docs/note.md", name: "note.md" },
+    ] });
+    const chosen = await h.behavior.callRpc("search", { threadId: "one", hostId: "mac", root: "/Users/me/notes/", query: "note" }) as { paths: Array<{ path: string }> };
+    expect(chosen.paths.map((file) => file.path)).toEqual(["/Users/me/notes/docs/note.md"]);
+    const pi = await h.behavior.callRpc("search", { threadId: "one", hostId: "pi", query: "note" }) as { root: string };
+    expect(pi.root).toBe("/home/worker");
+    await expect(h.behavior.callRpc("search", { threadId: "one", hostId: "linux", query: "note" })).rejects.toThrow("Worker is offline");
+    await expect(h.behavior.callRpc("directory", { threadId: "one", hostId: "linux" })).rejects.toThrow("Worker is offline");
+    expect(await h.behavior.callRpc("directory", { threadId: "one", hostId: "pi", path: "/srv" })).toEqual({ directory: "/srv", parent: "/home", entries: [{ kind: "directory", name: "docs", path: "/srv/docs" }] });
+  });
+  it("remembers the last chosen folder across existing and new threads, reloads, and thread deletion", async () => {
+    const h = setup();
+    expect(await h.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ defaultHostId: "mac", scope: { hostId: "mac", path: "/Users/me/project" } });
+    await h.bb.storage.kv.set("thread:two:scope:v1", { hostId: "mac", path: "/Users/me/old-notes" });
+    const scope = { hostId: "pi", path: "/srv/notes" };
+    expect(await h.behavior.callRpc("setScope", { threadId: "one", scope })).toEqual({ scope });
+    expect(await h.bb.storage.kv.get("thread:one:scope:v1")).toEqual(scope);
+    expect(await h.behavior.callRpc("context", { threadId: "two" })).toMatchObject({ scope });
+    const { harness: reloaded } = await h.lifecycle.reload(plugin);
+    disposers.push(() => reloaded.lifecycle.dispose());
+    expect(await reloaded.behavior.callRpc("context", { threadId: "new" })).toMatchObject({ scope });
+    await reloaded.behavior.emitThreadEvent("thread.deleted", { thread: makeThreadResponse({ id: "one" }) });
+    expect(await reloaded.behavior.callRpc("context", { threadId: "two" })).toMatchObject({ scope });
+    const next = { hostId: "mac", path: "/Users/me/notes" };
+    await reloaded.behavior.callRpc("setScope", { threadId: "two", scope: next });
+    expect(await reloaded.behavior.callRpc("context", { threadId: "new" })).toMatchObject({ scope: next });
+  });
+  it.each([false, true])("falls back to legacy thread scope when the global scope is absent or its host is unavailable (%s)", async (unavailable) => {
+    const h = setup();
+    const scope = { hostId: "pi", path: "/srv/legacy-notes" };
+    await h.bb.storage.kv.set("thread:two:scope:v1", scope);
+    if (unavailable) await h.behavior.callRpc("setScope", { threadId: "one", scope: { hostId: "removed", path: "/notes" } });
+    expect(await h.behavior.callRpc("context", { threadId: "two" })).toMatchObject({ scope });
+  });
+  it("falls back to workspace then home when both saved scopes have unavailable hosts", async () => {
+    const h = setup();
+    await h.behavior.callRpc("setScope", { threadId: "one", scope: { hostId: "removed", path: "/notes" } });
+    expect(await h.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ scope: { hostId: "mac", path: "/Users/me/project" } });
+    h.sdk.stub("environments.get", async () => ({ hostId: "mac", path: null }));
+    expect(await h.behavior.callRpc("context", { threadId: "one" })).toMatchObject({ scope: { hostId: "mac", path: "/home/worker" } });
+  });
+  it("resolves relative picker paths against the search folder, else the thread workspace on its own machine", async () => {
+    const h = setup();
+    await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "docs/note.md" });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "mac", input: { path: "docs/note.md", cwd: "/Users/me/project" } });
+    await h.behavior.callRpc("pin", { threadId: "one", hostId: "pi", path: "docs/note.md", cwd: "/srv/notes" });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "pi", input: { path: "docs/note.md", cwd: "/srv/notes" } });
+  });
+  it("repins in place only after the replacement resolves successfully", async () => {
+    const h = setup();
+    const original = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/gone.md" }) as { id: string };
+    await expect(h.behavior.callRpc("repin", { threadId: "one", pinId: original.id, hostId: "offline", path: "/new.md" })).rejects.toThrow("offline");
+    expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [original] });
+    const replacement = await h.behavior.callRpc("repin", { threadId: "one", pinId: original.id, hostId: "mac", path: "/new.md" });
+    expect(replacement).toMatchObject({ id: original.id, path: "/new.md" });
+    expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [replacement] });
+  });
+  it("saves order and overflow pins together, rejects stale arrangements, and restores placement on Undo", async () => {
+    const h = setup();
+    const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/first.md" }) as { id: string };
+    const second = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/second.md" }) as { id: string };
+    const third = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/third.md" }) as { id: string };
+    await h.behavior.callRpc("arrange", { threadId: "one", order: [second.id, first.id, third.id], more: [third.id] });
+    const { harness: reloaded } = await h.lifecycle.reload(plugin);
+    disposers.push(() => reloaded.lifecycle.dispose());
+    expect(await reloaded.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [second, first, third] });
+    expect(await reloaded.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [third.id] });
+    await expect(reloaded.behavior.callRpc("arrange", { threadId: "one", order: [first.id, second.id], more: [] })).rejects.toThrow("changed");
+    await expect(reloaded.behavior.callRpc("arrange", { threadId: "two", order: [first.id], more: [] })).rejects.toThrow("changed");
+    const { undoToken } = await reloaded.behavior.callRpc("remove", { threadId: "one", pinId: third.id }) as { undoToken: string };
+    expect(await reloaded.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [] });
+    await reloaded.behavior.callRpc("undo", { threadId: "one", undoToken });
+    expect(await reloaded.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [third.id] });
+  });
+  it("adds new files to the ⋯ list when asked and leaves existing pins where they are", async () => {
+    const h = setup();
+    const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/first.md" }) as { id: string };
+    const second = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/second.md", unpinned: true }) as { id: string };
+    expect(await h.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [second.id] });
+    expect(await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/first.md", unpinned: true })).toEqual(first);
+    expect(await h.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [second.id] });
+  });
+  it("removes storage when a thread is deleted", async () => {
+    const h = setup();
+    await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/note.md" });
+    await h.behavior.emitThreadEvent("thread.deleted", { thread: makeThreadResponse({ id: "one" }) });
+    expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: [] });
+  });
+});
