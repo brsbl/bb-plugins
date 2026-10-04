@@ -167,7 +167,7 @@
 .digest-nested-item .digest-form { margin: 8px 0; border-radius: var(--radius-md, 6px); }
 .digest-form label { font-size: 12px; font-weight: 500; }
 .digest-form input, .digest-form textarea, .digest-form select { width: 100%; min-width: 0; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, 6px); background: var(--background); color: var(--foreground); padding: 8px 10px; font: inherit; font-size: 13px; }
-.digest-form textarea { resize: vertical; margin-bottom: 8px; }
+.digest-form textarea { field-sizing: content; min-height: 96px; resize: vertical; margin-bottom: 8px; }
 .digest-form input:focus-visible, .digest-form textarea:focus-visible, .digest-form select:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .digest-form input::placeholder, .digest-form textarea::placeholder { color: var(--muted-foreground); }
 .digest-form input { margin-bottom: 8px; }

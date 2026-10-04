@@ -7,20 +7,20 @@ export const DIGEST_RECIPES: DigestRecipe[] = [
   {
     id: "unread-email", name: "Unread email", connectionIds: ["gmail"],
     schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" },
-    instructions: "Unread emails that need a reply or a decision. Alerts first. Skip advisory and recruiting.",
+    instructions: "Go through my unread email from the last day (the whole weekend on Mondays). Start with anything urgent: security alerts, failed payments, or anything due today. Then tell me who needs a reply, what they want, and how soon, putting people I know and anything from Anthropic first. Then list quick yes/no decisions. Sum up everything else in one line. Skip advisory and expert-network requests and recruiters (except Anthropic), and just count them. Emails addressed to Elizabeth are for my own accounts.",
   },
   {
     id: "money", name: "Money", connectionIds: ["gmail"],
     schedule: { cron: "0 10 * * 1", timezone: "America/Los_Angeles" },
-    instructions: "Failed payments, bills due soon, last week's spending, and checks to deposit.",
+    instructions: "Look at my receipts, bills and account emails from the past week. First tell me anything I need to act on: failed or declined payments, bills or autopay due in the next 10 days, documents my accountant asked for, checks or refunds to deposit, and changed subscriptions. Then show what I spent by type (food delivery, shopping, transfers, subscriptions) with totals, and flag anything unusually large. End with one line on investment and retirement notices. Never show full card or account numbers.",
   },
   {
     id: "reading", name: "Reading", connectionIds: ["gmail"],
     schedule: { cron: "0 11 * * 0", timezone: "America/Los_Angeles" },
-    instructions: "My unread newsletters: the 3 worth reading in full, one line on the rest.",
+    instructions: "Go through my unread newsletters. Pick the 3 most worth reading in full for someone building bb, an agentic IDE, and say in one line why each matters. Then give one useful takeaway from each of the rest, grouped by newsletter. Skip anything that's just a promotion.",
   },
   {
     id: "x-scorecard", name: "X scorecard", connectionIds: ["x"], schedule: null,
-    instructions: "How my posts performed this week, what worked, and one thing to try next.",
+    instructions: "How my posts did this week: followers and net follows against my usual pace, my top post and why it worked, impressions and profile visits compared with last week, and one thing to try next.",
   },
 ];
