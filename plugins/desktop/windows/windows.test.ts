@@ -55,6 +55,22 @@ function gesture() {
 afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ""; });
 
 describe("pointer lifecycle", () => {
+  it("cancels a removed captured child without leaving the renderer blocked", () => {
+    document.documentElement.style.userSelect = "text";
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 10));
+    // A re-deal replaces the card while its tracker-owning game stays mounted.
+    g.target.remove();
+    document.dispatchEvent(pointer("lostpointercapture", 10, 2));
+    expect(g.end).not.toHaveBeenCalled();
+    document.dispatchEvent(pointer("lostpointercapture", 10));
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true);
+    expect(document.querySelector(".bbd-drag-shield")).toBeNull();
+    expect(document.documentElement.style.userSelect).toBe("text");
+    document.dispatchEvent(pointer("lostpointercapture", 10));
+    g.cancel();
+    expect(g.end).toHaveBeenCalledTimes(1);
+  });
   it("publishes window drag bounds after every move and clears the scoped shield on release", () => {
     const g = gesture();
     g.cancel();
