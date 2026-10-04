@@ -341,13 +341,18 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   };
   const renderRow = (item: PullRequestItem) => {
     const snapshot = item.snapshot;
+    const fresh = githubFresh(item, clock);
     const blocking = snapshot?.mergeability === "conflicts" ? mergePresentation("conflicts") : snapshot?.review === "changes-requested" ? reviewPresentation("changes-requested") : snapshot?.mergeability === "blocked" && githubNeedsAttention(snapshot) && snapshot.checks.state !== "failing" ? { icon: AlertTriangle, label: "Merge blocked; repository requirements need attention", tone: "warning" as const } : null;
     const threadsNeedingInput = item.links.filter((link) => needsThread(liveThreads.get(link.threadId)));
     const working = item.links.map((link) => liveThreads.get(link.threadId)).find((thread) => thread && ["active", "starting", "stopping"].includes(thread.status));
+    const githubStatus = fresh ? blocking ?? (snapshot && snapshot.checks.state !== "none" ? checksPresentation(snapshot) : null) : null;
+    const threadStatus = threadsNeedingInput.length > 0 ? { ...threadPresentation(liveThreads.get(threadsNeedingInput[0]!.threadId)), label: `${threadsNeedingInput.length} ${threadsNeedingInput.length === 1 ? "thread needs" : "threads need"} attention` } : working ? threadPresentation(working) : null;
+    const status = threadsNeedingInput.length > 0 ? threadStatus : githubStatus && (blocking || githubStatus.tone === "danger") ? githubStatus : threadStatus ?? githubStatus;
+    const state = lifecycle(snapshot);
     return <div className={`pr-row${selection.id === item.id ? " pr-row-selected" : ""}`} key={item.id}>
-      <StatusIcon {...lifecycle(snapshot)} />
+      <StatusIcon {...state} label={fresh ? state.label : `${state.label} · ${item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}`}`} />
       <button type="button" className="pr-row-title" onClick={() => select(item.id)} aria-current={selection.id === item.id ? "page" : undefined} title={snapshot ? `${snapshot.title} · ${snapshot.repository} #${snapshot.number}` : item.url}>{snapshot?.title ?? "Pull request unavailable"}</button>
-      <div className="pr-row-statuses">{!githubFresh(item, clock) ? <StatusIcon icon={Clock} label={item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}`} tone="muted" /> : blocking ? <StatusIcon {...blocking} /> : snapshot && snapshot.checks.state !== "none" && <StatusIcon {...checksPresentation(snapshot)} />}{threadsNeedingInput.length > 0 ? <StatusIcon {...threadPresentation(liveThreads.get(threadsNeedingInput[0]!.threadId))} label={`${threadsNeedingInput.length} ${threadsNeedingInput.length === 1 ? "thread needs" : "threads need"} attention`} /> : working ? <StatusIcon {...threadPresentation(working)} /> : null}</div>
+      <div className="pr-row-statuses">{status && <StatusIcon {...status} label={[githubStatus?.label, threadStatus?.label].filter(Boolean).join(" · ")} />}</div>
       <time className="pr-row-time" dateTime={snapshot?.updatedAt} title={snapshot ? `Updated ${new Date(snapshot.updatedAt).toLocaleString()}` : undefined}>{snapshot ? age(snapshot.updatedAt).replace(" ago", "").replace("just now", "now") : "—"}</time>
     </div>;
   };
@@ -371,8 +376,11 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
         {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests found"}</p><small>{hasFilters ? "Try another search or filter." : "Your authored pull requests and review requests on GitHub appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
         {nextCursor && <button className="pr-load-more" type="button" disabled={listLoading} onClick={() => setPageLimit((current) => current + 1)}>{listLoading ? "Loading more…" : `Load more · ${items.length} of ${total}`}</button>}
       </div>
-      <div className="pr-list-footer">{coverage.running ? <span role="status">Syncing GitHub · {coverage.checked}/{coverage.total}</span> : <span>{coverage.unavailable > 0 ? `${coverage.unavailable} GitHub sources unavailable` : `${visibleItems.length} pull requests`}{coverage.incomplete ? " · partial coverage" : ""}</span>}<IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true)} /></div>
-      {nextCursor && <p className="pr-pagination-note">Filters and sorting apply to {items.length} loaded pull requests.</p>}
+      <div className="pr-list-footer">
+        <span title={nextCursor ? `Filters and sorting apply to ${items.length} loaded pull requests.` : undefined}>{nextCursor ? `${items.length} of ${total} loaded` : `${visibleItems.length} pull requests`}</span>
+        <span className="pr-sync-status" role="status">{coverage.running ? "Syncing…" : coverage.unavailable > 0 ? "GitHub unavailable" : coverage.incomplete ? "Partial coverage" : visibleItems.some((item) => !githubFresh(item, clock)) ? "Cached" : ""}</span>
+        <IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true)} />
+      </div>
     </aside>
     <section className="pr-detail" aria-label="Pull request detail">
       {error && <div className="pr-error" role="alert"><AlertTriangle size={16} /><span>{error}</span><button className="pr-text-button" type="button" onClick={() => void refresh(true)}>Retry</button><IconButton icon={X} label="Dismiss error" onClick={() => setError(null)} /></div>}

@@ -10,8 +10,8 @@
 .pr-plugin h1, .pr-plugin h2, .pr-plugin p, .pr-link-dialog h2, .pr-link-dialog p { margin:0; }
 .pr-plugin svg, .pr-link-dialog svg { flex-shrink:0; }
 .pr-sidebar { width:320px; flex:0 0 320px; border-right:1px solid var(--border); min-height:0; display:flex; flex-direction:column; background:color-mix(in srgb,var(--muted) 18%,var(--background)); }
-.pr-list-header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:16px 14px 12px 18px; }
-.pr-list-header h1 { font-size:18px; line-height:28px; font-weight:600; letter-spacing:-.25px; }
+.pr-list-header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 14px 8px 18px; }
+.pr-list-header h1 { font-size:16px; line-height:24px; font-weight:600; letter-spacing:-.2px; }
 .pr-list-options { position:relative; }
 .pr-list-options summary { list-style:none; }
 .pr-list-options summary::-webkit-details-marker { display:none; }
@@ -37,12 +37,14 @@
 .pr-group-title { display:flex; align-items:center; gap:6px; color:var(--muted-foreground); font-size:13px; padding:9px 10px; background:none; border:0; }
 .pr-group-title svg { transition:transform .15s ease; }
 .pr-group-title .pr-collapsed { transform:rotate(-90deg); }
-.pr-row { display:flex; align-items:center; gap:3px; min-width:0; height:36px; margin:1px 0; padding:0 9px 0 5px; border-radius:8px; }
+.pr-row { display:grid; grid-template-columns:24px minmax(0,1fr) 24px 3.5ch; align-items:center; gap:4px; min-width:0; height:36px; padding:0 9px 0 5px; border-radius:8px; }
 .pr-row:hover { background:color-mix(in srgb,var(--muted) 60%,transparent); }
 .pr-row-selected { background:var(--muted); }
-.pr-row-title { flex:1; min-width:0; text-align:left; color:var(--foreground); font-size:13px; line-height:36px; font-weight:400; background:none; border:0; padding:0 3px; display:block; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; }
-.pr-row-time { color:var(--muted-foreground); font-size:11px; white-space:nowrap; font-variant-numeric:tabular-nums; margin-left:5px; }
-.pr-row-statuses { display:flex; align-items:center; }
+.pr-row-title { min-width:0; text-align:left; color:var(--foreground); font-size:13px; line-height:36px; font-weight:400; background:none; border:0; padding:0; display:block; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; }
+.pr-row-time { color:var(--muted-foreground); font-size:11px; white-space:nowrap; font-variant-numeric:tabular-nums; text-align:right; }
+.pr-row-statuses { display:flex; align-items:center; justify-content:center; }
+.pr-row .pr-status { width:24px; height:28px; padding:4px; }
+.pr-row .pr-status svg { width:14px; height:14px; }
 .pr-status { display:inline-flex; align-items:center; justify-content:center; gap:4px; vertical-align:middle; min-width:24px; min-height:24px; padding:3px; border:0; border-radius:4px; background:transparent; position:relative; }
 .pr-status:hover, .pr-status:focus-visible { background:color-mix(in srgb,var(--muted) 70%,transparent); }
 .pr-status-count { font-size:10px; line-height:1; font-variant-numeric:tabular-nums; }
@@ -58,8 +60,8 @@
 .pr-list-empty small { display:block; margin-top:5px; font-size:11px; }
 .pr-list-empty button { margin-top:12px; }
 .pr-load-more { width:100%; padding:10px; background:none; color:var(--muted-foreground); font-size:11px; border:0; }
-.pr-list-footer { min-height:38px; flex-shrink:0; border-top:1px solid var(--border); padding:7px 10px 7px 14px; display:flex; align-items:center; gap:5px; justify-content:space-between; color:var(--muted-foreground); font-size:10px; }
-.pr-pagination-note { padding:0 12px 9px; font-size:10px; color:var(--muted-foreground); }
+.pr-list-footer { min-height:40px; flex-shrink:0; border-top:1px solid var(--border); padding:5px 10px 5px 18px; display:flex; align-items:center; gap:8px; color:var(--muted-foreground); font-size:10px; }
+.pr-sync-status { margin-left:auto; }
 .pr-detail { flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
 .pr-detail-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px; min-height:56px; flex-shrink:0; }
 .pr-toolbar-actions { display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0; }
@@ -224,6 +226,6 @@
   .pr-toolbar-actions>.pr-button { font-size:11px; padding:5px 9px; }
   .pr-summary { padding:14px 20px 30px; }
   .pr-row-title { font-size:13px; }
-  .pr-list-scroll { padding:7px 9px; }
+  .pr-list-scroll { padding:0 8px 10px; }
   .pr-source-notice { padding:10px 16px; }
 }
