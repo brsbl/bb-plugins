@@ -72,6 +72,9 @@ export const INBOX_RULE =
 export const INBOX_DESCRIPTION =
   "Idle unread threads not claimed by another inbox appear here automatically and stay until work resumes or you move a read thread to another section.";
 
+export const RETURNING_INBOX_DESCRIPTION =
+  "Idle unread threads not claimed by another inbox appear here automatically and move back to their section once you read them.";
+
 export const HANDOFF_RULE =
   "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
 

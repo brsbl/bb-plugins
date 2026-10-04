@@ -1536,6 +1536,8 @@ describe("config CLI", () => {
     expect(await stageOf(organizer, "inbox")).toMatchObject({ returnAfterRead: true });
     expect(await cli(organizer, ["section", "after-read", "inbox"]))
       .toMatchObject({ exitCode: 0, stdout: "return\n" });
+    expect((await cli(organizer, ["section", "rule", "inbox"])).stdout)
+      .toContain("move back to their section once you read them");
     await approved(organizer, ["section", "after-read", "inbox", "--set", "stay"]);
     expect(await stageOf(organizer, "inbox")).not.toHaveProperty("returnAfterRead");
 

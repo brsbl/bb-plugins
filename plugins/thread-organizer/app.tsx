@@ -28,6 +28,7 @@ import {
 import {
   ENTRY_PROMPT_MAX_LENGTH,
   INBOX_DESCRIPTION,
+  RETURNING_INBOX_DESCRIPTION,
   WORKFLOW_CONFIG_VERSION,
   DEFAULT_STAGE_RULE,
   MAX_WORKFLOW_STAGES,
@@ -381,7 +382,7 @@ function StageCard({
           <p
             className={`${stageRuleLayoutClass} px-1 py-1.5 text-sm leading-5 text-muted-foreground`}
           >
-            <span title={INBOX_DESCRIPTION}>Idle unread threads without another inbox arrive here.</span>
+            <span title={stage.returnAfterRead ? RETURNING_INBOX_DESCRIPTION : INBOX_DESCRIPTION}>Idle unread threads without another inbox arrive here.</span>
           </p>
         ) : (
           <label className={`${stageRuleLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>

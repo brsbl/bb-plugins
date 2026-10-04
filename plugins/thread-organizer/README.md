@@ -13,7 +13,8 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
   moves them into a workflow stage. Reordering sections never assigns new work.
 - Unclaimed running threads appear in their remembered workflow stage, or Threads when
   they have not been assigned one.
-- Unclaimed idle unread threads appear in the main Inbox and stay after being marked read.
+- Unclaimed idle unread threads appear in the main Inbox and stay after being marked
+  read, unless the Inbox is set to move them back (below).
 - Additional inboxes receive threads from a selected plugin. Claimed threads stay
   in that inbox until you move or archive them, even after reading or resuming work.
   Opening a thread marks it read normally; it never also appears in the main Inbox.

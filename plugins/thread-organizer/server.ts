@@ -25,6 +25,7 @@ import {
   normalizeEditableWorkflowConfig,
   parseWorkflowConfig,
   placementForThread,
+  RETURNING_INBOX_DESCRIPTION,
   returnsAfterRead,
   stageForSectionId,
   type EditableWorkflowConfig,
@@ -1422,9 +1423,17 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         stderr: `Unknown stage: ${rawKey}\nAvailable: ${stageKeysLine(true)}\n`,
       };
     }
-    if (rest.length === 0) return { exitCode: 0, stdout: `${stage.rule}\n` };
+    if (rest.length === 0) {
+      const rule = stage.key === "inbox" && stage.returnAfterRead
+        ? RETURNING_INBOX_DESCRIPTION
+        : stage.rule;
+      return { exitCode: 0, stdout: `${rule}\n` };
+    }
     if (stage.key === "inbox") {
-      return { exitCode: 2, stderr: "Inbox routing and its rule cannot be changed.\n" };
+      return {
+        exitCode: 2,
+        stderr: "The Inbox rule is system-managed. Use `bb organizer section after-read inbox` to choose what happens after reading.\n",
+      };
     }
     const text = rest[1];
     if (rest[0] !== "--set" || rest.length !== 2 || text === undefined) {
