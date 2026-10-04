@@ -74,8 +74,8 @@ export function createStore(bb: BbPluginApi) {
       })));
       const sorted = items.map((item) => ({ ...item, threadTitle: titles.get(item.threadId)!.title, threadProjectId: titles.get(item.threadId)!.projectId }))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
-      return { waiting: sorted.filter((item) => item.state === "ready" || item.state === "pending"),
-        done: sorted.filter((item) => item.state === "succeeded" || item.state === "failed") };
+      // Failures need the user to retry or check the outcome, so they stay in Waiting on you.
+      return { waiting: sorted.filter((item) => item.state !== "succeeded"), done: sorted.filter((item) => item.state === "succeeded") };
     },
     table,
     createTable(threadId: string, id: string, raw: unknown) {

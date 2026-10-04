@@ -88,7 +88,7 @@ it("bulk approval atomically reserves only the displayed ready rows of a matchin
   expect(() => store.table("thr_other", "news")).toThrow("unavailable");
 });
 
-it("lists every card once, groups pending with ready, and sorts done cards newest first", async () => {
+it("lists every card once, keeps pending and failed cards waiting, and sorts newest first", async () => {
   const { store } = setup();
   store.create("thr_one", "same-id", reply);
   store.create("thr_two", "same-id", reply);
@@ -102,10 +102,10 @@ it("lists every card once, groups pending with ready, and sorts done cards newes
   store.claim("thr_two", "same-id", sent.attempt!.id);
   store.report("thr_two", "same-id", sent.attempt!.id, "succeeded", "Sent", false);
   const log = await store.log();
-  expect(log.waiting.map((item) => item.state).sort()).toEqual(["pending", "ready"]);
+  expect(log.waiting.map((item) => item.state).sort()).toEqual(["failed", "pending", "ready"]);
   expect(log.waiting.find((item) => item.id === "pending")?.attempt?.id).toBe(pending.attempt!.id);
-  expect(log.done.map((item) => item.updatedAt)).toEqual(log.done.map((item) => item.updatedAt).sort().reverse());
-  expect(log.done.map((item) => item.state).sort()).toEqual(["failed", "succeeded"]);
+  expect(log.waiting.map((item) => item.updatedAt)).toEqual(log.waiting.map((item) => item.updatedAt).sort().reverse());
+  expect(log.done.map((item) => item.state)).toEqual(["succeeded"]);
   const scoped = await store.log("thr_one");
   expect(scoped.waiting).toHaveLength(2);
   expect(scoped.done).toEqual([]);

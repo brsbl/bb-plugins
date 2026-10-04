@@ -31,3 +31,5 @@ export function MenuAction({ children, onSelect }: { children: ReactNode; onSele
 }
 export function ClockIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>; }
 export function SkipIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>; }
+export function MailIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>; }
+export function ChoiceIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21v-7M12 14 6 8M12 14l6-6M6 4v4h4M18 4v4h-4"/></svg>; }

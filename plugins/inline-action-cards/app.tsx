@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { definePluginApp, useBbNavigate, useBbContext, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon, MailIcon, ChoiceIcon } from "./controls.js";
 import { insertActionMention, pendingLabel } from "./presentation.js";
 import "./app.css";
 
@@ -12,7 +12,7 @@ const readableError = (error: unknown) => error instanceof Error ? error.message
 
 function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, logEntry }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
-  initialItem?: Item; onItem?: (item: Item) => void; logEntry?: { threadTitle: string; threadProjectId: string | null };
+  initialItem?: Item; onItem?: (item: Item) => void; logEntry?: { threadTitle: string; threadProjectId: string | null; showThread: boolean };
 }) {
   const navigate = useBbNavigate();
   const [viewResult, setViewResult] = useState(false);
@@ -238,21 +238,43 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     {!done && controls}
   </>;
   if (logEntry) {
-    const choice = item.attempt ? actionLabel(item, item.attempt.action) : null;
-    const message = done ? item.result?.message ?? "Completed" : null;
-    // Skip the choice when the result already says it, as in Send · Sent.
-    const outcome = [choice && !sameStem(choice, message) ? choice : null, message].filter(Boolean).join(" · ");
     const failed = item.state === "failed";
-    return <article className="iac-log-row" aria-label={`${reply ? "Reply" : "Decision"}: ${title(item)}`}>
-      <span className="iac-log-title" title={title(item)}>{title(item)}</span>
-      <a className="iac-log-thread" title={logEntry.threadTitle} href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); navigate.toThread(threadId); }}>{logEntry.threadTitle}</a>
-      {done ? <span className={failed ? "iac-log-result iac-failed" : "iac-log-result"} title={[outcome, item.attempt?.note].filter(Boolean).join(" · ")}>
-        {failed && <span role="img" aria-label="Failed">⚠ </span>}{outcome}{item.attempt?.note && <span className="iac-muted"> · {item.attempt.note}</span>}
-      </span> : <div className="iac-log-actions">{utilities}{reply && <ActionButton aria-expanded={viewResult} onClick={() => setViewResult(!viewResult)}>{viewResult ? "Hide" : "Review"}</ActionButton>}{controls}</div>}
-      <time className="iac-log-time" dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
-      {reply && viewResult && <div className="iac-log-draft"><p className="iac-muted">To {reply.to.join(", ")} · {reply.subject}</p>
+    const retryable = failed && !!item.result?.retryable;
+    const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
+    const openThread = () => navigate.toThread(threadId);
+    const primaryAction: Action = reply ? "send" : "yes";
+    const review = reply && <ActionButton variant="outline" aria-expanded={viewResult} disabled={loadError} onClick={() => setViewResult(!viewResult)}>{viewResult ? "Hide draft" : "Review"}</ActionButton>;
+    // One secondary and one primary button per row; everything else lives in the ⋯ menu.
+    const actions = done && !failed
+      ? <><span className="iac-log-status" title={item.result?.message}>{item.result?.message ?? "Done"}</span>
+        <span className="iac-menu-slot">{deferred && <MoreMenu disabled={busy}><MenuAction onSelect={() => void reopen()}>Resume</MenuAction></MoreMenu>}</span></>
+      : failed ? <>{review}
+        {retryable ? <ActionButton variant="default" disabled={busy} onClick={() => void act(item.attempt!.action)}>Retry</ActionButton>
+          : <ActionButton variant="default" onClick={openThread}>Open thread</ActionButton>}
+        <span className="iac-menu-slot"><MoreMenu disabled={busy}>{retryable && <MenuAction onSelect={() => void reopen()}>{reply ? "Edit draft" : "Choose again"}</MenuAction>}<MenuAction onSelect={openThread}>Open thread</MenuAction></MoreMenu></span></>
+      : <>{reply ? review : <PendingButton variant="outline" pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
+        <PendingButton variant="default" pending={pending && item.attempt?.action === primaryAction} pendingLabel={pendingLabel(item, primaryAction)} disabled={disabled} onClick={() => void act(primaryAction)}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
+        <span className="iac-menu-slot"><MoreMenu disabled={busy || loadError}>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction> : <>
+          {reply && <><MenuAction onSelect={() => void askForChanges()}>Ask for changes</MenuAction><MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction></>}
+          <MenuAction onSelect={() => void act("later")}>Remind me later</MenuAction><MenuAction onSelect={() => void act("skip")}>Skip</MenuAction>
+        </>}</MoreMenu></span></>;
+    return <article className={done && !failed ? "iac-log-row iac-log-quiet" : "iac-log-row"} aria-label={`${reply ? "Reply" : "Decision"}: ${heading}`}>
+      <span className="iac-log-kind" role="img" aria-label={reply ? "Reply" : "Decision"} title={reply ? "Reply" : "Decision"}>{reply ? <MailIcon /> : <ChoiceIcon />}</span>
+      <div className="iac-log-main">
+        <span className="iac-log-title" title={heading}>{heading}</span>
+        <span className="iac-log-meta">
+          {failed && <span className="iac-failed" title={item.result?.message}><span role="img" aria-label="Failed">⚠</span> {item.result?.message}</span>}
+          {logEntry.showThread && <a className="iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); openThread(); }}>{logEntry.threadTitle}</a>}
+          <time dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
+          {item.attempt?.note && <span title={item.attempt.note}>“{item.attempt.note}”</span>}
+        </span>
+      </div>
+      <div className="iac-log-actions">{actions}</div>
+      {reply && viewResult && <div className="iac-log-draft">
+        {(reply.cc.length > 0 || reply.bcc.length > 0) && <p className="iac-muted">{[reply.cc.length && `Cc ${reply.cc.join(", ")}`, reply.bcc.length && `Bcc ${reply.bcc.join(", ")}`].filter(Boolean).join(" · ")}</p>}
         <textarea ref={editor} aria-label="Draft" value={draft} readOnly={!ready || busy} rows={1} maxLength={40000}
           onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }} onBlur={() => void flush().catch(() => {})} />
+        {ready && !saveError && (saving || dirty.current) && <span className="iac-save" role="status">Saving…</span>}
       </div>}
       {failure}
     </article>;
@@ -269,9 +291,6 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   </article>;
 }
 
-function sameStem(choice: string, message: string | null): boolean {
-  return !!message && message.slice(0, 3).toLowerCase() === choice.slice(0, 3).toLowerCase();
-}
 function shortTime(value: string): string {
   const date = new Date(value);
   return date.toDateString() === new Date().toDateString()
@@ -347,6 +366,7 @@ export function ActionsDirective({ attributes, message }: PluginMessageDirective
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This table has an invalid ID. Ask the agent to recreate its link.</div>;
   return <ActionTable key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} />;
 }
+const DONE_PREVIEW = 5;
 export function ActionLogView({ threadId: owningThread }: { threadId?: string }) {
   const context = useBbContext();
   const threadId = owningThread ?? context.threadId ?? undefined;
@@ -354,6 +374,7 @@ export function ActionLogView({ threadId: owningThread }: { threadId?: string })
   const [scope, setScope] = useState("all");
   const [log, setLog] = useState<ActionLog | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showAllDone, setShowAllDone] = useState(false);
   const request = useRef(0);
   const load = useCallback(async () => {
     const version = ++request.current;
@@ -368,20 +389,28 @@ export function ActionLogView({ threadId: owningThread }: { threadId?: string })
     return () => { request.current++; clearInterval(timer); };
   }, [load]);
   useRealtime("items", () => void load());
+  // The thread line is redundant once the log is scoped to one thread.
+  const showThread = scope !== "thread";
+  const row = (item: ActionLog["waiting"][number]) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item}
+    logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId, showThread }} onItem={() => void load()} />;
   return <section className="iac-log" aria-label="Action log">
-    <header className="iac-log-header"><h1>Action log</h1><select aria-label="Threads" value={scope} onChange={(event) => setScope(event.target.value)}>
-      <option value="all">All threads</option><option value="thread" disabled={!threadId}>This thread</option>
-    </select></header>
-    {error && <div className="iac-error" role="alert">{error}<ActionButton onClick={() => void load()}>Retry</ActionButton></div>}
-    {!log && !error && <p className="iac-muted" role="status">Loading…</p>}
-    {log && <div className="iac-log-grid">
-      <div className="iac-log-columns" aria-hidden="true"><span>Action</span><span>Thread</span><span>Result</span><span className="iac-log-time">Updated</span></div>
-      {([["waiting", "Waiting on you", "Nothing is waiting on you."], ["done", "Done", "Nothing done yet."]] as const).map(([key, heading, empty]) => <section key={key} className={`iac-log-group iac-log-${key}`} aria-label={heading}>
-        <h2>{key === "waiting" && <span className="iac-log-dot" aria-hidden="true" />}{heading} <span className="iac-log-count">{log[key].length}</span></h2>
-        {!log[key].length && <p className="iac-log-empty">{empty}</p>}
-        {log[key].map((item) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item} logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId }} onItem={() => void load()} />)}
-      </section>)}
-    </div>}
+    <section className="iac-log-group" aria-label="Waiting on you">
+      <header className="iac-log-heading">
+        <h2><span className="iac-log-dot" aria-hidden="true" />Waiting on you{log && <span className="iac-log-count">{log.waiting.length}</span>}</h2>
+        <select aria-label="Threads" value={scope} onChange={(event) => setScope(event.target.value)}>
+          <option value="all">All threads</option><option value="thread" disabled={!threadId}>This thread</option>
+        </select>
+      </header>
+      {error && <div className="iac-error" role="alert">{error}<ActionButton onClick={() => void load()}>Retry</ActionButton></div>}
+      {!log && !error && <p className="iac-log-empty" role="status">Loading…</p>}
+      {log && !log.waiting.length && <p className="iac-log-empty">Nothing is waiting on you.</p>}
+      {log?.waiting.map(row)}
+    </section>
+    {log && log.done.length > 0 && <section className="iac-log-group iac-log-done" aria-label="Done">
+      <header className="iac-log-heading"><h2>Done<span className="iac-log-count">{log.done.length}</span></h2></header>
+      {(showAllDone ? log.done : log.done.slice(0, DONE_PREVIEW)).map(row)}
+      {log.done.length > DONE_PREVIEW && <ActionButton className="iac-log-more" aria-expanded={showAllDone} onClick={() => setShowAllDone(!showAllDone)}>{showAllDone ? "Show fewer" : `Show all ${log.done.length}`}</ActionButton>}
+    </section>}
   </section>;
 }
 export default definePluginApp((app) => {

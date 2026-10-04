@@ -175,16 +175,23 @@ it("Action log refresh updates the reviewed draft while preserving unsaved local
   expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Unsaved local edit");
 });
 
-it("Action log groups waiting and done cards and marks failures without relying on color", async () => {
+it("Action log keeps failures waiting with Retry, folds utilities into one menu, and collapses Done", async () => {
   const entry = { threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
-  const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true }, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
+  const attempt = { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true } as const;
+  const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
+  const done = Array.from({ length: 6 }, (_, index) => ({ ...fixture(), id: `sent-${index}`, revision: 3, state: "succeeded", attempt, result: { message: "Sent", retryable: false }, ...entry } as const));
   const app = await loadPluginApp(() => import("./app.js"));
   expect([app.navPanels[0]!.title, app.threadPanelActions[0]!.title]).toEqual(["Action log", "Action log"]);
-  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }], done: [failed] }) } });
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
-  expect(within(waiting).getByRole("button", { name: "Send" })).toBeTruthy();
-  const done = screen.getByRole("region", { name: "Done" });
-  expect(within(done).getByRole("img", { name: "Failed" })).toBeTruthy();
-  expect(within(done).getByText(/Send · Reconnect Gmail/)).toBeTruthy();
-  expect(within(done).queryByRole("button", { name: "Send" })).toBeNull();
+  const [ready, failure] = within(waiting).getAllByRole("article");
+  expect(within(ready!).getAllByRole("button")).toHaveLength(3);
+  for (const name of ["Review", "Send", "More actions"]) expect(within(ready!).getByRole("button", { name })).toBeTruthy();
+  expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
+  expect(within(failure!).getByText(/Reconnect Gmail/)).toBeTruthy();
+  expect(within(failure!).getByRole("button", { name: "Retry" })).toBeTruthy();
+  const doneGroup = screen.getByRole("region", { name: "Done" });
+  expect(within(doneGroup).getAllByRole("article")).toHaveLength(5);
+  fireEvent.click(within(doneGroup).getByRole("button", { name: "Show all 6" }));
+  expect(within(doneGroup).getAllByRole("article")).toHaveLength(6);
 });
