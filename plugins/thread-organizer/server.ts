@@ -1312,7 +1312,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const [subcommand, ...rest] = argv;
     if (subcommand === undefined || subcommand === "list") {
       const lines = configSnapshot.stages.map((stage) => {
-        const kind =
+        const note =
           stage.key === "inbox"
             ? "system-managed"
             : stage.role === "inbox"
@@ -1320,7 +1320,6 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
             : stage.entryPrompt
               ? "entry prompt"
               : "";
-        const note = stage.returnAfterRead ? `${kind} · returns after read` : kind;
         return `${stage.key.padEnd(17)} ${stage.title}${note ? `  [${note}]` : ""}`;
       });
       return { exitCode: 0, stdout: `${lines.join("\n")}\n` };
