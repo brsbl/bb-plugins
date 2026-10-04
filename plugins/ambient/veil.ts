@@ -161,6 +161,8 @@ ${COMPACT_COMPOSER} > .bg-background { background-color: transparent; }
 /* The shell also contains banners and footer controls. Only the input owns the glass. */
 ${ROOT} [data-app-composer] [data-promptbox] { ${BLUR} }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
+${ROOT} [data-new-thread-footer] button { background-color: var(--ambient-glass-solid); }
+${ROOT} [data-new-thread-footer] button:hover { background-color: color-mix(in oklab, var(--ambient-background) 92%, var(--ink)); }
 ${ROOT} [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
 ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
 ${ROOT} div.fixed > ${RIGHT_PANEL_BUTTON} { ${GLASS_CHIP} border-radius: 12px; }
