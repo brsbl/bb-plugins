@@ -84,7 +84,7 @@ export function FilePicker({ threadId, recent, stripFull, choosingFolder, onChoo
         <span className="min-w-0 max-w-full shrink-0 truncate text-foreground">{scopeLabel}</span>
         {machine ? <span className="min-w-0 truncate">· {machine}</span> : null}
       </button>
-      {!text && files.length > 0 && <p className="px-3 pb-1 pt-2 text-xs text-muted-foreground">Recent in this thread</p>}
+      {!text && files.length > 0 && <p className="px-3 pb-1 pt-2 text-xs text-subtle-foreground">Recent in this thread</p>}
       <CommandList aria-label="Files" aria-busy={searching || busy} className="max-h-56 p-1">
         {typedPath && <CommandItem value={`path:${text}`} disabled={busy || !scope} onSelect={() => { if (scope) void pin(scope.hostId, text, scope.path); }} title={text}>
           <ReferenceIcon path={text} />

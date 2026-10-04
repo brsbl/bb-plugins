@@ -7,5 +7,5 @@ behavior.
 
 Right-click a pin to unpin it to the ⋯ list or remove it; pin files back from the ⋯ list while the strip has room. Remove offers Undo in the toast. Missing files
 stay visible with a light red tint and a × to remove them. Pins persist per thread across clients and
-restarts. No pins means no strip. Files stay on their original machine; no file
+restarts. A thread without pins shows only **+**. Files stay on their original machine; no file
 contents are copied into pin storage.

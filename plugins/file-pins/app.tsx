@@ -6,13 +6,15 @@ import type { RecentFile, Reference, rpcContract } from "./contract.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "./components/ui/context-menu.js";
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/ui/dropdown-menu.js";
 import { Icon } from "./components/ui/icon.js";
-import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger, PinPopoverAnchor } from "./pin-popover.js";
+import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
 import { FilePicker } from "./file-picker.js";
 import { layoutPins, pinFile, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, unpinFile, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 ${PIN_MAX_WIDTH_CLASS} items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
+// Suggestions read quieter than pins: subtle text and icons, no chip, full contrast on hover or focus.
+const recentClass = "text-subtle-foreground hover:text-foreground focus-visible:text-foreground";
 // The quiet file chip bb uses for composer attachments.
 const pinClass = cn(linkClass, "rounded-md bg-surface-recessed shadow-xs");
 // ⋯ list rows use bb's menu item density; their ⋯ shows on hover, keyboard focus and touch.
@@ -180,7 +182,7 @@ function PinStrip({ threadId }: { threadId: string }) {
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void remove(pin)}
         className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
     </span> : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title(pin)}
-      aria-label={`Open ${pin.name}`} className={cn(pinClass, pin.status !== "available" && "opacity-60")}><PinContents pin={pin} /></FileLink>;
+      aria-label={`Open ${pin.name}`} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "opacity-60")}><PinContents pin={pin} /></FileLink>;
     return <ContextMenu key={pin.id}><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>;
   }
   function listRow(pin: Reference) {
@@ -188,7 +190,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     const link = pin.status === "missing"
       ? <span aria-label={`${pin.name} (missing)`} title={title(pin)} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
       : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title(pin)}
-        aria-label={`Open ${pin.name}`} className={cn(rowLinkClass, pin.status !== "available" && "opacity-60")}>{name}</FileLink>;
+        aria-label={`Open ${pin.name}`} className={cn(rowLinkClass, pin.status === "available" ? "cursor-pointer" : "opacity-60")}>{name}</FileLink>;
     // The menu trigger sits on the link itself, as on the strip, so it replaces FileLink's own menu.
     return <div key={pin.id} className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover has-[:focus-visible]:bg-state-hover has-[[data-state=open]]:bg-state-hover">
       <ContextMenu><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>
@@ -215,11 +217,14 @@ function PinStrip({ threadId }: { threadId: string }) {
           </Popover>}
         </div>
       </section> : recent.length > 0 ? <section aria-label="Suggested pins" className="flex min-w-0 items-center gap-1 px-1 py-1">
-        <span className="shrink-0 text-xs text-muted-foreground">Recent</span>
-        <div className="flex min-w-0 flex-1 overflow-hidden">{recent.slice(0, 3).map((file) => <button key={file.path} type="button" disabled={busy} aria-label={`Pin ${file.name}`} title={`Pin ${file.path}`} className={cn(linkClass, "max-w-48")} onClick={() => void pinRecent(file)}><ReferenceIcon path={file.path} /><span className="truncate">{file.name}</span></button>)}</div>
+        <span className="shrink-0 text-xs text-subtle-foreground">Recent</span>
+        <div className="flex min-w-0 flex-1 overflow-hidden">{recent.slice(0, 3).map((file) => <button key={file.path} type="button" disabled={busy} aria-label={`Pin ${file.name}`} title={`Pin ${file.path}`} className={cn(linkClass, recentClass, "max-w-48")} onClick={() => void pinRecent(file)}><ReferenceIcon path={file.path} /><span className="truncate">{file.name}</span></button>)}</div>
         <PopoverTrigger asChild><button type="button" className={`${linkClass} shrink-0`} aria-label="Pin to thread" title="Pin to thread">+</button></PopoverTrigger>
-      </section> : <PinPopoverAnchor asChild><span className="block h-0 w-0" /></PinPopoverAnchor>}
-      <PopoverContent aria-label="Pin to thread" align={pins.length > 0 || recent.length > 0 ? "end" : "start"} onCloseAutoFocus={(event) => { if (pins.length === 0 && recent.length === 0) event.preventDefault(); }}
+      </section> : <section aria-label="Pinned files" className="flex min-w-0 items-center px-1 py-0.5">
+        {/* An empty thread keeps only the quiet +, so pinning is always one click away. */}
+        <PopoverTrigger asChild><button type="button" className={cn(linkClass, "h-6 shrink-0 px-1")} aria-label="Pin to thread" title="Pin to thread">+</button></PopoverTrigger>
+      </section>}
+      <PopoverContent aria-label="Pin to thread" align={pins.length > 0 || recent.length > 0 ? "end" : "start"}
         onInteractOutside={keepOpenForChooser} onFocusOutside={keepOpenForChooser}
         onEscapeKeyDown={(event) => { if (choosingFolder) { event.preventDefault(); setChoosingFolder(false); } }}>
         <FilePicker threadId={threadId} recent={recent} stripFull={!layout.canPin} choosingFolder={choosingFolder} onChoosingFolderChange={setChoosingFolder} onClose={() => setPicker(false)} onPinned={refresh} />

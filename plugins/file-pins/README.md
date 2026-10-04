@@ -32,8 +32,8 @@ only their small **×** removes them. Availability refreshes on focus and every
 30 seconds.
 
 Before typing, the compact picker shows **Recent in this thread**. When there
-are no pins, up to three recent files appear as one-click suggestions; otherwise
-the empty strip disappears. Suggestions come from the last 100 relevant SDK
+are no pins, up to three recent files appear as quieter one-click suggestions; a
+thread with neither shows only **+**. Suggestions come from the last 100 relevant SDK
 thread events: completed file additions/edits, user file mentions/attachments,
 and Markdown links in agent/user messages. An existing Markdown lexer extracts
 link destinations; it does not render content. The thread's
