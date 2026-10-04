@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { ThreadChat, experimental_useSidebarThreadActions as useSidebarThreadActions } from "@get-bb/plugin-sdk/app";
 import { BuddyListArt, CommandPromptArt, DetailsArt, ExternalLinkGlyph, InternetExplorerArt, MoreGlyph, SendArt, StopArt, ThreadArt } from "../../art";
@@ -27,11 +27,11 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
   const working = thread === undefined ? null : statusKind(thread) === "working";
   const archived = thread?.isArchived === true;
   const wasWorking = useRef<boolean | null>(null);
-  const chatRef = useRef<HTMLDivElement>(null);
-  const contract = useChatContract(chatRef);
+  const [chatRoot, setChatRoot] = useState<HTMLDivElement | null>(null);
+  const contract = useChatContract(chatRoot);
   const restyled = contract !== "mismatch";
   // Only while the restyle (which hides bb's own Send) applies; otherwise bb's button in the message box is the way to send.
-  const send = useComposerSend(chatRef, restyled && !archived);
+  const send = useComposerSend(chatRoot, restyled && !archived);
   const stop = send?.action === "stop";
 
   useEffect(() => {
@@ -121,7 +121,7 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
         </div>
         {/* Without .bbd-im-chat no contract rule applies, including the one hiding an archived thread's message box, so that falls back to bb's composer-less timeline. */}
         <div
-          ref={chatRef}
+          ref={setChatRoot}
           className={`bbd-im-transcript ${restyled ? "bbd-im-chat " : ""}min-h-0 flex-1`}
           data-bbd-chat-thread={threadId}
           data-bbd-chat-contract={contract}
@@ -188,7 +188,7 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
               if (event.button === 0) event.preventDefault();
             }}
             onClick={() => {
-              const button = chatRef.current?.querySelector<HTMLButtonElement>(COMPOSER_SUBMIT);
+              const button = chatRoot?.querySelector<HTMLButtonElement>(COMPOSER_SUBMIT);
               // bb's button handles queue/steer, attachments and Stop; click it only if it still offers what this one shows.
               if (button && send !== null && readComposerSend(button).action === send.action && !button.disabled) button.click();
             }}
@@ -207,10 +207,9 @@ export function ThreadWindow({ window: desktopWindow, threadId }: { window: Desk
  * bb's Send/Stop button in this window's message box, mirrored for the strip's Send: null when there is none (loading,
  * archived, or a contract mismatch), so the strip's Send is disabled. Re-read at most once a frame as bb renders.
  */
-function useComposerSend(ref: RefObject<HTMLDivElement | null>, enabled: boolean): ComposerSend | null {
+function useComposerSend(root: HTMLDivElement | null, enabled: boolean): ComposerSend | null {
   const [send, setSend] = useState<ComposerSend | null>(null);
   useLayoutEffect(() => {
-    const root = ref.current;
     if (root === null || !enabled) {
       setSend(null);
       return;
@@ -235,7 +234,7 @@ function useComposerSend(ref: RefObject<HTMLDivElement | null>, enabled: boolean
       observer.disconnect();
       if (frame !== undefined) cancelAnimationFrame(frame);
     };
-  }, [ref, enabled]);
+  }, [root, enabled]);
   return send;
 }
 
@@ -244,11 +243,11 @@ function useComposerSend(ref: RefObject<HTMLDivElement | null>, enabled: boolean
  * 250 ms after the transcript appears, so streaming turns stay cheap. A mismatch is final for the window: it warns
  * once and stays on bb's look rather than flickering between the two.
  */
-function useChatContract(ref: RefObject<HTMLDivElement | null>): ChatContract {
+function useChatContract(root: HTMLDivElement | null): ChatContract {
   const [contract, setContract] = useState<ChatContract>("pending");
+  const mismatch = contract === "mismatch";
   useLayoutEffect(() => {
-    const root = ref.current;
-    if (root === null) return;
+    if (root === null || mismatch) return;
     let latest: ChatContract = "pending";
     let timer: ReturnType<typeof setTimeout> | undefined;
     const check = (fromObserver: boolean) => {
@@ -275,6 +274,6 @@ function useChatContract(ref: RefObject<HTMLDivElement | null>): ChatContract {
       observer.disconnect();
       clearTimeout(timer);
     };
-  }, [ref]);
+  }, [root, mismatch]);
   return contract;
 }

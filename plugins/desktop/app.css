@@ -1843,12 +1843,12 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
  * AIM's IM window had one Send, in its bottom strip: the strip's Send (instant-message.tsx) clicks this button, so bb's
  * own Send and Stop run are hidden here. Voice input, which takes the same slot on touch screens, keeps bb's button.
  */
-.bbd-im-chat [data-scroll-footer] [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"]) {
+.bbd-im-chat [data-scroll-footer] [data-promptbox-shell]:not([data-promptbox-shell] [data-promptbox-shell]) > [data-follow-up-composer-anchor] [data-promptbox] button[data-promptbox-submit-action]:is([type="submit"], [aria-label="Stop run"]) {
   display: none;
 }
 
 /* What is left of bb's split Send is its options chevron (queue or steer), shown once there is a draft. */
-.bbd-im-chat [data-promptbox] [data-promptbox-send-menu]:not(:has(> button[aria-label="Send options"]:not([aria-hidden]))) {
+.bbd-im-chat [data-scroll-footer] [data-promptbox-shell]:not([data-promptbox-shell] [data-promptbox-shell]) > [data-follow-up-composer-anchor] [data-promptbox] [data-promptbox-send-menu]:not(:has(> button[aria-label="Send options"]:not([aria-hidden]))) {
   display: none;
 }
 

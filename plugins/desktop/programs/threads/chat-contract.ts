@@ -20,12 +20,15 @@ export const CHAT_CONTRACT_PROBES = {
   footer: "[data-scroll-footer]",
   /** The message box: promptbox/PromptBoxInternal.tsx. */
   promptbox: "[data-promptbox]",
+  /** The outer composer owns a stack of queued editors followed by its own input. */
+  shell: "[data-promptbox-shell]",
+  anchor: "[data-follow-up-composer-anchor]",
   /** The message box's Send, Stop run or voice input button, which the window's strip Send drives: PromptBoxInternal.tsx. */
   submit: "button[data-promptbox-submit-action]",
 } as const;
 
 /** bb's Send or Stop run button in the window's message box (not an inline message editor's). */
-export const COMPOSER_SUBMIT = `${CHAT_CONTRACT_PROBES.footer} ${CHAT_CONTRACT_PROBES.promptbox} ${CHAT_CONTRACT_PROBES.submit}`;
+export const COMPOSER_SUBMIT = `${CHAT_CONTRACT_PROBES.footer} ${CHAT_CONTRACT_PROBES.shell}:not(${CHAT_CONTRACT_PROBES.shell} ${CHAT_CONTRACT_PROBES.shell}) > ${CHAT_CONTRACT_PROBES.anchor} ${CHAT_CONTRACT_PROBES.promptbox} ${CHAT_CONTRACT_PROBES.submit}`;
 
 /** What bb's submit button offers right now, for the strip's Send to mirror. */
 export type ComposerSend = { action: "send" | "stop"; disabled: boolean; title: string };
@@ -53,7 +56,7 @@ export function inspectChatContract(root: Element): { contract: ChatContract; fa
   const editors = root.querySelectorAll(EDITOR);
   const composer = editors.item(editors.length - 1);
   if (composer !== null) {
-    for (const probe of [CHAT_CONTRACT_PROBES.footer, CHAT_CONTRACT_PROBES.promptbox]) {
+    for (const probe of [CHAT_CONTRACT_PROBES.footer, CHAT_CONTRACT_PROBES.promptbox, CHAT_CONTRACT_PROBES.shell, CHAT_CONTRACT_PROBES.anchor]) {
       if (composer.closest(probe) === null) failed.push(probe);
     }
     const promptbox = composer.closest(CHAT_CONTRACT_PROBES.promptbox);
