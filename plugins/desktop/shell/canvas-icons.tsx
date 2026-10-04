@@ -10,9 +10,7 @@ import { useMenu, type MenuEntry } from "./menu";
 import { groupMenu } from "./menus";
 import { RECYCLE_BIN_DROP, threadDropTarget } from "./thread-drag";
 
-export const RECYCLE_BIN_KEY = "recycle-bin";
-export const MORE_KEY = "more";
-export const NOTE_KEY_PREFIX = "note:";
+import { MORE_KEY, NOTE_KEY_PREFIX, RECYCLE_BIN_KEY } from "./desktop-entries";
 
 /** What every desktop icon shares: the canvas owns its position, selection, and drag. */
 interface IconProps {

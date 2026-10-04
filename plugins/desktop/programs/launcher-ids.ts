@@ -21,6 +21,7 @@ export const LAUNCHER_IDS = [
   "plugins",
   "skills",
   "maze",
+  "finder",
 ] as const;
 
 export type LauncherId = (typeof LAUNCHER_IDS)[number];
@@ -44,6 +45,7 @@ export const LAUNCHER_LABELS: Record<LauncherId, string> = {
   plugins: "Plugins",
   skills: "Skills",
   maze: "3D Maze",
+  finder: "Desktop",
 };
 
 /** A program another plugin registered through `window.bbDesktopApps`. */
