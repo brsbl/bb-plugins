@@ -205,3 +205,15 @@ npm run new:plugin -- --slug example --name "Example" --description "Adds an exa
 To work on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
 
 See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
+
+### File Pins
+
+Keep local files within reach in each thread with persistent pins above the composer. Add and remove pins from the thread or CLI, and open them through bb's file links.
+
+![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
+
+![Search files on their host](https://github.com/user-attachments/assets/d62b72a1-7c86-44c4-877a-e41c972252b3)
+
+[Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins --yes`
