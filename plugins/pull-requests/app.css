@@ -4,7 +4,7 @@
 .pr-plugin button, .pr-plugin input, .pr-plugin select, .pr-link-dialog button, .pr-link-dialog input, .pr-link-dialog select { font:inherit; }
 .pr-plugin button, .pr-link-dialog button { cursor:pointer; }
 .pr-plugin button:disabled, .pr-link-dialog button:disabled { cursor:default; opacity:.5; }
-.pr-plugin button:focus-visible, .pr-plugin a:focus-visible, .pr-plugin input:focus-visible, .pr-plugin select:focus-visible, .pr-plugin summary:focus-visible, .pr-link-dialog :focus-visible { outline:2px solid var(--ring, var(--foreground)); outline-offset:2px; }
+.pr-plugin button:focus-visible, .pr-plugin a:focus-visible, .pr-plugin input:focus-visible, .pr-plugin select:focus-visible, .pr-plugin summary:focus-visible, .pr-link-dialog :focus-visible { outline:1px solid var(--muted-foreground); outline-offset:2px; }
 .pr-plugin a, .pr-link-dialog a { color:inherit; text-decoration:none; }
 .pr-plugin a:hover { text-decoration:underline; }
 .pr-plugin h1, .pr-plugin h2, .pr-plugin p, .pr-link-dialog h2, .pr-link-dialog p { margin:0; }
