@@ -52,7 +52,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 ### Pull Requests
 
-See pull requests across bb threads, inspect checks and changes, and continue in the right conversation. Links survive branch changes and connect shared work without duplicating pull requests.
+See your GitHub pull requests and review requests, inspect checks and changes, and continue related work in bb. Thread links are optional and survive branch changes.
 
 ![Compact Pull Requests sidebar with status icons and timestamps](https://github.com/user-attachments/assets/00c9963c-89ac-4ee6-86e4-06c7840c725c)
 

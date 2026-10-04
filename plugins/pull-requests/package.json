@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-pull-requests",
   "version": "0.1.0",
-  "description": "See pull requests across bb threads and continue the work in the right conversation.",
+  "description": "See your GitHub pull requests and continue related work in bb.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -20,7 +20,7 @@
   },
   "bb": {
     "name": "Pull Requests",
-    "description": "See pull requests across bb threads and continue the work in the right conversation.",
+    "description": "See your GitHub pull requests and continue related work in bb.",
     "branding": {
       "icon": "GitPullRequest"
     },

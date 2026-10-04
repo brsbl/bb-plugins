@@ -12,13 +12,13 @@ function snapshot(number = 1): Snapshot {
 function setup() {
   let beforeThreadRead = async () => {};
   let response: (input: { url: string; expectedAccountId?: string }, hostId: string) => Promise<ReadResult> = async (input) => ({ ok: true, accountId: "U_A", login: "alice", snapshot: snapshot(Number(input.url.split("/").at(-1))) });
-  let searchResponse: () => Promise<SearchResult> = async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [snapshot()], nextCursor: null });
+  let searchResponse: (input: { scope: string }, hostId: string) => Promise<SearchResult> = async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [snapshot()], nextCursor: null });
   const threads = [makeThreadResponse({ id: "thr_a", environmentId: "env_a", title: "Implementation" }), makeThreadResponse({ id: "thr_b", environmentId: "env_b", title: "Review" })];
   const { bb, harness } = createFakePluginHost({ pluginId: "pull-requests", experimental_hostEntry: true, sdk: {
     threads: { get: async ({ threadId }) => { await beforeThreadRead(); const thread = threads.find((entry) => entry.id === threadId); if (!thread) throw new Error("No thread"); return thread; }, list: async ({ offset = 0, environmentId } = {}) => offset ? [] : threads.filter((thread) => !environmentId || thread.environmentId === environmentId) },
     environments: { get: async ({ environmentId }) => ({ hostId: environmentId === "env_b" ? "host_b" : "host_a", path: "/repo" }), pullRequest: async () => ({ outcome: "available", pullRequest: { url: snapshot().url } }) },
     hosts: { list: async () => [makeHostResponse({ id: "host_a", status: "connected" }), makeHostResponse({ id: "host_b", status: "connected" })] },
-  }, experimental_callHostRpc: async ({ method, input, hostId }) => method === "search" ? searchResponse() : response(input as { url: string; expectedAccountId?: string }, hostId) });
+  }, experimental_callHostRpc: async ({ method, input, hostId }) => method === "search" ? searchResponse(input as { scope: string }, hostId) : response(input as { url: string; expectedAccountId?: string }, hostId) });
   plugin(bb); disposers.push(() => harness.lifecycle.dispose());
   const rpc = <T = unknown>(method: string, input: unknown) => harness.behavior.callRpc(method, input) as Promise<T>;
   const link = async (number = 1, threadId = "thr_a") => {
@@ -83,6 +83,41 @@ describe("PR registry and host identity", () => {
     expect(h.harness.inspection.sdk.callsTo("environments.pullRequest")).toHaveLength(0);
     expect(await h.rpc("show", { id: listing.items[0]!.id })).toMatchObject({ snapshot: { body: "Private description" } });
     expect(await h.rpc("pin", { id: listing.items[0]!.id, pinned: true })).toMatchObject({ pinned: true });
+  });
+  it("unions same-account sources with different repository access without duplicating PRs", async () => {
+    const h = setup();
+    h.setSearchResponse(async (_input, hostId) => ({ ok: true, accountId: "U_A", login: "alice", snapshots: hostId === "host_a" ? [snapshot(1)] : [snapshot(1), snapshot(2)], nextCursor: null }));
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    const listing = await h.rpc<{ items: PullRequestItem[] }>("list", {});
+    expect(listing.items.map((item) => item.id).sort()).toEqual(["github:PR_1", "github:PR_2"]);
+    expect(listing.items.find((item) => item.id === "github:PR_1")?.reader?.hostId).toBe("host_a");
+    expect(listing.items.find((item) => item.id === "github:PR_2")?.reader?.hostId).toBe("host_b");
+  });
+  it.each(["auth-changed", "authentication-required"] as const)("rejects delayed history after Changes reports %s", async (kind) => {
+    const h = setup(); const item = await h.link(); const store = createStore(h.bb);
+    store.save({ ...item, snapshot: { ...item.snapshot!, state: "closed" } });
+    let release!: (result: SearchResult) => void;
+    h.setSearchResponse(async (input, hostId) => {
+      if (hostId === "host_b") return { ok: false, kind, message: "Access lost" };
+      if (input.scope === "history") return new Promise((resolve) => { release = resolve; });
+      return { ok: true, accountId: "U_A", login: "alice", snapshots: [], nextCursor: null };
+    });
+    await h.rpc("refresh", { discover: true });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    h.setResponse(async () => ({ ok: false, kind, message: "Access lost" }));
+    await expect(h.rpc("changes", { id: item.id })).rejects.toThrow("Access lost");
+    release({ ok: true, accountId: "U_A", login: "alice", snapshots: [{ ...snapshot(), state: "closed" }, snapshot(99)], nextCursor: null });
+    await h.settle();
+    expect(await h.rpc("show", { id: item.id })).toMatchObject({ snapshot: null, sourceState: kind });
+    expect(() => store.get("github:PR_99")).toThrow();
+  });
+  it("invalidates retained closed snapshots when a failed search confirms a different account", async () => {
+    const h = setup(); const item = await h.link();
+    createStore(h.bb).save({ ...item, pinned: true, snapshot: { ...item.snapshot!, state: "closed" } });
+    h.setSearchResponse(async () => ({ ok: false, kind: "unavailable", accountId: "U_B", message: "Search timed out" }));
+    h.setResponse(async () => ({ ok: false, kind: "auth-changed", message: "Account changed" }));
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    expect(await h.rpc("show", { id: item.id })).toMatchObject({ snapshot: null, pinned: true, reader: { accountId: "U_A" }, links: [{ threadId: "thr_a" }] });
   });
   it("keeps hidden thread links private when GitHub independently discovers the PR", async () => {
     const h = setup(); const item = await h.link();

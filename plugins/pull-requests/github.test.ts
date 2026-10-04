@@ -33,6 +33,10 @@ describe("GitHub read boundary", () => {
     const partial = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockResolvedValueOnce(JSON.stringify({ ...raw, errors: [{ message: "Timeout" }] }));
     expect(await searchPullRequests({ scope: "authored" }, partial)).toMatchObject({ ok: false, kind: "unavailable" });
   });
+  it("reports confirmed identity even when the account-wide search fails", async () => {
+    const run = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify({ node_id: "U_B", login: "bob" })).mockRejectedValueOnce(new Error("Search timed out")).mockResolvedValueOnce(JSON.stringify({ node_id: "U_B" }));
+    expect(await searchPullRequests({ scope: "history" }, run)).toMatchObject({ ok: false, kind: "unavailable", accountId: "U_B" });
+  });
   it("normalizes safe PR URLs and rejects shell, credential, non-GitHub and malformed targets", () => {
     expect(parsePullRequestUrl(`${url}?tab=checks#foo`).url).toBe(url);
     for (const unsafe of ["https://evil.test/acme/repo/pull/42", "https://user:pass@github.com/acme/repo/pull/42", "http://github.com/acme/repo/pull/42", "https://github.com/acme/repo/issues/42", "https://github.com/a/$(say)/pull/42", "https://github.com/a/b/pull/9007199254740999"]) expect(() => parsePullRequestUrl(unsafe)).toThrow();

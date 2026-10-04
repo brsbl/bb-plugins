@@ -111,7 +111,7 @@ export async function searchPullRequests(input: { scope: "authored" | "review" |
         if (identityFailure.kind === "auth-changed" || identityFailure.kind === "authentication-required") return identityFailure;
       }
     }
-    return failure;
+    return { ...failure, ...(accountId ? { accountId } : {}) };
   }
 }
 export async function readPullRequest(input: { url: string; expectedAccountId?: string }, run: GhRunner = runGh, signal?: AbortSignal): Promise<ReadResult> {

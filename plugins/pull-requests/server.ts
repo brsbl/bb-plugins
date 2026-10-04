@@ -26,16 +26,21 @@ export default function plugin(bb: BbPluginApi): void {
     try { return await work(); } finally { networkActive--; networkWaiters.shift()?.(); }
   }
   const observedAccounts = new Map<string, { accountId: string | null; epoch: number }>();
+  const hostInvalidations = new Map<string, number>();
+  function invalidateHost(hostId: string, failure: Extract<ReadResult, { ok: false }> & { kind: "authentication-required" | "auth-changed" }) {
+    hostInvalidations.set(hostId, (hostInvalidations.get(hostId) ?? 0) + 1);
+    const observed = observedAccounts.get(hostId);
+    observedAccounts.set(hostId, { accountId: null, epoch: (observed?.epoch ?? 0) + 1 });
+    for (const reader of store.readersOnHost(hostId)) {
+      connectionEpochs.set(connectionKey(reader), connectionEpoch(reader) + 1);
+      store.invalidateConnection(reader, failure.kind, failure.message);
+    }
+    changed();
+  }
   function verifyHostResult<T extends ReadResult | SearchResult>(result: T, hostId: string, epoch: number): T | Extract<ReadResult, { ok: false }> {
     assertLive();
     if (!result.ok && (result.kind === "authentication-required" || result.kind === "auth-changed")) {
-      const observed = observedAccounts.get(hostId);
-      observedAccounts.set(hostId, { accountId: null, epoch: (observed?.epoch ?? 0) + 1 });
-      for (const reader of store.readersOnHost(hostId)) {
-        connectionEpochs.set(connectionKey(reader), connectionEpoch(reader) + 1);
-        store.invalidateConnection(reader, result.kind, result.message);
-      }
-      changed();
+      invalidateHost(hostId, { ...result, kind: result.kind });
       return result;
     }
     if (result.ok || result.accountId) {
@@ -89,8 +94,7 @@ export default function plugin(bb: BbPluginApi): void {
   };
   function fail(item: PullRequestItem, failure: Extract<ReadResult, { ok: false }>) {
     if (item.reader && (failure.kind === "auth-changed" || failure.kind === "authentication-required")) {
-      connectionEpochs.set(connectionKey(item.reader), connectionEpoch(item.reader) + 1);
-      store.invalidateConnection(item.reader, failure.kind, failure.message);
+      invalidateHost(item.reader.hostId, { ...failure, kind: failure.kind });
     } else {
       if (failure.kind === "denied") itemEpochs.set(item.id, (itemEpochs.get(item.id) ?? 0) + 1);
       store.save({ ...store.get(item.id), snapshot: failure.kind === "denied" ? null : store.get(item.id).snapshot, sourceState: failure.kind === "unavailable" && item.snapshot ? "stale" : failure.kind, sourceMessage: failure.message, lastAttemptAt: now() });
@@ -203,10 +207,9 @@ export default function plugin(bb: BbPluginApi): void {
     discovering = true; discoveryReads.clear();
     coverage.checked = 0; coverage.total = 0; coverage.unavailable = 0; coverage.incomplete = false; coverage.includesArchived = includeArchived;
     const machines = (await bb.sdk.hosts.list()).filter((machine) => machine.status === "connected");
-    // Prefer an established reader; one successful search per GitHub account.
+    // Prefer an established reader; credentials on each machine can have different repository access.
     machines.sort((a, b) => store.readersOnHost(b.id).length - store.readersOnHost(a.id).length);
     coverage.total = machines.length;
-    const accounts = new Set<string>();
     for (const machine of machines) {
       let reader: Reader | undefined;
       try {
@@ -214,12 +217,14 @@ export default function plugin(bb: BbPluginApi): void {
           let cursor: string | undefined;
           // GitHub search is capped at 1,000 results; history shows the latest 100.
           for (let page = 0; page < (scope === "history" ? 4 : 40); page++) {
-            const generations = new Map(itemEpochs);
+            const generations = new Map(itemEpochs), connections = new Map(connectionEpochs);
+            const hostGeneration = hostInvalidations.get(machine.id) ?? 0;
             const result = await searchHost({ scope, ...(cursor ? { cursor } : {}), ...(reader ? { expectedAccountId: reader.accountId } : {}) }, machine.id);
             assertLive();
             if (!result.ok) throw new Error(result.message);
-            if (!reader && accounts.has(result.accountId)) break;
-            if (!reader) { reader = { hostId: machine.id, accountId: result.accountId, login: result.login }; accounts.add(result.accountId); }
+            const key = `${machine.id}:${result.accountId}`;
+            if (hostGeneration !== (hostInvalidations.get(machine.id) ?? 0) || (connections.get(key) ?? 0) !== (connectionEpochs.get(key) ?? 0)) throw new Error("GitHub access changed during search. Retry.");
+            if (!reader) reader = { hostId: machine.id, accountId: result.accountId, login: result.login };
             for (const snapshot of result.snapshots) {
               const id = `github:${snapshot.nodeId}`;
               if ((generations.get(id) ?? 0) !== (itemEpochs.get(id) ?? 0)) continue;
@@ -427,7 +432,7 @@ export default function plugin(bb: BbPluginApi): void {
     } }),
     unlink: cliCommand({ summary: "Remove a local link with a 60-second undo token; never modifies GitHub", positionals: idPosition, options: { thread: threadOption }, run: async ({ positionals, options }, ctx) => output(await unlink(positionals.id, target(options.thread, ctx.threadId))) }),
   } }));
-  bb.agents.registerTool({ name: "pull_requests", description: "Read PRs linked to bb threads, refresh their GitHub snapshots, or explicitly link/unlink an existing PR. Read-only on GitHub. Cross-thread changes require an explicit threadId; this is a targeting convention, not an authorization boundary.", parameters: z.object({ action: z.enum(["list", "show", "refresh", "link", "unlink"]), id: z.string().optional(), url: z.string().optional(), threadId: z.string().optional(), hostId: z.string().optional(), cursor: z.string().optional(), discover: z.boolean().optional() }), async execute(input, ctx) {
+  bb.agents.registerTool({ name: "pull_requests", description: "Read GitHub PRs and related bb threads, refresh snapshots, or explicitly link/unlink an existing PR. Read-only on GitHub. Cross-thread changes require an explicit threadId; this is a targeting convention, not an authorization boundary.", parameters: z.object({ action: z.enum(["list", "show", "refresh", "link", "unlink"]), id: z.string().optional(), url: z.string().optional(), threadId: z.string().optional(), hostId: z.string().optional(), cursor: z.string().optional(), discover: z.boolean().optional() }), async execute(input, ctx) {
     if (input.action === "list") return JSON.stringify(await list({ cursor: input.cursor, limit: 20 }));
     if (input.action === "show") { if (!input.id) throw new Error("Provide a PR id."); return JSON.stringify(await show(input.id)); }
     if (input.action === "refresh") return JSON.stringify(refresh({ discover: input.discover }));
