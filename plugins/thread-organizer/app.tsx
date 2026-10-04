@@ -328,7 +328,7 @@ function TypeMenu({
             </DropdownMenu.SubTrigger>
             <DropdownMenu.Portal>
               <DropdownMenu.SubContent
-                className={typeMenuContentClass}
+                className={`${typeMenuContentClass} max-h-[min(20rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto`}
                 collisionPadding={12}
                 data-bb-plugin-root=""
                 data-bb-portaled-overlay=""
