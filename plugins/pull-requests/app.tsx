@@ -378,7 +378,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       </div>
       <div className="pr-list-footer">
         <span title={nextCursor ? `Filters and sorting apply to ${items.length} loaded pull requests.` : undefined}>{nextCursor ? `${items.length} of ${total} loaded` : `${visibleItems.length} pull requests`}</span>
-        <span className="pr-sync-status" role="status">{coverage.running ? "Syncing…" : coverage.unavailable > 0 ? `${coverage.unavailable} sources unavailable` : coverage.incomplete ? "Partial coverage" : filtered.some((item) => !isHistory(item) && !githubFresh(item, clock)) ? "Cached" : ""}</span>
+        <span className="pr-sync-status" role="status">{coverage.running ? "Syncing…" : coverage.unavailable > 0 ? `${coverage.unavailable} source${coverage.unavailable === 1 ? "" : "s"} unavailable` : coverage.incomplete ? "Partial coverage" : filtered.some((item) => !isHistory(item) && !githubFresh(item, clock)) ? "Cached" : ""}</span>
         <IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true)} />
       </div>
     </aside>
