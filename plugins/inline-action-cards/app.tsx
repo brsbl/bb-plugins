@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, actionMessage, bulkLabel, idSchema, mentionId, title, type Action, type Item, type TableView } from "./model.js";
+import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
 import { ActionButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon } from "./controls.js";
+import { insertActionMention, pendingLabel } from "./presentation.js";
 import "./app.css";
 
 // Several cards may share one composer. A double click must never submit two drafts.
@@ -110,7 +111,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to respond.");
     if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try the card again.");
     composer.setText(actionMessage(next));
-    composer.insertMention({ provider: "action", id: mentionId(next), label: title(next) });
+    insertActionMention(composer, next);
     const submittedText = composer.text;
     await composer.experimental_submit({ experimental_data: { itemId: id } });
     if (composer.text === submittedText) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
@@ -142,7 +143,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       await flush();
       if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to ask for changes.");
       composer.updateText((value) => `${value}${value.trim() ? "\n\n" : ""}Ask for changes to `);
-      composer.insertMention({ provider: "action", id: mentionId(current.current!, true), label: title(current.current!) });
+      insertActionMention(composer, current.current!, true);
       composer.updateText((value) => `${value}\n`);
       composer.focus();
     } catch (err) { setError(readableError(err)); }
@@ -185,8 +186,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       <ActionButton disabled={disabled} onClick={() => reply ? void askForChanges() : void act("no")}>{reply ? "Ask for changes" : actionLabel(item, "no")}</ActionButton>
       <ActionButton variant="default" disabled={disabled} onClick={() => void act(reply ? "send" : "yes")}>{reply ? "Send" : actionLabel(item, "yes")}</ActionButton>
     </> : item.state === "pending" ? <>
-      <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>
       <span className="iac-progress" role="status">{pendingLabel(item)}</span>
+      <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>
     </> : null}
   </div>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
@@ -236,15 +237,6 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
 }
 
 function displayName(value: string): string { return value.replace(/\s*<[^>]+>/, "").trim() || value; }
-function pendingLabel(item: Item): string {
-  switch (item.attempt?.action) {
-    case "send": return "Sending…";
-    case "save-draft": return "Saving to Gmail…";
-    case "later": return "Deferring…";
-    case "skip": return "Skipping…";
-    default: return "Working…";
-  }
-}
 function resultLabel(item: Item): string {
   if (item.result?.message === "Sent" && item.content.type === "reply") return `Sent to ${item.content.to.map(displayName).join(", ")}`;
   return item.result?.message ?? "Completed";
@@ -284,7 +276,7 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
       composer.setText(`${actionLabel(items[0]!, "yes")} `);
       items.forEach((item, index) => {
         if (index) composer.updateText((value) => `${value}, `);
-        composer.insertMention({ provider: "action", id: mentionId(item), label: title(item) });
+        insertActionMention(composer, item);
       });
       const submittedText = composer.text;
       await composer.experimental_submit({ experimental_data: { tableId: id } });
@@ -311,6 +303,9 @@ export function ActionsDirective({ attributes, message }: PluginMessageDirective
   return <ActionTable key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} />;
 }
 export default definePluginApp((app) => {
+  // Skip-forward has no built-in host glyph; publish it through the SDK registry.
+  app.experimental_icons.register({ name: "inline-action-cards/skip-forward", component: ({ className }) =>
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 4 11 8-11 8V4ZM19 4v16" /></svg> });
   app.slots.messageDirective({ id: "action", component: ActionDirective });
   app.slots.messageDirective({ id: "actions", component: ActionsDirective });
 });
