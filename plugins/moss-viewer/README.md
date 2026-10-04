@@ -28,4 +28,4 @@ npm run check --workspace=bb-plugin-moss-viewer
 bb plugin install "path:$PWD/plugins/moss-viewer" --yes
 ```
 
-The renderer is [`@moss-multi/viewer`](https://github.com/brsbl/moss-multi/tree/m0/packages/viewer), Moss's own editor in read-only mode, vendored under `vendor/moss-viewer/`. [`vendor/moss-viewer.provenance.json`](vendor/moss-viewer.provenance.json) records the CI artifact it came from and how to update it. The server refuses to serve the bundle unless every file matches `viewer.json`.
+The renderer is [`@moss-multi/viewer`](https://github.com/brsbl/moss-multi/tree/viewer-v0.1.0/packages/viewer), Moss's own editor in read-only mode, vendored under `vendor/moss-viewer/`. [`vendor/moss-viewer.provenance.json`](vendor/moss-viewer.provenance.json) records the GitHub Release it came from and how to update it. The server refuses to serve the bundle unless every file matches `viewer.json`.

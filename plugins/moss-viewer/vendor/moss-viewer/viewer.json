@@ -11,12 +11,12 @@
   },
   "source": {
     "repo": "brsbl/moss-multi",
-    "commit": "6fb9f26283cf8805490f06c6c1471c98732aeed5",
-    "headSha": "6fb9f26283cf8805490f06c6c1471c98732aeed5",
+    "commit": "8121ba7191bdbbb20d3c71eabd231ba98bce3f1d",
+    "headSha": "8121ba7191bdbbb20d3c71eabd231ba98bce3f1d",
     "dirty": false,
     "diffHash": ""
   },
-  "bundleHash": "8a2f6cf26cfd1cff4b2876859c5625ddd583423747f086b739cb761e34a49ad9",
+  "bundleHash": "c192bae0e71bb79aa6e781e0cf3d5e04fcb851e5fc43b8147d45605d9021f1d8",
   "files": {
     "assets/charter_bold-DWf1YoLo.woff2": {
       "bytes": 15028,
@@ -143,8 +143,8 @@
       "sha256": "7ef87517f026d71beda1d3f5f3af63e90fce7c1f1e70702714d1d9e93a918967"
     },
     "moss-viewer.js": {
-      "bytes": 2271021,
-      "sha256": "4145712a9bcba9bbd0e95ec86bbd20154c4b21b63bb1ec2185d96831c1471daa"
+      "bytes": 2272755,
+      "sha256": "774a44dead0a69873112f0c69bdf2ca1d589e2184755fc6855d5b6733339fdae"
     }
   }
 }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -119,15 +120,18 @@ describe("the viewer bundle", () => {
     expect((await bytes(font)).equals(await readFile(join(vendor, "assets/inter-latin-wght-normal-Dx4kXJAl.woff2")))).toBe(true);
   });
 
-  it("records the provenance of the vendored bundle", async () => {
-    const provenance = JSON.parse(await readFile(join(vendor, "../moss-viewer.provenance.json"), "utf8")) as Record<string, unknown>;
-    const record = JSON.parse(await readFile(join(vendor, "viewer.json"), "utf8")) as Record<string, any>;
+  it("records the release the vendored bundle came from", async () => {
+    const provenance = JSON.parse(await readFile(join(vendor, "../moss-viewer.provenance.json"), "utf8")) as Record<string, any>;
+    const manifest = await readFile(join(vendor, "viewer.json"));
+    const record = JSON.parse(manifest.toString("utf8")) as Record<string, any>;
     expect(provenance).toMatchObject({
       version: record.version,
       api: record.api,
-      sourceCommit: record.source.commit,
+      release: { tag: `viewer-v${record.version}` },
+      build: { sourceCommit: record.source.commit },
       mossPin: record.moss.commit,
       bundleHash: record.bundleHash,
+      viewerJsonSha256: createHash("sha256").update(manifest).digest("hex"),
     });
     expect((await loadViewerBundle(vendor)).bundleHash).toBe(record.bundleHash);
   });
