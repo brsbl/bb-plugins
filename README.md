@@ -230,13 +230,13 @@ To work on one plugin, install its workspace directly: `bb plugin install "path:
 
 See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
 
-### File Pins
+### Pinned Files
 
-Keep local files within reach in each thread with persistent pins above the composer. Add and remove pins from the thread or CLI, and open them through bb's file links.
+Keep local files within reach in each thread with persistent pins above the composer. Ask the agent to pin a file from the composer's pin button or use the CLI, and open pins through bb's file links.
 
 ![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
 
-![Search files on their host](https://github.com/user-attachments/assets/d62b72a1-7c86-44c4-877a-e41c972252b3)
+![The pin button adds a Pinned Files pill and "Pin this file:" to the composer](https://github.com/user-attachments/assets/89e7bb7d-e56d-48f5-8859-791d49927422)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 
