@@ -251,7 +251,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     const choice = (action: "yes" | "no") => {
       const label = actionLabel(item, action);
       const verb = label.trim().split(/\s+/)[0]!.toLowerCase();
-      const glyph = action === "yes" ? ({ merge: "merge", archive: "archive", send: "send" } as Record<string, ActionGlyph>)[verb] ?? "yes" : "no";
+      const glyph = action === "yes" ? verbGlyphs.get(verb) ?? "yes" : "no";
       return button(label, glyph, () => void (later ? choose(action) : act(action)), action === "yes" ? "default" : "outline", disabled, pending && item.attempt?.action === action ? pendingLabel(item, action) : undefined);
     };
     // A Later card reopens before taking its secondary choice, as if Resume came first.
@@ -323,6 +323,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   </article>;
 }
 
+// A Map, not an object literal, so agent-written labels such as "Constructor" cannot reach prototype keys.
+const verbGlyphs = new Map<string, ActionGlyph>([["merge", "merge"], ["archive", "archive"], ["send", "send"]]);
 function shortTime(value: string): string {
   const date = new Date(value);
   return date.toDateString() === new Date().toDateString()

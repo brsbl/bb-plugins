@@ -181,14 +181,17 @@ it("Action log keeps failures and Later cards waiting, orders row controls with 
   const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
   const later = { ...fixture(), id: "esc-3", revision: 3, state: "succeeded", attempt: { ...attempt, action: "later" }, result: { message: "Later", retryable: false }, ...entry } as const;
   const decision = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it.", yesLabel: "Merge", noLabel: "Keep open" }, ...entry } as const;
+  const oddLabel = { ...fixture(), id: "odd-1", content: { type: "decide", question: "Build it?", consequence: "Runs the build.", yesLabel: "Constructor run", noLabel: "toString" }, ...entry } as const;
   const done = Array.from({ length: 6 }, (_, index) => ({ ...fixture(), id: `sent-${index}`, revision: 3, state: "succeeded", attempt, result: { message: "Sent", retryable: false }, ...entry } as const));
   const app = await loadPluginApp(() => import("./app.js"));
   expect([app.navPanels[0]!.title, app.threadPanelActions[0]!.title]).toEqual(["Action log", "Action log"]);
   expect([app.navPanels[0]!.icon, app.threadPanelActions[0]!.icon]).toEqual(["inline-action-cards/action-log", "inline-action-cards/action-log"]);
-  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision], done }) } });
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision, oddLabel], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
   const [ready, failure, deferred, decide] = within(waiting).getAllByRole("article");
   expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Keep open", "Merge"]);
+  // Labels that collide with Object.prototype keys fall back to the role icon instead of crashing the log.
+  expect(within(waiting).getByRole("button", { name: "Constructor run" })).toBeTruthy();
   // Icon peers first, then secondary, with the primary always rightmost.
   expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Ask for changes", "Send"]);
   expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
