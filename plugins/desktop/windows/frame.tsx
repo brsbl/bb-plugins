@@ -1,9 +1,8 @@
-import { useRef, useState, useSyncExternalStore, type MouseEventHandler, type PointerEvent as ReactPointerEvent, type PointerEventHandler, type ReactNode } from "react";
+import { useRef, type MouseEventHandler, type PointerEvent as ReactPointerEvent, type PointerEventHandler, type ReactNode } from "react";
 import { CloseGlyph, MaximizeGlyph, MinusGlyph, RestoreGlyph } from "../art";
 import type { Rect, ResizeEdge } from "../core";
 import { fitDragRect, resizeInArea, workAreaRect } from "./geometry";
 import { useWindowManager } from "./manager";
-import { subscribeNudges, takeWindowNudge, windowNudge } from "./nudges";
 import { previewRect, usePointerTracker } from "./pointer";
 import { dockedRect, isAttached, type DesktopWindow } from "./state";
 
@@ -51,17 +50,7 @@ export function WindowFrame({
   const { id } = desktopWindow;
   const focused = manager.focusedId === id;
   const maximized = desktopWindow.restoreRect !== null;
-  const nudge = useSyncExternalStore(subscribeNudges, () => windowNudge(id));
-  const [settling, setSettling] = useState(false);
-  const rect = nudge === undefined ? desktopWindow.rect : { ...desktopWindow.rect, x: desktopWindow.rect.x + nudge.x, y: desktopWindow.rect.y + nudge.y };
-
-  const settle = () => {
-    const taken = takeWindowNudge(id);
-    if (taken === undefined) return;
-    setSettling(true);
-    manager.move(id, { ...desktopWindow.rect, x: desktopWindow.rect.x + taken.x, y: desktopWindow.rect.y + taken.y });
-    requestAnimationFrame(() => setSettling(false));
-  };
+  const { rect } = desktopWindow;
 
   const startDrag = (event: ReactPointerEvent<HTMLElement>, edge?: ResizeEdge) => {
     if (event.button !== 0 || event.isPrimary === false || (event.target as HTMLElement).closest("button") !== null) return;
@@ -93,22 +82,23 @@ export function WindowFrame({
         previewRect(other.node, fitDragRect(docked, area));
       });
     }, (cancelled, moved) => {
+      const commit = moved && !cancelled;
       element.style.transform = "";
-      previewRect(element, cancelled || !moved ? rect : latest);
+      previewRect(element, commit ? latest : rect);
       for (const other of attached) {
-        if (cancelled || !moved) previewRect(other.node, other.rect);
+        if (!commit) previewRect(other.node, other.rect);
         other.node.getBoundingClientRect();
         delete other.node.dataset.dragging;
       }
-      // Settle the transform with transitions disabled before restoring nudge animation.
+      // Flush the cleared transform before the drag styles come off.
       if (moved) element.getBoundingClientRect();
       delete element.dataset.dragging;
-      if (maximized && (cancelled || !moved)) element.dataset.maximized = "true";
-      if (!cancelled && moved) {
+      if (maximized && !commit) element.dataset.maximized = "true";
+      if (commit) {
         const docked = dockedTo(latest);
         manager.move(id, latest, Object.fromEntries(attached.map((other, index) => [other.id, docked[index]!])));
       }
-    });
+    }, { windowDrag: true });
   };
 
   const startMove = (event: ReactPointerEvent<HTMLElement>) => startDrag(event);
@@ -127,19 +117,14 @@ export function WindowFrame({
       hidden={desktopWindow.minimized}
       data-focused={focused}
       data-maximized={maximized || undefined}
-      data-settling={settling}
       style={{
-        left: desktopWindow.rect.x,
-        top: desktopWindow.rect.y,
+        left: rect.x,
+        top: rect.y,
         width: rect.width,
         height: rect.height,
         zIndex: desktopWindow.z,
-        transform: nudge === undefined ? undefined : `translate(${nudge.x}px, ${nudge.y}px)`,
       }}
-      onPointerDownCapture={() => {
-        settle();
-        manager.focus(id);
-      }}
+      onPointerDownCapture={() => manager.focus(id)}
     >
       <WindowTitleBar title={title} icon={icon} titleActions={titleActions} maximized={maximized}
         onPointerDown={startMove}

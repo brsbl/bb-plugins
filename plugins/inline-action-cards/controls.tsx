@@ -21,9 +21,9 @@ export function IconButton({ label, children, ...props }: ButtonProps & { label:
     <Tooltip.Content className="iac-tooltip" sideOffset={5}>{label}</Tooltip.Content>
   </Tooltip.Root></Tooltip.Provider>;
 }
-export function MoreMenu({ children, disabled }: { children: ReactNode; disabled?: boolean }) {
+export function MoreMenu({ children, disabled, onCloseAutoFocus }: { children: ReactNode; disabled?: boolean; onCloseAutoFocus?: (event: Event) => void }) {
   return <Menu.Root><Menu.Trigger asChild><ActionButton className="iac-icon" aria-label="More actions" disabled={disabled}>⋯</ActionButton></Menu.Trigger>
-    <Menu.Content className="iac-menu" align="end" sideOffset={5}>{children}</Menu.Content>
+    <Menu.Content className="iac-menu" align="end" sideOffset={5} onCloseAutoFocus={onCloseAutoFocus}>{children}</Menu.Content>
   </Menu.Root>;
 }
 export function MenuAction({ children, onSelect }: { children: ReactNode; onSelect: () => void }) {
@@ -31,3 +31,4 @@ export function MenuAction({ children, onSelect }: { children: ReactNode; onSele
 }
 export function ClockIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>; }
 export function SkipIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>; }
+export function NoteIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 14.5a1.5 1.5 0 0 1-1.5 1.5H9l-4 3.5v-13A1.5 1.5 0 0 1 6.5 5h11A1.5 1.5 0 0 1 19 6.5z"/></svg>; }

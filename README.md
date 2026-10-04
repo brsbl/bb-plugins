@@ -108,6 +108,16 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
 
+### Emoji Picker
+
+Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
+
+![Emoji picker with category browsing and skin tone selection](https://github.com/user-attachments/assets/a74d890d-9ad9-46e5-a7a0-2995b386e054)
+
+[Source](plugins/emoji-picker) · [README](plugins/emoji-picker/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/emoji-picker --yes`
+
 ### Endless
 
 Frank Ocean's *Endless* as a bb palette — achromatic, grained, squared. Ten years to the day.
@@ -220,13 +230,13 @@ To work on one plugin, install its workspace directly: `bb plugin install "path:
 
 See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
 
-### File Pins
+### Pinned Files
 
-Keep local files within reach in each thread with persistent pins above the composer. Add and remove pins from the thread or CLI, and open them through bb's file links.
+Keep local files within reach in each thread with persistent pins above the composer. Ask the agent to pin files from the composer's pin button or use the CLI, and open pins through bb's file links.
 
 ![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
 
-![Search files on their host](https://github.com/user-attachments/assets/d62b72a1-7c86-44c4-877a-e41c972252b3)
+![The pin button adds a Pin files pill to the composer](https://github.com/user-attachments/assets/4749c71d-891c-4581-817d-33bc93e678ca)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 
