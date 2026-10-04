@@ -109,6 +109,7 @@ export function releaseManifest(sourceManifest) {
   // self-contained release entry generated from the prebuilt bundle instead
   // of authored TypeScript whose development dependencies are not shipped.
   if (manifest.bb?.server) manifest.bb.server = releaseServerEntry;
+  if (manifest.bb?.host) manifest.bb.host = "./dist/install-host.mjs";
   // bb recompiles frontend entries for direct git installs. Point the
   // release-only manifest at a self-contained wrapper around the prebuilt app
   // so installation never depends on development node_modules. The wrapper
@@ -190,6 +191,11 @@ async function createReleaseTree(plugin, sourceCommit) {
         releaseServerEntry.replace(/^\.\//, ""),
         releaseServerBundle(serverBundle),
       );
+    }
+
+    if (sourceManifest.bb?.host) {
+      const hostBundle = await readFile(resolve(pluginDirectory, "dist/host.js"), "utf8");
+      addBlob(indexPath, "dist/install-host.mjs", releaseServerBundle(hostBundle));
     }
 
     if (sourceManifest.bb?.app) {
