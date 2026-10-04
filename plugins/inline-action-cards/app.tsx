@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type ExperimentalComposerSubmitOptions, type PluginComposerApi, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, chooseLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, NoteIcon, SkipIcon } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, ClockIcon, CommentIcon, DraftIcon, EditIcon, ResendIcon, SendIcon, SkipIcon, UndoIcon } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
 import { Consequence } from "./consequence.js";
 import "./app.css";
@@ -27,11 +27,16 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
   const noteEditor = useRef<HTMLTextAreaElement>(null);
+  const commentButton = useRef<HTMLButtonElement>(null);
   const changeNote = (value: string) => { setNote(value); onNote?.(id, value); };
-  const closeNote = () => { changeNote(""); setNoteOpen(false); };
-  // Menus return focus to their trigger on close; send it to the note field instead.
-  const focusNote = useRef(false);
-  const noteMenuFocus = (event: Event) => { if (!focusNote.current) return; focusNote.current = false; event.preventDefault(); noteEditor.current?.focus(); };
+  // Escape or clearing the field hands focus back to the Comment button.
+  const refocusComment = useRef(false);
+  const closeNote = (refocus = false) => { refocusComment.current = refocus; changeNote(""); setNoteOpen(false); };
+  useEffect(() => {
+    if (noteOpen || !refocusComment.current) return;
+    refocusComment.current = false;
+    commentButton.current?.focus();
+  }, [noteOpen]);
   useLayoutEffect(() => {
     if (!noteOpen || !noteEditor.current) return;
     noteEditor.current.style.height = "0px";
@@ -154,7 +159,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to respond.");
       if (action) {
         next = action === "choose" && choice
-          ? await rpc.call("choose", { id, threadId, revision: next.revision, choice })
+          ? await rpc.call("choose", { id, threadId, revision: next.revision, choice, ...(next.state === "ready" ? { note } : {}) })
           : await rpc.call("prepare", { id, threadId, revision: next.revision, action, ...(next.state === "ready" ? { note } : {}) });
         adopt(next);
       }
@@ -216,44 +221,38 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = (open: boolean) => row ? onExpand?.(open) : setViewResult(open);
   const openNote = () => { setNoteOpen(true); noteEditor.current?.focus(); if (row && reply) onExpand?.(true); };
-  const noteMenuAction = ready && <MenuAction onSelect={() => { focusNote.current = true; openNote(); }}>Add note</MenuAction>;
-  const utilities = <div className="iac-actions">
-    {!row && <IconButton label="Add note" disabled={disabled} onClick={openNote}><NoteIcon /></IconButton>}
-    <IconButton label="Remind me later" disabled={disabled} onClick={() => void act("later")}><ClockIcon /></IconButton>
-    <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
+  const commentToggle = <IconButton ref={commentButton} label="Comment" aria-expanded={noteOpen} disabled={disabled} onClick={openNote}><CommentIcon /></IconButton>;
+  // Table rows keep only Comment beside their choices; Reply rows get the rest once open.
+  const utilities = <div className="iac-tools">
+    {pending ? <IconButton label="Resend request" disabled={busy} onClick={() => void act()}><ResendIcon /></IconButton> : commentToggle}
+    {(!row || reply) && <>
+      <IconButton label="Remind me later" disabled={disabled} onClick={() => void act("later")}><ClockIcon /></IconButton>
+      <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
+    </>}
+    {reply && <IconButton label="Save to Gmail drafts" disabled={disabled} onClick={() => void act("save-draft")}><DraftIcon /></IconButton>}
   </div>;
-  const primary: Action = reply ? "send" : "yes";
-  const noteField = ready && noteOpen && <div className="iac-note-entry"><textarea className="iac-note-field" ref={noteEditor} aria-label="Note for your choice" placeholder="Add a note…" value={note} autoFocus rows={1} maxLength={1000} disabled={busy}
-    onChange={(event) => { changeNote(event.target.value); if (!event.target.value) setNoteOpen(false); }}
-    onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeNote(); } }} />
-    {note.trim() && <ActionButton disabled={disabled} onClick={() => void comment()}>Comment</ActionButton>}
+  const noteField = ready && noteOpen && <div className="iac-note-entry"><textarea className="iac-note-field" ref={noteEditor} aria-label="Comment" placeholder="Add a comment. It's sent with your choice, or on its own." value={note} autoFocus rows={1} maxLength={1000} disabled={busy}
+    onChange={(event) => { changeNote(event.target.value); if (!event.target.value) closeNote(true); }}
+    onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeNote(true); } }} />
+    {note.trim() && <IconButton label="Send comment" disabled={disabled} onClick={() => void comment()}><SendIcon /></IconButton>}
   </div>;
+  // The primary button marks a comment that goes along with the choice.
+  const attached = ready && noteOpen && !!note.trim();
+  const withComment = (label: string) => <>{attached && <span className="iac-attached" aria-hidden="true"><CommentIcon /></span>}{label}{attached && <span className="iac-sr-only"> with comment</span>}</>;
+  // A sent or finished attempt shows its own option; a ready card keeps the user's pick or the recommendation.
+  const selectedId = (!ready && item.attempt?.choice?.id) || picked || choice?.recommended;
+  const selected = choice?.options.find((option) => option.id === selectedId);
+  const primary: Action = reply ? "send" : choice ? "choose" : "yes";
+  const primaryLabel = reply ? "Send" : choice ? selected ? chooseLabel(selected.label) : "Choose an option" : actionLabel(item, "yes");
   const controls = <div className="iac-choice">
     {noteField}
     <div className="iac-actions iac-footer">
     {ready || pending ? <>
-      <span className="iac-menu-slot">{pending
-        ? <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>
-        : (reply || row) && <MoreMenu disabled={disabled} onCloseAutoFocus={noteMenuFocus}>
-          {row && noteMenuAction}
-          {reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}
-        </MoreMenu>}</span>
-      {!reply && <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
-      <PendingButton variant="default" pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled} onClick={() => void act(primary)}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>
+      {utilities}
+      {!reply && !choice && <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
+      <PendingButton variant="default" className={choice ? "iac-choose" : undefined} pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled || (!!choice && !selected)} onClick={() => void act(primary, selected?.id)}>{withComment(primaryLabel)}</PendingButton>
     </> : null}
     </div>
-  </div>;
-  // A sent or finished attempt shows its own option; a ready card keeps the user's pick or the recommendation.
-  const selectedId = (!ready && item.attempt?.choice?.id) || picked || choice?.recommended;
-  const selected = choice?.options.find((option) => option.id === selectedId);
-  const choiceControls = <div className="iac-actions iac-footer">
-    {ready || pending ? <>
-      <span className="iac-menu-slot"><MoreMenu disabled={pending ? busy : disabled}>{pending
-        ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
-        : <><MenuAction onSelect={() => void act("later")}>Remind me later</MenuAction><MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
-      </MoreMenu></span>
-      <PendingButton variant="default" className="iac-choose" pending={sending === "choose"} pendingLabel={pendingLabel(item, "choose")} disabled={disabled || !selected} onClick={() => void act("choose", selected?.id)}>{selected ? chooseLabel(selected.label) : "Choose an option"}</PendingButton>
-    </> : null}
   </div>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
@@ -268,8 +267,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     </span>
     {item.attempt?.note && <div className="iac-muted iac-result-note">{item.attempt.note}</div>}</div>
     <div className="iac-actions">
-      {status && !item.attempt?.claimed && <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>}
-      {(deferred || (item.state === "failed" && item.result?.retryable)) && <MoreMenu disabled={busy}><MenuAction onSelect={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</MenuAction></MoreMenu>}
+      {status && !item.attempt?.claimed && <IconButton label="Resend request" disabled={busy} onClick={() => void act()}><ResendIcon /></IconButton>}
+      {(deferred || (item.state === "failed" && item.result?.retryable)) && <IconButton label={deferred ? "Resume" : reply ? "Edit draft" : "Choose again"} disabled={busy} onClick={() => void reopen()}>{reply && !deferred ? <EditIcon /> : <UndoIcon />}</IconButton>}
       <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
       {item.state === "failed" && <ActionButton variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? "Retry" : "Check outcome"}</ActionButton>}
     </div>
@@ -279,7 +278,6 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       {reply ? <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
         {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
       </div> : <span className="iac-question">{title(item)}</span>}
-      {(ready || pending) && !choice && utilities}
     </div>
     {reply ? <>
       <details className="iac-original"><summary><span>{displayName(reply.original.from)}{reply.original.date ? `, ${reply.original.date}` : ""}: “{reply.original.body.replace(/\s+/g, " ").slice(0, 160)}”</span></summary>
@@ -302,14 +300,14 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       </div>
       {choice.consequence && <Consequence>{choice.consequence}</Consequence>}
     </> : <Consequence>{item.content.type === "decide" && item.content.consequence}</Consequence>}
-    {!done && (choice ? choiceControls : controls)}
+    {!done && controls}
   </>;
   return <article className={row ? "iac-row" : "iac-card"} aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
     {done ? result : row ? <div className="iac-row-line">
       <div className="iac-row-description"><span>{reply ? `${displayName(reply.to[0]!)} · ${reply.subject}` : title(item)}</span>
         {!reply && <Consequence>{item.content.type === "decide" && item.content.consequence}</Consequence>}
       </div>
-      {reply ? <div className="iac-actions">{ready && !expanded && <MoreMenu disabled={disabled} onCloseAutoFocus={noteMenuFocus}>{noteMenuAction}</MoreMenu>}<ActionButton disabled={busy || loadError} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton></div> : controls}
+      {reply ? <div className="iac-actions">{ready && !expanded && commentToggle}<ActionButton disabled={busy || loadError} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton></div> : controls}
     </div> : null}
     {showBody && <div className={row ? "iac-row-expanded" : "iac-body"}>{details}</div>}
     {failure}

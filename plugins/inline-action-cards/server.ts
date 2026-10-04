@@ -11,7 +11,7 @@ export const rpcContract = defineRpcContract({
   prepare: { input: versioned.extend({ action: actionSchema, note: noteSchema.optional() }), output: itemSchema },
   comment: { input: versioned.extend({ note: noteSchema.refine((value) => value.length > 0, "Write a comment first.") }), output: z.object({ item: itemSchema, commentId: z.string().uuid(), note: noteSchema }).strict() },
   reopen: { input: versioned, output: itemSchema },
-  choose: { input: versioned.extend({ choice: idSchema }), output: itemSchema },
+  choose: { input: versioned.extend({ choice: idSchema, note: noteSchema.optional() }), output: itemSchema },
   table: { input: ref, output: tableViewSchema },
   prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive(), note: noteSchema.optional() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
   submitted: { input: ref.extend({ attemptId: z.string().uuid() }), output: itemSchema },
@@ -133,7 +133,7 @@ export function createStore(bb: BbPluginApi) {
         const option = item.content.type === "choice" ? item.content.options.find((candidate) => candidate.id === input.choice) : undefined;
         if (!option) throw new Error("That option does not belong to this card.");
         if (item.state === "failed" && item.attempt?.choice?.id !== option.id) throw new Error("Retry the original option, or reopen the card to choose another.");
-        prepare(item, "choose");
+        prepare(item, "choose", input.note);
         item.attempt!.choice = { id: option.id, label: option.label };
       });
     },
