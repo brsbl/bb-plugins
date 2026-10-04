@@ -111,3 +111,5 @@ These outlive a release. Changing one needs a migration.
 ## Tests
 
 Pure modules have co-located `*.test.ts` files. `windows/state.test.ts` loads a stored v1 fixture so an incompatible change to window persistence fails CI, `programs/launcher-ids.test.ts` pins the Quick Launch ids, and `programs/threads/status.test.ts` pins thread status wording. Tests run in Node without a DOM, so a module a test imports must not import a browser-only dependency.
+
+During window moves and resizes, native browser visibility follows the previewed window bounds on every pointer move. Moving a browser hides its own native page; other browser pages stay visible unless covered. Other gesture types retain the global native-view shield.

@@ -39,8 +39,11 @@ function readBounds(element: HTMLElement): ViewBounds {
 }
 
 function occluded(element: HTMLElement, bounds: ViewBounds, z: number): boolean {
-  if (document.querySelector(".bbd-drag-shield")) return true;
-  const own = element.closest(".bbd-window");
+  const shield = document.querySelector<HTMLElement>(".bbd-drag-shield");
+  const own = element.closest<HTMLElement>(".bbd-window");
+  // Window drags publish their actual bounds on each move; unrelated windows do not cover this page.
+  // Other gesture types still need the global native-view shield. Moving this browser (including attachments) hides it.
+  if (shield && (shield.dataset.windowDrag !== "true" || own?.dataset.dragging === "true")) return true;
   for (const candidate of document.querySelectorAll<HTMLElement>(`${OCCLUDERS}, .bbd-window`)) {
     if (candidate === own || own?.contains(candidate)) continue;
     const isWindow = candidate.classList.contains("bbd-window");
