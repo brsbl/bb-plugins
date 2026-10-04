@@ -6,7 +6,7 @@ Paste a website URL to create a compact favicon pill in the composer. Pills also
 
 Copying and sending retain the original URL, including its query and fragment. Authored Markdown labels, code, quotes and native bb thread references keep their own presentation. Sent-message editing uses native text. A trailing streamed URL stays expanded when its completion cannot be established safely.
 
-![Favicon pills in drafts and conversations](https://github.com/user-attachments/assets/9157a554-9245-4443-b28e-cd3f448925a3)
+![SaaS and localhost links in drafts and conversations](https://github.com/user-attachments/assets/50b2bbde-30f6-4ac2-9060-a92d04a6bc07)
 
 ## Website icons
 

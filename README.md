@@ -150,11 +150,9 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 ### Compact Links
 
-Turns website URLs into compact favicon pills in the composer, sent messages and agent replies. Inspect the full destination or edit the original URL in place.
+Turns website URLs into compact favicon pills in the composer, sent messages and agent replies. Click a link to open it using your bb browser preference.
 
-![Favicon pills in drafts and conversations](https://github.com/user-attachments/assets/9157a554-9245-4443-b28e-cd3f448925a3)
-
-![Full URL inspector](https://github.com/user-attachments/assets/a8cd4527-6068-429d-b240-8b922ad61939)
+![SaaS and localhost links in drafts and conversations](https://github.com/user-attachments/assets/50b2bbde-30f6-4ac2-9060-a92d04a6bc07)
 
 [Source](plugins/url-pills) · [README](plugins/url-pills/README.md)
 
