@@ -9,7 +9,8 @@ export function crossedDragThreshold(delta: Point, threshold = DRAG_THRESHOLD): 
 
 /**
  * One primary-pointer gesture, the way bb's own split resizers track one: capture the pointer on the pressed element
- * and listen there for move, up, cancel and lost capture. Up ends it normally, and so does a cancelled or lost pointer
+ * and listen there for movement and capture loss, with document-level release cleanup for native-view transitions.
+ * Up ends it normally, and so does a cancelled or lost pointer
  * once it has moved; before it moves, or on unmount, the gesture ends cancelled. `onMove` starts once the pointer
  * crosses the threshold (bb's dnd-kit drags use the same 4 px), so a press stays a click. Beyond bb's pattern, Desktop needs three things its dividers don't: the click that follows a drag is
  * swallowed, text selection is held off, and a shield covers native web views (bb Explorer) so they don't take the
