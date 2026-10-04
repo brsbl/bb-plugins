@@ -1,5 +1,5 @@
 import { parsePillUrl, type PillUrl } from "./urls";
-import { STYLESHEET } from "./stylesheet";
+import { cssString, pillStyles, STYLESHEET } from "./stylesheet";
 
 export const EFFECT_CLASS = "bb-url-pill-range";
 const ATTR = "data-bb-url-pill";
@@ -11,6 +11,8 @@ const EDITOR = '[data-app-composer] [contenteditable="true"]';
 const ANCHOR = '[data-message-column] [data-markdown-preview] a[href]';
 const EXCLUDED = 'code, pre, blockquote, [data-prompt-mention], [data-prompt-mention-serialized-text], [data-citation], [role="doc-noteref"]';
 const BLOCK = 'p, li, h1, h2, h3, h4, h5, h6, table, pre, blockquote, hr';
+const COMPOSER_ROOT = 'data-bb-url-pill-composer-root';
+let composerGeneration = 0;
 
 export interface IconResult { enabled: boolean; dataUrl: string | null }
 export interface DecorationOptions {
@@ -18,7 +20,7 @@ export interface DecorationOptions {
   iconsEnabled?: boolean;
   fetchIcon?: (origin: string, signal: AbortSignal) => Promise<IconResult>;
 }
-interface Entry { url: PillUrl; composer: boolean; visible: boolean }
+interface Entry { url: PillUrl; composer: boolean; visible: boolean; selector?: string; expanded?: boolean }
 
 async function requestIcon(origin: string, signal: AbortSignal): Promise<IconResult> {
   const response = await fetch('/api/v1/plugins/url-pills/rpc/icon', {
@@ -93,7 +95,7 @@ function removeDecoration(element: HTMLElement): void {
   element.style.removeProperty(MASK);
 }
 
-/** Owns only attributes, custom properties and its detached inspection overlay. */
+/** Composer content is read-only: only its outer wrapper and an owned stylesheet are changed. */
 export function mountUrlPills(options: DecorationOptions): { dispose(): void; setIconsEnabled(enabled: boolean): void } {
   const { signal, fetchIcon = requestIcon } = options;
   let enabled = options.iconsEnabled ?? false;
@@ -111,14 +113,60 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   const entries = new Map<HTMLElement, Entry>();
   const cache = new Map<string, { value: string | null; expires: number }>();
   const requests = new Map<string, AbortController>();
+  const composerRoots = new Map<HTMLElement, string>();
+  const generation = ++composerGeneration;
+  let nextRoot = 0;
+  const composerStyle = document.createElement('style');
+  composerStyle.dataset.bbUrlPillsComposer = '';
+  document.head.append(composerStyle);
   const style = document.createElement('style');
   style.dataset.bbUrlPills = '';
   style.textContent = STYLESHEET;
   document.head.append(style);
 
-  function syncIcon(element: HTMLElement, entry: Entry): void {
+  function iconValue(entry: Entry): string | null {
     const cached = enabled && entry.url.iconOrigin ? cache.get(entry.url.iconOrigin) : undefined;
-    const value = cached && cached.expires > Date.now() ? cached.value : null;
+    return cached && cached.expires > Date.now() ? cached.value : null;
+  }
+
+  function composerSelector(element: HTMLElement): string | undefined {
+    const editor = element.closest<HTMLElement>(EDITOR);
+    const root = editor?.closest<HTMLElement>('[data-promptbox-editor-content]')
+      ?? editor?.closest<HTMLElement>('[data-app-composer]');
+    // Never place a marker on or inside the ProseMirror-controlled tree.
+    if (!editor || !root || root.closest('[contenteditable]') || editor.contains(root)) return;
+    let id = composerRoots.get(root);
+    if (!id) { id = `url-pills-${generation}-${++nextRoot}`; composerRoots.set(root, id); }
+    if (root.getAttribute(COMPOSER_ROOT) !== id) root.setAttribute(COMPOSER_ROOT, id);
+    const path: string[] = [];
+    let current: Element = element;
+    while (current !== root) {
+      const parent = current.parentElement;
+      if (!parent) return;
+      path.unshift(`:nth-child(${Array.prototype.indexOf.call(parent.children, current) + 1})${current === editor ? '[contenteditable="true"]' : ''}`);
+      current = parent;
+    }
+    return `[${COMPOSER_ROOT}="${id}"] > ${path.join(' > ')}.${EFFECT_CLASS}`;
+  }
+
+  function updateComposerStyle(): void {
+    const compact: { selector: string; entry: Entry }[] = [];
+    for (const [element, entry] of entries) {
+      if (entry.composer && !entry.expanded && entry.selector && element.isConnected && element.matches(entry.selector) && element.textContent === entry.url.text) {
+        compact.push({ selector: entry.selector, entry });
+      }
+    }
+    const rules = pillStyles(compact.map(({ selector }) => selector), 'var(--bb-url-pill-label)')
+      + compact.map(({ selector, entry }) => {
+        const icon = iconValue(entry);
+        return `${selector} { --bb-url-pill-label: ${cssString(entry.url.label)};${icon ? ` ${ICON}: url(${cssString(icon)}); ${MASK}: none;` : ''} }`;
+      }).join('\n');
+    if (composerStyle.textContent !== rules) composerStyle.textContent = rules;
+  }
+
+  function syncIcon(element: HTMLElement, entry: Entry): void {
+    if (entry.composer) return;
+    const value = iconValue(entry);
     if (value) { element.style.setProperty(ICON, `url("${value}")`); element.style.setProperty(MASK, "none"); }
     else { element.style.removeProperty(ICON); element.style.removeProperty(MASK); }
   }
@@ -149,6 +197,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
         cache.set(origin, { value, expires: Date.now() + (value ? 7 * 86400000 : 3600000) });
         while (cache.size > 500) cache.delete(cache.keys().next().value!);
         for (const [element, entry] of entries) if (entry.url.iconOrigin === origin) syncIcon(element, entry);
+        updateComposerStyle();
       }).catch(() => {
         if (!disposed && requests.get(origin) === controller) {
           cache.set(origin, { value: null, expires: Date.now() + 3600000 });
@@ -229,15 +278,24 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
         entry = { ...candidate, visible: entry?.visible ?? (!visibility && element.getClientRects().length > 0) };
         entries.set(element, entry); visibility?.observe(element);
       }
-      if (element.getAttribute(ATTR) !== (entry.composer ? 'composer' : 'message')) element.setAttribute(ATTR, entry.composer ? 'composer' : 'message');
-      if (element.getAttribute(LABEL) !== entry.url.label) element.setAttribute(LABEL, entry.url.label);
-      const expanded = entry.composer && (dragging || composition?.contains(element) || revealForSelection(element));
-      element.toggleAttribute(EXPANDED, !!expanded);
-      syncIcon(element, entry);
+      if (entry.composer) {
+        entry.selector = composerSelector(element);
+        entry.expanded = !!(dragging || composition?.contains(element) || revealForSelection(element));
+      } else {
+        if (element.getAttribute(ATTR) !== 'message') element.setAttribute(ATTR, 'message');
+        if (element.getAttribute(LABEL) !== entry.url.label) element.setAttribute(LABEL, entry.url.label);
+        syncIcon(element, entry);
+      }
     }
-    for (const [element] of entries) if (!found.has(element)) {
-      removeDecoration(element); entries.delete(element); visibility?.unobserve(element);
+    for (const [element, entry] of entries) if (!found.has(element)) {
+      if (!entry.composer) removeDecoration(element);
+      entries.delete(element); visibility?.unobserve(element);
     }
+    for (const [root, id] of composerRoots) if (!root.isConnected || !Array.from(entries).some(([element, entry]) => entry.composer && root.contains(element))) {
+      if (root.getAttribute(COMPOSER_ROOT) === id) root.removeAttribute(COMPOSER_ROOT);
+      composerRoots.delete(root);
+    }
+    updateComposerStyle();
     if (inspected && (!entries.has(inspected) || entries.get(inspected)?.url.text !== inspectUrl)) closeInspector(false);
     syncRequests();
     // Only owned attribute/style mutations occurred during this synchronous pass.
@@ -254,13 +312,24 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
         && (node.matches('[data-app-composer], [data-message-column]')
           || node.querySelector('[data-app-composer], [data-message-column]')));
     });
-    if (relevant) queue();
+    if (relevant) {
+      // Child positions may have changed. Drop old selectors before the next
+      // paint instead of briefly applying yesterday's label to a new range.
+      if (records.some((record) => {
+        const target = record.target instanceof Element ? record.target : record.target.parentElement;
+        return target?.closest(EDITOR);
+      }) && composerStyle.textContent) composerStyle.textContent = '';
+      queue();
+    }
   });
   observer.observe(document.body, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['href', 'class', 'contenteditable'] });
 
   function revealEditor(target: EventTarget | null): HTMLElement | null {
     const editor = target instanceof Element ? target.closest<HTMLElement>(EDITOR) : null;
-    if (editor) for (const [element, entry] of entries) if (entry.composer && editor.contains(element)) element.setAttribute(EXPANDED, '');
+    if (editor) {
+      for (const [element, entry] of entries) if (entry.composer && editor.contains(element)) entry.expanded = true;
+      updateComposerStyle();
+    }
     return editor;
   }
   function messageAnchor(target: EventTarget | null): HTMLAnchorElement | null {
@@ -320,6 +389,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       requests.clear(); cache.clear();
     }
     for (const [element, entry] of entries) syncIcon(element, entry);
+    updateComposerStyle();
     syncRequests();
   }
   function dispose(): void {
@@ -329,8 +399,9 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     observer.disconnect(); visibility?.disconnect(); cancelTouch(); closeInspector(false);
     for (const controller of requests.values()) controller.abort();
     requests.clear(); cache.clear();
-    for (const element of entries.keys()) removeDecoration(element);
-    entries.clear(); style.remove();
+    for (const [element, entry] of entries) if (!entry.composer) removeDecoration(element);
+    for (const [root, id] of composerRoots) if (root.getAttribute(COMPOSER_ROOT) === id) root.removeAttribute(COMPOSER_ROOT);
+    composerRoots.clear(); entries.clear(); style.remove(); composerStyle.remove();
     for (const [type, listener] of listeners) document.removeEventListener(type, listener, true);
     window.removeEventListener('resize', queue); window.removeEventListener('scroll', cancelTouch, true);
     signal.removeEventListener('abort', dispose);

@@ -1,5 +1,7 @@
 # URL Pills
 
+## Use
+
 Website URLs appear as compact favicon pills in the composer, sent messages and agent replies. Select or edit a composer link to reveal its original text. In messages, right-click, long-press or use the keyboard context-menu command to inspect and copy its full destination.
 
 Copying, editing and sending retain the original URL, including its query and fragment. Authored Markdown labels, code, quotes and native bb thread references keep their own presentation. Sent-message editing uses native text. A trailing streamed URL stays expanded when its completion cannot be established safely.

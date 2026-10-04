@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { candidateForElement, mountUrlPills, type IconResult } from './decoration';
+import { cssString } from './stylesheet';
 
 const URL_TEXT = 'https://example.com/a?private=yes#part';
 let frames: Map<number, FrameRequestCallback>;
@@ -15,10 +16,11 @@ async function settle() {
 }
 function composer() {
   const root = document.createElement('div'); root.dataset.appComposer = '';
-  root.innerHTML = `<div contenteditable="true"><p>Review <span class="bb-url-pill-range">${URL_TEXT}</span> please</p></div>`;
+  root.innerHTML = `<div data-promptbox-editor-content><div contenteditable="true"><p>Review <span class="bb-url-pill-range">${URL_TEXT}</span> please</p></div></div>`;
   document.body.append(root);
   return root.querySelector('span')!;
 }
+function composerCss(): string { return document.querySelector('style[data-bb-url-pills-composer]')?.textContent ?? ''; }
 function message(user = true, following = ' please') {
   const root = document.createElement('div'); root.dataset.messageColumn = '';
   root.innerHTML = `${user ? '<div class="ml-auto">' : '<div>'}<div data-markdown-preview><p>Review <a href="${URL_TEXT}">${URL_TEXT}</a>${following}</p></div></div>`;
@@ -42,13 +44,21 @@ describe('DOM-only URL decoration', () => {
   it('decorates all three surfaces without altering nodes, href, copied source or click ownership', () => {
     const draft = composer(), user = message(), agent = message(false);
     const originals = [draft, user, agent].map((el) => el.firstChild);
+    const editor = draft.closest('[contenteditable]')!;
+    const originalEditor = editor.outerHTML;
     const activated = vi.fn((event: Event) => event.preventDefault()); user.addEventListener('click', activated);
     const mounted = mountUrlPills({ signal: abort.signal });
     [draft, user, agent].forEach((el, index) => {
-      expect(el.hasAttribute('data-bb-url-pill')).toBe(true);
       expect(el.firstChild).toBe(originals[index]); expect(el.textContent).toBe(URL_TEXT);
-      expect(el.getAttribute('data-bb-url-pill-label')).toBe('example.com/a');
+      if (el !== draft) {
+        expect(el.hasAttribute('data-bb-url-pill')).toBe(true);
+        expect(el.getAttribute('data-bb-url-pill-label')).toBe('example.com/a');
+      }
     });
+    expect(editor.outerHTML).toBe(originalEditor);
+    expect(composerCss()).toContain('--bb-url-pill-label: "example.com/a"');
+    expect(composerCss()).toContain('.bb-url-pill-range::after');
+    expect(document.querySelector('[data-bb-url-pill-composer-root]')).toBe(editor.parentElement);
     const range = document.createRange(); range.selectNodeContents(user.parentElement!);
     expect(range.toString()).toBe(`Review ${URL_TEXT} please`);
     user.click(); expect(activated).toHaveBeenCalledOnce(); expect(user.getAttribute('href')).toBe(URL_TEXT);
@@ -57,6 +67,9 @@ describe('DOM-only URL decoration', () => {
       expect(el.hasAttribute('data-bb-url-pill')).toBe(false); expect(el.textContent).toBe(URL_TEXT);
     }
     expect(document.querySelector('[data-bb-url-pills]')).toBeNull();
+    expect(document.querySelector('[data-bb-url-pill-composer-root]')).toBeNull();
+    expect(document.querySelector('[data-bb-url-pills-composer]')).toBeNull();
+    expect(editor.outerHTML).toBe(originalEditor);
   });
   it('reveals a caret within original text and compacts at the end without moving the caret', async () => {
     const span = composer(); mountUrlPills({ signal: abort.signal });
@@ -64,20 +77,45 @@ describe('DOM-only URL decoration', () => {
     const range = document.createRange(); range.setStart(source, 10); range.collapse(true);
     const selection = document.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
     document.dispatchEvent(new Event('selectionchange')); await settle();
-    expect(span.hasAttribute('data-bb-url-pill-expanded')).toBe(true);
+    expect(composerCss()).toBe('');
+    expect(span.getAttributeNames()).toEqual(['class']);
     expect(selection.anchorNode).toBe(source); expect(selection.anchorOffset).toBe(10);
     range.setStart(source, URL_TEXT.length); range.collapse(true); selection.removeAllRanges(); selection.addRange(range);
     document.dispatchEvent(new Event('selectionchange')); await settle();
-    expect(span.hasAttribute('data-bb-url-pill-expanded')).toBe(false);
+    expect(composerCss()).toContain('--bb-url-pill-label: "example.com/a"');
+    expect(span.getAttributeNames()).toEqual(['class']);
     expect(selection.anchorOffset).toBe(URL_TEXT.length);
   });
   it('reveals during composition and never writes to changed host text on cleanup', async () => {
     const span = composer(); mountUrlPills({ signal: abort.signal });
     span.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
-    expect(span.hasAttribute('data-bb-url-pill-expanded')).toBe(true);
+    expect(composerCss()).toBe('');
+    expect(span.getAttributeNames()).toEqual(['class']);
     span.firstChild!.textContent = 'https://changed.example/path'; await settle();
-    expect(span.getAttribute('data-bb-url-pill-label')).toBe('changed.example/path');
+    expect(composerCss()).toBe('');
+    span.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); await settle();
+    expect(composerCss()).toContain('--bb-url-pill-label: "changed.example/path"');
+    expect(span.getAttributeNames()).toEqual(['class']);
     abort.abort(); expect(span.textContent).toBe('https://changed.example/path');
+  });
+  it('keeps all editor DOM untouched when icons arrive and recomputation has no changes', async () => {
+    const span = composer(); const editor = span.closest('[contenteditable]')!;
+    const original = editor.outerHTML;
+    const mutations: MutationRecord[] = [];
+    const observer = new MutationObserver((records) => mutations.push(...records));
+    observer.observe(editor, { attributes: true, childList: true, characterData: true, subtree: true });
+    const fetchIcon = vi.fn().mockResolvedValue({ enabled: true, dataUrl: 'data:image/png;base64,aGVsbG8=' });
+    mountUrlPills({ signal: abort.signal, iconsEnabled: true, fetchIcon }); await settle();
+    expect(composerCss()).toContain('data:image/png;base64,aGVsbG8=');
+    expect(editor.outerHTML).toBe(original); expect(mutations).toEqual([]);
+    const styleTextNode = document.querySelector('[data-bb-url-pills-composer]')!.firstChild;
+    document.dispatchEvent(new Event('selectionchange')); await settle();
+    expect(document.querySelector('[data-bb-url-pills-composer]')!.firstChild).toBe(styleTextNode);
+    abort.abort(); await settle(); observer.disconnect();
+    expect(editor.outerHTML).toBe(original); expect(mutations).toEqual([]);
+  });
+  it('escapes generated CSS strings instead of interpreting label content as CSS', () => {
+    expect(cssString('a"b\\c\n')).toBe('"a\\22 b\\5c c\\a "');
   });
   it('does not fetch a valid partial streamed hostname, including after a pause', async () => {
     const anchor = message(false, '');
