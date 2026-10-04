@@ -17,6 +17,7 @@
     "popover",
     "portal-scope",
     "responsive-overlay",
+    "tooltip",
     "use-browser-dimming-modal",
     "use-compact-viewport",
     "use-media-query",

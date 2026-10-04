@@ -7,6 +7,7 @@ import { Button } from "./components/ui/button.js";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "./components/ui/context-menu.js";
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "./components/ui/dropdown-menu.js";
 import { Icon } from "./components/ui/icon.js";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip.js";
 import { PinPopover as Popover, PinPopoverAnchor as PopoverAnchor, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
 import { FilePicker } from "./file-picker.js";
 import { layoutPins, pinFile, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, unpinFile, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
@@ -227,12 +228,17 @@ function PinAction() {
   const composer = useComposer();
   if (composer.scope.kind !== "thread") return null;
   const threadId = composer.scope.threadId;
-  return <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Pin files" title="Pin files" aria-haspopup="dialog"
-    // Narrow composers collapse their action row on blur; keep it until the click lands.
-    onMouseDown={(event) => event.preventDefault()}
-    onClick={(event) => launchers.get(threadId)?.(event.currentTarget)}>
-    <Icon name="Pin" className="size-4" />
-  </Button>;
+  return <TooltipProvider delayDuration={300}><Tooltip>
+    <TooltipTrigger asChild>
+      <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Pin files" aria-haspopup="dialog"
+        // Narrow composers collapse their action row on blur; keep it until the click lands.
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={(event) => launchers.get(threadId)?.(event.currentTarget)}>
+        <Icon name="Pin" className="size-4" />
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent>Pin files</TooltipContent>
+  </Tooltip></TooltipProvider>;
 }
 export default definePluginApp((app) => {
   app.composer.customize({
