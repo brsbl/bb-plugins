@@ -15,7 +15,7 @@ function fixture(): PullRequestItem {
     review: "none", mergeability: "mergeable", queued: false, autoMerge: false, additions: 1, deletions: 0, changedFiles: 1,
     originThreadIds: [], stack: { state: "none", items: [] },
   };
-  return { id: "PR_123", url: snapshot.url, snapshot, reader: { hostId: "host_1", accountId: "account_1", login: "author" }, sourceState: "available", sourceMessage: null, lastAttemptAt: snapshot.fetchedAt, links: [{ threadId: "thr_archived", evidence: "user-explicit", origin: false, environmentId: null, createdAt: snapshot.fetchedAt, actor: "user" }], preferredThreadId: "thr_archived", pinned: false };
+  return { id: "github:PR_123", url: snapshot.url, snapshot, reader: { hostId: "host_1", accountId: "account_1", login: "author" }, sourceState: "available", sourceMessage: null, lastAttemptAt: snapshot.fetchedAt, links: [{ threadId: "thr_archived", evidence: "user-explicit", origin: false, environmentId: null, createdAt: snapshot.fetchedAt, actor: "user" }], preferredThreadId: "thr_archived", pinned: false };
 }
 const thread = { id: "thr_archived", title: "Archived implementation thread", projectId: "proj_1", environmentId: null, hostId: "host_1", archived: true };
 
@@ -23,7 +23,7 @@ describe("Pull Requests access and detail lifetime", () => {
   it("keeps a deep-linked PR outside the list page, then removes private content after access is denied", async () => {
     let item = fixture();
     const app = await loadPluginApp(() => import("./app"));
-    const slot = renderSlot(app.navPanels[0]!, { subPath: "PR_123/summary" }, { rpc: {
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
       list: () => ({ items: [], nextCursor: null, total: 0, coverage }),
       show: () => item,
       refresh: () => coverage,
@@ -47,7 +47,7 @@ describe("Pull Requests access and detail lifetime", () => {
     let finish!: (changes: Changes) => void;
     const pending = new Promise<Changes>((resolve) => { finish = resolve; });
     const app = await loadPluginApp(() => import("./app"));
-    const slot = renderSlot(app.navPanels[0]!, { subPath: "PR_123/changes" }, { rpc: {
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/changes" }, { rpc: {
       list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }), changes: () => pending,
     } });
@@ -74,14 +74,14 @@ describe("Pull Requests thread selection", () => {
     try {
       const app = await loadPluginApp(() => import("./app"));
       const Panel = app.navPanels[0]!.component;
-      const slot = renderSlot(app.navPanels[0]!, { subPath: "PR_123/changes" }, { rpc: {
+      const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/changes" }, { rpc: {
         list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
         context: () => ({ threads: [thread, { ...thread, id: "thr_second", title: "Second thread" }], hosts: [], nextCursor: null }),
         changes: () => ({ headSha: "abc1234", files: [], total: 0, truncated: false, message: null }),
       } });
       fireEvent.click(await screen.findByRole("button", { name: "Choose thread" }));
-      expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "requests", options: { subPath: "PR_123/summary" } });
-      slot.lifecycle.rerender(<Panel subPath="PR_123/summary" />);
+      expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "requests", options: { subPath: "github:PR_123/summary" } });
+      slot.lifecycle.rerender(<Panel subPath="github:PR_123/summary" />);
       await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("region", { name: "Related threads" })));
       expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
       slot.lifecycle.unmount();
