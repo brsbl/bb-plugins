@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { candidateForElement, mountUrlPills, type IconResult } from './decoration';
 import { cssString } from './stylesheet';
+import * as stylesheet from './stylesheet';
+import * as urls from './urls';
 
 const URL_TEXT = 'https://example.com/a?private=yes#part';
 let frames: Map<number, FrameRequestCallback>;
@@ -185,6 +187,53 @@ describe('DOM-only URL decoration', () => {
   });
   it('escapes generated CSS strings instead of interpreting label content as CSS', () => {
     expect(cssString('a"b\\c\n')).toBe('"a\\22 b\\5c c\\a "');
+  });
+  it('does no discovery or CSS construction for scrolling and unchanged selection in a large draft', async () => {
+    const span = composer();
+    for (let i = 1; i < 256; i++) {
+      const next = span.cloneNode(true) as HTMLElement;
+      next.textContent = `https://example.com/path-${i}`;
+      span.parentElement!.append(document.createTextNode(' '), next);
+    }
+    const anchor = message();
+    const parse = vi.spyOn(urls, 'parsePillUrl'), styles = vi.spyOn(stylesheet, 'pillStyles');
+    mountUrlPills({ signal: abort.signal }); await settle();
+    parse.mockClear(); styles.mockClear();
+    for (let i = 0; i < 3; i++) {
+      window.dispatchEvent(new Event('scroll'));
+      anchor.parentElement!.dispatchEvent(new Event('scroll'));
+      document.dispatchEvent(new Event('selectionchange'));
+      await settle();
+    }
+    expect(parse).not.toHaveBeenCalled(); expect(styles).not.toHaveBeenCalled();
+    const range = document.createRange(); range.setStart(span.firstChild!, 10); range.collapse(true);
+    document.getSelection()!.addRange(range);
+    document.dispatchEvent(new Event('selectionchange')); await settle();
+    expect(parse).not.toHaveBeenCalled();
+    expect(composerCss()).not.toContain('--bb-url-pill-label: "example.com/a"');
+    expect(composerCss()).toContain('--bb-url-pill-label: "example.com/path-255"');
+  });
+  it('limits streamed message discovery to the changed preview and retains draft selectors', async () => {
+    composer(); const anchor = message(false, ''), unchanged = message();
+    const parse = vi.spyOn(urls, 'parsePillUrl');
+    mountUrlPills({ signal: abort.signal }); await settle();
+    const originalCss = composerCss(); parse.mockClear();
+    anchor.textContent = 'https://stream.example/path'; anchor.href = anchor.textContent;
+    anchor.after(document.createTextNode(' done'));
+    await settle();
+    expect(parse.mock.calls.map(([text]) => text)).toEqual(['https://stream.example/path']);
+    expect(anchor.getAttribute('data-bb-url-pill-label')).toBe('stream.example/path');
+    expect(unchanged.getAttribute('data-bb-url-pill-label')).toBe('example.com/a');
+    expect(composerCss()).toBe(originalCss);
+  });
+  it('discovers added surfaces and removes detached composer styles', async () => {
+    mountUrlPills({ signal: abort.signal });
+    const span = composer(), anchor = message(); await settle();
+    expect(composerCss()).toContain('--bb-url-pill-label: "example.com/a"');
+    expect(anchor.hasAttribute('data-bb-url-pill')).toBe(true);
+    const root = span.closest('[data-app-composer]')!; root.remove(); await settle();
+    expect(composerCss()).toBe('');
+    expect(root.querySelector('[data-bb-url-pill-composer-root]')).toBeNull();
   });
   it('does not fetch a valid partial streamed hostname, including after a pause', async () => {
     const anchor = message(false, '');

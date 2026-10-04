@@ -36,6 +36,14 @@ describe('URL recognition without text normalization', () => {
   it('bounds decorations in a large paste', () => {
     expect(findComposerUrls('https://example.com/ '.repeat(600))).toHaveLength(512);
   });
+  it.each(['`', '``'])('excludes multiline code with matching %s delimiters', (delimiter) => {
+    const input = `${delimiter}const endpoint =\nhttps://example.com/private?token=abc#part\n${delimiter} https://keep.example/path`;
+    expect(findComposerUrls(input).map(({ from, to }) => input.slice(from, to))).toEqual(['https://keep.example/path']);
+  });
+  it('does not close multiline code at a shorter backtick run', () => {
+    const input = '``example ` value\nhttps://code.example/private\n`` https://keep.example/path';
+    expect(findComposerUrls(input).map(({ from, to }) => input.slice(from, to))).toEqual(['https://keep.example/path']);
+  });
   it.each(['    ', '\t', '  \t'])('excludes indented code starting after a blank line: %j', (indent) => {
     const input = `Snippet:\n\n${indent}https://example.com/path?token=abc#frag\n${indent}https://code.example/next\n\nRead https://keep.example/path`;
     expect(findComposerUrls(input).map(({ from, to }) => input.slice(from, to))).toEqual(['https://keep.example/path']);
