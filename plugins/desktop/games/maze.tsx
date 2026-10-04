@@ -13,7 +13,8 @@ const FOV = 1;
 /** Wall height as a fraction of the corridor's width: the original's corridors are wider than they are tall, about 4:3. */
 const WALL_HEIGHT = 0.75;
 const TEXTURE = 128;
-const TURBO_SPEED = 3;
+const NORMAL_SPEED = 1 / 3;
+const TURBO_SPEED = 1;
 
 interface Options {
   overheadMap: boolean;
@@ -745,8 +746,8 @@ export function MazeScreenSaver({ active = true }: { active?: boolean }) {
     const tick = (now: number) => {
       const seconds = Math.min(MAX_FRAME_SECONDS, Math.max(0, (now - last) / 1000));
       last = now;
-      elapsedRef.current += seconds * (optionsRef.current.turbo ? TURBO_SPEED : 1);
-      advance(runRef.current, seconds, optionsRef.current.turbo ? TURBO_SPEED : 1);
+      elapsedRef.current += seconds * (optionsRef.current.turbo ? TURBO_SPEED : NORMAL_SPEED);
+      advance(runRef.current, seconds, optionsRef.current.turbo ? TURBO_SPEED : NORMAL_SPEED);
       if (runRef.current.finished) runRef.current = freshRun();
       render();
       frame = requestAnimationFrame(tick);

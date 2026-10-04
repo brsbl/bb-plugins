@@ -144,6 +144,12 @@
   display: none;
 }
 
+/* Timeline content scrolls behind these controls; their backing must stay opaque. */
+[data-follow-up-composer-footer] {
+  background: var(--canvas);
+  border-radius: var(--radius);
+}
+
 .bbd-window {
   position: absolute;
   display: flex;
@@ -155,11 +161,11 @@
   app-region: no-drag;
   border-radius: 14px 14px 12px 12px;
   background:
-    linear-gradient(color-mix(in oklab, var(--bbd-blue) 14%, transparent), color-mix(in oklab, var(--bbd-blue) 14%, transparent)),
+    linear-gradient(color-mix(in oklab, var(--bbd-blue) 6%, transparent), color-mix(in oklab, var(--bbd-blue) 6%, transparent)),
     var(--bbd-glass);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   backdrop-filter: blur(24px) saturate(1.6);
-  border: 1px solid color-mix(in oklab, var(--bbd-blue-deep) 65%, transparent);
+  border: 1px solid color-mix(in oklab, var(--bbd-blue) 20%, var(--bbd-hairline));
   box-shadow:
     0 24px 56px -24px color-mix(in oklab, var(--ink) 50%, transparent);
   color: var(--foreground);
@@ -167,9 +173,9 @@
 
 .bbd-window:not([data-focused="true"]) {
   background:
-    linear-gradient(color-mix(in oklab, var(--bbd-blue-sky) 12%, transparent), color-mix(in oklab, var(--bbd-blue-sky) 12%, transparent)),
+    linear-gradient(color-mix(in oklab, var(--bbd-blue-sky) 4%, transparent), color-mix(in oklab, var(--bbd-blue-sky) 4%, transparent)),
     var(--bbd-glass);
-  border-color: color-mix(in oklab, var(--bbd-blue) 30%, transparent);
+  border-color: var(--bbd-hairline);
   box-shadow: var(--bbd-highlight), var(--bbd-lift);
 }
 
@@ -193,7 +199,7 @@
   height: 32px;
   padding: 0 3px 0 6px;
   flex: none;
-  color: color-mix(in oklab, var(--bbd-blue-deep) 55%, var(--foreground));
+  color: color-mix(in oklab, var(--bbd-blue) 12%, var(--foreground));
   font-size: var(--text-sm);
   font-weight: 600;
   user-select: none;
@@ -243,7 +249,7 @@
   overflow: hidden;
   border-radius: 8px;
   background: var(--bbd-glass-solid);
-  border: 1px solid color-mix(in oklab, var(--bbd-blue-deep) 35%, transparent);
+  border: 1px solid var(--bbd-hairline);
 }
 
 .bbd-resize {
@@ -290,12 +296,12 @@
   color: var(--foreground);
 }
 
-/* Over Ambient's moving scene, labels are XP's white text with a dark outline so they read on any color. */
-body[data-ambient-glass] .bbd-icon .bbd-icon-label {
+/* A soft shadow lifts XP's white labels off Ambient without a heavy outline. Selection supplies its own contrast. */
+body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   color: var(--bbd-white);
   text-shadow:
-    1px 1px 1px oklch(0.16 0.03 262 / 0.9),
-    0 0 2px oklch(0.16 0.03 262 / 0.6);
+    0.5px 1px 1px oklch(0.16 0.03 262 / 0.78),
+    0 0 2px oklch(0.16 0.03 262 / 0.3);
 }
 
 .bbd-marquee {
@@ -1070,6 +1076,12 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   display: none;
 }
 
+/* Desktop has no compact homepage content; its empty section must not push Recent away from the composer. */
+[data-testid="root-compose-compact-home"]
+  [data-testid="plugin-homepage-sections"]:has(> [id="plugin-homepage:desktop:desktop"]:only-child) {
+  display: none;
+}
+
 .bbd-notes-layer {
   position: fixed;
   inset: 0;
@@ -1389,6 +1401,52 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
 .bbd-ie-placeholder a {
   color: var(--bbd-blue);
   text-decoration: underline;
+}
+
+.bbd-ie-page-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 16px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--background) 94%, var(--bbd-blue-sky)), var(--background));
+  color: var(--foreground);
+}
+
+.bbd-ie-page-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(100%, 320px);
+}
+
+.bbd-ie-page-icon {
+  display: flex;
+  flex: none;
+}
+
+.bbd-ie-page-labels {
+  min-width: 0;
+}
+
+.bbd-ie-page-title,
+.bbd-ie-page-host {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bbd-ie-page-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bbd-ie-page-host {
+  margin-top: 4px;
+  color: var(--muted-foreground);
 }
 
 .bbd-ie-status {
