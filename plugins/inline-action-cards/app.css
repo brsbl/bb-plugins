@@ -1,0 +1,52 @@
+.iac-card, .iac-table { --iac-gap: calc(var(--spacing, .25rem) * 2); margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius-lg, .75rem); background: var(--card); color: var(--foreground); font-size: 13px; line-height: 1.6; }
+.iac-card { padding: 14px 16px; }
+.iac-header, .iac-result-line, .iac-row-line, .iac-table-header { display: flex; align-items: center; justify-content: space-between; gap: var(--iac-gap); }
+.iac-header { align-items: flex-start; }
+.iac-recipient-line { flex: 1; min-width: 0; padding-top: 4px; overflow-wrap: anywhere; font-size: 12px; }
+.iac-muted, .iac-consequence, .iac-save, .iac-progress, .iac-result-line time { color: var(--muted-foreground); }
+.iac-question { padding-top: 4px; font-weight: 500; overflow-wrap: anywhere; }
+.iac-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
+.iac-footer { margin-top: 8px; }
+.iac-actions button { font-size: 12px; }
+.iac-icon { width: 28px; height: 28px; padding: 5px; color: var(--muted-foreground); }
+.iac-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.iac-original { margin: 8px 0 12px; min-width: 0; font-size: 12px; }
+.iac-original summary { display: flex; align-items: baseline; gap: 6px; color: var(--muted-foreground); cursor: pointer; }
+.iac-original summary::before { content: "▸"; flex-shrink: 0; }
+.iac-original[open] summary::before { content: "▾"; }
+.iac-original summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iac-email { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 12px 0; }
+.iac-card textarea, .iac-row textarea { display: block; box-sizing: border-box; width: 100%; min-height: 28px; max-height: 560px; resize: none; padding: 4px 0; font: inherit; line-height: 1.7; color: inherit; background: transparent; border: 0; border-radius: var(--radius-sm, .25rem); outline: none; }
+.iac-card textarea:not([readonly]):hover, .iac-row textarea:not([readonly]):hover { background: var(--state-hover, var(--muted)); }
+.iac-card textarea:not([readonly]):focus, .iac-row textarea:not([readonly]):focus { background: var(--state-hover, var(--muted)); box-shadow: 0 0 0 1px var(--border); }
+.iac-original summary:focus-visible { outline: 1px solid var(--ring); outline-offset: 3px; }
+.iac-save { display: block; text-align: right; font-size: 11px; }
+.iac-consequence { margin: 4px 0 0; overflow-wrap: anywhere; }
+.iac-error, .iac-failed { color: var(--destructive); }
+.iac-error { margin-top: 8px; font-size: 12px; }
+.iac-result-line > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.iac-result-line time { font-size: 11px; white-space: nowrap; }
+.iac-result-line + .iac-body, .iac-result-line + .iac-row-expanded { margin-top: 12px; }
+.iac-table-header { padding: 10px 16px; color: var(--muted-foreground); font-size: 12px; }
+.iac-table > .iac-error { padding: 0 16px 10px; }
+.iac-row { padding: 12px 16px; border-top: 1px solid var(--border); }
+.iac-row-line { align-items: center; }
+.iac-row-description { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.iac-row-description .iac-consequence { font-size: 12px; }
+.iac-row-line > .iac-footer { margin-top: 0; min-width: 160px; }
+.iac-row .iac-footer > button:last-child { min-width: 64px; }
+.iac-row-expanded { margin-top: 12px; }
+.iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: 12px; box-shadow: var(--shadow-md); }
+.iac-menu { min-width: 170px; padding: 4px; }
+.iac-menu-item { padding: 6px 8px; border-radius: var(--radius-sm, .25rem); cursor: pointer; outline: none; }
+.iac-menu-item[data-highlighted] { background: var(--state-hover, var(--muted)); }
+.iac-tooltip { padding: 4px 8px; }
+@media (max-width: 480px) {
+  .iac-card, .iac-row { padding: 12px; }
+  .iac-table-header { padding: 8px 12px; }
+  .iac-row-line { flex-wrap: wrap; }
+  .iac-row-line > .iac-footer { margin-left: auto; }
+  .iac-result-line { align-items: flex-start; flex-wrap: wrap; }
+  .iac-result-line > span { flex-basis: 160px; }
+  .iac-result-line > .iac-actions { margin-left: auto; }
+}

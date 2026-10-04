@@ -10,3 +10,5 @@ plugins/.scaffold-smoke-*
 
 # Plugin build toolchain scratch dirs (resolved on demand, never committed).
 toolchain-*/
+
+.action-cards-dev/
