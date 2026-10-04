@@ -335,6 +335,8 @@ describe("thread placement precedence", () => {
       const unread = thread({ ...read, lastReadAt: 0, sectionId: inbox.sectionId });
       expect(core.placementForThread(configured, unread, "building", false, null, true)?.key)
         .toBe(inbox.key);
+      const running = thread({ ...read, status: "active", sectionId: inbox.sectionId });
+      expect(core.returnsAfterRead(inbox, running)).toBe(false);
     }
     const slot = core.buildWorkflowSkillSlot(configured);
     expect(slot).toContain("return to their workflow section once the user reads them");

@@ -566,6 +566,7 @@ export function returnsAfterRead(
   return (
     stage?.role === "inbox" &&
     stage.returnAfterRead === true &&
+    !isRunningThread(thread) &&
     !isUnreadThread(thread)
   );
 }

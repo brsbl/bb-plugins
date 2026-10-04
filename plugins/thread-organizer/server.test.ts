@@ -827,7 +827,7 @@ describe("Thread Organizer server", () => {
       originPluginId: "digests" });
     organizer.emitChanged("metadata-changed");
     await vi.waitFor(() => expect(organizer.current().sectionId).toBe(sectionId("digests")));
-    organizer.emitChanged();
+    organizer.emitChanged(["read-state-changed"]);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(organizer.current().sectionId).toBe(sectionId("digests"));
 

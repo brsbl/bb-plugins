@@ -20,7 +20,7 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.
 - Set any inbox to **Move back after reading** to skip that drag: as soon as you
-  read a thread there, it returns to its remembered stage (or Threads when it has
+  read an idle thread there, it returns to its remembered stage (or Threads when it has
   none) without sending an entry prompt. A thread moved out of a plugin inbox
   this way is not claimed by it again.
 - Starting unclaimed work again restores the thread’s remembered stage.
