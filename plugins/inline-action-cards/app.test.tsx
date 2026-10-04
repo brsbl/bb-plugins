@@ -20,6 +20,12 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         item = { ...item, revision: item.revision + 1, content: { ...fixture().content, draft: input.draft } } as Item;
         return item;
       },
+      choose: (raw) => {
+        const input = raw as { choice: string; revision: number };
+        calls.push("choose"); expect(input.revision).toBe(item.revision);
+        const option = item.content.type === "choice" ? item.content.options.find((candidate) => candidate.id === input.choice)! : null;
+        item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "choose", claimed: false, choice: { id: option!.id, label: option!.label } } }; return item;
+      },
       prepare: (raw) => {
         const input = raw as { action: "send"; revision: number };
         calls.push("prepare"); expect(input.revision).toBe(item.revision);
@@ -154,4 +160,31 @@ it("keeps the bulk button busy until its own attempts finish, without treating a
   items = items.map((item) => item.id === "two" ? { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Switched", retryable: false } } : item);
   await slot.behavior.emitRealtime("items", {});
   await waitFor(() => expect(button.getAttribute("aria-busy")).toBeNull());
+});
+
+it("submits the selected option from a choice card, starting from the recommendation", async () => {
+  const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [
+    { id: "single", label: "UserSingle", hint: "One account for every thread" }, { id: "multi", label: "UserMultiple" }, { id: "pool", label: "Pool" },
+  ] };
+  const { slot, calls, get } = await setup("", false, { ...fixture(), id: "setup", content });
+  await screen.findByRole("radiogroup", { name: "Which account setup?" });
+  expect(screen.getByText("Recommended")).toBeTruthy();
+  expect((screen.getByRole("radio", { name: /UserMultiple/ }) as HTMLInputElement).checked).toBe(true);
+  expect(screen.getByRole("button", { name: "Use UserMultiple" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("radio", { name: /UserSingle/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Use UserSingle" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(calls).toEqual(["choose"]);
+  expect(get().attempt).toMatchObject({ action: "choose", choice: { id: "single", label: "UserSingle" } });
+  expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:setup:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Which account setup" }]);
+  expect(screen.getByRole("button", { name: "Using…" }).getAttribute("aria-busy")).toBe("true");
+  expect((screen.getByRole("radio", { name: /UserMultiple/ }) as HTMLInputElement).disabled).toBe(true);
+});
+it("disables the primary button until an option is picked when nothing is recommended", async () => {
+  const content = { type: "choice" as const, question: "Pick a plan", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] };
+  await setup("", false, { ...fixture(), id: "plan", content });
+  const button = await screen.findByRole("button", { name: "Choose an option" });
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole("radio", { name: "Plan B" }));
+  expect((screen.getByRole("button", { name: "Use Plan B" }) as HTMLButtonElement).disabled).toBe(false);
 });

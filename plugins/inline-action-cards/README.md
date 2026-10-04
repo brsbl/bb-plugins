@@ -18,6 +18,8 @@ Ask an agent to use the **inline-action-cards** skill. It creates an item with `
 
 Reply cards show recipients, an expandable original excerpt, and an autosaving draft that edits like plain body text. Results collapse to one line with View and recovery in place. IDs travel in hidden mention context. Sending waits for pending saves. Agents claim each attempt once, use the saved draft, and report its outcome through `bb action-cards report`. Verified failures offer Retry; uncertain outcomes offer Check outcome to avoid duplicate sends. The [agent skill](skills/inline-action-cards/SKILL.md) documents the full workflow.
 
+A choice card lists 2–6 short options under one question. Pick one, then click “Use <option>”. A recommended option is tagged and preselected.
+
 Use `bb action-cards create-table` with a title and existing item IDs to emit `::actions{id="..."}`. Reply rows open for review one at a time. Matching Decide operations can offer a bulk action; each row keeps its own result.
 
 Items live in plugin-owned SQLite storage, scoped to their thread. Gmail access comes from the agent's connected tools. Later defers a card; it does not schedule a reminder.

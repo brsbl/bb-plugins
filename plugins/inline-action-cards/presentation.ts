@@ -2,7 +2,7 @@ import type { PluginComposerApi } from "@get-bb/plugin-sdk/app";
 import { actionLabel, mentionId, title, type Action, type Item } from "./model.js";
 
 const actionIcons: Record<Action, string> = {
-  send: "Sent", "save-draft": "FileText", yes: "Check", no: "X", later: "Clock", skip: "inline-action-cards/skip-forward",
+  send: "Sent", "save-draft": "FileText", yes: "Check", no: "X", later: "Clock", skip: "inline-action-cards/skip-forward", choose: "Check",
 };
 
 // SDK 0.6.16's published replace(updater) supports mention icons. Keep the
