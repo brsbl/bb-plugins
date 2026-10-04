@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type ExperimentalComposerSubmitOptions, type PluginComposerApi, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
+import { actionLabel, actionMessage, bulkLabel, chooseLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
 import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, NoteIcon, SkipIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
 import { Consequence } from "./consequence.js";
@@ -58,6 +58,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const lastLoadFailed = useRef(false);
   const flight = useRef<Promise<void> | null>(null);
   const lock = useRef(false);
@@ -148,7 +149,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     adopt(await rpc.call("submitted", { id, threadId, attemptId: next.attempt!.id }));
   };
 
-  const act = async (action?: Action) => {
+  const act = async (action?: Action, choice?: string) => {
     if (lock.current || submitting.has(threadId)) return;
     lock.current = true; submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
     try {
@@ -164,7 +165,9 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       if (composer.text.trim() || view.current.draft.attachmentCount) throw new Error("Send or clear your current composer message first, then try the card again.");
       if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to respond.");
       if (action) {
-        next = await rpc.call("prepare", { id, threadId, revision: next.revision, action, ...(next.state === "ready" ? { note } : {}) });
+        next = action === "choose" && choice
+          ? await rpc.call("choose", { id, threadId, revision: next.revision, choice })
+          : await rpc.call("prepare", { id, threadId, revision: next.revision, action, ...(next.state === "ready" ? { note } : {}) });
         adopt(next);
       }
       // Resending a pending request keeps its attempt ID; claim refuses duplicates.
@@ -202,6 +205,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     finally { lock.current = false; setBusy(false); }
   };
   const reply = item?.content.type === "reply" ? item.content : null;
+  const choice = item?.content.type === "choice" ? item.content : null;
   const ready = item?.state === "ready";
   const pending = item?.state === "pending";
   const status = item && !busy ? sentStatus(item) : null;
@@ -251,6 +255,18 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     </> : null}
     </div>
   </div>;
+  // A sent or finished attempt shows its own option; a ready card keeps the user's pick or the recommendation.
+  const selectedId = (!ready && item.attempt?.choice?.id) || picked || choice?.recommended;
+  const selected = choice?.options.find((option) => option.id === selectedId);
+  const choiceControls = <div className="iac-actions iac-footer">
+    {ready || pending ? <>
+      <span className="iac-menu-slot"><MoreMenu disabled={pending ? busy : disabled}>{pending
+        ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
+        : <><MenuAction onSelect={() => void act("later")}>Remind me later</MenuAction><MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
+      </MoreMenu></span>
+      <PendingButton variant="default" className="iac-choose" pending={sending === "choose"} pendingLabel={pendingLabel(item, "choose")} disabled={disabled || !selected} onClick={() => void act("choose", selected?.id)}>{selected ? chooseLabel(selected.label) : "Choose an option"}</PendingButton>
+    </> : null}
+  </div>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
@@ -267,7 +283,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       {status && !item.attempt?.claimed && <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>}
       {(deferred || (item.state === "failed" && item.result?.retryable)) && <MoreMenu disabled={busy}><MenuAction onSelect={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</MenuAction></MoreMenu>}
       <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
-      {item.state === "failed" && <ActionButton variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined)}>{item.result?.retryable ? "Retry" : "Check outcome"}</ActionButton>}
+      {item.state === "failed" && <ActionButton variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? "Retry" : "Check outcome"}</ActionButton>}
     </div>
   </div>;
   const details = <>
@@ -275,7 +291,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       {reply ? <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
         {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
       </div> : <span className="iac-question">{title(item)}</span>}
-      {(ready || pending) && utilities}
+      {(ready || pending) && !choice && utilities}
     </div>
     {reply ? <>
       <details className="iac-original"><summary><span>{displayName(reply.original.from)}{reply.original.date ? `, ${reply.original.date}` : ""}: “{reply.original.body.replace(/\s+/g, " ").slice(0, 160)}”</span></summary>
@@ -285,8 +301,20 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
         onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }}
         onBlur={() => void flush().catch(() => {})} />
       {ready && !saveError && (saving || dirty.current) && <span className="iac-save" role="status">Saving…</span>}
+    </> : choice ? <>
+      <div role="radiogroup" aria-label={choice.question} className="iac-options">
+        {choice.options.map((option) => <label key={option.id} className="iac-option">
+          <input type="radio" name={`iac-${threadId}-${id}`} value={option.id} checked={selectedId === option.id} disabled={!ready || busy} onChange={() => setPicked(option.id)} />
+          <span className="iac-option-text">
+            <span className="iac-option-label">{option.label}</span>
+            {choice.recommended === option.id && <span className="iac-tag">Recommended</span>}
+            {option.hint && <span className="iac-option-hint" title={option.hint}>{option.hint}</span>}
+          </span>
+        </label>)}
+      </div>
+      {choice.consequence && <Consequence>{choice.consequence}</Consequence>}
     </> : <Consequence>{item.content.type === "decide" && item.content.consequence}</Consequence>}
-    {!done && controls}
+    {!done && (choice ? choiceControls : controls)}
   </>;
   if (logEntry) {
     const failed = item.state === "failed";
@@ -299,7 +327,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     // Log actions are icon-only squares; the tooltip and accessible name carry the full label.
     const button = (label: string, glyph: ActionGlyph, onClick: () => void, variant: "default" | "outline", isDisabled = busy, pendingText?: string) =>
       <IconButton label={pendingText ?? label} variant={variant} disabled={isDisabled || !!pendingText} aria-busy={pendingText ? true : undefined} onClick={onClick}><ActionGlyphIcon name={glyph} /></IconButton>;
-    const choice = (action: "yes" | "no") => {
+    const decideButton = (action: "yes" | "no") => {
       const label = actionLabel(item, action);
       const verb = label.trim().split(/\s+/)[0]!.toLowerCase();
       const glyph = action === "yes" ? verbGlyphs.get(verb) ?? "yes" : "no";
@@ -315,26 +343,30 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     if (!quiet) review = <IconButton label={viewResult ? (reply ? "Hide draft" : "Hide card") : "Review"} aria-expanded={viewResult} disabled={loadError} onClick={() => setViewResult(!viewResult)}><ViewIcon /></IconButton>;
     // Comments need the card's note field, so Comment opens the card's thread.
     const commentButton = button("Comment", "comment", openThread, "outline", disabled);
+    // Picking an option needs the card's radio list, so Choose opens the card's thread and never offers Yes or No.
+    const chooseButton = button("Choose", "open", openThread, "default", false, pending && item.attempt?.action === "choose" ? pendingLabel(item, "choose") : undefined);
+    const kind = reply ? "Reply" : choice ? "Choice" : "Decision";
     if (quiet) {
       menu = <>{toggleCard}<MenuAction onSelect={openThread}>Open thread</MenuAction>{deferred && <MenuAction onSelect={() => void reopen()}>Resume</MenuAction>}</>;
       secondary = <span className="iac-log-status iac-log-result" title={item.result?.message}>{item.result?.message ?? "Done"}</span>;
     } else if (later) {
       menu = <MenuAction onSelect={openThread}>Open thread</MenuAction>;
-      secondary = reply ? commentButton : choice("no");
+      secondary = reply ? commentButton : choice ? null : decideButton("no");
       primary = button("Resume", "resume", () => void reopen(), "default");
     } else if (failed) {
       menu = <MenuAction onSelect={openThread}>Open thread</MenuAction>;
       secondary = retryable && button(reply ? "Edit draft" : "Choose again", reply ? "edit" : "undo", () => void reopen(), "outline");
-      primary = retryable ? button("Retry", "retry", () => void act(item.attempt!.action), "default") : button("Open thread", "open", openThread, "default", false);
+      primary = choice ? chooseButton : retryable ? button("Retry", "retry", () => void act(item.attempt!.action), "default") : button("Open thread", "open", openThread, "default", false);
     } else {
       menu = <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
         : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}<MenuAction onSelect={() => void act("later")}>Remind me later</MenuAction><MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
         <MenuAction onSelect={openThread}>Open thread</MenuAction></>;
-      secondary = reply ? commentButton : choice("no");
-      primary = reply ? button("Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined) : choice("yes");
+      secondary = reply ? commentButton : choice ? null : decideButton("no");
+      primary = reply ? button("Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined)
+        : choice ? chooseButton : decideButton("yes");
     }
-    return <article className={quiet ? "iac-log-row iac-log-quiet" : later ? "iac-log-row iac-log-later" : "iac-log-row"} aria-label={`${reply ? "Reply" : "Decision"}: ${heading}`}>
-      <span className="iac-log-kind" role="img" aria-label={reply ? "Reply" : "Decision"} title={reply ? "Reply" : "Decision"}>{reply ? <MailIcon /> : <SignpostIcon />}</span>
+    return <article className={quiet ? "iac-log-row iac-log-quiet" : later ? "iac-log-row iac-log-later" : "iac-log-row"} aria-label={`${kind}: ${heading}`}>
+      <span className="iac-log-kind" role="img" aria-label={kind} title={kind}>{reply ? <MailIcon /> : <SignpostIcon />}</span>
       <div className="iac-log-main">
         <span className="iac-log-title" title={heading}>{heading}</span>
         <span className="iac-log-meta">
@@ -357,13 +389,14 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
           <textarea ref={editor} aria-label="Draft" value={draft} readOnly={!ready || busy} rows={1} maxLength={40000}
             onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }} onBlur={() => void flush().catch(() => {})} />
           {ready && !saveError && (saving || dirty.current) && <span className="iac-save" role="status">Saving…</span>}
-        </> : <p className="iac-muted">{item.content.type === "decide" && item.content.consequence}</p>}
+        </> : choice ? <ul className="iac-log-options">{choice.options.map((option) => <li key={option.id}>{option.label}{option.id === choice.recommended && <span className="iac-muted"> · Recommended</span>}</li>)}</ul>
+          : <p className="iac-muted">{item.content.type === "decide" && item.content.consequence}</p>}
         {done && item.result && <p className="iac-muted">{item.result.message}</p>}
       </div>}
       {failure}
     </article>;
   }
-  return <article className={row ? "iac-row" : "iac-card"} aria-label={`${reply ? "Reply" : "Decision"}: ${title(item)}`}>
+  return <article className={row ? "iac-row" : "iac-card"} aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
     {done ? result : row ? <div className="iac-row-line">
       <div className="iac-row-description"><span>{reply ? `${displayName(reply.to[0]!)} · ${reply.subject}` : title(item)}</span>
         {!reply && <Consequence>{item.content.type === "decide" && item.content.consequence}</Consequence>}

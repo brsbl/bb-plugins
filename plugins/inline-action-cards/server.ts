@@ -13,6 +13,7 @@ export const rpcContract = defineRpcContract({
   prepare: { input: versioned.extend({ action: actionSchema, note: noteSchema.optional() }), output: itemSchema },
   comment: { input: versioned.extend({ note: noteSchema.refine((value) => value.length > 0, "Write a comment first.") }), output: z.object({ item: itemSchema, commentId: z.string().uuid(), note: noteSchema }).strict() },
   reopen: { input: versioned, output: itemSchema },
+  choose: { input: versioned.extend({ choice: idSchema }), output: itemSchema },
   table: { input: ref, output: tableViewSchema },
   prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive(), note: noteSchema.optional() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
   submitted: { input: ref.extend({ attemptId: z.string().uuid() }), output: itemSchema },
@@ -103,7 +104,9 @@ export function createStore(bb: BbPluginApi) {
     createTable(threadId: string, id: string, raw: unknown) {
       const content = tableContentSchema.parse(raw);
       return db.transaction(() => {
-        content.ids.forEach((itemId) => get(threadId, itemId));
+        content.ids.forEach((itemId) => {
+          if (get(threadId, itemId).content.type === "choice") throw new Error("Choice cards stand alone. Emit them with ::action instead of adding them to a table.");
+        });
         if (readTable.get(threadId, id)) throw new Error("That table ID already exists. Reuse its directive.");
         const value = { ...content, threadId, id };
         db.prepare("INSERT INTO action_tables VALUES (?, ?, ?)").run(threadId, id, JSON.stringify(value));
@@ -138,8 +141,18 @@ export function createStore(bb: BbPluginApi) {
       });
     },
     prepare(input: z.infer<typeof rpcContract.prepare.input>) {
+      if (input.action === "choose") throw new Error("Pick an option on the card first.");
       return change(input.threadId, input.id, input.revision, (item) => {
         prepare(item, input.action, input.note);
+      });
+    },
+    choose(input: z.infer<typeof rpcContract.choose.input>) {
+      return change(input.threadId, input.id, input.revision, (item) => {
+        const option = item.content.type === "choice" ? item.content.options.find((candidate) => candidate.id === input.choice) : undefined;
+        if (!option) throw new Error("That option does not belong to this card.");
+        if (item.state === "failed" && item.attempt?.choice?.id !== option.id) throw new Error("Retry the original option, or reopen the card to choose another.");
+        prepare(item, "choose");
+        item.attempt!.choice = { id: option.id, label: option.label };
       });
     },
     claim(threadId: string, id: string, attemptId: string) {
@@ -208,7 +221,7 @@ export default function plugin(bb: BbPluginApi): void {
       return store.submitted({ threadId: item.threadId, id: item.id, attemptId: item.attempt!.id });
     },
     get: ({ threadId, id }) => store.get(threadId, id),
-    save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen,
+    save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
     table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable, submitted: store.submitted,
   });
   bb.events.on("message.cancelled", ({ entry }) => {
@@ -234,6 +247,7 @@ export default function plugin(bb: BbPluginApi): void {
         intent: changes ? "request-changes" : item.state === "failed" ? "check-outcome" : "approved-action",
         attemptId: changes ? null : item.attempt!.id, action: changes ? null : item.attempt!.action,
         ...(!changes && item.attempt?.note ? { note: item.attempt.note } : {}),
+        ...(!changes && item.attempt?.choice ? { choice: item.attempt.choice } : {}),
         instruction: changes ? "Read the latest saved item and revise that same draft. This is not approval to act."
           : "Claim this exact attempt once with bb action-cards claim before acting. Use the returned latest saved content and note. The note is part of the approval: follow it. If it conflicts with the action (for example Yes, but do not send yet), do not perform the action; report --outcome failed --retryable with a message saying what you held and why, so the user can choose again. A failed/claimed/completed attempt authorizes reconciliation only; never repeat its side effect. Report the verified result with bb action-cards report.",
       }) };
@@ -269,7 +283,7 @@ export default function plugin(bb: BbPluginApi): void {
       }),
       create: cliCommand({
         summary: "Create one card; prints its directive", positionals: itemPosition,
-        options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply or Decide JSON; use --item-stdin" } },
+        options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply, Decide, or Choice JSON; use --item-stdin" } },
         run({ options, positionals }, ctx) {
           const id = idSchema.parse(positionals.id);
           store.create(scope(ctx, options.thread), id, JSON.parse(options.item));

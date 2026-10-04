@@ -157,6 +157,62 @@ it("log choices submit to their owning thread and resend the same durable attemp
   expect(log).toMatchObject({ waiting: [{ threadTitle: "Refund follow-up" }] });
 });
 
+const choice = { type: "choice", question: "Which account setup?", recommended: "multi", consequence: "Applies to new threads only.", options: [
+  { id: "single", label: "UserSingle", hint: "One account for every thread" },
+  { id: "multi", label: "UserMultiple", hint: "Pick an account per thread" },
+  { id: "pool", label: "Pool" },
+] };
+describe("choice cards", () => {
+  it("validates options and keeps choice cards out of tables", () => {
+    const { store } = setup();
+    expect(() => store.create(ref.threadId, "c", { ...choice, options: choice.options.slice(0, 1) })).toThrow();
+    expect(() => store.create(ref.threadId, "c", { ...choice, options: [...choice.options, ...choice.options.slice(0, 4)].map((option, index) => ({ ...option, id: `o${index}` })) })).toThrow();
+    expect(() => store.create(ref.threadId, "c", { ...choice, options: [choice.options[0], choice.options[0]] })).toThrow("own id");
+    expect(() => store.create(ref.threadId, "c", { ...choice, recommended: "missing" })).toThrow("Recommend");
+    expect(() => store.create(ref.threadId, "c", { ...choice, options: [{ id: "a", label: "Two\nlines" }, { id: "b", label: "B" }] })).toThrow();
+    store.create(ref.threadId, "c", choice);
+    expect(() => store.createTable(ref.threadId, "t", { title: "Choices", ids: ["c"] })).toThrow("stand alone");
+  });
+  it("claims and reports the chosen option once, and retries only the same option", () => {
+    const { store } = setup();
+    store.create(ref.threadId, "c", choice);
+    expect(() => store.prepare({ ...ref, id: "c", revision: 1, action: "choose" })).toThrow("Pick an option");
+    expect(() => store.prepare({ ...ref, id: "c", revision: 1, action: "yes" })).toThrow("does not belong");
+    expect(() => store.choose({ ...ref, id: "c", revision: 1, choice: "missing" })).toThrow("does not belong");
+    store.create(ref.threadId, "d", { type: "decide", question: "Archive?", consequence: "Archive it." });
+    expect(() => store.choose({ ...ref, id: "d", revision: 1, choice: "multi" })).toThrow("does not belong");
+    const pending = store.choose({ ...ref, id: "c", revision: 1, choice: "multi" });
+    expect(pending.attempt).toMatchObject({ action: "choose", choice: { id: "multi", label: "UserMultiple" } });
+    expect(actionMessage(pending)).toBe("Use UserMultiple ");
+    expect(() => store.choose({ ...ref, id: "c", revision: pending.revision, choice: "single" })).toThrow("in progress");
+    store.claim(ref.threadId, "c", pending.attempt!.id);
+    expect(() => store.claim(ref.threadId, "c", pending.attempt!.id)).toThrow("already claimed");
+    const failed = store.report(ref.threadId, "c", pending.attempt!.id, "failed", "Settings are locked. Retry.", true);
+    expect(() => store.choose({ ...ref, id: "c", revision: failed.revision, choice: "single" })).toThrow("original option");
+    const retried = store.choose({ ...ref, id: "c", revision: failed.revision, choice: "multi" });
+    store.claim(ref.threadId, "c", retried.attempt!.id);
+    const done = store.report(ref.threadId, "c", retried.attempt!.id, "succeeded", "UserMultiple chosen", false);
+    expect(done).toMatchObject({ state: "succeeded", result: { message: "UserMultiple chosen" }, attempt: { choice: { id: "multi" } } });
+    const later = store.prepare({ ...ref, id: "d", revision: 1, action: "later" });
+    expect(later.attempt!.choice).toBeUndefined();
+  });
+  it("round-trips through the CLI, reload, and hidden mention context", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const created = await host.harness.behavior.runCli(["create", "setup", "--thread", ref.threadId, "--item", JSON.stringify(choice)]);
+    expect(created.stdout).toBe('::action{id="setup"}\n');
+    const reloaded = await host.harness.lifecycle.reload(plugin);
+    hosts[hosts.indexOf(host)] = reloaded;
+    const pending = await reloaded.harness.behavior.callRpc("choose", { threadId: ref.threadId, id: "setup", revision: 1, choice: "single" }) as { attempt: { id: string } };
+    const provider = reloaded.harness.registrations.mentionProviders[0]!;
+    const context = JSON.parse((await provider.resolve(`${ref.threadId}:setup:${pending.attempt.id}`)).context);
+    expect(context).toMatchObject({ intent: "approved-action", action: "choose", attemptId: pending.attempt.id, choice: { id: "single", label: "UserSingle" } });
+    const got = await reloaded.harness.behavior.runCli(["get", "setup", "--thread", ref.threadId]);
+    expect(JSON.parse(got.stdout)).toMatchObject({ content: { type: "choice", recommended: "multi" }, attempt: { choice: { id: "single" } } });
+    const bad = await reloaded.harness.behavior.runCli(["create", "bad", "--thread", ref.threadId, "--item", JSON.stringify({ ...choice, options: [] })]).then((result) => result.exitCode, () => 1);
+    expect(bad).not.toBe(0);
+  });
+});
+
 it("settles a sent request and reopens it if its queued message is deleted", async () => {
   const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
   const { callRpc, emitThreadEvent, runCli } = host.harness.behavior;

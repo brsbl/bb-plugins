@@ -48,6 +48,12 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         item = { ...item, revision: item.revision + 1, content: { ...fixture().content, draft: input.draft } } as Item;
         return item;
       },
+      choose: (raw) => {
+        const input = raw as { choice: string; revision: number };
+        calls.push("choose"); expect(input.revision).toBe(item.revision);
+        const option = item.content.type === "choice" ? item.content.options.find((candidate) => candidate.id === input.choice)! : null;
+        item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "choose", claimed: false, choice: { id: option!.id, label: option!.label } } }; return item;
+      },
       prepare: (raw) => {
         const input = raw as { action: "send"; revision: number; note?: string };
         calls.push("prepare"); expect(input.revision).toBe(item.revision);
@@ -251,6 +257,38 @@ it("thread panel Action log lists only its thread, drops thread names, and links
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
 });
 
+it("submits the selected option from a choice card, starting from the recommendation", async () => {
+  const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [
+    { id: "single", label: "UserSingle", hint: "One account for every thread" }, { id: "multi", label: "UserMultiple" }, { id: "pool", label: "Pool" },
+  ] };
+  let release!: () => void;
+  const { slot, calls, get } = await setup("", false, { ...fixture(), id: "setup", content }, new Promise<void>((resolve) => { release = resolve; }));
+  await screen.findByRole("radiogroup", { name: "Which account setup?" });
+  expect(screen.getByText("Recommended")).toBeTruthy();
+  expect((screen.getByRole("radio", { name: /UserMultiple/ }) as HTMLInputElement).checked).toBe(true);
+  expect(screen.getByRole("button", { name: "Use UserMultiple" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("radio", { name: /UserSingle/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Use UserSingle" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(calls).toEqual(["choose"]);
+  expect(get().attempt).toMatchObject({ action: "choose", choice: { id: "single", label: "UserSingle" } });
+  expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:setup:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Which account setup" }]);
+  expect(screen.getByRole("button", { name: "Using…" }).getAttribute("aria-busy")).toBe("true");
+  expect((screen.getByRole("radio", { name: /UserMultiple/ }) as HTMLInputElement).disabled).toBe(true);
+  release();
+  expect((await screen.findByRole("status")).textContent).toMatch(/^✓ UserSingle chosen · /);
+  expect(calls).toEqual(["choose", "submitted"]);
+  expect(screen.queryByRole("button", { name: "Using…" })).toBeNull();
+});
+it("disables the primary button until an option is picked when nothing is recommended", async () => {
+  const content = { type: "choice" as const, question: "Pick a plan", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] };
+  await setup("", false, { ...fixture(), id: "plan", content });
+  const button = await screen.findByRole("button", { name: "Choose an option" });
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole("radio", { name: "Plan B" }));
+  expect((screen.getByRole("button", { name: "Use Plan B" }) as HTMLButtonElement).disabled).toBe(false);
+});
+
 it.each(["reply", "decide"] as const)("round-trips a %s note through click, message context, CLI claim, reload and result", async (type) => {
   let host = createFakePluginHost({ pluginId: "inline-action-cards" });
   plugin(host.bb);
@@ -391,4 +429,17 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
   expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Note for your choice" })));
   replySlot.lifecycle.unmount();
+});
+
+it("Action log offers a choice card Choose, Later, Skip and Review, never Yes or No", async () => {
+  const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] } as const;
+  const item = { ...fixture(), id: "setup", content, threadTitle: "Accounts", threadProjectId: "proj_cards" } as const;
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
+  const row = await screen.findByRole("article", { name: "Choice: Which account setup?" });
+  expect(within(row).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Choose"]);
+  fireEvent.click(within(row).getByRole("button", { name: "Review" }));
+  expect(within(row).getByText("Several accounts")).toBeTruthy();
+  fireEvent.click(within(row).getByRole("button", { name: "Choose" }));
+  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread" }));
 });
