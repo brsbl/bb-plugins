@@ -159,6 +159,17 @@ describe("digest issue lifecycle", () => {
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.closeTab")).toHaveLength(1);
   });
 
+  it("returns JSON-safe definitions when restoring the default workspace", async () => {
+    const { service } = setup();
+    const definition = service.requiredDefinition("reading");
+    const input = { id: definition.id, connectionId: "gmail", name: definition.name, instructions: definition.instructions, schedule: definition.schedule };
+    await service.saveDigest({ ...input, execution: { projectId: "proj_digest", hostId: "host_browser" } });
+    const restored = await service.saveDigest({ ...input, execution: null });
+    expect(restored).not.toHaveProperty("execution");
+    expect(restored).toStrictEqual(JSON.parse(JSON.stringify(restored)));
+    expect(service.requiredDefinition("reading").enabled).toBe(false);
+  });
+
   it("turns an existing Digests section into an inbox without replacing its rule", async () => {
     const { service, harness } = setup({ stageSection: true });
     await service.ensureSection(true);

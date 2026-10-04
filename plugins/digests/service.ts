@@ -158,8 +158,9 @@ export function createService(bb: BbPluginApi) {
       if (input.schedule && (!defaults.providerId || !defaults.model)) throw new Error("Choose a default agent and model in this digest's bb project, then save again.");
       await ensureSection(true);
       let definition: DigestDefinition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, ...(input.emoji !== undefined ? { emoji: input.emoji } : {}), instructions: input.instructions,
-        connectionIds: previous?.connectionIds ?? [input.connectionId], ...(input.execution !== undefined ? { execution: input.execution ?? undefined } : {}), schedule: input.schedule, enabled: previous?.enabled ?? false,
+        connectionIds: previous?.connectionIds ?? [input.connectionId], ...(input.execution ? { execution: input.execution } : {}), schedule: input.schedule, enabled: previous?.enabled ?? false,
         automationId: previous?.automationId ?? null, permissionMode: previous?.permissionMode ?? "auto" as const, createdAt: previous?.createdAt ?? Date.now() };
+      if (input.execution === null) delete definition.execution;
       if (previous?.automationId) {
         await automation("automations_update", { projectId: automationProject(previous), automationId: previous.automationId,
           name: `Digests · ${input.name}`, trigger: { triggerType: "schedule", ...input.schedule! },

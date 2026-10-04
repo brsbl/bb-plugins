@@ -349,7 +349,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
             <option value="" disabled>Choose a computer</option>{options.hosts.map((host) => <option key={host.id} value={host.id}>{host.name}</option>)}
           </select>
           <label htmlFor={`${formId}-environment`}>Folder</label>
-          <select id={`${formId}-environment`} value={execution.environmentId ?? ""} onChange={(event) => setExecution({ ...execution, environmentId: event.target.value || undefined })}>
+          <select id={`${formId}-environment`} value={execution.environmentId ?? ""} onChange={(event) => setExecution({ projectId: execution.projectId, hostId: execution.hostId, ...(event.target.value ? { environmentId: event.target.value } : {}) })}>
             <option value="">{options.projects.find((project) => project.id === execution.projectId)?.kind === "personal" ? "New Personal workspace" : "Project folder on this computer"}</option>
             {options.environments.filter((environment) => environment.projectId === execution.projectId && environment.hostId === execution.hostId).map((environment) => <option key={environment.id} value={environment.id}>{environment.name}</option>)}
           </select>
