@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { WindowManagerProvider, useWindowManager, type WindowSpec } from "../windows";
 import { WindowFrame } from "../windows/frame";
 import { STORAGE_KEY } from "../windows/state";
@@ -27,7 +27,9 @@ const press = (init: KeyboardEventInit = {}) => {
   act(() => { (document.activeElement ?? document.body).dispatchEvent(event); });
   return event;
 };
-afterEach(() => { cleanup(); localStorage.clear(); document.body.innerHTML = ""; });
+// jsdom lacks CSS.escape; fixture ids contain only selector-safe characters.
+beforeEach(() => { vi.stubGlobal("CSS", { escape: (value: string) => value }); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); document.body.innerHTML = ""; });
 
 it("cycles every window in taskbar order, wraps, reverses and moves DOM focus from an unsent draft", () => {
   const ui = mount();
