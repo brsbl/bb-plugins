@@ -300,8 +300,11 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const loadRef = useRef(load); loadRef.current = load;
   useEffect(() => {
     mounted.current = true;
-    void Promise.all([loadRef.current(), loadContext()]).catch((reason) => { if (mounted.current) setError(message(reason)); });
-    void refreshRef.current(true);
+    // Discovery emits many invalidations. Let the cached list render first,
+    // otherwise its first response can be superseded until discovery goes quiet.
+    void loadRef.current().catch((reason) => { if (mounted.current) setError(message(reason)); }).finally(() => {
+      if (mounted.current) void refreshRef.current(true);
+    });
     const timer = window.setInterval(() => { setClock(Date.now()); if (document.visibilityState === "visible") void refreshRef.current(false); }, 60_000);
     const visibility = () => { if (document.visibilityState === "visible") { setClock(Date.now()); void refreshRef.current(false); } };
     document.addEventListener("visibilitychange", visibility);
