@@ -199,7 +199,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     for (const thread of liveThreads.values()) all.set(thread.id, { id: thread.id, title: thread.displayTitle, projectId: thread.projectId, environmentId: thread.environment?.id ?? null, hostId: thread.host?.id ?? null, archived: thread.isArchived });
     return all;
   }, [context.threads, hiddenThreads, liveThreads]);
-  const visibleItems = useMemo(() => items.map((item) => ({ ...item, links: item.links.filter((link) => !hiddenThreads.has(link.threadId)) })).filter((item) => item.links.length > 0), [items, hiddenThreads]);
+  const visibleItems = useMemo(() => items.map((item) => ({ ...item, links: item.links.filter((link) => !hiddenThreads.has(link.threadId)) })).filter((item) => item.links.length > 0 || item.discoveredFromGitHub), [items, hiddenThreads]);
   const selectedValue = detail?.id === selection.id ? detail : visibleItems.find((item) => item.id === selection.id) ?? null;
   const selected = selectedValue ? { ...selectedValue, links: selectedValue.links.filter((link) => !hiddenThreads.has(link.threadId)) } : null;
   const detailLoading = !!selection.id && detail?.id !== selection.id && detailFailure !== selection.id;
@@ -295,8 +295,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     void loadRef.current().catch((reason) => { if (mounted.current) setError(message(reason)); }).finally(() => {
       if (!cancelled) void refreshRef.current(true);
     });
-    const timer = window.setInterval(() => { setClock(Date.now()); if (document.visibilityState === "visible") void refreshRef.current(false); }, 60_000);
-    const visibility = () => { if (document.visibilityState === "visible") { setClock(Date.now()); void refreshRef.current(false); } };
+    const timer = window.setInterval(() => { setClock(Date.now()); if (document.visibilityState === "visible") void refreshRef.current(true); }, 60_000);
+    const visibility = () => { if (document.visibilityState === "visible") { setClock(Date.now()); void refreshRef.current(true); } };
     document.addEventListener("visibilitychange", visibility);
     return () => { cancelled = true; mounted.current = false; ++readGeneration.current; ++detailGeneration.current; window.clearInterval(timer); document.removeEventListener("visibilitychange", visibility); };
   }, [loadContext]);
@@ -368,10 +368,10 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
         {renderSection("pinned", "Pinned", pinned)}
         {active.map(renderRow)}
         {renderSection("history", "Merged and closed", history)}
-        {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests linked yet"}</p><small>{hasFilters ? "Try another search or filter." : "Pull requests from your bb threads appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
+        {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests found"}</p><small>{hasFilters ? "Try another search or filter." : "Your authored pull requests and review requests on GitHub appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
         {nextCursor && <button className="pr-load-more" type="button" disabled={listLoading} onClick={() => setPageLimit((current) => current + 1)}>{listLoading ? "Loading more…" : `Load more · ${items.length} of ${total}`}</button>}
       </div>
-      <div className="pr-list-footer">{coverage.running ? <span role="status">Discovering · {coverage.checked}/{coverage.total}</span> : <span>{coverage.unavailable > 0 ? `${coverage.unavailable} environments unavailable` : `${visibleItems.length} pull requests`}{coverage.incomplete ? " · partial coverage" : ""}</span>}<IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true)} /></div>
+      <div className="pr-list-footer">{coverage.running ? <span role="status">Syncing GitHub · {coverage.checked}/{coverage.total}</span> : <span>{coverage.unavailable > 0 ? `${coverage.unavailable} GitHub sources unavailable` : `${visibleItems.length} pull requests`}{coverage.incomplete ? " · partial coverage" : ""}</span>}<IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true)} /></div>
       {nextCursor && <p className="pr-pagination-note">Filters and sorting apply to {items.length} loaded pull requests.</p>}
     </aside>
     <section className="pr-detail" aria-label="Pull request detail">
@@ -421,7 +421,7 @@ function PullRequestDetail({ item, loading, tab, now, context, choices, liveThre
       </nav>
       <div className="pr-toolbar-actions">
         <div className="pr-action-group"><IconButton icon={item.pinned ? PinOff : Pin} label={item.pinned ? "Unpin pull request" : "Pin pull request"} active={item.pinned} onClick={() => void onUpdate(() => rpc.call("pin", { id: item.id, pinned: !item.pinned }))} /><External className="pr-icon-link" href={item.url}><Github size={16} aria-hidden="true" /><span className="pr-sr-only">Open pull request on GitHub</span></External></div>
-        <button className="pr-button pr-button-primary" type="button" onClick={openThread}>{preferred && choices.has(preferred.threadId) ? "Open thread" : "Choose thread"}<ArrowRight size={14} /></button>
+        <button className="pr-button pr-button-primary" type="button" onClick={item.links.length ? openThread : onLink}>{!item.links.length ? "Link thread" : preferred && choices.has(preferred.threadId) ? "Open thread" : "Choose thread"}<ArrowRight size={14} /></button>
       </div>
     </div>
     <div className="pr-detail-scroll">

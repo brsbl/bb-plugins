@@ -32,7 +32,7 @@ export function createStore(bb: BbPluginApi) {
     const existing = row ? get(id) : null;
     // Another verified reader stays authoritative until the user selects a replacement.
     if (existing?.reader && (existing.reader.hostId !== reader.hostId || existing.reader.accountId !== reader.accountId)) return existing;
-    return save({ id, url: snapshot.url, snapshot, reader, sourceState: "available", sourceMessage: null, lastAttemptAt: snapshot.fetchedAt, links: existing?.links ?? [], preferredThreadId: existing?.preferredThreadId ?? null, pinned: existing?.pinned ?? false });
+    return save({ id, url: snapshot.url, snapshot, reader, sourceState: "available", sourceMessage: null, lastAttemptAt: snapshot.fetchedAt, discoveredFromGitHub: existing?.discoveredFromGitHub, links: existing?.links ?? [], preferredThreadId: existing?.preferredThreadId ?? null, pinned: existing?.pinned ?? false });
   }
   function link(id: string, value: Link, explicit = false) {
     const row = db.prepare("SELECT value,suppressed FROM pull_request_links WHERE pr_id=? AND thread_id=?").get(id, value.threadId) as { value: string; suppressed: number } | undefined;
@@ -58,7 +58,7 @@ export function createStore(bb: BbPluginApi) {
   return {
     get, save, byUrl, upsert, link, unlink,
     list(args: { offset: number; limit: number; query?: string; view?: string }) {
-      const condition = `EXISTS(SELECT 1 FROM pull_request_links l WHERE l.pr_id=pull_requests.id AND suppressed=0)
+      const condition = `(json_extract(value,'$.discoveredFromGitHub')=1 OR EXISTS(SELECT 1 FROM pull_request_links l WHERE l.pr_id=pull_requests.id AND suppressed=0))
         AND (?='' OR instr(lower(coalesce(json_extract(value,'$.snapshot.title'),'') || ' ' || coalesce(json_extract(value,'$.snapshot.repository'),'') || ' ' || coalesce(json_extract(value,'$.snapshot.number'),'')),lower(?))>0)
         AND (?='all' OR (?='history' AND json_extract(value,'$.snapshot.state') IN ('closed','merged')) OR (?='open' AND coalesce(json_extract(value,'$.snapshot.state'),'open') NOT IN ('closed','merged')))`;
       const bindings = [args.query ?? "", args.query ?? "", args.view ?? "all", args.view ?? "all", args.view ?? "all"];
@@ -67,7 +67,7 @@ export function createStore(bb: BbPluginApi) {
       return { items: rows.map((row) => get(row.id)), total };
     },
     knownOpenIds() {
-      return (db.prepare("SELECT id FROM pull_requests WHERE coalesce(json_extract(value,'$.snapshot.state'),'open') NOT IN ('closed','merged') AND EXISTS(SELECT 1 FROM pull_request_links l WHERE l.pr_id=pull_requests.id AND suppressed=0)").all() as { id: string }[]).map((row) => row.id);
+      return (db.prepare("SELECT id FROM pull_requests WHERE coalesce(json_extract(value,'$.snapshot.state'),'open') NOT IN ('closed','merged') AND (json_extract(value,'$.discoveredFromGitHub')=1 OR EXISTS(SELECT 1 FROM pull_request_links l WHERE l.pr_id=pull_requests.id AND suppressed=0))").all() as { id: string }[]).map((row) => row.id);
     },
     removeThread(threadId: string) {
       db.transaction(() => {

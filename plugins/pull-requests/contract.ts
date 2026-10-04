@@ -30,6 +30,7 @@ export type Link = z.infer<typeof linkSchema>;
 export const sourceStateSchema = z.enum(["available", "stale", "unavailable", "offline", "denied", "auth-changed", "authentication-required"]);
 export const itemSchema = z.object({
   id, url: text, snapshot: snapshotSchema.nullable(), reader: readerSchema.nullable(),
+  discoveredFromGitHub: z.boolean().optional(),
   sourceState: sourceStateSchema, sourceMessage: text.nullable(), lastAttemptAt: text.nullable(),
   links: z.array(linkSchema), preferredThreadId: id.nullable(), pinned: z.boolean(),
 });
@@ -44,7 +45,10 @@ export type Changes = z.infer<typeof changesSchema>;
 const failureSchema = z.object({ ok: z.literal(false), kind: z.enum(["denied", "authentication-required", "auth-changed", "unavailable"]), message: text, accountId: id.optional() });
 export const readResultSchema = z.discriminatedUnion("ok", [z.object({ ok: z.literal(true), accountId: id, login: text, snapshot: snapshotSchema }), failureSchema]);
 export type ReadResult = z.infer<typeof readResultSchema>;
+export const searchResultSchema = z.discriminatedUnion("ok", [z.object({ ok: z.literal(true), accountId: id, login: text, snapshots: z.array(snapshotSchema), nextCursor: text.nullable() }), failureSchema]);
+export type SearchResult = z.infer<typeof searchResultSchema>;
 export const hostContract = defineRpcContract({
+  search: { input: z.object({ scope: z.enum(["authored", "review", "history"]), cursor: text.max(500).optional(), expectedAccountId: id.optional() }), output: searchResultSchema },
   read: { input: z.object({ url: urlSchema, expectedAccountId: id.optional() }), output: readResultSchema },
   changes: { input: z.object({ url: urlSchema, expectedAccountId: id, headSha: text }), output: z.discriminatedUnion("ok", [z.object({ ok: z.literal(true), changes: changesSchema }), failureSchema]) },
 });

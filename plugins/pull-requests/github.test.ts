@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { projectSnapshot, readChanges, readPullRequest, type GhRunner } from "./github.js";
+import { projectSnapshot, readChanges, readPullRequest, searchPullRequests, type GhRunner } from "./github.js";
 import { githubNeedsAttention, originMarkers, parsePullRequestUrl } from "./core.js";
 
 const url = "https://github.com/acme/repo/pull/42";
@@ -17,6 +17,22 @@ function runner(pr = rawPr()): GhRunner {
   };
 }
 describe("GitHub read boundary", () => {
+  it("queries account-wide authored and requested-review PRs with bounded cursor pagination", async () => {
+    for (const [scope, qualifier] of [["authored", "author:alice is:open"], ["review", "is:open review-requested:alice"], ["history", "author:alice is:closed"]] as const) {
+      const run = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockResolvedValueOnce(JSON.stringify({ data: { viewer, search: { pageInfo: { hasNextPage: true, endCursor: "next" }, nodes: [rawPr()] } } })).mockResolvedValueOnce(JSON.stringify(account));
+      expect(await searchPullRequests({ scope, cursor: "previous" }, run)).toMatchObject({ ok: true, nextCursor: "next", snapshots: [{ nodeId: "PR_42" }] });
+      const query = run.mock.calls[1]![0].join(" ");
+      expect(query).toContain(qualifier); expect(query).toContain('first:25,after:"previous"');
+      expect(query).not.toContain("repo:");
+    }
+  });
+  it("rejects partial search responses and account switches without returning private results", async () => {
+    const raw = { data: { viewer, search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [rawPr()] } } };
+    const switched = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockResolvedValueOnce(JSON.stringify(raw)).mockResolvedValueOnce(JSON.stringify({ node_id: "U_B" }));
+    expect(await searchPullRequests({ scope: "authored" }, switched)).toMatchObject({ ok: false, kind: "auth-changed" });
+    const partial = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockResolvedValueOnce(JSON.stringify({ ...raw, errors: [{ message: "Timeout" }] }));
+    expect(await searchPullRequests({ scope: "authored" }, partial)).toMatchObject({ ok: false, kind: "unavailable" });
+  });
   it("normalizes safe PR URLs and rejects shell, credential, non-GitHub and malformed targets", () => {
     expect(parsePullRequestUrl(`${url}?tab=checks#foo`).url).toBe(url);
     for (const unsafe of ["https://evil.test/acme/repo/pull/42", "https://user:pass@github.com/acme/repo/pull/42", "http://github.com/acme/repo/pull/42", "https://github.com/acme/repo/issues/42", "https://github.com/a/$(say)/pull/42", "https://github.com/a/b/pull/9007199254740999"]) expect(() => parsePullRequestUrl(unsafe)).toThrow();

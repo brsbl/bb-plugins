@@ -2,7 +2,7 @@ import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get
 import { afterEach, describe, expect, it, vi } from "vitest";
 import plugin from "./server.js";
 import { createStore } from "./store.js";
-import type { PullRequestItem, ReadResult, Snapshot } from "./contract.js";
+import type { PullRequestItem, ReadResult, SearchResult, Snapshot } from "./contract.js";
 
 const disposers: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); });
@@ -12,12 +12,13 @@ function snapshot(number = 1): Snapshot {
 function setup() {
   let beforeThreadRead = async () => {};
   let response: (input: { url: string; expectedAccountId?: string }, hostId: string) => Promise<ReadResult> = async (input) => ({ ok: true, accountId: "U_A", login: "alice", snapshot: snapshot(Number(input.url.split("/").at(-1))) });
+  let searchResponse: () => Promise<SearchResult> = async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [snapshot()], nextCursor: null });
   const threads = [makeThreadResponse({ id: "thr_a", environmentId: "env_a", title: "Implementation" }), makeThreadResponse({ id: "thr_b", environmentId: "env_b", title: "Review" })];
   const { bb, harness } = createFakePluginHost({ pluginId: "pull-requests", experimental_hostEntry: true, sdk: {
     threads: { get: async ({ threadId }) => { await beforeThreadRead(); const thread = threads.find((entry) => entry.id === threadId); if (!thread) throw new Error("No thread"); return thread; }, list: async ({ offset = 0, environmentId } = {}) => offset ? [] : threads.filter((thread) => !environmentId || thread.environmentId === environmentId) },
     environments: { get: async ({ environmentId }) => ({ hostId: environmentId === "env_b" ? "host_b" : "host_a", path: "/repo" }), pullRequest: async () => ({ outcome: "available", pullRequest: { url: snapshot().url } }) },
     hosts: { list: async () => [makeHostResponse({ id: "host_a", status: "connected" }), makeHostResponse({ id: "host_b", status: "connected" })] },
-  }, experimental_callHostRpc: async ({ input, hostId }) => response(input as { url: string; expectedAccountId?: string }, hostId) });
+  }, experimental_callHostRpc: async ({ method, input, hostId }) => method === "search" ? searchResponse() : response(input as { url: string; expectedAccountId?: string }, hostId) });
   plugin(bb); disposers.push(() => harness.lifecycle.dispose());
   const rpc = <T = unknown>(method: string, input: unknown) => harness.behavior.callRpc(method, input) as Promise<T>;
   const link = async (number = 1, threadId = "thr_a") => {
@@ -25,7 +26,7 @@ function setup() {
     return rpc<PullRequestItem>("link", { token: preview.token });
   };
   const settle = async () => { await vi.waitFor(async () => expect(await rpc("list", {})).toMatchObject({ coverage: { running: false } })); };
-  return { bb, harness, rpc, link, settle, threads, setBeforeThreadRead: (next: typeof beforeThreadRead) => { beforeThreadRead = next; }, setResponse: (next: typeof response) => { response = next; } };
+  return { bb, harness, rpc, link, settle, threads, setSearchResponse: (next: typeof searchResponse) => { searchResponse = next; }, setBeforeThreadRead: (next: typeof beforeThreadRead) => { beforeThreadRead = next; }, setResponse: (next: typeof response) => { response = next; } };
 }
 describe("PR registry and host identity", () => {
   it("persists deduplicated links, suppression and preferred navigation independently of GitHub", async () => {
@@ -71,15 +72,37 @@ describe("PR registry and host identity", () => {
     await expect(h.rpc("preview", { url: snapshot(3).url, threadId: "thr_a" })).rejects.toThrow("Sign in");
     for (const item of [one, two]) expect(await h.rpc("show", { id: item.id })).toMatchObject({ snapshot: null, reader: { accountId: "U_A" }, sourceState: "authentication-required" });
   });
-  it("deduplicates discovery reads by PR across environments and never claims hidden thread links", async () => {
+  it("queries GitHub without scanning threads or environments and allows unlinked PRs", async () => {
     const h = setup();
+    h.threads.splice(0);
     await h.rpc("refresh", { discover: true }); await h.settle();
     const listing = await h.rpc<{ items: PullRequestItem[] }>("list", {});
-    expect(listing.items).toHaveLength(1); expect(listing.items[0]?.links).toHaveLength(2);
-    expect(h.harness.inspection.experimental_hostRpcCalls.filter((call) => call.method === "read")).toHaveLength(1);
-    h.threads[1]!.visibility = "hidden";
-    expect((await h.rpc<PullRequestItem>("show", { id: listing.items[0]!.id })).links).toHaveLength(1);
-    await expect(h.rpc("preview", { url: snapshot(2).url, threadId: "thr_b" })).rejects.toThrow("hidden");
+    expect(listing.items).toHaveLength(1);
+    expect(listing.items[0]).toMatchObject({ discoveredFromGitHub: true, links: [], snapshot: { title: "PR 1" } });
+    expect(h.harness.inspection.sdk.callsTo("threads.list")).toHaveLength(0);
+    expect(h.harness.inspection.sdk.callsTo("environments.pullRequest")).toHaveLength(0);
+    expect(await h.rpc("show", { id: listing.items[0]!.id })).toMatchObject({ snapshot: { body: "Private description" } });
+    expect(await h.rpc("pin", { id: listing.items[0]!.id, pinned: true })).toMatchObject({ pinned: true });
+  });
+  it("keeps hidden thread links private when GitHub independently discovers the PR", async () => {
+    const h = setup(); const item = await h.link();
+    h.threads[0]!.visibility = "hidden";
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    expect(await h.rpc("show", { id: item.id })).toMatchObject({ links: [], discoveredFromGitHub: true, snapshot: { title: "PR 1" } });
+    await expect(h.rpc("preview", { url: item.url, threadId: "thr_a" })).rejects.toThrow("hidden");
+  });
+  it("does not restore an older GitHub search result after repository access is denied", async () => {
+    const h = setup(); const item = await h.link();
+    let release!: (result: SearchResult) => void;
+    h.setSearchResponse(() => new Promise((resolve) => { release = resolve; }));
+    await h.rpc("refresh", { discover: true });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    h.setResponse(async () => ({ ok: false, kind: "denied", message: "Access denied" }));
+    await expect(h.rpc("changes", { id: item.id })).rejects.toThrow("Access denied");
+    h.setSearchResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [], nextCursor: null }));
+    release({ ok: true, accountId: "U_A", login: "alice", snapshots: [snapshot()], nextCursor: null });
+    await h.settle();
+    expect(await h.rpc("show", { id: item.id })).toMatchObject({ snapshot: null, sourceState: "denied" });
   });
   it("invalidates cached accounts on a mid-read switch during a new-URL preview and rejects older reads", async () => {
     const h = setup(); const one = await h.link(1), two = await h.link(2);

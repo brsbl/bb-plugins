@@ -20,6 +20,18 @@ function fixture(): PullRequestItem {
 const thread = { id: "thr_archived", title: "Archived implementation thread", projectId: "proj_1", environmentId: null, hostId: "host_1", archived: true };
 
 describe("Pull Requests access and detail lifetime", () => {
+  it("renders and opens a GitHub-discovered PR with no bb thread", async () => {
+    const item = { ...fixture(), discoveredFromGitHub: true, links: [], preferredThreadId: null };
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
+      list: () => ({ items: [item], nextCursor: null, total: 1, coverage }), show: () => item,
+      refresh: () => coverage, context: () => ({ threads: [], hosts: [], nextCursor: null }),
+    } });
+    expect(await screen.findByRole("button", { name: "Private pull request" })).toBeDefined();
+    expect(await screen.findByText("Private description")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Link thread" })).toBeDefined();
+    slot.lifecycle.unmount();
+  });
   it("does not restore private content from a pin response delivered after access invalidation", async () => {
     const item = fixture();
     let current = item;

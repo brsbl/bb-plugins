@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { CHANGED, hostContract, rpcContract, type Link, type PullRequestItem, type ReadResult, type Reader, type Snapshot, type ThreadChoice } from "./contract.js";
+import { CHANGED, hostContract, rpcContract, type Link, type PullRequestItem, type ReadResult, type SearchResult, type Reader, type Snapshot, type ThreadChoice } from "./contract.js";
 import { mapConcurrent, parsePullRequestUrl } from "./core.js";
 import { createStore } from "./store.js";
 
@@ -26,14 +26,12 @@ export default function plugin(bb: BbPluginApi): void {
     try { return await work(); } finally { networkActive--; networkWaiters.shift()?.(); }
   }
   const observedAccounts = new Map<string, { accountId: string | null; epoch: number }>();
-  const readHost = (input: z.input<typeof hostContract.read.input>, options: { hostId: string; signal?: AbortSignal; timeoutMs?: number }) => network(async () => {
-    const epoch = observedAccounts.get(options.hostId)?.epoch ?? 0;
-    const result = await host.call("read", input, options);
+  function verifyHostResult<T extends ReadResult | SearchResult>(result: T, hostId: string, epoch: number): T | Extract<ReadResult, { ok: false }> {
     assertLive();
     if (!result.ok && (result.kind === "authentication-required" || result.kind === "auth-changed")) {
-      const observed = observedAccounts.get(options.hostId);
-      observedAccounts.set(options.hostId, { accountId: null, epoch: (observed?.epoch ?? 0) + 1 });
-      for (const reader of store.readersOnHost(options.hostId)) {
+      const observed = observedAccounts.get(hostId);
+      observedAccounts.set(hostId, { accountId: null, epoch: (observed?.epoch ?? 0) + 1 });
+      for (const reader of store.readersOnHost(hostId)) {
         connectionEpochs.set(connectionKey(reader), connectionEpoch(reader) + 1);
         store.invalidateConnection(reader, result.kind, result.message);
       }
@@ -42,11 +40,19 @@ export default function plugin(bb: BbPluginApi): void {
     }
     if (result.ok || result.accountId) {
       const accountId = result.accountId!;
-      const observed = observedAccounts.get(options.hostId);
+      const observed = observedAccounts.get(hostId);
       if (observed && observed.epoch !== epoch && observed.accountId !== accountId) return { ok: false as const, kind: "auth-changed" as const, message: "The GitHub account changed during this read. Retry from the selected source." };
-      observeAccount(options.hostId, accountId);
+      observeAccount(hostId, accountId);
     }
     return result;
+  }
+  const readHost = (input: z.input<typeof hostContract.read.input>, options: { hostId: string; signal?: AbortSignal; timeoutMs?: number }) => network(async () => {
+    const epoch = observedAccounts.get(options.hostId)?.epoch ?? 0;
+    return verifyHostResult(await host.call("read", input, options), options.hostId, epoch);
+  });
+  const searchHost = (input: z.input<typeof hostContract.search.input>, hostId: string) => network(async () => {
+    const epoch = observedAccounts.get(hostId)?.epoch ?? 0;
+    return verifyHostResult(await host.call("search", input, { hostId, signal: lifetime.signal, timeoutMs: 90_000 }), hostId, epoch);
   });
   const changesHost = (input: z.input<typeof hostContract.changes.input>, options: { hostId: string; signal?: AbortSignal; timeoutMs?: number }) => network(() => host.call("changes", input, options));
   const lookupEnvironment = (environmentId: string) => network(() => bb.sdk.environments.pullRequest({ environmentId, signal: lifetime.signal }));
@@ -195,20 +201,53 @@ export default function plugin(bb: BbPluginApi): void {
   }
   async function discover(includeArchived: boolean) {
     discovering = true; discoveryReads.clear();
-    coverage.checked = 0; coverage.total = 0; coverage.unavailable = 0; coverage.includesArchived = includeArchived;
-    const inventory = await visibleThreads(includeArchived);
-    coverage.incomplete = inventory.incomplete;
-    const environments = new Map<string, Thread[]>();
-    for (const thread of inventory.threads) {
-      if (!thread.environmentId) continue;
-      environments.set(thread.environmentId, [...environments.get(thread.environmentId) ?? [], thread]);
-    }
-    coverage.total = environments.size; changed();
-    await mapConcurrent([...environments], 4, async ([id, threads]) => {
-      if (lifetime.signal.aborted) return;
-      try { await discoverEnvironment(id, threads); } catch { coverage.unavailable++; }
+    coverage.checked = 0; coverage.total = 0; coverage.unavailable = 0; coverage.incomplete = false; coverage.includesArchived = includeArchived;
+    const machines = (await bb.sdk.hosts.list()).filter((machine) => machine.status === "connected");
+    // Prefer an established reader; one successful search per GitHub account.
+    machines.sort((a, b) => store.readersOnHost(b.id).length - store.readersOnHost(a.id).length);
+    coverage.total = machines.length;
+    const accounts = new Set<string>();
+    for (const machine of machines) {
+      let reader: Reader | undefined;
+      try {
+        for (const scope of ["authored", "review", "history"] as const) {
+          let cursor: string | undefined;
+          // GitHub search is capped at 1,000 results; history shows the latest 100.
+          for (let page = 0; page < (scope === "history" ? 4 : 40); page++) {
+            const generations = new Map(itemEpochs);
+            const result = await searchHost({ scope, ...(cursor ? { cursor } : {}), ...(reader ? { expectedAccountId: reader.accountId } : {}) }, machine.id);
+            assertLive();
+            if (!result.ok) throw new Error(result.message);
+            if (!reader && accounts.has(result.accountId)) break;
+            if (!reader) { reader = { hostId: machine.id, accountId: result.accountId, login: result.login }; accounts.add(result.accountId); }
+            for (const snapshot of result.snapshots) {
+              const id = `github:${snapshot.nodeId}`;
+              if ((generations.get(id) ?? 0) !== (itemEpochs.get(id) ?? 0)) continue;
+              const item = store.upsert(snapshot, reader);
+              if (item.reader?.hostId !== reader.hostId || item.reader.accountId !== reader.accountId) continue;
+              store.save({ ...item, discoveredFromGitHub: true });
+              refreshedInBatch.add(id);
+            }
+            changed();
+            cursor = result.nextCursor ?? undefined;
+            if (!cursor) break;
+            if (scope !== "history" && page === 39) coverage.incomplete = true;
+          }
+          if (!reader) break;
+        }
+      } catch { coverage.unavailable++; coverage.incomplete = true; }
       coverage.checked++; changed();
-    });
+    }
+    if (!machines.length) coverage.incomplete = true;
+    // Keep the explicit archived-thread CLI option as optional link enrichment.
+    // Ordinary inbox discovery never walks bb environments.
+    if (includeArchived) {
+      const inventory = await visibleThreads(true);
+      coverage.incomplete ||= inventory.incomplete;
+      const environments = new Map<string, Thread[]>();
+      for (const thread of inventory.threads) if (thread.environmentId) environments.set(thread.environmentId, [...environments.get(thread.environmentId) ?? [], thread]);
+      await mapConcurrent([...environments], 4, async ([id, threads]) => { try { await discoverEnvironment(id, threads); } catch { coverage.incomplete = true; } });
+    }
     coverage.lastDiscoveryAt = now();
   }
   function refresh(input: { discover?: boolean; includeArchived?: boolean; id?: string }) {
@@ -292,19 +331,19 @@ export default function plugin(bb: BbPluginApi): void {
   }
   async function show(id: string) {
     const item = await sanitize(store.get(id));
-    if (!item.links.length) throw new Error("No accessible bb threads are linked to this pull request.");
+    if (!item.links.length && !item.discoveredFromGitHub) throw new Error("No accessible bb threads are linked to this pull request.");
     return item;
   }
   async function list(input: z.input<typeof rpcContract.list.input>) {
     const parsed = rpcContract.list.input.parse(input), offset = offsetFrom(parsed.cursor);
     const page = store.list({ ...parsed, offset });
-    const items = (await mapConcurrent(page.items, 4, (item) => sanitize(item))).filter((item) => item.links.length).map((item) => ({ ...item, snapshot: item.snapshot ? { ...item.snapshot, body: "", checks: { ...item.snapshot.checks, items: [] }, stack: { ...item.snapshot.stack, items: [] } } : null }));
+    const items = (await mapConcurrent(page.items, 4, (item) => sanitize(item))).filter((item) => item.links.length || item.discoveredFromGitHub).map((item) => ({ ...item, snapshot: item.snapshot ? { ...item.snapshot, body: "", checks: { ...item.snapshot.checks, items: [] }, stack: { ...item.snapshot.stack, items: [] } } : null }));
     return { items, total: page.total, nextCursor: offset + page.items.length < page.total ? String(offset + page.items.length) : null, coverage: { ...coverage } };
   }
   async function source(id: string, hostId: string) {
     const item = await show(id);
     const choices = await mapConcurrent(item.links, 4, async (link) => threadChoice(await eligibleThread(link.threadId)));
-    if (!choices.some((thread) => thread.hostId === hostId || thread.hostId === null)) throw new Error("Choose a linked thread's machine for this read source.");
+    if (!item.discoveredFromGitHub && !choices.some((thread) => thread.hostId === hostId || thread.hostId === null)) throw new Error("Choose a linked thread's machine for this read source.");
     await connected(hostId);
     const generation = (itemEpochs.get(id) ?? 0) + 1;
     itemEpochs.set(id, generation);
@@ -378,10 +417,10 @@ export default function plugin(bb: BbPluginApi): void {
   };
   const idPosition = [{ name: "id", required: true, description: "Stable PR ID from list" }] as const;
   const threadOption = { type: "string", description: "Explicit target thread; defaults to the calling thread" } as const;
-  bb.cli.register(defineCli({ name: "pull-requests", summary: "Find pull requests linked to bb threads", commands: {
+  bb.cli.register(defineCli({ name: "pull-requests", summary: "Find GitHub pull requests and related bb threads", commands: {
     list: cliCommand({ summary: "List known PRs with explicit coverage and pagination", options: { cursor: { type: "string", description: "Page cursor" }, limit: { type: "integer", min: 1, max: 100, description: "Maximum items" }, query: { type: "string", description: "Repository, PR number or title" } }, run: async ({ options }) => output(await list({ cursor: options.cursor, limit: options.limit ?? 20, query: options.query })) }),
     show: cliCommand({ summary: "Read one PR and its links", positionals: idPosition, run: async ({ positionals }) => output(await show(positionals.id)) }),
-    refresh: cliCommand({ summary: "Refresh known open PRs or discover current environment PRs", options: { discover: { type: "boolean", description: "Discover new PRs in visible thread environments" }, archived: { type: "boolean", description: "Include surviving archived thread environments in discovery" } }, run: ({ options }) => output(refresh({ discover: options.discover, includeArchived: options.archived })) }),
+    refresh: cliCommand({ summary: "Refresh known open PRs or query your GitHub pull requests", options: { discover: { type: "boolean", description: "Query authored PRs, review requests and recent history on GitHub" }, archived: { type: "boolean", description: "Include surviving archived thread environments in discovery" } }, run: ({ options }) => output(refresh({ discover: options.discover, includeArchived: options.archived })) }),
     link: cliCommand({ summary: "Verify and link an existing GitHub PR to a visible thread", positionals: [{ name: "url", required: true, description: "HTTPS GitHub pull request URL" }], options: { thread: threadOption, machine: { type: "string", description: "Machine for a thread without an environment" } }, run: async ({ positionals, options }, ctx) => {
       const verified = await preview({ url: positionals.url, threadId: target(options.thread, ctx.threadId), hostId: options.machine }, "agent-explicit", ctx.threadId ?? "cli");
       return output(await commitLink(verified.token));
