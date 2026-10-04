@@ -10,11 +10,14 @@ vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
   const sdk = await importOriginal<typeof import("@get-bb/plugin-sdk/app")>();
   return { ...sdk, useComposer: () => {
     const composer = sdk.useComposer();
+    let message = composer.text;
     return new Proxy(composer, { get(target, key) {
       if (key === "experimental_submit") return async (options: Parameters<typeof composer.experimental_submit>[0]) => {
-        submittedMessages.push(composer.text);
+        submittedMessages.push(message);
         return composer.experimental_submit(options);
       };
+      if (key === "setText") return (value: string) => { message = value; composer.setText(value); };
+      if (key === "updateText") return (update: (value: string) => string) => composer.updateText((value) => { message = update(value); return message; });
       return Reflect.get(target, key);
     } });
   } };
