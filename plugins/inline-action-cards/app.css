@@ -90,3 +90,7 @@
 .iac-log-draft { padding: 8px 0; }
 .iac-log-draft textarea { box-sizing: border-box; width: 100%; font: inherit; color: var(--foreground); background: var(--background); border: 1px solid var(--border); padding: 8px; }
 @media (max-width: 480px) { .iac-log { padding: 12px; } }
+/* Keep the expanded editor visible while a narrow log scrolls to its actions. */
+.iac-log-scroll { container-type: inline-size; }
+.iac-log-row { min-width: 760px; }
+.iac-log-draft { position: sticky; left: 0; width: 100cqw; box-sizing: border-box; }
