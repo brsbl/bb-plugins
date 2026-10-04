@@ -144,12 +144,7 @@
   display: none;
 }
 
-/* Keep the follow-up editor transparent, with an opaque backing for its lower controls. */
-[data-follow-up-composer] > [data-promptbox] {
-  background: transparent;
-  box-shadow: none;
-}
-
+/* Timeline content scrolls behind these controls; their backing must stay opaque. */
 [data-follow-up-composer-footer] {
   background: var(--canvas);
   border-radius: var(--radius);
