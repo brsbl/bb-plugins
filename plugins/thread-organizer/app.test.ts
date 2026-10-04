@@ -736,14 +736,15 @@ describe("workflow settings", () => {
     expect(rendered.queryByRole("option", { name: "Inbox · Missing" })).toBeNull();
     expect(rendered.getByText("Inbox · everything")).toBeTruthy();
     expect(rendered.queryByLabelText("Plugin caught by Planning")).toBeNull();
-    expect(rendered.queryByRole("combobox", { name: "After reading a thread in Planning" })).toBeNull();
+    expect(rendered.queryByRole("group", { name: "After reading a thread in Planning" })).toBeNull();
     fireEvent.change(type, { target: { value: "inbox:digests" } });
     expect(rendered.queryByLabelText("Entry prompt for Planning")).toBeNull();
-    const afterRead = rendered.getByRole("combobox", { name: "After reading a thread in Planning" });
-    expect((afterRead as HTMLSelectElement).value).toBe("stay");
-    fireEvent.change(afterRead, { target: { value: "return" } });
-    fireEvent.change(rendered.getByRole("combobox", { name: "After reading a thread in Inbox" }),
-      { target: { value: "return" } });
+    const afterRead = within(rendered.getByRole("group", { name: "After reading a thread in Planning" }));
+    expect(afterRead.getByRole("button", { name: "Keep after reading" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(afterRead.getByRole("button", { name: "Move back after reading" }));
+    expect(afterRead.getByRole("button", { name: "Move back after reading" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(rendered.getByRole("group", { name: "After reading a thread in Inbox" }))
+      .getByRole("button", { name: "Move back after reading" }));
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => {
       expect(savedInput?.stages[0]).toMatchObject({ key: "inbox", returnAfterRead: true });

@@ -8,9 +8,11 @@ import {
 import * as Popover from "@radix-ui/react-popover";
 import {
   ArrowDown02Icon,
+  ArrowTurnBackwardIcon,
   ArrowUp02Icon,
   Delete02Icon,
   DragDropVerticalIcon,
+  InboxCheckIcon,
   MoreHorizontalIcon,
   PlusSignIcon,
   SquareLock02Icon,
@@ -244,6 +246,49 @@ function finalizeDraftKeys(
   return { ...config, stages };
 }
 
+const AFTER_READ_CHOICES = [
+  { returnAfterRead: false, label: "Keep after reading", icon: InboxCheckIcon },
+  { returnAfterRead: true, label: "Move back after reading", icon: ArrowTurnBackwardIcon },
+] as const;
+
+function AfterReadToggle({
+  onChange,
+  stage,
+}: {
+  onChange: (returnAfterRead: boolean) => void;
+  stage: EditableWorkflowStage;
+}) {
+  const current = stage.returnAfterRead === true;
+  return (
+    <div
+      aria-label={`After reading a thread in ${stage.title}`}
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5"
+      role="group"
+    >
+      {AFTER_READ_CHOICES.map((choice) => {
+        const pressed = choice.returnAfterRead === current;
+        return (
+          <button
+            aria-label={choice.label}
+            aria-pressed={pressed}
+            className={`inline-flex size-7 items-center justify-center rounded outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              pressed
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+            }`}
+            key={choice.label}
+            onClick={() => onChange(choice.returnAfterRead)}
+            title={choice.label}
+            type="button"
+          >
+            <HugeiconsIcon aria-hidden="true" className="size-4" icon={choice.icon} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function StageCard({
   inboxPlugins,
   index,
@@ -322,61 +367,55 @@ function StageCard({
         )}
         <div className={`${stageTypeLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
           <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>Type</span>
-          {protectedInbox ? (
-            <span className="flex min-h-8 items-center gap-1.5 whitespace-nowrap px-1 text-sm text-muted-foreground" title="The main Inbox is protected">
-              <HugeiconsIcon aria-hidden="true" className="size-3.5 shrink-0" icon={SquareLock02Icon} />
-              Inbox · everything
-            </span>
-          ) : (
-            <>
-              <select
-                aria-label={`Section type for ${stage.title}`}
-                className={`${quietFieldClass} h-8 whitespace-nowrap py-0`}
-                style={{ fieldSizing: "content" }}
-                title={hasPrompt ? "Clear the entry prompt to choose an inbox." : undefined}
-                onChange={(event) => {
-                  const { catchesPluginId: _filter, returnAfterRead, ...fields } = stage;
-                  const value = event.target.value;
-                  onChange(value === "stage"
-                    ? { ...fields, role: "stage" }
-                    : {
-                        ...fields, role: "inbox", catchesPluginId: value.slice(6),
-                        ...(returnAfterRead ? { returnAfterRead } : {}),
-                      });
+          <div className="flex min-w-0 items-center gap-1">
+            {protectedInbox ? (
+              <span className="flex min-h-8 items-center gap-1.5 whitespace-nowrap px-1 text-sm text-muted-foreground" title="The main Inbox is protected">
+                <HugeiconsIcon aria-hidden="true" className="size-3.5 shrink-0" icon={SquareLock02Icon} />
+                Inbox · everything
+              </span>
+            ) : (
+              <>
+                <select
+                  aria-label={`Section type for ${stage.title}`}
+                  className={`${quietFieldClass} h-8 whitespace-nowrap py-0`}
+                  style={{ fieldSizing: "content" }}
+                  title={hasPrompt ? "Clear the entry prompt to choose an inbox." : undefined}
+                  onChange={(event) => {
+                    const { catchesPluginId: _filter, returnAfterRead, ...fields } = stage;
+                    const value = event.target.value;
+                    onChange(value === "stage"
+                      ? { ...fields, role: "stage" }
+                      : {
+                          ...fields, role: "inbox", catchesPluginId: value.slice(6),
+                          ...(returnAfterRead ? { returnAfterRead } : {}),
+                        });
+                  }}
+                  value={inbox ? `inbox:${stage.catchesPluginId}` : "stage"}
+                >
+                  <option value="stage">Stage</option>
+                  {inbox && !inboxPlugins.some((plugin) => plugin.id === stage.catchesPluginId) ? (
+                    <option disabled value={`inbox:${stage.catchesPluginId}`}>
+                      Inbox · {stage.catchesPluginId} (unavailable)
+                    </option>
+                  ) : null}
+                  {inboxPlugins.map((plugin) => (
+                    <option disabled={hasPrompt} key={plugin.id} value={`inbox:${plugin.id}`}>
+                      Inbox · {plugin.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            {inbox ? (
+              <AfterReadToggle
+                onChange={(returnAfterRead) => {
+                  const { returnAfterRead: _previous, ...fields } = stage;
+                  onChange(returnAfterRead ? { ...fields, returnAfterRead } : fields);
                 }}
-                value={inbox ? `inbox:${stage.catchesPluginId}` : "stage"}
-              >
-                <option value="stage">Stage</option>
-                {inbox && !inboxPlugins.some((plugin) => plugin.id === stage.catchesPluginId) ? (
-                  <option disabled value={`inbox:${stage.catchesPluginId}`}>
-                    Inbox · {stage.catchesPluginId} (unavailable)
-                  </option>
-                ) : null}
-                {inboxPlugins.map((plugin) => (
-                  <option disabled={hasPrompt} key={plugin.id} value={`inbox:${plugin.id}`}>
-                    Inbox · {plugin.name}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-          {inbox ? (
-            <select
-              aria-label={`After reading a thread in ${stage.title}`}
-              className={`${quietFieldClass} h-8 whitespace-nowrap py-0`}
-              style={{ fieldSizing: "content" }}
-              onChange={(event) => {
-                const { returnAfterRead: _previous, ...fields } = stage;
-                onChange(event.target.value === "return"
-                  ? { ...fields, returnAfterRead: true }
-                  : fields);
-              }}
-              value={stage.returnAfterRead ? "return" : "stay"}
-            >
-              <option value="stay">Keep after reading</option>
-              <option value="return">Move back after reading</option>
-            </select>
-          ) : null}
+                stage={stage}
+              />
+            ) : null}
+          </div>
         </div>
         {protectedInbox ? (
           <p
