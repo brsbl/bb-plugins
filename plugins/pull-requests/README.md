@@ -2,6 +2,8 @@
 
 See pull requests across bb threads and continue the work in the right conversation.
 
+![Pull request Summary with status icons and linked thread](https://github.com/user-attachments/assets/a9197e22-5fdf-4342-957c-8f865d5d3d69)
+
 ## Install
 
 ```bash

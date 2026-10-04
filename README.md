@@ -54,6 +54,12 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 See pull requests across bb threads, inspect checks and changes, and continue in the right conversation. Links survive branch changes and connect shared work without duplicating pull requests.
 
+![Pull request Summary with status icons and linked thread](https://github.com/user-attachments/assets/a9197e22-5fdf-4342-957c-8f865d5d3d69)
+
+![Read-only changed file selection](https://github.com/user-attachments/assets/45b86d40-81ea-4895-ba0e-6aa3073ae6ef)
+
+![Verified pull request link to a bb thread](https://github.com/user-attachments/assets/b9e4d5e7-390b-4261-914b-515e3d364a2c)
+
 [Source](plugins/pull-requests) · [README](plugins/pull-requests/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/pull-requests --yes`
