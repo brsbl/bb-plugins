@@ -4,7 +4,9 @@ import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, chooseLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
 import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, NoteIcon, SkipIcon } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel } from "./presentation.js";
+import { Consequence } from "./consequence.js";
 import "./app.css";
+import "./compact.css";
 
 // Several cards may share one composer. A double click must never submit two drafts.
 const submitting = new Set<string>();
@@ -290,14 +292,14 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
           </span>
         </label>)}
       </div>
-      {choice.consequence && <p className="iac-consequence">{choice.consequence}</p>}
-    </> : <p className="iac-consequence">{item.content.type === "decide" && item.content.consequence}</p>}
+      {choice.consequence && <Consequence>{choice.consequence}</Consequence>}
+    </> : <Consequence>{item.content.type === "decide" && item.content.consequence}</Consequence>}
     {!done && (choice ? choiceControls : controls)}
   </>;
   return <article className={row ? "iac-row" : "iac-card"} aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
     {done ? result : row ? <div className="iac-row-line">
       <div className="iac-row-description"><span>{reply ? `${displayName(reply.to[0]!)} · ${reply.subject}` : title(item)}</span>
-        {!reply && <p className="iac-consequence">{item.content.type === "decide" && item.content.consequence}</p>}
+        {!reply && <Consequence>{item.content.type === "decide" && item.content.consequence}</Consequence>}
       </div>
       {reply ? <div className="iac-actions">{ready && !expanded && <MoreMenu disabled={disabled} onCloseAutoFocus={noteMenuFocus}>{noteMenuAction}</MoreMenu>}<ActionButton disabled={busy || loadError} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton></div> : controls}
     </div> : null}
@@ -370,12 +372,12 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
 export function ActionDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const parsed = idSchema.safeParse(attributes.id);
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This card has an invalid item ID. Ask the agent to recreate its link.</div>;
-  return <ActionCard key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} />;
+  return <div className="iac-container"><ActionCard key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} /></div>;
 }
 export function ActionsDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const parsed = idSchema.safeParse(attributes.id);
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This table has an invalid ID. Ask the agent to recreate its link.</div>;
-  return <ActionTable key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} />;
+  return <div className="iac-container"><ActionTable key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} /></div>;
 }
 export default definePluginApp((app) => {
   // Skip-forward has no built-in host glyph; publish it through the SDK registry.
