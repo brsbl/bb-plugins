@@ -7,6 +7,14 @@ import { cn } from "./lib/utils.js";
 export function ActionButton({ className, ...props }: ButtonProps) {
   return <Button size="sm" variant="ghost" {...props} className={cn("h-7 px-2", className)} />;
 }
+export function PendingButton({ children, pending, pendingLabel, ...props }: ButtonProps & { pending: boolean; pendingLabel: string }) {
+  return <ActionButton {...props} disabled={props.disabled || pending} aria-busy={pending || undefined}>
+    <span className="iac-button-label">
+      <span aria-hidden={pending} style={{ visibility: pending ? "hidden" : "visible" }}>{children}</span>
+      <span className="iac-progress" aria-hidden={!pending} style={{ visibility: pending ? "visible" : "hidden" }}>{pendingLabel}</span>
+    </span>
+  </ActionButton>;
+}
 export function IconButton({ label, children, ...props }: ButtonProps & { label: string; children: ReactNode }) {
   return <Tooltip.Provider delayDuration={250}><Tooltip.Root>
     <Tooltip.Trigger asChild><ActionButton {...props} className="iac-icon" aria-label={label}>{children}</ActionButton></Tooltip.Trigger>

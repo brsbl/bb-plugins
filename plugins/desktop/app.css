@@ -144,6 +144,12 @@
   display: none;
 }
 
+/* Timeline content scrolls behind these controls; their backing must stay opaque. */
+[data-follow-up-composer-footer] {
+  background: var(--canvas);
+  border-radius: var(--radius);
+}
+
 .bbd-window {
   position: absolute;
   display: flex;
@@ -155,11 +161,11 @@
   app-region: no-drag;
   border-radius: 14px 14px 12px 12px;
   background:
-    linear-gradient(color-mix(in oklab, var(--bbd-blue) 14%, transparent), color-mix(in oklab, var(--bbd-blue) 14%, transparent)),
+    linear-gradient(color-mix(in oklab, var(--bbd-blue) 6%, transparent), color-mix(in oklab, var(--bbd-blue) 6%, transparent)),
     var(--bbd-glass);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   backdrop-filter: blur(24px) saturate(1.6);
-  border: 1px solid color-mix(in oklab, var(--bbd-blue-deep) 65%, transparent);
+  border: 1px solid color-mix(in oklab, var(--bbd-blue) 20%, var(--bbd-hairline));
   box-shadow:
     0 24px 56px -24px color-mix(in oklab, var(--ink) 50%, transparent);
   color: var(--foreground);
@@ -167,9 +173,9 @@
 
 .bbd-window:not([data-focused="true"]) {
   background:
-    linear-gradient(color-mix(in oklab, var(--bbd-blue-sky) 12%, transparent), color-mix(in oklab, var(--bbd-blue-sky) 12%, transparent)),
+    linear-gradient(color-mix(in oklab, var(--bbd-blue-sky) 4%, transparent), color-mix(in oklab, var(--bbd-blue-sky) 4%, transparent)),
     var(--bbd-glass);
-  border-color: color-mix(in oklab, var(--bbd-blue) 30%, transparent);
+  border-color: var(--bbd-hairline);
   box-shadow: var(--bbd-highlight), var(--bbd-lift);
 }
 
@@ -193,7 +199,7 @@
   height: 32px;
   padding: 0 3px 0 6px;
   flex: none;
-  color: color-mix(in oklab, var(--bbd-blue-deep) 55%, var(--foreground));
+  color: color-mix(in oklab, var(--bbd-blue) 12%, var(--foreground));
   font-size: var(--text-sm);
   font-weight: 600;
   user-select: none;
@@ -243,7 +249,7 @@
   overflow: hidden;
   border-radius: 8px;
   background: var(--bbd-glass-solid);
-  border: 1px solid color-mix(in oklab, var(--bbd-blue-deep) 35%, transparent);
+  border: 1px solid var(--bbd-hairline);
 }
 
 .bbd-resize {
@@ -1397,6 +1403,52 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   text-decoration: underline;
 }
 
+.bbd-ie-page-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 16px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--background) 94%, var(--bbd-blue-sky)), var(--background));
+  color: var(--foreground);
+}
+
+.bbd-ie-page-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(100%, 320px);
+}
+
+.bbd-ie-page-icon {
+  display: flex;
+  flex: none;
+}
+
+.bbd-ie-page-labels {
+  min-width: 0;
+}
+
+.bbd-ie-page-title,
+.bbd-ie-page-host {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bbd-ie-page-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bbd-ie-page-host {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+}
+
 .bbd-ie-status {
   display: flex;
   gap: 12px;
@@ -2271,6 +2323,15 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   fill: var(--bbd-white);
 }
 
+/* Fill-style and background glyphs keep their outlines as outlines when inverted. */
+.bbd-paint-size[data-pressed="true"] svg [fill="none"] {
+  fill: none;
+}
+
+.bbd-paint-size[data-pressed="true"] svg [stroke] {
+  stroke: var(--bbd-white);
+}
+
 .bbd-paint-work {
   overflow: auto;
   padding: 4px 12px 12px 4px;
@@ -2303,8 +2364,46 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
   cursor: cell;
 }
 
+.bbd-paint-canvas[data-tool="magnifier"] {
+  cursor: zoom-in;
+}
+
+.bbd-paint-canvas[data-tool="text"] {
+  cursor: text;
+}
+
+.bbd-paint-canvas[data-tool="select"][data-over="true"],
+.bbd-paint-canvas[data-tool="freeform"][data-over="true"] {
+  cursor: move;
+}
+
+/* Zoomed pictures show their pixels as crisp squares, as the Magnifier did. */
+.bbd-paint-sheet[data-zoomed="true"] canvas {
+  image-rendering: pixelated;
+}
+
 .bbd-paint-overlay {
   pointer-events: none;
+}
+
+.bbd-paint-frame {
+  position: absolute;
+  outline: 1px dashed var(--bbd-paint-handle);
+  pointer-events: none;
+}
+
+.bbd-paint-text {
+  position: absolute;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 1px dashed var(--bbd-paint-handle);
+  overflow: hidden;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 .bbd-paint-ghost {
@@ -2388,8 +2487,6 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
     inset -1px -1px 0 var(--bbd-paint-light);
   cursor: default;
 }
-
-.bbd-paint-tool:disabled { color: var(--bbd-paint-shade); box-shadow: none; }
 
 /* Minesweeper (games/minesweeper.tsx). */
 .bbd-mine {

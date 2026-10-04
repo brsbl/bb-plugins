@@ -30,13 +30,15 @@ import {
   type Point,
   type SortKey,
 } from "../core";
-import { addStickyNote, removeNote, takeRemovedNoteIds, useSavedNotes } from "../page/sticky-notes";
+import { addStickyNote, removeNote, takeRemovedNoteIds } from "../page/sticky-notes";
 import { usePointerTracker, useWindowManager, windowId, workAreaRect, type DesktopWindow } from "../windows";
-import { DesktopIcon, MORE_KEY, MoreIcon, NOTE_KEY_PREFIX, NoteIcon, RECYCLE_BIN_KEY, RecycleBinIcon } from "./canvas-icons";
+import { DesktopIcon, MoreIcon, NoteIcon, RecycleBinIcon } from "./canvas-icons";
+import { MORE_KEY, NOTE_KEY_PREFIX, RECYCLE_BIN_KEY, useDesktopEntries } from "./desktop-entries";
 import { errorMessage, useDesktop } from "./data";
 import { useMenu, type MenuEntry, type MenuTrigger } from "./menu";
 import { viewMenuEntries } from "./menus";
 import { usePageBackgroundMenu } from "./page-menu";
+import { useWindowShortcuts } from "./window-shortcuts";
 
 const ICON_BOX = { width: 88, height: 84 } as const;
 
@@ -79,6 +81,7 @@ interface SavedPosition {
  * selection, a marquee selects, and positions persist through the `setLayout` RPC.
  */
 export function DesktopCanvas() {
+  const { cycle, canCycle } = useWindowShortcuts();
   const desktop = useDesktop();
   const manager = useWindowManager();
   const menu = useMenu();
@@ -111,10 +114,10 @@ export function DesktopCanvas() {
     });
   }, [desktop.snapshotRequestedAt]);
 
-  const items = desktop.desktopGroups;
-  const hasMore = desktop.moreGroups.length > 0;
-  const savedNotes = useSavedNotes();
-  const noteKeys = useMemo(() => savedNotes.map((note) => NOTE_KEY_PREFIX + note.id), [savedNotes]);
+  const entries = useDesktopEntries();
+  const items = useMemo(() => entries.flatMap((entry) => entry.kind === "group" ? [entry.group] : []), [entries]);
+  const hasMore = entries.some((entry) => entry.kind === "more");
+  const noteKeys = useMemo(() => entries.filter((entry) => entry.kind === "note").map((entry) => entry.key), [entries]);
 
   // Forget the icon positions of note pads deleted in this tab, including from a thread page while the desktop was away.
   useEffect(() => {
@@ -122,11 +125,11 @@ export function DesktopCanvas() {
     if (removed.length === 0) return;
     const entries = Object.fromEntries(removed.map((id) => [NOTE_KEY_PREFIX + id, null]));
     void call("setLayout", { entries }).catch(() => undefined);
-  }, [call, savedNotes]);
+  }, [call, entries]);
 
   const keys = useMemo(
-    () => [RECYCLE_BIN_KEY, ...(hasMore ? [MORE_KEY] : []), ...items.map((item) => item.key), ...noteKeys],
-    [hasMore, items, noteKeys],
+    () => entries.map((entry) => entry.key),
+    [entries],
   );
 
   const positions = useMemo(() => {
@@ -377,6 +380,8 @@ export function DesktopCanvas() {
       disabled: manager.windows.length === 0,
       run: tileWindows,
     },
+    { label: "Next window (Ctrl+`)", disabled: !canCycle, run: () => cycle(1) },
+    { label: "Previous window (Ctrl+Shift+`)", disabled: !canCycle, run: () => cycle(-1) },
   ];
   const canvasMenu = (event: MenuTrigger): MenuEntry[] => [
     ...commands.slice(0, 2),
@@ -406,45 +411,24 @@ export function DesktopCanvas() {
         onKeyDown={onKeyDown}
         onContextMenu={(event) => menu.open(event, canvasMenu(event))}
       >
-        {items.map((item) => (
-          <DesktopIcon
-            key={item.key}
-            group={item}
-            position={placed(item.key)}
-            selected={selected.has(item.key)}
-            onPointerDown={(event) => beginIconDrag(item.key, event)}
-            menu={(single) => iconMenu(item.key, single)}
-            onSelect={selectOnly(item.key)}
-          />
-        ))}
-        {hasMore ? (
-          <MoreIcon
-            position={placed(MORE_KEY)}
-            selected={selected.has(MORE_KEY)}
-            onPointerDown={(event) => beginIconDrag(MORE_KEY, event)}
-            onSelect={selectOnly(MORE_KEY)}
-          />
-        ) : null}
-        {savedNotes.map((note) => {
-          const key = NOTE_KEY_PREFIX + note.id;
-          return (
-            <NoteIcon
-              key={key}
-              note={note}
-              position={placed(key)}
-              selected={selected.has(key)}
-              onPointerDown={(event) => beginIconDrag(key, event)}
-              onSelect={selectOnly(key)}
-            />
-          );
+        {entries.map((entry) => {
+          const props = {
+            position: placed(entry.key),
+            selected: selected.has(entry.key),
+            onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => beginIconDrag(entry.key, event),
+            onSelect: selectOnly(entry.key),
+          };
+          switch (entry.kind) {
+            case "group":
+              return <DesktopIcon key={entry.key} group={entry.group} menu={(single) => iconMenu(entry.key, single)} {...props} />;
+            case "more":
+              return <MoreIcon key={entry.key} {...props} />;
+            case "note":
+              return <NoteIcon key={entry.key} note={entry.note} {...props} />;
+            case "recycle-bin":
+              return <RecycleBinIcon key={entry.key} binRef={binRef} {...props} />;
+          }
         })}
-        <RecycleBinIcon
-          binRef={binRef}
-          position={placed(RECYCLE_BIN_KEY)}
-          selected={selected.has(RECYCLE_BIN_KEY)}
-          onPointerDown={(event) => beginIconDrag(RECYCLE_BIN_KEY, event)}
-          onSelect={selectOnly(RECYCLE_BIN_KEY)}
-        />
         <div ref={marqueeRef} className="bbd-marquee" hidden aria-hidden />
       </div>
     </div>

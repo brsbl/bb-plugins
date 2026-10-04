@@ -120,6 +120,7 @@ export function WindowFrame({
     <section
       ref={frameRef}
       role="dialog"
+      tabIndex={-1}
       aria-label={title}
       className="bbd-window"
       data-bbd-window-id={id}
