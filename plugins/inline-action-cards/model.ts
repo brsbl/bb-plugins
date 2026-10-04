@@ -3,6 +3,7 @@ import { z } from "zod";
 export const idSchema = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/);
 const line = z.string().trim().min(1).max(300).regex(/^[^\r\n]+$/);
 const address = z.string().trim().min(1).max(320).regex(/^[^\r\n]+$/);
+export const noteSchema = z.string().trim().max(1000);
 export const draftSchema = z.string().max(40_000);
 export const contentSchema = z.discriminatedUnion("type", [
   z.object({
@@ -34,7 +35,7 @@ export const itemSchema = z.object({
   content: contentSchema,
   state: z.enum(["ready", "pending", "succeeded", "failed"]),
   attempt: z.object({
-    id: z.string().uuid(), action: actionSchema, claimed: z.boolean(),
+    id: z.string().uuid(), action: actionSchema, claimed: z.boolean(), note: noteSchema.optional(),
     // When the composer accepted the request; the card's buttons are done after that.
     sentAt: z.iso.datetime().optional(),
   }).strict().nullable(),
