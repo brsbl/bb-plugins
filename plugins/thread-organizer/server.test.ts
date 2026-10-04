@@ -367,6 +367,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
       "getConfig",
       "saveConfig",
+      "listThreadSourcePlugins",
     ]);
     expect(
       organizer.harness.inspection.registrations.agentConfigurationProvider,
@@ -395,6 +396,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
       "getConfig",
       "saveConfig",
+      "listThreadSourcePlugins",
     ]);
     expect(
       organizer.harness.inspection.registrations.agentConfigurationProvider,
@@ -823,6 +825,128 @@ describe("Thread Organizer server", () => {
     );
 
     expect(organizer.current().sectionId).toBe(inboxId);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("moves a read thread back to its stage when Inbox is set to return it", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    await saveStagePatch(organizer, "planning", { entryPrompt: "Plan it." });
+    const config = await saveStagePatch(organizer, "inbox", { returnAfterRead: true });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    const sentBefore = organizer.sendMessage.mock.calls.length;
+
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+
+    organizer.setThread({ lastReadAt: 20 });
+    organizer.emitChanged(["read-state-changed"]);
+    await vi.waitFor(() =>
+      expect(organizer.current().sectionId).toBe(sectionId("planning")),
+    );
+    organizer.emitChanged();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("planning"));
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(sentBefore);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("lists only plugins that created open root threads as inbox sources", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    expect(await organizer.harness.behavior.callRpc("listThreadSourcePlugins", {})).toEqual([]);
+    organizer.setThread({ originPluginId: "digests" });
+    expect(await organizer.harness.behavior.callRpc("listThreadSourcePlugins", {}))
+      .toEqual(["digests"]);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps read threads moved into a manual inbox and never claims threads for it", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await saveStagePatch(organizer, "handoff", { role: "inbox" });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    expect(config.stages.find((stage) => stage.key === "handoff"))
+      .not.toHaveProperty("catchesPluginId");
+
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    expect(organizer.getPluginMetadata).not.toHaveBeenCalled();
+
+    organizer.setThread({ lastReadAt: 20, sectionId: sectionId("handoff") });
+    organizer.emitChanged("order-changed");
+    organizer.emitChanged(["read-state-changed"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    await saveStagePatch(organizer, "planning", { rule: "Plan it." });
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("releases threads already read in Inbox when it is set to return them", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    const config = await configFor(organizer);
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    organizer.setThread({ lastReadAt: 20 });
+    organizer.emitChanged(["read-state-changed"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    const sentBefore = organizer.sendMessage.mock.calls.length;
+
+    await saveStagePatch(organizer, "inbox", { returnAfterRead: true });
+    expect(organizer.current().sectionId).toBe(sectionId("planning"));
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(sentBefore);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("releases a read plugin-inbox thread only when that inbox returns it", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const edited = editableWorkflowConfig(await configFor(organizer));
+    edited.stages.push({ key: "digests", title: "Digests", role: "inbox",
+      catchesPluginId: "digests", rule: "Published issues.", returnAfterRead: true });
+    const saved = await organizer.harness.behavior.callRpc("saveConfig", edited) as WorkflowConfig;
+    const sectionId = (key: string) => saved.stages.find((stage) => stage.key === key)!.sectionId;
+
+    organizer.setThread({ status: "active", lastReadAt: 20, latestAttentionAt: 20,
+      originPluginId: "digests" });
+    organizer.emitChanged("metadata-changed");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(sectionId("digests")));
+    organizer.emitChanged(["read-state-changed"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
+
+    organizer.setThread({ status: "idle", latestAttentionAt: 30 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    organizer.setThread({ lastReadAt: 30 });
+    organizer.emitChanged(["read-state-changed"]);
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBeNull());
+    organizer.emitChanged("metadata-changed");
+    await vi.waitFor(async () => {
+      await expect(organizer.bb.storage.kv.get("thread:v3:thr_test"))
+        .resolves.toMatchObject({ dismissedInboxPluginId: "digests" });
+    });
+    expect(organizer.current().sectionId).toBeNull();
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -1473,10 +1597,51 @@ describe("config CLI", () => {
     expect(inbox.request.payload).toMatchObject({
       summary: "Digests will receive threads from digests and keep them until you move or archive them.",
     });
+    const manual = await approved(organizer, ["section", "type", "planning", "--set", "inbox"]);
+    expect(manual.request.payload).toMatchObject({
+      summary: "Planning will hold threads you move there by hand and keep them until you move or archive them.",
+    });
+    expect(await stageOf(organizer, "planning")).toMatchObject({ role: "inbox" });
+    expect(await stageOf(organizer, "planning")).not.toHaveProperty("catchesPluginId");
+    expect(await cli(organizer, ["section", "type", "planning"]))
+      .toMatchObject({ exitCode: 0, stdout: "inbox (manual)\n" });
     const count = pending(organizer).length;
     expect(await cli(organizer, ["section", "type", "inbox", "--set", "stage"]))
       .toMatchObject({ exitCode: 2 });
-    expect(await cli(organizer, ["section", "type", "planning", "--set", "inbox"]))
+    expect(pending(organizer)).toHaveLength(count);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("shows and sets an inbox's after-reading behavior after approval", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    expect(await cli(organizer, ["section", "after-read", "inbox"]))
+      .toMatchObject({ exitCode: 0, stdout: "stay\n" });
+    const set = await approved(organizer, ["section", "after-read", "inbox", "--set", "return"]);
+    expect(set.result.exitCode).toBe(0);
+    expect(await stageOf(organizer, "inbox")).toMatchObject({ returnAfterRead: true });
+    expect(await cli(organizer, ["section", "after-read", "inbox"]))
+      .toMatchObject({ exitCode: 0, stdout: "return\n" });
+    expect((await cli(organizer, ["section", "rule", "inbox"])).stdout)
+      .toContain("move back to their section once you read them");
+    await approved(organizer, ["section", "after-read", "inbox", "--set", "stay"]);
+    expect(await stageOf(organizer, "inbox")).not.toHaveProperty("returnAfterRead");
+
+    await approved(organizer, ["section", "add", "Digests", "--inbox", "--catches-plugin", "digests"]);
+    await approved(organizer, ["section", "after-read", "digests", "--set", "return"]);
+    const switched = await approved(organizer, [
+      "section", "type", "digests", "--set", "inbox", "--catches-plugin", "drafts",
+    ]);
+    expect(switched.request.payload).toMatchObject({
+      summary: "Digests will receive threads from drafts and move them back once you read them.",
+    });
+    expect(await stageOf(organizer, "digests"))
+      .toMatchObject({ catchesPluginId: "drafts", returnAfterRead: true });
+
+    const count = pending(organizer).length;
+    expect(await cli(organizer, ["section", "after-read", "planning", "--set", "return"]))
+      .toMatchObject({ exitCode: 2 });
+    expect(await cli(organizer, ["section", "after-read", "inbox", "--set", "maybe"]))
       .toMatchObject({ exitCode: 2 });
     expect(pending(organizer)).toHaveLength(count);
     await organizer.harness.lifecycle.dispose();

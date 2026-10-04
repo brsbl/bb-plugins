@@ -371,10 +371,8 @@ describe("workflow sidebar controller", () => {
     controller.abort();
   });
 
-  it.each(["stage", "inbox"] as const)("keeps the main Inbox first when another %s is dragged ahead", async (role) => {
+  it("saves a section dragged ahead of the main Inbox", async () => {
     const config = workflow();
-    config.stages[1]!.role = role;
-    if (role === "inbox") config.stages[1]!.catchesPluginId = "digests";
     const saveConfig = vi.fn(async (edited: EditableWorkflowConfig) =>
       mergeEditableWorkflowConfig(config, edited),
     );
@@ -384,11 +382,15 @@ describe("workflow sidebar controller", () => {
     const controller = mount(config, saveConfig, bb.store);
     await settled();
 
-    bb.set([CONFIGURED[1]!, CONFIGURED[0]!, ...CONFIGURED.slice(2)]);
+    const chosen = [CONFIGURED[1]!, CONFIGURED[0]!, ...CONFIGURED.slice(2)];
+    bb.set(chosen);
     root.insertBefore(groups.planning!, groups.inbox!);
 
-    await vi.waitFor(() => expect(bb.state.value).toEqual(CONFIGURED));
-    expect(saveConfig).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(saveConfig).toHaveBeenCalledOnce());
+    expect(saveConfig.mock.calls[0]?.[0].stages.slice(0, 2).map((stage) => stage.key))
+      .toEqual(["planning", "inbox"]);
+    await settled();
+    expect(bb.state.value).toEqual(chosen);
     controller.abort();
   });
 

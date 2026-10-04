@@ -4,16 +4,19 @@ import {
   useRef,
   useState,
   type DragEvent,
+  type ReactNode,
 } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Popover from "@radix-ui/react-popover";
 import {
+  ArrowDown01Icon,
   ArrowDown02Icon,
+  ArrowRight01Icon,
   ArrowUp02Icon,
   Delete02Icon,
   DragDropVerticalIcon,
   MoreHorizontalIcon,
   PlusSignIcon,
-  SquareLock02Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -28,6 +31,7 @@ import {
 import {
   ENTRY_PROMPT_MAX_LENGTH,
   INBOX_DESCRIPTION,
+  RETURNING_INBOX_DESCRIPTION,
   WORKFLOW_CONFIG_VERSION,
   DEFAULT_STAGE_RULE,
   MAX_WORKFLOW_STAGES,
@@ -49,6 +53,12 @@ const fieldClass =
   "min-w-0 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-foreground/45 disabled:cursor-not-allowed disabled:opacity-60";
 const quietFieldClass =
   "min-w-0 w-full rounded-md border border-transparent bg-transparent px-1 py-1.5 text-sm text-foreground outline-none hover:border-border focus:border-foreground/45 focus:bg-background disabled:cursor-not-allowed disabled:opacity-60";
+const typeTriggerClass =
+  "inline-flex h-8 min-w-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-md border border-transparent bg-transparent px-1 text-sm text-foreground outline-none hover:border-border focus-visible:border-foreground/45 data-[state=open]:border-border";
+const typeMenuContentClass =
+  "z-50 grid min-w-36 gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none";
+const typeMenuItemClass =
+  "flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm outline-none data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40 data-[highlighted]:bg-muted data-[state=open]:bg-muted";
 const buttonBaseClass =
   "inline-flex h-8 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
 const outlineButtonClass = `${buttonBaseClass} border border-input bg-transparent text-foreground hover:bg-muted`;
@@ -153,7 +163,7 @@ function StageActions({
         >
           <button
             className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted disabled:opacity-40"
-            disabled={index <= 1}
+            disabled={index <= 0}
             onClick={() => {
               setOpen(false);
               onMove(index, -1);
@@ -185,22 +195,24 @@ function StageActions({
             />
             Move down
           </button>
-          <button
-            className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              setOpen(false);
-              onRemove(index);
-            }}
-            role="menuitem"
-            type="button"
-          >
-            <HugeiconsIcon
-              aria-hidden="true"
-              className="size-4"
-              icon={Delete02Icon}
-            />
-            Remove section
-          </button>
+          {stage.key === "inbox" ? null : (
+            <button
+              className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                setOpen(false);
+                onRemove(index);
+              }}
+              role="menuitem"
+              type="button"
+            >
+              <HugeiconsIcon
+                aria-hidden="true"
+                className="size-4"
+                icon={Delete02Icon}
+              />
+              Remove section
+            </button>
+          )}
         </div>
       ) : null}
     </div>
@@ -243,6 +255,167 @@ function finalizeDraftKeys(
   return { ...config, stages };
 }
 
+const AFTER_READ_CHOICES = [
+  { returnAfterRead: false, label: "Keep after reading" },
+  { returnAfterRead: true, label: "Move back after reading" },
+] as const;
+
+function MenuCheck({ selected }: { selected: boolean }) {
+  return (
+    <HugeiconsIcon
+      aria-hidden="true"
+      className={`size-3.5 shrink-0 ${selected ? "" : "invisible"}`}
+      icon={Tick02Icon}
+    />
+  );
+}
+
+function MenuTrigger({ label, name }: { label: string; name: string }) {
+  return (
+    <DropdownMenu.Trigger asChild>
+      <button aria-label={name} className={typeTriggerClass} type="button">
+        <HugeiconsIcon
+          aria-hidden="true"
+          className="size-3.5 shrink-0 text-muted-foreground"
+          icon={ArrowDown01Icon}
+          strokeWidth={1.5}
+        />
+        {label}
+      </button>
+    </DropdownMenu.Trigger>
+  );
+}
+
+function MenuContent({
+  children,
+  sub = false,
+}: {
+  children: ReactNode;
+  sub?: boolean;
+}) {
+  const className = `${typeMenuContentClass} max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto`;
+  return (
+    <DropdownMenu.Portal>
+      {sub ? (
+        <DropdownMenu.SubContent className={className} collisionPadding={12}
+          data-bb-plugin-root="" data-bb-portaled-overlay="" sideOffset={4}>
+          {children}
+        </DropdownMenu.SubContent>
+      ) : (
+        <DropdownMenu.Content align="start" className={className} collisionPadding={12}
+          data-bb-plugin-root="" data-bb-portaled-overlay="" sideOffset={4}>
+          {children}
+        </DropdownMenu.Content>
+      )}
+    </DropdownMenu.Portal>
+  );
+}
+
+function TypeMenu({
+  hasPrompt,
+  onChange,
+  stage,
+}: {
+  hasPrompt: boolean;
+  onChange: (choice: { role: "stage" } | { role: "inbox"; returnAfterRead: boolean }) => void;
+  stage: EditableWorkflowStage;
+}) {
+  const mainInbox = stage.key === "inbox";
+  const inbox = stage.role === "inbox";
+  const label = mainInbox ? "Main inbox" : inbox ? "Inbox" : "Stage";
+  const returning = inbox && stage.returnAfterRead === true;
+  return (
+    <DropdownMenu.Root modal={false}>
+      <MenuTrigger
+        label={label}
+        name={`Section type for ${stage.title}: ${label}${returning ? ", moves back after reading" : ""}`}
+      />
+      <MenuContent>
+        {mainInbox ? null : (
+          <DropdownMenu.Item
+            className={typeMenuItemClass}
+            onSelect={() => onChange({ role: "stage" })}
+          >
+            <MenuCheck selected={!inbox} />
+            Stage
+          </DropdownMenu.Item>
+        )}
+        <DropdownMenu.Sub>
+          <DropdownMenu.SubTrigger
+            className={typeMenuItemClass}
+            disabled={hasPrompt}
+            title={hasPrompt ? "Clear the entry prompt to make this an inbox." : undefined}
+          >
+            <MenuCheck selected={inbox} />
+            <span className="flex-1">{mainInbox ? "Main inbox" : "Inbox"}</span>
+            <HugeiconsIcon
+              aria-hidden="true"
+              className="size-3.5 shrink-0 text-muted-foreground"
+              icon={ArrowRight01Icon}
+              strokeWidth={1.5}
+            />
+          </DropdownMenu.SubTrigger>
+          <MenuContent sub>
+            {AFTER_READ_CHOICES.map((choice) => (
+              <DropdownMenu.Item
+                className={typeMenuItemClass}
+                key={choice.label}
+                onSelect={() => onChange({ role: "inbox", returnAfterRead: choice.returnAfterRead })}
+              >
+                <MenuCheck selected={inbox && returning === choice.returnAfterRead} />
+                {choice.label}
+              </DropdownMenu.Item>
+            ))}
+          </MenuContent>
+        </DropdownMenu.Sub>
+      </MenuContent>
+    </DropdownMenu.Root>
+  );
+}
+
+function FilledByMenu({
+  onChange,
+  sourcePlugins,
+  stage,
+}: {
+  onChange: (catchesPluginId: string | undefined) => void;
+  sourcePlugins: readonly InboxPlugin[];
+  stage: EditableWorkflowStage;
+}) {
+  const caught = stage.catchesPluginId;
+  const options: { id?: string; name: string }[] = [
+    { name: "You" },
+    ...(caught !== undefined && !sourcePlugins.some((plugin) => plugin.id === caught)
+      ? [{ id: caught, name: caught }]
+      : []),
+    ...sourcePlugins,
+  ];
+  const label = options.find((option) => option.id === caught)?.name ?? "You";
+  return (
+    <DropdownMenu.Root modal={false}>
+      <MenuTrigger
+        label={`Filled by ${label}`}
+        name={`Who fills ${stage.title}: ${label}`}
+      />
+      <MenuContent>
+        {options.map((option) => (
+          <DropdownMenu.Item
+            className={typeMenuItemClass}
+            key={option.id ?? ""}
+            onSelect={() => onChange(option.id)}
+            title={option.id === undefined
+              ? "Holds only the threads you move here"
+              : `Threads ${option.name} creates land here`}
+          >
+            <MenuCheck selected={option.id === caught} />
+            {option.name}
+          </DropdownMenu.Item>
+        ))}
+      </MenuContent>
+    </DropdownMenu.Root>
+  );
+}
+
 function StageCard({
   inboxPlugins,
   index,
@@ -267,35 +440,29 @@ function StageCard({
   return (
     <article
       className="min-w-0 border-b border-border bg-background px-2 py-2 last:rounded-b-lg last:border-b-0 lg:col-span-full lg:grid lg:grid-cols-subgrid"
-      onDragOver={(event) => {
-        if (!protectedInbox) event.preventDefault();
-      }}
+      onDragOver={(event) => event.preventDefault()}
       onDrop={(event: DragEvent) => {
         event.preventDefault();
-        if (!protectedInbox) onDrop(index);
+        onDrop(index);
       }}
     >
       <div className={stageRowClass}>
-        {protectedInbox ? (
-          <span aria-hidden="true" className="hidden size-8 lg:block" />
-        ) : (
-          <span className="hidden shrink-0 lg:inline-flex">
-            <button
-              aria-label={`Drag ${stage.title} to reorder`}
-              className={`${iconButtonClass} cursor-grab active:cursor-grabbing`}
-              draggable
-              onDragStart={() => onDragStart(index)}
-              title={`Drag ${stage.title} to reorder`}
-              type="button"
-            >
-              <HugeiconsIcon
-                aria-hidden="true"
-                className="size-4"
-                icon={DragDropVerticalIcon}
-              />
-            </button>
-          </span>
-        )}
+        <span className="hidden shrink-0 lg:inline-flex">
+          <button
+            aria-label={`Drag ${stage.title} to reorder`}
+            className={`${iconButtonClass} cursor-grab active:cursor-grabbing`}
+            draggable
+            onDragStart={() => onDragStart(index)}
+            title={`Drag ${stage.title} to reorder`}
+            type="button"
+          >
+            <HugeiconsIcon
+              aria-hidden="true"
+              className="size-4"
+              icon={DragDropVerticalIcon}
+            />
+          </button>
+        </span>
         <input
           aria-label={`${stage.title || "Untitled section"} section title`}
           data-stage-key={stage.key}
@@ -305,63 +472,52 @@ function StageCard({
           onChange={(event) => update("title", event.target.value)}
           value={stage.title}
         />
-        {protectedInbox ? (
-          <span
-            aria-hidden="true"
-            className="col-start-2 row-start-1 size-8 lg:col-start-6"
-          />
-        ) : (
-          <StageActions
-            index={index}
-            onMove={onMove}
-            onRemove={onRemove}
-            stage={stage}
-            stageCount={stageCount}
-          />
-        )}
+        <StageActions
+          index={index}
+          onMove={onMove}
+          onRemove={onRemove}
+          stage={stage}
+          stageCount={stageCount}
+        />
         <div className={`${stageTypeLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
           <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>Type</span>
-          {protectedInbox ? (
-            <span className="flex min-h-8 items-center gap-1.5 whitespace-nowrap px-1 text-sm text-muted-foreground" title="The main Inbox is protected">
-              <HugeiconsIcon aria-hidden="true" className="size-3.5 shrink-0" icon={SquareLock02Icon} />
-              Inbox · everything
-            </span>
-          ) : (
-            <>
-              <select
-                aria-label={`Section type for ${stage.title}`}
-                className={`${quietFieldClass} h-8 whitespace-nowrap py-0`}
-                style={{ fieldSizing: "content" }}
-                title={hasPrompt ? "Clear the entry prompt to choose an inbox." : undefined}
-                onChange={(event) => {
-                  const { catchesPluginId: _filter, ...fields } = stage;
-                  const value = event.target.value;
-                  onChange(value === "stage"
-                    ? { ...fields, role: "stage" }
-                    : { ...fields, role: "inbox", catchesPluginId: value.slice(6) });
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1">
+            <TypeMenu
+              hasPrompt={hasPrompt}
+              onChange={(choice) => {
+                const {
+                  catchesPluginId,
+                  returnAfterRead: _returnAfterRead,
+                  ...fields
+                } = stage;
+                onChange(choice.role === "stage"
+                  ? { ...fields, role: "stage" }
+                  : {
+                      ...fields,
+                      role: "inbox",
+                      ...(inbox && catchesPluginId !== undefined ? { catchesPluginId } : {}),
+                      ...(choice.returnAfterRead ? { returnAfterRead: true } : {}),
+                    });
+              }}
+              stage={stage}
+            />
+            {inbox && !protectedInbox ? (
+              <FilledByMenu
+                onChange={(catchesPluginId) => {
+                  const { catchesPluginId: _previous, ...fields } = stage;
+                  onChange(catchesPluginId === undefined ? fields : { ...fields, catchesPluginId });
                 }}
-                value={inbox ? `inbox:${stage.catchesPluginId}` : "stage"}
-              >
-                <option value="stage">Stage</option>
-                {inbox && !inboxPlugins.some((plugin) => plugin.id === stage.catchesPluginId) ? (
-                  <option disabled value={`inbox:${stage.catchesPluginId}`}>
-                    Inbox · {stage.catchesPluginId} (unavailable)
-                  </option>
-                ) : null}
-                {inboxPlugins.map((plugin) => (
-                  <option disabled={hasPrompt} key={plugin.id} value={`inbox:${plugin.id}`}>
-                    Inbox · {plugin.name}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
+                sourcePlugins={inboxPlugins}
+                stage={stage}
+              />
+            ) : null}
+          </div>
         </div>
         {protectedInbox ? (
           <p
             className={`${stageRuleLayoutClass} px-1 py-1.5 text-sm leading-5 text-muted-foreground`}
           >
-            <span title={INBOX_DESCRIPTION}>Idle unread threads without another inbox arrive here.</span>
+            <span title={stage.returnAfterRead ? RETURNING_INBOX_DESCRIPTION : INBOX_DESCRIPTION}>Idle unread threads without another inbox arrive here.</span>
           </p>
         ) : (
           <label className={`${stageRuleLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
@@ -434,17 +590,20 @@ export function WorkflowSettings() {
   const [pluginsError, setPluginsError] = useState(false);
   const loadPlugins = useCallback(async () => {
     try {
-      const { plugins } = await sdk.plugins.list();
-      // The public SDK gives every installed plugin thread ownership; there
-      // is no separate manifest permission for spawning or marking threads.
-      setInboxPlugins(plugins.filter((plugin) => !plugin.isOrphanedBuiltin && plugin.status !== "missing")
-        .map((plugin) => ({ id: plugin.id, name: plugin.name || plugin.id }))
+      const [{ plugins }, sources] = await Promise.all([
+        sdk.plugins.list(),
+        rpc.call("listThreadSourcePlugins", {}),
+      ]);
+      // Only plugins that have actually created threads can fill an inbox.
+      const names = new Map(plugins.map((plugin) => [plugin.id, plugin.name || plugin.id]));
+      setInboxPlugins(sources
+        .map((id) => ({ id, name: names.get(id) ?? id }))
         .sort((a, b) => a.name.localeCompare(b.name)));
       setPluginsError(false);
     } catch {
       setPluginsError(true);
     }
-  }, [sdk]);
+  }, [rpc, sdk]);
   useEffect(() => { void loadPlugins(); }, [loadPlugins]);
   const [config, setConfig] = useState<EditableWorkflowConfig | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -553,7 +712,7 @@ export function WorkflowSettings() {
   };
 
   const moveStage = (from: number, to: number) => {
-    if (from <= 0 || to <= 0 || config === null) return;
+    if (config === null) return;
     const stages = [...config.stages];
     const [stage] = stages.splice(from, 1);
     if (stage === undefined) return;
@@ -685,7 +844,7 @@ export function WorkflowSettings() {
 
       {pluginsError ? (
         <p className="text-sm text-muted-foreground" role="status">
-          Couldn’t load inbox choices.{" "}
+          Couldn’t load which plugins can fill an inbox.{" "}
           <button className="underline underline-offset-2" onClick={() => void loadPlugins()} type="button">Retry</button>
         </p>
       ) : null}
