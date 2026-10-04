@@ -37,6 +37,7 @@ import { errorMessage, useDesktop } from "./data";
 import { useMenu, type MenuEntry, type MenuTrigger } from "./menu";
 import { viewMenuEntries } from "./menus";
 import { usePageBackgroundMenu } from "./page-menu";
+import { useWindowShortcuts } from "./window-shortcuts";
 
 const ICON_BOX = { width: 88, height: 84 } as const;
 
@@ -79,6 +80,7 @@ interface SavedPosition {
  * selection, a marquee selects, and positions persist through the `setLayout` RPC.
  */
 export function DesktopCanvas() {
+  const { cycle, canCycle } = useWindowShortcuts();
   const desktop = useDesktop();
   const manager = useWindowManager();
   const menu = useMenu();
@@ -377,6 +379,8 @@ export function DesktopCanvas() {
       disabled: manager.windows.length === 0,
       run: tileWindows,
     },
+    { label: "Next window (Ctrl+`)", disabled: !canCycle, run: () => cycle(1) },
+    { label: "Previous window (Ctrl+Shift+`)", disabled: !canCycle, run: () => cycle(-1) },
   ];
   const canvasMenu = (event: MenuTrigger): MenuEntry[] => [
     ...commands.slice(0, 2),
