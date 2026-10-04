@@ -45,6 +45,18 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
     /(^|\n)[ \t]*\[[^\]\n]+\]:[^\n]*/g,
   ];
   for (const pattern of patterns) for (const match of text.matchAll(pattern)) excluded.push([match.index, match.index + match[0].length]);
+  // Indented code starts at a block boundary; indentation alone cannot
+  // interrupt an ordinary paragraph. Blank lines may continue the code block.
+  let offset = 0, afterBlank = true, inIndentedCode = false;
+  for (const line of text.split('\n')) {
+    const blank = /^[ \t]*$/.test(line);
+    if (!blank) {
+      inIndentedCode = /^(?: {4}| {0,3}\t)/.test(line) && (afterBlank || inIndentedCode);
+      if (inIndentedCode) excluded.push([offset, offset + line.length]);
+    }
+    afterBlank = blank;
+    offset += line.length + 1;
+  }
   const ranges: { from: number; to: number }[] = [];
   for (const match of text.matchAll(/https?:\/\/[^\s<>"'`\u0000-\u001f]+/gi)) {
     const from = match.index;

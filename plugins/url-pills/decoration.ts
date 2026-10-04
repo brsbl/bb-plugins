@@ -105,6 +105,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   let frame: number | null = null;
   let composition: HTMLElement | null = null;
   let explicitEdit: HTMLElement | null = null;
+  let inputEdit: HTMLElement | null = null;
   let inspector: HTMLElement | null = null;
   let inspected: HTMLAnchorElement | null = null;
   let inspectUrl = '';
@@ -283,7 +284,8 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       }
       if (entry.composer) {
         entry.selector = composerSelector(element);
-        entry.expanded = !!(explicitEdit === element || composition?.contains(element) || revealForSelection(element));
+        entry.expanded = !!(explicitEdit === element || composition?.contains(element)
+          || (inputEdit?.contains(element) && caretTouches(element)) || revealForSelection(element));
       } else {
         if (element.getAttribute(ATTR) !== 'message') element.setAttribute(ATTR, 'message');
         if (element.getAttribute(LABEL) !== entry.url.label) element.setAttribute(LABEL, entry.url.label);
@@ -352,6 +354,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   }
   function cancelTouch(): void { if (touchTimer) clearTimeout(touchTimer); touchTimer = null; touchStart = null; }
   function pointerDown(event: PointerEvent): void {
+    inputEdit = null;
     if (inspector && event.target instanceof Node && !inspector.contains(event.target)) closeInspector(false);
     const range = event.target instanceof Element ? event.target.closest<HTMLElement>(`.${EFFECT_CLASS}`) : null;
     explicitEdit = range && entries.get(range)?.composer ? range : null;
@@ -388,9 +391,20 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   }
   function compositionStart(event: CompositionEvent): void { composition = revealForComposition(event.target); }
   function compositionEnd(): void { composition = null; queue(); }
+  function beforeInput(event: InputEvent): void {
+    const editor = event.target instanceof Element ? event.target.closest<HTMLElement>(EDITOR) : null;
+    if (!editor) return;
+    // Native edits may replace the range span. Keep intent on its stable editor
+    // and reveal only the range at the caret, including a query/fragment end.
+    const insertsText = /^insert(?:Text|CompositionText|ReplacementText)$/.test(event.inputType) && /\S/u.test(event.data ?? '');
+    inputEdit = insertsText || event.inputType.startsWith('delete') ? editor : null;
+    queue();
+  }
+  function paste(): void { inputEdit = null; queue(); }
   function focusOut(event: FocusEvent): void {
     const editor = event.target instanceof Element ? event.target.closest(EDITOR) : null;
     if (explicitEdit && editor?.contains(explicitEdit)) explicitEdit = null;
+    if (editor === inputEdit) inputEdit = null;
     queue();
   }
   const listeners: [string, EventListener][] = [
@@ -398,6 +412,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     ['pointerup', pointerUp], ['pointercancel', pointerUp], ['keydown', keyDown as EventListener],
     ['contextmenu', contextMenu as EventListener], ['click', click as EventListener],
     ['compositionstart', compositionStart as EventListener], ['compositionend', compositionEnd],
+    ['beforeinput', beforeInput as EventListener], ['paste', paste],
     ['focusout', focusOut as EventListener], ['visibilitychange', queue],
   ];
   for (const [type, listener] of listeners) document.addEventListener(type, listener, true);
