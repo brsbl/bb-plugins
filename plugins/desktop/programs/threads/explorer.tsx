@@ -278,7 +278,7 @@ function FolderItem({ group, windowId, view = "icons" }: { group: DesktopGroup; 
   return (
     <ExplorerItem
       title={group.name}
-      detail={`${members.length} threads`}
+      detail={`${members.length} ${members.length === 1 ? "thread" : "threads"}`}
       view={view}
       open={open}
       aria-label={summary}
@@ -300,7 +300,8 @@ function DesktopItem({ entry, windowId, view }: { entry: DesktopEntry; windowId:
   const size = view === "list" ? 20 : 40;
   const open = () => entry.kind === "note" ? openNote(entry.note.id) : manager.navigate(windowId, { kind: entry.kind });
   const detail = entry.kind === "note" ? "Note pad" : entry.kind === "more"
-    ? `${desktop.moreGroups.length} folders` : `${desktop.archivedThreads.length} archived threads`;
+    ? `${desktop.moreGroups.length} ${desktop.moreGroups.length === 1 ? "folder" : "folders"}`
+    : `${desktop.archivedThreads.length} archived ${desktop.archivedThreads.length === 1 ? "thread" : "threads"}`;
   const art = entry.kind === "note" ? <NotePadArt size={size} /> : entry.kind === "more"
     ? <FolderArt kind="section" size={size} /> : <RecycleBinArt size={size} full={desktop.archivedThreads.length > 0} />;
   return <ExplorerItem title={entry.title} detail={detail} art={art} view={view} open={open}
@@ -317,7 +318,7 @@ export function DesktopFinderWindow({ window: desktopWindow }: { window: Desktop
   const visible = entries.filter((entry) => needle === "" || entry.title.toLocaleLowerCase().includes(needle));
   return (
     <WindowFrame window={desktopWindow} title="Desktop — Finder" icon={<FolderArt kind="section" size={16} />}
-      statusBar={<span>{visible.length} items · double-click or press Enter to open</span>}
+      statusBar={<span>{visible.length} {visible.length === 1 ? "item" : "items"} · double-click or press Enter to open</span>}
     >
       <div className="flex h-full flex-col">
         <div className="bbd-menubar flex-none">
