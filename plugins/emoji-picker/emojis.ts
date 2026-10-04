@@ -10,14 +10,14 @@ export interface Emoji {
 const catalog: { emojis: Record<string, Emoji>; categories: { id: string; emojis: string[] }[]; aliases: Record<string, string> } = data;
 export const emojis = catalog.emojis;
 export const categories = [
-  { id: "people", label: "Smileys & people", icon: "Smile" },
-  { id: "nature", label: "Animals & nature", icon: "Leaf" },
-  { id: "foods", label: "Food & drink", icon: "Coffee" },
-  { id: "activity", label: "Activities", icon: "Trophy" },
-  { id: "places", label: "Travel & places", icon: "Plane" },
-  { id: "objects", label: "Objects", icon: "Lightbulb" },
-  { id: "symbols", label: "Symbols", icon: "Heart" },
-  { id: "flags", label: "Flags", icon: "Flag" },
+  { id: "people", label: "Smileys & people", symbol: "😀" },
+  { id: "nature", label: "Animals & nature", symbol: "🐻" },
+  { id: "foods", label: "Food & drink", symbol: "🍕" },
+  { id: "activity", label: "Activities", symbol: "⚽" },
+  { id: "places", label: "Travel & places", symbol: "🚗" },
+  { id: "objects", label: "Objects", symbol: "💡" },
+  { id: "symbols", label: "Symbols", symbol: "💛" },
+  { id: "flags", label: "Flags", symbol: "🏁" },
 ];
 export const tones = ["Default", "Light", "Medium-light", "Medium", "Medium-dark", "Dark"];
 export const toneSamples = ["👋", "👋🏻", "👋🏼", "👋🏽", "👋🏾", "👋🏿"];

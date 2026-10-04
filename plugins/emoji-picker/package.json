@@ -5,6 +5,7 @@
   "type": "module",
   "license": "UNLICENSED",
   "files": [
+    "assets",
     "dist",
     "README.md"
   ],
@@ -16,7 +17,7 @@
     "name": "Emoji Picker",
     "description": "Find, copy, and insert emojis without leaving bb.",
     "branding": {
-      "icon": "Smile"
+      "icon": "./assets/emoji-picker.svg"
     },
     "server": "./server.ts",
     "app": "./app.tsx",

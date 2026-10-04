@@ -16,7 +16,7 @@ describe("emoji lookup", () => {
     expect(categoryEmojis("flags").some((emoji) => emoji.id === "us")).toBe(true);
     expect(nativeEmoji(emojis["+1"], 3)).toBe("👍🏽");
     expect(nativeEmoji(emojis.rocket, 3)).toBe("🚀");
-    expect(nativeEmoji(emojis["woman-technologist"], 0)).toBe("👩‍💻");
+    expect(nativeEmoji(emojis["female-technologist"], 0)).toBe("👩‍💻");
   });
 });
 

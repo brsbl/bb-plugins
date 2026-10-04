@@ -5,6 +5,10 @@ import { Input } from "./components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
 import { categories, categoryEmojis, emojis, nativeEmoji, readPreferences, searchEmojis, storageKey, tones, toneSamples, type Emoji, type Preferences } from "./emojis";
 
+function SmileIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="size-4"><circle cx="12" cy="12" r="9" /><path d="M8 14a4.5 4.5 0 0 0 8 0" /><path d="M8 9h.01M16 9h.01" strokeWidth="3" /></svg>;
+}
+
 const preferencesEvent = "bb:emoji-picker:preferences-changed";
 
 function usePreferences() {
@@ -99,9 +103,9 @@ export function EmojiPicker({ onSelect, mode = "copy" }: { onSelect?: (value: st
         </div>
       </div>
       <div role="group" aria-label="Emoji categories" className="flex justify-between gap-0.5 border-b border-border px-3 pb-2">
-        {[{ id: "recent", label: "Recently used", icon: "Clock" }, ...categories].map((item) => (
+        {[{ id: "recent", label: "Recently used", symbol: null }, ...categories].map((item) => (
           <span key={item.id} title={item.label} className="min-w-0">
-            <Button type="button" variant="ghost" size="icon" aria-label={item.label} aria-pressed={!searching && category === item.id} className="size-8 text-muted-foreground" onClick={() => { setCategory(item.id); setQuery(""); }}><Icon name={item.icon} aria-hidden="true" className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon" aria-label={item.label} aria-pressed={!searching && category === item.id} className="size-8 text-muted-foreground" onClick={() => { setCategory(item.id); setQuery(""); }}>{item.symbol ? <span aria-hidden="true" className="text-lg">{item.symbol}</span> : <Icon name="Clock" aria-hidden="true" className="size-4" />}</Button>
           </span>
         ))}
       </div>
@@ -147,7 +151,7 @@ export function ComposerEmojiPicker() {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <span title="Insert emoji"><PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Insert emoji"><Icon name="Smile" aria-hidden="true" className="size-4" /></Button></PopoverTrigger></span>
+      <span title="Insert emoji"><PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Insert emoji"><SmileIcon /></Button></PopoverTrigger></span>
       <PopoverContent side="top" align="start" className="w-96 max-w-[calc(100vw-2rem)] p-0" mobileTitle="Insert emoji" onMobileContentAnimationEnd={(isOpen) => { if (!isOpen) composer.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); composer.focus(); }}>
         <EmojiPicker mode="insert" onSelect={(value) => { composer.updateText((current) => current + value); setOpen(false); }} />
       </PopoverContent>
