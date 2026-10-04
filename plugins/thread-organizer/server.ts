@@ -1604,7 +1604,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       void schedule(threadId, async () => {
         if (readStateChanged) {
           const thread = await bb.sdk.threads.get({ threadId });
-          if (!isUnreadThread(thread)) return;
+          if (!isUnreadThread(thread) && thread.queuedMessageCount === 0) return;
         }
         await reconcileThread(threadId);
       });

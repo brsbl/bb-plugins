@@ -57,6 +57,7 @@ export interface OrganizableThread {
   originKind: "fork" | "side-chat" | null;
   originPluginId: string | null;
   parentThreadId: string | null;
+  queuedMessageCount?: number;
   sectionId: string | null;
   sourceThreadId: string | null;
   status: "active" | "error" | "idle" | "pending" | "starting" | "stopping";
@@ -68,7 +69,7 @@ export const INBOX_RULE =
   "Idle unread threads that need your attention appear here automatically and stay until work resumes or you move a read thread to another workflow section. This behavior can’t be customized.";
 
 export const INBOX_DESCRIPTION =
-  "Idle unread threads not claimed by another inbox appear here automatically and stay until work resumes or you move a read thread to another section.";
+  "Idle unread threads without queued messages and not claimed by another inbox appear here automatically. They stay until work resumes, a message is queued, or you move a read thread to another section.";
 
 export const HANDOFF_RULE =
   "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
@@ -565,6 +566,7 @@ export function placementForThread(
   }
   const belongsInInbox =
     !isRunningThread(thread) &&
+    (thread.queuedMessageCount ?? 0) === 0 &&
     (isUnreadThread(thread) ||
       (!leaveInbox && currentStage?.role === "inbox"));
   return belongsInInbox
@@ -595,7 +597,7 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
         `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
     );
   return [
-    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads not claimed by another inbox go there automatically and stay until work resumes or the user moves a read thread to another workflow section. Never choose an inbox with \`bb organizer phase\`.`,
+    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads without queued messages and not claimed by another inbox go there automatically. They stay until work resumes, a message is queued, or the user moves a read thread to another workflow section. Never choose an inbox with \`bb organizer phase\`.`,
     ...config.stages
       .filter((stage) => stage.role === "inbox" && stage.key !== "inbox")
       .map((stage) =>
