@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useComposer, useComposerView, useRealtime, useRpc, type ExperimentalComposerSubmitOptions, type PluginComposerApi, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView } from "./model.js";
 import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, MenuLabel, SendOptions, ClockIcon, SkipIcon } from "./controls.js";
@@ -9,6 +9,14 @@ import "./app.css";
 // Several cards may share one composer. A double click must never submit two drafts.
 const submitting = new Set<string>();
 const readableError = (error: unknown) => error instanceof Error ? error.message : "The card could not be updated. Try again.";
+// The host reports accepted submissions, including queued ones; older hosts only clear the draft.
+async function submitDraft(composer: PluginComposerApi, options: ExperimentalComposerSubmitOptions): Promise<boolean> {
+  const submittedText = composer.text;
+  let accepted = false;
+  const stop = composer.experimental_onSubmitted?.(() => { accepted = true; });
+  try { await composer.experimental_submit(options); } finally { stop?.(); }
+  return accepted || composer.text !== submittedText;
+}
 
 function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
@@ -113,10 +121,9 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try the card again.");
     composer.setText(actionMessage(next));
     insertActionMention(composer, next);
-    const submittedText = composer.text;
-    const queued = sendAt !== undefined || view.current.run.isRunning;
-    await composer.experimental_submit(sendAt ? { sendAt, experimental_data: { itemId: id } } : { experimental_data: { itemId: id } });
-    if (composer.text === submittedText) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
+    // A scheduled send always waits in the queue; anything else is queued only if bb reports it.
+    const queued = sendAt !== undefined;
+    if (!await submitDraft(composer, sendAt ? { sendAt, experimental_data: { itemId: id } } : { experimental_data: { itemId: id } })) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
     // RPC input must be JSON, so omit sendAt rather than sending undefined.
     adopt(await rpc.call("submitted", { id, threadId, attemptId: next.attempt!.id, queued, ...(sendAt ? { sendAt } : {}) }));
   };
@@ -219,7 +226,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       {time && <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>}
     </span>
     <div className="iac-actions">
-      {status && !status.queued && !item.attempt?.claimed && <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>}
+      {status && !item.attempt?.claimed && <MoreMenu disabled={busy}><MenuAction onSelect={() => void act()}>Resend request</MenuAction></MoreMenu>}
       {(deferred || (item.state === "failed" && item.result?.retryable)) && <MoreMenu disabled={busy}><MenuAction onSelect={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</MenuAction></MoreMenu>}
       <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
       {item.state === "failed" && <ActionButton variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined)}>{item.result?.retryable ? "Retry" : "Check outcome"}</ActionButton>}
@@ -297,11 +304,8 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
         if (index) composer.updateText((value) => `${value}, `);
         insertActionMention(composer, item);
       });
-      const submittedText = composer.text;
-      const queued = view.current.run.isRunning;
-      await composer.experimental_submit({ experimental_data: { tableId: id } });
-      if (composer.text === submittedText) throw new Error("The request was not submitted. Send the prepared composer message, or resend each pending row.");
-      (await Promise.all(items.map((item) => rpc.call("submitted", { id: item.id, threadId, attemptId: item.attempt!.id, queued })))).forEach(updateItem);
+      if (!await submitDraft(composer, { experimental_data: { tableId: id } })) throw new Error("The request was not submitted. Send the prepared composer message, or resend each pending row.");
+      (await Promise.all(items.map((item) => rpc.call("submitted", { id: item.id, threadId, attemptId: item.attempt!.id, queued: false })))).forEach(updateItem);
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
   };

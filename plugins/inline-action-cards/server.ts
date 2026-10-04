@@ -119,7 +119,7 @@ export function createStore(bb: BbPluginApi) {
       const item = get(input.threadId, input.id);
       if (item.state !== "pending" || item.attempt?.id !== input.attemptId || item.attempt.claimed || item.attempt.sentAt || item.attempt.queued) return item;
       return change(input.threadId, input.id, null, (next) => {
-        if (input.queued) Object.assign(next.attempt!, { queued: true, sendAt: input.sendAt });
+        if (input.queued) queued(next, input.sendAt);
         else sent(next);
       });
     },
@@ -131,7 +131,7 @@ export function createStore(bb: BbPluginApi) {
           // A request deleted from the queue was never sent; let the user choose again.
           if (event === "cancelled") { next.state = "ready"; next.attempt = null; }
           else if (event === "dispatched") sent(next);
-          else { Object.assign(next.attempt!, { queued: true, sendAt: entry.sendAt ?? undefined }); delete next.attempt!.sentAt; }
+          else queued(next, entry.sendAt);
         });
       }
     },
@@ -155,6 +155,12 @@ export function createStore(bb: BbPluginApi) {
 function sent(item: Item) {
   item.attempt!.sentAt = new Date().toISOString();
   delete item.attempt!.queued; delete item.attempt!.sendAt;
+}
+// RPC results must be JSON, so absent values are deleted rather than set to undefined.
+function queued(item: Item, sendAt?: number | null) {
+  item.attempt!.queued = true;
+  delete item.attempt!.sentAt;
+  if (sendAt) item.attempt!.sendAt = sendAt; else delete item.attempt!.sendAt;
 }
 
 // Card requests carry an action mention whose id is threadId:itemId:attemptId.

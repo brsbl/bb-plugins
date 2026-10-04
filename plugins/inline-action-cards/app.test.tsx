@@ -45,8 +45,9 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
 it("flushes an immediate edit before submitting Send exactly once", async () => {
   const { slot, calls, get } = await setup();
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "My latest edit" } });
-  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
-  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
+  const send = screen.getByRole("button", { name: /^Send$/ });
+  fireEvent.click(send);
+  fireEvent.click(send);
   await waitFor(() => expect(calls).toEqual(["save", "prepare", "submitted"]));
   expect(slot.inspection.composer.submits).toHaveLength(1);
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Escrow follow-up" }]);
@@ -144,6 +145,8 @@ it.each(["send", "yes", "no"] as const)("shows %s loading only while it is sent,
 });
 
 it("queues the primary action from Send options and shows it as queued", async () => {
+  // Radix positions the menu with ResizeObserver, which jsdom lacks.
+  globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
   const item = fixture();
   item.content = { type: "decide", question: "Merge PR?", consequence: "Squash into main", yesLabel: "Merge" };
   const { slot, calls } = await setup("", false, item);

@@ -112,6 +112,12 @@ it("settles a sent request and follows it through the thread's queue", async () 
   expect((await get("later")).attempt!.queued).toBeUndefined();
   expect((await get("later")).attempt!.sentAt).toBeTruthy();
 
+  await runCli(["create", "busy", "--thread", ref.threadId, "--item", JSON.stringify(decide)]);
+  const busy = await prepare("busy");
+  const queuedOnly = await callRpc("submitted", { threadId: ref.threadId, id: "busy", attemptId: busy, queued: true }) as Item;
+  expect(queuedOnly.attempt).toMatchObject({ queued: true });
+  expect(Object.hasOwn(queuedOnly.attempt!, "sendAt")).toBe(false);
+
   const gone = await prepare("gone");
   await emitThreadEvent("message.queued", { entry: entry("gone", gone) });
   await emitThreadEvent("message.cancelled", { entry: entry("gone", gone) });
