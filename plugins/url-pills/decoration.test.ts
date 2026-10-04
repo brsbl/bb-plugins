@@ -42,6 +42,24 @@ afterEach(() => {
 });
 
 describe('DOM-only URL decoration', () => {
+  it('keeps an open editor anchored when the host composer moves after losing focus', async () => {
+    const span = composer();
+    let top = 300;
+    vi.spyOn(span, 'getBoundingClientRect').mockImplementation(() => ({
+      x: 40, y: top, left: 40, right: 200, top, bottom: top + 22, width: 160, height: 22,
+    }) as DOMRect);
+    const mounted = mountUrlPills({ signal: abort.signal });
+    span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    await settle();
+    const panel = document.querySelector<HTMLElement>('[data-bb-url-pill-inspector]')!;
+    expect(panel.style.top).toBe('292px');
+    // Host layout/transform animation does not change the URL or emit a scroll.
+    top = 398;
+    await settle();
+    expect(panel.style.top).toBe('390px');
+    mounted.dispose();
+    expect(frames.size).toBe(0);
+  });
   it('decorates all three surfaces without altering nodes, href, copied source or click ownership', () => {
     const draft = composer(), user = message(), agent = message(false);
     const originals = [draft, user, agent].map((el) => el.firstChild);
