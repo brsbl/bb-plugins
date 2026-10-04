@@ -129,15 +129,11 @@
 /*
  * The home composer's mention menu is stacked inside the composer. When a theme such as Ambient gives the composer a
  * backdrop filter, that makes the composer its own stacking layer, so desktop icons later in the page paint over the
- * menu. Lift the composer above the icons, and above the windows while it has focus (they already move clear of it).
+ * menu. Lift the composer above the icons, but never above windows: a window over it must stay grabbable.
  */
 :root:has(.bbd-window-layer) [data-app-composer]:not(.bbd-window-layer *, [data-thread-window] *) {
   position: relative;
   z-index: 1;
-}
-
-:root:has(.bbd-window-layer) [data-app-composer]:not(.bbd-window-layer *, [data-thread-window] *):focus-within {
-  z-index: 47;
 }
 
 [id^="plugin-homepage:"]:has([data-bbd-bridge-host]) {
@@ -1266,20 +1262,6 @@ body[data-ambient-glass] .bbd-icon:not([aria-selected="true"]) .bbd-icon-label {
 @media (prefers-reduced-motion: reduce) {
   .bbd-hourglass {
     animation: none;
-  }
-}
-
-.bbd-window {
-  transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.bbd-window[data-settling="true"] {
-  transition: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bbd-window {
-    transition: none;
   }
 }
 
