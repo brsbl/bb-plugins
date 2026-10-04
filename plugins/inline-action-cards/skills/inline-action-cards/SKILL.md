@@ -58,7 +58,7 @@ A click submits readable text such as “Send escrow follow-up” with a named m
 
 1. Claim the exact attempt before acting:
    `bb action-cards claim esc-1 --attempt <uuid>`
-2. Treat the returned attempt’s `note` as part of the approval and follow it. If it conflicts with the chosen action (for example “Yes, but don’t send yet”), do not perform that action; report what you did instead on the same card. Do not discard a note on retry or reconciliation. Use the returned content, especially its latest saved `draft`, `to`, `cc`, `bcc`, and `subject`. Do not use the initial draft from chat or memory. The card locks editing during the action.
+2. Treat the returned attempt’s `note` as part of the approval and follow it. If it conflicts with the chosen action (for example “Yes, but don’t send yet”), do not perform that action. Report `--outcome failed --retryable` with a message saying what you held and why, such as “Held the reply; not sent yet.” Do not report success for an action you held. Tell the user to use Edit draft or Choose again when they’re ready; Retry repeats the same note. Do not discard a note on retry or reconciliation. Use the returned content, especially its latest saved `draft`, `to`, `cc`, `bcc`, and `subject`. Do not use the initial draft from chat or memory. The card locks editing during the action.
 3. Execute only the claimed action using the user's connected tool. Send sends the reply; Save to Gmail drafts creates/updates the Gmail draft without sending. Yes performs the stated consequence; No declines it. Later and Skip require no external action; report `Later` or `Skipped` immediately. Later does not create a reminder.
 4. Report the result on the same card:
 

@@ -88,6 +88,16 @@ it("bulk approval atomically reserves only the displayed ready rows of a matchin
   expect(() => store.table("thr_other", "news")).toThrow("unavailable");
 });
 
+it("lets a choice held by its note return to ready for a new choice", () => {
+  const { store } = setup();
+  store.create(ref.threadId, ref.id, reply);
+  const pending = store.prepare({ ...ref, revision: 1, action: "send", note: "Don't send yet" });
+  store.claim(ref.threadId, ref.id, pending.attempt!.id);
+  const held = store.report(ref.threadId, ref.id, pending.attempt!.id, "failed", "Held the reply; not sent yet", true);
+  expect(held).toMatchObject({ state: "failed", result: { retryable: true }, attempt: { note: "Don't send yet" } });
+  expect(store.reopen({ ...ref, revision: held.revision })).toMatchObject({ state: "ready", attempt: null, result: null });
+});
+
 it("validates short notes, retains retry conditions, and accepts previously persisted attempts", async () => {
   const { store, bb } = setup();
   store.create(ref.threadId, ref.id, reply);

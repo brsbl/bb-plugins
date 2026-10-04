@@ -173,7 +173,7 @@ export default function plugin(bb: BbPluginApi): void {
         attemptId: changes ? null : item.attempt!.id, action: changes ? null : item.attempt!.action,
         ...(!changes && item.attempt?.note ? { note: item.attempt.note } : {}),
         instruction: changes ? "Read the latest saved item and revise that same draft. This is not approval to act."
-          : "Claim this exact attempt once with bb action-cards claim before acting. Use the returned latest saved content and note. The note is part of the approval: follow it. If it conflicts with the action (for example Yes, but do not send yet), do not perform the action; report what you did instead. A failed/claimed/completed attempt authorizes reconciliation only; never repeat its side effect. Report the verified result with bb action-cards report.",
+          : "Claim this exact attempt once with bb action-cards claim before acting. Use the returned latest saved content and note. The note is part of the approval: follow it. If it conflicts with the action (for example Yes, but do not send yet), do not perform the action; report --outcome failed --retryable with a message saying what you held and why, so the user can choose again. A failed/claimed/completed attempt authorizes reconciliation only; never repeat its side effect. Report the verified result with bb action-cards report.",
       }) };
     },
   });
