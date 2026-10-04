@@ -152,7 +152,7 @@ export function ComposerEmojiPicker() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <span title="Insert emoji"><PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Insert emoji"><SmileIcon /></Button></PopoverTrigger></span>
-      <PopoverContent side="top" align="start" className="w-96 max-w-[calc(100vw-2rem)] p-0" mobileTitle="Insert emoji" onMobileContentAnimationEnd={(isOpen) => { if (!isOpen) composer.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); composer.focus(); }}>
+      <PopoverContent aria-label="Insert emoji" side="top" align="start" className="w-96 max-w-[calc(100vw-2rem)] p-0" mobileTitle="Insert emoji" onMobileContentAnimationEnd={(isOpen) => { if (!isOpen) composer.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); composer.focus(); }}>
         <EmojiPicker mode="insert" onSelect={(value) => { composer.updateText((current) => current + value); setOpen(false); }} />
       </PopoverContent>
     </Popover>
