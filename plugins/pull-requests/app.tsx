@@ -341,13 +341,17 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   };
   const renderRow = (item: PullRequestItem) => {
     const snapshot = item.snapshot;
+    const fresh = githubFresh(item, clock);
     const blocking = snapshot?.mergeability === "conflicts" ? mergePresentation("conflicts") : snapshot?.review === "changes-requested" ? reviewPresentation("changes-requested") : snapshot?.mergeability === "blocked" && githubNeedsAttention(snapshot) && snapshot.checks.state !== "failing" ? { icon: AlertTriangle, label: "Merge blocked; repository requirements need attention", tone: "warning" as const } : null;
     const threadsNeedingInput = item.links.filter((link) => needsThread(liveThreads.get(link.threadId)));
     const working = item.links.map((link) => liveThreads.get(link.threadId)).find((thread) => thread && ["active", "starting", "stopping"].includes(thread.status));
+    const githubStatus = !fresh ? { icon: Clock, label: item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}`, tone: "muted" as const } : blocking ?? (snapshot && snapshot.checks.state !== "none" ? checksPresentation(snapshot) : null);
+    const threadStatus = threadsNeedingInput.length > 0 ? { ...threadPresentation(liveThreads.get(threadsNeedingInput[0]!.threadId)), label: `${threadsNeedingInput.length} ${threadsNeedingInput.length === 1 ? "thread needs" : "threads need"} attention` } : working ? threadPresentation(working) : null;
+    const status = threadsNeedingInput.length > 0 ? threadStatus : fresh && (blocking || snapshot?.checks.state === "failing") ? githubStatus : threadStatus ?? githubStatus;
     return <div className={`pr-row${selection.id === item.id ? " pr-row-selected" : ""}`} key={item.id}>
       <StatusIcon {...lifecycle(snapshot)} />
       <button type="button" className="pr-row-title" onClick={() => select(item.id)} aria-current={selection.id === item.id ? "page" : undefined} title={snapshot ? `${snapshot.title} · ${snapshot.repository} #${snapshot.number}` : item.url}>{snapshot?.title ?? "Pull request unavailable"}</button>
-      <div className="pr-row-statuses"><span>{!githubFresh(item, clock) ? <StatusIcon icon={Clock} label={item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}`} tone="muted" /> : blocking ? <StatusIcon {...blocking} /> : snapshot && snapshot.checks.state !== "none" && <StatusIcon {...checksPresentation(snapshot)} />}</span><span>{threadsNeedingInput.length > 0 ? <StatusIcon {...threadPresentation(liveThreads.get(threadsNeedingInput[0]!.threadId))} label={`${threadsNeedingInput.length} ${threadsNeedingInput.length === 1 ? "thread needs" : "threads need"} attention`} /> : working ? <StatusIcon {...threadPresentation(working)} /> : null}</span></div>
+      <div className="pr-row-statuses">{status && <StatusIcon {...status} label={[githubStatus?.label, threadStatus?.label].filter(Boolean).join(" · ")} />}</div>
       <time className="pr-row-time" dateTime={snapshot?.updatedAt} title={snapshot ? `Updated ${new Date(snapshot.updatedAt).toLocaleString()}` : undefined}>{snapshot ? age(snapshot.updatedAt).replace(" ago", "").replace("just now", "now") : "—"}</time>
     </div>;
   };

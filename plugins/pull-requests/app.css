@@ -38,13 +38,12 @@
 .pr-group-title { display:flex; align-items:center; gap:6px; color:var(--muted-foreground); font-size:13px; padding:9px 10px; background:none; border:0; }
 .pr-group-title svg { transition:transform .15s ease; }
 .pr-group-title .pr-collapsed { transform:rotate(-90deg); }
-.pr-row { display:grid; grid-template-columns:24px minmax(0,1fr) 48px 3.5ch; align-items:center; gap:3px; min-width:0; height:36px; margin:1px 0; padding:0 9px 0 5px; border-radius:8px; }
+.pr-row { display:grid; grid-template-columns:24px minmax(0,1fr) 24px 3.5ch; align-items:center; gap:3px; min-width:0; height:36px; margin:1px 0; padding:0 9px 0 5px; border-radius:8px; }
 .pr-row:hover { background:color-mix(in srgb,var(--muted) 60%,transparent); }
 .pr-row-selected { background:var(--muted); }
 .pr-row-title { min-width:0; text-align:left; color:var(--foreground); font-size:13px; line-height:36px; font-weight:400; background:none; border:0; padding:0 3px; display:block; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; }
 .pr-row-time { color:var(--muted-foreground); font-size:11px; white-space:nowrap; font-variant-numeric:tabular-nums; text-align:right; }
-.pr-row-statuses { display:grid; grid-template-columns:repeat(2,24px); align-items:center; }
-.pr-row-statuses>span { display:flex; align-items:center; justify-content:center; }
+.pr-row-statuses { display:flex; align-items:center; justify-content:center; }
 .pr-status { display:inline-flex; align-items:center; justify-content:center; gap:4px; vertical-align:middle; min-width:24px; min-height:24px; padding:3px; border:0; border-radius:4px; background:transparent; position:relative; }
 .pr-status:hover, .pr-status:focus-visible { background:color-mix(in srgb,var(--muted) 70%,transparent); }
 .pr-status-count { font-size:10px; line-height:1; font-variant-numeric:tabular-nums; }
