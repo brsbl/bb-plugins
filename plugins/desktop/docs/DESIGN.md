@@ -214,3 +214,5 @@ These differ from XP on purpose; keep them unless the owner decides otherwise.
 These predate this document and should be brought in line when touched:
 
 - `ThreadArt` still uses the older `36 × 32` viewBox without the shared drop shadow. Move it to `IconSvg` when it is next changed.
+
+Maze playback uses a relaxed pace: about two seconds per corridor cell and 1.2 seconds per quarter turn. Turbo Mode runs three times faster.
