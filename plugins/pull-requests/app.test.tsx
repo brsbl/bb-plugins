@@ -85,6 +85,29 @@ describe("Pull Requests access and detail lifetime", () => {
     slot.lifecycle.unmount();
   });
 
+  it("discards a pending off-page private detail after invalidation and reads again", async () => {
+    const item = fixture();
+    let finishOld!: (value: PullRequestItem) => void;
+    let finishCurrent!: (value: PullRequestItem) => void;
+    const oldRead = new Promise<PullRequestItem>((resolve) => { finishOld = resolve; });
+    const currentRead = new Promise<PullRequestItem>((resolve) => { finishCurrent = resolve; });
+    const show = vi.fn().mockReturnValueOnce(oldRead).mockReturnValue(currentRead);
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
+      list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show, refresh: () => coverage,
+      context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
+    } });
+    await waitFor(() => expect(show).toHaveBeenCalledTimes(1));
+    await slot.behavior.emitRealtime(CHANGED, {});
+    await act(async () => { finishOld(item); await oldRead; });
+    await waitFor(() => expect(show).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Private description")).toBeNull();
+    await act(async () => { finishCurrent({ ...item, snapshot: null, sourceState: "auth-changed", sourceMessage: "Account changed" }); await currentRead; });
+    await screen.findByText("Account changed");
+    expect(screen.queryByText("Private description")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
   it("shows passing checks and expands the remaining checks without leaving Summary", async () => {
     const item = fixture();
     item.snapshot!.checks = { state: "passing", passing: 7, failing: 0, pending: 0, total: 7, complete: true, items: Array.from({ length: 7 }, (_, index) => ({ name: `Check ${index + 1}`, state: "passing", url: `https://github.com/example/repo/actions/runs/${index + 1}` })) };

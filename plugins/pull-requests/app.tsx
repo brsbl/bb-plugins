@@ -187,7 +187,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const readGeneration = useRef(0);
   const detailGeneration = useRef(0);
-  const detailRequest = useRef<{ id: string; promise: Promise<void> } | null>(null);
+  const detailEpoch = useRef(0);
+  const detailRequest = useRef<{ id: string; epoch: number; promise: Promise<void> } | null>(null);
   const mounted = useRef(true);
   const order = useRef<string[]>([]);
   const selection = parseSelection(subPath);
@@ -212,10 +213,17 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     setItems((current) => { const existing = current.some((entry) => entry.id === item.id); return existing ? current.map((entry) => entry.id === item.id ? item : entry) : [...current, item]; });
   }, []);
   const loadDetail = useCallback((id: string): Promise<void> => {
-    if (detailRequest.current?.id === id) return detailRequest.current.promise;
+    const pending = detailRequest.current;
+    if (pending?.id === id) {
+      if (pending.epoch === detailEpoch.current) return pending.promise;
+      // Refresh invalidates the pending response. Read again once it settles;
+      // coalesce other callers into that trailing read instead of overlapping it.
+      return pending.promise.then(() => { if (mounted.current && selectedId.current === id) return loadDetail(id); });
+    }
+    const epoch = detailEpoch.current;
     const generation = ++detailGeneration.current;
     setDetailFailure(null);
-    const current = () => mounted.current && generation === detailGeneration.current && selectedId.current === id;
+    const current = () => mounted.current && generation === detailGeneration.current && epoch === detailEpoch.current && selectedId.current === id;
     const promise = rpc.call("show", { id }).then((item) => {
       if (current()) setDetail(item);
     }).catch((reason) => {
@@ -224,7 +232,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       setItems((items) => items.map((item) => item.id === id ? { ...item, snapshot: null, sourceState: "unavailable", sourceMessage: message(reason) } : item));
       setError(message(reason));
     }).finally(() => { if (detailRequest.current?.promise === promise) detailRequest.current = null; });
-    detailRequest.current = { id, promise };
+    detailRequest.current = { id, epoch, promise };
     return promise;
   }, [rpc]);
   const load = useCallback(async (reorder = false) => {
@@ -282,6 +290,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     try {
       const next = await rpc.call("refresh", { discover, includeArchived: false, ...(id ? { id } : {}) });
       if (mounted.current) setCoverage(next);
+      ++detailEpoch.current;
       await load(reorder);
       if (discover) await loadContext();
     } catch (reason) { if (mounted.current) setError(message(reason)); }
@@ -300,8 +309,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   }, [loadContext]);
   useEffect(() => { if (pageLimit > 1) void load().catch((reason) => setError(message(reason))); }, [pageLimit, load]);
   const wasConnected = useRef(false);
-  useEffect(() => { if (connection === "connected") { if (wasConnected.current) void loadRef.current().catch((reason) => setError(message(reason))); wasConnected.current = true; } }, [connection]);
-  useRealtime(CHANGED, () => { void loadRef.current().catch((reason) => setError(message(reason))); });
+  useEffect(() => { if (connection === "connected") { if (wasConnected.current) { ++detailEpoch.current; void loadRef.current().catch((reason) => setError(message(reason))); } wasConnected.current = true; } }, [connection]);
+  useRealtime(CHANGED, () => { ++detailEpoch.current; void loadRef.current().catch((reason) => setError(message(reason))); });
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = session.scrollTop; }, []);
   useEffect(() => { Object.assign(session, { query, author, reviewer, sort, collapsed }); }, [query, author, reviewer, sort, collapsed]);
   useEffect(() => {
