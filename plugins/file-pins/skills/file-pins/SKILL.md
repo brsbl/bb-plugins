@@ -20,7 +20,5 @@ pairs are idempotent. There are at most 40 pins per thread. `list` supplies IDs;
 Pins retain their original host if the thread moves. Deleting the thread removes
 its pins. Pins do not copy file contents or automatically add them to agent context.
 
-A normal click on Markdown under the file host's `~/Moss/Notes/`, or Markdown
-containing `moss-*` fences or `:::tabs`, opens the Moss Mac app on that host.
-Other files retain bb's FileLink behavior. In the UI, Unpin moves a file from the strip to the ⋯ list and Pin moves it back while the strip has room; Remove deletes it with an Undo toast. The CLI `remove` command matches the UI's Remove, without the Undo toast. Missing files remain visible
-with an accessible missing label and a small × to remove them. Use the composer's + → Pin to thread to search one chosen folder or paste a path; the folder defaults to the thread workspace and is remembered per thread. The picker offers recent thread files. Moss detection uses only distinctive markers; this plugin has no custom parser or renderer and does not depend on the Moss viewer plugin.
+A normal click follows bb's FileLink behavior. In the UI, Unpin moves a file from the strip to the ⋯ list and Pin moves it back while the strip has room; Remove deletes it with an Undo toast. The CLI `remove` command matches the UI's Remove, without the Undo toast. Missing files remain visible
+with an accessible missing label and a small × to remove them. Use the composer's + → Pin to thread to search one chosen folder or paste a path; the folder defaults to the thread workspace and is remembered per thread. The picker offers recent thread files.

@@ -36,7 +36,7 @@ are no pins, up to three recent files appear as one-click suggestions; otherwise
 the empty strip disappears. Suggestions come from the last 100 relevant SDK
 thread events: completed file additions/edits, user file mentions/attachments,
 and Markdown links in agent/user messages. An existing Markdown lexer extracts
-link destinations; it does not render content or parse Moss notes. The thread's
+link destinations; it does not render content. The thread's
 current host resolves paths, checks availability and removes canonical duplicates
 and existing pins. History without a current environment, missing files and
 unavailable hosts produce no suggestions. Shell command text is not inspected.
@@ -57,11 +57,8 @@ contents never enter pin storage. Pins survive reloads and thread environment
 changes and can be removed while a machine is offline. Deleting the thread
 removes its pins. Pinning does not send file content to the agent.
 
-A normal click on a Markdown note under the file host's `~/Moss/Notes/`, or a
-Markdown file containing a `moss-*` fence or `:::tabs` marker, opens the **Moss
-Mac app** on that host. Moss must be installed there. This explicit Moss rule
-overrides the default opener for the normal click. Other files retain bb's
-FileLink click behavior and opener choices. Pin menus start with bb's open and copy items, then Pin/Unpin and Remove. Classification and launch run on the host; no custom Markdown/Moss parser or renderer is included.
+A normal click on a pinned file follows bb's FileLink click behavior and opener
+choices. Pin menus start with bb's open and copy items, then Pin/Unpin and Remove.
 
 The SDK does not expose extensions for chat-file or file-tab context menus, or
 a reusable composer @ picker. The fallback uses bb UI components, the same host

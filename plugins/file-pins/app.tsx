@@ -107,12 +107,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   }
   function open(pin: Reference, event: MouseEvent<HTMLAnchorElement>) {
     if (!plainClick(event)) return;
-    if (pin.status !== "available") { event.preventDefault(); report(new Error(`${pin.hostName} is unavailable. Reconnect the machine and try again.`)); return; }
-    if (!/\.(?:md|markdown)$/i.test(pin.path)) return;
-    event.preventDefault();
-    void rpc.call("openMossNote", { threadId, pinId: pin.id }).then(({ opened }) => {
-      if (!opened && alive.current) navigate.experimental_openFilePreview({ target: { kind: "host", hostId: pin.hostId, path: pin.path }, location: null });
-    }).catch((error) => { report(error); void refresh(); });
+    if (pin.status !== "available") { event.preventDefault(); report(new Error(`${pin.hostName} is unavailable. Reconnect the machine and try again.`)); }
   }
   const layout = layoutPins(pins, more, capacity);
   // The folder chooser sits above the + picker (a drawer on phones); using or closing it must not close the picker.

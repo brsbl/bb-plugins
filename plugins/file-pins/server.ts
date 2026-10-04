@@ -191,12 +191,6 @@ export default function plugin(bb: BbPluginApi): void {
         return replacement;
       });
     },
-    openMossNote: async ({ threadId, pinId }) => {
-      const { pins } = await list(threadId);
-      const pinned = pins.find((item) => item.id === pinId);
-      if (!pinned) throw new Error("This file is no longer pinned.");
-      return host.call("openMossNote", { path: pinned.path }, { hostId: pinned.hostId });
-    },
     list: ({ threadId }) => list(threadId),
     context: async ({ threadId }) => {
       const environment = await environmentOf(threadId);

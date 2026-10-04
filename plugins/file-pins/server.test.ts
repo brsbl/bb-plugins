@@ -20,7 +20,6 @@ function setup(events: unknown[] = []) {
     },
     experimental_callHostRpc: async ({ method, input, hostId }) => {
       if (hostId === "offline") throw new Error("Host offline");
-      if (method === "openMossNote") return { opened: true };
       if (method === "home") return { path: "/home/worker" };
       if (method === "recentFiles") return { files: (input as { paths: string[] }).paths.filter((path) => !path.includes("gone")).map((path) => ({ path: path.startsWith("/") ? path : `/Users/me/project/${path}`, name: path.split("/").at(-1)! })) };
       if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available" })) };
@@ -33,13 +32,6 @@ function setup(events: unknown[] = []) {
   return harness;
 }
 describe("thread file pins", () => {
-  it("opens only a pin in the requested thread, on its saved file host", async () => {
-    const h = setup();
-    const pinned = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "~/note.md" }) as { id: string };
-    expect(await h.behavior.callRpc("openMossNote", { threadId: "one", pinId: pinned.id })).toEqual({ opened: true });
-    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "openMossNote", hostId: "mac", input: { path: "/Users/me/note.md" } });
-    await expect(h.behavior.callRpc("openMossNote", { threadId: "two", pinId: pinned.id })).rejects.toThrow("no longer pinned");
-  });
   it("preserves concurrent pins, deduplicates canonical paths, isolates threads, and survives reload", async () => {
     const h = setup();
     const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "~/note.md" });

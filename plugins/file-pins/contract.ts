@@ -36,10 +36,6 @@ export const hostContract = defineRpcContract({
     input: z.object({ paths: z.array(filePath).max(MAX_PINS) }).strict(),
     output: z.object({ files: z.array(z.object({ path: filePath, status })) }),
   },
-  openMossNote: {
-    input: z.object({ path: filePath }).strict(),
-    output: z.object({ opened: z.boolean() }).strict(),
-  },
   resolveFile: {
     input: z.object({ path: filePath, cwd: filePath.optional() }).strict(),
     output: z.object({ path: filePath, name: z.string().min(1) }).strict(),
@@ -82,10 +78,6 @@ export const rpcContract = defineRpcContract({
   repin: {
     input: z.object({ threadId: id, pinId: id, hostId: id, path: filePath }).strict(),
     output: pinSchema,
-  },
-  openMossNote: {
-    input: z.object({ threadId: id, pinId: id }).strict(),
-    output: z.object({ opened: z.boolean() }).strict(),
   },
   list: {
     input: z.object({ threadId: id }).strict(),
