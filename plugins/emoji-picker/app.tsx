@@ -111,7 +111,7 @@ export function EmojiPicker({ onSelect, mode = "copy" }: { onSelect?: (value: st
       </div>
       <div className="flex items-center justify-between px-4 py-3 text-xs text-muted-foreground">
         <h2 className="font-medium text-foreground">{heading}</h2>
-        <span aria-live="polite">{results.length.toLocaleString()} emojis</span>
+        <span aria-live="polite">{results.length.toLocaleString()} {results.length === 1 ? "emoji" : "emojis"}</span>
       </div>
       {results.length ? (
         <div ref={grid} role="group" aria-label={heading} className="grid h-72 grid-cols-8 content-start gap-1 overflow-y-auto overscroll-contain px-3 pb-3" style={{ maxHeight: "40dvh" }}>
