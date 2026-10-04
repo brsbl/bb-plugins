@@ -236,6 +236,10 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/f
 
 Turn any thread into a coordinator that tracks your asks as items, starts sub-threads for them, and moves each item forward only on real evidence such as a merged PR or your approval. Coordinator rules decide what it may do alone, must ask about, or must never do.
 
+![Coordinator panel set-up form with the Ship template](https://github.com/user-attachments/assets/9754ab68-1937-4849-bfd8-b2e57807481d)
+
+![Coordinator tracker with a proposed item waiting in Needs you](https://github.com/user-attachments/assets/d51eaa0b-c084-4dd6-968f-6593a4481ff6)
+
 [Source](plugins/coordinator-mode) · [README](plugins/coordinator-mode/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/coordinator-mode --yes`

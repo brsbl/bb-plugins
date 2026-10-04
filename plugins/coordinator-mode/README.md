@@ -2,6 +2,8 @@
 
 Turn any thread into a coordinator that tracks your asks, starts sub-threads, and follows your rules.
 
+![Coordinator tracker with a proposed item waiting in Needs you](https://github.com/user-attachments/assets/d51eaa0b-c084-4dd6-968f-6593a4481ff6)
+
 ## Install
 
 ```bash
