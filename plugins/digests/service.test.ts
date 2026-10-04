@@ -460,10 +460,10 @@ describe("digest issue lifecycle", () => {
     expect(enabled.automationId).toBe("auto_digest_new");
     const calls = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { pluginId: string; method: string; input: Record<string, unknown> });
     const automationCalls = calls.filter(({ pluginId }) => pluginId === "automations");
-    expect(automationCalls.map(({ method }) => method)).toEqual(["automations_create", "automations_resume", "automations_pause"]);
+    expect(automationCalls.map(({ method }) => method)).toEqual(["automations_create", "automations_update", "automations_resume", "automations_pause"]);
     expect(automationCalls[0]?.input).toMatchObject({ enabled: false, execution: { mode: "agent" }, trigger: { cron: "0 11 * * 0" } });
     expect(automationCalls[0]?.input.execution).not.toHaveProperty("targetThreadId");
-    expect(automationCalls.slice(1).map(({ input }) => input.automationId)).toEqual(["auto_digest_new", "auto_digest_new"]);
+    expect(automationCalls.slice(1).map(({ input }) => input.automationId)).toEqual(["auto_digest_new", "auto_digest_new", "auto_digest_new"]);
     expect(JSON.stringify(automationCalls.map(({ input }) => input))).not.toMatch(/auto_zto0dtbcxme|auto_fffup3wj2me|auto_l_llrtabhlw/u);
   });
 });
