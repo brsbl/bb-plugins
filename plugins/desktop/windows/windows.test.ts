@@ -55,6 +55,21 @@ function gesture() {
 afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ""; });
 
 describe("pointer lifecycle", () => {
+  it("releases the shield when pointerup lands outside the captured target", () => {
+    document.documentElement.style.userSelect = "text";
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 64));
+    const shield = document.querySelector(".bbd-drag-shield")!;
+    shield.dispatchEvent(pointer("pointerup", 64, 2));
+    expect(g.end).not.toHaveBeenCalled();
+    shield.dispatchEvent(pointer("pointerup", 64));
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
+    expect(document.querySelector(".bbd-drag-shield")).toBeNull();
+    expect(document.documentElement.style.userSelect).toBe("text");
+    g.target.dispatchEvent(pointer("pointerup", 64));
+    g.cancel();
+    expect(g.end).toHaveBeenCalledTimes(1);
+  });
   it("cancels a removed captured child without leaving the renderer blocked", () => {
     document.documentElement.style.userSelect = "text";
     const g = gesture();
