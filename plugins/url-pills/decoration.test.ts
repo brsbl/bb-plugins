@@ -52,7 +52,7 @@ describe('DOM-only URL decoration', () => {
     const original = editor.outerHTML, openUrl = vi.fn(() => true);
     mountUrlPills({ signal: abort.signal, openUrl });
     expect(composerCss()).toBe('');
-    for (const fragment of editor.querySelectorAll<HTMLElement>('.bb-url-pill-range')) fragment.click();
+    editor.querySelectorAll<HTMLElement>('.bb-url-pill-range').forEach((fragment) => fragment.click());
     expect(openUrl).not.toHaveBeenCalled();
     expect(editor.outerHTML).toBe(original);
   });

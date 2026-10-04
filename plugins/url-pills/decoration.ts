@@ -49,22 +49,6 @@ export function hasFollowingBoundary(anchor: HTMLAnchorElement, preview: Element
   return false;
 }
 
-/** Host highlights can split one logical URL into adjacent decoration spans. */
-function touchesEffect(element: Element, backwards: boolean): boolean {
-  let node: Node | null = element;
-  while (node.parentElement && !node.parentElement.matches(`${BLOCK}, [contenteditable]`)
-    && !(backwards ? node.previousSibling : node.nextSibling)) node = node.parentElement;
-  node = backwards ? node.previousSibling : node.nextSibling;
-  while (node instanceof Element) {
-    if (node.matches(`.${EFFECT_CLASS}`)) return true;
-    if (node.matches(`${BLOCK}, br`)) return false;
-    const child = backwards ? node.lastChild : node.firstChild;
-    if (!child) return false;
-    node = child;
-  }
-  return false;
-}
-
 export function candidateForElement(element: HTMLElement, origin: string): { url: PillUrl; composer: boolean } | null {
   if (element.closest(EXCLUDED)) return null;
   const text = element.textContent ?? '';
@@ -72,8 +56,6 @@ export function candidateForElement(element: HTMLElement, origin: string): { url
   if (!url) return null;
   if (element.classList.contains(EFFECT_CLASS)) {
     if (!element.closest(EDITOR) || element.querySelector('[contenteditable="false"], img, svg')) return null;
-    // Leave fragmented matches native instead of making a valid prefix clickable.
-    if (touchesEffect(element, true) || touchesEffect(element, false)) return null;
     return { url, composer: true };
   }
   if (!(element instanceof HTMLAnchorElement) || !element.matches(ANCHOR) || element.closest('[contenteditable]') || element.childElementCount) return null;
