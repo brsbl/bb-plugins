@@ -42,14 +42,6 @@
 .pr-row-title { flex:1; min-width:0; text-align:left; color:var(--foreground); font-size:13px; line-height:36px; font-weight:400; background:none; border:0; padding:0 3px; display:block; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; }
 .pr-row-time { color:var(--muted-foreground); font-size:11px; white-space:nowrap; font-variant-numeric:tabular-nums; margin-left:5px; }
 .pr-row-statuses { display:flex; align-items:center; }
-.pr-status { margin-top:-2px; margin-left:-4px; flex-shrink:0; }
-.pr-row-title { text-align:left; color:var(--foreground); font-size:12px; line-height:1.5; font-weight:500; background:none; border:0; padding:0; min-height:24px; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
-.pr-row-meta { display:flex; gap:6px; align-items:center; color:var(--muted-foreground); font-size:10px; padding-left:25px; margin-top:2px; }
-.pr-row-meta>span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.pr-row-meta time { white-space:nowrap; font-variant-numeric:tabular-nums; }
-.pr-row-bottom { display:flex; justify-content:space-between; align-items:center; margin-top:3px; padding-left:21px; min-height:24px; }
-.pr-row-statuses { display:flex; align-items:center; gap:3px; }
-.pr-thread-count { display:flex; align-items:center; gap:4px; font-size:10px; color:var(--muted-foreground); }
 .pr-status { display:inline-flex; align-items:center; justify-content:center; gap:4px; vertical-align:middle; min-width:24px; min-height:24px; padding:3px; border:0; border-radius:4px; background:transparent; position:relative; }
 .pr-status:hover, .pr-status:focus-visible { background:color-mix(in srgb,var(--muted) 70%,transparent); }
 .pr-status-count { font-size:10px; line-height:1; font-variant-numeric:tabular-nums; }

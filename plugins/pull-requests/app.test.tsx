@@ -134,7 +134,7 @@ describe("Compact pull request inbox", () => {
     const options = { rpc: { list: () => ({ items: [first, second, third], nextCursor: null, total: 3, coverage }), refresh: () => coverage, context: () => ({ threads: [thread], hosts: [], nextCursor: null }) } };
     let slot = renderSlot(app.navPanels[0]!, { subPath: "" }, options);
     await screen.findByRole("button", { name: "Zebra fix" });
-    const titles = () => [...document.querySelectorAll(".pr-row-title")].map((element) => element.textContent);
+    const titles = () => Array.from(document.querySelectorAll(".pr-row-title")).map((element) => element.textContent);
     expect(titles()).toEqual(["Alpha fix", "Zebra fix", "Other author"]);
     fireEvent.click(screen.getByLabelText("Filters and sort"));
     fireEvent.change(screen.getByRole("combobox", { name: "Author" }), { target: { value: "@me" } });
