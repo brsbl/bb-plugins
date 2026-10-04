@@ -16,7 +16,7 @@ type IconComposer = PluginComposerApi & {
 };
 
 export function insertActionMention(composer: PluginComposerApi, item: Item, changes = false): void {
-  composer.insertMention({ provider: "action", id: mentionId(item, changes), label: title(item) });
+  composer.insertMention({ provider: "action", id: mentionId(item, changes), label: title(item).replace(/[?\s]+$/, "") });
   const icon = changes ? "Edit" : actionIcons[item.attempt!.action];
   // insertMention appends the new pill; retain the host-assigned plugin identity,
   // ranges and surrounding draft rather than reconstructing a mention resource.
@@ -26,8 +26,7 @@ export function insertActionMention(composer: PluginComposerApi, item: Item, cha
   }));
 }
 
-export function pendingLabel(item: Item): string {
-  const action = item.attempt?.action;
+export function pendingLabel(item: Item, action = item.attempt?.action): string {
   if (!action || action === "send") return "Sending…";
   if (action === "save-draft") return "Saving to Gmail…";
   if (action === "later") return "Deferring…";
@@ -35,6 +34,6 @@ export function pendingLabel(item: Item): string {
   const verb = actionLabel(item, action).trim().replace(/^(?:yes|no)[,!:]?\s+/i, "").match(/^[a-z]+\b/i)?.[0]?.toLowerCase();
   if (!verb || /^(yes|no|ok|okay|sure|sounds)$/.test(verb)) return "Sending…";
   const irregular: Record<string, string> = { be: "being", do: "doing", die: "dying", lie: "lying", tie: "tying", run: "running", stop: "stopping", skip: "skipping", pin: "pinning", plan: "planning", get: "getting", set: "setting", put: "putting", let: "letting", begin: "beginning" };
-  const ongoing = irregular[verb] ?? (verb.endsWith("e") && !/(ee|ye|oe)$/.test(verb) ? `${verb.slice(0, -1)}ing` : `${verb}ing`);
+  const ongoing = (Object.hasOwn(irregular, verb) ? irregular[verb] : undefined) ?? (verb.endsWith("e") && !/(ee|ye|oe)$/.test(verb) ? `${verb.slice(0, -1)}ing` : `${verb}ing`);
   return `${ongoing[0]!.toUpperCase()}${ongoing.slice(1)}…`;
 }
