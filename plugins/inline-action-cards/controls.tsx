@@ -2,9 +2,10 @@ import type { ReactNode } from "react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { Button, type ButtonProps } from "./components/ui/button.js";
+import { cn } from "./lib/utils.js";
 
-export function ActionButton(props: ButtonProps) {
-  return <Button size="sm" variant="ghost" {...props} />;
+export function ActionButton({ className, ...props }: ButtonProps) {
+  return <Button size="sm" variant="ghost" {...props} className={cn("h-7 px-2", className)} />;
 }
 export function IconButton({ label, children, ...props }: ButtonProps & { label: string; children: ReactNode }) {
   return <Tooltip.Provider delayDuration={250}><Tooltip.Root>
