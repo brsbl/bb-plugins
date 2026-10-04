@@ -281,7 +281,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
 
   function showInspector(anchor: HTMLElement): void {
     const entry = entries.get(anchor);
-    if (!entry) return;
+    if (!entry || anchor.textContent !== entry.url.text) return;
     closeInspector(false);
     hideEditButton();
     editing = entry.composer ? options.editComposer?.(anchor) ?? null : null;
@@ -315,7 +315,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     copy.addEventListener('click', () => {
       const url = address.value;
       void Promise.resolve().then(() => navigator.clipboard.writeText(url)).then(() => {
-        if (inspector === panel) closeInspector();
+        if (inspector === panel && !editing) closeInspector();
       }).catch(() => {
         if (inspector !== panel) return;
         status.textContent = 'Select and copy the address above.'; address.focus(); address.select();
@@ -323,7 +323,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     });
     panel.addEventListener('keydown', (event) => {
       event.stopPropagation();
-      if (event.key === 'Enter' && !event.isComposing && editing) { event.preventDefault(); commit(); }
+      if (event.key === 'Enter' && event.target === address && !event.isComposing && editing) { event.preventDefault(); commit(); }
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeInspector(); }
       if (event.key === 'Tab') {
         const focusable: HTMLElement[] = apply ? [address, apply, copy] : [address, copy];
@@ -376,6 +376,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     if (inspected && (!entries.has(inspected) || entries.get(inspected)?.url.text !== inspectUrl || (editing && !editing.current()))) closeInspector(false);
     if (inspector && inspected) positionPanel(inspector, inspected, !!entries.get(inspected)?.composer);
     if (hovered && (!entries.has(hovered) || entries.get(hovered)?.expanded)) hideEditButton();
+    if (editButton && hovered) positionPanel(editButton, hovered, true);
     syncRequests();
     // Only owned attribute/style mutations occurred during this synchronous pass.
     observer.takeRecords();
@@ -477,7 +478,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     }
     const pill = pillAt(event.target);
     const entry = pill ? entries.get(pill) : null;
-    if (pill && entry?.composer && !entry.expanded && options.openUrl && event.button === 0) {
+    if (pill && entry?.composer && !entry.expanded && pill.textContent === entry.url.text && options.openUrl && event.button === 0) {
       event.preventDefault(); event.stopPropagation();
       options.openUrl(entry.url.text);
     }
