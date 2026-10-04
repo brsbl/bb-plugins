@@ -54,6 +54,7 @@ export function trackPointer(
     target.removeEventListener("pointerup", up);
     target.removeEventListener("pointercancel", lost);
     target.removeEventListener("lostpointercapture", lost);
+    document.removeEventListener("lostpointercapture", detached);
     if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
     if (moved) {
       document.documentElement.style.userSelect = selection;
@@ -77,11 +78,16 @@ export function trackPointer(
   const lost = (next: PointerEvent) => {
     if (next.pointerId === pointerId) finish(!moved);
   };
+  // Removing a captured child (for example on re-deal) sends capture loss to the document instead.
+  const detached = (next: PointerEvent) => {
+    if (next.pointerId === pointerId && !target.isConnected) finish(true);
+  };
   target.setPointerCapture(pointerId);
   target.addEventListener("pointermove", move);
   target.addEventListener("pointerup", up);
   target.addEventListener("pointercancel", lost);
   target.addEventListener("lostpointercapture", lost);
+  document.addEventListener("lostpointercapture", detached);
   return () => finish(true);
 }
 
