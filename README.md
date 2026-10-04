@@ -50,6 +50,14 @@ Rewrites a rough bb composer draft into a clearer, context-complete prompt for r
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
 
+### Pull Requests
+
+See pull requests across bb threads, inspect checks and changes, and continue in the right conversation. Links survive branch changes and connect shared work without duplicating pull requests.
+
+[Source](plugins/pull-requests) · [README](plugins/pull-requests/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/pull-requests --yes`
+
 ### Thread Hover Cards
 
 Shows a thread's live status, latest agent update, execution context, repository, and pull request without leaving the sidebar. Collapsed sections get a compact summary of their thread count and attention state.
