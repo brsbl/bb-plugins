@@ -1,9 +1,11 @@
 ---
 name: inline-action-cards
-description: Put editable email replies or Yes/No decisions inline in a bb reply, handle action-card clicks, and update each card with its result. Use when triaging individual items, preparing email replies, handling action mention choices, or reporting action outcomes.
+description: Use whenever you need a user decision or approval in any thread, including merges or shipping, sending emails, applying changes, switching settings, or choosing between options. Create inline action cards instead of prose confirmation questions, handle card clicks, and report outcomes on the cards.
 ---
 
 # Inline Action Cards
+
+Whenever you need the user's decision or approval, create an action card instead of asking in prose. This applies in any thread: merge or ship a prepared PR, send an email, apply a proposed change, switch a setting, or choose between two options. Explain the proposed action and tradeoffs before the card so the user can approve a concrete result. Existing authorization still applies; do not add a new approval step to work the user already authorized.
 
 Use a single card for one important item. Use a table for three or more similar items, or a mixed group that should stay together. Create the item first, then emit the returned `::action{id="..."}` directive on its own line, outside code fences. Cards appear only inside assistant messages. IDs are unique within the owning thread; never reuse one for another email or decision. Use concise, task-specific IDs.
 
@@ -23,6 +25,16 @@ JSON
 ```
 
 Use the actual recipients and show every To/Cc/Bcc recipient. Include enough original context to understand the reply. A Reply draft is plain text; Markdown characters remain literal when sent. For a Decide card, state the exact consequence of Yes. No means do not perform the proposed action. Never invent approval from the presence of a card.
+
+For a choice between two options, propose one as the Yes action and describe the other as the next option to consider if declined. A No click declines the proposed action; it does not approve a different side effect. Use `yesLabel`/`noLabel` to make the choice clear while preserving those meanings.
+
+```sh
+bb action-cards create merge-pr --item-stdin <<'JSON'
+{"type":"decide","question":"Merge the reviewed PR?","consequence":"Squash-merge PR #123 into main at the reviewed head.","yesLabel":"Merge","noLabel":"Keep open"}
+JSON
+```
+
+Replace example identifiers with the actual target and include the exact reviewed head when approval depends on a revision. After a click, claim and report the attempt using the flow below, whatever service or setting the action affects.
 
 ## Group items in a table
 
