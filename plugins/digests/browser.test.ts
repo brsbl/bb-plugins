@@ -1,7 +1,7 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { openBrowser } from "./browser";
+import { connectionScope, openBrowser } from "./browser";
 import { ConnectionSchema } from "./model";
 
 const dispose: Array<() => Promise<void>> = [];
@@ -12,6 +12,26 @@ const connection = ConnectionSchema.parse({
 });
 
 describe("digest browser ownership", () => {
+  it.each([
+    { saved: "desktop_old", live: ["desktop_new"], expected: "desktop_new" },
+    { saved: "desktop_selected", live: ["desktop_other", "desktop_selected"], expected: "desktop_selected" },
+    { saved: "desktop_old", live: ["desktop_a", "desktop_b"], expected: null },
+  ])("resolves a restarted browser safely: $saved -> $live", async ({ saved, live, expected }) => {
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "digests",
+      sdk: { experimental_desktopBrowsers: {
+        listInstances: async () => ({ instances: live.map((instanceId) => ({ instanceId, generation: "current_generation" })) }),
+      } },
+    });
+    dispose.push(() => harness.lifecycle.dispose());
+    const result = connectionScope(bb, { ...connection, desktopInstanceId: saved }, "thr_issue");
+    if (expected) await expect(result).resolves.toEqual({
+      hostId: "host_browser", instanceId: expected, generation: "current_generation", threadId: "thr_issue",
+    });
+    else await expect(result).rejects.toMatchObject({ status: "unavailable", recovery: "retry" });
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.listInstances")).toEqual([[{ hostId: "host_browser" }]]);
+  });
+
   it("closes an old isolated-profile tab before automation can control or navigate it", async () => {
     const { bb, harness } = createFakePluginHost({
       pluginId: "digests",

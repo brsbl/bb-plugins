@@ -254,6 +254,16 @@ describe("digest issue lifecycle", () => {
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab").at(-1)?.[0]).toMatchObject({ threadId: "thr_setup", presentation: "reveal", url: "https://mail.google.com/" });
   });
 
+  it("checks, reconnects and collects after the saved browser window restarts", async () => {
+    const { bb, service, harness } = setup();
+    service.store.connections.put({ ...service.store.connections.get("gmail")!, desktopInstanceId: "desktop_before_restart" });
+    await bb.storage.kv.set("connection-settings-thread", "thr_setup");
+    expect(await service.checkConnections("gmail")).toMatchObject([{ status: "signed-in" }]);
+    await service.reconnectConnection("gmail");
+    expect(await service.begin("reading", "thr_after_restart")).toMatchObject({ complete: false, sessions: [{ instanceId: "desktop_1" }] });
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toHaveLength(3);
+  });
+
   it("coalesces Settings checks but always checks each run, and persists banner dismissal", async () => {
     const { service, harness, setSignIn } = setup();
     const first = service.checkSettingsConnections();
@@ -417,7 +427,7 @@ describe("digest issue lifecycle", () => {
   });
 
   it.each(["failed", "skipped", "succeeded"])("keeps a manual retry collecting when the original run remains %s", async (status) => {
-    const { service } = setup({ runs: [{
+    const { service, threads } = setup({ runs: [{
       id: "run_terminal", threadId: "thr_retry", status, scheduledFor: Date.now(), startedAt: Date.now(), error: null, skipReason: null,
     }] });
     service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_digest_new" });
@@ -425,10 +435,44 @@ describe("digest issue lifecycle", () => {
     await service.settled("thr_retry", true);
     await service.retry("thr_retry", first.issue.id);
     await service.begin("reading", "thr_retry");
+    threads.set("thr_retry", makeThreadResponse({ id: "thr_retry", status: "active" }));
     await service.reconcile();
     expect(service.store.issues.get(first.issue.id)?.state).toBe("collecting");
     const published = await service.publishCurrent("thr_retry", payload());
     expect(published.issue.state).toBe("ready");
+  });
+
+  it.each(["idle", "error"] as const)("recovers a retried Gmail collector after reload misses its %s settlement", async (status) => {
+    const { bb, service, threads } = setup();
+    const { issue } = await service.begin("reading", "thr_retry_reload");
+    await service.settled("thr_retry_reload", true);
+    await service.retry("thr_retry_reload", issue.id);
+    await service.begin("reading", "thr_retry_reload");
+    service.emailRead("thr_retry_reload", { messageId: "mail1", status: "opening", wasUnread: true });
+    const restarted = createService(bb);
+    threads.set("thr_retry_reload", makeThreadResponse({ id: "thr_retry_reload", status }));
+    await restarted.reconcile();
+    expect(await restarted.recoveryIssue("thr_retry_reload")).toMatchObject({ state: "failed", recovery: "retry", emailReads: [{ messageId: "mail1", wasUnread: true, status: "opening" }] });
+    expect(await bb.storage.kv.get(`browsers:${issue.id}`)).toBeUndefined();
+    expect(await bb.storage.kv.get("gmail-collector")).toBeUndefined();
+    expect((await restarted.begin("reading", "thr_next")).sessions).toHaveLength(1);
+  });
+
+  it.each([
+    { status: "active" as const },
+    { status: "idle" as const, queuedMessageCount: 1 },
+    { status: "idle" as const, activeBackgroundAgentCount: 1 },
+    { status: "idle" as const, runtime: { displayStatus: "host-reconnecting" as const, hostReconnectGraceExpiresAt: NOW + DAY } },
+  ])("preserves a retry with native work still pending: %j", async (state) => {
+    const { bb, service, threads } = setup();
+    const { issue } = await service.begin("reading", "thr_retry_busy");
+    await service.settled("thr_retry_busy", true);
+    await service.retry("thr_retry_busy", issue.id);
+    await service.begin("reading", "thr_retry_busy");
+    threads.set("thr_retry_busy", makeThreadResponse({ id: "thr_retry_busy", ...state }));
+    await createService(bb).reconcile();
+    expect(service.store.issues.get(issue.id)?.state).toBe("collecting");
+    expect(await bb.storage.kv.get("gmail-collector")).toBe(issue.id);
   });
 
   it.each([false, true])("keeps recovery visible when an already-failed turn settles (failed=%s)", async (failedTurn) => {
