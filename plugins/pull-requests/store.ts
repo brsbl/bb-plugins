@@ -57,7 +57,6 @@ export function createStore(bb: BbPluginApi) {
   }
   return {
     get, save, byUrl, upsert, link, unlink,
-    revision: (id: string) => (db.prepare("SELECT revision FROM pull_requests WHERE id=?").get(id) as { revision: number } | undefined)?.revision ?? -1,
     list(args: { offset: number; limit: number; query?: string; view?: string }) {
       const condition = `EXISTS(SELECT 1 FROM pull_request_links l WHERE l.pr_id=pull_requests.id AND suppressed=0)
         AND (?='' OR instr(lower(coalesce(json_extract(value,'$.snapshot.title'),'') || ' ' || coalesce(json_extract(value,'$.snapshot.repository'),'') || ' ' || coalesce(json_extract(value,'$.snapshot.number'),'')),lower(?))>0)

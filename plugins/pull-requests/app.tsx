@@ -190,7 +190,6 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const detailEpoch = useRef(0);
   const detailRequest = useRef<{ id: string; epoch: number; promise: Promise<void> } | null>(null);
   const mounted = useRef(true);
-  const order = useRef<string[]>([]);
   const selection = parseSelection(subPath);
   const selectedId = useRef(selection.id); selectedId.current = selection.id;
   const liveThreads = useMemo(() => new Map(sidebar.threads.filter((thread) => !thread.isHidden).map((thread) => [thread.id, thread])), [sidebar.threads]);
@@ -204,14 +203,6 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const selectedValue = detail?.id === selection.id ? detail : visibleItems.find((item) => item.id === selection.id) ?? null;
   const selected = selectedValue ? { ...selectedValue, links: selectedValue.links.filter((link) => !hiddenThreads.has(link.threadId)) } : null;
   const detailLoading = !!selection.id && detail?.id !== selection.id && detailFailure !== selection.id;
-  const applyItem = useCallback((item: PullRequestItem) => {
-    ++readGeneration.current;
-    setListLoading(false); setBooting(false);
-    ++detailGeneration.current;
-    detailRequest.current = null;
-    if (item.id === selectedId.current) setDetail(item);
-    setItems((current) => { const existing = current.some((entry) => entry.id === item.id); return existing ? current.map((entry) => entry.id === item.id ? item : entry) : [...current, item]; });
-  }, []);
   const loadDetail = useCallback((id: string): Promise<void> => {
     const pending = detailRequest.current;
     if (pending?.id === id) {
@@ -235,7 +226,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     detailRequest.current = { id, epoch, promise };
     return promise;
   }, [rpc]);
-  const load = useCallback(async (reorder = false) => {
+  const load = useCallback(async () => {
     const generation = ++readGeneration.current;
     setListLoading(true);
     try {
@@ -249,9 +240,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       }
       if (!mounted.current || generation !== readGeneration.current || !result) return;
       const byId = new Map(all.map((item) => [item.id, item]));
-      if (reorder || order.current.length === 0) order.current = [...byId.keys()];
-      else order.current = [...order.current.filter((id) => byId.has(id)), ...[...byId.keys()].filter((id) => !order.current.includes(id))];
-      setItems(order.current.map((id) => byId.get(id)!).filter(Boolean));
+      setItems([...byId.values()]);
       setCoverage(result.coverage); setTotal(result.total); setNextCursor(result.nextCursor);
       const requestedId = selectedId.current;
       if (requestedId) {
@@ -285,13 +274,13 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     })().catch((reason) => { if (!cancelled) setError(message(reason)); });
     return () => { cancelled = true; };
   }, [linkedIdsKey, contextEpoch, rpc]);
-  const refresh = useCallback(async (discover: boolean, reorder = false, id?: string) => {
+  const refresh = useCallback(async (discover: boolean, id?: string) => {
     setRefreshing(true); setError(null);
     try {
       const next = await rpc.call("refresh", { discover, includeArchived: false, ...(id ? { id } : {}) });
       if (mounted.current) setCoverage(next);
       ++detailEpoch.current;
-      await load(reorder);
+      await load();
       if (discover) await loadContext();
     } catch (reason) { if (mounted.current) setError(message(reason)); }
     finally { if (mounted.current) setRefreshing(false); }
@@ -344,7 +333,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const history = filtered.filter((item) => !item.pinned && isHistory(item));
   const hasFilters = !!(query || author || reviewer);
   const resetFilters = () => { setQuery(""); setAuthor(""); setReviewer(""); };
-  const mutate = async (action: () => Promise<PullRequestItem>) => { try { const item = await action(); if (mounted.current) { applyItem(item); setError(null); } } catch (reason) { if (mounted.current) setError(message(reason)); } };
+  const mutate = async (action: () => Promise<PullRequestItem>) => { try { await action(); if (mounted.current) { await load(); setError(null); } } catch (reason) { if (mounted.current) setError(message(reason)); } };
   const onUnlink = async (item: PullRequestItem, threadId: string) => {
     try { const result = await rpc.call("unlink", { id: item.id, threadId }); if (result.undoToken) setUndo({ token: result.undoToken, title: choices.get(threadId)?.title ?? "Thread" }); await load(); }
     catch (reason) { setError(message(reason)); }
@@ -381,15 +370,15 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
         {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests linked yet"}</p><small>{hasFilters ? "Try another search or filter." : "Pull requests from your bb threads appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
         {nextCursor && <button className="pr-load-more" type="button" disabled={listLoading} onClick={() => setPageLimit((current) => current + 1)}>{listLoading ? "Loading more…" : `Load more · ${items.length} of ${total}`}</button>}
       </div>
-      <div className="pr-list-footer">{coverage.running ? <span role="status">Discovering · {coverage.checked}/{coverage.total}</span> : <span>{coverage.unavailable > 0 ? `${coverage.unavailable} environments unavailable` : `${visibleItems.length} pull requests`}{coverage.incomplete ? " · partial coverage" : ""}</span>}<IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true, true)} /></div>
+      <div className="pr-list-footer">{coverage.running ? <span role="status">Discovering · {coverage.checked}/{coverage.total}</span> : <span>{coverage.unavailable > 0 ? `${coverage.unavailable} environments unavailable` : `${visibleItems.length} pull requests`}{coverage.incomplete ? " · partial coverage" : ""}</span>}<IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true)} /></div>
       {nextCursor && <p className="pr-pagination-note">Filters and sorting apply to {items.length} loaded pull requests.</p>}
     </aside>
     <section className="pr-detail" aria-label="Pull request detail">
       {error && <div className="pr-error" role="alert"><AlertTriangle size={16} /><span>{error}</span><button className="pr-text-button" type="button" onClick={() => void refresh(true)}>Retry</button><IconButton icon={X} label="Dismiss error" onClick={() => setError(null)} /></div>}
-      {selected ? <PullRequestDetail key={selected.id} item={selected} loading={detailLoading} tab={selection.tab} now={clock} context={context} choices={choices} liveThreads={liveThreads} rpc={rpc} onBack={() => select(null)} onTab={(tab) => select(selected.id, tab)} onThread={(id) => navigate.toThread(id)} onUpdate={mutate} onRefresh={() => void refresh(false, false, selected.id)} onLink={() => setLinking({ url: selected.url })} onUnlink={(threadId) => void onUnlink(selected, threadId)} /> : selection.id ? detailLoading ? <div className="pr-empty"><Loading label="Loading pull request details" /><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></div> : <Empty title="Pull request unavailable"><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty> : <Empty title="Select a pull request">Choose one from the sidebar to review its changes.</Empty>}
+      {selected ? <PullRequestDetail key={selected.id} item={selected} loading={detailLoading} tab={selection.tab} now={clock} context={context} choices={choices} liveThreads={liveThreads} rpc={rpc} onBack={() => select(null)} onTab={(tab) => select(selected.id, tab)} onThread={(id) => navigate.toThread(id)} onUpdate={mutate} onRefresh={() => void refresh(false, selected.id)} onLink={() => setLinking({ url: selected.url })} onUnlink={(threadId) => void onUnlink(selected, threadId)} /> : selection.id ? detailLoading ? <div className="pr-empty"><Loading label="Loading pull request details" /><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></div> : <Empty title="Pull request unavailable"><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty> : <Empty title="Select a pull request">Choose one from the sidebar to review its changes.</Empty>}
     </section>
     {undo && <div className="pr-undo" role="status"><span>Removed link to {undo.title}</span><button type="button" onClick={() => void mutate(async () => { const restored = await rpc.call("undo", { token: undo.token }); setUndo(null); return restored; })}>Undo</button><IconButton icon={X} label="Dismiss undo" onClick={() => setUndo(null)} /></div>}
-    {linking && <LinkDialog rpc={rpc} initialUrl={linking.url ?? ""} choices={[...choices.values()]} hosts={context.hosts} onClose={() => setLinking(null)} onLinked={(item) => { applyItem(item); setLinking(null); select(item.id); }} />}
+    {linking && <LinkDialog rpc={rpc} initialUrl={linking.url ?? ""} choices={[...choices.values()]} hosts={context.hosts} onClose={() => setLinking(null)} onLinked={(item) => { setLinking(null); select(item.id); void load().catch((reason) => setError(message(reason))); }} />}
   </main>;
 }
 

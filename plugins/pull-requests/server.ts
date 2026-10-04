@@ -30,7 +30,7 @@ export default function plugin(bb: BbPluginApi): void {
     const epoch = observedAccounts.get(options.hostId)?.epoch ?? 0;
     const result = await host.call("read", input, options);
     assertLive();
-    if (!result.ok && result.kind === "authentication-required") {
+    if (!result.ok && (result.kind === "authentication-required" || result.kind === "auth-changed")) {
       const observed = observedAccounts.get(options.hostId);
       observedAccounts.set(options.hostId, { accountId: null, epoch: (observed?.epoch ?? 0) + 1 });
       for (const reader of store.readersOnHost(options.hostId)) {
@@ -86,6 +86,7 @@ export default function plugin(bb: BbPluginApi): void {
       connectionEpochs.set(connectionKey(item.reader), connectionEpoch(item.reader) + 1);
       store.invalidateConnection(item.reader, failure.kind, failure.message);
     } else {
+      if (failure.kind === "denied") itemEpochs.set(item.id, (itemEpochs.get(item.id) ?? 0) + 1);
       store.save({ ...store.get(item.id), snapshot: failure.kind === "denied" ? null : store.get(item.id).snapshot, sourceState: failure.kind === "unavailable" && item.snapshot ? "stale" : failure.kind, sourceMessage: failure.message, lastAttemptAt: now() });
     }
     changed();
@@ -257,6 +258,7 @@ export default function plugin(bb: BbPluginApi): void {
     if (!value || value.expires < Date.now()) throw new Error("The preview expired. Verify the URL again.");
     const currentThread = await threadChoice(await eligibleThread(value.thread.id));
     if (currentThread.hostId && currentThread.hostId !== value.reader.hostId) throw new Error("The thread changed machines. Verify the URL again.");
+    const id = `github:${value.snapshot.nodeId}`, generation = itemEpochs.get(id) ?? 0, epoch = connectionEpoch(value.reader);
     const result = await readHost({ url: value.snapshot.url, expectedAccountId: value.reader.accountId }, { hostId: value.reader.hostId, signal: lifetime.signal, timeoutMs: 90_000 });
     assertLive();
     if (!result.ok) {
@@ -266,6 +268,7 @@ export default function plugin(bb: BbPluginApi): void {
     }
     if (result.snapshot.nodeId !== value.snapshot.nodeId || result.snapshot.title !== value.snapshot.title) throw new Error("The pull request changed. Verify the URL again before linking.");
     await eligibleThread(value.thread.id);
+    if (generation !== (itemEpochs.get(id) ?? 0) || epoch !== connectionEpoch(value.reader)) throw new Error("Pull request access changed. Verify the URL again.");
     const item = store.upsert(result.snapshot, value.reader);
     const linked = store.link(item.id, makeLink(currentThread, value.evidence, value.actor), true);
     previews.delete(token); changed(); return linked;
@@ -280,9 +283,11 @@ export default function plugin(bb: BbPluginApi): void {
     changed(); return { undoToken };
   }
   async function sanitize(item: PullRequestItem) {
-    const links = (await mapConcurrent(item.links, 4, async (link) => {
-      try { await eligibleThread(link.threadId); return link; } catch { return null; }
-    })).filter((link) => link !== null);
+    const eligible = new Set(await mapConcurrent(item.links, 4, async (link) => {
+      try { await eligibleThread(link.threadId); return link.threadId; } catch { return null; }
+    }));
+    item = store.get(item.id);
+    const links = item.links.filter((link) => eligible.has(link.threadId));
     return { ...item, links, preferredThreadId: links.some((link) => link.threadId === item.preferredThreadId) ? item.preferredThreadId : null };
   }
   async function show(id: string) {
