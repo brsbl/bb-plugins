@@ -37,7 +37,7 @@ import { BUILT_IN_TEMPLATES, parseTemplate } from "./templates";
 export const REALTIME_CHANNEL = "coordinator";
 export const BRIEFING_NUDGE = "Coordinator Mode: post your scheduled briefing. Call coordinator_briefing and share it.";
 export const TURN_ON_KICKOFF =
-  "Coordinator Mode is on. Call coordinator_briefing, then list my existing sub-threads so I can keep or drop them as items.";
+  "Coordinator Mode is on. Call coordinator_briefing and share it. Existing sub-threads already appear as proposed items for me to keep or drop; don't look up threads yourself.";
 export const NEW_COORDINATOR_KICKOFF =
   "Coordinator Mode is on. Call coordinator_briefing, then ask me what you should work on first.";
 export const RULES_UPDATED = "Coordinator Mode rules updated. Your instructions and tools now follow the new rules; carry on with them.";

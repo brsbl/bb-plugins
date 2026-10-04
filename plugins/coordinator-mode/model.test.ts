@@ -4,6 +4,7 @@ import type { CoordinatorItem, CoordinatorTemplate, LogEntry, PendingApproval } 
 import {
   advanceItem,
   classifyUnmatchedCommand,
+  describeRule,
   composeBriefing,
   decideAction,
   evaluateCheck,
@@ -257,5 +258,12 @@ describe("classifyUnmatchedCommand", () => {
     expect(classifyUnmatchedCommand("npm test")).toBe("safe");
     expect(classifyUnmatchedCommand("git status")).toBe("safe");
     expect(classifyUnmatchedCommand("bb coordinator-mode status")).toBe("safe");
+  });
+});
+
+describe("describeRule", () => {
+  it("names primary-only archive rules naturally", () => {
+    expect(describeRule({ kind: "gated", action: "archive_sub_thread", column: "ask", condition: { kind: "primary_only" } }))
+      .toBe("Archive a primary sub-thread");
   });
 });

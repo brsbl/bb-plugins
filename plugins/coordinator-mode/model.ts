@@ -53,6 +53,7 @@ export function describeRule(rule: CoordinatorRule): string {
   if (rule.kind === "instruction") return rule.text;
   const action = ACTION_LABELS[rule.action];
   const label = action.charAt(0).toUpperCase() + action.slice(1);
+  if (rule.condition?.kind === "primary_only") return label.replace("a sub-thread", "a primary sub-thread");
   return rule.condition ? `${label} ${describeCondition(rule.condition)}` : label;
 }
 
