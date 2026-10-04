@@ -180,20 +180,22 @@ it("Action log keeps failures and Later cards waiting, orders row controls with 
   const attempt = { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true } as const;
   const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
   const later = { ...fixture(), id: "esc-3", revision: 3, state: "succeeded", attempt: { ...attempt, action: "later" }, result: { message: "Later", retryable: false }, ...entry } as const;
+  const decision = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it.", yesLabel: "Merge", noLabel: "Keep open" }, ...entry } as const;
   const done = Array.from({ length: 6 }, (_, index) => ({ ...fixture(), id: `sent-${index}`, revision: 3, state: "succeeded", attempt, result: { message: "Sent", retryable: false }, ...entry } as const));
   const app = await loadPluginApp(() => import("./app.js"));
   expect([app.navPanels[0]!.title, app.threadPanelActions[0]!.title]).toEqual(["Action log", "Action log"]);
   expect([app.navPanels[0]!.icon, app.threadPanelActions[0]!.icon]).toEqual(["inline-action-cards/action-log", "inline-action-cards/action-log"]);
-  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later], done }) } });
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
-  const [ready, failure, deferred] = within(waiting).getAllByRole("article");
+  const [ready, failure, deferred, decide] = within(waiting).getAllByRole("article");
+  expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Keep open", "Merge"]);
   // Icon peers first, then secondary, with the primary always rightmost.
-  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Review", "More actions", "Ask for changes", "SendSending…"]);
+  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Ask for changes", "Send"]);
   expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
   expect(within(failure!).getByText(/Reconnect Gmail/)).toBeTruthy();
   expect(within(failure!).getByRole("button", { name: "Retry" })).toBeTruthy();
   expect(within(deferred!).getByText("Later")).toBeTruthy();
-  expect(within(deferred!).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Review", "More actions", "Ask for changes", "Resume"]);
+  expect(within(deferred!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Ask for changes", "Resume"]);
   const doneGroup = screen.getByRole("region", { name: "Done" });
   expect(within(doneGroup).getAllByRole("article")).toHaveLength(5);
   expect(within(doneGroup).getAllByRole("button", { name: "More actions" })).toHaveLength(5);

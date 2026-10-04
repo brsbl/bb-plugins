@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon, MailIcon, SignpostIcon, ViewIcon } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, SkipIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { insertActionMention, pendingLabel } from "./presentation.js";
 import "./app.css";
 
@@ -244,36 +244,42 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     const quiet = item.state === "succeeded" && !later;
     const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
     const openThread = () => navigate.toThread(threadId);
-    const primaryAction: Action = reply ? "send" : "yes";
     const toggleCard = <MenuAction onSelect={() => setViewResult(!viewResult)}>{viewResult ? "Hide card" : "View card"}</MenuAction>;
-    const button = (label: string, onClick: () => void, variant: "default" | "outline", isDisabled = busy) =>
-      <ActionButton className="iac-log-button" variant={variant} disabled={isDisabled} onClick={onClick}>{label}</ActionButton>;
+    // Log actions are icon-only squares; the tooltip and accessible name carry the full label.
+    const button = (label: string, glyph: ActionGlyph, onClick: () => void, variant: "default" | "outline", isDisabled = busy, pendingText?: string) =>
+      <IconButton label={pendingText ?? label} variant={variant} disabled={isDisabled || !!pendingText} aria-busy={pendingText ? true : undefined} onClick={onClick}><ActionGlyphIcon name={glyph} /></IconButton>;
+    const choice = (action: "yes" | "no") => {
+      const label = actionLabel(item, action);
+      const verb = label.trim().split(/\s+/)[0]!.toLowerCase();
+      const glyph = action === "yes" ? ({ merge: "merge", archive: "archive", send: "send" } as Record<string, ActionGlyph>)[verb] ?? "yes" : "no";
+      return button(label, glyph, () => void (later ? choose(action) : act(action)), action === "yes" ? "default" : "outline", disabled, pending && item.attempt?.action === action ? pendingLabel(item, action) : undefined);
+    };
     // A Later card reopens before taking its secondary choice, as if Resume came first.
     const choose = async (action: Action) => {
       if (later) { await reopen(); if (current.current?.state !== "ready") return; }
       await act(action);
     };
-    // Every row shares one action grid: Review and ⋯ as icon peers, then fixed secondary and primary columns; primary is always rightmost.
+    // Every row shares one action grid: Review and ⋯, then secondary and primary squares; primary is always rightmost.
     let menu: ReactNode, review: ReactNode = null, secondary: ReactNode = null, primary: ReactNode = null;
-    if (!quiet) review = <IconButton label={reply ? (viewResult ? "Hide draft" : "Review") : (viewResult ? "Hide card" : "Review")} aria-expanded={viewResult} disabled={loadError} onClick={() => setViewResult(!viewResult)}><ViewIcon /></IconButton>;
+    if (!quiet) review = <IconButton label={viewResult ? (reply ? "Hide draft" : "Hide card") : "Review"} aria-expanded={viewResult} disabled={loadError} onClick={() => setViewResult(!viewResult)}><ViewIcon /></IconButton>;
+    const askForChangesButton = button("Ask for changes", "comment", () => void askForChanges(), "outline", disabled);
     if (quiet) {
       menu = <>{toggleCard}<MenuAction onSelect={openThread}>Open thread</MenuAction>{deferred && <MenuAction onSelect={() => void reopen()}>Resume</MenuAction>}</>;
       secondary = <span className="iac-log-status iac-log-result" title={item.result?.message}>{item.result?.message ?? "Done"}</span>;
     } else if (later) {
       menu = <MenuAction onSelect={openThread}>Open thread</MenuAction>;
-      secondary = reply ? button("Ask for changes", () => void askForChanges(), "outline") : button(actionLabel(item, "no"), () => void choose("no"), "outline");
-      primary = button("Resume", () => void reopen(), "default");
+      secondary = reply ? askForChangesButton : choice("no");
+      primary = button("Resume", "resume", () => void reopen(), "default");
     } else if (failed) {
       menu = <MenuAction onSelect={openThread}>Open thread</MenuAction>;
-      secondary = retryable && button(reply ? "Edit draft" : "Choose again", () => void reopen(), "outline");
-      primary = retryable ? button("Retry", () => void act(item.attempt!.action), "default") : button("Open thread", openThread, "default", false);
+      secondary = retryable && button(reply ? "Edit draft" : "Choose again", reply ? "edit" : "undo", () => void reopen(), "outline");
+      primary = retryable ? button("Retry", "retry", () => void act(item.attempt!.action), "default") : button("Open thread", "open", openThread, "default", false);
     } else {
       menu = <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
         : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}<MenuAction onSelect={() => void act("later")}>Remind me later</MenuAction><MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
         <MenuAction onSelect={openThread}>Open thread</MenuAction></>;
-      secondary = reply ? button("Ask for changes", () => void askForChanges(), "outline", disabled)
-        : <PendingButton className="iac-log-button" variant="outline" pending={pending && item.attempt?.action === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>;
-      primary = <PendingButton className="iac-log-button" variant="default" pending={pending && item.attempt?.action === primaryAction} pendingLabel={pendingLabel(item, primaryAction)} disabled={disabled} onClick={() => void act(primaryAction)}>{reply ? "Send" : actionLabel(item, "yes")}</PendingButton>;
+      secondary = reply ? askForChangesButton : choice("no");
+      primary = reply ? button("Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined) : choice("yes");
     }
     return <article className={quiet ? "iac-log-row iac-log-quiet" : later ? "iac-log-row iac-log-later" : "iac-log-row"} aria-label={`${reply ? "Reply" : "Decision"}: ${heading}`}>
       <span className="iac-log-kind" role="img" aria-label={reply ? "Reply" : "Decision"} title={reply ? "Reply" : "Decision"}>{reply ? <MailIcon /> : <SignpostIcon />}</span>
