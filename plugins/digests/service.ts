@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createStore } from "./store.js";
 import { issueSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
+import { executionTarget, executionFailure, ExecutionError } from "./execution.js";
 import { SITES } from "./sites.js";
 import { deliveryPrompt, directive, issueTitle, runPrompt, collectionInstructions } from "./prompts.js";
 
@@ -83,11 +84,21 @@ export function createService(bb: BbPluginApi) {
     await closeIssueBrowsers(failed);
     return failed;
   }
+  const automationProject = (definition: DigestDefinition) => definition.automationProjectId ?? definition.projectId;
+  const targetFor = (definition: Pick<DigestDefinition, "projectId" | "environment" | "execution" | "connectionIds">) => executionTarget(bb, definition,
+    definition.connectionIds.map((id) => store.connections.get(id)).filter((value): value is Connection => value !== null));
+  async function runError(id: string, error: unknown) {
+    const message = executionFailure(error);
+    await bb.storage.kv.set(`run-error:${id}`, message);
+    bb.realtime.publish("issues", {});
+    return message;
+  }
   async function spawnDelivery(definition: DigestDefinition, issue: Issue) {
     if (issue.threadId) return issue;
     const stage = await ensureSection();
+    const target = await targetFor(definition);
     const thread = await bb.sdk.threads.spawn({
-      projectId: definition.projectId, environment: definition.environment,
+      ...target,
       ...(definition.providerId ? { providerId: definition.providerId } : {}),
       ...(definition.model ? { model: definition.model } : {}),
       permissionMode: definition.permissionMode,
@@ -100,22 +111,35 @@ export function createService(bb: BbPluginApi) {
     return bound;
   }
   async function ensureAutomation(definition: DigestDefinition) {
-    if (definition.automationId) return definition;
     if (!definition.schedule) throw new Error("This digest accepts published issues and has no schedule.");
     if (!definition.providerId || !definition.model) throw new Error("Choose a provider and model when defining this digest before enabling its schedule.");
+    const target = await targetFor(definition);
+    if (definition.automationId && automationProject(definition) === target.projectId) {
+      if (JSON.stringify(definition.automationEnvironment) !== JSON.stringify(target.environment)) {
+        await automation("automations_update", { projectId: automationProject(definition), automationId: definition.automationId,
+          agent: { target: { type: "environment", environment: target.environment } } }, automationSchema);
+        definition = store.definitions.put({ ...definition, automationProjectId: target.projectId, automationEnvironment: target.environment });
+      }
+      return definition;
+    }
+    // Only this definition's automation can be replaced. Keep the old paused
+    // record and its run history; user automations are never adopted.
+    if (definition.automationId) await automation("automations_pause", { projectId: automationProject(definition), automationId: definition.automationId }, automationSchema);
     const created = await automation("automations_create", {
-      projectId: definition.projectId, name: `Digests · ${definition.name}`, enabled: false,
+      projectId: target.projectId, name: `Digests · ${definition.name}`, enabled: false,
       trigger: { triggerType: "schedule", ...definition.schedule }, origin: "agent",
       execution: { mode: "agent", prompt: runPrompt(definition), providerId: definition.providerId, model: definition.model,
-        reasoningLevel: definition.reasoningLevel ?? "medium", permissionMode: definition.permissionMode, environment: definition.environment },
+        reasoningLevel: definition.reasoningLevel ?? "medium", permissionMode: definition.permissionMode, environment: target.environment },
     }, automationSchema);
-    return store.definitions.put({ ...definition, automationId: created.id });
+    const saved = store.definitions.put({ ...definition, automationId: created.id, automationProjectId: target.projectId, automationEnvironment: target.environment });
+    if (saved.enabled) await automation("automations_resume", { projectId: target.projectId, automationId: created.id }, automationSchema);
+    return saved;
   }
   async function settingsDefaults(connectionId?: string) {
     const definitions = store.definitions.list();
     const existing = definitions.find((entry) => connectionId && entry.connectionIds.includes(connectionId)) ?? definitions[0];
     if (existing) return { projectId: existing.projectId, providerId: existing.providerId, model: existing.model, reasoningLevel: existing.reasoningLevel, environment: existing.environment };
-    const projects = await bb.sdk.projects.list();
+    const projects = await bb.sdk.projects.list({ includePersonal: true });
     const personal = projects.find((project) => project.kind === "personal");
     if (!personal) throw new Error("Open your personal project in bb before adding a digest.");
     const defaults = await bb.sdk.projects.defaultExecutionOptions({ projectId: personal.id });
@@ -134,10 +158,10 @@ export function createService(bb: BbPluginApi) {
       if (input.schedule && (!defaults.providerId || !defaults.model)) throw new Error("Choose a default agent and model in this digest's bb project, then save again.");
       await ensureSection(true);
       let definition: DigestDefinition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, ...(input.emoji !== undefined ? { emoji: input.emoji } : {}), instructions: input.instructions,
-        connectionIds: previous?.connectionIds ?? [input.connectionId], schedule: input.schedule, enabled: previous?.enabled ?? false,
+        connectionIds: previous?.connectionIds ?? [input.connectionId], ...(input.execution !== undefined ? { execution: input.execution ?? undefined } : {}), schedule: input.schedule, enabled: previous?.enabled ?? false,
         automationId: previous?.automationId ?? null, permissionMode: previous?.permissionMode ?? "auto" as const, createdAt: previous?.createdAt ?? Date.now() };
       if (previous?.automationId) {
-        await automation("automations_update", { projectId: previous.projectId, automationId: previous.automationId,
+        await automation("automations_update", { projectId: automationProject(previous), automationId: previous.automationId,
           name: `Digests · ${input.name}`, trigger: { triggerType: "schedule", ...input.schedule! },
           agent: { prompt: runPrompt(definition) } }, automationSchema);
       }
@@ -145,7 +169,7 @@ export function createService(bb: BbPluginApi) {
       if (!previous) {
         definition = await ensureAutomation(definition);
         try {
-          await automation("automations_resume", { projectId: definition.projectId, automationId: definition.automationId }, automationSchema);
+          await automation("automations_resume", { projectId: automationProject(definition), automationId: definition.automationId }, automationSchema);
           definition = store.definitions.put({ ...definition, enabled: true });
         } catch (error) {
           // Preserve a discoverable paused definition for retry, rather than
@@ -154,9 +178,17 @@ export function createService(bb: BbPluginApi) {
           throw new Error(`Saved ${definition.name}, but could not turn it on. Try its switch again. ${error instanceof Error ? error.message : ""}`);
         }
       }
+      if (previous?.automationId) definition = await ensureAutomation(definition);
       bb.realtime.publish("issues", {});
       return definition;
     });
+  }
+
+  async function executionOptions() {
+    const [projects, hosts, environments] = await Promise.all([bb.sdk.projects.list({ includePersonal: true }), bb.sdk.hosts.list(), bb.sdk.environments.list()]);
+    return { projects: projects.map(({ id, name, kind }) => ({ id, name, kind })), hosts: hosts.map(({ id, name }) => ({ id, name })),
+      environments: environments.filter((environment) => environment.status === "ready" && environment.lifecycle.phase === "active")
+        .map(({ id, name, projectId, hostId }) => ({ id, name: name ?? "Existing workspace", projectId, hostId })) };
   }
 
   async function discoverSites() {
@@ -184,7 +216,7 @@ export function createService(bb: BbPluginApi) {
     return exclusive(`begin:${threadId}`, async () => {
       const definition = requiredDefinition(digestId);
       const thread = await bb.sdk.threads.get({ threadId });
-      if (thread.projectId !== definition.projectId) throw new Error("Run this digest in its configured project.");
+      if (thread.projectId !== automationProject(definition) && thread.projectId !== definition.projectId) throw new Error("Run this digest in its configured project.");
       let issue = store.issues.getByThread(threadId) ?? newIssue(definition, threadId, `thread:${threadId}`);
       if (issue.digestId !== digestId) throw new Error("This thread already belongs to another digest.");
       if (issue.state === "ready") return { issue, directive: directive(issue), sessions: [], complete: true };
@@ -198,7 +230,7 @@ export function createService(bb: BbPluginApi) {
         await ensureSection();
         await claimInbox(issue);
         if (definition.automationId && !requestedRetry) {
-          const recent = await automation("automations_runs", { projectId: definition.projectId, automationId: definition.automationId, limit: 100 }, z.object({ runs: z.array(runSchema) }).passthrough());
+          const recent = await automation("automations_runs", { projectId: automationProject(definition), automationId: definition.automationId, limit: 100 }, z.object({ runs: z.array(runSchema) }).passthrough());
           const run = recent.runs.find((entry) => entry.threadId === threadId);
           if (run && Date.now() - run.scheduledFor > 15 * 60 * 1000) {
             throw new Error("bb was unavailable or this run was delayed at the scheduled time. Retry to prepare this issue now.");
@@ -262,22 +294,29 @@ export function createService(bb: BbPluginApi) {
   }
   async function run(id: string) {
     return exclusive(`definition:${id}`, async () => {
-      const definition = await ensureAutomation(requiredDefinition(id));
-      await ensureSection();
-      const result = await automation("automations_run", { projectId: definition.projectId, automationId: definition.automationId }, z.object({ run: runSchema }).passthrough());
-      if (result.run.threadId) {
-        const issue = store.issues.getByThread(result.run.threadId) ?? newIssue(definition, result.run.threadId, `run:${result.run.id}`, result.run.scheduledFor);
-        await bb.sdk.threads.update({ threadId: result.run.threadId, title: issueTitle(definition, issue.createdAt) });
-        await claimInbox(issue);
+      try {
+        const definition = await ensureAutomation(requiredDefinition(id));
+        await ensureSection();
+        const result = await automation("automations_run", { projectId: automationProject(definition), automationId: definition.automationId }, z.object({ run: runSchema }).passthrough());
+        if (!result.run.threadId) throw new ExecutionError(executionFailure(new Error(result.run.error ?? "No issue thread was created")));
+        if (result.run.threadId) {
+          const issue = store.issues.getByThread(result.run.threadId) ?? newIssue(definition, result.run.threadId, `run:${result.run.id}`, result.run.scheduledFor);
+          await bb.sdk.threads.update({ threadId: result.run.threadId, title: issueTitle(definition, issue.createdAt) });
+          await claimInbox(issue);
+        }
+        await bb.storage.kv.delete(`run-error:${id}`);
+        bb.realtime.publish("issues", {});
+        return { threadId: result.run.threadId };
+      } catch (error) {
+        throw new Error(await runError(id, error));
       }
-      return { threadId: result.run.threadId };
     });
   }
   async function setEnabled(id: string, enabled: boolean) {
     return exclusive(`definition:${id}`, async () => {
       let definition = requiredDefinition(id);
       if (enabled) { await ensureSection(); definition = await ensureAutomation(definition); }
-      if (definition.automationId) await automation(enabled ? "automations_resume" : "automations_pause", { projectId: definition.projectId, automationId: definition.automationId }, automationSchema);
+      if (definition.automationId) await automation(enabled ? "automations_resume" : "automations_pause", { projectId: automationProject(definition), automationId: definition.automationId }, automationSchema);
       definition = store.definitions.put({ ...definition, enabled });
       bb.realtime.publish("issues", {});
       return definition;
@@ -341,7 +380,8 @@ export function createService(bb: BbPluginApi) {
     const defaults = await settingsDefaults(connectionId);
     // Empty input is a supported dormant thread: no agent turn or account work.
     // It owns new check tabs only, never borrows an open user tab.
-    const thread = await bb.sdk.threads.spawn({ projectId: defaults.projectId, environment: defaults.environment,
+    const target = await targetFor({ ...defaults, connectionIds: [connectionId] });
+    const thread = await bb.sdk.threads.spawn({ ...target,
       title: "Digests browser checks", visibility: "hidden", input: [], pluginMetadata: { purpose: "connection-checks" } });
     await bb.storage.kv.set("connection-settings-thread", thread.id);
     return thread.id;
@@ -359,7 +399,7 @@ export function createService(bb: BbPluginApi) {
           const accountName = await checkSignIn(bb, connection, lease);
           store.connections.put({ ...connection, accountName, status: "signed-in", checkedAt: Date.now(), detail: null });
         } catch (error) {
-          store.connections.put({ ...connection, accountName: null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
+          store.connections.put({ ...connection, accountName: null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: error instanceof ConnectionError ? error.message : `Couldn’t reach ${connection.name} on its browser computer. Check that bb is connected, then Retry.` });
         } finally {
           if (lease) await closeBrowser(bb, lease).catch((error: unknown) => bb.log.warn(String(error)));
         }
@@ -394,13 +434,18 @@ export function createService(bb: BbPluginApi) {
     const plugins = await bb.sdk.plugins.list();
     let organizerReady = false;
     try { organizerReady = (await organizer()).stages.some((entry) => entry.key === "digests" && entry.role === "inbox" && entry.catchesPluginId === "digests"); } catch { /* Settings shows setup guidance. */ }
-    return { definitions: store.definitions.list(), connections: store.connections.list(), actionCardsAvailable: plugins.plugins.some((entry) => entry.id === "inline-action-cards" && entry.enabled && entry.status === "running"), organizerReady };
+    const runErrors: Record<string, string> = {};
+    for (const definition of store.definitions.list()) {
+      const message = await bb.storage.kv.get<string>(`run-error:${definition.id}`);
+      if (message) runErrors[definition.id] = message;
+    }
+    return { runErrors, definitions: store.definitions.list(), connections: store.connections.list(), actionCardsAvailable: plugins.plugins.some((entry) => entry.id === "inline-action-cards" && entry.enabled && entry.status === "running"), organizerReady };
   }
   async function reconcile() {
     for (const definition of store.definitions.list()) {
       if (!definition.automationId) continue;
       try {
-        const result = await automation("automations_runs", { projectId: definition.projectId, automationId: definition.automationId, limit: 100 }, z.object({ runs: z.array(runSchema), nextCursor: z.string().nullable() }));
+        const result = await automation("automations_runs", { projectId: automationProject(definition), automationId: definition.automationId, limit: 100 }, z.object({ runs: z.array(runSchema), nextCursor: z.string().nullable() }));
         for (const run of result.runs.reverse()) {
           let issue = run.threadId ? store.issues.getByThread(run.threadId) : store.issues.getByKey(definition.id, `run:${run.id}`);
           if (issue?.state === "ready") continue;
@@ -413,8 +458,11 @@ export function createService(bb: BbPluginApi) {
           }
           const late = run.startedAt - run.scheduledFor > 15 * 60 * 1000;
           if (["failed", "skipped"].includes(run.status) || (run.status === "succeeded" && issue.state === "collecting")) {
-            issue = await fail(issue, late ? "bb was unavailable at the scheduled time. Retry to prepare this issue now." : run.error || run.skipReason || "The run ended before publishing a digest. Retry to prepare it.", "retry", !!run.threadId);
-            if (!issue.threadId) await spawnDelivery(definition, issue);
+            issue = await fail(issue, late ? "bb was unavailable at the scheduled time. Retry to prepare this issue now." : !run.threadId ? executionFailure(new Error(run.error ?? "No issue thread")) : run.error || run.skipReason || "The run ended before publishing a digest. Retry to prepare it.", "retry", !!run.threadId);
+            if (!issue.threadId) {
+              try { await spawnDelivery(definition, issue); }
+              catch (error) { await runError(definition.id, error); }
+            }
           }
         }
       } catch (error) { bb.log.warn(`Digest ${definition.id}: ${error instanceof Error ? error.message : String(error)}`); }
@@ -444,5 +492,5 @@ export function createService(bb: BbPluginApi) {
       details: `Your issue was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
     return null;
   }
-  return { store, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
+  return { store, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }

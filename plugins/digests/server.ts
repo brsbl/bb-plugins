@@ -35,6 +35,7 @@ export default function plugin(bb: BbPluginApi) {
   }
   bb.rpc.register(rpcContract, {
     overview: service.overview,
+    executionOptions: service.executionOptions,
     settingsPreferences: service.settingsPreferences,
     dismissImportBanner: service.dismissImportBanner,
     checkSettingsConnections: service.checkSettingsConnections,

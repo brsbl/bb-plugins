@@ -23,6 +23,8 @@ version that supports additional inboxes. Do not use `organizer phase` to route
 issues: their origin or durable plugin metadata lets Organizer catch them.
 Read and unread issues remain there until the user moves or archives them.
 
+Every dispatch resolves an explicit host and environment. Prefer the Personal project’s personal-workspace on the connection’s browserHostId, never a project default on the server. A definition can store an optional `execution: {projectId, hostId, environmentId?}` fallback; the Settings edit form offers it under Where it runs. Legacy definitions still parse. Only plugin-owned replacement automations may be rebound; the original user automations remain untouched. If no thread can be created, keep the failure visible on the digest card with Retry.
+
 Review definitions with the user before enabling them in plugin settings.
 Never edit or remove existing automations as an incidental setup step. Migrate
 only after the user approves the exact old and new schedules. Defaults are

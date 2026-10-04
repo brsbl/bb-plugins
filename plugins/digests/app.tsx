@@ -23,6 +23,7 @@ type Overview = {
   connections: Connection[];
   actionCardsAvailable: boolean;
   organizerReady: boolean;
+  runErrors?: Record<string, string>;
 };
 
 function richText(children: ReactNode): ReactNode {
@@ -301,6 +302,11 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   onSave: (input: SaveDigest) => Promise<void>;
 }) {
   const formId = useId();
+  const rpc = useRpc<typeof rpcContract>();
+  const [execution, setExecution] = useState(definition?.execution ?? null);
+  const [options, setOptions] = useState<{ projects: Array<{ id: string; name: string; kind: string }>; hosts: Array<{ id: string; name: string }>; environments: Array<{ id: string; name: string; projectId: string; hostId: string | null }> } | null>(null);
+  const [executionError, setExecutionError] = useState<string | null>(null);
+  const loadExecution = () => { void rpc.call("executionOptions", {}).then(setOptions).catch(() => setExecutionError("Couldn’t load computers and workspaces. Close and reopen this form to try again.")); };
   const [name, setName] = useState(definition?.name ?? "");
   const [instructions, setInstructions] = useState(definition?.instructions ?? "");
   const [minute = "0", hour = "10", day = "*", month = "*", weekday = "1-5"] = definition?.schedule?.cron.split(/\s+/u) ?? [];
@@ -313,7 +319,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
   return <form className="digest-form" onSubmit={(event) => {
     event.preventDefault();
     const [hours, minutes] = time.split(":");
-    void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, instructions,
+    void onSave({ ...(definition ? { id: definition.id } : {}), connectionId: connection.id, name, instructions, execution,
       schedule: publishOnly ? null : frequency === "custom" ? definition!.schedule : { cron: `${Number(minutes)} ${Number(hours)} * * ${frequency}`, timezone: definition?.schedule?.timezone ?? "America/Los_Angeles" } });
   }}>
     <label htmlFor={`${formId}-name`}>Name</label>
@@ -326,6 +332,29 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
       </select>
       {frequency !== "custom" && <><span>at</span><select aria-label="Time" value={time} onChange={(event) => setTime(event.target.value)}>{times.sort().map((value) => { const [h, m] = value.split(":"); const n = Number(h); return <option key={value} value={value}>{n % 12 || 12}:{m} {n < 12 ? "AM" : "PM"}</option>; })}</select><span>{definition?.schedule?.timezone && definition.schedule.timezone !== "America/Los_Angeles" ? definition.schedule.timezone : "PT"}</span></>}
     </div>}
+    <details className="digest-execution" onToggle={(event) => { if (event.currentTarget.open && !options) loadExecution(); }}>
+      <summary>Where it runs</summary>
+      <p className="digest-muted">Uses a Personal workspace on the computer with your browser sign-ins.</p>
+      {executionError && <p className="digest-error" role="alert">{executionError}</p>}
+      {options && <>
+        <label htmlFor={`${formId}-project`}>Workspace</label>
+        <select id={`${formId}-project`} value={execution?.projectId ?? ""} onChange={(event) => setExecution(event.target.value ? { projectId: event.target.value, hostId: execution?.hostId ?? connection.browserHostId ?? "" } : null)}>
+          <option value="">Personal workspace (recommended)</option>
+          {options.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+        </select>
+        {execution && <>
+          <label htmlFor={`${formId}-computer`}>Computer</label>
+          <select id={`${formId}-computer`} required value={execution.hostId} onChange={(event) => setExecution({ projectId: execution.projectId, hostId: event.target.value })}>
+            <option value="" disabled>Choose a computer</option>{options.hosts.map((host) => <option key={host.id} value={host.id}>{host.name}</option>)}
+          </select>
+          <label htmlFor={`${formId}-environment`}>Folder</label>
+          <select id={`${formId}-environment`} value={execution.environmentId ?? ""} onChange={(event) => setExecution({ ...execution, environmentId: event.target.value || undefined })}>
+            <option value="">{options.projects.find((project) => project.id === execution.projectId)?.kind === "personal" ? "New Personal workspace" : "Project folder on this computer"}</option>
+            {options.environments.filter((environment) => environment.projectId === execution.projectId && environment.hostId === execution.hostId).map((environment) => <option key={environment.id} value={environment.id}>{environment.name}</option>)}
+          </select>
+        </>}
+      </>}
+    </details>
     <div className="digest-form-actions"><Button variant="ghost" disabled={pending} onClick={onCancel}>Cancel</Button><Button variant="default" type="submit" disabled={pending}>{pending ? "Saving…" : definition ? "Save changes" : "Create digest"}</Button></div>
   </form>;
 }
@@ -396,9 +425,11 @@ function DigestsSettings() {
         else setError("This digest didn’t return an issue. Reload Settings to check its status before trying again.");
       }
     } catch (error) {
-      setError(error instanceof Error && error.message.trim() ? error.message : action === "toggle"
-        ? `Couldn’t ${definition.enabled ? "pause" : "enable"} ${definition.name}. Try again.`
-        : `Couldn’t start ${definition.name}. Check that bb is running and try again.`);
+      const message = error instanceof Error && error.message.trim() ? error.message : `Couldn’t start ${definition.name}. Check that bb is running and try again.`;
+      if (action === "run") {
+        await load();
+        setOverview((current) => current && { ...current, runErrors: { ...current.runErrors, [definition.id]: current.runErrors?.[definition.id] ?? `Couldn’t reach bb to start ${definition.name}. Check your connection, then Retry.` } });
+      } else setError(message);
     } finally {
       setPending(null);
     }
@@ -452,6 +483,7 @@ function DigestsSettings() {
                   {definition.schedule && <Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} />}
                 </div>
                 <p className="digest-prompt-preview">{definition.instructions}</p>
+                {overview.runErrors?.[definition.id] && <div className="digest-run-error" role="alert"><span>{overview.runErrors[definition.id]}</span><Button disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>Retry</Button></div>}
                 <div className="digest-definition-footer">{definition.schedule
                   ? <span className="digest-schedule-label"><Icon name="Calendar" className="digest-schedule-icon" aria-hidden /> {scheduleLabel(definition.schedule)}</span>
                   : <small>{definition.id === "x-scorecard" ? "Published by your X analytics thread" : "Published by another thread"}</small>}

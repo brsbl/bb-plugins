@@ -144,6 +144,18 @@ describe("Digests app", () => {
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_new_issue" });
   });
 
+  it("retries the failed digest from its persisted Settings error without enabling it", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [definition], connections: [{ id: "gmail", name: "Gmail", status: "unknown" }], organizerReady: true, actionCardsAvailable: false, runErrors: { reading: "My Mac is offline. Open bb on that computer, then Retry." } }),
+      run: () => ({ threadId: "thr_retry" }),
+    } });
+    fireEvent.click(await slot.findByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_retry" }));
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "run", input: { id: "reading" } });
+    expect(slot.inspection.rpcCalls.some((call) => call.method === "setEnabled")).toBe(false);
+  });
+
   it("checks sites automatically, persists banner dismissal, and retains the import link", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const connections = [{ id: "gmail", name: "Gmail", status: "signed-out", detail: null }, { id: "x", name: "X", status: "unknown", detail: null }];

@@ -184,3 +184,10 @@
   .digest-card-heading h4 { font-size: 14px; }
 }
 
+
+.digest-run-error { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; color: var(--foreground); font-size: 13px; }
+.digest-run-error span { flex: 1; }
+.digest-execution { margin-top: 8px; font-size: 13px; }
+.digest-execution summary { cursor: pointer; color: var(--muted-foreground); }
+.digest-execution label { display: block; margin: 12px 0 6px; }
+.digest-execution select { width: 100%; }

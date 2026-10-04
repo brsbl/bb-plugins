@@ -18,7 +18,7 @@ Open **Settings → Plugins → Digests**. Import logins through bb’s own Brow
 settings if needed. Sign-ins are checked automatically when Settings opens and before every run. Under a signed-in site, choose **Add
 digest**, give it a name, describe what it should tell you, and choose when.
 Create turns it on; **Run now to preview** opens the first issue. Click a digest’s
-name to edit it in place. Schedules use your existing project agent defaults.
+name to edit it in place. Runs use a Personal workspace on the computer with your browser sign-ins. If needed, choose a project and computer under **Where it runs**.
 
 Agent setup can prefill the following ordinary prompt digests from the existing
 recipes. These start disabled until you confirm migration. Existing automations
@@ -37,7 +37,7 @@ issues. Read and unread issues stay there until you move or archive them.
 
 Browser collection requires **bb 0.45.0 or later** on the browser desktop and
 connected server. Fresh issue-owned tabs reuse your existing BB Browser sign-ins.
-No cookie copying or permanently open tab is needed. Older runtimes show an
+No cookie copying or permanently open tab is needed. A computer or workspace that cannot start a run shows a persistent error with Retry on its digest card. Older runtimes show an
 update-needed issue. Signed-out connections show Reconnect; unavailable or
 interrupted runs show Retry. A missed run is reported when bb resumes.
 

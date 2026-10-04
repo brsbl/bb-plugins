@@ -9,11 +9,17 @@ export const rpcContract = defineRpcContract({
     input: z.object({}).strict(),
     output: z.object({
       definitions: z.array(digestDefinitionSchema),
+      runErrors: z.record(z.string(), z.string()).default({}),
       connections: z.array(connectionSchema),
       actionCardsAvailable: z.boolean(),
       organizerReady: z.boolean(),
     }).strict(),
   },
+  executionOptions: { input: z.object({}).strict(), output: z.object({
+    projects: z.array(z.object({ id, name: z.string(), kind: z.enum(["personal", "standard"]) })),
+    hosts: z.array(z.object({ id, name: z.string() })),
+    environments: z.array(z.object({ id, name: z.string(), projectId: id, hostId: id.nullable() })),
+  }) },
   settingsPreferences: { input: z.object({}).strict(), output: z.object({ importBannerDismissed: z.boolean() }).strict() },
   dismissImportBanner: { input: z.object({}).strict(), output: z.boolean() },
   checkSettingsConnections: { input: z.object({}).strict(), output: z.array(connectionSchema) },

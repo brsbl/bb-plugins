@@ -32,6 +32,19 @@ export const EmojiSchema = z.string().trim().min(1).max(32).refine((value) =>
     && /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20e3]/u.test(value),
 "Choose one emoji.");
 
+export const ExecutionChoiceSchema = z.object({
+  projectId: IdSchema,
+  hostId: IdSchema,
+  environmentId: IdSchema.optional(),
+}).strict();
+export const ExplicitEnvironmentSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("reuse"), environmentId: IdSchema }).strict(),
+  z.object({ type: z.literal("host"), hostId: IdSchema, workspace: z.discriminatedUnion("type", [
+    z.object({ type: z.literal("personal") }).strict(),
+    z.object({ type: z.literal("unmanaged"), path: z.string().min(1) }).strict(),
+  ]) }).strict(),
+]);
+
 export const DigestDefinitionSchema = z.object({
   /** The stable, human-readable slug used by `bb digest --digest`. */
   id: DigestIdSchema,
@@ -46,6 +59,10 @@ export const DigestDefinitionSchema = z.object({
   ),
   schedule: ScheduleSchema.nullable().default(null),
   automationId: IdSchema.nullable().default(null),
+  // Optional additions preserve saved definitions and existing clients.
+  execution: ExecutionChoiceSchema.optional(),
+  automationProjectId: IdSchema.optional(),
+  automationEnvironment: ExplicitEnvironmentSchema.optional(),
   enabled: z.boolean().default(false),
   providerId: IdSchema.nullable().default(null),
   model: z.string().min(1).max(160).nullable().default(null),
@@ -126,6 +143,7 @@ export const SaveDigestSchema = z.object({
   emoji: EmojiSchema.optional(),
   instructions: DigestDefinitionSchema.shape.instructions,
   schedule: ScheduleSchema.nullable(),
+  execution: ExecutionChoiceSchema.nullable().optional(),
 }).strict();
 export type SaveDigest = z.infer<typeof SaveDigestSchema>;
 

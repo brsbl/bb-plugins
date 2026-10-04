@@ -16,7 +16,7 @@ afterEach(async () => {
 function setup(options: { runs?: Array<{
   id: string; threadId: string | null; status: string; scheduledFor: number; startedAt: number;
   error: string | null; skipReason: string | null;
-}>; personal?: boolean; offline?: boolean; stageSection?: boolean } = {}) {
+}>; personal?: boolean; offline?: boolean; stageSection?: boolean; dispatchFailure?: boolean } = {}) {
   let signIn = { signedIn: true, signedOut: false };
   let tabCount = 0;
   let deliveryCount = 0;
@@ -62,6 +62,8 @@ function setup(options: { runs?: Array<{
             result = { ok: true };
           } else if (pluginId === "automations" && ["automations_create", "automations_pause", "automations_resume", "automations_update"].includes(method)) {
             result = { id: "auto_digest_new", enabled: method === "automations_resume", nextRunAt: null };
+          } else if (pluginId === "automations" && method === "automations_run") {
+            result = { run: { id: "run_manual", threadId: options.dispatchFailure ? null : "thr_manual", status: options.dispatchFailure ? "failed" : "running", scheduledFor: Date.now(), startedAt: Date.now(), error: options.dispatchFailure ? "HTTP 404: Project has no local-path source for host" : null, skipReason: null } };
           } else if (pluginId === "automations" && method === "automations_runs") {
             result = { runs: options.runs ?? [], nextCursor: null };
           } else {
@@ -96,6 +98,27 @@ describe("digest issue lifecycle", () => {
     const create = harness.inspection.sdk.callsTo("plugins.callRpc").map(([call]) => call as { method: string; input: unknown }).find((call) => call.method === "automations_create");
     expect(create?.input).toMatchObject({ projectId: "proj_personal", enabled: false, execution: { environment: { type: "host", hostId: "host_browser", workspace: { type: "personal" } } } });
     expect(service.requiredDefinition("reading").enabled).toBe(false);
+  });
+
+  it("keeps a dispatch failure visible across Settings reloads and retries the run", async () => {
+    const options = { dispatchFailure: true };
+    const { service, harness } = setup(options);
+    await expect(service.run("reading")).rejects.toThrow("Couldn’t open this digest’s workspace");
+    expect((await service.overview()).runErrors.reading).toContain("Retry");
+    expect((await service.overview()).runErrors.reading).not.toContain("HTTP 404");
+    options.dispatchFailure = false;
+    expect(await service.run("reading")).toEqual({ threadId: "thr_manual" });
+    expect((await service.overview()).runErrors).toEqual({});
+    expect(service.requiredDefinition("reading").enabled).toBe(false);
+    expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([call]) => (call as { method: string }).method === "automations_resume")).toEqual([]);
+  });
+
+  it("reports an offline execution host before dispatching an agent", async () => {
+    const { service, harness } = setup({ offline: true });
+    await expect(service.run("reading")).rejects.toThrow("My Mac is offline");
+    expect((await service.overview()).runErrors.reading).toContain("My Mac is offline");
+    expect(harness.inspection.sdk.callsTo("threads.spawn")).toEqual([]);
+    expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([call]) => (call as { pluginId: string }).pluginId === "automations")).toEqual([]);
   });
 
   it("creates an enabled custom digest and updates that same automation without enabling migrated definitions", async () => {
