@@ -41,20 +41,35 @@ async function ensureMaintenanceBranch(pluginRoot: string): Promise<void> {
 }
 
 async function ruleTreeStatus(pluginRoot: string): Promise<string> {
-  const result = await execFileAsync(
-    "git",
-    [
-      "-C",
-      pluginRoot,
-      "status",
-      "--porcelain=v1",
-      "--untracked-files=all",
-      "--",
-      "rules",
-    ],
-    { encoding: "utf8" },
-  );
-  return result.stdout;
+  const [status, prefix] = await Promise.all([
+    execFileAsync(
+      "git",
+      [
+        "-C",
+        pluginRoot,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--",
+        "rules",
+      ],
+      { encoding: "utf8" },
+    ),
+    execFileAsync("git", ["-C", pluginRoot, "rev-parse", "--show-prefix"], {
+      encoding: "utf8",
+    }),
+  ]);
+  // Porcelain paths are relative to the repository root. A publication checkout
+  // holds the plugin in a subdirectory, so make them relative to the plugin to
+  // match the rule paths callers compare against.
+  const base = prefix.stdout.trim();
+  if (base.length === 0) return status.stdout;
+  return status.stdout
+    .split("\n")
+    .map((line) =>
+      line.slice(3).startsWith(base) ? `${line.slice(0, 3)}${line.slice(3 + base.length)}` : line,
+    )
+    .join("\n");
 }
 
 /**

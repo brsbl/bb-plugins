@@ -4,8 +4,9 @@ One bounded pass over new bb design feedback. `governance.md` covers the rules;
 this is the procedure.
 
 Limits: change at most five rule files per run. Don't touch plugin code, the
-skill, or `governance.md`. Only the user's own messages are evidence — never
-agent output, including your own.
+skill, `governance.md`, `evals/`, or the external standards under
+`rules/<domain>/external/`. Only the user's own messages are evidence — never
+agent output, including your own, and never an external standard.
 
 Run from the worktree bb provisioned for this run. It is a fresh checkout of
 the repository on its own branch, so rule edits cannot disturb any other
@@ -58,12 +59,19 @@ root.
      `challenging_episodes`, and ask the user.
 
    Update `confidence` to match the evidence and set `updated` to today.
+   Before adding a line, check that no other rule already counts the same
+   feedback; give it to the most specific rule only. A rule may be `required`
+   only with at least two independent supporting episodes; one episode means
+   `default` (or weaker) at `low` confidence.
 
 4. A new rule needs the same frontmatter as its neighbours — `id`, `kind`,
    `strength`, `confidence`, `status`, `domain`, `products`, `activities`,
    `artifacts`, `surfaces`, `relations`, `supporting_episodes`,
    `challenging_episodes`, `updated` — and the sections Why, Prefer, Avoid,
-   Use when, Do not use when, Evidence, Check.
+   Use when, Do not use when, Evidence, Check. Give it the next `ddr_NNN` ID after
+   the highest `ddr_` ID under `rules/`; external standards use separate
+   `ext_NNN` IDs. Never list an external standard in a learned rule's
+   `relations`.
 
 5. Keep evidence lines short and anonymous: one line per episode, describing
    what the user asked for or corrected. Never paste transcripts, credentials,
@@ -88,6 +96,11 @@ root.
    an absolute path to this worktree's own plugin directory: a relative path
    would be resolved somewhere else entirely, and could report a different
    corpus as clean. Check the `root` it prints is inside this worktree.
+
+   Then do the quick eval check in `plugins/design-doctrine/evals/scenarios.md`:
+   confirm each scenario's expected rules are still active and in scope after
+   your changes. An affected scenario does not block publishing; name it in
+   your report.
 
 7. Publish the batch as a pull request that merges itself once the
    repository's required checks pass. Do not wait for CI and do not merge by

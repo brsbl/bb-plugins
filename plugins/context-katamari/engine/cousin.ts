@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import { mulberry32 } from "../katamari-math";
 import { type MaterialKit, pick } from "./materials";
+import { bake } from "./props";
 
 /**
  * Each thread gets its own royal cousin, built like the Prince in the key
@@ -33,6 +34,9 @@ const COUSINS: readonly CousinLook[] = [
   { head: "tall", suit: 0x45b8a0, hem: 0x2a7d6c, stripe: 0x9fe0cf, legs: 0x8c2a5a },
   { head: "round", suit: 0xe85d5d, hem: 0xa83838, stripe: 0xf7aaaa, legs: 0x4a3a8c },
 ];
+
+/** Where each head shape's crown sits, for the antenna and the dizzy stars. */
+const HEAD_TOPS: Record<HeadShape, number> = { hammer: 0.18, tall: 0.42, round: 0.22, block: 0.19 };
 
 const FACE_FRAME = 0xf5d94a;
 const FACE = 0xf2dcc0;
@@ -89,9 +93,23 @@ function mesh(
   return result;
 }
 
+/**
+ * A rigid piece of the rig as one mesh, so a cousin costs a handful of draws
+ * instead of dozens. Each piece is merged once per look and shared.
+ */
+function part(kit: MaterialKit, key: string, build: (model: THREE.Group) => void): THREE.Group {
+  const look = kit.template(key, () => {
+    const model = new THREE.Group();
+    build(model);
+    return bake(model, kit);
+  });
+  return look.clone(true);
+}
+
 /** A thin limb hanging from its pivot, with a ball on the end. */
 function limb(
   kit: MaterialKit,
+  key: string,
   material: THREE.Material,
   length: number,
   radius: number,
@@ -100,8 +118,12 @@ function limb(
 ): THREE.Group {
   const group = new THREE.Group();
   group.position.set(...pivot);
-  mesh(group, kit.cylinder(8), material, [radius * 2, length, radius * 2], [0, -length / 2, 0]);
-  mesh(group, kit.sphere(1), material, [ball * 2, ball * 2, ball * 2], [0, -length, 0]);
+  group.add(
+    part(kit, key, (model) => {
+      mesh(model, kit.cylinder(8), material, [radius * 2, length, radius * 2], [0, -length / 2, 0]);
+      mesh(model, kit.sphere(1), material, [ball * 2, ball * 2, ball * 2], [0, -length, 0]);
+    }),
+  );
   return group;
 }
 
@@ -119,34 +141,10 @@ function face(kit: MaterialKit, head: THREE.Group, x: number, width: number, hei
   mesh(head, kit.cylinder(10), kit.solid(0xd8342f), [0.045, 0.012, 0.05], [x + 0.016, -height * 0.24, 0], [0, 0, Math.PI / 2]);
 }
 
-/** A cousin about one unit tall, facing +x, feet on y = 0. */
-export function buildCousin(kit: MaterialKit, seed: number): CousinRig {
-  const random = mulberry32(seed);
-  const look = pick(random, COUSINS);
+/** Everything on the head that holds still: its shape, bands, face, and the antenna's cone. */
+function dressHead(kit: MaterialKit, head: THREE.Group, look: CousinLook): void {
   const suit = kit.solid(look.suit);
-  const legs = kit.solid(look.legs);
-
-  const root = new THREE.Group();
-  const body = new THREE.Group();
-  root.add(body);
-
-  const leftLeg = limb(kit, legs, 0.27, 0.03, 0.055, [0, 0.32, -0.075]);
-  const rightLeg = limb(kit, legs, 0.27, 0.03, 0.055, [0, 0.32, 0.075]);
-  body.add(leftLeg, rightLeg);
-
-  // Bell-shaped suit, wide at the hem, with a darker band around the bottom.
-  mesh(body, kit.cylinder(16, 0.52), suit, [0.34, 0.34, 0.34], [0, 0.47, 0]);
-  mesh(body, kit.cylinder(16), kit.solid(look.hem), [0.36, 0.04, 0.36], [0, 0.31, 0]);
-
-  const leftArm = limb(kit, suit, 0.24, 0.026, 0.05, [0, 0.58, -0.1]);
-  const rightArm = limb(kit, suit, 0.24, 0.026, 0.05, [0, 0.58, 0.1]);
-  body.add(leftArm, rightArm);
-
-  const head = new THREE.Group();
-  head.position.y = 0.8;
-  body.add(head);
   const stripe = kit.solid(look.stripe);
-  let top = 0.18;
   switch (look.head) {
     case "hammer": {
       // The Prince's long capsule, lying sideways, with pale bands near each end.
@@ -164,27 +162,58 @@ export function buildCousin(kit: MaterialKit, seed: number): CousinRig {
       mesh(head, kit.sphere(2), suit, [0.3, 0.2, 0.3], [0, 0.33, 0]);
       mesh(head, kit.cylinder(16), stripe, [0.305, 0.05, 0.305], [0, 0.27, 0]);
       face(kit, head, 0.15, 0.2, 0.22);
-      top = 0.42;
       break;
     }
     case "round": {
       mesh(head, kit.sphere(2), suit, [0.4, 0.38, 0.4], [0, 0.02, 0]);
       mesh(head, kit.torus(0.08), stripe, [0.34, 0.34, 0.34], [0, 0.02, 0], [Math.PI / 2, 0, 0]);
       face(kit, head, 0.19, 0.18, 0.2);
-      top = 0.22;
       break;
     }
     case "block": {
       mesh(head, kit.box(), suit, [0.34, 0.32, 0.4], [0, 0.02, 0]);
       mesh(head, kit.box(), stripe, [0.35, 0.05, 0.41], [0, 0.14, 0]);
       face(kit, head, 0.17, 0.22, 0.22);
-      top = 0.19;
       break;
     }
   }
+  // Yellow cone antenna; its red bead wobbles, so the bead stays separate.
+  mesh(head, kit.cone(12), kit.solid(FACE_FRAME), [0.08, 0.13, 0.08], [0, HEAD_TOPS[look.head] + 0.05, 0]);
+}
 
-  // Yellow cone antenna with the red bead on top.
-  mesh(head, kit.cone(12), kit.solid(FACE_FRAME), [0.08, 0.13, 0.08], [0, top + 0.05, 0]);
+/** A cousin about one unit tall, facing +x, feet on y = 0. */
+export function buildCousin(kit: MaterialKit, seed: number): CousinRig {
+  const random = mulberry32(seed);
+  const look = pick(random, COUSINS);
+  const key = `cousin:${COUSINS.indexOf(look)}`;
+  const suit = kit.solid(look.suit);
+  const legs = kit.solid(look.legs);
+
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+
+  const leftLeg = limb(kit, `${key}:leg`, legs, 0.27, 0.03, 0.055, [0, 0.32, -0.075]);
+  const rightLeg = limb(kit, `${key}:leg`, legs, 0.27, 0.03, 0.055, [0, 0.32, 0.075]);
+  body.add(leftLeg, rightLeg);
+
+  // Bell-shaped suit, wide at the hem, with a darker band around the bottom.
+  body.add(
+    part(kit, `${key}:suit`, (model) => {
+      mesh(model, kit.cylinder(16, 0.52), suit, [0.34, 0.34, 0.34], [0, 0.47, 0]);
+      mesh(model, kit.cylinder(16), kit.solid(look.hem), [0.36, 0.04, 0.36], [0, 0.31, 0]);
+    }),
+  );
+
+  const leftArm = limb(kit, `${key}:arm`, suit, 0.24, 0.026, 0.05, [0, 0.58, -0.1]);
+  const rightArm = limb(kit, `${key}:arm`, suit, 0.24, 0.026, 0.05, [0, 0.58, 0.1]);
+  body.add(leftArm, rightArm);
+
+  const head = new THREE.Group();
+  head.position.y = 0.8;
+  body.add(head);
+  head.add(part(kit, `${key}:head`, (model) => dressHead(kit, model, look)));
+  const top = HEAD_TOPS[look.head];
   const antennaTip = mesh(head, kit.sphere(2), kit.solid(0xe0312b), [0.075, 0.075, 0.075], [0, top + 0.14, 0]);
 
   // The cartoon dizzy halo: little yellow stars chasing each other around.

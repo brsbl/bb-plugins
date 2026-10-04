@@ -39,6 +39,9 @@ const manifest = JSON.parse(
 );
 if (!appOnly && typeof manifest.bb?.host === "string") {
   const host = await buildPluginHost(pluginPath, pluginBuildBbVersion, toolchain);
+  const map = await readFile(host.mapPath, "utf8");
+  const portableRoot = relative(dirname(host.mapPath), repositoryRoot);
+  await writeFile(host.mapPath, map.replaceAll(`:${repositoryRoot}/`, `:${portableRoot}/`));
   files.push(host.jsPath, host.mapPath, host.metaPath);
 }
 if (typeof manifest.bb?.app === "string") {

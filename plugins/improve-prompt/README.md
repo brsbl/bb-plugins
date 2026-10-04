@@ -29,6 +29,19 @@ bb plugin config prompt-shaper set instructions "$(cat my-instructions.txt)"
 
 Clear the field, or run `bb plugin config prompt-shaper unset instructions`, to restore the default. The output format, the draft-only boundary, and the rule against running the draft are fixed, so custom instructions cannot break the in-place replacement.
 
+These instructions replace the `prompt-shaper` skill for the hidden helper, including a personal or project copy of that skill. To keep using your own copy, paste its guidance into the setting.
+
+## Choose the helper model
+
+By default the helper matches the composer's thread, or the project's spawn defaults for a new thread. Pick one under **Runs with** in Settings → Plugins → Prompt Improver, or from the CLI:
+
+```bash
+bb prompt-shaper helper                      # print the current choice
+bb prompt-shaper helper fixed codex gpt-5    # always use this provider, optionally with a model
+bb prompt-shaper helper thread               # follow the composer's thread
+bb prompt-shaper helper default              # clear the choice
+```
+
 The stable plugin ID remains `prompt-shaper` for compatibility.
 
 ## How it works

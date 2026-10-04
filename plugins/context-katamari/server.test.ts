@@ -70,7 +70,7 @@ describe("readThreadContext rpc", () => {
     await harness.lifecycle.dispose();
   });
 
-  it("reports no usage and no compactions when the thread cannot be read", async () => {
+  it("reports no usage and an unknown compaction count when the thread cannot be read", async () => {
     const { bb, harness } = createFakePluginHost({
       pluginId: "context-katamari",
       sdk: {
@@ -89,7 +89,7 @@ describe("readThreadContext rpc", () => {
     plugin(bb);
     await expect(harness.callRpc("readThreadContext", { threadId: "thr_gone" })).resolves.toEqual({
       usage: null,
-      compactions: 0,
+      compactions: null,
       turns: [],
     });
     await harness.lifecycle.dispose();
@@ -212,6 +212,71 @@ describe("readThreadContext turn costs", () => {
       { turnId: "t2", prompt: null, status: "completed", contextTokens: 849 },
       { turnId: "t1", prompt: null, status: "completed", contextTokens: 34_606, baseline: true },
     ]);
+    await harness.lifecycle.dispose();
+  });
+});
+
+describe("compaction announcements", () => {
+  const compactedHost = (compacted: () => number[]) => {
+    const host = createFakePluginHost({
+      pluginId: "context-katamari",
+      sdk: {
+        threads: {
+          events: {
+            list: async () => compacted().map((seq) => ({ seq, type: "thread/compacted" })),
+          },
+        },
+      },
+    });
+    plugin(host.bb);
+    const thread = { id: "thr_a" } as Parameters<
+      typeof host.harness.emitThreadEvent<"experimental_thread.events">
+    >[1]["thread"];
+    /** bb reports that the thread has new events, up to `sequence`. */
+    const threadEvents = (sequence: number) =>
+      host.harness.emitThreadEvent("experimental_thread.events", { thread, sequence });
+    return { ...host, threadEvents };
+  };
+
+  it("announces only compactions bb records after the thread was first seen", async () => {
+    let seqs = [40, 12];
+    const { harness, threadEvents } = compactedHost(() => seqs);
+    await threadEvents(41);
+    await threadEvents(45);
+    expect(harness.realtimeSignals).toEqual([]);
+
+    seqs = [52, 40, 12];
+    await threadEvents(53);
+    await threadEvents(60);
+    expect(harness.realtimeSignals).toEqual([
+      { channel: "compacted", payload: { threadId: "thr_a", seq: 52, compactions: 3 } },
+    ]);
+    await harness.lifecycle.dispose();
+  });
+
+  it("remembers what it announced across restarts", async () => {
+    let seqs: number[] = [];
+    const first = compactedHost(() => seqs);
+    await first.threadEvents(3);
+    seqs = [9];
+    await first.threadEvents(10);
+    expect(first.harness.realtimeSignals).toHaveLength(1);
+    expect(await first.bb.storage.kv.get<number>("compacted:thr_a")).toBe(9);
+    await first.harness.lifecycle.dispose();
+
+    const second = compactedHost(() => seqs);
+    await second.bb.storage.kv.set("compacted:thr_a", 9);
+    await second.threadEvents(11);
+    expect(second.harness.realtimeSignals).toEqual([]);
+    await second.harness.lifecycle.dispose();
+  });
+
+  it("stays quiet when the events cannot be read", async () => {
+    const { harness, threadEvents } = compactedHost(() => {
+      throw new Error("offline");
+    });
+    await threadEvents(1);
+    expect(harness.realtimeSignals).toEqual([]);
     await harness.lifecycle.dispose();
   });
 });

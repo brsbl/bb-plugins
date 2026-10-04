@@ -2003,6 +2003,7 @@ function installHoverCards({ onOpen }: ThreadHoverCardOptions): HoverCardControl
       scheduleOpen(trigger, OPEN_DELAY_MS, POINTER_SUMMARY_SETTLE_MS);
       return;
     }
+    if (activeTrigger && activeTrigger !== trigger) closeCard();
     scheduleOpen(trigger, POINTER_SUMMARY_SETTLE_MS);
   }
 
@@ -2433,7 +2434,7 @@ function installSectionHoverCards({
       showCard(target, POINTER_SUMMARY_SETTLE_MS);
       return;
     }
-    cancelClose();
+    if (active) closeCard();
     openTimer = setTimeout(() => {
       openTimer = null;
       showCard(target);
@@ -2458,6 +2459,7 @@ function installSectionHoverCards({
   function onFocusIn(event: FocusEvent): void {
     const target = findSectionTrigger(event.target);
     if (target) {
+      cancelOpen();
       if (active?.row === target.row && card && !card.hidden) {
         cancelClose();
         return;
