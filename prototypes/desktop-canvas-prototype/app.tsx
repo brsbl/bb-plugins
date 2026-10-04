@@ -17,7 +17,7 @@ const FOLDER_HEIGHT = 112;
 const ALL_THREADS = "all-threads";
 
 function Action({ icon, label, onClick, pressed }: { icon: string; label: string; onClick: () => void; pressed?: boolean }) {
-  return <Button variant="ghost" size="icon" title={label} aria-label={label} aria-pressed={pressed} onClick={onClick}><Icon name={icon} /></Button>;
+  return <Button variant="ghost" size="icon" aria-label={label} aria-pressed={pressed} onClick={onClick}><Icon name={icon} /></Button>;
 }
 
 function Desktop() {
