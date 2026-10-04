@@ -2,7 +2,7 @@
 
 See pull requests across bb threads and continue the work in the right conversation.
 
-![Pull request Summary with status icons and linked thread](https://github.com/user-attachments/assets/a9197e22-5fdf-4342-957c-8f865d5d3d69)
+![Compact Pull Requests sidebar with status icons and timestamps](https://github.com/user-attachments/assets/568a70fb-8226-4a65-bcec-23e1c4081e41)
 
 ## Install
 
