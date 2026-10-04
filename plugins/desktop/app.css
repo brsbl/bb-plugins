@@ -1607,6 +1607,18 @@ body[data-ambient-glass] .bbd-icon .bbd-icon-label {
   justify-content: flex-start;
 }
 
+/* bb's attachment row has its own end alignment, nested below the message wrappers above. */
+.bbd-im-chat [data-message-column] .mt-2.space-y-2:has(> .flex > button.cursor-zoom-in) {
+  clear: both;
+  display: flow-root;
+  margin-top: 6px;
+}
+
+.bbd-im-chat [data-message-column] .flex:has(> button.cursor-zoom-in) {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
 /* Messages sit 6 px apart, as close as AIM's lines, with nothing reserved for their actions below. */
 .bbd-im-chat [data-timeline-row-list="top-level"] {
   row-gap: 6px;
