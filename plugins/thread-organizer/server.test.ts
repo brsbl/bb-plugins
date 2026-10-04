@@ -814,6 +814,34 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("keeps read threads moved into a manual inbox and never claims threads for it", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await saveStagePatch(organizer, "handoff", { role: "inbox" });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    expect(config.stages.find((stage) => stage.key === "handoff"))
+      .not.toHaveProperty("catchesPluginId");
+
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    expect(organizer.getPluginMetadata).not.toHaveBeenCalled();
+
+    organizer.setThread({ lastReadAt: 20, sectionId: sectionId("handoff") });
+    organizer.emitChanged("order-changed");
+    organizer.emitChanged(["read-state-changed"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    await saveStagePatch(organizer, "planning", { rule: "Plan it." });
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    await replacement.harness.lifecycle.dispose();
+  });
+
   it("releases threads already read in Inbox when it is set to return them", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
@@ -1517,10 +1545,16 @@ describe("config CLI", () => {
     expect(inbox.request.payload).toMatchObject({
       summary: "Digests will receive threads from digests and keep them until you move or archive them.",
     });
+    const manual = await approved(organizer, ["section", "type", "planning", "--set", "inbox"]);
+    expect(manual.request.payload).toMatchObject({
+      summary: "Planning will hold threads you move there by hand and keep them until you move or archive them.",
+    });
+    expect(await stageOf(organizer, "planning")).toMatchObject({ role: "inbox" });
+    expect(await stageOf(organizer, "planning")).not.toHaveProperty("catchesPluginId");
+    expect(await cli(organizer, ["section", "type", "planning"]))
+      .toMatchObject({ exitCode: 0, stdout: "inbox (manual)\n" });
     const count = pending(organizer).length;
     expect(await cli(organizer, ["section", "type", "inbox", "--set", "stage"]))
-      .toMatchObject({ exitCode: 2 });
-    expect(await cli(organizer, ["section", "type", "planning", "--set", "inbox"]))
       .toMatchObject({ exitCode: 2 });
     expect(pending(organizer)).toHaveLength(count);
     await organizer.harness.lifecycle.dispose();

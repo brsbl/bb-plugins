@@ -14,7 +14,7 @@ export const ENTRY_PROMPT_MAX_LENGTH = 2000;
 export const RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8000;
 
 export interface EditableWorkflowStage {
-  /** Additional inboxes catch this plugin's origin or explicit inbox metadata marker. */
+  /** An additional inbox catches this plugin's threads; without it the inbox only holds threads moved there by hand. */
   catchesPluginId?: string;
   /** Sent to a thread when it lands in this stage; omitted when unset. */
   entryPrompt?: string;
@@ -261,11 +261,12 @@ function validateStages(stages: WorkflowStage[]): void {
       throw new Error("Only an inbox can move threads back after reading.");
     }
     if (stage.role === "inbox" && stage.key !== "inbox") {
-      if (!stage.catchesPluginId) throw new Error(`Inbox "${stage.title}" needs a plugin.`);
-      if (caughtPlugins.has(stage.catchesPluginId)) {
-        throw new Error(`Plugin "${stage.catchesPluginId}" already has another inbox.`);
+      if (stage.catchesPluginId !== undefined) {
+        if (caughtPlugins.has(stage.catchesPluginId)) {
+          throw new Error(`Plugin "${stage.catchesPluginId}" already has another inbox.`);
+        }
+        caughtPlugins.add(stage.catchesPluginId);
       }
-      caughtPlugins.add(stage.catchesPluginId);
     } else if (stage.catchesPluginId !== undefined) {
       throw new Error("Only an additional inbox can catch a plugin.");
     }
@@ -630,7 +631,7 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
     ...config.stages
       .filter((stage) => stage.role === "inbox" && stage.key !== "inbox")
       .map((stage) =>
-        `**${escapeTableCell(stage.title)}** catches threads from plugin \`${stage.catchesPluginId}\` and ${stage.returnAfterRead ? "moves them back out once the user reads them" : "keeps them after reading until the user moves or archives them"}.`,
+        `**${escapeTableCell(stage.title)}** ${stage.catchesPluginId === undefined ? "holds threads the user moves there by hand" : `catches threads from plugin \`${stage.catchesPluginId}\``} and ${stage.returnAfterRead ? "moves them back out once the user reads them" : "keeps them after reading until the user moves or archives them"}. Never move a thread there with \`bb organizer phase\`.`,
       ),
     "",
     "| Key | Section | What belongs here |",

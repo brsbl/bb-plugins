@@ -123,7 +123,8 @@ describe("workflow configuration", () => {
   it("requires unique plugin filters on additional inboxes and protects the main Inbox", () => {
     const next = editable();
     next.stages.push({ key: "digests", title: "Digests", role: "inbox", rule: "Issues." });
-    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("needs a plugin");
+    expect(core.normalizeEditableWorkflowConfig(next).stages.at(-1))
+      .not.toHaveProperty("catchesPluginId");
     next.stages.at(-1)!.catchesPluginId = "digests";
     next.stages.push({ ...next.stages.at(-1)!, key: "more", title: "More" });
     expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("already has another inbox");

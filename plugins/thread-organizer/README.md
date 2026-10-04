@@ -18,6 +18,8 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
 - Additional inboxes receive threads from a selected plugin. Claimed threads stay
   in that inbox until you move or archive them, even after reading or resuming work.
   Opening a thread marks it read normally; it never also appears in the main Inbox.
+- A manual inbox catches nothing automatically. It holds the threads you move
+  there by hand, and keeps them after reading until you move or archive them.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.
 - Set any inbox to **Move back after reading** to skip that drag: as soon as you
@@ -124,6 +126,7 @@ bb organizer section add "Digests" --inbox --catches-plugin digests --rule "Publ
 bb organizer section type digests
 bb organizer section type digests --set stage
 bb organizer section type digests --set inbox --catches-plugin digests
+bb organizer section type handoff --set inbox
 bb organizer section after-read inbox
 bb organizer section after-read digests --set return
 bb organizer prompt                      # every section and its prompt

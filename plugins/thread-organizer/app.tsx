@@ -11,14 +11,11 @@ import {
   ArrowDown01Icon,
   ArrowDown02Icon,
   ArrowRight01Icon,
-  ArrowTurnBackwardIcon,
   ArrowUp02Icon,
   Delete02Icon,
   DragDropVerticalIcon,
-  InboxCheckIcon,
   MoreHorizontalIcon,
   PlusSignIcon,
-  SquareLock02Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -255,6 +252,15 @@ function finalizeDraftKeys(
   return { ...config, stages };
 }
 
+type TypeChoice =
+  | { role: "stage" }
+  | { role: "inbox"; catchesPluginId?: string; returnAfterRead: boolean };
+
+const AFTER_READ_CHOICES = [
+  { returnAfterRead: false, label: "Keep after reading" },
+  { returnAfterRead: true, label: "Move back after reading" },
+] as const;
+
 function TypeMenu({
   hasPrompt,
   inboxPlugins,
@@ -263,14 +269,31 @@ function TypeMenu({
 }: {
   hasPrompt: boolean;
   inboxPlugins: readonly InboxPlugin[];
-  onChange: (catchesPluginId: string | null) => void;
+  onChange: (choice: TypeChoice) => void;
   stage: EditableWorkflowStage;
 }) {
-  const caught = stage.role === "inbox" ? stage.catchesPluginId : undefined;
-  const caughtName = inboxPlugins.find((plugin) => plugin.id === caught)?.name;
-  const label = caught === undefined
-    ? "Stage"
-    : `Inbox · ${caughtName ?? `${caught} (unavailable)`}`;
+  const mainInbox = stage.key === "inbox";
+  const inbox = stage.role === "inbox";
+  const caught = inbox ? stage.catchesPluginId : undefined;
+  const pluginName = (id: string) =>
+    inboxPlugins.find((plugin) => plugin.id === id)?.name ?? `${id} (unavailable)`;
+  const label = mainInbox
+    ? "Inbox · everything"
+    : !inbox
+      ? "Stage"
+      : `Inbox · ${caught === undefined ? "Manual" : pluginName(caught)}`;
+  const inboxOptions: { catchesPluginId?: string; label: string }[] = mainInbox
+    ? [{ label: "Inbox · everything" }]
+    : [
+        { label: "Inbox · Manual" },
+        ...(caught !== undefined && !inboxPlugins.some((plugin) => plugin.id === caught)
+          ? [{ catchesPluginId: caught, label: `Inbox · ${pluginName(caught)}` }]
+          : []),
+        ...inboxPlugins.map((plugin) => ({
+          catchesPluginId: plugin.id,
+          label: `Inbox · ${plugin.name}`,
+        })),
+      ];
   const check = (selected: boolean) => (
     <HugeiconsIcon
       aria-hidden="true"
@@ -282,123 +305,87 @@ function TypeMenu({
     <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger asChild>
         <button
-          aria-label={`Section type for ${stage.title}: ${label}`}
+          aria-label={`Section type for ${stage.title}: ${label}${inbox && stage.returnAfterRead ? ", moves back after reading" : ""}`}
           className={typeTriggerClass}
           type="button"
         >
-          {label}
           <HugeiconsIcon
             aria-hidden="true"
             className="size-3.5 shrink-0 text-muted-foreground"
             icon={ArrowDown01Icon}
             strokeWidth={1.5}
           />
+          {label}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
           align="start"
-          className={typeMenuContentClass}
+          className={`${typeMenuContentClass} max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto`}
           collisionPadding={12}
           data-bb-plugin-root=""
           data-bb-portaled-overlay=""
           sideOffset={4}
         >
-          <DropdownMenu.Item
-            className={typeMenuItemClass}
-            onSelect={() => onChange(null)}
-          >
-            {check(caught === undefined)}
-            Stage
-          </DropdownMenu.Item>
-          <DropdownMenu.Sub>
-            <DropdownMenu.SubTrigger
+          {mainInbox ? null : (
+            <DropdownMenu.Item
               className={typeMenuItemClass}
-              disabled={hasPrompt && caught === undefined}
-              title={hasPrompt ? "Clear the entry prompt to choose an inbox." : undefined}
+              onSelect={() => onChange({ role: "stage" })}
             >
-              {check(caught !== undefined)}
-              <span className="flex-1">Inbox</span>
-              <HugeiconsIcon
-                aria-hidden="true"
-                className="size-3.5 shrink-0 text-muted-foreground"
-                icon={ArrowRight01Icon}
-                strokeWidth={1.5}
-              />
-            </DropdownMenu.SubTrigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.SubContent
-                className={`${typeMenuContentClass} max-h-[min(20rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto`}
-                collisionPadding={12}
-                data-bb-plugin-root=""
-                data-bb-portaled-overlay=""
-                sideOffset={4}
-              >
-                {inboxPlugins.length === 0 ? (
-                  <DropdownMenu.Item className={typeMenuItemClass} disabled>
-                    No plugins can deliver threads
-                  </DropdownMenu.Item>
-                ) : null}
-                {inboxPlugins.map((plugin) => (
-                  <DropdownMenu.Item
-                    className={typeMenuItemClass}
-                    disabled={hasPrompt}
-                    key={plugin.id}
-                    onSelect={() => onChange(plugin.id)}
+              {check(!inbox)}
+              Stage
+            </DropdownMenu.Item>
+          )}
+          {inboxOptions.map((option) => {
+            const current = inbox && option.catchesPluginId === caught;
+            return (
+              <DropdownMenu.Sub key={option.label}>
+                <DropdownMenu.SubTrigger
+                  className={typeMenuItemClass}
+                  disabled={hasPrompt}
+                  title={hasPrompt ? "Clear the entry prompt to choose an inbox." : undefined}
+                >
+                  {check(current)}
+                  <span className="flex-1">{option.label}</span>
+                  <HugeiconsIcon
+                    aria-hidden="true"
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    icon={ArrowRight01Icon}
+                    strokeWidth={1.5}
+                  />
+                </DropdownMenu.SubTrigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.SubContent
+                    className={typeMenuContentClass}
+                    collisionPadding={12}
+                    data-bb-plugin-root=""
+                    data-bb-portaled-overlay=""
+                    sideOffset={4}
                   >
-                    {check(plugin.id === caught)}
-                    {plugin.name}
-                  </DropdownMenu.Item>
-                ))}
-              </DropdownMenu.SubContent>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Sub>
+                    {AFTER_READ_CHOICES.map((choice) => (
+                      <DropdownMenu.Item
+                        className={typeMenuItemClass}
+                        key={choice.label}
+                        onSelect={() => onChange({
+                          role: "inbox",
+                          ...(option.catchesPluginId === undefined
+                            ? {}
+                            : { catchesPluginId: option.catchesPluginId }),
+                          returnAfterRead: choice.returnAfterRead,
+                        })}
+                      >
+                        {check(current && (stage.returnAfterRead === true) === choice.returnAfterRead)}
+                        {choice.label}
+                      </DropdownMenu.Item>
+                    ))}
+                  </DropdownMenu.SubContent>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Sub>
+            );
+          })}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
-  );
-}
-
-const AFTER_READ_CHOICES = [
-  { returnAfterRead: false, label: "Keep after reading", icon: InboxCheckIcon },
-  { returnAfterRead: true, label: "Move back after reading", icon: ArrowTurnBackwardIcon },
-] as const;
-
-function AfterReadToggle({
-  onChange,
-  stage,
-}: {
-  onChange: (returnAfterRead: boolean) => void;
-  stage: EditableWorkflowStage;
-}) {
-  const current = stage.returnAfterRead === true;
-  return (
-    <div
-      aria-label={`After reading a thread in ${stage.title}`}
-      className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5"
-      role="group"
-    >
-      {AFTER_READ_CHOICES.map((choice) => {
-        const pressed = choice.returnAfterRead === current;
-        return (
-          <button
-            aria-label={choice.label}
-            aria-pressed={pressed}
-            className={`inline-flex size-7 items-center justify-center rounded outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              pressed
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-            }`}
-            key={choice.label}
-            onClick={() => onChange(choice.returnAfterRead)}
-            title={choice.label}
-            type="button"
-          >
-            <HugeiconsIcon aria-hidden="true" className="size-4" icon={choice.icon} />
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -480,38 +467,28 @@ function StageCard({
         )}
         <div className={`${stageTypeLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
           <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>Type</span>
-          <div className="flex min-w-0 items-center gap-1">
-            {protectedInbox ? (
-              <span className="flex min-h-8 items-center gap-1.5 whitespace-nowrap px-1 text-sm text-muted-foreground" title="The main Inbox is protected">
-                <HugeiconsIcon aria-hidden="true" className="size-3.5 shrink-0" icon={SquareLock02Icon} />
-                Inbox · everything
-              </span>
-            ) : (
-              <TypeMenu
-                hasPrompt={hasPrompt}
-                inboxPlugins={inboxPlugins}
-                onChange={(catchesPluginId) => {
-                  const { catchesPluginId: _filter, returnAfterRead, ...fields } = stage;
-                  onChange(catchesPluginId === null
-                    ? { ...fields, role: "stage" }
-                    : {
-                        ...fields, role: "inbox", catchesPluginId,
-                        ...(returnAfterRead ? { returnAfterRead } : {}),
-                      });
-                }}
-                stage={stage}
-              />
-            )}
-            {inbox ? (
-              <AfterReadToggle
-                onChange={(returnAfterRead) => {
-                  const { returnAfterRead: _previous, ...fields } = stage;
-                  onChange(returnAfterRead ? { ...fields, returnAfterRead } : fields);
-                }}
-                stage={stage}
-              />
-            ) : null}
-          </div>
+          <TypeMenu
+            hasPrompt={hasPrompt}
+            inboxPlugins={inboxPlugins}
+            onChange={(choice) => {
+              const {
+                catchesPluginId: _filter,
+                returnAfterRead: _returnAfterRead,
+                ...fields
+              } = stage;
+              onChange(choice.role === "stage"
+                ? { ...fields, role: "stage" }
+                : {
+                    ...fields,
+                    role: "inbox",
+                    ...(choice.catchesPluginId === undefined
+                      ? {}
+                      : { catchesPluginId: choice.catchesPluginId }),
+                    ...(choice.returnAfterRead ? { returnAfterRead: true } : {}),
+                  });
+            }}
+            stage={stage}
+          />
         </div>
         {protectedInbox ? (
           <p

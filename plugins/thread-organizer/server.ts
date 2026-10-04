@@ -576,7 +576,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       (currentStage?.role !== "inbox" || currentStage.key === "inbox")
     ) {
       const candidates = configSnapshot.stages.filter((stage) =>
-        stage.role === "inbox" && stage.key !== "inbox" &&
+        stage.role === "inbox" && stage.catchesPluginId !== undefined &&
         stage.catchesPluginId !== state.dismissedInboxPluginId,
       );
       matchedInbox = candidates.find(
@@ -1048,7 +1048,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     "  bb organizer phase <stage-key>",
     "  bb organizer prompt [<stage-key>] [--set <text> | --clear]",
     "  bb organizer section list",
-    "  bb organizer section add <title> [--after <stage-key>] [--rule <text>] [--inbox --catches-plugin <plugin-id>]",
+    "  bb organizer section add <title> [--after <stage-key>] [--rule <text>] [--inbox [--catches-plugin <plugin-id>]]",
     "  bb organizer section rule <stage-key> [--set <text>]",
     "  bb organizer section type <stage-key> [--set stage|inbox] [--catches-plugin <plugin-id>]",
     "  bb organizer section after-read <inbox-key> [--set stay|return]",
@@ -1317,7 +1317,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           stage.key === "inbox"
             ? "system-managed"
             : stage.role === "inbox"
-              ? `inbox · ${stage.catchesPluginId}`
+              ? `inbox · ${stage.catchesPluginId ?? "manual"}`
             : stage.entryPrompt
               ? "entry prompt"
               : "";
@@ -1373,7 +1373,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return confirmAndSave(context, {
       title: `Add section "${title}"`,
       summary: (key) =>
-        `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}${inbox ? `, for threads from ${catchesPluginId}` : ""}, with this rule for agents:`,
+        `${anchorNow ? `After ${anchorNow.title}` : "At the end"}, keyed ${key}${inbox ? catchesPluginId === undefined ? ", as a manual inbox" : `, for threads from ${catchesPluginId}` : ""}, with this rule for agents:`,
       field: "rule",
       apply: (current) => {
         const edited = editableWorkflowConfig(current);
@@ -1481,7 +1481,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (rest.length === 0) {
       return {
         exitCode: 0,
-        stdout: `${stage.role}${stage.key === "inbox" ? " (everything)" : stage.catchesPluginId ? ` (${stage.catchesPluginId})` : ""}\n`,
+        stdout: `${stage.role}${stage.key === "inbox" ? " (everything)" : stage.catchesPluginId ? ` (${stage.catchesPluginId})` : stage.role === "inbox" ? " (manual)" : ""}\n`,
       };
     }
     if (stage.key === "inbox") {
@@ -1491,6 +1491,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     if (
       rest[0] !== "--set" ||
       !((role === "stage" && rest.length === 2) ||
+        (role === "inbox" && rest.length === 2) ||
         (role === "inbox" && rest.length === 4 && rest[2] === "--catches-plugin"))
     ) {
       return { exitCode: 2, stderr: CLI_USAGE };
@@ -1499,7 +1500,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return confirmAndSave(context, {
       title: `Set the section type for ${stage.title}`,
       summary: () => role === "inbox"
-        ? `${stage.title} will receive threads from ${catchesPluginId} and ${stage.role === "inbox" && stage.returnAfterRead ? "move them back once you read them" : "keep them until you move or archive them"}.`
+        ? `${stage.title} will ${catchesPluginId === undefined ? "hold threads you move there by hand" : `receive threads from ${catchesPluginId}`} and ${stage.role === "inbox" && stage.returnAfterRead ? "move them back once you read them" : "keep them until you move or archive them"}.`
         : `${stage.title} will be a workflow section with normal Inbox routing.`,
       field: null,
       apply: (current) => {
@@ -1518,7 +1519,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         } = target;
         edited.stages[index] = {
           ...fields, role: role as "stage" | "inbox",
-          ...(role === "inbox" ? { catchesPluginId } : {}),
+          ...(role === "inbox" && catchesPluginId !== undefined ? { catchesPluginId } : {}),
           ...(role === "inbox" && returnAfterRead ? { returnAfterRead } : {}),
         };
         return {
@@ -1613,7 +1614,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         summary:
           "List sections or add one (changes ask for approval in the thread)",
         usage:
-          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>] [--inbox --catches-plugin <plugin-id>] | rule <stage-key> [--set <text>] | type <stage-key> [--set stage|inbox] [--catches-plugin <plugin-id>] | after-read <inbox-key> [--set stay|return]",
+          "bb organizer section list | add <title> [--after <stage-key>] [--rule <text>] [--inbox [--catches-plugin <plugin-id>]] | rule <stage-key> [--set <text>] | type <stage-key> [--set stage|inbox] [--catches-plugin <plugin-id>] | after-read <inbox-key> [--set stay|return]",
       },
     ],
     async run(argv, context) {
