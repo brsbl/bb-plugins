@@ -22,6 +22,18 @@ describe("GitHub read boundary", () => {
     for (const unsafe of ["https://evil.test/acme/repo/pull/42", "https://user:pass@github.com/acme/repo/pull/42", "http://github.com/acme/repo/pull/42", "https://github.com/acme/repo/issues/42", "https://github.com/a/$(say)/pull/42", "https://github.com/a/b/pull/9007199254740999"]) expect(() => parsePullRequestUrl(unsafe)).toThrow();
     expect(originMarkers("BB-Thread-ID: thr_a\nText BB-Thread-ID: thr_b\nBB-Thread-ID: thr_a\nBB-Thread-ID: thr_c")).toEqual(["thr_a", "thr_c"]);
   });
+  it("reads requested users and namespaced teams without claiming incomplete reviewer data is complete", async () => {
+    const pr = { ...rawPr(), reviewRequests: { pageInfo: { hasNextPage: false }, nodes: [
+      { requestedReviewer: { __typename: "User", login: "bob" } },
+      { requestedReviewer: { __typename: "Team", slug: "design", organization: { login: "acme" } } },
+    ] } };
+    const run = vi.fn<GhRunner>(runner(pr));
+    expect(await readPullRequest({ url }, run)).toMatchObject({ ok: true, snapshot: { requestedReviewers: ["bob", "acme/design"], reviewRequestsComplete: true } });
+    expect(run.mock.calls.some(([args]) => args.some((arg) => arg.includes("reviewRequests(first:100)")))).toBe(true);
+    pr.reviewRequests.pageInfo.hasNextPage = true;
+    expect(projectSnapshot(pr).reviewRequestsComplete).toBe(false);
+    expect(projectSnapshot(rawPr())).toMatchObject({ requestedReviewers: [], reviewRequestsComplete: false });
+  });
   it("checks identity before a newly signed-in account can turn a PR denial into a resource-only failure", async () => {
     const run = vi.fn<GhRunner>().mockResolvedValue(JSON.stringify({ node_id: "U_B", login: "bob" }));
     expect(await readPullRequest({ url, expectedAccountId: "U_A" }, run)).toMatchObject({ ok: false, kind: "auth-changed" });

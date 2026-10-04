@@ -15,12 +15,13 @@ import { githubNeedsAttention } from "./core";
 import "./app.css";
 
 type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
-type View = "open" | "attention" | "history";
+type Sort = "updated" | "oldest" | "title";
+type Group = "pinned" | "authored" | "review" | "other" | "history";
 type Tab = "summary" | "changes";
 type Presentation = { icon: LucideIcon; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
 type ThreadContext = { threads: ThreadChoice[]; hosts: { id: string; name: string; connected: boolean }[]; nextCursor: string | null };
 type Preview = { token: string; snapshot: Snapshot; reader: { login: string; hostId: string }; thread: ThreadChoice };
-const session = { view: "open" as View, query: "", projectId: "", scrollTop: 0 };
+const session = { query: "", projectId: "", author: "", reviewer: "", sort: "updated" as Sort, attention: false, collapsed: ["history"] as Group[], scrollTop: 0 };
 const EMPTY_COVERAGE: Listing["coverage"] = { running: false, checked: 0, total: 0, unavailable: 0, incomplete: false, lastDiscoveryAt: null, includesArchived: false };
 
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
@@ -161,7 +162,12 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const [coverage, setCoverage] = useState(EMPTY_COVERAGE);
   const [context, setContext] = useState<ThreadContext>({ threads: [], hosts: [], nextCursor: null });
   const [contextEpoch, setContextEpoch] = useState(0);
-  const [view, setView] = useState<View>(session.view);
+  const [author, setAuthor] = useState(session.author);
+  const [reviewer, setReviewer] = useState(session.reviewer);
+  const [sort, setSort] = useState<Sort>(session.sort);
+  const [attention, setAttention] = useState(session.attention);
+  const [collapsed, setCollapsed] = useState<Group[]>(session.collapsed);
+  const optionsRef = useRef<HTMLDetailsElement>(null);
   const [query, setQuery] = useState(session.query);
   const [projectId, setProjectId] = useState(session.projectId);
   const [booting, setBooting] = useState(true);
@@ -270,7 +276,19 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   useEffect(() => { if (connection === "connected") { if (wasConnected.current) void loadRef.current().catch((reason) => setError(message(reason))); wasConnected.current = true; } }, [connection]);
   useRealtime(CHANGED, () => { void loadRef.current().catch((reason) => setError(message(reason))); });
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = session.scrollTop; }, []);
-  useEffect(() => { session.view = view; session.query = query; session.projectId = projectId; }, [view, query, projectId]);
+  useEffect(() => { Object.assign(session, { query, projectId, author, reviewer, sort, attention, collapsed }); }, [query, projectId, author, reviewer, sort, attention, collapsed]);
+  useEffect(() => {
+    const dismiss = (event: Event) => {
+      const options = optionsRef.current;
+      if (!options?.open) return;
+      if (event.type === "keydown") {
+        if ((event as KeyboardEvent).key !== "Escape") return;
+        options.open = false; options.querySelector("summary")?.focus();
+      } else if (!options.contains(event.target as Node)) options.open = false;
+    };
+    document.addEventListener("pointerdown", dismiss); document.addEventListener("keydown", dismiss);
+    return () => { document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", dismiss); };
+  }, []);
   useEffect(() => {
     if (!selection.id) return;
     let cancelled = false;
@@ -280,15 +298,29 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     return () => { cancelled = true; };
   }, [selection.id, rpc]);
   const select = (id: string | null, tab: Tab = "summary") => navigate.toPluginPanel("requests", { subPath: id ? `${id}/${tab}` : "" });
+  const sameLogin = (left: string | null | undefined, right: string | null | undefined) => !!left && !!right && left.toLowerCase() === right.toLowerCase();
+  const authoredByMe = (item: PullRequestItem) => sameLogin(item.snapshot?.author, item.reader?.login);
+  const requestedFromMe = (item: PullRequestItem) => (item.snapshot?.requestedReviewers ?? []).some((login) => sameLogin(login, item.reader?.login));
+  const authors = [...new Set(visibleItems.flatMap((item) => item.snapshot?.author ? [item.snapshot.author] : []))].sort();
+  const reviewers = [...new Set(visibleItems.flatMap((item) => item.snapshot?.requestedReviewers ?? []))].sort();
   const filtered = visibleItems.filter((item) => {
     const snapshot = item.snapshot;
     if (projectId && !item.links.some((link) => choices.get(link.threadId)?.projectId === projectId)) return false;
-    if (view === "history" ? !snapshot || !["closed", "merged"].includes(snapshot.state) : snapshot && ["closed", "merged"].includes(snapshot.state)) return false;
-    if (view === "attention" && !needsAttention(item, liveThreads, clock)) return false;
+    if (author && !(author === "@me" ? authoredByMe(item) : sameLogin(snapshot?.author, author))) return false;
+    if (reviewer && !(reviewer === "@me" ? requestedFromMe(item) : snapshot?.requestedReviewers?.some((login) => sameLogin(login, reviewer)))) return false;
+    if (attention && !needsAttention(item, liveThreads, clock)) return false;
     const haystack = [snapshot?.title, snapshot?.repository, snapshot?.number, snapshot?.headBranch, snapshot?.baseBranch, item.url, ...item.links.map((link) => choices.get(link.threadId)?.title ?? "")].join(" ").toLocaleLowerCase();
     return haystack.includes(query.trim().toLocaleLowerCase());
+  }).sort((a, b) => {
+    const time = (item: PullRequestItem) => Date.parse(item.snapshot?.updatedAt ?? "") || 0;
+    return (sort === "title" ? (a.snapshot?.title ?? "").localeCompare(b.snapshot?.title ?? "") : sort === "oldest" ? time(a) - time(b) : time(b) - time(a)) || a.id.localeCompare(b.id);
   });
-  const attentionCount = visibleItems.filter((item) => needsAttention(item, liveThreads, clock)).length;
+  const groupFor = (item: PullRequestItem): Group => item.pinned ? "pinned" : ["merged", "closed"].includes(item.snapshot?.state ?? "") ? "history" : authoredByMe(item) ? "authored" : requestedFromMe(item) ? "review" : "other";
+  const groups = ([
+    ["pinned", "Pinned"], ["authored", "Authored by me"], ["review", "Needs my review"], ["other", "Other pull requests"], ["history", "Merged and closed"],
+  ] as const).map(([id, label]) => ({ id, label, items: filtered.filter((item) => groupFor(item) === id) }));
+  const hasFilters = !!(query || projectId || author || reviewer || attention);
+  const resetFilters = () => { setQuery(""); setProjectId(""); setAuthor(""); setReviewer(""); setAttention(false); };
   const mutate = async (action: () => Promise<PullRequestItem>) => { try { const item = await action(); if (mounted.current) { applyItem(item); setError(null); } } catch (reason) { if (mounted.current) setError(message(reason)); } };
   const onUnlink = async (item: PullRequestItem, threadId: string) => {
     try { const result = await rpc.call("unlink", { id: item.id, threadId }); if (result.undoToken) setUndo({ token: result.undoToken, title: choices.get(threadId)?.title ?? "Thread" }); await load(); }
@@ -300,28 +332,49 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     const threadsNeedingInput = item.links.filter((link) => needsThread(liveThreads.get(link.threadId)));
     const working = item.links.map((link) => liveThreads.get(link.threadId)).find((thread) => thread && ["active", "starting", "stopping"].includes(thread.status));
     return <div className={`pr-row${selection.id === item.id ? " pr-row-selected" : ""}`} key={item.id}>
-      <div className="pr-row-main"><StatusIcon {...lifecycle(snapshot)} /><button type="button" className="pr-row-title" onClick={() => select(item.id)} aria-current={selection.id === item.id ? "page" : undefined}>{snapshot?.title ?? "Pull request unavailable"}</button></div>
-      <div className="pr-row-meta"><span>{snapshot ? `${snapshot.repository} #${snapshot.number}` : item.url.replace("https://github.com/", "")}</span><time dateTime={snapshot?.updatedAt}>{age(snapshot?.updatedAt ?? null)}</time></div>
-      <div className="pr-row-bottom"><div className="pr-row-statuses">{snapshot && <StatusIcon {...checksPresentation(snapshot)} count={snapshot.checks.total > 0 ? `${snapshot.checks.passing}/${snapshot.checks.total}` : undefined} />}{blocking && <StatusIcon {...blocking} label={`${githubFresh(item, clock) ? "" : "Last known: "}${blocking.label}`} />}{!githubFresh(item, clock) && <StatusIcon icon={Clock} label={item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}`} tone="muted" />}{threadsNeedingInput.length > 0 ? <StatusIcon {...threadPresentation(liveThreads.get(threadsNeedingInput[0]!.threadId))} label={`${threadsNeedingInput.length} ${threadsNeedingInput.length === 1 ? "thread needs" : "threads need"} attention: ${threadsNeedingInput.map((link) => choices.get(link.threadId)?.title ?? link.threadId).join(", ")}`} count={threadsNeedingInput.length} /> : working ? <StatusIcon {...threadPresentation(working)} /> : null}</div><span className="pr-thread-count"><MessageCircle size={12} aria-hidden="true" />{item.links.length}</span></div>
+      <StatusIcon {...lifecycle(snapshot)} />
+      <button type="button" className="pr-row-title" onClick={() => select(item.id)} aria-current={selection.id === item.id ? "page" : undefined} title={snapshot ? `${snapshot.title} · ${snapshot.repository} #${snapshot.number}` : item.url}>{snapshot?.title ?? "Pull request unavailable"}</button>
+      <div className="pr-row-statuses">{!githubFresh(item, clock) ? <StatusIcon icon={Clock} label={item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}`} tone="muted" /> : blocking ? <StatusIcon {...blocking} /> : snapshot && snapshot.checks.state !== "none" && <StatusIcon {...checksPresentation(snapshot)} />}{threadsNeedingInput.length > 0 ? <StatusIcon {...threadPresentation(liveThreads.get(threadsNeedingInput[0]!.threadId))} label={`${threadsNeedingInput.length} ${threadsNeedingInput.length === 1 ? "thread needs" : "threads need"} attention`} /> : working ? <StatusIcon {...threadPresentation(working)} /> : null}</div>
+      <time className="pr-row-time" dateTime={snapshot?.updatedAt} title={snapshot ? `Updated ${new Date(snapshot.updatedAt).toLocaleString()}` : undefined}>{snapshot ? age(snapshot.updatedAt).replace(" ago", "").replace("just now", "now") : "—"}</time>
     </div>;
   };
   return <main className={`pr-plugin${selection.id ? " pr-has-selection" : ""}`}>
     <aside className="pr-sidebar" aria-label="Pull requests">
-      <div className="pr-list-toolbar"><label className="pr-search"><Search size={15} aria-hidden="true" /><input aria-label="Search pull requests" placeholder="Search pull requests" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <IconButton icon={X} label="Clear search" onClick={() => setQuery("")} />}</label><IconButton icon={Plus} label="Link pull request" onClick={() => setLinking({})} /></div>
-      <div className="pr-project-scope"><select aria-label="Project" value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">All projects</option>{sidebar.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select><IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true, true)} /></div>
-      <nav className="pr-filters" aria-label="Pull request views">{([["open", "Open", GitPullRequest], ["attention", "Needs attention", AlertCircle], ["history", "History", Clock]] as const).map(([key, label, Icon]) => <button key={key} type="button" className={view === key ? "pr-is-active" : ""} aria-pressed={view === key} onClick={() => setView(key)}><Icon size={15} aria-hidden="true" /><span>{label}</span>{key === "attention" && attentionCount > 0 && <span className="pr-count">{attentionCount}</span>}</button>)}</nav>
+      <header className="pr-list-header"><h1>Pull Requests</h1>
+        <details className="pr-list-options" ref={optionsRef}>
+          <summary aria-label="Filters and sort" title="Filters and sort" className={hasFilters ? "pr-is-active" : undefined}><MoreHorizontal size={19} aria-hidden="true" /></summary>
+          <div className="pr-options-panel">
+            <label>Author<select aria-label="Author" value={author} onChange={(event) => setAuthor(event.target.value)}><option value="">All authors</option><option value="@me">Me</option>{[...new Set([...authors, ...(author && author !== "@me" ? [author] : [])])].map((login) => <option key={login} value={login}>{login}</option>)}</select></label>
+            <label>Requested reviewer<select aria-label="Requested reviewer" value={reviewer} onChange={(event) => setReviewer(event.target.value)}><option value="">Anyone</option><option value="@me">Me</option>{[...new Set([...reviewers, ...(reviewer && reviewer !== "@me" ? [reviewer] : [])])].map((login) => <option key={login} value={login}>{login}</option>)}</select></label>
+            <label>Sort<select aria-label="Sort pull requests" value={sort} onChange={(event) => setSort(event.target.value as Sort)}><option value="updated">Recently updated</option><option value="oldest">Oldest updated</option><option value="title">Title A–Z</option></select></label>
+            <div className="pr-options-divider" />
+            <label>Project<select aria-label="Project" value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">All projects</option>{sidebar.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label>
+            <label className="pr-option-check"><input type="checkbox" checked={attention} onChange={(event) => setAttention(event.target.checked)} />Needs attention only</label>
+            {hasFilters && <button className="pr-text-button" type="button" onClick={resetFilters}>Clear filters</button>}
+            {reviewer && visibleItems.some((item) => item.snapshot && !item.snapshot.reviewRequestsComplete) && <p className="pr-options-note">Some reviewer data is incomplete. Refresh to update it.</p>}
+            <div className="pr-options-divider" />
+            <button className="pr-option-action" type="button" onClick={() => { optionsRef.current!.open = false; setLinking({}); }}><Plus size={15} />Link pull request</button>
+            <label className="pr-option-check"><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />Discover archived threads</label>
+            <p className="pr-options-note">Archived threads are included on the next refresh.</p>
+          </div>
+        </details>
+      </header>
+      <form className="pr-list-toolbar" onSubmit={(event) => { event.preventDefault(); const known = visibleItems.find((item) => item.url === query.trim().replace(/[?#].*$/, "")); if (known) select(known.id); else if (/^https:\/\/github\.com\//i.test(query.trim())) setLinking({ url: query.trim() }); }}><label className="pr-search"><Search size={17} aria-hidden="true" /><input aria-label="Search pull requests" placeholder="Search or paste a PR link" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <IconButton icon={X} label="Clear search" onClick={() => setQuery("")} />}</label></form>
+      {hasFilters && <div className="pr-active-filters"><span>{filtered.length} matching pull requests</span><button type="button" className="pr-text-button" onClick={resetFilters}>Clear</button></div>}
       <div ref={listRef} className="pr-list-scroll" onScroll={(event) => { session.scrollTop = event.currentTarget.scrollTop; }}>
-        {filtered.some((item) => item.pinned) && <><div className="pr-group-title"><Pin size={12} aria-hidden="true" />Pinned</div>{filtered.filter((item) => item.pinned).map(renderRow)}<div className="pr-group-title">All pull requests</div></>}
-        {filtered.filter((item) => !item.pinned).map(renderRow)}
-        {filtered.length === 0 && (booting || coverage.running ? <div className="pr-list-empty" role="status"><Loader2 className="pr-spin" size={18} /><p>Discovering pull requests…</p>{coverage.total > 0 && <small>{coverage.checked} of {coverage.total} environments checked</small>}</div> : <div className="pr-list-empty"><p>{query || projectId ? "No matching pull requests" : view === "attention" ? "Nothing needs attention" : view === "history" ? "No known past pull requests" : "No pull requests linked yet"}</p><small>{query || projectId ? "Try another search or project." : view === "history" ? "History contains pull requests this plugin has discovered." : "Pull requests from your bb threads appear here."}</small>{view === "open" && !query && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
+        {groups.filter((group) => group.items.length > 0 || (!hasFilters && ["authored", "review"].includes(group.id))).map((group) => <section className="pr-list-group" key={group.id}>
+          <button className="pr-group-title" type="button" aria-expanded={!collapsed.includes(group.id)} aria-controls={`pr-group-${group.id}`} onClick={() => setCollapsed((current) => current.includes(group.id) ? current.filter((id) => id !== group.id) : [...current, group.id])}>{group.label}<ChevronDown size={14} className={collapsed.includes(group.id) ? "pr-collapsed" : undefined} aria-hidden="true" /></button>
+          {!collapsed.includes(group.id) && <div id={`pr-group-${group.id}`}>{group.items.map(renderRow)}{group.items.length === 0 && <p className="pr-group-empty">No pull requests</p>}</div>}
+        </section>)}
+        {filtered.length === 0 && (booting || coverage.running ? <div className="pr-list-empty" role="status"><Loader2 className="pr-spin" size={18} /><p>Discovering pull requests…</p>{coverage.total > 0 && <small>{coverage.checked} of {coverage.total} environments checked</small>}</div> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests linked yet"}</p><small>{hasFilters ? "Try another search or filter." : "Pull requests from your bb threads appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
         {nextCursor && <button className="pr-load-more" type="button" onClick={() => setPageLimit((current) => current + 1)}>Load more · {items.length} of {total}</button>}
       </div>
-      <div className="pr-list-footer">{coverage.running ? <span role="status">Discovering · {coverage.checked}/{coverage.total}</span> : <span>{coverage.unavailable > 0 ? `${coverage.unavailable} environments unavailable` : `${visibleItems.length} pull requests`}{coverage.incomplete ? " · partial coverage" : ""}</span>}<details className="pr-discovery-options"><summary aria-label="Discovery options"><MoreHorizontal size={16} /></summary><div><label><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />Include archived threads</label><p>Applies to the next Refresh. Removed worktrees may be unavailable.</p></div></details></div>
-      {nextCursor && <p className="pr-pagination-note">Filters apply to {items.length} loaded pull requests.</p>}
+      <div className="pr-list-footer">{coverage.running ? <span role="status">Discovering · {coverage.checked}/{coverage.total}</span> : <span>{coverage.unavailable > 0 ? `${coverage.unavailable} environments unavailable` : `${visibleItems.length} pull requests`}{coverage.incomplete ? " · partial coverage" : ""}</span>}<IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true, true)} /></div>
+      {nextCursor && <p className="pr-pagination-note">Filters and sorting apply to {items.length} loaded pull requests.</p>}
     </aside>
     <section className="pr-detail" aria-label="Pull request detail">
       {error && <div className="pr-error" role="alert"><AlertTriangle size={16} /><span>{error}</span><button className="pr-text-button" type="button" onClick={() => void refresh(true)}>Retry</button><IconButton icon={X} label="Dismiss error" onClick={() => setError(null)} /></div>}
-      {selected ? <PullRequestDetail key={selected.id} item={selected} tab={selection.tab} now={clock} context={context} choices={choices} liveThreads={liveThreads} rpc={rpc} onBack={() => select(null)} onTab={(tab) => select(selected.id, tab)} onThread={(id) => navigate.toThread(id)} onUpdate={mutate} onRefresh={() => void refresh(false, false, selected.id)} onLink={() => setLinking({ url: selected.url })} onUnlink={(threadId) => void onUnlink(selected, threadId)} /> : selection.id ? <Empty title={booting ? "Loading pull request…" : "Pull request unavailable"}><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty> : <Empty title={booting ? "Discovering pull requests" : "Select a pull request"}>Follow the work across your bb threads.</Empty>}
+      {selected ? <PullRequestDetail key={selected.id} item={selected} tab={selection.tab} now={clock} context={context} choices={choices} liveThreads={liveThreads} rpc={rpc} onBack={() => select(null)} onTab={(tab) => select(selected.id, tab)} onThread={(id) => navigate.toThread(id)} onUpdate={mutate} onRefresh={() => void refresh(false, false, selected.id)} onLink={() => setLinking({ url: selected.url })} onUnlink={(threadId) => void onUnlink(selected, threadId)} /> : selection.id ? <Empty title={booting ? "Loading pull request…" : "Pull request unavailable"}><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty> : <Empty title={booting ? "Discovering pull requests" : "Select a pull request"}>Choose one from the sidebar to review its changes.</Empty>}
     </section>
     {undo && <div className="pr-undo" role="status"><span>Removed link to {undo.title}</span><button type="button" onClick={() => void mutate(async () => { const restored = await rpc.call("undo", { token: undo.token }); setUndo(null); return restored; })}>Undo</button><IconButton icon={X} label="Dismiss undo" onClick={() => setUndo(null)} /></div>}
     {linking && <LinkDialog rpc={rpc} initialUrl={linking.url ?? ""} choices={[...choices.values()]} hosts={context.hosts} onClose={() => setLinking(null)} onLinked={(item) => { applyItem(item); setLinking(null); select(item.id); }} />}
