@@ -78,7 +78,7 @@ export const rpcContract = defineRpcContract({
     output: z.object({
       defaultHostId: id.nullable(),
       hosts: z.array(z.object({ id, name: z.string(), connected: z.boolean() })),
-      /** The last chosen search scope, else the thread workspace, else the machine's home. */
+      /** Global last scope, then legacy thread scope (when their host is listed), then thread workspace, then machine's home. */
       scope: scopeSchema.nullable(),
     }),
   },
