@@ -152,7 +152,7 @@ ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-messa
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
-${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
+${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 0; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { ${HIDE} }
 ${COMPACT_HOME} [data-testid="root-compose-compact-scroll-content"] > .px-4 { padding-inline: 0; }
 ${ROOT} [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20px; padding-block: 0 6px; }
@@ -160,11 +160,15 @@ ${ROOT} [data-root-compose-mobile-recents] > .sticky { position: static; backgro
 ${ROOT} [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { ${HIDE} }
 ${COMPACT_COMPOSER} [data-overflow-fade] { ${HIDE} }
 ${COMPACT_COMPOSER} > .bg-background { background: ${SHEEN}, var(--ambient-glass-fill); ${BLUR} margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; ${EDGE} box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "70%")}, 0 -10px 24px -18px ${mix("var(--ink)", "40%")}; }
+/* Recent and the compact composer meet as one glass surface, without a double edge at the join. */
+${COMPACT_HOME} [data-root-compose-mobile-recents] { border-radius: 20px 20px 0 0; border-block-end: 0; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
+${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { background: var(--ambient-glass-fill); border-radius: 0 0 20px 20px; border-block-start: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
 ${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
-/* Only follow-ups get a solid input and a separate glass footer strip. */
+/* The opaque follow-up shell fills the seam behind the input and its footer lip. */
+${ROOT} [data-follow-up-composer] { background-color: var(--ambient-background); border-radius: 12px; }
 ${ROOT} [data-follow-up-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
-${ROOT} [data-follow-up-composer-footer] { ${GLASS_CHIP} border-width: 0; border-radius: 12px; padding-inline: 4px; }
+${ROOT} [data-follow-up-composer-footer] { border-radius: 0 0 12px 12px; padding-inline: 4px; }
 ${ROOT} [data-follow-up-composer-footer] button { background-color: transparent; }
 ${ROOT} [data-follow-up-composer-footer] button:hover { background-color: ${INK_WASH}; }
 ${ROOT} [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
