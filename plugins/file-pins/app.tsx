@@ -203,17 +203,16 @@ function PinsBanner() {
   const composer = useComposer();
   return composer.scope.kind === "thread" ? <PinStrip key={composer.scope.threadId} threadId={composer.scope.threadId} /> : null;
 }
-// The entry point for pinning: a pill carrying the skill's instructions, then a sentence the user finishes.
+// The entry point for pinning: a pill carrying the skill's instructions; the user types which files.
 function PinAction() {
   const composer = useComposer();
   const coarse = usePointerCoarse();
   if (composer.scope.kind !== "thread") return null;
   function start() {
-    const prompt = " Pin this file: ";
-    // `insert` (bb 0.45+) places both at the cursor and focuses the editor except on touch screens.
+    // `insert` (bb 0.45+) places the pill and a space at the cursor and focuses the editor except on touch screens.
     const insert = (composer as { insert?: (parts: readonly unknown[], options: { at: "cursor" }) => void }).insert;
-    if (insert) insert.call(composer, [PIN_MENTION, prompt], { at: "cursor" });
-    else { composer.insertMention(PIN_MENTION); composer.updateText((text) => `${text.trimEnd()}${prompt}`); }
+    if (insert) insert.call(composer, [PIN_MENTION, " "], { at: "cursor" });
+    else { composer.insertMention(PIN_MENTION); composer.updateText((text) => `${text.trimEnd()} `); }
     if (!insert || coarse) composer.focus();
   }
   return <TooltipProvider delayDuration={300}><Tooltip>

@@ -3,13 +3,15 @@ name: file-pins
 description: Pin, remove, or list local files in a bb thread's Pinned Files. Use when the user asks to pin a file.
 ---
 
-## Pin the file the user names
+## Pin the files the user names
 
-1. Find the file: an absolute path, a `~/` path, or a path relative to the
+Pin every file the user names, one or many.
+
+1. Resolve each file: an absolute path, a `~/` path, or a path relative to the
    workspace or this thread's files. Look it up by name when that is all they give.
-2. If several files match or none does, ask which one they mean. Never pin a guess.
-3. Run `bb file-pins pin <path>` in this thread, passing an absolute or `~/` path.
-4. Confirm in one short sentence, such as "Pinned `notes.md`."
+2. If several files match a name or none does, ask about that one only. Never pin a guess.
+3. Run `bb file-pins pin <path>` once per file in this thread, passing an absolute or `~/` path.
+4. Confirm briefly with what you pinned, such as "Pinned `notes.md` and `plan.md`."
 
 ## Commands
 
@@ -32,5 +34,5 @@ Pinned files show above the thread composer. In the UI, Unpin moves a file from
 the strip to the ⋯ list and Pin moves it back while the strip has room; Remove
 deletes it with an Undo toast. The CLI `remove` command matches the UI's Remove,
 without the Undo toast. Missing files stay visible with a small × to remove them.
-The composer's pin button adds a Pinned Files pill and "Pin this file: " for the
-user to finish; the pill sends this skill to you.
+The composer's pin button adds a "Pin files" pill for the user to follow with the
+files to pin; the pill sends this skill to you.

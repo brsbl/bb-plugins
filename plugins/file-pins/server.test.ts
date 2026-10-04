@@ -102,7 +102,7 @@ describe("thread file pins", () => {
     const provider = h.registrations.mentionProviders.find((item) => item.id === "pin")!;
     expect(await provider.search({ trigger: "@", query: "pin", projectId: null, threadId: "one" })).toEqual([]);
     const { context } = await provider.resolve("file");
-    expect(context).toMatch(/^## Pin the file the user names/);
+    expect(context).toMatch(/^## Pin the files the user names/);
     expect(context).toContain("bb file-pins pin <path>");
     expect(context).not.toContain("name: file-pins");
     await expect(provider.resolve("other")).rejects.toThrow("out of date");
