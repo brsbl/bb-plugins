@@ -727,17 +727,21 @@ describe("workflow settings", () => {
         },
       },
     );
-    const type = await rendered.findByRole("combobox", {
-      name: "Section type for Planning",
-    });
-    expect((type as HTMLSelectElement).value).toBe("stage");
-    expect(rendered.queryByRole("combobox", { name: "Section type for Inbox" })).toBeNull();
-    await rendered.findAllByRole("option", { name: "Inbox · Digests" });
-    expect(rendered.queryByRole("option", { name: "Inbox · Missing" })).toBeNull();
+    const type = () => rendered.getByRole("button", { name: /^Section type for Planning/ });
+    await rendered.findByRole("button", { name: "Section type for Planning: Stage" });
+    expect(rendered.queryByRole("button", { name: /^Section type for Inbox/ })).toBeNull();
+    const openInboxMenu = async () => {
+      fireEvent.keyDown(type(), { key: "Enter" });
+      fireEvent.keyDown(await rendered.findByRole("menuitem", { name: "Inbox" }), { key: "ArrowRight" });
+      return rendered.findByRole("menuitem", { name: "Digests" });
+    };
+    const digests = await openInboxMenu();
+    expect(rendered.queryByRole("menuitem", { name: "Missing" })).toBeNull();
     expect(rendered.getByText("Inbox · everything")).toBeTruthy();
     expect(rendered.queryByLabelText("Plugin caught by Planning")).toBeNull();
     expect(rendered.queryByRole("group", { name: "After reading a thread in Planning" })).toBeNull();
-    fireEvent.change(type, { target: { value: "inbox:digests" } });
+    fireEvent.click(digests);
+    await rendered.findByRole("button", { name: "Section type for Planning: Inbox · Digests" });
     expect(rendered.queryByLabelText("Entry prompt for Planning")).toBeNull();
     const afterRead = within(rendered.getByRole("group", { name: "After reading a thread in Planning" }));
     expect(afterRead.getByRole("button", { name: "Keep after reading" }).getAttribute("aria-pressed")).toBe("true");
@@ -752,7 +756,8 @@ describe("workflow settings", () => {
         .toMatchObject({ role: "inbox", catchesPluginId: "digests", returnAfterRead: true });
     });
     await rendered.findByRole("button", { name: "Saved" });
-    fireEvent.change(type, { target: { value: "stage" } });
+    fireEvent.keyDown(type(), { key: "Enter" });
+    fireEvent.click(await rendered.findByRole("menuitem", { name: "Stage" }));
     fireEvent.click(rendered.getByRole("button", { name: "Save" }));
     await vi.waitFor(() => {
       expect(savedInput?.stages[1]).toMatchObject({ role: "stage" });
