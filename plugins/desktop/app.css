@@ -144,8 +144,7 @@
   display: none;
 }
 
-/* Clear the home composer's fills, including Ambient's shell, without fading its text or controls. */
-:root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt),
+/* The editor reveals the desktop; Ambient's outer glass still protects text contrast over its scene. */
 :root:has(.bbd-window-layer) [data-app-composer]:has(#root-compose-prompt) > [data-promptbox] {
   background: transparent;
   box-shadow: none;
