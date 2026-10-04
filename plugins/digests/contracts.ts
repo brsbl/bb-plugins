@@ -9,6 +9,7 @@ export const rpcContract = defineRpcContract({
     input: z.object({}).strict(),
     output: z.object({
       definitions: z.array(digestDefinitionSchema),
+      startingIds: z.array(z.string()).default([]),
       runErrors: z.record(z.string(), z.string()).default({}),
       connections: z.array(connectionSchema),
       actionCardsAvailable: z.boolean(),
@@ -40,8 +41,9 @@ export const rpcContract = defineRpcContract({
   },
   run: {
     input: z.object({ id }).strict(),
-    output: z.object({ threadId: id.nullable() }).strict(),
+    output: z.object({ threadId: id.nullable(), pending: z.boolean().optional() }).strict(),
   },
+  runStatus: { input: z.object({ id }).strict(), output: z.object({ threadId: id.nullable(), pending: z.boolean().optional() }).strict() },
   retry: { input: issueRef, output: z.object({ threadId: id }).strict() },
   reconnect: { input: issueRef, output: z.object({ message: z.string() }).strict() },
 });

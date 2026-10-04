@@ -16,7 +16,7 @@ afterEach(async () => {
 function setup(options: { runs?: Array<{
   id: string; threadId: string | null; status: string; scheduledFor: number; startedAt: number;
   error: string | null; skipReason: string | null;
-}>; personal?: boolean; offline?: boolean; stageSection?: boolean; dispatchFailure?: boolean } = {}) {
+}>; personal?: boolean; offline?: boolean; stageSection?: boolean; dispatchFailure?: boolean; dispatchPending?: boolean } = {}) {
   let signIn = { signedIn: true, signedOut: false };
   let tabCount = 0;
   let deliveryCount = 0;
@@ -64,7 +64,7 @@ function setup(options: { runs?: Array<{
           } else if (pluginId === "automations" && ["automations_create", "automations_pause", "automations_resume", "automations_update"].includes(method)) {
             result = { id: "auto_digest_new", enabled: method === "automations_resume", nextRunAt: null };
           } else if (pluginId === "automations" && method === "automations_run") {
-            result = { run: { id: "run_manual", threadId: options.dispatchFailure ? null : "thr_manual", status: options.dispatchFailure ? "failed" : "running", scheduledFor: Date.now(), startedAt: Date.now(), error: options.dispatchFailure ? "HTTP 404: Project has no local-path source for host" : null, skipReason: null } };
+            result = { run: { id: "run_manual", threadId: options.dispatchFailure || options.dispatchPending ? null : "thr_manual", status: options.dispatchFailure ? "failed" : "running", scheduledFor: Date.now(), startedAt: Date.now(), error: options.dispatchFailure ? "HTTP 404: Project has no local-path source for host" : null, skipReason: null } };
           } else if (pluginId === "automations" && method === "automations_runs") {
             result = { runs: options.runs ?? [], nextCursor: null };
           } else {
@@ -112,6 +112,18 @@ describe("digest issue lifecycle", () => {
     expect((await service.overview()).runErrors).toEqual({});
     expect(service.requiredDefinition("reading").enabled).toBe(false);
     expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([call]) => (call as { method: string }).method === "automations_resume")).toEqual([]);
+  });
+
+  it("waits for an asynchronous dispatch and repeated clicks join the same run", async () => {
+    const options = { dispatchPending: true, runs: [{ id: "run_manual", threadId: null as string | null, status: "running", scheduledFor: Date.now(), startedAt: Date.now(), error: null, skipReason: null }] };
+    const { service, harness } = setup(options);
+    expect(await service.run("reading")).toEqual({ threadId: null, pending: true });
+    expect(await service.run("reading")).toEqual({ threadId: null, pending: true });
+    expect((await service.overview()).runErrors).toEqual({});
+    options.runs[0]!.threadId = "thr_manual";
+    expect(await service.runStatus("reading")).toEqual({ threadId: "thr_manual" });
+    expect((await service.overview()).startingIds).toEqual([]);
+    expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([call]) => (call as { method: string }).method === "automations_run")).toHaveLength(1);
   });
 
   it("reports an offline execution host before dispatching an agent", async () => {

@@ -46,6 +46,7 @@ export default function plugin(bb: BbPluginApi) {
     getIssue: ({ threadId, id }) => service.requiredIssue(threadId, id),
     setEnabled: ({ id, enabled }) => service.setEnabled(id, enabled),
     run: ({ id }) => service.run(id),
+    runStatus: ({ id }) => service.runStatus(id),
     retry: ({ threadId, id }) => service.retry(threadId, id),
     reconnect: ({ threadId, id }) => service.reconnect(threadId, id),
   });
@@ -78,6 +79,7 @@ export default function plugin(bb: BbPluginApi) {
       }),
       define: cliCommand({ summary: "Create a disabled digest from a JSON definition", options: { file, json }, async run(input, ctx) { return output(await define(JSON.parse(await readFile(input.options.file, ctx)))); } }),
       run: cliCommand({ summary: "Run a digest now in its own issue thread", options: { digest, json }, async run(input) { return output(await service.run(input.options.digest)); } }),
+      status: cliCommand({ summary: "Follow a pending manual run without starting another", options: { digest, json }, async run(input) { return output(await service.runStatus(input.options.digest)); } }),
       publish: cliCommand({
         summary: "Publish Markdown as a new issue from any thread, or finish this run's issue",
         options: { digest, file, json, headline: { type: "string", description: "Story headline; defaults to first Markdown line" }, lede: { type: "string", description: "One short summary line" }, brief: { type: "string", description: "Optional JSON action-card summary with heading, items, later and tail" }, metrics: { type: "string", description: "Optional structured metrics retained with the issue; include visible numbers in the prose" }, sources: { type: "string", description: "JSON array of connectionId/messageId/threadId source references" }, key: { type: "string", description: "Idempotency key; defaults to the content SHA-256" } },

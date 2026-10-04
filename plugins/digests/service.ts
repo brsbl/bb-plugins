@@ -292,23 +292,45 @@ export function createService(bb: BbPluginApi) {
       return publishCurrent(issue.threadId!, payload);
     });
   }
+  type Dispatch = { projectId: string; automationId: string; runId: string };
+  async function finishDispatch(id: string, run: z.infer<typeof runSchema>) {
+    if (!run.threadId) {
+      if (run.status === "running") return { threadId: null, pending: true };
+      await bb.storage.kv.delete(`dispatch:${id}`);
+      throw new Error(await runError(id, new Error(run.error ?? "No issue thread was created")));
+    }
+    const definition = requiredDefinition(id);
+    const issue = store.issues.getByThread(run.threadId) ?? newIssue(definition, run.threadId, `run:${run.id}`, run.scheduledFor);
+    await bb.sdk.threads.update({ threadId: run.threadId, title: issueTitle(definition, issue.createdAt) });
+    await claimInbox(issue);
+    await bb.storage.kv.delete(`dispatch:${id}`);
+    await bb.storage.kv.delete(`run-error:${id}`);
+    bb.realtime.publish("issues", {});
+    return { threadId: run.threadId };
+  }
+  async function runStatus(id: string) {
+    const dispatch = await bb.storage.kv.get<Dispatch>(`dispatch:${id}`);
+    if (!dispatch) return { threadId: null };
+    const { runs } = await automation("automations_runs", { projectId: dispatch.projectId, automationId: dispatch.automationId, limit: 100 }, z.object({ runs: z.array(runSchema) }).passthrough());
+    const run = runs.find((run) => run.id === dispatch.runId);
+    return run ? finishDispatch(id, run) : { threadId: null, pending: true };
+  }
   async function run(id: string) {
     return exclusive(`definition:${id}`, async () => {
+      // Automations dispatch is asynchronous. Repeated clicks join that run
+      // until it has a thread or an actual terminal failure.
+      if (await bb.storage.kv.get<Dispatch>(`dispatch:${id}`)) return runStatus(id);
       try {
         const definition = await ensureAutomation(requiredDefinition(id));
         await ensureSection();
         const result = await automation("automations_run", { projectId: automationProject(definition), automationId: definition.automationId }, z.object({ run: runSchema }).passthrough());
-        if (!result.run.threadId) throw new ExecutionError(executionFailure(new Error(result.run.error ?? "No issue thread was created")));
-        if (result.run.threadId) {
-          const issue = store.issues.getByThread(result.run.threadId) ?? newIssue(definition, result.run.threadId, `run:${result.run.id}`, result.run.scheduledFor);
-          await bb.sdk.threads.update({ threadId: result.run.threadId, title: issueTitle(definition, issue.createdAt) });
-          await claimInbox(issue);
-        }
-        await bb.storage.kv.delete(`run-error:${id}`);
+        await bb.storage.kv.set(`dispatch:${id}`, { projectId: automationProject(definition), automationId: definition.automationId, runId: result.run.id });
+        const status = await finishDispatch(id, result.run);
         bb.realtime.publish("issues", {});
-        return { threadId: result.run.threadId };
+        return status;
       } catch (error) {
-        throw new Error(await runError(id, error));
+        const message = await bb.storage.kv.get<string>(`run-error:${id}`) ?? await runError(id, error);
+        throw new Error(message);
       }
     });
   }
@@ -435,11 +457,13 @@ export function createService(bb: BbPluginApi) {
     let organizerReady = false;
     try { organizerReady = (await organizer()).stages.some((entry) => entry.key === "digests" && entry.role === "inbox" && entry.catchesPluginId === "digests"); } catch { /* Settings shows setup guidance. */ }
     const runErrors: Record<string, string> = {};
+    const startingIds: string[] = [];
     for (const definition of store.definitions.list()) {
       const message = await bb.storage.kv.get<string>(`run-error:${definition.id}`);
       if (message) runErrors[definition.id] = message;
+      if (await bb.storage.kv.get(`dispatch:${definition.id}`)) startingIds.push(definition.id);
     }
-    return { runErrors, definitions: store.definitions.list(), connections: store.connections.list(), actionCardsAvailable: plugins.plugins.some((entry) => entry.id === "inline-action-cards" && entry.enabled && entry.status === "running"), organizerReady };
+    return { startingIds, runErrors, definitions: store.definitions.list(), connections: store.connections.list(), actionCardsAvailable: plugins.plugins.some((entry) => entry.id === "inline-action-cards" && entry.enabled && entry.status === "running"), organizerReady };
   }
   async function reconcile() {
     for (const definition of store.definitions.list()) {
@@ -492,5 +516,5 @@ export function createService(bb: BbPluginApi) {
       details: `Your issue was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
     return null;
   }
-  return { store, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
+  return { store, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, runStatus, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }

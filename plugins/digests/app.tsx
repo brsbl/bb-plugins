@@ -23,6 +23,7 @@ type Overview = {
   connections: Connection[];
   actionCardsAvailable: boolean;
   organizerReady: boolean;
+  startingIds?: string[];
   runErrors?: Record<string, string>;
 };
 
@@ -410,6 +411,21 @@ function DigestsSettings() {
   useRealtime("issues", () => { void load(); });
   useReconnectRefresh(load);
 
+  const startingKey = overview?.startingIds?.join(",") ?? "";
+  useEffect(() => {
+    if (!startingKey) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      void Promise.all(startingKey.split(",").map(async (id) => {
+        try {
+          const result = await rpc.call("runStatus", { id });
+          if (active && result.threadId) navigate.toThread(result.threadId);
+        } catch { /* The persisted card error is loaded below. */ }
+      })).finally(() => { if (active) void load(); });
+    }, 1000);
+    return () => { active = false; clearTimeout(timer); };
+  }, [startingKey, overview, rpc, navigate, load]);
+
   const update = async (definition: DigestDefinition, action: "toggle" | "run") => {
     if (pending) return;
     setPending(definition.id);
@@ -422,7 +438,8 @@ function DigestsSettings() {
       } else {
         const result = await rpc.call("run", { id: definition.id });
         if (result.threadId) navigate.toThread(result.threadId);
-        else setError("This digest didn’t return an issue. Reload Settings to check its status before trying again.");
+        else if (result.pending) { setNotice(`Starting ${definition.name}… Its issue will open when ready.`); await load(); }
+        else setError("Couldn’t start this digest. Retry from its card.");
       }
     } catch (error) {
       const message = error instanceof Error && error.message.trim() ? error.message : `Couldn’t start ${definition.name}. Check that bb is running and try again.`;
@@ -483,11 +500,12 @@ function DigestsSettings() {
                   {definition.schedule && <Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} />}
                 </div>
                 <p className="digest-prompt-preview">{definition.instructions}</p>
-                {overview.runErrors?.[definition.id] && <div className="digest-run-error" role="alert"><span>{overview.runErrors[definition.id]}</span><Button disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>Retry</Button></div>}
+                {overview.startingIds?.includes(definition.id) && <p className="digest-muted" role="status">Starting this issue…</p>}
+                {!overview.startingIds?.includes(definition.id) && overview.runErrors?.[definition.id] && <div className="digest-run-error" role="alert"><span>{overview.runErrors[definition.id]}</span><Button disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>Retry</Button></div>}
                 <div className="digest-definition-footer">{definition.schedule
                   ? <span className="digest-schedule-label"><Icon name="Calendar" className="digest-schedule-icon" aria-hidden /> {scheduleLabel(definition.schedule)}</span>
                   : <small>{definition.id === "x-scorecard" ? "Published by your X analytics thread" : "Published by another thread"}</small>}
-                  {definition.schedule && <Button aria-label={`Run ${definition.name} now`} disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>{createdId === definition.id ? "Run now to preview" : "Run now"}</Button>}
+                  {definition.schedule && <Button aria-label={`Run ${definition.name} now`} disabled={pending !== null || overview.startingIds?.includes(definition.id)} onClick={() => { void update(definition, "run"); }}>{createdId === definition.id ? "Run now to preview" : "Run now"}</Button>}
                 </div>
               </div>}
             </li>)}</ul>
