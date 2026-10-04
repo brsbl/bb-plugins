@@ -60,7 +60,7 @@ export default function plugin(bb: BbPluginApi): void {
       return entry;
     });
   };
-  const unpin = (threadId: string, pinId: string) => serialize(async () => {
+  const removePin = (threadId: string, pinId: string) => serialize(async () => {
     await thread(threadId);
     const pins = await read(threadId);
     if (!pins.some((item) => item.id === pinId)) return { removed: false };
@@ -175,7 +175,7 @@ export default function plugin(bb: BbPluginApi): void {
       hosts: (await bb.sdk.hosts.list()).map(({ id, name, status }) => ({ id, name, connected: status === "connected" })),
     }),
     pin: ({ threadId, hostId, path }) => pin(threadId, hostId, path),
-    unpin: ({ threadId, pinId }) => unpin(threadId, pinId),
+    unpin: ({ threadId, pinId }) => removePin(threadId, pinId),
   });
   bb.events.on("thread.idle", ({ thread }) => bb.realtime.publish("recent-changed", { threadId: thread.id }));
   bb.events.on("message.dispatched", ({ entry }) => bb.realtime.publish("recent-changed", { threadId: entry.threadId }));
@@ -214,13 +214,13 @@ export default function plugin(bb: BbPluginApi): void {
           return { exitCode: 0, stdout: input.options.json ? JSON.stringify(result) : `Pinned ${result.path}\n${result.id}` };
         },
       }),
-      unpin: cliCommand({
-        summary: "Remove a pin by ID without changing its file (works while the host is offline)",
+      remove: cliCommand({
+        summary: "Remove a file from the thread by pin ID without changing the file (works while the host is offline)",
         positionals: [{ name: "id", required: true, description: "Pin ID from list" }],
         options,
         async run(input, ctx) {
-          const result = await unpin(target(input.options.thread, ctx.threadId), input.positionals.id);
-          return { exitCode: 0, stdout: input.options.json ? JSON.stringify(result) : result.removed ? "File unpinned." : "Pin was already absent." };
+          const result = await removePin(target(input.options.thread, ctx.threadId), input.positionals.id);
+          return { exitCode: 0, stdout: input.options.json ? JSON.stringify(result) : result.removed ? "File removed from the thread." : "Pin was already absent." };
         },
       }),
       list: cliCommand({

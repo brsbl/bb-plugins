@@ -70,6 +70,10 @@ describe("thread file pins", () => {
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ hostId: "linux", input: { path: "/note.md" } });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)?.input).not.toHaveProperty("cwd");
     expect((await h.behavior.runCli(["list", "--thread", "destination", "--json"], { signal: new AbortController().signal })).stdout).toContain("/note.md");
+    const { id } = JSON.parse(response.stdout ?? "") as { id: string };
+    const removed = await h.behavior.runCli(["remove", id, "--thread", "destination", "--json"], { signal: new AbortController().signal });
+    expect(JSON.parse(removed.stdout ?? "")).toEqual({ removed: true });
+    expect(await h.behavior.callRpc("list", { threadId: "destination" })).toEqual({ pins: [] });
   });
   it("restores a removed pin in place without accessing its host and scopes Undo to the thread", async () => {
     const h = setup();

@@ -40,7 +40,7 @@ unavailable hosts produce no suggestions. Shell command text is not inspected.
 ```bash
 bb file-pins pin '~/Moss/Notes/Tweets/Tweets.md' --machine host_37m3sgpq59
 bb file-pins list --thread thr_example --json
-bb file-pins unpin <pin-id> --thread thr_example
+bb file-pins remove <pin-id> --thread thr_example
 ```
 
 `--thread` defaults to the current thread. The file host defaults to the invoking
