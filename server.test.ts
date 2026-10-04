@@ -1,0 +1,589 @@
+import { execFile } from "node:child_process";
+import { createHmac } from "node:crypto";
+import { cp, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+import { describe, expect, it } from "vitest";
+
+import {
+  formatHarvestSummary,
+  harvestResult,
+  harvestSummary,
+  proposalResult,
+  type ProposalResult,
+} from "./activity";
+import {
+  detailRowEndIndex,
+  displayDomainIdentifier,
+  domainFilterFromIdentifier,
+  filterRules,
+  ruleIdFromPath,
+  rulePath,
+  subdomainFromIdentifier,
+  titleCaseDomainFilter,
+  toggledRulePath,
+} from "./app-logic";
+import {
+  automaticDoctrineGuidance,
+  classifyGitHubPush,
+  formatAgentSearchResults,
+  gitStatusFingerprint,
+  loadDoctrine,
+  readGit,
+  searchDoctrine,
+  skipEpisodeReason,
+  verifyGitHubSignature,
+} from "./server";
+
+const execFileAsync = promisify(execFile);
+
+async function runGit(root: string, ...args: string[]) {
+  return execFileAsync("git", ["-C", root, ...args], { encoding: "utf8" });
+}
+
+describe("GitHub corpus webhook policy", () => {
+  const source = {
+    baseBranch: "main",
+    prefix: "plugins/design-doctrine",
+  };
+  const after = "a".repeat(40);
+
+  function push(overrides: Record<string, unknown> = {}) {
+    return {
+      ref: "refs/heads/main",
+      after,
+      repository: { full_name: "brsbl/bb-plugins" },
+      size: 1,
+      commits: [
+        {
+          added: [],
+          modified: ["plugins/design-doctrine/rules/visual/ddr_001.md"],
+          removed: [],
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  it("verifies the exact raw webhook bytes", () => {
+    const body = Buffer.from('{"message":"doctrine 🌱"}', "utf8");
+    const signature = `sha256=${createHmac("sha256", "secret").update(body).digest("hex")}`;
+
+    expect(verifyGitHubSignature("secret", body, signature)).toBe(true);
+    expect(
+      verifyGitHubSignature("secret", Buffer.from(`${body.toString()} `), signature),
+    ).toBe(false);
+    expect(verifyGitHubSignature("secret", body, "sha256=not-hex")).toBe(false);
+    expect(verifyGitHubSignature("secret", body, undefined)).toBe(false);
+  });
+
+  it("accepts only this repository's main-branch rule changes", () => {
+    expect(classifyGitHubPush(push(), "brsbl/bb-plugins", source)).toEqual({
+      kind: "refresh",
+      remoteCommit: after,
+    });
+    expect(
+      classifyGitHubPush(
+        push({ repository: { full_name: "someone/fork" } }),
+        "brsbl/bb-plugins",
+        source,
+      ),
+    ).toMatchObject({ kind: "ignore", reason: "different repository" });
+    expect(
+      classifyGitHubPush(push({ ref: "refs/heads/feature" }), "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "ignore", reason: "different branch" });
+    expect(
+      classifyGitHubPush(push({ deleted: true, after: "0".repeat(40) }), "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "ignore", reason: "branch deletion" });
+    expect(
+      classifyGitHubPush(
+        push({
+          commits: [
+            { added: [], modified: ["plugins/design-doctrine/README.md"], removed: [] },
+          ],
+        }),
+        "brsbl/bb-plugins",
+        source,
+      ),
+    ).toMatchObject({ kind: "ignore", reason: "rules unchanged" });
+  });
+
+  it("reconciles conservatively when GitHub truncates the commit list", () => {
+    expect(
+      classifyGitHubPush(push({ size: 2 }), "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "refresh" });
+    expect(
+      classifyGitHubPush({ ref: "refs/heads/main" }, "brsbl/bb-plugins", source),
+    ).toMatchObject({ kind: "invalid" });
+  });
+});
+
+describe("design doctrine library", () => {
+  it("loads the Markdown rules directly", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(library.rules.length).toBeGreaterThan(0);
+    expect(
+      Object.values(library.status_counts).reduce(
+        (total, count) => total + count,
+        0,
+      ),
+    ).toBe(library.rules.length);
+    expect(new Set(library.rules.map((rule) => rule.id)).size).toBe(
+      library.rules.length,
+    );
+    expect(library.rules.every((rule) => rule.canonical_path.endsWith(".md"))).toBe(true);
+    expect(library.domains).toContain("interaction");
+  });
+
+  it("ranks exact multi-word matches", async () => {
+    const library = await loadDoctrine(process.cwd());
+    const results = searchDoctrine(library.rules, "compact utilities");
+
+    expect(results.map((rule) => rule.id)).toContain("ddr_001");
+  });
+
+  it("ranks useful rules for natural task language with unmatched words", async () => {
+    const library = await loadDoctrine(process.cwd());
+    const results = searchDoctrine(
+      library.rules,
+      "redesign the sidebar cards with clearer hierarchy and less visual weight",
+    );
+
+    expect(results.slice(0, 2).map((rule) => rule.id)).toEqual([
+      "ddr_002",
+      "ddr_015",
+    ]);
+
+    expect(
+      searchDoctrine(library.rules, "Improve modal accessibility")
+        .slice(0, 2)
+        .map((rule) => rule.id),
+    ).toEqual(["ext_001", "ddr_028"]);
+    expect(searchDoctrine(library.rules, "improve")).toEqual([]);
+  });
+
+  it("does not return doctrine for an unrelated multi-word query", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(
+      searchDoctrine(library.rules, "database migration retry logic"),
+    ).toEqual([]);
+    expect(searchDoctrine(library.rules, "database retry")).toEqual([]);
+  });
+
+  it("keeps a recognized design signal when neutral query words do not match", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(
+      searchDoctrine(
+        library.rules,
+        "accessibility frobnicate someday",
+      ).map((rule) => rule.id),
+    ).toContain("ddr_028");
+    expect(
+      searchDoctrine(
+        library.rules,
+        "hierarchy frobnicate someday",
+      ).map((rule) => rule.id),
+    ).toContain("ddr_015");
+  });
+
+  it("does not qualify a rule through a weak incidental field match", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(searchDoctrine(library.rules, "server crash")).toEqual([]);
+    expect(
+      searchDoctrine(library.rules, "modal server crash").map(
+        (rule) => rule.id,
+      ),
+    ).not.toContain("ddr_031");
+  });
+
+  it("preselects a bounded rule set only for design-oriented thread titles", async () => {
+    const library = await loadDoctrine(process.cwd());
+
+    expect(
+      automaticDoctrineGuidance(
+        library.rules,
+        "Redesign the compact utility toolbar",
+      ),
+    ).toContain("ddr_001");
+    expect(
+      automaticDoctrineGuidance(library.rules, "Redesign the login flow"),
+    ).toContain("Design Doctrine candidates inferred from the thread title");
+    expect(
+      automaticDoctrineGuidance(
+        library.rules,
+        "Repair Linux dependency publishing",
+      ),
+    ).toBeUndefined();
+  });
+
+  it("uses scoped single-episode rules without an approval queue", async () => {
+    const library = await loadDoctrine(process.cwd());
+    const results = searchDoctrine(library.rules, "explicit click");
+    const rule = library.rules.find((item) => item.id === "ddr_011");
+
+    expect(results.map((item) => item.id)).toContain("ddr_011");
+    expect(rule?.status).toBe("active");
+    expect(rule?.confidence).toBe("low");
+  });
+
+  it("keeps published evidence free of private bb locators", async () => {
+    const library = await loadDoctrine(process.cwd());
+    const evidence = library.rules.flatMap((rule) => rule.evidence).join("\n");
+
+    expect(evidence).not.toMatch(/\b(?:thr|proj|env)_[a-z0-9_-]+\b/i);
+    expect(evidence).not.toContain("/Users/");
+  });
+
+  it("keeps every rule status visible in the library", async () => {
+    const library = await loadDoctrine(process.cwd());
+    const mixedStatuses = [
+      { ...library.rules[0], status: "active" as const },
+      { ...library.rules[1], status: "conflicted" as const },
+      { ...library.rules[2], status: "retired" as const },
+    ];
+
+    expect(filterRules(mixedStatuses, "all", "").map((rule) => rule.status)).toEqual([
+      "active",
+      "conflicted",
+      "retired",
+    ]);
+  });
+
+  it("places detail after the selected responsive grid row", () => {
+    expect(detailRowEndIndex(0, 8, 3)).toBe(2);
+    expect(detailRowEndIndex(4, 8, 3)).toBe(5);
+    expect(detailRowEndIndex(7, 8, 3)).toBe(7);
+    expect(detailRowEndIndex(4, 8, 2)).toBe(5);
+    expect(detailRowEndIndex(4, 8, 1)).toBe(4);
+  });
+
+  it("preserves deep links and collapses a selected rule", () => {
+    expect(rulePath("ddr_001")).toBe("rule/ddr_001");
+    expect(ruleIdFromPath("rule/ddr_001")).toBe("ddr_001");
+    expect(toggledRulePath(null, "ddr_001")).toBe("rule/ddr_001");
+    expect(toggledRulePath("ddr_001", "ddr_001")).toBe("");
+    expect(toggledRulePath("ddr_001", "ddr_002")).toBe("rule/ddr_002");
+  });
+
+  it("presents domain identifiers in lowercase without changing rule data", async () => {
+    const library = await loadDoctrine(process.cwd());
+    const rule = library.rules.find((item) => item.id === "ddr_029");
+
+    expect(displayDomainIdentifier("AI.CONTEXT")).toBe("ai.context");
+    expect(displayDomainIdentifier(rule?.domain ?? "")).toBe("ai.context");
+    expect(rule?.domain).toBe("ai.context");
+  });
+
+  it("maps rule-domain identifiers to the existing top-level filter", () => {
+    expect(domainFilterFromIdentifier("AI.CONTEXT")).toBe("ai");
+    expect(domainFilterFromIdentifier("information.hierarchy")).toBe("information");
+    expect(subdomainFromIdentifier("AI.CONTEXT")).toBe("context");
+  });
+
+  it("title-cases the top-level filter labels", () => {
+    expect(titleCaseDomainFilter("all")).toBe("All");
+    expect(titleCaseDomainFilter("ai")).toBe("AI");
+    expect(titleCaseDomainFilter("design-system")).toBe("Design System");
+  });
+
+
+
+  it("scopes Git status to the plugin directory", async () => {
+    const repository = await mkdtemp(join(tmpdir(), "doctrine-git-scope-"));
+    const pluginRoot = join(repository, "plugins", "design-doctrine");
+    try {
+      await mkdir(join(pluginRoot, "rules"), { recursive: true });
+      await writeFile(join(pluginRoot, "rules", "rule.md"), "rule\n");
+      await writeFile(join(pluginRoot, "README.md"), "before\n");
+      await writeFile(join(repository, "unrelated.txt"), "before\n");
+      await runGit(repository, "init");
+      await runGit(repository, "config", "user.email", "tests@example.com");
+      await runGit(repository, "config", "user.name", "Tests");
+      await runGit(repository, "add", ".");
+      await runGit(repository, "commit", "-m", "initial");
+
+      const cleanFingerprint = await gitStatusFingerprint(pluginRoot);
+      await writeFile(join(repository, "unrelated.txt"), "after\n");
+      expect(await readGit(pluginRoot)).toMatchObject({
+        available: true,
+        dirty: false,
+        changed_files: 0,
+      });
+      expect(await gitStatusFingerprint(pluginRoot)).toBe(cleanFingerprint);
+
+      await writeFile(join(pluginRoot, "README.md"), "after\n");
+      expect(await gitStatusFingerprint(pluginRoot)).not.toBe(cleanFingerprint);
+      expect(await readGit(pluginRoot)).toMatchObject({
+        available: true,
+        dirty: true,
+        changed_files: 1,
+      });
+      await writeFile(join(pluginRoot, "README.md"), "before\n");
+
+      await writeFile(join(pluginRoot, "rules", "rule.md"), "changed\n");
+      expect(await readGit(pluginRoot)).toMatchObject({
+        available: true,
+        dirty: true,
+        changed_files: 1,
+      });
+    } finally {
+      await rm(repository, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the shipped corpus loadable by versions that skip external standards", async () => {
+    const root = await mkdtemp(join(tmpdir(), "doctrine-learned-only-"));
+    try {
+      await cp(join(import.meta.dirname, "rules"), join(root, "rules"), {
+        recursive: true,
+        filter: (source) => !source.split(/[\\/]/).includes("external"),
+      });
+      const library = await loadDoctrine(root);
+      expect(library.rules.length).toBeGreaterThan(0);
+      expect(library.rules.every((item) => item.origin === "user")).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("loads external standards apart from learned rules", async () => {
+    const root = await mkdtemp(join(tmpdir(), "doctrine-external-"));
+    const rule = (
+      id: string,
+      origin: string,
+      episodes: number,
+      evidence: string[],
+      sources: string[],
+    ) => `---
+id: ${id}
+kind: standard
+strength: required
+confidence: high
+status: active
+origin: ${origin}
+domain: accessibility.operation
+products: ["global"]
+activities: ["design"]
+artifacts: ["component"]
+surfaces: ["dense rows"]
+relations: []
+supporting_episodes: ${episodes}
+challenging_episodes: 0
+updated: 2026-10-03
+---
+
+# Meet the accessibility floor
+
+Dense controls meet the WCAG 2.2 AA target size minimum.
+
+## Why
+
+Small targets are hard to operate for many people.
+
+## Prefer
+
+- Give every target at least 24 by 24 CSS pixels.
+
+## Avoid
+
+- Undersized icon-only targets.
+
+## Use when
+
+- A dense surface has small controls.
+
+## Evidence
+
+${evidence.map((line) => `- ${line}`).join("\n")}
+
+## Sources
+
+${sources.map((line) => `- ${line}`).join("\n")}
+
+## Check
+
+- Is every target at least 24 by 24 CSS pixels?
+`;
+    try {
+      await mkdir(join(root, "rules", "accessibility", "external"), { recursive: true });
+      await writeFile(
+        join(root, "rules", "accessibility", "ddr_001.md"),
+        rule("ddr_001", "user", 1, ["Asked for larger row targets."], []),
+      );
+      await writeFile(
+        join(root, "rules", "accessibility", "external", "ext_002.md"),
+        rule("ext_002", "external", 0, [], ["WCAG 2.2 SC 2.5.8 Target Size (Minimum)"]),
+      );
+
+      const library = await loadDoctrine(root);
+      const external = library.rules.find((item) => item.id === "ext_002");
+      expect(library.rules.find((item) => item.id === "ddr_001")?.origin).toBe("user");
+      expect(external).toMatchObject({
+        origin: "external",
+        supporting_episodes: 0,
+        evidence: [],
+        sources: ["WCAG 2.2 SC 2.5.8 Target Size (Minimum)"],
+        canonical_path: join("rules", "accessibility", "external", "ext_002.md"),
+      });
+      expect(formatAgentSearchResults([external!])).toContain("external standard");
+
+      await writeFile(
+        join(root, "rules", "accessibility", "ext_003.md"),
+        rule("ext_003", "external", 0, [], ["WCAG 2.2"]),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/belong in rules\/<domain>\/external/);
+      await rm(join(root, "rules", "accessibility", "ext_003.md"));
+
+      await writeFile(
+        join(root, "rules", "accessibility", "external", "ext_003.md"),
+        rule("ext_003", "external", 0, [], []),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/need Sources lines/);
+      await rm(join(root, "rules", "accessibility", "external", "ext_003.md"));
+
+      await writeFile(
+        join(root, "rules", "accessibility", "ddr_003.md"),
+        rule("ddr_003", "user", 0, [], []),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/need Evidence lines/);
+
+      await rm(join(root, "rules", "accessibility", "ddr_003.md"));
+      await writeFile(
+        join(root, "rules", "accessibility", "external", "ddr_003.md"),
+        rule("ddr_003", "external", 0, [], ["WCAG 2.2"]),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/use ext_ IDs/);
+      await rm(join(root, "rules", "accessibility", "external", "ddr_003.md"));
+
+      await writeFile(
+        join(root, "rules", "accessibility", "ddr_001.md"),
+        rule("ddr_001", "user", 1, ["Asked for larger row targets."], []).replace(
+          "relations: []",
+          'relations: ["relates:ext_002"]',
+        ),
+      );
+      await expect(loadDoctrine(root)).rejects.toThrow(/must not relate to external standards/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("episode selection", () => {
+  const recent = Date.parse("2026-08-31T00:00:00Z");
+
+  function episode(messages: Array<{ role: "user" | "assistant"; text: string }>) {
+    return { title: "Some thread", targetAt: recent, messages };
+  }
+
+  it("keeps an episode where the user talks about the interface", () => {
+    expect(
+      skipEpisodeReason(
+        episode([{ role: "user", text: "the spacing in that panel is cramped" }]),
+        recent,
+      ),
+    ).toBeNull();
+  });
+
+  it("skips an episode with no design signal from the user", () => {
+    expect(
+      skipEpisodeReason(
+        episode([
+          { role: "user", text: "rerun the failing integration test" },
+          { role: "assistant", text: "the button layout looks fine to me" },
+        ]),
+        recent,
+      ),
+    ).toBe("no design signal in the user's messages");
+  });
+
+  it("does not treat the assistant's words as signal", () => {
+    // Only the user's messages are evidence, so an assistant that happens to
+    // discuss the UI must not keep an otherwise unrelated episode alive.
+    expect(
+      skipEpisodeReason(
+        episode([{ role: "assistant", text: "I adjusted the sidebar padding" }]),
+        recent,
+      ),
+    ).toBe("no design signal in the user's messages");
+  });
+
+  it("advances an episode older than the review window", () => {
+    expect(
+      skipEpisodeReason(
+        {
+          title: "Some thread",
+          targetAt: recent - 200 * 24 * 60 * 60 * 1_000,
+          messages: [{ role: "user", text: "the spacing is cramped" }],
+        },
+        recent,
+      ),
+    ).toBe("older than the review window");
+  });
+});
+
+describe("harvest activity summaries", () => {
+  const published = new Set(["ddr_041"]);
+
+  it("reports an approval as added only once its rule is in the read corpus", () => {
+    expect(proposalResult("approved", null, published)).toEqual({
+      result: "waiting",
+      ruleId: null,
+    });
+    expect(proposalResult("approved", "rules/visual/ddr_042.md", published)).toEqual({
+      result: "waiting",
+      ruleId: "ddr_042",
+    });
+    expect(proposalResult("approved", "rules/visual/ddr_041.md", published)).toEqual({
+      result: "added",
+      ruleId: "ddr_041",
+    });
+    expect(proposalResult("approved", "rules/visual/ddr_042.md", null)).toEqual({
+      result: "added",
+      ruleId: "ddr_042",
+    });
+    expect(proposalResult("rejected", null, published).result).toBe("rejected");
+    expect(proposalResult("cancelled", "rules/visual/ddr_041.md", published)).toEqual({
+      result: "cancelled",
+      ruleId: null,
+    });
+    expect(proposalResult(null, null, published).result).toBe("undecided");
+    expect(
+      proposalResult("approved", "rules/visual/ddr_041.md", published, new Set(["ddr_041"])),
+    ).toEqual({ result: "retired", ruleId: "ddr_041" });
+  });
+
+  it("summarizes a thread by its most consequential result", () => {
+    const added = { result: "added" as const, ruleId: "ddr_041" };
+    const waiting = { result: "waiting" as const, ruleId: null };
+    const rejected = { result: "rejected" as const, ruleId: null };
+    const cancelled = { result: "cancelled" as const, ruleId: null };
+    const summarize = (
+      outcome: string | null,
+      proposals: Array<{ result: ProposalResult; ruleId: string | null }>,
+    ) =>
+      formatHarvestSummary(
+        harvestSummary({ result: harvestResult(outcome, proposals), proposals }),
+      );
+
+    expect(summarize("approved:2", [added, waiting])).toBe(
+      "Added ddr_041 · 1 waiting to publish",
+    );
+    expect(summarize("approved:1", [waiting])).toBe("Waiting to publish");
+    expect(summarize("harvester-failed", [])).toBe("Harvest failed");
+    expect(summarize("no-approvals", [rejected, rejected])).toBe(
+      "2 proposals rejected",
+    );
+    expect(summarize("no-proposals", [])).toBe("No new rules");
+    expect(summarize("approved:1", [cancelled, rejected])).toBe(
+      "1 proposal cancelled",
+    );
+    expect(summarize("approved:2", [added, cancelled])).toBe("Added ddr_041");
+  });
+});
