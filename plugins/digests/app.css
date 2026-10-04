@@ -213,11 +213,10 @@
 /* One bounded table opens at a time. Expansion never adds an entire inbox to the timeline. */
 .digest-email-scroll { max-height: min(240px, 32dvh); overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; border-block: 1px solid var(--border); }
 .digest-email-table { width: 100%; min-width: 610px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 12px; line-height: 18px; }
-.digest-col-sender { width: 17%; }
-.digest-col-subject { width: 25%; }
-.digest-col-detail { width: 33%; }
-.digest-col-kind { width: 14%; }
-.digest-col-date { width: 11%; }
+.digest-col-sender { width: 104px; }
+.digest-col-subject { width: 152px; }
+.digest-col-kind { width: 86px; }
+.digest-col-date { width: 68px; }
 .digest-email-table th, .digest-email-table td { padding: 6px 8px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .digest-email-table th { position: sticky; top: 0; z-index: 1; background: var(--background); color: var(--muted-foreground); font-size: 11px; font-weight: 400; border-bottom: 1px solid var(--border); }
 .digest-email-table th:last-child { text-align: right; }
@@ -227,6 +226,8 @@
 .digest-email-sender { font-weight: 600; }
 .digest-email-sender a { color: inherit; text-decoration: none; }
 .digest-email-detail, .digest-email-table .digest-email-date { color: var(--muted-foreground); }
+.digest-email-table .digest-email-detail { white-space: normal; text-overflow: clip; }
+.digest-email-detail > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .digest-email-table .digest-email-date { text-align: right; font-variant-numeric: tabular-nums; }
 .digest-email-kind { display: inline-block; max-width: 100%; padding: 0 4px; border-radius: var(--radius-sm, 4px); background: var(--muted); color: var(--muted-foreground); font-size: 10px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
 .digest-email-kind[data-kind="bill"] { background: var(--warning-subtle); color: var(--warning-text); }

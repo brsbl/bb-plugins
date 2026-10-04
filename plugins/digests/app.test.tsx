@@ -278,7 +278,7 @@ describe("Digests app", () => {
         { title: "Newsletter · This week", text: "Product news.", url: "https://example.test/news" },
       ] },
     } }) } });
-    fireEvent.click(await slot.findByRole("link", { name: "2 No action needed" }));
+    fireEvent.click(await slot.findByRole("link", { name: "2 need nothing from you" }));
     expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(true);
     expect(document.activeElement).toBe(slot.container.querySelector("details[id$='-tail'] > summary"));
     fireEvent.click(slot.getByRole("link", { name: /Amex · Autopay processed/ }));
@@ -295,7 +295,7 @@ describe("Digests app", () => {
   it("keeps repeat senders flat and preserves every source link and semantic accent", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const rows = ["Robinhood", "Figma", "robinhood", "Robinhood", "Figma"].map((sender, index) => ({
-      title: `${sender} · Notice ${index}`, text: `Detail ${index}`, url: `https://example.test/mail/${index}`,
+      title: `${sender} · Notice ${index}`, text: index === 2 ? "September statement is ready." : `Detail ${index}`, url: `https://example.test/mail/${index}`,
       ...(index === 0 ? { kind: "receipt", receivedAt: 1791043200000 } : {}),
     }));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
@@ -314,6 +314,9 @@ describe("Digests app", () => {
     expect(slot.container.querySelectorAll("details details")).toHaveLength(0);
     expect(slot.getAllByRole("row")).toHaveLength(rows.length + 1);
     expect(slot.getByText("Receipt")).toBeDefined();
+    expect(slot.getByText("Statement")).toBeDefined();
+    expect(slot.getByText("Account")).toBeDefined();
+    expect(slot.container.querySelectorAll(".digest-email-kind")).toHaveLength(3);
     expect(slot.container.querySelectorAll("time")).toHaveLength(1);
     expect(slot.container.querySelector("time")?.dateTime).toBe(new Date(1791043200000).toISOString());
     for (let index = 0; index < rows.length; index++) {

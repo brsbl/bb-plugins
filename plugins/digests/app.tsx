@@ -243,15 +243,29 @@ function emailParts(item: EmailRow) {
   };
 }
 
+function emailKind(item: EmailRow): string | undefined {
+  if (item.kind) return item.kind;
+  const text = `${item.title} ${item.sender ?? ""} ${item.subject ?? ""} ${item.text}`;
+  if (/\bstatements?\b/iu.test(text)) return "statement";
+  if (/\b(dividend|trade confirmation|brokerage|investment|retirement|robinhood)\b/iu.test(text)) return "account";
+  if (/\b(receipt|payment (?:complete|completed|received)|order confirmation)\b/iu.test(text)) return "receipt";
+  if (/\b(bill|invoice|autopay|payment due|amount due)\b/iu.test(text)) return "bill";
+  if (/\b(shipp?ing|shipped|package|tracking|delivery)\b/iu.test(text)) return "shipping";
+  if (/\b(event|meetup|invitation|meeting|rsvp)\b/iu.test(text)) return "event";
+  if (/\b(newsletter|digest|product updates|this week in|new this month)\b/iu.test(text)) return "newsletter";
+  if (/\b(sign-in|security alert|verification code)\b/iu.test(text)) return "alert";
+  return undefined;
+}
+
 function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: string; issueDate: number }) {
   const navigate = useBbNavigate();
-  const kindLabels = { receipt: "Receipt", bill: "Bill", event: "Event", newsletter: "Newsletter", shipping: "Shipping" };
   return <div className="digest-email-scroll" role="region" aria-label={label} tabIndex={0}>
     <table className="digest-email-table">
       <colgroup><col className="digest-col-sender" /><col className="digest-col-subject" /><col className="digest-col-detail" /><col className="digest-col-kind" /><col className="digest-col-date" /></colgroup>
       <thead><tr><th scope="col">Sender</th><th scope="col">Subject</th><th scope="col">Summary</th><th scope="col">Type</th><th scope="col">Received</th></tr></thead>
       <tbody>{items.map((item, index) => {
         const { sender, subject } = emailParts(item);
+        const kind = emailKind(item);
         const date = item.receivedAt === undefined ? null : new Date(item.receivedAt);
         const sameDay = date?.toDateString() === new Date(issueDate).toDateString();
         const dateLabel = date ? new Intl.DateTimeFormat(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric" }).format(date) : "";
@@ -262,8 +276,8 @@ function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: stri
         }}>
           <td className="digest-email-sender" title={sender}><a href={safeLink(item.url)} aria-label={[sender, subject, item.text].filter(Boolean).join(" · ")}>{sender || "Email"}</a></td>
           <td title={subject}>{subject}</td>
-          <td className="digest-email-detail" title={item.text}>{item.text}</td>
-          <td>{item.kind && <span className="digest-email-kind" data-kind={item.kind}>{kindLabels[item.kind]}</span>}</td>
+          <td className="digest-email-detail" title={item.text}><span>{item.text}</span></td>
+          <td>{kind && <span className="digest-email-kind" data-kind={kind}>{kind[0]!.toUpperCase() + kind.slice(1)}</span>}</td>
           <td className="digest-email-date">{date && <time dateTime={date.toISOString()} title={date.toLocaleString()}>{dateLabel}</time>}</td>
         </tr>;
       })}</tbody>
@@ -273,6 +287,10 @@ function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: stri
 
 function sectionLabel(label: string): string {
   return label.replace(/\broutine(?: emails)?\b/giu, "No action needed");
+}
+
+function summaryLabel(label: string): string {
+  return sectionLabel(label).replace(/\bno action needed\b/giu, "need nothing from you");
 }
 
 function BriefCards({ brief, headline, prefix, issueDate, expanded, setExpanded }: {
@@ -369,7 +387,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
     <article className="digest-issue" aria-label="Digest summary" data-state={issue.state}>
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
       {issue.brief?.summaryLinks?.length && issue.state === "ready" ? <div className="digest-lede digest-summary-links">{issue.brief.summaryLinks.map((link, index) => <span key={index}>
-        {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a aria-label={sectionLabel(link.label)} data-tone={link.section === "items" ? headingTone(issue.brief!) : "neutral"} href={`#${prefix}-${link.section}`} onClick={(event) => {
+        {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a aria-label={summaryLabel(link.label)} data-tone={link.section === "items" ? headingTone(issue.brief!) : "neutral"} href={`#${prefix}-${link.section}`} onClick={(event) => {
           event.preventDefault();
           const target = document.getElementById(`${prefix}-${link.section}`);
           if (link.section === "tail" || link.section === "all") setExpanded(link.section);
@@ -378,7 +396,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
           // and scrolling it concurrently fights the host's bottom anchoring.
           if (link.section === "items" || link.section === "later") focus?.scrollIntoView?.({ block: "nearest" });
           (focus as HTMLElement | null)?.focus({ preventScroll: true });
-        }}><CountLabel label={sectionLabel(link.label)} /></a> : <span><CountLabel label={sectionLabel(link.label)} /></span>}
+        }}><CountLabel label={summaryLabel(link.label)} /></a> : <span><CountLabel label={summaryLabel(link.label)} /></span>}
       </span>)}</div> : issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
       {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} issueDate={issue.createdAt} expanded={expanded} setExpanded={setExpanded} />}
