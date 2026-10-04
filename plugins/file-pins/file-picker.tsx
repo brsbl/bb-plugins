@@ -69,21 +69,21 @@ export function FilePicker({ threadId, recent, stripFull, choosingFolder, onChoo
   const hostName = (id: string) => hosts.find((host) => host.id === id)?.name;
   const showMachines = hosts.length > 1 && new Set(files.map((file) => file.hostId)).size > 1;
   const scopeLabel = scope ? folderName(scope.path) : loaded ? "Choose a folder" : "…";
+  // The machine is named only when there is more than one.
+  const machine = hosts.length > 1 && scopeHost ? scopeHost.name : null;
   return <div aria-label="Pin to thread">
     <Command shouldFilter={false} label="Choose a file to pin">
-      <div className="flex items-center border-b pr-1">
-        <div className="min-w-0 flex-1 [&_[cmdk-input-wrapper]]:border-b-0">
-          <CommandInput ref={inputRef} autoFocus placeholder="Search files…" value={query} onValueChange={setQuery} disabled={busy} maxLength={4096} />
-        </div>
-        <button type="button" disabled={busy || !loaded} onClick={() => onChoosingFolderChange(true)}
-          aria-label={scope ? `Search in ${scope.path}${hosts.length > 1 && scopeHost ? ` on ${scopeHost.name}` : ""}. Change folder` : "Choose a folder to search"}
-          title={scope ? formatHomePathForDisplay(scope.path) : undefined}
-          className="flex h-7 min-w-0 max-w-[60%] shrink-0 items-center gap-1 rounded px-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none">
-          <Icon name="Folder" className="size-3.5 shrink-0" />
-          <span className="min-w-0 max-w-full shrink-0 truncate">{scopeLabel}</span>
-          {hosts.length > 1 && scopeHost ? <span className="min-w-0 truncate text-subtle-foreground">· {scopeHost.name}</span> : null}
-        </button>
-      </div>
+      <CommandInput ref={inputRef} autoFocus placeholder="Search files…" value={query} onValueChange={setQuery} disabled={busy} maxLength={4096} />
+      <button type="button" disabled={busy || !loaded} onClick={() => onChoosingFolderChange(true)}
+        // cmdk treats Enter anywhere in the command as choosing the highlighted file.
+        onKeyDown={(event) => { if (event.key === "Enter") event.stopPropagation(); }}
+        aria-label={scope ? `Search folder: ${scopeLabel}${machine ? ` on ${machine}` : ""}. Change` : "Choose a folder to search"}
+        title={scope ? formatHomePathForDisplay(scope.path) : undefined}
+        className="flex h-8 w-full min-w-0 items-center gap-1.5 border-b px-3 text-left text-xs text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none">
+        <Icon name="Folder" className="size-3.5 shrink-0" aria-hidden />
+        <span className="min-w-0 max-w-full shrink-0 truncate text-foreground">{scopeLabel}</span>
+        {machine ? <span className="min-w-0 truncate">· {machine}</span> : null}
+      </button>
       {!text && files.length > 0 && <p className="px-3 pb-1 pt-2 text-xs text-muted-foreground">Recent in this thread</p>}
       <CommandList aria-label="Files" aria-busy={searching || busy} className="max-h-56 p-1">
         {typedPath && <CommandItem value={`path:${text}`} disabled={busy || !scope} onSelect={() => { if (scope) void pin(scope.hostId, text, scope.path); }} title={text}>

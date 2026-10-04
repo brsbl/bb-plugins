@@ -14,7 +14,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins -
 ## Use
 
 Choose **Pin to thread** in the composer's **+** menu, then search files in one folder. The
-search row shows that folder (and its machine when more than one is enrolled); click it to choose
+row under the search field shows that folder (and its machine when more than one is enrolled); click it to choose
 another machine and folder in bb's folder browser, by browsing or editing the path. The folder
 starts as the thread's workspace, or the machine's home without one, and each thread remembers the
 last folder chosen. An offline or unresponsive machine reports an error instead of searching. Type or
