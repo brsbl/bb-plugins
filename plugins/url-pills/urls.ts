@@ -39,12 +39,34 @@ export function findComposerUrls(text: string, currentOrigin = ""): { from: numb
   const excluded: [number, number][] = [];
   const patterns = [
     /(^|\n)[ \t]{0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n[ \t]{0,3}\2[^\n]*(?=\n|$)|$)/g,
-    /`+[^`\n]*(?:`+|$)/g,
     /(^|\n)[ \t]*>[^\n]*/g,
     /!?\[[^\]\n]*\]\([^\n]*?\)/g,
     /(^|\n)[ \t]*\[[^\]\n]+\]:[^\n]*/g,
   ];
   for (const pattern of patterns) for (const match of text.matchAll(pattern)) excluded.push([match.index, match.index + match[0].length]);
+  // Code spans can cross line breaks, but close only at an equally long run.
+  // Index the next matching run once, avoiding repeated searches in large drafts.
+  const ticks = [...text.matchAll(/`+|\n[ \t]*\n/g)];
+  const next = new Map<number, number>(), closing = new Map<number, number>();
+  for (let i = ticks.length - 1; i >= 0; i--) {
+    const run = ticks[i]!;
+    if (run[0][0] !== '`') { next.clear(); continue; }
+    const end = next.get(run[0].length);
+    if (end !== undefined) closing.set(i, end);
+    next.set(run[0].length, i);
+  }
+  for (let i = 0; i < ticks.length; i++) {
+    const run = ticks[i]!;
+    if (run[0][0] !== '`' || excluded.some(([start, end]) => run.index >= start && run.index < end)) continue;
+    const end = closing.get(i);
+    if (end !== undefined) {
+      excluded.push([run.index, ticks[end]!.index + run[0].length]); i = end;
+    } else {
+      // Preserve conservative handling of unfinished code on the current line.
+      const lineEnd = text.indexOf('\n', run.index);
+      excluded.push([run.index, lineEnd === -1 ? text.length : lineEnd]);
+    }
+  }
   // Indented code starts at a block boundary; indentation alone cannot
   // interrupt an ordinary paragraph. Blank lines may continue the code block.
   let offset = 0, afterBlank = true, inIndentedCode = false;

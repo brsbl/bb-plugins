@@ -104,6 +104,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   let enabled = options.iconsEnabled ?? false;
   let disposed = false;
   let frame: number | null = null;
+  const dirtyRoots = new Set<Document | Element>();
   let composition: HTMLElement | null = null;
   let explicitEdit: HTMLElement | null = null;
   let inputEdit: HTMLElement | null = null;
@@ -126,7 +127,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     return cached && cached.expires > Date.now() ? cached.value : null;
   }
 
-  function composerSelector(element: HTMLElement): string | undefined {
+  function composerSelector(element: HTMLElement, positions: WeakMap<Element, number>): string | undefined {
     const editor = element.closest<HTMLElement>(EDITOR);
     const root = editor?.closest<HTMLElement>('[data-promptbox-editor-content]')
       ?? editor?.closest<HTMLElement>('[data-app-composer]');
@@ -140,7 +141,8 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     while (current !== root) {
       const parent = current.parentElement;
       if (!parent) return;
-      path.unshift(`:nth-child(${Array.prototype.indexOf.call(parent.children, current) + 1})${current === editor ? '[contenteditable="true"]' : ''}`);
+      if (!positions.has(current)) Array.from(parent.children).forEach((child, index) => positions.set(child, index + 1));
+      path.unshift(`:nth-child(${positions.get(current)})${current === editor ? '[contenteditable="true"]' : ''}`);
       current = parent;
     }
     return `[${COMPOSER_ROOT}="${id}"] > ${path.join(' > ')}.${EFFECT_CLASS}`;
@@ -216,13 +218,13 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     syncRequests();
   });
 
-  function scan(): void {
-    frame = null;
-    if (disposed) return;
-    if (explicitEdit && (!explicitEdit.isConnected || !caretTouches(explicitEdit))) explicitEdit = null;
+  function scan(roots: (Document | Element)[]): boolean {
+    let composerChanged = false;
     const found = new Set<HTMLElement>();
-    const candidates = document.querySelectorAll<HTMLElement>(`${EDITOR} .${EFFECT_CLASS}, ${ANCHOR}`);
-    for (const element of Array.from(candidates)) {
+    const candidates = new Set<HTMLElement>();
+    const positions = new WeakMap<Element, number>();
+    for (const root of roots) for (const element of Array.from(root.querySelectorAll<HTMLElement>(`${EDITOR} .${EFFECT_CLASS}, ${ANCHOR}`))) candidates.add(element);
+    for (const element of candidates) {
       const candidate = candidateForElement(element, location.origin);
       if (!candidate) continue;
       found.add(element);
@@ -232,38 +234,60 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
         entries.set(element, entry); visibility?.observe(element);
       }
       if (entry.composer) {
-        entry.selector = composerSelector(element);
-        entry.expanded = !!(explicitEdit === element || composition?.contains(element)
-          || (inputEdit?.contains(element) && caretTouches(element)) || revealForSelection(element));
+        entry.selector = composerSelector(element, positions);
+        composerChanged = true;
       } else {
         if (element.getAttribute(ATTR) !== 'message') element.setAttribute(ATTR, 'message');
         if (element.getAttribute(LABEL) !== entry.url.label) element.setAttribute(LABEL, entry.url.label);
         syncIcon(element, entry);
       }
     }
-    for (const [element, entry] of entries) if (!found.has(element)) {
+    for (const [element, entry] of entries) if (!element.isConnected || (!found.has(element) && roots.some((root) => root.contains(element)))) {
       if (!entry.composer) removeDecoration(element);
+      else composerChanged = true;
       entries.delete(element); visibility?.unobserve(element);
     }
     for (const [root, id] of composerRoots) if (!root.isConnected || !Array.from(entries).some(([element, entry]) => entry.composer && root.contains(element))) {
       if (root.getAttribute(COMPOSER_ROOT) === id) root.removeAttribute(COMPOSER_ROOT);
       composerRoots.delete(root);
     }
-    updateComposerStyle();
-    syncRequests();
-    // Only owned attribute/style mutations occurred during this synchronous pass.
-    observer.takeRecords();
+    return composerChanged;
   }
 
-  function queue(): void { if (!disposed && frame === null) frame = requestAnimationFrame(scan); }
+  function updateSelection(): boolean {
+    if (explicitEdit && (!explicitEdit.isConnected || !caretTouches(explicitEdit))) explicitEdit = null;
+    let changed = false;
+    for (const [element, entry] of entries) if (entry.composer) {
+      const expanded = !!(explicitEdit === element || composition?.contains(element)
+        || (inputEdit?.contains(element) && caretTouches(element)) || revealForSelection(element));
+      if (entry.expanded !== expanded) { entry.expanded = expanded; changed = true; }
+    }
+    return changed;
+  }
+  function flush(): void {
+    frame = null;
+    if (disposed) return;
+    const roots = [...dirtyRoots].filter((root, index, all) => root.isConnected && !all.some((other, otherIndex) => otherIndex !== index && other.contains(root)));
+    dirtyRoots.clear();
+    const previousCount = entries.size;
+    const composerChanged = scan(roots);
+    const selectionChanged = updateSelection();
+    if (composerChanged || selectionChanged) updateComposerStyle();
+    if (roots.length || entries.size !== previousCount) syncRequests();
+  }
+  function queue(): void { if (!disposed && frame === null) frame = requestAnimationFrame(flush); }
   const observer = new MutationObserver((records) => {
-    const relevant = records.some((record) => {
+    let relevant = false;
+    for (const record of records) {
       const target = record.target instanceof Element ? record.target : record.target.parentElement;
-      if (target?.closest('[data-app-composer], [data-message-column]')) return true;
-      return [...Array.from(record.addedNodes), ...Array.from(record.removedNodes)].some((node) => node instanceof Element
-        && (node.matches('[data-app-composer], [data-message-column]')
-          || node.querySelector('[data-app-composer], [data-message-column]')));
-    });
+      const surface = target?.closest(`${EDITOR}, [data-markdown-preview], [data-app-composer], [data-message-column]`);
+      if (surface) { dirtyRoots.add(surface); relevant = true; }
+      for (const node of Array.from(record.addedNodes)) if (node instanceof Element) {
+        if (node.matches('[data-app-composer], [data-message-column]')) { dirtyRoots.add(node); relevant = true; }
+        else for (const root of Array.from(node.querySelectorAll('[data-app-composer], [data-message-column]'))) { dirtyRoots.add(root); relevant = true; }
+      }
+    }
+    if (!relevant && records.some((record) => record.removedNodes.length)) relevant = [...entries.keys()].some((element) => !element.isConnected);
     if (relevant) {
       // Child positions may have changed. Drop old selectors before the next
       // paint instead of briefly applying yesterday's label to a new range.
@@ -344,13 +368,10 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     ['click', click as EventListener],
     ['compositionstart', compositionStart as EventListener], ['compositionend', compositionEnd],
     ['beforeinput', beforeInput as EventListener], ['paste', paste],
-    ['focusout', focusOut as EventListener], ['visibilitychange', queue],
+    ['focusout', focusOut as EventListener], ['visibilitychange', syncRequests],
   ];
   for (const [type, listener] of listeners) document.addEventListener(type, listener, true);
-  window.addEventListener('resize', queue);
-  window.addEventListener('scroll', queue, true);
-  window.visualViewport?.addEventListener('resize', queue);
-  window.visualViewport?.addEventListener('scroll', queue);
+  // CSS follows layout; IntersectionObserver owns visibility and icon demand.
 
   function setIconsEnabled(value: boolean): void {
     if (disposed || enabled === value) return;
@@ -372,14 +393,11 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     requests.clear(); cache.clear();
     for (const [element, entry] of entries) if (!entry.composer) removeDecoration(element);
     for (const [root, id] of composerRoots) if (root.getAttribute(COMPOSER_ROOT) === id) root.removeAttribute(COMPOSER_ROOT);
-    composerRoots.clear(); entries.clear(); style.remove(); composerStyle.remove();
+    composerRoots.clear(); dirtyRoots.clear(); entries.clear(); style.remove(); composerStyle.remove();
     for (const [type, listener] of listeners) document.removeEventListener(type, listener, true);
-    window.removeEventListener('resize', queue); window.removeEventListener('scroll', queue, true);
-    window.visualViewport?.removeEventListener('resize', queue);
-    window.visualViewport?.removeEventListener('scroll', queue);
     signal.removeEventListener('abort', dispose);
   }
   signal.addEventListener('abort', dispose, { once: true });
-  if (signal.aborted) dispose(); else scan();
+  if (signal.aborted) dispose(); else { dirtyRoots.add(document); flush(); }
   return { dispose, setIconsEnabled };
 }
