@@ -1,7 +1,7 @@
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeQueueEntry } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import plugin, { createStore } from "./server.js";
-import { actionMessage } from "./model.js";
+import { actionMessage, type Item } from "./model.js";
 
 const ref = { threadId: "thr_test", id: "esc-1" };
 const reply = { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], original: { from: "Escrow", body: "Your refund is on the way." }, draft: "Original draft" };
@@ -21,6 +21,7 @@ describe("durable inline actions", () => {
     expect(() => store.prepare({ ...ref, revision: pending.revision, action: "send" })).toThrow("in progress");
     const claimed = store.claim(ref.threadId, ref.id, pending.attempt!.id);
     expect(claimed.content).toMatchObject({ draft: "User's exact edited draft" });
+    expect(claimed.attempt!.sentAt).toBeTruthy();
     expect(() => store.claim(ref.threadId, ref.id, pending.attempt!.id)).toThrow("already claimed");
     expect(() => store.save({ ...ref, revision: claimed.revision, draft: "Too late" })).toThrow("cannot be edited");
     expect(() => store.report(ref.threadId, ref.id, "stale", "succeeded", "Sent", false)).toThrow("current claimed");
@@ -86,4 +87,56 @@ it("bulk approval atomically reserves only the displayed ready rows of a matchin
   store.createTable(ref.threadId, "mixed", { title: "Different operations", ids: ["a", "other"] });
   expect(() => store.prepareTable({ ...args, id: "mixed", items: [{ id: "other", revision: 1 }] })).toThrow("do not share");
   expect(() => store.table("thr_other", "news")).toThrow("unavailable");
+});
+
+it("settles a sent request and reopens it if its queued message is deleted", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  const { callRpc, emitThreadEvent, runCli } = host.harness.behavior;
+  const decide = { type: "decide", question: "Merge PR?", consequence: "Squash into main", yesLabel: "Merge" };
+  for (const id of ["now", "gone"]) await runCli(["create", id, "--thread", ref.threadId, "--item", JSON.stringify(decide)]);
+  const get = async (id: string) => await callRpc("get", { threadId: ref.threadId, id }) as Item;
+  const prepare = async (id: string) => (await callRpc("prepare", { threadId: ref.threadId, id, revision: 1, action: "yes" }) as Item).attempt!.id;
+  const entry = (id: string, attemptId: string) => makeQueueEntry({ threadId: ref.threadId, content: [{ type: "text", text: "Merge Merge PR", mentions: [{ start: 6, end: 14, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${ref.threadId}:${id}:${attemptId}`, label: "Merge PR" } }] }] });
+
+  const now = await prepare("now");
+  const sent = await callRpc("submitted", { threadId: ref.threadId, id: "now", attemptId: now }) as Item;
+  expect(sent.attempt!.sentAt).toBeTruthy();
+  // A repeated acknowledgement keeps the first send time.
+  expect((await callRpc("submitted", { threadId: ref.threadId, id: "now", attemptId: now }) as Item).revision).toBe(sent.revision);
+
+  const gone = await prepare("gone");
+  await callRpc("submitted", { threadId: ref.threadId, id: "gone", attemptId: gone });
+  await emitThreadEvent("message.cancelled", { entry: entry("gone", gone) });
+  expect(await get("gone")).toMatchObject({ state: "ready", attempt: null });
+
+  // Stale attempts are ignored.
+  expect((await emitThreadEvent("message.cancelled", { entry: entry("now", "ea45f71a-c216-4da4-a226-65736f4eccfd") })).errors).toEqual([]);
+  expect((await get("now")).state).toBe("pending");
+});
+
+it("lets a choice held by its note return to ready for a new choice", () => {
+  const { store } = setup();
+  store.create(ref.threadId, ref.id, reply);
+  const pending = store.prepare({ ...ref, revision: 1, action: "send", note: "Don't send yet" });
+  store.claim(ref.threadId, ref.id, pending.attempt!.id);
+  const held = store.report(ref.threadId, ref.id, pending.attempt!.id, "failed", "Held the reply; not sent yet", true);
+  expect(held).toMatchObject({ state: "failed", result: { retryable: true }, attempt: { note: "Don't send yet" } });
+  expect(store.reopen({ ...ref, revision: held.revision })).toMatchObject({ state: "ready", attempt: null, result: null });
+});
+
+it("validates short notes, retains retry conditions, and accepts previously persisted attempts", async () => {
+  const { store, bb } = setup();
+  store.create(ref.threadId, ref.id, reply);
+  const pending = store.prepare({ ...ref, revision: 1, action: "send", note: "  do not send yet  " });
+  expect(pending.attempt!.note).toBe("do not send yet");
+  store.claim(ref.threadId, ref.id, pending.attempt!.id);
+  const failed = store.report(ref.threadId, ref.id, pending.attempt!.id, "failed", "No email sent", true);
+  expect(store.prepare({ ...ref, revision: failed.revision, action: "send" }).attempt!.note).toBe("do not send yet");
+  const legacy = store.get(ref.threadId, ref.id);
+  delete legacy.attempt!.note;
+  bb.storage.database().prepare("UPDATE action_items SET value = ? WHERE thread_id = ? AND item_id = ?").run(JSON.stringify(legacy), ref.threadId, ref.id);
+  expect(store.get(ref.threadId, ref.id).attempt?.note).toBeUndefined();
+  store.create(ref.threadId, "bounded", reply);
+  expect(() => store.prepare({ ...ref, id: "bounded", revision: 1, action: "send", note: "x".repeat(1001) })).toThrow();
+  expect(store.get(ref.threadId, "bounded").state).toBe("ready");
 });
