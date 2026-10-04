@@ -1,4 +1,4 @@
-import { Children, useCallback, useEffect, useRef, useState, type ReactNode, useId } from "react";
+import { Children, useCallback, useEffect, useRef, useState, useLayoutEffect, useSyncExternalStore, type ReactNode, useId } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -109,9 +109,40 @@ function useReconnectRefresh(refresh: () => void) {
   }, [connection, refresh]);
 }
 
+// A retried issue can have several historical directives plus a recovery banner.
+// Keep one mounted presentation, preferring a timeline directive over the banner.
+const issuePlacements = new Map<string, Map<symbol, number>>();
+const placementListeners = new Set<() => void>();
+const subscribePlacements = (listener: () => void) => { placementListeners.add(listener); return () => { placementListeners.delete(listener); }; };
+function useIssuePlacement(threadId: string | null, issueId: string | undefined, priority = 0) {
+  const [token] = useState(() => Symbol());
+  const key = threadId && issueId ? `${threadId}:${issueId}` : null;
+  useLayoutEffect(() => {
+    if (!key) return;
+    const owners = issuePlacements.get(key) ?? new Map<symbol, number>();
+    issuePlacements.set(key, owners);
+    owners.set(token, priority);
+    placementListeners.forEach((listener) => listener());
+    return () => {
+      owners.delete(token);
+      if (!owners.size) issuePlacements.delete(key);
+      placementListeners.forEach((listener) => listener());
+    };
+  }, [key, token, priority]);
+  return useSyncExternalStore(subscribePlacements, () => {
+    if (!key) return false;
+    const owners = issuePlacements.get(key);
+    let winner: symbol | undefined;
+    let best = Infinity;
+    owners?.forEach((rank, owner) => { if (rank < best) { winner = owner; best = rank; } });
+    return winner === token;
+  }, () => false);
+}
+
 function DigestIssue({ attributes, message }: PluginMessageDirectiveProps) {
   const rpc = useRpc<typeof rpcContract>();
   const id = attributes.id?.trim();
+  const visible = useIssuePlacement(message.threadId, id);
   const [issue, setIssue] = useState<Issue | null>(null);
   const [loadError, setLoadError] = useState(false);
   const generation = useRef(0);
@@ -141,6 +172,7 @@ function DigestIssue({ attributes, message }: PluginMessageDirectiveProps) {
   if (!id) {
     return <div className="digest-issue" role="alert">This digest is missing its issue reference. Ask the publishing thread to publish it again.</div>;
   }
+  if (!visible) return null;
   if (!issue) {
     return (
       <div className="digest-issue">
@@ -160,6 +192,7 @@ function RecoveryBanner() {
   const threadId = composer.scope.kind === "thread" ? composer.scope.threadId : null;
   const [issue, setIssue] = useState<Issue | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const visible = useIssuePlacement(threadId, issue?.id, 1);
   const generation = useRef(0);
   const load = useCallback(async () => {
     if (!threadId) return;
@@ -181,7 +214,7 @@ function RecoveryBanner() {
   }, [load]);
   useRealtime("issues", () => { void load(); });
   useReconnectRefresh(load);
-  if (!threadId || !issue || issue.threadId !== threadId) return null;
+  if (!visible || !threadId || !issue || issue.threadId !== threadId) return null;
   return <IssueSummary key={issue.id} issue={issue} threadId={threadId} loadError={loadError} refresh={load} />;
 }
 
@@ -212,7 +245,7 @@ function BriefCards({ brief, headline }: { brief: NonNullable<Issue["brief"]>; h
   </div>;
 }
 
-function IssueSummary({ issue, threadId, loadError, refresh }: {
+function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
   issue: Issue;
   threadId: string;
   loadError: boolean;
@@ -223,6 +256,7 @@ function IssueSummary({ issue, threadId, loadError, refresh }: {
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState<"retry" | "reconnect" | null>(null);
+  const issue = pending === "retry" ? { ...savedIssue, state: "collecting" as const, headline: "Preparing your digest", lede: "" } : savedIssue;
   const [mainContent, ...extraContent] = issue.details.split(/\r?\n[ \t]*<!-- more -->[ \t]*\r?\n/u);
   const moreContent = extraContent.join("\n\n");
   const recover = async (action: "retry" | "reconnect") => {
@@ -238,7 +272,7 @@ function IssueSummary({ issue, threadId, loadError, refresh }: {
       } else {
         const result = await rpc.call("retry", input);
         navigate.toThread(result.threadId);
-        setNotice("Retrying this issue.");
+        await refresh();
       }
     } catch (error) {
       setActionError(error instanceof Error && error.message.trim() ? error.message : action === "reconnect"

@@ -87,6 +87,11 @@ export function createService(bb: BbPluginApi) {
   const automationProject = (definition: DigestDefinition) => definition.automationProjectId ?? definition.projectId;
   const targetFor = (definition: Pick<DigestDefinition, "projectId" | "environment" | "execution" | "connectionIds">) => executionTarget(bb, definition,
     definition.connectionIds.map((id) => store.connections.get(id)).filter((value): value is Connection => value !== null));
+  async function bindDefinition(definition: DigestDefinition) {
+    const target = await targetFor(definition);
+    return store.definitions.put({ ...definition, projectId: target.projectId, environment: target.environment,
+      ...(definition.automationId ? { automationProjectId: automationProject(definition) } : {}) });
+  }
   async function runError(id: string, error: unknown) {
     const message = executionFailure(error);
     await bb.storage.kv.set(`run-error:${id}`, message);
@@ -95,6 +100,7 @@ export function createService(bb: BbPluginApi) {
   }
   async function spawnDelivery(definition: DigestDefinition, issue: Issue) {
     if (issue.threadId) return issue;
+    definition = await bindDefinition(definition);
     const stage = await ensureSection();
     const target = await targetFor(definition);
     const thread = await bb.sdk.threads.spawn({
@@ -113,6 +119,7 @@ export function createService(bb: BbPluginApi) {
   async function ensureAutomation(definition: DigestDefinition) {
     if (!definition.schedule) throw new Error("This digest accepts published issues and has no schedule.");
     if (!definition.providerId || !definition.model) throw new Error("Choose a provider and model when defining this digest before enabling its schedule.");
+    definition = await bindDefinition(definition);
     const target = await targetFor(definition);
     if (definition.automationId && automationProject(definition) === target.projectId) {
       if (JSON.stringify(definition.automationEnvironment) !== JSON.stringify(target.environment)) {
@@ -215,11 +222,15 @@ export function createService(bb: BbPluginApi) {
 
   async function begin(digestId: string, threadId: string) {
     return exclusive(`begin:${threadId}`, async () => {
-      const definition = requiredDefinition(digestId);
+      const definition = await bindDefinition(requiredDefinition(digestId));
       const thread = await bb.sdk.threads.get({ threadId });
-      if (thread.projectId !== automationProject(definition) && thread.projectId !== definition.projectId) throw new Error("Run this digest in its configured project.");
-      let issue = store.issues.getByThread(threadId) ?? newIssue(definition, threadId, `thread:${threadId}`);
+      const existing = store.issues.getByThread(threadId);
+      let issue = existing ?? newIssue(definition, threadId, `thread:${threadId}`);
       if (issue.digestId !== digestId) throw new Error("This thread already belongs to another digest.");
+      if (!existing && thread.projectId !== definition.projectId && thread.projectId !== automationProject(definition)) {
+        issue = await fail(issue, "This issue couldn’t open its workspace. Open Digests settings and choose Run now to create it in the right place.");
+        return { issue, directive: directive(issue), sessions: [], complete: true };
+      }
       if (issue.state === "ready") return { issue, directive: directive(issue), sessions: [], complete: true };
       await closeIssueBrowsers(issue);
       issue = changed(store.issues.update(issue.id, { state: "collecting", headline: `Preparing ${definition.name}`, details: "The briefing is being prepared.", recovery: null }));
@@ -356,15 +367,17 @@ export function createService(bb: BbPluginApi) {
       // From this point the issue's own settlement events own its recovery.
       await bb.storage.kv.set(`manual-retry:${id}`, true);
       await bb.storage.kv.set(`retry:${id}`, true);
+      if (!deliveryFailed) changed(store.issues.update(id, { state: "collecting", headline: `Preparing ${requiredDefinition(issue.digestId).name}`, lede: "", details: "The briefing is being prepared.", recovery: null }));
       try {
         await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", mentions: [],
           text: deliveryFailed ? deliveryPrompt(issue) : runPrompt(requiredDefinition(issue.digestId)),
-          ...(deliveryFailed ? { visibility: "agent-only" as const } : {}),
+          visibility: "agent-only",
         }] });
       } catch (error) {
         await bb.storage.kv.delete(`retry:${id}`);
         if (!previousManualRetry) await bb.storage.kv.delete(`manual-retry:${id}`);
-        throw error;
+        if (!deliveryFailed) changed(store.issues.update(id, { state: issue.state, headline: issue.headline, lede: issue.lede, details: issue.details, recovery: issue.recovery }));
+        throw new Error("Couldn’t start the retry. Check that bb is connected on your browser’s computer, then Retry.");
       }
       return { threadId };
     });
@@ -511,11 +524,12 @@ export function createService(bb: BbPluginApi) {
   }
   async function recoveryIssue(threadId: string) {
     const issue = store.issues.getByThread(threadId);
-    if (!issue || !await bb.storage.kv.get<boolean>(`recovery:${issue.id}`)) return null;
-    if (issue.state === "failed") return issue;
+    if (!issue) return null;
+    if (issue.state === "failed" || issue.state === "collecting") return issue;
+    if (!await bb.storage.kv.get<boolean>(`recovery:${issue.id}`)) return null;
     if (issue.state === "ready") return { ...issue, state: "failed" as const, recovery: "retry" as const,
       details: `Your issue was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
     return null;
   }
-  return { store, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, runStatus, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
+  return { store, bindDefinition, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, runStatus, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }

@@ -72,12 +72,14 @@ describe("Digests app", () => {
   it("keeps a failed issue visible and requires a click to reconnect or retry", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     let needsUpdate = true;
+    let retrying = false;
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
       rpc: {
-        getIssue: () => ({ ...readyIssue, state: "failed", recovery: "reconnect", headline: "Gmail is signed out", details: "Reconnect Gmail, then retry this digest." }),
+        getIssue: () => retrying ? { ...readyIssue, state: "collecting", headline: "Preparing Unread email" } : ({ ...readyIssue, state: "failed", recovery: "reconnect", headline: "Gmail is signed out", details: "Reconnect Gmail, then retry this digest." }),
         reconnect: () => ({ message: "Gmail is open in bb Browser. Sign in there, then retry." }),
         retry: () => {
           if (needsUpdate) throw new Error("Update bb to 0.45.0 or later, then retry this issue.");
+          retrying = true;
           return { threadId: "thr_issue" };
         },
       },
@@ -93,8 +95,30 @@ describe("Digests app", () => {
     expect(slot.getByRole("heading", { name: "Gmail is signed out" })).toBeDefined();
     needsUpdate = false;
     fireEvent.click(slot.getByRole("button", { name: "Retry" }));
-    expect(await slot.findByText("Retrying this issue.")).toBeDefined();
+    expect(await slot.findByRole("heading", { name: "Preparing Unread email" })).toBeDefined();
+    expect(slot.queryByRole("heading", { name: "Gmail is signed out" })).toBeNull();
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_issue" });
+  });
+
+  it("keeps one live card across a recovery banner and repeated retry directives", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    let issue = { ...readyIssue, state: "failed", recovery: "retry", headline: "This digest needs your attention" };
+    const rpc = { getIssue: () => issue, recoveryIssue: () => issue };
+    const banner = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "thread", threadId: "thr_issue" } }, rpc });
+    const first = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc });
+    const second = renderSlot(app.messageDirectives[0]!, { ...directiveProps, message: { ...message, id: "msg_retry" } }, { rpc });
+    await waitFor(() => expect(document.querySelectorAll("article.digest-issue")).toHaveLength(1));
+    expect(first.container.querySelector("article")).not.toBeNull();
+    expect(banner.container.querySelector("article")).toBeNull();
+    expect(second.container.querySelector("article")).toBeNull();
+    issue = { ...issue, state: "collecting", headline: "Preparing Unread email" };
+    for (const slot of [first, second, banner]) await slot.behavior.emitRealtime("issues", { id: "issue_1" });
+    await waitFor(() => expect(first.getByRole("heading").textContent).toBe("Preparing Unread email"));
+    expect(document.querySelectorAll("article.digest-issue")).toHaveLength(1);
+    issue = { ...issue, state: "ready", headline: readyIssue.headline };
+    for (const slot of [first, second, banner]) await slot.behavior.emitRealtime("issues", { id: "issue_1" });
+    expect(await first.findByRole("heading", { name: readyIssue.headline })).toBeDefined();
+    expect(document.querySelectorAll("article.digest-issue")).toHaveLength(1);
   });
 
   it("recovers a failed initial load and refreshes after missed realtime events", async () => {

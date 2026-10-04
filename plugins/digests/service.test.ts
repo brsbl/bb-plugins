@@ -126,6 +126,19 @@ describe("digest issue lifecycle", () => {
     expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([call]) => (call as { method: string }).method === "automations_run")).toHaveLength(1);
   });
 
+  it("binds disabled legacy definitions and retries a Personal delivery without changing its automation", async () => {
+    const { service, threads, harness } = setup({ personal: true });
+    const legacy = service.requiredDefinition("reading");
+    service.store.definitions.put({ ...legacy, automationId: "auto_old" });
+    const bound = await service.bindDefinition(service.requiredDefinition("reading"));
+    expect(bound).toMatchObject({ projectId: "proj_personal", enabled: false, automationId: "auto_old", automationProjectId: "proj_digest",
+      environment: { type: "host", hostId: "host_browser", workspace: { type: "personal" } } });
+    threads.set("thr_personal", makeThreadResponse({ id: "thr_personal", projectId: "proj_personal" }));
+    const started = await service.begin("reading", "thr_personal");
+    expect(started).toMatchObject({ complete: false, issue: { state: "collecting" } });
+    expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([value]) => ["automations_create", "automations_update", "automations_resume", "automations_pause"].includes((value as { method: string }).method))).toEqual([]);
+  });
+
   it("reports an offline execution host before dispatching an agent", async () => {
     const { service, harness } = setup({ offline: true });
     await expect(service.run("reading")).rejects.toThrow("My Mac is offline");
@@ -267,7 +280,9 @@ describe("digest issue lifecycle", () => {
     expect(failed.issue).toMatchObject({ state: "failed", recovery: "reconnect" });
     await expect(service.retry("thr_intruder", failed.issue.id)).rejects.toThrow("does not belong");
     await expect(service.retry("thr_retry", failed.issue.id)).resolves.toEqual({ threadId: "thr_retry" });
-    expect(harness.inspection.sdk.callsTo("threads.send")[0]?.[0]).toMatchObject({ threadId: "thr_retry", input: [{ type: "text", mentions: [], text: expect.stringContaining("digest_begin") }] });
+    expect(harness.inspection.sdk.callsTo("threads.send")[0]?.[0]).toMatchObject({ threadId: "thr_retry", input: [{ type: "text", mentions: [], text: expect.stringContaining("digest_begin"), visibility: "agent-only" }] });
+    expect(service.requiredIssue("thr_retry")).toMatchObject({ state: "collecting", recovery: null });
+    expect(await service.recoveryIssue("thr_retry")).toMatchObject({ state: "collecting" });
     setSignIn({ signedIn: true, signedOut: false });
     const retried = await service.begin("reading", "thr_retry");
     expect(retried.issue.id).toBe(failed.issue.id);

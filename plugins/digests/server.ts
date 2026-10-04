@@ -56,7 +56,7 @@ export default function plugin(bb: BbPluginApi) {
       list: cliCommand({ summary: "List digest definitions and their schedules", options: { json }, run: () => output(service.store.definitions.list()) }),
       templates: cliCommand({ summary: "Show the Unread email, Money, Reading, and X scorecard recipes", options: { json }, run: () => output(DIGEST_RECIPES) }),
       setup: cliCommand({
-        summary: "Create disabled starter definitions and connection metadata; leaves existing automations untouched",
+        summary: "Create or bind disabled starters to their browser workspace; leaves existing automations untouched",
         options: {
           project: { type: "string", description: "Project for issue threads; defaults to this thread's project" },
           "browser-host": { type: "string", required: true, description: "Computer running your signed-in bb browser" },
@@ -70,7 +70,9 @@ export default function plugin(bb: BbPluginApi) {
             if (!service.store.connections.get(entry.id)) service.store.connections.put(connectionSchema.parse({ ...entry, browserHostId: input.options["browser-host"] }));
           }
           for (const recipe of DIGEST_RECIPES) {
-            if (!service.store.definitions.get(recipe.id)) await define({ ...recipe, projectId, providerId: input.options.provider, model: input.options.model, createdAt: Date.now() });
+            const existing = service.store.definitions.get(recipe.id);
+            if (!existing) await service.bindDefinition(await define({ ...recipe, projectId, providerId: input.options.provider, model: input.options.model, createdAt: Date.now() }));
+            else if (!existing.enabled) await service.bindDefinition(existing);
           }
           await service.ensureSection(true);
           await bb.storage.kv.set("connection-settings-thread", requireThread(ctx));
