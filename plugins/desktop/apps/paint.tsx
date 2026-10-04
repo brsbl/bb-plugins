@@ -979,8 +979,8 @@ export function PaintApp() {
             started = true;
             if (held.lifted === null) lift(held, alternate);
             else if (alternate) {
-              remember();
               printSelection(held);
+              remember();
             }
           }
           held.rect = { ...from, x: from.x + next.x - point.x, y: from.y + next.y - point.y };
