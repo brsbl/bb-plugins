@@ -30,7 +30,7 @@ describe("Ambient plugin", () => {
   it("logs context loss and restoration without changing the selected scene", async () => {
     const { bb, harness } = createFakePluginHost({ pluginId: "ambient" });
     plugin(bb);
-    const before = await harness.behavior.callRpc("state", null);
+    const before = await harness.behavior.callRpc("loadScene", { id: "tide" });
     const report = {
       occurredAt: "2026-10-03T21:00:00.000Z",
       rendererId: "c497d254-daf0-48e8-87ce-21e5c564b611",
