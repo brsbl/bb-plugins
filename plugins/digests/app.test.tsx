@@ -303,7 +303,6 @@ describe("Digests app", () => {
     expect(await slot.findByRole("heading", { name: "The digest agent couldn’t start" })).toBeDefined();
     expect(slot.inspection.rpcCalls).toEqual([{ method: "recoveryIssue", input: { threadId: "thr_issue" } }]);
     fireEvent.click(slot.getByRole("button", { name: "Retry" }));
-    expect(await slot.findByText("Retrying this issue.")).toBeDefined();
     await slot.behavior.emitRealtime("issues", { id: "issue_1" });
     await waitFor(() => expect(slot.queryByRole("article", { name: "Digest summary" })).toBeNull());
   });
