@@ -333,9 +333,7 @@ function configInSectionOrder(
     const stage = stageBySectionId.get(sectionId);
     return stage === undefined ? [] : [{ ...stage }];
   });
-  if (stages.length !== config.stages.length || stages[0]?.key !== "inbox") {
-    return null;
-  }
+  if (stages.length !== config.stages.length) return null;
   return { ...config, stages };
 }
 

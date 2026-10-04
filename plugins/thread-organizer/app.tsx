@@ -163,7 +163,7 @@ function StageActions({
         >
           <button
             className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted disabled:opacity-40"
-            disabled={index <= 1}
+            disabled={index <= 0}
             onClick={() => {
               setOpen(false);
               onMove(index, -1);
@@ -195,22 +195,24 @@ function StageActions({
             />
             Move down
           </button>
-          <button
-            className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              setOpen(false);
-              onRemove(index);
-            }}
-            role="menuitem"
-            type="button"
-          >
-            <HugeiconsIcon
-              aria-hidden="true"
-              className="size-4"
-              icon={Delete02Icon}
-            />
-            Remove section
-          </button>
+          {stage.key === "inbox" ? null : (
+            <button
+              className="flex min-h-8 items-center gap-2 rounded-md px-2 text-left text-sm text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                setOpen(false);
+                onRemove(index);
+              }}
+              role="menuitem"
+              type="button"
+            >
+              <HugeiconsIcon
+                aria-hidden="true"
+                className="size-4"
+                icon={Delete02Icon}
+              />
+              Remove section
+            </button>
+          )}
         </div>
       ) : null}
     </div>
@@ -438,35 +440,29 @@ function StageCard({
   return (
     <article
       className="min-w-0 border-b border-border bg-background px-2 py-2 last:rounded-b-lg last:border-b-0 lg:col-span-full lg:grid lg:grid-cols-subgrid"
-      onDragOver={(event) => {
-        if (!protectedInbox) event.preventDefault();
-      }}
+      onDragOver={(event) => event.preventDefault()}
       onDrop={(event: DragEvent) => {
         event.preventDefault();
-        if (!protectedInbox) onDrop(index);
+        onDrop(index);
       }}
     >
       <div className={stageRowClass}>
-        {protectedInbox ? (
-          <span aria-hidden="true" className="hidden size-8 lg:block" />
-        ) : (
-          <span className="hidden shrink-0 lg:inline-flex">
-            <button
-              aria-label={`Drag ${stage.title} to reorder`}
-              className={`${iconButtonClass} cursor-grab active:cursor-grabbing`}
-              draggable
-              onDragStart={() => onDragStart(index)}
-              title={`Drag ${stage.title} to reorder`}
-              type="button"
-            >
-              <HugeiconsIcon
-                aria-hidden="true"
-                className="size-4"
-                icon={DragDropVerticalIcon}
-              />
-            </button>
-          </span>
-        )}
+        <span className="hidden shrink-0 lg:inline-flex">
+          <button
+            aria-label={`Drag ${stage.title} to reorder`}
+            className={`${iconButtonClass} cursor-grab active:cursor-grabbing`}
+            draggable
+            onDragStart={() => onDragStart(index)}
+            title={`Drag ${stage.title} to reorder`}
+            type="button"
+          >
+            <HugeiconsIcon
+              aria-hidden="true"
+              className="size-4"
+              icon={DragDropVerticalIcon}
+            />
+          </button>
+        </span>
         <input
           aria-label={`${stage.title || "Untitled section"} section title`}
           data-stage-key={stage.key}
@@ -476,20 +472,13 @@ function StageCard({
           onChange={(event) => update("title", event.target.value)}
           value={stage.title}
         />
-        {protectedInbox ? (
-          <span
-            aria-hidden="true"
-            className="col-start-2 row-start-1 size-8 lg:col-start-6"
-          />
-        ) : (
-          <StageActions
-            index={index}
-            onMove={onMove}
-            onRemove={onRemove}
-            stage={stage}
-            stageCount={stageCount}
-          />
-        )}
+        <StageActions
+          index={index}
+          onMove={onMove}
+          onRemove={onRemove}
+          stage={stage}
+          stageCount={stageCount}
+        />
         <div className={`${stageTypeLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
           <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>Type</span>
           <div className="flex min-w-0 flex-wrap items-center gap-x-1">
@@ -723,7 +712,7 @@ export function WorkflowSettings() {
   };
 
   const moveStage = (from: number, to: number) => {
-    if (from <= 0 || to <= 0 || config === null) return;
+    if (config === null) return;
     const stages = [...config.stages];
     const [stage] = stages.splice(from, 1);
     if (stage === undefined) return;
