@@ -72,6 +72,9 @@ export function createService(bb: BbPluginApi) {
     }
     if (failed.length) await bb.storage.kv.set(key, failed);
     else await bb.storage.kv.delete(key);
+    if (issue.state !== "collecting") await exclusive("gmail-collector", async () => {
+      if (await bb.storage.kv.get<string>("gmail-collector") === issue.id) await bb.storage.kv.delete("gmail-collector");
+    });
   }
   function newIssue(definition: DigestDefinition, threadId: string | null, key: string | null, now = Date.now()) {
     return store.issues.create(issueSchema.parse({ id: randomUUID(), digestId: definition.id, threadId, headline: `Preparing ${definition.name}`, metrics: [], details: "The briefing is being prepared.", state: "collecting", recovery: null, createdAt: now, publishedAt: null, readAt: null, dedupeKey: key, sources: [] }));
@@ -122,6 +125,10 @@ export function createService(bb: BbPluginApi) {
     definition = await bindDefinition(definition);
     const target = await targetFor(definition);
     if (definition.automationId && automationProject(definition) === target.projectId) {
+      // Refresh this plugin-owned prompt so saved runs follow current collection
+      // permissions; old definitions may still say snippet-only/read-only.
+      await automation("automations_update", { projectId: automationProject(definition), automationId: definition.automationId,
+        agent: { prompt: runPrompt(definition) } }, automationSchema);
       if (JSON.stringify(definition.automationEnvironment) !== JSON.stringify(target.environment)) {
         await automation("automations_update", { projectId: automationProject(definition), automationId: definition.automationId,
           agent: { target: { type: "environment", environment: target.environment } } }, automationSchema);

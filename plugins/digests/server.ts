@@ -142,7 +142,8 @@ export default function plugin(bb: BbPluginApi) {
   bb.events.on("thread.failed", ({ thread }) => service.settled(thread.id, true));
   for (const event of ["thread.archived", "thread.deleted"] as const) bb.events.on(event, async ({ thread }) => {
     const issue = service.store.issues.getByThread(thread.id);
-    if (issue) await service.closeIssueBrowsers(issue);
+    if (issue?.state === "collecting") await service.fail(issue, "This run was stopped before it finished.");
+    else if (issue) await service.closeIssueBrowsers(issue);
   });
   bb.background.service("issue-lifecycle", {
     async start(signal) {

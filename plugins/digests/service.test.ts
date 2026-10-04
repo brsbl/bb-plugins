@@ -294,6 +294,7 @@ describe("digest issue lifecycle", () => {
     expect(first.sessions[0]).toMatchObject({ threadId: "thr_first", tabId: "tab_1", sessionId: "session_tab_1" });
     expect(service.store.connections.get("gmail")).toMatchObject({ status: "signed-in", detail: null });
 
+    await service.publishCurrent("thr_first", payload());
     setSignIn({ signedIn: false, signedOut: false });
     const challenged = await service.begin("reading", "thr_second");
     expect(challenged).toMatchObject({ complete: true, sessions: [], issue: { state: "failed", recovery: "reconnect" } });
@@ -302,7 +303,7 @@ describe("digest issue lifecycle", () => {
       expect.objectContaining({ threadId: "thr_first", url: "about:blank" }),
       expect.objectContaining({ threadId: "thr_second", url: "about:blank" }),
     ]);
-    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.closeTab")[0]?.[0]).toMatchObject({ threadId: "thr_second", tabId: "tab_2" });
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.closeTab").at(-1)?.[0]).toMatchObject({ threadId: "thr_second", tabId: "tab_2" });
     await expect(service.publishCurrent("thr_second", payload())).rejects.toThrow("failed its connection check");
   });
 
