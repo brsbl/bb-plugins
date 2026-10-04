@@ -315,14 +315,8 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
           const target = document.getElementById(`${prefix}-${link.section}`);
           if (target instanceof HTMLDetailsElement) target.open = true;
           const focus = target?.querySelector("summary") ?? target;
-          (focus as HTMLElement | null)?.focus({ preventScroll: true });
-          // Native details toggling and the host's bottom anchoring settle
-          // asynchronously. Keep the requested heading visible afterward.
-          window.setTimeout(() => {
-            if (focus?.isConnected && document.activeElement === focus) {
-              focus.scrollIntoView({ block: "start", inline: "nearest" });
-            }
-          }, 150);
+          focus?.scrollIntoView?.({ block: "nearest" });
+          (focus as HTMLElement | null)?.focus();
         }}>{link.label}</a> : <span>{link.label}</span>}
       </span>)}</div> : issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
