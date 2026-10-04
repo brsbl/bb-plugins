@@ -2,7 +2,7 @@
 
 ## Use
 
-Website URLs appear as compact favicon pills in the composer, sent messages and agent replies. Click a pill to open it using bb's browser preference. In the composer, hover for the pencil or right-click to edit the URL in a small anchored field. Enter applies; Escape cancels. Long-press and the keyboard context-menu command also open the editor. Keyboard text editing still reveals the original URL inline.
+Website URLs appear as compact favicon pills in the composer, sent messages and agent replies. Click a pill to open it using bb's browser preference. In the composer, right-click and choose **Edit Link** to edit the URL in a small anchored field. Enter applies; Escape cancels. Long-press and the keyboard context-menu command also open the link menu. Keyboard text editing still reveals the original URL inline.
 
 In messages, right-click, long-press or use the keyboard context-menu command to inspect and copy the full destination.
 

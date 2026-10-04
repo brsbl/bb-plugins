@@ -255,6 +255,32 @@ describe('DOM-only URL decoration', () => {
     span.click(); expect(openUrl).toHaveBeenCalledExactlyOnceWith(URL_TEXT);
     expect(editor.outerHTML).toBe(original);
   });
+  it('offers editing only in the link menu and restores the caret on keyboard dismissal', async () => {
+    const span = composer(), editor = span.closest<HTMLElement>('[contenteditable]')!;
+    editor.tabIndex = 0;
+    const original = editor.outerHTML;
+    const source = { text: `Review ${URL_TEXT} please`, updateText: vi.fn() };
+    const mounted = mountUrlPills({ signal: abort.signal, editComposer: (element) => captureComposerEdit(element, source) });
+    span.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
+    expect(document.querySelector('[data-bb-url-pill-edit]')).toBeNull();
+    const range = document.createRange(); range.setStart(span.firstChild!, URL_TEXT.length); range.collapse(true);
+    document.getSelection()!.removeAllRanges(); document.getSelection()!.addRange(range);
+    editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true }));
+    await settle();
+    const item = document.querySelector<HTMLButtonElement>('[role=menuitem]')!;
+    expect(item.textContent).toBe('Edit Link'); expect(document.activeElement).toBe(item);
+    expect(document.querySelector('[role=dialog]')).toBeNull();
+    item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(document.querySelector('[role=menu]')).toBeNull(); expect(document.activeElement).toBe(editor);
+    expect(document.getSelection()?.anchorNode).toBe(span.firstChild);
+    expect(document.getSelection()?.anchorOffset).toBe(URL_TEXT.length);
+    span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 80 }));
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    expect(document.querySelector('[role=menu]')).toBeNull();
+    span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    mounted.dispose(); expect(document.querySelector('[role=menu]')).toBeNull();
+    expect(editor.outerHTML).toBe(original); expect(source.updateText).not.toHaveBeenCalled();
+  });
   it('edits through the composer owner and cancels without writing or submitting', async () => {
     const span = composer(), editor = span.closest('[contenteditable]')!;
     let text = `Review ${URL_TEXT} please`;
@@ -263,6 +289,7 @@ describe('DOM-only URL decoration', () => {
     const source = { get text() { return text; }, updateText };
     mountUrlPills({ signal: abort.signal, editComposer: (element) => captureComposerEdit(element, source) });
     span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    document.querySelector<HTMLButtonElement>('[role=menuitem]')!.click();
     await settle();
     const address = document.querySelector('input')!;
     expect(address.readOnly).toBe(false); expect(document.activeElement).toBe(address);
@@ -272,6 +299,7 @@ describe('DOM-only URL decoration', () => {
     address.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     expect(updateText).not.toHaveBeenCalled(); expect(text).toBe(`Review ${URL_TEXT} please`);
     span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    document.querySelector<HTMLButtonElement>('[role=menuitem]')!.click();
     const input = document.querySelector('input')!; input.value = 'new.example/path?exact=yes#part';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     expect(text).toBe('Review https://new.example/path?exact=yes#part please');
@@ -283,6 +311,7 @@ describe('DOM-only URL decoration', () => {
     const source = { get text() { return text; }, updateText: (fn: (value: string) => string) => { text = fn(text); } };
     mountUrlPills({ signal: abort.signal, editComposer: (element) => captureComposerEdit(element, source) });
     span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    document.querySelector<HTMLButtonElement>('[role=menuitem]')!.click();
     const input = document.querySelector('input')!; input.value = 'javascript:alert(1)';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     expect(text).toBe(`Review ${URL_TEXT} please`); expect(input.getAttribute('aria-invalid')).toBe('true');

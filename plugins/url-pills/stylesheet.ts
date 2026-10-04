@@ -54,7 +54,7 @@ ${after} {
 export const STYLESHEET = pillStyles(['[data-bb-url-pill]:not([data-bb-url-pill-expanded])'], 'attr(data-bb-url-pill-label)') + `
 a[data-bb-url-pill]:hover { background: var(--accent, #8882); }
 a[data-bb-url-pill]:focus-visible { outline: 2px solid var(--ring, #748dff); outline-offset: 2px; }
-[data-bb-url-pill-inspector], [data-bb-url-pill-edit] {
+[data-bb-url-pill-inspector], [data-bb-url-pill-menu] {
   position: fixed;
   z-index: 10000;
   box-sizing: border-box;
@@ -72,15 +72,21 @@ a[data-bb-url-pill]:focus-visible { outline: 2px solid var(--ring, #748dff); out
   padding: 2px 4px 2px 0; border: 0; outline: none;
   background: transparent; color: inherit; font: inherit;
 }
-[data-bb-url-pill-inspector] button, [data-bb-url-pill-edit] {
+[data-bb-url-pill-inspector] button {
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
   width: 24px; height: 24px; padding: 4px; color: var(--muted-foreground, #737373); cursor: pointer;
 }
 [data-bb-url-pill-inspector] button { border: 0; border-radius: 6px; background: transparent; }
-[data-bb-url-pill-edit] { width: 28px; height: 28px; border-radius: 8px; }
-[data-bb-url-pill-inspector] button:hover, [data-bb-url-pill-edit]:hover { background: var(--accent, #8882); color: var(--foreground); }
-[data-bb-url-pill-inspector] svg, [data-bb-url-pill-edit] svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-[data-bb-url-pill-inspector] button:focus-visible, [data-bb-url-pill-edit]:focus-visible { outline: 2px solid var(--ring, #748dff); outline-offset: 1px; }
+[data-bb-url-pill-menu] { min-width: 160px; padding: 4px; border-radius: 8px; }
+[data-bb-url-pill-menu] button {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px;
+  border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit;
+  text-align: left; cursor: pointer;
+}
+[data-bb-url-pill-inspector] button:hover, [data-bb-url-pill-menu] button:hover,
+[data-bb-url-pill-menu] button:focus { background: var(--accent, #8882); color: var(--foreground); }
+[data-bb-url-pill-inspector] svg, [data-bb-url-pill-menu] svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+[data-bb-url-pill-inspector] button:focus-visible, [data-bb-url-pill-menu] button:focus-visible { outline: 2px solid var(--ring, #748dff); outline-offset: 1px; }
 [data-bb-url-pill-inspector] [role=status]:empty { display: none; }
 [data-bb-url-pill-inspector] [role=status] { margin-top: 4px; color: var(--muted-foreground); }
 

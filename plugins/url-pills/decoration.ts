@@ -114,8 +114,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   let inspected: HTMLElement | null = null;
   let editing: ComposerEdit | null = null;
   let savedSelection: Range | null = null;
-  let editButton: HTMLButtonElement | null = null;
-  let hovered: HTMLElement | null = null;
+  let linkMenu: { element: HTMLElement; anchor: HTMLElement; url: string; selection: Range | null } | null = null;
   let inspectUrl = '';
   let touchTimer: ReturnType<typeof setTimeout> | null = null;
   let touchStart: { x: number; y: number; anchor: HTMLElement } | null = null;
@@ -161,6 +160,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   }
 
   function updateComposerStyle(): void {
+    const activeAnchor = inspected ?? linkMenu?.anchor;
     const compact: { selector: string; entry: Entry }[] = [];
     for (const [element, entry] of entries) {
       if (entry.composer && !entry.expanded && entry.selector && element.isConnected && element.matches(entry.selector) && element.textContent === entry.url.text) {
@@ -171,8 +171,8 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       + compact.map(({ selector, entry }) => {
         const icon = iconValue(entry);
         return `${selector} { --bb-url-pill-label: ${cssString(entry.url.label)};${icon ? ` ${ICON}: url(${cssString(icon)}); ${MASK}: none; ${ICON_BACKGROUND}: #fff;` : ''} }`;
-      }).join('\n') + (inspected && entries.get(inspected)?.selector
-        ? `${entries.get(inspected)!.selector} { outline: 1px solid var(--ring, #8888); outline-offset: 2px; }` : '');
+      }).join('\n') + (activeAnchor && entries.get(activeAnchor)?.selector
+        ? `${entries.get(activeAnchor)!.selector} { outline: 1px solid var(--ring, #8888); outline-offset: 2px; }` : '');
     if (composerStyle.textContent !== rules) composerStyle.textContent = rules;
   }
 
@@ -281,27 +281,58 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     positionFrame = requestAnimationFrame(trackInspectorPosition);
   }
 
-  function hideEditButton(): void { editButton?.remove(); editButton = null; hovered = null; }
-
-  function showEditButton(anchor: HTMLElement): void {
-    if (hovered === anchor || inspector || !entries.get(anchor)?.composer || !options.editComposer) return;
-    hideEditButton(); hovered = anchor;
-    const button = action('Edit link', 'M16 3a2.1 2.1 0 0 1 3 3L8 17l-4 1 1-4L16 3Z M14 5l3 3');
-    button.dataset.bbUrlPillEdit = '';
-    button.addEventListener('pointerdown', (event) => { event.preventDefault(); event.stopPropagation(); });
-    button.addEventListener('click', () => showInspector(anchor));
-    document.body.append(button); editButton = button;
-    positionPanel(button, anchor, true);
+  function closeLinkMenu(restoreFocus = true): void {
+    const menu = linkMenu;
+    if (!menu) return;
+    linkMenu = null; menu.element.remove();
+    const editor = menu.anchor.closest<HTMLElement>(EDITOR);
+    if (restoreFocus && editor?.isConnected) {
+      editor.focus({ preventScroll: true });
+      if (menu.selection && editor.contains(menu.selection.startContainer)) {
+        const selection = document.getSelection();
+        selection?.removeAllRanges(); selection?.addRange(menu.selection);
+      }
+    }
+    queue();
   }
 
-  function showInspector(anchor: HTMLElement): void {
+  function showLinkActions(anchor: HTMLElement, point?: { x: number; y: number }): void {
+    if (!entries.get(anchor)?.composer || !options.editComposer) { showInspector(anchor); return; }
+    closeLinkMenu(false); closeInspector(false);
+    const selection = document.getSelection();
+    const element = document.createElement('div'); element.dataset.bbUrlPillMenu = '';
+    element.setAttribute('role', 'menu'); element.setAttribute('aria-label', 'Link');
+    const button = action('Edit Link', 'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2');
+    button.setAttribute('role', 'menuitem');
+    const label = document.createElement('span'); label.textContent = 'Edit Link'; button.append(label);
+    button.addEventListener('click', () => {
+      const saved = linkMenu?.selection;
+      closeLinkMenu(false); showInspector(anchor, saved);
+    });
+    element.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+      if (event.key === 'Escape' || event.key === 'Tab') { event.preventDefault(); closeLinkMenu(); }
+      if (['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) { event.preventDefault(); button.focus(); }
+    });
+    element.append(button); document.body.append(element);
+    linkMenu = { element, anchor, url: anchor.textContent ?? '', selection: selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null };
+    if (point) {
+      const viewport = window.visualViewport;
+      const left = (viewport?.offsetLeft ?? 0) + 12, top = (viewport?.offsetTop ?? 0) + 12;
+      element.style.left = `${Math.max(left, Math.min(point.x, left + (viewport?.width ?? innerWidth) - 24 - element.offsetWidth))}px`;
+      element.style.top = `${Math.max(top, Math.min(point.y, top + (viewport?.height ?? innerHeight) - 24 - element.offsetHeight))}px`;
+    } else positionPanel(element, anchor, false);
+    button.focus({ preventScroll: true }); queue();
+  }
+
+  function showInspector(anchor: HTMLElement, selectionOverride?: Range | null): void {
     const entry = entries.get(anchor);
     if (!entry || anchor.textContent !== entry.url.text) return;
+    closeLinkMenu(false);
     closeInspector(false);
-    hideEditButton();
     editing = entry.composer ? options.editComposer?.(anchor) ?? null : null;
     const selection = document.getSelection();
-    savedSelection = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+    savedSelection = selectionOverride ?? (selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null);
     inspected = anchor; inspectUrl = entry.url.text;
     const panel = document.createElement('div');
     panel.dataset.bbUrlPillInspector = '';
@@ -372,7 +403,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
       }
       if (entry.composer) {
         entry.selector = composerSelector(element);
-        entry.expanded = element !== inspected && !!(explicitEdit === element || composition?.contains(element)
+        entry.expanded = element !== inspected && element !== linkMenu?.anchor && !!(explicitEdit === element || composition?.contains(element)
           || (inputEdit?.contains(element) && caretTouches(element)) || revealForSelection(element));
       } else {
         if (element.getAttribute(ATTR) !== 'message') element.setAttribute(ATTR, 'message');
@@ -391,8 +422,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     updateComposerStyle();
     if (inspected && (!entries.has(inspected) || entries.get(inspected)?.url.text !== inspectUrl || (editing && !editing.current()))) closeInspector(false);
     if (inspector && inspected) positionPanel(inspector, inspected, !!entries.get(inspected)?.composer);
-    if (hovered && (!entries.has(hovered) || entries.get(hovered)?.expanded)) hideEditButton();
-    if (editButton && hovered) positionPanel(editButton, hovered, true);
+    if (linkMenu && (!entries.has(linkMenu.anchor) || linkMenu.anchor.textContent !== linkMenu.url)) closeLinkMenu(false);
     syncRequests();
     // Only owned attribute/style mutations occurred during this synchronous pass.
     observer.takeRecords();
@@ -445,7 +475,8 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
   }
   function cancelTouch(): void { if (touchTimer) clearTimeout(touchTimer); touchTimer = null; touchStart = null; }
   function pointerDown(event: PointerEvent): void {
-    if (event.target instanceof Node && (inspector?.contains(event.target) || editButton?.contains(event.target))) return;
+    if (event.target instanceof Node && (inspector?.contains(event.target) || linkMenu?.element.contains(event.target))) return;
+    closeLinkMenu(false);
     inputEdit = null;
     if (inspector && event.target instanceof Node && !inspector.contains(event.target)) closeInspector(false);
     const range = event.target instanceof Element ? event.target.closest<HTMLElement>(`.${EFFECT_CLASS}`) : null;
@@ -459,33 +490,26 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     if (event.pointerType === 'touch' && anchor) {
       touchStart = { x: event.clientX, y: event.clientY, anchor };
       touchTimer = setTimeout(() => {
-        touchTimer = null; suppressClick = anchor; suppressUntil = Date.now() + 1200; showInspector(anchor);
+        touchTimer = null; suppressClick = anchor; suppressUntil = Date.now() + 1200;
+        showLinkActions(anchor, touchStart ? { x: touchStart.x, y: touchStart.y } : undefined);
       }, 550);
     }
   }
   function pointerMove(event: PointerEvent): void {
     if (touchStart && Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y) > 8) cancelTouch();
-    if (event.pointerType === 'touch' || event.buttons) return;
-    const pill = pillAt(event.target);
-    if (pill && !entries.get(pill)?.expanded) { showEditButton(pill); return; }
-    if (hovered && editButton) {
-      const a = hovered.getBoundingClientRect(), b = editButton.getBoundingClientRect();
-      if (event.clientX < Math.min(a.left, b.left) - 8 || event.clientX > Math.max(a.right, b.right) + 8
-        || event.clientY < Math.min(a.top, b.top) - 8 || event.clientY > Math.max(a.bottom, b.bottom) + 8) hideEditButton();
-    }
   }
   function pointerUp(): void { cancelTouch(); queue(); }
   function keyDown(event: KeyboardEvent): void {
     const editor = event.target instanceof Element ? event.target.closest(EDITOR) : null;
     const anchor = pillAt(event.target) ?? (editor ? Array.from(entries).find(([element, entry]) => entry.composer && editor.contains(element) && caretTouches(element))?.[0] : null);
     if (anchor && (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
-      event.preventDefault(); event.stopPropagation(); showInspector(anchor); return;
+      event.preventDefault(); event.stopPropagation(); showLinkActions(anchor); return;
     }
     if (event.target instanceof Element && event.target.closest(EDITOR)) queue();
   }
   function contextMenu(event: MouseEvent): void {
     const anchor = pillAt(event.target);
-    if (anchor) { event.preventDefault(); event.stopPropagation(); cancelTouch(); showInspector(anchor); }
+    if (anchor) { event.preventDefault(); event.stopPropagation(); cancelTouch(); showLinkActions(anchor, { x: event.clientX, y: event.clientY }); }
   }
   function click(event: MouseEvent): void {
     if (suppressClick && event.target instanceof Node && suppressClick.contains(event.target) && Date.now() < suppressUntil) {
@@ -517,7 +541,7 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     if (editor === inputEdit) inputEdit = null;
     queue();
   }
-  function scroll(): void { cancelTouch(); hideEditButton(); queue(); }
+  function scroll(): void { cancelTouch(); closeLinkMenu(false); queue(); }
   const listeners: [string, EventListener][] = [
     ['selectionchange', queue], ['pointerdown', pointerDown as EventListener], ['pointermove', pointerMove as EventListener],
     ['pointerup', pointerUp], ['pointercancel', pointerUp], ['keydown', keyDown as EventListener],
@@ -527,10 +551,10 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     ['focusout', focusOut as EventListener], ['visibilitychange', queue],
   ];
   for (const [type, listener] of listeners) document.addEventListener(type, listener, true);
-  window.addEventListener('resize', queue);
+  window.addEventListener('resize', scroll);
   window.addEventListener('scroll', scroll, true);
-  window.visualViewport?.addEventListener('resize', queue);
-  window.visualViewport?.addEventListener('scroll', queue);
+  window.visualViewport?.addEventListener('resize', scroll);
+  window.visualViewport?.addEventListener('scroll', scroll);
 
   function setIconsEnabled(value: boolean): void {
     if (disposed || enabled === value) return;
@@ -547,16 +571,16 @@ export function mountUrlPills(options: DecorationOptions): { dispose(): void; se
     if (disposed) return;
     disposed = true;
     if (frame !== null) cancelAnimationFrame(frame);
-    observer.disconnect(); visibility?.disconnect(); cancelTouch(); closeInspector(false); hideEditButton();
+    observer.disconnect(); visibility?.disconnect(); cancelTouch(); closeInspector(false); closeLinkMenu(false);
     for (const controller of requests.values()) controller.abort();
     requests.clear(); cache.clear();
     for (const [element, entry] of entries) if (!entry.composer) removeDecoration(element);
     for (const [root, id] of composerRoots) if (root.getAttribute(COMPOSER_ROOT) === id) root.removeAttribute(COMPOSER_ROOT);
     composerRoots.clear(); entries.clear(); style.remove(); composerStyle.remove();
     for (const [type, listener] of listeners) document.removeEventListener(type, listener, true);
-    window.removeEventListener('resize', queue); window.removeEventListener('scroll', scroll, true);
-    window.visualViewport?.removeEventListener('resize', queue);
-    window.visualViewport?.removeEventListener('scroll', queue);
+    window.removeEventListener('resize', scroll); window.removeEventListener('scroll', scroll, true);
+    window.visualViewport?.removeEventListener('resize', scroll);
+    window.visualViewport?.removeEventListener('scroll', scroll);
     signal.removeEventListener('abort', dispose);
   }
   signal.addEventListener('abort', dispose, { once: true });

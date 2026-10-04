@@ -24,6 +24,7 @@ it('uses the SDK URL opener and the clicked composer owner for edits', async () 
     expect(openUrl).toHaveBeenCalledExactlyOnceWith(url);
     expect(overlay.inspection.navigateCalls).toEqual([{ method: 'openUrl', url }]);
     span.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    document.querySelector<HTMLButtonElement>('[role=menuitem]')!.click();
     const input = document.querySelector('input')!; input.value = 'https://changed.example/?one=2#three';
     await act(async () => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
     expect(slot.inspection.composer.text).toBe('https://changed.example/?one=2#three');
