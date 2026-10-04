@@ -97,6 +97,10 @@ const ICON = {
   notepadLine: "oklch(0.75 0.14 145)",
   lensBottom: "oklch(0.78 0.08 235)",
   wmpOrange: "oklch(0.68 0.2 38)",
+  mazeBrick: "oklch(0.52 0.14 35)",
+  mazeBrickShade: "oklch(0.42 0.12 35)",
+  mazeMortar: "oklch(0.78 0.03 70)",
+  mazeFloor: "oklch(0.7 0.15 75)",
   wmpGreen: "oklch(0.72 0.19 138)",
   wmpBlue: "oklch(0.55 0.19 258)",
   wmpYellow: "oklch(0.85 0.17 88)",
@@ -396,6 +400,23 @@ export function PinballArt({ size = 40 }: { size?: number }) {
   );
 }
 
+/** 3D Maze: looking down a brick corridor, with stucco above, mustard below, and the smiley waiting at the far end. */
+export function MazeArt({ size = 40 }: { size?: number }) {
+  return (
+    <IconSvg size={size}>
+      <rect x="3" y="7" width="42" height="34" rx="2.5" fill={ICON.navyEdge} />
+      <path d="M5 9h38l-12 10H17Z" fill={ICON.paperShade} />
+      <path d="M5 39h38l-12-10H17Z" fill={ICON.mazeFloor} stroke={ICON.runnerEdge} strokeWidth=".6" />
+      <path d="M5 9l12 10v10L5 39Z" fill={ICON.mazeBrick} />
+      <path d="M43 9 31 19v10l12 10Z" fill={ICON.mazeBrickShade} />
+      <rect x="17" y="19" width="14" height="10" fill={ICON.mazeBrick} />
+      <path d="M17 22.5h14M17 26h14M22 19v3.5M27 22.5V26M22 26v3M5 19.5l12 6M5 29.5l12 2M43 19.5l-12 6M43 29.5l-12 2" stroke={ICON.mazeMortar} strokeWidth=".8" fill="none" />
+      <circle cx="24" cy="24" r="3.2" fill={ICON.noteTop} stroke={ICON.noteEdge} strokeWidth=".6" />
+      <rect x="3" y="7" width="42" height="34" rx="2.5" fill="none" stroke={ICON.blueOutline} />
+    </IconSvg>
+  );
+}
+
 export function CommandPromptArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>
@@ -410,7 +431,7 @@ export function CommandPromptArt({ size = 40 }: { size?: number }) {
 }
 
 /** bb's own "bb" mark (from bb's logo), in a 491 × 397 box. */
-const BB_MARK =
+export const BB_MARK =
   "M243.173 132.901C209.16 110.325 161.732 109.355 117.39 127.537L138.53 49.419C143.962 29.344 132.062 8.673 111.974 3.291 91.943-2.077 71.348 9.793 65.95 29.816L8.449 243.115 8.431 243.11C-5.35 287.398 2.824 332.057 34.741 360.27 81.38 401.497 162.048 392.94 221.66 343.061 226.111 349.8 231.053 354.963 237.39 360.565 287.404 404.775 376.886 391.327 437.242 330.885 497.598 270.443 506.288 185.578 456.275 141.368 422.463 111.479 370.582 107.952 321.904 127.469L342.81 49.115C348.113 29.238 336.312 8.822 316.441 3.498 296.555-1.831 276.113 9.971 270.785 29.857L243.173 132.901ZM279.815 258.612C282.467 247.201 289.832 224.61 297.282 213.521 323.555 175.201 369.028 158.632 398.847 176.515 428.666 194.398 431.54 239.961 405.266 278.281L404.647 279.174C378.283 316.857 333.288 333.029 303.702 315.286 285.262 304.227 277.126 282.582 279.815 258.612ZM219.168 226.258C218.73 242.98 212.813 261.289 201.226 278.189L200.608 279.083C174.244 316.766 129.249 332.936 99.663 315.193 70.077 297.449 67.626 251.559 93.243 213.428 119.516 175.108 164.988 158.541 194.807 176.423 210.476 185.82 218.698 206.643 219.168 226.258Z";
 
 /** IE's crescent orbit in ring-local coordinates: its near side (top) is thick at the left end and tapers to a hairline. */

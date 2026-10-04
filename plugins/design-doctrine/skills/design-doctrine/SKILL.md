@@ -1,6 +1,6 @@
 ---
 name: design-doctrine
-description: Mandatory personal-judgment companion for product, UX, UI, visual-design, design-system, and AI-interaction work. Load it with architect, design, crit, product-design audit, prototype, and implementation skills—even when the user does not mention doctrine—so work follows active rules derived from concrete user feedback. Also use for preference questions, taste checks, reviews against prior feedback, and whenever the user asks to learn, maintain, or update Design Doctrine from bb thread history; this skill owns that maintenance workflow.
+description: The user's personal design rules, learned from their bb feedback, plus cited external standards. Use for product, UX, UI, visual, design-system, and AI-interaction work, and for questions about their taste or past design feedback. The architect, design, crit, and prototype skills load it. Also owns learning, maintaining, or updating Design Doctrine from bb thread history.
 ---
 
 # Design Doctrine
@@ -30,6 +30,12 @@ returns only timeline rows after each thread's own checkpoint. Do not query
 substitute, or treat inherited agent context as the maintenance history source.
 Retain the returned lease exactly; the maintenance prompt owns advance and
 release.
+
+Archived threads are also harvested automatically. To see the rules that
+harvest proposed and what became of each, run
+`bb doctrine harvest activity [--limit N] [--json]`. To withdraw a rule that is
+still waiting to publish, run `bb doctrine harvest cancel --proposal <id> [--json]`
+with a proposal ID from the JSON feed; a published rule is retired instead.
 
 ## Retrieve
 
@@ -66,6 +72,10 @@ consistently:
 | `default` | Follow it unless this context gives a better reason not to. |
 | `preference` | Lean toward it; stronger rules win. |
 | `warning` | Check explicitly for that failure mode. |
+
+Rules marked `external standard` (`origin: external`) are cited outside
+guidance such as WCAG, not the user's preferences. Apply them on their
+strength, but never present them as the user's taste.
 
 A `confidence: low` rule is still a real preference — just don't stretch it past
 the scope it records. Cite rule IDs when they actually explain a decision; don't
