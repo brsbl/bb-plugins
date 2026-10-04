@@ -36,4 +36,11 @@ describe('URL recognition without text normalization', () => {
   it('bounds decorations in a large paste', () => {
     expect(findComposerUrls('https://example.com/ '.repeat(600))).toHaveLength(512);
   });
+  it.each(['    ', '\t', '  \t'])('excludes indented code starting after a blank line: %j', (indent) => {
+    const input = `Snippet:\n\n${indent}https://example.com/path?token=abc#frag\n${indent}https://code.example/next\n\nRead https://keep.example/path`;
+    expect(findComposerUrls(input).map(({ from, to }) => input.slice(from, to))).toEqual(['https://keep.example/path']);
+    expect(findComposerUrls(`${indent}https://code.example/`)).toEqual([]);
+    const continuation = `Paragraph\n${indent}https://keep.example/path`;
+    expect(findComposerUrls(continuation)).toHaveLength(1);
+  });
 });

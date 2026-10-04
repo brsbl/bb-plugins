@@ -107,6 +107,28 @@ describe('DOM-only URL decoration', () => {
     expect(composerCss()).toBe('');
     expect(selection.anchorNode).toBe(span.firstChild); expect(selection.anchorOffset).toBe(10);
   });
+  it.each(['insertText', 'deleteContentBackward'])('reveals trailing-edge %s edits across native range replacement', async (inputType) => {
+    const span = composer(), editor = span.closest('[contenteditable]')!;
+    mountUrlPills({ signal: abort.signal });
+    const selection = document.getSelection()!;
+    const range = document.createRange(); range.setStart(span.firstChild!, URL_TEXT.length); range.collapse(true);
+    selection.removeAllRanges(); selection.addRange(range);
+    expect(composerCss()).toContain('--bb-url-pill-label: "example.com/a"');
+    editor.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, inputType, data: inputType === 'insertText' ? 'X' : null }));
+    // The host editor owns the edit and may replace its decoration wrapper.
+    const replacement = span.cloneNode(false) as HTMLElement;
+    const edited = inputType === 'insertText' ? URL_TEXT + 'X' : URL_TEXT.slice(0, -1);
+    replacement.textContent = edited; span.replaceWith(replacement);
+    range.setStart(replacement.firstChild!, edited.length); range.collapse(true);
+    selection.removeAllRanges(); selection.addRange(range);
+    const originalEditor = editor.outerHTML;
+    document.dispatchEvent(new Event('selectionchange')); await settle();
+    expect(composerCss()).toBe('');
+    expect(editor.outerHTML).toBe(originalEditor);
+    expect(selection.anchorOffset).toBe(edited.length);
+    editor.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); await settle();
+    expect(composerCss()).toContain('--bb-url-pill-label: "example.com/a"');
+  });
   it('reveals only a directly clicked pill after native placement, including its edge', async () => {
     const span = composer();
     const other = document.createElement('span'); other.className = 'bb-url-pill-range'; other.textContent = 'https://other.example/path';
