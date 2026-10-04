@@ -183,7 +183,7 @@ describe("digest issue lifecycle", () => {
   it("never gives a rejected thread issue ownership on a later attempt", async () => {
     const { service, threads, harness } = setup({ personal: true });
     threads.set("thr_other", makeThreadResponse({ id: "thr_other", projectId: "proj_other" }));
-    for (let attempt = 0; attempt < 2; attempt++) await expect(service.begin("reading", "thr_other")).rejects.toThrow("Open Digests settings");
+    for (let attempt = 0; attempt < 2; attempt++) await expect(service.begin("reading", "thr_other")).rejects.toThrow("Open Briefs settings");
     expect(service.store.issues.getByThread("thr_other")).toBeNull();
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toEqual([]);
   });
@@ -209,7 +209,7 @@ describe("digest issue lifecycle", () => {
     expect(edited.emoji).toBe("📮");
     const calls = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: unknown });
     expect(calls.filter((call) => call.method === "automations_create")).toHaveLength(1);
-    expect(calls.find((call) => call.method === "automations_update")?.input).toMatchObject({ automationId: created.automationId, name: "Digests · Reply list", trigger: { cron: "0 11 * * 1-5" } });
+    expect(calls.find((call) => call.method === "automations_update")?.input).toMatchObject({ automationId: created.automationId, name: "Briefs · Reply list", trigger: { cron: "0 11 * * 1-5" } });
     await service.saveDigest({ ...input, id: "reading", name: "Reading", schedule: service.requiredDefinition("reading").schedule });
     expect(service.requiredDefinition("reading").enabled).toBe(false);
   });
@@ -217,7 +217,7 @@ describe("digest issue lifecycle", () => {
   it("creates a dormant settings owner when its previous owner no longer exists", async () => {
     const { service, harness } = setup();
     await service.checkConnections("gmail");
-    expect(harness.inspection.sdk.callsTo("threads.spawn")[0]?.[0]).toMatchObject({ input: [], visibility: "hidden", title: "Digests browser checks" });
+    expect(harness.inspection.sdk.callsTo("threads.spawn")[0]?.[0]).toMatchObject({ input: [], visibility: "hidden", title: "Briefs browser checks" });
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.closeTab")).toHaveLength(1);
   });
 

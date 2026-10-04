@@ -191,7 +191,7 @@ describe("Digests app", () => {
     await waitFor(() => expect(finish).toBeDefined(), { timeout: 2000 });
     startingIds = [];
     await slot.behavior.emitRealtime("issues", {});
-    await waitFor(() => expect(slot.queryByText("Starting this issue…")).toBeNull());
+    await waitFor(() => expect(slot.queryByText("Starting this brief…")).toBeNull());
     finish!({ threadId: "thr_async" });
     await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_async" }));
   });
@@ -374,6 +374,6 @@ describe("Digests app", () => {
     expect(slot.inspection.rpcCalls).toEqual([{ method: "recoveryIssue", input: { threadId: "thr_issue" } }]);
     fireEvent.click(slot.getByRole("button", { name: "Retry" }));
     await slot.behavior.emitRealtime("issues", { id: "issue_1" });
-    await waitFor(() => expect(slot.queryByRole("article", { name: "Digest summary" })).toBeNull());
+    await waitFor(() => expect(slot.queryByRole("article", { name: "Brief summary" })).toBeNull());
   });
 });

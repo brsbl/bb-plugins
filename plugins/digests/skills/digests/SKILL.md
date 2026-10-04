@@ -1,11 +1,11 @@
 ---
 name: digests
-description: Set up private scheduled briefings, publish a Digests issue from another thread, or recover a failed issue. Each issue is a native bb thread with a visual summary.
+description: Set up private scheduled briefings with Briefs, publish a brief from another thread, or recover a failed brief. Each brief is a native bb thread with a visual summary.
 ---
 
 Use `bb digest`. Run `bb digest --help` for commands and `bb digest templates`
-for the starter recipes. Definitions and issues live in Digests' private storage.
-Never use thread storage for issue content, exports, or deduplication.
+for the starter recipes. Definitions and briefs live in Briefs' private storage.
+Never use thread storage for brief content, exports, or deduplication.
 
 ## Set up
 
@@ -17,11 +17,11 @@ Automations, and Thread Organizer must be installed and running.
 
 `bb digest setup --project <project> --browser-host <host> --provider <provider> --model <model>`
 creates disabled Unread email, Money, Reading, and publish-only X scorecard
-definitions. It creates a Digests inbox through Thread Organizer settings,
+definitions. It creates a Briefs inbox through Thread Organizer settings,
 with `role: "inbox"` and `catchesPluginId: "digests"`. This requires the Organizer
 version that supports additional inboxes. Do not use `organizer phase` to route
-issues: their origin or durable plugin metadata lets Organizer catch them.
-Read and unread issues remain there until the user moves or archives them.
+briefs: their origin or durable plugin metadata lets Organizer catch them.
+Read and unread briefs remain there until the user moves or archives them.
 
 Every dispatch resolves an explicit host and environment. Prefer the Personal project’s personal-workspace on the connection’s browserHostId, never a project default on the server. A definition can store an optional `execution: {projectId, hostId, environmentId?}` fallback; the Settings edit form offers it under Where it runs. Legacy definitions still parse. Only plugin-owned replacement automations may be rebound; the original user automations remain untouched. If no thread can be created, keep the failure visible on the digest card with Retry.
 
@@ -46,7 +46,7 @@ connection check. If the browser is unavailable, say so and offer Retry.
 The prompt (`instructions`) stores only the user's own words about what they
 want to know. Never add searches, read-only rules, deduplication, output format,
 or other collection mechanics to it or its preview. Starters contain plain
-editable intent. Issue titles use the name and date, without an emoji prefix.
+editable intent. Brief titles use the name and date, without an emoji prefix.
 
 ## Scheduled runs
 
@@ -63,7 +63,7 @@ and verify the final state from the list without reopening it. Mark as read
 mode leaves opened mail read. Already-read mail stays read in both modes. Do
 not use bulk unread operations on mixed-state threads. Record every verified
 result, or `restore-failed`; stop opening more mail if restoration fails. The
-issue shows unresolved states even if the run is interrupted. On retry repair
+brief shows unresolved states even if the run is interrupted. On retry repair
 unresolved journal entries before collecting again.
 
 Restoring originally unread mail is the only explicit Gmail write allowed.
@@ -75,7 +75,7 @@ consume IDs. Ordinary inbox and money updates set `deduplicate:false` on publish
 
 Publish with an outcome `headline` ("2 things need you today"), one short
 `lede` line ("14 new emails · 12 need no action"), and a structured `brief`.
-Make every count expand an in-issue section with `brief.summaryLinks`: `{label, section}` (items, later, tail, all). Never use Gmail-search links for counts. Include `brief.all: {label: "All unread", items}` at the end with every email read as a compact `{title, text, url}` row; use All emails when some were already read. Each count must have a matching section. Keep the plain count line in lede for search.
+Make every count expand an in-brief section with `brief.summaryLinks`: `{label, section}` (items, later, tail, all). Never use Gmail-search links for counts. Include `brief.all: {label: "All unread", items}` at the end with every email read as a compact `{title, text, url}` row; use All emails when some were already read. Each count must have a matching section. Keep the plain count line in lede for search.
 Use a `heading` such as Needs you, Read these, or Do next. Each `items` entry
 has a one-line `title`, short `text`, optional `context`, `tone`
 (neutral/warning/danger/success) for the status dot, and `action: {label, url}`. A
@@ -106,10 +106,10 @@ present an empty or partial collection as a successful complete briefing.
 Optional `--brief '{"heading":"Do next","items":[],"later":[]}'`,
 `--headline`, `--lede`, `--metrics '[{"label":"Views","value":"12.4k"}]'`,
 `--sources`, and `--key week-2026-10-05` customize the publication. Repeating
-the same key returns the existing issue. Put visible numbers in the prose;
+the same key returns the existing brief. Put visible numbers in the prose;
 structured metrics are retained as data without rendering tiles. The file is read on the invoking
 thread's computer. The destination definition determines the project. Return
-the new thread reference to the caller; do not print its issue directive in
+the new thread reference to the caller; do not print its brief directive in
 the publishing thread.
 
 ## Proposed actions
