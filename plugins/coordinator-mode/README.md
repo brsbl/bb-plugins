@@ -37,8 +37,11 @@ sub-threads so they don't stall. You can turn that off in the panel, and every
 approval is logged. **Pause** stops checks, briefings, and gated actions;
 **Turn off** keeps the thread and removes the tracker.
 
-Limits: rules are enforced through Coordinator Mode's tools and the approval
-requests a provider raises before running commands. A provider that runs
+Limits: coordinator rules are guardrails against agent mistakes, not a
+security boundary. Agents run commands as you, so a determined agent can find
+a command form the check doesn't recognize. Rules are enforced through
+Coordinator Mode's tools and the approval requests a provider raises before
+running commands. A provider that runs
 commands without asking bypasses the command check; merges like that are
 flagged as "Rule broken" afterwards. Commands that look like a gated action
 but can't be parsed are left for you to answer. Review sub-threads are started
