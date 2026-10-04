@@ -20,6 +20,41 @@ function fixture(): PullRequestItem {
 const thread = { id: "thr_archived", title: "Archived implementation thread", projectId: "proj_1", environmentId: null, hostId: "host_1", archived: true };
 
 describe("Pull Requests access and detail lifetime", () => {
+  it("keeps summary-only data pending until the full detail read completes", async () => {
+    const item = fixture();
+    const summary = { ...item, snapshot: { ...item.snapshot!, body: "", checks: { ...item.snapshot!.checks, items: [] } } };
+    let finish!: (item: PullRequestItem) => void;
+    const pending = new Promise<PullRequestItem>((resolve) => { finish = resolve; });
+    const show = vi.fn(() => pending);
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
+      list: () => ({ items: [summary], nextCursor: null, total: 1, coverage }), show, refresh: () => coverage,
+      context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
+    } });
+    await screen.findByRole("button", { name: "Private pull request" });
+    expect(screen.queryByText("No description provided.")).toBeNull();
+    expect(await screen.findByRole("status", { name: "Loading pull request details" })).toBeDefined();
+    expect(show).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(item); await pending; });
+    expect(await screen.findByText("Private description")).toBeDefined();
+    slot.lifecycle.unmount();
+  });
+
+  it("shows cached inbox content while the initial refresh is still pending", async () => {
+    const item = fixture();
+    let finish!: (value: typeof coverage) => void;
+    const pending = new Promise<typeof coverage>((resolve) => { finish = resolve; });
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
+      list: () => ({ items: [item], nextCursor: null, total: 1, coverage }), refresh: () => pending,
+      context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
+    } });
+    await screen.findByRole("button", { name: "Private pull request" });
+    expect(screen.getByRole("heading", { name: "Select a pull request" })).toBeDefined();
+    await act(async () => { finish(coverage); await pending; });
+    slot.lifecycle.unmount();
+  });
+
   it("shows passing checks and expands the remaining checks without leaving Summary", async () => {
     const item = fixture();
     item.snapshot!.checks = { state: "passing", passing: 7, failing: 0, pending: 0, total: 7, complete: true, items: Array.from({ length: 7 }, (_, index) => ({ name: `Check ${index + 1}`, state: "passing", url: `https://github.com/example/repo/actions/runs/${index + 1}` })) };
