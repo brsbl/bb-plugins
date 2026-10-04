@@ -117,7 +117,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     const queued = sendAt !== undefined || view.current.run.isRunning;
     await composer.experimental_submit(sendAt ? { sendAt, experimental_data: { itemId: id } } : { experimental_data: { itemId: id } });
     if (composer.text === submittedText) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
-    adopt(await rpc.call("submitted", { id, threadId, attemptId: next.attempt!.id, queued, sendAt }));
+    // RPC input must be JSON, so omit sendAt rather than sending undefined.
+    adopt(await rpc.call("submitted", { id, threadId, attemptId: next.attempt!.id, queued, ...(sendAt ? { sendAt } : {}) }));
   };
 
   const act = async (action?: Action, sendAt?: number) => {

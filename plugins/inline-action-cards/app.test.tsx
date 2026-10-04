@@ -27,6 +27,8 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
       },
       submitted: async (raw) => {
         const input = raw as { queued: boolean; sendAt?: number };
+        // Host RPC rejects undefined values, so an immediate send must omit sendAt.
+        expect("sendAt" in input && input.sendAt === undefined).toBe(false);
         await beforeSubmitted;
         calls.push(input.sendAt ? "scheduled" : "submitted");
         item = { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, ...(input.queued ? { queued: true, sendAt: input.sendAt } : { sentAt: "2026-10-01T19:09:00Z" }) } };
