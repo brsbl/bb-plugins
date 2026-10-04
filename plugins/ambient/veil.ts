@@ -131,7 +131,8 @@ ${ROOT} :is([data-sidebar="panel"][data-vaul-drawer-direction], [data-sidebar-mo
 ${ROOT} [data-sidebar="panel"][data-vaul-drawer-direction][data-state="closed"]:not([data-vaul-animate]) { visibility: hidden; transition: visibility 0s linear 260ms; }
 ${THREAD} { position: relative; isolation: isolate; }
 ${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
-${THREAD}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
+/* Dense thread content needs the same protective tint as chrome, even at the lowest Glass setting. */
+${THREAD}::before { ${LAYER} ${GLASS_SURFACE} background-color: var(--ambient-glass-solid); border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 ${THREAD} [data-overflow-fade] { ${HIDE} }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
