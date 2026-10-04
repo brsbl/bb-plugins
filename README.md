@@ -1,6 +1,6 @@
 # bb plugins
 
-Fourteen bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
+Personal bb plugins I use for product design work, kept together with the few build and repository tools they share. [![CI](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/brsbl/bb-plugins/actions/workflows/ci.yml)
 
 [bb](https://getbb.app) is an agentic IDE for running coding agents across projects, threads, and environments. Its plugins can add UI, commands, skills, and server capabilities; this repository is where I build and maintain mine.
 
@@ -17,6 +17,16 @@ Turns recurring product-design feedback into a searchable rule library that agen
 [Source](plugins/design-doctrine) · [README](plugins/design-doctrine/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
+
+### Digests
+
+Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based digest under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own issues.
+
+![A Digests issue with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
+
+[Source](plugins/digests) · [README](plugins/digests/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/digests --yes`
 
 ### GitHub Activity
 
@@ -74,6 +84,20 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
 
+### Inline Action Cards
+
+Edit email replies and approve decisions inside agent messages. Review one item or a group in a table; each item keeps its draft, actions, and result together.
+
+![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
+
+![Action table and results](https://github.com/user-attachments/assets/ec63ecfe-86ad-4a46-8f6e-06a72e8923f0)
+
+![Mixed table with one reply expanded](https://github.com/user-attachments/assets/4eef8810-5a99-40af-8fa4-974d25f6937f)
+
+[Source](plugins/inline-action-cards) · [README](plugins/inline-action-cards/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/inline-action-cards --yes`
+
 ### Mesh Gradient
 
 Creates, edits, saves, and shares reusable mesh gradients from a visual studio beside a thread. Users can hand an exact saved gradient to the current agent, while agents can generate gradients, inspect the shared library, and apply saved designs through the same plugin.
@@ -83,6 +107,16 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 [Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
+
+### Emoji Picker
+
+Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
+
+![Emoji picker with category browsing and skin tone selection](https://github.com/user-attachments/assets/a74d890d-9ad9-46e5-a7a0-2995b386e054)
+
+[Source](plugins/emoji-picker) · [README](plugins/emoji-picker/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/emoji-picker --yes`
 
 ### Endless
 
@@ -186,7 +220,7 @@ Paints a living generative background behind bb that reacts to your agents: work
 
 ![Ambient's Tide scene behind bb with two working agents as lights and the Ambient controls open in the sidebar](plugins/ambient/docs/screenshot.png)
 
-![Ambient's Contour scene with a waiting agent raised as a peak in the contour lines](plugins/ambient/docs/contour.png)
+Contour draws a calm night map with muted gold lines and agent peaks.
 
 [Source](plugins/ambient) · [README](plugins/ambient/README.md)
 
@@ -207,3 +241,15 @@ npm run new:plugin -- --slug example --name "Example" --description "Adds an exa
 To work on one plugin, install its workspace directly: `bb plugin install "path:$PWD/plugins/<slug>" --yes`.
 
 See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
+
+### Pinned Files
+
+Keep local files within reach in each thread with persistent pins above the composer. Ask the agent to pin files from the composer's pin button or use the CLI, and open pins through bb's file links.
+
+![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
+
+![The pin button adds a Pin files pill to the composer](https://github.com/user-attachments/assets/4749c71d-891c-4581-817d-33bc93e678ca)
+
+[Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins --yes`

@@ -2,6 +2,7 @@ export type ThreadTabKind = "browser" | "terminal";
 
 /** What a window shows. Persisted verbatim in `bb-desktop:windows:v1`, so fields are a stored contract. */
 export type WindowSpec =
+  | { kind: "desktop-finder" }
   | { kind: "finder"; key: string }
   | { kind: "thread"; threadId: string }
   | { kind: "panel"; threadId: string }
@@ -51,6 +52,7 @@ export function threadIdOf(spec: WindowSpec): string | null {
 }
 
 const SIMPLE_KINDS: ReadonlySet<string> = new Set([
+  "desktop-finder",
   "threads",
   "recycle-bin",
   "more",

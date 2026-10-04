@@ -86,6 +86,7 @@ export function useLaunchers(): LauncherCatalog {
   });
   const builtIn: Record<LauncherId, Omit<Launcher, "id" | "label">> = {
     "show-desktop": command((size) => <ShowDesktopArt size={size} />, () => showDesktop(manager)),
+    finder: program({ kind: "desktop-finder" }, "Browse your desktop items"),
     "new-thread": program({ kind: "new-thread", groupKey: null }, "Start a conversation"),
     "new-folder": program({ kind: "new-folder" }, "Group threads on the desktop"),
     threads: program({ kind: "threads" }),

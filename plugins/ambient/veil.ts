@@ -37,53 +37,6 @@ export function applyVeil(settings: VeilSettings): void {
   if (body.dataset.ambientGlass !== settings.tier) body.dataset.ambientGlass = settings.tier;
 }
 
-/** A footer pill this close to the sidebar cards' width stretches to match them, so their edges line up. */
-const FOOTER_SNAP_PX = 40;
-
-/**
- * Marks the sidebar footer with data-ambient-snap while its pill is nearly as wide as the cards.
- * The page observer only notices a new footer (the phone drawer remounts it); measuring happens
- * when the footer's buttons or the cards' width change.
- */
-function snapSidebarFooter(): () => void {
-  let footer: HTMLElement | null = null;
-  let frame = 0;
-  const measure = () => {
-    if (!footer) return;
-    const card = footer.parentElement?.querySelector<HTMLElement>('[data-sidebar="content"]');
-    delete footer.dataset.ambientSnap;
-    if (card && card.offsetWidth - footer.offsetWidth < FOOTER_SNAP_PX) footer.dataset.ambientSnap = "";
-  };
-  const cards = new ResizeObserver(measure);
-  const buttons = new MutationObserver(measure);
-  const track = () => {
-    frame = 0;
-    const next = document.querySelector<HTMLElement>(SIDEBAR_FOOTER);
-    if (next === footer) return;
-    cards.disconnect();
-    buttons.disconnect();
-    if (footer) delete footer.dataset.ambientSnap;
-    footer = next;
-    if (!footer) return;
-    const card = footer.parentElement?.querySelector('[data-sidebar="content"]');
-    if (card) cards.observe(card);
-    buttons.observe(footer, { childList: true, subtree: true });
-    measure();
-  };
-  const page = new MutationObserver(() => {
-    if (!frame) frame = requestAnimationFrame(track);
-  });
-  page.observe(document.body, { childList: true, subtree: true });
-  track();
-  return () => {
-    cancelAnimationFrame(frame);
-    page.disconnect();
-    cards.disconnect();
-    buttons.disconnect();
-    if (footer) delete footer.dataset.ambientSnap;
-  };
-}
-
 /** Injects the stylesheet if it isn't already there; the returned cleanup removes it and the properties. */
 export function mountVeil(): () => void {
   let style = document.getElementById(VEIL_STYLE_ID);
@@ -94,9 +47,7 @@ export function mountVeil(): () => void {
     document.head.append(style);
   }
   const mounted = style;
-  const stopSnapping = snapSidebarFooter();
   return () => {
-    stopSnapping();
     mounted.remove();
     const { body } = document;
     body.style.removeProperty("--ambient-keep");
@@ -122,7 +73,9 @@ const COMPACT_COMPOSER = `${ROOT} [data-testid="root-compose-compact-composer"]`
 /** bb pads the plugin sidebar header past the traffic lights and toggle, so it never becomes a pill itself; its plugin content does. */
 const SIDEBAR_RESERVE_PILL = '[data-testid="app-sidebar-top-reserve-row"] > div:not([data-sidebar-header-slot])';
 const SIDEBAR_HEADER_CONTENT = "[data-sidebar-header-slot] > [data-bb-plugin-root]";
-const CHROME_PILLS = `${ROOT} :is([data-testid="app-page-header-content-row"] > :first-child, [data-app-page-header-actions], ${SIDEBAR_RESERVE_PILL}, ${SIDEBAR_HEADER_CONTENT}:not(:empty), button[data-sidebar="trigger"])`;
+// AppPageHeader no longer marks its actions wrapper; its second child still owns the action groups.
+const HEADER_ACTIONS = '[data-testid="app-page-header-content-row"] > :nth-child(2)';
+const CHROME_PILLS = `${ROOT} :is([data-testid="app-page-header-content-row"] > :first-child, ${HEADER_ACTIONS}, ${SIDEBAR_RESERVE_PILL}, ${SIDEBAR_HEADER_CONTENT}:not(:empty), button[data-sidebar="trigger"])`;
 const HEADER_FIRST = `${ROOT} [data-testid="app-page-header-content-row"] > :first-child`;
 const RIGHT_PANEL_BUTTON = 'button[aria-label*="right panel" i]';
 const SIDEBAR_CARDS = `${ROOT} :is([data-testid="sidebar-navigation-region"], [data-sidebar="content"], [data-sidebar="footer"])`;
@@ -179,7 +132,8 @@ ${ROOT} :is([data-sidebar="panel"][data-vaul-drawer-direction], [data-sidebar-mo
 ${ROOT} [data-sidebar="panel"][data-vaul-drawer-direction][data-state="closed"]:not([data-vaul-animate]) { visibility: hidden; transition: visibility 0s linear 260ms; }
 ${THREAD} { position: relative; isolation: isolate; }
 ${THREAD} > * { clip-path: inset(0 0 ${COLUMN_BOTTOM} 0); }
-${THREAD}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
+/* Dense thread content needs the same protective tint as chrome, even at the lowest Glass setting. */
+${THREAD}::before { ${LAYER} ${GLASS_SURFACE} background-color: var(--ambient-glass-solid); border-radius: 20px; top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; }
 ${THREAD} [data-overflow-fade] { ${HIDE} }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
@@ -197,23 +151,30 @@ ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: 
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: ${mix("var(--ink)", "8%")}; }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
-${THREAD} [data-scroll-footer] { isolation: isolate; padding-top: 16px; }
-${THREAD} [data-scroll-footer]::before { ${LAYER} top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; border-radius: 20px; background: ${SHEEN}, var(--ambient-background); ${EDGE} box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "70%")}, inset 0 0 0 1px ${mix("var(--canvas)", "18%")}; }
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
-${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { ${GLASS_SURFACE} top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
+${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 0; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { ${HIDE} }
-${COMPACT_HOME} [data-testid="root-compose-compact-scroll-viewport"] > .px-4 { padding-inline: 0; }
-${ROOT} [data-root-compose-mobile-recents] { padding-block: 0 6px; }
+${COMPACT_HOME} [data-testid="root-compose-compact-scroll-content"] > .px-4 { padding-inline: 0; }
+${ROOT} [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20px; padding-block: 0 6px; }
 ${ROOT} [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; ${NO_BLUR} padding-block-start: 16px; }
 ${ROOT} [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { ${HIDE} }
-${COMPACT_COMPOSER} > [data-overflow-fade] { ${HIDE} }
+${COMPACT_COMPOSER} [data-overflow-fade] { ${HIDE} }
 ${COMPACT_COMPOSER} > .bg-background { background: ${SHEEN}, var(--ambient-glass-fill); ${BLUR} margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; ${EDGE} box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "70%")}, 0 -10px 24px -18px ${mix("var(--ink)", "40%")}; }
-${ROOT} [data-app-composer]:not([data-thread-window] *, [data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
+/* Recent and the compact composer meet as one glass surface, without a double edge at the join. */
+${COMPACT_HOME} [data-root-compose-mobile-recents] { border-radius: 20px 20px 0 0; border-block-end: 0; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
+${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { background: var(--ambient-glass-fill); border-radius: 0 0 20px 20px; border-block-start: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
+${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
+/* The opaque follow-up shell fills the seam behind the input and its footer lip. */
+${ROOT} [data-follow-up-composer] { background-color: var(--ambient-background); border-radius: 12px; }
+${ROOT} [data-follow-up-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
+${ROOT} [data-follow-up-composer-footer] { border-radius: 0 0 12px 12px; padding-inline: 4px; }
+${ROOT} [data-follow-up-composer-footer] button { background-color: transparent; }
+${ROOT} [data-follow-up-composer-footer] button:hover { background-color: ${INK_WASH}; }
 ${ROOT} [role="img"][aria-label="bb"] + div { ${GLASS_SURFACE} border-radius: 20px; padding: 6px; }
 ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right)); }
 ${ROOT} div.fixed > ${RIGHT_PANEL_BUTTON} { ${GLASS_CHIP} border-radius: 12px; }
-${ROOT} [data-sidebar="panel"] { border-inline-end-color: transparent; }
+${ROOT} [data-sidebar="panel"] { background-color: var(--background); border-inline-end-color: transparent; }
 :is(${CHROME_PILLS}) { ${GLASS_CHIP} border-radius: 12px; padding-inline: 6px; }
 ${ROOT} ${SIDEBAR_RESERVE_PILL} { margin-inline: -6px; }
 ${ROOT} [data-testid="app-desktop-sidebar-trigger"][class~="left-[84px]"] { margin-inline-start: 6px; }
@@ -224,12 +185,12 @@ ${ROOT} [data-testid="app-sidebar-top-reserve-row"] > div:nth-child(n) { margin-
 ${HEADER_FIRST} { flex: 0 1 auto; min-width: 0; min-height: 32px; margin-inline: -6px 6px; padding-inline-start: 12px; }
 ${HEADER_FIRST}:has([data-pane-header-focus-tab]) { background-image: linear-gradient(var(--state-active), var(--state-active)); }
 ${ROOT} [data-pane-header-focus-tab] { background-color: transparent; }
-${ROOT} [data-testid="app-page-header-content-row"] > [data-app-page-header-actions] { margin-inline: auto -8px; min-height: 32px; }
-${ROOT} [data-app-page-header-actions] button.border { border-color: transparent; }
+${ROOT} ${HEADER_ACTIONS} { margin-inline: auto -8px; min-height: 32px; }
+${ROOT} ${HEADER_ACTIONS} button.border { border-color: transparent; }
 ${ROOT} [data-thread-header-workflow-actions]:not(:has(button, a)) { ${HIDE} }
-${ROOT} [data-app-page-header-actions]:has(> [data-thread-header-pane-actions]) { column-gap: 0; }
-${ROOT} [data-app-page-header-actions] [data-thread-header-pane-actions] { margin-inline-start: 0; column-gap: 0; }
-@media (max-width: 767px) { ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } ${ROOT} :is(div.fixed, [data-app-page-header-actions]) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } ${ROOT} [data-testid="app-page-header-content-row"] > :is(:first-child, [data-app-page-header-actions]) { height: 32px; min-height: 32px; } ${ROOT} [data-app-page-header-actions]:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
+${ROOT} ${HEADER_ACTIONS}:has(> [data-thread-header-pane-actions]) { column-gap: 0; }
+${ROOT} ${HEADER_ACTIONS} [data-thread-header-pane-actions] { margin-inline-start: 0; column-gap: 0; }
+@media (max-width: 767px) { ${ROOT} div.fixed:has(> ${RIGHT_PANEL_BUTTON}) { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); } ${ROOT} :is(div.fixed, ${HEADER_ACTIONS}) ${RIGHT_PANEL_BUTTON}, ${ROOT} [data-thread-header-pane-actions] button { width: 32px; height: 32px; } :is(${HEADER_FIRST}, ${ROOT} ${HEADER_ACTIONS}) { height: 32px; min-height: 32px; } ${ROOT} ${HEADER_ACTIONS}:has(${RIGHT_PANEL_BUTTON}) { padding-inline-end: 0; } }
 :is(${THREAD}, ${PAGE}, ${SIDEBAR_CARDS}, ${SECTION_BACK}, ${CHROME_PILLS}, ${OVERLAY}) { --state-hover: ${INK_WASH}; --state-active: ${mix("var(--ink)", "15%")}; --sidebar-accent: var(--state-hover); }
 ${SIDEBAR_CARDS} { ${GLASS_SURFACE} border-radius: 16px; margin-inline: 8px; }
 ${SECTION_BACK} { ${GLASS_SURFACE} border-block-end: 0; border-radius: 16px 16px 0 0; margin-inline: 8px; padding-block: 8px 4px; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
@@ -242,8 +203,8 @@ ${ROOT} [data-sidebar="content"] { flex: 0 1 auto; min-height: min(7rem, 18dvh);
 ${ROOT} [data-sidebar="content"]:not(:has(~ [data-sidebar="footer"])) { margin-block-end: 8px; }
 ${ROOT} [data-sidebar="content"] > .px-2:first-child { padding-block-start: 12px; }
 @media (max-height: 560px) { ${ROOT} [data-testid="sidebar-navigation-region"] { flex: 0 1 auto; min-height: 3rem; overflow-y: auto; } }
-${SIDEBAR_FOOTER} { flex-shrink: 0; margin-block: 8px; align-self: flex-start; width: max-content; max-width: calc(100% - 16px); }
-${SIDEBAR_FOOTER}:is([data-ambient-snap], :has([data-testid^="plugin-sidebar-footer-disclosure-"])) { align-self: stretch; width: auto; max-width: none; }
+/* bb measures this row to decide which icons fit. Shrink-to-content makes overflow capacity depend on the icons it already hid. */
+${SIDEBAR_FOOTER} { flex-shrink: 0; margin-block: 8px; align-self: stretch; width: auto; }
 ${SIDEBAR_FOOTER} [data-testid^="plugin-sidebar-footer-disclosure-"] { border-color: transparent; background-color: transparent; }
 ${SIDEBAR_FOOTER} > [data-overflow-fade], ${SIDEBAR_FOOTER} > ul > li[aria-hidden="true"]:empty { ${HIDE} }
 :is(${SIDEBAR_CARDS}, ${RIGHT_PANEL}) :is(.sticky, [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), ${OVERLAY} :is(.sticky:not(.bg-sidebar, .bg-background, .bg-popover), [data-sidebar-sticky-tier], [data-sidebar-sticky-stack]), :is(${SIDEBAR_CARDS}) [data-sidebar-sticky-stack]::before { ${NO_BLUR} }
