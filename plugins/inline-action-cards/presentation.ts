@@ -2,7 +2,7 @@ import type { PluginComposerApi } from "@get-bb/plugin-sdk/app";
 import { actionLabel, mentionId, title, type Action, type Item } from "./model.js";
 
 const actionIcons: Record<Action, string> = {
-  send: "Sent", "save-draft": "FileText", yes: "Check", no: "X", later: "Clock", skip: "inline-action-cards/skip-forward",
+  send: "Sent", "save-draft": "FileText", yes: "Check", no: "X", later: "Clock", skip: "inline-action-cards/skip-forward", choose: "Check",
 };
 
 // SDK 0.6.16's published replace(updater) supports mention icons. Keep the
@@ -47,4 +47,14 @@ export function pendingLabel(item: Item, action = item.attempt?.action): string 
 
 export function appendActionNote(composer: PluginComposerApi, item: Item): void {
   if (item.attempt?.note) composer.updateText((value) => `${value} — ${item.attempt!.note}`);
+}
+
+// Once the request leaves the composer the buttons are done; the card shows what was sent.
+export function sentStatus(item: Item): { label: string; time: string } | null {
+  const attempt = item.attempt;
+  if (item.state !== "pending" || !attempt || !(attempt.sentAt || attempt.claimed)) return null;
+  const label = attempt.action === "send" ? "Approved to send"
+    : attempt.action === "choose" && attempt.choice ? `${attempt.choice.label} chosen` : `${actionLabel(item, attempt.action)} sent`;
+  // Older records were claimed before sentAt existed.
+  return { label, time: attempt.sentAt ?? item.updatedAt };
 }

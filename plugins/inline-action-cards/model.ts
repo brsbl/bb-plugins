@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const idSchema = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/);
 const line = z.string().trim().min(1).max(300).regex(/^[^\r\n]+$/);
+const label = z.string().trim().min(1).max(80).regex(/^[^\r\n]+$/);
 const address = z.string().trim().min(1).max(320).regex(/^[^\r\n]+$/);
 export const noteSchema = z.string().trim().max(1000);
 export const draftSchema = z.string().max(40_000);
@@ -22,11 +23,20 @@ export const contentSchema = z.discriminatedUnion("type", [
     // Explicit semantic key: matching button copy alone is not enough for bulk approval.
     actionKey: idSchema.optional(),
   }).strict(),
+  z.object({
+    type: z.literal("choice"), question: line,
+    options: z.array(z.object({ id: idSchema, label, hint: line.optional() }).strict()).min(2).max(6),
+    recommended: idSchema.optional(), consequence: line.optional(),
+  }).strict().superRefine((value, ctx) => {
+    const ids = value.options.map((option) => option.id);
+    if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["options"], message: "Each option needs its own id" });
+    if (value.recommended && !ids.includes(value.recommended)) ctx.addIssue({ code: "custom", path: ["recommended"], message: "Recommend one of the option ids" });
+  }),
 ]);
-export const actionSchema = z.enum(["send", "save-draft", "yes", "no", "later", "skip"]);
+export const actionSchema = z.enum(["send", "save-draft", "yes", "no", "later", "skip", "choose"]);
 export type Action = z.infer<typeof actionSchema>;
 export const labels: Record<Action, string> = {
-  send: "Send", "save-draft": "Save to Gmail drafts", yes: "Yes", no: "No", later: "Later", skip: "Skip",
+  send: "Send", "save-draft": "Save to Gmail drafts", yes: "Yes", no: "No", later: "Later", skip: "Skip", choose: "Use",
 };
 export const itemSchema = z.object({
   id: idSchema,
@@ -36,6 +46,10 @@ export const itemSchema = z.object({
   state: z.enum(["ready", "pending", "succeeded", "failed"]),
   attempt: z.object({
     id: z.string().uuid(), action: actionSchema, claimed: z.boolean(), note: noteSchema.optional(),
+    // When the composer accepted the request; the card's buttons are done after that.
+    sentAt: z.iso.datetime().optional(),
+    // The option a choice card's "choose" attempt approves.
+    choice: z.object({ id: idSchema, label }).strict().optional(),
   }).strict().nullable(),
   result: z.object({ message: z.string().min(1).max(500), retryable: z.boolean() }).strict().nullable(),
   updatedAt: z.string(),
@@ -55,7 +69,12 @@ export function actionLabel(item: Item, action: Action): string {
     if (action === "yes") return item.content.yesLabel ?? "Yes";
     if (action === "no") return item.content.noLabel ?? "No";
   }
+  if (action === "choose" && item.attempt?.action === "choose" && item.attempt.choice) return chooseLabel(item.attempt.choice.label);
   return labels[action];
+}
+
+export function chooseLabel(option: string): string {
+  return `Use ${option}`;
 }
 
 export function bulkLabel(items: Item[]): string | null {
@@ -70,8 +89,8 @@ export function mentionId(item: Item, changes = false): string {
 }
 
 export function assertAction(item: Item, action: Action) {
-  const allowed: Action[] = item.content.type === "reply"
-    ? ["send", "save-draft", "later", "skip"] : ["yes", "no", "later", "skip"];
+  const allowed: Action[] = item.content.type === "reply" ? ["send", "save-draft", "later", "skip"]
+    : item.content.type === "choice" ? ["choose", "later", "skip"] : ["yes", "no", "later", "skip"];
   if (!allowed.includes(action)) throw new Error("That action does not belong to this card.");
   if ((action === "send" || action === "save-draft") && item.content.type === "reply" && !item.content.draft.trim()) {
     throw new Error("Write a draft before sending or saving it to Gmail.");
