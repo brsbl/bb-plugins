@@ -5,7 +5,7 @@ import { CHANGED, hostContract, rpcContract, type Link, type PullRequestItem, ty
 import { mapConcurrent, parsePullRequestUrl } from "./core.js";
 import { createStore } from "./store.js";
 
-type Thread = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>;
+type Thread = Pick<Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>, "id" | "title" | "titleFallback" | "projectId" | "environmentId" | "archivedAt" | "deletedAt" | "visibility">;
 const PAGE = 100;
 const now = () => new Date().toISOString();
 function offsetFrom(cursor?: string) {
@@ -25,11 +25,21 @@ export default function plugin(bb: BbPluginApi): void {
     networkActive++;
     try { return await work(); } finally { networkActive--; networkWaiters.shift()?.(); }
   }
-  const observedAccounts = new Map<string, { accountId: string; epoch: number }>();
+  const observedAccounts = new Map<string, { accountId: string | null; epoch: number }>();
   const readHost = (input: z.input<typeof hostContract.read.input>, options: { hostId: string; signal?: AbortSignal; timeoutMs?: number }) => network(async () => {
     const epoch = observedAccounts.get(options.hostId)?.epoch ?? 0;
     const result = await host.call("read", input, options);
     assertLive();
+    if (!result.ok && result.kind === "authentication-required") {
+      const observed = observedAccounts.get(options.hostId);
+      observedAccounts.set(options.hostId, { accountId: null, epoch: (observed?.epoch ?? 0) + 1 });
+      for (const reader of store.readersOnHost(options.hostId)) {
+        connectionEpochs.set(connectionKey(reader), connectionEpoch(reader) + 1);
+        store.invalidateConnection(reader, result.kind, result.message);
+      }
+      changed();
+      return result;
+    }
     if (result.ok || result.accountId) {
       const accountId = result.accountId!;
       const observed = observedAccounts.get(options.hostId);

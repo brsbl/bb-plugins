@@ -5,7 +5,7 @@ export function parsePullRequestUrl(raw: string) {
   try { value = new URL(raw.trim()); } catch { throw new Error("Enter a complete HTTPS GitHub pull request URL."); }
   const match = /^\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/pull\/([1-9][0-9]*)\/?$/.exec(value.pathname);
   if (value.protocol !== "https:" || value.hostname !== "github.com" || value.port || value.username || value.password || !match || !Number.isSafeInteger(Number(match[3]))) throw new Error("Use an HTTPS github.com pull request URL without credentials.");
-  const [, owner, repository, number] = match as [string, string, string, string];
+  const owner = match[1]!, repository = match[2]!, number = match[3]!;
   return { owner, repository, number: Number(number), url: `https://github.com/${owner}/${repository}/pull/${number}` };
 }
 export function originMarkers(body: string): string[] {

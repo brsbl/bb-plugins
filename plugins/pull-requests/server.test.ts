@@ -64,6 +64,12 @@ describe("PR registry and host identity", () => {
     expect(switched).toMatchObject({ snapshot: { title: "PR 1" }, reader: { accountId: "U_B" } });
     expect(await h.rpc("show", { id: two.id })).toMatchObject({ snapshot: null, reader: { accountId: "U_A" } });
   });
+  it("hides all cached private PRs when a new-URL preview discovers missing authentication", async () => {
+    const h = setup(); const one = await h.link(1), two = await h.link(2);
+    h.setResponse(async () => ({ ok: false, kind: "authentication-required", message: "Sign in on this machine." }));
+    await expect(h.rpc("preview", { url: snapshot(3).url, threadId: "thr_a" })).rejects.toThrow("Sign in");
+    for (const item of [one, two]) expect(await h.rpc("show", { id: item.id })).toMatchObject({ snapshot: null, reader: { accountId: "U_A" }, sourceState: "authentication-required" });
+  });
   it("deduplicates discovery reads by PR across environments and never claims hidden thread links", async () => {
     const h = setup();
     await h.rpc("refresh", { discover: true }); await h.settle();

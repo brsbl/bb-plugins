@@ -339,10 +339,26 @@ function PullRequestDetail({ item, tab, now, context, choices, liveThreads, rpc,
   const preferred = item.links.find((link) => link.threadId === item.preferredThreadId) ?? (origins.length === 1 ? origins[0] : undefined) ?? (item.links.length === 1 ? item.links[0] : undefined);
   const [manage, setManage] = useState(false);
   const threadsSection = useRef<HTMLElement>(null);
+  const pendingThreadFocus = useRef(false);
+  const revealThreads = () => {
+    threadsSection.current?.focus({ preventScroll: true });
+    threadsSection.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  useEffect(() => {
+    if (tab === "summary" && pendingThreadFocus.current) {
+      pendingThreadFocus.current = false;
+      revealThreads();
+    }
+  }, [tab]);
+  const openThread = () => {
+    if (preferred && choices.has(preferred.threadId)) { onThread(preferred.threadId); return; }
+    if (tab === "summary") revealThreads();
+    else { pendingThreadFocus.current = true; onTab("summary"); }
+  };
   useEffect(() => { setSourceHost(item.reader?.hostId ?? ""); setManage(false); }, [item.id, item.reader?.hostId]);
   const sourceName = context.hosts.find((host) => host.id === item.reader?.hostId)?.name ?? "Source machine";
   return <>
-    <div className="pr-detail-toolbar"><button type="button" className="pr-back" onClick={onBack}><ArrowLeft size={15} />Pull requests</button><span className="pr-detail-repo">{snapshot ? `${snapshot.repository} #${snapshot.number}` : "Pull request"}</span><div className="pr-toolbar-actions"><IconButton icon={item.pinned ? PinOff : Pin} label={item.pinned ? "Unpin pull request" : "Pin pull request"} active={item.pinned} onClick={() => void onUpdate(() => rpc.call("pin", { id: item.id, pinned: !item.pinned }))} /><External className="pr-button pr-button-subtle" href={item.url}>GitHub<ExternalLink size={13} /></External><button className="pr-button pr-button-primary" type="button" onClick={() => preferred && choices.has(preferred.threadId) ? onThread(preferred.threadId) : threadsSection.current?.scrollIntoView({ behavior: "smooth", block: "center" })}>{preferred && choices.has(preferred.threadId) ? "Open thread" : "Choose thread"}<ArrowRight size={14} /></button></div></div>
+    <div className="pr-detail-toolbar"><button type="button" className="pr-back" onClick={onBack}><ArrowLeft size={15} />Pull requests</button><span className="pr-detail-repo">{snapshot ? `${snapshot.repository} #${snapshot.number}` : "Pull request"}</span><div className="pr-toolbar-actions"><IconButton icon={item.pinned ? PinOff : Pin} label={item.pinned ? "Unpin pull request" : "Pin pull request"} active={item.pinned} onClick={() => void onUpdate(() => rpc.call("pin", { id: item.id, pinned: !item.pinned }))} /><External className="pr-button pr-button-subtle" href={item.url}>GitHub<ExternalLink size={13} /></External><button className="pr-button pr-button-primary" type="button" onClick={openThread}>{preferred && choices.has(preferred.threadId) ? "Open thread" : "Choose thread"}<ArrowRight size={14} /></button></div></div>
     <header className="pr-detail-heading"><div className="pr-title-line"><StatusIcon {...lifecycle(snapshot)} /><h1>{snapshot?.title ?? "Pull request unavailable"}</h1></div>{snapshot && <div className="pr-branch-line"><span>{snapshot.author ? `@${snapshot.author}` : "Unknown author"}</span><span>wants to merge</span><code>{snapshot.headBranch}</code><ArrowRight size={12} aria-hidden="true" /><code>{snapshot.baseBranch}</code></div>}</header>
     <nav className="pr-detail-tabs" aria-label="Pull request detail"><button type="button" aria-current={tab === "summary" ? "page" : undefined} onClick={() => onTab("summary")}>Summary</button><button type="button" aria-current={tab === "changes" ? "page" : undefined} onClick={() => onTab("changes")}>Changes{snapshot && <span>{snapshot.changedFiles}</span>}</button>{snapshot && <span className="pr-diff-total"><span className="pr-tone-success">+{snapshot.additions}</span><span className="pr-tone-danger">−{snapshot.deletions}</span></span>}</nav>
     <div className="pr-detail-scroll">
@@ -350,7 +366,7 @@ function PullRequestDetail({ item, tab, now, context, choices, liveThreads, rpc,
       {tab === "changes" ? <ChangesView key={`${item.id}:${item.reader?.hostId ?? ""}:${item.reader?.accountId ?? ""}:${item.sourceState}:${snapshot?.headSha ?? "unavailable"}`} item={item} rpc={rpc} /> : <div className="pr-summary">
         {snapshot ? <><section className="pr-description"><h2>Description</h2>{snapshot.body ? <Markdown content={snapshot.body} className="pr-markdown" /> : <p className="pr-muted">No description provided.</p>}</section>
           <section className="pr-facts"><h2>Checks and review</h2><div className="pr-fact-line"><span>Checks</span><StatusIcon {...checksPresentation(snapshot)} count={snapshot.checks.total > 0 ? `${snapshot.checks.passing}/${snapshot.checks.total}` : undefined} /><External href={`${item.url}/checks`} className="pr-subtle-link">View checks<ExternalLink size={12} /></External></div>{snapshot.checks.items.filter((check) => check.state === "failing" || check.state === "pending").map((check, index) => <div className="pr-check-line" key={`${check.name}:${index}`}><StatusIcon icon={check.state === "failing" ? XCircle : Clock} label={`${check.name}: ${check.state}`} tone={check.state === "failing" ? "danger" : "warning"} /><External href={check.url}>{check.name}</External></div>)}<div className="pr-fact-line"><span>Review</span><StatusIcon {...reviewPresentation(snapshot.review)} /></div><div className="pr-fact-line"><span>Mergeability</span><StatusIcon {...mergePresentation(snapshot.mergeability)} />{snapshot.queued && <StatusIcon icon={Clock} label="In merge queue" tone="warning" />}{snapshot.autoMerge && <StatusIcon icon={GitMerge} label="Auto-merge enabled on GitHub" tone="muted" />}</div><p className="pr-facts-note">Snapshot at <code>{snapshot.headSha.slice(0, 7)}</code> · {age(snapshot.fetchedAt)}</p></section></> : <p className="pr-unavailable">This source cannot currently read the pull request. Verify its GitHub access below.</p>}
-        <section className="pr-threads" ref={threadsSection}><div className="pr-section-heading"><h2>Threads <span>{item.links.length}</span></h2><button type="button" className="pr-text-button" aria-expanded={manage} onClick={() => setManage(!manage)}>{manage ? "Done" : "Manage threads"}</button></div>{item.links.map((link) => {
+        <section className="pr-threads" ref={threadsSection} tabIndex={-1} aria-label="Related threads"><div className="pr-section-heading"><h2>Threads <span>{item.links.length}</span></h2><button type="button" className="pr-text-button" aria-expanded={manage} onClick={() => setManage(!manage)}>{manage ? "Done" : "Manage threads"}</button></div>{item.links.map((link) => {
           const thread = choices.get(link.threadId);
           const live = liveThreads.get(link.threadId);
           return <div className="pr-related-thread" key={link.threadId}><StatusIcon {...threadPresentation(live, thread?.archived)} /><div className="pr-related-thread-content"><button type="button" className="pr-thread-link" disabled={!thread} onClick={() => onThread(link.threadId)}>{live?.displayTitle ?? thread?.title ?? "Unavailable thread"}</button><span className="pr-thread-evidence">{link.origin ? "Originating thread" : link.evidence === "environment" ? "Related checkout" : "Linked thread"}{thread?.archived ? " · archived" : ""}{item.preferredThreadId === link.threadId ? " · preferred" : ""}</span></div>{manage ? <><IconButton icon={Check} label={item.preferredThreadId === link.threadId ? "Clear preferred thread" : "Use as preferred thread"} active={item.preferredThreadId === link.threadId} onClick={() => void onUpdate(() => rpc.call("prefer", { id: item.id, threadId: item.preferredThreadId === link.threadId ? null : link.threadId }))} /><IconButton icon={Unlink} label={`Remove link to ${thread?.title ?? link.threadId}`} onClick={() => onUnlink(link.threadId)} /></> : <IconButton icon={ArrowRight} label={`Open ${thread?.title ?? "thread"}`} disabled={!thread} onClick={() => onThread(link.threadId)} />}</div>;
@@ -389,17 +405,45 @@ function LinkDialog({ rpc, initialUrl, choices, hosts, onClose, onLinked }: { rp
   const [threadId, setThreadId] = useState("");
   const [threadQuery, setThreadQuery] = useState("");
   const [options, setOptions] = useState(choices);
+  const [selectedThread, setSelectedThread] = useState<ThreadChoice | null>(null);
+  const [threadCursor, setThreadCursor] = useState<string | null>(null);
+  const [threadLoading, setThreadLoading] = useState(true);
+  const [threadSearchError, setThreadSearchError] = useState<string | null>(null);
+  const searchGeneration = useRef(0);
   const [hostId, setHostId] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
   useEffect(() => { dialog.current?.showModal(); return () => { ++generation.current; }; }, []);
+  const loadThreads = async (query: string, cursor: string | undefined, request: number) => {
+    setThreadLoading(true); setThreadSearchError(null);
+    let next = cursor;
+    try {
+      // The service filters each page, so an empty page is not the end of search.
+      // Bound each batch and let the user continue from the next real cursor.
+      for (let page = 0; page < 5; page++) {
+        const result = await rpc.call("context", { query, ...(next ? { cursor: next } : {}) });
+        if (searchGeneration.current !== request) return;
+        setOptions((current) => [...new Map([...current, ...result.threads].map((thread) => [thread.id, thread])).values()]);
+        setThreadCursor(result.nextCursor);
+        if (!result.nextCursor) break;
+        next = result.nextCursor;
+      }
+    } catch (reason) {
+      if (searchGeneration.current === request) {
+        setThreadCursor(next ?? null);
+        setThreadSearchError(message(reason));
+      }
+    } finally { if (searchGeneration.current === request) setThreadLoading(false); }
+  };
   useEffect(() => {
-    let cancelled = false;
-    const timer = window.setTimeout(() => { void rpc.call("context", { query: threadQuery }).then((result) => { if (!cancelled) setOptions(result.threads); }).catch((reason) => { if (!cancelled) setError(message(reason)); }); }, 180);
-    return () => { cancelled = true; window.clearTimeout(timer); };
+    const request = ++searchGeneration.current;
+    setOptions([]); setThreadCursor(null); setThreadLoading(true); setThreadSearchError(null);
+    const timer = window.setTimeout(() => { void loadThreads(threadQuery, undefined, request); }, 180);
+    return () => { ++searchGeneration.current; window.clearTimeout(timer); };
   }, [threadQuery, rpc]);
+  const threadOptions = selectedThread && !options.some((thread) => thread.id === selectedThread.id) ? [selectedThread, ...options] : options;
   const invalidate = () => { ++generation.current; setPreview(null); setError(null); setBusy(false); };
   const inspect = async () => {
     const request = ++generation.current; setBusy(true); setError(null);
@@ -407,7 +451,7 @@ function LinkDialog({ rpc, initialUrl, choices, hosts, onClose, onLinked }: { rp
     catch (reason) { if (generation.current === request) setError(message(reason)); }
     finally { if (generation.current === request) setBusy(false); }
   };
-  return <dialog ref={dialog} className="pr-link-dialog" onCancel={onClose} onClick={(event) => { if (event.target === dialog.current) onClose(); }}><form onSubmit={(event) => { event.preventDefault(); void inspect(); }}><header><h2>Link pull request</h2><IconButton icon={X} label="Close link dialog" onClick={onClose} /></header><p>Connect an existing GitHub pull request to a bb thread.</p><label>Pull request URL<input autoFocus type="url" required value={url} placeholder="https://github.com/owner/repo/pull/123" onChange={(event) => { invalidate(); setUrl(event.target.value); }} /></label><label>Find thread<input type="search" value={threadQuery} placeholder="Search threads" onChange={(event) => { invalidate(); setThreadQuery(event.target.value); }} /></label><label>Thread<select required value={threadId} onChange={(event) => { invalidate(); setThreadId(event.target.value); }}><option value="">Choose a thread</option>{options.map((thread) => <option key={thread.id} value={thread.id}>{thread.title}{thread.archived ? " · archived" : ""}</option>)}</select></label><details><summary>Source machine</summary><label className="pr-sr-only" htmlFor="pr-link-host">Source machine</label><select id="pr-link-host" value={hostId} onChange={(event) => { invalidate(); setHostId(event.target.value); }}><option value="">Use the thread’s machine</option>{hosts.filter((host) => host.connected).map((host) => <option key={host.id} value={host.id}>{host.name}</option>)}</select></details>{error && <p className="pr-error" role="alert">{error}</p>}{preview && <div className="pr-link-preview"><div><StatusIcon {...lifecycle(preview.snapshot)} /><strong>{preview.snapshot.title}</strong></div><p>{preview.snapshot.repository} #{preview.snapshot.number}</p><p><MessageCircle size={14} />{preview.thread.title}</p><small>Verified as @{preview.reader.login}</small></div>}<footer><button type="button" className="pr-button" onClick={onClose}>Cancel</button>{preview ? <button type="button" className="pr-button pr-button-primary" disabled={busy} onClick={() => { const request = ++generation.current; setBusy(true); void rpc.call("link", { token: preview.token }).then((item) => { if (generation.current === request) onLinked(item); }).catch((reason) => { if (generation.current === request) setError(message(reason)); }).finally(() => { if (generation.current === request) setBusy(false); }); }}>{busy ? "Linking…" : "Link pull request"}</button> : <button type="submit" className="pr-button pr-button-primary" disabled={busy || !threadId || !url.trim()}>{busy ? "Checking…" : "Preview link"}</button>}</footer></form></dialog>;
+  return <dialog ref={dialog} className="pr-link-dialog" onCancel={onClose} onClick={(event) => { if (event.target === dialog.current) onClose(); }}><form onSubmit={(event) => { event.preventDefault(); void inspect(); }}><header><h2>Link pull request</h2><IconButton icon={X} label="Close link dialog" onClick={onClose} /></header><p>Connect an existing GitHub pull request to a bb thread.</p><label>Pull request URL<input autoFocus type="url" required value={url} placeholder="https://github.com/owner/repo/pull/123" onChange={(event) => { invalidate(); setUrl(event.target.value); }} /></label><label>Find thread<input type="search" value={threadQuery} placeholder="Search threads" onChange={(event) => { invalidate(); setThreadQuery(event.target.value); }} /></label><label>Thread<select required value={threadId} onChange={(event) => { invalidate(); setThreadId(event.target.value); setSelectedThread(threadOptions.find((thread) => thread.id === event.target.value) ?? null); }}><option value="">Choose a thread</option>{threadOptions.map((thread) => <option key={thread.id} value={thread.id}>{thread.title}{thread.archived ? " · archived" : ""}</option>)}</select></label><div aria-live="polite"><p className="pr-muted">{threadLoading ? "Searching threads…" : threadSearchError ? `Thread search interrupted: ${threadSearchError}` : threadCursor ? `${options.length} matching threads found · more threads to search` : `${options.length} matching threads · search complete`}</p>{!threadLoading && (threadCursor || threadSearchError) && <button type="button" className="pr-text-button" onClick={() => void loadThreads(threadQuery, threadCursor ?? undefined, searchGeneration.current)}>{threadSearchError ? "Retry thread search" : "Search more threads"}</button>}</div><details><summary>Source machine</summary><label className="pr-sr-only" htmlFor="pr-link-host">Source machine</label><select id="pr-link-host" value={hostId} onChange={(event) => { invalidate(); setHostId(event.target.value); }}><option value="">Use the thread’s machine</option>{hosts.filter((host) => host.connected).map((host) => <option key={host.id} value={host.id}>{host.name}</option>)}</select></details>{error && <p className="pr-error" role="alert">{error}</p>}{preview && <div className="pr-link-preview"><div><StatusIcon {...lifecycle(preview.snapshot)} /><strong>{preview.snapshot.title}</strong></div><p>{preview.snapshot.repository} #{preview.snapshot.number}</p><p><MessageCircle size={14} />{preview.thread.title}</p><small>Verified as @{preview.reader.login}</small></div>}<footer><button type="button" className="pr-button" onClick={onClose}>Cancel</button>{preview ? <button type="button" className="pr-button pr-button-primary" disabled={busy} onClick={() => { const request = ++generation.current; setBusy(true); void rpc.call("link", { token: preview.token }).then((item) => { if (generation.current === request) onLinked(item); }).catch((reason) => { if (generation.current === request) setError(message(reason)); }).finally(() => { if (generation.current === request) setBusy(false); }); }}>{busy ? "Linking…" : "Link pull request"}</button> : <button type="submit" className="pr-button pr-button-primary" disabled={busy || !threadId || !url.trim()}>{busy ? "Checking…" : "Preview link"}</button>}</footer></form></dialog>;
 }
 
 export default definePluginApp((app) => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { act, cleanup, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CHANGED, type Changes, type PullRequestItem, type Snapshot } from "./contract";
 
 afterEach(cleanup);
@@ -59,5 +59,65 @@ describe("Pull Requests access and detail lifetime", () => {
     expect(screen.queryByText("secret.txt")).toBeNull();
     expect(screen.queryByText(/Private diff content/)).toBeNull();
     slot.lifecycle.unmount();
+  });
+});
+
+
+describe("Pull Requests thread selection", () => {
+  it("opens Summary and focuses Threads when Choose thread is used from Changes", async () => {
+    const item = fixture();
+    item.preferredThreadId = null;
+    item.links.push({ ...item.links[0]!, threadId: "thr_second" });
+    const scroll = vi.fn();
+    const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scroll });
+    try {
+      const app = await loadPluginApp(() => import("./app"));
+      const Panel = app.navPanels[0]!.component;
+      const slot = renderSlot(app.navPanels[0]!, { subPath: "PR_123/changes" }, { rpc: {
+        list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
+        context: () => ({ threads: [thread, { ...thread, id: "thr_second", title: "Second thread" }], hosts: [], nextCursor: null }),
+        changes: () => ({ headSha: "abc1234", files: [], total: 0, truncated: false, message: null }),
+      } });
+      fireEvent.click(await screen.findByRole("button", { name: "Choose thread" }));
+      expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "requests", options: { subPath: "PR_123/summary" } });
+      slot.lifecycle.rerender(<Panel subPath="PR_123/summary" />);
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("region", { name: "Related threads" })));
+      expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+      slot.lifecycle.unmount();
+    } finally {
+      if (previousScroll) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previousScroll);
+      else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+  });
+
+  it("continues empty filtered pages in bounded batches and retains the selected thread when search changes", async () => {
+    const previousShow = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value(this: HTMLDialogElement) { this.open = true; } });
+    try {
+      const app = await loadPluginApp(() => import("./app"));
+      const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
+        list: () => ({ items: [], nextCursor: null, total: 0, coverage }), refresh: () => coverage,
+        context: (raw) => {
+          const input = raw as { query?: string; cursor?: string };
+          if (input.query === undefined || input.query === "different query") return { threads: [], hosts: [], nextCursor: null };
+          const offset = Number(input.cursor ?? 0);
+          return { threads: offset === 500 ? [thread] : [], hosts: [], nextCursor: offset < 500 ? String(offset + 100) : null };
+        },
+      } });
+      fireEvent.click(screen.getByRole("button", { name: "Link pull request" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Search more threads" }));
+      expect(await screen.findByRole("option", { name: "Archived implementation thread · archived" })).toBeDefined();
+      const select = screen.getByRole("combobox", { name: "Thread" }) as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: thread.id } });
+      fireEvent.change(screen.getByRole("searchbox", { name: "Find thread" }), { target: { value: "different query" } });
+      await screen.findByText("0 matching threads · search complete");
+      expect(select.value).toBe(thread.id);
+      expect(screen.getByRole("option", { name: "Archived implementation thread · archived" })).toBeDefined();
+      slot.lifecycle.unmount();
+    } finally {
+      if (previousShow) Object.defineProperty(HTMLDialogElement.prototype, "showModal", previousShow);
+      else Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+    }
   });
 });
