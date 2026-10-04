@@ -159,7 +159,7 @@ ${ROOT} [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { ${HI
 ${COMPACT_COMPOSER} [data-overflow-fade] { ${HIDE} }
 ${COMPACT_COMPOSER} > .bg-background { background-color: transparent; }
 /* Keep the input and footer as separate surfaces, without painting the surrounding shell. */
-${ROOT} [data-app-composer] [data-promptbox] { ${BLUR} }
+${ROOT} [data-app-composer] [data-promptbox] { --background: var(--ambient-background); ${NO_BLUR} }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
 ${ROOT} [data-new-thread-footer] { ${GLASS_CHIP} border-radius: 12px; margin-block-start: 4px; padding-inline: 4px; }
 ${ROOT} [data-new-thread-footer] button { background-color: transparent; }
