@@ -2,8 +2,6 @@ import { realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, resolve } from "node:path";
 
-export async function home() { return { path: homedir() }; }
-
 export async function inspect({ paths }: { paths: string[] }) {
   const files: Array<{ path: string; status: "available" | "missing" | "unavailable" }> = [];
   // Serialize filesystem reads on the host; never read a Mac path on the server.
