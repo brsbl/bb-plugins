@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitCamera, folderSummary, trackNeedsInput, gridPositions, nextFreePosition, resizeRect, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
+import { findFreeRect, fitCamera, folderSummary, trackNeedsInput, gridPositions, nextFreePosition, resizeRect, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
 
 describe("camera", () => {
   it("zooms around the anchor, so the point under the pointer stays put", () => {
@@ -80,5 +80,21 @@ describe("needs input", () => {
     expect(tracker).toMatchObject({ queue: ["b"], arrived: true });
     tracker = trackNeedsInput(tracker, ["a"]);
     expect(tracker).toMatchObject({ queue: [], arrived: false });
+  });
+});
+
+describe("placement beside a folder", () => {
+  const desired = { x: 100, y: 0, width: 400, height: 300 };
+
+  it("uses the desired spot when it is free", () => {
+    expect(findFreeRect(desired, [{ x: 600, y: 600, width: 100, height: 100 }])).toEqual(desired);
+  });
+
+  it("moves right, then down, past windows already open there", () => {
+    const right = findFreeRect(desired, [desired]);
+    expect(right).toEqual({ ...desired, x: 516 });
+    const down = findFreeRect(desired, [desired, { ...desired, x: 516 }]);
+    expect(down.y).toBeGreaterThan(0);
+    expect(down.x).toBeGreaterThanOrEqual(100);
   });
 });

@@ -200,7 +200,6 @@ const GRIP = (
 /** bb's own composer in one rounded frame with its grip and ×, opening just above the dock. */
 function Composer({ state, setState, focusRequest, onMinimized }: { state: ComposerState; setState: (next: ComposerState) => void; focusRequest: number; onMinimized: () => void }) {
   const desktop = useDesktop();
-  const manager = useWindowManager();
   const area = useWorkArea();
   const viewport = useViewport();
   const track = usePointerTracker();
@@ -240,7 +239,7 @@ function Composer({ state, setState, focusRequest, onMinimized }: { state: Compo
 
   const submit = async (request: NewThreadRequest) => {
     const { threadId } = await desktop.call("spawnThread", { request: request as unknown as Record<string, unknown> });
-    manager.open({ kind: "thread", threadId });
+    desktop.openThread(threadId);
   };
 
   return (

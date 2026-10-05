@@ -5,11 +5,11 @@ import { RECYCLE_BIN_DROP, deleteGroups, groupMenu, threadDropTarget, viewMenuEn
 import { useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
 import { CanvasMark } from "./canvas-mark";
 import { compareThreads, isDeletable, type Collection } from "./canvas-organization";
-import { ICON_BOX, ICON_CELL, boundsOf, cascadeRects, fitCamera, folderSummary, gridPositions, nextFreePosition, tileRects, toWorld, worldRect, zoomAt, type Camera, type Point, type Rect } from "./core";
+import { ICON_BOX, ICON_CELL, boundsOf, cascadeRects, findFreeRect, fitCamera, folderSummary, gridPositions, nextFreePosition, tileRects, toWorld, worldRect, zoomAt, type Camera, type Point, type Rect } from "./core";
 import { errorMessage, useDesktop, type DesktopContextValue } from "./data";
 import { useMenu, type MenuEntry, type MenuTrigger } from "./menu";
 import { RESOURCE_ICON, StatusDot, collectionMembers, useMenuContext } from "./programs";
-import { usePointerTracker, useWindowManager, type DesktopWindow } from "./windows";
+import { usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
 
 /**
  * The canvas: Desktop's icon desktop on an infinite, zoomable surface, showing the sidebar's groups in its order.
@@ -353,6 +353,62 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
   };
   arrangeRef.current = arrangeLikeSidebar;
 
+  // Geography: what a folder opens appears beside it, in free space, and the camera frames the folder and the window.
+  const iconRect = (key: string): Rect | null => {
+    const point = positions.get(key);
+    return point === undefined ? null : { ...point, ...ICON_BOX };
+  };
+  const openBeside = (spec: WindowSpec, anchor: Rect | null) => {
+    if (anchor === null) {
+      manager.open(spec);
+      return;
+    }
+    // Other windows and every folder icon are obstacles, so folders stay visible and clickable.
+    const occupied = [
+      ...manager.windows.filter((window) => !window.minimized && !window.maximized && window.dock === undefined).map((window) => window.rect),
+      ...[...positions.values()].map((point) => ({ ...point, ...ICON_BOX })),
+    ];
+    const rect = findFreeRect({ ...windowSize(spec), x: anchor.x + anchor.width + 32, y: anchor.y }, occupied);
+    // Arrive at 100%: show the folder alongside only when both fit.
+    const both = boundsOf([anchor, rect])!;
+    const area = controls.getWorkArea();
+    manager.open(spec, rect, { reveal: both.width + 48 <= area.width && both.height + 48 <= area.height ? both : rect });
+  };
+  const openFolder = (key: string) => {
+    if (manager.windows.some((window) => window.id === `finder:${key}`)) manager.open({ kind: "finder", key });
+    else openBeside({ kind: "finder", key }, iconRect(key));
+  };
+  /** The canvas folder a thread lives in: the first of the sidebar's groups, desktop folders or More that holds it. */
+  const homeOf = (threadId: string): string | null => {
+    for (const root of desktop.organization.roots) {
+      if (collectionMembers(root).some((thread) => thread.id === threadId)) return root.key;
+    }
+    return null;
+  };
+  const openThread = (threadId: string) => {
+    const spec: WindowSpec = { kind: "thread", threadId };
+    if (manager.windows.some((window) => window.id === `thread:${threadId}`)) {
+      manager.open(spec);
+      return;
+    }
+    // Beside the folder window it was opened from (the frontmost open Finder holding it), else beside its folder icon.
+    const finder = [...manager.windows]
+      .filter((window) => window.spec.kind === "finder" && !window.minimized && !window.maximized && window.dock === undefined)
+      .sort((a, b) => b.z - a.z)
+      .find((window) => {
+        const collection = window.spec.kind === "finder" ? desktop.organization.byKey.get(window.spec.key) : undefined;
+        return collection !== undefined && collectionMembers(collection).some((thread) => thread.id === threadId);
+      });
+    const home = homeOf(threadId);
+    openBeside(spec, finder?.rect ?? (home === null ? null : iconRect(home)));
+  };
+  const openThreadRef = useRef(openThread);
+  openThreadRef.current = openThread;
+  useEffect(() => {
+    desktop.setThreadOpener((threadId) => openThreadRef.current(threadId));
+    return () => desktop.setThreadOpener(null);
+  }, [desktop.setThreadOpener]);
+
   const cycle = (direction: 1 | -1) => {
     const id = cycleWindowId(manager.windows, manager.focusedId, direction);
     if (id !== null) manager.focus(id, { reveal: true });
@@ -386,7 +442,7 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
     const chosen = groups.filter((group) => selected.has(group.key) && group.kind !== "more");
     const deletable = chosen.filter(isDeletable);
     return [
-      { label: `Open ${chosen.length} folders`, icon: "FolderOpen", disabled: chosen.length === 0, run: () => chosen.forEach((group) => manager.open({ kind: "finder", key: group.key })) },
+      { label: `Open ${chosen.length} folders`, icon: "FolderOpen", disabled: chosen.length === 0, run: () => chosen.forEach((group) => openFolder(group.key)) },
       "separator",
       { label: deletable.length === 1 ? "Delete 1 folder" : `Delete ${deletable.length} folders`, icon: "Trash2", disabled: deletable.length === 0, run: () => { if (deleteGroups(context, deletable)) setSelected(new Set()); } },
     ];
@@ -431,7 +487,7 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
           if (entry.kind === "group") {
             const { group } = entry;
             const members = collectionMembers(group);
-            const open = () => manager.open({ kind: "finder", key: group.key });
+            const open = () => openFolder(group.key);
             const summary = group.kind === "more" ? `${folderSummary("More", members)} · ${group.children.length} hidden in the sidebar` : folderSummary(group.name, members);
             return (
               <CanvasIcon key={entry.key} {...common} label={group.name} icon={group.icon} iconClassName={RESOURCE_ICON} summary={summary} empty={members.length === 0 && group.children.length === 0}

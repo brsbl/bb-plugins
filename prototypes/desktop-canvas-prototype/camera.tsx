@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { clampZoom, type Camera, type Point, type Rect } from "./core";
+import { clampZoom, toWorld, type Camera, type Point, type Rect } from "./core";
 
 /** Room the floating dock keeps at the bottom of the screen; maximized windows and Fit all stop above it. */
 export const DOCK_RESERVE = 76;
 const CAMERA_KEY = "desktop-canvas-prototype:camera:v1";
-const ANIMATION_MS = 220;
+const MIN_FLIGHT_MS = 260;
+const MAX_FLIGHT_MS = 900;
 
 export interface Insets {
   left: number;
@@ -70,7 +71,8 @@ function readCamera(): Camera {
 }
 
 const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
-const ease = (t: number) => 1 - (1 - t) ** 3;
+const easeOut = (t: number) => 1 - (1 - t) ** 3;
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
 /**
  * Owns the canvas root, the camera and the canvas's screen geometry. Camera changes re-render only what reads
@@ -133,12 +135,26 @@ export function CanvasProvider({ className, rootProps, children }: { className: 
       setCameraState(target);
       return;
     }
+    // A flight between view centers: short hops ease out quickly; long trips take longer and pull back to show the
+    // canvas on the way, so you see where you're going.
     const from = cameraRef.current;
+    const area = areaRef.current;
+    const center = { x: area.x + area.width / 2, y: area.y + area.height / 2 };
+    const start = toWorld(from, center);
+    const end = toWorld(target, center);
+    const distance = Math.hypot(end.x - start.x, end.y - start.y) * Math.min(from.zoom, target.zoom);
+    const far = distance > area.width * 0.9;
+    const duration = Math.min(far ? MAX_FLIGHT_MS : 520, MIN_FLIGHT_MS + distance * 0.25);
+    const dip = far ? Math.min(0.45, distance / (area.width * 6)) : 0;
+    const curve = far ? easeInOut : easeOut;
     const started = performance.now();
     const step = (now: number) => {
-      const t = Math.min(1, (now - started) / ANIMATION_MS);
-      const k = ease(t);
-      const current = { x: from.x + (target.x - from.x) * k, y: from.y + (target.y - from.y) * k, zoom: from.zoom + (target.zoom - from.zoom) * k };
+      const t = Math.min(1, (now - started) / duration);
+      const k = curve(t);
+      const zoom = (from.zoom + (target.zoom - from.zoom) * k) * (1 - dip * Math.sin(Math.PI * t));
+      const x = start.x + (end.x - start.x) * k;
+      const y = start.y + (end.y - start.y) * k;
+      const current = t < 1 ? { zoom, x: center.x - x * zoom, y: center.y - y * zoom } : target;
       cameraRef.current = current;
       setCameraState(current);
       frame.current = t < 1 ? requestAnimationFrame(step) : null;

@@ -308,6 +308,7 @@ export function WindowFrame({
   children,
   bodyProps,
   keepMounted = false,
+  overview,
 }: {
   window: DesktopWindow;
   title: string;
@@ -320,6 +321,8 @@ export function WindowFrame({
   bodyProps?: Record<string, string>;
   /** Keeps the window's content alive while minimized, for a native browser page. */
   keepMounted?: boolean;
+  /** What the window says when the canvas is zoomed too far out to read it: a status line under its title. */
+  overview?: { detail?: string; tone?: "attention" | "running" | "error" | null };
 }) {
   const manager = useWindowManager();
   const camera = useCamera();
@@ -430,6 +433,9 @@ export function WindowFrame({
 
   if (desktopWindow.minimized && !keepMounted) return null;
 
+  // Fades in from 70% zoom and is fully shown by 50%, where the window's own text stops being readable.
+  const overviewOpacity = maximized || docked ? 0 : Math.max(0, Math.min(1, (0.7 - camera.zoom) / 0.2));
+
   const style = {
     left: placement.left,
     top: placement.top,
@@ -480,6 +486,16 @@ export function WindowFrame({
       </header>
       <div className="cdc-window-body" data-window-content {...bodyProps}>{children}</div>
       {statusBar === undefined ? null : <footer className="cdc-statusbar">{statusBar}</footer>}
+      {overviewOpacity > 0 ? (
+        // Zoomed out, the window reads as its title and status at a legible size; drag anywhere, double-click to fly in.
+        <div className="cdc-window-overview" style={{ opacity: overviewOpacity }} onPointerDown={(event) => startDrag(event)}
+          onDoubleClick={() => manager.focus(id, { reveal: true })} title="Double-click to read at 100%">
+          <div className="cdc-overview-label">
+            <strong>{title}</strong>
+            {overview?.detail ? <span data-tone={overview.tone ?? undefined}><span className="cdc-status-pip" data-tone={overview.tone ?? undefined} />{overview.detail}</span> : null}
+          </div>
+        </div>
+      ) : null}
       {maximized || docked ? null : EDGES.map((edge) => <div key={edge} className="cdc-resize" data-edge={edge} aria-hidden onPointerDown={(event) => startDrag(event, edge)} />)}
     </section>
   );

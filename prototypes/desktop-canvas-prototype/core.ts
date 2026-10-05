@@ -206,6 +206,32 @@ export function revealCamera(camera: Camera, rect: Rect, area: Rect, margin = 24
   return { zoom, x: x - rect.x, y: y - rect.y };
 }
 
+const intersects = (a: Rect, b: Rect, gap: number) =>
+  a.x < b.x + b.width + gap && a.x + a.width + gap > b.x && a.y < b.y + b.height + gap && a.y + a.height + gap > b.y;
+
+/**
+ * The free spot nearest `desired` for a rect of its size, so windows opened beside their folder fan out around it
+ * instead of stacking on other windows. Tries steps right, then down, then left and up; falls back to a cascade.
+ */
+export function findFreeRect(desired: Rect, occupied: readonly Rect[], gap = 16): Rect {
+  const stepX = desired.width + gap;
+  const stepY = Math.round((desired.height + gap) / 2);
+  const candidates: Rect[] = [];
+  for (let ring = 0; ring <= 6; ring += 1) {
+    for (let column = -ring; column <= ring; column += 1) {
+      for (let row = -ring; row <= ring; row += 1) {
+        if (Math.max(Math.abs(column), Math.abs(row)) !== ring) continue;
+        candidates.push({ ...desired, x: desired.x + column * stepX, y: desired.y + row * stepY });
+      }
+    }
+  }
+  // Rightward and downward first: the folder sits to the upper left of what it opens.
+  const cost = (rect: Rect) => Math.hypot(rect.x - desired.x, rect.y - desired.y) + (rect.x < desired.x ? stepX : 0) + (rect.y < desired.y ? stepY : 0);
+  candidates.sort((a, b) => cost(a) - cost(b));
+  const free = candidates.find((rect) => occupied.every((other) => !intersects(rect, other, gap)));
+  return free ?? { ...desired, x: desired.x + (occupied.length % 6) * 32, y: desired.y + (occupied.length % 6) * 32 };
+}
+
 /** Icon slots in reading order inside `area`, one per item. */
 export function gridPositions(count: number, area: Rect): Point[] {
   const columns = Math.max(1, Math.floor(area.width / ICON_CELL.width));

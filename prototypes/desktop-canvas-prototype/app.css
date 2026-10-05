@@ -338,8 +338,10 @@ body[data-ambient-glass] .cdc-icon:not([aria-selected="true"]) .cdc-icon-label {
 .cdc-title-button:active { background: var(--cdc-press); }
 .cdc-title-button[data-variant="close"]:hover { background: var(--destructive); color: var(--destructive-foreground); }
 
+/* Isolated, so bb's chat layers (its sticky composer footer) stay under the window's own overlays. */
 .cdc-window-body {
   position: relative;
+  isolation: isolate;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -349,6 +351,36 @@ body[data-ambient-glass] .cdc-icon:not([aria-selected="true"]) .cdc-icon-label {
 }
 
 .cdc-window-body > * { height: 100%; }
+
+/* Zoomed out: the window's title and status, sized for the screen rather than the canvas. */
+.cdc-window-overview {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(18px / var(--cdc-zoom, 1));
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--background) 86%, transparent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.cdc-overview-label { display: flex; flex-direction: column; align-items: center; gap: calc(8px / var(--cdc-zoom, 1)); max-width: 100%; text-align: center; }
+.cdc-overview-label strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: calc(17px / var(--cdc-zoom, 1));
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.cdc-overview-label > span { display: flex; align-items: center; gap: calc(7px / var(--cdc-zoom, 1)); font-size: calc(13px / var(--cdc-zoom, 1)); color: var(--muted-foreground); }
+.cdc-overview-label > span[data-tone="attention"], .cdc-overview-label > span[data-tone="running"] { color: var(--foreground); }
+.cdc-overview-label .cdc-status-pip { width: calc(8px / var(--cdc-zoom, 1)); height: calc(8px / var(--cdc-zoom, 1)); }
 .cdc-window-body[data-drop-target="true"] { box-shadow: inset 0 0 0 2px var(--ring); }
 
 /* Timeline content scrolls behind these controls; their backing must stay opaque. */

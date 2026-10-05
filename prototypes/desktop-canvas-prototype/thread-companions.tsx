@@ -80,7 +80,7 @@ export function InfoWindow({ window: desktopWindow, threadId }: { window: Deskto
   const folders = desktop.foldersOf(threadId);
 
   return (
-    <WindowFrame window={desktopWindow} title="Info" icon="Info">
+    <WindowFrame window={desktopWindow} title="Info" icon="Info" overview={{ detail: thread?.displayTitle }}>
       {thread === undefined ? <div className="cdc-empty"><p>This thread isn’t available.</p></div> : (
         <div className="cdc-info">
           <header className="cdc-info-header">
@@ -179,7 +179,8 @@ export function RelatedWindow({ window: desktopWindow, threadId }: { window: Des
   const scopeName = activeScope === "project" ? desktop.projectName(thread?.projectId ?? "") || "No project" : thread?.environment?.name ?? thread?.environment?.branchName ?? "Environment";
 
   return (
-    <WindowFrame window={desktopWindow} title={`Threads in ${scopeName}`} icon="Layers">
+    <WindowFrame window={desktopWindow} title={`Threads in ${scopeName}`} icon="Layers"
+      overview={{ detail: `${groups.reduce((sum, group) => sum + (group.key === "archived" ? 0 : group.threads.length), 0)} active` }}>
       <div className="cdc-related">
         {environmentId === null ? null : (
           <div className="cdc-related-tabs" role="tablist" aria-label="Show threads in">

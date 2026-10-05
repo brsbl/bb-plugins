@@ -175,7 +175,7 @@ export function BrowserWindow({ window: desktopWindow, threadId, tabId }: { wind
   const thread = desktop.threadById.get(threadId);
 
   return (
-    <WindowFrame window={desktopWindow} title={pageTitle} icon="Globe" keepMounted
+    <WindowFrame window={desktopWindow} title={pageTitle} icon="Globe" keepMounted overview={{ detail: hostname || undefined }}
       titleActions={thread === undefined ? undefined : (
         <button type="button" className="cdc-title-button" aria-label={`Show ${thread.displayTitle}`} title={`From ${thread.displayTitle}`}
           onClick={() => desktop.openThread(threadId)}>

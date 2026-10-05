@@ -41,7 +41,10 @@ export interface DesktopContextValue {
   projectName: (projectId: string) => string;
   call: ReturnType<typeof useRpc<typeof rpcContract>>["call"];
   refresh: () => void;
+  /** Opens a thread's window: beside its folder on the canvas, or brings it into view if it is already open. */
   openThread: (threadId: string) => void;
+  /** The canvas places thread windows beside their folders; until it mounts, threads open in the current view. */
+  setThreadOpener: (opener: ((threadId: string) => void) | null) => void;
   dropThread: (target: Collection, drag: ThreadDrag) => Promise<void>;
   restoreThread: (threadId: string) => Promise<void>;
   /** Closes the thread's window, then archives it. */
@@ -215,7 +218,14 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
     }, []),
   );
 
-  const openThread = useCallback((threadId: string) => managerRef.current.open({ kind: "thread", threadId }), []);
+  const opener = useRef<((threadId: string) => void) | null>(null);
+  const setThreadOpener = useCallback((next: ((threadId: string) => void) | null) => {
+    opener.current = next;
+  }, []);
+  const openThread = useCallback((threadId: string) => {
+    if (opener.current !== null) opener.current(threadId);
+    else managerRef.current.open({ kind: "thread", threadId });
+  }, []);
 
   const dropThread = useCallback(
     async (target: Collection, drag: ThreadDrag) => {
@@ -274,13 +284,14 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
             call,
             refresh,
             openThread,
+            setThreadOpener,
             dropThread,
             restoreThread,
             archiveThread,
           },
     [
       snapshot, requestedAt, preferences, updatePreferences, saving, organization, threadById, archivedThreads, live.experimental_archived,
-      foldersOf, projectName, call, refresh, openThread, dropThread, restoreThread, archiveThread,
+      foldersOf, projectName, call, refresh, openThread, setThreadOpener, dropThread, restoreThread, archiveThread,
     ],
   );
 

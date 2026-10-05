@@ -278,6 +278,7 @@ function FinderWindow({ window: desktopWindow, groupKey }: { window: DesktopWind
   const total = collectionMembers(group).length;
   return (
     <WindowFrame window={desktopWindow} title={group.name} icon={group.icon} iconClassName={RESOURCE_ICON}
+      overview={{ detail: `${total} ${total === 1 ? "thread" : "threads"}`, tone: groupTone(collectionMembers(group)).tone }}
       statusBar={<><span>{needle ? threads.length : total} {(needle ? threads.length : total) === 1 ? "thread" : "threads"}{!needle && group.children.length ? ` · ${group.children.length} folders` : ""}</span><span className="cdc-statusbar-note">{groupDescription(group)}</span></>}
       bodyProps={threadDropTarget(group) as Record<string, string>}>
       <div className="cdc-finder">
@@ -311,7 +312,7 @@ function ListWindow({ window: desktopWindow, title, icon, threads, empty, note, 
   const [query, setQuery] = useState("");
   const shown = threads.filter(matches(query.trim().toLocaleLowerCase()));
   return (
-    <WindowFrame window={desktopWindow} title={title} icon={icon}
+    <WindowFrame window={desktopWindow} title={title} icon={icon} overview={{ detail: `${threads.length} ${threads.length === 1 ? "thread" : "threads"}` }}
       statusBar={<><span>{shown.length} {shown.length === 1 ? "thread" : "threads"}</span><span className="cdc-statusbar-note">{note}</span></>}>
       <div className="cdc-finder">
         <div className="cdc-toolbar">
@@ -424,7 +425,7 @@ function NewThreadWindow({ window: desktopWindow, groupKey }: { window: DesktopW
       ...(group?.kind === "folder" && group.folder !== undefined ? { folderId: group.folder.id } : {}),
     });
     manager.close(desktopWindow.id);
-    manager.open({ kind: "thread", threadId });
+    desktop.openThread(threadId);
   };
   return (
     <WindowFrame window={desktopWindow} title={group === null ? "New thread" : `New thread in ${group.name}`} icon="MessageSquarePlus">
@@ -483,6 +484,7 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
 
   return (
     <WindowFrame window={desktopWindow} title={thread?.displayTitle ?? "Thread"} bodyProps={{ "data-chat-thread": threadId }}
+      overview={thread === undefined ? undefined : { detail: activityLine(thread, agent), tone: statusTone(thread) ?? (thread.status === "error" ? "error" : null) }}
       titleActions={
         <>
           {thread === undefined ? null : (

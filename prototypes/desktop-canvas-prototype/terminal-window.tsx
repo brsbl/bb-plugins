@@ -120,6 +120,7 @@ export function TerminalWindow({ window: desktopWindow, threadId, tabId }: { win
   const thread = desktop.threadById.get(threadId);
   return (
     <WindowFrame window={desktopWindow} title={`Terminal — ${thread?.displayTitle ?? "Thread"}`} icon="Terminal"
+      overview={{ detail: thread?.environment?.name ?? thread?.environment?.branchName ?? undefined }}
       statusBar={<span className="cdc-statusbar-note">{thread?.environment?.name ?? thread?.environment?.branchName ?? thread?.environment?.path ?? "The thread’s environment"}</span>}>
       <ThreadTerminal threadId={threadId} tabId={tabId} />
     </WindowFrame>
