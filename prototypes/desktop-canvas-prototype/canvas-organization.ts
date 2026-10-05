@@ -113,26 +113,26 @@ export function buildCanvasOrganization(data: PluginSidebarThreadsState, p: Side
   for (const [id, name] of hosts) keep(collection("machine:" + id, name, "Monitor", unpinned.filter(t => t.host?.id === id)));
   keep(collection("machine:no-machine", "No machine", "Monitor", unpinned.filter(t => !t.host)));
   keep(collection("pinned", "Pinned", "Pin", []));
-  if (groupByEnvironment(p)) {
-    for (const group of available) {
-      const membersInGroup = new Set(group.threads.map(t => t.id));
-      const groupRoot = (t: PluginSidebarThread) => chains.get(t.id)!.find(a => membersInGroup.has(a.id)) ?? t;
-      const envs = new Map<string, PluginSidebarThread[]>();
-      for (const t of group.threads) {
-        const env = groupRoot(t).environment;
-        if (!env?.id || !env.isWorktree) continue;
-        const bucket = envs.get(env.id) ?? []; bucket.push(t); envs.set(env.id, bucket);
-      }
-      for (const [id, members] of envs) {
-        if (new Set(members.map(t => groupRoot(t).id)).size < 2) continue;
-        const env = groupRoot(members[0]).environment!;
-        group.children.push(collection(group.id + "/environment:" + id, env.name ?? env.branchName ?? "Environment", "GitBranch", members));
-      }
+  const environmentFolders: CanvasCollection[] = [];
+  for (const group of available) {
+    const membersInGroup = new Set(group.threads.map(t => t.id));
+    const groupRoot = (t: PluginSidebarThread) => chains.get(t.id)!.find(a => membersInGroup.has(a.id)) ?? t;
+    const envs = new Map<string, PluginSidebarThread[]>();
+    for (const t of group.threads) {
+      const env = groupRoot(t).environment;
+      if (!env?.id || !env.isWorktree) continue;
+      const bucket = envs.get(env.id) ?? []; bucket.push(t); envs.set(env.id, bucket);
+    }
+    for (const [id, members] of envs) {
+      const env = groupRoot(members[0]).environment!;
+      const folder = collection(group.id + "/environment:" + id, env.name ?? env.branchName ?? "Environment", "GitBranch", members);
+      environmentFolders.push(folder);
+      if (groupByEnvironment(p) && new Set(members.map(t => groupRoot(t).id)).size >= 2) group.children.push(folder);
     }
   }
   const all = collection("all-threads", "Threads", "MessageSquare", threads);
   const byId = new Map<string, CanvasCollection>();
   const add = (g: CanvasCollection) => { byId.set(g.id, g); g.children.forEach(add); };
-  [...available, ...roots, all].forEach(add);
+  [...available, ...environmentFolders, ...roots, all].forEach(add);
   return { roots, groups: ordered, byId, threads: all.threads };
 }

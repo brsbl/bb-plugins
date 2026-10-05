@@ -49,6 +49,9 @@ describe("sidebar organization on the canvas", () => {
     const result = model([thread("a", { environment }), thread("b", { environment }), thread("old", { isArchived: true }), thread("internal", { isHidden: true, isArchived: true })], { organizationMode: "project", environmentGrouping: "auto", threadLifecycles: ["active", "archived"] });
     expect(result.byId.get("project:p1")!.children[0].threads.map(t => t.id)).toEqual(["a", "b"]);
     expect(result.threads).toHaveLength(3);
+    const ungrouped = model([thread("a", { environment }), thread("b", { environment })], { organizationMode: "project", environmentGrouping: false });
+    expect(ungrouped.byId.get("project:p1")!.children).toHaveLength(0);
+    expect(ungrouped.byId.get("project:p1/environment:env")!.threads.map(t => t.id)).toEqual(["a", "b"]);
     const archived = model([thread("a"), thread("old", { isArchived: true })], { threadLifecycles: ["archived"] });
     expect(archived.threads.map(t => t.id)).toEqual(["old"]);
   });
