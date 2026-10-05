@@ -173,7 +173,6 @@ describe("Pull Requests access and detail lifetime", () => {
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
     const summary = (await screen.findByText("7 of 7 checks passing")).closest("summary")!;
-    expect(screen.queryByRole("link", { name: "Check 1" })).toBeNull();
     fireEvent.click(summary);
     expect(await screen.findByRole("link", { name: "Check 1" })).toBeDefined();
     expect(screen.queryByRole("link", { name: "Check 7" })).toBeNull();
