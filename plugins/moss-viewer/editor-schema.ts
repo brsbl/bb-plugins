@@ -146,6 +146,25 @@ export const assetName = z
   .max(255)
   .refine((value) => !/[/\\\0]/.test(value) && !value.startsWith("."), "Invalid asset name");
 
+const frontmatterFieldMeta = z.object({
+  source: z.enum(["user", "inferred", "user-removed"]),
+  lastModified: z.number(),
+  missedInferenceCount: z.number().optional(),
+});
+
+/** A draft (unsaved edits) or a receipt (the bytes of a completed save), as bb keeps them beyond a mount. */
+export const draft = z.object({
+  noteId,
+  baseVersion: token,
+  companions: z.array(z.object({ relativePath, version: token })).max(64).readonly(),
+  files: z.object({ markdown: z.string(), comments: z.string().nullable(), layout: z.string().nullable() }),
+  intents: z.object({
+    frontmatterMetaUpdates: z.record(z.string(), frontmatterFieldMeta),
+    commentColors: z.record(z.string(), z.number()),
+  }),
+  at: z.number(),
+});
+
 // What the host returns must be a valid bridge value, and what the panel parses
 // must be one the editor accepts.
 export type SchemaChecks = [
@@ -160,4 +179,6 @@ export type SchemaChecks = [
   Assert<z.output<typeof externalChange> extends Moss.MossExternalChange ? true : false>,
   Assert<Moss.MossAssetPutResult extends z.input<typeof assetPutResult> ? true : false>,
   Assert<z.output<typeof assetPutResult> extends Moss.MossAssetPutResult ? true : false>,
+  Assert<Moss.MossDraft extends z.input<typeof draft> ? true : false>,
+  Assert<z.output<typeof draft> extends Moss.MossDraft ? true : false>,
 ];

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { createFakePluginHost, makeHostResponse } from "@get-bb/plugin-sdk/testing";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ASSET_CHUNK_BYTES } from "./contract.js";
 import plugin, { parseRange } from "./server.js";
 import { loadViewerBundle } from "./viewer-bundle.js";
@@ -251,6 +251,48 @@ describe("the editor's file bridge", () => {
     expect(response.status).toBe(206);
     expect((await bytes(response)).equals(video.subarray(5, 10))).toBe(true);
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "editorAsset", input: { noteId: NOTE_ID, ref: "assets/clip.mp4", offset: 5, length: 5 } });
+  });
+});
+
+describe("kept drafts and save receipts", () => {
+  const draftFor = (markdown: string, noteId = NOTE_ID) => ({
+    noteId,
+    baseVersion: V1,
+    companions: [],
+    files: { markdown, comments: null, layout: null },
+    intents: { frontmatterMetaUpdates: {}, commentColors: { c1: 2 } },
+    at: 1,
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps each note's latest receipt and unsaved draft apart, per host, until forgotten", async () => {
+    const h = await setup();
+    const kept = (hostId = "mac") => h.behavior.callRpc("editorKept", { hostId, noteId: NOTE_ID });
+    expect(await kept()).toEqual({ receipt: null, draft: null });
+
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# One\n") });
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# Two\n") });
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "draft", draft: draftFor("# Unsaved\n") });
+    expect(await kept()).toEqual({ receipt: draftFor("# Two\n"), draft: draftFor("# Unsaved\n") });
+    expect(await kept("studio")).toEqual({ receipt: null, draft: null });
+
+    expect(await h.behavior.callRpc("editorForget", { hostId: "mac", noteId: NOTE_ID, kind: "draft" })).toEqual({ forgotten: true });
+    expect(await kept()).toEqual({ receipt: draftFor("# Two\n"), draft: null });
+    await expect(
+      h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "draft", draft: draftFor("# Other\n", "0f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b") }),
+    ).rejects.toThrow("another note");
+  });
+
+  it("lets a kept receipt lapse after thirty days", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
+    const h = await setup();
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# Old\n") });
+    vi.setSystemTime(new Date("2026-11-05T00:00:00Z"));
+    expect(await h.behavior.callRpc("editorKept", { hostId: "mac", noteId: NOTE_ID })).toEqual({ receipt: null, draft: null });
   });
 });
 

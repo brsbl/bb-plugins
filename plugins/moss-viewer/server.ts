@@ -11,6 +11,7 @@ import {
   type HostNote,
   type NoteChanged,
 } from "./contract.js";
+import { editorSaves } from "./editor-saves.js";
 import { findViewerDirectory, frameDocument, loadViewerBundle } from "./viewer-bundle.js";
 
 type HttpContext = Parameters<Parameters<BbPluginApi["http"]["route"]>[2]>[0];
@@ -61,6 +62,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   host.experimental_onSignal("editorNoteChanged", ({ hostId, payload }) => {
     bb.realtime.publish(NOTE_CHANGED_CHANNEL, { hostId, ...payload } satisfies NoteChanged);
   });
+  const saves = editorSaves(bb);
   const bundle = await loadViewerBundle(await findViewerDirectory(import.meta.url));
   const httpRoot = `/api/v1/plugins/${encodeURIComponent(bb.pluginId)}/http`;
   const frameUrl = `${httpRoot}${bundle.base}/frame.html`;
@@ -158,6 +160,16 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     editorAssetChunk: ({ hostId, ...input }) => host.call("editorAssetChunk", input, { hostId }),
     editorAssetCommit: ({ hostId, ...input }) => host.call("editorAssetCommit", input, { hostId }),
     editorAssetCopy: ({ hostId, ...input }) => host.call("editorAssetCopy", input, { hostId }),
+    editorKeep: ({ hostId, noteId, kind, draft }) => {
+      if (draft.noteId !== noteId) throw new Error("This draft belongs to another note.");
+      saves.keep(hostId, noteId, kind, draft);
+      return { kept: true as const };
+    },
+    editorKept: ({ hostId, noteId }) => saves.kept(hostId, noteId),
+    editorForget: ({ hostId, noteId, kind }) => {
+      saves.forget(hostId, noteId, kind);
+      return { forgotten: true as const };
+    },
   });
 
   bb.http.route(

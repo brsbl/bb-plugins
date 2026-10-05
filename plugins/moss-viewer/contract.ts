@@ -6,6 +6,7 @@ import {
   assetPutResult,
   assetRef,
   companionRead,
+  draft,
   externalChange,
   noteId,
   noteWrite,
@@ -84,6 +85,8 @@ const editorHostMethods = {
   },
 };
 
+const savedKind = z.enum(["receipt", "draft"]);
+
 /** The same bridge methods for the panel, each sent to the note's host. */
 const hostIdInput = { hostId: id };
 const editorRpcMethods = {
@@ -94,6 +97,20 @@ const editorRpcMethods = {
   editorAssetChunk: { input: z.object({ ...hostIdInput, noteId, ...assetChunk }).strict(), output: assetChunkResult },
   editorAssetCommit: { input: z.object({ ...hostIdInput, noteId, ...assetCommit }).strict(), output: assetPutResult },
   editorAssetCopy: { input: z.object({ ...hostIdInput, noteId, ...assetCopy }).strict(), output: assetPutResult },
+  /** Keeps a note's last save receipt, or the draft an unmount left unsaved, beyond the mount. */
+  editorKeep: {
+    input: z.object({ ...hostIdInput, noteId, kind: savedKind, draft }).strict(),
+    output: z.object({ kept: z.literal(true) }).strict(),
+  },
+  /** What bb kept for a note: its last receipt and any unsaved draft, each null when none. */
+  editorKept: {
+    input: z.object({ ...hostIdInput, noteId }).strict(),
+    output: z.object({ receipt: draft.nullable(), draft: draft.nullable() }).strict(),
+  },
+  editorForget: {
+    input: z.object({ ...hostIdInput, noteId, kind: savedKind }).strict(),
+    output: z.object({ forgotten: z.literal(true) }).strict(),
+  },
 };
 
 const note = z.object({
