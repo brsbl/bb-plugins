@@ -35,7 +35,8 @@ export const rpcContract = defineRpcContract({
   },
   inspect: {
     input: z.object({ threadId: id }).strict(),
-    output: z.object({ pins: z.array(referenceSchema).max(MAX_PINS), more: moreSchema }),
+    // The thread environment's host; bb previews host files only there.
+    output: z.object({ pins: z.array(referenceSchema).max(MAX_PINS), more: moreSchema, threadHostId: id.nullable() }),
   },
   remove: {
     input: z.object({ threadId: id, pinId: id }).strict(),
