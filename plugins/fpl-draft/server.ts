@@ -540,45 +540,277 @@ export function createFplDraftPlugin(fetchImpl: FetchLike) {
       },
     });
 
-    bb.rpc.register(rpcContract, {
-      async getNextWaiverOrder() {
-        const leagueId = await requireLeagueId();
-        const [data, details] = await Promise.all([bootstrap(), leagueDetails(leagueId)]);
-        const index = buildManagerIndex(details.league_entries);
-        const { leagueEntryId } = await viewer(index);
-        const event = data.events.current;
-        if (leagueEntryId === null || event === null) return null;
-        const lineups = new Map(await Promise.all(index.managers.map(async manager => {
-          const picks = await cache.read(`picks:${manager.entryId}:${event}`, PICKS_TTL_MS, () => api.entryPicks(manager.entryId, event));
-          return [manager.entryId, picks?.picks ?? []] as const;
-        })));
-        const inFlight = details.matches.some(match => match.event === event && match.started && !match.finished);
-        const live = inFlight ? await cache.read(`live:${event}`, LIVE_TTL_MS, () => api.eventLive(event)).catch(() => null) : null;
-        const projected = projectNextWaiverOrder({ data, details, lineups, live });
-        const mine = projected?.order.find(row => row.leagueEntryId === leagueEntryId);
-        if (!projected || !mine) return null;
-        const log = await transactions(leagueId);
-        const squads = new Map([...lineups].filter(([entryId]) => index.byEntry.get(entryId)?.leagueEntryId !== leagueEntryId)
-          .map(([entryId, picks]) => [entryId, applyTransactions({ picks, transactions: log, entryId, afterEvent: event })]));
-        // Incomplete rival rosters cannot support a demand count.
-        const complete = [...squads.values()].every(picks => picks.length === data.settings.squad.size);
-        const competitionAt = (bound: "min" | "max") => buildCompetition({
-          squads, elements: new Map(data.elements.map(element => [element.id, element])),
-          types: data.element_types, gamesPlayed: event,
-          waiverPickOf: entryId => projected.order.find(row => row.leagueEntryId === index.byEntry.get(entryId)?.leagueEntryId)?.[bound] ?? null,
-        });
-        const earliest = competitionAt("min");
-        const latest = competitionAt("max");
+    async function configuredViewer() {
+      const leagueId = await requireLeagueId();
+      const details = await leagueDetails(leagueId);
+      const { leagueEntryId } = await viewer(buildManagerIndex(details.league_entries));
+      return { leagueId, leagueEntryId };
+    }
+
+    async function getNextWaiverOrder(leagueId: number, leagueEntryId: number | null): Promise<NextWaiverOrderPayload> {
+      const [data, details] = await Promise.all([bootstrap(), leagueDetails(leagueId)]);
+      const index = buildManagerIndex(details.league_entries);
+      const event = data.events.current;
+      if (leagueEntryId === null || event === null) return null;
+      const lineups = new Map(await Promise.all(index.managers.map(async manager => {
+        const picks = await cache.read(`picks:${manager.entryId}:${event}`, PICKS_TTL_MS, () => api.entryPicks(manager.entryId, event));
+        return [manager.entryId, picks?.picks ?? []] as const;
+      })));
+      const inFlight = details.matches.some(match => match.event === event && match.started && !match.finished);
+      const live = inFlight ? await cache.read(`live:${event}`, LIVE_TTL_MS, () => api.eventLive(event)).catch(() => null) : null;
+      const projected = projectNextWaiverOrder({ data, details, lineups, live });
+      const mine = projected?.order.find(row => row.leagueEntryId === leagueEntryId);
+      if (!projected || !mine) return null;
+      const log = await transactions(leagueId);
+      const squads = new Map([...lineups].filter(([entryId]) => index.byEntry.get(entryId)?.leagueEntryId !== leagueEntryId)
+        .map(([entryId, picks]) => [entryId, applyTransactions({ picks, transactions: log, entryId, afterEvent: event })]));
+      // Incomplete rival rosters cannot support a demand count.
+      const complete = [...squads.values()].every(picks => picks.length === data.settings.squad.size);
+      const competitionAt = (bound: "min" | "max") => buildCompetition({
+        squads, elements: new Map(data.elements.map(element => [element.id, element])),
+        types: data.element_types, gamesPlayed: event,
+        waiverPickOf: entryId => projected.order.find(row => row.leagueEntryId === index.byEntry.get(entryId)?.leagueEntryId)?.[bound] ?? null,
+      });
+      const earliest = competitionAt("min");
+      const latest = competitionAt("max");
+      return {
+        event: projected.event, throughEvent: projected.throughEvent, live: projected.live,
+        min: mine.min, max: mine.max, totalManagers: index.managers.length,
+        competition: complete ? [...earliest].map(([position, row]) => ({
+          position,
+          minAhead: latest.get(position)!.needingPicks.filter(pick => pick < mine.min).length,
+          maxAhead: row.needingPicks.filter(pick => pick < mine.max).length,
+        })) : [],
+      };
+    }
+
+    async function getWaiverPlan(leagueId: number, leagueEntryId: number | null): Promise<WaiverPlanPayload> {
+      const [data, details] = await Promise.all([bootstrap(), leagueDetails(leagueId)]);
+      const index = buildManagerIndex(details.league_entries);
+      const me =
+        leagueEntryId === null ? undefined : index.byLeagueEntry.get(leagueEntryId);
+      const event = data.events.current;
+      if (me === undefined || event === null) {
         return {
-          event: projected.event, throughEvent: projected.throughEvent, live: projected.live,
-          min: mine.min, max: mine.max, totalManagers: index.managers.length,
-          competition: complete ? [...earliest].map(([position, row]) => ({
-            position,
-            minAhead: latest.get(position)!.needingPicks.filter(pick => pick < mine.min).length,
-            maxAhead: row.needingPicks.filter(pick => pick < mine.max).length,
-          })) : [],
+          available: false,
+          reason:
+            me === undefined
+              ? "Set which team is yours in FPL Draft settings to get a waiver plan."
+              : "The season has not started yet.",
+          waiverPick: null,
+          totalManagers: index.managers.length,
+          weakSpots: [],
+          swaps: [],
+          fetchedAt: new Date().toISOString(),
+        };
+      }
+
+      const elements = new Map(data.elements.map((e) => [e.id, e]));
+      const teams = new Map(data.teams.map((t) => [t.id, t]));
+      const positionFor = (id: number): Position => {
+        const element = elements.get(id);
+        return element === undefined ? "MID" : positionOf(element, data.element_types);
+      };
+
+      // Every squad in the league — needed to know how crowded a position is.
+      const squads = new Map<number, DraftPick[]>();
+      const fetched = await Promise.all(
+        index.managers.map(async (manager) => {
+          const picks = await cache.read(
+            `picks:${manager.entryId}:${event}`,
+            PICKS_TTL_MS,
+            () => api.entryPicks(manager.entryId, event),
+          );
+          return [manager.entryId, picks?.picks ?? []] as const;
+        }),
+      );
+      const log = await transactions(leagueId);
+      for (const [entryId, picks] of fetched) {
+        if (picks.length === 0) continue;
+        // Every squad is brought up to date, so positional need across the
+        // league reflects today's rosters rather than last week's lineups.
+        squads.set(
+          entryId,
+          applyTransactions({ picks, transactions: log, entryId, afterEvent: event }),
+        );
+      }
+      const myPicks: { picks: DraftPick[] } = { picks: squads.get(me.entryId) ?? [] };
+      if (myPicks.picks.length === 0) {
+        return {
+          available: false,
+          reason: `Your squad for gameweek ${event} is not published yet.`,
+          waiverPick: me.waiverPick,
+          totalManagers: index.managers.length,
+          weakSpots: [],
+          swaps: [],
+          fetchedAt: new Date().toISOString(),
+        };
+      }
+
+      const competition = buildCompetition({
+        squads,
+        elements,
+        types: data.element_types,
+        gamesPlayed: event,
+        waiverPickOf: (entryId) => index.byEntry.get(entryId)?.waiverPick ?? null,
+      });
+
+      const ownership = await cache.read(`ownership:${leagueId}`, OWNERSHIP_TTL_MS, () =>
+        api.elementStatus(leagueId),
+      );
+      const free = new Set(
+        ownership
+          .filter((row) => row.status === "a" && !row.in_accepted_trade)
+          .map((row) => row.element),
+      );
+
+      // Shortlist first, then fetch per-player history only for those.
+      const toCandidate = async (element: DraftElement): Promise<SwapCandidate> => {
+        const value = valuePlayer(element, event);
+        let opponents: Awaited<ReturnType<typeof buildOpponentRecords>> = [];
+        try {
+          const summary = await historyFor(element.id);
+          opponents = buildOpponentRecords({
+            fixtures: summary.fixtures,
+            history: summary.history ?? [],
+            teams,
+            limit: FIXTURE_RUN_LENGTH - 1,
+          });
+        } catch (error) {
+          bb.log.warn(`FPL Draft: no fixtures for ${element.id}: ${String(error)}`);
+        }
+        return {
+          elementId: element.id,
+          name: element.web_name,
+          team: teams.get(element.team)?.short_name ?? "",
+          pointsPerGame: value.pointsPerGame,
+          minutesPerGame: value.minutesPerGame,
+          seasonPoints: element.total_points,
+          goals: element.goals_scored,
+          assists: element.assists,
+          defending: element.defensive_contribution,
+          bonus: element.bonus,
+          fplStats: {
+            pointsPerMatch: publishedNumber(element.points_per_game),
+            form: publishedNumber(element.form),
+            minutes: element.minutes,
+            starts: element.starts,
+            cleanSheets: element.clean_sheets,
+            expectedGoals: publishedNumber(element.expected_goals),
+            expectedAssists: publishedNumber(element.expected_assists),
+          },
+          availability: element.status,
+          news: element.news,
+          opponents,
+        };
+      };
+
+      const mineRaw = myPicks.picks
+        .map((pick) => elements.get(pick.element))
+        .filter((e): e is DraftElement => e !== undefined);
+      const poolRaw: DraftElement[] = [];
+      for (const position of ["GKP", "DEF", "MID", "FWD"] as const) {
+        const best = data.elements
+          .filter(
+            (e) =>
+              free.has(e.id) &&
+              e.status !== "u" &&
+              positionOf(e, data.element_types) === position,
+          )
+          .map((e) => ({ e, v: valuePlayer(e, event) }))
+          .sort(
+            (a, b) =>
+              b.v.pointsPerGame * (0.35 + 0.65 * Math.min(1, b.v.minutesPerGame / 90)) -
+              a.v.pointsPerGame * (0.35 + 0.65 * Math.min(1, a.v.minutesPerGame / 90)),
+          )
+          .slice(0, 6)
+          .map((x) => x.e);
+        poolRaw.push(...best);
+      }
+
+      const [squadCandidates, poolCandidates] = await Promise.all([
+        Promise.all(mineRaw.map(toCandidate)),
+        Promise.all(poolRaw.map(toCandidate)),
+      ]);
+
+      const squadPositions = new Map(
+        squadCandidates.map((c) => [c.elementId, positionFor(c.elementId)]),
+      );
+      const swaps = buildWaiverPlan({
+        squad: squadCandidates,
+        squadPositions,
+        pool: poolCandidates,
+        poolPositions: new Map(poolCandidates.map((c) => [c.elementId, positionFor(c.elementId)])),
+        competition,
+      });
+      const weakSpots = buildWeakSpots({ squad: squadCandidates, squadPositions, swaps,
+        startingElementIds: new Set(myPicks.picks.filter(pick => pick.position <= data.settings.squad.play).map(pick => pick.element)),
+      });
+
+      return {
+        available: true,
+        reason: null,
+        waiverPick: me.waiverPick,
+        totalManagers: index.managers.length,
+        weakSpots,
+        swaps,
+        fetchedAt: new Date().toISOString(),
+      };
+    }
+
+    bb.ui.registerMentionProvider({
+      id: "waivers",
+      label: "FPL Draft waivers",
+      async search({ query }) {
+        if (!"fpl draft waivers".includes(query.trim().toLowerCase())) return [];
+        const values = await settings.get();
+        if (parseLeagueId(String(values.leagueId ?? "")) === null) return [];
+        const { leagueId, leagueEntryId } = await configuredViewer();
+        return leagueEntryId === null ? [] : [{
+          id: JSON.stringify([String(leagueId), leagueEntryId]),
+          title: "FPL Draft · Waivers",
+        }];
+      },
+      async resolve(itemId) {
+        let reference: [string, number];
+        try {
+          reference = z.tuple([z.string(), z.number().int().positive().safe()]).parse(JSON.parse(itemId));
+        } catch {
+          throw new Error("This FPL Draft waiver mention is invalid.");
+        }
+        const [rawLeagueId, leagueEntryId] = reference;
+        const leagueId = parseLeagueId(rawLeagueId);
+        if (leagueId === null || !Number.isSafeInteger(leagueId) || leagueId <= 0) {
+          throw new Error("This FPL Draft league mention is invalid.");
+        }
+        const details = await leagueDetails(leagueId);
+        const manager = buildManagerIndex(details.league_entries).byLeagueEntry.get(leagueEntryId);
+        if (!manager) throw new Error("This team is not available in the referenced FPL Draft league.");
+        const [plan, nextOrder] = await Promise.all([
+          getWaiverPlan(leagueId, leagueEntryId),
+          getNextWaiverOrder(leagueId, leagueEntryId).catch(() => null),
+        ]);
+        if (!plan.available) throw new Error(plan.reason ?? "FPL Draft waivers are unavailable.");
+        return {
+          context: JSON.stringify({
+            source: "FPL Draft",
+            league: { id: leagueId, name: details.league.name },
+            team: manager,
+            scope: "Current waiver options for the full squad; not an optimized starting lineup.",
+            notes: "Draft has no prices and no captaincy. waiverPick is the last published position, not the next confirmed order. nextOrder and rival demand are estimates; live projections do not predict substitutions or unplayed fixtures.",
+            plan,
+            nextOrder,
+          }, null, 2),
         };
       },
+    });
+
+    bb.rpc.register(rpcContract, {
+      async getNextWaiverOrder() {
+        const { leagueId, leagueEntryId } = await configuredViewer();
+        return getNextWaiverOrder(leagueId, leagueEntryId);
+      },
+
       async getLeague(input) {
         if (input?.refresh) cache.clear();
         const leagueId = await requireLeagueId();
@@ -681,179 +913,8 @@ export function createFplDraftPlugin(fetchImpl: FetchLike) {
       },
 
       async getWaiverPlan() {
-        const leagueId = await requireLeagueId();
-        const [data, details] = await Promise.all([bootstrap(), leagueDetails(leagueId)]);
-        const index = buildManagerIndex(details.league_entries);
-        const { leagueEntryId } = await viewer(index);
-        const me =
-          leagueEntryId === null ? undefined : index.byLeagueEntry.get(leagueEntryId);
-        const event = data.events.current;
-        if (me === undefined || event === null) {
-          return {
-            available: false,
-            reason:
-              me === undefined
-                ? "Set which team is yours in FPL Draft settings to get a waiver plan."
-                : "The season has not started yet.",
-            waiverPick: null,
-            totalManagers: index.managers.length,
-            weakSpots: [],
-            swaps: [],
-            fetchedAt: new Date().toISOString(),
-          };
-        }
-
-        const elements = new Map(data.elements.map((e) => [e.id, e]));
-        const teams = new Map(data.teams.map((t) => [t.id, t]));
-        const positionFor = (id: number): Position => {
-          const element = elements.get(id);
-          return element === undefined ? "MID" : positionOf(element, data.element_types);
-        };
-
-        // Every squad in the league — needed to know how crowded a position is.
-        const squads = new Map<number, DraftPick[]>();
-        const fetched = await Promise.all(
-          index.managers.map(async (manager) => {
-            const picks = await cache.read(
-              `picks:${manager.entryId}:${event}`,
-              PICKS_TTL_MS,
-              () => api.entryPicks(manager.entryId, event),
-            );
-            return [manager.entryId, picks?.picks ?? []] as const;
-          }),
-        );
-        const log = await transactions(leagueId);
-        for (const [entryId, picks] of fetched) {
-          if (picks.length === 0) continue;
-          // Every squad is brought up to date, so positional need across the
-          // league reflects today's rosters rather than last week's lineups.
-          squads.set(
-            entryId,
-            applyTransactions({ picks, transactions: log, entryId, afterEvent: event }),
-          );
-        }
-        const myPicks: { picks: DraftPick[] } = { picks: squads.get(me.entryId) ?? [] };
-        if (myPicks.picks.length === 0) {
-          return {
-            available: false,
-            reason: `Your squad for gameweek ${event} is not published yet.`,
-            waiverPick: me.waiverPick,
-            totalManagers: index.managers.length,
-            weakSpots: [],
-            swaps: [],
-            fetchedAt: new Date().toISOString(),
-          };
-        }
-
-        const competition = buildCompetition({
-          squads,
-          elements,
-          types: data.element_types,
-          gamesPlayed: event,
-          waiverPickOf: (entryId) => index.byEntry.get(entryId)?.waiverPick ?? null,
-        });
-
-        const ownership = await cache.read(`ownership:${leagueId}`, OWNERSHIP_TTL_MS, () =>
-          api.elementStatus(leagueId),
-        );
-        const free = new Set(
-          ownership
-            .filter((row) => row.status === "a" && !row.in_accepted_trade)
-            .map((row) => row.element),
-        );
-
-        // Shortlist first, then fetch per-player history only for those.
-        const toCandidate = async (element: DraftElement): Promise<SwapCandidate> => {
-          const value = valuePlayer(element, event);
-          let opponents: Awaited<ReturnType<typeof buildOpponentRecords>> = [];
-          try {
-            const summary = await historyFor(element.id);
-            opponents = buildOpponentRecords({
-              fixtures: summary.fixtures,
-              history: summary.history ?? [],
-              teams,
-              limit: FIXTURE_RUN_LENGTH - 1,
-            });
-          } catch (error) {
-            bb.log.warn(`FPL Draft: no fixtures for ${element.id}: ${String(error)}`);
-          }
-          return {
-            elementId: element.id,
-            name: element.web_name,
-            team: teams.get(element.team)?.short_name ?? "",
-            pointsPerGame: value.pointsPerGame,
-            minutesPerGame: value.minutesPerGame,
-            seasonPoints: element.total_points,
-            goals: element.goals_scored,
-            assists: element.assists,
-            defending: element.defensive_contribution,
-            bonus: element.bonus,
-            fplStats: {
-              pointsPerMatch: publishedNumber(element.points_per_game),
-              form: publishedNumber(element.form),
-              minutes: element.minutes,
-              starts: element.starts,
-              cleanSheets: element.clean_sheets,
-              expectedGoals: publishedNumber(element.expected_goals),
-              expectedAssists: publishedNumber(element.expected_assists),
-            },
-            availability: element.status,
-            news: element.news,
-            opponents,
-          };
-        };
-
-        const mineRaw = myPicks.picks
-          .map((pick) => elements.get(pick.element))
-          .filter((e): e is DraftElement => e !== undefined);
-        const poolRaw: DraftElement[] = [];
-        for (const position of ["GKP", "DEF", "MID", "FWD"] as const) {
-          const best = data.elements
-            .filter(
-              (e) =>
-                free.has(e.id) &&
-                e.status !== "u" &&
-                positionOf(e, data.element_types) === position,
-            )
-            .map((e) => ({ e, v: valuePlayer(e, event) }))
-            .sort(
-              (a, b) =>
-                b.v.pointsPerGame * (0.35 + 0.65 * Math.min(1, b.v.minutesPerGame / 90)) -
-                a.v.pointsPerGame * (0.35 + 0.65 * Math.min(1, a.v.minutesPerGame / 90)),
-            )
-            .slice(0, 6)
-            .map((x) => x.e);
-          poolRaw.push(...best);
-        }
-
-        const [squadCandidates, poolCandidates] = await Promise.all([
-          Promise.all(mineRaw.map(toCandidate)),
-          Promise.all(poolRaw.map(toCandidate)),
-        ]);
-
-        const squadPositions = new Map(
-          squadCandidates.map((c) => [c.elementId, positionFor(c.elementId)]),
-        );
-        const swaps = buildWaiverPlan({
-          squad: squadCandidates,
-          squadPositions,
-          pool: poolCandidates,
-          poolPositions: new Map(poolCandidates.map((c) => [c.elementId, positionFor(c.elementId)])),
-          competition,
-        });
-        const weakSpots = buildWeakSpots({ squad: squadCandidates, squadPositions, swaps,
-          startingElementIds: new Set(myPicks.picks.filter(pick => pick.position <= data.settings.squad.play).map(pick => pick.element)),
-        });
-
-        return {
-          available: true,
-          reason: null,
-          waiverPick: me.waiverPick,
-          totalManagers: index.managers.length,
-          weakSpots,
-          swaps,
-          fetchedAt: new Date().toISOString(),
-        };
+        const { leagueId, leagueEntryId } = await configuredViewer();
+        return getWaiverPlan(leagueId, leagueEntryId);
       },
 
       async getPlayers() {

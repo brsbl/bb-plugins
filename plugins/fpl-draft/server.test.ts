@@ -190,6 +190,41 @@ describe("FPL Draft plugin", () => {
     await harness.lifecycle.dispose();
   });
 
+  it("resolves waiver context for the referenced team after settings change", async () => {
+    const { harness, log } = await bootPlugin();
+    const provider = harness.inspection.registrations.mentionProviders.find(item => item.id === "waivers")!;
+    const items = await provider.search({ trigger: "@", query: "waivers", projectId: null, threadId: null });
+    expect(items).toEqual([{ id: '["4211",100]', title: "FPL Draft · Waivers" }]);
+    const plan = await call.getWaiverPlan(harness);
+    await harness.behavior.setSettings({ leagueId: "9999", managerName: "Beta" });
+    const { context } = await provider.resolve(items[0]!.id);
+    const resolved = JSON.parse(context);
+    expect(resolved).toMatchObject({ source: "FPL Draft", league: { id: 4211, name: "Test League" },
+      team: { leagueEntryId: 100, teamName: "Alpha" },
+      plan: { available: true, weakSpots: plan.weakSpots, swaps: plan.swaps },
+    });
+    expect(resolved.scope).toContain("full squad");
+    expect(resolved.notes).toContain("not the next confirmed order");
+    expect(log.urls).not.toContain("https://draft.premierleague.com/api/league/9999/details");
+    await harness.lifecycle.dispose();
+  });
+
+  it.each(['not-json', '["4211",0]', '["4211",999]', '["not-a-league",100]'])(
+    "rejects an invalid or unavailable waiver reference: %s", async id => {
+      const { harness } = await bootPlugin();
+      const provider = harness.inspection.registrations.mentionProviders.find(item => item.id === "waivers")!;
+      await expect(provider.resolve(id)).rejects.toThrow(/FPL Draft/);
+      await harness.lifecycle.dispose();
+    },
+  );
+
+  it("blocks sending a waiver mention when its squad is unavailable", async () => {
+    const { harness } = await bootPlugin({ "/entry/900/event/2": null });
+    const provider = harness.inspection.registrations.mentionProviders.find(item => item.id === "waivers")!;
+    await expect(provider.resolve('["4211",100]')).rejects.toThrow();
+    await harness.lifecycle.dispose();
+  });
+
   it("resolves the mentioned week in its original league after settings change", async () => {
     const { harness, log } = await bootPlugin();
     const provider = harness.inspection.registrations.mentionProviders[0]!;

@@ -74,8 +74,9 @@ player can carry both.
 Nothing is submitted for you. The plugin cannot see anyone's pending claims —
 nobody can — so competition is inferred from who has a hole, never asserted.
 
-*Ask agent* prepares a draft with context from the current view. Send the draft
-to get an agent response.
+*Ask agent* adds a short question and a context pill, preserving your existing draft.
+Waiver pills keep the selected league and team; the current plan, fallbacks, and
+order estimate resolve when you send. Gameweek pills work the same way for matches and standings.
 
 ## Install
 

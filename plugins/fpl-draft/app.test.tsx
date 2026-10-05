@@ -310,11 +310,17 @@ describe("waiver surface", () => {
       getWaiverPlan: () => ({ ...PLAN, swaps: [{ ...PLAN.swaps[1]!, lineupGain: 0.5, lineupOut: "Pickford" }] }),
     } });
     await screen.findByText("Rushworth");
+    await slot.behavior.setComposerText("My question.");
     fireEvent.click(screen.getByRole("button", { name: "Ask agent" }));
     expect(slot.inspection.navigateCalls[0]).toMatchObject({
-      method: "toCompose", options: { initialPrompt: expect.stringContaining("for my full squad"), focusPrompt: true },
+      method: "toCompose", options: { focusPrompt: true },
     });
-    expect(JSON.stringify(slot.inspection.navigateCalls)).not.toContain("Would enter the starting XI");
+    expect(slot.inspection.navigateCalls[0]).not.toHaveProperty("options.initialPrompt");
+    expect(slot.inspection.composer.text).toContain("My question.\n\nReview the waiver options for my full squad.");
+    expect(slot.inspection.composer.mentions).toEqual([
+      { provider: "waivers", id: '["4211",126586]', label: "FPL Draft · Waivers" },
+    ]);
+    expect(slot.inspection.composer.text).not.toContain("Rushworth");
   });
 
   it("labels the published position as historical, not an estimate", async () => {
@@ -324,7 +330,7 @@ describe("waiver surface", () => {
     expect(screen.getByRole("img", { name: "Historical position; next order unverified" })).toBeTruthy();
   });
 
-  it("shows compact rule assessments and includes their evidence when asking the agent", async () => {
+  it("shows compact rule assessments without expanding them into the draft", async () => {
     const slot = await render({ subPath: "waivers", rpc: {
       getWaiverPlan: () => ({ ...PLAN, swaps: PLAN.swaps.map((swap, index) => ({ ...swap,
         assessment: index === 0
@@ -336,8 +342,9 @@ describe("waiver surface", () => {
     expect(screen.getByText("Priority 2 · Depth option")).toBeTruthy();
     expect(screen.queryByText("Higher xG + xA per 90")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ask agent" }));
-    expect(JSON.stringify(slot.inspection.navigateCalls)).toContain("Programmatic assessment: Supported upgrade: More established playing time; Higher xG + xA per 90; Harder next fixtures.");
-    expect(JSON.stringify(slot.inspection.navigateCalls)).toContain("Depth option: Adds goalkeeper cover; Short clean-sheet streak.");
+    expect(slot.inspection.composer.mentions).toHaveLength(1);
+    expect(slot.inspection.composer.text).not.toContain("Programmatic assessment");
+    expect(slot.inspection.composer.text).not.toContain("Depth option");
   });
 
   it("preserves the historical fallback when no next-order estimate is available", async () => {

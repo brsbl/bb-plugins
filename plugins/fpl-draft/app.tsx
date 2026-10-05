@@ -33,7 +33,7 @@ import type {
   WeekPayload,
   rpcContract,
 } from "./server";
-import { describeWaiverAssessment, WAIVER_STRENGTH_LABELS } from "./waiver-rules";
+import { WAIVER_STRENGTH_LABELS } from "./waiver-rules";
 
 const LIVE_REFRESH_MS = 60_000;
 
@@ -105,19 +105,15 @@ function IconButton({
   );
 }
 
-function AgentLink({ label, prompt, mention }: { label: string; prompt: string; mention?: PluginComposerMention }) {
+function AgentLink({ label, prompt, mention }: { label: string; prompt: string; mention: PluginComposerMention }) {
   const navigate = useBbNavigate();
   const composer = useComposer();
   return (
     <IconButton label={label} tooltip
       onClick={() => {
-        if (mention) {
-          composer.updateText((current) => `${current}${current.length ? "\n\n" : ""}${prompt}\n`);
-          composer.insertMention(mention);
-          navigate.toCompose({ focusPrompt: true });
-        } else {
-          navigate.toCompose({ initialPrompt: prompt, focusPrompt: true });
-        }
+        composer.updateText((current) => `${current}${current.length ? "\n\n" : ""}${prompt}\n`);
+        composer.insertMention(mention);
+        navigate.toCompose({ focusPrompt: true });
       }}
     >
       <MessageSquarePlus aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
@@ -603,41 +599,6 @@ function rivalsAhead(swap: SwapPayload, waiverPick: number | null): number {
 
 const rangeText = (min: number, max: number) => min === max ? String(min) : `${min}–${max}`;
 
-function swapPrompt(plan: WaiverPlanPayload, nextOrder: NextWaiverOrderPayload): string {
-  const pick = publishedWaiverPick(plan);
-  return [
-    nextOrder
-      ? `My Fantasy Premier League Draft waiver options. Estimated first-round position for GW ${nextOrder.event}: ${rangeText(nextOrder.min, nextOrder.max)} of ${nextOrder.totalManagers}, based on GW ${nextOrder.throughEvent} ${nextOrder.live ? "starting-XI scores if they hold; substitutions and unplayed fixtures are not predicted" : "completed scores"}. This is not a confirmed queue.`
-      : `My Fantasy Premier League Draft waiver options. Last published waiver position: ${pick === null ? "unavailable" : `${pick} of ${plan.totalManagers}`}. The next order is unverified.`,
-    "",
-    "Weak spots in my squad:",
-    ...plan.weakSpots.map(
-      (spot, i) => `${i + 1}. ${spot.player.name} (${spot.position} ${spot.player.team}): ${weaknessText(spot)}.`,
-    ),
-    "",
-    "Suggested waivers for my full squad, in priority order (one replacement per position):",
-    ...plan.swaps.map(
-      (s, i) => {
-        const demand = nextOrder?.competition.find(row => row.position === s.position);
-        const competition = nextOrder
-          ? demand
-            ? `${rangeText(demand.minAhead, demand.maxAhead)} managers ahead in the estimated next order need a ${POSITION_NOUN[s.position] ?? s.position}. `
-            : "Next-order rival demand is unavailable. "
-          : `${rivalsAhead(s, pick)} managers ${pick === null ? "in the league" : "ahead of me in the last published order"} are estimated to need a ${POSITION_NOUN[s.position] ?? s.position}. `;
-        return (
-          `${i + 1}. IN ${s.in.name} (${s.position} ${s.in.team}, ${s.in.pointsPerGame} pts/game, ${s.in.minutesPerGame} mins/game) ` +
-          `OUT ${s.out.name} (${s.out.pointsPerGame} pts/game, ${s.out.minutesPerGame} mins/game). ` +
-          (s.assessment ? `Programmatic assessment: ${describeWaiverAssessment(s.assessment)} ` : "") +
-          competition +
-          `Rival needs are estimated. Fallbacks: ${s.fallbacks.map((f) => f.name).join(", ") || "none"}.`
-        );
-      },
-    ),
-    "",
-    "Draft has no prices and no captaincy. Which would you file, and in what order?",
-  ].join("\n");
-}
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <h3 className="flex min-h-8 items-center whitespace-nowrap text-sm font-semibold tracking-tight">
@@ -884,6 +845,7 @@ function ClaimRow({
 }
 
 function WaiverView({ league }: { league: LeaguePayload }) {
+  const { values: settings } = useSettings();
   const rpc = useRpc<typeof rpcContract>();
   const [plan, setPlan] = useState<WaiverPlanPayload | null>(null);
   const [nextOrder, setNextOrder] = useState<NextWaiverOrderPayload>(null);
@@ -980,7 +942,11 @@ function WaiverView({ league }: { league: LeaguePayload }) {
 
   return (
     <ViewFrame actions={<>
-        <AgentLink label="Ask agent" prompt={swapPrompt(plan, nextOrder)} />
+        {typeof settings?.leagueId === "string" && league.viewerLeagueEntryId !== null ? <AgentLink
+          label="Ask agent"
+          prompt="Review the waiver options for my full squad. Which claims would you file, and in what order?"
+          mention={{ provider: "waivers", id: JSON.stringify([settings.leagueId, league.viewerLeagueEntryId]), label: "FPL Draft · Waivers" }}
+        /> : null}
         <IconButton label="Refresh" tooltip onClick={() => void load()} spinning={loading} disabled={loading}>
           <RefreshCw aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
         </IconButton>
