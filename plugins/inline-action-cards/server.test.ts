@@ -89,6 +89,130 @@ it("bulk approval atomically reserves only the displayed ready rows of a matchin
   expect(() => store.table("thr_other", "news")).toThrow("unavailable");
 });
 
+it("lists every card once, keeps pending, failed and Later cards waiting with Later last, and sorts newest first", async () => {
+  const { store } = setup();
+  store.create("thr_one", "same-id", reply);
+  store.create("thr_two", "same-id", reply);
+  store.create("thr_one", "pending", reply);
+  store.create("thr_two", "failed", reply);
+  const pending = store.prepare({ threadId: "thr_one", id: "pending", revision: 1, action: "send" });
+  const fail = store.prepare({ threadId: "thr_two", id: "failed", revision: 1, action: "send" });
+  store.claim("thr_two", "failed", fail.attempt!.id);
+  store.report("thr_two", "failed", fail.attempt!.id, "failed", "Reconnect Gmail", true);
+  const sent = store.prepare({ threadId: "thr_two", id: "same-id", revision: 1, action: "send" });
+  store.claim("thr_two", "same-id", sent.attempt!.id);
+  store.report("thr_two", "same-id", sent.attempt!.id, "succeeded", "Sent", false);
+  for (const [id, action] of [["later", "later"], ["skipped", "skip"]] as const) {
+    store.create("thr_one", id, reply);
+    const attempt = store.prepare({ threadId: "thr_one", id, revision: 1, action });
+    store.claim("thr_one", id, attempt.attempt!.id);
+    store.report("thr_one", id, attempt.attempt!.id, "succeeded", action === "later" ? "Later" : "Skipped", false);
+  }
+  const log = await store.log();
+  expect(log.waiting.at(-1)).toMatchObject({ id: "later", state: "succeeded" });
+  expect(log.done.map((item) => item.id).sort()).toEqual(["same-id", "skipped"]);
+  log.waiting.pop();
+  expect(log.waiting.map((item) => item.state).sort()).toEqual(["failed", "pending", "ready"]);
+  expect(log.waiting.find((item) => item.id === "pending")?.attempt?.id).toBe(pending.attempt!.id);
+  expect(log.waiting.map((item) => item.updatedAt)).toEqual(log.waiting.map((item) => item.updatedAt).sort().reverse());
+  const scoped = await store.log("thr_one");
+  expect(scoped.waiting.map((item) => item.id)).toEqual(expect.arrayContaining(["same-id", "pending", "later"]));
+  expect(scoped.done.map((item) => item.id)).toEqual(["skipped"]);
+  expect((await store.log("thr_empty")).waiting).toEqual([]);
+});
+
+it("CLI log defaults to all threads, supports JSON and explicit thread filters", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  for (const threadId of ["thr_one", "thr_two"]) await host.harness.behavior.runCli(["create", "reply", "--thread", threadId, "--item", JSON.stringify(reply)]);
+  const all = await host.harness.behavior.runCli(["log", "--json"]);
+  expect(JSON.parse(all.stdout!).waiting).toHaveLength(2);
+  const scoped = await host.harness.behavior.runCli(["log", "--thread", "thr_two", "--json"]);
+  expect(JSON.parse(scoped.stdout!).waiting).toMatchObject([{ threadId: "thr_two" }]);
+  const text = await host.harness.behavior.runCli(["log"]);
+  expect(text.stdout).toContain("Waiting on you\n");
+  expect(text.stdout).toContain("Escrow follow-up");
+  expect(text.stdout).toContain("Done\n");
+  const invalid = await host.harness.behavior.runCli(["log", "--thread", "../escape"]);
+  expect(invalid.exitCode).not.toBe(0);
+});
+
+it("log choices submit to their owning thread and resend the same durable attempt", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: {
+    get: ({ threadId }) => ({ title: threadId === "thr_other" ? "Refund follow-up" : "Inbox review", projectId: "proj_cards" }),
+    send: () => ({ kind: "queued" }),
+  } } }); hosts.push(host); plugin(host.bb);
+  await host.harness.behavior.runCli(["create", ref.id, "--thread", "thr_other", "--item", JSON.stringify(reply)]);
+  const args = { threadId: "thr_other", id: ref.id, revision: 1, action: "send" };
+  const pending = await host.harness.behavior.callRpc("decideFromLog", args) as Item;
+  expect(pending.state).toBe("pending");
+  expect(pending.attempt!.sentAt).toBeTruthy();
+  const send = host.harness.sdk.callsTo("threads.send")[0]![0];
+  expect(send).toMatchObject({ threadId: "thr_other", mode: "queue-if-active", input: [{ text: "Send Escrow follow-up", mentions: [{
+    start: 5, end: 21, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:thr_other:${ref.id}:${pending.attempt!.id}` },
+  }] }] });
+  await expect(host.harness.behavior.callRpc("decideFromLog", args)).rejects.toThrow("changed");
+  const resent = await host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: pending.revision }) as Item;
+  expect(resent.attempt!.id).toBe(pending.attempt!.id);
+  const log = await host.harness.behavior.callRpc("log", {});
+  expect(log).toMatchObject({ waiting: [{ threadTitle: "Refund follow-up" }] });
+});
+
+const choice = { type: "choice", question: "Which account setup?", recommended: "multi", consequence: "Applies to new threads only.", options: [
+  { id: "single", label: "UserSingle", hint: "One account for every thread" },
+  { id: "multi", label: "UserMultiple", hint: "Pick an account per thread" },
+  { id: "pool", label: "Pool" },
+] };
+describe("choice cards", () => {
+  it("validates options and keeps choice cards out of tables", () => {
+    const { store } = setup();
+    expect(() => store.create(ref.threadId, "c", { ...choice, options: choice.options.slice(0, 1) })).toThrow();
+    expect(() => store.create(ref.threadId, "c", { ...choice, options: [...choice.options, ...choice.options.slice(0, 4)].map((option, index) => ({ ...option, id: `o${index}` })) })).toThrow();
+    expect(() => store.create(ref.threadId, "c", { ...choice, options: [choice.options[0], choice.options[0]] })).toThrow("own id");
+    expect(() => store.create(ref.threadId, "c", { ...choice, recommended: "missing" })).toThrow("Recommend");
+    expect(() => store.create(ref.threadId, "c", { ...choice, options: [{ id: "a", label: "Two\nlines" }, { id: "b", label: "B" }] })).toThrow();
+    store.create(ref.threadId, "c", choice);
+    expect(() => store.createTable(ref.threadId, "t", { title: "Choices", ids: ["c"] })).toThrow("stand alone");
+  });
+  it("claims and reports the chosen option once, and retries only the same option", () => {
+    const { store } = setup();
+    store.create(ref.threadId, "c", choice);
+    expect(() => store.prepare({ ...ref, id: "c", revision: 1, action: "choose" })).toThrow("Pick an option");
+    expect(() => store.prepare({ ...ref, id: "c", revision: 1, action: "yes" })).toThrow("does not belong");
+    expect(() => store.choose({ ...ref, id: "c", revision: 1, choice: "missing" })).toThrow("does not belong");
+    store.create(ref.threadId, "d", { type: "decide", question: "Archive?", consequence: "Archive it." });
+    expect(() => store.choose({ ...ref, id: "d", revision: 1, choice: "multi" })).toThrow("does not belong");
+    const pending = store.choose({ ...ref, id: "c", revision: 1, choice: "multi" });
+    expect(pending.attempt).toMatchObject({ action: "choose", choice: { id: "multi", label: "UserMultiple" } });
+    expect(actionMessage(pending)).toBe("Use UserMultiple ");
+    expect(() => store.choose({ ...ref, id: "c", revision: pending.revision, choice: "single" })).toThrow("in progress");
+    store.claim(ref.threadId, "c", pending.attempt!.id);
+    expect(() => store.claim(ref.threadId, "c", pending.attempt!.id)).toThrow("already claimed");
+    const failed = store.report(ref.threadId, "c", pending.attempt!.id, "failed", "Settings are locked. Retry.", true);
+    expect(() => store.choose({ ...ref, id: "c", revision: failed.revision, choice: "single" })).toThrow("original option");
+    const retried = store.choose({ ...ref, id: "c", revision: failed.revision, choice: "multi" });
+    store.claim(ref.threadId, "c", retried.attempt!.id);
+    const done = store.report(ref.threadId, "c", retried.attempt!.id, "succeeded", "UserMultiple chosen", false);
+    expect(done).toMatchObject({ state: "succeeded", result: { message: "UserMultiple chosen" }, attempt: { choice: { id: "multi" } } });
+    const later = store.prepare({ ...ref, id: "d", revision: 1, action: "later" });
+    expect(later.attempt!.choice).toBeUndefined();
+  });
+  it("round-trips through the CLI, reload, and hidden mention context", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const created = await host.harness.behavior.runCli(["create", "setup", "--thread", ref.threadId, "--item", JSON.stringify(choice)]);
+    expect(created.stdout).toBe('::action{id="setup"}\n');
+    const reloaded = await host.harness.lifecycle.reload(plugin);
+    hosts[hosts.indexOf(host)] = reloaded;
+    const pending = await reloaded.harness.behavior.callRpc("choose", { threadId: ref.threadId, id: "setup", revision: 1, choice: "single" }) as { attempt: { id: string } };
+    const provider = reloaded.harness.registrations.mentionProviders[0]!;
+    const context = JSON.parse((await provider.resolve(`${ref.threadId}:setup:${pending.attempt.id}`)).context);
+    expect(context).toMatchObject({ intent: "approved-action", action: "choose", attemptId: pending.attempt.id, choice: { id: "single", label: "UserSingle" } });
+    const got = await reloaded.harness.behavior.runCli(["get", "setup", "--thread", ref.threadId]);
+    expect(JSON.parse(got.stdout)).toMatchObject({ content: { type: "choice", recommended: "multi" }, attempt: { choice: { id: "single" } } });
+    const bad = await reloaded.harness.behavior.runCli(["create", "bad", "--thread", ref.threadId, "--item", JSON.stringify({ ...choice, options: [] })]).then((result) => result.exitCode, () => 1);
+    expect(bad).not.toBe(0);
+  });
+});
+
 it("settles a sent request and reopens it if its queued message is deleted", async () => {
   const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
   const { callRpc, emitThreadEvent, runCli } = host.harness.behavior;

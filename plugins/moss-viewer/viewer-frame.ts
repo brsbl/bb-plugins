@@ -20,6 +20,8 @@ export interface MossViewerServices {
   notes?(): readonly MossViewerNote[] | Promise<readonly MossViewerNote[]>;
   navigate?(target: MossViewerTarget): void;
   unfurl?(url: string): Promise<null>;
+  /** Where HTML blocks run live; without it they show Moss's cached screenshot. */
+  htmlFrameUrl?: string;
 }
 
 export interface MossViewerOptions {

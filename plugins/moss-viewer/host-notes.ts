@@ -5,7 +5,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import { MAX_NOTE_BYTES, type AssetRefusal, type MossNoteEntry } from "./contract.js";
 
 const MARKDOWN = /\.(?:md|markdown)$/i;
-// The same distinctive markers file-pins uses to call a Markdown file a Moss note.
+// Moss-only blocks that make Markdown outside ~/Moss/Notes a Moss note.
 const MOSS_MARKER = /\n[ \t]{0,3}(?:(?:`{3,}|~{3,})moss-[a-z][\w-]*\b|:::tabs\b)/;
 const MAX_LAYOUT_BYTES = 256 * 1024;
 const MAX_LISTED_NOTES = 5000;

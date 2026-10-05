@@ -101,6 +101,14 @@ it("reads byte ranges of media inside the note's folder and refuses everything e
   expect(await read(join(home, "outside.png"))).toMatchObject({ ok: false, code: "not_found" });
   expect(await read("https://example.com/a.png")).toMatchObject({ ok: false, code: "not_allowed" });
 
+  // Moss caches HTML block screenshots in a dot-folder inside the note, and once kept them beside other assets.
+  await mkdir(join(shots.directory, "assets", ".moss-cache", "html-preview"), { recursive: true });
+  await writeFile(join(shots.directory, "assets", ".moss-cache", "html-preview", "html-preview-0123456789abcdef.png"), bytes);
+  await writeFile(join(shots.directory, "assets", "html-preview-0123456789abcdef.png"), bytes);
+  expect(await read("assets/.moss-cache/html-preview/html-preview-0123456789abcdef.png")).toMatchObject({ ok: true, contentType: "image/png", size: 100 });
+  expect(await read("assets/html-preview-0123456789abcdef.png")).toMatchObject({ ok: true, contentType: "image/png" });
+  expect(await read("assets/.moss-cache/../../../../../outside.png")).toMatchObject({ ok: false, code: "not_found" });
+
   await mkdir(join(home, "Code"), { recursive: true });
   await writeFile(join(home, "Code", "README.md"), "# Plain\n");
   await writeFile(join(home, "Code", "pic.png"), bytes);

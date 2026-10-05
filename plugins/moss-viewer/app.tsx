@@ -176,6 +176,7 @@ function MossViewerFrame(props: FrameProps) {
             ),
           navigate: (target) => latest.current.onNavigate(note, target),
           unfurl: () => Promise.resolve(null),
+          htmlFrameUrl: note.htmlFrameUrl,
         },
       });
     } catch (error) {

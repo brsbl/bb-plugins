@@ -177,6 +177,8 @@ const readResult = z.discriminatedUnion("moss", [
     modifiedMs: z.number(),
     /** The viewer's frame document. */
     frameUrl: z.string(),
+    /** The sandboxed page each of the note's HTML blocks runs in. */
+    htmlFrameUrl: z.string(),
     /** The route that serves this note's media; see `assetHref`. */
     assetRoute: z.string(),
   }),

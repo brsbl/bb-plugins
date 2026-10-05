@@ -59,5 +59,6 @@ it("settles once the request is sent, including older claimed records", () => {
   expect(sentStatus({ ...item, attempt: { ...item.attempt!, sentAt: "2026-10-04T19:09:00Z" } })).toEqual({ label: "Merge sent", time: "2026-10-04T19:09:00Z" });
   expect(sentStatus({ ...item, attempt: { ...item.attempt!, claimed: true } })).toEqual({ label: "Merge sent", time: item.updatedAt });
   expect(sentStatus({ ...item, attempt: { ...item.attempt!, action: "send", sentAt: "2026-10-04T19:09:00Z" } })?.label).toBe("Approved to send");
+  expect(sentStatus({ ...item, attempt: { ...item.attempt!, action: "choose", choice: { id: "pool", label: "Pool" }, sentAt: "2026-10-04T19:09:00Z" } })?.label).toBe("Pool chosen");
   expect(sentStatus({ ...item, state: "succeeded", attempt: { ...item.attempt!, sentAt: "2026-10-04T19:09:00Z" } })).toBeNull();
 });

@@ -1,20 +1,20 @@
 {
   "package": "@moss-multi/viewer",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "api": 1,
   "repository": "https://github.com/brsbl/moss-multi",
   "release": {
-    "tag": "viewer-v0.1.0",
-    "url": "https://github.com/brsbl/moss-multi/releases/tag/viewer-v0.1.0",
-    "asset": "moss-viewer-0.1.0.tgz",
-    "sha256": "ec8b96c3708b93860482840eb105b5b11c84038a442f98467ac640cfff8037d9"
+    "tag": "viewer-v1.0.0",
+    "url": "https://github.com/brsbl/moss-multi/releases/tag/viewer-v1.0.0",
+    "asset": "moss-multi-viewer-1.0.0.tgz",
+    "sha256": "e3c78338fcdb91270d94b5c86a551f9e2cbbf8a19a91ab7c6f34bebd22705a65"
   },
   "build": {
-    "run": "https://github.com/brsbl/moss-multi/actions/runs/37238931446",
-    "sourceCommit": "8121ba7191bdbbb20d3c71eabd231ba98bce3f1d"
+    "run": "https://github.com/brsbl/moss-multi/actions/runs/37303317499",
+    "sourceCommit": "94a5f63c6da3a1bae729091b1ee4f93251eaeaf5"
   },
   "mossPin": "762abb7770714a49d912f6081384aabb958a7ea6",
-  "bundleHash": "c192bae0e71bb79aa6e781e0cf3d5e04fcb851e5fc43b8147d45605d9021f1d8",
-  "viewerJsonSha256": "91d8cbcee070b70c98ec65b980a855d12f4d81e5c135773d68584653c0ce6f78",
-  "update": "Download moss-viewer-<version>.tgz and SHA256SUMS from the moss-multi GitHub Release, check the tarball against SHA256SUMS, replace vendor/moss-viewer/ with the tarball's moss-viewer/ folder, and update every field here. The server refuses files whose hashes do not match viewer.json."
+  "bundleHash": "ec08b75997ac6df399988bf1275299b7d1accf758946687dcec20cb3bee77f62",
+  "viewerJsonSha256": "7b9621675d838c25a2b4117e05461998feb34e34c9aa156dac5eb8aad3aed9c0",
+  "update": "Download moss-multi-viewer-<version>.tgz and SHA256SUMS from the moss-multi GitHub Release, check the tarball against SHA256SUMS, replace vendor/moss-viewer/ with the tarball's package/dist/ folder plus package/LICENSE, and update every field here. The server refuses files whose hashes do not match viewer.json."
 }

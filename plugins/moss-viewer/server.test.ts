@@ -327,6 +327,29 @@ describe("the viewer bundle", () => {
     expect((await bytes(font)).equals(await readFile(join(vendor, "assets/inter-latin-wght-normal-Dx4kXJAl.woff2")))).toBe(true);
   });
 
+  it("serves moss's HTML frame only as a sandboxed page the viewer frame may load", async () => {
+    const h = await setup();
+    const { frameUrl, htmlFrameUrl } = (await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "mac", environmentId: null })) as {
+      frameUrl: string;
+      htmlFrameUrl: string;
+    };
+    expect(htmlFrameUrl).toBe(frameUrl.replace(/frame\.html$/, "moss-viewer-frame.html"));
+
+    const page = await h.behavior.fetchHttp("GET", htmlFrameUrl.slice(httpRoot.length));
+    expect(page.status).toBe(200);
+    expect(page.headers.get("content-security-policy")).toBe(
+      "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:",
+    );
+    expect(page.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(page.headers.get("cache-control")).toBe("no-store");
+    expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect((await bytes(page)).equals(await readFile(join(vendor, "moss-viewer-frame.html")))).toBe(true);
+
+    const viewer = await h.behavior.fetchHttp("GET", frameUrl.slice(httpRoot.length));
+    const frameSrc = viewer.headers.get("content-security-policy")?.split("; ").find((directive) => directive.startsWith("frame-src "));
+    expect(frameSrc).toBe("frame-src 'self' https://www.youtube.com https://platform.twitter.com");
+  });
+
   it("records the release the vendored bundle came from", async () => {
     const provenance = JSON.parse(await readFile(join(vendor, "../moss-viewer.provenance.json"), "utf8")) as Record<string, any>;
     const manifest = await readFile(join(vendor, "viewer.json"));
@@ -349,6 +372,9 @@ describe("the viewer bundle", () => {
       await cp(vendor, copy, { recursive: true });
       await writeFile(join(copy, "moss-viewer.css"), `${await readFile(join(copy, "moss-viewer.css"), "utf8")}\n/* edited */`);
       await expect(loadViewerBundle(copy)).rejects.toThrow("moss-viewer.css does not match viewer.json");
+      await cp(join(vendor, "moss-viewer.css"), join(copy, "moss-viewer.css"));
+      await writeFile(join(copy, "moss-viewer-frame.html"), "<script>parent.document</script>");
+      await expect(loadViewerBundle(copy)).rejects.toThrow("moss-viewer-frame.html does not match viewer.json");
     } finally {
       await rm(copy, { recursive: true, force: true });
     }
@@ -364,6 +390,11 @@ describe("note media", () => {
     expect(open.headers.get("content-type")).toBe("video/mp4");
     expect(open.headers.get("content-range")).toBe(`bytes 0-${ASSET_CHUNK_BYTES - 1}/${video.length}`);
     expect((await bytes(open)).equals(video.subarray(0, ASSET_CHUNK_BYTES))).toBe(true);
+
+    // Moss adds `&v=<n>` to cached HTML previews to bust caches; it is not part of the reference.
+    const versioned = await h.behavior.fetchHttp("GET", `${assetPath("assets/clip.mp4")}&v=3`, { headers: { range: "bytes=0-1" } });
+    expect(versioned.status).toBe(206);
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "readAsset", input: { ref: "assets/clip.mp4" } });
 
     const middle = await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4"), { headers: { range: "bytes=5-9" } });
     expect(middle.headers.get("content-range")).toBe(`bytes 5-9/${video.length}`);

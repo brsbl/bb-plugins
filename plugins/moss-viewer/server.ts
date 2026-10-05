@@ -12,7 +12,7 @@ import {
   type NoteChanged,
 } from "./contract.js";
 import { editorSaves } from "./editor-saves.js";
-import { findViewerDirectory, frameDocument, loadViewerBundle } from "./viewer-bundle.js";
+import { findViewerDirectory, frameDocument, HTML_FRAME_CSP, loadViewerBundle } from "./viewer-bundle.js";
 
 type HttpContext = Parameters<Parameters<BbPluginApi["http"]["route"]>[2]>[0];
 
@@ -66,6 +66,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   const bundle = await loadViewerBundle(await findViewerDirectory(import.meta.url));
   const httpRoot = `/api/v1/plugins/${encodeURIComponent(bb.pluginId)}/http`;
   const frameUrl = `${httpRoot}${bundle.base}/frame.html`;
+  const htmlFramePath = `${bundle.base}/moss-viewer-frame.html`;
 
   async function locate(input: {
     kind: "host" | "workspace";
@@ -94,6 +95,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     ...note,
     hostId,
     frameUrl,
+    htmlFrameUrl: `${httpRoot}${htmlFramePath}`,
     assetRoute: `${httpRoot}/asset`,
   });
 
@@ -186,6 +188,21 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         },
       });
     },
+    { auth: "local" },
+  );
+
+  bb.http.route(
+    "GET",
+    htmlFramePath,
+    () =>
+      new Response(bundle.htmlFrame, {
+        headers: {
+          "cache-control": "no-store",
+          "content-security-policy": HTML_FRAME_CSP,
+          "content-type": "text/html; charset=utf-8",
+          "x-content-type-options": "nosniff",
+        },
+      }),
     { auth: "local" },
   );
 
