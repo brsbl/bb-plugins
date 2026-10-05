@@ -1,6 +1,6 @@
 {
   "name": "@moss-multi/viewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "api": 1,
   "entry": "moss-viewer.js",
   "css": "moss-viewer.css",
@@ -11,12 +11,12 @@
   },
   "source": {
     "repo": "brsbl/moss-multi",
-    "commit": "8121ba7191bdbbb20d3c71eabd231ba98bce3f1d",
-    "headSha": "8121ba7191bdbbb20d3c71eabd231ba98bce3f1d",
+    "commit": "44054f4878559af1b71c679a983dc1df653e276c",
+    "headSha": "44054f4878559af1b71c679a983dc1df653e276c",
     "dirty": false,
     "diffHash": ""
   },
-  "bundleHash": "c192bae0e71bb79aa6e781e0cf3d5e04fcb851e5fc43b8147d45605d9021f1d8",
+  "bundleHash": "0f2c1db4c9acd99491309c47ba5e2d373df916dfb7024c3427cb41d517cceaf7",
   "files": {
     "assets/charter_bold-DWf1YoLo.woff2": {
       "bytes": 15028,
@@ -139,12 +139,12 @@
       "sha256": "391a3a86f40e253b584defa5f284c7402a2175a705ebb2b4b9460112fc92dc77"
     },
     "moss-viewer.css": {
-      "bytes": 189259,
-      "sha256": "7ef87517f026d71beda1d3f5f3af63e90fce7c1f1e70702714d1d9e93a918967"
+      "bytes": 189604,
+      "sha256": "372028de34ce524d0291c227cbac9277adc601e8a1530cfa505a5d1018d488cd"
     },
     "moss-viewer.js": {
-      "bytes": 2272755,
-      "sha256": "774a44dead0a69873112f0c69bdf2ca1d589e2184755fc6855d5b6733339fdae"
+      "bytes": 2368109,
+      "sha256": "fdc932086a24f23b53267f207b4a137086e0c4ba9d512a154df55fb237324a96"
     }
   }
 }

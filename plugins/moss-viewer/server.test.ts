@@ -229,6 +229,11 @@ describe("note media", () => {
     expect(open.headers.get("content-range")).toBe(`bytes 0-${ASSET_CHUNK_BYTES - 1}/${video.length}`);
     expect((await bytes(open)).equals(video.subarray(0, ASSET_CHUNK_BYTES))).toBe(true);
 
+    // Moss adds `&v=<n>` to cached HTML previews to bust caches; it is not part of the reference.
+    const versioned = await h.behavior.fetchHttp("GET", `${assetPath("assets/clip.mp4")}&v=3`, { headers: { range: "bytes=0-1" } });
+    expect(versioned.status).toBe(206);
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "readAsset", input: { ref: "assets/clip.mp4" } });
+
     const middle = await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4"), { headers: { range: "bytes=5-9" } });
     expect(middle.headers.get("content-range")).toBe(`bytes 5-9/${video.length}`);
     expect((await bytes(middle)).equals(video.subarray(5, 10))).toBe(true);
