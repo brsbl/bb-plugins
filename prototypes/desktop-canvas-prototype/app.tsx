@@ -7,7 +7,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button";
 import { FolderWindow, THREAD_DRAG, threadTitle as titleOf } from "./folder-window";
-import { fitCamera, folderFor, readLayout, zoomAt, type Camera, type Layout, type Point } from "./state";
+import { dockWindow, fitCamera, folderFor, readLayout, zoomAt, type Camera, type DockSide, type Layout, type Point } from "./state";
 import "./app.css";
 
 const WINDOW_WIDTH = 680;
@@ -37,13 +37,16 @@ function Desktop() {
   const [focused, setFocused] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [launcher, setLauncher] = useState(false);
+  const [windowMenu, setWindowMenu] = useState<string | null>(null);
+  const [dockPreview, setDockPreview] = useState<DockSide | null>(null);
+  const dockTarget = useRef<DockSide | null>(null);
   const [folderEditor, setFolderEditor] = useState<{ id?: string } | null>(null);
   const [folderName, setFolderName] = useState("");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; folderId?: string } | null>(null);
   const [focusPrompt, setFocusPrompt] = useState(0);
   const [notice, setNotice] = useState("");
   const [size, setSize] = useState({ width: 1200, height: 800 });
-  const drag = useRef<{ pointer: number; start: Point; origin: Point; kind: "camera" | "folder" | "window" | "prompt"; id: string; zoom: number } | null>(null);
+  const drag = useRef<{ pointer: number; start: Point; origin: Point; kind: "camera" | "folder" | "window" | "prompt"; id: string; zoom: number; moved: boolean } | null>(null);
   const pinch = useRef<{ distance: number; anchor: Point; camera: Camera } | null>(null);
   const cameraRef = useRef(layout.camera);
   cameraRef.current = layout.camera;
@@ -60,6 +63,8 @@ function Desktop() {
   const camera = layout.camera;
   const zoom = camera.zoom;
   const visibleWindows = layout.windows.filter(w => !w.minimized);
+  const dockWidth = Math.min(400, size.width * 0.4);
+  const rightDockWidth = !focused && visibleWindows.some(win => win.dock === "right") ? dockWidth : 0;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -100,7 +105,7 @@ function Desktop() {
     const touchStart = (event: TouchEvent) => {
       if (event.touches.length !== 2) return;
       event.preventDefault(); event.stopPropagation();
-      drag.current = null;
+      drag.current = null; dockTarget.current = null; setDockPreview(null);
       pinch.current = { ...touchPair(event), camera: cameraRef.current };
       setFocused(null);
     };
@@ -127,14 +132,14 @@ function Desktop() {
     };
   }, [focused]);
   useEffect(() => {
-    if (!launcher && !contextMenu) return;
+    if (!launcher && !contextMenu && !windowMenu) return;
     const close = (event: globalThis.PointerEvent) => {
       if (!(event.target instanceof Element) || event.target.closest("[data-menu], [data-menu-toggle]")) return;
-      setLauncher(false); setContextMenu(null);
+      setLauncher(false); setContextMenu(null); setWindowMenu(null);
     };
     window.addEventListener("pointerdown", close, true);
     return () => window.removeEventListener("pointerdown", close, true);
-  }, [launcher, contextMenu]);
+  }, [launcher, contextMenu, windowMenu]);
 
   function moveCamera(nextZoom: number) {
     setFocused(null);
@@ -143,7 +148,7 @@ function Desktop() {
   function fitAll() {
     setFocused(null);
     const bounds = folders.map((f, i) => ({ ...folderPosition(f.id, i), width: FOLDER_WIDTH, height: FOLDER_HEIGHT }));
-    bounds.push(...visibleWindows.map(w => ({ x: w.x, y: w.y, width: WINDOW_WIDTH, height: WINDOW_HEIGHT })));
+    bounds.push(...visibleWindows.filter(w => !w.dock).map(w => ({ x: w.x, y: w.y, width: WINDOW_WIDTH, height: WINDOW_HEIGHT })));
     setLayout(current => ({ ...current, camera: fitCamera(bounds, size.width, size.height) }));
   }
   function showPrompt(open = true) {
@@ -159,11 +164,23 @@ function Desktop() {
       const existing = current.windows.find(w => w.id === id);
       const offset = (current.windows.length % 5) * 28;
       const point = existing ?? { x: (size.width / 2 - current.camera.x) / current.camera.zoom - WINDOW_WIDTH / 2 + offset, y: (size.height / 2 - current.camera.y) / current.camera.zoom - WINDOW_HEIGHT / 2 + offset };
-      const windows = [...current.windows.filter(w => w.id !== id), { id, kind, x: point.x, y: point.y, minimized: false }].slice(-50);
-      return { ...current, windows, composer: "hidden", camera: { zoom: 1, x: (size.width - WINDOW_WIDTH) / 2 - point.x + offset, y: Math.max(56, (size.height - WINDOW_HEIGHT - 72) / 2) - point.y + offset } };
+      const windows = [...current.windows.filter(w => w.id !== id), { ...existing, id, kind, x: point.x, y: point.y, minimized: false }].slice(-50);
+      return { ...current, windows, composer: "hidden", camera: existing?.dock ? current.camera : { zoom: 1, x: (size.width - WINDOW_WIDTH) / 2 - point.x + offset, y: Math.max(56, (size.height - WINDOW_HEIGHT - 72) / 2) - point.y + offset } };
     });
   }
   const openThread = (id: string) => openWindow(id, "thread");
+  function dockWindowTo(id: string, side: DockSide | undefined) {
+    setFocused(null); setActive(id); setWindowMenu(null);
+    setLayout(current => {
+      const next = dockWindow(current, id, side);
+      if (side) return next;
+      // Undock into the current view, even after the canvas has been panned.
+      return { ...next, windows: next.windows.map(win => win.id === id ? { ...win,
+        x: (size.width / 2 - current.camera.x) / current.camera.zoom - WINDOW_WIDTH / 2,
+        y: (Math.max(56, (size.height - WINDOW_HEIGHT * current.camera.zoom - 88) / 2) - current.camera.y) / current.camera.zoom,
+      } : win) };
+    });
+  }
   function focusWindow(id: string) { setActive(id); setFocused(id); setLayout(current => ({ ...current, composer: "hidden" })); }
   function closeWindow(id: string) {
     setLayout(current => ({ ...current, windows: current.windows.filter(w => w.id !== id) }));
@@ -178,7 +195,13 @@ function Desktop() {
     if (event.button !== 0 || focused || pinch.current) return;
     if (kind !== "camera" && event.target instanceof Element && event.target.closest('[data-no-drag]')) return;
     event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { pointer: event.pointerId, start: { x: event.clientX, y: event.clientY }, origin, kind, id, zoom };
+    if (kind === "window" && layout.windows.find(win => win.id === id)?.dock) {
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const viewport = root.current!.getBoundingClientRect();
+      origin = { x: (bounds.left - viewport.left - camera.x) / zoom, y: (bounds.top - viewport.top - camera.y) / zoom };
+    }
+    drag.current = { pointer: event.pointerId, start: { x: event.clientX, y: event.clientY }, origin, kind, id, zoom, moved: false };
+    dockTarget.current = null; setDockPreview(null);
     if (kind === "window") setActive(id);
     if (kind === "folder") setSelectedFolder(id);
     if (kind === "folder" || kind === "prompt") (event.currentTarget as HTMLElement).focus();
@@ -186,12 +209,27 @@ function Desktop() {
   function dragMove(event: PointerEvent) {
     const current = drag.current;
     if (!current || current.pointer !== event.pointerId || pinch.current) return;
+    if (current.kind === "window") {
+      if (!current.moved && Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y) < 4) return;
+      current.moved = true;
+      const bounds = root.current!.getBoundingClientRect();
+      const x = event.clientX - bounds.left;
+      const y = event.clientY - bounds.top;
+      dockTarget.current = y >= 0 && y <= bounds.height && x >= -16 && x <= bounds.width + 16
+        ? x < 32 ? "left" : x > bounds.width - 32 ? "right" : null : null;
+      setDockPreview(dockTarget.current);
+    }
     const scale = (current.kind === "camera" || current.kind === "prompt") ? 1 : current.zoom;
     const point = { x: Math.max(-100_000, Math.min(100_000, current.origin.x + (event.clientX - current.start.x) / scale)), y: Math.max(-100_000, Math.min(100_000, current.origin.y + (event.clientY - current.start.y) / scale)) };
     setLayout(state => current.kind === "camera" ? { ...state, camera: { ...state.camera, ...point } }
       : current.kind === "prompt" ? { ...state, promptPosition: clampPrompt(point) }
       : current.kind === "folder" ? { ...state, positions: { ...state.positions, [current.id]: point } }
-      : { ...state, windows: state.windows.map(w => w.id === current.id ? { ...w, ...point } : w) });
+      : { ...state, windows: state.windows.map(w => w.id === current.id ? { ...w, ...point, dock: undefined } : w) });
+  }
+  function endDrag(cancel = false) {
+    const current = drag.current;
+    if (!cancel && current?.kind === "window" && current.moved && dockTarget.current) dockWindowTo(current.id, dockTarget.current);
+    drag.current = null; dockTarget.current = null; setDockPreview(null);
   }
   function clampPrompt(point: Point): Point {
     const width = promptRef.current?.offsetWidth ?? Math.min(720, size.width - 64);
@@ -210,7 +248,7 @@ function Desktop() {
     const step = event.shiftKey ? 100 : 24;
     const next = { x: Math.max(-100_000, Math.min(100_000, point.x + delta[0] * step)), y: Math.max(-100_000, Math.min(100_000, point.y + delta[1] * step)) };
     setLayout(current => kind === "prompt" ? { ...current, promptPosition: clampPrompt(next) } : kind === "folder" ? { ...current, positions: { ...current.positions, [id]: next } }
-      : { ...current, windows: current.windows.map(w => w.id === id ? { ...w, ...next } : w) });
+      : { ...current, windows: current.windows.map(w => w.id === id ? { ...w, ...next, dock: undefined } : w) });
   }
   function moveThread(threadId: string, folderId: string) {
     const thread = threadMap.get(threadId);
@@ -223,8 +261,8 @@ function Desktop() {
   }
   const floatPoint = layout.promptPosition ? clampPrompt(layout.promptPosition) : null;
 
-  return <div className="cdc-desktop" ref={root} onPointerMove={dragMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
-    onKeyDown={event => { if (event.key === "Escape") { setLauncher(false); setContextMenu(null); setFolderEditor(null); setFocused(null); } }}>
+  return <div className="cdc-desktop" ref={root} onPointerMove={dragMove} onPointerUp={() => endDrag()} onPointerCancel={() => endDrag(true)}
+    onKeyDown={event => { if (event.key === "Escape") { setLauncher(false); setContextMenu(null); setFolderEditor(null); setFocused(null); setWindowMenu(null); endDrag(true); } }}>
     <div className="cdc-canvas" tabIndex={0} aria-label="Canvas. Arrow keys pan, plus and minus zoom, zero resets zoom."
       onPointerDown={event => { if (event.target === event.currentTarget) { setSelectedFolder(null); startDrag(event, "camera", "", camera); } }}
       onContextMenu={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); const rect = root.current!.getBoundingClientRect(); setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top }); }}
@@ -249,24 +287,42 @@ function Desktop() {
             <Icon name="Folder" /><span>{folder.name}</span>
           </button>;
         })}
+      </div>
+    </div>
+    <div className="cdc-windows">
         {layout.windows.map((win, index) => {
           const isFolder = win.kind === "folder";
           const thread = threadMap.get(win.id);
           const title = windowTitle(win);
           const focus = focused === win.id;
-          const live = !win.minimized && (focus || Math.abs(zoom - 1) < 0.001) && active === win.id;
-          return <section key={win.id} className={`cdc-window ${focus ? "cdc-focused" : ""} ${active === win.id ? "cdc-active" : ""}`} aria-label={`${title} window`}
+          const docked = !!win.dock && !focus;
+          const live = !win.minimized && (!!win.dock || ((focus || Math.abs(zoom - 1) < 0.001) && active === win.id));
+          return <section key={win.id} className={`cdc-window ${focus ? "cdc-focused" : ""} ${docked ? "cdc-docked" : ""} ${active === win.id ? "cdc-active" : ""}`} aria-label={`${title} window`}
+            data-dock={docked ? win.dock : undefined} data-screen={docked || focus ? true : undefined}
             onPointerDownCapture={() => setActive(win.id)}
-            style={{ left: focus ? 24 : win.x, top: focus ? 56 : win.y, zIndex: active === win.id ? 60 : index + 1, display: win.minimized || (focused && !focus) ? "none" : undefined }}>
+            style={{ left: focus ? 24 : docked ? (win.dock === "left" ? 0 : size.width - dockWidth) : camera.x + win.x * zoom,
+              top: focus ? 56 : docked ? 0 : camera.y + win.y * zoom,
+              width: docked ? dockWidth : undefined, height: docked ? Math.max(220, size.height - 88) : undefined,
+              transform: !focus && !docked ? `scale(${zoom})` : undefined,
+              zIndex: docked ? 65 : active === win.id ? 60 : index + 1, display: win.minimized || (focused && !focus) ? "none" : undefined }}>
             <header onPointerDown={event => startDrag(event, "window", win.id, win)}>
-              <button className="cdc-title" aria-label={`Move ${title} window with arrow keys`} onKeyDown={event => nudge(event, "window", win.id, win)}><Icon name={isFolder ? "Folder" : "MessageSquare"} /><span>{title}</span></button>
+              <button className="cdc-title" aria-label={`Move ${title} window with arrow keys`} onKeyDown={event => {
+                if (win.dock && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); event.stopPropagation(); dockWindowTo(win.id, undefined); }
+                else nudge(event, "window", win.id, win);
+              }}><Icon name={isFolder ? "Folder" : "MessageSquare"} /><span>{title}</span></button>
               <div className="cdc-window-actions" data-no-drag>
+                <Button data-menu-toggle variant="ghost" size="icon" aria-label={`Position ${title} window`} aria-expanded={windowMenu === win.id} onClick={() => setWindowMenu(current => current === win.id ? null : win.id)}><Icon name="PanelRight" /></Button>
                 <Action icon={focus ? "Minimize2" : "Maximize2"} label={focus ? "Return to canvas" : `Focus ${title}`} onClick={() => focus ? setFocused(null) : focusWindow(win.id)} />
                 {!isFolder && <Action icon="ArrowUpRight" label={`Open ${title} in bb`} onClick={() => navigate.toThread(win.id)} />}
                 <Action icon="Minus" label={`Minimize ${title}`} onClick={() => minimizeWindow(win.id)} />
                 <Action icon="X" label={`Close ${title}`} onClick={() => closeWindow(win.id)} />
               </div>
             </header>
+            {windowMenu === win.id && <div className="cdc-menu cdc-window-menu" data-menu data-screen aria-label={`Position ${title}`}>
+              <Button variant="ghost" aria-label={`Dock ${title} left`} onClick={() => dockWindowTo(win.id, "left")}>Dock left</Button>
+              <Button variant="ghost" aria-label={`Dock ${title} right`} onClick={() => dockWindowTo(win.id, "right")}>Dock right</Button>
+              {win.dock && <Button variant="ghost" onClick={() => dockWindowTo(win.id, undefined)}>Undock</Button>}
+            </div>}
             <div data-window-content className="cdc-window-body" onDragOver={event => { if (isFolder && event.dataTransfer.types.includes(THREAD_DRAG)) event.preventDefault(); }} onDrop={event => { if (isFolder) { event.preventDefault(); moveThread(event.dataTransfer.getData(THREAD_DRAG), win.id); } }}>
               {isFolder ? <FolderWindow name={title} threads={folderThreads(win.id)} folders={folders} projectNames={projectNames} openThread={openThread} moveThread={moveThread} />
                 : live ? <ThreadChat threadId={win.id} layout="contained" variant="full" permissionPolicy="inherit" /> : <div className="cdc-overview">
@@ -276,8 +332,8 @@ function Desktop() {
             </div>
           </section>;
         })}
-      </div>
     </div>
+    {dockPreview && <div className="cdc-dock-preview" data-side={dockPreview} style={{ width: dockWidth }}><span>Dock {dockPreview}</span></div>}
 
     <div ref={promptRef} className={`cdc-prompt ${layout.composer === "hidden" ? "cdc-prompt-hidden" : ""}`} data-screen
       style={floatPoint ? { left: floatPoint.x, top: floatPoint.y, bottom: "auto", transform: "none" } : undefined}
@@ -324,7 +380,7 @@ function Desktop() {
       setSelectedFolder(id); setFolderEditor(null); setFolderName("");
     }}><label>{folderEditor.id ? "Rename folder" : "New folder"}<input autoFocus aria-label="Folder name" maxLength={80} placeholder="Folder name" value={folderName} onChange={e => setFolderName(e.target.value)} /></label><div><Button type="button" variant="ghost" size="sm" onClick={() => setFolderEditor(null)}>Cancel</Button><Button size="sm" type="submit">{folderEditor.id ? "Save" : "Create"}</Button></div></form>}
 
-    <div className="cdc-camera" data-screen aria-label="Canvas controls">
+    <div className="cdc-camera" data-screen aria-label="Canvas controls" style={{ right: rightDockWidth + 20 }}>
       <Action icon="Minus" label="Zoom out" onClick={() => moveCamera(zoom - 0.1)} />
       <Button variant="ghost" size="sm" aria-label="Reset zoom to 100 percent" onClick={() => moveCamera(1)}>{Math.round(zoom * 100)}%</Button>
       <Action icon="Plus" label="Zoom in" onClick={() => moveCamera(zoom + 0.1)} />

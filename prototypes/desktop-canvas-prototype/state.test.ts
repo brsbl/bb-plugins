@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitCamera, folderFor, initialLayout, readLayout, zoomAt } from "./state";
+import { dockWindow, fitCamera, folderFor, initialLayout, readLayout, zoomAt } from "./state";
 
 describe("persisted canvas state", () => {
   it("recovers corrupt, future, and unbounded camera data without trapping the canvas offscreen", () => {
@@ -26,6 +26,36 @@ describe("persisted canvas state", () => {
     expect(loaded).toEqual(legacy);
     loaded.windows.push({ id: "project:real-project", kind: "folder", x: 100, y: 120, minimized: false });
     expect(readLayout(JSON.stringify(loaded))).toEqual(loaded);
+  });
+  it("keeps one window per dock side, including minimized slots, without losing canvas positions", () => {
+    const state = initialLayout();
+    state.windows = [
+      { id: "a", x: -40, y: 80, minimized: true, dock: "left" },
+      { id: "b", x: 300, y: 90, minimized: false, dock: "right" },
+      { id: "c", kind: "folder", x: 160, y: 200, minimized: false },
+    ];
+    const replaced = dockWindow(state, "c", "left");
+    expect(replaced.windows[0]).toEqual({ ...state.windows[0], dock: undefined });
+    expect(replaced.windows[1]).toEqual(state.windows[1]);
+    expect(replaced.windows[2]).toEqual({ ...state.windows[2], dock: "left" });
+    expect(state.windows[0].dock).toBe("left");
+    const loaded = readLayout(JSON.stringify(replaced));
+    expect(loaded.windows.map(win => win.dock)).toEqual([undefined, "right", "left"]);
+    const undocked = dockWindow(loaded, "c", undefined);
+    expect(undocked.windows[2]).toEqual({ ...state.windows[2], dock: undefined });
+    expect(dockWindow(state, "missing", "left")).toBe(state);
+  });
+  it("repairs duplicate persisted dock slots without discarding windows or legacy layout data", () => {
+    const state = initialLayout();
+    state.windows = [
+      { id: "a", x: 12, y: 34, minimized: false, dock: "left" },
+      { id: "b", x: 56, y: 78, minimized: false, dock: "left" },
+      { id: "legacy", x: 90, y: 12, minimized: false },
+    ];
+    const loaded = readLayout(JSON.stringify(state));
+    expect(loaded.windows.map(win => win.id)).toEqual(["a", "b", "legacy"]);
+    expect(loaded.windows.map(win => win.dock)).toEqual([undefined, "left", undefined]);
+    expect(loaded.windows[0]).toMatchObject({ x: 12, y: 34 });
   });
   it("keeps the point under the pointer fixed while zooming, including the zoom limit", () => {
     const camera = { x: 80, y: -50, zoom: 0.75 };

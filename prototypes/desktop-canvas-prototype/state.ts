@@ -9,17 +9,28 @@ export const layoutSchema = z.object({
   membership: z.record(z.string().max(200), z.string().max(100)),
   positions: z.record(z.string().max(250), point),
   collapsed: z.array(z.string().max(100)).max(500),
-  windows: z.array(point.extend({ id: z.string().max(200), kind: z.enum(["thread", "folder"]).optional(), minimized: z.boolean() })).max(50),
+  windows: z.array(point.extend({ id: z.string().max(200), kind: z.enum(["thread", "folder"]).optional(), minimized: z.boolean(), dock: z.enum(["left", "right"]).optional() })).max(50),
   promptPosition: point.nullable().default(null),
   composer: z.enum(["center", "float", "hidden"]),
 });
 export type Layout = z.infer<typeof layoutSchema>;
 export type Point = { x: number; y: number };
 export type Camera = Layout["camera"];
+export type DockSide = "left" | "right";
 export const initialLayout = (): Layout => ({ version: 1, camera: { x: 0, y: 0, zoom: 1 }, folders: [], membership: {}, positions: {}, collapsed: [], windows: [], promptPosition: null, composer: "float" });
 
 export function readLayout(raw: string | null): Layout {
-  try { return layoutSchema.parse(JSON.parse(raw ?? "null")); } catch { return initialLayout(); }
+  try {
+    const layout = layoutSchema.parse(JSON.parse(raw ?? "null"));
+    const occupied = new Set<DockSide>();
+    layout.windows = layout.windows.slice().reverse().map(win => {
+      if (!win.dock) return win;
+      if (occupied.has(win.dock)) return { ...win, dock: undefined };
+      occupied.add(win.dock);
+      return win;
+    }).reverse();
+    return layout;
+  } catch { return initialLayout(); }
 }
 export function folderFor(thread: { id: string; projectId: string }, layout: Layout): string {
   const assigned = layout.membership[thread.id];
@@ -37,4 +48,12 @@ export function fitCamera(bounds: { x: number; y: number; width: number; height:
   const bottom = Math.max(...bounds.map(b => b.y + b.height));
   const zoom = Math.max(0.25, Math.min(1, (width - 96) / (right - left), (height - 160) / (bottom - top)));
   return { zoom, x: (width - (right - left) * zoom) / 2 - left * zoom, y: (height - 64 - (bottom - top) * zoom) / 2 - top * zoom };
+}
+
+/** Dock slots belong to windows, including minimized ones. Replacing a slot floats its previous owner. */
+export function dockWindow(layout: Layout, id: string, side: DockSide | undefined): Layout {
+  if (!layout.windows.some(win => win.id === id)) return layout;
+  return { ...layout, windows: layout.windows.map(win =>
+    win.id === id ? { ...win, dock: side, minimized: false }
+      : side && win.dock === side ? { ...win, dock: undefined } : win) };
 }
