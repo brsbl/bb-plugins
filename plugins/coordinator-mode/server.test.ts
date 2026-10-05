@@ -46,7 +46,7 @@ function setup(options: { children?: Thread[] } = {}) {
         archive: async () => ({ ok: true }),
         defaultExecutionOptions: async ({ threadId }) =>
           threadId === COORD
-            ? ({ model: "claude-sonnet", permissionMode: "accept-edits", reasoningLevel: "medium", serviceTier: "default", source: "client/thread/start" } as ExecutionOptions)
+            ? ({ model: "claude-sonnet", permissionMode: "full", reasoningLevel: "medium", serviceTier: "default", source: "client/thread/start" } as ExecutionOptions)
             : null,
         spawn: async (args) => {
           spawned += 1;
@@ -137,7 +137,9 @@ describe("Coordinator Mode plugin", () => {
     expect(current.items).toEqual([expect.objectContaining({ title: "Old work", proposed: true, primaryThreadId: "thr_old" })]);
 
     const send = harness.inspection.sdk.callsTo("threads.send").at(-1)?.[0];
-    expect(send).toMatchObject({ threadId: COORD, mode: "queue-if-active", permissionMode: "accept-edits" });
+    expect(send).toMatchObject({ threadId: COORD, mode: "queue-if-active" });
+    // Turning on must not change the thread's own permission mode.
+    expect(send).not.toHaveProperty("permissionMode");
     expect(JSON.stringify(send)).toContain("Coordinator Mode is on");
 
     const configured = await harness.resolveAgentConfiguration(makePluginAgentConfigurationContext({ thread: { id: COORD } }));
@@ -160,13 +162,13 @@ describe("Coordinator Mode plugin", () => {
     expect((await status()).items[0]).toMatchObject({ status: "blocked" });
   });
 
-  it("starts sub-threads on the coordinator's provider and model, not the project default", async () => {
+  it("starts sub-threads on the coordinator's provider, model, and permission mode", async () => {
     const { harness, threads, turnOn, addStartedItem } = setup();
     threads.set(COORD, makeThreadResponse({ id: COORD, projectId: "proj", status: "idle", providerId: "claude-code" }));
     await turnOn();
     await addStartedItem();
     expect(harness.inspection.sdk.callsTo("threads.spawn").at(-1)?.[0]).toMatchObject({
-      providerId: "claude-code", model: "claude-sonnet", reasoningLevel: "medium", permissionMode: "accept-edits",
+      providerId: "claude-code", model: "claude-sonnet", reasoningLevel: "medium", permissionMode: "full",
     });
   });
 
