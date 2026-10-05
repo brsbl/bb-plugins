@@ -37,6 +37,13 @@ function safeUrl(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
   try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? url.href : undefined; } catch { return undefined; }
 }
+function AuthorTag({ author, avatarUrl }: { author: Snapshot["author"]; avatarUrl: Snapshot["authorAvatarUrl"] }) {
+  const [failedUrl, setFailedUrl] = useState<string>();
+  const src = safeUrl(avatarUrl);
+  return <span className="pr-author-tag"><span className="pr-author-avatar" aria-hidden="true">
+    {src && src !== failedUrl ? <img src={src} alt="" width={20} height={20} referrerPolicy="no-referrer" onError={() => setFailedUrl(src)} /> : author?.slice(0, 1).toUpperCase() || "?"}
+  </span>{author ? `@${author}` : "Unknown author"}</span>;
+}
 function githubFresh(item: PullRequestItem, now: number): boolean {
   return item.sourceState === "available" && item.snapshot !== null && now - Date.parse(item.snapshot.fetchedAt) <= 60_000;
 }
@@ -437,7 +444,7 @@ function PullRequestDetail({ item, loading, tab, now, context, choices, liveThre
         <header className="pr-detail-heading">
           <div className="pr-detail-meta"><StatusIcon {...lifecycle(snapshot)} /><span>{snapshot ? `${snapshot.repository} #${snapshot.number}` : "Pull request"}</span></div>
           <h1>{snapshot?.title ?? "Pull request unavailable"}</h1>
-          {snapshot && <><div className="pr-author-line"><span>{snapshot.author ? `@${snapshot.author}` : "Unknown author"}</span><span>updated <time dateTime={snapshot.updatedAt} title={new Date(snapshot.updatedAt).toLocaleString()}>{age(snapshot.updatedAt)}</time></span></div>
+          {snapshot && <><div className="pr-author-line"><AuthorTag author={snapshot.author} avatarUrl={snapshot.authorAvatarUrl} /><span>updated <time dateTime={snapshot.updatedAt} title={new Date(snapshot.updatedAt).toLocaleString()}>{age(snapshot.updatedAt)}</time></span></div>
           <details className="pr-branches"><summary aria-label="Branches"><code title={snapshot.headBranch}>{snapshot.headBranch}</code><ArrowRight size={13} aria-hidden="true" /><code title={snapshot.baseBranch}>{snapshot.baseBranch}</code><ChevronDown size={13} aria-hidden="true" /></summary><dl><dt>From</dt><dd><code>{snapshot.headBranch}</code></dd><dt>Into</dt><dd><code>{snapshot.baseBranch}</code></dd></dl></details></>}
         </header>
         {loading ? <aside className="pr-status-rail"><Loading label="Loading pull request status" /></aside> : snapshot && <SummaryStatusRail snapshot={snapshot} url={item.url} />}
