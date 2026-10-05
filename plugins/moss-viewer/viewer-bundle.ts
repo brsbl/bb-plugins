@@ -37,7 +37,9 @@ export function frameDocument(nonce: string): { html: string; csp: string } {
     "font-src 'self' data:",
     "img-src 'self' https: data: blob:",
     "media-src 'self' https: blob:",
-    "frame-src 'self' https:",
+    // A frame's own navigations are checked against this list, so an HTML block that
+    // navigates itself can only reach the viewer's two embed hosts.
+    "frame-src 'self' https://www.youtube.com https://platform.twitter.com",
     "connect-src 'self'",
     "worker-src 'self' blob:",
     "base-uri 'none'",

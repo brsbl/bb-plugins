@@ -210,7 +210,8 @@ describe("the viewer bundle", () => {
     expect((await bytes(page)).equals(await readFile(join(vendor, "moss-viewer-frame.html")))).toBe(true);
 
     const viewer = await h.behavior.fetchHttp("GET", frameUrl.slice(httpRoot.length));
-    expect(viewer.headers.get("content-security-policy")).toContain("frame-src 'self' https:");
+    const frameSrc = viewer.headers.get("content-security-policy")?.split("; ").find((directive) => directive.startsWith("frame-src "));
+    expect(frameSrc).toBe("frame-src 'self' https://www.youtube.com https://platform.twitter.com");
   });
 
   it("records the release the vendored bundle came from", async () => {

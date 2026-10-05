@@ -16,7 +16,7 @@ Open a Moss note from bb the way you open any file: a file link, the file picker
 
 Wiki links open the linked note in the same tab; Back returns to the previous note. **Open in Moss** opens the note in the Moss app on the Mac that holds it.
 
-The note, its `layout.json`, its `assets/` folder, and the list of notes that wiki links resolve against are read on the machine that holds the file, so a bb server on another machine still shows notes from your Mac. Moss HTML blocks run live, each in a sandboxed frame that can't reach bb or load anything from the network.
+The note, its `layout.json`, its `assets/` folder, and the list of notes that wiki links resolve against are read on the machine that holds the file, so a bb server on another machine still shows notes from your Mac. Moss HTML blocks run live in sandboxed frames. A block can't reach bb, and its page policy keeps it from loading scripts, styles or images from the web.
 
 ## Develop
 
