@@ -82,7 +82,8 @@ describe("thread file pins", () => {
     for (const [hostId, path] of [["mac", "/gone.md"], ["linux", "/offline.md"], ["mac", "/here.md"]]) {
       await h.behavior.callRpc("pin", { threadId: "one", hostId, path });
     }
-    const result = await h.behavior.callRpc("inspect", { threadId: "one" }) as { pins: unknown[] };
+    const result = await h.behavior.callRpc("inspect", { threadId: "one" }) as { pins: unknown[]; threadHostId: string | null };
+    expect(result.threadHostId).toBe("mac");
     expect(result.pins).toMatchObject([
       { path: "/gone.md", status: "missing", hostName: "My Mac" },
       { path: "/offline.md", status: "unavailable", hostName: "Worker" },
