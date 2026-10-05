@@ -221,6 +221,15 @@ function createHarness(
       ({ ok: true }) as never,
   );
 
+  const threadListOrder = { value: ["pinned", "sections", "threads"] };
+  const callRpc = vi.fn(async (args: { method: string; input?: unknown }) => {
+    if (args.method === "listPreferences") {
+      return { preferences: { manualSectionOrder: [...threadListOrder.value] } };
+    }
+    threadListOrder.value = [...(args.input as { value: string[] }).value];
+    return args.input;
+  });
+
   const host = createFakePluginHost({
     pluginId: "thread-organizer",
     agentSkillIds: ["thread-phase-organizer"],
@@ -259,6 +268,7 @@ function createHarness(
         );
         return () => undefined;
       },
+      plugins: { callRpc: callRpc as never },
       threadSections: {
         create,
         delete: deleteSection,
@@ -279,6 +289,8 @@ function createHarness(
 
   return {
     ...host,
+    callRpc,
+    threadListOrder,
     create,
     deleteSection,
     getThread,
@@ -853,6 +865,30 @@ describe("Thread Organizer server", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(organizer.current().sectionId).toBe(sectionId("planning"));
     expect(organizer.sendMessage).toHaveBeenCalledTimes(sentBefore);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("moves the sidebar to match every saved reorder, keeping other sections in place", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const before = await configFor(organizer);
+    const sectionIds = before.stages.map((stage) => `section:${stage.sectionId}`);
+    const edited = editableWorkflowConfig(before);
+    edited.stages = [edited.stages[5]!, ...edited.stages.filter((_, index) => index !== 5)];
+    await organizer.harness.behavior.callRpc("saveConfig", edited);
+    await vi.waitFor(() =>
+      expect(organizer.threadListOrder.value).toEqual([
+        "pinned", sectionIds[5], ...sectionIds.filter((_, index) => index !== 5), "threads",
+      ]),
+    );
+    expect(organizer.callRpc).toHaveBeenCalledWith(
+      expect.objectContaining({ pluginId: "thread-list", method: "setPreference" }),
+    );
+
+    const writes = organizer.callRpc.mock.calls.length;
+    await saveStagePatch(organizer, "planning", { rule: "Plan it." });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.callRpc.mock.calls.length).toBe(writes);
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -1807,6 +1843,13 @@ describe("config CLI", () => {
     const config = await configFor(organizer);
     const keys = config.stages.map((stage) => stage.key);
     expect(keys.indexOf("review")).toBe(keys.indexOf("testing-deploy") + 1);
+    const sidebarEntry = (key: string) =>
+      `section:${config.stages.find((stage) => stage.key === key)!.sectionId}`;
+    await vi.waitFor(() => {
+      const order = organizer.threadListOrder.value;
+      expect(order.indexOf(sidebarEntry("review")))
+        .toBe(order.indexOf(sidebarEntry("testing-deploy")) + 1);
+    });
     expect(config.stages.find((stage) => stage.key === "review")).toMatchObject({
       role: "stage",
       title: "Review",

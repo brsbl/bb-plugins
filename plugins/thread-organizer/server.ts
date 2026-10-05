@@ -36,6 +36,7 @@ import {
   type WorkflowConfig,
   type WorkflowStage,
 } from "./core.js";
+import { THREAD_LIST_PLUGIN_ID, syncSidebarOrder } from "./sidebar-order.js";
 
 /**
  * bb notifies section list changes as a `threads-changed` update on the
@@ -829,10 +830,38 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
    * every thread; the pending operation is then kept so a later save or load
    * repeats it, and no section is deleted while threads may still sit in it.
    */
+  /**
+   * The thread list owns the sidebar's section order. Every saved reorder,
+   * from settings, the CLI, or a sidebar drag, moves the sidebar to match;
+   * a drag already matches, so it writes nothing.
+   */
+  async function syncSidebar(config: WorkflowConfig): Promise<void> {
+    try {
+      const sections = await bb.sdk.threadSections.list();
+      await syncSidebarOrder(
+        config,
+        sections.map((section) => section.id),
+        (method, input) =>
+          bb.sdk.plugins.callRpc({
+            pluginId: THREAD_LIST_PLUGIN_ID,
+            method,
+            input,
+            outputSchema: z.unknown(),
+          }),
+      );
+    } catch (error) {
+      bb.log.warn(`action=sidebar-order-sync-failed error=${describeError(error)}`);
+    }
+  }
+
   async function finishConfigOperation(
     operation: PendingConfigOperation,
   ): Promise<boolean> {
+    const previousOrder = configSnapshot.stages.map((stage) => stage.key).join("\n");
     configSnapshot = cloneWorkflowConfig(operation.nextConfig);
+    if (configSnapshot.stages.map((stage) => stage.key).join("\n") !== previousOrder) {
+      void syncSidebar(configSnapshot);
+    }
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
     const evictFromSectionIds = new Set(
       operation.removedStages.flatMap((stage) =>
