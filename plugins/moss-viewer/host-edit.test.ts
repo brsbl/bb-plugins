@@ -13,6 +13,10 @@ vi.mock("node:os", async (original) => ({
   ...(await original<typeof import("node:os")>()),
   homedir: vi.fn(),
 }));
+// The SDK's host runtime spawns processes and cannot load under vitest; the entry is plain data.
+vi.mock("@get-bb/plugin-sdk/host", () => ({
+  experimental_defineHostEntry: (entry: object) => ({ experimental_apiVersion: 1, ...entry }),
+}));
 
 const LAYOUT = '{"version":1,"tableCount":1,"tables":[{"columnWidths":[120,240]}]}\n';
 
