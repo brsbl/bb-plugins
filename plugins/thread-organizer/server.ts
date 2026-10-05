@@ -36,6 +36,7 @@ import {
   type WorkflowConfig,
   type WorkflowStage,
 } from "./core.js";
+import { THREAD_LIST_PLUGIN_ID, syncSidebarOrder } from "./sidebar-order.js";
 
 /**
  * bb notifies section list changes as a `threads-changed` update on the
@@ -824,6 +825,32 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   }
 
   /**
+   * The thread list owns the sidebar's section order. Every saved reorder,
+   * from settings, the CLI, or a sidebar drag, moves the sidebar to match;
+   * a drag already matches, so it writes nothing.
+   */
+  let sidebarSync: Promise<void> = Promise.resolve();
+
+  async function syncSidebar(config: WorkflowConfig): Promise<void> {
+    try {
+      const sections = await bb.sdk.threadSections.list();
+      await syncSidebarOrder(
+        config,
+        sections.map((section) => section.id),
+        (method, input) =>
+          bb.sdk.plugins.callRpc({
+            pluginId: THREAD_LIST_PLUGIN_ID,
+            method,
+            input,
+            outputSchema: z.unknown(),
+          }),
+      );
+    } catch (error) {
+      bb.log.warn(`action=sidebar-order-sync-failed error=${describeError(error)}`);
+    }
+  }
+
+  /**
    * Persist the operation's config, move every thread, then delete the
    * sections of removed stages. Returns false when the sweep did not reach
    * every thread; the pending operation is then kept so a later save or load
@@ -832,7 +859,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   async function finishConfigOperation(
     operation: PendingConfigOperation,
   ): Promise<boolean> {
+    const previousOrder = configSnapshot.stages.map((stage) => stage.key).join("\n");
     configSnapshot = cloneWorkflowConfig(operation.nextConfig);
+    if (configSnapshot.stages.map((stage) => stage.key).join("\n") !== previousOrder) {
+      const synced = cloneWorkflowConfig(configSnapshot);
+      // Each sync reads the stored order before writing it, so they run one
+      // at a time in save order and an older order never lands last.
+      sidebarSync = sidebarSync.then(() => syncSidebar(synced));
+    }
     await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
     const evictFromSectionIds = new Set(
       operation.removedStages.flatMap((stage) =>
@@ -1750,6 +1784,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       startupReconciliation,
       ...queues.values(),
       configQueue,
+      sidebarSync,
     ]);
   });
 

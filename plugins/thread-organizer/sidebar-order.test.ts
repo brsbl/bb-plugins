@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { DEFAULT_WORKFLOW_CONFIG, cloneWorkflowConfig, type WorkflowConfig } from "./core.js";
 import {
   expandSectionsPlaceholder,
   orderWithConfiguredSections,
   syncSidebarOrder,
+  type ThreadListRpc,
 } from "./sidebar-order.js";
 
 function workflow(): WorkflowConfig {
@@ -106,24 +107,21 @@ describe("expandSectionsPlaceholder", () => {
 describe("syncSidebarOrder", () => {
   function threadList(current: unknown) {
     const writes: unknown[] = [];
-    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-      const body: unknown = JSON.parse(String(init?.body));
-      if (String(url) === "/api/v1/plugins/thread-list/rpc/listPreferences") {
-        return { ok: true, status: 200, json: async () => ({
-          ok: true, result: { preferences: { manualSectionOrder: current } },
-        }) } as Response;
+    const call: ThreadListRpc = async (method, input) => {
+      if (method === "listPreferences") {
+        return { preferences: { manualSectionOrder: current } };
       }
-      writes.push(body);
-      return { ok: true, status: 200, json: async () => ({ ok: true, result: body }) } as Response;
-    });
-    return { fetchImpl: fetchImpl as unknown as typeof fetch, writes };
+      writes.push(input);
+      return input;
+    };
+    return { call, writes };
   }
 
   it("writes the workflow order to the thread list, ahead of the main inbox when configured", async () => {
     const config = workflow();
     config.stages = [config.stages[5]!, ...config.stages.filter((_, index) => index !== 5)];
     const list = threadList(["pinned", ...CONFIGURED, "threads"]);
-    await syncSidebarOrder(config, [], list.fetchImpl);
+    await syncSidebarOrder(config, [], list.call);
     expect(list.writes).toEqual([{
       key: "manualSectionOrder",
       value: ["pinned", ...order(
@@ -140,7 +138,7 @@ describe("syncSidebarOrder", () => {
 
   it("writes nothing when the sidebar already matches", async () => {
     const list = threadList(["pinned", ...CONFIGURED, "threads"]);
-    await syncSidebarOrder(workflow(), [], list.fetchImpl);
+    await syncSidebarOrder(workflow(), [], list.call);
     expect(list.writes).toEqual([]);
   });
 
@@ -151,7 +149,7 @@ describe("syncSidebarOrder", () => {
     const serverOrder = ["personal", "inbox", "planning", "design", "spec-review",
       "building", "testing-deploy", "handoff", "on-hold"].map((key) =>
       ["personal", "design"].includes(key) ? key : `sec_${key}`);
-    await syncSidebarOrder(config, serverOrder, list.fetchImpl);
+    await syncSidebarOrder(config, serverOrder, list.call);
     expect(list.writes).toEqual([{
       key: "manualSectionOrder",
       value: ["pinned", ...order(
@@ -170,7 +168,7 @@ describe("syncSidebarOrder", () => {
 
   it("refuses an invalid stored order", async () => {
     const list = threadList("not a list");
-    await expect(syncSidebarOrder(workflow(), [], list.fetchImpl)).rejects.toThrow("invalid section order");
+    await expect(syncSidebarOrder(workflow(), [], list.call)).rejects.toThrow("invalid section order");
     expect(list.writes).toEqual([]);
   });
 });
