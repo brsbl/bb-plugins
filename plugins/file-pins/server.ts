@@ -106,7 +106,7 @@ export default function plugin(bb: BbPluginApi): void {
           result.push({ ...pinned, hostName: machine?.name ?? hostId, status: fact?.status ?? "unavailable" });
         }
       }
-      return { pins: pins.map((pin) => result.find((item) => item.id === pin.id)!), more: await readMore(threadId, pins) };
+      return { pins: pins.map((pin) => result.find((item) => item.id === pin.id)!), more: await readMore(threadId, pins), threadHostId: await threadHost(threadId) };
     },
     remove: ({ threadId, pinId }) => serialize(async () => {
       await thread(threadId);
