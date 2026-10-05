@@ -47,9 +47,10 @@ export function frameDocument(nonce: string): { html: string; csp: string } {
 html, body, #moss-viewer { height: 100%; margin: 0; }
 /* Moss pads its canvas for a desktop window: a 4rem gutter that holds block handles, and 1rem under a 45px top
    bar. In a bb panel the gutter runs from bb's 1rem up to Moss's 4rem, reached at about 1,067px wide, and the
-   title clears bb's header by Moss's 1.5rem bar inset. */
+   title sits 3rem below bb's header, or 2rem on a phone (bb's phone query). */
 [data-moss-viewer] .px-canvas-gutter { padding-left: clamp(1rem, 7.5vw - 1rem, 4rem); padding-right: clamp(1rem, 7.5vw - 1rem, 4rem); }
-[data-moss-viewer] .pt-canvas-body-top { padding-top: 1.5rem; }
+[data-moss-viewer] .pt-canvas-body-top { padding-top: 3rem; }
+@media (max-width: 767px) and (pointer: coarse) { [data-moss-viewer] .pt-canvas-body-top { padding-top: 2rem; } }
 </style>
 <script type="module" nonce="${nonce}" src="./frame.js"></script>
 </head>
