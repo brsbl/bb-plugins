@@ -329,9 +329,10 @@ export function createService(bb: BbPluginApi) {
 
   /** Stops the coordinator's session (if running) so its next message rebuilds tools and instructions. */
   async function restartSession(threadId: string, message: string): Promise<void> {
+    // Always stop: it also releases an idle thread's loaded session, whose tool
+    // list was fixed when it started, so the next turn picks up the new tools.
     try {
-      const thread = await bb.sdk.threads.get({ threadId });
-      if (thread.status === "active" || thread.status === "starting") await bb.sdk.threads.stop({ threadId });
+      await bb.sdk.threads.stop({ threadId });
     } catch (error) {
       bb.log.warn(`Coordinator Mode could not stop ${threadId}: ${errorMessage(error)}`);
     }

@@ -187,6 +187,8 @@ describe("Coordinator Mode plugin", () => {
     // Tracked at once, no confirmation: it moved past Asked to Building.
     expect(current.items).toEqual([expect.objectContaining({ title: "Old work", proposed: false, primaryThreadId: "thr_old", stageIndex: 1 })]);
 
+    // The idle coordinator's loaded session is released so its next turn gets the new tools.
+    expect(harness.inspection.sdk.callsTo("threads.stop").at(-1)?.[0]).toMatchObject({ threadId: COORD });
     const send = harness.inspection.sdk.callsTo("threads.send").at(-1)?.[0];
     expect(send).toMatchObject({ threadId: COORD, mode: "queue-if-active" });
     // Turning on must not change the thread's own permission mode.
