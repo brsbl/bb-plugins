@@ -195,6 +195,68 @@ it("keeps the bulk button busy only while sending, without treating a row click 
   await waitFor(() => expect(screen.getAllByText("Switch sent")).toHaveLength(2));
 });
 
+it("Action log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
+  let item = { ...fixture(), threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
+    log: () => ({ waiting: [item], done: [] }),
+    save: () => { throw new Error("Offline: keep local changes"); },
+  } });
+  await screen.findByRole("button", { name: "Review" });
+  fireEvent.click(screen.getByRole("button", { name: "Review" }));
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Original draft");
+  item = { ...item, revision: 2, content: { ...item.content, draft: "Updated elsewhere" } } as typeof item;
+  await slot.behavior.emitRealtime("items", {});
+  await waitFor(() => expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Updated elsewhere"));
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Unsaved local edit" } });
+  item = { ...item, revision: 3, content: { ...item.content, draft: "Another remote update" } } as typeof item;
+  await slot.behavior.emitRealtime("items", {});
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Unsaved local edit");
+});
+
+it("Action log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
+  const entry = { threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
+  const attempt = { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true } as const;
+  const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
+  const later = { ...fixture(), id: "esc-3", revision: 3, state: "succeeded", attempt: { ...attempt, action: "later" }, result: { message: "Later", retryable: false }, ...entry } as const;
+  const decision = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it.", yesLabel: "Merge", noLabel: "Keep open" }, ...entry } as const;
+  const oddLabel = { ...fixture(), id: "odd-1", content: { type: "decide", question: "Build it?", consequence: "Runs the build.", yesLabel: "Constructor run", noLabel: "toString" }, ...entry } as const;
+  const done = Array.from({ length: 6 }, (_, index) => ({ ...fixture(), id: `sent-${index}`, revision: 3, state: "succeeded", attempt, result: { message: "Sent", retryable: false }, ...entry } as const));
+  const app = await loadPluginApp(() => import("./app.js"));
+  expect([app.navPanels[0]!.title, app.threadPanelActions[0]!.title]).toEqual(["Action log", "Action log"]);
+  expect([app.navPanels[0]!.icon, app.threadPanelActions[0]!.icon]).toEqual(["inline-action-cards/action-log", "inline-action-cards/action-log"]);
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision, oddLabel], done }) } });
+  const waiting = await screen.findByRole("region", { name: "Waiting on you" });
+  const [ready, failure, deferred, decide] = within(waiting).getAllByRole("article");
+  expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Keep open", "Merge"]);
+  // Labels that collide with Object.prototype keys fall back to the role icon instead of crashing the log.
+  expect(within(waiting).getByRole("button", { name: "Constructor run" })).toBeTruthy();
+  // Icon peers first, then secondary, with the primary always rightmost.
+  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Comment", "Send"]);
+  expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
+  expect(within(failure!).getByText(/Reconnect Gmail/)).toBeTruthy();
+  expect(within(failure!).getByRole("button", { name: "Retry" })).toBeTruthy();
+  expect(within(deferred!).getByText("Later")).toBeTruthy();
+  expect(within(deferred!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Comment", "Resume"]);
+  const doneGroup = screen.getByRole("region", { name: "Done" });
+  expect(within(doneGroup).getAllByRole("article")).toHaveLength(5);
+  expect(within(doneGroup).getAllByRole("button", { name: "More actions" })).toHaveLength(5);
+  fireEvent.click(within(doneGroup).getByRole("button", { name: "Show all 6" }));
+  expect(within(doneGroup).getAllByRole("article")).toHaveLength(6);
+});
+
+it("thread panel Action log lists only its thread, drops thread names, and links to the full page", async () => {
+  const calls: unknown[] = [];
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.threadPanelActions[0]!, { threadId: "thr_test", params: null }, { rpc: { log: (input) => { calls.push(input); return { waiting: [{ ...fixture(), threadTitle: "Refund follow-up", threadProjectId: null }], done: [] }; } } });
+  await screen.findByRole("article");
+  expect(calls[0]).toEqual({ threadId: "thr_test" });
+  expect(screen.queryByText("Refund follow-up")).toBeNull();
+  expect(screen.queryByRole("combobox")).toBeNull();
+  fireEvent.click(screen.getByRole("link", { name: "See all" }));
+  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
+});
+
 it("submits the selected option from a choice card, starting from the recommendation", async () => {
   const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [
     { id: "single", label: "UserSingle", hint: "One account for every thread" }, { id: "multi", label: "UserMultiple" }, { id: "pool", label: "Pool" },
@@ -367,4 +429,17 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
   expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Note for your choice" })));
   replySlot.lifecycle.unmount();
+});
+
+it("Action log offers a choice card Choose, Later, Skip and Review, never Yes or No", async () => {
+  const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] } as const;
+  const item = { ...fixture(), id: "setup", content, threadTitle: "Accounts", threadProjectId: "proj_cards" } as const;
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
+  const row = await screen.findByRole("article", { name: "Choice: Which account setup?" });
+  expect(within(row).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Choose"]);
+  fireEvent.click(within(row).getByRole("button", { name: "Review" }));
+  expect(within(row).getByText("Several accounts")).toBeTruthy();
+  fireEvent.click(within(row).getByRole("button", { name: "Choose" }));
+  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread" }));
 });
