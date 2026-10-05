@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionSchema, assertAction, bulkLabel, contentSchema, draftSchema, idSchema, itemSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type Item } from "./model.js";
+import { actionLabel, actionMessage, mentionId, title, logSchema, actionSchema, assertAction, bulkLabel, contentSchema, draftSchema, idSchema, itemSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type Item } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
 export const rpcContract = defineRpcContract({
+  log: { input: z.object({ threadId: idSchema.optional() }).strict(), output: logSchema },
+  decideFromLog: { input: versioned.extend({ action: actionSchema.optional() }), output: itemSchema },
   get: { input: ref, output: itemSchema },
   save: { input: versioned.extend({ draft: draftSchema }), output: itemSchema },
   prepare: { input: versioned.extend({ action: actionSchema, note: noteSchema.optional() }), output: itemSchema },
@@ -67,6 +69,22 @@ export function createStore(bb: BbPluginApi) {
   };
   return {
     get,
+    async log(threadId?: string) {
+      const rows = (threadId
+        ? db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId)
+        : db.prepare("SELECT value FROM action_items").all()) as { value: string }[];
+      const items = rows.map((row) => itemSchema.parse(JSON.parse(row.value)));
+      const titles = new Map<string, { title: string; projectId: string | null }>(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => {
+        try { const thread = await bb.sdk.threads.get({ threadId: id }); return [id, { title: thread.title ?? "Untitled thread", projectId: thread.projectId }] as const; }
+        catch { return [id, { title: "Unavailable thread", projectId: null }] as const; }
+      })));
+      const sorted = items.map((item) => ({ ...item, threadTitle: titles.get(item.threadId)!.title, threadProjectId: titles.get(item.threadId)!.projectId }))
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
+      // Failures need a retry and Later cards need a Resume, so both stay in Waiting on you; Later sorts last.
+      const later = (item: Item) => item.state === "succeeded" && item.attempt?.action === "later";
+      return { waiting: [...sorted.filter((item) => item.state !== "succeeded"), ...sorted.filter(later)],
+        done: sorted.filter((item) => item.state === "succeeded" && !later(item)) };
+    },
     table,
     comment(input: z.infer<typeof rpcContract.comment.input>) {
       return db.transaction(() => {
@@ -189,6 +207,19 @@ function attemptRefs(pluginId: string, entry: QueueEntry) {
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
+    log: ({ threadId }) => store.log(threadId),
+    async decideFromLog(input) {
+      const item = input.action ? store.prepare({ ...input, action: input.action }) : store.get(input.threadId, input.id);
+      if (!input.action && (item.revision !== input.revision || item.state !== "pending")) throw new Error("This card changed. Reload the log before resending.");
+      const label = title(item).replace(/[?\s]+$/, "");
+      const prefix = actionMessage(item);
+      await bb.sdk.threads.send({ threadId: item.threadId, mode: "queue-if-active", input: [{
+        type: "text", text: prefix + label, mentions: [{ start: prefix.length, end: prefix.length + label.length,
+          resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${mentionId(item)}`, label } }],
+      }] });
+      // Record the send like an inline card does, so the card settles in its thread.
+      return store.submitted({ threadId: item.threadId, id: item.id, attemptId: item.attempt!.id });
+    },
     get: ({ threadId, id }) => store.get(threadId, id),
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
     table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable, submitted: store.submitted,
@@ -197,7 +228,7 @@ export default function plugin(bb: BbPluginApi): void {
     try { store.cancelled(entry); } catch (err) { bb.log.warn(`Could not reopen an action card after its queued request was deleted: ${err instanceof Error ? err.message : String(err)}`); }
   });
   bb.ui.registerMentionProvider({
-    id: "action", label: "Action cards", search: () => [],
+    id: "action", label: "Action Cards", search: () => [],
     resolve(value) {
       const [thread, id, attempt, extra] = value.split(":");
       if (extra || !attempt) throw new Error("This action reference is incomplete. Use the card again.");
@@ -229,6 +260,18 @@ export default function plugin(bb: BbPluginApi): void {
   bb.cli.register(defineCli({
     name: "action-cards", summary: "Create inline cards, read saved drafts, and report action results",
     commands: {
+      log: cliCommand({
+        summary: "Read the Action log: waiting cards and results across threads",
+        options: { thread: { type: "string", description: "Filter to this thread ID; defaults to all threads" }, json: { type: "boolean", description: "Print structured JSON" } },
+        async run({ options }) {
+          const log = await store.log(options.thread === undefined ? undefined : idSchema.parse(options.thread));
+          if (options.json) return { exitCode: 0, stdout: `${JSON.stringify(log, null, 2)}\n` };
+          const line = (item: typeof log.waiting[number]) => [title(item), item.threadTitle, item.threadId,
+            item.attempt ? actionLabel(item, item.attempt.action) : "Awaiting choice", item.result?.message ?? item.state,
+            item.attempt?.note, item.updatedAt].filter(Boolean).join(" · ").replace(/[\r\n\t]+/g, " ");
+          return { exitCode: 0, stdout: `Waiting on you\n${log.waiting.map(line).join("\n")}\n\nDone\n${log.done.map(line).join("\n")}\n` };
+        },
+      }),
       "create-table": cliCommand({
         summary: "Group existing items in an inline table", positionals: itemPosition,
         options: { thread: threadOption, table: { type: "string", required: true, stdin: true, description: "Table JSON with title and item ids; use --table-stdin" } },
