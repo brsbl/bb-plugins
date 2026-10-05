@@ -643,9 +643,10 @@ describe("Coordinator Mode plugin", () => {
   });
 
   it("falls back to nudging the coordinator when Briefs isn't installed", async () => {
-    const { harness, turnOn, addStartedItem, runTick, advance, callsTo } = setup();
+    const { harness, turnOn, reachQa, runTick, advance, callsTo } = setup();
     await turnOn({ ...ship, briefingCron: "* * * * *", briefingLabel: "Every minute" });
-    await addStartedItem();
+    // Something has to need the user, or the scheduled brief is skipped.
+    await reachQa();
     advance(120_000);
     await runTick();
     expect(callsTo("publishFromPlugin")).toHaveLength(1);
