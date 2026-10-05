@@ -49,8 +49,9 @@ function githubFresh(item: PullRequestItem, now: number): boolean {
   return item.sourceState === "available" && item.snapshot !== null && now - Date.parse(item.snapshot.fetchedAt) <= 60_000;
 }
 /** bb's own thread-working glyph, so plugin activity matches the sidebar. */
+const BbIcon = experimental_Icon;
 function WorkingIcon({ size = 16, className }: { size?: number; className?: string }) {
-  return <experimental_Icon name="Loading" aria-hidden="true" className={["pr-working", className].filter(Boolean).join(" ")} style={{ width: size, height: size }} />;
+  return <BbIcon name="Loading" aria-hidden="true" className={["pr-working", className].filter(Boolean).join(" ")} style={{ width: size, height: size }} />;
 }
 function threadPresentation(thread?: PluginSidebarThread, archived = false): Presentation {
   if (!thread) return { icon: archived ? Clock : CircleHelp, label: archived ? "Archived thread" : "Thread activity unavailable", tone: "muted" };
