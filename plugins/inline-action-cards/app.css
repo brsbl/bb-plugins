@@ -7,12 +7,17 @@
 .iac-question { padding-top: 4px; font-weight: 500; overflow-wrap: anywhere; }
 .iac-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
 .iac-footer { margin-top: 8px; }
+/* One action line: icon tools stay whole; labels wrap only when nothing else fits. */
+.iac-tools { display: flex; flex-shrink: 0; align-items: center; gap: var(--iac-gap); margin-right: auto; }
+.iac-footer > button { min-width: 0; height: auto; min-height: 28px; white-space: normal; }
+.iac-attached { display: inline-flex; margin-right: 4px; vertical-align: -2px; }
+.iac-card .iac-attached svg, .iac-row .iac-attached svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.iac-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .iac-actions button { font-size: 12px; }
 .iac-progress { font-style: italic; }
 .iac-button-label { display: grid; }
 .iac-button-label > span { grid-area: 1 / 1; }
 .iac-button-label .iac-progress { color: inherit; }
-.iac-menu-slot { display: inline-flex; width: 28px; height: 28px; flex-shrink: 0; }
 .iac-card button[aria-busy="true"], .iac-table button[aria-busy="true"] { opacity: 1; }
 @media (prefers-reduced-motion: no-preference) {
   .iac-progress {
@@ -31,7 +36,7 @@
 }
 @keyframes iac-progress-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
 .iac-icon { width: 28px; height: 28px; padding: 5px; color: var(--muted-foreground); }
-.iac-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.iac-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .iac-original { margin: 8px 0 12px; min-width: 0; font-size: 12px; }
 .iac-original summary { display: flex; align-items: baseline; gap: 6px; color: var(--muted-foreground); cursor: pointer; }
 .iac-original summary::before { content: "▸"; flex-shrink: 0; }
@@ -92,10 +97,15 @@
 .iac-choice { min-width: 0; }
 .iac-row-line:has(.iac-note-field) { flex-wrap: wrap; }
 .iac-row-line:has(.iac-note-field) > .iac-choice { flex-basis: 100%; }
-.iac-card .iac-note-field, .iac-row .iac-note-field { padding: 4px 8px; max-height: 100px; overflow-y: auto; box-shadow: 0 0 0 1px var(--border); }
+.iac-card .iac-note-field, .iac-row .iac-note-field { padding: 4px 0; max-height: 100px; overflow-y: auto; }
 .iac-result-note { margin-top: 2px; white-space: pre-wrap; font-size: 12px; overflow-wrap: anywhere; }
 
-.iac-note-entry { display: flex; align-items: flex-end; gap: var(--iac-gap); margin-top: 8px; }
+/* The comment field and its send button read as one control. */
+/* bb's text input treatment: quiet input border, 1px ring on keyboard or pointer focus. */
+.iac-note-entry { display: flex; align-items: flex-end; gap: 4px; margin-top: 8px; padding: 1px 1px 1px 7px; border: 1px solid var(--input); border-radius: var(--radius-md, .5rem); background: transparent; }
+.iac-note-entry:has(.iac-note-field:focus-visible) { box-shadow: 0 0 0 1px var(--ring); }
+:is(.iac-card, .iac-row) .iac-note-entry textarea:not([readonly]):is(:hover, :focus) { background: transparent; box-shadow: none; }
+.iac-note-entry .iac-icon { width: 24px; height: 24px; padding: 4px; }
 .iac-note-entry .iac-note-field { flex: 1; min-width: 0; }
 
 .iac-log { --iac-gap: 8px; --iac-log-button: 28px; container-type: inline-size; padding: 16px 24px 24px; color: var(--foreground); font-size: 13px; line-height: 1.5; }
