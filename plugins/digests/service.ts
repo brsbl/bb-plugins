@@ -83,7 +83,7 @@ export function createService(bb: BbPluginApi) {
     issue = store.issues.get(issue.id) ?? issue;
     if (issue.state === "ready") return issue;
     if (banner) await bb.storage.kv.set(`recovery:${issue.id}`, true);
-    const failed = changed(store.issues.update(issue.id, { state: "failed", headline: "This digest needs your attention", details: message, recovery }));
+    const failed = changed(store.issues.update(issue.id, { state: "failed", headline: "This brief needs your attention", details: message, recovery }));
     await closeIssueBrowsers(failed);
     return failed;
   }
@@ -120,7 +120,7 @@ export function createService(bb: BbPluginApi) {
     return bound;
   }
   async function ensureAutomation(definition: DigestDefinition) {
-    if (!definition.schedule) throw new Error("This digest accepts published briefs and has no schedule.");
+    if (!definition.schedule) throw new Error("This brief only accepts published content and has no schedule.");
     if (!definition.providerId || !definition.model) throw new Error("Choose a provider and model when defining this brief before enabling its schedule.");
     definition = await bindDefinition(definition);
     const target = await targetFor(definition);
@@ -155,14 +155,14 @@ export function createService(bb: BbPluginApi) {
     if (existing) return { projectId: existing.projectId, providerId: existing.providerId, model: existing.model, reasoningLevel: existing.reasoningLevel, environment: existing.environment };
     const projects = await bb.sdk.projects.list({ includePersonal: true });
     const personal = projects.find((project) => project.kind === "personal");
-    if (!personal) throw new Error("Open your personal project in bb before adding a digest.");
+    if (!personal) throw new Error("Open your personal project in bb before adding a brief.");
     const defaults = await bb.sdk.projects.defaultExecutionOptions({ projectId: personal.id });
     return { projectId: personal.id, providerId: defaults?.providerId ?? null, model: defaults?.model ?? null, reasoningLevel: defaults?.reasoningLevel ?? null, environment: { type: "project-default" as const } };
   }
   async function saveDigest(input: SaveDigest) {
     return exclusive(`definition:${input.id ?? "new"}`, async () => {
       const previous = input.id ? requiredDefinition(input.id) : null;
-      if (!store.connections.get(input.connectionId)) throw new Error("Reopen Settings to check your sites before adding a digest.");
+      if (!store.connections.get(input.connectionId)) throw new Error("Reopen Settings to check your sites before adding a brief.");
       if (previous && !previous.connectionIds.includes(input.connectionId)) throw new Error("Edit this brief under its original site.");
       if (!previous && !input.schedule) throw new Error("Choose when this brief should run.");
       // Existing publishers keep their mode; editing a prompt does not convert
@@ -236,7 +236,7 @@ export function createService(bb: BbPluginApi) {
         throw new Error("This thread isn’t a brief. Open Briefs settings and choose Run now to create one.");
       }
       let issue = existing ?? newIssue(definition, threadId, `thread:${threadId}`);
-      if (issue.digestId !== digestId) throw new Error("This thread already belongs to another digest.");
+      if (issue.digestId !== digestId) throw new Error("This thread already belongs to another brief.");
       if (issue.state === "ready") return { issue, directive: directive(issue), sessions: [], complete: true };
       await closeIssueBrowsers(issue);
       issue = changed(store.issues.update(issue.id, { state: "collecting", headline: `Preparing ${definition.name}`, details: "The briefing is being prepared.", recovery: null }));
@@ -266,7 +266,7 @@ export function createService(bb: BbPluginApi) {
             return true;
           });
           if (!acquired) return { issue, directive: directive(issue), sessions: [], complete: false,
-            instructions: "Another digest is reading Gmail. Do not inspect or open any email yet. Wait 10 seconds, then call digest_begin again. Repeat for up to 10 minutes. If it still cannot start, call digest_fail: Another digest is still reading Gmail. Retry after it finishes. Keep this wait out of the final briefing." };
+            instructions: "Another brief is reading Gmail. Do not inspect or open any email yet. Wait 10 seconds, then call digest_begin again. Repeat for up to 10 minutes. If it still cannot start, call digest_fail: Another brief is still reading Gmail. Retry after it finishes. Keep this wait out of the final briefing." };
         }
         for (const connectionId of definition.connectionIds) {
           const connection = store.connections.get(connectionId);
@@ -307,7 +307,7 @@ export function createService(bb: BbPluginApi) {
     const issue = requiredIssue(threadId);
     if (issue.state !== "collecting") throw new Error("Begin or retry this brief before reading email.");
     const definition = requiredDefinition(issue.digestId);
-    if (!definition.connectionIds.includes("gmail")) throw new Error("This digest does not read Gmail.");
+    if (!definition.connectionIds.includes("gmail")) throw new Error("This brief does not read Gmail.");
     const reads = [...(issue.emailReads ?? [])];
     const index = reads.findIndex((read) => read.messageId === input.messageId);
     if (input.status === "opening") {
@@ -558,7 +558,7 @@ export function createService(bb: BbPluginApi) {
           }
           const late = run.startedAt - run.scheduledFor > 15 * 60 * 1000;
           if (["failed", "skipped"].includes(run.status) || (run.status === "succeeded" && issue.state === "collecting")) {
-            issue = await fail(issue, late ? "bb was unavailable at the scheduled time. Retry to prepare this brief now." : !run.threadId ? executionFailure(new Error(run.error ?? "No brief thread")) : run.error || run.skipReason || "The run ended before publishing a digest. Retry to prepare it.", "retry", !!run.threadId);
+            issue = await fail(issue, late ? "bb was unavailable at the scheduled time. Retry to prepare this brief now." : !run.threadId ? executionFailure(new Error(run.error ?? "No brief thread")) : run.error || run.skipReason || "The run ended before publishing a brief. Retry to prepare it.", "retry", !!run.threadId);
             if (!issue.threadId) {
               try { await spawnDelivery(definition, issue); }
               catch (error) { await runError(definition.id, error); }
@@ -571,7 +571,7 @@ export function createService(bb: BbPluginApi) {
   async function settled(threadId: string, failed: boolean) {
     const issue = store.issues.getByThread(threadId);
     if (!issue) return;
-    if (issue.state === "collecting") await fail(issue, failed ? "The agent stopped before this brief was ready. Retry to finish it." : "The run ended without publishing a digest. Retry to prepare it.", "retry", true);
+    if (issue.state === "collecting") await fail(issue, failed ? "The agent stopped before this brief was ready. Retry to finish it." : "The run ended without publishing a brief. Retry to prepare it.", "retry", true);
     if (issue.state === "failed") {
       await bb.storage.kv.set(`recovery:${issue.id}`, true);
       changed(issue);

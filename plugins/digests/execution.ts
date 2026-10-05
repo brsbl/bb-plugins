@@ -12,7 +12,7 @@ export async function executionTarget(bb: BbPluginApi, definition: Pick<DigestDe
   if (!hostId) throw new ExecutionError("Choose the computer with your browser sign-ins for this brief, then Retry.");
   let host;
   try { host = await bb.sdk.hosts.get({ hostId }); }
-  catch { throw new ExecutionError("This digest’s computer is unavailable. Reconnect it to bb, then Retry."); }
+  catch { throw new ExecutionError("This brief’s computer is unavailable. Reconnect it to bb, then Retry."); }
   if (host.status !== "connected") throw new ExecutionError(`${host.name} is offline. Open bb on that computer, then Retry.`);
 
   const projectId = definition.execution?.projectId ?? definition.projectId;
@@ -20,9 +20,9 @@ export async function executionTarget(bb: BbPluginApi, definition: Pick<DigestDe
   if (environmentId) {
     let environment;
     try { environment = await bb.sdk.environments.get({ environmentId }); }
-    catch { throw new ExecutionError("This digest’s workspace is unavailable. Choose another workspace, then Retry."); }
+    catch { throw new ExecutionError("This brief’s workspace is unavailable. Choose another workspace, then Retry."); }
     if (environment.projectId !== projectId || environment.hostId !== hostId || environment.status !== "ready" || environment.lifecycle.phase !== "active") {
-      throw new ExecutionError("This digest needs a ready workspace on its selected computer. Choose another workspace, then Retry.");
+      throw new ExecutionError("This brief needs a ready workspace on its selected computer. Choose another workspace, then Retry.");
     }
     return { projectId, environment: { type: "reuse", environmentId } };
   }
