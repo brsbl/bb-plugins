@@ -64,7 +64,10 @@ function Desktop() {
   const zoom = camera.zoom;
   const visibleWindows = layout.windows.filter(w => !w.minimized);
   const dockWidth = Math.min(400, size.width * 0.4);
+  const leftDockWidth = !focused && visibleWindows.some(win => win.dock === "left") ? dockWidth : 0;
   const rightDockWidth = !focused && visibleWindows.some(win => win.dock === "right") ? dockWidth : 0;
+
+  const cameraSpace = size.width - leftDockWidth - rightDockWidth;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -380,7 +383,7 @@ function Desktop() {
       setSelectedFolder(id); setFolderEditor(null); setFolderName("");
     }}><label>{folderEditor.id ? "Rename folder" : "New folder"}<input autoFocus aria-label="Folder name" maxLength={80} placeholder="Folder name" value={folderName} onChange={e => setFolderName(e.target.value)} /></label><div><Button type="button" variant="ghost" size="sm" onClick={() => setFolderEditor(null)}>Cancel</Button><Button size="sm" type="submit">{folderEditor.id ? "Save" : "Create"}</Button></div></form>}
 
-    <div className="cdc-camera" data-screen aria-label="Canvas controls" style={{ right: rightDockWidth + 20 }}>
+    <div className={`cdc-camera ${cameraSpace < 230 ? "cdc-camera-compact" : ""}`} data-screen aria-label="Canvas controls" style={{ right: rightDockWidth + (cameraSpace < 230 ? 8 : 20), width: cameraSpace < 230 ? Math.max(72, cameraSpace - 16) : undefined }}>
       <Action icon="Minus" label="Zoom out" onClick={() => moveCamera(zoom - 0.1)} />
       <Button variant="ghost" size="sm" aria-label="Reset zoom to 100 percent" onClick={() => moveCamera(1)}>{Math.round(zoom * 100)}%</Button>
       <Action icon="Plus" label="Zoom in" onClick={() => moveCamera(zoom + 0.1)} />
