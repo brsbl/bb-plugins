@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown,
   Circle, CircleHelp, Clock, ExternalLink, FileCode2, Github, GitMerge, GitPullRequest,
-  GitPullRequestClosed, GitPullRequestDraft, Link2, Loader2, MessageCircle,
+  GitPullRequestClosed, GitPullRequestDraft, Link2, MessageCircle,
   Pin, PinOff, Plus, RefreshCw, Search, Unlink, X, XCircle, type LucideIcon,
 } from "lucide-react";
 import {
-  definePluginApp, experimental_useSidebarThreads, Markdown, useBbNavigate, useRealtime,
+  definePluginApp, experimental_Icon, experimental_useSidebarThreads, Markdown, useBbNavigate, useRealtime,
   useRealtimeConnectionState, useRpc, type PluginNavPanelProps, type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { CHANGED, type Changes, type Listing, type PullRequestItem, type Snapshot, type ThreadChoice, type rpcContract } from "./contract";
@@ -18,7 +18,8 @@ import "./app.css";
 type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
 type Group = "history";
 type Tab = "summary" | "changes";
-type Presentation = { icon: LucideIcon; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
+type StatusGlyph = ComponentType<{ size?: number; strokeWidth?: number; className?: string; "aria-hidden"?: boolean | "true" }>;
+type Presentation = { icon: StatusGlyph; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
 type ThreadContext = { threads: ThreadChoice[]; hosts: { id: string; name: string; connected: boolean }[]; nextCursor: string | null };
 type Preview = { token: string; snapshot: Snapshot; reader: { login: string; hostId: string }; thread: ThreadChoice };
 const session = { query: "", author: "", reviewer: "", sort: "updated" as Sort, collapsed: ["history"] as Group[], scrollTop: 0 };
@@ -47,11 +48,15 @@ function AuthorTag({ author, avatarUrl }: { author: Snapshot["author"]; avatarUr
 function githubFresh(item: PullRequestItem, now: number): boolean {
   return item.sourceState === "available" && item.snapshot !== null && now - Date.parse(item.snapshot.fetchedAt) <= 60_000;
 }
+/** bb's own thread-working glyph, so plugin activity matches the sidebar. */
+function WorkingIcon({ size = 16, className }: { size?: number; className?: string }) {
+  return <experimental_Icon name="Loading" aria-hidden="true" className={["pr-working", className].filter(Boolean).join(" ")} style={{ width: size, height: size }} />;
+}
 function threadPresentation(thread?: PluginSidebarThread, archived = false): Presentation {
   if (!thread) return { icon: archived ? Clock : CircleHelp, label: archived ? "Archived thread" : "Thread activity unavailable", tone: "muted" };
   if (thread.hasPendingInteraction || thread.indicator === "waiting-for-input") return { icon: MessageCircle, label: thread.indicatorLabel ?? "Waiting for your input", tone: "warning" };
   if (thread.indicator === "unread-error" || thread.indicator === "queued-failed" || thread.status === "error") return { icon: AlertCircle, label: thread.indicatorLabel ?? "Thread error", tone: "danger" };
-  if (["active", "starting", "stopping"].includes(thread.status) || Object.values(thread.activity).some((count) => count > 0)) return { icon: Loader2, label: thread.indicatorLabel ?? "Thread working", spin: true };
+  if (["active", "starting", "stopping"].includes(thread.status) || Object.values(thread.activity).some((count) => count > 0)) return { icon: WorkingIcon, label: thread.indicatorLabel ?? "Thread working", spin: true };
   if (thread.runtimeStatus === "waiting-for-host") return { icon: Clock, label: "Waiting for machine", tone: "warning" };
   return { icon: Circle, label: thread.isArchived ? "Archived thread" : "Thread idle", tone: "muted" };
 }
@@ -162,7 +167,7 @@ function Empty({ title, children }: { title: string; children?: ReactNode }) {
 function Loading({ label }: { label: string }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => { const timer = window.setTimeout(() => setVisible(true), 200); return () => window.clearTimeout(timer); }, []);
-  return <div className="pr-loading" role="status" aria-busy="true" aria-label={label}>{visible && <div aria-hidden="true"><div /><div /><div /></div>}</div>;
+  return <div className="pr-loading" role="status" aria-busy="true" aria-label={label}>{visible && <><WorkingIcon className="pr-spin" /><span aria-hidden="true">{label}…</span></>}</div>;
 }
 
 export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
@@ -435,7 +440,7 @@ function PullRequestDetail({ item, loading, tab, now, context, choices, liveThre
       </nav>
       <div className="pr-toolbar-actions">
         <div className="pr-action-group"><IconButton icon={item.pinned ? PinOff : Pin} label={item.pinned ? "Unpin pull request" : "Pin pull request"} active={item.pinned} onClick={() => void onUpdate(() => rpc.call("pin", { id: item.id, pinned: !item.pinned }))} />{item.links.length > 0 && <External className="pr-icon-link" href={item.url}><Github size={16} aria-hidden="true" /><span className="pr-sr-only">Open pull request on GitHub</span></External>}</div>
-        {item.links.length ? <button className="pr-button pr-button-primary" type="button" onClick={openThread}>{preferred && choices.has(preferred.threadId) ? "Open thread" : "Choose thread"}<ArrowRight size={14} /></button> : <External className="pr-button pr-button-primary" href={item.url}>Open on GitHub<ExternalLink size={14} /></External>}
+        {item.links.length ? <button className="pr-button pr-button-primary" type="button" onClick={openThread}>{preferred && choices.has(preferred.threadId) ? "Open thread" : "View threads"}{preferred && choices.has(preferred.threadId) && <ArrowRight size={14} />}</button> : <External className="pr-button pr-button-primary" href={item.url}>Open on GitHub<ExternalLink size={14} /></External>}
       </div>
     </div>
     <div className="pr-detail-scroll">
