@@ -649,23 +649,23 @@ describe("live refresh", () => {
     await waitFor(() => expect(playerCards("Live player")[0]?.textContent).toContain("17"));
   });
 
-  it("polls live Table and stops after results settle or the view is left", async () => {
+  it.each(["settles", "unmounts"])("polls live Table until it %s", async end => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     let calls = 0;
-    await render({ subPath: "table", rpc: {
-      getWeek: () => ({ ...WEEK, live: ++calls === 1, table: [{ ...WEEK.table[0], pointsFor: calls === 1 ? 81 : 92 }] }),
+    const slot = await render({ subPath: "table", rpc: {
+      getWeek: () => {
+        calls++;
+        return { ...WEEK, live: end === "unmounts" || calls === 1,
+          table: [{ ...WEEK.table[0], pointsFor: calls === 1 ? 81 : 92 }] };
+      },
     } });
     await screen.findByText("81");
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(screen.getByText("92")).toBeTruthy();
     expect(calls).toBe(2);
+    if (end === "unmounts") slot.lifecycle.unmount();
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(calls).toBe(2);
-    fireEvent.click(screen.getByRole("tab", { name: "Waivers" }));
-    await screen.findByText("Suggested waivers");
-    const afterLeaving = calls;
-    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
-    expect(calls).toBe(afterLeaving);
   });
 
   it("ignores an earlier gameweek response after navigation", async () => {
