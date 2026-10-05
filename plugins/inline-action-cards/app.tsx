@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type ExperimentalComposerSubmitOptions, type PluginComposerApi, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, chooseLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, NoteIcon, SkipIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, NoteIcon, SkipIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
 import { Consequence } from "./consequence.js";
 import "./app.css";
@@ -23,7 +23,7 @@ async function submitDraft(composer: PluginComposerApi, options: ExperimentalCom
 function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, onNote, logEntry }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
   initialItem?: Item; onItem?: (item: Item) => void; onNote?: (id: string, note: string) => void;
-  logEntry?: { threadTitle: string; threadProjectId: string | null; showThread: boolean };
+  logEntry?: boolean;
 }) {
   const navigate = useBbNavigate();
   const [noteOpen, setNoteOpen] = useState(false);
@@ -366,13 +366,11 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
         : choice ? chooseButton : decideButton("yes");
     }
     return <article className={quiet ? "iac-log-row iac-log-quiet" : later ? "iac-log-row iac-log-later" : "iac-log-row"} aria-label={`${kind}: ${heading}`}>
-      <span className="iac-log-kind" role="img" aria-label={kind} title={kind}>{reply ? <MailIcon /> : <SignpostIcon />}</span>
       <div className="iac-log-main">
         <span className="iac-log-title" title={heading}>{heading}</span>
         <span className="iac-log-meta">
           {later && <span>Later</span>}
           {failed && <span className="iac-failed" title={item.result?.message}><span role="img" aria-label="Failed">⚠</span> {item.result?.message}</span>}
-          {logEntry.showThread && <a className="iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); openThread(); }}>{logEntry.threadTitle}</a>}
           <time dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
           {item.attempt?.note && <span title={item.attempt.note}>“{item.attempt.note}”</span>}
         </span>
@@ -484,6 +482,12 @@ export function ActionsDirective({ attributes, message }: PluginMessageDirective
   return <div className="iac-container"><ActionTable key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} /></div>;
 }
 const DONE_PREVIEW = 5;
+type LogItem = ActionLog["waiting"][number];
+function groupByThread(items: LogItem[]): LogItem[][] {
+  const groups = new Map<string, LogItem[]>();
+  for (const item of items) groups.set(item.threadId, [...groups.get(item.threadId) ?? [], item]);
+  return [...groups.values()];
+}
 // The sidebar page lists every thread; a thread panel lists only its own thread.
 export function ActionLogView({ threadId }: { threadId?: string }) {
   const rpc = useRpc<typeof rpcContract>();
@@ -505,8 +509,18 @@ export function ActionLogView({ threadId }: { threadId?: string }) {
     return () => { request.current++; clearInterval(timer); };
   }, [load]);
   useRealtime("items", () => void load());
-  const row = (item: ActionLog["waiting"][number]) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item}
-    logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId, showThread: !threadId }} onItem={() => void load()} />;
+  // Thread headings carry the thread name, so rows never repeat it.
+  const row = (item: LogItem) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item}
+    logEntry onItem={() => void load()} />;
+  // The sidebar page groups rows under their thread, in order of each thread's first row; a thread panel is one thread already.
+  const rows = (items: LogItem[]) => threadId ? items.map(row) : groupByThread(items).map((group) => {
+    const first = group[0]!;
+    return <div key={first.threadId} className="iac-log-thread-group" role="group" aria-label={first.threadTitle}>
+      <h3 className="iac-log-thread-heading"><a href={first.threadProjectId ? `/projects/${encodeURIComponent(first.threadProjectId)}/threads/${encodeURIComponent(first.threadId)}` : undefined}
+        onClick={(event) => { event.preventDefault(); navigate.toThread(first.threadId); }}>{first.threadTitle}</a>{group.length > 1 && <span className="iac-log-count">{group.length}</span>}</h3>
+      {group.map(row)}
+    </div>;
+  });
   return <section className="iac-log" aria-label="Action log">
     <section className="iac-log-group" aria-label="Waiting on you">
       <header className="iac-log-heading">
@@ -516,11 +530,11 @@ export function ActionLogView({ threadId }: { threadId?: string }) {
       {error && <div className="iac-error" role="alert">{error}<ActionButton onClick={() => void load()}>Retry</ActionButton></div>}
       {!log && !error && <p className="iac-log-empty" role="status">Loading…</p>}
       {log && !log.waiting.length && <p className="iac-log-empty">Nothing is waiting on you.</p>}
-      {log?.waiting.map(row)}
+      {log && rows(log.waiting)}
     </section>
     {log && log.done.length > 0 && <section className="iac-log-group iac-log-done" aria-label="Done">
       <header className="iac-log-heading"><h2><span className="iac-log-mark" aria-hidden="true"><svg className="iac-log-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span>Done<span className="iac-log-count">{log.done.length}</span></h2></header>
-      {(showAllDone ? log.done : log.done.slice(0, DONE_PREVIEW)).map(row)}
+      {rows(showAllDone ? log.done : log.done.slice(0, DONE_PREVIEW))}
       {log.done.length > DONE_PREVIEW && <ActionButton className="iac-log-more" aria-expanded={showAllDone} onClick={() => setShowAllDone(!showAllDone)}>{showAllDone ? "Show fewer" : `Show all ${log.done.length}`}</ActionButton>}
     </section>}
   </section>;

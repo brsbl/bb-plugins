@@ -228,6 +228,11 @@ it("Action log keeps failures and Later cards waiting, orders row controls with 
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision, oddLabel], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
   const [ready, failure, deferred, decide] = within(waiting).getAllByRole("article");
+  // Rows sit under one heading per thread and drop the identical kind icon and repeated thread name.
+  const group = within(waiting).getByRole("group", { name: "Refund follow-up" });
+  expect(within(group).getAllByRole("article")).toHaveLength(5);
+  expect(within(group).getAllByText("Refund follow-up")).toHaveLength(1);
+  expect(within(waiting).queryByRole("img", { name: "Reply" })).toBeNull();
   expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Keep open", "Merge"]);
   // Labels that collide with Object.prototype keys fall back to the role icon instead of crashing the log.
   expect(within(waiting).getByRole("button", { name: "Constructor run" })).toBeTruthy();

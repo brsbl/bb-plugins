@@ -30,7 +30,7 @@ Docs was evaluated at `plugins/docs/app.tsx` and `document-session.ts` in bb. It
 
 ## Action log
 
-Open **Action log** in the sidebar for every thread, or in a thread’s panel launcher for that thread only. It lists cards **Waiting on you** first, including failures that need a retry and Later cards at the bottom with Resume, then a shorter **Done** history. Each row shows whether it is a reply or a decision, its title, thread and time, and either its result or one main action, with the rest in its ⋯ menu. Choices go to the card’s own thread.
+Open **Action log** in the sidebar for every thread, or in a thread’s panel launcher for that thread only. It lists cards **Waiting on you** first, including failures that need a retry and Later cards at the bottom with Resume, then a shorter **Done** history. In the sidebar, rows are grouped under their thread in a narrow column. Each row shows its title and time, and either its result or one main action, with the rest in its ⋯ menu. Choices go to the card’s own thread.
 
 Agents can read the same log with `bb action-cards log [--thread <id>] [--json]`. Without `--thread`, it includes all threads.
 
