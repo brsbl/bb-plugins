@@ -1,24 +1,189 @@
-name: FPL Draft recovery verification
+name: CI
+
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  fpl-draft:
+  inventory:
+    runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.matrix.outputs.plugins }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: matrix
+        run: |
+          echo "plugins=$(node tooling/plugin-workspaces.mjs)" >> "$GITHUB_OUTPUT"
+
+  hygiene:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 22.23.1
+          node-version: 22.22.0
           cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm run check --workspace=bb-plugin-fpl-draft
-      - uses: actions/upload-artifact@v4
+      - run: npm run hygiene
+      - run: npm run scaffold:smoke
+      - run: git diff --check
+      - run: git diff --exit-code
+
+  sdk-compatibility:
+    name: Persisted SDK 0.4.6 upgrade
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
         with:
-          name: fpl-draft-recovery
-          path: |
-            plugins/fpl-draft/dist/
-            plugins/fpl-draft/assets/
-            plugins/fpl-draft/package.json
-          retention-days: 7
+          path: bb-plugins
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: bb-plugins/package-lock.json
+      - run: npm ci
+        working-directory: bb-plugins
+      - uses: actions/checkout@v6
+        with:
+          repository: get-bb/bb
+          ref: 9b8c1d3457b00359af206e3fd423fe50520182c2
+          path: bb-host
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+          cache-dependency-path: bb-host/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: bb-host
+      - run: >-
+          pnpm --dir
+          node_modules/.pnpm/better-sqlite3@12.10.0/node_modules/better-sqlite3
+          run install
+        working-directory: bb-host
+      - run: >-
+          cp
+          bb-plugins/tooling/compatibility/plugin-sdk-upgrade.external.test.ts
+          bb-host/apps/server/test/services/plugins/plugin-scaffold-upgrade.external.test.ts
+      - run: >-
+          pnpm --filter @bb/server test --
+          plugin-scaffold-upgrade.external.test.ts
+        working-directory: bb-host
+        env:
+          BB_PLUGIN_COMPAT_REPOSITORY: ${{ github.workspace }}/bb-plugins
+
+  plugins:
+    needs: inventory
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.inventory.outputs.plugins) }}
+    name: ${{ matrix.package == 'bb-plugin-prompt-shaper' && 'Improve Prompt' || matrix.name }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck --workspace=${{ matrix.package }}
+      - run: npm run build --workspace=${{ matrix.package }}
+      - run: npm test --workspace=${{ matrix.package }}
+      - run: npm run test:built --workspace=${{ matrix.package }} --if-present
+      - run: node tooling/validate-plugin-artifacts.mjs ${{ matrix.path }}
+      - run: git diff --check -- ${{ matrix.path }}
+      - run: git diff --exit-code -- ${{ matrix.path }}
+
+  thread-history-maintenance:
+    name: Thread History Maintenance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck --workspace=@brsbl/bb-thread-history-maintenance
+      - run: npm test --workspace=@brsbl/bb-thread-history-maintenance
+
+  install-refs-validation:
+    if: github.event_name == 'pull_request'
+    needs: [hygiene, plugins, thread-history-maintenance]
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm run artifacts
+      - run: node tooling/publish-install-refs.mjs
+
+  ci-complete:
+    # One stable required check. Naming each matrix job in branch protection
+    # meant a new plugin silently stopped gating main, and a removed one would
+    # block every pull request on a check that never reports again.
+    name: ci-complete
+    if: always()
+    needs:
+      - inventory
+      - hygiene
+      - sdk-compatibility
+      - plugins
+      - thread-history-maintenance
+      - install-refs-validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to have succeeded or been skipped
+        if: >-
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled')
+        run: |
+          echo "A required job did not succeed."
+          exit 1
+
+  publish-install-refs:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [hygiene, sdk-compatibility, plugins, thread-history-maintenance]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm run artifacts
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - run: node tooling/publish-install-refs.mjs --push
