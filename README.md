@@ -28,6 +28,16 @@ Delivers private briefings as threads with numbered priorities, review buttons, 
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/digests --yes`
 
+### FPL Draft
+
+Follow your Fantasy Premier League Draft league’s matches and standings, compare waiver options, and bring the current view into an agent conversation with a context pill.
+
+![FPL Draft waiver suggestion with expanded player comparison](https://github.com/user-attachments/assets/ea04832a-1a7f-4fdc-bcf7-66b85b951611)
+
+[Source](plugins/fpl-draft) · [README](plugins/fpl-draft/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/fpl-draft --yes`
+
 ### GitHub Activity
 
 Brings incoming comments and mentions from GitHub pull requests and issues you authored into one searchable, filterable triage view, with open and resolved activity kept together.
