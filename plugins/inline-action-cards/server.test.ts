@@ -264,3 +264,123 @@ it("validates short notes, retains retry conditions, and accepts previously pers
   expect(() => store.prepare({ ...ref, id: "bounded", revision: 1, action: "send", note: "x".repeat(1001) })).toThrow();
   expect(store.get(ref.threadId, "bounded").state).toBe("ready");
 });
+
+describe("plugin-handled cards", () => {
+  const owner = { pluginId: "coordinator-mode", ref: "qa:item-7" };
+  const decide = { type: "decide", question: "Approve QA for Moss viewer?", consequence: "Moves it to Ready to merge.", yesLabel: "Approve", noLabel: "Reject" } as const;
+  const sentToOwner = (host: ReturnType<typeof createFakePluginHost>) => host.harness.sdk.callsTo("plugins.callRpc").map(([args]) => {
+    const { pluginId, method, input } = args as { pluginId: string; method: string; input: unknown };
+    return { pluginId, method, input };
+  });
+
+  it("upserts by owner reference, keeps unchanged revisions, and refuses colliding IDs", async () => {
+    const { store } = setup();
+    const created = store.createOwned({ ...ref, owner, content: decide });
+    expect(created.directive).toBe('::action{id="esc-1" thread="thr_test"}');
+    expect(created.item).toMatchObject({ owner, state: "ready", revision: 1 });
+    expect(store.createOwned({ ...ref, owner, content: decide }).item.revision).toBe(1);
+    expect(store.createOwned({ ...ref, owner, content: { ...decide, question: "Approve QA again?" } }).item).toMatchObject({ revision: 2, owner, content: { question: "Approve QA again?" } });
+    expect(() => store.createOwned({ ...ref, owner: { ...owner, ref: "qa:item-8" }, content: decide })).toThrow("already exists");
+    expect(() => store.createOwned({ ...ref, id: "elsewhere", owner, content: decide })).toThrow("already has card esc-1");
+    expect(() => store.create(ref.threadId, ref.id, reply)).toThrow("already exists");
+    store.create(ref.threadId, "agent-card", reply);
+    expect(store.get(ref.threadId, "agent-card").owner).toBeUndefined();
+    expect(() => store.createOwned({ ...ref, id: "agent-card", owner: { ...owner, ref: "qa:item-9" }, content: decide })).toThrow("already exists");
+    // A resolved card stays resolved through content updates unless its owner reopens it.
+    store.resolveOwned({ ...owner, outcome: "approved", message: "Approved" });
+    expect(store.createOwned({ ...ref, owner, content: { ...decide, question: "Changed" } }).item.state).toBe("succeeded");
+    expect(store.createOwned({ ...ref, owner, content: { ...decide, question: "Changed" }, reopen: true }).item).toMatchObject({ state: "ready", attempt: null, result: null });
+
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    await expect(host.harness.behavior.callRpc("createOwned", { ...ref, owner, content: reply })).rejects.toThrow();
+    await expect(host.harness.behavior.callRpc("createOwned", { ...ref, owner: { pluginId: "Not a plugin", ref: "x" }, content: decide })).rejects.toThrow();
+  });
+
+  it("sends a click straight to its owner, records its answer, and retries a failure", async () => {
+    let failure: Error | null = new Error("Coordinator is paused.");
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { plugins: { callRpc: () => {
+      if (failure) throw failure;
+      return { message: "QA approved; merging next" };
+    } } } }); hosts.push(host); plugin(host.bb);
+    const { callRpc } = host.harness.behavior;
+    await callRpc("createOwned", { ...ref, owner, content: decide });
+    const failed = await callRpc("decideOwned", { ...ref, revision: 1, action: "yes", note: "after lunch" }) as Item;
+    expect(failed).toMatchObject({ state: "failed", result: { message: "Coordinator is paused.", retryable: true }, attempt: { action: "yes", note: "after lunch" } });
+    failure = null;
+    await expect(callRpc("decideOwned", { ...ref, revision: failed.revision, action: "no" })).rejects.toThrow("Retry the original action");
+    const done = await callRpc("decideOwned", { ...ref, revision: failed.revision, action: "yes" }) as Item;
+    expect(done).toMatchObject({ state: "succeeded", result: { message: "QA approved; merging next", retryable: false } });
+    const request = { pluginId: "coordinator-mode", method: "actionCards.decide", input: { ref: "qa:item-7", action: "yes", note: "after lunch" } };
+    expect(sentToOwner(host)).toEqual([request, request]);
+    await expect(callRpc("decideOwned", { ...ref, revision: done.revision, action: "yes" })).rejects.toThrow("finished");
+
+    failure = new Error("x".repeat(600));
+    await callRpc("createOwned", { ...ref, id: "long", owner: { ...owner, ref: "long" }, content: decide });
+    expect((await callRpc("decideOwned", { ...ref, id: "long", revision: 1, action: "no" }) as Item).result!.message).toHaveLength(500);
+    failure = null;
+
+    const choiceContent = { type: "choice", question: "Which reviewer?", options: [{ id: "ana", label: "Ana" }, { id: "bo", label: "Bo" }] };
+    await callRpc("createOwned", { ...ref, id: "pick", owner: { ...owner, ref: "reviewer" }, content: choiceContent });
+    await expect(callRpc("decideOwned", { ...ref, id: "pick", revision: 1, action: "choose" })).rejects.toThrow("Pick an option");
+    await callRpc("decideOwned", { ...ref, id: "pick", revision: 1, action: "choose", choice: "bo" });
+    expect(sentToOwner(host).at(-1)).toEqual({ pluginId: "coordinator-mode", method: "actionCards.decide", input: { ref: "reviewer", action: "choose", choice: { id: "bo", label: "Bo" } } });
+
+    // Skip stays local; the owner hears nothing and Resume reopens the card.
+    await callRpc("createOwned", { ...ref, id: "skip", owner: { ...owner, ref: "skip" }, content: decide });
+    const before = sentToOwner(host).length;
+    const skipped = await callRpc("decideOwned", { ...ref, id: "skip", revision: 1, action: "skip" }) as Item;
+    expect(skipped).toMatchObject({ state: "succeeded", result: { message: "Skipped" } });
+    expect(sentToOwner(host)).toHaveLength(before);
+    expect(await callRpc("reopen", { ...ref, id: "skip", revision: skipped.revision })).toMatchObject({ state: "ready" });
+
+    // The Action log routes owned cards to the owner, never to the agent.
+    await callRpc("createOwned", { ...ref, id: "from-log", owner: { ...owner, ref: "from-log" }, content: decide });
+    expect(await callRpc("decideFromLog", { ...ref, id: "from-log", revision: 1, action: "no" })).toMatchObject({ state: "succeeded" });
+    expect(sentToOwner(host).at(-1)).toMatchObject({ input: { ref: "from-log", action: "no" } });
+    expect(host.harness.sdk.callsTo("threads.send")).toEqual([]);
+    await expect(callRpc("decideOwned", { ...ref, id: "agent", revision: 1, action: "yes" })).rejects.toThrow("unavailable");
+  });
+
+  it("closes a card that resolved elsewhere without contacting anyone", async () => {
+    const { store, harness } = setup();
+    expect(store.resolveOwned({ ...owner, outcome: "closed", message: "Untracked" })).toBeNull();
+    store.createOwned({ ...ref, owner, content: decide });
+    const closed = store.resolveOwned({ ...owner, outcome: "approved", message: "Approved in the sub-thread" })!;
+    expect(closed.item).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Approved in the sub-thread", retryable: false } });
+    expect(store.resolveOwned({ ...owner, outcome: "closed", message: "Again" })!.item.revision).toBe(closed.item.revision);
+    store.createOwned({ ...ref, id: "later", owner: { ...owner, ref: "later" }, content: decide });
+    await store.decideOwned({ ...ref, id: "later", revision: 1, action: "later" });
+    expect(store.resolveOwned({ ...owner, ref: "later", outcome: "declined", message: "Rejected" })!.item).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Rejected" } });
+    expect((await store.log()).done.map((item) => item.id).sort()).toEqual(["esc-1", "later"]);
+    expect(harness.sdk.calls).toEqual([expect.objectContaining({ path: "threads.get" })]);
+  });
+
+  it("refuses agent claims, reports, and composer actions on owned cards", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const { callRpc, runCli } = host.harness.behavior;
+    await callRpc("createOwned", { ...ref, owner, content: decide });
+    const message = "This card is handled by coordinator-mode; agents don't act on it.";
+    const attempt = "ea45f71a-c216-4da4-a226-65736f4eccfd";
+    const claim = await runCli(["claim", ref.id, "--thread", ref.threadId, "--attempt", attempt]);
+    expect(claim.exitCode).not.toBe(0);
+    expect(claim.stderr).toContain(message);
+    const report = await runCli(["report", ref.id, "--thread", ref.threadId, "--attempt", attempt, "--outcome", "succeeded", "--message", "Approved"]);
+    expect(report.exitCode).not.toBe(0);
+    expect(report.stderr).toContain(message);
+    await expect(callRpc("prepare", { ...ref, revision: 1, action: "yes" })).rejects.toThrow(message);
+    await expect(callRpc("comment", { ...ref, revision: 1, note: "Wait" })).rejects.toThrow(message);
+    const table = await runCli(["create-table", "group", "--thread", ref.threadId, "--table", JSON.stringify({ title: "Decisions", ids: [ref.id] })]);
+    expect(table.stderr).toContain(message);
+    expect(await callRpc("get", ref)).toMatchObject({ state: "ready", revision: 1 });
+  });
+
+  it("offers Retry when a restart interrupts an owner call", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { plugins: { callRpc: () => new Promise(() => {}) } } }); hosts.push(host); plugin(host.bb);
+    await host.harness.behavior.callRpc("createOwned", { ...ref, owner, content: decide });
+    void host.harness.behavior.callRpc("decideOwned", { ...ref, revision: 1, action: "yes" });
+    await expect.poll(async () => (await host.harness.behavior.callRpc("get", ref) as Item).state).toBe("pending");
+    const reloaded = await host.harness.lifecycle.reload(plugin);
+    hosts[hosts.indexOf(host)] = reloaded;
+    expect(await reloaded.harness.behavior.callRpc("get", ref)).toMatchObject({ state: "failed", attempt: { action: "yes" }, result: { retryable: true, message: "Interrupted before coordinator-mode answered. Retry to send it again." } });
+  });
+});

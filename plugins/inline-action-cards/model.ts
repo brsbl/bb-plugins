@@ -6,6 +6,21 @@ const label = z.string().trim().min(1).max(80).regex(/^[^\r\n]+$/);
 const address = z.string().trim().min(1).max(320).regex(/^[^\r\n]+$/);
 export const noteSchema = z.string().trim().max(1000);
 export const draftSchema = z.string().max(40_000);
+const decideContentSchema = z.object({
+  type: z.literal("decide"), question: line, consequence: line,
+  yesLabel: line.optional(), noLabel: line.optional(),
+  // Explicit semantic key: matching button copy alone is not enough for bulk approval.
+  actionKey: idSchema.optional(),
+}).strict();
+const choiceContentSchema = z.object({
+  type: z.literal("choice"), question: line,
+  options: z.array(z.object({ id: idSchema, label, hint: line.optional() }).strict()).min(2).max(6),
+  recommended: idSchema.optional(), consequence: line.optional(),
+}).strict().superRefine((value, ctx) => {
+  const ids = value.options.map((option) => option.id);
+  if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["options"], message: "Each option needs its own id" });
+  if (value.recommended && !ids.includes(value.recommended)) ctx.addIssue({ code: "custom", path: ["recommended"], message: "Recommend one of the option ids" });
+});
 export const contentSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("reply"),
@@ -17,22 +32,17 @@ export const contentSchema = z.discriminatedUnion("type", [
     original: z.object({ from: line, date: line.optional(), body: z.string().max(60_000) }).strict(),
     draft: draftSchema,
   }).strict(),
-  z.object({
-    type: z.literal("decide"), question: line, consequence: line,
-    yesLabel: line.optional(), noLabel: line.optional(),
-    // Explicit semantic key: matching button copy alone is not enough for bulk approval.
-    actionKey: idSchema.optional(),
-  }).strict(),
-  z.object({
-    type: z.literal("choice"), question: line,
-    options: z.array(z.object({ id: idSchema, label, hint: line.optional() }).strict()).min(2).max(6),
-    recommended: idSchema.optional(), consequence: line.optional(),
-  }).strict().superRefine((value, ctx) => {
-    const ids = value.options.map((option) => option.id);
-    if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["options"], message: "Each option needs its own id" });
-    if (value.recommended && !ids.includes(value.recommended)) ctx.addIssue({ code: "custom", path: ["recommended"], message: "Recommend one of the option ids" });
-  }),
+  decideContentSchema,
+  choiceContentSchema,
 ]);
+// Plugin-handled cards ask one decision; Reply cards need an agent to send.
+export const ownedContentSchema = z.discriminatedUnion("type", [decideContentSchema, choiceContentSchema]);
+// The plugin that raised a card and answers its clicks; `ref` is that plugin's own key.
+export const ownerSchema = z.object({
+  pluginId: z.string().max(128).regex(/^[a-z0-9][a-z0-9-]*$/),
+  ref: z.string().min(1).max(200),
+}).strict();
+export type Owner = z.infer<typeof ownerSchema>;
 export const actionSchema = z.enum(["send", "save-draft", "yes", "no", "later", "skip", "choose"]);
 export type Action = z.infer<typeof actionSchema>;
 export const labels: Record<Action, string> = {
@@ -53,6 +63,8 @@ export const itemSchema = z.object({
   }).strict().nullable(),
   result: z.object({ message: z.string().min(1).max(500), retryable: z.boolean() }).strict().nullable(),
   updatedAt: z.string(),
+  // Absent on agent cards; stored only on plugin-handled ones.
+  owner: ownerSchema.nullable().optional(),
 }).strict();
 export type Item = z.infer<typeof itemSchema>;
 export type Content = z.infer<typeof contentSchema>;

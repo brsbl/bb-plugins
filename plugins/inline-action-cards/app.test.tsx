@@ -457,3 +457,34 @@ it("Action log offers a choice card Choose, Skip and Review, never Yes or No", a
   fireEvent.click(within(row).getByRole("button", { name: "Choose" }));
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread" }));
 });
+
+it("sends a plugin-handled card's choice and comment to its owner from another thread's message", async () => {
+  const gets: unknown[] = [];
+  const decisions: unknown[] = [];
+  let item: Item = { ...fixture(), id: "qa-7", threadId: "thr_coord", owner: { pluginId: "coordinator-mode", ref: "qa:7" },
+    content: { type: "decide", question: "Approve QA?", consequence: "Moves it to Ready to merge.", yesLabel: "Approve", noLabel: "Reject" } };
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: "qa-7", thread: "thr_coord" }, source: '::action{id="qa-7" thread="thr_coord"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+    composer: { scope: { kind: "thread", threadId: "thr_test" } },
+    rpc: {
+      get: (input) => { gets.push(input); return item; },
+      decideOwned: (input) => {
+        decisions.push(input);
+        item = { ...item, revision: 2, state: "succeeded", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, note: "after lunch" }, result: { message: "QA approved", retryable: false } };
+        return item;
+      },
+    },
+  });
+  await screen.findByRole("article", { name: "Decision: Approve QA?" });
+  expect(gets[0]).toEqual({ id: "qa-7", threadId: "thr_coord" });
+  expect(screen.queryByRole("button", { name: "Resend request" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "after lunch" } });
+  // A lone comment would go to the agent, so an owned card only sends it with a choice.
+  expect(screen.queryByRole("button", { name: "Send comment" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Approve with comment" }));
+  await screen.findByText(/QA approved/);
+  expect(decisions).toEqual([{ id: "qa-7", threadId: "thr_coord", revision: 1, action: "yes", note: "after lunch" }]);
+  expect(slot.inspection.composer.submits).toHaveLength(0);
+  expect(slot.inspection.composer.mentions).toHaveLength(0);
+});

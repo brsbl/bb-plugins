@@ -22,6 +22,8 @@ A choice card lists 2–6 short options under one question. Pick one, then click
 
 Use `bb action-cards create-table` with a title and existing item IDs to emit `::actions{id="..."}`. Reply rows open for review one at a time. Matching Decide operations can offer a bulk action; each row keeps its own result.
 
+Plugins can raise Decide or Choice cards they handle themselves. Call `createOwned({ threadId, id, owner: { pluginId, ref }, content })` through `bb.sdk.plugins.callRpc`. It upserts by owner and reference (pass `reopen: true` to make a resolved card ready again) and returns the card plus a `::action{id="…" thread="…"}` directive; the thread attribute lets a chat message in another thread show the same live card. A click goes to your plugin's `actionCards.decide` RPC with `{ ref, action, choice?, note? }`, never to the agent: within a minute, return `{ message }` to show on the card, or throw to show a retryable failure. Skip stays on the card. Close a card that resolved elsewhere with `resolveOwned({ pluginId, ref, outcome, message })`. The app sends clicks through `decideOwned`, and `bb action-cards claim` and `report` refuse these cards.
+
 Items live in plugin-owned SQLite storage, scoped to their thread. Gmail access comes from the agent's connected tools. Cards no longer offer Later; existing Later cards still load and can be resumed.
 
 ### Editor choice

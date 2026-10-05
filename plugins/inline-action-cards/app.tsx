@@ -155,12 +155,18 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   };
 
   const act = async (action?: Action, choice?: string) => {
-    if (lock.current || submitting.has(threadId)) return;
-    lock.current = true; submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
+    // Plugin-handled cards answer their owner directly and never touch the composer.
+    const viaComposer = !current.current?.owner;
+    if (lock.current || (viaComposer && submitting.has(threadId))) return;
+    lock.current = true; if (viaComposer) submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
     try {
       await flush();
       let next = current.current;
       if (!next) return;
+      if (next.owner) {
+        if (action) adopt(await rpc.call("decideOwned", { id, threadId, revision: next.revision, action, ...(choice ? { choice } : {}), ...(next.state === "ready" ? { note } : {}) }));
+        return;
+      }
       if (logEntry) {
         const updated = await rpc.call("decideFromLog", { id, threadId, revision: next.revision, ...(action ? { action } : {}) });
         adopt(updated);
@@ -178,7 +184,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       // Resending a pending request keeps its attempt ID; claim refuses duplicates.
       await sendMessage(next);
     } catch (err) { setError(readableError(err)); }
-    finally { lock.current = false; submitting.delete(threadId); setBusy(false); setSending(null); }
+    finally { lock.current = false; if (viaComposer) submitting.delete(threadId); setBusy(false); setSending(null); }
   };
   const comment = async () => {
     if (lock.current || submitting.has(threadId) || !note.trim()) return;
@@ -211,6 +217,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   };
   const reply = item?.content.type === "reply" ? item.content : null;
   const choice = item?.content.type === "choice" ? item.content : null;
+  const owned = !!item?.owner;
   const ready = item?.state === "ready";
   const pending = item?.state === "pending";
   const status = item && !busy ? sentStatus(item) : null;
@@ -237,16 +244,17 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   // Table rows keep only Comment beside their choices; Reply rows get the rest once open.
   // A pending request offers Resend only once it is not already being sent.
   const utilities = <div className="iac-tools">
-    {pending && !busy ? <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton> : commentToggle}
+    {pending && !busy && !owned ? <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton> : commentToggle}
     {(!row || reply) && <>
       <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
     </>}
     {reply && <IconButton label="Save to Gmail drafts" disabled={disabled} onClick={() => void act("save-draft")}><DraftIcon /></IconButton>}
   </div>;
-  const noteField = ready && noteOpen && <div className="iac-note-entry"><textarea className="iac-note-field" ref={noteEditor} aria-label="Comment" placeholder="Add a comment. It's sent with your choice, or on its own." value={note} autoFocus rows={1} maxLength={1000} disabled={busy}
+  // An owner only hears comments sent with a choice; a lone comment would go to the agent.
+  const noteField = ready && noteOpen && <div className="iac-note-entry"><textarea className="iac-note-field" ref={noteEditor} aria-label="Comment" placeholder={owned ? "Add a comment. It's sent with your choice." : "Add a comment. It's sent with your choice, or on its own."} value={note} autoFocus rows={1} maxLength={1000} disabled={busy}
     onChange={(event) => { changeNote(event.target.value); if (!event.target.value) closeNote(true); }}
     onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeNote(true); } }} />
-    {note.trim() && <IconButton label="Send comment" disabled={disabled} onClick={() => void comment()}><SendIcon /></IconButton>}
+    {note.trim() && !owned && <IconButton label="Send comment" disabled={disabled} onClick={() => void comment()}><SendIcon /></IconButton>}
   </div>;
   // The primary button marks a comment that goes along with the choice.
   const attached = ready && noteOpen && !!note.trim();
@@ -356,7 +364,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       secondary = retryable && button(reply ? "Edit draft" : "Choose again", reply ? "edit" : "undo", () => void reopen(), "outline");
       primary = choice ? chooseButton : retryable ? button("Retry", "retry", () => void act(item.attempt!.action), "default") : button("Open thread", "open", openThread, "default", false);
     } else {
-      menu = <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
+      // An owner call in flight has nothing to resend, which would leave Open thread alone in the menu.
+      menu = pending && owned ? null : <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
         : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}<MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
         <MenuAction onSelect={openThread}>Open thread</MenuAction></>;
       secondary = reply ? commentButton : choice ? null : decideButton("no");
@@ -476,7 +485,10 @@ function ActionTable({ id, threadId }: { id: string; threadId: string }) {
 export function ActionDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const parsed = idSchema.safeParse(attributes.id);
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This card has an invalid item ID. Ask the agent to recreate its link.</div>;
-  return <div className="iac-container"><ActionCard key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} /></div>;
+  // A thread attribute lets a message in another thread show the same live card.
+  const thread = idSchema.safeParse(attributes.thread);
+  const threadId = thread.success ? thread.data : message.threadId;
+  return <div className="iac-container"><ActionCard key={`${threadId}:${parsed.data}`} id={parsed.data} threadId={threadId} /></div>;
 }
 export function ActionsDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const parsed = idSchema.safeParse(attributes.id);
