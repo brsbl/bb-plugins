@@ -17,8 +17,8 @@ import { ReferenceIcon } from "./reference-icon.js";
 import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 ${PIN_MAX_WIDTH_CLASS} items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
-// The quiet file chip bb uses for composer attachments.
-const pinClass = cn(linkClass, "rounded-md bg-surface-recessed-solid shadow-xs");
+// bb's composer-stack card chrome at chip scale, one step quieter, lifting a step on hover.
+const pinClass = cn(linkClass, "rounded-md border border-border-seam bg-surface-raised-solid shadow-xs transition-shadow hover:shadow-sm");
 // ⋯ list rows use bb's menu item density; their ⋯ shows on hover, keyboard focus and touch.
 const rowLinkClass = "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-[0.3125rem] text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring";
 const rowActionClass = "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100";
