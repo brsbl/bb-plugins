@@ -257,12 +257,12 @@ export function createService(bb: BbPluginApi) {
     return item;
   };
 
-  async function sendText(threadId: string, text: string, permissionMode?: "accept-edits"): Promise<void> {
+  // Messages never set a permission mode, so the thread keeps the access the user gave it.
+  async function sendText(threadId: string, text: string): Promise<void> {
     await bb.sdk.threads.send({
       threadId,
       mode: "queue-if-active",
       input: [{ type: "text", text, mentions: [] }],
-      ...(permissionMode ? { permissionMode } : {}),
     });
   }
 
@@ -282,7 +282,7 @@ export function createService(bb: BbPluginApi) {
     } catch (error) {
       bb.log.warn(`Coordinator Mode could not stop ${threadId}: ${errorMessage(error)}`);
     }
-    await sendText(threadId, message, "accept-edits");
+    await sendText(threadId, message);
   }
 
   function decide(coordinator: CoordinatorRecord, action: GatedAction, item: ItemRecord | undefined, isPrimaryThread: boolean): Decision {
@@ -338,7 +338,9 @@ export function createService(bb: BbPluginApi) {
         const defaults = await bb.sdk.threads.defaultExecutionOptions({ threadId: coordinator.threadId });
         const execution = {
           providerId: coordinatorThread.providerId,
-          ...(defaults ? { model: defaults.model, reasoningLevel: defaults.reasoningLevel } : {}),
+          ...(defaults
+            ? { model: defaults.model, reasoningLevel: defaults.reasoningLevel, permissionMode: defaults.permissionMode }
+            : { permissionMode: "accept-edits" as const }),
         };
         const thread = await bb.sdk.threads.spawn({
           projectId: await projectOf(coordinator),
@@ -347,7 +349,6 @@ export function createService(bb: BbPluginApi) {
           title: args.title ?? item.title,
           environment: helperEnvironment ? { type: "reuse", environmentId: helperEnvironment } : { type: "project-default" },
           ...execution,
-          permissionMode: "accept-edits",
           // Display hint only; the store is the authority on membership.
           pluginMetadata: { coordinatorThreadId: coordinator.threadId, itemId: item.id, role: args.role },
         });
@@ -989,7 +990,6 @@ export function createService(bb: BbPluginApi) {
         environment: { type: "project-default" },
         prompt: "Coordinator Mode is starting.",
         title: `${parsed.name} coordinator`,
-        permissionMode: "accept-edits",
       });
       await insertCoordinator(thread.id, parsed, projectId);
       publish(thread.id);
