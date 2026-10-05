@@ -508,8 +508,9 @@ describe("note media", () => {
     expect(await upload("page-1-1a2b3c4d.png", Buffer.from("<html><script>alert(1)</script>"))).toEqual(refused);
     expect(await upload("page-1-1a2b3c4d.svg", Buffer.from("<html><script>alert(1)</script>"), { mimeType: "image/svg+xml" })).toEqual(refused);
     expect(await upload("shot-1-1a2b3c4d.png", PNG("x"), { mimeType: "video/mp4" })).toEqual(refused);
-    expect(await upload("page-1-1a2b3c4d.html", Buffer.from("<p>"), { mimeType: "text/html" })).toEqual(refused);
-    expect(await upload("a..b.png", PNG("x"))).toEqual(refused);
+    // Names must pass Moss's own asset-name rule, which also allows only media extensions.
+    expect(await upload("page-1-1a2b3c4d.html", Buffer.from("<p>"), { mimeType: "text/html" })).toEqual({ kind: "refused", reason: "name" });
+    expect(await upload("a..b.png", PNG("x"))).toEqual({ kind: "refused", reason: "name" });
     expect(await stat(join(plan.directory, "assets")).catch(() => null)).toBeNull();
   });
 

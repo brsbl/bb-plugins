@@ -119,7 +119,7 @@ export const assetRef = z.custom<Moss.MossAssetRef>(
 
 const refused = z.object({
   kind: z.literal("refused"),
-  reason: z.enum(["tooLarge", "type", "noSpace"]),
+  reason: z.enum(["tooLarge", "type", "noSpace", "name"]),
   maxBytes: z.number().int().min(0).optional(),
 });
 

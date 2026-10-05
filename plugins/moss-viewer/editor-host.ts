@@ -427,6 +427,7 @@ export function createEditorHost(deps: EditorHostDeps) {
           if ((await stat(staged).catch(() => null))?.size !== size) {
             throw codedError("EINVAL", "This upload is incomplete. Add the file again.");
           }
+          if (!helpers.isMossAssetName(name)) return { kind: "refused", reason: "name" };
           if (!mimeType.startsWith(`${ASSET_KINDS[extname(name).toLowerCase()] ?? "none"}/`)) return { kind: "refused", reason: "type" };
           return placeAsset(staged, editable.state.directory, name);
         });
@@ -511,7 +512,8 @@ export function createEditorHost(deps: EditorHostDeps) {
   async function placeAsset(source: string, directory: string, name: string): Promise<Moss.MossAssetPutResult> {
     const extension = extname(name).toLowerCase();
     // The name must pass Moss's own rule, and the bytes must be what the extension says.
-    if (!helpers.isMossAssetName(name) || ASSET_KINDS[extension] === undefined) return { kind: "refused", reason: "type" };
+    if (!helpers.isMossAssetName(name)) return { kind: "refused", reason: "name" };
+    if (ASSET_KINDS[extension] === undefined) return { kind: "refused", reason: "type" };
     if (!contentMatches(extension, await readHead(source))) return { kind: "refused", reason: "type" };
     const assets = await assetsDirectory(directory);
     const temp = join(assets, helpers.sidecarFileName(name, uuid(), "tmp"));
