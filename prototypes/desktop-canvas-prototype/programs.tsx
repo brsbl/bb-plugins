@@ -10,12 +10,18 @@ import {
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { RECYCLE_BIN_DROP, beginThreadDrag, canStartThread, groupMenu, threadDropTarget, threadMenu, type MenuContext } from "./actions";
+import { BROWSER_HOME, browserTab, nativeBrowser, rememberUrl } from "./browser";
+import { BrowserWindow } from "./browser-window";
 import { acceptsDrop, type Collection } from "./canvas-organization";
 import { Button } from "./components/ui/button";
 import { describeStatus, folderSummary, groupTone, relativeTime, statusTone } from "./core";
 import { errorMessage, useDesktop, type DesktopContextValue } from "./data";
 import { useAskText, useMenu } from "./menu";
-import { WindowFrame, usePointerTracker, useWindowManager, type DesktopWindow, type WindowSpec } from "./windows";
+import { useSideChatActions } from "./side-chat";
+import { TerminalWindow } from "./terminal-window";
+import { InfoWindow, RelatedWindow, activityLine, useAgentName } from "./thread-companions";
+import { besideRect } from "./window-state";
+import { WindowFrame, usePointerTracker, useWindowManager, windowSize, type DesktopWindow, type WindowSpec } from "./windows";
 
 /** Every window the canvas opens: Desktop's programs without the Windows XP skin. */
 
@@ -53,9 +59,10 @@ function ThreadStatus({ thread }: { thread: PluginSidebarThread }) {
   );
 }
 
+/** Threads carry no glyph, as in bb's sidebar, unless the sidebar shows provider icons. */
 function ThreadGlyph({ thread }: { thread: PluginSidebarThread }) {
   const { preferences } = useDesktop();
-  return preferences.showProviderIcons ? <ProviderIcon providerKind="agent" provider={{ id: thread.providerId }} /> : <Icon name="MessageSquare" />;
+  return preferences.showProviderIcons ? <ProviderIcon providerKind="agent" provider={{ id: thread.providerId }} /> : null;
 }
 
 function Nav({ window: desktopWindow }: { window: DesktopWindow }) {
@@ -177,14 +184,10 @@ function ThreadCollection({ windowId, folders = [], threads, group, view, empty,
             </div>
           ))}
           {shown.map((thread) => (
-            <div key={thread.id} className="cdc-file-icon" {...itemProps(thread)}>
-              <span className="cdc-file-art">
-                <ThreadGlyph thread={thread} />
-                {statusTone(thread) === "attention" ? <span className="cdc-dot" data-tone="attention">!</span>
-                  : statusTone(thread) === "running" ? <span className="cdc-dot" data-tone="running"><Icon name="Loading" /></span>
-                  : thread.isUnread ? <span className="cdc-dot" data-tone="unread" /> : null}
-              </span>
+            <div key={thread.id} className="cdc-file-icon cdc-thread-card" data-unread={thread.isUnread || undefined} {...itemProps(thread)}>
+              <ThreadGlyph thread={thread} />
               <span className="cdc-file-label">{thread.displayTitle}</span>
+              <ThreadStatus thread={thread} />
             </div>
           ))}
         </div>
@@ -435,12 +438,38 @@ function NewThreadWindow({ window: desktopWindow, groupKey }: { window: DesktopW
 
 function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWindow; threadId: string }) {
   const context = useMenuContext();
-  const { desktop, actions } = context;
+  const { desktop, actions, manager } = context;
   const menu = useMenu();
   const thread = desktop.threadById.get(threadId);
   const archived = thread?.isArchived === true;
+  const agent = useAgentName(thread?.providerId);
+  const messageActions = useSideChatActions(thread !== undefined && !archived);
+  const browserAvailable = nativeBrowser() !== null;
+  const companionOpen = (kind: "info" | "related") => manager.windows.some((window) => window.id === `${kind}:${threadId}`);
+  const floating = desktopWindow.dock === undefined && !desktopWindow.maximized;
+
+  // Desktop's Get Info and Buddy List: docked beside the thread, Info on the right and Related threads on the left.
+  const toggleCompanion = (kind: "info" | "related") => {
+    if (companionOpen(kind)) {
+      manager.close(`${kind}:${threadId}`);
+      return;
+    }
+    const spec = { kind, threadId } as const;
+    manager.open(spec, floating ? besideRect(desktopWindow.rect, kind === "info" ? "right" : "left", windowSize(spec).width) : undefined);
+  };
+  // Like Desktop, each click opens another tab; the window sits beside the thread, cascading.
+  const openTab = (kind: "browser" | "terminal") => {
+    const tabId = Math.random().toString(36).slice(2, 10);
+    if (kind === "browser") rememberUrl(browserTab(tabId).urlKey, BROWSER_HOME);
+    const spec = { kind, threadId, tabId } as const;
+    const offset = manager.windows.filter((window) => window.spec.kind === kind && window.spec.threadId === threadId).length * 32;
+    const size = windowSize(spec);
+    const right = companionOpen("info") ? windowSize({ kind: "info", threadId }).width + 8 : 0;
+    manager.open(spec, floating ? { ...size, x: desktopWindow.rect.x + desktopWindow.rect.width + right + 24 + offset, y: desktopWindow.rect.y + offset } : undefined);
+  };
+
   return (
-    <WindowFrame window={desktopWindow} title={thread?.displayTitle ?? "Thread"} icon="MessageSquare" bodyProps={{ "data-chat-thread": threadId }}
+    <WindowFrame window={desktopWindow} title={thread?.displayTitle ?? "Thread"} bodyProps={{ "data-chat-thread": threadId }}
       titleActions={
         <>
           {thread === undefined ? null : (
@@ -458,7 +487,25 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
         </>
       }
       statusBar={archived ? <><span className="cdc-statusbar-note">Thread is archived</span><Button size="sm" variant="secondary" onClick={() => void desktop.restoreThread(threadId)}>Unarchive</Button></> : undefined}>
-      <ThreadChat threadId={threadId} variant={archived ? "timeline" : "compact"} layout="contained" permissionPolicy="editable" className="h-full" />
+      <div className="cdc-thread">
+        <div className="cdc-thread-strip">
+          {thread === undefined ? <span /> : (
+            <span className="cdc-thread-activity" aria-live="polite" data-tone={statusTone(thread) ?? (thread.status === "error" ? "error" : "idle")}>
+              {statusTone(thread) === "running" ? <Icon name="Loading" /> : <span className="cdc-status-pip" />}
+              <span>{activityLine(thread, agent)}</span>
+            </span>
+          )}
+          <span className="cdc-thread-tools">
+            <button type="button" className="cdc-tool" aria-pressed={companionOpen("related")} aria-label="Related threads" title="Threads in this project and environment" onClick={() => toggleCompanion("related")}><Icon name="Layers" /></button>
+            <button type="button" className="cdc-tool" aria-pressed={companionOpen("info")} aria-label="Info" title="Status, branch, pull request and folders" onClick={() => toggleCompanion("info")}><Icon name="Info" /></button>
+            <button type="button" className="cdc-tool" aria-label="Browser" disabled={!browserAvailable} title={browserAvailable ? "Open a browser for this thread" : "Browser windows need the bb desktop app"} onClick={() => openTab("browser")}><Icon name="Globe" /></button>
+            <button type="button" className="cdc-tool" aria-label="Terminal" title="Open a terminal in this thread’s environment" onClick={() => openTab("terminal")}><Icon name="Terminal" /></button>
+          </span>
+        </div>
+        <div className="cdc-thread-chat">
+          <ThreadChat threadId={threadId} variant={archived ? "timeline" : "compact"} layout="contained" permissionPolicy="editable" messageActions={messageActions} className="h-full" />
+        </div>
+      </div>
     </WindowFrame>
   );
 }
@@ -472,8 +519,16 @@ export const ProgramWindow = memo(function ProgramWindow({ window: desktopWindow
       return <FinderWindow window={desktopWindow} groupKey={spec.key} />;
     case "thread":
       return <ThreadWindow window={desktopWindow} threadId={spec.threadId} />;
+    case "browser":
+      return <BrowserWindow window={desktopWindow} threadId={spec.threadId} tabId={spec.tabId} />;
+    case "terminal":
+      return <TerminalWindow window={desktopWindow} threadId={spec.threadId} tabId={spec.tabId} />;
+    case "info":
+      return <InfoWindow window={desktopWindow} threadId={spec.threadId} />;
+    case "related":
+      return <RelatedWindow window={desktopWindow} threadId={spec.threadId} />;
     case "threads":
-      return <ListWindow window={desktopWindow} title="My Threads" icon="MessageSquare" threads={desktop.organization.threads} showFolders
+      return <ListWindow window={desktopWindow} title="My Threads" icon="ListView" threads={desktop.organization.threads} showFolders
         empty="No threads match the sidebar’s filters. Start one from Composer." note="Drag a thread onto a folder to file it" />;
     case "recycle-bin":
       return <ListWindow window={desktopWindow} title="Recycle Bin" icon="Trash2" threads={desktop.archivedThreads} footer={<ArchivedPager />}
@@ -491,6 +546,14 @@ export function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): str
       return desktop.organization.byKey.get(spec.key)?.name ?? "Folder";
     case "thread":
       return desktop.threadById.get(spec.threadId)?.displayTitle ?? "Thread";
+    case "browser":
+      return "Browser";
+    case "terminal":
+      return `Terminal — ${desktop.threadById.get(spec.threadId)?.displayTitle ?? "Thread"}`;
+    case "info":
+      return `Info — ${desktop.threadById.get(spec.threadId)?.displayTitle ?? "Thread"}`;
+    case "related":
+      return desktop.projectName(desktop.threadById.get(spec.threadId)?.projectId ?? "") || "Related threads";
     case "threads":
       return "My Threads";
     case "recycle-bin":
@@ -502,13 +565,22 @@ export function windowTitle(spec: WindowSpec, desktop: DesktopContextValue): str
   }
 }
 
-export function windowIcon(spec: WindowSpec, desktop: DesktopContextValue): { name: string; className?: string } {
+export function windowIcon(spec: WindowSpec, desktop: DesktopContextValue): { name?: string; className?: string } {
   switch (spec.kind) {
     case "finder":
       return { name: desktop.organization.byKey.get(spec.key)?.icon ?? "Folder", className: RESOURCE_ICON };
     case "thread":
+      return {};
     case "threads":
-      return { name: "MessageSquare" };
+      return { name: "ListView" };
+    case "browser":
+      return { name: "Globe" };
+    case "terminal":
+      return { name: "Terminal" };
+    case "info":
+      return { name: "Info" };
+    case "related":
+      return { name: "Layers" };
     case "recycle-bin":
       return { name: "Trash2" };
     case "new-folder":

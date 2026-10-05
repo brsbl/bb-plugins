@@ -6,10 +6,13 @@ import {
   type NewThreadRequest,
 } from "@get-bb/plugin-sdk/app";
 import { viewMenuEntries } from "./actions";
+import { chatWebLink, nativeBrowser, opensLinksInAppBrowser } from "./browser";
+import { openThreadLink } from "./browser-window";
 import { CanvasProvider, DOCK_RESERVE, useViewport, useWorkArea } from "./camera";
 import { DesktopCanvas } from "./canvas";
 import { DesktopDataProvider, useDesktop } from "./data";
 import { AskTextProvider, MenuProvider, PLUGIN_SCOPE, useMenu, type MenuEntry } from "./menu";
+import { NeedsInputNotice } from "./needs-input";
 import { ProgramWindow, windowIcon, windowTitle } from "./programs";
 import { dockWidth, usePointerTracker, useWindowManager, WindowManagerProvider, type DesktopWindow } from "./windows";
 import "./app.css";
@@ -62,20 +65,41 @@ function linkedThreadId(target: EventTarget | null): string | null {
   return match === null ? null : decodeURIComponent(match[1]!);
 }
 
+/**
+ * Windows, and the links inside them: a thread link opens that thread's window, and a web link in a chat opens in that
+ * thread's browser window on the canvas when bb opens links in its in-app browser, as Desktop does.
+ */
 function WindowLayer() {
   const manager = useWindowManager();
   const desktop = useDesktop();
   const viewport = useViewport();
+  const menu = useMenu();
   return (
     <div
       className="cdc-window-layer"
       onClickCapture={(event) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         const threadId = linkedThreadId(event.target);
-        if (threadId === null) return;
+        const webLink = threadId === null && nativeBrowser() !== null && opensLinksInAppBrowser() ? chatWebLink(event.target) : null;
+        if (threadId === null && webLink === null) return;
         event.preventDefault();
         event.stopPropagation();
-        desktop.openThread(threadId);
+        if (threadId !== null) desktop.openThread(threadId);
+        else if (webLink !== null) openThreadLink(manager, webLink.threadId, webLink.url);
+      }}
+      onContextMenuCapture={(event) => {
+        // A link in a chat gets the canvas's own menu; Open does exactly what a click does.
+        const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>(".cdc-window a[href]") : null;
+        if (anchor === null || anchor.closest('[contenteditable="true"]') !== null) return;
+        const webLink = linkedThreadId(anchor) === null && nativeBrowser() !== null ? chatWebLink(anchor) : null;
+        menu.open(event, [
+          { label: "Open link", icon: "ArrowUpRight", run: () => anchor.click() },
+          ...(webLink !== null && !opensLinksInAppBrowser()
+            ? [{ label: "Open in a browser window", icon: "Globe", run: () => openThreadLink(manager, webLink.threadId, webLink.url) }]
+            : []),
+          "separator",
+          { label: "Copy link", icon: "Copy", run: () => void navigator.clipboard.writeText(anchor.href) },
+        ]);
       }}
     >
       {manager.windows.map((window) => <ProgramWindow key={window.id} window={window} />)}
@@ -121,7 +145,7 @@ function TaskButtons({ width }: { width: number }) {
           <button key={window.id} type="button" className="cdc-task" title={title} aria-label={`${title}${window.minimized ? " (minimized)" : ""}`}
             data-focused={manager.focusedId === window.id && !window.minimized} data-minimized={window.minimized || undefined}
             onClick={() => activate(window)} onContextMenu={(event) => menu.open(event, taskMenu(window))}>
-            <Icon name={icon.name} className={icon.className} />
+            {icon.name === undefined ? null : <Icon name={icon.name} className={icon.className} />}
             <span>{title}</span>
           </button>
         );
@@ -145,7 +169,7 @@ function Dock({ composerOpen, toggleComposer, arrangeLikeSidebar }: { composerOp
       <button type="button" className="cdc-dock-button" aria-haspopup="menu"
         onClick={(event) => menu.openFrom(event.currentTarget, (latest) => [
           { label: "Composer", icon: "MessageSquarePlus", run: () => { if (!composerOpen) toggleComposer(); } },
-          { label: "My Threads", icon: "MessageSquare", run: () => manager.open({ kind: "threads" }) },
+          { label: "My Threads", icon: "ListView", run: () => manager.open({ kind: "threads" }) },
           { label: "New folder", icon: "FolderPlus", run: () => manager.open({ kind: "new-folder", at: null }) },
           "separator",
           { label: "View options", icon: "SlidersHorizontal", submenu: viewMenuEntries(latest, arrangeLikeSidebar) },
@@ -285,6 +309,7 @@ function Shell() {
       <Composer state={composer} setState={setComposer} focusRequest={focusRequest}
         onMinimized={() => document.querySelector<HTMLElement>(".cdc-dock [aria-expanded]")?.focus()} />
       <Dock composerOpen={composer.open} toggleComposer={toggleComposer} arrangeLikeSidebar={() => arrange.current?.()} />
+      <NeedsInputNotice />
     </>
   );
 }

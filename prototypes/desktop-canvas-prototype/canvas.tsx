@@ -365,7 +365,7 @@ export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
       { label: "New folder", icon: "FolderPlus", run: () => manager.open({ kind: "new-folder", at: { x: at.x - ICON_BOX.width / 2, y: at.y - ICON_BOX.height / 2 } }) },
       { label: "New thread", icon: "MessageSquarePlus", run: showComposer },
       "separator",
-      { label: "My Threads", icon: "MessageSquare", run: () => manager.open({ kind: "threads" }) },
+      { label: "My Threads", icon: "ListView", run: () => manager.open({ kind: "threads" }) },
       { label: "Recycle Bin", icon: "Trash2", run: () => manager.open({ kind: "recycle-bin" }) },
       "separator",
       { label: "Tile windows", icon: "Columns2", disabled: manager.windows.length === 0, run: tileWindows },

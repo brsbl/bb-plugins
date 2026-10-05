@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitCamera, folderSummary, gridPositions, nextFreePosition, resizeRect, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
+import { fitCamera, folderSummary, trackNeedsInput, gridPositions, nextFreePosition, resizeRect, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
 
 describe("camera", () => {
   it("zooms around the anchor, so the point under the pointer stays put", () => {
@@ -69,5 +69,16 @@ describe("status", () => {
     expect(folderSummary("Inbox", [thread({ hasPendingInteraction: true }), thread({ status: "active" })])).toBe("Inbox — 2 threads, 1 needs input");
     expect(folderSummary("Inbox", [thread({ status: "active" }), thread({ isUnread: true })])).toBe("Inbox — 2 threads, 1 running");
     expect(folderSummary("Inbox", [thread({ isUnread: true }), thread({})])).toBe("Inbox — 2 threads, 1 unread");
+  });
+});
+
+describe("needs input", () => {
+  it("queues threads that start waiting after the first look, and drops ones that stop", () => {
+    let tracker = trackNeedsInput({ known: null, queue: [] }, ["a"]);
+    expect(tracker.queue).toEqual([]);
+    tracker = trackNeedsInput(tracker, ["a", "b"]);
+    expect(tracker).toMatchObject({ queue: ["b"], arrived: true });
+    tracker = trackNeedsInput(tracker, ["a"]);
+    expect(tracker).toMatchObject({ queue: [], arrived: false });
   });
 });

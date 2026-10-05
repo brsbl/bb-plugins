@@ -10,6 +10,14 @@ import { toWorld } from "./core";
 export type WindowSpec =
   | { kind: "finder"; key: string }
   | { kind: "thread"; threadId: string }
+  /** A web page opened from a thread's chat, in bb's native browser bound to that thread. */
+  | { kind: "browser"; threadId: string; tabId: string }
+  /** A terminal in the thread's environment. */
+  | { kind: "terminal"; threadId: string; tabId: string }
+  /** A thread's details, docked beside its window (Desktop's Get Info). */
+  | { kind: "info"; threadId: string }
+  /** The threads in a thread's project or environment, docked beside its window (Desktop's Buddy List). */
+  | { kind: "related"; threadId: string }
   | { kind: "threads" }
   | { kind: "recycle-bin" }
   | { kind: "new-folder"; at: Point | null }
@@ -40,7 +48,7 @@ export type WindowAction =
   | { type: "open"; spec: WindowSpec; rect: Rect }
   | { type: "focus"; id: string }
   | { type: "close-where"; predicate: (window: DesktopWindow) => boolean }
-  | { type: "move"; id: string; rect: Rect }
+  | { type: "move"; id: string; rect: Rect; attached?: Record<string, Rect> }
   | { type: "minimize"; id: string; minimized: boolean }
   | { type: "maximize"; id: string; maximized: boolean }
   | { type: "dock"; id: string; side: DockSide | null; rect?: Rect }
@@ -56,6 +64,12 @@ export function windowId(spec: WindowSpec): string {
       return `finder:${spec.key}`;
     case "thread":
       return `thread:${spec.threadId}`;
+    case "browser":
+    case "terminal":
+      return `${spec.kind}:${spec.tabId}`;
+    case "info":
+    case "related":
+      return `${spec.kind}:${spec.threadId}`;
     case "new-thread":
       return `new-thread:${spec.groupKey}`;
     default:
@@ -63,12 +77,21 @@ export function windowId(spec: WindowSpec): string {
   }
 }
 
-export const threadIdOf = (spec: WindowSpec): string | null => (spec.kind === "thread" ? spec.threadId : null);
+/** The thread a window belongs to; archiving or deleting the thread closes all of them. */
+export const threadIdOf = (spec: WindowSpec): string | null => ("threadId" in spec ? spec.threadId : null);
 
 export function windowSize(spec: WindowSpec): Size {
   switch (spec.kind) {
     case "thread":
       return { width: 760, height: 640 };
+    case "browser":
+      return { width: 960, height: 680 };
+    case "terminal":
+      return { width: 720, height: 440 };
+    case "info":
+      return { width: 320, height: 640 };
+    case "related":
+      return { width: 300, height: 640 };
     case "finder":
     case "threads":
       return { width: 680, height: 480 };
@@ -96,6 +119,28 @@ const update = (state: WindowState, id: string, change: (window: DesktopWindow) 
   windows: state.windows.map((window) => (window.id === id ? change(window) : window)),
 });
 
+/** Whether `window` is an Info or Related threads window docked to `thread`'s window, which it moves and closes with. */
+export function isAttached(window: DesktopWindow, thread: DesktopWindow): boolean {
+  return thread.spec.kind === "thread" && (window.spec.kind === "info" || window.spec.kind === "related") && window.spec.threadId === thread.spec.threadId;
+}
+
+const DOCK_GAP = 8;
+const MIN_ATTACHED_HEIGHT = 200;
+
+/**
+ * Where a window docked beside a thread goes when the thread moves from `from` to `to`: flush against the same side,
+ * as tall as the thread.
+ */
+export function dockedRect(rect: Rect, from: Rect, to: Rect): Rect {
+  const onRight = rect.x + rect.width / 2 >= from.x + from.width / 2;
+  return { x: onRight ? to.x + to.width + DOCK_GAP : to.x - rect.width - DOCK_GAP, y: to.y, width: rect.width, height: Math.max(MIN_ATTACHED_HEIGHT, to.height) };
+}
+
+/** Where a companion opens beside its thread: Related threads on the left, Info on the right. */
+export function besideRect(thread: Rect, side: "left" | "right", width: number): Rect {
+  return { x: side === "right" ? thread.x + thread.width + DOCK_GAP : thread.x - width - DOCK_GAP, y: thread.y, width, height: Math.max(MIN_ATTACHED_HEIGHT, thread.height) };
+}
+
 export function windowReducer(state: WindowState, action: WindowAction): WindowState {
   switch (action.type) {
     case "open": {
@@ -110,14 +155,38 @@ export function windowReducer(state: WindowState, action: WindowAction): WindowS
       const top = Math.max(0, ...state.windows.map((window) => window.z));
       const target = state.windows.find((window) => window.id === action.id);
       if (target === undefined || (target.z === top && !target.minimized)) return state;
-      return { nextZ: state.nextZ + 1, windows: state.windows.map((window) => (window.id === action.id ? { ...window, z: state.nextZ, minimized: false } : window)) };
+      // A thread's companions come forward with it.
+      const raised = new Map([...state.windows.filter((window) => isAttached(window, target)), target].map((window, index) => [window.id, state.nextZ + index]));
+      return {
+        nextZ: state.nextZ + raised.size,
+        windows: state.windows.map((window) => {
+          const z = raised.get(window.id);
+          return z === undefined ? window : { ...window, z, minimized: false };
+        }),
+      };
     }
     case "close-where":
       return { ...state, windows: state.windows.filter((window) => !action.predicate(window)) };
-    case "move":
-      return update(state, action.id, (window) => ({ ...window, rect: action.rect, maximized: false, dock: undefined }));
-    case "minimize":
-      return update(state, action.id, (window) => ({ ...window, minimized: action.minimized }));
+    case "move": {
+      // Companions take the rects the drag previewed, so they land where the person saw them.
+      const attached = action.attached ?? {};
+      return {
+        ...state,
+        windows: state.windows.map((window) => {
+          if (window.id === action.id) return { ...window, rect: action.rect, maximized: false, dock: undefined };
+          const docked = attached[window.id];
+          return docked === undefined ? window : { ...window, rect: docked };
+        }),
+      };
+    }
+    case "minimize": {
+      const target = state.windows.find((window) => window.id === action.id);
+      if (target === undefined) return state;
+      return {
+        ...state,
+        windows: state.windows.map((window) => (window.id === action.id || isAttached(window, target) ? { ...window, minimized: action.minimized } : window)),
+      };
+    }
     case "maximize":
       return update(state, action.id, (window) => ({ ...window, maximized: action.maximized, minimized: false, dock: action.maximized ? undefined : window.dock }));
     case "dock": {
@@ -173,6 +242,10 @@ export function parseSpec(value: unknown): WindowSpec | null {
   const record = value as Record<string, unknown>;
   if (record.kind === "finder" && typeof record.key === "string") return { kind: "finder", key: record.key };
   if (record.kind === "thread" && typeof record.threadId === "string") return { kind: "thread", threadId: record.threadId };
+  if ((record.kind === "browser" || record.kind === "terminal") && typeof record.threadId === "string" && typeof record.tabId === "string") {
+    return { kind: record.kind, threadId: record.threadId, tabId: record.tabId };
+  }
+  if ((record.kind === "info" || record.kind === "related") && typeof record.threadId === "string") return { kind: record.kind, threadId: record.threadId };
   if (record.kind === "threads" || record.kind === "recycle-bin") return { kind: record.kind };
   return null;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultRect, parseWindows, serializeWindows, windowReducer, type WindowState } from "./window-state";
+import { besideRect, defaultRect, dockedRect, isAttached, parseWindows, serializeWindows, threadIdOf, windowReducer, type WindowState } from "./window-state";
 
 const rect = { x: 0, y: 0, width: 600, height: 400 };
 const empty: WindowState = { windows: [], nextZ: 1 };
@@ -69,5 +69,27 @@ describe("window state", () => {
     const restored = parseWindows(stored);
     expect(restored.windows.find((window) => window.id === "recycle-bin")!.dock).toBe("right");
     expect(restored.windows.find((window) => window.id === "threads")!.dock).toBeUndefined();
+  });
+  it("restores browser windows with the thread and native tab they belong to", () => {
+    const state = windowReducer(empty, { type: "open", spec: { kind: "browser", threadId: "thr_a", tabId: "tab1" }, rect });
+    const restored = parseWindows(serializeWindows(state.windows));
+    expect(restored.windows.map((window) => window.spec)).toEqual([{ kind: "browser", threadId: "thr_a", tabId: "tab1" }]);
+    expect(threadIdOf(restored.windows[0]!.spec)).toBe("thr_a");
+  });
+  it("moves, raises and minimizes a thread's Info and Related threads windows with it", () => {
+    let state = windowReducer(empty, { type: "open", spec: { kind: "thread", threadId: "thr_a" }, rect });
+    state = windowReducer(state, { type: "open", spec: { kind: "info", threadId: "thr_a" }, rect: besideRect(rect, "right", 320) });
+    state = windowReducer(state, { type: "open", spec: { kind: "related", threadId: "thr_a" }, rect: besideRect(rect, "left", 300) });
+    state = windowReducer(state, { type: "open", spec: { kind: "threads" }, rect });
+    const thread = state.windows.find((window) => window.id === "thread:thr_a")!;
+    const info = state.windows.find((window) => window.id === "info:thr_a")!;
+    expect(isAttached(info, thread)).toBe(true);
+    const moved = { ...rect, x: 100, y: 50 };
+    expect(dockedRect(info.rect, rect, moved)).toEqual({ x: 708, y: 50, width: 320, height: 400 });
+    state = windowReducer(state, { type: "focus", id: "thread:thr_a" });
+    const top = Math.max(...state.windows.map((window) => window.z));
+    expect(state.windows.filter((window) => window.z >= top - 2).map((window) => window.id).sort()).toEqual(["info:thr_a", "related:thr_a", "thread:thr_a"]);
+    state = windowReducer(state, { type: "minimize", id: "thread:thr_a", minimized: true });
+    expect(state.windows.filter((window) => window.minimized).map((window) => window.id).sort()).toEqual(["info:thr_a", "related:thr_a", "thread:thr_a"]);
   });
 });

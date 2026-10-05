@@ -223,3 +223,20 @@ export function nextFreePosition(taken: readonly Point[], area: Rect): Point {
   );
   return free ?? candidates.at(-1)!;
 }
+
+// Threads that start waiting for input, for the needs-input notice (Desktop's balloon).
+
+export interface NeedsInputTracker {
+  known: ReadonlySet<string> | null;
+  queue: readonly string[];
+}
+
+/** Adds threads that just started waiting to the queue and drops ones that stopped; the first observation only seeds. */
+export function trackNeedsInput(tracker: NeedsInputTracker, pendingIds: readonly string[]): NeedsInputTracker & { arrived: boolean } {
+  const pending = new Set(pendingIds);
+  if (tracker.known === null) return { known: pending, queue: [], arrived: false };
+  const previous = tracker.known;
+  const kept = tracker.queue.filter((id) => pending.has(id));
+  const arrived = pendingIds.filter((id) => !previous.has(id) && !kept.includes(id));
+  return { known: pending, queue: [...kept, ...arrived], arrived: arrived.length > 0 };
+}

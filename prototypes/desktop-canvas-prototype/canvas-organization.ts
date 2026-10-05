@@ -129,7 +129,7 @@ export function buildCanvasOrganization(data: PluginSidebarThreadsState, p: Side
     for (const candidate of projects) groups.push(project(candidate.id, candidate.name));
     const personalIds = new Set(data.projects.filter((candidate) => candidate.isPersonal).map((candidate) => candidate.id));
     const personal = unpinned.filter((t) => personalIds.has(rootOf(t).projectId));
-    if (personal.length || !projects.length) groups.push(collection("threads", "threads", "Threads", "MessageSquare", personal));
+    if (personal.length || !projects.length) groups.push(collection("threads", "threads", "Threads", "Folder", personal));
   } else if (p.organizationMode === "machine") {
     anchor = "machines";
     stored = p.machineSectionOrder;
@@ -137,12 +137,12 @@ export function buildCanvasOrganization(data: PluginSidebarThreadsState, p: Side
     for (const t of unpinned) if (t.host) hosts.set(t.host.id, t.host.name);
     for (const [id, name] of hosts) groups.push(machine(id, name));
     if (unpinned.some((t) => !t.host)) groups.push(noMachine());
-    if (!hosts.size && !unpinned.some((t) => !t.host)) groups.push(collection("threads", "threads", "Threads", "MessageSquare", []));
+    if (!hosts.size && !unpinned.some((t) => !t.host)) groups.push(collection("threads", "threads", "Threads", "Folder", []));
   } else {
     anchor = "sections";
     stored = p.manualSectionOrder;
     for (const [id, name] of sectionNames) groups.push(section(id, name));
-    groups.push(collection("threads", "threads", "Threads", "MessageSquare", unpinned.filter((t) => !rootOf(t).sectionId), { sectionId: null }));
+    groups.push(collection("threads", "threads", "Threads", "Folder", unpinned.filter((t) => !rootOf(t).sectionId), { sectionId: null }));
   }
   const ordered = orderCollections(groups, stored, anchor);
   const hidden = ordered.filter((g) => p.hiddenGroups.includes(g.key));
@@ -183,7 +183,7 @@ export function buildCanvasOrganization(data: PluginSidebarThreadsState, p: Side
       if (groupByEnvironment(p) && new Set(members.map((t) => groupRoot(t).id)).size >= 2) group.children.push(folder);
     }
   }
-  const all = collection("all-threads", "threads", "My Threads", "MessageSquare", threads);
+  const all = collection("all-threads", "threads", "My Threads", "ListView", threads);
   const byKey = new Map<string, Collection>();
   const add = (g: Collection) => {
     byKey.set(g.key, g);
@@ -192,7 +192,7 @@ export function buildCanvasOrganization(data: PluginSidebarThreadsState, p: Side
   [...available, ...environmentFolders, ...roots, all].forEach(add);
   const targets = [
     ...[...sectionNames].map(([id, name]) => byKey.get(`section:${id}`) ?? section(id, name)),
-    byKey.get("threads")?.sectionId === null ? byKey.get("threads")! : collection("threads", "threads", "Threads", "MessageSquare", [], { sectionId: null }),
+    byKey.get("threads")?.sectionId === null ? byKey.get("threads")! : collection("threads", "threads", "Threads", "Folder", [], { sectionId: null }),
     ...desktopFolders,
   ];
   return { roots, groups: ordered, byKey, threads: all.threads, targets };

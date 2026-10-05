@@ -16,8 +16,10 @@ import {
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { DOCK_RESERVE, useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
 import { resizeRect, revealCamera, toWorld, type Camera, type Point, type Rect, type ResizeEdge } from "./core";
+import { closeBrowserTab } from "./browser";
 import { useMenu } from "./menu";
-import { STORAGE_KEY, defaultRect, loadWindows, serializeWindows, windowId, windowReducer, type DesktopWindow, type DockSide, type WindowSpec } from "./window-state";
+import { closeTerminalSession } from "./terminal";
+import { STORAGE_KEY, defaultRect, dockedRect, isAttached, loadWindows, serializeWindows, windowId, windowReducer, type DesktopWindow, type DockSide, type WindowSpec } from "./window-state";
 
 export { threadIdOf, windowId, windowSize, type DesktopWindow, type DockSide, type WindowSpec } from "./window-state";
 
@@ -44,7 +46,8 @@ export interface WindowManager {
   focus(id: string, options?: { reveal?: boolean }): void;
   close(id: string): void;
   closeWhere(predicate: (window: DesktopWindow) => boolean): void;
-  move(id: string, rect: Rect): void;
+  /** `attached` gives the thread's companions their new rects when they moved with it. */
+  move(id: string, rect: Rect, attached?: Record<string, Rect>): void;
   minimize(id: string, minimized: boolean): void;
   toggleMaximize(id: string): void;
   /** Docks a window to an edge, or with null returns it to the canvas in the current view. */
@@ -96,8 +99,14 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
       .filter((window) => !window.minimized)
       .reduce<DesktopWindow | null>((top, window) => (top === null || window.z > top.z ? window : top), null);
     const closeWhere = (predicate: (window: DesktopWindow) => boolean) => {
+      const closing = windowsRef.current.filter(predicate);
       windowsRef.current = windowsRef.current.filter((window) => !predicate(window));
       dispatch({ type: "close-where", predicate });
+      // A browser page and a terminal session belong to bb; closing the window closes them.
+      for (const window of closing) {
+        if (window.spec.kind === "browser") closeBrowserTab(window.spec.tabId);
+        else if (window.spec.kind === "terminal") closeTerminalSession(window.spec.tabId);
+      }
     };
     const floating = (window: DesktopWindow) => !window.maximized && window.dock === undefined;
     return {
@@ -120,9 +129,12 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
         const target = windowsRef.current.find((window) => window.id === id);
         if (options?.reveal && target !== undefined && floating(target)) reveal(target.rect);
       },
-      close: (id) => closeWhere((window) => window.id === id),
+      close(id) {
+        const target = windowsRef.current.find((window) => window.id === id);
+        closeWhere((window) => window.id === id || (target !== undefined && isAttached(window, target)));
+      },
       closeWhere,
-      move: (id, rect) => dispatch({ type: "move", id, rect }),
+      move: (id, rect, attached) => dispatch({ type: "move", id, rect, attached }),
       minimize: (id, minimized) => dispatch({ type: "minimize", id, minimized }),
       toggleMaximize(id) {
         const target = windowsRef.current.find((window) => window.id === id);
@@ -292,15 +304,19 @@ export function WindowFrame({
   statusBar,
   children,
   bodyProps,
+  keepMounted = false,
 }: {
   window: DesktopWindow;
   title: string;
-  icon: string;
+  /** Threads have no glyph, as in bb's sidebar. */
+  icon?: string;
   iconClassName?: string;
   titleActions?: ReactNode;
   statusBar?: ReactNode;
   children: ReactNode;
   bodyProps?: Record<string, string>;
+  /** Keeps the window's content alive while minimized, for a native browser page. */
+  keepMounted?: boolean;
 }) {
   const manager = useWindowManager();
   const camera = useCamera();
@@ -339,6 +355,12 @@ export function WindowFrame({
       : rect;
     let latest = origin;
     let side: DockSide | null = null;
+    // Info and Related threads windows docked beside this thread follow it, keeping to their side.
+    const attached = maximized || docked ? [] : manager.windows.flatMap((other) => {
+      const node = isAttached(other, desktopWindow) && !other.minimized ? document.querySelector<HTMLElement>(`[data-window-id="${CSS.escape(other.id)}"]`) : null;
+      return node === null ? [] : [{ id: other.id, node, rect: other.rect }];
+    });
+    const dockedTo = (target: Rect) => attached.map((other) => dockedRect(other.rect, rect, target));
     track(event, (delta, pointerEvent) => {
       const scaled = { x: delta.x / view.zoom, y: delta.y / view.zoom };
       latest = edge ? resizeRect(origin, edge, scaled) : { ...origin, x: origin.x + scaled.x, y: origin.y + scaled.y };
@@ -346,6 +368,11 @@ export function WindowFrame({
       element.removeAttribute("data-maximized");
       element.removeAttribute("data-dock");
       applyPlacement(element, floatingPlacement(latest, view));
+      dockedTo(latest).forEach((companion, index) => {
+        const other = attached[index]!;
+        other.node.dataset.dragging = "move";
+        applyPlacement(other.node, floatingPlacement(companion, view));
+      });
       if (!edge) {
         const x = controls.toLocal(pointerEvent.clientX, pointerEvent.clientY).x;
         const next = x < DOCK_SNAP ? "left" : x > viewport.width - DOCK_SNAP ? "right" : null;
@@ -354,6 +381,10 @@ export function WindowFrame({
     }, (cancelled, moved) => {
       const commit = moved && !cancelled;
       delete element.dataset.dragging;
+      for (const other of attached) {
+        delete other.node.dataset.dragging;
+        if (!commit || side !== null) applyPlacement(other.node, floatingPlacement(other.rect, view));
+      }
       if (side !== null) manager.setDockPreview(null);
       if (commit && side !== null) {
         // React restores the docked placement; put back what it last rendered so it notices the change.
@@ -362,7 +393,8 @@ export function WindowFrame({
         return;
       }
       if (commit) {
-        manager.move(id, latest);
+        const companions = dockedTo(latest);
+        manager.move(id, latest, Object.fromEntries(attached.map((other, index) => [other.id, companions[index]!])));
         return;
       }
       if (!moved) return;
@@ -393,7 +425,7 @@ export function WindowFrame({
       ...(docked ? ["separator" as const, { label: "Undock", icon: "AppWindow", run: () => manager.dock(id, null) }] : []),
     ]);
 
-  if (desktopWindow.minimized) return null;
+  if (desktopWindow.minimized && !keepMounted) return null;
 
   const style = {
     left: placement.left,
@@ -416,6 +448,7 @@ export function WindowFrame({
       data-focused={focused}
       data-maximized={maximized || undefined}
       data-dock={dock}
+      hidden={desktopWindow.minimized}
       style={style}
       onPointerDownCapture={() => {
         if (!focused) manager.focus(id);
@@ -433,7 +466,7 @@ export function WindowFrame({
             if (event.key === "Enter") manager.toggleMaximize(id);
             else nudge(event);
           }}>
-          <Icon name={icon} className={iconClassName} />
+          {icon === undefined ? null : <Icon name={icon} className={iconClassName} />}
           <span>{title}</span>
         </span>
         {titleActions}
