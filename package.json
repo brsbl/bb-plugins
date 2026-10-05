@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-coordinator-mode",
+  "version": "0.1.0",
+  "description": "Turn any thread into a coordinator that tracks your asks, starts sub-threads, and follows your rules.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "assets",
+    "README.md",
+    "skills"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Coordinator Mode",
+    "description": "Turn any thread into a coordinator that tracks your asks, starts sub-threads, and follows your rules.",
+    "branding": {
+      "icon": "./assets/coordinator.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [
+      "skills"
+    ],
+    "app": "./dist/install-app.mjs"
+  }
+}
