@@ -1,5 +1,11 @@
 import type { Snapshot } from "./contract.js";
 
+/** owner/name for a github.com remote (HTTPS or SSH), or null for other hosts. */
+export function githubRepository(remote: string | null | undefined) {
+  const match = /^(?:https:\/\/(?:[^@/]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(remote?.trim() ?? "");
+  return match ? `${match[1]}/${match[2]}` : null;
+}
+
 export function parsePullRequestUrl(raw: string) {
   let value: URL;
   try { value = new URL(raw.trim()); } catch { throw new Error("Enter a complete HTTPS GitHub pull request URL."); }

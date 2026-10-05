@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { projectSnapshot, readChanges, readPullRequest, searchPullRequests, type GhRunner } from "./github.js";
-import { githubNeedsAttention, originMarkers, parsePullRequestUrl, referencedThreadIds } from "./core.js";
+import { githubNeedsAttention, githubRepository, originMarkers, parsePullRequestUrl, referencedThreadIds } from "./core.js";
 import { snapshotSchema } from "./contract.js";
 
 const url = "https://github.com/acme/repo/pull/42";
@@ -40,6 +40,15 @@ describe("GitHub read boundary", () => {
       expect(query).toContain(qualifier); expect(query).toContain('first:25,after:"previous"');
       expect(query).not.toContain("repo:");
     }
+  });
+  it("searches open PRs from every author in project repositories, which come only from github.com remotes", async () => {
+    const run = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockResolvedValueOnce(JSON.stringify({ data: { viewer, search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [rawPr()] } } }));
+    expect(await searchPullRequests({ scope: "repository", repositories: ["acme/repo", "acme/site"] }, run)).toMatchObject({ ok: true, nextCursor: null, snapshots: [{ nodeId: "PR_42" }] });
+    const query = run.mock.calls[1]![0].join(" ");
+    expect(query).toContain("is:pr is:open repo:acme/repo repo:acme/site"); expect(query).not.toContain("author:");
+    expect(await searchPullRequests({ scope: "repository" }, vi.fn<GhRunner>().mockResolvedValue(JSON.stringify(account)))).toMatchObject({ ok: false, kind: "unavailable" });
+    expect(["https://github.com/acme/repo.git", "git@github.com:acme/repo.git", "ssh://git@github.com/acme/repo", "https://token@github.com/acme/repo/"].map(githubRepository)).toEqual(["acme/repo", "acme/repo", "acme/repo", "acme/repo"]);
+    expect(["https://gitlab.com/acme/repo.git", "https://github.com.evil/acme/repo", null, ""].map(githubRepository)).toEqual([null, null, null, null]);
   });
   it("rejects partial search responses and account switches without returning private results", async () => {
     const raw = { data: { viewer, search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [rawPr()] } } };

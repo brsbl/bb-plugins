@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { CHANGED, hostContract, rpcContract, type Link, type PullRequestItem, type ReadResult, type SearchResult, type Reader, type Snapshot, type ThreadChoice } from "./contract.js";
-import { mapConcurrent, parsePullRequestUrl, referencedThreadIds } from "./core.js";
+import { githubRepository, mapConcurrent, parsePullRequestUrl, referencedThreadIds } from "./core.js";
 import { createStore } from "./store.js";
 
 type Thread = Pick<Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>, "id" | "title" | "titleFallback" | "projectId" | "environmentId" | "archivedAt" | "deletedAt" | "visibility">;
@@ -218,8 +218,20 @@ export default function plugin(bb: BbPluginApi): void {
     environmentFlights.set(environmentId, operation);
     return operation;
   }
+  /** Each bb project's github.com remote; projects without one are skipped. */
+  async function readProjectRepositories() {
+    try {
+      return (await bb.sdk.projects.list()).flatMap((project) => { const repository = githubRepository(project.gitRemoteUrl); return repository ? [{ id: project.id, repository }] : []; });
+    } catch { return []; }
+  }
+  let projectRepositories: ReturnType<typeof readProjectRepositories> | null = null;
   async function discover(includeArchived: boolean) {
     discovering = true; discoveryReads.clear();
+    projectRepositories = readProjectRepositories();
+    const repositories = [...new Map((await projectRepositories).map(({ repository }) => [repository.toLowerCase(), repository])).values()];
+    const searches: { scope: "authored" | "review" | "history" | "repository"; repositories?: string[] }[] = [{ scope: "authored" }, { scope: "review" }, { scope: "history" }];
+    // GitHub ORs repo: qualifiers; small batches keep each query well under the search length limit.
+    for (let index = 0; index < repositories.length; index += 5) searches.push({ scope: "repository", repositories: repositories.slice(index, index + 5) });
     coverage.checked = 0; coverage.total = 0; coverage.unavailable = 0; coverage.incomplete = false; coverage.includesArchived = includeArchived;
     const machines = (await bb.sdk.hosts.list()).filter((machine) => machine.status === "connected");
     // Prefer an established reader; credentials on each machine can have different repository access.
@@ -228,13 +240,14 @@ export default function plugin(bb: BbPluginApi): void {
     for (const machine of machines) {
       let reader: Reader | undefined;
       try {
-        for (const scope of ["authored", "review", "history"] as const) {
+        for (const { scope, repositories: batch } of searches) {
           let cursor: string | undefined;
-          // GitHub search is capped at 1,000 results; history shows the latest 100.
-          for (let page = 0; page < (scope === "history" ? 4 : 40); page++) {
+          // GitHub search is capped at 1,000 results; history shows the latest 100 and each project batch its 300 most recently updated.
+          const pages = scope === "history" ? 4 : scope === "repository" ? 12 : 40;
+          for (let page = 0; page < pages; page++) {
             const generations = new Map(itemEpochs), connections = new Map(connectionEpochs);
             const hostGeneration = hostInvalidations.get(machine.id) ?? 0;
-            const result = await searchHost({ scope, ...(cursor ? { cursor } : {}), ...(reader ? { expectedAccountId: reader.accountId } : {}) }, machine.id);
+            const result = await searchHost({ scope, ...(batch ? { repositories: batch } : {}), ...(cursor ? { cursor } : {}), ...(reader ? { expectedAccountId: reader.accountId } : {}) }, machine.id);
             assertLive();
             if (!result.ok) throw new Error(result.message);
             const key = `${machine.id}:${result.accountId}`;
@@ -254,7 +267,7 @@ export default function plugin(bb: BbPluginApi): void {
             changed();
             cursor = result.nextCursor ?? undefined;
             if (!cursor) break;
-            if (scope !== "history" && page === 39) coverage.incomplete = true;
+            if (scope !== "history" && page === pages - 1) coverage.incomplete = true;
           }
           if (!reader) break;
         }
@@ -361,7 +374,7 @@ export default function plugin(bb: BbPluginApi): void {
     const parsed = rpcContract.list.input.parse(input), offset = offsetFrom(parsed.cursor);
     const page = store.list({ ...parsed, offset });
     const items = (await mapConcurrent(page.items, 4, (item) => sanitize(item))).filter((item) => item.links.length || item.discoveredFromGitHub).map((item) => ({ ...item, snapshot: item.snapshot ? { ...item.snapshot, body: "", checks: { ...item.snapshot.checks, items: [] }, stack: { ...item.snapshot.stack, items: [] } } : null }));
-    return { items, total: page.total, nextCursor: offset + page.items.length < page.total ? String(offset + page.items.length) : null, coverage: { ...coverage } };
+    return { items, total: page.total, nextCursor: offset + page.items.length < page.total ? String(offset + page.items.length) : null, coverage: { ...coverage }, authors: page.authors, projects: await (projectRepositories ??= readProjectRepositories()) };
   }
   async function source(id: string, hostId: string) {
     const item = await show(id);

@@ -5,6 +5,7 @@ export const CHANGED = "pull-requests-changed";
 const id = z.string().min(1).max(250);
 const text = z.string();
 export const urlSchema = z.string().max(2048);
+export const repositorySchema = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
 export const readerSchema = z.object({ hostId: id, accountId: id, login: text });
 export type Reader = z.infer<typeof readerSchema>;
 export const checkSchema = z.object({ name: text, state: z.enum(["passing", "failing", "pending", "neutral", "unknown"]), url: text.nullable() });
@@ -37,7 +38,9 @@ export const itemSchema = z.object({
 });
 export type PullRequestItem = z.infer<typeof itemSchema>;
 export const coverageSchema = z.object({ running: z.boolean(), checked: z.number(), total: z.number(), unavailable: z.number(), incomplete: z.boolean(), lastDiscoveryAt: text.nullable(), includesArchived: z.boolean() });
-export const listingSchema = z.object({ items: z.array(itemSchema), nextCursor: text.nullable(), total: z.number(), coverage: coverageSchema });
+/** GitHub repositories of the user's bb projects; optional so older listings remain valid. */
+export const projectRepositorySchema = z.object({ id, repository: text });
+export const listingSchema = z.object({ items: z.array(itemSchema), nextCursor: text.nullable(), total: z.number(), coverage: coverageSchema, projects: z.array(projectRepositorySchema).optional(), authors: z.array(text).optional() });
 export type Listing = z.infer<typeof listingSchema>;
 export const threadSchema = z.object({ id, title: text, projectId: id, environmentId: id.nullable(), hostId: id.nullable(), archived: z.boolean() });
 export type ThreadChoice = z.infer<typeof threadSchema>;
@@ -49,11 +52,11 @@ export type ReadResult = z.infer<typeof readResultSchema>;
 export const searchResultSchema = z.discriminatedUnion("ok", [z.object({ ok: z.literal(true), accountId: id, login: text, snapshots: z.array(snapshotSchema), nextCursor: text.nullable() }), failureSchema]);
 export type SearchResult = z.infer<typeof searchResultSchema>;
 export const hostContract = defineRpcContract({
-  search: { input: z.object({ scope: z.enum(["authored", "review", "history"]), cursor: text.max(500).optional(), expectedAccountId: id.optional() }), output: searchResultSchema },
+  search: { input: z.object({ scope: z.enum(["authored", "review", "history", "repository"]), repositories: z.array(repositorySchema).min(1).max(5).optional(), cursor: text.max(500).optional(), expectedAccountId: id.optional() }), output: searchResultSchema },
   read: { input: z.object({ url: urlSchema, expectedAccountId: id.optional() }), output: readResultSchema },
   changes: { input: z.object({ url: urlSchema, expectedAccountId: id, headSha: text }), output: z.discriminatedUnion("ok", [z.object({ ok: z.literal(true), changes: changesSchema }), failureSchema]) },
 });
-export const listInput = z.object({ cursor: text.optional(), limit: z.number().int().min(1).max(100).default(100), query: text.max(300).optional(), view: z.enum(["all", "open", "history"]).default("all") });
+export const listInput = z.object({ cursor: text.optional(), limit: z.number().int().min(1).max(100).default(100), query: text.max(300).optional(), view: z.enum(["all", "open", "history"]).default("all"), author: text.max(100).optional() });
 export const rpcContract = defineRpcContract({
   list: { input: listInput, output: listingSchema },
   show: { input: z.object({ id }), output: itemSchema },

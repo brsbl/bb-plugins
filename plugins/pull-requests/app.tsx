@@ -12,17 +12,17 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { CHANGED, type Changes, type Listing, type PullRequestItem, type Snapshot, type ThreadChoice, type rpcContract } from "./contract";
 import { githubNeedsAttention } from "./core";
-import { InboxMenu, type Sort } from "./inbox-menu";
+import { DEFAULT_AUTHOR, InboxMenu, type GroupBy, type Sort } from "./inbox-menu";
 import "./app.css";
 
 type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
-type Group = "history";
+type Group = string;
 type Tab = "summary" | "changes";
 type StatusGlyph = ComponentType<{ size?: number; strokeWidth?: number; className?: string; "aria-hidden"?: boolean | "true" }>;
 type Presentation = { icon: StatusGlyph; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
 type ThreadContext = { threads: ThreadChoice[]; hosts: { id: string; name: string; connected: boolean }[]; nextCursor: string | null };
 type Preview = { token: string; snapshot: Snapshot; reader: { login: string; hostId: string }; thread: ThreadChoice };
-const session = { query: "", author: "", reviewer: "", sort: "updated" as Sort, collapsed: ["history"] as Group[], scrollTop: 0 };
+const session = { query: "", author: DEFAULT_AUTHOR, reviewer: "", sort: "updated" as Sort, groupBy: "none" as GroupBy, collapsed: ["history"] as Group[], scrollTop: 0 };
 const EMPTY_COVERAGE: Listing["coverage"] = { running: false, checked: 0, total: 0, unavailable: 0, incomplete: false, lastDiscoveryAt: null, includesArchived: false };
 
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
@@ -184,6 +184,9 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const [author, setAuthor] = useState(session.author);
   const [reviewer, setReviewer] = useState(session.reviewer);
   const [sort, setSort] = useState<Sort>(session.sort);
+  const [groupBy, setGroupBy] = useState<GroupBy>(session.groupBy);
+  const [authors, setAuthors] = useState<string[]>([]);
+  const [projectRepositories, setProjectRepositories] = useState<{ id: string; repository: string }[]>([]);
   const [collapsed, setCollapsed] = useState<Group[]>(session.collapsed);
   const [query, setQuery] = useState(session.query);
   const [booting, setBooting] = useState(true);
@@ -247,14 +250,14 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       let cursor: string | undefined;
       let result: Listing | null = null;
       for (let page = 0; page < pageLimit; page++) {
-        result = await rpc.call("list", { view: "all", limit: 100, ...(cursor ? { cursor } : {}) });
+        result = await rpc.call("list", { view: "all", limit: 100, ...(author ? { author } : {}), ...(cursor ? { cursor } : {}) });
         all.push(...result.items); cursor = result.nextCursor ?? undefined;
         if (!cursor) break;
       }
       if (!mounted.current || generation !== readGeneration.current || !result) return;
       const byId = new Map(all.map((item) => [item.id, item]));
       setItems([...byId.values()]);
-      setCoverage(result.coverage); setTotal(result.total); setNextCursor(result.nextCursor);
+      setCoverage(result.coverage); setTotal(result.total); setNextCursor(result.nextCursor); setAuthors(result.authors ?? []); setProjectRepositories(result.projects ?? []);
       const requestedId = selectedId.current;
       if (requestedId) {
         // Revoke private content immediately when the summary reports lost access.
@@ -266,7 +269,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
         void loadDetail(requestedId);
       }
     } finally { if (mounted.current && generation === readGeneration.current) { setBooting(false); setListLoading(false); } }
-  }, [rpc, pageLimit, loadDetail]);
+  }, [rpc, pageLimit, loadDetail, author]);
   const loadContext = useCallback(async () => {
     const result = await rpc.call("context", {});
     if (mounted.current) { setContext((current) => ({ ...result, threads: [...new Map([...current.threads, ...result.threads].map((thread) => [thread.id, thread])).values()] })); setContextEpoch((value) => value + 1); }
@@ -314,11 +317,14 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     return () => { cancelled = true; mounted.current = false; ++readGeneration.current; ++detailGeneration.current; window.clearInterval(timer); document.removeEventListener("visibilitychange", visibility); };
   }, [loadContext]);
   useEffect(() => { if (pageLimit > 1) void load().catch((reason) => setError(message(reason))); }, [pageLimit, load]);
+  // The author filter runs on the server so it covers every stored pull request, not only loaded pages.
+  const authorLoaded = useRef(author);
+  useEffect(() => { if (authorLoaded.current === author) return; authorLoaded.current = author; void loadRef.current().catch((reason) => setError(message(reason))); }, [author]);
   const wasConnected = useRef(false);
   useEffect(() => { if (connection === "connected") { if (wasConnected.current) { ++detailEpoch.current; void loadRef.current().catch((reason) => setError(message(reason))); } wasConnected.current = true; } }, [connection]);
   useRealtime(CHANGED, () => { ++detailEpoch.current; void loadRef.current().catch((reason) => setError(message(reason))); });
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = session.scrollTop; }, []);
-  useEffect(() => { Object.assign(session, { query, author, reviewer, sort, collapsed }); }, [query, author, reviewer, sort, collapsed]);
+  useEffect(() => { Object.assign(session, { query, author, reviewer, sort, groupBy, collapsed }); }, [query, author, reviewer, sort, groupBy, collapsed]);
   useEffect(() => {
     ++detailGeneration.current;
     detailRequest.current = null;
@@ -329,7 +335,6 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const sameLogin = (left: string | null | undefined, right: string | null | undefined) => !!left && !!right && left.toLowerCase() === right.toLowerCase();
   const authoredByMe = (item: PullRequestItem) => sameLogin(item.snapshot?.author, item.reader?.login);
   const requestedFromMe = (item: PullRequestItem) => (item.snapshot?.requestedReviewers ?? []).some((login) => sameLogin(login, item.reader?.login));
-  const authors = [...new Set(visibleItems.flatMap((item) => item.snapshot?.author ? [item.snapshot.author] : []))].sort();
   const reviewers = [...new Set(visibleItems.flatMap((item) => item.snapshot?.requestedReviewers ?? []))].sort();
   const filtered = visibleItems.filter((item) => {
     const snapshot = item.snapshot;
@@ -345,8 +350,28 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const pinned = filtered.filter((item) => item.pinned);
   const active = filtered.filter((item) => !item.pinned && !isHistory(item));
   const history = filtered.filter((item) => !item.pinned && isHistory(item));
-  const hasFilters = !!(query || author || reviewer);
-  const resetFilters = () => { setQuery(""); setAuthor(""); setReviewer(""); };
+  const hasFilters = !!(query || author !== DEFAULT_AUTHOR || reviewer);
+  const resetFilters = () => { setQuery(""); setAuthor(DEFAULT_AUTHOR); setReviewer(""); };
+  const me = items.find((item) => item.reader)?.reader?.login ?? null;
+  // A PR belongs to its preferred (else first) linked thread's project and section; unlinked PRs fall back to a project with the same GitHub repository.
+  const groupOf = (item: PullRequestItem): { key: string; label: string } => {
+    const linked = [item.preferredThreadId, ...item.links.map((link) => link.threadId)].map((id) => id ? liveThreads.get(id) : undefined).find(Boolean);
+    if (groupBy === "section") {
+      if (!linked) return { key: "section:~none", label: "No thread" };
+      const section = linked.sectionId ? sidebar.sections.find((entry) => entry.id === linked.sectionId) : undefined;
+      return section ? { key: `section:${section.id}`, label: section.name } : { key: "section:~threads", label: "Threads" };
+    }
+    const repository = item.snapshot?.repository.toLowerCase();
+    const projectId = linked?.projectId ?? projectRepositories.find((entry) => entry.repository.toLowerCase() === repository)?.id;
+    const project = projectId ? sidebar.projects.find((entry) => entry.id === projectId) : undefined;
+    return project ? { key: `project:${project.id}`, label: project.name } : { key: "project:~none", label: "No project" };
+  };
+  const grouped = groupBy === "none" ? [] : [...active.reduce((groups, item) => {
+    const { key, label } = groupOf(item);
+    const group = groups.get(key) ?? { key, label, items: [] as PullRequestItem[] };
+    group.items.push(item);
+    return groups.set(key, group);
+  }, new Map<string, { key: string; label: string; items: PullRequestItem[] }>()).values()].sort((a, b) => Number(a.key.includes("~")) - Number(b.key.includes("~")) || a.label.localeCompare(b.label));
   const mutate = async (action: () => Promise<PullRequestItem>) => { try { await action(); if (mounted.current) { await load(); setError(null); } } catch (reason) { if (mounted.current) setError(message(reason)); } };
   const onUnlink = async (item: PullRequestItem, threadId: string) => {
     try { const result = await rpc.call("unlink", { id: item.id, threadId }); if (result.undoToken) setUndo({ token: result.undoToken, title: choices.get(threadId)?.title ?? "Thread" }); await load(); }
@@ -375,15 +400,15 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   return <main className={`pr-plugin${selection.id ? " pr-has-selection" : ""}`}>
     <aside className="pr-sidebar" aria-label="Pull requests">
       <header className="pr-list-header"><h1>Pull Requests</h1>
-        <InboxMenu author={author} reviewer={reviewer} sort={sort} authors={authors} reviewers={reviewers}
-          onAuthor={setAuthor} onReviewer={setReviewer} onSort={setSort}
+        <InboxMenu author={author} reviewer={reviewer} sort={sort} groupBy={groupBy} authors={authors} reviewers={reviewers} me={me}
+          onAuthor={setAuthor} onReviewer={setReviewer} onSort={setSort} onGroupBy={setGroupBy}
           reviewerDataIncomplete={visibleItems.some((item) => item.snapshot && !item.snapshot.reviewRequestsComplete)} />
       </header>
       <form className="pr-list-toolbar" onSubmit={(event) => { event.preventDefault(); const known = visibleItems.find((item) => item.url === query.trim().replace(/[?#].*$/, "")); if (known) select(known.id); else if (/^https:\/\/github\.com\//i.test(query.trim())) setLinking({ url: query.trim() }); }}><label className="pr-search"><Search size={17} aria-hidden="true" /><input aria-label="Search pull requests" placeholder="Search or paste a PR link" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <IconButton icon={X} label="Clear search" onClick={() => setQuery("")} />}</label></form>
       {hasFilters && <div className="pr-active-filters"><span>{filtered.length} matching pull requests</span><button type="button" className="pr-text-button" onClick={resetFilters}>Clear</button></div>}
       <div ref={listRef} className="pr-list-scroll" onScroll={(event) => { session.scrollTop = event.currentTarget.scrollTop; }}>
         {pinned.map(renderRow)}
-        {active.map(renderRow)}
+        {groupBy === "none" ? active.map(renderRow) : grouped.map((group) => renderSection(group.key, group.label, group.items))}
         {renderSection("history", "Merged and closed", history)}
         {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests found"}</p><small>{hasFilters ? "Try another search or filter." : "Your authored pull requests and review requests on GitHub appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
         {nextCursor && <button className="pr-load-more" type="button" disabled={listLoading} onClick={() => setPageLimit((current) => current + 1)}>{listLoading ? "Loading more…" : `Load more · ${items.length} of ${total}`}</button>}

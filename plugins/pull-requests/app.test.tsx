@@ -288,26 +288,30 @@ describe("Pull Requests thread selection", () => {
 
 
 describe("Compact pull request inbox", () => {
-  it("combines author and requested reviewer filters, sorts across authors and reviewers, and preserves them across navigation", async () => {
+  it("defaults to my pull requests, combines author and reviewer filters, and preserves them across navigation", async () => {
     const first = fixture();
     first.snapshot = { ...first.snapshot!, title: "Zebra fix", author: "author", updatedAt: "2026-10-01T00:00:00Z", requestedReviewers: ["reviewer", "acme/design"], reviewRequestsComplete: true };
     const second = { ...first, id: "github:PR_124", snapshot: { ...first.snapshot, title: "Alpha fix", updatedAt: "2026-10-02T00:00:00Z", requestedReviewers: ["reviewer"] } };
     const third = { ...first, id: "github:PR_125", snapshot: { ...first.snapshot, title: "Other author", author: "bob", updatedAt: "2026-10-03T00:00:00Z", requestedReviewers: ["AUTHOR"] } };
     const closed = { ...first, id: "github:PR_126", snapshot: { ...first.snapshot, title: "Closed fix", state: "closed" as const, requestedReviewers: [] } };
     const app = await loadPluginApp(() => import("./app"));
-    const options = { rpc: { list: () => ({ items: [first, second, third, closed], nextCursor: null, total: 4, coverage }), refresh: () => coverage, context: () => ({ threads: [thread], hosts: [], nextCursor: null }) } };
+    const options = { rpc: { list: () => ({ items: [first, second, third, closed], nextCursor: null, total: 4, coverage, authors: ["author", "bob"] }), refresh: () => coverage, context: () => ({ threads: [thread], hosts: [], nextCursor: null }) } };
     let slot = renderSlot(app.navPanels[0]!, { subPath: "" }, options);
     await screen.findByRole("button", { name: "Zebra fix" });
     const titles = () => Array.from(document.querySelectorAll(".pr-row-title")).map((element) => element.textContent);
+    const openMenu = () => { fireEvent.click(screen.getByLabelText("Filters and sort")); };
+    const choose = (name: string, value: string) => fireEvent.change(screen.getByRole("combobox", { name }), { target: { value } });
+    expect(titles()).toEqual(["Alpha fix", "Zebra fix"]);
+    openMenu();
+    // The signed-in login is covered by "Me" and is not listed twice.
+    expect(Array.from(screen.getByRole<HTMLSelectElement>("combobox", { name: "Author" }).options).map((option) => option.textContent)).toEqual(["All authors", "Me", "bob"]);
+    choose("Author", "");
     expect(titles()).toEqual(["Other author", "Alpha fix", "Zebra fix"]);
     expect(screen.queryByText("Authored by me")).toBeNull();
     expect(screen.queryByText("Needs my review")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Merged and closed/ }));
     expect(titles()).toEqual(["Other author", "Alpha fix", "Zebra fix", "Closed fix"]);
     fireEvent.click(screen.getByRole("button", { name: /Merged and closed/ }));
-    const openMenu = () => { fireEvent.click(screen.getByLabelText("Filters and sort")); };
-    const choose = (name: string, value: string) => fireEvent.change(screen.getByRole("combobox", { name }), { target: { value } });
-    openMenu();
     choose("Author", "@me");
     choose("Reviewer", "acme/design");
     expect(titles()).toEqual(["Zebra fix"]);
@@ -320,6 +324,8 @@ describe("Compact pull request inbox", () => {
     expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
     openMenu();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
+    choose("Author", "");
     choose("Reviewer", "@me");
     expect(titles()).toEqual(["Other author"]);
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
