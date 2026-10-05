@@ -169,9 +169,9 @@ describe("design doctrine library", () => {
     const library = await loadDoctrine(process.cwd());
 
     expect(
-      searchDoctrine(library.rules, "database migration retry logic"),
+      searchDoctrine(library.rules, "database migration index schema"),
     ).toEqual([]);
-    expect(searchDoctrine(library.rules, "database retry")).toEqual([]);
+    expect(searchDoctrine(library.rules, "database index")).toEqual([]);
   });
 
   it("keeps a recognized design signal when neutral query words do not match", async () => {
