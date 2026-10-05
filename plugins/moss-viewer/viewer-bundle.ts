@@ -16,6 +16,14 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Moss's page for running a note's HTML blocks. The viewer loads it in an
+ * `allow-scripts` sandbox, and this header keeps it an opaque origin even when
+ * opened on its own, so a note's HTML never runs as bb.
+ */
+export const HTML_FRAME_CSP =
+  "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:";
+
+/**
  * The viewer's own document. Moss's stylesheet styles the whole page, so it gets
  * a page of its own inside an iframe. That frame shares bb's origin so its
  * requests carry bb's session, which is why scripts are limited to the two this
@@ -29,7 +37,7 @@ export function frameDocument(nonce: string): { html: string; csp: string } {
     "font-src 'self' data:",
     "img-src 'self' https: data: blob:",
     "media-src 'self' https: blob:",
-    "frame-src https:",
+    "frame-src 'self' https:",
     "connect-src 'self'",
     "worker-src 'self' blob:",
     "base-uri 'none'",
@@ -84,6 +92,8 @@ export interface ViewerBundle {
   /** Route prefix that changes with the bundle or frame, so every bundle file can be cached as immutable. */
   base: string;
   files: ReadonlyMap<string, ViewerFile>;
+  /** Served only with {@link HTML_FRAME_CSP}, never as a bundle file. */
+  htmlFrame: Uint8Array<ArrayBuffer>;
 }
 
 interface ViewerRecord {
@@ -91,6 +101,7 @@ interface ViewerRecord {
   api: number;
   entry: string;
   css: string;
+  frame: string;
   bundleHash: string;
   files: Record<string, { bytes: number; sha256: string }>;
 }
@@ -103,6 +114,7 @@ function parseRecord(value: unknown): ViewerRecord {
     record.api !== VIEWER_API ||
     record.entry !== "moss-viewer.js" ||
     record.css !== "moss-viewer.css" ||
+    record.frame !== "moss-viewer-frame.html" ||
     typeof record.bundleHash !== "string" ||
     !/^[0-9a-f]{64}$/.test(record.bundleHash) ||
     !record.files ||
@@ -134,9 +146,10 @@ export async function loadViewerBundle(directory: string): Promise<ViewerBundle>
   const record = parseRecord(JSON.parse(await readFile(join(directory, "viewer.json"), "utf8")));
   const digest = createHash("sha256");
   const files = new Map<string, ViewerFile>();
+  let htmlFrame: Uint8Array<ArrayBuffer> | undefined;
   for (const name of Object.keys(record.files).sort()) {
     const expected = record.files[name]!;
-    const contentType = CONTENT_TYPES[extname(name)];
+    const contentType = name === record.frame ? "text/html" : CONTENT_TYPES[extname(name)];
     if (!/^(?:assets\/)?[\w.-]+$/.test(name) || contentType === undefined) {
       throw new Error(`moss-viewer: unexpected bundle file ${name}`);
     }
@@ -145,6 +158,10 @@ export async function loadViewerBundle(directory: string): Promise<ViewerBundle>
       throw new Error(`moss-viewer: ${name} does not match viewer.json`);
     }
     digest.update(`${name}\0${body.length}\0`).update(body);
+    if (name === record.frame) {
+      htmlFrame = body;
+      continue;
+    }
     files.set(name, {
       body,
       contentType,
@@ -154,8 +171,8 @@ export async function loadViewerBundle(directory: string): Promise<ViewerBundle>
   if (digest.digest("hex") !== record.bundleHash) {
     throw new Error("moss-viewer: bundle hash does not match viewer.json");
   }
-  if (!files.has(record.entry) || !files.has(record.css)) {
-    throw new Error("moss-viewer: viewer.json omits the viewer entry or stylesheet");
+  if (!files.has(record.entry) || !files.has(record.css) || htmlFrame === undefined) {
+    throw new Error("moss-viewer: viewer.json omits the viewer entry, stylesheet or HTML frame");
   }
   files.set("theme.js", { body: new TextEncoder().encode(THEME_JS), contentType: CONTENT_TYPES[".js"]! });
   files.set("frame.js", { body: new TextEncoder().encode(FRAME_JS), contentType: CONTENT_TYPES[".js"]! });
@@ -164,5 +181,6 @@ export async function loadViewerBundle(directory: string): Promise<ViewerBundle>
     bundleHash: record.bundleHash,
     base: `/viewer/${sha256(record.bundleHash + JSON.stringify(frameDocument("")) + THEME_JS + FRAME_JS).slice(0, 16)}`,
     files,
+    htmlFrame,
   };
 }
