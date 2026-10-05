@@ -30,7 +30,7 @@ Docs was evaluated at `plugins/docs/app.tsx` and `document-session.ts` in bb. It
 
 ## Action log
 
-Open **Action log** in the sidebar for every thread, or in a thread’s panel launcher for that thread only. It lists cards **Waiting on you** first, including failures that need a retry and Later cards at the bottom with Resume, then a shorter **Done** history. Each row shows whether it is a reply or a decision, its title, thread and time, and either its result or one main action, with the rest in its ⋯ menu (or an Open thread button when that is the only other action). Choices go to the card’s own thread.
+Open **Action log** in the sidebar for every thread, or in a thread’s panel launcher for that thread only. It lists cards **Waiting on you** first, including failures that need a retry and Later cards at the bottom with Resume, then a shorter **Done** history. Each row shows whether it is a reply or a decision, its title, thread and time, and either its result or one main action, with the rest in its ⋯ menu (or an Open thread button when that is the only other action). Choices go to the card’s own thread. A reply never goes out unseen: on a collapsed log or table row, Send, Save to Gmail drafts and Retry first open the row to show its recipients, subject, original excerpt and full draft (their tooltips read “Review and send”), and only a second click sends. Bulk “… all” buttons cover matching decisions only, never replies.
 
 Agents can read the same log with `bb action-cards log [--thread <id>] [--json]`. Without `--thread`, it includes all threads.
 

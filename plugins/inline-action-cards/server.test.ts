@@ -87,6 +87,11 @@ it("bulk approval atomically reserves only the displayed ready rows of a matchin
   store.createTable(ref.threadId, "mixed", { title: "Different operations", ids: ["a", "other"] });
   expect(() => store.prepareTable({ ...args, id: "mixed", items: [{ id: "other", revision: 1 }] })).toThrow("do not share");
   expect(() => store.table("thr_other", "news")).toThrow("unavailable");
+  // Replies are sent one reviewed draft at a time, never in bulk.
+  store.create(ref.threadId, "reply", reply);
+  store.createTable(ref.threadId, "with-reply", { title: "Newsletters and a reply", ids: ["a", "reply"] });
+  expect(() => store.prepareTable({ ...args, id: "with-reply", items: [{ id: "reply", revision: 1 }] })).toThrow("do not share");
+  expect(store.get(ref.threadId, "reply").state).toBe("ready");
 });
 
 it("lists every card once, keeps pending, failed and Later cards waiting with Later last, and sorts newest first", async () => {
