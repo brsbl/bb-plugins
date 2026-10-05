@@ -14,11 +14,13 @@ export const ENTRY_PROMPT_MAX_LENGTH = 2000;
 export const RENDERED_ENTRY_PROMPT_MAX_LENGTH = 8000;
 
 export interface EditableWorkflowStage {
-  /** Additional inboxes catch this plugin's origin or explicit inbox metadata marker. */
+  /** An additional inbox catches this plugin's threads; without it the inbox only holds threads moved there by hand. */
   catchesPluginId?: string;
   /** Sent to a thread when it lands in this stage; omitted when unset. */
   entryPrompt?: string;
   key: string;
+  /** Inboxes only: move a thread out once it is read; omitted keeps it until moved. */
+  returnAfterRead?: boolean;
   role: WorkflowStageRole;
   rule: string;
   title: string;
@@ -70,6 +72,9 @@ export const INBOX_RULE =
 
 export const INBOX_DESCRIPTION =
   "Idle unread threads without queued messages and not claimed by another inbox appear here automatically. They stay until work resumes, a message is queued, or you move a read thread to another section.";
+
+export const RETURNING_INBOX_DESCRIPTION =
+  "Idle unread threads without queued messages and not claimed by another inbox appear here automatically and move back to their section once you read them. Resuming work or queuing a message also moves them back.";
 
 export const HANDOFF_RULE =
   "Use only when the user explicitly says this thread is being handed to a colleague to take across the finish line; never infer it from packaging context, completed work, or waiting.";
@@ -205,6 +210,12 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
       `Section "${key}" needs a plugin id using lowercase letters, digits, and hyphens.`,
     );
   }
+  if (
+    value.returnAfterRead !== undefined &&
+    typeof value.returnAfterRead !== "boolean"
+  ) {
+    throw new Error(`Section "${key}" after-reading setting must be a boolean.`);
+  }
   if (entryPrompt.length > ENTRY_PROMPT_MAX_LENGTH) {
     throw new Error(
       `Stage "${key}" entry prompt must be at most ${ENTRY_PROMPT_MAX_LENGTH} characters.`,
@@ -220,6 +231,7 @@ function parseStage(value: unknown, withSectionId: boolean): WorkflowStage {
     ...(typeof value.catchesPluginId === "string"
       ? { catchesPluginId: value.catchesPluginId }
       : {}),
+    ...(value.returnAfterRead === true ? { returnAfterRead: true } : {}),
     sectionId: sectionId && sectionId.trim().length > 0 ? sectionId : null,
   };
 }
@@ -246,12 +258,16 @@ function validateStages(stages: WorkflowStage[]): void {
     if (stage.role === "inbox" && hasEntryPrompt(stage)) {
       throw new Error("Inbox cannot send an entry prompt.");
     }
+    if (stage.role !== "inbox" && stage.returnAfterRead) {
+      throw new Error("Only an inbox can move threads back after reading.");
+    }
     if (stage.role === "inbox" && stage.key !== "inbox") {
-      if (!stage.catchesPluginId) throw new Error(`Inbox "${stage.title}" needs a plugin.`);
-      if (caughtPlugins.has(stage.catchesPluginId)) {
-        throw new Error(`Plugin "${stage.catchesPluginId}" already has another inbox.`);
+      if (stage.catchesPluginId !== undefined) {
+        if (caughtPlugins.has(stage.catchesPluginId)) {
+          throw new Error(`Plugin "${stage.catchesPluginId}" already has another inbox.`);
+        }
+        caughtPlugins.add(stage.catchesPluginId);
       }
-      caughtPlugins.add(stage.catchesPluginId);
     } else if (stage.catchesPluginId !== undefined) {
       throw new Error("Only an additional inbox can catch a plugin.");
     }
@@ -548,19 +564,35 @@ export function isUnreadThread(thread: OrganizableThread): boolean {
   return (thread.lastReadAt ?? 0) < thread.latestAttentionAt;
 }
 
+export function returnsAfterRead(
+  stage: WorkflowStage | null,
+  thread: OrganizableThread,
+): boolean {
+  return (
+    stage?.role === "inbox" &&
+    stage.returnAfterRead === true &&
+    !isRunningThread(thread) &&
+    !isUnreadThread(thread)
+  );
+}
+
 export function placementForThread(
   config: WorkflowConfig,
   thread: OrganizableThread,
   rememberedStageKey: string | null,
   leaveInbox = false,
   matchedInbox: WorkflowStage | null = null,
+  releaseRead = false,
 ): WorkflowStage | null {
   const remembered =
     config.stages.find(
       (stage) => stage.key === rememberedStageKey && stage.role === "stage",
     ) ?? firstWorkflowStage(config);
   const currentStage = stageForSectionId(config, thread.sectionId);
-  if (!leaveInbox) {
+  const keepInInbox =
+    !leaveInbox &&
+    !(releaseRead && returnsAfterRead(currentStage, thread));
+  if (keepInInbox) {
     if (matchedInbox) return matchedInbox;
     if (currentStage?.role === "inbox" && currentStage.key !== "inbox") return currentStage;
   }
@@ -568,7 +600,7 @@ export function placementForThread(
     !isRunningThread(thread) &&
     (thread.queuedMessageCount ?? 0) === 0 &&
     (isUnreadThread(thread) ||
-      (!leaveInbox && currentStage?.role === "inbox"));
+      (keepInInbox && currentStage?.role === "inbox"));
   return belongsInInbox
     ? inboxStage(config)
     : rememberedStageKey === null ? null : remembered;
@@ -597,11 +629,11 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
         `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
     );
   return [
-    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads without queued messages and not claimed by another inbox go there automatically. They stay until work resumes, a message is queued, or the user moves a read thread to another workflow section. Never choose an inbox with \`bb organizer phase\`.`,
+    `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads without queued messages and not claimed by another inbox go there automatically and ${inboxStage(config).returnAfterRead ? "return to their workflow section once the user reads them" : "stay until work resumes or the user moves a read thread to another workflow section"}. Queuing a message also returns the thread to its workflow section. Never choose an inbox with \`bb organizer phase\`.`,
     ...config.stages
       .filter((stage) => stage.role === "inbox" && stage.key !== "inbox")
       .map((stage) =>
-        `**${escapeTableCell(stage.title)}** catches threads from plugin \`${stage.catchesPluginId}\` and keeps them after reading until the user moves or archives them.`,
+        `**${escapeTableCell(stage.title)}** ${stage.catchesPluginId === undefined ? "holds threads the user moves there by hand" : `catches threads from plugin \`${stage.catchesPluginId}\``} and ${stage.returnAfterRead ? "moves them back out once the user reads them" : "keeps them after reading until the user moves or archives them"}. Never move a thread there with \`bb organizer phase\`.`,
       ),
     "",
     "| Key | Section | What belongs here |",
