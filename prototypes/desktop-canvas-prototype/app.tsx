@@ -7,8 +7,11 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button";
 import { FolderWindow, THREAD_DRAG, threadTitle as titleOf } from "./folder-window";
-import { dockWindow, fitCamera, folderFor, readLayout, zoomAt, type Camera, type DockSide, type Layout, type Point } from "./state";
+import { dockWindow, fitCamera, readLayout, zoomAt, type Camera, type DockSide, type Layout, type Point } from "./state";
 import { CanvasMark } from "./canvas-mark";
+import { useSidebarPreferences } from "./sidebar-preferences";
+import { buildCanvasOrganization } from "./canvas-organization";
+import { ViewOptions, menuKeys } from "./view-options";
 import "./app.css";
 
 const WINDOW_WIDTH = 680;
@@ -24,7 +27,8 @@ function Action({ icon, label, onClick, pressed }: { icon: string; label: string
 function Desktop() {
   const pluginId = "desktop-canvas-prototype";
   const storageKey = `${pluginId}:layout:v1`;
-  const data = useSidebarThreads();
+  const sidebar = useSidebarPreferences();
+  const data = useSidebarThreads({ experimental_lifecycles: sidebar.preferences?.threadLifecycles ?? ["active"] });
   const sdk = useSdk();
   const navigate = useBbNavigate();
   const root = useRef<HTMLDivElement>(null);
@@ -38,6 +42,7 @@ function Desktop() {
   const [focused, setFocused] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [launcher, setLauncher] = useState(false);
+  const [viewOptions, setViewOptions] = useState(false);
   const [windowMenu, setWindowMenu] = useState<string | null>(null);
   const [dockPreview, setDockPreview] = useState<DockSide | null>(null);
   const dockTarget = useRef<DockSide | null>(null);
@@ -51,18 +56,14 @@ function Desktop() {
   const pinch = useRef<{ distance: number; anchor: Point; camera: Camera } | null>(null);
   const cameraRef = useRef(layout.camera);
   cameraRef.current = layout.camera;
-  const threads = useMemo(() => data.threads.filter(t => !t.isHidden && !t.isArchived), [data.threads]);
-  const threadMap = useMemo(() => new Map(threads.map(t => [t.id, t])), [threads]);
+  const organization = useMemo(() => sidebar.preferences ? buildCanvasOrganization(data, sidebar.preferences, layout) : null, [data, sidebar.preferences, layout.folders, layout.membership]);
+  const threadMap = useMemo(() => new Map(data.threads.filter(t => !t.isHidden).map(t => [t.id, t])), [data.threads]);
   const projectNames = useMemo(() => new Map(data.projects.map(p => [p.id, p.name])), [data.projects]);
-  const folders = useMemo(() => [
-    ...data.projects.map(p => ({ id: `project:${p.id}`, name: p.name, custom: false, icon: "Folder" })),
-    ...data.sections.map(section => ({ id: `section:${section.id}`, name: section.name, custom: false, icon: "SectionAdd" })),
-    ...layout.folders.map(f => ({ ...f, custom: true, icon: "Folder" })),
-  ], [data.projects, data.sections, layout.folders]);
+  const folders = organization?.roots ?? [];
   const folderPosition = (id: string, index: number) => layout.positions[id] ?? { x: 48 + (index % 5) * 112, y: 80 + Math.floor(index / 5) * 112 };
-  const folderThreads = (id: string) => id === ALL_THREADS ? threads : threads.filter(t => id.startsWith("section:") ? `section:${t.sectionId}` === id : folderFor(t, layout) === id);
-  const folderIcon = (id: string) => folders.find(folder => folder.id === id)?.icon ?? "Folder";
-  const windowTitle = (win: Layout["windows"][number]) => win.kind === "folder" ? (win.id === ALL_THREADS ? "Threads" : folders.find(f => f.id === win.id)?.name ?? "Folder") : threadMap.get(win.id) ? titleOf(threadMap.get(win.id)!) : "Thread";
+  const folderThreads = (id: string) => organization?.byId.get(id)?.threads ?? [];
+  const folderIcon = (id: string) => organization?.byId.get(id)?.icon ?? "Folder";
+  const windowTitle = (win: Layout["windows"][number]) => win.kind === "folder" ? organization?.byId.get(win.id)?.name ?? "Folder" : threadMap.get(win.id) ? titleOf(threadMap.get(win.id)!) : "Thread";
   const camera = layout.camera;
   const zoom = camera.zoom;
   const visibleWindows = layout.windows.filter(w => !w.minimized);
@@ -147,6 +148,12 @@ function Desktop() {
     return () => window.removeEventListener("pointerdown", close, true);
   }, [launcher, contextMenu, windowMenu]);
 
+  function arrangeLikeSidebar() {
+    const positions = { ...layout.positions };
+    folders.forEach(folder => delete positions[folder.id]);
+    setLayout(current => ({ ...current, positions, camera: fitCamera(folders.map((_, i) => ({ x: 48 + (i % 5) * 112, y: 80 + Math.floor(i / 5) * 112, width: FOLDER_WIDTH, height: FOLDER_HEIGHT })), size.width, size.height) }));
+    setLauncher(false); setContextMenu(null); setViewOptions(false);
+  }
   function moveCamera(nextZoom: number) {
     setFocused(null);
     setLayout(current => ({ ...current, camera: zoomAt(current.camera, nextZoom, { x: size.width / 2, y: (size.height - 72) / 2 }) }));
@@ -268,10 +275,10 @@ function Desktop() {
   const floatPoint = layout.promptPosition ? clampPrompt(layout.promptPosition) : null;
 
   return <div className="cdc-desktop" ref={root} onPointerMove={dragMove} onPointerUp={() => endDrag()} onPointerCancel={() => endDrag(true)}
-    onKeyDown={event => { if (event.key === "Escape") { setLauncher(false); setContextMenu(null); setFolderEditor(null); setFocused(null); setWindowMenu(null); endDrag(true); } }}>
+    onKeyDown={event => { if (event.key === "Escape") { setLauncher(false); setContextMenu(null); setViewOptions(false); setFolderEditor(null); setFocused(null); setWindowMenu(null); endDrag(true); } }}>
     <div className="cdc-canvas" tabIndex={0} aria-label="Canvas. Arrow keys pan, plus and minus zoom, zero resets zoom."
       onPointerDown={event => { if (event.target === event.currentTarget) { setSelectedFolder(null); startDrag(event, "camera", "", camera); } }}
-      onContextMenu={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); const rect = root.current!.getBoundingClientRect(); setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top }); }}
+      onContextMenu={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); const rect = root.current!.getBoundingClientRect(); setViewOptions(false); setLauncher(false); setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top }); }}
       onKeyDown={event => {
         if (event.target !== event.currentTarget) return;
         if (event.key === "+" || event.key === "=") { event.preventDefault(); moveCamera(zoom + 0.1); }
@@ -288,8 +295,8 @@ function Desktop() {
             style={{ left: point.x, top: point.y, display: focused ? "none" : undefined }}
             onPointerDown={event => startDrag(event, "folder", folder.id, point)} onClick={() => setSelectedFolder(folder.id)} onDoubleClick={() => openWindow(folder.id, "folder")}
             onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); openWindow(folder.id, "folder"); } else nudge(event, "folder", folder.id, point); }}
-            onContextMenu={event => { event.preventDefault(); setSelectedFolder(folder.id); const rect = root.current!.getBoundingClientRect(); setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top, folderId: folder.id }); }}
-            onDragOver={event => { if (!folder.id.startsWith("section:") && event.dataTransfer.types.includes(THREAD_DRAG)) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
+            onContextMenu={event => { event.preventDefault(); setSelectedFolder(folder.id); const rect = root.current!.getBoundingClientRect(); setViewOptions(false); setLauncher(false); setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top, folderId: folder.id }); }}
+            onDragOver={event => { if ((folder.custom || folder.id.startsWith("project:")) && event.dataTransfer.types.includes(THREAD_DRAG)) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
             onDrop={event => { event.preventDefault(); moveThread(event.dataTransfer.getData(THREAD_DRAG), folder.id); }}>
             <Icon name={folder.icon} className="cdc-resource-icon" /><span>{folder.name}</span>
           </button>;
@@ -330,8 +337,8 @@ function Desktop() {
               <Button variant="ghost" aria-label={`Dock ${title} right`} onClick={() => dockWindowTo(win.id, "right")}>Dock right</Button>
               {win.dock && <Button variant="ghost" onClick={() => dockWindowTo(win.id, undefined)}>Undock</Button>}
             </div>}
-            <div data-window-content className="cdc-window-body" onDragOver={event => { if (isFolder && !win.id.startsWith("section:") && event.dataTransfer.types.includes(THREAD_DRAG)) event.preventDefault(); }} onDrop={event => { if (isFolder) { event.preventDefault(); moveThread(event.dataTransfer.getData(THREAD_DRAG), win.id); } }}>
-              {isFolder ? <FolderWindow name={title} threads={folderThreads(win.id)} folders={folders} projectNames={projectNames} openThread={openThread} moveThread={moveThread} />
+            <div data-window-content className="cdc-window-body" onDragOver={event => { if (isFolder && (organization?.byId.get(win.id)?.custom || win.id.startsWith("project:")) && event.dataTransfer.types.includes(THREAD_DRAG)) event.preventDefault(); }} onDrop={event => { if (isFolder) { event.preventDefault(); moveThread(event.dataTransfer.getData(THREAD_DRAG), win.id); } }}>
+              {isFolder ? <FolderWindow name={title} threads={folderThreads(win.id)} collections={organization?.byId.get(win.id)?.children} folders={folders} projectNames={projectNames} openThread={openThread} openFolder={id => openWindow(id, "folder")} moveThread={moveThread} showProviderIcons={sidebar.preferences?.showProviderIcons ?? false} archived={data.experimental_archived} />
                 : live ? <ThreadChat threadId={win.id} layout="contained" variant="full" permissionPolicy="inherit" /> : <div className="cdc-overview">
                   <Icon name="MessageSquare" /><h2>{title}</h2><p>{projectNames.get(thread?.projectId ?? "") ?? "Conversation"}</p>
                   <div><Button size="sm" variant="secondary" onClick={() => openThread(win.id)}>Read at 100%</Button><Button size="sm" variant="ghost" onClick={() => focusWindow(win.id)}>Focus</Button></div>
@@ -366,18 +373,25 @@ function Desktop() {
     </div>
 
     {(notice || storageError || data.status === "error") && <div className="cdc-notice" role="status" data-screen>{notice || (storageError ? "Layout could not be saved on this device." : "Threads could not load. Reload to try again.")}<Action icon="X" label="Dismiss notice" onClick={() => setNotice("")} /></div>}
-    {data.status === "loading" && <div className="cdc-loading" role="status">Loading your workspace…</div>}
+    {(data.status === "loading" || (!sidebar.preferences && !sidebar.error)) && <div className="cdc-loading" role="status">Loading your workspace…</div>}
 
-    {launcher && <div className="cdc-menu cdc-launcher" data-screen data-menu aria-label="Launcher">
-      <Button autoFocus variant="ghost" onClick={() => showPrompt()}><Icon name="MessageSquarePlus" />Composer</Button>
-      <Button variant="ghost" onClick={() => openWindow(ALL_THREADS, "folder")}><Icon name="Folder" />Threads</Button>
-      <Button variant="ghost" onClick={() => editFolder()}><Icon name="FolderPlus" />New folder</Button>
+    {sidebar.error && !launcher && !contextMenu && <div className="cdc-notice" role="status" data-screen>{sidebar.error}<Button size="sm" variant="ghost" onClick={() => void sidebar.refresh()}>Retry</Button></div>}
+    {launcher && <div className="cdc-menu cdc-launcher" data-screen data-menu role="menu" aria-label="Launcher" onKeyDown={menuKeys}>
+      {viewOptions ? <ViewOptions state={sidebar} groups={organization?.groups ?? []} onBack={() => setViewOptions(false)} onArrange={arrangeLikeSidebar} /> : <>
+        <Button autoFocus variant="ghost" role="menuitem" onClick={() => showPrompt()}><Icon name="MessageSquarePlus" />Composer</Button>
+        <Button variant="ghost" role="menuitem" onClick={() => openWindow(ALL_THREADS, "folder")}><Icon name="Folder" />Threads</Button>
+        <Button variant="ghost" role="menuitem" onClick={() => editFolder()}><Icon name="FolderPlus" />New folder</Button>
+        <hr /><Button variant="ghost" role="menuitem" onClick={() => setViewOptions(true)}><Icon name="SlidersHorizontal" />View options</Button>
+      </>}
     </div>}
-    {contextMenu && <div className="cdc-menu cdc-context-menu" data-screen data-menu style={{ left: Math.max(8, Math.min(contextMenu.x, size.width - 200)), top: Math.max(8, Math.min(contextMenu.y, size.height - 160)) }}>
-      {contextMenu.folderId && <Button autoFocus variant="ghost" onClick={() => openWindow(contextMenu.folderId!, "folder")}>Open</Button>}
-      {folders.find(f => f.id === contextMenu.folderId)?.custom && <Button variant="ghost" onClick={() => editFolder(contextMenu.folderId)}>Rename</Button>}
-      <Button variant="ghost" onClick={() => editFolder()}>New folder</Button>
-      {!contextMenu.folderId && <Button variant="ghost" onClick={() => { fitAll(); setContextMenu(null); }}>Fit all</Button>}
+    {contextMenu && <div className="cdc-menu cdc-context-menu" data-screen data-menu role="menu" aria-label="Canvas actions" onKeyDown={menuKeys} style={{ left: Math.max(8, Math.min(contextMenu.x, size.width - 252)), top: Math.max(8, Math.min(contextMenu.y, size.height - 380)) }}>
+      {viewOptions ? <ViewOptions state={sidebar} groups={organization?.groups ?? []} onBack={() => setViewOptions(false)} onArrange={arrangeLikeSidebar} /> : <>
+        {contextMenu.folderId && <Button autoFocus variant="ghost" role="menuitem" onClick={() => openWindow(contextMenu.folderId!, "folder")}>Open</Button>}
+        {folders.find(f => f.id === contextMenu.folderId)?.custom && <Button variant="ghost" role="menuitem" onClick={() => editFolder(contextMenu.folderId)}>Rename</Button>}
+        <Button autoFocus={!contextMenu.folderId} variant="ghost" role="menuitem" onClick={() => editFolder()}>New folder</Button>
+        {!contextMenu.folderId && <Button variant="ghost" role="menuitem" onClick={() => { fitAll(); setContextMenu(null); }}>Fit all</Button>}
+        <hr /><Button variant="ghost" role="menuitem" onClick={() => setViewOptions(true)}><Icon name="SlidersHorizontal" />View options</Button>
+      </>}
     </div>}
     {folderEditor && <form className="cdc-folder-editor" data-screen role="dialog" aria-label={folderEditor.id ? "Rename folder" : "New folder"} onSubmit={event => {
       event.preventDefault(); const name = folderName.trim(); if (!name || (!folderEditor.id && layout.folders.length >= 100)) return;
@@ -394,7 +408,7 @@ function Desktop() {
       <Button variant="ghost" size="sm" onClick={fitAll}>Fit all</Button>
     </div>
     <nav className="cdc-dock" data-screen aria-label="Workspace taskbar">
-      <Button data-menu-toggle variant={launcher ? "secondary" : "ghost"} size="sm" aria-expanded={launcher} onClick={() => setLauncher(value => !value)}><Icon name="GridView" />Launcher</Button>
+      <Button data-menu-toggle variant={launcher ? "secondary" : "ghost"} size="sm" aria-expanded={launcher} onClick={() => { setLauncher(value => !value); setContextMenu(null); setViewOptions(false); }}><Icon name="GridView" />Launcher</Button>
       <Button ref={composerButton} variant={layout.composer !== "hidden" ? "secondary" : "ghost"} size="sm" aria-expanded={layout.composer !== "hidden"} onClick={() => showPrompt()}><Icon name="MessageSquarePlus" />Composer</Button>
       <div className="cdc-tasks">{layout.windows.map(win => <Button key={win.id} className="cdc-task" variant={active === win.id && !win.minimized ? "secondary" : "ghost"} size="sm" aria-label={`${win.minimized ? "Restore" : "Show"} ${windowTitle(win)}`} onClick={() => openWindow(win.id, win.kind ?? "thread")}><Icon name={win.kind === "folder" ? folderIcon(win.id) : "MessageSquare"} className={win.kind === "folder" ? "cdc-resource-icon" : undefined} /><span>{windowTitle(win)}</span>{win.minimized && <Icon name="Minus" />}</Button>)}</div>
     </nav>

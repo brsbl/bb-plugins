@@ -23,3 +23,5 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@<tested-commit> --
 ```
 
 Uninstall `desktop-canvas-prototype` to remove its page. The prototype owns no server-side thread organization. Requires bb with `experimental_NewThreadComposer`, `ThreadChat`, sidebar data hooks, and nav panels; verified against core `1e2cee69ade40d437e169f712bd6599dfa1d58db`. Vendored button and motion primitives come from that core's `packages/shared-ui/src`; the SDK/build dependencies remain the repository's pinned releases.
+
+Canvas organization, sorting, active/archived filters, environment grouping, provider icons, group order and visibility follow the Thread List plugin. Change them from View options in the canvas context menu or launcher; changes also apply to the sidebar. The prototype reconciles external preference changes every 1.5 seconds while visible because the current SDK scopes plugin signals to their owner. Arrange like sidebar resets only canvas folder positions. Existing canvas folders and windows remain available.
