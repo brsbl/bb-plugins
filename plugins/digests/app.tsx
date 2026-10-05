@@ -171,16 +171,16 @@ function DigestIssue({ attributes, message }: PluginMessageDirectiveProps) {
   useReconnectRefresh(load);
 
   if (!id) {
-    return <div className="digest-issue" role="alert">This digest is missing its issue reference. Ask the publishing thread to publish it again.</div>;
+    return <div className="digest-issue" role="alert">This brief is missing its reference. Ask the publishing thread to publish it again.</div>;
   }
   if (!visible) return null;
   if (!issue) {
     return (
       <div className="digest-issue">
         {loadError ? <>
-          <p role="alert">This issue couldn’t be loaded. Check that bb is running and try again.</p>
+          <p role="alert">This brief couldn’t be loaded. Check that bb is running and try again.</p>
           <button type="button" className="digest-text-action digest-text-primary" onClick={() => { void load(); }}>Retry</button>
-        </> : <p className="digest-muted" role="status">Loading digest…</p>}
+        </> : <p className="digest-muted" role="status">Loading brief…</p>}
       </div>
     );
   }
@@ -356,7 +356,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState<"retry" | "reconnect" | null>(null);
-  const issue = pending === "retry" ? { ...savedIssue, state: "collecting" as const, headline: "Preparing your digest", lede: "" } : savedIssue;
+  const issue = pending === "retry" ? { ...savedIssue, state: "collecting" as const, headline: "Preparing your brief", lede: "" } : savedIssue;
   const [mainContent, ...extraContent] = issue.details.split(/\r?\n[ \t]*<!-- more -->[ \t]*\r?\n/u);
   const moreContent = extraContent.join("\n\n");
   const recover = async (action: "retry" | "reconnect") => {
@@ -377,14 +377,14 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
     } catch (error) {
       setActionError(error instanceof Error && error.message.trim() ? error.message : action === "reconnect"
         ? "Couldn’t open your connection. Check that bb is running, then try Reconnect again."
-        : "Couldn’t retry this digest. Check that bb is running, then try again.");
+        : "Couldn’t retry this brief. Check that bb is running, then try again.");
     } finally {
       setPending(null);
     }
   };
 
   return (
-    <article className="digest-issue" aria-label="Digest summary" data-state={issue.state}>
+    <article className="digest-issue" aria-label="Brief summary" data-state={issue.state}>
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
       {issue.brief?.summaryLinks?.length && issue.state === "ready" ? <div className="digest-lede digest-summary-links">{issue.brief.summaryLinks.map((link, index) => <span key={index}>
         {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a aria-label={summaryLabel(link.label)} data-tone={link.section === "items" ? headingTone(issue.brief!) : "neutral"} href={`#${prefix}-${link.section}`} onClick={(event) => {
@@ -420,7 +420,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
       {actionError && <p className="digest-error" role="alert">{actionError}</p>}
       {notice && <p className="digest-muted" role="status">{notice}</p>}
       {loadError && <div className="digest-refresh-error" role="alert">
-        <span>Couldn’t refresh this issue. The last saved summary is shown.</span>
+        <span>Couldn’t refresh this brief. The last saved summary is shown.</span>
         <button type="button" className="digest-text-action digest-text-primary" onClick={() => { void refresh(); }}>Retry</button>
       </div>}
     </article>
@@ -511,7 +511,7 @@ function DigestForm({ connection, definition, pending, onCancel, onSave }: {
         </>}
       </>}
     </details>
-    <div className="digest-form-actions"><Button variant="ghost" disabled={pending} onClick={onCancel}>Cancel</Button><Button variant="default" type="submit" disabled={pending}>{pending ? "Saving…" : definition ? "Save changes" : "Create digest"}</Button></div>
+    <div className="digest-form-actions"><Button variant="ghost" disabled={pending} onClick={onCancel}>Cancel</Button><Button variant="default" type="submit" disabled={pending}>{pending ? "Saving…" : definition ? "Save changes" : "Create brief"}</Button></div>
   </form>;
 }
 
@@ -539,7 +539,7 @@ function DigestsSettings() {
       setOverview(result);
       setError(null);
     } catch {
-      if (generation.current === request) setError("Couldn’t load Digests settings. Check that bb is running and try again.");
+      if (generation.current === request) setError("Couldn’t load Briefs settings. Check that bb is running and try again.");
     } finally {
       if (generation.current === request) setLoading(false);
     }
@@ -596,7 +596,7 @@ function DigestsSettings() {
         const result = await rpc.call("run", { id: definition.id });
         if (result.threadId) navigate.toThread(result.threadId);
         else if (result.pending) await load();
-        else setError("Couldn’t start this digest. Retry from its card.");
+        else setError("Couldn’t start this brief. Retry from its card.");
       }
     } catch (error) {
       const message = error instanceof Error && error.message.trim() ? error.message : `Couldn’t start ${definition.name}. Check that bb is running and try again.`;
@@ -621,22 +621,22 @@ function DigestsSettings() {
     try {
       const definition = await rpc.call("saveDigest", input);
       setEditing(null);
-      if (!input.id) { setCreatedId(definition.id); setNotice(`${definition.name} is on. Run it now to preview your first issue.`); }
+      if (!input.id) { setCreatedId(definition.id); setNotice(`${definition.name} is on. Run it now to preview your first brief.`); }
       await load();
-    } catch (error) { await load(); setError(error instanceof Error ? error.message : "Couldn’t save this digest. Try again."); }
+    } catch (error) { await load(); setError(error instanceof Error ? error.message : "Couldn’t save this brief. Try again."); }
     finally { setPending(null); }
   };
   const sites = overview?.connections.filter((site) => site.status === "signed-in" || overview.definitions.some((definition) => definition.connectionIds.includes(site.id))) ?? [];
 
   return (
-    <section className="digest-settings" aria-label="Digests">
+    <section className="digest-settings" aria-label="Briefs">
       {error && <div className="digest-refresh-error" role="alert"><span>{error}</span><button type="button" className="digest-button" disabled={loading} onClick={() => { void load(); }}>Retry</button></div>}
       {notice && <p className="digest-muted" role="status">{notice}</p>}
-      {!overview && !error && <p className="digest-muted" role="status">Loading Digests…</p>}
+      {!overview && !error && <p className="digest-muted" role="status">Loading Briefs…</p>}
       {overview && <>
         <div className="digest-group-header"><h3>Your sites</h3><a className="digest-import-link" href="/settings/browser">Import logins →</a></div>
         {bannerDismissed === false && <div className="digest-import">
-          <div><p>Digests read the sites you’re signed into in bb’s browser.</p>
+          <div><p>Briefs read the sites you’re signed into in bb’s browser.</p>
           <a href="/settings/browser">Import logins in Browser settings →</a></div>
           <Button variant="ghost" aria-label="Dismiss login banner" onClick={() => { void dismissBanner(); }}><Icon name="X" aria-hidden /></Button>
         </div>}
@@ -648,7 +648,7 @@ function DigestsSettings() {
             <div className="digest-site-header"><div><h4>{site.name}</h4><span className="digest-site-account" data-status={site.status}>
               {site.status === "signed-in" ? site.accountName || "Signed in" : signedOut ? "Signed out" : site.status === "unknown" ? "Not checked" : "Browser unavailable"}
               {signedOut && <> · <a href="/settings/browser">Reconnect</a></>}
-            </span></div><Button variant="ghost" disabled={pending !== null || editing !== null} onClick={() => setEditing({ siteId: site.id })}>+ Add digest</Button></div>
+            </span></div><Button variant="ghost" disabled={pending !== null || editing !== null} onClick={() => setEditing({ siteId: site.id })}>+ Add brief</Button></div>
             {editing?.siteId === site.id && !editing.digestId && <DigestForm connection={site} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} />}
             <ul className="digest-nested-list">{definitions.map((definition) => <li className="digest-nested-item" key={definition.id}>
               {editing?.digestId === definition.id ? <DigestForm connection={site} definition={definition} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} /> : <div className="digest-definition">
@@ -657,7 +657,7 @@ function DigestsSettings() {
                   {definition.schedule && <Switch aria-label={`${definition.name} schedule`} checked={definition.enabled} disabled={pending !== null} onCheckedChange={() => { void update(definition, "toggle"); }} />}
                 </div>
                 <p className="digest-prompt-preview">{definition.instructions}</p>
-                {overview.startingIds?.includes(definition.id) && <p className="digest-muted" role="status">Starting this issue…</p>}
+                {overview.startingIds?.includes(definition.id) && <p className="digest-muted" role="status">Starting this brief…</p>}
                 {!overview.startingIds?.includes(definition.id) && overview.runErrors?.[definition.id] && <div className="digest-run-error" role="alert"><span>{overview.runErrors[definition.id]}</span><Button disabled={pending !== null} onClick={() => { void update(definition, "run"); }}>Retry</Button></div>}
                 <div className="digest-definition-footer">{definition.schedule
                   ? <span className="digest-schedule-label"><Icon name="Calendar" className="digest-schedule-icon" aria-hidden /> {scheduleLabel(definition.schedule)}</span>
@@ -666,7 +666,7 @@ function DigestsSettings() {
                 </div>
               </div>}
             </li>)}</ul>
-            {definitions.length === 0 && editing?.siteId !== site.id && <p className="digest-no-digests digest-muted">No digests yet</p>}
+            {definitions.length === 0 && editing?.siteId !== site.id && <p className="digest-no-digests digest-muted">No briefs yet</p>}
           </section>;
         })}</div>
       </>}
