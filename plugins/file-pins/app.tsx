@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { definePluginApp, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./comp
 import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
 import { layoutPins, pinFile, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, unpinFile, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
 import { previewTarget } from "./open-target.js";
+import { coalesce, lastKnownPins, rememberPins, type PinSnapshot } from "./pin-state.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { cn } from "./lib/utils.js";
 
@@ -41,9 +42,10 @@ function PinStrip({ threadId }: { threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
-  const [pins, setPins] = useState<Reference[]>([]);
-  const [more, setMore] = useState<string[]>([]);
-  const [threadHostId, setThreadHostId] = useState<string | null>(null);
+  const [initial] = useState(() => lastKnownPins(threadId));
+  const [pins, setPins] = useState<Reference[]>(initial?.pins ?? []);
+  const [more, setMore] = useState<string[]>(initial?.more ?? []);
+  const [threadHostId, setThreadHostId] = useState<string | null>(initial?.threadHostId ?? null);
   const [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [rowMenu, setRowMenu] = useState<string | null>(null);
@@ -56,13 +58,18 @@ function PinStrip({ threadId }: { threadId: string }) {
   const generation = useRef(0);
   const alive = useRef(true);
   const report = useCallback((cause: unknown) => { if (alive.current) toast.error(cause instanceof Error ? cause.message : String(cause)); }, []);
-  const refresh = useCallback(async () => {
-    const request = ++generation.current;
+  const show = useCallback((snapshot: PinSnapshot) => {
+    rememberPins(threadId, snapshot);
+    setPins(snapshot.pins); setMore(snapshot.more); setThreadHostId(snapshot.threadHostId);
+  }, [threadId]);
+  // Only local arrangements and unmounting invalidate a load in flight; newer refreshes wait for it.
+  const refresh = useMemo(() => coalesce(async () => {
+    const request = generation.current;
     try {
       const result = await rpc.call("inspect", { threadId });
-      if (alive.current && request === generation.current && arranging.current.pending === 0) { setPins(result.pins); setMore(result.more); setThreadHostId(result.threadHostId); }
+      if (alive.current && request === generation.current && arranging.current.pending === 0) show(result);
     } catch (cause) { report(cause); }
-  }, [rpc, threadId, report]);
+  }), [rpc, threadId, report, show]);
   useEffect(() => {
     alive.current = true;
     return () => { alive.current = false; generation.current++; };
@@ -112,8 +119,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     // Apply locally first; saves run in order and
     // refreshes wait until the last one lands so the strip never steps back.
     generation.current++;
-    setPins(next.order.map((id) => pins.find((pin) => pin.id === id)!));
-    setMore(next.more);
+    show({ pins: next.order.map((id) => pins.find((pin) => pin.id === id)!), more: next.more, threadHostId });
     const saves = arranging.current;
     saves.pending++;
     saves.queue = saves.queue.then(() => rpc.call("arrange", { threadId, ...next })).then(() => undefined, report)

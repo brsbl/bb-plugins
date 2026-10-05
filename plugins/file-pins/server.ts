@@ -8,6 +8,9 @@ import { CHANGED, MAX_PINS, PIN_MENTION, hostContract, moreSchema, pinsSchema, r
 // The shipped skill is the one source of the pinning instructions; the composer pill sends it to the agent.
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const SKILL_PATH = join(basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR, "skills", "file-pins", "SKILL.md");
+/** How long inspect waits on a host before answering with that host's last known statuses. */
+const HOST_CHECK_MS = 3_000;
+type Status = Reference["status"];
 
 export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({ contract: hostContract });
@@ -79,6 +82,41 @@ export default function plugin(bb: BbPluginApi): void {
     return { removed: true };
   });
 
+  // A busy host can take many seconds to answer. Inspect waits briefly, then answers with
+  // each file's last known status; a late answer that changes one refreshes the waiting threads.
+  const known = new Map<string, Status>();
+  const checks = new Map<string, { done: Promise<void>; waiting: Set<string> }>();
+  const statusKey = (hostId: string, path: string) => `${hostId}\0${path}`;
+  const check = async (threadId: string, hostId: string, paths: string[]) => {
+    const request = statusKey(hostId, paths.join("\0"));
+    let pending = checks.get(request);
+    if (!pending) {
+      const waiting = new Set<string>();
+      const done = host.call("inspect", { paths }, { hostId }).then(
+        (facts) => facts.files.map((file) => [file.path, file.status] as const),
+        () => paths.map((path) => [path, "unavailable"] as const),
+      ).then((facts) => {
+        let changed = false;
+        for (const [path, status] of facts) {
+          changed ||= known.get(statusKey(hostId, path)) !== status;
+          known.set(statusKey(hostId, path), status);
+        }
+        checks.delete(request);
+        if (changed) for (const waiter of waiting) bb.realtime.publish(CHANGED, { threadId: waiter });
+      });
+      pending = { done, waiting };
+      checks.set(request, pending);
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const answered = await Promise.race([
+      pending.done.then(() => true),
+      new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), HOST_CHECK_MS); }),
+    ]);
+    clearTimeout(timer);
+    if (!answered) pending.waiting.add(threadId);
+    return new Map(paths.map((path) => [path, known.get(statusKey(hostId, path)) ?? "unavailable"]));
+  };
+
   bb.rpc.register(rpcContract, {
     arrange: ({ threadId, order, more }) => serialize(async () => {
       await thread(threadId);
@@ -95,17 +133,14 @@ export default function plugin(bb: BbPluginApi): void {
       const { pins } = await list(threadId);
       const hosts = await bb.sdk.hosts.list();
       const result: Reference[] = [];
-      for (const hostId of new Set(pins.map((pin) => pin.hostId))) {
+      await Promise.all([...new Set(pins.map((pin) => pin.hostId))].map(async (hostId) => {
         const owned = pins.filter((pin) => pin.hostId === hostId);
         const machine = hosts.find((item) => item.id === hostId);
-        const facts = machine?.status === "connected"
-          ? await host.call("inspect", { paths: owned.map((pin) => pin.path) }, { hostId }).catch(() => null)
-          : null;
+        const statuses = machine?.status === "connected" ? await check(threadId, hostId, owned.map((pin) => pin.path)) : null;
         for (const pinned of owned) {
-          const fact = facts?.files.find((file) => file.path === pinned.path);
-          result.push({ ...pinned, hostName: machine?.name ?? hostId, status: fact?.status ?? "unavailable" });
+          result.push({ ...pinned, hostName: machine?.name ?? hostId, status: statuses?.get(pinned.path) ?? "unavailable" });
         }
-      }
+      }));
       return { pins: pins.map((pin) => result.find((item) => item.id === pin.id)!), more: await readMore(threadId, pins), threadHostId: await threadHost(threadId) };
     },
     remove: ({ threadId, pinId }) => serialize(async () => {

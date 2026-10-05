@@ -1,9 +1,14 @@
 import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import plugin from "./server.js";
 
 const disposers: Array<() => Promise<void>> = [];
-afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); });
+afterEach(async () => { vi.useRealTimers(); for (const dispose of disposers.splice(0)) await dispose(); });
+// Hosts whose inspect answers only when the test releases it.
+const held = new Map<string, Array<() => void>>();
+// setImmediate runs once the late answer's promise chain has drained; tests fake only setTimeout.
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+function release(hostId: string) { for (const answer of held.get(hostId)?.splice(0) ?? []) answer(); }
 function setup() {
   const { bb, harness } = createFakePluginHost({
     pluginId: "file-pins", experimental_hostEntry: true,
@@ -18,6 +23,7 @@ function setup() {
     },
     experimental_callHostRpc: async ({ method, input, hostId }) => {
       if (hostId === "offline") throw new Error("Host offline");
+      if (method === "inspect" && held.has(hostId)) await new Promise<void>((resolve) => held.get(hostId)!.push(resolve));
       if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available" })) };
       const { path } = input as { path: string };
       return { path: path === "~/note.md" ? "/Users/me/note.md" : path, name: path.split("/").at(-1)! };
@@ -90,6 +96,46 @@ describe("thread file pins", () => {
       { path: "/here.md", status: "available" },
     ]);
     expect((await h.behavior.callRpc("list", { threadId: "one" }) as { pins: unknown[] }).pins).toHaveLength(3);
+  });
+  it("answers inspect while a host is slow with its last known status and stays quiet when the late answer agrees", async () => {
+    const h = setup();
+    await h.behavior.callRpc("pin", { threadId: "one", hostId: "pi", path: "/slow.md" });
+    await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/here.md" });
+    expect((await h.behavior.callRpc("inspect", { threadId: "one" }) as { pins: unknown[] }).pins).toMatchObject([{ status: "available" }, { status: "available" }]);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    held.set("pi", []);
+    try {
+      const signals = h.inspection.realtimeSignals.length;
+      const inspecting = h.behavior.callRpc("inspect", { threadId: "one" });
+      await vi.advanceTimersByTimeAsync(3_000);
+      // The strip gets every stored pin without waiting on the slow host.
+      expect((await inspecting as { pins: unknown[] }).pins).toMatchObject([{ path: "/slow.md", status: "available" }, { path: "/here.md", status: "available" }]);
+      // A late answer that changes nothing stays quiet.
+      release("pi");
+      await settle();
+      expect(h.inspection.realtimeSignals).toHaveLength(signals);
+    } finally { held.clear(); }
+  });
+  it("checks hosts in parallel and never waits on one longer than the time box", async () => {
+    const h = setup();
+    await h.behavior.callRpc("pin", { threadId: "one", hostId: "pi", path: "/slow.md" });
+    await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/here.md" });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    held.set("pi", []);
+    held.set("mac", []);
+    try {
+      let settled = false;
+      const inspecting = h.behavior.callRpc("inspect", { threadId: "one" }).finally(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(2_999);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      // Neither host has answered before, so both read as unavailable until they do.
+      expect((await inspecting as { pins: unknown[] }).pins).toMatchObject([{ status: "unavailable" }, { status: "unavailable" }]);
+      const signals = h.inspection.realtimeSignals.length;
+      release("mac");
+      await settle();
+      expect(h.inspection.realtimeSignals.slice(signals)).toEqual([{ channel: "pins-changed", payload: { threadId: "one" } }]);
+    } finally { release("pi"); held.clear(); }
   });
   it("resolves relative paths against the thread workspace on its own machine only", async () => {
     const h = setup();
