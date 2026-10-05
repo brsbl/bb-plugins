@@ -445,7 +445,7 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
   replySlot.lifecycle.unmount();
 });
 
-it("Action log offers a choice card Choose, Later, Skip and Review, never Yes or No", async () => {
+it("Action log offers a choice card Choose, Skip and Review, never Yes or No", async () => {
   const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] } as const;
   const item = { ...fixture(), id: "setup", content, threadTitle: "Accounts", threadProjectId: "proj_cards" } as const;
   const app = await loadPluginApp(() => import("./app.js"));

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type ExperimentalComposerSubmitOptions, type PluginComposerApi, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, chooseLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, ClockIcon, CommentIcon, DraftIcon, EditIcon, ResendIcon, SendIcon, SkipIcon, UndoIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, CommentIcon, DraftIcon, EditIcon, ResendIcon, SendIcon, SkipIcon, UndoIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
 import { Consequence } from "./consequence.js";
 import "./app.css";
@@ -239,7 +239,6 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const utilities = <div className="iac-tools">
     {pending && !busy ? <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton> : commentToggle}
     {(!row || reply) && <>
-      <IconButton label="Remind me later" disabled={disabled} onClick={() => void act("later")}><ClockIcon /></IconButton>
       <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
     </>}
     {reply && <IconButton label="Save to Gmail drafts" disabled={disabled} onClick={() => void act("save-draft")}><DraftIcon /></IconButton>}
@@ -358,7 +357,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       primary = choice ? chooseButton : retryable ? button("Retry", "retry", () => void act(item.attempt!.action), "default") : button("Open thread", "open", openThread, "default", false);
     } else {
       menu = <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
-        : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}<MenuAction onSelect={() => void act("later")}>Remind me later</MenuAction><MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
+        : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}<MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
         <MenuAction onSelect={openThread}>Open thread</MenuAction></>;
       secondary = reply ? commentButton : choice ? null : decideButton("no");
       primary = reply ? button("Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined)

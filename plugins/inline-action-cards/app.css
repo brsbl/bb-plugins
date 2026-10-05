@@ -101,8 +101,9 @@
 .iac-result-note { margin-top: 2px; white-space: pre-wrap; font-size: 12px; overflow-wrap: anywhere; }
 
 /* The comment field and its send button read as one control. */
-.iac-note-entry { display: flex; align-items: flex-end; gap: 4px; margin-top: 8px; padding: 2px 2px 2px 8px; border-radius: var(--radius-md, .5rem); box-shadow: 0 0 0 1px var(--border); }
-.iac-note-entry:focus-within { box-shadow: 0 0 0 1px var(--ring); }
+/* bb's text input treatment: quiet input border, 1px ring on keyboard or pointer focus. */
+.iac-note-entry { display: flex; align-items: flex-end; gap: 4px; margin-top: 8px; padding: 1px 1px 1px 7px; border: 1px solid var(--input); border-radius: var(--radius-md, .5rem); background: transparent; }
+.iac-note-entry:has(.iac-note-field:focus-visible) { box-shadow: 0 0 0 1px var(--ring); }
 :is(.iac-card, .iac-row) .iac-note-entry textarea:not([readonly]):is(:hover, :focus) { background: transparent; box-shadow: none; }
 .iac-note-entry .iac-icon { width: 24px; height: 24px; padding: 4px; }
 .iac-note-entry .iac-note-field { flex: 1; min-width: 0; }

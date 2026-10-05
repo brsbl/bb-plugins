@@ -14,7 +14,7 @@ The install branch is published after the source PR merges. For a source checkou
 
 ## Use
 
-Ask an agent to use the **inline-action-cards** skill. It creates an item with `bb action-cards create` and emits `::action{id="esc-1"}`. Click Send, Yes/No, Later, Skip, or Save to Gmail drafts to send the choice right away; if the agent is busy, it waits in the thread's queue. Every action sits on one line, with the primary button rightmost. Once the message is sent, the card shows what you sent until the agent reports a result. The Comment button (speech bubble) on every ready card and table row opens a short field. Choose an action to send the comment with it, or press the send button in the field to send just the comment; the card stays ready. Comment also replaces Reply’s Ask for changes. Finish or clear any existing composer message before clicking an action.
+Ask an agent to use the **inline-action-cards** skill. It creates an item with `bb action-cards create` and emits `::action{id="esc-1"}`. Click Send, Yes/No, Skip, or Save to Gmail drafts to send the choice right away; if the agent is busy, it waits in the thread's queue. Every action sits on one line, with the primary button rightmost. Once the message is sent, the card shows what you sent until the agent reports a result. The Comment button (speech bubble) on every ready card and table row opens a short field. Choose an action to send the comment with it, or press the send button in the field to send just the comment; the card stays ready. Comment also replaces Reply’s Ask for changes. Finish or clear any existing composer message before clicking an action.
 
 Reply cards show recipients, an expandable original excerpt, and an autosaving draft that edits like plain body text. Results collapse with the submitted comment underneath, plus View and recovery in place. IDs travel in hidden mention context. Sending waits for pending saves. Agents claim each attempt once, honor its comment as part of the approval, use the saved draft, and report its outcome through `bb action-cards report`. Verified failures offer Retry; uncertain outcomes offer Check outcome to avoid duplicate sends. The [agent skill](skills/inline-action-cards/SKILL.md) documents the full workflow.
 
@@ -22,7 +22,7 @@ A choice card lists 2–6 short options under one question. Pick one, then click
 
 Use `bb action-cards create-table` with a title and existing item IDs to emit `::actions{id="..."}`. Reply rows open for review one at a time. Matching Decide operations can offer a bulk action; each row keeps its own result.
 
-Items live in plugin-owned SQLite storage, scoped to their thread. Gmail access comes from the agent's connected tools. Later defers a card; it does not schedule a reminder.
+Items live in plugin-owned SQLite storage, scoped to their thread. Gmail access comes from the agent's connected tools. Cards no longer offer Later; existing Later cards still load and can be resumed.
 
 ### Editor choice
 
