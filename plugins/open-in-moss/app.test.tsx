@@ -3,8 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   loadPluginApp,
   mountPluginContentScripts,
+  renderSlot,
   type MountedPluginContentScripts,
+  type RenderedSlot,
 } from "@get-bb/plugin-sdk/testing/app";
+import { act } from "@testing-library/react";
 import { toast } from "sonner";
 
 vi.mock("sonner", () => ({
@@ -205,5 +208,119 @@ describe("Markdown link interception", () => {
     click(anchor);
 
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("Moss Viewer", () => {
+  type Plugin = { id: string; enabled: boolean };
+  type Listener = (event: never) => void;
+  let installed: Plugin[];
+  let listeners: Map<string, Listener>;
+  let overlay: RenderedSlot | undefined;
+
+  function renderWatcher(plugins: Plugin[]) {
+    installed = plugins;
+    listeners = new Map();
+    const list = vi.fn(async () => ({ plugins: installed }));
+    overlay = renderSlot(app.appOverlays[0]!, {}, {
+      sdk: {
+        plugins: { list } as never,
+        subscribe: ((args: { event: string; callback: Listener }) => {
+          listeners.set(args.event, args.callback);
+          return () => listeners.delete(args.event);
+        }) as never,
+      },
+    });
+    return list;
+  }
+
+  function emit(event: string, payload: unknown) {
+    act(() => listeners.get(event)?.(payload as never));
+  }
+
+  function pluginsChanged(plugins: Plugin[]) {
+    installed = plugins;
+    emit("system:changed", { type: "changed", entity: "system", changes: ["plugins-changed"] });
+  }
+
+  // Clicks a fresh Markdown link and reports whether Open in Moss took it.
+  function opensInMoss(): boolean {
+    const anchor = link("file:///Users/brsbl/Moss/Notes/spec.md");
+    let reachedBb = false;
+    anchor.addEventListener("click", (event) => {
+      reachedBb = true;
+      event.preventDefault();
+    });
+    click(anchor);
+    return !reachedBb;
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true })));
+  });
+
+  afterEach(async () => {
+    if (!overlay) return;
+    pluginsChanged([]);
+    await vi.waitFor(() => expect(opensInMoss()).toBe(true));
+    overlay.lifecycle.unmount();
+    overlay = undefined;
+  });
+
+  it("leaves Markdown links to bb's preview while Moss Viewer is enabled", async () => {
+    renderWatcher([{ id: "moss-viewer", enabled: true }]);
+    await vi.waitFor(() => expect(opensInMoss()).toBe(false));
+    vi.mocked(fetch).mockClear();
+
+    const anchor = link(`./${encodeURIComponent("/root/Moss/Notes/My Tweets.md")}`);
+    const bbPreview = vi.fn();
+    anchor.addEventListener("click", bbPreview);
+    const event = click(anchor.firstElementChild!);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(bbPreview).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps opening links in Moss when Moss Viewer is installed but disabled", async () => {
+    const list = renderWatcher([{ id: "moss-viewer", enabled: false }]);
+    await vi.waitFor(() => expect(list).toHaveBeenCalledOnce());
+    await Promise.resolve();
+
+    expect(opensInMoss()).toBe(true);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+  });
+
+  it("follows Moss Viewer being installed, disabled, enabled, and removed", async () => {
+    const list = renderWatcher([]);
+    await vi.waitFor(() => expect(list).toHaveBeenCalledOnce());
+    expect(opensInMoss()).toBe(true);
+
+    pluginsChanged([{ id: "moss-viewer", enabled: true }]);
+    await vi.waitFor(() => expect(opensInMoss()).toBe(false));
+
+    pluginsChanged([{ id: "moss-viewer", enabled: false }]);
+    await vi.waitFor(() => expect(opensInMoss()).toBe(true));
+
+    pluginsChanged([{ id: "moss-viewer", enabled: true }]);
+    await vi.waitFor(() => expect(opensInMoss()).toBe(false));
+
+    pluginsChanged([]);
+    await vi.waitFor(() => expect(opensInMoss()).toBe(true));
+  });
+
+  it("refreshes only for plugin changes or a reconnect", async () => {
+    const list = renderWatcher([]);
+    await vi.waitFor(() => expect(list).toHaveBeenCalledOnce());
+
+    installed = [{ id: "moss-viewer", enabled: true }];
+    emit("system:changed", { type: "changed", entity: "system", changes: ["config-changed"] });
+    emit("realtime:connection", { state: "connected", reconnected: false, reconnectDelayMs: null });
+    expect(list).toHaveBeenCalledOnce();
+
+    emit("realtime:connection", { state: "connected", reconnected: true, reconnectDelayMs: null });
+    await vi.waitFor(() => expect(opensInMoss()).toBe(false));
+    expect(list).toHaveBeenCalledTimes(2);
   });
 });
