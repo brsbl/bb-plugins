@@ -698,7 +698,8 @@ export function createService(bb: BbPluginApi) {
       const at = now();
       if (cronDue(coordinator, at)) {
         store.coordinators.update(coordinator.threadId, { lastBriefingAt: at });
-        if (!(await publishScheduledBrief(coordinator.threadId))) await sendNote(coordinator.threadId, BRIEFING_NUDGE);
+        // A scheduled brief with nothing in it is noise: skip both the Briefs delivery and the nudge.
+        if (hasNews(coordinator) && !(await publishScheduledBrief(coordinator.threadId))) await sendNote(coordinator.threadId, BRIEFING_NUDGE);
       }
       // Items still in the first stage (migrated proposals, for one) move on without waiting for an event.
       for (const item of store.items.list(coordinator.threadId)) {
@@ -914,6 +915,11 @@ export function createService(bb: BbPluginApi) {
     }
   }
 
+  function hasNews(coordinator: CoordinatorRecord): boolean {
+    const { flagged, briefing } = composeFor(coordinator);
+    return flagged.length > 0 || briefing.changes.length > 0 || briefing.needsYou.length > 0;
+  }
+
   let briefsRetryAt = 0;
   let briefsWarned = false;
 
@@ -932,7 +938,7 @@ export function createService(bb: BbPluginApi) {
         pluginId: BRIEFS_PLUGIN,
         method: "publishFromPlugin",
         input: toJson({
-          source: { pluginId: bb.pluginId, key: coordinator.threadId, name: /\bcoordinator$/iu.test(title) ? title : `${title} coordinator` },
+          source: { pluginId: bb.pluginId, key: coordinator.threadId, name: /\bcoordinator\b/iu.test(title) ? title : `${title} coordinator` },
           headline: briefingHeadline(briefing, flagged.length),
           lede: briefingLede(briefing),
           details,

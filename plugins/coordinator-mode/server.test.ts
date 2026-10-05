@@ -643,14 +643,29 @@ describe("Coordinator Mode plugin", () => {
   });
 
   it("falls back to nudging the coordinator when Briefs isn't installed", async () => {
-    const { harness, turnOn, runTick, advance, callsTo } = setup();
+    const { harness, turnOn, addStartedItem, runTick, advance, callsTo } = setup();
     await turnOn({ ...ship, briefingCron: "* * * * *", briefingLabel: "Every minute" });
+    await addStartedItem();
     advance(120_000);
     await runTick();
     expect(callsTo("publishFromPlugin")).toHaveLength(1);
     const nudge = harness.inspection.sdk.callsTo("threads.send").at(-1)?.[0];
     expect(nudge).toMatchObject({ threadId: COORD });
     expect(JSON.stringify(nudge)).toContain("coordinator_briefing");
+  });
+
+  it("skips a scheduled brief when nothing changed and nothing needs you", async () => {
+    const { harness, turnOn, runTick, advance, callsTo } = setup({ briefs: true });
+    await turnOn({ ...ship, briefingCron: "* * * * *", briefingLabel: "Every minute" });
+    advance(120_000);
+    await runTick();
+    // The first brief may report turning on; after that nothing has changed.
+    const sends = harness.inspection.sdk.callsTo("threads.send").length;
+    const published = callsTo("publishFromPlugin").length;
+    advance(120_000);
+    await runTick();
+    expect(callsTo("publishFromPlugin")).toHaveLength(published);
+    expect(harness.inspection.sdk.callsTo("threads.send")).toHaveLength(sends);
   });
 
   it("turns a coordinator on from the CLI with a built-in template", async () => {

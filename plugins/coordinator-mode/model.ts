@@ -568,7 +568,8 @@ export function instructionsFor(template: CoordinatorTemplate): string {
     ].join("\n"),
     [
       "Communication (keep it curt):",
-      "- To the user: put the outcome first, report only what changed, never restate unchanged items, keep replies to a few lines.",
+      "- To the user: put the outcome first, report only what changed, never restate unchanged items. Three lines or fewer unless the user asks for detail.",
+      "- Don't offer menus of options. When a choice is reversible and within the rules, take the sensible default and say what you did in one line; otherwise ask one short question.",
       "- Decisions (approvals, ask-first actions) are cards in the Coordinator panel and the briefing. Never ask for approval in prose; point to the card.",
       "- Sub-thread prompts (coordinator_start_sub_thread): the outcome, constraints, and done condition only; no background narration.",
       "- Keep each item's summary (one line) and waitingOn (what it waits on, or empty) current with coordinator_update_item.",
