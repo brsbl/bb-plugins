@@ -18,7 +18,7 @@ const GROUPS: { value: GroupBy; label: string; icon: LucideIcon }[] = [{ value: 
 /** A compact icon toggle group; each choice keeps its full name for assistive tech and as a tooltip. */
 function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: { value: T; label: string; icon: LucideIcon }[]; onChange(value: T): void }) {
   return <div className="pr-option-row"><span>{label}</span><div className="pr-segmented" role="radiogroup" aria-label={label}>
-    {options.map(({ value: option, label: name, icon: Icon }) => <button key={option} type="button" role="radio" aria-checked={value === option} aria-label={name} title={name} onClick={() => onChange(option)}><Icon size={15} aria-hidden="true" /></button>)}
+    {options.map(({ value: option, label: name, icon: Icon }) => <button key={option} type="button" role="radio" aria-checked={value === option} aria-label={name} title={name} onClick={() => onChange(option)}><Icon size={13} aria-hidden="true" /></button>)}
   </div></div>;
 }
 
