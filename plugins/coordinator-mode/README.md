@@ -43,12 +43,11 @@ Limits: coordinator rules are guardrails against agent mistakes, not a
 security boundary. Agents run commands as you, so a determined agent can find
 a command form the check doesn't recognize. Rules are enforced through
 Coordinator Mode's tools and the approval requests a provider raises before
-running commands. Sub-threads use the coordinator's provider. A provider that
+running commands. Coordinator Mode never changes a thread's permission mode;
+sub-threads use the coordinator's provider and permission mode. A provider that
 runs commands without asking bypasses the command check: Codex in its sandbox,
 or Claude Code when your settings already allow the command. Merges like that
-are flagged as "Rule broken" afterwards. Sub-threads Coordinator Mode adopts keep
-their own permission mode; in Full access their commands aren't checked, and
-merges are flagged as "Rule broken" afterwards. Commands that look like a
+are flagged as "Rule broken" afterwards. Commands that look like a
 gated action but can't be parsed are left for you to answer. Review sub-threads are started
 by the coordinator, so a review verdict is only as independent as its prompt.
 

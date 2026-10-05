@@ -107,6 +107,11 @@ jobs:
       - run: node tooling/validate-plugin-artifacts.mjs ${{ matrix.path }}
       - run: git diff --check -- ${{ matrix.path }}
       - run: git diff --exit-code -- ${{ matrix.path }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}
+          path: ${{ matrix.path }}/dist/
+          retention-days: 3
 
   thread-history-maintenance:
     name: Thread History Maintenance
