@@ -90,11 +90,16 @@ describe("placement beside a folder", () => {
     expect(findFreeRect(desired, [{ x: 600, y: 600, width: 100, height: 100 }])).toEqual(desired);
   });
 
-  it("moves right, then down, past windows already open there", () => {
-    const right = findFreeRect(desired, [desired]);
-    expect(right).toEqual({ ...desired, x: 516 });
-    const down = findFreeRect(desired, [desired, { ...desired, x: 516 }]);
-    expect(down.y).toBeGreaterThan(0);
-    expect(down.x).toBeGreaterThanOrEqual(100);
+  it("takes the nearest free spot below or to the right when windows are already there", () => {
+    const overlaps = (a: typeof desired, b: typeof desired) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+    const occupied = [desired];
+    for (let count = 0; count < 3; count += 1) {
+      const next = findFreeRect(desired, occupied);
+      expect(occupied.some((other) => overlaps(next, other))).toBe(false);
+      expect(next.x).toBeGreaterThanOrEqual(desired.x);
+      expect(next.y).toBeGreaterThanOrEqual(desired.y);
+      occupied.push(next);
+    }
+    expect(findFreeRect(desired, [desired])).toEqual({ ...desired, y: 316 });
   });
 });
