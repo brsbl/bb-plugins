@@ -1,7 +1,7 @@
 import type { WorkflowConfig } from "./core.js";
 
 /** bb's built-in thread list owns the sidebar's section order. */
-const THREAD_LIST_PLUGIN_ID = "thread-list";
+export const THREAD_LIST_PLUGIN_ID = "thread-list";
 const SECTION_ORDER_KEY = "manualSectionOrder";
 
 function configuredSectionIds(config: WorkflowConfig): string[] {
@@ -67,7 +67,6 @@ export function orderWithConfiguredSections(
   return sameOrder(next, current) ? null : next;
 }
 
-
 const SECTIONS_PLACEHOLDER = "sections";
 
 /**
@@ -95,34 +94,11 @@ export function expandSectionsPlaceholder(
   ];
 }
 
-async function callThreadList(
-  fetchImpl: typeof fetch,
+/** Calls one of the thread list plugin's RPC methods. */
+export type ThreadListRpc = (
   method: "listPreferences" | "setPreference",
-  input: unknown,
-): Promise<unknown> {
-  const response = await fetchImpl(
-    `/api/v1/plugins/${THREAD_LIST_PLUGIN_ID}/rpc/${method}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(input),
-    },
-  );
-  if (!response.ok) {
-    throw new Error(`Sidebar order request failed (${response.status})`);
-  }
-  const payload: unknown = await response.json();
-  if (
-    typeof payload !== "object" ||
-    payload === null ||
-    !("ok" in payload) ||
-    payload.ok !== true ||
-    !("result" in payload)
-  ) {
-    throw new Error("The thread list returned an invalid response");
-  }
-  return payload.result;
-}
+  input: null | { key: string; value: string[] },
+) => Promise<unknown>;
 
 /**
  * Moves the sidebar's workflow sections into the configured order. Sections
@@ -133,9 +109,9 @@ async function callThreadList(
 export async function syncSidebarOrder(
   config: WorkflowConfig,
   sectionIds: readonly string[],
-  fetchImpl: typeof fetch = (...args) => fetch(...args),
+  call: ThreadListRpc,
 ): Promise<void> {
-  const listed = await callThreadList(fetchImpl, "listPreferences", null);
+  const listed = await call("listPreferences", null);
   const preferences =
     typeof listed === "object" && listed !== null
       ? (listed as { preferences?: unknown }).preferences
@@ -153,7 +129,7 @@ export async function syncSidebarOrder(
   const expanded = expandSectionsPlaceholder(current, sectionIds);
   const next = orderWithConfiguredSections(expanded, config);
   if (next === null) return;
-  await callThreadList(fetchImpl, "setPreference", {
+  await call("setPreference", {
     key: SECTION_ORDER_KEY,
     value: next,
   });
