@@ -366,7 +366,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     const project = projectId ? sidebar.projects.find((entry) => entry.id === projectId) : undefined;
     return project ? { key: `project:${project.id}`, label: project.name } : { key: "project:~none", label: "No project" };
   };
-  const grouped = groupBy === "none" ? [] : [...active.reduce((groups, item) => {
+  // Pinned PRs lead their own group rather than floating above every group.
+  const grouped = groupBy === "none" ? [] : [...[...pinned, ...active].reduce((groups, item) => {
     const { key, label } = groupOf(item);
     const group = groups.get(key) ?? { key, label, items: [] as PullRequestItem[] };
     group.items.push(item);
@@ -407,8 +408,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       <form className="pr-list-toolbar" onSubmit={(event) => { event.preventDefault(); const known = visibleItems.find((item) => item.url === query.trim().replace(/[?#].*$/, "")); if (known) select(known.id); else if (/^https:\/\/github\.com\//i.test(query.trim())) setLinking({ url: query.trim() }); }}><label className="pr-search"><Search size={17} aria-hidden="true" /><input aria-label="Search pull requests" placeholder="Search or paste a PR link" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <IconButton icon={X} label="Clear search" onClick={() => setQuery("")} />}</label></form>
       {hasFilters && <div className="pr-active-filters"><span>{filtered.length} matching pull requests</span><button type="button" className="pr-text-button" onClick={resetFilters}>Clear</button></div>}
       <div ref={listRef} className="pr-list-scroll" onScroll={(event) => { session.scrollTop = event.currentTarget.scrollTop; }}>
-        {pinned.map(renderRow)}
-        {groupBy === "none" ? active.map(renderRow) : grouped.map((group) => renderSection(group.key, group.label, group.items))}
+        {groupBy === "none" ? [...pinned, ...active].map(renderRow) : grouped.map((group) => renderSection(group.key, group.label, group.items))}
         {renderSection("history", "Merged and closed", history)}
         {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests found"}</p><small>{hasFilters ? "Try another search or filter." : "Your authored pull requests and review requests on GitHub appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
         {nextCursor && <button className="pr-load-more" type="button" disabled={listLoading} onClick={() => setPageLimit((current) => current + 1)}>{listLoading ? "Loading more…" : `Load more · ${items.length} of ${total}`}</button>}
