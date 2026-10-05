@@ -27,11 +27,11 @@ vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
 });
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], cc: [], bcc: [], original: { from: "Escrow", body: "Your refund is on its way." }, draft: "Original draft" } });
 afterEach(() => { cleanup(); submittedMessages.length = 0; });
-// Radix menus measure their content; jsdom has no ResizeObserver.
+// Radix tooltips measure their content; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
-async function addRowNote(row: HTMLElement) {
-  fireEvent.keyDown(within(row).getByRole("button", { name: "More actions" }), { key: "Enter" });
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Add note" }));
+function addRowNote(row: HTMLElement) {
+  expect(within(row).queryByRole("button", { name: "More actions" })).toBeNull();
+  fireEvent.click(within(row).getByRole("button", { name: "Comment" }));
 }
 async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>) {
   let item = initialItem;
@@ -49,10 +49,10 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         return item;
       },
       choose: (raw) => {
-        const input = raw as { choice: string; revision: number };
+        const input = raw as { choice: string; revision: number; note?: string };
         calls.push("choose"); expect(input.revision).toBe(item.revision);
         const option = item.content.type === "choice" ? item.content.options.find((candidate) => candidate.id === input.choice)! : null;
-        item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "choose", claimed: false, choice: { id: option!.id, label: option!.label } } }; return item;
+        item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "choose", claimed: false, note: input.note, choice: { id: option!.id, label: option!.label } } }; return item;
       },
       prepare: (raw) => {
         const input = raw as { action: "send"; revision: number; note?: string };
@@ -160,7 +160,7 @@ it.each(["send", "yes", "no"] as const)("shows %s loading only while it is sent,
   expect(pending.className).toBe(classes);
   expect(pending.getAttribute("aria-busy")).toBe("true");
   expect((pending as HTMLButtonElement).disabled).toBe(true);
-  const other = screen.getByRole("button", { name: action === "send" ? "Add note" : action === "yes" ? "Keep" : "Switch" });
+  const other = screen.getByRole("button", { name: action === "send" ? "Comment" : action === "yes" ? "Keep" : "Switch" });
   expect((other as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: "Skip" }) as HTMLButtonElement).disabled).toBe(true);
   release();
@@ -236,8 +236,11 @@ it("Action log keeps failures and Later cards waiting, orders row controls with 
   expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
   expect(within(failure!).getByText(/Reconnect Gmail/)).toBeTruthy();
   expect(within(failure!).getByRole("button", { name: "Retry" })).toBeTruthy();
+  // A lone Open thread is its own button, never a one-item ⋯ menu.
+  expect(within(failure!).queryByRole("button", { name: "More actions" })).toBeNull();
+  expect(within(failure!).getByRole("button", { name: "Open thread" })).toBeTruthy();
   expect(within(deferred!).getByText("Later")).toBeTruthy();
-  expect(within(deferred!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Comment", "Resume"]);
+  expect(within(deferred!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "Open thread", "Comment", "Resume"]);
   const doneGroup = screen.getByRole("region", { name: "Done" });
   expect(within(doneGroup).getAllByRole("article")).toHaveLength(5);
   expect(within(doneGroup).getAllByRole("button", { name: "More actions" })).toHaveLength(5);
@@ -280,6 +283,16 @@ it("submits the selected option from a choice card, starting from the recommenda
   expect(calls).toEqual(["choose", "submitted"]);
   expect(screen.queryByRole("button", { name: "Using…" })).toBeNull();
 });
+it("sends a comment along with the chosen option", async () => {
+  const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "UserSingle" }, { id: "multi", label: "UserMultiple" }] };
+  const { slot, get } = await setup("", false, { ...fixture(), id: "setup", content });
+  fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "Keep the pool as backup" } });
+  fireEvent.click(screen.getByRole("button", { name: "Use UserMultiple with comment" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(get().attempt).toMatchObject({ action: "choose", note: "Keep the pool as backup" });
+  expect(submittedMessages[0]).toContain(" — Keep the pool as backup");
+});
 it("disables the primary button until an option is picked when nothing is recommended", async () => {
   const content = { type: "choice" as const, question: "Pick a plan", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] };
   await setup("", false, { ...fixture(), id: "plan", content });
@@ -306,11 +319,11 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
         submitted: (input) => host.harness.behavior.callRpc("submitted", input),
       },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Add note" }));
-    const field = screen.getByRole("textbox", { name: "Note for your choice" });
+    fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
+    const field = screen.getByRole("textbox", { name: "Comment" });
     expect(document.activeElement).toBe(field);
     fireEvent.change(field, { target: { value: note } });
-    fireEvent.click(screen.getByRole("button", { name: type === "reply" ? "Send" : "Switch" }));
+    fireEvent.click(screen.getByRole("button", { name: type === "reply" ? "Send with comment" : "Switch with comment" }));
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
     expect(submittedMessages[0]).toContain(` — ${note}`);
     const mention = slot.inspection.composer.mentions[0]!;
@@ -330,16 +343,18 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
   } finally { await host.harness.lifecycle.dispose(); }
 });
 
-it("dismisses a note with Escape or clearing, keeping empty approval unchanged", async () => {
+it("dismisses a comment with Escape or clearing, keeping empty approval unchanged", async () => {
   const { slot, get } = await setup();
-  fireEvent.click(screen.getByRole("button", { name: "Add note" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: "Do not send" } });
-  fireEvent.keyDown(screen.getByRole("textbox", { name: "Note for your choice" }), { key: "Escape" });
-  expect(screen.queryByRole("textbox", { name: "Note for your choice" })).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Add note" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: "Temporary" } });
-  fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: "" } });
-  expect(screen.queryByRole("textbox", { name: "Note for your choice" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "Do not send" } });
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Comment" }), { key: "Escape" });
+  expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Comment" })));
+  fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "Temporary" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "" } });
+  expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Comment" })));
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(get().attempt?.note).toBe("");
@@ -361,11 +376,11 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
         comment: (input) => host.harness.behavior.callRpc("comment", input),
       },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Add note" }));
-    expect(screen.queryByRole("button", { name: "Comment" })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
+    expect(screen.queryByRole("button", { name: "Send comment" })).toBeNull();
     const note = "Can you keep Money on the old one?";
-    fireEvent.change(screen.getByRole("textbox", { name: "Note for your choice" }), { target: { value: note } });
-    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: note } });
+    fireEvent.click(screen.getByRole("button", { name: "Send comment" }));
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
     expect(submittedMessages[0]).toContain(note);
     expect(submittedMessages[0]).toMatch(type === "reply" ? /^Escrow follow-up / : /^Switch digests /);
@@ -378,7 +393,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
     const saved = JSON.parse((await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId])).stdout!);
     expect(saved).toMatchObject({ state: "ready", attempt: null, revision: 1 });
     expect((screen.getByRole("button", { name: type === "reply" ? "Send" : "Switch" }) as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.queryByRole("textbox", { name: "Note for your choice" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
     slot.lifecycle.unmount();
   } finally { await host.harness.lifecycle.dispose(); }
 });
@@ -403,9 +418,8 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
     expect(screen.queryByRole("alert")).toBeNull();
     const rows = screen.getAllByRole("article");
     for (const [index, row] of rows.entries()) {
-      expect(within(row).queryByRole("button", { name: "Add note" })).toBeNull();
-      await addRowNote(row);
-      fireEvent.change(await within(row).findByRole("textbox", { name: "Note for your choice" }), { target: { value: `Condition ${index}` } });
+      addRowNote(row);
+      fireEvent.change(await within(row).findByRole("textbox", { name: "Comment" }), { target: { value: `Condition ${index}` } });
     }
     fireEvent.click(screen.getByRole("button", { name: "Switch all" }));
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
@@ -425,13 +439,13 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
     composer: { scope: { kind: "thread", threadId: "thr_test" } },
     rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: [item.id], items: [item] }), get: () => item },
   });
-  await addRowNote(await screen.findByRole("article"));
+  addRowNote(await screen.findByRole("article"));
   expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Note for your choice" })));
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Comment" })));
   replySlot.lifecycle.unmount();
 });
 
-it("Action log offers a choice card Choose, Later, Skip and Review, never Yes or No", async () => {
+it("Action log offers a choice card Choose, Skip and Review, never Yes or No", async () => {
   const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] } as const;
   const item = { ...fixture(), id: "setup", content, threadTitle: "Accounts", threadProjectId: "proj_cards" } as const;
   const app = await loadPluginApp(() => import("./app.js"));
