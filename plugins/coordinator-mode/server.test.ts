@@ -1,4 +1,4 @@
-import type { PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
+import type { BbPluginApi, PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { createFakePluginHost, makePluginAgentConfigurationContext, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,7 @@ import { BUILT_IN_TEMPLATES } from "./templates";
 
 type Thread = PluginThreadEventPayloads["thread.idle"]["thread"];
 type Interaction = PluginThreadEventPayloads["interaction.pending"]["interaction"];
+type ExecutionOptions = Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["defaultExecutionOptions"]>>;
 
 const COORD = "thr_coord";
 const ship = BUILT_IN_TEMPLATES.find((template) => template.id === "ship")!;
@@ -43,6 +44,10 @@ function setup(options: { children?: Thread[] } = {}) {
         send: async () => ({ ok: true }),
         stop: async () => ({ ok: true }),
         archive: async () => ({ ok: true }),
+        defaultExecutionOptions: async ({ threadId }) =>
+          threadId === COORD
+            ? ({ providerId: "claude-code", model: "claude-sonnet", reasoningLevel: "medium" } as ExecutionOptions)
+            : null,
         spawn: async (args) => {
           spawned += 1;
           const thread = makeThreadResponse({
@@ -153,6 +158,16 @@ describe("Coordinator Mode plugin", () => {
     expect(String(result)).toMatch(/Refused/);
     expect(harness.inspection.sdk.callsTo("environments.mergePullRequest")).toHaveLength(0);
     expect((await status()).items[0]).toMatchObject({ status: "blocked" });
+  });
+
+  it("starts sub-threads on the coordinator's provider and model, not the project default", async () => {
+    const { harness, threads, turnOn, addStartedItem } = setup();
+    threads.set(COORD, makeThreadResponse({ id: COORD, projectId: "proj", status: "idle", providerId: "claude-code" }));
+    await turnOn();
+    await addStartedItem();
+    expect(harness.inspection.sdk.callsTo("threads.spawn").at(-1)?.[0]).toMatchObject({
+      providerId: "claude-code", model: "claude-sonnet", reasoningLevel: "medium", permissionMode: "accept-edits",
+    });
   });
 
   it("auto-approves ordinary commands for members and ignores other threads", async () => {

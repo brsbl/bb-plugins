@@ -332,12 +332,20 @@ export function createService(bb: BbPluginApi) {
         }
         // Helpers and reviewers work in their item's checkout; primaries get the project's default environment.
         const helperEnvironment = args.role !== "primary" && item.primaryThreadId ? await environmentOf(item.primaryThreadId) : null;
+        // Sub-threads run on the coordinator's provider and model rather than the project default:
+        // command rules depend on the provider asking before it runs a command.
+        const coordinatorThread = await bb.sdk.threads.get({ threadId: coordinator.threadId });
+        const defaults = await bb.sdk.threads.defaultExecutionOptions({ threadId: coordinator.threadId });
+        const execution = { providerId: coordinatorThread.providerId, ...(defaults?.providerId === coordinatorThread.providerId
+          ? { model: defaults.model, reasoningLevel: defaults.reasoningLevel }
+          : {}) };
         const thread = await bb.sdk.threads.spawn({
           projectId: await projectOf(coordinator),
           parentThreadId: coordinator.threadId,
           prompt: args.prompt,
           title: args.title ?? item.title,
           environment: helperEnvironment ? { type: "reuse", environmentId: helperEnvironment } : { type: "project-default" },
+          ...execution,
           permissionMode: "accept-edits",
           // Display hint only; the store is the authority on membership.
           pluginMetadata: { coordinatorThreadId: coordinator.threadId, itemId: item.id, role: args.role },
