@@ -23,7 +23,7 @@
     "name": "Coordinator Mode",
     "description": "Turn any thread into a coordinator that tracks your asks, starts sub-threads, and follows your rules.",
     "branding": {
-      "icon": "Network"
+      "icon": "Fork"
     },
     "server": "./server.ts",
     "skills": [
