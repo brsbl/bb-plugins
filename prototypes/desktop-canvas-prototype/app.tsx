@@ -307,7 +307,7 @@ function Desktop() {
               top: focus ? 56 : docked ? 0 : camera.y + win.y * zoom,
               width: docked ? dockWidth : undefined, height: docked ? Math.max(220, size.height - 88) : undefined,
               transform: !focus && !docked ? `scale(${zoom})` : undefined,
-              zIndex: docked ? 65 : active === win.id ? 60 : index + 1, display: win.minimized || (focused && !focus) ? "none" : undefined }}>
+              zIndex: active === win.id ? 66 : docked ? 65 : index + 1, display: win.minimized || (focused && !focus) ? "none" : undefined }}>
             <header onPointerDown={event => startDrag(event, "window", win.id, win)}>
               <button className="cdc-title" aria-label={`Move ${title} window with arrow keys`} onKeyDown={event => {
                 if (win.dock && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); event.stopPropagation(); dockWindowTo(win.id, undefined); }
