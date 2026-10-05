@@ -1,17 +1,17 @@
 import { randomUUID } from "node:crypto";
-import type { BbPluginApi, PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
+import type { BbPluginApi, PluginRpcHandlers, PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { CronExpressionParser } from "cron-parser";
 
-import type {
-  CheckKind,
-  CoordinatorItem,
-  CoordinatorState,
-  CoordinatorTemplate,
-  GatedAction,
-  LogEntry,
-  PendingApproval,
-  RpcMethods,
-  RuleColumn,
+import {
+  REALTIME_CHANNEL,
+  type CheckKind,
+  type CoordinatorItem,
+  type CoordinatorState,
+  type CoordinatorTemplate,
+  type GatedAction,
+  type LogEntry,
+  type PendingApproval,
+  type RuleColumn,
 } from "./contracts";
 import {
   ACTION_LABELS,
@@ -33,19 +33,19 @@ import {
   type Membership,
   type ThreadRole,
 } from "./store";
+import type { rpcContract } from "./server";
 import { BUILT_IN_TEMPLATES, parseTemplate } from "./templates";
 
-export const REALTIME_CHANNEL = "coordinator";
-export const BRIEFING_NUDGE = "Coordinator Mode: post your scheduled briefing. Call coordinator_briefing and share it.";
-export const TURN_ON_KICKOFF =
+const BRIEFING_NUDGE = "Coordinator Mode: post your scheduled briefing. Call coordinator_briefing and share it.";
+const TURN_ON_KICKOFF =
   "Coordinator Mode is on. Call coordinator_briefing and share it. Existing sub-threads already appear as proposed items for me to keep or drop; don't look up threads yourself.";
-export const NEW_COORDINATOR_KICKOFF =
+const NEW_COORDINATOR_KICKOFF =
   "Coordinator Mode is on. Call coordinator_briefing, then ask me what you should work on first.";
-export const RULES_UPDATED = "Coordinator Mode rules updated. Your instructions and tools now follow the new rules; carry on with them.";
-export const REVIEW_INSTRUCTIONS =
+const RULES_UPDATED = "Coordinator Mode rules updated. Your instructions and tools now follow the new rules; carry on with them.";
+const REVIEW_INSTRUCTIONS =
   "You are a review sub-thread started by a Coordinator Mode coordinator. When your review is complete, record your verdict with the coordinator_review_verdict tool: pass true if the work is ready, or pass false with concrete findings. Only your verdict moves the item; saying it in chat does not.";
 
-export const COORDINATOR_TOOLS = [
+const COORDINATOR_TOOLS = [
   "coordinator_add_item",
   "coordinator_start_sub_thread",
   "coordinator_archive_sub_thread",
@@ -54,7 +54,7 @@ export const COORDINATOR_TOOLS = [
   "coordinator_briefing",
   "coordinator_cut_item",
 ] as const;
-export const REVIEWER_TOOLS = ["coordinator_review_verdict"] as const;
+const REVIEWER_TOOLS = ["coordinator_review_verdict"] as const;
 
 const PR_CHECKS: ReadonlySet<CheckKind> = new Set(["pr_open", "ci_green", "pr_merged"]);
 /** Checks whose evidence is cleared on failure, so it is fresh by construction. */
@@ -65,14 +65,14 @@ const MERGE_WATCH_INTERVAL_MS = 10 * 60_000;
 /** Strictest first, for commands that chain several gated actions. */
 const STRICTNESS: readonly RuleColumn[] = ["never", "ask", "alone"];
 const DESCRIBE_TIMEOUT_MS = 180_000;
+/** Debounce before a stage-change briefing nudge. */
+const NUDGE_DELAY_MS = 30_000;
 /** Log kinds kept out of briefings: every auto-approval is logged, but they are noise there. */
 const QUIET_KINDS: ReadonlySet<LogEntry["kind"]> = new Set(["command_approved"]);
 
 type Thread = PluginThreadEventPayloads["thread.idle"]["thread"];
 type Interaction = PluginThreadEventPayloads["interaction.pending"]["interaction"];
 type PrEvidence = NonNullable<CheckEvidence["pr"]>;
-type RpcInput<M extends keyof RpcMethods> = Parameters<RpcMethods[M]>[0];
-type RpcOutput<M extends keyof RpcMethods> = ReturnType<RpcMethods[M]>;
 
 /** Arguments replayed when an approval is approved. Stored as plain JSON on the approval row. */
 type ActionArgs =
@@ -80,12 +80,6 @@ type ActionArgs =
   | { kind: "archive"; threadId: string; itemId: string | null }
   | { kind: "merge"; itemId: string }
   | { kind: "interaction"; threadId: string; interactionId: string; command: string; itemId: string | null };
-
-export type ServiceOptions = {
-  now?: () => number;
-  /** Debounce before a stage-change briefing nudge. */
-  nudgeDelayMs?: number;
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -132,7 +126,7 @@ function parseActionArgs(args: Record<string, unknown>): ActionArgs | null {
 }
 
 /** Reads what Coordinator Mode needs from a pending interaction without trusting its exact union shape. */
-export function readApprovalRequest(interaction: Interaction): { kind: "command"; command: string } | { kind: "file_change" } | null {
+function readApprovalRequest(interaction: Interaction): { kind: "command"; command: string } | { kind: "file_change" } | null {
   const payload: unknown = (interaction as { payload?: unknown }).payload;
   if (!isRecord(payload) || payload.kind !== "approval" || !isRecord(payload.subject)) return null;
   const subject = payload.subject;
@@ -182,7 +176,7 @@ function publicItem(record: ItemRecord): CoordinatorItem {
 }
 
 /** Extracts the first `{…}` block from an agent's reply and validates it as a template. */
-export function parseTemplateDraft(output: string): CoordinatorTemplate {
+function parseTemplateDraft(output: string): CoordinatorTemplate {
   const start = output.indexOf("{");
   const end = output.lastIndexOf("}");
   if (start < 0 || end <= start) throw new Error("The draft had no JSON template in it. Try describing your stages and rules more concretely.");
@@ -217,10 +211,9 @@ function describePrompt(description: string): string {
   ].join("\n");
 }
 
-export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
+export function createService(bb: BbPluginApi) {
   const store = createStore(bb);
-  const now = options.now ?? (() => Date.now());
-  const nudgeDelayMs = options.nudgeDelayMs ?? 30_000;
+  const now = () => Date.now();
 
   // -------------------------------------------------------------------------
   // Membership: the store is the authority; this cache serves the sync configure().
@@ -294,7 +287,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
 
   function decide(coordinator: CoordinatorRecord, action: GatedAction, item: ItemRecord | undefined, isPrimaryThread: boolean): Decision {
     return decideAction(coordinator.template.rules, action, {
-      item: item ? publicItem(item) : undefined,
+      item,
       template: coordinator.template,
       isPrimaryThread,
       mergeRunning: merging.has(coordinator.threadId),
@@ -385,16 +378,6 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       }
     }
   }
-
-  const actionOf = (args: ActionArgs): GatedAction | null => {
-    switch (args.kind) {
-      case "start": return "start_sub_thread";
-      case "archive": return "archive_sub_thread";
-      case "merge": return "merge_pr";
-      // The approval row already records the strictest action in the command.
-      case "interaction": return null;
-    }
-  };
 
   /** Runs one gated action through the coordinator rules: never, then ask, then alone. */
   async function runGated(
@@ -531,7 +514,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       if (!FRESH_BY_CONSTRUCTION.has(stage.check) && !isFresh(item)) break;
       const result = evaluateCheck(stage.check, await gatherEvidence(coordinator, item, stage.check, prCache));
       const at = now();
-      const outcome = advanceItem(publicItem(item), template, result, at);
+      const outcome = advanceItem(item, template, result, at);
       if (!outcome.logKind) break;
       const failed = outcome.logKind === "stage_failed";
       // A pass lifts a block; advanceItem already cleared the reason.
@@ -596,7 +579,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       nudges.delete(coordinator.threadId);
       const current = store.coordinators.get(coordinator.threadId);
       if (current && !current.paused) void sendNote(current.threadId, BRIEFING_NUDGE);
-    }, nudgeDelayMs);
+    }, NUDGE_DELAY_MS);
     nudges.set(coordinator.threadId, timer);
   }
 
@@ -808,9 +791,8 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
     const flagged = entries.filter((entry) => entry.kind === "rule_broken" || entry.kind === "merged_outside");
     const rest = entries.filter((entry) => entry.kind !== "rule_broken" && entry.kind !== "merged_outside");
     const briefing = composeBriefing({
-      since: coordinator.lastOpenedAt,
-      log: rest.map(({ action: _action, ...entry }) => entry),
-      items: items.map(publicItem),
+      changes: rest,
+      items,
       approvals: store.approvals.pending(coordinator.threadId),
       template: coordinator.template,
     });
@@ -852,15 +834,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       updatedAt: at,
     });
     log(coordinator.threadId, item.id, "item_created", input.proposed ? `Proposed "${item.title}".` : `Added "${item.title}".`);
-    if (item.primaryThreadId) refreshMembership();
     return item;
-  }
-
-  function cut(item: ItemRecord): ItemRecord {
-    const next = store.items.save({ ...item, status: "cut", updatedAt: now() });
-    refreshMembership();
-    log(item.coordinatorThreadId, item.id, "item_cut", `Cut "${item.title}".`);
-    return next;
   }
 
   // -------------------------------------------------------------------------
@@ -964,7 +938,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
   }
 
   const rpc = {
-    async status({ threadId }: RpcInput<"status">): Promise<RpcOutput<"status">> {
+    async status({ threadId }) {
       if (store.coordinators.get(threadId)) {
         try {
           await reconcileApprovals(threadId);
@@ -981,10 +955,10 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
         staleRules: coordinator.appliedRulesVersion < coordinator.rulesVersion,
       };
     },
-    templates(): RpcOutput<"templates"> {
+    templates() {
       return { templates: BUILT_IN_TEMPLATES };
     },
-    async turnOn({ threadId, template }: RpcInput<"turnOn">): Promise<RpcOutput<"turnOn">> {
+    async turnOn({ threadId, template }) {
       const parsed = parseTemplate(template);
       const thread = await bb.sdk.threads.get({ threadId });
       const coordinator = await insertCoordinator(threadId, parsed, thread.projectId);
@@ -994,12 +968,11 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
         if (child.archivedAt !== null || membership.has(child.id) || store.threads.has(child.id)) continue;
         createItem(coordinator, { title: child.title ?? child.titleFallback ?? "Untitled sub-thread", proposed: true, primaryThreadId: child.id });
       }
-      refreshMembership();
       publish(threadId);
       await restartSession(threadId, TURN_ON_KICKOFF);
       return { ok: true };
     },
-    async createNew({ projectId, template }: RpcInput<"createNew">): Promise<RpcOutput<"createNew">> {
+    async createNew({ projectId, template }) {
       const parsed = parseTemplate(template);
       // The first turn may start before the coordinator row exists, so restart once it does.
       const thread = await bb.sdk.threads.spawn({
@@ -1014,7 +987,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       await restartSession(thread.id, NEW_COORDINATOR_KICKOFF);
       return { threadId: thread.id };
     },
-    turnOff({ threadId }: RpcInput<"turnOff">): RpcOutput<"turnOff"> {
+    turnOff({ threadId }) {
       store.coordinators.delete(threadId);
       const timer = nudges.get(threadId);
       if (timer) clearTimeout(timer);
@@ -1023,33 +996,33 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       publish(threadId);
       return { ok: true };
     },
-    async setPaused({ threadId, paused }: RpcInput<"setPaused">): Promise<RpcOutput<"setPaused">> {
+    async setPaused({ threadId, paused }) {
       requireCoordinator(threadId);
       store.coordinators.update(threadId, { paused });
       publish(threadId);
       if (!paused) for (const item of store.items.list(threadId)) await evaluateItem(item.id);
       return { ok: true };
     },
-    setAutoApprove({ threadId, autoApprove }: RpcInput<"setAutoApprove">): RpcOutput<"setAutoApprove"> {
+    setAutoApprove({ threadId, autoApprove }) {
       requireCoordinator(threadId);
       store.coordinators.update(threadId, { autoApprove });
       publish(threadId);
       return { ok: true };
     },
-    updateTemplate({ threadId, template }: RpcInput<"updateTemplate">): RpcOutput<"updateTemplate"> {
+    updateTemplate({ threadId, template }) {
       const coordinator = requireCoordinator(threadId);
       store.coordinators.update(threadId, { template: parseTemplate(template), rulesVersion: coordinator.rulesVersion + 1 });
       publish(threadId);
       return { ok: true };
     },
-    async restartCoordinator({ threadId }: RpcInput<"restartCoordinator">): Promise<RpcOutput<"restartCoordinator">> {
+    async restartCoordinator({ threadId }) {
       const coordinator = requireCoordinator(threadId);
       await restartSession(threadId, RULES_UPDATED);
       store.coordinators.update(threadId, { appliedRulesVersion: coordinator.rulesVersion });
       publish(threadId);
       return { ok: true };
     },
-    async approveItem({ itemId }: RpcInput<"approveItem">): Promise<RpcOutput<"approveItem">> {
+    async approveItem({ itemId }) {
       const item = requireItem(itemId);
       const coordinator = requireCoordinator(item.coordinatorThreadId);
       if (coordinator.template.stages[item.stageIndex]?.check !== "you_approve") throw new Error(`"${item.title}" is not waiting for your approval.`);
@@ -1058,7 +1031,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       publish(item.coordinatorThreadId);
       return { ok: true };
     },
-    async rejectItem({ itemId, reason }: RpcInput<"rejectItem">): Promise<RpcOutput<"rejectItem">> {
+    async rejectItem({ itemId, reason }) {
       const item = requireItem(itemId);
       const coordinator = requireCoordinator(item.coordinatorThreadId);
       if (coordinator.template.stages[item.stageIndex]?.check !== "you_approve") throw new Error(`"${item.title}" is not waiting for your approval.`);
@@ -1071,7 +1044,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       }
       return { ok: true };
     },
-    async confirmItem({ itemId }: RpcInput<"confirmItem">): Promise<RpcOutput<"confirmItem">> {
+    async confirmItem({ itemId }) {
       const item = requireItem(itemId);
       if (!item.proposed) return { ok: true };
       store.items.save({ ...item, proposed: false, updatedAt: now() });
@@ -1083,16 +1056,18 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
         : `Coordinator Mode: I confirmed "${item.title}" (item ${item.id}). Start its sub-thread with coordinator_start_sub_thread.`);
       return { ok: true };
     },
-    async cutItem({ itemId }: RpcInput<"cutItem">): Promise<RpcOutput<"cutItem">> {
+    async cutItem({ itemId }) {
       const item = requireItem(itemId);
       if (item.status === "cut") return { ok: true };
-      const next = cut(item);
+      const next = store.items.save({ ...item, status: "cut", updatedAt: now() });
+      refreshMembership();
+      log(item.coordinatorThreadId, item.id, "item_cut", `Cut "${item.title}".`);
       const coordinator = store.coordinators.get(item.coordinatorThreadId);
       if (coordinator) await retireHelpers(coordinator, next);
       publish(item.coordinatorThreadId);
       return { ok: true };
     },
-    async setLink({ itemId, link }: RpcInput<"setLink">): Promise<RpcOutput<"setLink">> {
+    async setLink({ itemId, link }) {
       const item = requireItem(itemId);
       const trimmed = link.trim();
       store.items.save({ ...item, link: trimmed.length > 0 ? trimmed : null, updatedAt: now() });
@@ -1100,7 +1075,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       publish(item.coordinatorThreadId);
       return { ok: true };
     },
-    async resolveApproval({ approvalId, approve, reason }: RpcInput<"resolveApproval">): Promise<RpcOutput<"resolveApproval">> {
+    async resolveApproval({ approvalId, approve, reason }) {
       const approval = store.approvals.get(approvalId);
       if (!approval) throw new Error("This approval no longer exists.");
       if (approval.resolvedAt !== null) return { ok: true };
@@ -1126,7 +1101,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       if (!args) throw new Error("This approval can't be replayed.");
       try {
         const text = await execute(coordinator, args);
-        log(coordinator.threadId, approval.itemId, "action_run", `Approved: ${text}`, actionOf(args) ?? approval.action);
+        log(coordinator.threadId, approval.itemId, "action_run", `Approved: ${text}`, approval.action);
         if (args.kind !== "interaction") await sendNote(coordinator.threadId, `Coordinator Mode: the user approved. ${text}`);
       } catch (error) {
         const message = errorMessage(error);
@@ -1136,14 +1111,14 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       publish(coordinator.threadId);
       return { ok: true };
     },
-    markOpened({ threadId }: RpcInput<"markOpened">): RpcOutput<"markOpened"> {
+    markOpened({ threadId }) {
       if (store.coordinators.get(threadId)) {
         store.coordinators.update(threadId, { lastOpenedAt: now() });
         publish(threadId);
       }
       return { ok: true };
     },
-    async describeProcess({ description, projectId }: RpcInput<"describeProcess">): Promise<RpcOutput<"describeProcess">> {
+    async describeProcess({ description, projectId }) {
       const thread = await bb.sdk.threads.spawn({
         projectId,
         environment: { type: "project-default" },
@@ -1164,7 +1139,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
         }
       }
     },
-  } satisfies { [M in keyof RpcMethods]: (input: RpcInput<M>) => RpcOutput<M> | Promise<RpcOutput<M>> };
+  } satisfies PluginRpcHandlers<typeof rpcContract>;
 
   /** Synchronous agent configuration from the in-memory membership cache. */
   function agentConfiguration(threadId: string): { tools: string[]; skills: string[]; instructions?: string } {
@@ -1185,18 +1160,13 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
   }
 
   return {
-    store,
     rpc,
     tools,
     tick,
-    evaluateItem,
     onThreadEvent,
     onInteractionPending,
     agentConfiguration,
     briefingMarkdown: (threadId: string) => briefingMarkdown(requireCoordinator(threadId)),
-    membershipOf: (threadId: string) => membership.get(threadId) ?? null,
     dispose,
   };
 }
-
-export type CoordinatorService = ReturnType<typeof createService>;

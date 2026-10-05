@@ -1,7 +1,7 @@
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
-import type { CoordinatorTemplate, RpcMethods } from "./contracts";
+import type { CoordinatorStatus, CoordinatorTemplate } from "./contracts";
 import { createService } from "./service";
 
 const POLL_INTERVAL_MS = 60_000;
@@ -12,13 +12,12 @@ const template = z.custom<CoordinatorTemplate>((value) => typeof value === "obje
   message: "Template must be an object.",
 });
 const ok = z.custom<{ ok: true }>();
-const output = <M extends keyof RpcMethods>() => z.custom<ReturnType<RpcMethods[M]>>();
 
 export const rpcContract = defineRpcContract({
-  status: { input: z.object({ threadId: id }), output: output<"status">() },
-  templates: { input: z.object({}).strict(), output: output<"templates">() },
+  status: { input: z.object({ threadId: id }), output: z.custom<CoordinatorStatus>() },
+  templates: { input: z.object({}).strict(), output: z.custom<{ templates: CoordinatorTemplate[] }>() },
   turnOn: { input: z.object({ threadId: id, template }), output: ok },
-  createNew: { input: z.object({ projectId: id, template }), output: output<"createNew">() },
+  createNew: { input: z.object({ projectId: id, template }), output: z.custom<{ threadId: string }>() },
   turnOff: { input: z.object({ threadId: id }), output: ok },
   setPaused: { input: z.object({ threadId: id, paused: z.boolean() }), output: ok },
   setAutoApprove: { input: z.object({ threadId: id, autoApprove: z.boolean() }), output: ok },
@@ -34,7 +33,7 @@ export const rpcContract = defineRpcContract({
     output: ok,
   },
   markOpened: { input: z.object({ threadId: id }), output: ok },
-  describeProcess: { input: z.object({ description: z.string().min(1).max(4000), projectId: id }), output: output<"describeProcess">() },
+  describeProcess: { input: z.object({ description: z.string().min(1).max(4000), projectId: id }), output: z.custom<{ template: CoordinatorTemplate }>() },
 });
 
 const json = (value: unknown) => ({ exitCode: 0, stdout: `${JSON.stringify(value, null, 2)}\n` });
@@ -47,25 +46,7 @@ const threadOf = (option: string | undefined, ctx: PluginCliContext): string => 
 export default function plugin(bb: BbPluginApi): void {
   const service = createService(bb);
 
-  bb.rpc.register(rpcContract, {
-    status: service.rpc.status,
-    templates: () => service.rpc.templates(),
-    turnOn: service.rpc.turnOn,
-    createNew: service.rpc.createNew,
-    turnOff: service.rpc.turnOff,
-    setPaused: service.rpc.setPaused,
-    setAutoApprove: service.rpc.setAutoApprove,
-    updateTemplate: service.rpc.updateTemplate,
-    restartCoordinator: service.rpc.restartCoordinator,
-    approveItem: service.rpc.approveItem,
-    rejectItem: service.rpc.rejectItem,
-    confirmItem: service.rpc.confirmItem,
-    cutItem: service.rpc.cutItem,
-    setLink: service.rpc.setLink,
-    resolveApproval: service.rpc.resolveApproval,
-    markOpened: service.rpc.markOpened,
-    describeProcess: service.rpc.describeProcess,
-  });
+  bb.rpc.register(rpcContract, service.rpc);
 
   // Coordinator tools. Each re-checks membership in the store-backed cache.
   bb.agents.registerTool({

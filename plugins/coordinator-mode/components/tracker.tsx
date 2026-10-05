@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
-import type { CoordinatorItem, CoordinatorTemplate, PendingApproval } from "../contracts.js";
+import type { CoordinatorItem, CoordinatorStatus, CoordinatorTemplate, PendingApproval } from "../contracts.js";
 import { ACTION_LABELS } from "../model.js";
 import { Button } from "./ui/button.js";
 import { Switch } from "./ui/switch.js";
 import { SetupForm } from "./setup-form.js";
-import { errorMessage, useCoordinatorRpc, type CoordinatorStatus } from "./rpc.js";
+import { errorMessage, useCoordinatorRpc } from "./rpc.js";
 
 type Row = {
   key: string;
@@ -18,9 +18,9 @@ type Row = {
   needsLink: boolean;
 };
 
-export type TrackerGroups = { needs: Row[]; progress: Row[]; done: Row[] };
+type TrackerGroups = { needs: Row[]; progress: Row[]; done: Row[] };
 
-export function groupItems(status: CoordinatorStatus, template: CoordinatorTemplate): TrackerGroups {
+function groupItems(status: CoordinatorStatus, template: CoordinatorTemplate): TrackerGroups {
   const groups: TrackerGroups = { needs: [], progress: [], done: [] };
   const known = new Set(status.items.map((item) => item.id));
   for (const item of status.items) {

@@ -5,12 +5,12 @@ import { BUILT_IN_TEMPLATES, parseTemplate } from "./templates";
 const ship = () => structuredClone(BUILT_IN_TEMPLATES.find((template) => template.id === "ship")!);
 
 describe("built-in templates", () => {
-  it("ships the four v1 templates with their stages", () => {
-    expect(BUILT_IN_TEMPLATES.map(({ id, stages }) => [id, stages.map((stage) => stage.name)])).toEqual([
-      ["ship", ["Asked", "Building", "Your QA", "Review", "Merged"]],
-      ["release", ["Scoped", "Built", "QA", "Released"]],
-      ["bug-triage", ["Reported", "Reproduced", "Fixed", "Verified"]],
-      ["content", ["Idea", "Drafting", "Ready", "Posted"]],
+  it("ships the four v1 templates with their stages, schedules, and intake prefixes", () => {
+    expect(BUILT_IN_TEMPLATES.map(({ id, stages, briefingCron, intakePrefix }) => [id, stages.map((stage) => stage.name), briefingCron, intakePrefix])).toEqual([
+      ["ship", ["Asked", "Building", "Your QA", "Review", "Merged"], null, "worker:"],
+      ["release", ["Scoped", "Built", "QA", "Released"], "0 9 * * *", null],
+      ["bug-triage", ["Reported", "Reproduced", "Fixed", "Verified"], "0 9 * * *", null],
+      ["content", ["Idea", "Drafting", "Ready", "Posted"], "0 9 * * 1", null],
     ]);
   });
 
@@ -20,15 +20,6 @@ describe("built-in templates", () => {
       expect(parseTemplate(structuredClone(template))).toEqual(template);
     },
   );
-
-  it("keeps schedules and intake prefixes per template", () => {
-    expect(BUILT_IN_TEMPLATES.map(({ id, briefingCron, intakePrefix }) => [id, briefingCron, intakePrefix])).toEqual([
-      ["ship", null, "worker:"],
-      ["release", "0 9 * * *", null],
-      ["bug-triage", "0 9 * * *", null],
-      ["content", "0 9 * * 1", null],
-    ]);
-  });
 });
 
 describe("parseTemplate", () => {

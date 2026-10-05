@@ -3,7 +3,6 @@ import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { CoordinatorItem, CoordinatorState, CoordinatorTemplate } from "./contracts.js";
-import { groupItems } from "./components/tracker.js";
 
 const threadId = "thr_coord";
 const panelProps = { threadId, params: null };
@@ -149,10 +148,20 @@ describe("Coordinator Mode app", () => {
     expect(within(done).getByText("Merged")).toBeDefined();
   });
 
-  it("still offers Approve for a blocked item at an approval stage", () => {
+  it("still offers Approve for a blocked item at an approval stage", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
     const blocked = item("blocked", "Blocked at QA", { stageIndex: 2, status: "blocked", reason: "Denied `gh pr merge`" });
-    const groups = groupItems({ state, items: [blocked], approvals: [], staleRules: false }, ship);
-    expect(groups.needs.map((row) => [row.key, row.needsApproval])).toEqual([["blocked", true]]);
+    const slot = renderSlot(app.threadPanelActions[0]!, panelProps, {
+      sidebarThreads,
+      rpc: {
+        status: () => ({ state, items: [blocked], approvals: [], staleRules: false }),
+        markOpened: () => ({ ok: true }),
+      },
+    });
+
+    const needs = (await slot.findByText("Needs you · 1")).closest("details")!;
+    expect(within(needs).getByText("Blocked at QA")).toBeDefined();
+    expect(within(needs).getByRole("button", { name: "Approve" })).toBeDefined();
   });
 
   it("requires a reason before rejecting an item", async () => {

@@ -34,4 +34,5 @@ The coordinator never records a verdict for its own items.
 
 `bb coordinator-mode status --thread <id>` prints a coordinator's items and
 pending approvals. `bb coordinator-mode briefing --thread <id>` prints its
-current briefing. `bb coordinator-mode off --thread <id>` turns it off.
+current briefing. `bb coordinator-mode off --thread <id>` turns it off; it's
+denied inside a coordinator and its sub-threads, so only the user can run it.

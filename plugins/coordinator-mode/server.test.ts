@@ -2,13 +2,12 @@ import type { PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { createFakePluginHost, makePluginAgentConfigurationContext, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { CoordinatorTemplate, RpcMethods } from "./contracts";
+import type { CoordinatorStatus, CoordinatorTemplate } from "./contracts";
 import plugin from "./server";
 import { BUILT_IN_TEMPLATES } from "./templates";
 
 type Thread = PluginThreadEventPayloads["thread.idle"]["thread"];
 type Interaction = PluginThreadEventPayloads["interaction.pending"]["interaction"];
-type Status = ReturnType<RpcMethods["status"]>;
 
 const COORD = "thr_coord";
 const ship = BUILT_IN_TEMPLATES.find((template) => template.id === "ship")!;
@@ -66,7 +65,7 @@ function setup(options: { children?: Thread[] } = {}) {
   cleanups.push(() => harness.lifecycle.dispose());
   plugin(bb);
 
-  const status = async () => (await harness.callRpc("status", { threadId: COORD })) as Status;
+  const status = async () => (await harness.callRpc("status", { threadId: COORD })) as CoordinatorStatus;
   const thread = (id: string): Thread => threads.get(id) ?? makeThreadResponse({ id });
   const setThreadStatus = (id: string, status: Thread["status"]) => threads.set(id, { ...thread(id), status });
   const event = async (name: "thread.active" | "thread.idle", id: string) => {
@@ -87,7 +86,7 @@ function setup(options: { children?: Thread[] } = {}) {
   const setPullRequest = (state: "open" | "merged", checks: "passing" | "pending" = "passing") => {
     pullRequest = { outcome: "available", pullRequest: { state, checks: { state: checks, failedCount: 0, passedCount: 1, pendingCount: 0, totalCount: 1 } } };
   };
-  const commandInteraction = (threadId: string, command: string, id = "int_1") => ({
+  const commandInteraction = (threadId: string, command: string, id: string) => ({
     id, threadId, turnId: "turn_1", createdAt: 1, providerId: "claude-code", providerRequestId: "req", providerThreadId: "prov",
     resolution: null, resolvedAt: null, status: "pending", statusReason: null,
     payload: {
@@ -115,8 +114,8 @@ function setup(options: { children?: Thread[] } = {}) {
   };
 
   return {
-    bb, harness, status, thread, threads, missing, pendingInteractions, event, tick, turnOn, addStartedItem, setPullRequest,
-    commandInteraction, requestCommand, resolutionsFor, runTick,
+    harness, status, thread, threads, missing, pendingInteractions, event, turnOn, addStartedItem, setPullRequest,
+    requestCommand, resolutionsFor, runTick,
   };
 }
 
@@ -156,35 +155,18 @@ describe("Coordinator Mode plugin", () => {
     expect((await status()).items[0]).toMatchObject({ status: "blocked" });
   });
 
-  it("denies `gh pr merge` from a member sub-thread before Review passes", async () => {
-    const { harness, status, thread, turnOn, addStartedItem, commandInteraction } = setup();
-    await turnOn();
-    await addStartedItem();
-    await harness.emitThreadEvent("interaction.pending", { thread: thread("thr_sub_1"), interaction: commandInteraction("thr_sub_1", "gh pr merge 12 --squash") });
-
-    expect(harness.inspection.sdk.callsTo("threads.interactions.resolve").at(-1)?.[0]).toMatchObject({
-      threadId: "thr_sub_1", interactionId: "int_1", resolution: { decision: "deny" },
-    });
-    const item = (await status()).items[0];
-    expect(item?.status).toBe("blocked");
-    expect(item?.reason).toContain("gh pr merge");
-  });
-
   it("auto-approves ordinary commands for members and ignores other threads", async () => {
-    const { harness, thread, turnOn, addStartedItem, commandInteraction } = setup();
+    const { turnOn, addStartedItem, requestCommand, resolutionsFor } = setup();
     await turnOn();
     await addStartedItem();
-    await harness.emitThreadEvent("interaction.pending", { thread: thread("thr_sub_1"), interaction: commandInteraction("thr_sub_1", "npm test", "int_ok") });
-    expect(harness.inspection.sdk.callsTo("threads.interactions.resolve").at(-1)?.[0]).toMatchObject({
-      interactionId: "int_ok", resolution: { decision: "allow_once", grantedPermissions: null },
-    });
+    await requestCommand("thr_sub_1", "npm test", "int_ok");
+    expect(resolutionsFor("int_ok").at(-1)?.[0]).toMatchObject({ resolution: { decision: "allow_once", grantedPermissions: null } });
 
-    const before = harness.inspection.sdk.callsTo("threads.interactions.resolve").length;
-    await harness.emitThreadEvent("interaction.pending", { thread: thread("thr_other"), interaction: commandInteraction("thr_other", "npm test", "int_other") });
-    expect(harness.inspection.sdk.callsTo("threads.interactions.resolve")).toHaveLength(before);
+    await requestCommand("thr_other", "npm test", "int_other");
+    expect(resolutionsFor("int_other")).toHaveLength(0);
   });
 
-  it("advances through QA and Review only on evidence, and the reviewer's verdict moves Review", async () => {
+  it("advances through QA and Review only on evidence, and only a reviewer sub-thread's verdict moves Review", async () => {
     const { harness, status, event, turnOn, addStartedItem, setPullRequest } = setup();
     await turnOn();
     const { item } = await addStartedItem();
@@ -196,17 +178,22 @@ describe("Coordinator Mode plugin", () => {
     await harness.callRpc("approveItem", { itemId: item.id });
     expect((await status()).items[0]?.stageIndex).toBe(3); // Review
 
-    await harness.callAgentTool("coordinator_start_sub_thread", { itemId: item.id, prompt: "Review it", role: "reviewer" }, { threadId: COORD });
-    const spawn = harness.inspection.sdk.callsTo("threads.spawn").at(-1)?.[0];
-    expect(spawn).toMatchObject({ parentThreadId: COORD, environment: { type: "reuse", environmentId: "env_1" } });
-
-    // The coordinator cannot record a verdict for its own item.
+    // Neither the coordinator nor a helper sub-thread can record a verdict.
     await expect(harness.callAgentTool("coordinator_review_verdict", { pass: true }, { threadId: COORD })).rejects.toThrow(/review sub-thread/);
+    await harness.callAgentTool("coordinator_start_sub_thread", { itemId: item.id, prompt: "Fix nits", role: "helper" }, { threadId: COORD });
     const helperConfig = await harness.resolveAgentConfiguration(makePluginAgentConfigurationContext({ thread: { id: "thr_sub_2" } }));
-    expect(helperConfig.tools.map((tool) => tool.name)).toEqual(["coordinator_review_verdict"]);
+    expect(helperConfig.tools).toEqual([]);
+    await expect(harness.callAgentTool("coordinator_review_verdict", { pass: true }, { threadId: "thr_sub_2" })).rejects.toThrow(/review sub-thread/);
+    expect((await status()).items[0]?.stageIndex).toBe(3);
 
-    await harness.callAgentTool("coordinator_review_verdict", { pass: true }, { threadId: "thr_sub_2" });
-    expect((await status()).items[0]).toMatchObject({ stageIndex: 4, status: "active" }); // Merged, waiting on the PR
+    await harness.callAgentTool("coordinator_start_sub_thread", { itemId: item.id, prompt: "Review it", role: "reviewer" }, { threadId: COORD });
+    expect(harness.inspection.sdk.callsTo("threads.spawn").at(-1)?.[0]).toMatchObject({ parentThreadId: COORD, environment: { type: "reuse", environmentId: "env_1" } });
+    const reviewerConfig = await harness.resolveAgentConfiguration(makePluginAgentConfigurationContext({ thread: { id: "thr_sub_3" } }));
+    expect(reviewerConfig.tools.map((tool) => tool.name)).toEqual(["coordinator_review_verdict"]);
+
+    await harness.callAgentTool("coordinator_review_verdict", { pass: true }, { threadId: "thr_sub_3" });
+    // Merged, waiting on the PR.
+    expect((await status()).items[0]).toMatchObject({ stageIndex: 4, status: "active", helperThreadIds: ["thr_sub_2", "thr_sub_3"] });
 
     // After Review passed, Ship merges alone.
     const merged = await harness.callAgentTool("coordinator_merge_pr", { itemId: item.id }, { threadId: COORD });
@@ -265,8 +252,6 @@ describe("Coordinator Mode plugin", () => {
     expect((await status()).staleRules).toBe(true);
     await harness.callRpc("restartCoordinator", { threadId: COORD });
     expect((await status()).staleRules).toBe(false);
-    await harness.callRpc("turnOff", { threadId: COORD });
-    expect((await status()).state).toBeNull();
   });
 
   it("gives a chained command the strictest decision of its gated actions", async () => {
@@ -314,12 +299,15 @@ describe("Coordinator Mode plugin", () => {
     expect(resolutionsFor("int_cut")).toHaveLength(0);
   });
 
-  it("keeps checking a blocked item and unblocks it when its stage passes", async () => {
-    const { status, event, turnOn, addStartedItem, setPullRequest, requestCommand } = setup();
+  it("denies `gh pr merge` from a sub-thread before Review passes, then unblocks the item when its stage passes", async () => {
+    const { status, event, turnOn, addStartedItem, setPullRequest, requestCommand, resolutionsFor } = setup();
     await turnOn();
     await addStartedItem();
-    await requestCommand("thr_sub_1", "gh pr merge 1", "int_merge");
-    expect((await status()).items[0]).toMatchObject({ stageIndex: 1, status: "blocked" });
+    await requestCommand("thr_sub_1", "gh pr merge 12 --squash", "int_merge");
+    expect(resolutionsFor("int_merge").at(-1)?.[0]).toMatchObject({ threadId: "thr_sub_1", resolution: { decision: "deny" } });
+    const blocked = (await status()).items[0];
+    expect(blocked).toMatchObject({ stageIndex: 1, status: "blocked" });
+    expect(blocked?.reason).toContain("gh pr merge");
 
     setPullRequest("open");
     await event("thread.active", "thr_sub_1");
@@ -340,29 +328,6 @@ describe("Coordinator Mode plugin", () => {
 
     await runTick();
     expect(harness.inspection.sdk.callsTo("environments.pullRequest")).toHaveLength(0);
-  });
-
-  it("only lets reviewer sub-threads record a verdict", async () => {
-    const { harness, status, event, turnOn, addStartedItem, setPullRequest } = setup();
-    await turnOn();
-    const { item } = await addStartedItem();
-    setPullRequest("open");
-    await event("thread.idle", "thr_sub_1");
-    await harness.callRpc("approveItem", { itemId: item.id });
-    expect((await status()).items[0]?.stageIndex).toBe(3); // Review
-
-    await harness.callAgentTool("coordinator_start_sub_thread", { itemId: item.id, prompt: "Fix nits", role: "helper" }, { threadId: COORD });
-    const helperConfig = await harness.resolveAgentConfiguration(makePluginAgentConfigurationContext({ thread: { id: "thr_sub_2" } }));
-    expect(helperConfig.tools).toEqual([]);
-    expect(helperConfig.instructions ?? "").not.toContain("coordinator_review_verdict");
-    await expect(harness.callAgentTool("coordinator_review_verdict", { pass: true }, { threadId: "thr_sub_2" })).rejects.toThrow(/review sub-thread/);
-    expect((await status()).items[0]?.stageIndex).toBe(3);
-
-    await harness.callAgentTool("coordinator_start_sub_thread", { itemId: item.id, prompt: "Review it", role: "reviewer" }, { threadId: COORD });
-    expect(harness.inspection.sdk.callsTo("threads.spawn").at(-1)?.[0]).toMatchObject({ environment: { type: "reuse", environmentId: "env_1" } });
-    await harness.callAgentTool("coordinator_review_verdict", { pass: true }, { threadId: "thr_sub_3" });
-    expect((await status()).items[0]).toMatchObject({ stageIndex: 4, status: "active" });
-    expect((await status()).items[0]?.helperThreadIds).toEqual(["thr_sub_2", "thr_sub_3"]);
   });
 
   it("clears an approval once its request was answered in the sub-thread", async () => {

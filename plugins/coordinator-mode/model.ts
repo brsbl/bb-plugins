@@ -14,7 +14,7 @@ import type {
 // ---------------------------------------------------------------------------
 // Rule decisions
 
-export type DecisionContext = {
+type DecisionContext = {
   item?: CoordinatorItem;
   template: CoordinatorTemplate;
   isPrimaryThread?: boolean;
@@ -38,7 +38,7 @@ export const COLUMN_LABELS: Record<RuleColumn, string> = {
   alone: "Does alone",
 };
 
-export function describeCondition(condition: RuleCondition): string {
+function describeCondition(condition: RuleCondition): string {
   switch (condition.kind) {
     case "before_stage_passes":
       return `before ${condition.stage} passes`;
@@ -185,14 +185,14 @@ function matchCommandDepth(command: string, depth: number): GatedAction[] {
 }
 
 /**
- * Second line of defense for commands `matchGatedCommand` doesn't recognize.
- * "self_rpc" reaches Coordinator Mode's own RPC or HTTP surface, which an agent
- * could use to approve its own items, so it is always denied. "risky" mentions a
+ * Second line of defense for commands `matchGatedCommands` doesn't recognize.
+ * "self_rpc" reaches Coordinator Mode's own RPC or HTTP surface, or its `off` CLI
+ * command, which an agent could use to approve its own items or drop its rules, so it is always denied. "risky" mentions a
  * gated operation in a form the matcher can't parse, so it is never approved
  * automatically. Everything else is "safe".
  */
 export function classifyUnmatchedCommand(command: string): "self_rpc" | "risky" | "safe" {
-  if (/\bplugin\s+rpc\b|\/plugins\/coordinator-mode\b|\bplugin\s+(?:run|disable|remove|uninstall|config)\s+coordinator-mode\b/i.test(command)) {
+  if (/\bplugin\s+rpc\b|\/plugins\/coordinator-mode\b|\bplugin\s+(?:run|disable|remove|uninstall|config)\s+coordinator-mode\b|\bcoordinator-mode\s+off\b/i.test(command)) {
     return "self_rpc";
   }
   if (
@@ -219,11 +219,6 @@ export function matchGatedCommands(command: string): GatedAction[] {
   return [...new Set(matchCommandDepth(command, 0))];
 }
 
-/** The first gated action in a command, or null. */
-export function matchGatedCommand(command: string): GatedAction | null {
-  return matchGatedCommands(command)[0] ?? null;
-}
-
 // ---------------------------------------------------------------------------
 // Stage checks
 
@@ -240,7 +235,7 @@ export type CheckEvidence = {
   link?: string | null;
 };
 
-export type CheckResult = { result: "pass" | "fail" | "pending"; reason: string };
+type CheckResult = { result: "pass" | "fail" | "pending"; reason: string };
 
 const pass = (reason: string): CheckResult => ({ result: "pass", reason });
 const fail = (reason: string): CheckResult => ({ result: "fail", reason });
@@ -283,7 +278,7 @@ export function evaluateCheck(check: CheckKind, evidence: CheckEvidence): CheckR
   }
 }
 
-export type AdvanceOutcome = {
+type AdvanceOutcome = {
   item: CoordinatorItem;
   /** Log kind to record, or null when nothing changed. */
   logKind: Extract<LogEntry["kind"], "stage_advanced" | "stage_failed"> | null;
@@ -337,16 +332,15 @@ export function advanceItem(
 // ---------------------------------------------------------------------------
 // Briefings
 
-export type BriefingInput = {
-  since: number;
-  log: LogEntry[];
+type BriefingInput = {
+  /** Log entries since the user last looked, oldest first. */
+  changes: LogEntry[];
   items: CoordinatorItem[];
   approvals: PendingApproval[];
   template: CoordinatorTemplate;
 };
 
-export function composeBriefing({ since, log, items, approvals, template }: BriefingInput): Briefing {
-  const changes = log.filter((entry) => entry.at > since).sort((a, b) => a.at - b.at || a.id - b.id);
+export function composeBriefing({ changes, items, approvals, template }: BriefingInput): Briefing {
   const open = items.filter((item) => item.status !== "cut" && item.status !== "done");
 
   const needsYou: Briefing["needsYou"] = [];
@@ -365,7 +359,7 @@ export function composeBriefing({ since, log, items, approvals, template }: Brie
     else if (item.status === "active") next.push(item);
   }
   next.sort((a, b) => b.stageIndex - a.stageIndex || a.updatedAt - b.updatedAt);
-  return { since, changes, needsYou, next };
+  return { changes, needsYou, next };
 }
 
 function itemLabel(item: CoordinatorItem): string {

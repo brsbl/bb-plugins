@@ -8,16 +8,14 @@ import {
   useRealtimeConnectionState,
   type PluginThreadPanelProps,
 } from "@get-bb/plugin-sdk/app";
-import type { CoordinatorTemplate } from "./contracts.js";
+import { REALTIME_CHANNEL, type CoordinatorStatus, type CoordinatorTemplate } from "./contracts.js";
 import { Button } from "./components/ui/button.js";
 import { SetupForm } from "./components/setup-form.js";
 import { Tracker } from "./components/tracker.js";
-import { errorMessage, useCoordinatorRpc, type CoordinatorStatus } from "./components/rpc.js";
+import { errorMessage, useCoordinatorRpc } from "./components/rpc.js";
 import "./app.css";
 
-/** Server publishes on this channel when coordinator state changes; polling covers missed signals. */
-export const REALTIME_CHANNEL = "coordinator";
-export const POLL_MS = 5_000;
+const POLL_MS = 5_000;
 
 function usePolling(refresh: () => void) {
   const latest = useRef(refresh);

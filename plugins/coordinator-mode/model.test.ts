@@ -10,7 +10,7 @@ import {
   evaluateCheck,
   instructionsFor,
   MAX_INSTRUCTIONS_LENGTH,
-  matchGatedCommand,
+  matchGatedCommands,
   renderBriefingMarkdown,
 } from "./model";
 import { BUILT_IN_TEMPLATES } from "./templates";
@@ -86,7 +86,7 @@ describe("decideAction", () => {
   });
 });
 
-describe("matchGatedCommand", () => {
+describe("matchGatedCommands", () => {
   it.each([
     ["gh pr merge 12 --squash", "merge_pr"],
     ["cd repo && gh pr merge 12 --squash", "merge_pr"],
@@ -100,7 +100,7 @@ describe("matchGatedCommand", () => {
     ["bb thread spawn --prompt hi", "start_sub_thread"],
     ["bb thread create --title x", "start_sub_thread"],
   ] as const)("matches %j", (command, action) => {
-    expect(matchGatedCommand(command)).toBe(action);
+    expect(matchGatedCommands(command)).toEqual([action]);
   });
 
   it.each([
@@ -113,7 +113,7 @@ describe("matchGatedCommand", () => {
     "bb thread list",
     "git commit -m 'gh pr merge later'",
   ])("does not match %j", (command) => {
-    expect(matchGatedCommand(command)).toBeNull();
+    expect(matchGatedCommands(command)).toEqual([]);
   });
 });
 
@@ -177,8 +177,7 @@ describe("advanceItem", () => {
 });
 
 describe("briefings", () => {
-  const log: LogEntry[] = [
-    { id: 1, coordinatorThreadId: "thr_coord", itemId: "a", kind: "item_created", text: "Old change", at: 10 },
+  const changes: LogEntry[] = [
     { id: 2, coordinatorThreadId: "thr_coord", itemId: "a", kind: "stage_advanced", text: "A moved to Your QA", at: 30 },
   ];
   const items = [
@@ -193,9 +192,8 @@ describe("briefings", () => {
     { id: "ap_1", coordinatorThreadId: "thr_coord", itemId: "b", action: "merge_pr", summary: "Merge PR #12", args: {}, createdAt: 3 },
   ];
 
-  it("lists only changes since the last look, every needs-you item, then what's next", () => {
-    const briefing = composeBriefing({ since: 20, log, items, approvals, template: SHIP });
-    expect(briefing.changes.map((entry) => entry.id)).toEqual([2]);
+  it("lists every needs-you item, then what's next", () => {
+    const briefing = composeBriefing({ changes, items, approvals, template: SHIP });
     expect(Object.fromEntries(briefing.needsYou.map(({ item: needed, why }) => [needed.id, why]))).toEqual({
       a: "Waiting for your approval at Your QA",
       b: "Approve or decline: Merge PR #12",
@@ -205,11 +203,11 @@ describe("briefings", () => {
   });
 
   it("renders short markdown and says nothing changed when empty", () => {
-    const markdown = renderBriefingMarkdown(composeBriefing({ since: 20, log, items, approvals, template: SHIP }), SHIP);
+    const markdown = renderBriefingMarkdown(composeBriefing({ changes, items, approvals, template: SHIP }), SHIP);
     expect(markdown).toContain("**Since you last looked**\n- A moved to Your QA");
     expect(markdown).toContain("**Needs you**");
     expect(markdown).toContain("**Next**\n- **D**: Review");
-    const empty = composeBriefing({ since: 100, log, items: [], approvals: [], template: SHIP });
+    const empty = composeBriefing({ changes: [], items: [], approvals: [], template: SHIP });
     expect(renderBriefingMarkdown(empty, SHIP)).toBe("Nothing changed.");
   });
 });
@@ -244,10 +242,11 @@ describe("instructionsFor", () => {
 });
 
 describe("classifyUnmatchedCommand", () => {
-  it("denies calls into Coordinator Mode's own RPC", () => {
+  it("denies calls into Coordinator Mode's own RPC and its off command", () => {
     expect(classifyUnmatchedCommand("bb plugin rpc call coordinator-mode approveItem --input '{}'")).toBe("self_rpc");
     expect(classifyUnmatchedCommand("curl -X POST http://127.0.0.1:1/api/v1/plugins/coordinator-mode/rpc/approveItem")).toBe("self_rpc");
     expect(classifyUnmatchedCommand("bb plugin disable coordinator-mode")).toBe("self_rpc");
+    expect(classifyUnmatchedCommand("bb coordinator-mode off --thread thr_coord")).toBe("self_rpc");
   });
   it("never auto-approves gated operations the matcher can't parse", () => {
     expect(classifyUnmatchedCommand("gh -R o/r pr merge 12")).toBe("risky");

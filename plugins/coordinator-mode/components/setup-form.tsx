@@ -6,7 +6,7 @@ import { errorMessage, useCoordinatorRpc } from "./rpc.js";
 
 const DESCRIBE = "__describe__";
 const COLUMNS: RuleColumn[] = ["alone", "ask", "never"];
-export const AUTO_APPROVE_DISCLOSURE =
+const AUTO_APPROVE_DISCLOSURE =
   "Coordinator Mode approves ordinary commands for this thread and its sub-threads on your behalf. You can turn this off.";
 
 function copy(template: CoordinatorTemplate): CoordinatorTemplate {

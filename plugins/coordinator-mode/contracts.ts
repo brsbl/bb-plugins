@@ -1,6 +1,7 @@
 // Shared shapes between the Coordinator Mode server, app, and tests.
 
-export const PLUGIN_ID = "coordinator-mode";
+/** Server publishes on this channel when coordinator state changes; the app also polls to cover missed signals. */
+export const REALTIME_CHANNEL = "coordinator";
 
 /** How a stage is proven done. Each stage has exactly one check. */
 export type CheckKind =
@@ -119,34 +120,15 @@ export type LogEntry = {
 };
 
 export type Briefing = {
-  since: number;
   changes: LogEntry[];
   needsYou: Array<{ item: CoordinatorItem; why: string }>;
   next: CoordinatorItem[];
 };
 
-// RPC methods the app calls on the server (bb.rpc.register).
-export type RpcMethods = {
-  status: (args: { threadId: string }) => {
-    state: CoordinatorState | null;
-    items: CoordinatorItem[];
-    approvals: PendingApproval[];
-    staleRules: boolean;
-  };
-  templates: (args: Record<string, never>) => { templates: CoordinatorTemplate[] };
-  turnOn: (args: { threadId: string; template: CoordinatorTemplate }) => { ok: true };
-  createNew: (args: { projectId: string; template: CoordinatorTemplate }) => { threadId: string };
-  turnOff: (args: { threadId: string }) => { ok: true };
-  setPaused: (args: { threadId: string; paused: boolean }) => { ok: true };
-  setAutoApprove: (args: { threadId: string; autoApprove: boolean }) => { ok: true };
-  updateTemplate: (args: { threadId: string; template: CoordinatorTemplate }) => { ok: true };
-  restartCoordinator: (args: { threadId: string }) => { ok: true };
-  approveItem: (args: { itemId: string }) => { ok: true };
-  rejectItem: (args: { itemId: string; reason: string }) => { ok: true };
-  confirmItem: (args: { itemId: string }) => { ok: true };
-  cutItem: (args: { itemId: string }) => { ok: true };
-  setLink: (args: { itemId: string; link: string }) => { ok: true };
-  resolveApproval: (args: { approvalId: string; approve: boolean; reason?: string }) => { ok: true };
-  markOpened: (args: { threadId: string }) => { ok: true };
-  describeProcess: (args: { description: string; projectId: string }) => { template: CoordinatorTemplate };
+/** Output of the `status` RPC method. */
+export type CoordinatorStatus = {
+  state: CoordinatorState | null;
+  items: CoordinatorItem[];
+  approvals: PendingApproval[];
+  staleRules: boolean;
 };

@@ -53,10 +53,6 @@ describe("Coordinator Mode store", () => {
       rejectedReason: "No", review: { pass: false, findings: "Bug" }, failedAt: 99,
     });
     expect(store.items.list("thr_coord").map((entry) => entry.id)).toEqual(["i1"]);
-    expect(store.threads.forItem("i1")).toEqual([
-      { threadId: "thr_primary", role: "primary" },
-      { threadId: "thr_helper", role: "helper" },
-    ]);
   });
 
   it("answers membership for coordinators and their sub-threads only", () => {

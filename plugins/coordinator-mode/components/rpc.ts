@@ -1,22 +1,17 @@
 import { useCallback, useRef } from "react";
-import { useRpc } from "@get-bb/plugin-sdk/app";
-import type { RpcMethods } from "../contracts.js";
+import { useRpc, type PluginRpcCallArgs } from "@get-bb/plugin-sdk/app";
+import type { rpcContract } from "../server.js";
 
-export type CoordinatorStatus = ReturnType<RpcMethods["status"]>;
+type Contract = typeof rpcContract;
 
-export type CoordinatorCall = <Method extends keyof RpcMethods>(
-  method: Method,
-  input: Parameters<RpcMethods[Method]>[0],
-) => Promise<ReturnType<RpcMethods[Method]>>;
-
-/** `RpcMethods` is a plain function map, so type `useRpc().call` against it here. */
-export function useCoordinatorRpc(): CoordinatorCall {
-  const rpc = useRpc();
+/** `useRpc().call` with a stable identity, so effects can depend on it. */
+export function useCoordinatorRpc() {
+  const rpc = useRpc<Contract>();
   const current = useRef(rpc);
   current.current = rpc;
   return useCallback(
-    <Method extends keyof RpcMethods>(method: Method, input: Parameters<RpcMethods[Method]>[0]) =>
-      current.current.call(method, input) as Promise<ReturnType<RpcMethods[Method]>>,
+    <Method extends Extract<keyof Contract, string>>(method: Method, ...args: PluginRpcCallArgs<Contract[Method]>) =>
+      current.current.call(method, ...args),
     [],
   );
 }

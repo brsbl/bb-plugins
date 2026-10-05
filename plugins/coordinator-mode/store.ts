@@ -11,7 +11,7 @@ import type {
 } from "./contracts";
 
 /** Append only: the SDK migration runner records each statement's index and hash. */
-export const STORE_MIGRATIONS = [
+const STORE_MIGRATIONS = [
   `CREATE TABLE coordinators (
     thread_id TEXT PRIMARY KEY,
     project_id TEXT,
@@ -109,8 +109,6 @@ export type ApprovalRecord = PendingApproval & {
   resolvedAt: number | null;
   outcome: string | null;
 };
-
-export type ThreadActivity = { lastActiveAt: number | null; lastIdleAt: number | null };
 
 type CoordinatorRow = {
   thread_id: string;
@@ -341,10 +339,6 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
         }
       })();
     },
-    forItem(itemId: string): Array<{ threadId: string; role: ThreadRole }> {
-      return (db.prepare("SELECT thread_id, role FROM item_threads WHERE item_id = ? ORDER BY rowid").all(itemId) as { thread_id: string; role: string }[])
-        .map((row) => ({ threadId: row.thread_id, role: toRole(row.role) }));
-    },
     /** Whether the thread is recorded for any item, live or not. */
     has(threadId: string): boolean {
       return db.prepare("SELECT 1 FROM item_threads WHERE thread_id = ?").get(threadId) !== undefined;
@@ -373,12 +367,11 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
   };
 
   const approvals = {
-    create(record: PendingApproval): ApprovalRecord {
+    create(record: PendingApproval): void {
       db.prepare(`INSERT INTO approvals (id, coordinator_thread_id, item_id, action, summary, args_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
         record.id, record.coordinatorThreadId, record.itemId, record.action, record.summary, JSON.stringify(record.args), record.createdAt,
       );
-      return { ...record, resolvedAt: null, outcome: null };
     },
     get(id: string): ApprovalRecord | null {
       const row = db.prepare("SELECT * FROM approvals WHERE id = ?").get(id) as ApprovalRow | undefined;
@@ -397,11 +390,10 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
   };
 
   const log = {
-    append(entry: { coordinatorThreadId: string; itemId: string | null; kind: LogEntry["kind"]; text: string; at: number; action?: GatedAction | null }): LogEntry {
-      const result = db.prepare("INSERT INTO log (coordinator_thread_id, item_id, kind, action, text, at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    append(entry: { coordinatorThreadId: string; itemId: string | null; kind: LogEntry["kind"]; text: string; at: number; action?: GatedAction | null }): void {
+      db.prepare("INSERT INTO log (coordinator_thread_id, item_id, kind, action, text, at) VALUES (?, ?, ?, ?, ?, ?)").run(
         entry.coordinatorThreadId, entry.itemId, entry.kind, entry.action ?? null, entry.text, entry.at,
       );
-      return { id: Number(result.lastInsertRowid), coordinatorThreadId: entry.coordinatorThreadId, itemId: entry.itemId, kind: entry.kind, text: entry.text, at: entry.at };
     },
     list(coordinatorThreadId: string, since = 0): Array<LogEntry & { action: GatedAction | null }> {
       return (db.prepare("SELECT * FROM log WHERE coordinator_thread_id = ? AND at > ? ORDER BY at, id").all(coordinatorThreadId, since) as LogRow[])
@@ -409,7 +401,6 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
     },
     /** Whether the item has any entry of these kinds, optionally for one action. */
     has(itemId: string, kinds: LogEntry["kind"][], action?: GatedAction): boolean {
-      if (kinds.length === 0) return false;
       const marks = kinds.map(() => "?").join(", ");
       const sql = `SELECT 1 FROM log WHERE item_id = ? AND kind IN (${marks})${action ? " AND action = ?" : ""} LIMIT 1`;
       const values: string[] = [itemId, ...kinds, ...(action ? [action] : [])];
@@ -418,7 +409,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
   };
 
   const activity = {
-    get(threadId: string): ThreadActivity {
+    get(threadId: string): { lastActiveAt: number | null; lastIdleAt: number | null } {
       const row = db.prepare("SELECT last_active_at, last_idle_at FROM thread_activity WHERE thread_id = ?").get(threadId) as
         | { last_active_at: number | null; last_idle_at: number | null }
         | undefined;
@@ -436,5 +427,3 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
 
   return { coordinators, items, threads, memberships, approvals, log, activity };
 }
-
-export type CoordinatorStore = ReturnType<typeof createStore>;
