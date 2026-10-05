@@ -42,7 +42,7 @@ describe("GitHub read boundary", () => {
     }
   });
   it("searches open PRs from every author in project repositories, which come only from github.com remotes", async () => {
-    const run = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockResolvedValueOnce(JSON.stringify({ data: { viewer, search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [rawPr()] } } }));
+    const run = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockResolvedValueOnce(JSON.stringify({ data: { viewer, search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [rawPr()] } } })).mockResolvedValueOnce(JSON.stringify(account));
     expect(await searchPullRequests({ scope: "repository", repositories: ["acme/repo", "acme/site"] }, run)).toMatchObject({ ok: true, nextCursor: null, snapshots: [{ nodeId: "PR_42" }] });
     const query = run.mock.calls[1]![0].join(" ");
     expect(query).toContain("is:pr is:open repo:acme/repo repo:acme/site"); expect(query).not.toContain("author:");
