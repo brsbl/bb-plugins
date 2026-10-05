@@ -1,0 +1,35 @@
+{
+  "name": "@moss-multi/editor-host",
+  "version": "0.0.1",
+  "api": 1,
+  "entry": "moss-editor-host.js",
+  "types": "contract.d.ts",
+  "moss": {
+    "upstream": "brsbl/moss",
+    "pin": "762abb777",
+    "commit": "762abb7770714a49d912f6081384aabb958a7ea6"
+  },
+  "source": {
+    "repo": "brsbl/moss-multi",
+    "commit": "30c0a8bfd7acdb38c5eca0e124e1cac01199b731",
+    "headSha": "30c0a8bfd7acdb38c5eca0e124e1cac01199b731",
+    "dirty": false
+  },
+  "build": {
+    "run": "https://github.com/brsbl/moss-multi/actions/runs/37284107799"
+  },
+  "files": {
+    "LICENSE": {
+      "bytes": 1456,
+      "sha256": "b05ca0f6e73c8a8386cf32f4f6888408ee5339fe1cc0dfa3bca4154c2e785016"
+    },
+    "contract.d.ts": {
+      "bytes": 63195,
+      "sha256": "0cb39e44a006a56eb7a10c680a97bcf424b22ec1bd1fee1542e25a34609cfbfc"
+    },
+    "moss-editor-host.js": {
+      "bytes": 13858,
+      "sha256": "227cf1b963a52b686365214ab889d7c12b583cae02a4a40cb979cc3f91d0dcde"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import { lstat, open, readFile, stat } from "node:fs/promises";
-import type * as Moss from "./vendor/moss-editor-contract.js";
+import type * as Moss from "./vendor/moss-editor-host/contract.js";
 
 /**
  * The two file operations Node lacks that the editor's lossless write needs on
@@ -100,25 +100,6 @@ export async function writeNew(path: string, bytes: Uint8Array, mode = 0o644): P
   }
 }
 
-// Windows device names, refused whatever follows a dot, as Moss's filename sanitizer does.
-const RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
-
-/**
- * Whether `name` is safe as one file or folder name in a note: a single path
- * segment, no leading dot, no control characters, no reserved device name, and
- * at most `maxBytes` UTF-8 bytes. The host checks every name the editor sends
- * rather than trusting it.
- */
-export function isSafeName(name: string, maxBytes = 255): boolean {
-  return (
-    name.length > 0 &&
-    Buffer.byteLength(name, "utf8") <= maxBytes &&
-    !/[/\\\u0000-\u001f\u007f]/.test(name) &&
-    !name.startsWith(".") &&
-    !RESERVED_NAME.test(name)
-  );
-}
-
 const ascii = (head: Uint8Array, at: number, text: string) =>
   [...text].every((char, index) => head[at + index] === char.charCodeAt(0));
 
@@ -159,27 +140,34 @@ export function contentMatches(extension: string, head: Uint8Array): boolean {
 
 const utf8 = (text: string) => new TextEncoder().encode(text);
 
+type VersionToken = Pick<Moss.MossEditorHostModule, "versionToken">;
+
 /** The note's two versions (`MossNoteVersion`, `MossMetaVersion`) over the given byte states. */
-export function noteVersions(
-  helpers: Pick<Moss.MossEditorHostModule, "versionToken">,
+export async function noteVersions(
+  helpers: VersionToken,
   files: { markdown: Uint8Array | null; comments: Uint8Array | null; layout: Uint8Array | null; meta: Uint8Array | null },
   folderPath: string,
-): { version: string; metaVersion: string } {
+): Promise<{ version: string; metaVersion: string }> {
   return {
-    version: helpers.versionToken([
+    version: await helpers.versionToken([
       { role: "markdown", bytes: files.markdown },
       { role: "comments", bytes: files.comments },
       { role: "layout", bytes: files.layout },
     ]),
-    metaVersion: helpers.versionToken([
+    metaVersion: await helpers.versionToken([
       { role: "meta", bytes: files.meta },
       { role: "folderPath", bytes: utf8(folderPath) },
     ]),
   };
 }
 
-export function stateVersions(helpers: Pick<Moss.MossEditorHostModule, "versionToken">, state: NoteState) {
+export function stateVersions(helpers: VersionToken, state: NoteState) {
   return noteVersions(helpers, { ...state, markdown: state.markdown?.bytes ?? null }, state.folderPath);
+}
+
+/** One companion file's version. */
+export async function companionVersion(helpers: VersionToken, bytes: Uint8Array | null): Promise<string> {
+  return helpers.versionToken([{ role: "companion", bytes }]);
 }
 
 export function locationOf(state: NoteState): Moss.MossNoteLocation {

@@ -1,19 +1,25 @@
+import { createHash } from "node:crypto";
 import { chmod, link, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ExperimentalHostWatchListener, ExperimentalHostWatchOptions } from "@get-bb/plugin-sdk/host";
 import { experimental_createHostEntryHarness } from "@get-bb/plugin-sdk/testing/host";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_ASSET_BYTES, hostContract, hostSignals } from "./contract.js";
-import { contentMatches, isSafeName } from "./editor-files.js";
+import { contentMatches } from "./editor-files.js";
+import { mossEditorHost } from "./editor-host-helpers.js";
 import { WATCH_LEASE_MS, createEditorHost } from "./editor-host.js";
 import { listNotes, openInMoss, readAsset, readNote } from "./host-notes.js";
-import { TestPaths, hostHelpers } from "./test/editor-doubles.js";
-import type * as Moss from "./vendor/moss-editor-contract.js";
+import { TestPaths } from "./test/editor-doubles.js";
+import type * as Moss from "./vendor/moss-editor-host/contract.js";
 
 const ID = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
 const OTHER_ID = "0aa1b2c3-d4e5-4f60-8172-839405a6b7c8";
 const meta = (id = ID, title = "Plan", extra: Record<string, unknown> = {}) => JSON.stringify({ id, title, ...extra }, null, 2);
+/** The UUIDs the host names its nth temp or held file with, in these tests. */
+const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const helpers = mossEditorHost;
 
 interface FakeWatch {
   options: ExperimentalHostWatchOptions;
@@ -29,10 +35,10 @@ let host: ReturnType<typeof createHost>;
 function createHost() {
   let count = 0;
   const editor = createEditorHost({
-    helpers: hostHelpers,
+    helpers,
     paths,
     workspaceRoot: () => realpath(join(home, "Moss")),
-    uuid: () => `u${(count += 1)}`,
+    uuid: () => uuid((count += 1)),
   });
   return experimental_createHostEntryHarness(
     {
@@ -113,12 +119,12 @@ describe("reading a note", () => {
       kind: "note",
       files: { markdown, comments, layout: null, meta: meta() },
       location: { folderPath: "Notes/Projects", folderName: "Plan", markdownName: "Plan.md" },
-      version: hostHelpers.versionToken([
+      version: await helpers.versionToken([
         { role: "markdown", bytes: Buffer.from(markdown) },
         { role: "comments", bytes: Buffer.from(comments) },
         { role: "layout", bytes: null },
       ]),
-      metaVersion: hostHelpers.versionToken([
+      metaVersion: await helpers.versionToken([
         { role: "meta", bytes: Buffer.from(meta()) },
         { role: "folderPath", bytes: Buffer.from("Notes/Projects") },
       ]),
@@ -187,11 +193,11 @@ describe("reading a note", () => {
     await writeFile(join(home, "secret.html"), "secret");
     await symlink(join(home, "secret.html"), join(plan.directory, "assets", "escape-mockup.html"));
     const companion = (relativePath: string) => host.experimental_call("editorReadCompanion", { noteId: ID, relativePath });
-    const absent = hostHelpers.versionToken([{ role: "companion", bytes: null }]);
+    const absent = await helpers.versionToken([{ role: "companion", bytes: null }]);
     expect(await companion("assets/plan-mockup.html")).toEqual({
       kind: "file",
       text: "<p>mockup</p>",
-      version: hostHelpers.versionToken([{ role: "companion", bytes: Buffer.from("<p>mockup</p>") }]),
+      version: await helpers.versionToken([{ role: "companion", bytes: Buffer.from("<p>mockup</p>") }]),
     });
     expect(await companion("assets/gone-mockup.html")).toEqual({ kind: "absent", version: absent });
     expect(await companion("assets/escape-mockup.html")).toEqual({ kind: "absent", version: absent });
@@ -279,7 +285,7 @@ describe("saving a note", () => {
     if (result.kind !== "conflict") throw new Error(`expected a conflict, got ${result.kind}`);
     expect(result).toMatchObject({ reason: "raced", applied: [] });
     const { preserved } = result;
-    expect(preserved).toEqual([".meta.json.u4.displaced"]);
+    expect(preserved).toEqual([`.meta.json.${uuid(4)}.displaced`]);
     expect(await text(join(plan.directory, preserved[0]!))).toBe(meta(ID, "Plan", { first: true }));
     expect(await text(join(plan.directory, "meta.json"))).toBe(meta(ID, "Plan", { second: true }));
     expect(await text(plan.path)).toBe("# Plan\n");
@@ -327,10 +333,10 @@ describe("saving a note", () => {
       await writeFile(target, "# From Moss\n");
     };
     const result = await save(write);
-    expect(result).toMatchObject({ kind: "conflict", reason: "raced", applied: ["meta"], preserved: [".Plan.md.u2.displaced"] });
+    expect(result).toMatchObject({ kind: "conflict", reason: "raced", applied: ["meta"], preserved: [`.Plan.md.${uuid(2)}.displaced`] });
     expect(await text(plan.path)).toBe("# From Moss\n");
     // What the exchange displaced was the original; it is kept, since its target holds neither it nor bb's bytes.
-    expect(await text(join(plan.directory, ".Plan.md.u2.displaced"))).toBe("# Plan\n");
+    expect(await text(join(plan.directory, `.Plan.md.${uuid(2)}.displaced`))).toBe("# Plan\n");
   });
 
   it("rolls back and reports an I/O failure", async () => {
@@ -420,7 +426,7 @@ describe("watching a note", () => {
 
     await save(await writeFrom([put("markdown", "# Plan\n\nFrom bb.\n"), put("meta", meta())]));
     await changed(watchers[0]!, "Plan.md");
-    await changed(watchers[0]!, ".Plan.md.u9.tmp");
+    await changed(watchers[0]!, `.Plan.md.${uuid(9)}.tmp`);
     expect(host.experimental_getSignals()).toHaveLength(1);
 
     // A rename in place changes neither version, so there is nothing to announce, but the watch follows the folder.
@@ -503,7 +509,7 @@ describe("note media", () => {
     expect(await upload("page-1-1a2b3c4d.svg", Buffer.from("<html><script>alert(1)</script>"), { mimeType: "image/svg+xml" })).toEqual(refused);
     expect(await upload("shot-1-1a2b3c4d.png", PNG("x"), { mimeType: "video/mp4" })).toEqual(refused);
     expect(await upload("page-1-1a2b3c4d.html", Buffer.from("<p>"), { mimeType: "text/html" })).toEqual(refused);
-    expect(await upload("CON.png", PNG("x"))).toEqual(refused);
+    expect(await upload("a..b.png", PNG("x"))).toEqual(refused);
     expect(await stat(join(plan.directory, "assets")).catch(() => null)).toBeNull();
   });
 
@@ -545,7 +551,7 @@ describe("note media", () => {
 describe("names and paths from the editor", () => {
   it("refuses a retitle whose folder name is not one safe segment, and moves nothing", async () => {
     const plan = await note("Notes/Plan");
-    for (const desiredName of ["../Escape", "a/b", ".hidden", "CON", "x".repeat(253)]) {
+    for (const desiredName of ["../Escape", "a/b", ".hidden", "node_modules", "x".repeat(253)]) {
       const write = await writeFrom([put("markdown", "# Escape\n"), put("meta", meta(ID, "Escape"))], {
         rename: { kind: "renameFolder", desiredName },
       });
@@ -565,13 +571,6 @@ describe("names and paths from the editor", () => {
     await expect(host.experimental_call("editorReadCompanion", { noteId: ID, relativePath: join(home, "secret.html") })).rejects.toThrow();
   });
 
-  it("names one safe segment", () => {
-    for (const name of ["Plan", "Q3: Plan (1)", "shot-1700000000000-1a2b3c4d.png", "Été à Paris", "x".repeat(255)]) expect(isSafeName(name)).toBe(true);
-    for (const name of ["", ".", "..", ".hidden", "a/b", "a\\b", "tab\there", "nul\0", "CON", "lpt1.txt", "x".repeat(256), "é".repeat(128)]) {
-      expect(isSafeName(name)).toBe(false);
-    }
-  });
-
   it("matches media by its first bytes", () => {
     expect(contentMatches(".png", PNG(""))).toBe(true);
     expect(contentMatches(".jpg", Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toBe(true);
@@ -584,5 +583,28 @@ describe("names and paths from the editor", () => {
     expect(contentMatches(".svg", Buffer.from("<html><svg/></html>"))).toBe(false);
     expect(contentMatches(".png", Buffer.from("GIF89a"))).toBe(false);
     expect(contentMatches(".html", Buffer.from("<p>"))).toBe(false);
+  });
+});
+
+describe("the vendored host helpers", () => {
+  it("are the editor-host release, unmodified", async () => {
+    const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+    const directory = fileURLToPath(new URL("./vendor/moss-editor-host/", import.meta.url));
+    const manifestBytes = await readFile(join(directory, "editor-host.json"));
+    const manifest = JSON.parse(manifestBytes.toString("utf8")) as Record<string, any>;
+    for (const [name, expected] of Object.entries(manifest.files as Record<string, { bytes: number; sha256: string }>)) {
+      const body = await readFile(join(directory, name));
+      expect({ name, bytes: body.length, sha256: sha256(body) }).toEqual({ name, ...expected });
+    }
+    const provenance = JSON.parse(await readFile(join(directory, "../moss-editor-host.provenance.json"), "utf8")) as Record<string, any>;
+    expect(provenance).toMatchObject({
+      version: manifest.version,
+      api: manifest.api,
+      release: { tag: `editor-v${manifest.version}` },
+      build: { run: manifest.build.run, sourceCommit: manifest.source.commit },
+      mossPin: manifest.moss.commit,
+      editorHostJsonSha256: sha256(manifestBytes),
+    });
+    expect(helpers.MOSS_EDITOR_API).toBe(1);
   });
 });

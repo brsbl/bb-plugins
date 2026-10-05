@@ -6,9 +6,9 @@ import { link, readdir, readFile, rename, stat, unlink } from "node:fs/promises"
 import { basename, dirname, join, relative } from "node:path";
 import {
   codedError,
+  companionVersion,
   entryAt,
   errorCode,
-  isSafeName,
   locationOf,
   messageOf,
   noteVersions,
@@ -19,7 +19,7 @@ import {
   type NoteState,
   type PathExchange,
 } from "./editor-files.js";
-import type * as Moss from "./vendor/moss-editor-contract.js";
+import type * as Moss from "./vendor/moss-editor-host/contract.js";
 
 export interface WriteContext {
   helpers: Moss.MossEditorHostModule;
@@ -41,8 +41,6 @@ type Applied =
 /** Another writer changed a file while this write was applying. */
 class Raced extends Error {}
 
-/** Moss's folder-name limit; `allocateFolderName` keeps its ` (n)` suffix within it. */
-const MAX_FOLDER_NAME_BYTES = 252;
 
 const sameIgnoringCase = (left: string, right: string) =>
   left.normalize("NFC").toLowerCase() === right.normalize("NFC").toLowerCase();
@@ -51,7 +49,7 @@ const flipCase = (text: string) =>
   [...text].map((char) => (char === char.toUpperCase() ? char.toLowerCase() : char.toUpperCase())).join("");
 
 export async function applyWrite(context: WriteContext, state: NoteState, write: Moss.MossNoteWrite): Promise<Moss.MossWriteResult> {
-  const before = stateVersions(context.helpers, state);
+  const before = await stateVersions(context.helpers, state);
   const refuse = (reason: "content" | "companion" | "meta"): Moss.MossWriteResult => ({
     kind: "conflict",
     reason,
@@ -63,11 +61,11 @@ export async function applyWrite(context: WriteContext, state: NoteState, write:
   if (before.version !== write.baseVersion) return refuse("content");
   for (const companion of write.companions) {
     const bytes = await context.companionBytes(state.directory, companion.relativePath);
-    if (context.helpers.versionToken([{ role: "companion", bytes }]) !== companion.version) return refuse("companion");
+    if ((await companionVersion(context.helpers, bytes)) !== companion.version) return refuse("companion");
   }
   if (before.metaVersion !== write.baseMetaVersion) return refuse("meta");
-  // The editor's string is never trusted as a path: one safe segment, or nothing moves.
-  if (write.rename && !isSafeName(write.rename.desiredName, MAX_FOLDER_NAME_BYTES)) {
+  // The editor's string is never trusted as a path: Moss's own folder-name rule, or nothing moves.
+  if (write.rename && !context.helpers.isMossFolderName(write.rename.desiredName)) {
     return {
       kind: "failed",
       code: "EINVAL",
@@ -130,7 +128,6 @@ class WriteRun {
         caseInsensitive,
       });
       if (next === this.folderName) return true;
-      if (!isSafeName(next)) throw codedError("EINVAL", "The new title does not make a safe folder name.");
       const target = join(parent, next);
       try {
         if (caseInsensitive && sameIgnoringCase(next, this.folderName)) await rename(this.directory, target);
@@ -366,8 +363,8 @@ class WriteRun {
   /** Step 6: the files must still hold what this write produced. */
   private async verify(): Promise<Moss.MossWriteResult> {
     const after = await this.context.readState(this.directory);
-    const actual = stateVersions(this.context.helpers, after);
-    const expected = noteVersions(this.context.helpers, this.landed, this.state.folderPath);
+    const actual = await stateVersions(this.context.helpers, after);
+    const expected = await noteVersions(this.context.helpers, this.landed, this.state.folderPath);
     if (actual.version !== expected.version || actual.metaVersion !== expected.metaVersion) {
       // Someone replaced a file after its exchange. Nothing is rolled back.
       await this.settle();
@@ -391,7 +388,7 @@ class WriteRun {
       return {
         kind: "conflict",
         reason: "raced",
-        ...stateVersions(this.context.helpers, after),
+        ...(await stateVersions(this.context.helpers, after)),
         applied: await this.filesHoldingWrite(),
         preserved: this.preserved,
         location: locationOf(after),

@@ -1,11 +1,15 @@
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { hostContract, hostSignals } from "./contract.js";
-import { unsupportedEditorHost } from "./editor-host.js";
-import { listNotes, openInMoss, readAsset, readNote } from "./host-notes.js";
+import { createEditorHost } from "./editor-host.js";
+import { mossEditorHost } from "./editor-host-helpers.js";
+import { canonicalWorkspaceRoot, listNotes, openInMoss, readAsset, readNote } from "./host-notes.js";
+import { macPathExchange } from "./mac-exchange.js";
 
-// Editing needs moss-multi's host helpers and an atomic exchange on the note's
-// volume. Until both ship, every note answers hostUnsupported and stays in the viewer.
-const editor = unsupportedEditorHost();
+// Editing needs an atomic exchange on the note's volume. Where the Mac helper
+// cannot provide one (any other platform, or a volume that cannot swap), every
+// note answers hostUnsupported and stays in the viewer.
+const paths = macPathExchange();
+const editor = createEditorHost({ helpers: mossEditorHost, paths, workspaceRoot: canonicalWorkspaceRoot });
 
 export default experimental_defineHostEntry({
   contract: hostContract,
@@ -22,5 +26,8 @@ export default experimental_defineHostEntry({
     openInMoss,
     ...editor.handlers,
   },
-  dispose: editor.dispose,
+  dispose: async () => {
+    paths.dispose();
+    await editor.dispose();
+  },
 });

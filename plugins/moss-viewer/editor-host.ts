@@ -1,5 +1,5 @@
 // The Mac host's side of @moss-multi/editor's file bridge (API 1,
-// vendor/moss-editor-contract.ts). Notes are found by meta.json id; Moss's file
+// vendor/moss-editor-host/contract.d.ts). Notes are found by meta.json id; Moss's file
 // rules come from the editor release's pure host helpers, never reimplemented
 // here; files move only through `applyWrite`'s verified replacement.
 import { randomUUID } from "node:crypto";
@@ -14,9 +14,9 @@ import type {
 import { MAX_ASSET_BYTES, MAX_NOTE_BYTES, type hostSignals } from "./contract.js";
 import {
   codedError,
+  companionVersion,
   contentMatches,
   errorCode,
-  isSafeName,
   locationOf,
   pathExists,
   readOptional,
@@ -26,7 +26,7 @@ import {
 } from "./editor-files.js";
 import { applyWrite } from "./editor-write.js";
 import { HostFileError, isInside, readAssetIn } from "./host-notes.js";
-import type * as Moss from "./vendor/moss-editor-contract.js";
+import type * as Moss from "./vendor/moss-editor-host/contract.js";
 
 type HostContext = ExperimentalHostRpcContext<typeof hostSignals>;
 
@@ -258,7 +258,7 @@ export function createEditorHost(deps: EditorHostDeps) {
     const state = await readState(found.directory);
     const reason = await refusalFor(state);
     if (reason !== null) return { change: { kind: "removed", reason }, directory: found.directory };
-    return { change: { kind: "changed", ...stateVersions(helpers, state) }, directory: found.directory };
+    return { change: { kind: "changed", ...(await stateVersions(helpers, state)) }, directory: found.directory };
   }
 
   async function release(subscription: Promise<ExperimentalHostWatchSubscription> | null): Promise<void> {
@@ -327,7 +327,7 @@ export function createEditorHost(deps: EditorHostDeps) {
             meta: state.meta!.toString("utf8"),
           },
           location: locationOf(state),
-          ...stateVersions(helpers, state),
+          ...(await stateVersions(helpers, state)),
         };
         markOpened(noteId);
         return result;
@@ -339,7 +339,7 @@ export function createEditorHost(deps: EditorHostDeps) {
         const found = await lookup(noteId);
         if (found.kind !== "found") throw codedError("ENOENT", "This note is no longer in ~/Moss/Notes.");
         const bytes = await companionBytes(found.directory, relativePath);
-        const version = helpers.versionToken([{ role: "companion", bytes }]);
+        const version = await companionVersion(helpers, bytes);
         return bytes === null ? { kind: "absent", version } : { kind: "file", text: bytes.toString("utf8"), version };
       });
     },
@@ -510,8 +510,8 @@ export function createEditorHost(deps: EditorHostDeps) {
   /** Creates `assets/<name>` exclusively from `source`; a taken name is the editor's to change. */
   async function placeAsset(source: string, directory: string, name: string): Promise<Moss.MossAssetPutResult> {
     const extension = extname(name).toLowerCase();
-    // The name is re-checked here, and the bytes must be what the extension says.
-    if (!isSafeName(name) || ASSET_KINDS[extension] === undefined) return { kind: "refused", reason: "type" };
+    // The name must pass Moss's own rule, and the bytes must be what the extension says.
+    if (!helpers.isMossAssetName(name) || ASSET_KINDS[extension] === undefined) return { kind: "refused", reason: "type" };
     if (!contentMatches(extension, await readHead(source))) return { kind: "refused", reason: "type" };
     const assets = await assetsDirectory(directory);
     const temp = join(assets, helpers.sidecarFileName(name, uuid(), "tmp"));
@@ -530,24 +530,3 @@ export function createEditorHost(deps: EditorHostDeps) {
 }
 
 export type EditorHost = ReturnType<typeof createEditorHost>;
-
-/** Every bridge method on a host that cannot edit: notes open read-only in the viewer. */
-export function unsupportedEditorHost() {
-  const unsupported = { kind: "notEditable" as const, reason: "hostUnsupported" as const };
-  return {
-    handlers: {
-      editorRead: async (): Promise<Moss.MossReadResult> => unsupported,
-      editorReadCompanion: async (): Promise<Moss.MossCompanionRead> => {
-        throw codedError("ENOTSUP", "This host cannot edit Moss notes.");
-      },
-      editorWrite: async (): Promise<Moss.MossWriteResult> => unsupported,
-      editorWatch: async (): Promise<Moss.MossExternalChange> => ({ kind: "removed", reason: "hostUnsupported" }),
-      editorAssetChunk: async () => unsupported,
-      editorAssetCommit: async (): Promise<Moss.MossAssetPutResult> => unsupported,
-      editorAssetCopy: async (): Promise<Moss.MossAssetPutResult> => unsupported,
-      editorAsset: async () => ({ ok: false as const, code: "not_allowed" as const, message: "This host cannot edit Moss notes." }),
-    },
-    viewed: (_noteId: string) => undefined,
-    dispose: async () => undefined,
-  };
-}
