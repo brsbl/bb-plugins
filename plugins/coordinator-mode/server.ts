@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { CoordinatorStatus, CoordinatorTemplate } from "./contracts";
 import { createService } from "./service";
+import { BUILT_IN_TEMPLATES } from "./templates";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -155,6 +156,16 @@ export default function plugin(bb: BbPluginApi): void {
         summary: "Print the current briefing without marking it opened",
         options: { thread },
         run: (input, ctx) => ({ exitCode: 0, stdout: `${service.briefingMarkdown(threadOf(input.options.thread, ctx))}\n` }),
+      }),
+      on: cliCommand({
+        summary: "Turn Coordinator Mode on for a thread with a built-in template (ship, release, bug-triage, content)",
+        options: { thread, template: { type: "string", description: "Built-in template ID; defaults to ship" } },
+        run: async (input, ctx) => {
+          const templateId = input.options.template ?? "ship";
+          const chosen = BUILT_IN_TEMPLATES.find((candidate) => candidate.id === templateId);
+          if (!chosen) throw new Error(`Unknown template "${templateId}". Use one of: ${BUILT_IN_TEMPLATES.map((candidate) => candidate.id).join(", ")}.`);
+          return json(await service.rpc.turnOn({ threadId: threadOf(input.options.thread, ctx), template: chosen }));
+        },
       }),
       off: cliCommand({
         summary: "Turn Coordinator Mode off for a thread, keeping the thread",

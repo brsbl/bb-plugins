@@ -247,6 +247,7 @@ describe("classifyUnmatchedCommand", () => {
     expect(classifyUnmatchedCommand("curl -X POST http://127.0.0.1:1/api/v1/plugins/coordinator-mode/rpc/approveItem")).toBe("self_rpc");
     expect(classifyUnmatchedCommand("bb plugin disable coordinator-mode")).toBe("self_rpc");
     expect(classifyUnmatchedCommand("bb coordinator-mode off --thread thr_coord")).toBe("self_rpc");
+    expect(classifyUnmatchedCommand("bb coordinator-mode on --thread thr_coord --template content")).toBe("self_rpc");
   });
   it("never auto-approves gated operations the matcher can't parse", () => {
     expect(classifyUnmatchedCommand("gh -R o/r pr merge 12")).toBe("risky");

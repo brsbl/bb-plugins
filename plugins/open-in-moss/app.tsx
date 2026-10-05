@@ -1,5 +1,11 @@
-import { definePluginApp } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useSdk } from "@get-bb/plugin-sdk/app";
+import { useEffect } from "react";
 import { toast } from "sonner";
+
+const MOSS_VIEWER_ID = "moss-viewer";
+// Cached so clicks never wait on the network. Until the first plugin list
+// arrives, links open in Moss as they always have.
+let mossViewerActive = false;
 
 const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/iu;
 const fallbackEvents = new WeakSet<Event>();
@@ -105,12 +111,50 @@ async function requestMossOpen(
   }
 }
 
+// With Moss Viewer enabled, bb's own file preview renders Moss notes, so
+// Markdown links are left to bb.
+function MossViewerWatcher() {
+  const sdk = useSdk();
+  useEffect(() => {
+    let latest = 0;
+    const refresh = () => {
+      const request = ++latest;
+      sdk.plugins.list().then(({ plugins }) => {
+        if (request !== latest) return;
+        mossViewerActive = plugins.some((plugin) =>
+          plugin.id === MOSS_VIEWER_ID && plugin.enabled);
+      }, () => {});
+    };
+    refresh();
+    const unsubscribePlugins = sdk.subscribe({
+      event: "system:changed",
+      callback: (event) => {
+        if (event.changes.includes("plugins-changed")) refresh();
+      },
+    });
+    // Changes made while disconnected are not replayed.
+    const unsubscribeConnection = sdk.subscribe({
+      event: "realtime:connection",
+      callback: (event) => {
+        if (event.reconnected) refresh();
+      },
+    });
+    return () => {
+      latest += 1;
+      unsubscribePlugins();
+      unsubscribeConnection();
+    };
+  }, [sdk]);
+  return null;
+}
+
 export default definePluginApp((app) => {
+  app.slots.experimental_appOverlay({ id: "moss-viewer-watcher", component: MossViewerWatcher });
   app.contentScripts.register({
     id: "open-markdown-links",
     mount({ pluginId }) {
       const handleClick = (event: MouseEvent) => {
-        if (fallbackEvents.has(event)) return;
+        if (mossViewerActive || fallbackEvents.has(event)) return;
         const link = markdownFileLinkFromClick(event);
         if (link === null) return;
 
