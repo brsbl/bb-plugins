@@ -98,9 +98,9 @@ describe("reading a note to edit", () => {
     await mkdir(join(home, "Code"), { recursive: true });
     const spec = join(home, "Code", "spec.md");
     await writeFile(spec, "# Spec\n\n:::tabs\n");
+    const plan = await note();
     const loose = join(home, "Moss", "Notes", "Loose.md");
     await writeFile(loose, "# Loose\n");
-    const plan = await note();
     const other = join(plan.directory, "Other.md");
     await writeFile(other, "# Other\n");
     for (const path of [spec, loose, other]) {
