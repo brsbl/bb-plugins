@@ -1,7 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { posix } from "node:path";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { ASSET_CHUNK_BYTES, hostContract, rpcContract, type AssetRefusal, type HostNote } from "./contract.js";
+import {
+  ASSET_CHUNK_BYTES,
+  NOTE_CHANGED_CHANNEL,
+  hostContract,
+  hostSignals,
+  rpcContract,
+  type AssetRefusal,
+  type HostNote,
+  type NoteChanged,
+} from "./contract.js";
 import { findViewerDirectory, frameDocument, loadViewerBundle } from "./viewer-bundle.js";
 
 type HttpContext = Parameters<Parameters<BbPluginApi["http"]["route"]>[2]>[0];
@@ -47,7 +56,11 @@ function acceptsGzip(header: string | undefined): boolean {
 }
 
 export default async function plugin(bb: BbPluginApi): Promise<void> {
-  const host = bb.hosts.experimental_client({ contract: hostContract });
+  const host = bb.hosts.experimental_client({ contract: hostContract, experimental_signals: hostSignals });
+  // A note changed outside bb: tell open editors, which compare the version with their own.
+  host.experimental_onSignal("noteChanged", ({ hostId, payload }) => {
+    bb.realtime.publish(NOTE_CHANGED_CHANNEL, { hostId, ...payload } satisfies NoteChanged);
+  });
   const bundle = await loadViewerBundle(await findViewerDirectory(import.meta.url));
   const httpRoot = `/api/v1/plugins/${encodeURIComponent(bb.pluginId)}/http`;
   const frameUrl = `${httpRoot}${bundle.base}/frame.html`;
@@ -137,6 +150,11 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     },
     notes: async ({ hostId }) => ({ notes: (await host.call("listNotes", {}, { hostId })).notes }),
     openInMoss: ({ hostId, path }) => host.call("openInMoss", { path }, { hostId }),
+    files: ({ hostId, path }) => host.call("readNoteFiles", { path }, { hostId }),
+    save: ({ hostId, ...input }) => host.call("writeNoteFiles", input, { hostId }),
+    watch: ({ hostId, path }) => host.call("watchNote", { path }, { hostId }),
+    putAssetChunk: ({ hostId, ...input }) => host.call("writeAssetChunk", input, { hostId }),
+    commitAsset: ({ hostId, ...input }) => host.call("commitAsset", input, { hostId }),
   });
 
   bb.http.route(

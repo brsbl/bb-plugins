@@ -14,6 +14,8 @@ const vendor = fileURLToPath(new URL("./vendor/moss-viewer/", import.meta.url));
 const httpRoot = "/api/v1/plugins/moss-viewer/http";
 const video = Buffer.from(Array.from({ length: ASSET_CHUNK_BYTES * 2 + 10 }, (_, index) => index % 251));
 const notePath = "/Users/me/Moss/Notes/Clip/Clip.md";
+const V1 = "1".repeat(64);
+const V2 = "2".repeat(64);
 
 const disposers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -42,9 +44,16 @@ async function setup(machines: Machines = {}) {
       if (method === "readNote") {
         const path = request.path as string;
         const file = machines.files ? machines.files[hostId]?.[path] : path.includes("/Moss/") ? "moss" : "plain";
-        if (file === "moss") return { moss: true, path, markdown: "# Clip\n", layout: null, noteId: "clip", modifiedMs: 1 };
+        if (file === "moss") return { moss: true, path, markdown: "# Clip\n", layout: null, noteId: "clip", modifiedMs: 1, editable: true };
         return { moss: false, path, missing: file === undefined };
       }
+      if (method === "readNoteFiles") return { path: request.path, markdown: "# Clip\n", layout: null, comments: "{}\n", version: V1 };
+      if (method === "writeNoteFiles") return request.baseVersion === V1 ? { status: "saved", version: V2 } : { status: "conflict", version: V1 };
+      if (method === "watchNote") return { version: V1 };
+      if (method === "writeAssetChunk") {
+        return { ok: true, size: (request.offset as number) + Buffer.from(request.data as string, "base64").length };
+      }
+      if (method === "commitAsset") return { ok: true, ref: "assets/shot.png" };
       if (method === "listNotes") {
         return { notes: [{ id: "clip", title: "Clip", path: notePath, folderPath: "Notes" }], truncated: false };
       }
@@ -157,6 +166,56 @@ describe("reading notes", () => {
     });
     expect(await h.behavior.callRpc("openInMoss", { hostId: "mac", path: notePath })).toEqual({ opened: true });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "openInMoss", hostId: "mac", input: { path: notePath } });
+  });
+});
+
+describe("the editor's file bridge", () => {
+  it("answers each bridge call on the note's host", async () => {
+    const h = await setup();
+    const lastCall = () => h.inspection.experimental_hostRpcCalls.at(-1);
+    expect(await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "mac", environmentId: null })).toMatchObject({ editable: true });
+
+    expect(await h.behavior.callRpc("files", { hostId: "studio", path: notePath })).toEqual({
+      path: notePath,
+      markdown: "# Clip\n",
+      layout: null,
+      comments: "{}\n",
+      version: V1,
+    });
+    expect(lastCall()).toMatchObject({ method: "readNoteFiles", hostId: "studio", input: { path: notePath } });
+
+    const save = { hostId: "mac", path: notePath, baseVersion: V1, files: { markdown: "# Clip\n\nMore.\n", comments: null } };
+    expect(await h.behavior.callRpc("save", save)).toEqual({ status: "saved", version: V2 });
+    expect(lastCall()).toMatchObject({ method: "writeNoteFiles", hostId: "mac", input: { path: notePath, baseVersion: V1, files: save.files } });
+    expect(await h.behavior.callRpc("save", { ...save, baseVersion: V2 })).toEqual({ status: "conflict", version: V1 });
+
+    expect(await h.behavior.callRpc("watch", { hostId: "mac", path: notePath })).toEqual({ version: V1 });
+    expect(lastCall()).toMatchObject({ method: "watchNote", hostId: "mac", input: { path: notePath } });
+
+    const upload = "f".repeat(32);
+    expect(await h.behavior.callRpc("putAssetChunk", { hostId: "mac", notePath, upload, offset: 0, data: "AAEC" })).toEqual({ ok: true, size: 3 });
+    expect(lastCall()).toMatchObject({ method: "writeAssetChunk", input: { notePath, upload, offset: 0, data: "AAEC" } });
+    expect(await h.behavior.callRpc("commitAsset", { hostId: "mac", notePath, upload, name: "Shot.png", size: 3 })).toEqual({ ok: true, ref: "assets/shot.png" });
+    expect(lastCall()).toMatchObject({ method: "commitAsset", input: { notePath, upload, name: "Shot.png", size: 3 } });
+  });
+
+  it("keeps a save that names other files or no real version from reaching the host", async () => {
+    const h = await setup();
+    const save = { hostId: "mac", path: notePath, baseVersion: V1, files: { markdown: "# Clip\n" } };
+    await expect(h.behavior.callRpc("save", { ...save, files: { "meta.json": "{}" } })).rejects.toThrow();
+    await expect(h.behavior.callRpc("save", { ...save, baseVersion: "latest" })).rejects.toThrow();
+    await expect(h.behavior.callRpc("putAssetChunk", { hostId: "mac", notePath, upload: "../x", offset: 0, data: "" })).rejects.toThrow();
+    expect(h.inspection.experimental_hostRpcCalls.filter((call) => call.method !== "readNote")).toEqual([]);
+  });
+
+  it("tells open editors when a note changes outside bb", async () => {
+    const h = await setup();
+    await h.experimental_emitHostSignal("mac", "noteChanged", { path: notePath, version: V2 });
+    await h.experimental_emitHostSignal("mac", "noteChanged", { path: notePath, version: null });
+    expect(h.realtimeSignals).toEqual([
+      { channel: "note-changed", payload: { hostId: "mac", path: notePath, version: V2 } },
+      { channel: "note-changed", payload: { hostId: "mac", path: notePath, version: null } },
+    ]);
   });
 });
 

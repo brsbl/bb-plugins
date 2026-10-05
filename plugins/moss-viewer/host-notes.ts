@@ -12,7 +12,7 @@ const MAX_LISTED_NOTES = 5000;
 const MAX_LISTED_DIRECTORIES = 20000;
 const LIST_TTL_MS = 10_000;
 
-const MEDIA_TYPES: Readonly<Record<string, string>> = {
+export const MEDIA_TYPES: Readonly<Record<string, string>> = {
   ".apng": "image/apng",
   ".avif": "image/avif",
   ".bmp": "image/bmp",
@@ -44,12 +44,12 @@ function notesRoot(): string {
   return resolve(homedir(), "Moss/Notes");
 }
 
-function isInside(root: string, path: string): boolean {
+export function isInside(root: string, path: string): boolean {
   const within = relative(root, path);
   return within !== "" && within !== ".." && !within.startsWith("../") && !isAbsolute(within);
 }
 
-async function canonicalFile(path: string): Promise<{ path: string; size: number; modifiedMs: number }> {
+export async function canonicalFile(path: string): Promise<{ path: string; size: number; modifiedMs: number }> {
   if (!isAbsolute(path)) throw new HostFileError("invalid", "The file path must be absolute.");
   let canonical: string;
   try {
@@ -62,8 +62,17 @@ async function canonicalFile(path: string): Promise<{ path: string; size: number
   return { path: canonical, size: details.size, modifiedMs: details.mtimeMs };
 }
 
-async function canonicalNotesRoot(): Promise<string> {
+export async function canonicalNotesRoot(): Promise<string> {
   return realpath(notesRoot()).catch(() => notesRoot());
+}
+
+/**
+ * A note bb may edit: `<Title>/<Title>.md` in a folder under ~/Moss/Notes, where
+ * Moss keeps that one note's layout.json, comments.json and assets/.
+ */
+export function isEditablePath(path: string, root: string): boolean {
+  const directory = dirname(path);
+  return isInside(root, directory) && basename(path) === `${basename(directory)}.md`;
 }
 
 function hasMossMarkers(markdown: string): boolean {
@@ -102,7 +111,8 @@ export async function readNote({ path }: { path: string }) {
     throw error;
   }
   if (!MARKDOWN.test(file.path)) return { moss: false as const, path: file.path, missing: false };
-  const inNotes = isInside(await canonicalNotesRoot(), file.path);
+  const root = await canonicalNotesRoot();
+  const inNotes = isInside(root, file.path);
   if (file.size > MAX_NOTE_BYTES) {
     // bb's own preview handles large Markdown; only a real Moss note is refused.
     if (!inNotes) return { moss: false as const, path: file.path, missing: false };
@@ -119,6 +129,7 @@ export async function readNote({ path }: { path: string }) {
     layout: await readLayout(directory),
     noteId: await readNoteId(directory),
     modifiedMs: file.modifiedMs,
+    editable: isEditablePath(file.path, root),
   };
 }
 
