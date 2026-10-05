@@ -14,7 +14,7 @@ import { BROWSER_HOME, browserTab, nativeBrowser, rememberUrl } from "./browser"
 import { BrowserWindow } from "./browser-window";
 import { acceptsDrop, type Collection } from "./canvas-organization";
 import { Button } from "./components/ui/button";
-import { describeStatus, folderSummary, groupTone, relativeTime, statusTone } from "./core";
+import { boundsOf, describeStatus, folderSummary, groupTone, relativeTime, statusTone, type Rect } from "./core";
 import { errorMessage, useDesktop, type DesktopContextValue } from "./data";
 import { useAskText, useMenu } from "./menu";
 import { useSideChatActions } from "./side-chat";
@@ -447,6 +447,9 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
   const browserAvailable = nativeBrowser() !== null;
   const companionOpen = (kind: "info" | "related") => manager.windows.some((window) => window.id === `${kind}:${threadId}`);
   const floating = desktopWindow.dock === undefined && !desktopWindow.maximized;
+  // Opening something beside the thread keeps the thread and its companions in view together.
+  const group = (added: Rect) =>
+    boundsOf([desktopWindow.rect, added, ...manager.windows.filter((window) => (window.spec.kind === "info" || window.spec.kind === "related") && window.spec.threadId === threadId && !window.minimized).map((window) => window.rect)])!;
 
   // Desktop's Get Info and Buddy List: docked beside the thread, Info on the right and Related threads on the left.
   const toggleCompanion = (kind: "info" | "related") => {
@@ -455,7 +458,12 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
       return;
     }
     const spec = { kind, threadId } as const;
-    manager.open(spec, floating ? besideRect(desktopWindow.rect, kind === "info" ? "right" : "left", windowSize(spec).width) : undefined);
+    if (!floating) {
+      manager.open(spec);
+      return;
+    }
+    const rect = besideRect(desktopWindow.rect, kind === "info" ? "right" : "left", windowSize(spec).width);
+    manager.open(spec, rect, { reveal: group(rect) });
   };
   // Like Desktop, each click opens another tab; the window sits beside the thread, cascading.
   const openTab = (kind: "browser" | "terminal") => {
@@ -465,7 +473,12 @@ function ThreadWindow({ window: desktopWindow, threadId }: { window: DesktopWind
     const offset = manager.windows.filter((window) => window.spec.kind === kind && window.spec.threadId === threadId).length * 32;
     const size = windowSize(spec);
     const right = companionOpen("info") ? windowSize({ kind: "info", threadId }).width + 8 : 0;
-    manager.open(spec, floating ? { ...size, x: desktopWindow.rect.x + desktopWindow.rect.width + right + 24 + offset, y: desktopWindow.rect.y + offset } : undefined);
+    if (!floating) {
+      manager.open(spec);
+      return;
+    }
+    const rect = { ...size, x: desktopWindow.rect.x + desktopWindow.rect.width + right + 24 + offset, y: desktopWindow.rect.y + offset };
+    manager.open(spec, rect, { reveal: group(rect) });
   };
 
   return (

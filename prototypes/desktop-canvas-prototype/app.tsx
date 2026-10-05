@@ -14,6 +14,7 @@ import { DesktopDataProvider, useDesktop } from "./data";
 import { AskTextProvider, MenuProvider, PLUGIN_SCOPE, useMenu, type MenuEntry } from "./menu";
 import { NeedsInputNotice } from "./needs-input";
 import { ProgramWindow, windowIcon, windowTitle } from "./programs";
+import { isAttached } from "./window-state";
 import { dockWidth, usePointerTracker, useWindowManager, WindowManagerProvider, type DesktopWindow } from "./windows";
 import "./app.css";
 
@@ -117,13 +118,15 @@ function TaskButtons({ width }: { width: number }) {
   const manager = useWindowManager();
   const desktop = useDesktop();
   const menu = useMenu();
+  // A thread's docked Info and Related threads belong to its button; they minimize and restore with it.
+  const tasks = manager.windows.filter((window) => !manager.windows.some((thread) => isAttached(window, thread)));
   const capacity = Math.max(1, Math.floor((width - 300) / 156));
-  const shown = manager.windows.slice(0, capacity);
-  const focused = manager.windows.find((window) => window.id === manager.focusedId);
+  const shown = tasks.slice(0, capacity);
+  const focused = tasks.find((window) => window.id === manager.focusedId) ?? tasks.find((window) => manager.windows.some((other) => other.id === manager.focusedId && isAttached(other, window)));
   if (focused !== undefined && !shown.includes(focused)) shown[shown.length - 1] = focused;
-  const hidden = manager.windows.filter((window) => !shown.includes(window));
+  const hidden = tasks.filter((window) => !shown.includes(window));
   const activate = (window: DesktopWindow) => {
-    if (manager.focusedId === window.id && !window.minimized) manager.minimize(window.id, true);
+    if (focused?.id === window.id && !window.minimized) manager.minimize(window.id, true);
     else manager.focus(window.id, { reveal: true });
   };
   const taskMenu = (window: DesktopWindow): MenuEntry[] => [
@@ -135,7 +138,7 @@ function TaskButtons({ width }: { width: number }) {
     "separator",
     { label: "Close", icon: "X", run: () => manager.close(window.id) },
   ];
-  if (manager.windows.length === 0) return null;
+  if (tasks.length === 0) return null;
   return (
     <div className="cdc-tasks">
       {shown.map((window) => {
@@ -143,7 +146,7 @@ function TaskButtons({ width }: { width: number }) {
         const icon = windowIcon(window.spec, desktop);
         return (
           <button key={window.id} type="button" className="cdc-task" title={title} aria-label={`${title}${window.minimized ? " (minimized)" : ""}`}
-            data-focused={manager.focusedId === window.id && !window.minimized} data-minimized={window.minimized || undefined}
+            data-focused={focused?.id === window.id && !window.minimized} data-minimized={window.minimized || undefined}
             onClick={() => activate(window)} onContextMenu={(event) => menu.open(event, taskMenu(window))}>
             {icon.name === undefined ? null : <Icon name={icon.name} className={icon.className} />}
             <span>{title}</span>

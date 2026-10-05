@@ -21,12 +21,13 @@
   color: var(--foreground);
 }
 
+/* clip, not hidden: focusing something past the edge (a terminal's input) must never scroll the canvas itself. */
 .cdc-desktop {
   position: relative;
   width: 100%;
   height: 100%;
   min-height: 440px;
-  overflow: hidden;
+  overflow: clip;
   isolation: isolate;
   background: transparent;
   font-size: var(--text-sm);
@@ -62,7 +63,7 @@
 .cdc-canvas {
   position: absolute;
   inset: 0;
-  overflow: hidden;
+  overflow: clip;
   outline: none;
   cursor: default;
   background-color: color-mix(in oklab, var(--muted) 40%, var(--background));
@@ -234,6 +235,7 @@ body[data-ambient-glass] .cdc-icon:not([aria-selected="true"]) .cdc-icon-label {
   position: absolute;
   inset: 0;
   z-index: 2;
+  overflow: clip;
   pointer-events: none;
   isolation: isolate;
 }

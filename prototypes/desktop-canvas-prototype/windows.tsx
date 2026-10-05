@@ -15,7 +15,7 @@ import {
 } from "react";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { DOCK_RESERVE, useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
-import { resizeRect, revealCamera, toWorld, type Camera, type Point, type Rect, type ResizeEdge } from "./core";
+import { fitCamera, resizeRect, revealCamera, toWorld, type Camera, type Point, type Rect, type ResizeEdge } from "./core";
 import { closeBrowserTab } from "./browser";
 import { useMenu } from "./menu";
 import { closeTerminalSession } from "./terminal";
@@ -40,8 +40,8 @@ export interface WindowManager {
   focusedId: string | null;
   /** The edge a dragged window would dock to if dropped now. */
   dockPreview: DockSide | null;
-  /** Opens `spec` (or focuses its window) and brings it into view at 100%. */
-  open(spec: WindowSpec, rect?: Rect): void;
+  /** Opens `spec` (or focuses its window) and brings it, or the `reveal` rect around it, into view at 100%. */
+  open(spec: WindowSpec, rect?: Rect, options?: { reveal?: Rect }): void;
   /** Raises and restores a window; `reveal` also pans to it. */
   focus(id: string, options?: { reveal?: boolean }): void;
   close(id: string): void;
@@ -90,8 +90,11 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
   const right = docked("right") ? width : 0;
   useEffect(() => canvas.setInsets({ left, right }), [canvas, left, right]);
 
+  // At 100% when it fits; a thread with its companions wider than the screen is framed slightly zoomed out instead.
   const reveal = useCallback((rect: Rect) => {
-    canvas.setCamera((camera) => revealCamera(camera, rect, canvas.getWorkArea()), { animate: true });
+    const area = canvas.getWorkArea();
+    const fits = rect.width + 48 <= area.width && rect.height + 48 <= area.height;
+    canvas.setCamera((camera) => (fits ? revealCamera(camera, rect, area) : fitCamera(rect, area, 24)), { animate: true });
   }, [canvas]);
 
   const manager = useMemo<WindowManager>(() => {
@@ -113,16 +116,16 @@ export function WindowManagerProvider({ children }: { children: ReactNode }) {
       windows: state.windows,
       focusedId: focused?.id ?? null,
       dockPreview,
-      open(spec, rect) {
+      open(spec, rect, options) {
         const existing = windowsRef.current.find((window) => window.id === windowId(spec));
         if (existing !== undefined) {
           dispatch({ type: "focus", id: existing.id });
-          if (floating(existing)) reveal(existing.rect);
+          if (floating(existing)) reveal(options?.reveal ?? existing.rect);
           return;
         }
         const placed = rect ?? defaultRect(spec, windowsRef.current.length, canvas.getCamera(), canvas.getWorkArea());
         dispatch({ type: "open", spec, rect: placed });
-        reveal(placed);
+        reveal(options?.reveal ?? placed);
       },
       focus(id, options) {
         dispatch({ type: "focus", id });

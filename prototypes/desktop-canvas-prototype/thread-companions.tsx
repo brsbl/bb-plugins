@@ -179,7 +179,7 @@ export function RelatedWindow({ window: desktopWindow, threadId }: { window: Des
   const scopeName = activeScope === "project" ? desktop.projectName(thread?.projectId ?? "") || "No project" : thread?.environment?.name ?? thread?.environment?.branchName ?? "Environment";
 
   return (
-    <WindowFrame window={desktopWindow} title={scopeName} icon="Layers">
+    <WindowFrame window={desktopWindow} title={`Threads in ${scopeName}`} icon="Layers">
       <div className="cdc-related">
         {environmentId === null ? null : (
           <div className="cdc-related-tabs" role="tablist" aria-label="Show threads in">
