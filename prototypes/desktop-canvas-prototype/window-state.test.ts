@@ -18,12 +18,12 @@ describe("window state", () => {
   });
 
   it("navigates a Finder window through places with Back and Forward", () => {
-    let state = windowReducer(empty, { type: "open", spec: { kind: "more" }, rect });
-    state = windowReducer(state, { type: "navigate", id: "more", spec: { kind: "finder", key: "section:a" } });
+    let state = windowReducer(empty, { type: "open", spec: { kind: "finder", key: "more" }, rect });
+    state = windowReducer(state, { type: "navigate", id: "finder:more", spec: { kind: "finder", key: "section:a" } });
     expect(state.windows[0]!.id).toBe("finder:section:a");
     state = windowReducer(state, { type: "go", id: "finder:section:a", direction: "back" });
-    expect(state.windows[0]!.id).toBe("more");
-    state = windowReducer(state, { type: "go", id: "more", direction: "forward" });
+    expect(state.windows[0]!.id).toBe("finder:more");
+    state = windowReducer(state, { type: "go", id: "finder:more", direction: "forward" });
     expect(state.windows[0]!.id).toBe("finder:section:a");
   });
 
@@ -49,5 +49,25 @@ describe("window state", () => {
     const placed = defaultRect({ kind: "threads" }, 0, { x: -500, y: 0, zoom: 0.5 }, { x: 0, y: 0, width: 1000, height: 800 });
     expect(placed.x + placed.width / 2).toBe(2000);
     expect(placed.y + placed.height / 2).toBe(800);
+  });
+  it("docks one window per side and floats the one it replaces back to its canvas rect", () => {
+    let state = windowReducer(empty, { type: "open", spec: { kind: "thread", threadId: "thr_a" }, rect });
+    state = windowReducer(state, { type: "open", spec: { kind: "threads" }, rect: { ...rect, x: 700 } });
+    state = windowReducer(state, { type: "dock", id: "thread:thr_a", side: "left" });
+    state = windowReducer(state, { type: "dock", id: "threads", side: "left" });
+    expect(state.windows.find((window) => window.id === "threads")!.dock).toBe("left");
+    expect(state.windows.find((window) => window.id === "thread:thr_a")!.dock).toBeUndefined();
+    state = windowReducer(state, { type: "move", id: "threads", rect: { ...rect, x: 40 } });
+    expect(state.windows.find((window) => window.id === "threads")).toMatchObject({ dock: undefined, rect: { x: 40 } });
+  });
+
+  it("restores docked windows, keeping only the most recently raised window on each side", () => {
+    const stored = JSON.stringify([
+      { spec: { kind: "threads" }, rect, z: 1, minimized: false, maximized: false, dock: "right" },
+      { spec: { kind: "recycle-bin" }, rect, z: 5, minimized: true, maximized: false, dock: "right" },
+    ]);
+    const restored = parseWindows(stored);
+    expect(restored.windows.find((window) => window.id === "recycle-bin")!.dock).toBe("right");
+    expect(restored.windows.find((window) => window.id === "threads")!.dock).toBeUndefined();
   });
 });

@@ -1,46 +1,25 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import { toast } from "sonner";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { RECYCLE_BIN_DROP, deleteGroups, groupMenu, threadDropTarget, viewMenuEntries } from "./actions";
-import { useCamera, useCanvasControls, useWorkArea } from "./camera";
-import {
-  ICON_BOX,
-  ICON_CELL,
-  boundsOf,
-  cascadeRects,
-  fitCamera,
-  folderSummary,
-  gridPositions,
-  groupSortValue,
-  isDeletable,
-  nextFreePosition,
-  sortThreads,
-  tileRects,
-  toWorld,
-  worldRect,
-  zoomAt,
-  type Camera,
-  type DesktopGroup,
-  type Point,
-  type Rect,
-} from "./core";
-import { errorMessage, useDesktop } from "./data";
+import { useCamera, useCanvasControls, useViewport, useWorkArea } from "./camera";
+import { CanvasMark } from "./canvas-mark";
+import { compareThreads, isDeletable, type Collection } from "./canvas-organization";
+import { ICON_BOX, ICON_CELL, boundsOf, cascadeRects, fitCamera, folderSummary, gridPositions, nextFreePosition, tileRects, toWorld, worldRect, zoomAt, type Camera, type Point, type Rect } from "./core";
+import { errorMessage, useDesktop, type DesktopContextValue } from "./data";
 import { useMenu, type MenuEntry, type MenuTrigger } from "./menu";
-import { StatusDot, groupIcon, useMenuContext } from "./programs";
-import { usePointerTracker, useWindowManager, windowSize, type DesktopWindow } from "./windows";
+import { RESOURCE_ICON, StatusDot, collectionMembers, useMenuContext } from "./programs";
+import { usePointerTracker, useWindowManager, type DesktopWindow } from "./windows";
 
 /**
- * The canvas: Desktop's icon desktop on an infinite, zoomable surface. Icons select, marquee-select and drag as a
- * selection; positions persist on the server. Scroll or space-drag pans, pinch or ⌘-scroll zooms.
+ * The canvas: Desktop's icon desktop on an infinite, zoomable surface, showing the sidebar's groups in its order.
+ * Icons select, marquee-select and drag as a selection; positions persist on the plugin server. Scroll or space-drag
+ * pans, pinch or ⌘-scroll zooms.
  */
 
 export const RECYCLE_BIN_KEY = "recycle-bin";
-export const MORE_KEY = "more";
 
-type Entry =
-  | { kind: "group"; key: string; title: string; group: DesktopGroup }
-  | { kind: "more"; key: string; title: string }
-  | { kind: "recycle-bin"; key: string; title: string };
+type Entry = { kind: "group"; key: string; group: Collection } | { kind: "recycle-bin"; key: string };
 
 /** Where icons without a saved position go: a fixed grid at the canvas origin, so they never drift with the view. */
 const HOME_AREA: Rect = { x: 48, y: 48, width: ICON_CELL.width * 7, height: 100_000 };
@@ -60,14 +39,13 @@ export function cycleWindowId(windows: readonly DesktopWindow[], focusedId: stri
   return next.id === focusedId ? null : next.id;
 }
 
+/** The sidebar's groups in its order, then desktop folders and More, with the Recycle Bin last. */
 export function useCanvasEntries(): Entry[] {
-  const { canvasGroups, moreGroups } = useDesktop();
-  const hasMore = moreGroups.length > 0;
+  const { organization } = useDesktop();
   return useMemo<Entry[]>(() => [
-    { kind: "recycle-bin", key: RECYCLE_BIN_KEY, title: "Recycle Bin" },
-    ...(hasMore ? [{ kind: "more" as const, key: MORE_KEY, title: "More" }] : []),
-    ...canvasGroups.map((group) => ({ kind: "group" as const, key: group.key, title: group.name, group })),
-  ], [canvasGroups, hasMore]);
+    ...organization.roots.map((group) => ({ kind: "group" as const, key: group.key, group })),
+    { kind: "recycle-bin", key: RECYCLE_BIN_KEY },
+  ], [organization.roots]);
 }
 
 /** Every icon's canvas position: saved, pending a save, or the next free slot at home. */
@@ -86,16 +64,22 @@ export function useIconPositions(entries: readonly Entry[], overrides: Record<st
   }, [entries, overrides, snapshot.layout]);
 }
 
-export function DesktopCanvas({ showComposer, showDesktop }: { showComposer: () => void; showDesktop: () => void }) {
+export function DesktopCanvas({ showComposer, showDesktop, arrangeRef }: {
+  showComposer: () => void;
+  showDesktop: () => void;
+  /** Lets the launcher's View options arrange the icons the same way. */
+  arrangeRef: MutableRefObject<(() => void) | null>;
+}) {
   const desktop = useDesktop();
   const context = useMenuContext();
   const manager = useWindowManager();
   const menu = useMenu();
   const camera = useCamera();
   const area = useWorkArea();
+  const viewport = useViewport();
   const controls = useCanvasControls();
   const track = usePointerTracker();
-  const { call, refresh, sort } = desktop;
+  const { call, refresh } = desktop;
   const canvasRef = useRef<HTMLDivElement>(null);
   const binRef = useRef<HTMLDivElement>(null);
   const marqueeRef = useRef<HTMLDivElement>(null);
@@ -331,10 +315,12 @@ export function DesktopCanvas({ showComposer, showDesktop }: { showComposer: () 
     return { camera: target, world: worldRect(target, area) };
   };
 
+  /** Floating windows, thread windows in the sidebar's sort order first. Docked windows keep their edge. */
   const windowsInSortOrder = () => {
-    const open = manager.windows;
+    const open = manager.windows.filter((window) => window.dock === undefined);
     const threadOf = (window: DesktopWindow) => (window.spec.kind === "thread" ? desktop.threadById.get(window.spec.threadId) : undefined);
-    const rank = new Map(sortThreads(open.flatMap((window) => threadOf(window) ?? []), sort.key, sort.direction).map((thread, index) => [thread.id, index]));
+    const sorted = open.flatMap((window) => threadOf(window) ?? []).sort(compareThreads(desktop.preferences));
+    const rank = new Map(sorted.map((thread, index) => [thread.id, index]));
     return [...open].sort((left, right) => (rank.get(threadOf(left)?.id ?? "") ?? Number.MAX_SAFE_INTEGER) - (rank.get(threadOf(right)?.id ?? "") ?? Number.MAX_SAFE_INTEGER));
   };
 
@@ -353,26 +339,19 @@ export function DesktopCanvas({ showComposer, showDesktop }: { showComposer: () 
       width: Math.min(window.rect.width, view.world.width - 64 - (ordered.length - 1) * 32),
       height: Math.min(window.rect.height, view.world.height - 64 - (ordered.length - 1) * 32),
     }));
-    const rects = cascadeRects(sizes.map((size) => ({ width: Math.max(windowSize({ kind: "more" }).width, size.width), height: Math.max(240, size.height) })), { x: view.world.x + 32, y: view.world.y + 32 });
+    const rects = cascadeRects(sizes.map((size) => ({ width: Math.max(480, size.width), height: Math.max(240, size.height) })), { x: view.world.x + 32, y: view.world.y + 32 });
     controls.setCamera(view.camera, { animate: true });
     manager.arrange(Object.fromEntries(ordered.map((window, index) => [window.id, rects[index]!])));
     ordered.forEach((window) => manager.focus(window.id));
   };
 
-  const arrangeIcons = () => {
-    const direction = sort.direction === "ascending" ? 1 : -1;
-    const valueOf = (group: DesktopGroup) => groupSortValue(group, desktop.membersOf(group), sort.key);
-    const ordered = [...groups].sort((left, right) => {
-      const a = valueOf(left);
-      const b = valueOf(right);
-      return a < b ? -direction : a > b ? direction : 0;
-    });
-    const arranged = [...ordered.map((group) => group.key), ...(keys.includes(MORE_KEY) ? [MORE_KEY] : []), RECYCLE_BIN_KEY];
-    // Laid out where you're looking, in sort order, as wide as the view.
+  /** Lays the icons out in the sidebar's order, where you're looking, as wide as the view. */
+  const arrangeLikeSidebar = () => {
     const view = worldRect(camera, area);
-    const grid = gridPositions(arranged.length, { x: view.x + 32 / camera.zoom, y: view.y + 32 / camera.zoom, width: Math.max(ICON_CELL.width, view.width - 64 / camera.zoom), height: view.height });
-    saveLayout(Object.fromEntries(arranged.map((key, index) => [key, grid[index]!])));
+    const grid = gridPositions(keys.length, { x: view.x + 32 / camera.zoom, y: view.y + 32 / camera.zoom, width: Math.max(ICON_CELL.width, view.width - 64 / camera.zoom), height: view.height });
+    saveLayout(Object.fromEntries(keys.map((key, index) => [key, grid[index]!])));
   };
+  arrangeRef.current = arrangeLikeSidebar;
 
   const cycle = (direction: 1 | -1) => {
     const id = cycleWindowId(manager.windows, manager.focusedId, direction);
@@ -380,16 +359,15 @@ export function DesktopCanvas({ showComposer, showDesktop }: { showComposer: () 
   };
   const canCycle = cycleWindowId(manager.windows, manager.focusedId, 1) !== null;
 
-  const canvasMenu = (event: MenuTrigger): MenuEntry[] => {
+  const canvasMenu = (event: MenuTrigger) => {
     const at = toWorld(controls.getCamera(), controls.toLocal(event.clientX, event.clientY));
-    return [
+    return (latest: DesktopContextValue): MenuEntry[] => [
       { label: "New folder", icon: "FolderPlus", run: () => manager.open({ kind: "new-folder", at: { x: at.x - ICON_BOX.width / 2, y: at.y - ICON_BOX.height / 2 } }) },
       { label: "New thread", icon: "MessageSquarePlus", run: showComposer },
       "separator",
       { label: "My Threads", icon: "MessageSquare", run: () => manager.open({ kind: "threads" }) },
       { label: "Recycle Bin", icon: "Trash2", run: () => manager.open({ kind: "recycle-bin" }) },
       "separator",
-      { label: "Arrange icons", icon: "GridView", run: arrangeIcons },
       { label: "Tile windows", icon: "Columns2", disabled: manager.windows.length === 0, run: tileWindows },
       { label: "Cascade windows", icon: "Layers", disabled: manager.windows.length === 0, run: cascadeWindows },
       { label: "Show desktop", icon: "AppWindow", disabled: manager.windows.length === 0, run: showDesktop },
@@ -399,13 +377,13 @@ export function DesktopCanvas({ showComposer, showDesktop }: { showComposer: () 
       { label: "Zoom to 100%", icon: "ZoomIn", hint: "0", disabled: camera.zoom === 1, run: () => zoomTo(1) },
       { label: "Fit all", icon: "Maximize2", hint: "⇧1", run: fitAll },
       "separator",
-      ...viewMenuEntries(desktop),
+      ...viewMenuEntries(latest, arrangeLikeSidebar),
     ];
   };
 
   const iconMenu = (key: string, single: MenuEntry[]): MenuEntry[] => {
     if (!(selected.has(key) && selected.size > 1)) return single;
-    const chosen = groups.filter((group) => selected.has(group.key));
+    const chosen = groups.filter((group) => selected.has(group.key) && group.kind !== "more");
     const deletable = chosen.filter(isDeletable);
     return [
       { label: `Open ${chosen.length} folders`, icon: "FolderOpen", disabled: chosen.length === 0, run: () => chosen.forEach((group) => manager.open({ kind: "finder", key: group.key })) },
@@ -440,6 +418,7 @@ export function DesktopCanvas({ showComposer, showDesktop }: { showComposer: () 
         menu.open(event, canvasMenu(event));
       }}
     >
+      <CanvasMark />
       <div className="cdc-world" style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})` }}>
         {entries.map((entry) => {
           const position = positions.get(entry.key)!;
@@ -451,24 +430,16 @@ export function DesktopCanvas({ showComposer, showDesktop }: { showComposer: () 
           };
           if (entry.kind === "group") {
             const { group } = entry;
-            const members = desktop.membersOf(group);
+            const members = collectionMembers(group);
             const open = () => manager.open({ kind: "finder", key: group.key });
+            const summary = group.kind === "more" ? `${folderSummary("More", members)} · ${group.children.length} hidden in the sidebar` : folderSummary(group.name, members);
             return (
-              <CanvasIcon key={entry.key} {...common} label={group.name} icon={groupIcon(group)} summary={folderSummary(group.name, members)} empty={members.length === 0}
+              <CanvasIcon key={entry.key} {...common} label={group.name} icon={group.icon} iconClassName={RESOURCE_ICON} summary={summary} empty={members.length === 0 && group.children.length === 0}
                 badge={<StatusDot members={members} />} dropKey={threadDropTarget(group)["data-thread-drop"]} onOpen={open}
                 onContextMenu={(event) => {
                   select(entry.key);
                   menu.open(event, iconMenu(entry.key, groupMenu(context, group, open, (target) => manager.open({ kind: "new-thread", groupKey: target.key }))));
                 }} />
-            );
-          }
-          if (entry.kind === "more") {
-            const members = [...new Map(desktop.moreGroups.flatMap((group) => desktop.membersOf(group)).map((thread) => [thread.id, thread])).values()];
-            const open = () => manager.open({ kind: "more" });
-            return (
-              <CanvasIcon key={entry.key} {...common} label="More" icon="Layers" summary={`${folderSummary("More", members)} · ${desktop.moreGroups.length} folders hidden in the sidebar`}
-                badge={<StatusDot members={members} />} onOpen={open}
-                onContextMenu={(event) => { select(entry.key); menu.open(event, [{ label: "Open", icon: "FolderOpen", run: open }]); }} />
             );
           }
           const count = desktop.archivedThreads.length;
@@ -482,17 +453,18 @@ export function DesktopCanvas({ showComposer, showDesktop }: { showComposer: () 
         })}
       </div>
       <div ref={marqueeRef} className="cdc-marquee" hidden aria-hidden />
-      <CameraControls zoom={camera.zoom} zoomTo={zoomTo} fitAll={fitAll} />
+      <CameraControls zoom={camera.zoom} zoomTo={zoomTo} fitAll={fitAll} right={viewport.width - area.x - area.width + 12} />
     </div>
   );
 }
 
-function CanvasIcon({ entryKey, position, selected, label, icon, summary, empty, badge, dropKey, binRef, onPointerDown, onOpen, onContextMenu }: {
+function CanvasIcon({ entryKey, position, selected, label, icon, iconClassName, summary, empty, badge, dropKey, binRef, onPointerDown, onOpen, onContextMenu }: {
   entryKey: string;
   position: Point;
   selected: boolean;
   label: string;
   icon: string;
+  iconClassName?: string;
   summary: string;
   empty?: boolean;
   badge?: ReactNode;
@@ -526,7 +498,7 @@ function CanvasIcon({ entryKey, position, selected, label, icon, summary, empty,
       onContextMenu={onContextMenu}
     >
       <span className="cdc-icon-art">
-        <Icon name={icon} />
+        <Icon name={icon} className={iconClassName} />
         {badge}
       </span>
       <span className="cdc-icon-label">{label}</span>
@@ -534,9 +506,9 @@ function CanvasIcon({ entryKey, position, selected, label, icon, summary, empty,
   );
 }
 
-function CameraControls({ zoom, zoomTo, fitAll }: { zoom: number; zoomTo: (zoom: number) => void; fitAll: () => void }) {
+function CameraControls({ zoom, zoomTo, fitAll, right }: { zoom: number; zoomTo: (zoom: number) => void; fitAll: () => void; right: number }) {
   return (
-    <div className="cdc-camera cdc-glass" data-screen role="toolbar" aria-label="Zoom" onPointerDown={(event) => event.stopPropagation()}>
+    <div className="cdc-camera cdc-glass" data-screen role="toolbar" aria-label="Zoom" style={{ right }} onPointerDown={(event) => event.stopPropagation()}>
       <button type="button" className="cdc-tool" aria-label="Zoom out" title="Zoom out" onClick={() => zoomTo(zoom / 1.25)}><Icon name="ZoomOut" /></button>
       <button type="button" className="cdc-zoom-value" aria-label="Zoom to 100%" title="Zoom to 100%" onClick={() => zoomTo(1)}>{Math.round(zoom * 100)}%</button>
       <button type="button" className="cdc-tool" aria-label="Zoom in" title="Zoom in" onClick={() => zoomTo(zoom * 1.25)}><Icon name="ZoomIn" /></button>

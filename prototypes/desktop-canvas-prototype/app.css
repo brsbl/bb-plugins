@@ -55,14 +55,35 @@
 
 /* The canvas */
 
+/* A quiet grid that pans and zooms with the canvas, over a faint tint; Ambient's picture shows through instead. */
 .cdc-canvas {
   position: absolute;
   inset: 0;
   overflow: hidden;
   outline: none;
   cursor: default;
-  background-image: radial-gradient(circle, color-mix(in oklab, var(--ink) 16%, transparent) 1px, transparent 1.4px);
+  background-color: color-mix(in oklab, var(--muted) 40%, var(--background));
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px);
 }
+
+body[data-ambient-glass] .cdc-canvas { background-color: transparent; }
+
+.cdc-watermark {
+  position: absolute;
+  left: 62%;
+  top: 48%;
+  width: clamp(180px, 24vw, 320px);
+  transform: translate(-50%, -50%);
+  fill: currentColor;
+  color: var(--foreground);
+  opacity: 0.045;
+  pointer-events: none;
+}
+
+/* bb's resource glyphs, drawn filled at icon size. */
+.cdc-resource-icon { fill: currentColor; }
 
 .cdc-canvas[data-space], .cdc-canvas[data-space] .cdc-icon { cursor: grab; }
 .cdc-canvas[data-panning], .cdc-canvas[data-panning] * { cursor: grabbing; }
@@ -80,8 +101,8 @@
 
 .cdc-icon {
   position: absolute;
-  width: 96px;
-  min-height: 96px;
+  width: 88px;
+  min-height: 88px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -97,14 +118,14 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 60px;
-  height: 56px;
-  border-radius: 14px;
-  color: color-mix(in oklch, var(--ink) 78%, var(--canvas));
+  width: 48px;
+  height: 44px;
+  border-radius: 12px;
+  color: color-mix(in oklch, var(--ink) 62%, var(--canvas));
   transition: background-color 120ms;
 }
 
-.cdc-icon-art > [data-icon-root] { width: 42px; height: 42px; }
+.cdc-icon-art > [data-icon-root] { width: 32px; height: 32px; }
 .cdc-icon[data-empty] .cdc-icon-art { color: color-mix(in oklch, var(--ink) 50%, var(--canvas)); }
 .cdc-icon:hover .cdc-icon-art { background: var(--cdc-hover); }
 .cdc-icon[aria-selected="true"] .cdc-icon-art { background: var(--cdc-press); }
@@ -113,7 +134,7 @@
 .cdc-icon[data-dragging="true"] { opacity: 0.8; z-index: 5; }
 
 .cdc-icon-label {
-  max-width: 96px;
+  max-width: 88px;
   padding: 1px 7px;
   border-radius: 7px;
   font-size: var(--text-xs);
@@ -244,6 +265,26 @@ body[data-ambient-glass] .cdc-icon:not([aria-selected="true"]) .cdc-icon-label {
 }
 
 .cdc-window[data-maximized] > .cdc-window-body { border-width: 1px 0 0; border-radius: 0; }
+
+/* Docked: flush against the canvas edge beside bb's panel, with only the inner corner rounded. */
+.cdc-window[data-dock] { box-shadow: none; border-top-width: 0; }
+.cdc-window[data-dock="left"] { border-left-width: 0; border-radius: 0 0 14px 0; }
+.cdc-window[data-dock="right"] { border-right-width: 0; border-radius: 0 0 0 14px; }
+
+.cdc-dock-preview {
+  position: absolute;
+  top: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  border: 2px solid var(--ring);
+  background: color-mix(in oklab, var(--ring) 10%, transparent);
+}
+
+.cdc-dock-preview[data-side="left"] { left: 0; border-radius: 0 0 14px 0; }
+.cdc-dock-preview[data-side="right"] { right: 0; border-radius: 0 0 0 14px; }
+.cdc-dock-preview span { padding: 6px 10px; border-radius: 8px; background: var(--background); box-shadow: var(--shadow-sm); }
 .cdc-window[data-dragging] { transition: none; will-change: left, top, width, height; }
 
 .cdc-titlebar {
@@ -400,6 +441,9 @@ body[data-ambient-glass] .cdc-icon:not([aria-selected="true"]) .cdc-icon-label {
 .cdc-empty p { max-width: 36ch; }
 
 .cdc-list { padding: 4px 0; }
+.cdc-collection-footer { display: flex; justify-content: center; padding: 6px; }
+.cdc-collection-footer:empty { display: none; }
+.cdc-collection-error { padding: 8px 12px; font-size: var(--text-xs); color: var(--destructive-text); }
 
 .cdc-row {
   display: grid;
@@ -458,7 +502,7 @@ body[data-ambient-glass] .cdc-icon:not([aria-selected="true"]) .cdc-icon-label {
 .cdc-file-icon:hover { background: var(--cdc-hover); }
 .cdc-file-icon:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
 .cdc-file-art { position: relative; display: grid; place-items: center; width: 44px; height: 40px; color: color-mix(in oklch, var(--ink) 75%, var(--canvas)); }
-.cdc-file-art > [data-icon-root] { width: 30px; height: 30px; }
+.cdc-file-art > [data-icon-root], .cdc-file-art > img, .cdc-file-art > svg { width: 30px; height: 30px; }
 .cdc-file-label { max-width: 100%; padding: 1px 6px; border-radius: 6px; font-size: var(--text-xs); line-height: 1.3; text-align: center; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cdc-file-icon[aria-selected="true"] .cdc-file-label { background: var(--cdc-select); color: var(--cdc-select-foreground); }
 .cdc-file-icon[data-drop-target="true"] { background: var(--cdc-press); box-shadow: inset 0 0 0 2px var(--ring); }
@@ -485,19 +529,42 @@ body[data-ambient-glass] .cdc-icon:not([aria-selected="true"]) .cdc-icon-label {
 .cdc-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .cdc-new-thread { height: 100%; overflow: auto; padding: 12px; background: var(--background); }
 
-/* The composer */
+/* The composer: bb's prompt and its header in one rounded frame, just above the dock. */
 
 .cdc-composer {
   position: absolute;
   z-index: 4;
-  max-width: calc(100% - 32px);
+  left: 50%;
+  bottom: 88px;
+  width: min(720px, calc(100% - 64px));
+  padding: 4px;
+  transform: translateX(-50%);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  background: var(--background);
+  box-shadow: var(--shadow-lg);
 }
 
-.cdc-composer > * { background: var(--background); border-radius: var(--radius); }
-.cdc-composer[data-mode="center"] { top: 44%; left: 50%; transform: translate(-50%, -50%); }
-.cdc-composer[data-mode="float"] { padding-top: 12px; cursor: grab; }
-.cdc-composer[data-mode="float"] > * { cursor: auto; box-shadow: var(--cdc-lift); }
-.cdc-composer[data-mode="hidden"] { bottom: 96px; right: 24px; visibility: hidden; pointer-events: none; }
+.cdc-composer:not([data-open]) { visibility: hidden; pointer-events: none; }
+.cdc-composer > div { background: transparent; }
+.cdc-composer [data-promptbox] { border: 0; border-radius: 0 0 var(--radius) var(--radius); box-shadow: none; }
+.cdc-composer-header { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 2px 4px; }
+
+.cdc-composer-grip {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: grab;
+  touch-action: none;
+}
+
+.cdc-composer-grip:hover { background: var(--cdc-hover); }
+.cdc-composer-grip:active { cursor: grabbing; }
+.cdc-composer .cdc-title-button { width: 24px; height: 24px; color: var(--muted-foreground); }
 
 /* The dock */
 
@@ -530,7 +597,6 @@ body[data-ambient-glass] .cdc-icon:not([aria-selected="true"]) .cdc-icon-label {
 .cdc-dock-button:hover, .cdc-task:hover { background: var(--cdc-hover); }
 .cdc-dock-button[data-active], .cdc-task[data-focused="true"] { background: var(--cdc-press); }
 .cdc-dock-chevron { width: 26px; padding: 0; justify-content: center; margin-left: -2px; }
-.cdc-divider { width: 1px; height: 20px; flex: none; margin: 0 4px; background: var(--cdc-hairline); }
 .cdc-tasks { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .cdc-task { max-width: 168px; }
 .cdc-task > span { overflow: hidden; text-overflow: ellipsis; }
@@ -577,6 +643,7 @@ body[data-ambient-glass] .cdc-icon:not([aria-selected="true"]) .cdc-icon-label {
 .cdc-menu-hint { font: inherit; font-size: var(--text-xs); color: var(--muted-foreground); }
 .cdc-menu-chevron { margin-right: -4px; color: var(--muted-foreground); }
 .cdc-menu-separator { height: 1px; margin: 4px 6px; background: var(--cdc-hairline); }
+.cdc-menu-heading { padding: 6px 8px 2px; font-size: var(--text-xs); color: var(--muted-foreground); }
 
 /* The name prompt */
 

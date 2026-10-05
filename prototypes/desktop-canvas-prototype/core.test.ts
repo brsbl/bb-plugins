@@ -1,64 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildGroups,
-  fitCamera,
-  gridPositions,
-  groupMembers,
-  nextFreePosition,
-  resizeRect,
-  revealCamera,
-  tileRects,
-  toScreen,
-  toWorld,
-  zoomAt,
-  type DesktopThread,
-} from "./core";
-
-const thread = (id: string, patch: Partial<DesktopThread> = {}): DesktopThread => ({
-  id,
-  title: id,
-  projectId: "proj_a",
-  sectionId: null,
-  hostId: "host_a",
-  providerId: "codex",
-  status: "idle",
-  isArchived: false,
-  isPinned: false,
-  isUnread: false,
-  needsInput: false,
-  createdAt: 1,
-  updatedAt: 1,
-  ...patch,
-});
-
-describe("groups", () => {
-  it("files threads into sections, the loose Threads bucket, Pinned and desktop folders", () => {
-    const threads = [thread("a", { sectionId: "sec_1" }), thread("b"), thread("c", { isPinned: true, sectionId: "sec_1" })];
-    const groups = buildGroups({
-      organize: "section",
-      sections: [{ id: "sec_1", name: "Inbox" }],
-      projects: [],
-      machines: [],
-      folders: [{ id: "fld_1", name: "Next up", threadIds: ["b", "missing"], createdAt: 1 }],
-      threads,
-    });
-    expect(groups.map((group) => group.key)).toEqual(["pinned", "section:sec_1", "section:none", "folder:fld_1"]);
-    const members = groupMembers(groups, threads);
-    expect(members.get("pinned")?.map((t) => t.id)).toEqual(["c"]);
-    expect(members.get("section:sec_1")?.map((t) => t.id)).toEqual(["a"]);
-    expect(members.get("section:none")?.map((t) => t.id)).toEqual(["b"]);
-    expect(members.get("folder:fld_1")?.map((t) => t.id)).toEqual(["b"]);
-  });
-
-  it("shows only projects and machines that have threads", () => {
-    const threads = [thread("a", { hostId: null })];
-    const byProject = buildGroups({ organize: "project", sections: [], projects: [{ id: "proj_a", name: "A" }, { id: "proj_b", name: "B" }], machines: [], folders: [], threads });
-    expect(byProject.map((group) => group.key)).toEqual(["project:proj_a"]);
-    const byMachine = buildGroups({ organize: "machine", sections: [], projects: [], machines: [{ id: "host_a", name: "Air" }], folders: [], threads });
-    expect(byMachine.map((group) => group.key)).toEqual(["machine:none"]);
-    expect(groupMembers(byMachine, threads).get("machine:none")?.map((t) => t.id)).toEqual(["a"]);
-  });
-});
+import { fitCamera, folderSummary, gridPositions, nextFreePosition, resizeRect, revealCamera, tileRects, toScreen, toWorld, zoomAt, type DesktopThread } from "./core";
 
 describe("camera", () => {
   it("zooms around the anchor, so the point under the pointer stays put", () => {
@@ -114,5 +55,19 @@ describe("geometry", () => {
     const area = { x: 0, y: 0, width: 400, height: 1000 };
     const [first, second] = gridPositions(2, area);
     expect(nextFreePosition([first!], area)).toEqual(second);
+  });
+});
+
+describe("status", () => {
+  const thread = (patch: Partial<DesktopThread>): DesktopThread => ({
+    id: "t", displayTitle: "t", projectId: "p", sectionId: null, providerId: "codex", status: "idle", hasPendingInteraction: false,
+    isArchived: false, isPinned: false, isUnread: false, createdAt: 1, updatedAt: 1, ...patch,
+  });
+
+  it("summarizes a folder by who needs you first, then who is working, then unread", () => {
+    expect(folderSummary("Inbox", [])).toBe("Inbox — empty");
+    expect(folderSummary("Inbox", [thread({ hasPendingInteraction: true }), thread({ status: "active" })])).toBe("Inbox — 2 threads, 1 needs input");
+    expect(folderSummary("Inbox", [thread({ status: "active" }), thread({ isUnread: true })])).toBe("Inbox — 2 threads, 1 running");
+    expect(folderSummary("Inbox", [thread({ isUnread: true }), thread({})])).toBe("Inbox — 2 threads, 1 unread");
   });
 });

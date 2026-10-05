@@ -13,6 +13,7 @@ import {
 import { createPortal } from "react-dom";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import { Button } from "./components/ui/button";
+import { useDesktop, type DesktopContextValue } from "./data";
 
 /** Desktop's right-click menus and its small name prompt, in bb's own styling. */
 
@@ -25,6 +26,8 @@ export interface MenuItem {
   checked?: boolean;
   /** Shown at the right edge, like a keyboard shortcut. */
   hint?: string;
+  /** For settings toggles: the menu stays open and redraws with the new state. */
+  keepOpen?: boolean;
   run: () => void;
 }
 
@@ -35,15 +38,18 @@ export interface MenuSubmenu {
   submenu: MenuEntry[];
 }
 
-export type MenuEntry = MenuItem | MenuSubmenu | "separator";
+export type MenuEntry = MenuItem | MenuSubmenu | "separator" | { heading: string };
+
+/** A menu's rows, or a function that builds them from the latest desktop state each time the menu redraws. */
+export type MenuSource = MenuEntry[] | ((desktop: DesktopContextValue) => MenuEntry[]);
 
 /** A right-click, or a button standing in for one, that opens a menu at a point. */
 export type MenuTrigger = Pick<MouseEvent, "clientX" | "clientY" | "preventDefault" | "stopPropagation">;
 
 interface MenuApi {
-  open: (event: MenuTrigger, entries: MenuEntry[]) => void;
+  open: (event: MenuTrigger, entries: MenuSource) => void;
   /** Opens beside a button, aligned to its left edge: below it, or above it for the dock. */
-  openFrom: (element: HTMLElement, entries: MenuEntry[], side?: "below" | "above") => void;
+  openFrom: (element: HTMLElement, entries: MenuSource, side?: "below" | "above") => void;
 }
 
 const MenuContext = createContext<MenuApi | null>(null);
@@ -57,12 +63,13 @@ export function useMenu(): MenuApi {
 interface MenuState {
   x: number;
   y: number;
-  entries: MenuEntry[];
+  entries: MenuSource;
   /** For menus opened from a button: the button's top, when the menu opens above it. */
   above?: number;
 }
 
 export function MenuProvider({ children }: { children: ReactNode }) {
+  const desktop = useDesktop();
   const [menu, setMenu] = useState<MenuState | null>(null);
   const close = useCallback(() => setMenu(null), []);
   const api = useMemo<MenuApi>(
@@ -82,12 +89,12 @@ export function MenuProvider({ children }: { children: ReactNode }) {
   return (
     <MenuContext.Provider value={api}>
       {children}
-      {menu === null ? null : createPortal(<ContextMenu menu={menu} onClose={close} />, document.body)}
+      {menu === null ? null : createPortal(<ContextMenu menu={menu} entries={typeof menu.entries === "function" ? menu.entries(desktop) : menu.entries} onClose={close} />, document.body)}
     </MenuContext.Provider>
   );
 }
 
-function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) {
+function ContextMenu({ menu, entries, onClose }: { menu: MenuState; entries: MenuEntry[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: menu.x, y: menu.y });
 
@@ -126,7 +133,7 @@ function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }
 
   return (
     <div ref={ref} {...PLUGIN_SCOPE} role="menu" className="cdc-menu" style={{ left: position.x, top: position.y }} onContextMenu={(event) => event.preventDefault()}>
-      <MenuList entries={menu.entries} onClose={onClose} />
+      <MenuList entries={entries} onClose={onClose} />
     </div>
   );
 }
@@ -175,6 +182,7 @@ function MenuList({ entries, onClose, onBack }: { entries: MenuEntry[]; onClose:
     <div className="cdc-menu-list" onKeyDown={onKeyDown}>
       {entries.map((entry, index) => {
         if (entry === "separator") return <div key={`separator-${index}`} className="cdc-menu-separator" role="separator" />;
+        if ("heading" in entry) return <div key={`heading-${index}`} className="cdc-menu-heading">{entry.heading}</div>;
         const ref = (button: HTMLButtonElement | null) => {
           if (button === null) buttons.current.delete(index);
           else buttons.current.set(index, button);
@@ -194,7 +202,7 @@ function MenuList({ entries, onClose, onBack }: { entries: MenuEntry[]; onClose:
           <button key={`${entry.label}-${index}`} ref={ref} type="button" role={entry.checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={entry.checked}
             className="cdc-menu-item" disabled={entry.disabled} onPointerEnter={() => setOpenIndex(null)}
             onClick={() => {
-              onClose();
+              if (!entry.keepOpen) onClose();
               entry.run();
             }}>
             <span className="cdc-menu-icon">{entry.checked ? <Icon name="Check" /> : entry.icon ? <Icon name={entry.icon} /> : null}</span>

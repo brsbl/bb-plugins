@@ -6,8 +6,15 @@ export const DOCK_RESERVE = 76;
 const CAMERA_KEY = "desktop-canvas-prototype:camera:v1";
 const ANIMATION_MS = 220;
 
+export interface Insets {
+  left: number;
+  right: number;
+}
+
 export interface CanvasControls {
   rootRef: RefObject<HTMLDivElement | null>;
+  /** Room docked windows take at the left and right edges; the work area is what's left between them. */
+  setInsets(insets: Insets): void;
   /** The latest camera, for event handlers that must not re-render on every pan frame. */
   getCamera(): Camera;
   /** The screen rect, relative to the canvas root, that windows maximize into and Fit all frames. */
@@ -19,6 +26,7 @@ export interface CanvasControls {
 
 const CameraContext = createContext<Camera | null>(null);
 const WorkAreaContext = createContext<Rect | null>(null);
+const ViewportContext = createContext<{ width: number; height: number } | null>(null);
 const ControlsContext = createContext<CanvasControls | null>(null);
 
 export function useCamera(): Camera {
@@ -31,6 +39,13 @@ export function useWorkArea(): Rect {
   const area = useContext(WorkAreaContext);
   if (area === null) throw new Error("useWorkArea outside CanvasProvider");
   return area;
+}
+
+/** The canvas root's size, which docked windows and the dock lay out against. */
+export function useViewport(): { width: number; height: number } {
+  const viewport = useContext(ViewportContext);
+  if (viewport === null) throw new Error("useViewport outside CanvasProvider");
+  return viewport;
 }
 
 export function useCanvasControls(): CanvasControls {
@@ -62,7 +77,12 @@ export function CanvasProvider({ rootRef, children }: { rootRef: RefObject<HTMLD
   const [camera, setCameraState] = useState(readCamera);
   const cameraRef = useRef(camera);
   cameraRef.current = camera;
-  const [area, setArea] = useState<Rect>({ x: 0, y: 0, width: 1200, height: 800 - DOCK_RESERVE });
+  const [viewport, setViewport] = useState({ width: 1200, height: 800 });
+  const [insets, setInsetsState] = useState<Insets>({ left: 0, right: 0 });
+  const area = useMemo<Rect>(
+    () => ({ x: insets.left, y: 0, width: Math.max(0, viewport.width - insets.left - insets.right), height: Math.max(0, viewport.height - DOCK_RESERVE) }),
+    [insets.left, insets.right, viewport.height, viewport.width],
+  );
   const areaRef = useRef(area);
   areaRef.current = area;
   const frame = useRef<number | null>(null);
@@ -72,8 +92,8 @@ export function CanvasProvider({ rootRef, children }: { rootRef: RefObject<HTMLD
     if (element === null) return;
     const measure = () => {
       const { width, height } = element.getBoundingClientRect();
-      setArea((current) => {
-        const next = { x: 0, y: 0, width: Math.round(width), height: Math.max(0, Math.round(height) - DOCK_RESERVE) };
+      setViewport((current) => {
+        const next = { width: Math.round(width), height: Math.round(height) };
         return current.width === next.width && current.height === next.height ? current : next;
       });
     };
@@ -122,9 +142,14 @@ export function CanvasProvider({ rootRef, children }: { rootRef: RefObject<HTMLD
     frame.current = requestAnimationFrame(step);
   }, []);
 
+  const setInsets = useCallback((next: Insets) => {
+    setInsetsState((current) => (current.left === next.left && current.right === next.right ? current : next));
+  }, []);
+
   const controls = useMemo<CanvasControls>(
     () => ({
       rootRef,
+      setInsets,
       getCamera: () => cameraRef.current,
       getWorkArea: () => areaRef.current,
       setCamera,
@@ -133,14 +158,16 @@ export function CanvasProvider({ rootRef, children }: { rootRef: RefObject<HTMLD
         return { x: clientX - (bounds?.left ?? 0), y: clientY - (bounds?.top ?? 0) };
       },
     }),
-    [rootRef, setCamera],
+    [rootRef, setCamera, setInsets],
   );
 
   return (
     <ControlsContext.Provider value={controls}>
-      <WorkAreaContext.Provider value={area}>
-        <CameraContext.Provider value={camera}>{children}</CameraContext.Provider>
-      </WorkAreaContext.Provider>
+      <ViewportContext.Provider value={viewport}>
+        <WorkAreaContext.Provider value={area}>
+          <CameraContext.Provider value={camera}>{children}</CameraContext.Provider>
+        </WorkAreaContext.Provider>
+      </ViewportContext.Provider>
     </ControlsContext.Provider>
   );
 }

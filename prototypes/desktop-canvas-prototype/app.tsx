@@ -1,40 +1,43 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   definePluginApp,
   experimental_Icon as Icon,
   experimental_NewThreadComposer as NewThreadComposer,
   type NewThreadRequest,
 } from "@get-bb/plugin-sdk/app";
-import { CanvasProvider, useWorkArea } from "./camera";
+import { viewMenuEntries } from "./actions";
+import { CanvasProvider, DOCK_RESERVE, useViewport, useWorkArea } from "./camera";
 import { DesktopCanvas } from "./canvas";
 import { DesktopDataProvider, useDesktop } from "./data";
 import { AskTextProvider, MenuProvider, PLUGIN_SCOPE, useMenu, type MenuEntry } from "./menu";
 import { ProgramWindow, windowIcon, windowTitle } from "./programs";
-import { usePointerTracker, useWindowManager, WindowManagerProvider, type DesktopWindow } from "./windows";
+import { dockWidth, usePointerTracker, useWindowManager, WindowManagerProvider, type DesktopWindow } from "./windows";
 import "./app.css";
 
-type ComposerMode = "center" | "float" | "hidden";
+const PLUGIN_ID = "desktop-canvas-prototype";
+const COMPOSER_KEY = `${PLUGIN_ID}:composer:v2`;
+
 interface ComposerState {
-  mode: ComposerMode;
+  open: boolean;
+  /** Where it was dragged to; null opens it just above the dock. */
   position: { x: number; y: number } | null;
 }
 
-const PLUGIN_ID = "desktop-canvas-prototype";
-const COMPOSER_KEY = `${PLUGIN_ID}:composer:v1`;
-const COMPOSER_WIDTH = 720;
-
+/** Reads the composer's state, including the first prototype's placement modes. */
 function readComposer(): ComposerState {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(COMPOSER_KEY) ?? localStorage.getItem(`${PLUGIN_ID}:layout:v1`) ?? "null");
+    const parsed: unknown = JSON.parse(
+      localStorage.getItem(COMPOSER_KEY) ?? localStorage.getItem(`${PLUGIN_ID}:composer:v1`) ?? localStorage.getItem(`${PLUGIN_ID}:layout:v1`) ?? "null",
+    );
     const record = typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
-    const mode = record.mode ?? record.composer;
+    const legacyMode = record.mode ?? record.composer;
     const position = (record.position ?? record.promptPosition) as Record<string, unknown> | null | undefined;
     return {
-      mode: mode === "center" || mode === "float" || mode === "hidden" ? mode : "center",
+      open: typeof record.open === "boolean" ? record.open : legacyMode !== "hidden",
       position: typeof position?.x === "number" && typeof position?.y === "number" ? { x: position.x, y: position.y } : null,
     };
   } catch {
-    return { mode: "center", position: null };
+    return { open: true, position: null };
   }
 }
 
@@ -62,6 +65,7 @@ function linkedThreadId(target: EventTarget | null): string | null {
 function WindowLayer() {
   const manager = useWindowManager();
   const desktop = useDesktop();
+  const viewport = useViewport();
   return (
     <div
       className="cdc-window-layer"
@@ -75,6 +79,11 @@ function WindowLayer() {
       }}
     >
       {manager.windows.map((window) => <ProgramWindow key={window.id} window={window} />)}
+      {manager.dockPreview === null ? null : (
+        <div className="cdc-dock-preview" data-side={manager.dockPreview} style={{ width: dockWidth(viewport.width), height: viewport.height - DOCK_RESERVE }}>
+          <span>Dock {manager.dockPreview}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -84,7 +93,7 @@ function TaskButtons({ width }: { width: number }) {
   const manager = useWindowManager();
   const desktop = useDesktop();
   const menu = useMenu();
-  const capacity = Math.max(1, Math.floor((width - 360) / 156));
+  const capacity = Math.max(1, Math.floor((width - 300) / 156));
   const shown = manager.windows.slice(0, capacity);
   const focused = manager.windows.find((window) => window.id === manager.focusedId);
   if (focused !== undefined && !shown.includes(focused)) shown[shown.length - 1] = focused;
@@ -96,25 +105,30 @@ function TaskButtons({ width }: { width: number }) {
   const taskMenu = (window: DesktopWindow): MenuEntry[] => [
     window.minimized ? { label: "Restore", icon: "AppWindow", run: () => manager.focus(window.id, { reveal: true }) } : { label: "Minimize", icon: "Minus", run: () => manager.minimize(window.id, true) },
     { label: window.maximized ? "Restore size" : "Maximize", icon: window.maximized ? "Minimize2" : "Maximize2", run: () => manager.toggleMaximize(window.id) },
+    { label: "Dock left", icon: "PanelLeft", checked: window.dock === "left", run: () => manager.dock(window.id, "left") },
+    { label: "Dock right", icon: "PanelRight", checked: window.dock === "right", run: () => manager.dock(window.id, "right") },
+    ...(window.dock === undefined ? [] : [{ label: "Undock", icon: "AppWindow", run: () => manager.dock(window.id, null) }]),
     "separator",
     { label: "Close", icon: "X", run: () => manager.close(window.id) },
   ];
+  if (manager.windows.length === 0) return null;
   return (
     <div className="cdc-tasks">
       {shown.map((window) => {
         const title = windowTitle(window.spec, desktop);
+        const icon = windowIcon(window.spec, desktop);
         return (
           <button key={window.id} type="button" className="cdc-task" title={title} aria-label={`${title}${window.minimized ? " (minimized)" : ""}`}
             data-focused={manager.focusedId === window.id && !window.minimized} data-minimized={window.minimized || undefined}
             onClick={() => activate(window)} onContextMenu={(event) => menu.open(event, taskMenu(window))}>
-            <Icon name={windowIcon(window.spec, desktop)} />
+            <Icon name={icon.name} className={icon.className} />
             <span>{title}</span>
           </button>
         );
       })}
       {hidden.length > 0 ? (
         <button type="button" className="cdc-task cdc-task-more" aria-haspopup="menu" aria-label={`${hidden.length} more ${hidden.length === 1 ? "window" : "windows"}`}
-          onClick={(event) => menu.openFrom(event.currentTarget, hidden.map((window): MenuEntry => ({ label: windowTitle(window.spec, desktop), icon: windowIcon(window.spec, desktop), run: () => manager.focus(window.id, { reveal: true }) })), "above")}>
+          onClick={(event) => menu.openFrom(event.currentTarget, hidden.map((window): MenuEntry => ({ label: windowTitle(window.spec, desktop), icon: windowIcon(window.spec, desktop).name, run: () => manager.focus(window.id, { reveal: true }) })), "above")}>
           +{hidden.length}
         </button>
       ) : null}
@@ -122,68 +136,83 @@ function TaskButtons({ width }: { width: number }) {
   );
 }
 
-function Dock({ composer, showComposer }: { composer: ComposerMode; showComposer: (mode: ComposerMode) => void }) {
+function Dock({ composerOpen, toggleComposer, arrangeLikeSidebar }: { composerOpen: boolean; toggleComposer: () => void; arrangeLikeSidebar: () => void }) {
   const manager = useWindowManager();
   const menu = useMenu();
-  const area = useWorkArea();
+  const viewport = useViewport();
   return (
     <nav className="cdc-dock cdc-glass" data-screen aria-label="Dock">
       <button type="button" className="cdc-dock-button" aria-haspopup="menu"
-        onClick={(event) => menu.openFrom(event.currentTarget, [
-          { label: "Composer", icon: "MessageSquarePlus", run: () => showComposer("float") },
+        onClick={(event) => menu.openFrom(event.currentTarget, (latest) => [
+          { label: "Composer", icon: "MessageSquarePlus", run: () => { if (!composerOpen) toggleComposer(); } },
           { label: "My Threads", icon: "MessageSquare", run: () => manager.open({ kind: "threads" }) },
           { label: "New folder", icon: "FolderPlus", run: () => manager.open({ kind: "new-folder", at: null }) },
+          "separator",
+          { label: "View options", icon: "SlidersHorizontal", submenu: viewMenuEntries(latest, arrangeLikeSidebar) },
         ], "above")}>
         <Icon name="GridView" />
         <span>Launcher</span>
       </button>
-      <span className="cdc-divider" />
-      <button type="button" className="cdc-dock-button" data-active={composer !== "hidden" || undefined} onClick={() => showComposer(composer === "hidden" ? "float" : "hidden")}>
+      <button type="button" className="cdc-dock-button" data-active={composerOpen || undefined} aria-expanded={composerOpen} onClick={toggleComposer}>
         <Icon name="MessageSquarePlus" />
         <span>Composer</span>
       </button>
-      <button type="button" className="cdc-dock-button cdc-dock-chevron" aria-label="Composer placement" title="Composer placement" aria-haspopup="menu"
-        onClick={(event) => menu.openFrom(event.currentTarget, [
-          { label: "Center", icon: "Target", checked: composer === "center", run: () => showComposer("center") },
-          { label: "Float", icon: "PanelBottom", checked: composer === "float", run: () => showComposer("float") },
-          { label: "Hide", icon: "Minus", checked: composer === "hidden", run: () => showComposer("hidden") },
-        ], "above")}>
-        <Icon name="ChevronUp" />
-      </button>
-      {manager.windows.length > 0 ? <span className="cdc-divider" /> : null}
-      <TaskButtons width={area.width} />
+      <TaskButtons width={viewport.width} />
     </nav>
   );
 }
 
-function Composer({ state, setState, focusRequest }: { state: ComposerState; setState: (next: ComposerState) => void; focusRequest: number }) {
+const GRIP = (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <circle cx="5" cy="3" r="1.25" /><circle cx="11" cy="3" r="1.25" />
+    <circle cx="5" cy="8" r="1.25" /><circle cx="11" cy="8" r="1.25" />
+    <circle cx="5" cy="13" r="1.25" /><circle cx="11" cy="13" r="1.25" />
+  </svg>
+);
+
+/** bb's own composer in one rounded frame with its grip and ×, opening just above the dock. */
+function Composer({ state, setState, focusRequest, onMinimized }: { state: ComposerState; setState: (next: ComposerState) => void; focusRequest: number; onMinimized: () => void }) {
   const desktop = useDesktop();
   const manager = useWindowManager();
   const area = useWorkArea();
+  const viewport = useViewport();
   const track = usePointerTracker();
   const ref = useRef<HTMLDivElement>(null);
-  const width = Math.min(COMPOSER_WIDTH, area.width - 32);
-  const clamp = (point: { x: number; y: number }) => ({
-    x: Math.max(16, Math.min(area.width - width - 16, point.x)),
-    y: Math.max(16, Math.min(area.height - 160, point.y)),
-  });
-  const floatPoint = clamp(state.position ?? { x: area.width - width - 24, y: area.height - 280 });
 
-  const startMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (state.mode !== "float" || event.target !== event.currentTarget || event.button !== 0) return;
-    const origin = floatPoint;
+  const clamp = (point: { x: number; y: number }) => {
+    const width = ref.current?.offsetWidth ?? 720;
+    const height = ref.current?.offsetHeight ?? 220;
+    return { x: Math.max(16, Math.min(viewport.width - width - 16, point.x)), y: Math.max(16, Math.min(area.height - height, point.y)) };
+  };
+  const current = () => {
+    const element = ref.current;
+    return element === null ? { x: 16, y: 16 } : { x: element.offsetLeft, y: element.offsetTop };
+  };
+  const position = state.position === null ? null : clamp(state.position);
+
+  const startMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    const origin = current();
     let latest = origin;
     track(event, (delta) => {
       latest = clamp({ x: origin.x + delta.x, y: origin.y + delta.y });
-      if (ref.current) Object.assign(ref.current.style, { left: `${latest.x}px`, top: `${latest.y}px` });
+      if (ref.current) Object.assign(ref.current.style, { left: `${latest.x}px`, top: `${latest.y}px`, bottom: "auto", transform: "none" });
     }, (cancelled, moved) => {
       if (moved && !cancelled) setState({ ...state, position: latest });
     });
   };
 
+  const nudge = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const delta = ({ ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] } as Record<string, [number, number]>)[event.key];
+    if (delta === undefined) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 120 : 24;
+    const from = current();
+    setState({ ...state, position: clamp({ x: from.x + delta[0] * step, y: from.y + delta[1] * step }) });
+  };
+
   const submit = async (request: NewThreadRequest) => {
     const { threadId } = await desktop.call("spawnThread", { request: request as unknown as Record<string, unknown> });
-    setState({ ...state, mode: "hidden" });
     manager.open({ kind: "thread", threadId });
   };
 
@@ -191,24 +220,19 @@ function Composer({ state, setState, focusRequest }: { state: ComposerState; set
     <div
       ref={ref}
       className="cdc-composer"
-      data-mode={state.mode}
+      data-open={state.open || undefined}
       data-screen
-      aria-hidden={state.mode === "hidden"}
-      inert={state.mode === "hidden"}
-      tabIndex={state.mode === "float" ? 0 : -1}
-      aria-label={state.mode === "float" ? "Composer. Drag the top edge or use arrow keys to move it." : undefined}
-      style={state.mode === "float" ? { left: floatPoint.x, top: floatPoint.y, width } : { width }}
-      onPointerDown={startMove}
-      onKeyDown={(event) => {
-        if (state.mode !== "float" || event.target !== event.currentTarget) return;
-        const delta = ({ ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] } as Record<string, [number, number]>)[event.key];
-        if (delta === undefined) return;
-        event.preventDefault();
-        const step = event.shiftKey ? 120 : 24;
-        setState({ ...state, position: clamp({ x: floatPoint.x + delta[0] * step, y: floatPoint.y + delta[1] * step }) });
-      }}
+      aria-hidden={!state.open}
+      inert={!state.open}
+      style={position === null ? undefined : { left: position.x, top: position.y, bottom: "auto", transform: "none" }}
       onWheel={(event) => event.stopPropagation()}
     >
+      <header className="cdc-composer-header">
+        <button type="button" className="cdc-composer-grip" aria-label="Move composer. Drag, or use arrow keys." onPointerDown={startMove} onKeyDown={nudge}>{GRIP}</button>
+        <button type="button" className="cdc-title-button" aria-label="Minimize composer" title="Minimize" onClick={() => { setState({ open: false, position: null }); onMinimized(); }}>
+          <Icon name="X" />
+        </button>
+      </header>
       <NewThreadComposer key="main-composer" draftKey={`${PLUGIN_ID}:main`} layout="document" focusRequest={focusRequest} placeholder="Ask anything, or start something new…" onSubmit={submit} />
     </div>
   );
@@ -218,6 +242,7 @@ function Shell() {
   const manager = useWindowManager();
   const [composer, setComposerState] = useState(readComposer);
   const [focusRequest, setFocusRequest] = useState(0);
+  const arrange = useRef<(() => void) | null>(null);
   const minimizedByShowDesktop = useRef<string[]>([]);
   const windowCount = useRef(manager.windows.length);
 
@@ -226,17 +251,19 @@ function Shell() {
     try {
       localStorage.setItem(COMPOSER_KEY, JSON.stringify(next));
     } catch {
-      // The placement is a convenience.
+      // The composer's place is a convenience.
     }
   };
-  const showComposer = (mode: ComposerMode) => {
-    setComposer({ ...composer, mode });
-    if (mode !== "hidden") setFocusRequest((value) => value + 1);
+  // Reopening puts it back just above the dock.
+  const openComposer = () => {
+    setComposer({ open: true, position: null });
+    setFocusRequest((value) => value + 1);
   };
+  const toggleComposer = () => (composer.open ? setComposer({ open: false, position: null }) : openComposer());
 
-  // A centered composer steps aside when a window opens over it.
+  // The composer steps aside when a new window opens.
   useEffect(() => {
-    if (manager.windows.length > windowCount.current && composer.mode === "center") setComposer({ ...composer, mode: "hidden" });
+    if (manager.windows.length > windowCount.current && composer.open) setComposer({ ...composer, open: false });
     windowCount.current = manager.windows.length;
   });
 
@@ -253,10 +280,11 @@ function Shell() {
 
   return (
     <>
-      <DesktopCanvas showComposer={() => showComposer("float")} showDesktop={showDesktop} />
+      <DesktopCanvas showComposer={openComposer} showDesktop={showDesktop} arrangeRef={arrange} />
       <WindowLayer />
-      <Composer state={composer} setState={setComposer} focusRequest={focusRequest} />
-      <Dock composer={composer.mode} showComposer={showComposer} />
+      <Composer state={composer} setState={setComposer} focusRequest={focusRequest}
+        onMinimized={() => document.querySelector<HTMLElement>(".cdc-dock [aria-expanded]")?.focus()} />
+      <Dock composerOpen={composer.open} toggleComposer={toggleComposer} arrangeLikeSidebar={() => arrange.current?.()} />
     </>
   );
 }

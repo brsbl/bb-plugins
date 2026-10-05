@@ -6,26 +6,19 @@ import {
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
-  useSdk,
+  type PluginSidebarThread,
+  type PluginSidebarThreadsState,
 } from "@get-bb/plugin-sdk/app";
-import { z } from "zod";
-import {
-  buildGroups,
-  groupMembers,
-  resolveSidebarPreferences,
-  withLiveState,
-  type DesktopGroup,
-  type DesktopThread,
-  type Organize,
-  type Point,
-  type Preferences,
-  type SortDirection,
-  type SortKey,
-} from "./core";
+import { acceptsDrop, buildCanvasOrganization, type Collection, type Organization } from "./canvas-organization";
+import type { Point } from "./core";
 import type { DesktopSnapshot, rpcContract } from "./server";
+import { useSidebarPreferences, type PreferencePatch, type SidebarPreferences } from "./sidebar-preferences";
 import { threadIdOf, useWindowManager } from "./windows";
 
-/** Desktop's data provider: the server snapshot, merged with bb's live sidebar state, and the actions on it. */
+/**
+ * Live sidebar threads and the sidebar's own preferences, plus the plugin's desktop folders and icon positions, and the
+ * actions on them.
+ */
 
 export interface ThreadDrag {
   threadId: string;
@@ -36,28 +29,23 @@ export interface DesktopContextValue {
   snapshot: DesktopSnapshot;
   /** When the shown snapshot was requested; anything saved before then is in it. */
   snapshotRequestedAt: number;
-  threads: DesktopThread[];
-  visibleThreads: DesktopThread[];
-  archivedThreads: DesktopThread[];
-  threadById: Map<string, DesktopThread>;
-  groups: DesktopGroup[];
-  /** Groups on the canvas; the rest are in More, as the sidebar keeps them. */
-  canvasGroups: DesktopGroup[];
-  moreGroups: DesktopGroup[];
-  groupByKey: Map<string, DesktopGroup>;
-  membersOf: (group: DesktopGroup) => DesktopThread[];
+  preferences: SidebarPreferences;
+  /** Saves to the sidebar, which owns these settings; the canvas follows. */
+  updatePreferences: (patch: PreferencePatch) => void;
+  preferencesSaving: boolean;
+  organization: Organization;
+  threadById: Map<string, PluginSidebarThread>;
+  archivedThreads: PluginSidebarThread[];
+  archivedPager: PluginSidebarThreadsState["experimental_archived"];
   foldersOf: (threadId: string) => string[];
-  organize: Organize;
-  sort: { key: SortKey; direction: SortDirection };
   projectName: (projectId: string) => string;
   call: ReturnType<typeof useRpc<typeof rpcContract>>["call"];
   refresh: () => void;
   openThread: (threadId: string) => void;
-  dropThread: (group: DesktopGroup, drag: ThreadDrag) => Promise<void>;
+  dropThread: (target: Collection, drag: ThreadDrag) => Promise<void>;
   restoreThread: (threadId: string) => Promise<void>;
   /** Closes the thread's window, then archives it. */
   archiveThread: (threadId: string) => void;
-  setPreferences: (patch: Partial<Preferences>) => void;
 }
 
 const DesktopContext = createContext<DesktopContextValue | null>(null);
@@ -72,20 +60,21 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-const sidebarPreferencesSchema = z.object({ preferences: z.unknown() });
-const SIDEBAR_PREFERENCES_TTL = 15_000;
+/** What the canvas shows if Thread List can't answer: the sidebar's own defaults. */
+const DEFAULT_PREFERENCES: SidebarPreferences = {
+  organizationMode: "chronological",
+  chronologicalSort: "updated",
+  sortDirection: "default",
+  environmentGrouping: "auto",
+  showProviderIcons: false,
+  threadLifecycles: ["active"],
+  sectionOrder: ["pinned", "projects", "threads"],
+  manualSectionOrder: ["pinned", "sections", "threads"],
+  machineSectionOrder: ["pinned", "machines", "threads"],
+  hiddenGroups: [],
+};
 
-/** The sidebar's own organize and sort choices, from bb's bundled thread-list plugin; null when it can't answer. */
-async function fetchSidebarPreferences(plugins: ReturnType<typeof useSdk>["plugins"]): Promise<unknown> {
-  try {
-    const { preferences } = await plugins.callRpc({ pluginId: "thread-list", method: "listPreferences", input: null, outputSchema: sidebarPreferencesSchema });
-    return preferences;
-  } catch {
-    return null;
-  }
-}
-
-/** The server snapshot, refreshed on realtime changes, reconnects and when the tab becomes visible. */
+/** The plugin's snapshot, refreshed on realtime changes, reconnects and when the tab becomes visible. */
 function useDesktopSnapshot() {
   const rpc = useRpc<typeof rpcContract>();
   const rpcRef = useRef(rpc);
@@ -143,19 +132,9 @@ function useDesktopSnapshot() {
   return { snapshot: loaded?.snapshot ?? null, requestedAt: loaded?.requestedAt ?? 0, error, refresh, call };
 }
 
-const NO_THREADS: DesktopThread[] = [];
-
-/** Keeps the previous array while every element is the same object, so unrelated live updates don't ripple down. */
-function useStableArray<T>(next: T[]): T[] {
-  const previous = useRef(next);
-  const current = previous.current;
-  if (current !== next && (current.length !== next.length || next.some((item, index) => item !== current[index]))) previous.current = next;
-  return previous.current;
-}
-
 const LEGACY_LAYOUT_KEY = "desktop-canvas-prototype:layout:v1";
 
-/** Folders the first prototype kept in this browser, for the one-time move to the server. */
+/** Folders the first prototype kept in this browser, for the one-time move to the plugin's storage. */
 function readLegacyFolders(): { name: string; threadIds: string[]; position: Point | null }[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(LEGACY_LAYOUT_KEY) ?? "null");
@@ -169,40 +148,26 @@ function readLegacyFolders(): { name: string; threadIds: string[]; position: Poi
       const point = positions[id] as Record<string, unknown> | undefined;
       const position = typeof point?.x === "number" && typeof point?.y === "number" ? { x: point.x, y: point.y } : null;
       const threadIds = Object.entries(membership).flatMap(([threadId, folderId]) => (folderId === id ? [threadId] : []));
-      return [{ name: name.trim().slice(0, 80), threadIds, position }];
+      return [{ name: name.trim().slice(0, 80), threadIds: threadIds.slice(0, 1000), position }];
     });
   } catch {
     return [];
   }
 }
 
+const NO_FOLDERS: DesktopSnapshot["folders"] = [];
+
 export function DesktopDataProvider({ children }: { children: ReactNode }) {
   const { snapshot, requestedAt, error, refresh, call } = useDesktopSnapshot();
-  const live = useSidebarThreads();
-  const sdk = useSdk();
+  const sidebar = useSidebarPreferences();
+  // Archived threads always load, for the Recycle Bin; the sidebar's own filter decides what folders show.
+  const live = useSidebarThreads({ experimental_lifecycles: ["active", "archived"] });
   const manager = useWindowManager();
   const managerRef = useRef(manager);
   managerRef.current = manager;
   const actions = useSidebarThreadActions();
-  const [sidebar, setSidebar] = useState<ReturnType<typeof resolveSidebarPreferences> | null>(null);
-  const sidebarFetchedAt = useRef(Number.NEGATIVE_INFINITY);
-  const mounted = useRef(true);
   const importing = useRef(false);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (snapshot === null || Date.now() - sidebarFetchedAt.current < SIDEBAR_PREFERENCES_TTL) return;
-    sidebarFetchedAt.current = Date.now();
-    void fetchSidebarPreferences(sdk.plugins).then((preferences) => {
-      if (mounted.current) setSidebar(resolveSidebarPreferences(preferences));
-    });
-  }, [sdk.plugins, snapshot]);
+  const warnedPreferences = useRef(false);
 
   useEffect(() => {
     if (snapshot === null || snapshot.importedLegacy || importing.current) return;
@@ -210,58 +175,35 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
     void call("importLegacy", { folders: readLegacyFolders() }).then(refresh, (importError) => toast.error(errorMessage(importError)));
   }, [call, refresh, snapshot]);
 
-  // Preference edits show at once; the overlay clears once a snapshot requested after the last save lands.
-  const [preferenceOverlay, setPreferenceOverlay] = useState<Partial<Preferences>>({});
-  const savesInFlight = useRef(0);
-  const lastSaveDoneAt = useRef(0);
   useEffect(() => {
-    if (savesInFlight.current === 0 && requestedAt >= lastSaveDoneAt.current) setPreferenceOverlay({});
-  }, [requestedAt]);
+    if (sidebar.error === null || warnedPreferences.current) return;
+    warnedPreferences.current = true;
+    toast.error(`${sidebar.error} The canvas is using the sidebar's defaults.`);
+  }, [sidebar.error]);
 
-  const liveById = useMemo(() => new Map(live.threads.map((thread) => [thread.id, thread])), [live.threads]);
-  const threads = useStableArray(
-    useMemo(() => (snapshot?.threads ?? NO_THREADS).map((thread) => withLiveState(thread, liveById.get(thread.id))), [liveById, snapshot?.threads]),
+  const preferences = sidebar.preferences ?? (sidebar.error === null ? null : DEFAULT_PREFERENCES);
+  const folders = snapshot?.folders ?? NO_FOLDERS;
+  const organization = useMemo(() => (preferences === null ? null : buildCanvasOrganization(live, preferences, folders)), [folders, live, preferences]);
+  const threadById = useMemo(() => new Map(live.threads.map((thread) => [thread.id, thread])), [live.threads]);
+  const archivedThreads = useMemo(
+    () => live.threads.filter((thread) => thread.isArchived && !thread.isHidden).sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0)),
+    [live.threads],
   );
-
-  const preferences = useMemo(() => (snapshot === null ? null : { ...snapshot.preferences, ...preferenceOverlay }), [preferenceOverlay, snapshot]);
-  const fromSidebar = sidebar ?? resolveSidebarPreferences(null);
-  const sortPreference = preferences?.sort ?? "sidebar";
-  const sortKey = sortPreference === "sidebar" ? fromSidebar.sort.key : sortPreference;
-  const sortDirection = sortPreference === "sidebar" ? fromSidebar.sort.direction : sortPreference === "alpha" ? "ascending" : "descending";
-  const sort = useMemo(() => ({ key: sortKey, direction: sortDirection }), [sortDirection, sortKey]);
-  const organize: Organize = preferences === null || preferences.organize === "sidebar" ? fromSidebar.organize : preferences.organize;
-
-  const visibleThreads = useMemo(() => threads.filter((thread) => !thread.isArchived), [threads]);
-  const archivedThreads = useMemo(() => threads.filter((thread) => thread.isArchived), [threads]);
-  const groups = useMemo(
-    () =>
-      snapshot === null
-        ? []
-        : buildGroups({ organize, sections: snapshot.sections, projects: snapshot.projects, machines: snapshot.machines, folders: snapshot.folders, threads: visibleThreads }),
-    [organize, snapshot, visibleThreads],
-  );
-  const groupByKey = useMemo(() => new Map(groups.map((group) => [group.key, group])), [groups]);
-  const hiddenKeys = useMemo(() => new Set(sidebar?.hiddenGroupKeys ?? []), [sidebar]);
-  const canvasGroups = useMemo(() => groups.filter((group) => !hiddenKeys.has(group.key)), [groups, hiddenKeys]);
-  const moreGroups = useMemo(() => groups.filter((group) => hiddenKeys.has(group.key)), [groups, hiddenKeys]);
-  const members = useMemo(() => groupMembers(groups, visibleThreads), [groups, visibleThreads]);
-  const membersOf = useCallback((group: DesktopGroup) => members.get(group.key) ?? NO_THREADS, [members]);
+  const projectNames = useMemo(() => new Map(live.projects.map((project) => [project.id, project.name])), [live.projects]);
+  const projectName = useCallback((projectId: string) => projectNames.get(projectId) ?? "", [projectNames]);
   const folderNames = useMemo(() => {
     const names = new Map<string, string[]>();
-    const everyMember = groupMembers(groups, threads);
-    for (const group of groups) {
-      for (const thread of everyMember.get(group.key) ?? NO_THREADS) {
+    if (organization === null) return names;
+    for (const group of [...organization.roots.filter((root) => root.kind !== "more"), ...(organization.byKey.get("more")?.children ?? [])]) {
+      for (const thread of group.threads) {
         const existing = names.get(thread.id);
         if (existing === undefined) names.set(thread.id, [group.name]);
-        else existing.push(group.name);
+        else if (!existing.includes(group.name)) existing.push(group.name);
       }
     }
     return names;
-  }, [groups, threads]);
+  }, [organization]);
   const foldersOf = useCallback((threadId: string) => folderNames.get(threadId) ?? [], [folderNames]);
-  const threadById = useMemo(() => new Map(threads.map((thread) => [thread.id, thread])), [threads]);
-  const projectNames = useMemo(() => new Map((snapshot?.projects ?? []).map((project) => [project.id, project.name])), [snapshot?.projects]);
-  const projectName = useCallback((projectId: string) => projectNames.get(projectId) ?? "", [projectNames]);
 
   // A deleted thread's window closes.
   useRealtime(
@@ -276,19 +218,20 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
   const openThread = useCallback((threadId: string) => managerRef.current.open({ kind: "thread", threadId }), []);
 
   const dropThread = useCallback(
-    async (group: DesktopGroup, drag: ThreadDrag) => {
+    async (target: Collection, drag: ThreadDrag) => {
+      if (!acceptsDrop(target)) return;
+      const thread = threadById.get(drag.threadId);
       try {
-        if (threadById.get(drag.threadId)?.isArchived === true) await call("unarchiveThread", { threadId: drag.threadId });
-        if (group.kind === "section") {
-          if (threadById.get(drag.threadId)?.sectionId === group.id) return;
-          await call("moveToSection", { threadIds: [drag.threadId], sectionId: group.id });
-          toast.success(`Moved to ${group.name}`);
+        if (thread?.isArchived === true) await call("unarchiveThread", { threadId: drag.threadId });
+        if (target.kind === "folder" && target.folder !== undefined) {
+          if (target.folder.threadIds.includes(drag.threadId)) return;
+          await call("addToFolder", { folderId: target.folder.id, threadIds: [drag.threadId], fromFolderId: drag.fromFolderId });
           refresh();
           return;
         }
-        if (group.kind !== "folder" || group.folder.threadIds.includes(drag.threadId)) return;
-        await call("addToFolder", { folderId: group.folder.id, threadIds: [drag.threadId], fromFolderId: drag.fromFolderId });
-        refresh();
+        if (target.sectionId === undefined || thread?.sectionId === target.sectionId) return;
+        await call("moveToSection", { threadIds: [drag.threadId], sectionId: target.sectionId });
+        toast.success(target.sectionId === null ? "Moved out of its section" : `Moved to ${target.name}`);
       } catch (dropError) {
         toast.error(errorMessage(dropError));
       }
@@ -297,8 +240,8 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
   );
 
   const restoreThread = useCallback(
-    (threadId: string) => call("unarchiveThread", { threadId }).then(refresh).catch((restoreError) => void toast.error(errorMessage(restoreError))),
-    [call, refresh],
+    (threadId: string) => call("unarchiveThread", { threadId }).then(() => undefined, (restoreError) => void toast.error(errorMessage(restoreError))),
+    [call],
   );
 
   const archiveThread = useCallback(
@@ -309,45 +252,24 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
     [actions],
   );
 
-  const setPreferences = useCallback(
-    (patch: Partial<Preferences>) => {
-      setPreferenceOverlay((overlay) => ({ ...overlay, ...patch }));
-      savesInFlight.current += 1;
-      void call("setPreferences", patch)
-        .catch((preferenceError) => toast.error(errorMessage(preferenceError)))
-        .finally(() => {
-          savesInFlight.current -= 1;
-          lastSaveDoneAt.current = Date.now();
-          refresh();
-        });
-    },
-    [call, refresh],
-  );
-
-  const shownSnapshot = useMemo(
-    () => (snapshot === null || preferences === null ? null : { ...snapshot, preferences }),
-    [preferences, snapshot],
-  );
+  const { update, saving } = sidebar;
+  const updatePreferences = useCallback((patch: PreferencePatch) => void update(patch), [update]);
 
   const value = useMemo<DesktopContextValue | null>(
     () =>
-      shownSnapshot === null
+      snapshot === null || preferences === null || organization === null
         ? null
         : {
-            snapshot: shownSnapshot,
+            snapshot,
             snapshotRequestedAt: requestedAt,
-            threads,
-            visibleThreads,
-            archivedThreads,
+            preferences,
+            updatePreferences,
+            preferencesSaving: saving,
+            organization,
             threadById,
-            groups,
-            canvasGroups,
-            moreGroups,
-            groupByKey,
-            membersOf,
+            archivedThreads,
+            archivedPager: live.experimental_archived,
             foldersOf,
-            organize,
-            sort,
             projectName,
             call,
             refresh,
@@ -355,16 +277,16 @@ export function DesktopDataProvider({ children }: { children: ReactNode }) {
             dropThread,
             restoreThread,
             archiveThread,
-            setPreferences,
           },
     [
-      shownSnapshot, requestedAt, threads, visibleThreads, archivedThreads, threadById, groups, canvasGroups, moreGroups, groupByKey,
-      membersOf, foldersOf, organize, sort, projectName, call, refresh, openThread, dropThread, restoreThread, archiveThread, setPreferences,
+      snapshot, requestedAt, preferences, updatePreferences, saving, organization, threadById, archivedThreads, live.experimental_archived,
+      foldersOf, projectName, call, refresh, openThread, dropThread, restoreThread, archiveThread,
     ],
   );
 
-  if (value === null || sidebar === null) {
-    return <div className="cdc-loading" role="status">{error === null ? "Loading your desktop…" : `Canvas Desktop couldn’t load: ${error}`}</div>;
+  if (value === null) {
+    const failure = error ?? (live.status === "error" ? "threads could not load." : null);
+    return <div className="cdc-loading" role="status">{failure === null ? "Loading your desktop…" : `Canvas Desktop couldn’t load: ${failure}`}</div>;
   }
   return <DesktopContext.Provider value={value}>{children}</DesktopContext.Provider>;
 }

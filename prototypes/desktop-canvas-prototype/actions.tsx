@@ -1,12 +1,12 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { toast } from "sonner";
-import type { experimental_useSidebarThreadActions as useSidebarThreadActions } from "@get-bb/plugin-sdk/app";
-import { acceptsDrop, type DesktopGroup, type DesktopThread, type Organize, type SortKey } from "./core";
+import type { experimental_useSidebarThreadActions as useSidebarThreadActions, PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { acceptsDrop, groupByEnvironment, type Collection } from "./canvas-organization";
 import { errorMessage, type DesktopContextValue } from "./data";
 import type { MenuEntry, useAskText } from "./menu";
 import { windowId, type usePointerTracker, type WindowManager } from "./windows";
 
-/** The thread, folder and view menus Desktop offers, and its thread drag. */
+/** The thread, folder and view menus, and Desktop's thread drag. */
 
 type SidebarThreadActions = ReturnType<typeof useSidebarThreadActions>;
 type AskText = ReturnType<typeof useAskText>;
@@ -18,16 +18,16 @@ export interface MenuContext {
   ask: AskText;
 }
 
-export function threadMenu({ desktop, actions, ask }: MenuContext, thread: DesktopThread, group: DesktopGroup | null, options: { includeOpen?: boolean } = {}): MenuEntry[] {
-  const fromFolderId = group?.kind === "folder" ? group.folder.id : null;
-  const targets = desktop.groups.filter(
-    (candidate) =>
-      acceptsDrop(candidate) &&
-      candidate.key !== group?.key &&
-      !(candidate.kind === "folder" && candidate.folder.threadIds.includes(thread.id)) &&
-      !(candidate.kind === "section" && thread.sectionId === candidate.id),
+const fail = (error: unknown) => void toast.error(errorMessage(error));
+
+export function threadMenu({ desktop, actions, ask }: MenuContext, thread: PluginSidebarThread, from: Collection | null, options: { includeOpen?: boolean } = {}): MenuEntry[] {
+  const fromFolderId = from?.kind === "folder" ? from.folder?.id ?? null : null;
+  const targets = desktop.organization.targets.filter(
+    (target) =>
+      target.key !== from?.key &&
+      !(target.kind === "folder" && target.folder?.threadIds.includes(thread.id)) &&
+      !(target.kind !== "folder" && thread.sectionId === target.sectionId),
   );
-  const fail = (error: unknown) => void toast.error(errorMessage(error));
   return [
     ...(options.includeOpen === false ? [] : [{ label: "Open", icon: "AppWindow", run: () => desktop.openThread(thread.id) }]),
     { label: "Open in bb", icon: "ExternalLink", run: () => actions.open(thread.id) },
@@ -37,25 +37,25 @@ export function threadMenu({ desktop, actions, ask }: MenuContext, thread: Deskt
           label: "Move to",
           icon: "MoveTo",
           submenu: targets.map((target): MenuEntry => ({
-            label: target.name,
-            icon: target.kind === "section" ? "Folder" : "Folder02",
+            label: target.kind === "threads" ? "Threads (no section)" : target.name,
+            icon: target.icon,
             run: () => void desktop.dropThread(target, { threadId: thread.id, fromFolderId }),
           })),
         }]
       : []),
-    ...(group?.kind === "folder"
-      ? [{ label: `Remove from ${group.name}`, icon: "FolderMinus", run: () => void desktop.call("removeFromFolder", { folderId: group.folder.id, threadId: thread.id }).then(desktop.refresh, fail) }]
+    ...(from?.kind === "folder" && from.folder !== undefined
+      ? [{ label: `Remove from ${from.name}`, icon: "FolderMinus", run: () => void desktop.call("removeFromFolder", { folderId: from.folder!.id, threadId: thread.id }).then(desktop.refresh, fail) }]
       : []),
     "separator",
     { label: "Copy thread link", icon: "Copy", run: () => void copyThreadLink(thread) },
     { label: thread.isUnread ? "Mark as read" : "Mark as unread", icon: thread.isUnread ? "MailOpen" : "Mail", run: () => void actions.setRead(thread.id, thread.isUnread).catch(fail) },
-    ...(thread.isArchived ? [] : [{ label: thread.isPinned ? "Unpin" : "Pin", icon: thread.isPinned ? "PinOff" : "Pin", run: () => void actions.setPinned(thread.id, !thread.isPinned).then(desktop.refresh, fail) }]),
+    ...(thread.isArchived ? [] : [{ label: thread.isPinned ? "Unpin" : "Pin", icon: thread.isPinned ? "PinOff" : "Pin", run: () => void actions.setPinned(thread.id, !thread.isPinned).catch(fail) }]),
     {
       label: "Rename…",
       icon: "Edit",
       run: () =>
-        void ask({ title: "Rename thread", label: "Thread name", initial: thread.title, confirm: "Rename" }).then((title) => {
-          if (title && title !== thread.title) void actions.rename(thread.id, title).then(desktop.refresh, fail);
+        void ask({ title: "Rename thread", label: "Thread name", initial: thread.displayTitle, confirm: "Rename" }).then((title) => {
+          if (title && title !== thread.displayTitle) void actions.rename(thread.id, title).catch(fail);
         }),
     },
     "separator",
@@ -66,21 +66,16 @@ export function threadMenu({ desktop, actions, ask }: MenuContext, thread: Deskt
   ];
 }
 
-function threadLink(thread: DesktopThread): string {
-  const path = thread.projectId === "proj_personal" ? `/threads/${thread.id}` : `/projects/${encodeURIComponent(thread.projectId)}/threads/${thread.id}`;
-  return new URL(path, window.location.origin).toString();
-}
-
-async function copyThreadLink(thread: DesktopThread) {
+async function copyThreadLink(thread: PluginSidebarThread) {
   try {
-    await navigator.clipboard.writeText(threadLink(thread));
+    await navigator.clipboard.writeText(new URL(thread.href, window.location.origin).toString());
     toast.success("Thread link copied");
   } catch (error) {
     toast.error(errorMessage(error));
   }
 }
 
-export function deletePrompt(groups: readonly DesktopGroup[]): string {
+export function deletePrompt(groups: readonly Collection[]): string {
   const [only] = groups;
   if (groups.length === 1 && only !== undefined) {
     return only.kind === "folder" ? `Delete “${only.name}”? Threads inside are kept.` : `Delete the “${only.name}” section? Its threads move to Threads.`;
@@ -89,87 +84,125 @@ export function deletePrompt(groups: readonly DesktopGroup[]): string {
 }
 
 /** Deletes desktop folders and sections after one confirmation, closing their windows. */
-export function deleteGroups({ desktop, manager }: Pick<MenuContext, "desktop" | "manager">, groups: readonly DesktopGroup[]): boolean {
+export function deleteGroups({ desktop, manager }: Pick<MenuContext, "desktop" | "manager">, groups: readonly Collection[]): boolean {
   if (groups.length === 0) {
     toast("Only desktop folders and sections can be deleted.");
     return false;
   }
   if (!window.confirm(deletePrompt(groups))) return false;
-  const fail = (error: unknown) => void toast.error(errorMessage(error));
   for (const group of groups) {
     manager.close(windowId({ kind: "finder", key: group.key }));
-    if (group.kind === "folder") void desktop.call("deleteFolder", { id: group.folder.id }).then(desktop.refresh, fail);
-    else if (group.kind === "section" && group.id !== null) void desktop.call("deleteSection", { id: group.id }).then(desktop.refresh, fail);
+    if (group.kind === "folder" && group.folder !== undefined) void desktop.call("deleteFolder", { id: group.folder.id }).then(desktop.refresh, fail);
+    else if (group.kind === "section" && group.sectionId) void desktop.call("deleteSection", { id: group.sectionId }).then(desktop.refresh, fail);
   }
   return true;
 }
 
-export function groupMenu(context: MenuContext, group: DesktopGroup, open: () => void, newThread: (group: DesktopGroup) => void): MenuEntry[] {
+export const canStartThread = (group: Collection) => group.kind === "section" || group.kind === "threads" || group.kind === "project" || group.kind === "folder";
+
+export function groupMenu(context: MenuContext, group: Collection, open: () => void, newThread: (group: Collection) => void): MenuEntry[] {
   const { desktop, ask } = context;
-  const fail = (error: unknown) => void toast.error(errorMessage(error));
-  const startThread: MenuEntry = { label: `New thread in ${group.name}`, icon: "MessageSquarePlus", run: () => newThread(group) };
-  if (group.kind === "folder") {
+  const openEntry: MenuEntry = { label: "Open", icon: "FolderOpen", run: open };
+  const startThread: MenuEntry[] = canStartThread(group) ? [{ label: `New thread in ${group.name}`, icon: "MessageSquarePlus", run: () => newThread(group) }] : [];
+  if (group.kind === "folder" && group.folder !== undefined) {
+    const folder = group.folder;
     return [
-      { label: "Open", icon: "FolderOpen", run: open },
-      startThread,
+      openEntry,
+      ...startThread,
       "separator",
       {
         label: "Rename…",
         icon: "Edit",
         run: () =>
           void ask({ title: "Rename folder", label: "Folder name", initial: group.name, confirm: "Rename" }).then((name) => {
-            if (name && name !== group.name) void desktop.call("renameFolder", { id: group.folder.id, name }).then(desktop.refresh, fail);
+            if (name && name !== group.name) void desktop.call("renameFolder", { id: folder.id, name }).then(desktop.refresh, fail);
           }),
       },
       { label: "Delete folder", icon: "Trash2", run: () => void deleteGroups(context, [group]) },
     ];
   }
-  if (group.kind === "section" && group.id !== null) {
-    const sectionId = group.id;
+  if (group.kind === "section" && group.sectionId) {
+    const sectionId = group.sectionId;
     return [
-      { label: "Open", icon: "FolderOpen", run: open },
-      startThread,
+      openEntry,
+      ...startThread,
       "separator",
       {
         label: "Rename section…",
         icon: "Edit",
         run: () =>
           void ask({ title: "Rename section", label: "Section name", initial: group.name, confirm: "Rename" }).then((name) => {
-            if (name && name !== group.name) void desktop.call("renameSection", { id: sectionId, name }).then(desktop.refresh, fail);
+            if (name && name !== group.name) void desktop.call("renameSection", { id: sectionId, name }).catch(fail);
           }),
       },
       { label: "Delete section", icon: "Trash2", run: () => void deleteGroups(context, [group]) },
     ];
   }
-  return [{ label: "Open", icon: "FolderOpen", run: open }, ...(group.kind === "machine" || group.kind === "pinned" ? [] : [startThread])];
+  return [openEntry, ...startThread];
 }
 
-const ORGANIZE_LABELS: Record<Organize, string> = { section: "Sections", project: "Projects", machine: "Machines" };
-const SORT_LABELS: Record<SortKey, string> = { updated: "Updated at", created: "Created at", alpha: "Alphabetical" };
+const ORGANIZE = [["chronological", "Custom"], ["project", "By project"], ["machine", "By machine"]] as const;
+const SORT = [["updated", "Updated at"], ["created", "Created at"], ["alpha", "Alphabetical"]] as const;
 
-export function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
-  const { preferences } = desktop.snapshot;
+/**
+ * The sidebar's own View options: what changes here changes the sidebar too, and the canvas follows. Built from live
+ * state, so the menu can stay open while you flip several options.
+ */
+export function viewMenuEntries(desktop: DesktopContextValue, arrange: () => void): MenuEntry[] {
+  const p = desktop.preferences;
+  const update = desktop.updatePreferences;
+  const sort = p.chronologicalSort === "none" ? "updated" : p.chronologicalSort;
   return [
     {
-      label: "Organize by",
+      label: "Organize",
       icon: "Layers",
       submenu: [
-        { label: "Same as sidebar", checked: preferences.organize === "sidebar", run: () => desktop.setPreferences({ organize: "sidebar" }) },
-        ...(["section", "project", "machine"] as const).map((organize) => ({
-          label: ORGANIZE_LABELS[organize],
-          checked: preferences.organize === organize,
-          run: () => desktop.setPreferences({ organize }),
-        })),
+        ...ORGANIZE.map(([value, label]): MenuEntry => ({ label, checked: p.organizationMode === value, keepOpen: true, run: () => update({ organizationMode: value }) })),
+        "separator",
+        { label: "By environment", checked: groupByEnvironment(p), keepOpen: true, run: () => update({ environmentGrouping: !groupByEnvironment(p) }) },
+        { label: "Provider icons", checked: p.showProviderIcons, keepOpen: true, run: () => update({ showProviderIcons: !p.showProviderIcons }) },
       ],
     },
     {
       label: "Sort by",
-      icon: "Sort",
-      submenu: [
-        { label: "Same as sidebar", checked: preferences.sort === "sidebar", run: () => desktop.setPreferences({ sort: "sidebar" }) },
-        ...(["updated", "created", "alpha"] as const).map((sort) => ({ label: SORT_LABELS[sort], checked: preferences.sort === sort, run: () => desktop.setPreferences({ sort }) })),
-      ],
+      icon: "ArrowUpDown",
+      submenu: SORT.map(([value, label]): MenuEntry => {
+        const selected = sort === value;
+        const direction = p.sortDirection === "default" ? (value === "alpha" ? "ascending" : "descending") : p.sortDirection;
+        const next = selected ? (direction === "ascending" ? "descending" : "ascending") : value === "alpha" ? "ascending" : "descending";
+        return { label, checked: selected, hint: selected ? (direction === "ascending" ? "↑" : "↓") : undefined, keepOpen: true, run: () => update({ chronologicalSort: value, sortDirection: next }) };
+      }),
     },
+    {
+      label: "Filter",
+      icon: "SlidersHorizontal",
+      submenu: (["active", "archived"] as const).map((value): MenuEntry => {
+        const checked = p.threadLifecycles.includes(value);
+        return {
+          label: value === "active" ? "Active" : "Archived",
+          checked,
+          keepOpen: true,
+          disabled: checked && p.threadLifecycles.length === 1,
+          run: () => update({ threadLifecycles: checked ? p.threadLifecycles.filter((lifecycle) => lifecycle !== value) : [...p.threadLifecycles, value] }),
+        };
+      }),
+    },
+    {
+      label: "Visible groups",
+      icon: "Eye",
+      submenu: desktop.organization.groups
+        .filter((group) => group.key !== "pinned")
+        .map((group): MenuEntry => {
+          const visible = !p.hiddenGroups.includes(group.key);
+          return {
+            label: group.name,
+            checked: visible,
+            keepOpen: true,
+            run: () => update({ hiddenGroups: visible ? [...p.hiddenGroups, group.key] : p.hiddenGroups.filter((key) => key !== group.key) }),
+          };
+        }),
+    },
+    { label: "Arrange like sidebar", icon: "GridView", run: arrange },
   ];
 }
 
@@ -177,7 +210,7 @@ export function viewMenuEntries(desktop: DesktopContextValue): MenuEntry[] {
 export const RECYCLE_BIN_DROP = "recycle-bin";
 
 /** Marks an element as a place a dragged thread can land. */
-export function threadDropTarget(group: DesktopGroup | null): { "data-thread-drop"?: string } {
+export function threadDropTarget(group: Collection | null): { "data-thread-drop"?: string } {
   return group !== null && acceptsDrop(group) ? { "data-thread-drop": group.key } : {};
 }
 
