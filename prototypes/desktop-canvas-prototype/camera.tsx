@@ -72,8 +72,12 @@ function readCamera(): Camera {
 const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 const ease = (t: number) => 1 - (1 - t) ** 3;
 
-/** Owns the camera and the canvas's screen geometry. Camera changes re-render only what reads `useCamera`. */
-export function CanvasProvider({ rootRef, children }: { rootRef: RefObject<HTMLDivElement | null>; children: ReactNode }) {
+/**
+ * Owns the canvas root, the camera and the canvas's screen geometry. Camera changes re-render only what reads
+ * `useCamera`. It renders the root itself, so the root's ref is attached before the first measurement.
+ */
+export function CanvasProvider({ className, rootProps, children }: { className: string; rootProps?: Record<string, string>; children: ReactNode }) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const [camera, setCameraState] = useState(readCamera);
   const cameraRef = useRef(camera);
   cameraRef.current = camera;
@@ -162,6 +166,7 @@ export function CanvasProvider({ rootRef, children }: { rootRef: RefObject<HTMLD
   );
 
   return (
+    <div ref={rootRef} className={className} {...rootProps}>
     <ControlsContext.Provider value={controls}>
       <ViewportContext.Provider value={viewport}>
         <WorkAreaContext.Provider value={area}>
@@ -169,5 +174,6 @@ export function CanvasProvider({ rootRef, children }: { rootRef: RefObject<HTMLD
         </WorkAreaContext.Provider>
       </ViewportContext.Provider>
     </ControlsContext.Provider>
+    </div>
   );
 }

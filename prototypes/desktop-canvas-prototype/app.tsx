@@ -290,21 +290,18 @@ function Shell() {
 }
 
 function Desktop() {
-  const rootRef = useRef<HTMLDivElement>(null);
   return (
-    <div ref={rootRef} className="cdc-desktop" {...PLUGIN_SCOPE}>
-      <CanvasProvider rootRef={rootRef}>
-        <WindowManagerProvider>
-          <DesktopDataProvider>
-            <MenuProvider>
-              <AskTextProvider>
-                <Shell />
-              </AskTextProvider>
-            </MenuProvider>
-          </DesktopDataProvider>
-        </WindowManagerProvider>
-      </CanvasProvider>
-    </div>
+    <CanvasProvider className="cdc-desktop" rootProps={PLUGIN_SCOPE}>
+      <WindowManagerProvider>
+        <DesktopDataProvider>
+          <MenuProvider>
+            <AskTextProvider>
+              <Shell />
+            </AskTextProvider>
+          </MenuProvider>
+        </DesktopDataProvider>
+      </WindowManagerProvider>
+    </CanvasProvider>
   );
 }
 
