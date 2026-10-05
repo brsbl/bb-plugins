@@ -1,0 +1,174 @@
+.iac-card, .iac-table { --iac-gap: calc(var(--spacing, .25rem) * 2); margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius-lg, .75rem); background: var(--card); color: var(--foreground); font-size: 13px; line-height: 1.6; }
+.iac-card { padding: 14px 16px; }
+.iac-header, .iac-result-line, .iac-row-line, .iac-table-header { display: flex; align-items: center; justify-content: space-between; gap: var(--iac-gap); }
+.iac-header { align-items: flex-start; }
+.iac-recipient-line { flex: 1; min-width: 0; padding-top: 4px; overflow-wrap: anywhere; font-size: 12px; }
+.iac-muted, .iac-consequence, .iac-save, .iac-progress, .iac-result-line time { color: var(--muted-foreground); }
+.iac-question { padding-top: 4px; font-weight: 500; overflow-wrap: anywhere; }
+.iac-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
+.iac-footer { margin-top: 8px; }
+/* One action line: icon tools stay whole; labels wrap only when nothing else fits. */
+.iac-tools { display: flex; flex-shrink: 0; align-items: center; gap: var(--iac-gap); margin-right: auto; }
+.iac-footer > button { min-width: 0; height: auto; min-height: 28px; white-space: normal; }
+.iac-attached { display: inline-flex; margin-right: 4px; vertical-align: -2px; }
+.iac-card .iac-attached svg, .iac-row .iac-attached svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.iac-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.iac-actions button { font-size: 12px; }
+.iac-progress { font-style: italic; }
+.iac-button-label { display: grid; }
+.iac-button-label > span { grid-area: 1 / 1; }
+.iac-button-label .iac-progress { color: inherit; }
+.iac-card button[aria-busy="true"], .iac-table button[aria-busy="true"] { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .iac-progress {
+    background: linear-gradient(100deg, var(--muted-foreground) 35%, var(--foreground) 50%, var(--muted-foreground) 65%);
+    background-size: 250% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: iac-progress-shimmer 2.4s linear infinite;
+  }
+  .iac-button-label .iac-progress {
+    background-image: linear-gradient(100deg, currentColor 35%, transparent 50%, currentColor 65%);
+    color: inherit;
+    -webkit-text-fill-color: transparent;
+  }
+}
+@keyframes iac-progress-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.iac-icon { width: 28px; height: 28px; padding: 5px; color: var(--muted-foreground); }
+.iac-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.iac-original { margin: 8px 0 12px; min-width: 0; font-size: 12px; }
+.iac-original summary { display: flex; align-items: baseline; gap: 6px; color: var(--muted-foreground); cursor: pointer; }
+.iac-original summary::before { content: "▸"; flex-shrink: 0; }
+.iac-original[open] summary::before { content: "▾"; }
+.iac-original summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iac-email { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 12px 0; }
+.iac-card textarea, .iac-row textarea { display: block; box-sizing: border-box; width: 100%; min-height: 28px; max-height: 560px; resize: none; padding: 4px 0; font: inherit; line-height: 1.7; color: inherit; background: transparent; border: 0; border-radius: var(--radius-sm, .25rem); outline: none; }
+.iac-card textarea:not([readonly]):hover, .iac-row textarea:not([readonly]):hover { background: var(--state-hover, var(--muted)); }
+.iac-card textarea:not([readonly]):focus, .iac-row textarea:not([readonly]):focus { background: var(--state-hover, var(--muted)); box-shadow: 0 0 0 1px var(--border); }
+.iac-original summary:focus-visible { outline: 1px solid var(--ring); outline-offset: 3px; }
+.iac-save { display: block; text-align: right; font-size: 11px; }
+.iac-consequence { margin: 4px 0 0; overflow-wrap: anywhere; }
+.iac-error, .iac-failed { color: var(--destructive); }
+.iac-error { margin-top: 8px; font-size: 12px; }
+.iac-result-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.iac-result-line time { font-size: 11px; white-space: nowrap; }
+.iac-result-line + .iac-body, .iac-result-line + .iac-row-expanded { margin-top: 12px; }
+.iac-table-header { padding: 10px 16px; color: var(--muted-foreground); font-size: 12px; }
+.iac-table > .iac-error { padding: 0 16px 10px; }
+.iac-row { padding: 12px 16px; border-top: 1px solid var(--border); }
+.iac-row-line { align-items: center; }
+.iac-row-description { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.iac-row-description .iac-consequence { font-size: 12px; }
+.iac-row-line > .iac-choice { margin-top: 0; min-width: 160px; }
+.iac-row .iac-footer > button:last-child { min-width: 64px; }
+.iac-row-expanded { margin-top: 12px; }
+.iac-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 8px -8px 0; }
+.iac-option { display: flex; min-width: 0; align-items: center; gap: 10px; min-height: 32px; padding: 4px 8px; border-radius: var(--radius-md, .5rem); cursor: pointer; }
+.iac-option:hover:not(:has(input:disabled)) { background: var(--state-hover, var(--muted)); }
+.iac-option:has(input:checked) { background: var(--state-selected, var(--muted)); }
+.iac-option:has(input:disabled) { cursor: default; }
+.iac-option:has(input:focus-visible) { outline: 1px solid var(--ring); outline-offset: -1px; }
+.iac-option input { flex-shrink: 0; width: 14px; height: 14px; margin: 0; accent-color: var(--primary); }
+.iac-option-text { display: flex; flex: 1; min-width: 0; align-items: baseline; gap: 8px; }
+.iac-option-label { flex-shrink: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iac-option-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: 12px; }
+.iac-tag { flex-shrink: 0; padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: 11px; line-height: 16px; }
+.iac-options + .iac-consequence { margin-top: 8px; font-size: 12px; }
+.iac-choose { min-width: 0; max-width: 100%; }
+.iac-choose .iac-button-label { min-width: 0; }
+.iac-choose .iac-button-label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iac-card:has(.iac-options) .iac-footer { min-width: 0; }
+.iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: 12px; box-shadow: var(--shadow-md); }
+.iac-menu { min-width: 170px; padding: 4px; }
+.iac-menu-item { padding: 6px 8px; border-radius: var(--radius-sm, .25rem); cursor: pointer; outline: none; }
+.iac-menu-item[data-highlighted] { background: var(--state-hover, var(--muted)); }
+.iac-tooltip { padding: 4px 8px; }
+@media (max-width: 480px) {
+  .iac-card, .iac-row { padding: 12px; }
+  .iac-table-header { padding: 8px 12px; }
+  .iac-row-line { flex-wrap: wrap; }
+  .iac-row-line > .iac-choice { margin-left: auto; }
+  .iac-result-line { align-items: flex-start; flex-wrap: wrap; }
+  .iac-result-copy { flex-basis: 160px; }
+  .iac-result-line > .iac-actions { margin-left: auto; }
+}
+
+.iac-choice { min-width: 0; }
+.iac-row-line:has(.iac-note-field) { flex-wrap: wrap; }
+.iac-row-line:has(.iac-note-field) > .iac-choice { flex-basis: 100%; }
+.iac-card .iac-note-field, .iac-row .iac-note-field { padding: 4px 0; max-height: 100px; overflow-y: auto; }
+.iac-result-note { margin-top: 2px; white-space: pre-wrap; font-size: 12px; overflow-wrap: anywhere; }
+
+/* The comment field and its send button read as one control. */
+/* bb's text input treatment: quiet input border, 1px ring on keyboard or pointer focus. */
+.iac-note-entry { display: flex; align-items: flex-end; gap: 4px; margin-top: 8px; padding: 1px 1px 1px 7px; border: 1px solid var(--input); border-radius: var(--radius-md, .5rem); background: transparent; }
+.iac-note-entry:has(.iac-note-field:focus-visible) { box-shadow: 0 0 0 1px var(--ring); }
+:is(.iac-card, .iac-row) .iac-note-entry textarea:not([readonly]):is(:hover, :focus) { background: transparent; box-shadow: none; }
+.iac-note-entry .iac-icon { width: 24px; height: 24px; padding: 4px; }
+.iac-note-entry .iac-note-field { flex: 1; min-width: 0; }
+
+.iac-log { --iac-gap: 8px; --iac-log-button: 28px; container-type: inline-size; padding: 16px 24px 24px; color: var(--foreground); font-size: 13px; line-height: 1.5; }
+.iac-log-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding-bottom: 4px; }
+.iac-log h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; }
+.iac-log-count { color: var(--muted-foreground); font-weight: 400; font-variant-numeric: tabular-nums; }
+.iac-log-mark { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 12px; height: 12px; }
+.iac-log-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--attention, var(--primary)); }
+.iac-log-check { width: 12px; height: 12px; fill: none; stroke: var(--success, currentColor); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+@media (prefers-reduced-motion: no-preference) { .iac-log-dot { animation: iac-log-pulse 2.4s ease-in-out infinite; } }
+@keyframes iac-log-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.iac-log-see-all { color: var(--muted-foreground); font-size: 12px; text-decoration: none; }
+.iac-log-see-all:hover { color: var(--foreground); text-decoration: underline; }
+.iac-log-see-all:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
+.iac-log-done { margin-top: 28px; }
+.iac-log-empty { margin: 0; padding: 12px 0; border-top: 1px solid var(--border); color: var(--muted-foreground); }
+.iac-log > .iac-log-group > .iac-error { margin: 4px 0; }
+/* Every row shares one anatomy: type icon, title over thread · time, then ⋯ and fixed secondary and primary columns. */
+.iac-log-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
+.iac-log-kind { display: flex; align-self: start; margin-top: 3px; color: var(--muted-foreground); }
+.iac-log-kind svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.iac-log-main { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.iac-log-title, .iac-log-meta, .iac-log-meta > *, .iac-log-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iac-log-title { font-size: 14px; font-weight: 600; }
+.iac-log-meta { display: flex; color: var(--muted-foreground); font-size: 12px; }
+.iac-log-meta > * { flex-shrink: 1; }
+.iac-log-meta > :not(:first-child)::before { content: "·"; padding: 0 6px; color: var(--muted-foreground); }
+.iac-log-meta > time { flex-shrink: 0; }
+.iac-log-meta > .iac-log-thread { min-width: 5em; }
+.iac-log-meta > :last-child:not(time):not(.iac-log-thread) { flex-shrink: 3; }
+.iac-log-meta > .iac-failed { flex-shrink: 2; color: var(--destructive); }
+.iac-log-thread { color: inherit; text-decoration: none; cursor: pointer; }
+.iac-log-thread:hover { color: var(--foreground); text-decoration: underline; }
+.iac-log-thread:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
+.iac-log-actions { display: grid; grid-template-columns: 28px 28px var(--iac-log-button) var(--iac-log-button); align-items: center; gap: var(--iac-gap); }
+.iac-log-review { grid-column: 1; display: inline-flex; width: 28px; height: 28px; }
+.iac-log-menu { grid-column: 2; display: inline-flex; width: 28px; height: 28px; }
+.iac-log-secondary { grid-column: 3; display: flex; min-width: 0; justify-content: flex-end; }
+.iac-log-primary { grid-column: 4; display: flex; min-width: 0; }
+/* Icon-only action squares keep their role styling: secondary outlined, primary filled. */
+.iac-log-secondary .iac-icon { border: 1px solid var(--input, var(--border)); color: var(--foreground); }
+.iac-log-primary .iac-icon { background: var(--foreground); color: var(--background); }
+.iac-log-primary .iac-icon:hover:not(:disabled) { background: color-mix(in oklab, var(--foreground) 90%, transparent); color: var(--background); }
+.iac-log-actions .iac-icon[aria-busy="true"] svg { animation: iac-log-pulse 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .iac-log-actions .iac-icon[aria-busy="true"] svg { animation: none; } }
+.iac-log-status { box-sizing: border-box; width: 100%; padding-right: 2px; color: var(--muted-foreground); opacity: .75; font-size: 12px; font-style: italic; text-align: right; }
+/* Done status needs no button, so it may use both columns. */
+.iac-log-quiet .iac-log-secondary { grid-column: 3 / 5; }
+.iac-log-quiet .iac-log-title, .iac-log-later .iac-log-title { color: var(--muted-foreground); }
+.iac-log-review [aria-expanded="true"] { background: var(--state-active, var(--muted)); color: var(--foreground); }
+.iac-log-draft, .iac-log-row > .iac-error { grid-column: 2 / -1; }
+.iac-log-draft { margin-top: 8px; }
+.iac-log-draft p { margin: 0 0 4px; font-size: 12px; overflow-wrap: anywhere; }
+.iac-log-options { margin: 0; padding-left: 18px; font-size: 12px; }
+.iac-log-draft textarea { display: block; box-sizing: border-box; width: 100%; resize: none; font: inherit; line-height: 1.6; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 8px; }
+.iac-log-row > .iac-error { margin-top: 6px; }
+.iac-log-more { margin: 6px 0 0 20px; color: var(--muted-foreground); }
+/* Narrow pages and thread panels move actions below the text instead of squeezing the title. */
+@container (max-width: 440px) {
+  .iac-log-actions { grid-column: 2 / -1; grid-row: 3; justify-content: end; margin-top: 8px; }
+  .iac-log-draft { grid-row: 2; }
+  .iac-log-meta:has(> .iac-failed) { flex-wrap: wrap; }
+  .iac-log-meta > .iac-failed { flex-basis: 100%; }
+  .iac-log-meta > .iac-failed + ::before { content: none; }
+}
+@media (max-width: 480px) { .iac-log { padding: 12px 16px 20px; } }

@@ -18,15 +18,25 @@ Turns recurring product-design feedback into a searchable rule library that agen
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
 
-### Digests
+### Briefs
 
-Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based digest under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own issues.
+Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based brief under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own briefs.
 
-![A Digests issue with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
+![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
 
 [Source](plugins/digests) · [README](plugins/digests/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/digests --yes`
+
+### FPL Draft
+
+Follow your Fantasy Premier League Draft league’s matches and standings, compare waiver options, and bring the current view into an agent conversation with a context pill.
+
+![FPL Draft waiver suggestion with expanded player comparison](https://github.com/user-attachments/assets/ea04832a-1a7f-4fdc-bcf7-66b85b951611)
+
+[Source](plugins/fpl-draft) · [README](plugins/fpl-draft/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/fpl-draft --yes`
 
 ### GitHub Activity
 
@@ -84,6 +94,20 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
 
+### Inline Action Cards
+
+Edit email replies and approve decisions inside agent messages. Review one item or a group in a table, and track waiting choices and results across threads in the Action log.
+
+![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
+
+![Action table and results](https://github.com/user-attachments/assets/ec63ecfe-86ad-4a46-8f6e-06a72e8923f0)
+
+![Mixed table with one reply expanded](https://github.com/user-attachments/assets/4eef8810-5a99-40af-8fa4-974d25f6937f)
+
+[Source](plugins/inline-action-cards) · [README](plugins/inline-action-cards/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/inline-action-cards --yes`
+
 ### Mesh Gradient
 
 Creates, edits, saves, and shares reusable mesh gradients from a visual studio beside a thread. Users can hand an exact saved gradient to the current agent, while agents can generate gradients, inspect the shared library, and apply saved designs through the same plugin.
@@ -93,6 +117,16 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 [Source](plugins/mesh-gradient) · [README](plugins/mesh-gradient/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
+
+### Emoji Picker
+
+Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.
+
+![Emoji picker with category browsing and skin tone selection](https://github.com/user-attachments/assets/a74d890d-9ad9-46e5-a7a0-2995b386e054)
+
+[Source](plugins/emoji-picker) · [README](plugins/emoji-picker/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/emoji-picker --yes`
 
 ### Endless
 
@@ -124,6 +158,16 @@ Renders an inline swatch beside every color literal in a thread — hex, `rgb()`
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/color-swatches --yes`
 
+### Compact Links
+
+Turns website URLs into compact favicon pills in the composer, sent messages and agent replies. Click a link to open it using your bb browser preference.
+
+![SaaS and localhost links in drafts and conversations](https://github.com/user-attachments/assets/50b2bbde-30f6-4ac2-9060-a92d04a6bc07)
+
+[Source](plugins/url-pills) · [README](plugins/url-pills/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/url-pills --yes`
+
 ### Open in Moss
 
 Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as the fallback.
@@ -133,6 +177,18 @@ Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as
 [Source](plugins/open-in-moss) · [README](plugins/open-in-moss/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/open-in-moss --yes`
+
+### Moss Viewer
+
+Reads Moss notes in a bb panel the way Moss renders them: tabs, tables, wiki links, post embeds, charts, live HTML blocks, and note-local images and video. Notes stay on the Mac that holds them, and Open in Moss takes you to the app to edit.
+
+![A Moss note with a wiki link pill and an embedded X post in bb's panel](https://github.com/user-attachments/assets/1f0ba527-c96d-4f11-9083-a2780231f7ef)
+
+![A note-local video playing inside a Moss note in bb's panel](https://github.com/user-attachments/assets/79ebbff9-b01a-4922-a5d2-b87faec47a2c)
+
+[Source](plugins/moss-viewer) · [README](plugins/moss-viewer/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-viewer --yes`
 
 ### Saved Places
 
@@ -184,7 +240,7 @@ Paints a living generative background behind bb that reacts to your agents: work
 
 ![Ambient's Tide scene behind bb with two working agents as lights and the Ambient controls open in the sidebar](plugins/ambient/docs/screenshot.png)
 
-![Ambient's Contour scene with a waiting agent raised as a peak in the contour lines](plugins/ambient/docs/contour.png)
+Contour draws a calm night map with muted gold lines and agent peaks.
 
 [Source](plugins/ambient) · [README](plugins/ambient/README.md)
 
@@ -206,14 +262,26 @@ To work on one plugin, install its workspace directly: `bb plugin install "path:
 
 See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
 
-### File Pins
+### Pinned Files
 
-Keep local files within reach in each thread with persistent pins above the composer. Add and remove pins from the thread or CLI, and open them through bb's file links.
+Keep local files within reach in each thread with persistent pins above the composer. Ask the agent to pin files from the composer's pin button or use the CLI, and open pins through bb's file links.
 
 ![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
 
-![Search files on their host](https://github.com/user-attachments/assets/d62b72a1-7c86-44c4-877a-e41c972252b3)
+![The pin button adds a Pin files pill to the composer](https://github.com/user-attachments/assets/4749c71d-891c-4581-817d-33bc93e678ca)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins --yes`
+
+### Coordinator Mode
+
+Turn any thread into a coordinator that tracks your asks as items, starts sub-threads for them, and moves each item forward only on real evidence such as a merged PR or your approval. Coordinator rules decide what it may do alone, must ask about, or must never do.
+
+![Coordinator panel set-up form with the Ship template](https://github.com/user-attachments/assets/9754ab68-1937-4849-bfd8-b2e57807481d)
+
+![Coordinator tracker with a proposed item waiting in Needs you](https://github.com/user-attachments/assets/d51eaa0b-c084-4dd6-968f-6593a4481ff6)
+
+[Source](plugins/coordinator-mode) · [README](plugins/coordinator-mode/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/coordinator-mode --yes`

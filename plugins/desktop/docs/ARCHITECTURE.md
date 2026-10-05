@@ -28,7 +28,6 @@ The note pads and the needs-input balloon (`page/`) render on every bb page, not
 | `state.ts` | `windowReducer`, and `parseWindows`/`serializeWindows` for `bb-desktop:windows:v1` |
 | `geometry.ts` | `chromeTop`, `viewportRect`, `workAreaRect`, `fitDragRect`, `resizeInArea`, `defaultRect` |
 | `pointer.ts` | `trackPointer`, `usePointerTracker`, `crossedDragThreshold`, `previewRect` |
-| `nudges.ts` | The composer-clearance nudge store |
 | `focus.ts` | `windowOwnsKeys` and `typingElsewhere`, so window-wide shortcuts and focus-on-open leave bb's composer alone |
 | `manager.tsx` | `WindowManagerProvider` and `useWindowManager`, including `closeWhere` |
 | `frame.tsx` | `WindowTitleBar`, `WindowFrame` |
@@ -75,11 +74,12 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 | File | Contents |
 | --- | --- |
 | `data.tsx` | The snapshot fetch (realtime refresh, stale responses dropped, sidebar preferences at most every 15 seconds), `DesktopDataProvider`, `useDesktop`, and actions: `openThread`, `dropThread`, `restoreThread`, `archiveThread`, `setPreferences` |
+| `desktop-entries.ts` | The shared live inventory and layout keys for the canvas and Finder: groups, saved notes, More, and Recycle Bin |
 | `menu.tsx` | `MenuEntry`, `MenuProvider`, `useMenu().open(event, entries)` |
 | `menus.tsx` | Shared entry builders: `threadMenu`, `groupMenu`, `viewMenuEntries` |
 | `canvas.tsx`, `canvas-icons.tsx` | The icon canvas (layout, selection, marquee, multi-drag, arrange, tile) and its icons: folders, More, note pads, the Recycle Bin |
 | `page-menu.ts` | The background right-click menu on the rest of the homepage |
-| `window-layer.tsx` | The `document.body` portal: windows from the registry, link capture, composer clearance |
+| `window-layer.tsx` | The `document.body` portal: windows from the registry, link capture |
 | `links.ts` | Thread-link and chat web-link routing |
 | `commands.ts` | `runAppCommand` (bb keybindings), `navigateInApp` |
 | `thread-drag.ts` | Pointer thread drags onto `[data-thread-drop]` targets, which set `data-drop-target` while hovered |
@@ -93,6 +93,8 @@ Thread status wording and ranking (`statusTone`, `folderSummary`, `statusKind`, 
 ## CSS
 
 All CSS lives in one root `app.css`, the first import in `app.tsx`, including each program's styles and a copy of xterm.js's stylesheet. It stays a single file because the install-ref publisher (`tooling/publish-install-refs.mjs`) copies the plugin's root `app.css` into git-install releases and drops every stylesheet a component imports, so never import CSS from anywhere else. The `.bbd-root` tokens and shared primitives (`.bbd-glass`, `.bbd-bevel`, `.bbd-sunken`, `.bbd-button`) come first, and later rules override earlier ones at equal specificity, so add a rule next to the other rules for its surface and move one only after checking that no rule it passes shares its specificity. Class names are part of the visual contract; renaming one is a visual change. The build scans every source file for Tailwind classes, so new directories need no configuration.
+
+The Instant Message window restyles bb's `ThreadChat` through bb's private markup, which bb may change in any release. Every rule that depends on it sits in the fenced **bb ThreadChat contract** section of `app.css`, scoped by the `.bbd-im-chat` class; nothing outside that section names the class. `ThreadWindow` runs `checkChatContract` (`programs/threads/chat-contract.ts`) from a layout effect and a throttled `MutationObserver` and records the result in `data-bbd-chat-contract` (`pending`, `ok`, or `mismatch`). On a mismatch it warns once, drops `.bbd-im-chat` so bb's own chat shows inside the AIM frame, and renders an archived thread with bb's composer-less `variant="timeline"`, since the rule hiding its message box is part of the contract. A mismatch lasts until the window reopens. `programs/threads/.ignore` keeps the captured bb markup in `__fixtures__/` and the test that queries it out of the Tailwind scan.
 
 ## Stored and public contracts
 
@@ -111,4 +113,8 @@ These outlive a release. Changing one needs a migration.
 
 ## Tests
 
-Pure modules have co-located `*.test.ts` files. `windows/state.test.ts` loads a stored v1 fixture so an incompatible change to window persistence fails CI, `programs/launcher-ids.test.ts` pins the Quick Launch ids, and `programs/threads/status.test.ts` pins thread status wording. Tests run in Node without a DOM, so a module a test imports must not import a browser-only dependency.
+Pure modules have co-located `*.test.ts` files. `windows/state.test.ts` loads a stored v1 fixture so an incompatible change to window persistence fails CI, `programs/launcher-ids.test.ts` pins the Quick Launch ids, and `programs/threads/status.test.ts` pins thread status wording. `programs/threads/chat-contract.test.ts` runs the contract check and the key contract selectors from `app.css` against `programs/threads/__fixtures__/thread-chat.html`, real `ThreadChat` markup captured from the bb web app with the bb commit it came from noted at its top; recapture it whenever bb's chat markup changes, then update the contract rules to match. Tests run in Node without a DOM unless they opt into jsdom, as the window and chat contract tests do, so a module a test imports must not import a browser-only dependency.
+
+Finder's Desktop root adds the `desktop-finder` window kind and `finder` launcher; existing `finder` window specs still require a group key. The root reads live entries rather than storing item IDs. A restored folder whose key no longer exists uses the existing missing-folder message; deleted notes disappear from the live inventory and the note store ignores stale open requests. Navigation history remains session-only.
+
+During window moves and resizes, native browser visibility follows the previewed window bounds on every pointer move. Moving a browser hides its own native page; other browser pages stay visible unless covered. Other gesture types retain the global native-view shield.
