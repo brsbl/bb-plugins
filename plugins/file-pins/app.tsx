@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { definePluginApp, experimental_FileLink as FileLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
@@ -37,6 +37,22 @@ function PinContents({ pin }: { pin: Reference }) {
   return <><ReferenceIcon path={pin.path} /><span className="truncate group-hover:underline">{pin.name}</span></>;
 }
 
+// True while the strip is the composer stack's top row, so a fade above it covers only timeline text, never another banner.
+function useTopOfComposerStack(ref: RefObject<HTMLElement | null>, active: boolean) {
+  const [top, setTop] = useState(false);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    const stack = element?.closest("[data-promptbox-shell]");
+    if (!active || !element || !stack) { setTop(false); return; }
+    const check = () => setTop(element.getBoundingClientRect().top - stack.getBoundingClientRect().top < 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(stack);
+    return () => observer.disconnect();
+  }, [ref, active]);
+  return top;
+}
+
 function PinStrip({ threadId }: { threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
@@ -53,6 +69,8 @@ function PinStrip({ threadId }: { threadId: string }) {
   const slot = useRef<HTMLSpanElement>(null);
   const arranging = useRef({ pending: 0, queue: Promise.resolve() });
   const capacity = useMeasurePinCapacity(zone, slot);
+  const root = useRef<HTMLDivElement>(null);
+  const fade = useTopOfComposerStack(root, pins.length > 0);
   const generation = useRef(0);
   const alive = useRef(true);
   const report = useCallback((cause: unknown) => { if (alive.current) toast.error(cause instanceof Error ? cause.message : String(cause)); }, []);
@@ -196,7 +214,9 @@ function PinStrip({ threadId }: { threadId: string }) {
       </Menu.Root>
     </div>;
   }
-  return <div className="relative min-w-0">
+  return <div ref={root} className="relative min-w-0">
+    {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
+    {fade && <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
     {pins.length > 0 && <section aria-label="Pinned files" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
       <div className="flex min-w-0 items-center gap-1">
         {layout.strip.map((pin) => stripPin(pin))}
