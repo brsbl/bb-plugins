@@ -28,7 +28,8 @@ export function groupItems(status: CoordinatorStatus, template: CoordinatorTempl
     const stageName = stage?.name ?? "Unknown stage";
     const approvals = status.approvals.filter((approval) => approval.itemId === item.id);
     const waiting = item.status === "active" && !item.proposed;
-    const needsApproval = waiting && stage?.check === "you_approve";
+    // A blocked item can still be waiting on you at an approval stage.
+    const needsApproval = (item.status === "active" || item.status === "blocked") && !item.proposed && stage?.check === "you_approve";
     const needsLink = waiting && stage?.check === "link_added" && !item.link;
     const row: Row = {
       key: item.id,

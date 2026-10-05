@@ -109,6 +109,7 @@ export type LogEntry = {
     | "action_declined"
     | "command_approved"
     | "command_denied"
+    | "answered_elsewhere" // an approval's request was answered in the sub-thread itself
     | "rule_broken"
     | "merged_outside"
     | "item_created"

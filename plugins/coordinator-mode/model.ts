@@ -151,7 +151,7 @@ function basename(word: string): string {
   return slash >= 0 ? word.slice(slash + 1) : word;
 }
 
-function matchWords(words: string[], depth: number): GatedAction | null {
+function matchWords(words: string[], depth: number): GatedAction[] {
   let start = 0;
   while (start < words.length) {
     const current = words[start] ?? "";
@@ -168,37 +168,22 @@ function matchWords(words: string[], depth: number): GatedAction | null {
   if (SHELLS.has(program) && depth < 3) {
     const flag = rest.findIndex((word) => /^-[a-z]*c[a-z]*$/u.test(word));
     const script = flag >= 0 ? rest[flag + 1] : undefined;
-    return script ? matchCommandDepth(script, depth + 1) : null;
+    return script ? matchCommandDepth(script, depth + 1) : [];
   }
 
   const positional = rest.filter((word) => !word.startsWith("-"));
   const [first, second] = positional;
-  if (program === "gh" && first === "pr" && second === "merge") return "merge_pr";
-  if (program === "bb" && first === "digest" && second === "publish") return "digest_publish";
-  if (program === "bb" && first === "thread" && second === "archive") return "archive_sub_thread";
-  if (program === "bb" && first === "thread" && (second === "spawn" || second === "create")) return "start_sub_thread";
-  return null;
+  if (program === "gh" && first === "pr" && second === "merge") return ["merge_pr"];
+  if (program === "bb" && first === "digest" && second === "publish") return ["digest_publish"];
+  if (program === "bb" && first === "thread" && second === "archive") return ["archive_sub_thread"];
+  if (program === "bb" && first === "thread" && (second === "spawn" || second === "create")) return ["start_sub_thread"];
+  return [];
 }
 
-function matchCommandDepth(command: string, depth: number): GatedAction | null {
-  for (const words of splitSegments(command)) {
-    const action = matchWords(words, depth);
-    if (action) return action;
-  }
-  return null;
+function matchCommandDepth(command: string, depth: number): GatedAction[] {
+  return splitSegments(command).flatMap((words) => matchWords(words, depth));
 }
 
-/**
- * Best-effort detection of a gated action in a shell command. The command is split
- * on `&&`, `||`, `;`, `|`, `&`, parentheses, backticks, and newlines outside quotes;
- * leading env assignments and wrappers like `sudo` or `env` are skipped, and
- * `bash -c "..."` is inspected recursively. Quoted text such as `echo "gh pr merge"`
- * is not a match.
- *
- * Limits: `$(...)` inside double quotes, aliases, shell functions, scripts that
- * call these commands, `eval`, and flags that take a value before the subcommand
- * (`gh -R o/r pr merge`) are not detected. The first gated command in the string wins.
- */
 /**
  * Second line of defense for commands `matchGatedCommand` doesn't recognize.
  * "self_rpc" reaches Coordinator Mode's own RPC or HTTP surface, which an agent
@@ -219,8 +204,24 @@ export function classifyUnmatchedCommand(command: string): "self_rpc" | "risky" 
   return "safe";
 }
 
+/**
+ * Best-effort detection of a gated action in a shell command. The command is split
+ * on `&&`, `||`, `;`, `|`, `&`, parentheses, backticks, and newlines outside quotes;
+ * leading env assignments and wrappers like `sudo` or `env` are skipped, and
+ * `bash -c "..."` is inspected recursively. Quoted text such as `echo "gh pr merge"`
+ * is not a match.
+ *
+ * Limits: `$(...)` inside double quotes, aliases, shell functions, scripts that
+ * call these commands, `eval`, and flags that take a value before the subcommand
+ * (`gh -R o/r pr merge`) are not detected. Every gated command in the string is returned, in order.
+ */
+export function matchGatedCommands(command: string): GatedAction[] {
+  return [...new Set(matchCommandDepth(command, 0))];
+}
+
+/** The first gated action in a command, or null. */
 export function matchGatedCommand(command: string): GatedAction | null {
-  return matchCommandDepth(command, 0);
+  return matchGatedCommands(command)[0] ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -402,7 +403,7 @@ const CHECK_DESCRIPTIONS: Record<CheckKind, string> = {
   ci_green: "passes when CI is green; fails when CI fails",
   pr_merged: "passes when the PR is merged",
   you_approve: "passes when the user approves; a rejection sends it back",
-  reviewer_passes: "passes when a review sub-thread records pass with coordinator_review_verdict; you cannot record a verdict for your own items",
+  reviewer_passes: "passes when a sub-thread started with role \"reviewer\" records pass with coordinator_review_verdict; you cannot record a verdict for your own items",
   link_added: "passes when the item has a link (set it with coordinator_set_link)",
 };
 

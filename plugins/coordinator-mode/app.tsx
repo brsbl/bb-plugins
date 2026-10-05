@@ -181,8 +181,6 @@ export default definePluginApp((app) => {
   });
   app.slots.settingsSection({
     id: "coordinator-mode",
-    title: "Coordinator Mode",
-    description: "Turn a thread into a coordinator that tracks your asks and runs sub-threads.",
     component: CoordinatorSettings,
   });
 });

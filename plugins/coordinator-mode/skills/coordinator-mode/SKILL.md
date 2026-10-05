@@ -26,12 +26,12 @@ intake prefix. Follow them; they change only when the user edits them.
 
 ## Review sub-threads
 
-A review sub-thread records its verdict with
-`coordinator_review_verdict { pass, findings }`. The coordinator never records
-a verdict for its own items.
+Start review sub-threads with `role: "reviewer"`. Only a reviewer records a
+verdict, with `coordinator_review_verdict { pass, findings }`; helpers can't.
+The coordinator never records a verdict for its own items.
 
 ## Inspect from the CLI
 
 `bb coordinator-mode status --thread <id>` prints a coordinator's items and
 pending approvals. `bb coordinator-mode briefing --thread <id>` prints its
-current briefing.
+current briefing. `bb coordinator-mode off --thread <id>` turns it off.

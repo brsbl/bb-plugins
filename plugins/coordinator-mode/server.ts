@@ -80,12 +80,12 @@ export default function plugin(bb: BbPluginApi): void {
   });
   bb.agents.registerTool({
     name: "coordinator_start_sub_thread",
-    description: "Start a sub-thread for a confirmed item, checked against the coordinator rules. role primary does the item's work and PR; helper is for reviews or fixes. Name it per the sub-thread rules.",
+    description: "Start a sub-thread for a confirmed item, checked against the coordinator rules. role primary does the item's work and PR; reviewer reviews it and records the verdict; helper is for fixes or other side work. Name it per the sub-thread rules.",
     parameters: z.object({
       itemId: id,
       prompt: z.string().min(1).max(20_000),
       title: z.string().min(1).max(200).optional(),
-      role: z.enum(["primary", "helper"]).optional(),
+      role: z.enum(["primary", "helper", "reviewer"]).optional(),
     }).strict(),
     execute: (input, ctx) => service.tools.startSubThread(ctx.threadId, input),
   });
@@ -119,7 +119,7 @@ export default function plugin(bb: BbPluginApi): void {
     parameters: z.object({ itemId: id }).strict(),
     execute: (input, ctx) => service.tools.cutItem(ctx.threadId, input),
   });
-  // Helper (review) sub-thread tool.
+  // Reviewer sub-thread tool.
   bb.agents.registerTool({
     name: "coordinator_review_verdict",
     description: "Record your review verdict for the item this sub-thread reviews: pass true, or pass false with findings.",
@@ -168,12 +168,17 @@ export default function plugin(bb: BbPluginApi): void {
       status: cliCommand({
         summary: "Show a coordinator's state, items, and pending approvals as JSON",
         options: { thread },
-        run: (input, ctx) => json(service.rpc.status({ threadId: threadOf(input.options.thread, ctx) })),
+        run: async (input, ctx) => json(await service.rpc.status({ threadId: threadOf(input.options.thread, ctx) })),
       }),
       briefing: cliCommand({
         summary: "Print the current briefing without marking it opened",
         options: { thread },
         run: (input, ctx) => ({ exitCode: 0, stdout: `${service.briefingMarkdown(threadOf(input.options.thread, ctx))}\n` }),
+      }),
+      off: cliCommand({
+        summary: "Turn Coordinator Mode off for a thread, keeping the thread",
+        options: { thread },
+        run: (input, ctx) => json(service.rpc.turnOff({ threadId: threadOf(input.options.thread, ctx) })),
       }),
     },
   }));

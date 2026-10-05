@@ -3,6 +3,7 @@ import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { CoordinatorItem, CoordinatorState, CoordinatorTemplate } from "./contracts.js";
+import { groupItems } from "./components/tracker.js";
 
 const threadId = "thr_coord";
 const panelProps = { threadId, params: null };
@@ -77,6 +78,8 @@ describe("Coordinator Mode app", () => {
     const app = await loadPluginApp(() => import("./app.js"));
     expect(app.threadPanelActions.map((action) => [action.id, action.title])).toEqual([["coordinator", "Coordinator"]]);
     expect(app.settingsSections.map((section) => section.id)).toEqual(["coordinator-mode"]);
+    // The host already shows the plugin's name and description above the section.
+    expect(app.settingsSections[0]?.title).toBeUndefined();
   });
 
   it("shows the template summary when off and turns on with the chosen template", async () => {
@@ -144,6 +147,12 @@ describe("Coordinator Mode app", () => {
     expect(within(progress).getByText("QA rejected: the strip is still translucent")).toBeDefined();
     expect(within(done).getByText("AIM thread padding")).toBeDefined();
     expect(within(done).getByText("Merged")).toBeDefined();
+  });
+
+  it("still offers Approve for a blocked item at an approval stage", () => {
+    const blocked = item("blocked", "Blocked at QA", { stageIndex: 2, status: "blocked", reason: "Denied `gh pr merge`" });
+    const groups = groupItems({ state, items: [blocked], approvals: [], staleRules: false }, ship);
+    expect(groups.needs.map((row) => [row.key, row.needsApproval])).toEqual([["blocked", true]]);
   });
 
   it("requires a reason before rejecting an item", async () => {

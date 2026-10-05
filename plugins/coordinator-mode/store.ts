@@ -78,7 +78,8 @@ export const STORE_MIGRATIONS = [
   )`,
 ];
 
-export type ThreadRole = "primary" | "helper";
+/** Reviewers are helpers that may record a review verdict. */
+export type ThreadRole = "primary" | "helper" | "reviewer";
 
 export type ReviewVerdict = { pass: boolean; findings?: string };
 
@@ -176,6 +177,10 @@ function toAction(value: string): GatedAction {
   return value as GatedAction;
 }
 
+function toRole(value: string): ThreadRole {
+  return value === "primary" || value === "reviewer" ? value : "helper";
+}
+
 function toRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
@@ -209,7 +214,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
   bb.storage.migrate(db, STORE_MIGRATIONS);
 
   const helperIds = (itemId: string): string[] =>
-    (db.prepare("SELECT thread_id FROM item_threads WHERE item_id = ? AND role = 'helper' ORDER BY rowid").all(itemId) as { thread_id: string }[])
+    (db.prepare("SELECT thread_id FROM item_threads WHERE item_id = ? AND role <> 'primary' ORDER BY rowid").all(itemId) as { thread_id: string }[])
       .map((row) => row.thread_id);
 
   const fromItemRow = (row: ItemRow): ItemRecord => ({
@@ -338,22 +343,30 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
     },
     forItem(itemId: string): Array<{ threadId: string; role: ThreadRole }> {
       return (db.prepare("SELECT thread_id, role FROM item_threads WHERE item_id = ? ORDER BY rowid").all(itemId) as { thread_id: string; role: string }[])
-        .map((row) => ({ threadId: row.thread_id, role: row.role === "primary" ? "primary" : "helper" }));
+        .map((row) => ({ threadId: row.thread_id, role: toRole(row.role) }));
+    },
+    /** Whether the thread is recorded for any item, live or not. */
+    has(threadId: string): boolean {
+      return db.prepare("SELECT 1 FROM item_threads WHERE thread_id = ?").get(threadId) !== undefined;
     },
   };
 
-  /** Every coordinator and member sub-thread, for the synchronous in-memory membership cache. */
+  /**
+   * Every coordinator and member sub-thread, for the synchronous in-memory membership cache.
+   * Only confirmed, open (active or blocked) items confer membership on their sub-threads.
+   */
   const memberships = (): Membership[] => {
     const result: Membership[] = (db.prepare("SELECT thread_id FROM coordinators").all() as { thread_id: string }[])
       .map((row) => ({ threadId: row.thread_id, coordinatorThreadId: row.thread_id, itemId: null, role: "coordinator" }));
     const rows = db.prepare(`SELECT t.thread_id, t.item_id, t.role, i.coordinator_thread_id FROM item_threads t
-      JOIN items i ON i.id = t.item_id`).all() as { thread_id: string; item_id: string; role: string; coordinator_thread_id: string }[];
+      JOIN items i ON i.id = t.item_id
+      WHERE i.proposed = 0 AND i.status IN ('active', 'blocked')`).all() as { thread_id: string; item_id: string; role: string; coordinator_thread_id: string }[];
     for (const row of rows) {
       result.push({
         threadId: row.thread_id,
         coordinatorThreadId: row.coordinator_thread_id,
         itemId: row.item_id,
-        role: row.role === "primary" ? "primary" : "helper",
+        role: toRole(row.role),
       });
     }
     return result;

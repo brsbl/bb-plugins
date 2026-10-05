@@ -11,6 +11,7 @@ import type {
   LogEntry,
   PendingApproval,
   RpcMethods,
+  RuleColumn,
 } from "./contracts";
 import {
   ACTION_LABELS,
@@ -20,7 +21,7 @@ import {
   decideAction,
   evaluateCheck,
   instructionsFor,
-  matchGatedCommand,
+  matchGatedCommands,
   renderBriefingMarkdown,
   type CheckEvidence,
   type Decision,
@@ -53,12 +54,16 @@ export const COORDINATOR_TOOLS = [
   "coordinator_briefing",
   "coordinator_cut_item",
 ] as const;
-export const HELPER_TOOLS = ["coordinator_review_verdict"] as const;
+export const REVIEWER_TOOLS = ["coordinator_review_verdict"] as const;
 
 const PR_CHECKS: ReadonlySet<CheckKind> = new Set(["pr_open", "ci_green", "pr_merged"]);
 /** Checks whose evidence is cleared on failure, so it is fresh by construction. */
 const FRESH_BY_CONSTRUCTION: ReadonlySet<CheckKind> = new Set(["you_approve", "reviewer_passes"]);
 const MAX_ADVANCES = 10;
+/** How often an item past its first PR stage has its PR read just to spot a merge outside the rules. */
+const MERGE_WATCH_INTERVAL_MS = 10 * 60_000;
+/** Strictest first, for commands that chain several gated actions. */
+const STRICTNESS: readonly RuleColumn[] = ["never", "ask", "alone"];
 const DESCRIBE_TIMEOUT_MS = 180_000;
 /** Log kinds kept out of briefings: every auto-approval is logged, but they are noise there. */
 const QUIET_KINDS: ReadonlySet<LogEntry["kind"]> = new Set(["command_approved"]);
@@ -105,7 +110,7 @@ function parseActionArgs(args: Record<string, unknown>): ActionArgs | null {
       const itemId = str(args.itemId);
       const prompt = str(args.prompt);
       if (!itemId || prompt === null) return null;
-      return { kind: "start", itemId, prompt, title: str(args.title), role: args.role === "helper" ? "helper" : "primary" };
+      return { kind: "start", itemId, prompt, title: str(args.title), role: args.role === "helper" || args.role === "reviewer" ? args.role : "primary" };
     }
     case "archive": {
       const threadId = str(args.threadId);
@@ -332,8 +337,8 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
         if (args.role === "primary" && item.primaryThreadId) {
           throw new Error(`"${item.title}" already has a primary sub-thread (${item.primaryThreadId}). Start a helper instead.`);
         }
-        // Helpers such as reviewers work in their item's checkout; primaries get the project's default environment.
-        const helperEnvironment = args.role === "helper" && item.primaryThreadId ? await environmentOf(item.primaryThreadId) : null;
+        // Helpers and reviewers work in their item's checkout; primaries get the project's default environment.
+        const helperEnvironment = args.role !== "primary" && item.primaryThreadId ? await environmentOf(item.primaryThreadId) : null;
         const thread = await bb.sdk.threads.spawn({
           projectId: await projectOf(coordinator),
           parentThreadId: coordinator.threadId,
@@ -386,7 +391,8 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       case "start": return "start_sub_thread";
       case "archive": return "archive_sub_thread";
       case "merge": return "merge_pr";
-      case "interaction": return matchGatedCommand(args.command);
+      // The approval row already records the strictest action in the command.
+      case "interaction": return null;
     }
   };
 
@@ -517,7 +523,8 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
     const prCache: { value?: PrEvidence | null } = {};
     let changed = false;
     for (let step = 0; step < MAX_ADVANCES; step += 1) {
-      if (item.proposed || item.status !== "active") break;
+      // Blocked items keep being checked so new evidence can move them on.
+      if (item.proposed || (item.status !== "active" && item.status !== "blocked")) break;
       const stage = template.stages[item.stageIndex];
       if (!stage) break;
       // After a failure, only evidence produced by new work on the primary sub-thread counts.
@@ -527,9 +534,12 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       const outcome = advanceItem(publicItem(item), template, result, at);
       if (!outcome.logKind) break;
       const failed = outcome.logKind === "stage_failed";
+      // A pass lifts a block; advanceItem already cleared the reason.
+      const status = !failed && outcome.item.status === "blocked" ? "active" : outcome.item.status;
       item = store.items.save({
         ...item,
         ...outcome.item,
+        status,
         approved: false,
         rejectedReason: null,
         review: failed || stage.check === "reviewer_passes" ? null : item.review,
@@ -539,6 +549,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       changed = true;
       if (failed) break;
       if (item.status === "done") {
+        refreshMembership();
         await retireHelpers(coordinator, item);
         break;
       }
@@ -599,25 +610,79 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
     }
   }
 
-  /** One background pass: scheduled briefings, then PR evidence for every tracked item. */
+  /** Whether a coordinator's thread still exists and is not archived. Read errors other than not-found count as live. */
+  async function coordinatorPresence(threadId: string): Promise<"live" | "archived" | "missing"> {
+    try {
+      const thread: unknown = await bb.sdk.threads.get({ threadId });
+      if (!isRecord(thread)) return "missing";
+      return typeof thread.archivedAt === "number" ? "archived" : "live";
+    } catch (error) {
+      return /not[ _-]?found|\b404\b/iu.test(errorMessage(error)) ? "missing" : "live";
+    }
+  }
+
+  /** When each item's PR was last read only to spot a merge outside the rules. */
+  const mergeWatchReads = new Map<string, number>();
+
+  /** One background pass: retire deleted coordinators, scheduled briefings, then PR evidence where it matters. */
   async function tick(): Promise<void> {
     for (const coordinator of store.coordinators.list()) {
-      if (coordinator.paused) continue;
+      const presence = await coordinatorPresence(coordinator.threadId);
+      if (presence === "missing") {
+        bb.log.info(`Coordinator Mode: ${coordinator.threadId} no longer exists, so its coordinator was removed.`);
+        rpc.turnOff({ threadId: coordinator.threadId });
+        continue;
+      }
+      if (presence === "archived" || coordinator.paused) continue;
+      await reconcileApprovals(coordinator.threadId);
       const at = now();
       if (cronDue(coordinator, at)) {
         store.coordinators.update(coordinator.threadId, { lastBriefingAt: at });
         await sendNote(coordinator.threadId, BRIEFING_NUDGE);
       }
-      const hasPrStage = coordinator.template.stages.some((stage) => PR_CHECKS.has(stage.check));
-      if (!hasPrStage) continue;
+      const firstPrStage = coordinator.template.stages.findIndex((stage) => PR_CHECKS.has(stage.check));
+      if (firstPrStage < 0) continue;
       for (const item of store.items.list(coordinator.threadId)) {
         if (item.proposed || !item.primaryThreadId || (item.status !== "active" && item.status !== "blocked")) continue;
         const check = coordinator.template.stages[item.stageIndex]?.check;
-        if (item.status === "active" && check && PR_CHECKS.has(check)) await evaluateItem(item.id);
-        // Still read the PR at other stages so a merge that skipped the rules gets flagged.
-        else await readPullRequest(coordinator, item);
+        if (check && PR_CHECKS.has(check)) {
+          await evaluateItem(item.id);
+          continue;
+        }
+        // Past the first PR stage, read the PR now and then so a merge that skipped the rules gets flagged.
+        if (item.stageIndex < firstPrStage) continue;
+        const lastRead = mergeWatchReads.get(item.id);
+        if (lastRead !== undefined && at - lastRead < MERGE_WATCH_INTERVAL_MS) continue;
+        mergeWatchReads.set(item.id, at);
+        await readPullRequest(coordinator, item);
       }
     }
+  }
+
+  /** Whether a command request is still waiting in its sub-thread. Throws when the list can't be read. */
+  async function isInteractionPending(threadId: string, interactionId: string): Promise<boolean> {
+    const pending: unknown = await bb.sdk.threads.interactions.list({ threadId });
+    return Array.isArray(pending) && pending.some((entry) =>
+      isRecord(entry) && entry.id === interactionId && (entry.status === "pending" || entry.status === "resolving"));
+  }
+
+  /** Clears "ask" approvals whose command request was already answered in the sub-thread. */
+  async function reconcileApprovals(coordinatorThreadId: string): Promise<void> {
+    let changed = false;
+    for (const approval of store.approvals.pending(coordinatorThreadId)) {
+      const args = parseActionArgs(approval.args);
+      if (args?.kind !== "interaction") continue;
+      try {
+        if (await isInteractionPending(args.threadId, args.interactionId)) continue;
+      } catch (error) {
+        bb.log.warn(`Coordinator Mode could not check request ${args.interactionId}: ${errorMessage(error)}`);
+        continue;
+      }
+      if (!store.approvals.resolve(approval.id, "answered_elsewhere", now())) continue;
+      log(coordinatorThreadId, approval.itemId, "answered_elsewhere", `You answered \`${clip(args.command, 120)}\` in the sub-thread.`, approval.action);
+      changed = true;
+    }
+    if (changed) publish(coordinatorThreadId);
   }
 
   // -------------------------------------------------------------------------
@@ -665,8 +730,8 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
     }
 
     const command = clip(request.command, 160);
-    const action = matchGatedCommand(request.command);
-    if (!action) {
+    const actions = matchGatedCommands(request.command);
+    if (actions.length === 0) {
       const risk = classifyUnmatchedCommand(request.command);
       if (risk === "self_rpc") {
         // Agents must not drive Coordinator Mode's own controls (approve, link, turn off).
@@ -690,9 +755,17 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       return;
     }
 
-    // An archive command's target is unknown, so assume the stricter primary-thread rules.
-    const isPrimaryThread = action === "archive_sub_thread" ? true : member.role === "primary";
-    let decision = decide(coordinator, action, item, isPrimaryThread);
+    // A chained command gets the strictest decision of every gated action in it.
+    const decided = actions.map((candidate) => ({
+      action: candidate,
+      // An archive command's target is unknown, so assume the stricter primary-thread rules.
+      decision: decide(coordinator, candidate, item, candidate === "archive_sub_thread" ? true : member.role === "primary"),
+    }));
+    const strictest = decided.reduce((worst, next) =>
+      STRICTNESS.indexOf(next.decision.column) < STRICTNESS.indexOf(worst.decision.column) ? next : worst);
+    const { action } = strictest;
+    let { decision } = strictest;
+    const actionsLabel = actions.map((candidate) => ACTION_LABELS[candidate]).join(", ");
     // Without an item the rules cannot be checked against a stage, so never run it unasked.
     if (!item && decision.column === "alone") {
       decision = { column: "ask", reason: `Coordinator Mode can't tell which item \`${command}\` is for, so it asks you first.` };
@@ -711,7 +784,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
         coordinatorThreadId: coordinator.threadId,
         itemId: item?.id ?? null,
         action,
-        summary: `Run \`${command}\` in ${where}`,
+        summary: `Run \`${command}\` in ${where} (${actionsLabel})`,
         args: { kind: "interaction", threadId: thread.id, interactionId: interaction.id, command: request.command, itemId: item?.id ?? null },
         createdAt: now(),
       });
@@ -785,6 +858,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
 
   function cut(item: ItemRecord): ItemRecord {
     const next = store.items.save({ ...item, status: "cut", updatedAt: now() });
+    refreshMembership();
     log(item.coordinatorThreadId, item.id, "item_cut", `Cut "${item.title}".`);
     return next;
   }
@@ -817,7 +891,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       if (item.proposed) return `"${item.title}" is still proposed. Ask the user to confirm it in the Coordinator panel first.`;
       if (item.status === "cut" || item.status === "done") return `"${item.title}" is ${item.status}; start nothing for it.`;
       const role: ThreadRole = input.role ?? (item.primaryThreadId ? "helper" : "primary");
-      if (role === "primary" && item.primaryThreadId) return `"${item.title}" already has a primary sub-thread (${item.primaryThreadId}). Use role "helper".`;
+      if (role === "primary" && item.primaryThreadId) return `"${item.title}" already has a primary sub-thread (${item.primaryThreadId}). Use role "helper" or "reviewer".`;
       return runGated(coordinator, "start_sub_thread",
         { kind: "start", itemId: item.id, prompt: input.prompt, title: input.title ?? null, role },
         { item, isPrimaryThread: role === "primary", summary: `start a ${role} sub-thread for "${item.title}"` });
@@ -859,7 +933,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
     },
     async reviewVerdict(threadId: string, input: { pass: boolean; findings?: string }): Promise<string> {
       const member = membership.get(threadId);
-      if (!member || member.role !== "helper" || !member.itemId) {
+      if (!member || member.role !== "reviewer" || !member.itemId) {
         throw new Error("Only a review sub-thread started by a coordinator can record a verdict.");
       }
       const item = requireItem(member.itemId);
@@ -890,7 +964,14 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
   }
 
   const rpc = {
-    status({ threadId }: RpcInput<"status">): RpcOutput<"status"> {
+    async status({ threadId }: RpcInput<"status">): Promise<RpcOutput<"status">> {
+      if (store.coordinators.get(threadId)) {
+        try {
+          await reconcileApprovals(threadId);
+        } catch (error) {
+          bb.log.warn(`Coordinator Mode could not reconcile approvals: ${errorMessage(error)}`);
+        }
+      }
       const coordinator = store.coordinators.get(threadId);
       if (!coordinator) return { state: null, items: [], approvals: [], staleRules: false };
       return {
@@ -910,7 +991,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       // Existing sub-threads become proposed items the user keeps or drops.
       const children = await bb.sdk.threads.list({ parentThreadId: threadId });
       for (const child of children) {
-        if (child.archivedAt !== null || membership.has(child.id)) continue;
+        if (child.archivedAt !== null || membership.has(child.id) || store.threads.has(child.id)) continue;
         createItem(coordinator, { title: child.title ?? child.titleFallback ?? "Untitled sub-thread", proposed: true, primaryThreadId: child.id });
       }
       refreshMembership();
@@ -994,6 +1075,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       const item = requireItem(itemId);
       if (!item.proposed) return { ok: true };
       store.items.save({ ...item, proposed: false, updatedAt: now() });
+      refreshMembership();
       await evaluateItem(itemId);
       publish(item.coordinatorThreadId);
       await sendNote(item.coordinatorThreadId, item.primaryThreadId
@@ -1093,7 +1175,7 @@ export function createService(bb: BbPluginApi, options: ServiceOptions = {}) {
       if (!coordinator) return { tools: [], skills: [] };
       return { tools: [...COORDINATOR_TOOLS], skills: [], instructions: instructionsFor(coordinator.template) };
     }
-    if (member.role === "helper") return { tools: [...HELPER_TOOLS], skills: [], instructions: REVIEW_INSTRUCTIONS };
+    if (member.role === "reviewer") return { tools: [...REVIEWER_TOOLS], skills: [], instructions: REVIEW_INSTRUCTIONS };
     return { tools: [], skills: [] };
   }
 
