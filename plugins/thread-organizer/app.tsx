@@ -44,7 +44,6 @@ import {
   type EditableWorkflowStage,
 } from "./core.js";
 import type { rpcContract } from "./server.js";
-import { syncSidebarOrder } from "./sidebar-order.js";
 import {
   cacheWorkflowConfig,
   mountThreadOrganizerSidebar,
@@ -621,8 +620,6 @@ export function WorkflowSettings() {
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
   const loadedRevisionRef = useRef(0);
-  const loadedOrderRef = useRef<string[]>([]);
-  const [sidebarOrderFailed, setSidebarOrderFailed] = useState(false);
   const [changedElsewhere, setChangedElsewhere] = useState(false);
 
   const load = useCallback(async () => {
@@ -644,7 +641,6 @@ export function WorkflowSettings() {
       setConfig(editableWorkflowConfig(full));
       cacheWorkflowConfig(full);
       loadedRevisionRef.current = full.revision ?? 0;
-      loadedOrderRef.current = full.stages.map((stage) => stage.key);
       setChangedElsewhere(false);
     } catch (loadError) {
       setError(errorMessage(loadError));
@@ -775,15 +771,6 @@ export function WorkflowSettings() {
       });
       cacheWorkflowConfig(full);
       loadedRevisionRef.current = full.revision ?? 0;
-      const order = full.stages.map((stage) => stage.key);
-      const reordered = order.join("\n") !== loadedOrderRef.current.join("\n");
-      loadedOrderRef.current = order;
-      if (reordered) {
-        setSidebarOrderFailed(false);
-        void sdk.threadSections.list()
-          .then((sections) => syncSidebarOrder(full, sections.map((section) => section.id)))
-          .catch(() => setSidebarOrderFailed(true));
-      }
       if (editRevisionRef.current === submittedRevision) {
         dirtyRef.current = false;
         draftKeysRef.current.clear();
@@ -855,11 +842,6 @@ export function WorkflowSettings() {
         </div>
       </div>
 
-      {sidebarOrderFailed ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          Saved, but the sidebar didn’t move to match. Drag the sections there instead.
-        </p>
-      ) : null}
       {pluginsError ? (
         <p className="text-sm text-muted-foreground" role="status">
           Couldn’t load which plugins can fill an inbox.{" "}

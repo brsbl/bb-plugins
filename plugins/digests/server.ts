@@ -29,7 +29,7 @@ export default function plugin(bb: BbPluginApi) {
   }
   async function define(raw: unknown) {
     const definition = digestDefinitionSchema.parse(raw);
-    if (service.store.definitions.get(definition.id)) throw new Error("This digest already exists. Keep its definition and automation together; use a new ID for a different briefing.");
+    if (service.store.definitions.get(definition.id)) throw new Error("This brief already exists. Keep its definition and automation together; use a new ID for a different briefing.");
     if (definition.enabled || definition.automationId) throw new Error("New definitions must be disabled and cannot adopt an existing automation.");
     return service.store.definitions.put(definition);
   }
@@ -51,21 +51,21 @@ export default function plugin(bb: BbPluginApi) {
     reconnect: ({ threadId, id }) => service.reconnect(threadId, id),
   });
   bb.cli.register(defineCli({
-    name: "digest", summary: "Define private briefings, run them, or publish an issue in a native thread",
+    name: "digest", summary: "Define private briefings, run them, or publish a brief in a native thread",
     commands: {
-      list: cliCommand({ summary: "List digest definitions and their schedules", options: { json }, run: () => output(service.store.definitions.list()) }),
+      list: cliCommand({ summary: "List brief definitions and their schedules", options: { json }, run: () => output(service.store.definitions.list()) }),
       templates: cliCommand({ summary: "Show the Unread email, Money, Reading, and X scorecard recipes", options: { json }, run: () => output(DIGEST_RECIPES) }),
       setup: cliCommand({
         summary: "Create or bind disabled starters to their browser workspace; leaves existing automations untouched",
         options: {
-          project: { type: "string", description: "Project for issue threads; defaults to this thread's project" },
+          project: { type: "string", description: "Project for brief threads; defaults to this thread's project" },
           "browser-host": { type: "string", required: true, description: "Computer running your signed-in bb browser" },
           provider: { type: "string", required: true, description: "Agent provider for scheduled runs" },
           model: { type: "string", required: true, description: "Agent model for scheduled runs" }, json,
         },
         async run(input, ctx) {
           const projectId = input.options.project ?? ctx.projectId;
-          if (!projectId) throw new Error("Pass --project with the project for digest issue threads.");
+          if (!projectId) throw new Error("Pass --project with the project for brief threads.");
           for (const entry of [ { id: "gmail", name: "Gmail", url: "https://mail.google.com/mail/u/0/" }, { id: "x", name: "X", url: "https://x.com/home" }, { id: "linkedin", name: "LinkedIn", url: "https://www.linkedin.com/feed/" } ]) {
             if (!service.store.connections.get(entry.id)) service.store.connections.put(connectionSchema.parse({ ...entry, browserHostId: input.options["browser-host"] }));
           }
@@ -76,20 +76,20 @@ export default function plugin(bb: BbPluginApi) {
           }
           await service.ensureSection(true);
           await bb.storage.kv.set("connection-settings-thread", requireThread(ctx));
-          return output({ definitions: service.store.definitions.list(), next: "Review and enable schedules in Digests plugin settings. The Digests inbox catches its own issues. Archive issues yourself when done. Existing automations were not changed." });
+          return output({ definitions: service.store.definitions.list(), next: "Review and enable schedules in Briefs plugin settings. The Briefs inbox catches its own briefs. Archive briefs yourself when done. Existing automations were not changed." });
         },
       }),
-      define: cliCommand({ summary: "Create a disabled digest from a JSON definition", options: { file, json }, async run(input, ctx) { return output(await define(JSON.parse(await readFile(input.options.file, ctx)))); } }),
-      run: cliCommand({ summary: "Run a digest now in its own issue thread", options: { digest, json }, async run(input) { return output(await service.run(input.options.digest)); } }),
+      define: cliCommand({ summary: "Create a disabled brief from a JSON definition", options: { file, json }, async run(input, ctx) { return output(await define(JSON.parse(await readFile(input.options.file, ctx)))); } }),
+      run: cliCommand({ summary: "Run a brief now in its own thread", options: { digest, json }, async run(input) { return output(await service.run(input.options.digest)); } }),
       status: cliCommand({ summary: "Follow a pending manual run without starting another", options: { digest, json }, async run(input) { return output(await service.runStatus(input.options.digest)); } }),
       publish: cliCommand({
-        summary: "Publish Markdown as a new issue from any thread, or finish this run's issue",
-        options: { digest, file, json, headline: { type: "string", description: "Story headline; defaults to first Markdown line" }, lede: { type: "string", description: "One short summary line" }, brief: { type: "string", description: "Optional JSON action-card summary with heading, items, later and tail" }, metrics: { type: "string", description: "Optional structured metrics retained with the issue; include visible numbers in the prose" }, sources: { type: "string", description: "JSON array of connectionId/messageId/threadId source references" }, key: { type: "string", description: "Idempotency key; defaults to the content SHA-256" } },
+        summary: "Publish Markdown as a new brief from any thread, or finish this run's brief",
+        options: { digest, file, json, headline: { type: "string", description: "Story headline; defaults to first Markdown line" }, lede: { type: "string", description: "One short summary line" }, brief: { type: "string", description: "Optional JSON action-card summary with heading, items, later and tail" }, metrics: { type: "string", description: "Optional structured metrics retained with the brief; include visible numbers in the prose" }, sources: { type: "string", description: "JSON array of connectionId/messageId/threadId source references" }, key: { type: "string", description: "Idempotency key; defaults to the content SHA-256" } },
         async run(input, ctx) {
           const details = await readFile(input.options.file, ctx);
           const payload = publishInputSchema.parse({ headline: input.options.headline ?? details.split(/\r?\n/).find((line) => line.trim())?.replace(/^#+\s*/, "").slice(0, 240), lede: input.options.lede, brief: input.options.brief ? JSON.parse(input.options.brief) : undefined, details, metrics: JSON.parse(input.options.metrics ?? "[]"), sources: JSON.parse(input.options.sources ?? "[]") });
           const current = service.store.issues.getByThread(requireThread(ctx));
-          if (current && current.digestId !== input.options.digest) throw new Error("This run belongs to a different digest. Publish from another thread.");
+          if (current && current.digestId !== input.options.digest) throw new Error("This run belongs to a different brief. Publish from another thread.");
           const result = current ? await service.publishCurrent(ctx.threadId!, payload) : await service.publishExternal(input.options.digest, payload, input.options.key ?? createHash("sha256").update(JSON.stringify(payload)).digest("hex"));
           return output(result);
         },
@@ -105,12 +105,12 @@ export default function plugin(bb: BbPluginApi) {
     },
   }));
   bb.agents.registerTool({
-    name: "digest_begin", description: "Begin this scheduled Digests issue, check its connections, and acquire fresh browser sessions. Emit a returned failure directive and stop if complete is true.",
+    name: "digest_begin", description: "Begin this scheduled brief, check its connections, and acquire fresh browser sessions. Emit a returned failure directive and stop if complete is true.",
     parameters: z.object({ digestId: DigestIdSchema }).strict(),
     execute: async ({ digestId }, ctx) => JSON.stringify(await service.begin(digestId, ctx.threadId)),
   });
   bb.agents.registerTool({
-    name: "digest_email_read", description: "Record each Gmail message's original unread state BEFORE opening it. Then record the verified unread/read result, or restore-failed. This journal survives interrupted runs and appears in the issue; it does not operate Gmail.",
+    name: "digest_email_read", description: "Record each Gmail message's original unread state BEFORE opening it. Then record the verified unread/read result, or restore-failed. This journal survives interrupted runs and appears in the brief; it does not operate Gmail.",
     parameters: EmailReadInputSchema,
     execute: (input, ctx) => JSON.stringify(service.emailRead(ctx.threadId, input)),
   });
@@ -120,7 +120,7 @@ export default function plugin(bb: BbPluginApi) {
     execute: async (input, ctx) => JSON.stringify(await service.publishCurrent(ctx.threadId, input)),
   });
   bb.agents.registerTool({
-    name: "digest_fail", description: "Show an honest in-place failure with Retry or Reconnect and release this issue's browser sessions.",
+    name: "digest_fail", description: "Show an honest in-place failure with Retry or Reconnect and release this brief's browser sessions.",
     parameters: z.object({ message: z.string().min(1).max(2000), recovery: z.enum(["retry", "reconnect"]).default("retry") }).strict(),
     execute: async (input, ctx) => {
       const issue = await service.fail(service.requiredIssue(ctx.threadId), input.message, input.recovery);
@@ -128,12 +128,12 @@ export default function plugin(bb: BbPluginApi) {
     },
   });
   bb.agents.registerTool({
-    name: "digest_processed", description: "Check which candidate Gmail message IDs this digest already summarized. This never marks Gmail messages read.",
+    name: "digest_processed", description: "Check which candidate Gmail message IDs this brief already summarized. This never marks Gmail messages read.",
     parameters: z.object({ connectionId: DigestIdSchema, messageIds: z.array(IdSchema).max(1000) }).strict(),
     execute: (input, ctx) => {
       const issue = service.requiredIssue(ctx.threadId);
       const definition = service.requiredDefinition(issue.digestId);
-      if (!definition.connectionIds.includes(input.connectionId)) throw new Error("This connection is not declared by the digest.");
+      if (!definition.connectionIds.includes(input.connectionId)) throw new Error("This connection is not declared by the brief.");
       return JSON.stringify(service.store.processed(issue.digestId, input.connectionId, input.messageIds));
     },
   });

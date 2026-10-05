@@ -49,8 +49,9 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
   never changes them automatically.
 - The sidebar and the workflow share one section order. Dragging any section in
   the sidebar, the main Inbox included, saves that order as the workflow order.
-  Reordering in settings moves the sidebar's sections to match after Save;
-  sections outside the workflow keep their places.
+  Any saved reorder, from settings or `bb organizer section add --after`, moves
+  the sidebar's sections to match; sections outside the workflow keep their
+  places.
 - Automation-origin root threads follow the same workflow as ordinary roots.
 - Thread Organizer never renames threads. Moving between workflow stages leaves
   the user’s thread title unchanged.

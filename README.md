@@ -18,11 +18,11 @@ Turns recurring product-design feedback into a searchable rule library that agen
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
 
-### Digests
+### Briefs
 
-Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based digest under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own issues.
+Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based brief under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own briefs.
 
-![A Digests issue with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
+![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
 
 [Source](plugins/digests) · [README](plugins/digests/README.md)
 
@@ -177,6 +177,18 @@ Makes local Markdown links in bb open directly in Moss, with bb's viewer kept as
 [Source](plugins/open-in-moss) · [README](plugins/open-in-moss/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/open-in-moss --yes`
+
+### Moss Viewer
+
+Reads Moss notes in a bb panel the way Moss renders them: tabs, tables, wiki links, post embeds, charts, live HTML blocks, and note-local images and video. Notes stay on the Mac that holds them, and Open in Moss takes you to the app to edit.
+
+![A Moss note with a wiki link pill and an embedded X post in bb's panel](https://github.com/user-attachments/assets/1f0ba527-c96d-4f11-9083-a2780231f7ef)
+
+![A note-local video playing inside a Moss note in bb's panel](https://github.com/user-attachments/assets/79ebbff9-b01a-4922-a5d2-b87faec47a2c)
+
+[Source](plugins/moss-viewer) · [README](plugins/moss-viewer/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-viewer --yes`
 
 ### Saved Places
 
