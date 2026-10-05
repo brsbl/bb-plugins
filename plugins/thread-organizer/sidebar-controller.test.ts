@@ -198,6 +198,25 @@ describe("workflow sidebar controller", () => {
     controller.abort();
   });
 
+  it("does not undo a config saved elsewhere right after a sidebar interaction", async () => {
+    const config = workflow();
+    const saveConfig = vi.fn(async (edited: EditableWorkflowConfig) =>
+      mergeEditableWorkflowConfig(config, edited),
+    );
+    const groups = workflowSections(config);
+    const root = sidebar(...Object.values(groups));
+    const controller = mount(config, saveConfig);
+    await settled();
+
+    root.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    const saved = cloneWorkflowConfig(config);
+    saved.stages = [saved.stages[5]!, ...saved.stages.filter((_, index) => index !== 5)];
+    cacheWorkflowConfig(saved);
+    await settled();
+    expect(saveConfig).not.toHaveBeenCalled();
+    controller.abort();
+  });
+
   it("applies a saved configuration event without remounting", async () => {
     const inbox = section("sec_inbox", "Inbox", false);
     const planning = section("sec_planning", "Planning", true);
