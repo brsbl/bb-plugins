@@ -156,7 +156,7 @@ ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !importan
 ${ROOT} [data-ambient-scroll-clip] { clip-path: inset(0 0 var(--ambient-scroll-clip-bottom, 0px) 0); }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 /* Pending interactions overlap the scrolling timeline, so their surface must be fully opaque. */
-${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interaction-shell"], [data-testid="approval-banner"], [data-testid="plan-review-banner"]) { background-color: var(--ambient-background); }
+${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interaction-shell"], [data-testid="approval-banner"], [data-testid="plan-review-banner"]) { background-color: var(--ambient-background); border-radius: 12px; }
 /* Keep short secret-request actions on one compact row, including on mobile. */
 ${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form > .sticky { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; background-color: var(--ambient-background); padding-block-start: 8px; }
 ${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form > .sticky > button { width: auto; }
