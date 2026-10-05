@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-desktop-canvas-prototype",
   "version": "0.1.0",
-  "description": "Prototype spatial desktop for bb threads and folders.",
+  "description": "Desktop's folders and windows on a zoomable canvas for bb threads.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -20,7 +20,7 @@
   },
   "bb": {
     "name": "Canvas Desktop",
-    "description": "Prototype spatial desktop for bb threads and folders.",
+    "description": "Desktop's folders and windows on a zoomable canvas for bb threads.",
     "branding": {
       "icon": "AppWindow"
     },
