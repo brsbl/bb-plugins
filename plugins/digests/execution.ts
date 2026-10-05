@@ -6,9 +6,9 @@ export class ExecutionError extends Error {}
 export type ExecutionTarget = { projectId: string; environment: z.infer<typeof ExplicitEnvironmentSchema> };
 
 /** Resolve before dispatch; project-default otherwise chooses the server's host. */
-export async function executionTarget(bb: BbPluginApi, definition: Pick<DigestDefinition, "projectId" | "environment" | "execution">, connections: Connection[]): Promise<ExecutionTarget> {
+export async function executionTarget(bb: BbPluginApi, definition: Pick<DigestDefinition, "projectId" | "environment" | "execution">, connections: Connection[], fallbackHostId?: string): Promise<ExecutionTarget> {
   const hosts = [...new Set(connections.map((connection) => connection.browserHostId).filter(Boolean))];
-  const hostId = definition.execution?.hostId ?? (hosts.length === 1 ? hosts[0] : null);
+  const hostId = definition.execution?.hostId ?? (hosts.length === 1 ? hosts[0] : fallbackHostId ?? null);
   if (!hostId) throw new ExecutionError("Choose the computer with your browser sign-ins for this brief, then Retry.");
   let host;
   try { host = await bb.sdk.hosts.get({ hostId }); }

@@ -1,7 +1,7 @@
 import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PublishInputSchema } from "./model";
+import { PluginPublishInputSchema, PublishInputSchema } from "./model";
 import { createService } from "./service";
 
 const DAY = 86_400_000;
@@ -509,5 +509,72 @@ describe("digest issue lifecycle", () => {
     expect(automationCalls[0]?.input.execution).not.toHaveProperty("targetThreadId");
     expect(automationCalls.slice(1).map(({ input }) => input.automationId)).toEqual(["auto_digest_new", "auto_digest_new", "auto_digest_new"]);
     expect(JSON.stringify(automationCalls.map(({ input }) => input))).not.toMatch(/auto_zto0dtbcxme|auto_fffup3wj2me|auto_l_llrtabhlw/u);
+  });
+});
+
+const card = { threadId: "thr_coordinator", id: "qa-item-7f3a" };
+const pluginInput = {
+  source: { pluginId: "coordinator-mode", key: "thr_coordinator", name: "Moss plugins coordinator" },
+  headline: "1 decision needs you", lede: "2 items in progress",
+  details: "## Needs you\n\nApprove QA for the Moss viewer plugin.", cards: [card],
+};
+const pluginPayload = (overrides: Record<string, unknown> = {}) => PluginPublishInputSchema.parse({ ...pluginInput, ...overrides });
+
+describe("publishing from another plugin", () => {
+  it("creates a publish-only brief owned by the source and reuses it for later publications", async () => {
+    const { service, harness } = setup();
+    expect(await service.publishFromPlugin(pluginPayload())).toEqual({ threadId: "thr_delivery_1" });
+    const owned = service.store.definitions.list().filter((definition) => definition.source);
+    expect(owned).toEqual([expect.objectContaining({
+      name: "Moss plugins coordinator", source: { pluginId: "coordinator-mode", key: "thr_coordinator" },
+      connectionIds: [], schedule: null, automationId: null, enabled: false,
+    })]);
+    const id = owned[0]!.id;
+    expect(id).toMatch(/^coordinator-mode-[0-9a-f]{16}$/u);
+    expect(harness.inspection.sdk.callsTo("threads.spawn")[0]?.[0]).toMatchObject({
+      title: expect.stringContaining("Moss plugins coordinator ·"), sectionId: "section_digests", pluginMetadata: { inbox: true, digestId: id },
+    });
+    expect(harness.inspection.sdk.callsTo("threads.updatePluginMetadata")[0]?.[0]).toMatchObject({ threadId: "thr_delivery_1", set: { inbox: true, digestId: id } });
+
+    expect(await service.publishFromPlugin(pluginPayload({ headline: "Nothing needs you", cards: [] }))).toEqual({ threadId: "thr_delivery_2" });
+    expect(service.store.definitions.list().filter((definition) => definition.source).map((definition) => definition.id)).toEqual([id]);
+    expect(service.store.issues.list({ digestId: id })).toHaveLength(2);
+    expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([call]) => (call as { pluginId: string }).pluginId === "automations")).toEqual([]);
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toEqual([]);
+    await expect(service.saveDigest({ id, connectionId: "gmail", name: "Renamed", instructions: "Anything.", schedule: null })).rejects.toThrow("published by another plugin");
+  });
+
+  it("returns the existing brief when the same content is published again", async () => {
+    const { service, harness } = setup();
+    const [first, second] = await Promise.all([service.publishFromPlugin(pluginPayload()), service.publishFromPlugin(pluginPayload())]);
+    expect(second).toEqual(first);
+    expect(await service.publishFromPlugin(pluginPayload())).toEqual(first);
+    expect(harness.inspection.sdk.callsTo("threads.spawn")).toHaveLength(1);
+    expect(service.store.issues.list()).toHaveLength(1);
+  });
+
+  it("appends each card as a standalone directive that names its thread", async () => {
+    const { service } = setup();
+    const { threadId } = await service.publishFromPlugin(pluginPayload({ cards: [card, { threadId: "thr_coordinator", id: "merge-pr-12" }] }));
+    expect(service.store.issues.getByThread(threadId)).toMatchObject({
+      state: "ready", headline: "1 decision needs you", lede: "2 items in progress",
+      details: `${pluginInput.details}\n\n::action{id="qa-item-7f3a" thread="thr_coordinator"}\n\n::action{id="merge-pr-12" thread="thr_coordinator"}`,
+    });
+  });
+
+  it.each([
+    ["a source that is not a plugin id", { source: { ...pluginInput.source, pluginId: "Coordinator Mode" } }],
+    ["an empty source key", { source: { ...pluginInput.source, key: "" } }],
+    ["a source key over 200 characters", { source: { ...pluginInput.source, key: "k".repeat(201) } }],
+    ["a source name over 80 characters", { source: { ...pluginInput.source, name: "n".repeat(81) } }],
+    ["an empty headline", { headline: " " }],
+    ["empty details", { details: " " }],
+    ["more than 20 cards", { cards: Array.from({ length: 21 }, (_, index) => ({ threadId: "thr_coordinator", id: `card-${index}` })) }],
+    ["a card id that would break its directive", { cards: [{ threadId: "thr_coordinator", id: 'x" thread="thr_other' }] }],
+    ["a repeated card", { cards: [card, card] }],
+    ["details that leave no room for their cards", { details: "x".repeat(100_000) }],
+    ["an unknown field", { sources: [] }],
+  ])("rejects %s", (_label, overrides) => {
+    expect(PluginPublishInputSchema.safeParse({ ...pluginInput, ...overrides }).success).toBe(false);
   });
 });

@@ -70,6 +70,7 @@
 .digest-button:hover:not(:disabled) { background: var(--state-hover, var(--accent)); }
 .digest-button:disabled { opacity: 0.5; cursor: not-allowed; }
 .digest-recovery { margin-top: 12px; }
+.digest-card-links { gap: 14px; margin-top: 12px; }
 .digest-recovery .digest-controls { gap: 14px; margin-top: 6px; }
 .digest-error { color: var(--destructive-text, var(--foreground)); }
 .digest-refresh-error { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
@@ -154,6 +155,7 @@
 .digest-site-account[data-status="signed-out"], .digest-site-account[data-status="expired"] { color: var(--warning-text); }
 .digest-site-account a { color: var(--foreground); text-underline-offset: 3px; }
 .digest-nested-list { display: grid; gap: 10px; list-style: none; padding: 0 16px 16px; margin: 0; }
+.digest-plugin-briefs { padding-top: 16px; }
 .digest-nested-item .digest-definition { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md, 6px); }
 .digest-definition-top, .digest-definition-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: none; }
 .digest-schedule-label { display: inline-flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 6px; max-width: 100%; color: var(--muted-foreground); font-size: var(--text-xs, 12px); font-weight: 400; }

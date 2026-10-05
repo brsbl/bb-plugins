@@ -53,6 +53,13 @@ Other threads can publish a prepared report:
 bb digest publish --digest x-scorecard --file brief.md --key 2026-10-05
 ```
 
+Other plugins publish with the `publishFromPlugin` RPC:
+`source: { pluginId, key, name }`, `headline`, `lede`, `details`, and optional
+Inline Action Cards `cards: [{ threadId, id }]`. Each source gets one
+publish-only brief, listed under **Plugin briefs** in Settings and not editable
+there. Repeating the same content returns the existing thread. Each card links
+to its thread.
+
 Use `bb digest --help` for setup, custom definitions, connection checks, and
 publishing options. Brief content, definitions, and processed IDs stay in
 Briefs' private storage, never thread storage. External publication uses a

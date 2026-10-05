@@ -31,6 +31,7 @@ export default function plugin(bb: BbPluginApi) {
     const definition = digestDefinitionSchema.parse(raw);
     if (service.store.definitions.get(definition.id)) throw new Error("This digest already exists. Keep its definition and automation together; use a new ID for a different briefing.");
     if (definition.enabled || definition.automationId) throw new Error("New definitions must be disabled and cannot adopt an existing automation.");
+    if (definition.source) throw new Error("Plugin-owned briefs are created when their plugin publishes one.");
     return service.store.definitions.put(definition);
   }
   bb.rpc.register(rpcContract, {
@@ -49,6 +50,7 @@ export default function plugin(bb: BbPluginApi) {
     runStatus: ({ id }) => service.runStatus(id),
     retry: ({ threadId, id }) => service.retry(threadId, id),
     reconnect: ({ threadId, id }) => service.reconnect(threadId, id),
+    publishFromPlugin: service.publishFromPlugin,
   });
   bb.cli.register(defineCli({
     name: "digest", summary: "Define private briefings, run them, or publish a brief in a native thread",

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 
@@ -349,6 +349,36 @@ describe("Digests app", () => {
     }) } });
     await slot.findByRole("button", { name: "Review" });
     expect(document.querySelector(".digest-urgency")?.textContent ?? null).toBe(expected);
+  });
+
+  it("links each card's thread instead of showing card directives as text", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue,
+      details: 'Approve QA for the Moss viewer plugin.\n\n::action{id="qa-item-7f3a" thread="thr_coordinator"}\n\n::action{id="merge-pr-12" thread="thr_coordinator"}',
+    }) } });
+    expect(await slot.findByText("Approve QA for the Moss viewer plugin.")).toBeDefined();
+    expect(slot.container.textContent).not.toContain("::action");
+    const links = slot.getAllByRole("button", { name: "Open thread" });
+    expect(links).toHaveLength(1);
+    fireEvent.click(links[0]!);
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_coordinator" });
+  });
+
+  it("lists plugin-owned briefs with their source and without edit, schedule or run controls", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const owned = { ...definition, id: "coordinator-mode-0123456789abcdef", name: "Moss plugins coordinator", instructions: "Published by the coordinator-mode plugin.",
+      connectionIds: [], schedule: null, source: { pluginId: "coordinator-mode", key: "thr_coordinator" } };
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [definition, owned], connections: [{ id: "gmail", name: "Gmail", status: "signed-in" }], actionCardsAvailable: false, organizerReady: true, pluginNames: { "coordinator-mode": "Coordinator Mode" } }),
+    } });
+    const region = await slot.findByRole("region", { name: "Plugin briefs" });
+    expect(within(region).getByRole("heading", { name: "Moss plugins coordinator" })).toBeDefined();
+    expect(within(region).getByText("From Coordinator Mode")).toBeDefined();
+    expect(within(slot.getByRole("region", { name: "Gmail" })).queryByText("Moss plugins coordinator")).toBeNull();
+    expect(slot.queryByRole("button", { name: "Edit Moss plugins coordinator" })).toBeNull();
+    expect(slot.queryByRole("switch", { name: "Moss plugins coordinator schedule" })).toBeNull();
+    expect(slot.queryByRole("button", { name: "Run Moss plugins coordinator now" })).toBeNull();
+    expect(slot.queryByText(owned.instructions)).toBeNull();
   });
 
   it("offers recovery when the agent fails before publishing a directive", async () => {

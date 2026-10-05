@@ -45,9 +45,17 @@ export const ExplicitEnvironmentSchema = z.discriminatedUnion("type", [
   ]) }).strict(),
 ]);
 
+/** The plugin and its own reference that own a publish-only brief. */
+export const PluginSourceSchema = z.object({
+  pluginId: z.string().min(1).max(100).regex(/^[a-z0-9][a-z0-9-]*$/u, "Use a bb plugin id."),
+  key: z.string().min(1).max(200),
+}).strict();
+
 export const DigestDefinitionSchema = z.object({
   /** The stable, human-readable slug used by `bb digest --digest`. */
   id: DigestIdSchema,
+  // Present only on briefs another plugin publishes through publishFromPlugin.
+  source: PluginSourceSchema.optional(),
   name: z.string().trim().min(1).max(100),
   // Optional so saved definitions fall back to their starter icon.
   emoji: EmojiSchema.optional(),
@@ -203,6 +211,24 @@ export const PublishInputSchema = z.object({
   });
 });
 
+/** A standalone Inline Action Cards directive that names its card's thread. */
+export function cardDirective(card: { threadId: string; id: string }): string {
+  return `::action{id="${card.id}" thread="${card.threadId}"}`;
+}
+
+export const PluginPublishInputSchema = z.object({
+  source: PluginSourceSchema.extend({ name: z.string().trim().min(1).max(80) }).strict(),
+  headline: z.string().trim().min(1).max(240),
+  lede: z.string().trim().max(2_000).default(""),
+  details: z.string().trim().min(1).max(100_000),
+  // Inline Action Cards item ids; both values are safe inside directive attributes.
+  cards: z.array(z.object({ threadId: IdSchema, id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/u) }).strict()).max(20).default([]),
+}).strict().superRefine((input, ctx) => {
+  const lines = input.cards.map(cardDirective);
+  if (new Set(lines).size !== lines.length) ctx.addIssue({ code: "custom", path: ["cards"], message: "List each card only once." });
+  if ([input.details, ...lines].join("\n\n").length > 100_000) ctx.addIssue({ code: "custom", path: ["details"], message: "Shorten the details to leave room for the cards." });
+});
+
 export const IssueSchema = z.object({
   id: IdSchema,
   digestId: DigestIdSchema,
@@ -247,6 +273,7 @@ export type DigestDefinition = z.infer<typeof DigestDefinitionSchema>;
 export type Connection = z.infer<typeof ConnectionSchema>;
 export type Issue = z.infer<typeof IssueSchema>;
 export type PublishInput = z.infer<typeof PublishInputSchema>;
+export type PluginPublishInput = z.infer<typeof PluginPublishInputSchema>;
 export type IssuePatch = z.infer<typeof IssuePatchSchema>;
 export type IssueListInput = z.input<typeof IssueListInputSchema>;
 

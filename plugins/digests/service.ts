@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { createStore } from "./store.js";
-import { issueSchema, EmailReadInputSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
+import { issueSchema, cardDirective, EmailReadInputSchema, PublishInputSchema, type DigestDefinition, type Issue, type PluginPublishInput, type PublishInput, type Connection, type SaveDigest } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
 import { executionTarget, executionFailure, ExecutionError } from "./execution.js";
 import { SITES } from "./sites.js";
@@ -88,8 +88,16 @@ export function createService(bb: BbPluginApi) {
     return failed;
   }
   const automationProject = (definition: DigestDefinition) => definition.automationProjectId ?? definition.projectId;
-  const targetFor = (definition: Pick<DigestDefinition, "projectId" | "environment" | "execution" | "connectionIds">) => executionTarget(bb, definition,
-    definition.connectionIds.map((id) => store.connections.get(id)).filter((value): value is Connection => value !== null));
+  async function targetFor(definition: Pick<DigestDefinition, "projectId" | "environment" | "execution" | "connectionIds" | "source">) {
+    if (!definition.source) return executionTarget(bb, definition,
+      definition.connectionIds.map((id) => store.connections.get(id)).filter((value): value is Connection => value !== null));
+    // Plugin-published briefs read no sites. Deliver them on Briefs' browser
+    // computer or, before any site is set up, the only connected computer.
+    const connections = store.connections.list().filter((connection) => connection.browserHostId);
+    if (connections.length || definition.execution) return executionTarget(bb, definition, connections);
+    const connected = (await bb.sdk.hosts.list()).filter((host) => host.status === "connected");
+    return executionTarget(bb, definition, [], connected.length === 1 ? connected[0]?.id : undefined);
+  }
   async function bindDefinition(definition: DigestDefinition) {
     const target = await targetFor(definition);
     return store.definitions.put({ ...definition, projectId: target.projectId, environment: target.environment,
@@ -162,6 +170,7 @@ export function createService(bb: BbPluginApi) {
   async function saveDigest(input: SaveDigest) {
     return exclusive(`definition:${input.id ?? "new"}`, async () => {
       const previous = input.id ? requiredDefinition(input.id) : null;
+      if (previous?.source) throw new Error(`${previous.name} is published by another plugin. Change it there.`);
       if (!store.connections.get(input.connectionId)) throw new Error("Reopen Settings to check your sites before adding a digest.");
       if (previous && !previous.connectionIds.includes(input.connectionId)) throw new Error("Edit this brief under its original site.");
       if (!previous && !input.schedule) throw new Error("Choose when this brief should run.");
@@ -350,6 +359,37 @@ export function createService(bb: BbPluginApi) {
       return publishCurrent(issue.threadId!, payload);
     });
   }
+  /** Readable and stable per plugin source: `coordinator-mode-<hash>`. */
+  function pluginDefinitionId(source: { pluginId: string; key: string }) {
+    const hash = createHash("sha256").update(`${source.pluginId}\u0000${source.key}`).digest("hex").slice(0, 16);
+    return `${source.pluginId.replace(/-+/gu, "-").slice(0, 63).replace(/-$/u, "")}-${hash}`;
+  }
+  async function pluginDefinition(source: PluginPublishInput["source"]) {
+    const id = pluginDefinitionId(source);
+    return exclusive(`definition:${id}`, async () => {
+      const existing = store.definitions.get(id);
+      const owner = existing?.source;
+      if (existing && (owner?.pluginId !== source.pluginId || owner?.key !== source.key)) throw new Error(`Brief ${id} belongs to another publisher.`);
+      if (existing) return existing.name === source.name ? existing : store.definitions.put({ ...existing, name: source.name });
+      // Publish-only, like the X scorecard starter: no sites, schedule or automation.
+      const created = store.definitions.put({ ...await settingsDefaults(), id, source: { pluginId: source.pluginId, key: source.key }, name: source.name,
+        instructions: `Published by the ${source.pluginId} plugin.`, connectionIds: [], schedule: null, automationId: null, enabled: false,
+        environment: { type: "project-default" }, createdAt: Date.now() });
+      bb.realtime.publish("issues", {});
+      return created;
+    });
+  }
+  async function publishFromPlugin({ source, cards, ...content }: PluginPublishInput) {
+    // Standalone card directives name their thread so Inline Action Cards can
+    // render each live card wherever directives render.
+    const payload = PublishInputSchema.parse({ headline: content.headline, lede: content.lede, details: [content.details, ...cards.map(cardDirective)].join("\n\n") });
+    const definition = await pluginDefinition(source);
+    // A retried publication with the same content returns the existing brief.
+    const key = `plugin:${createHash("sha256").update(JSON.stringify(payload)).digest("hex")}`;
+    const { issue } = await publishExternal(definition.id, payload, key);
+    if (!issue.threadId) throw new Error("This brief has no thread yet. Publish it again.");
+    return { threadId: issue.threadId };
+  }
   type Dispatch = { projectId: string; automationId: string; runId: string };
   async function finishDispatch(id: string, run: z.infer<typeof runSchema>) {
     if (!run.threadId) {
@@ -518,12 +558,15 @@ export function createService(bb: BbPluginApi) {
     try { organizerReady = (await organizer()).stages.some((entry) => entry.key === "digests" && entry.role === "inbox" && entry.catchesPluginId === "digests"); } catch { /* Settings shows setup guidance. */ }
     const runErrors: Record<string, string> = {};
     const startingIds: string[] = [];
+    const sources = new Set(store.definitions.list().flatMap((definition) => definition.source ? [definition.source.pluginId] : []));
+    const pluginNames: Record<string, string> = {};
+    for (const entry of plugins.plugins) if (sources.has(entry.id) && entry.name) pluginNames[entry.id] = entry.name;
     for (const definition of store.definitions.list()) {
       const message = await bb.storage.kv.get<string>(`run-error:${definition.id}`);
       if (message) runErrors[definition.id] = message;
       if (await bb.storage.kv.get(`dispatch:${definition.id}`)) startingIds.push(definition.id);
     }
-    return { startingIds, runErrors, definitions: store.definitions.list(), connections: store.connections.list(), actionCardsAvailable: plugins.plugins.some((entry) => entry.id === "inline-action-cards" && entry.enabled && entry.status === "running"), organizerReady };
+    return { startingIds, runErrors, definitions: store.definitions.list(), connections: store.connections.list(), actionCardsAvailable: plugins.plugins.some((entry) => entry.id === "inline-action-cards" && entry.enabled && entry.status === "running"), organizerReady, pluginNames };
   }
   async function reconcile() {
     // Retry turns outlive the original automation result. Recover missed
@@ -593,5 +636,5 @@ export function createService(bb: BbPluginApi) {
       details: `Your brief was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
     return null;
   }
-  return { store, emailRead, bindDefinition, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, runStatus, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
+  return { store, emailRead, bindDefinition, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, publishFromPlugin, fail, requiredIssue, requiredDefinition, run, runStatus, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }

@@ -26,6 +26,7 @@ type Overview = {
   organizerReady: boolean;
   startingIds?: string[];
   runErrors?: Record<string, string>;
+  pluginNames?: Record<string, string>;
 };
 
 function richText(children: ReactNode): ReactNode {
@@ -99,6 +100,18 @@ function NewsletterText({ content, className = "" }: { content: string; classNam
       urlTransform={safeLink}
     >{content}</ReactMarkdown>
   </div>;
+}
+
+// Plugin Markdown does not render message directives, so each thread named by
+// a standalone Inline Action Cards directive becomes one link, not literal text.
+function splitCardDirectives(details: string) {
+  const cardThreads: string[] = [];
+  const content = details.replace(/^[ \t]*::action\{([^\n]*)\}[ \t\r]*$/gmu, (_line, attributes: string) => {
+    const threadId = /(?:^|\s)thread="([^"\n]+)"/u.exec(attributes)?.[1];
+    if (threadId && !cardThreads.includes(threadId)) cardThreads.push(threadId);
+    return "";
+  });
+  return { content, cardThreads };
 }
 
 function useReconnectRefresh(refresh: () => void) {
@@ -357,7 +370,8 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState<"retry" | "reconnect" | null>(null);
   const issue = pending === "retry" ? { ...savedIssue, state: "collecting" as const, headline: "Preparing your brief", lede: "" } : savedIssue;
-  const [mainContent, ...extraContent] = issue.details.split(/\r?\n[ \t]*<!-- more -->[ \t]*\r?\n/u);
+  const { content, cardThreads } = splitCardDirectives(issue.details);
+  const [mainContent, ...extraContent] = content.split(/\r?\n[ \t]*<!-- more -->[ \t]*\r?\n/u);
   const moreContent = extraContent.join("\n\n");
   const recover = async (action: "retry" | "reconnect") => {
     if (pending) return;
@@ -402,6 +416,8 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
       {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} issueDate={issue.createdAt} expanded={expanded} setExpanded={setExpanded} />}
       <EmailReadStatus issue={issue} />
       {(!issue.brief || issue.state === "failed") && mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
+      {issue.state === "ready" && cardThreads.length > 0 && <div className="digest-controls digest-card-links">{cardThreads.map((cardThread) =>
+        <button key={cardThread} type="button" className="digest-text-action digest-text-primary" onClick={() => navigate.toThread(cardThread)}>Open thread</button>)}</div>}
       {!issue.brief && moreContent.trim() && <details className="digest-more">
         <summary><Icon name="ChevronRight" className="digest-chevron" aria-hidden />More detail</summary>
         <NewsletterText content={moreContent} />
@@ -627,6 +643,8 @@ function DigestsSettings() {
     finally { setPending(null); }
   };
   const sites = overview?.connections.filter((site) => site.status === "signed-in" || overview.definitions.some((definition) => definition.connectionIds.includes(site.id))) ?? [];
+  // Another plugin owns these publish-only briefs; they are listed, never edited here.
+  const pluginBriefs = overview?.definitions.flatMap((definition) => definition.source ? [{ definition, pluginId: definition.source.pluginId }] : []) ?? [];
 
   return (
     <section className="digest-settings" aria-label="Briefs">
@@ -669,6 +687,15 @@ function DigestsSettings() {
             {definitions.length === 0 && editing?.siteId !== site.id && <p className="digest-no-digests digest-muted">No briefs yet</p>}
           </section>;
         })}</div>
+        {pluginBriefs.length > 0 && <>
+          <div className="digest-group-header digest-connections-header"><h3>Plugin briefs</h3></div>
+          <div className="digest-sites"><section className="digest-site" aria-label="Plugin briefs"><ul className="digest-nested-list digest-plugin-briefs">
+            {pluginBriefs.map(({ definition, pluginId }) => <li className="digest-nested-item" key={definition.id}><div className="digest-definition">
+              <div className="digest-definition-top"><h5>{definition.name}</h5></div>
+              <div className="digest-definition-footer"><small>From {overview.pluginNames?.[pluginId] ?? pluginId}</small></div>
+            </div></li>)}
+          </ul></section></div>
+        </>}
       </>}
     </section>
   );

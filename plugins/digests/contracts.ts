@@ -1,6 +1,6 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { connectionSchema, digestDefinitionSchema, issueSchema, SaveDigestSchema } from "./model.js";
+import { connectionSchema, digestDefinitionSchema, issueSchema, PluginPublishInputSchema, SaveDigestSchema } from "./model.js";
 
 const id = z.string().min(1).max(160);
 const issueRef = z.object({ threadId: id, id }).strict();
@@ -14,6 +14,8 @@ export const rpcContract = defineRpcContract({
       connections: z.array(connectionSchema),
       actionCardsAvailable: z.boolean(),
       organizerReady: z.boolean(),
+      /** Display names of plugins that own publish-only briefs. */
+      pluginNames: z.record(z.string(), z.string()).default({}),
     }).strict(),
   },
   executionOptions: { input: z.object({}).strict(), output: z.object({
@@ -46,4 +48,6 @@ export const rpcContract = defineRpcContract({
   runStatus: { input: z.object({ id }).strict(), output: z.object({ threadId: id.nullable(), pending: z.boolean().optional() }).strict() },
   retry: { input: issueRef, output: z.object({ threadId: id }).strict() },
   reconnect: { input: issueRef, output: z.object({ message: z.string() }).strict() },
+  /** Other plugins publish into a brief they own, keyed by their plugin id and key. */
+  publishFromPlugin: { input: PluginPublishInputSchema, output: z.object({ threadId: id }).strict() },
 });
