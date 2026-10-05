@@ -316,7 +316,7 @@ describe("Compact pull request inbox", () => {
     choose("Reviewer", "acme/design");
     expect(titles()).toEqual(["Zebra fix"]);
     choose("Reviewer", "reviewer");
-    choose("Sort by", "oldest");
+    fireEvent.click(screen.getByRole("radio", { name: "Oldest updated" }));
     expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
     slot.lifecycle.unmount();
     slot = renderSlot(app.navPanels[0]!, { subPath: "" }, options);
@@ -329,10 +329,11 @@ describe("Compact pull request inbox", () => {
     choose("Reviewer", "@me");
     expect(titles()).toEqual(["Other author"]);
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    choose("Sort by", "updated");
+    fireEvent.click(screen.getByRole("radio", { name: "Recently updated" }));
+    expect(screen.getByRole("radio", { name: "Recently updated" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.queryByText("Link pull request")).toBeNull();
     expect(screen.queryByText("Discover archived threads")).toBeNull();
-    fireEvent.keyDown(screen.getByRole("combobox", { name: "Sort by" }), { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Author" }), { key: "Escape" });
     expect((screen.getByLabelText("Filters and sort").closest("details") as HTMLDetailsElement).open).toBe(false);
     expect(document.activeElement).toBe(screen.getByLabelText("Filters and sort"));
     openMenu();
