@@ -48,7 +48,7 @@
 .cdc-empty { padding: 24px 12px; color: var(--muted-foreground); }
 .cdc-prompt { position: absolute; z-index: 70; width: min(720px, calc(100% - 64px)); left: 50%; bottom: 88px; transform: translateX(-50%); }
 .cdc-prompt > div { background: var(--background); border-radius: var(--radius); }
-.cdc-prompt-header { display: flex; align-items: center; justify-content: space-between; height: 24px; margin-bottom: 4px; }
+.cdc-prompt-header { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 3px 6px; margin-bottom: 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); }
 .cdc-prompt-move { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--muted-foreground); cursor: grab !important; touch-action: none; }
 .cdc-prompt-move:hover { background: var(--state-hover); }
 .cdc-prompt-move:active { cursor: grabbing !important; }
