@@ -43,7 +43,7 @@ export function StartMenu({ onClose }: { onClose: () => void }) {
     onClose();
     action();
   };
-  const programs = (["internet-explorer", "new-thread", "new-folder", "media-player", "sticky-note"] as const).map(launcher);
+  const programs = (["finder", "internet-explorer", "new-thread", "new-folder", "media-player", "sticky-note"] as const).map(launcher);
   const places: { section: string; items: Launcher[] }[] = [
     ...(apps.length === 0 ? [] : [{ section: "Programs", items: apps }]),
     { section: "Accessories", items: [launcher("paint"), launcher("command-prompt")] },

@@ -126,6 +126,7 @@ function createHarness(
     | "metadata-changed"
     | "order-changed"
     | "parent-changed"
+    | "queue-changed"
     | "read-state-changed"
     | "title-changed";
   const changedCallbacks: Array<
@@ -756,6 +757,45 @@ describe("Thread Organizer server", () => {
     ).toHaveLength(0);
     expect(organizer.spawnThread).not.toHaveBeenCalled();
     await organizer.harness.lifecycle.dispose();
+  });
+
+  it.each([
+    { remembered: true, read: false, combinedEvent: false },
+    { remembered: false, read: true, combinedEvent: false },
+    { remembered: true, read: true, combinedEvent: true },
+  ])("removes queued work from Inbox: %j", async ({ remembered, read, combinedEvent }) => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    if (remembered) {
+      await organizer.harness.behavior.runCli(["phase", "building"], {
+        threadId: "thr_test",
+      });
+    }
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+
+    organizer.setThread({ queuedMessageCount: 1, ...(read ? { lastReadAt: 10 } : {}) });
+    organizer.emitChanged(combinedEvent
+      ? ["read-state-changed", "queue-changed"]
+      : ["queue-changed"]);
+    const destination = remembered ? sectionId("building") : null;
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(destination));
+
+    // A reload must not send queued, unread work back to Inbox.
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(destination);
+    organizer.setThread({ queuedMessageCount: 0 });
+    organizer.emitChanged(["queue-changed"]);
+    await vi.waitFor(() => expect(organizer.current().sectionId)
+      .toBe(read ? destination : sectionId("inbox")));
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    await replacement.harness.lifecycle.dispose();
   });
 
   it("does not remove a running Inbox thread when it becomes read", async () => {

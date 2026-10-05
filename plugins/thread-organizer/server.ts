@@ -1729,9 +1729,11 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           const thread = await bb.sdk.threads.get({ threadId });
           if (!isUnreadThread(thread)) {
             const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
-            if (!returnsAfterRead(currentStage, thread)) return;
-            await reconcileThread(threadId, { releaseRead: true });
-            return;
+            if (returnsAfterRead(currentStage, thread)) {
+              await reconcileThread(threadId, { releaseRead: true });
+              return;
+            }
+            if (thread.queuedMessageCount === 0) return;
           }
         }
         await reconcileThread(threadId);
