@@ -192,7 +192,7 @@ function matchCommandDepth(command: string, depth: number): GatedAction[] {
  * automatically. Everything else is "safe".
  */
 export function classifyUnmatchedCommand(command: string): "self_rpc" | "risky" | "safe" {
-  if (/\bplugin\s+rpc\b|\/plugins\/coordinator-mode\b|\bplugin\s+(?:run|disable|remove|uninstall|config)\s+coordinator-mode\b|\bcoordinator-mode\s+off\b/i.test(command)) {
+  if (/\bplugin\s+rpc\b|\/plugins\/coordinator-mode\b|\bplugin\s+(?:run|disable|remove|uninstall|config)\s+coordinator-mode\b|\bcoordinator-mode\s+(?:on|off)\b/i.test(command)) {
     return "self_rpc";
   }
   if (

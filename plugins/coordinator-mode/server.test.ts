@@ -378,6 +378,14 @@ describe("Coordinator Mode plugin", () => {
     expect(current.items).toEqual([]);
   });
 
+  it("turns a coordinator on from the CLI with a built-in template", async () => {
+    const { harness, status } = setup();
+    const result = await harness.runCli(["on", "--thread", COORD, "--template", "content"]);
+    expect(result.exitCode).toBe(0);
+    expect((await status()).state?.template.id).toBe("content");
+    expect((await harness.runCli(["on", "--thread", COORD, "--template", "nope"])).exitCode).not.toBe(0);
+  });
+
   it("turns a coordinator off from the CLI", async () => {
     const { harness, status, turnOn } = setup();
     await turnOn();
