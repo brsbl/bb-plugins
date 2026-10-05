@@ -25,7 +25,7 @@
 .pr-segmented>button[aria-checked="true"] { background:var(--muted); color:var(--popover-foreground); }
 .pr-options-panel>.pr-text-button { margin:6px 0 4px; }
 .pr-options-panel .pr-options-note { margin-top:10px; color:var(--muted-foreground); font-size:11px; }
-@media (max-width:630px) { .pr-option-row select { min-height:36px; } .pr-segmented>button { width:38px; height:32px; } }
+@media (max-width:630px) { .pr-option-row { min-height:46px; } .pr-option-row select { min-height:36px; } .pr-segmented>button { width:38px; height:32px; } }
 .pr-list-toolbar { display:flex; padding:0 18px 12px; }
 .pr-search { display:flex; min-width:0; flex:1; align-items:center; gap:8px; border-radius:22px; height:36px; padding:0 12px; color:var(--muted-foreground); background:var(--muted); }
 .pr-search input { border:0; outline:0; min-width:0; width:100%; padding:0; background:none; color:var(--foreground); font-size:13px; }
