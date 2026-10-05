@@ -223,8 +223,9 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const openNote = () => { setNoteOpen(true); noteEditor.current?.focus(); if (row && reply) onExpand?.(true); };
   const commentToggle = <IconButton ref={commentButton} label="Comment" aria-expanded={noteOpen} disabled={disabled} onClick={openNote}><CommentIcon /></IconButton>;
   // Table rows keep only Comment beside their choices; Reply rows get the rest once open.
+  // A pending request offers Resend only once it is not already being sent.
   const utilities = <div className="iac-tools">
-    {pending ? <IconButton label="Resend request" disabled={busy} onClick={() => void act()}><ResendIcon /></IconButton> : commentToggle}
+    {pending && !busy ? <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton> : commentToggle}
     {(!row || reply) && <>
       <IconButton label="Remind me later" disabled={disabled} onClick={() => void act("later")}><ClockIcon /></IconButton>
       <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
