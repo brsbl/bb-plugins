@@ -892,6 +892,41 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it("lands the latest reorder last even when an earlier sidebar write is slow", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const base = await configFor(organizer);
+    const entry = (key: string) =>
+      `section:${base.stages.find((stage) => stage.key === key)!.sectionId}`;
+    const original = organizer.callRpc.getMockImplementation()!;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let held = false;
+    organizer.callRpc.mockImplementation(async (args) => {
+      if (args.method === "setPreference" && !held) {
+        held = true;
+        await gate;
+      }
+      return original(args);
+    });
+    const moveFirst = async (key: string) => {
+      const edited = editableWorkflowConfig(await configFor(organizer));
+      const index = edited.stages.findIndex((stage) => stage.key === key);
+      edited.stages = [edited.stages[index]!, ...edited.stages.filter((_, i) => i !== index)];
+      await organizer.harness.behavior.callRpc("saveConfig", edited);
+    };
+
+    await moveFirst("handoff");
+    await moveFirst("on-hold");
+    release();
+    await vi.waitFor(() => {
+      const order = organizer.threadListOrder.value;
+      expect(order.indexOf(entry("on-hold"))).toBe(1);
+      expect(order.indexOf(entry("handoff"))).toBe(2);
+    });
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("lists only plugins that created open root threads as inbox sources", async () => {
     const organizer = createHarness();
     await plugin(organizer.bb);
