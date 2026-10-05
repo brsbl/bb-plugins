@@ -468,7 +468,10 @@ it("Action log Send on a collapsed reply opens the email first and sends only on
   } });
   const row = await screen.findByRole("article");
   expect(within(row).queryByRole("textbox", { name: "Draft" })).toBeNull();
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
   fireEvent.click(within(row).getByRole("button", { name: "Review and send" }));
+  // The second click of a double-click only finishes opening the email.
+  fireEvent.click(within(row).getByRole("button", { name: "Send" }));
   expect(calls).toHaveLength(0);
   expect((within(row).getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft");
   expect(within(row).getByText(/To escrow@example.com · Missing refund/)).toBeTruthy();
@@ -476,8 +479,10 @@ it("Action log Send on a collapsed reply opens the email first and sends only on
   expect(within(row).getByText(/Your refund is on its way/, { selector: "summary span" })).toBeTruthy();
   const send = within(row).getByRole("button", { name: "Send" });
   await waitFor(() => expect(document.activeElement).toBe(send));
+  now.mockReturnValue(2_000);
   fireEvent.click(send);
   await waitFor(() => expect(calls).toEqual([expect.objectContaining({ id: "esc-1", action: "send" })]));
+  now.mockRestore();
 });
 
 it("a collapsed failed table reply opens before Retry can resend it", async () => {
@@ -493,14 +498,18 @@ it("a collapsed failed table reply opens before Retry can resend it", async () =
       submitted: () => ({ ...failed, revision: 5, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false, sentAt: "2026-10-01T19:09:00Z" } }),
     },
   });
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
   fireEvent.click(await screen.findByRole("button", { name: "Review and retry" }));
+  const retry = screen.getByRole("button", { name: "Retry" });
+  fireEvent.click(retry);
   expect(calls).toHaveLength(0);
   expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
-  const retry = screen.getByRole("button", { name: "Retry" });
   await waitFor(() => expect(document.activeElement).toBe(retry));
+  now.mockReturnValue(2_000);
   fireEvent.click(retry);
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(calls).toEqual(["prepare"]);
+  now.mockRestore();
 });
 
 it("never offers a bulk action over reply rows", async () => {

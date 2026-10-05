@@ -67,6 +67,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const lastLoadFailed = useRef(false);
   const flight = useRef<Promise<void> | null>(null);
   const lock = useRef(false);
+  const revealedAt = useRef(0);
   const alive = useRef(true);
   const adopt = useCallback((next: Item) => {
     const changedState = current.current?.state !== next.state;
@@ -157,7 +158,9 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const act = async (action?: Action, choice?: string) => {
     if (lock.current || submitting.has(threadId)) return;
     // A collapsed row hides the email: its first Send or Save opens the draft instead, and only a visible draft goes out.
-    if (unseen(action)) { setOpen(true); setTimeout(() => reviewTarget.current?.focus()); return; }
+    if (unseen(action)) { revealedAt.current = Date.now(); setOpen(true); setTimeout(() => reviewTarget.current?.focus()); return; }
+    // The rest of the gesture that opened it (a double-click or a held Enter) must not send.
+    if ((action === "send" || action === "save-draft") && Date.now() - revealedAt.current < 500) return;
     lock.current = true; submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
     try {
       await flush();
