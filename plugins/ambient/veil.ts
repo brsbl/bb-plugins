@@ -88,7 +88,8 @@ const SECTION_BACK = `${ROOT} [data-testid$="-sidebar-top-reserve-row"] + div:ha
 const SIDEBAR_OPEN = `${ROOT} .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]`;
 const THREAD_TITLE_ROW =
   '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
-const PAGE_COLUMN = ':is(.max-w-5xl, [class~="max-w-[760px]"])';
+const PLUGIN_PAGE_BODY = '[data-testid="plugin-panel-body"]';
+const PAGE_COLUMN = `:is(.max-w-5xl, [class~="max-w-[760px]"], ${PLUGIN_PAGE_BODY})`;
 
 const COLUMN_HALF = "404px";
 /** bb's pl-[104px] traffic-light reserve, plus the 6px a header pill reaches outward. */
@@ -140,6 +141,8 @@ ${THREAD}::before { ${LAYER} ${GLASS_SURFACE} background-color: var(--ambient-gl
 ${THREAD} [data-overflow-fade] { ${HIDE} }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
+${PAGE} ${PLUGIN_PAGE_BODY} { margin-left: max(calc(var(--ambient-column-gutter, 8px) - 16px), 50% - ${COLUMN_HALF}); margin-right: max(-8px, 50% - ${COLUMN_HALF}); margin-bottom: -8px; border-radius: 20px; }
+@media (min-width: 768px) { ${PAGE} ${PLUGIN_PAGE_BODY} { margin-left: max(calc(var(--ambient-column-gutter, 8px) - 20px), 50% - ${COLUMN_HALF}); margin-right: max(-12px, 50% - ${COLUMN_HALF}); margin-bottom: -12px; } }
 ${PAGE_MAIN} ${PAGE_COLUMN}:not(${PAGE_COLUMN} *) { anchor-name: --ambient-page-column; }
 ${PAGE_MAIN} #thread-detail-secondary-panel ${PAGE_COLUMN} { anchor-name: none; }
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
