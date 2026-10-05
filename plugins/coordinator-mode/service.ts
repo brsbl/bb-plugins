@@ -336,9 +336,10 @@ export function createService(bb: BbPluginApi) {
         // command rules depend on the provider asking before it runs a command.
         const coordinatorThread = await bb.sdk.threads.get({ threadId: coordinator.threadId });
         const defaults = await bb.sdk.threads.defaultExecutionOptions({ threadId: coordinator.threadId });
-        const execution = { providerId: coordinatorThread.providerId, ...(defaults?.providerId === coordinatorThread.providerId
-          ? { model: defaults.model, reasoningLevel: defaults.reasoningLevel }
-          : {}) };
+        const execution = {
+          providerId: coordinatorThread.providerId,
+          ...(defaults ? { model: defaults.model, reasoningLevel: defaults.reasoningLevel } : {}),
+        };
         const thread = await bb.sdk.threads.spawn({
           projectId: await projectOf(coordinator),
           parentThreadId: coordinator.threadId,

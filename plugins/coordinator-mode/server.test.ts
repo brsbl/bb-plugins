@@ -46,7 +46,7 @@ function setup(options: { children?: Thread[] } = {}) {
         archive: async () => ({ ok: true }),
         defaultExecutionOptions: async ({ threadId }) =>
           threadId === COORD
-            ? ({ providerId: "claude-code", model: "claude-sonnet", reasoningLevel: "medium" } as ExecutionOptions)
+            ? ({ model: "claude-sonnet", permissionMode: "accept-edits", reasoningLevel: "medium", serviceTier: "default", source: "client/thread/start" } as ExecutionOptions)
             : null,
         spawn: async (args) => {
           spawned += 1;
