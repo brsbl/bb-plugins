@@ -66,13 +66,10 @@ export async function canonicalNotesRoot(): Promise<string> {
   return realpath(notesRoot()).catch(() => notesRoot());
 }
 
-/**
- * A note bb may edit: `<Title>/<Title>.md` in a folder under ~/Moss/Notes, where
- * Moss keeps that one note's layout.json, comments.json and assets/.
- */
-export function isEditablePath(path: string, root: string): boolean {
-  const directory = dirname(path);
-  return isInside(root, directory) && basename(path) === `${basename(directory)}.md`;
+/** The Moss workspace, ~/Moss, which holds Notes/ and Trash/. */
+export async function canonicalWorkspaceRoot(): Promise<string> {
+  const root = resolve(homedir(), "Moss");
+  return realpath(root).catch(() => root);
 }
 
 function hasMossMarkers(markdown: string): boolean {
@@ -111,8 +108,7 @@ export async function readNote({ path }: { path: string }) {
     throw error;
   }
   if (!MARKDOWN.test(file.path)) return { moss: false as const, path: file.path, missing: false };
-  const root = await canonicalNotesRoot();
-  const inNotes = isInside(root, file.path);
+  const inNotes = isInside(await canonicalNotesRoot(), file.path);
   if (file.size > MAX_NOTE_BYTES) {
     // bb's own preview handles large Markdown; only a real Moss note is refused.
     if (!inNotes) return { moss: false as const, path: file.path, missing: false };
@@ -129,7 +125,6 @@ export async function readNote({ path }: { path: string }) {
     layout: await readLayout(directory),
     noteId: await readNoteId(directory),
     modifiedMs: file.modifiedMs,
-    editable: isEditablePath(file.path, root),
   };
 }
 
@@ -227,21 +222,16 @@ function assetCandidates(ref: string): string[] {
   return candidates;
 }
 
-async function readAssetChunk({
-  notePath,
-  ref,
-  offset,
-  length,
-}: {
-  notePath: string;
+interface AssetRead {
   ref: string;
   offset: number;
   length: number;
-}) {
+}
+
+async function readAssetChunk(directory: string, { ref, offset, length }: AssetRead) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(ref)) {
     throw new HostFileError("not_allowed", "Only note-local media loads through this host.");
   }
-  const directory = await mossNoteDirectory(notePath);
   let asset: { path: string; size: number; modifiedMs: number } | null = null;
   for (const candidate of assetCandidates(ref)) {
     const target = resolve(directory, candidate);
@@ -278,9 +268,14 @@ async function readAssetChunk({
  * against the note's folder and must stay inside it, so this cannot read other
  * files on the host.
  */
-export async function readAsset(input: { notePath: string; ref: string; offset: number; length: number }) {
+export async function readAsset({ notePath, ...input }: AssetRead & { notePath: string }) {
+  return readAssetIn(() => mossNoteDirectory(notePath), input);
+}
+
+/** Reads part of a media file inside the note folder `directory` resolves to, refusing as `readAsset` does. */
+export async function readAssetIn(directory: () => Promise<string>, input: AssetRead) {
   try {
-    return await readAssetChunk(input);
+    return await readAssetChunk(await directory(), input);
   } catch (error) {
     if (error instanceof HostFileError && error.code !== "too_large") {
       return { ok: false as const, code: error.code, message: error.message };

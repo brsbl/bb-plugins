@@ -58,7 +58,7 @@ function acceptsGzip(header: string | undefined): boolean {
 export default async function plugin(bb: BbPluginApi): Promise<void> {
   const host = bb.hosts.experimental_client({ contract: hostContract, experimental_signals: hostSignals });
   // A note changed outside bb: tell open editors, which compare the version with their own.
-  host.experimental_onSignal("noteChanged", ({ hostId, payload }) => {
+  host.experimental_onSignal("editorNoteChanged", ({ hostId, payload }) => {
     bb.realtime.publish(NOTE_CHANGED_CHANNEL, { hostId, ...payload } satisfies NoteChanged);
   });
   const bundle = await loadViewerBundle(await findViewerDirectory(import.meta.url));
@@ -150,11 +150,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     },
     notes: async ({ hostId }) => ({ notes: (await host.call("listNotes", {}, { hostId })).notes }),
     openInMoss: ({ hostId, path }) => host.call("openInMoss", { path }, { hostId }),
-    files: ({ hostId, path }) => host.call("readNoteFiles", { path }, { hostId }),
-    save: ({ hostId, ...input }) => host.call("writeNoteFiles", input, { hostId }),
-    watch: ({ hostId, path }) => host.call("watchNote", { path }, { hostId }),
-    putAssetChunk: ({ hostId, ...input }) => host.call("writeAssetChunk", input, { hostId }),
-    commitAsset: ({ hostId, ...input }) => host.call("commitAsset", input, { hostId }),
+    // The editor's file bridge: every call goes to the note's host.
+    editorRead: ({ hostId, ...input }) => host.call("editorRead", input, { hostId }),
+    editorReadCompanion: ({ hostId, ...input }) => host.call("editorReadCompanion", input, { hostId }),
+    editorWrite: ({ hostId, ...input }) => host.call("editorWrite", input, { hostId }),
+    editorWatch: ({ hostId, ...input }) => host.call("editorWatch", input, { hostId }),
+    editorAssetChunk: ({ hostId, ...input }) => host.call("editorAssetChunk", input, { hostId }),
+    editorAssetCommit: ({ hostId, ...input }) => host.call("editorAssetCommit", input, { hostId }),
+    editorAssetCopy: ({ hostId, ...input }) => host.call("editorAssetCopy", input, { hostId }),
   });
 
   bb.http.route(
@@ -197,13 +200,18 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
   async function serveAsset(context: HttpContext): Promise<Response> {
     const hostId = context.req.query("host");
+    // The viewer names a note by path; the editor by meta.json id, which survives a folder rename.
     const notePath = context.req.query("note");
+    const noteId = context.req.query("id");
     const ref = context.req.query("ref");
-    if (!hostId || !notePath || !ref || notePath.length > 4096 || ref.length > 4096 || hostId.length > 200) {
+    const note = notePath ?? noteId;
+    if (!hostId || !note || !ref || note.length > 4096 || (noteId && noteId.length > 200) || ref.length > 4096 || hostId.length > 200) {
       return text("A note asset needs a host, a note, and a reference.", 400);
     }
     const read = (offset: number, length: number) =>
-      host.call("readAsset", { notePath, ref, offset, length }, { hostId });
+      notePath
+        ? host.call("readAsset", { notePath, ref, offset, length }, { hostId })
+        : host.call("editorAsset", { noteId: note, ref, offset, length }, { hostId });
     const range = parseRange(context.req.header("range"));
     try {
       let start = 0;

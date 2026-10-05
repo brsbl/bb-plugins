@@ -14,8 +14,11 @@ const vendor = fileURLToPath(new URL("./vendor/moss-viewer/", import.meta.url));
 const httpRoot = "/api/v1/plugins/moss-viewer/http";
 const video = Buffer.from(Array.from({ length: ASSET_CHUNK_BYTES * 2 + 10 }, (_, index) => index % 251));
 const notePath = "/Users/me/Moss/Notes/Clip/Clip.md";
-const V1 = "1".repeat(64);
-const V2 = "2".repeat(64);
+const V1 = "sha256:content-1";
+const V2 = "sha256:content-2";
+const M1 = "sha256:meta-1";
+const NOTE_ID = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+const location = { folderPath: "Notes", folderName: "Clip", markdownName: "Clip.md" };
 
 const disposers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -44,16 +47,19 @@ async function setup(machines: Machines = {}) {
       if (method === "readNote") {
         const path = request.path as string;
         const file = machines.files ? machines.files[hostId]?.[path] : path.includes("/Moss/") ? "moss" : "plain";
-        if (file === "moss") return { moss: true, path, markdown: "# Clip\n", layout: null, noteId: "clip", modifiedMs: 1, editable: true };
+        if (file === "moss") return { moss: true, path, markdown: "# Clip\n", layout: null, noteId: "clip", modifiedMs: 1 };
         return { moss: false, path, missing: file === undefined };
       }
-      if (method === "readNoteFiles") return { path: request.path, markdown: "# Clip\n", layout: null, comments: "{}\n", version: V1 };
-      if (method === "writeNoteFiles") return request.baseVersion === V1 ? { status: "saved", version: V2 } : { status: "conflict", version: V1 };
-      if (method === "watchNote") return { version: V1 };
-      if (method === "writeAssetChunk") {
-        return { ok: true, size: (request.offset as number) + Buffer.from(request.data as string, "base64").length };
+      if (method === "editorRead") return { kind: "note", files: { markdown: "# Clip\n", comments: null, layout: null, meta: "{}" }, location, version: V1, metaVersion: M1 };
+      if (method === "editorReadCompanion") return { kind: "absent", version: V2 };
+      if (method === "editorWrite") return { kind: "saved", version: V2, metaVersion: M1, location };
+      if (method === "editorWatch") return { kind: "changed", version: V1, metaVersion: M1 };
+      if (method === "editorAssetChunk") return { kind: "staged", size: Buffer.from(request.data as string, "base64").length };
+      if (method === "editorAssetCommit" || method === "editorAssetCopy") return { kind: "stored", ref: `assets/${request.name as string}` };
+      if (method === "editorAsset") {
+        const start = Math.min(request.offset as number, video.length);
+        return { ok: true, contentType: "video/mp4", size: video.length, modifiedMs: 1, offset: start, data: video.subarray(start, start + (request.length as number)).toString("base64") };
       }
-      if (method === "commitAsset") return { ok: true, ref: "assets/shot.png" };
       if (method === "listNotes") {
         return { notes: [{ id: "clip", title: "Clip", path: notePath, folderPath: "Notes" }], truncated: false };
       }
@@ -170,52 +176,73 @@ describe("reading notes", () => {
 });
 
 describe("the editor's file bridge", () => {
-  it("answers each bridge call on the note's host", async () => {
+  const write = {
+    baseVersion: V1,
+    baseMetaVersion: M1,
+    companions: [],
+    rename: null,
+    ops: [
+      { kind: "put", file: "markdown", text: "# Clip\n\nMore.\n" },
+      { kind: "delete", file: "comments" },
+      { kind: "put", file: "meta", text: "{}" },
+    ],
+  };
+
+  it("sends each bridge call to the note's host by id", async () => {
     const h = await setup();
     const lastCall = () => h.inspection.experimental_hostRpcCalls.at(-1);
-    expect(await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "mac", environmentId: null })).toMatchObject({ editable: true });
-
-    expect(await h.behavior.callRpc("files", { hostId: "studio", path: notePath })).toEqual({
-      path: notePath,
-      markdown: "# Clip\n",
-      layout: null,
-      comments: "{}\n",
-      version: V1,
-    });
-    expect(lastCall()).toMatchObject({ method: "readNoteFiles", hostId: "studio", input: { path: notePath } });
-
-    const save = { hostId: "mac", path: notePath, baseVersion: V1, files: { markdown: "# Clip\n\nMore.\n", comments: null } };
-    expect(await h.behavior.callRpc("save", save)).toEqual({ status: "saved", version: V2 });
-    expect(lastCall()).toMatchObject({ method: "writeNoteFiles", hostId: "mac", input: { path: notePath, baseVersion: V1, files: save.files } });
-    expect(await h.behavior.callRpc("save", { ...save, baseVersion: V2 })).toEqual({ status: "conflict", version: V1 });
-
-    expect(await h.behavior.callRpc("watch", { hostId: "mac", path: notePath })).toEqual({ version: V1 });
-    expect(lastCall()).toMatchObject({ method: "watchNote", hostId: "mac", input: { path: notePath } });
-
-    const upload = "f".repeat(32);
-    expect(await h.behavior.callRpc("putAssetChunk", { hostId: "mac", notePath, upload, offset: 0, data: "AAEC" })).toEqual({ ok: true, size: 3 });
-    expect(lastCall()).toMatchObject({ method: "writeAssetChunk", input: { notePath, upload, offset: 0, data: "AAEC" } });
-    expect(await h.behavior.callRpc("commitAsset", { hostId: "mac", notePath, upload, name: "Shot.png", size: 3 })).toEqual({ ok: true, ref: "assets/shot.png" });
-    expect(lastCall()).toMatchObject({ method: "commitAsset", input: { notePath, upload, name: "Shot.png", size: 3 } });
+    const calls: Array<[string, Record<string, unknown>, unknown]> = [
+      ["editorRead", { noteId: NOTE_ID }, { kind: "note", files: { markdown: "# Clip\n", comments: null, layout: null, meta: "{}" }, location, version: V1, metaVersion: M1 }],
+      ["editorReadCompanion", { noteId: NOTE_ID, relativePath: "assets/plan-mockup.html" }, { kind: "absent", version: V2 }],
+      ["editorWrite", { noteId: NOTE_ID, write }, { kind: "saved", version: V2, metaVersion: M1, location }],
+      ["editorWatch", { noteId: NOTE_ID }, { kind: "changed", version: V1, metaVersion: M1 }],
+      ["editorAssetChunk", { noteId: NOTE_ID, upload: "f".repeat(32), offset: 0, data: "AAEC" }, { kind: "staged", size: 3 }],
+      ["editorAssetCommit", { noteId: NOTE_ID, upload: "f".repeat(32), name: "shot-1-abcd1234.png", size: 3 }, { kind: "stored", ref: "assets/shot-1-abcd1234.png" }],
+      [
+        "editorAssetCopy",
+        { noteId: NOTE_ID, sourceNoteId: "0f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b", sourceRef: "assets/a.png", name: "a-1-abcd1234.png" },
+        { kind: "stored", ref: "assets/a-1-abcd1234.png" },
+      ],
+    ];
+    for (const [method, input, output] of calls) {
+      expect(await h.behavior.callRpc(method, { hostId: "studio", ...input })).toEqual(output);
+      expect(lastCall()).toMatchObject({ method, hostId: "studio", input });
+    }
   });
 
-  it("keeps a save that names other files or no real version from reaching the host", async () => {
+  it("keeps a malformed write from reaching the host", async () => {
     const h = await setup();
-    const save = { hostId: "mac", path: notePath, baseVersion: V1, files: { markdown: "# Clip\n" } };
-    await expect(h.behavior.callRpc("save", { ...save, files: { "meta.json": "{}" } })).rejects.toThrow();
-    await expect(h.behavior.callRpc("save", { ...save, baseVersion: "latest" })).rejects.toThrow();
-    await expect(h.behavior.callRpc("putAssetChunk", { hostId: "mac", notePath, upload: "../x", offset: 0, data: "" })).rejects.toThrow();
-    expect(h.inspection.experimental_hostRpcCalls.filter((call) => call.method !== "readNote")).toEqual([]);
+    const send = (changes: Record<string, unknown>) => h.behavior.callRpc("editorWrite", { hostId: "mac", noteId: NOTE_ID, write: { ...write, ...changes } });
+    const [markdown, comments, meta] = write.ops;
+    // Out of order, without meta.json, a rename without its markdown, a markdown delete, and an unknown file.
+    await expect(send({ ops: [meta, markdown] })).rejects.toThrow();
+    await expect(send({ ops: [markdown, comments] })).rejects.toThrow();
+    await expect(send({ rename: { kind: "renameFolder", desiredName: "Clip 2" }, ops: [meta] })).rejects.toThrow();
+    await expect(send({ ops: [{ kind: "delete", file: "markdown" }, meta] })).rejects.toThrow();
+    await expect(send({ ops: [{ kind: "put", file: "notes.txt", text: "" }, meta] })).rejects.toThrow();
+    await expect(h.behavior.callRpc("editorAssetCommit", { hostId: "mac", noteId: NOTE_ID, upload: "f".repeat(32), name: "../a.png", size: 1 })).rejects.toThrow();
+    await expect(h.behavior.callRpc("editorReadCompanion", { hostId: "mac", noteId: NOTE_ID, relativePath: "/etc/hosts" })).rejects.toThrow();
+    expect(h.inspection.experimental_hostRpcCalls).toEqual([]);
   });
 
   it("tells open editors when a note changes outside bb", async () => {
     const h = await setup();
-    await h.experimental_emitHostSignal("mac", "noteChanged", { path: notePath, version: V2 });
-    await h.experimental_emitHostSignal("mac", "noteChanged", { path: notePath, version: null });
+    await h.experimental_emitHostSignal("mac", "editorNoteChanged", { noteId: NOTE_ID, change: { kind: "changed", version: V2, metaVersion: M1 } });
+    await h.experimental_emitHostSignal("mac", "editorNoteChanged", { noteId: NOTE_ID, change: { kind: "removed", reason: "trashed" } });
     expect(h.realtimeSignals).toEqual([
-      { channel: "note-changed", payload: { hostId: "mac", path: notePath, version: V2 } },
-      { channel: "note-changed", payload: { hostId: "mac", path: notePath, version: null } },
+      { channel: "editor-note-changed", payload: { hostId: "mac", noteId: NOTE_ID, change: { kind: "changed", version: V2, metaVersion: M1 } } },
+      { channel: "editor-note-changed", payload: { hostId: "mac", noteId: NOTE_ID, change: { kind: "removed", reason: "trashed" } } },
     ]);
+  });
+
+  it("serves an editor's media by note id", async () => {
+    const h = await setup();
+    const response = await h.behavior.fetchHttp("GET", `/asset?${new URLSearchParams({ host: "mac", id: NOTE_ID, ref: "assets/clip.mp4" }).toString()}`, {
+      headers: { range: "bytes=5-9" },
+    });
+    expect(response.status).toBe(206);
+    expect((await bytes(response)).equals(video.subarray(5, 10))).toBe(true);
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "editorAsset", input: { noteId: NOTE_ID, ref: "assets/clip.mp4", offset: 5, length: 5 } });
   });
 });
 

@@ -45,7 +45,6 @@ it("reads a Moss note with its layout and id, and leaves other Markdown to bb", 
     layout,
     noteId: "note-1",
     modifiedMs: expect.any(Number),
-    editable: true,
   });
 
   await mkdir(join(home, "Code"), { recursive: true });
@@ -55,8 +54,7 @@ it("reads a Moss note with its layout and id, and leaves other Markdown to bb", 
 
   const marked = join(home, "Code", "spec.md");
   await writeFile(marked, "# Spec\n\n```moss-callout\nNote\n```\n");
-  // Moss markup outside ~/Moss/Notes renders, but stays read-only: Moss keeps no sidecars beside it.
-  expect(await readNote({ path: marked })).toMatchObject({ moss: true, layout: null, noteId: null, editable: false });
+  expect(await readNote({ path: marked })).toMatchObject({ moss: true, layout: null, noteId: null });
 
   expect(await readNote({ path: join(home, "Code", "notes.txt") })).toEqual({ moss: false, path: join(home, "Code", "notes.txt"), missing: false });
   // A missing note is an answer, not an error: the server asks the other hosts next.
