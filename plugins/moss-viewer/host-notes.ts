@@ -92,18 +92,25 @@ async function readLayout(directory: string): Promise<unknown> {
 
 /** Reads a Markdown file and, when it is a Moss note, the sidecars the viewer needs. */
 export async function readNote({ path }: { path: string }) {
-  if (!MARKDOWN.test(path)) return { moss: false as const, path };
-  const file = await canonicalFile(path);
-  if (!MARKDOWN.test(file.path)) return { moss: false as const, path: file.path };
+  if (!MARKDOWN.test(path)) return { moss: false as const, path, missing: false };
+  let file: Awaited<ReturnType<typeof canonicalFile>>;
+  try {
+    file = await canonicalFile(path);
+  } catch (error) {
+    // The server may ask the wrong machine for a path; it then asks the others.
+    if (error instanceof HostFileError && error.code === "not_found") return { moss: false as const, path, missing: true };
+    throw error;
+  }
+  if (!MARKDOWN.test(file.path)) return { moss: false as const, path: file.path, missing: false };
   const inNotes = isInside(await canonicalNotesRoot(), file.path);
   if (file.size > MAX_NOTE_BYTES) {
     // bb's own preview handles large Markdown; only a real Moss note is refused.
-    if (!inNotes) return { moss: false as const, path: file.path };
+    if (!inNotes) return { moss: false as const, path: file.path, missing: false };
     throw new HostFileError("too_large", "This note is too large to preview.");
   }
   const markdown = await readFile(file.path, "utf8");
   const moss = inNotes || hasMossMarkers(markdown);
-  if (!moss) return { moss: false as const, path: file.path };
+  if (!moss) return { moss: false as const, path: file.path, missing: false };
   const directory = dirname(file.path);
   return {
     moss: true as const,

@@ -244,6 +244,7 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const notesCache = useRef(new Map<string, { at: number; notes: Promise<MossNoteEntry[]> }>());
   const [stack, setStack] = useState<{ note: MossNote | null; back: MossNote[] }>({ note: null, back: [] });
   const [original, setOriginal] = useState(false);
+  const [missing, setMissing] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const reads = useRef(0);
 
@@ -253,6 +254,7 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       (result) => {
         if (read !== reads.current) return;
         if (result.moss) setStack({ note: result, back: [] });
+        else if (result.message !== null) setMissing(result.message);
         else setOriginal(true);
       },
       () => {
@@ -280,7 +282,7 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
     const read = (reads.current += 1);
     const result = await rpcRef.current.call("read", { kind: "host", path, hostId, environmentId: null });
     if (read !== reads.current) return null;
-    if (!result.moss) throw new Error(`${formatHomePathForDisplay(path)} is not a Moss note.`);
+    if (!result.moss) throw new Error(result.message ?? `${formatHomePathForDisplay(path)} is not a Moss note.`);
     return result;
   }, []);
 
@@ -303,6 +305,13 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
 
   const note = stack.note;
   if (original) return <Original />;
+  if (missing !== null) {
+    return (
+      <div role="alert" className="mx-4 mt-4 rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
+        {missing}
+      </div>
+    );
+  }
   if (note === null) {
     return (
       <span role="status" className="sr-only">

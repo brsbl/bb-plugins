@@ -1,10 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { posix } from "node:path";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { ASSET_CHUNK_BYTES, hostContract, rpcContract, type AssetRefusal } from "./contract.js";
+import { ASSET_CHUNK_BYTES, hostContract, rpcContract, type AssetRefusal, type HostNote } from "./contract.js";
 import { findViewerDirectory, frameDocument, loadViewerBundle } from "./viewer-bundle.js";
 
 type HttpContext = Parameters<Parameters<BbPluginApi["http"]["route"]>[2]>[0];
+
+/** How long one other host may take to answer before the note is looked for elsewhere. */
+const PROBE_TIMEOUT_MS = 10_000;
 
 const REFUSAL_STATUS: Readonly<Record<AssetRefusal, number>> = {
   invalid: 400,
@@ -72,12 +75,65 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return { hostId: environment.hostId, path: posix.join(environment.path, relativePath) };
   }
 
+  const opened = (note: Extract<HostNote, { moss: true }>, hostId: string) => ({
+    ...note,
+    hostId,
+    frameUrl,
+    assetRoute: `${httpRoot}/asset`,
+  });
+
+  /**
+   * bb implies a chat link's host from the thread's environment, which may not be
+   * the machine that holds the notes. Ask every other connected host: a slow or
+   * offline one must not block one that has the note, and the lowest host ID wins
+   * when several have it.
+   */
+  async function findNoteElsewhere(path: string, checked: string, hosts: ReadonlyArray<{ id: string; status: string }>) {
+    const candidates = hosts
+      .filter((machine) => machine.status === "connected" && machine.id !== checked)
+      .map((machine) => machine.id)
+      .sort();
+    const probes = await Promise.allSettled(
+      candidates.map((hostId) => host.call("readNote", { path }, { hostId, timeoutMs: PROBE_TIMEOUT_MS })),
+    );
+    for (const [index, probe] of probes.entries()) {
+      if (probe.status === "fulfilled" && probe.value.moss) return opened(probe.value, candidates[index]!);
+    }
+    return null;
+  }
+
   bb.rpc.register(rpcContract, {
     read: async (input) => {
       const target = await locate(input);
-      const note = await host.call("readNote", { path: target.path }, { hostId: target.hostId });
-      if (!note.moss) return { moss: false as const };
-      return { ...note, hostId: target.hostId, frameUrl, assetRoute: `${httpRoot}/asset` };
+      const impliedHost = input.kind === "host" && input.hostId === null;
+      const note = await host.call("readNote", { path: target.path }, { hostId: target.hostId }).catch((error: unknown) => {
+        if (impliedHost) return null;
+        throw error;
+      });
+      if (note !== null) {
+        if (note.moss) return opened(note, target.hostId);
+        // An existing file that is not a Moss note is bb's preview's to show.
+        if (!note.missing) return { moss: false as const, message: null };
+      }
+      // So is a missing workspace file: bb resolved it inside the thread's own worktree.
+      if (input.kind === "workspace") return { moss: false as const, message: null };
+      let hosts: Awaited<ReturnType<typeof bb.sdk.hosts.list>> = [];
+      try {
+        hosts = await bb.sdk.hosts.list();
+      } catch {
+        // Without the host list, only the host bb implied has been checked.
+      }
+      const hostName = hosts.find((machine) => machine.id === target.hostId)?.name ?? target.hostId;
+      if (!impliedHost) return { moss: false as const, message: `${target.path} is not on ${hostName}.` };
+      const found = await findNoteElsewhere(target.path, target.hostId, hosts);
+      if (found) return found;
+      return {
+        moss: false as const,
+        message:
+          note === null
+            ? `${hostName} could not be reached, and no other connected machine has ${target.path} as a Moss note.`
+            : `${target.path} is not on ${hostName}, and no other connected machine has it as a Moss note.`,
+      };
     },
     notes: async ({ hostId }) => ({ notes: (await host.call("listNotes", {}, { hostId })).notes }),
     openInMoss: ({ hostId, path }) => host.call("openInMoss", { path }, { hostId }),

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeHostResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { ASSET_CHUNK_BYTES } from "./contract.js";
 import plugin, { parseRange } from "./server.js";
@@ -20,21 +20,30 @@ afterEach(async () => {
   for (const dispose of disposers.splice(0)) await dispose();
 });
 
-async function setup() {
+interface Machines {
+  /** The thread environment's host. */
+  envHost?: string;
+  hosts?: Array<{ id: string; name: string; status: "connected" | "disconnected" }>;
+  /** What each host has at a path. Without it, every host has every /Moss/ path as a note. */
+  files?: Record<string, Record<string, "moss" | "plain">>;
+}
+
+async function setup(machines: Machines = {}) {
   const { bb, harness } = createFakePluginHost({
     pluginId: "moss-viewer",
     experimental_hostEntry: true,
     sdk: {
-      environments: { get: async () => ({ hostId: "mac", path: "/Users/me/project" }) },
+      environments: { get: async () => ({ hostId: machines.envHost ?? "mac", path: "/Users/me/project" }) },
+      hosts: { list: async () => (machines.hosts ?? []).map((machine) => makeHostResponse(machine)) },
     } as never,
     experimental_callHostRpc: async ({ method, input, hostId }) => {
       if (hostId === "offline") throw new Error("Host offline");
       const request = input as Record<string, unknown>;
       if (method === "readNote") {
         const path = request.path as string;
-        return path.includes("/Moss/")
-          ? { moss: true, path, markdown: "# Clip\n", layout: null, noteId: "clip", modifiedMs: 1 }
-          : { moss: false, path };
+        const file = machines.files ? machines.files[hostId]?.[path] : path.includes("/Moss/") ? "moss" : "plain";
+        if (file === "moss") return { moss: true, path, markdown: "# Clip\n", layout: null, noteId: "clip", modifiedMs: 1 };
+        return { moss: false, path, missing: file === undefined };
       }
       if (method === "listNotes") {
         return { notes: [{ id: "clip", title: "Clip", path: notePath, folderPath: "Notes" }], truncated: false };
@@ -73,10 +82,72 @@ describe("reading notes", () => {
     await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "studio", environmentId: null });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ hostId: "studio" });
 
-    expect(await h.behavior.callRpc("read", { kind: "workspace", path: "docs/plan.md", hostId: null, environmentId: "env" })).toEqual({ moss: false });
+    expect(await h.behavior.callRpc("read", { kind: "workspace", path: "docs/plan.md", hostId: null, environmentId: "env" })).toEqual({ moss: false, message: null });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ input: { path: "/Users/me/project/docs/plan.md" } });
     await expect(h.behavior.callRpc("read", { kind: "workspace", path: "../secret.md", hostId: null, environmentId: "env" })).rejects.toThrow("inside its worktree");
     await expect(h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: null, environmentId: null })).rejects.toThrow("no host");
+  });
+
+  describe("a note on another machine than the thread's", () => {
+    const hosts = [
+      { id: "linux", name: "bb-worker-1", status: "connected" as const },
+      { id: "mac-b", name: "Studio", status: "connected" as const },
+      { id: "mac-a", name: "MacBook", status: "connected" as const },
+      { id: "offline", name: "Old Mac", status: "connected" as const },
+      { id: "mac-away", name: "Away", status: "disconnected" as const },
+    ];
+    const chatLink = { kind: "host", path: notePath, hostId: null, environmentId: "env" };
+    const readNoteHosts = (h: Awaited<ReturnType<typeof setup>>) =>
+      h.inspection.experimental_hostRpcCalls.filter((call) => call.method === "readNote").map((call) => call.hostId);
+
+    it("reads it from the connected host that has it, lowest host ID first, past an unreachable one", async () => {
+      const h = await setup({ envHost: "linux", hosts, files: { "mac-a": { [notePath]: "moss" }, "mac-b": { [notePath]: "moss" } } });
+      expect(await h.behavior.callRpc("read", chatLink)).toMatchObject({ moss: true, hostId: "mac-a", path: notePath });
+      const probed = readNoteHosts(h);
+      expect(probed[0]).toBe("linux");
+      expect([...probed.slice(1)].sort()).toEqual(["mac-a", "mac-b", "offline"]);
+    });
+
+    it("prefers a host where the path is a Moss note", async () => {
+      const h = await setup({ envHost: "linux", hosts, files: { "mac-a": { [notePath]: "plain" }, "mac-b": { [notePath]: "moss" } } });
+      expect(await h.behavior.callRpc("read", chatLink)).toMatchObject({ moss: true, hostId: "mac-b" });
+    });
+
+    it("looks elsewhere when the thread's host cannot be reached", async () => {
+      const h = await setup({ envHost: "offline", hosts, files: { "mac-b": { [notePath]: "moss" } } });
+      expect(await h.behavior.callRpc("read", chatLink)).toMatchObject({ moss: true, hostId: "mac-b" });
+    });
+
+    it("names the host it checked when no connected host has the note", async () => {
+      expect(await (await setup({ envHost: "linux", hosts, files: {} })).behavior.callRpc("read", chatLink)).toEqual({
+        moss: false,
+        message: `${notePath} is not on bb-worker-1, and no other connected machine has it as a Moss note.`,
+      });
+      expect(await (await setup({ envHost: "offline", hosts, files: {} })).behavior.callRpc("read", chatLink)).toEqual({
+        moss: false,
+        message: `Old Mac could not be reached, and no other connected machine has ${notePath} as a Moss note.`,
+      });
+    });
+
+    it("asks no other host when bb named the host, the file exists as plain Markdown, or it is a workspace file", async () => {
+      const named = await setup({ envHost: "linux", hosts, files: { "mac-a": { [notePath]: "moss" } } });
+      expect(await named.behavior.callRpc("read", { ...chatLink, hostId: "linux" })).toEqual({
+        moss: false,
+        message: `${notePath} is not on bb-worker-1.`,
+      });
+      expect(readNoteHosts(named)).toEqual(["linux"]);
+
+      const plain = await setup({ envHost: "linux", hosts, files: { linux: { [notePath]: "plain" }, "mac-a": { [notePath]: "moss" } } });
+      expect(await plain.behavior.callRpc("read", chatLink)).toEqual({ moss: false, message: null });
+      expect(readNoteHosts(plain)).toEqual(["linux"]);
+
+      const workspace = await setup({ envHost: "linux", hosts, files: { "mac-a": { "/Users/me/project/Tweets.md": "moss" } } });
+      expect(await workspace.behavior.callRpc("read", { kind: "workspace", path: "Tweets.md", hostId: null, environmentId: "env" })).toEqual({
+        moss: false,
+        message: null,
+      });
+      expect(readNoteHosts(workspace)).toEqual(["linux"]);
+    });
   });
 
   it("lists notes and opens a note in Moss on the note's host", async () => {

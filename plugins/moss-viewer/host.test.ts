@@ -50,14 +50,15 @@ it("reads a Moss note with its layout and id, and leaves other Markdown to bb", 
   await mkdir(join(home, "Code"), { recursive: true });
   const readme = join(home, "Code", "README.md");
   await writeFile(readme, "# Readme\n\nPlain Markdown.\n");
-  expect(await readNote({ path: readme })).toEqual({ moss: false, path: readme });
+  expect(await readNote({ path: readme })).toEqual({ moss: false, path: readme, missing: false });
 
   const marked = join(home, "Code", "spec.md");
   await writeFile(marked, "# Spec\n\n```moss-callout\nNote\n```\n");
   expect(await readNote({ path: marked })).toMatchObject({ moss: true, layout: null, noteId: null });
 
-  expect(await readNote({ path: join(home, "Code", "notes.txt") })).toEqual({ moss: false, path: join(home, "Code", "notes.txt") });
-  await expect(readNote({ path: join(home, "Code", "gone.md") })).rejects.toThrow("no longer available");
+  expect(await readNote({ path: join(home, "Code", "notes.txt") })).toEqual({ moss: false, path: join(home, "Code", "notes.txt"), missing: false });
+  // A missing note is an answer, not an error: the server asks the other hosts next.
+  expect(await readNote({ path: join(home, "Code", "gone.md") })).toEqual({ moss: false, path: join(home, "Code", "gone.md"), missing: true });
 });
 
 it("lists notes for wiki links by id and title, skipping asset folders and folders without an id", async () => {

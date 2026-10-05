@@ -35,8 +35,11 @@ const noteFile = z.discriminatedUnion("moss", [
     noteId: id.nullable(),
     modifiedMs: z.number(),
   }),
-  z.object({ moss: z.literal(false), path: filePath }),
+  /** `missing` when no file exists at the path on this host. */
+  z.object({ moss: z.literal(false), path: filePath, missing: z.boolean() }),
 ]);
+
+export type HostNote = z.infer<typeof noteFile>;
 
 export const hostContract = defineRpcContract({
   readNote: {
@@ -89,7 +92,8 @@ const readResult = z.discriminatedUnion("moss", [
     /** The route that serves this note's media; see `assetHref`. */
     assetRoute: z.string(),
   }),
-  z.object({ moss: z.literal(false) }),
+  /** Not a Moss note: bb's own preview takes it, unless `message` explains why the note could not be found. */
+  z.object({ moss: z.literal(false), message: z.string().nullable() }),
 ]);
 export type ReadResult = z.infer<typeof readResult>;
 
