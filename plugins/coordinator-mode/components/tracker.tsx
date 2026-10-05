@@ -1,101 +1,74 @@
 import { useState } from "react";
-import { useBbNavigate } from "@get-bb/plugin-sdk/app";
-import type { CoordinatorItem, CoordinatorStatus, CoordinatorTemplate, PendingApproval } from "../contracts.js";
-import { ACTION_LABELS } from "../model.js";
+import { experimental_useSidebarThreads as useSidebarThreads, useBbNavigate } from "@get-bb/plugin-sdk/app";
+import type { CoordinatorItem, CoordinatorStatus, PendingApproval } from "../contracts.js";
+import { approvalCardContent, itemStatusLine, qaCardContent } from "../model.js";
 import { Button } from "./ui/button.js";
-import { Switch } from "./ui/switch.js";
+import { Menu } from "./menu.js";
 import { SetupForm } from "./setup-form.js";
 import { errorMessage, useCoordinatorRpc } from "./rpc.js";
 
-type Row = {
-  key: string;
-  item: CoordinatorItem | null;
-  approvals: PendingApproval[];
-  title: string;
-  phrase: string;
-  note: string | null;
-  needsApproval: boolean;
-  needsLink: boolean;
-};
+type State = NonNullable<CoordinatorStatus["state"]>;
 
-type TrackerGroups = { needs: Row[]; progress: Row[]; done: Row[] };
+/**
+ * A decision waiting on the user. The panel draws it with the same question and consequence as its
+ * Action Cards card; answering here resolves that card through the server.
+ */
+type Decision =
+  | { kind: "qa"; key: string; item: CoordinatorItem; question: string; consequence: string; threadId: string | null }
+  | { kind: "approval"; key: string; approval: PendingApproval; question: string; consequence: string; threadId: string | null };
 
-function groupItems(status: CoordinatorStatus, template: CoordinatorTemplate): TrackerGroups {
-  const groups: TrackerGroups = { needs: [], progress: [], done: [] };
-  const known = new Set(status.items.map((item) => item.id));
+type Groups = { decisions: Decision[]; needsLink: CoordinatorItem[]; progress: CoordinatorItem[]; done: CoordinatorItem[] };
+
+const isOpen = (item: CoordinatorItem) => item.status === "active" || item.status === "blocked";
+
+function group(status: CoordinatorStatus, state: State): Groups {
+  const { template } = state;
+  const byId = new Map(status.items.map((item) => [item.id, item]));
+  const groups: Groups = { decisions: [], needsLink: [], progress: [], done: [] };
   for (const item of status.items) {
-    const stage = template.stages[item.stageIndex];
-    const stageName = stage?.name ?? "Unknown stage";
-    const approvals = status.approvals.filter((approval) => approval.itemId === item.id);
-    const waiting = item.status === "active" && !item.proposed;
-    // A blocked item can still be waiting on you at an approval stage.
-    const needsApproval = (item.status === "active" || item.status === "blocked") && !item.proposed && stage?.check === "you_approve";
-    const needsLink = waiting && stage?.check === "link_added" && !item.link;
-    const row: Row = {
-      key: item.id,
-      item,
-      approvals,
-      title: item.title,
-      phrase: stageName,
-      note: item.reason,
-      needsApproval,
-      needsLink,
-    };
-    if (item.status === "done" || item.status === "cut") {
-      row.phrase = item.status === "cut" ? "Cut" : template.stages.at(-1)?.name ?? "Done";
-      groups.done.push(row);
-    } else if (item.proposed) {
-      row.phrase = "Proposed";
-      groups.needs.push(row);
-    } else if (approvals.length > 0) {
-      row.phrase = `Asks to ${ACTION_LABELS[approvals[0]!.action]}`;
-      groups.needs.push(row);
-    } else if (needsApproval || needsLink) {
-      if (needsLink) row.phrase = `${stageName} · needs a link`;
-      groups.needs.push(row);
+    if (!isOpen(item)) {
+      groups.done.push(item);
+      continue;
+    }
+    const check = template.stages[item.stageIndex]?.check;
+    if (check === "you_approve") {
+      const { question, consequence } = qaCardContent(item, template);
+      groups.decisions.push({ kind: "qa", key: `qa:${item.id}`, item, question, consequence, threadId: item.primaryThreadId });
+    } else if (check === "link_added" && !item.link && item.status === "active") {
+      groups.needsLink.push(item);
     } else {
-      if (item.status === "blocked") row.phrase = `${stageName} · Blocked`;
-      groups.progress.push(row);
+      groups.progress.push(item);
     }
   }
   for (const approval of status.approvals) {
-    if (approval.itemId && known.has(approval.itemId)) continue;
-    groups.needs.push({
-      key: approval.id,
-      item: null,
-      approvals: [approval],
-      title: approval.summary,
-      phrase: `Asks to ${ACTION_LABELS[approval.action]}`,
-      note: null,
-      needsApproval: false,
-      needsLink: false,
-    });
+    const { question, consequence } = approvalCardContent(approval);
+    const threadId = approval.itemId ? byId.get(approval.itemId)?.primaryThreadId ?? null : null;
+    groups.decisions.push({ kind: "approval", key: `approval:${approval.id}`, approval, question, consequence, threadId });
   }
   return groups;
 }
 
-function subThreadCount(items: CoordinatorItem[]): number {
-  const ids = new Set<string>();
-  for (const item of items) {
-    if (item.status === "cut") continue;
-    if (item.primaryThreadId) ids.add(item.primaryThreadId);
-    item.helperThreadIds.forEach((id) => ids.add(id));
-  }
-  return ids.size;
+function relativeTime(at: number, now: number): string {
+  const minutes = Math.floor((now - at) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "yesterday" : `${days} days ago`;
 }
 
 type TrackerProps = {
   threadId: string;
-  threadName: string;
-  status: CoordinatorStatus & { state: NonNullable<CoordinatorStatus["state"]> };
+  threadName: string | null;
+  status: CoordinatorStatus & { state: State };
   onChanged(): Promise<void>;
 };
 
 export function Tracker({ threadId, threadName, status, onChanged }: TrackerProps) {
   const call = useCoordinatorRpc();
   const { state } = status;
-  const groups = groupItems(status, state.template);
-  const count = subThreadCount(status.items);
+  const groups = group(status, state);
   const [busy, setBusy] = useState(false);
   const [confirmOff, setConfirmOff] = useState(false);
   const [editingRules, setEditingRules] = useState(false);
@@ -132,105 +105,244 @@ export function Tracker({ threadId, threadName, status, onChanged }: TrackerProp
     );
   }
 
+  const [focus, ...others] = groups.decisions;
+  const needsCount = groups.decisions.length + groups.needsLink.length;
+  const empty = status.items.length === 0 && status.approvals.length === 0;
+
   return (
     <div className="cm-tracker">
-      <header className="cm-tracker-head">
-        <h2 className="cm-title">{threadName}</h2>
-        <div className="cm-muted">
-          Coordinator · {count} {count === 1 ? "sub-thread" : "sub-threads"}{state.paused ? " · Paused" : ""}
-        </div>
+      <header className="cm-head">
+        <h2 className="cm-head-title">{threadName ? `${threadName} · ${state.template.name}` : state.template.name}</h2>
+        {/* Each entry sets an absolute value from the latest state, so a repeat click is harmless. */}
+        <Menu label="Coordinator options" entries={[
+          { label: state.paused ? "Resume" : "Pause", onSelect: () => void run(() => call("setPaused", { threadId, paused: !state.paused })) },
+          { label: "Auto-approve", checked: state.autoApprove, onSelect: () => void run(() => call("setAutoApprove", { threadId, autoApprove: !state.autoApprove })) },
+          { label: "Edit rules", onSelect: () => setEditingRules(true) },
+          { label: "Turn off", onSelect: () => setConfirmOff(true) },
+        ]} />
       </header>
 
-      {status.staleRules && (
-        <div className="cm-banner" role="status">
-          <span>Using old rules</span>
-          <Button variant="ghost" className="cm-small" disabled={busy}
-            onClick={() => void run(() => call("restartCoordinator", { threadId }))}>
-            Restart
-          </Button>
+      {confirmOff && (
+        <div className="cm-confirm" role="group" aria-label="Turn off Coordinator Mode">
+          <span>Turn off Coordinator Mode? The thread and its history stay.</span>
+          <div className="cm-actions">
+            <Button variant="ghost" disabled={busy} onClick={() => setConfirmOff(false)}>Cancel</Button>
+            <Button variant="default" disabled={busy}
+              onClick={() => void run(() => call("turnOff", { threadId })).then(() => setConfirmOff(false))}>
+              Turn off
+            </Button>
+          </div>
         </div>
+      )}
+
+      {status.staleRules && (
+        <p className="cm-notice" role="status">
+          Using old rules.{" "}
+          <button type="button" className="cm-link" disabled={busy} onClick={() => void run(() => call("restartCoordinator", { threadId }))}>Restart</button>
+        </p>
       )}
 
       {error && <p className="cm-error cm-pad" role="alert">{error}</p>}
 
-      <div className="cm-groups">
-        <Group label="Needs you" rows={groups.needs} open tone="needs" onChanged={onChanged} />
-        <Group label="In progress" rows={groups.progress} open onChanged={onChanged} />
-        <Group label="Done" rows={groups.done} open={false} onChanged={onChanged} />
-        {status.items.length === 0 && status.approvals.length === 0 && (
-          <p className="cm-muted cm-pad">No items yet. Ask for something in this thread and the coordinator will propose an item.</p>
+      <div className="cm-body">
+        {focus && (
+          <section className="cm-focus" aria-label="Needs you">
+            <div className="cm-eyebrow">Needs you · {needsCount === 1 ? "1" : `1 of ${needsCount}`}</div>
+            <DecisionView key={focus.key} decision={focus} prominent onChanged={onChanged} />
+          </section>
         )}
+
+        {(others.length > 0 || groups.needsLink.length > 0) && (
+          <section className="cm-section" aria-label={focus ? "Also needs you" : "Needs you"}>
+            <div className="cm-eyebrow">{focus ? "Also needs you" : `Needs you · ${needsCount}`}</div>
+            <ul className="cm-rows">
+              {others.map((decision) => <li key={decision.key}><DecisionView decision={decision} onChanged={onChanged} /></li>)}
+              {groups.needsLink.map((item) => <li key={item.id}><LinkRow item={item} onChanged={onChanged} /></li>)}
+            </ul>
+          </section>
+        )}
+
+        {groups.progress.length > 0 && (
+          <section className="cm-section" aria-label="In progress">
+            <div className="cm-eyebrow">In progress · {groups.progress.length}</div>
+            <ul className="cm-rows">
+              {groups.progress.map((item) => <li key={item.id}><ItemRow item={item} state={state} onChanged={onChanged} /></li>)}
+            </ul>
+          </section>
+        )}
+
+        {groups.done.length > 0 && (
+          <details className="cm-section cm-done">
+            <summary className="cm-eyebrow">Done · {groups.done.length}</summary>
+            <ul className="cm-rows">
+              {groups.done.map((item) => <li key={item.id}><ItemRow item={item} state={state} onChanged={onChanged} /></li>)}
+            </ul>
+          </details>
+        )}
+
+        {empty && <p className="cm-muted cm-pad">No items yet. Ask for something here and the coordinator will track it.</p>}
       </div>
 
-      <footer className="cm-tracker-foot">
-        {confirmOff ? (
-          <div className="cm-confirm">
-            <span>Turn off Coordinator Mode? The thread and its history stay.</span>
-            <div className="cm-actions">
-              <Button variant="ghost" disabled={busy} onClick={() => setConfirmOff(false)}>Cancel</Button>
-              <Button variant="default" disabled={busy}
-                onClick={() => void run(() => call("turnOff", { threadId })).then(() => setConfirmOff(false))}>
-                Turn off
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <Button disabled={busy} onClick={() => void run(() => call("setPaused", { threadId, paused: !state.paused }))}>
-              {state.paused ? "Resume" : "Pause"}
-            </Button>
-            <label className="cm-toggle">
-              <Switch checked={state.autoApprove} disabled={busy} aria-label="Auto-approve commands"
-                onCheckedChange={(autoApprove) => void run(() => call("setAutoApprove", { threadId, autoApprove }))} />
-              <span>Auto-approve</span>
-            </label>
-            <Button variant="ghost" className="cm-push" disabled={busy} onClick={() => setEditingRules(true)}>Edit rules</Button>
-            <Button variant="ghost" disabled={busy} onClick={() => setConfirmOff(true)}>Turn off</Button>
-          </>
-        )}
+      <footer className="cm-foot">
+        <span>Auto-approve {state.autoApprove ? "on" : "off"}{state.paused ? " · Paused" : ""}</span>
+        {state.lastBriefedAt !== null && <span>Briefed {relativeTime(state.lastBriefedAt, Date.now())}</span>}
       </footer>
     </div>
   );
 }
 
-function Group({ label, rows, open, tone, onChanged }: {
-  label: string;
-  rows: Row[];
-  open: boolean;
-  tone?: "needs";
-  onChanged(): Promise<void>;
-}) {
-  if (rows.length === 0) return null;
-  return (
-    <details className="cm-group" data-tone={tone} open={open}>
-      <summary>{label} · {rows.length}</summary>
-      <ul>
-        {rows.map((row) => <TrackerRow key={row.key} row={row} onChanged={onChanged} />)}
-      </ul>
-    </details>
-  );
-}
-
-type Prompt = { kind: "reject" } | { kind: "decline"; approvalId: string };
-
-function TrackerRow({ row, onChanged }: { row: Row; onChanged(): Promise<void> }) {
+function DecisionView({ decision, prominent = false, onChanged }: { decision: Decision; prominent?: boolean; onChanged(): Promise<void> }) {
   const call = useCoordinatorRpc();
   const navigate = useBbNavigate();
-  const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState("");
-  const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { item } = row;
-  const live = item !== null && item.status !== "done" && item.status !== "cut";
+  const qa = decision.kind === "qa";
+  const noLabel = qa ? "Reject" : "Decline";
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
     setError(null);
     try {
       await action();
-      setPrompt(null);
+      setAsking(false);
       setReason("");
+      await onChanged();
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approve = () => void run(() => decision.kind === "qa"
+    ? call("approveItem", { itemId: decision.item.id })
+    : call("resolveApproval", { approvalId: decision.approval.id, approve: true }));
+
+  const submitNo = () => {
+    const trimmed = reason.trim();
+    if (decision.kind === "qa") {
+      if (!trimmed) return;
+      void run(() => call("rejectItem", { itemId: decision.item.id, reason: trimmed }));
+    } else {
+      void run(() => call("resolveApproval", { approvalId: decision.approval.id, approve: false, ...(trimmed ? { reason: trimmed } : {}) }));
+    }
+  };
+
+  const buttonClass = prominent ? "" : "cm-small";
+  const actions = asking ? (
+    <form className="cm-reason" onSubmit={(event) => { event.preventDefault(); submitNo(); }}>
+      <input autoFocus className="cm-input" value={reason} onChange={(event) => setReason(event.target.value)}
+        aria-label={qa ? "Reason for rejecting" : "Reason for declining (optional)"}
+        placeholder={qa ? "What needs to change?" : "Why not? (optional)"} />
+      <div className="cm-actions cm-end">
+        <Button variant="ghost" className={buttonClass} disabled={busy} onClick={() => { setAsking(false); setReason(""); }}>Cancel</Button>
+        <Button type="submit" variant="default" className={buttonClass} disabled={busy || (qa && !reason.trim())}>{noLabel}</Button>
+      </div>
+    </form>
+  ) : (
+    <div className="cm-actions cm-end">
+      <Button className={buttonClass} disabled={busy} onClick={() => setAsking(true)}>{noLabel}…</Button>
+      <Button variant={prominent ? "default" : "outline"} className={buttonClass} disabled={busy} onClick={approve}>Approve</Button>
+    </div>
+  );
+
+  if (prominent) {
+    return (
+      <div className="cm-decision">
+        <h3 className="cm-question">{decision.question}</h3>
+        <p className="cm-consequence">{decision.consequence}</p>
+        <div className="cm-decision-foot">
+          {decision.threadId && !asking && (
+            <button type="button" className="cm-link" onClick={() => navigate.toThread(decision.threadId!)}>Details</button>
+          )}
+          {actions}
+        </div>
+        {error && <p className="cm-error" role="alert">{error}</p>}
+      </div>
+    );
+  }
+  return (
+    <div className="cm-row">
+      <div className="cm-row-main">
+        <div className="cm-row-text">
+          <div className="cm-row-title">{decision.question}</div>
+          <div className="cm-row-sub">{decision.consequence}</div>
+        </div>
+        {!asking && actions}
+      </div>
+      {asking && actions}
+      {error && <p className="cm-error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+function threadActivity(thread: { status: string; hasPendingInteraction: boolean } | undefined): string | null {
+  if (!thread) return null;
+  if (thread.hasPendingInteraction) return "Needs input";
+  return thread.status === "active" || thread.status === "starting" ? "Working" : null;
+}
+
+function ItemRow({ item, state, onChanged }: { item: CoordinatorItem; state: State; onChanged(): Promise<void> }) {
+  const call = useCoordinatorRpc();
+  const navigate = useBbNavigate();
+  const { threads } = useSidebarThreads();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const live = isOpen(item);
+  const thread = item.primaryThreadId ? threads.find((candidate) => candidate.id === item.primaryThreadId) : undefined;
+  const line = itemStatusLine(item, state.template, live ? threadActivity(thread) : null);
+
+  const stopTracking = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await call("cutItem", { itemId: item.id });
+      await onChanged();
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="cm-row" data-done={live ? undefined : "true"}>
+      <div className="cm-row-main">
+        <div className="cm-row-text">
+          {item.primaryThreadId ? (
+            <button type="button" className="cm-row-title cm-link" title={item.summary ?? undefined}
+              onClick={() => navigate.toThread(item.primaryThreadId!)}>{item.title}</button>
+          ) : (
+            <div className="cm-row-title" title={item.summary ?? undefined}>{item.title}</div>
+          )}
+          {live && item.reason && <div className="cm-row-sub">{item.reason}</div>}
+        </div>
+        <span className="cm-row-status">{line}</span>
+        {live && (
+          <Menu label={`More for ${item.title}`} className="cm-row-menu"
+            entries={[{ label: "Stop tracking", disabled: busy, onSelect: () => void stopTracking() }]} />
+        )}
+      </div>
+      {error && <p className="cm-error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+function LinkRow({ item, onChanged }: { item: CoordinatorItem; onChanged(): Promise<void> }) {
+  const call = useCoordinatorRpc();
+  const [link, setLink] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    const trimmed = link.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await call("setLink", { itemId: item.id, link: trimmed });
       setLink("");
       await onChanged();
     } catch (failure) {
@@ -240,83 +352,22 @@ function TrackerRow({ row, onChanged }: { row: Row; onChanged(): Promise<void> }
     }
   };
 
-  const submitPrompt = () => {
-    if (!prompt) return;
-    if (prompt.kind === "reject") {
-      if (!item || !reason.trim()) return;
-      void run(() => call("rejectItem", { itemId: item.id, reason: reason.trim() }));
-    } else {
-      const trimmed = reason.trim();
-      void run(() => call("resolveApproval", { approvalId: prompt.approvalId, approve: false, ...(trimmed ? { reason: trimmed } : {}) }));
-    }
-  };
-
   return (
-    <li className="cm-row">
+    <div className="cm-row">
       <div className="cm-row-main">
-        {item?.primaryThreadId ? (
-          <button type="button" className="cm-row-title cm-link" onClick={() => navigate.toThread(item.primaryThreadId!)}>{row.title}</button>
-        ) : (
-          <span className="cm-row-title">{row.title}</span>
-        )}
-        <span className="cm-row-phrase">{row.phrase}</span>
-        {item && live && !item.proposed && (
-          <Button variant="ghost" className="cm-small cm-row-cut" aria-label={`Cut ${row.title}`} disabled={busy}
-            onClick={() => void run(() => call("cutItem", { itemId: item.id }))}>
-            Cut
-          </Button>
-        )}
+        <div className="cm-row-text">
+          <div className="cm-row-title">{item.title}</div>
+          <div className="cm-row-sub">Needs a link</div>
+        </div>
       </div>
-
-      {row.note && <p className="cm-row-note">{row.note}</p>}
-      {row.approvals.map((approval) => row.item && (
-        <p key={approval.id} className="cm-row-note">{approval.summary}</p>
-      ))}
-
-      {prompt ? (
-        <form className="cm-row-form" onSubmit={(event) => { event.preventDefault(); submitPrompt(); }}>
-          <input autoFocus className="cm-input" value={reason} onChange={(event) => setReason(event.target.value)}
-            aria-label={prompt.kind === "reject" ? "Reason for rejecting" : "Reason for declining (optional)"}
-            placeholder={prompt.kind === "reject" ? "What needs to change?" : "Why not? (optional)"} />
-          <Button variant="ghost" disabled={busy} onClick={() => { setPrompt(null); setReason(""); }}>Cancel</Button>
-          <Button type="submit" variant="default" disabled={busy || (prompt.kind === "reject" && !reason.trim())}>
-            {prompt.kind === "reject" ? "Reject" : "Decline"}
-          </Button>
-        </form>
-      ) : (
-        <>
-          {item?.proposed && live && (
-            <div className="cm-actions">
-              <Button disabled={busy} onClick={() => void run(() => call("confirmItem", { itemId: item.id }))}>Keep</Button>
-              <Button variant="ghost" disabled={busy} onClick={() => void run(() => call("cutItem", { itemId: item.id }))}>Drop</Button>
-            </div>
-          )}
-          {row.approvals.map((approval) => (
-            <div key={approval.id} className="cm-actions">
-              <Button disabled={busy} onClick={() => void run(() => call("resolveApproval", { approvalId: approval.id, approve: true }))}>Approve</Button>
-              <Button variant="ghost" disabled={busy} onClick={() => setPrompt({ kind: "decline", approvalId: approval.id })}>Decline</Button>
-            </div>
-          ))}
-          {row.needsApproval && item && (
-            <div className="cm-actions">
-              <Button disabled={busy} onClick={() => void run(() => call("approveItem", { itemId: item.id }))}>Approve</Button>
-              <Button variant="ghost" disabled={busy} onClick={() => setPrompt({ kind: "reject" })}>Reject</Button>
-            </div>
-          )}
-          {row.needsLink && item && (
-            <form className="cm-row-form" onSubmit={(event) => {
-              event.preventDefault();
-              if (link.trim()) void run(() => call("setLink", { itemId: item.id, link: link.trim() }));
-            }}>
-              <input className="cm-input" type="url" aria-label={`Link for ${row.title}`} placeholder="Add link"
-                value={link} onChange={(event) => setLink(event.target.value)} />
-              <Button type="submit" disabled={busy || !link.trim()}>Save</Button>
-            </form>
-          )}
-        </>
-      )}
-
+      <form className="cm-reason" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+        <input className="cm-input" type="url" aria-label={`Link for ${item.title}`} placeholder="Add link"
+          value={link} onChange={(event) => setLink(event.target.value)} />
+        <div className="cm-actions cm-end">
+          <Button type="submit" className="cm-small" disabled={busy || !link.trim()}>Save</Button>
+        </div>
+      </form>
       {error && <p className="cm-error" role="alert">{error}</p>}
-    </li>
+    </div>
   );
 }

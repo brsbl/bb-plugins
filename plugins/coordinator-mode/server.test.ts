@@ -19,11 +19,43 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-function setup(options: { children?: Thread[] } = {}) {
+type RpcCall = { pluginId: string; method: string; input: Record<string, unknown> };
+
+/**
+ * Fakes for other plugins' RPC. `actionCards` installs a minimal Action Cards that keeps owned cards
+ * by ref; `briefs` installs Briefs' publishFromPlugin. Anything else fails like an uninstalled plugin.
+ */
+function setup(options: { children?: Thread[]; actionCards?: boolean; briefs?: boolean } = {}) {
   vi.useFakeTimers({ toFake: ["Date"] });
   let clock = 1_000_000;
   const tick = () => vi.setSystemTime((clock += 1_000));
+  const advance = (ms: number) => vi.setSystemTime((clock += ms));
   tick();
+
+  const rpcCalls: RpcCall[] = [];
+  const ownedCards = new Map<string, { id: string; threadId: string; state: "ready" | "resolved"; outcome?: unknown; message?: unknown }>();
+  const pluginRpc = (pluginId: string, method: string, input: Record<string, unknown>): unknown => {
+    rpcCalls.push({ pluginId, method, input });
+    if (pluginId === "inline-action-cards" && options.actionCards) {
+      if (method === "createOwned") {
+        const owner = input.owner as { ref: string };
+        const card = { id: String(input.id), threadId: String(input.threadId), state: "ready" as const };
+        ownedCards.set(owner.ref, card);
+        return { item: card, directive: `::action{id="${card.id}" thread="${card.threadId}"}` };
+      }
+      if (method === "resolveOwned") {
+        const card = ownedCards.get(String(input.ref));
+        if (!card) return null;
+        const resolved = { ...card, state: "resolved" as const, outcome: input.outcome, message: input.message };
+        ownedCards.set(String(input.ref), resolved);
+        return { item: resolved };
+      }
+    }
+    if (pluginId === "digests" && options.briefs && method === "publishFromPlugin") return { threadId: "thr_brief" };
+    throw new Error(`plugin "${pluginId}" has no rpc method "${method}"`);
+  };
+  const callRpc = async (args: { pluginId: string; method: string; input?: unknown; outputSchema: { parse(value: unknown): unknown } }) =>
+    args.outputSchema.parse(pluginRpc(args.pluginId, args.method, (args.input ?? {}) as Record<string, unknown>));
 
   const threads = new Map<string, Thread>([[COORD, makeThreadResponse({ id: COORD, projectId: "proj", status: "idle" })]]);
   let spawned = 0;
@@ -65,6 +97,7 @@ function setup(options: { children?: Thread[] } = {}) {
         pullRequest: async () => pullRequest,
         mergePullRequest: async () => ({ ok: true, action: "pull_request_merge", method: "squash", message: "Merged." }),
       },
+      plugins: { callRpc: callRpc as never },
     },
   });
   cleanups.push(() => harness.lifecycle.dispose());
@@ -89,7 +122,10 @@ function setup(options: { children?: Thread[] } = {}) {
     return { result, item };
   };
   const setPullRequest = (state: "open" | "merged", checks: "passing" | "pending" = "passing") => {
-    pullRequest = { outcome: "available", pullRequest: { state, checks: { state: checks, failedCount: 0, passedCount: 1, pendingCount: 0, totalCount: 1 } } };
+    pullRequest = {
+      outcome: "available",
+      pullRequest: { number: 12, url: "https://github.com/o/r/pull/12", state, checks: { state: checks, failedCount: 0, passedCount: 1, pendingCount: 0, totalCount: 1 } },
+    };
   };
   const commandInteraction = (threadId: string, command: string, id: string) => ({
     id, threadId, turnId: "turn_1", createdAt: 1, providerId: "claude-code", providerRequestId: "req", providerThreadId: "prov",
@@ -109,6 +145,20 @@ function setup(options: { children?: Thread[] } = {}) {
   const resolutionsFor = (interactionId: string) =>
     harness.inspection.sdk.callsTo("threads.interactions.resolve")
       .filter(([args]) => (args as { interactionId?: string } | undefined)?.interactionId === interactionId);
+  const callsTo = (method: string) => rpcCalls.filter((call) => call.method === method);
+  /** Waits for calls to another plugin, then lets the awaiting code record their results. */
+  const waitForCalls = async (method: string, count: number) => {
+    await vi.waitFor(() => expect(callsTo(method)).toHaveLength(count));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  };
+  /** Drives an added item to Your QA: its PR opens and its sub-thread goes idle. */
+  const reachQa = async () => {
+    const { item } = await addStartedItem();
+    setPullRequest("open");
+    await event("thread.idle", "thr_sub_1");
+    expect((await status()).items[0]?.stageIndex).toBe(2);
+    return item;
+  };
   /** Runs exactly one evidence-poll pass. */
   const runTick = async () => {
     const before = harness.inspection.sdk.callsTo("threads.get").length;
@@ -120,21 +170,22 @@ function setup(options: { children?: Thread[] } = {}) {
 
   return {
     harness, status, thread, threads, missing, pendingInteractions, event, turnOn, addStartedItem, setPullRequest,
-    requestCommand, resolutionsFor, runTick,
+    requestCommand, resolutionsFor, runTick, advance, callsTo, waitForCalls, ownedCards, reachQa,
   };
 }
 
 describe("Coordinator Mode plugin", () => {
-  it("turns on a coordinator, lists existing sub-threads as proposed items, and restarts with the kickoff", async () => {
+  it("turns on a coordinator, tracks existing sub-threads as items, and restarts with the kickoff", async () => {
     const child = makeThreadResponse({ id: "thr_old", projectId: "proj", parentThreadId: COORD, title: "Old work" });
     const { harness, status, turnOn } = setup({ children: [child] });
     await turnOn();
 
     const current = await status();
-    expect(current.state).toMatchObject({ threadId: COORD, paused: false, autoApprove: true });
+    expect(current.state).toMatchObject({ threadId: COORD, paused: false, autoApprove: true, lastBriefedAt: null });
     expect(current.state?.template.id).toBe("ship");
     expect(current.staleRules).toBe(false);
-    expect(current.items).toEqual([expect.objectContaining({ title: "Old work", proposed: true, primaryThreadId: "thr_old" })]);
+    // Tracked at once, no confirmation: it moved past Asked to Building.
+    expect(current.items).toEqual([expect.objectContaining({ title: "Old work", proposed: false, primaryThreadId: "thr_old", stageIndex: 1 })]);
 
     const send = harness.inspection.sdk.callsTo("threads.send").at(-1)?.[0];
     expect(send).toMatchObject({ threadId: COORD, mode: "queue-if-active" });
@@ -298,22 +349,55 @@ describe("Coordinator Mode plugin", () => {
     expect(approval?.summary).toContain("merge a PR");
   });
 
-  it("only gives confirmed, open items' sub-threads membership", async () => {
+  it("applies the rules to adopted sub-threads but never auto-approves them, until they stop being tracked", async () => {
     const child = makeThreadResponse({ id: "thr_old", projectId: "proj", parentThreadId: COORD, title: "Old work" });
     const { harness, status, turnOn, requestCommand, resolutionsFor } = setup({ children: [child] });
     await turnOn();
-    const [proposed] = (await status()).items;
+    const [adopted] = (await status()).items;
 
-    await requestCommand("thr_old", "npm test", "int_proposed");
-    expect(resolutionsFor("int_proposed")).toHaveLength(0);
+    // Ordinary commands wait for the user, even with auto-approve on.
+    await requestCommand("thr_old", "npm test", "int_adopted");
+    expect(resolutionsFor("int_adopted")).toHaveLength(0);
+    // Never rules still deny: Ship never merges before Review passes.
+    await requestCommand("thr_old", "gh pr merge 3", "int_merge");
+    expect(resolutionsFor("int_merge").at(-1)?.[0]).toMatchObject({ resolution: { decision: "deny" } });
+    // Ask rules still ask: archiving may target a primary sub-thread.
+    await requestCommand("thr_old", "bb thread archive thr_x", "int_archive");
+    expect(resolutionsFor("int_archive")).toHaveLength(0);
+    expect((await status()).approvals).toEqual([expect.objectContaining({ action: "archive_sub_thread", itemId: adopted!.id })]);
 
-    await harness.callRpc("confirmItem", { itemId: proposed!.id });
-    await requestCommand("thr_old", "npm test", "int_kept");
-    expect(resolutionsFor("int_kept").at(-1)?.[0]).toMatchObject({ resolution: { decision: "allow_once" } });
+    const config = await harness.resolveAgentConfiguration(makePluginAgentConfigurationContext({ thread: { id: "thr_old" } }));
+    expect(config.instructions).toContain("Don't send progress updates");
 
-    await harness.callRpc("cutItem", { itemId: proposed!.id });
-    await requestCommand("thr_old", "npm test", "int_cut");
-    expect(resolutionsFor("int_cut")).toHaveLength(0);
+    // confirmItem is a no-op kept for older callers; it does not make the thread auto-approved.
+    await expect(harness.callRpc("confirmItem", { itemId: adopted!.id })).resolves.toEqual({ ok: true });
+    await requestCommand("thr_old", "npm test", "int_confirmed");
+    expect(resolutionsFor("int_confirmed")).toHaveLength(0);
+
+    await harness.callRpc("cutItem", { itemId: adopted!.id });
+    expect((await status()).items[0]?.status).toBe("cut");
+    const after = await harness.resolveAgentConfiguration(makePluginAgentConfigurationContext({ thread: { id: "thr_old" } }));
+    expect(after.instructions ?? "").not.toContain("Don't send progress updates");
+  });
+
+  it("tells every tracked sub-thread to report once, briefly, and keeps coordinator instructions within the cap", async () => {
+    const { harness, turnOn, addStartedItem } = setup();
+    await turnOn();
+    const { item } = await addStartedItem();
+    await harness.callAgentTool("coordinator_start_sub_thread", { itemId: item.id, prompt: "Review it", role: "reviewer" }, { threadId: COORD });
+
+    const primary = await harness.resolveAgentConfiguration(makePluginAgentConfigurationContext({ thread: { id: "thr_sub_1" } }));
+    expect(primary.instructions).toContain("Don't send progress updates");
+    expect(primary.instructions).toContain("3 lines or fewer");
+    expect(primary.instructions).toContain("don't message the coordinator with bb thread tell");
+    const reviewer = await harness.resolveAgentConfiguration(makePluginAgentConfigurationContext({ thread: { id: "thr_sub_2" } }));
+    expect(reviewer.instructions).toContain("3 lines or fewer");
+    expect(reviewer.instructions).toContain("coordinator_review_verdict");
+
+    const coordinator = await harness.resolveAgentConfiguration(makePluginAgentConfigurationContext({ thread: { id: COORD } }));
+    expect(coordinator.instructions?.length).toBeLessThanOrEqual(4096);
+    expect(coordinator.instructions).toContain("Never ask for approval in prose");
+    expect(coordinator.instructions).toContain("Report only when done or blocked");
   });
 
   it("denies `gh pr merge` from a sub-thread before Review passes, then unblocks the item when its stage passes", async () => {
@@ -378,6 +462,193 @@ describe("Coordinator Mode plugin", () => {
     const current = await status();
     expect(current.state).toBeNull();
     expect(current.items).toEqual([]);
+  });
+
+  it("raises a QA card on entering Your QA, embeds it in the briefing, and resolves it when approved in the panel", async () => {
+    const { harness, status, turnOn, reachQa, callsTo, waitForCalls, ownedCards } = setup({ actionCards: true });
+    await turnOn();
+    const item = await reachQa();
+    const ref = `qa:${item.id}:2`;
+
+    await waitForCalls("createOwned", 1);
+    const [created] = callsTo("createOwned");
+    expect(created?.input).toMatchObject({
+      threadId: COORD,
+      owner: { pluginId: "coordinator-mode", ref },
+      content: { type: "decide", question: "Approve QA for “Solid strip”?", yesLabel: "Approve", noLabel: "Reject" },
+      reopen: true,
+    });
+    expect(String(created?.input.id)).toMatch(/^cm-qa-[0-9a-f]{16}$/u);
+    expect(String((created?.input.content as { consequence: string }).consequence)).toContain("Approving moves it to Review.");
+
+    const briefing = String(await harness.callAgentTool("coordinator_briefing", {}, { threadId: COORD }));
+    expect(briefing.split("\n")).toContain(`::action{id="${String(created?.input.id)}" thread="${COORD}"}`);
+    expect(briefing).not.toContain("Waiting for your approval");
+    expect((await status()).state?.lastBriefedAt).not.toBeNull();
+
+    await harness.callRpc("approveItem", { itemId: item.id });
+    expect((await status()).items[0]?.stageIndex).toBe(3);
+    await vi.waitFor(() => expect(callsTo("resolveOwned")).toHaveLength(1));
+    expect(callsTo("resolveOwned")[0]?.input).toMatchObject({ pluginId: "coordinator-mode", ref, outcome: "approved" });
+    expect(ownedCards.get(ref)?.state).toBe("resolved");
+  });
+
+  it("applies decisions from the card through actionCards.decide and refuses stale ones", async () => {
+    const { harness, status, event, turnOn, reachQa, callsTo, waitForCalls } = setup({ actionCards: true });
+    await turnOn();
+    const item = await reachQa();
+    const ref = `qa:${item.id}:2`;
+    await waitForCalls("createOwned", 1);
+
+    const rejected = await harness.callRpc("actionCards.decide", { ref, action: "no", note: "Icon is blurry" });
+    expect(rejected).toEqual({ message: "Rejected. “Solid strip” goes back to Building." });
+    expect((await status()).items[0]).toMatchObject({ stageIndex: 1, reason: "Icon is blurry" });
+    await expect(harness.callRpc("actionCards.decide", { ref, action: "yes" })).rejects.toThrow(/no longer waiting/u);
+
+    // Fresh work brings it back to Your QA, and the same ref's card is raised again.
+    await event("thread.active", "thr_sub_1");
+    await event("thread.idle", "thr_sub_1");
+    expect((await status()).items[0]?.stageIndex).toBe(2);
+    await waitForCalls("createOwned", 2);
+    expect(callsTo("createOwned")[1]?.input).toMatchObject({ owner: { ref }, reopen: true });
+
+    const approved = await harness.callRpc("actionCards.decide", { ref, action: "yes" });
+    expect(approved).toEqual({ message: "Approved. “Solid strip” moves to Review." });
+    expect((await status()).items[0]?.stageIndex).toBe(3);
+    // Action Cards records card clicks itself, so Coordinator Mode never resolves those cards a second time.
+    await Promise.resolve();
+    expect(callsTo("resolveOwned")).toEqual([]);
+    await expect(harness.callRpc("actionCards.decide", { ref: "nonsense", action: "yes" })).rejects.toThrow(/doesn't know/u);
+  });
+
+  it("raises a card for an ask-first request and closes it when the request is answered in the sub-thread", async () => {
+    const { status, turnOn, requestCommand, pendingInteractions, callsTo, waitForCalls } = setup({ actionCards: true });
+    const askToStart: CoordinatorTemplate = { ...ship, rules: [{ kind: "gated", action: "start_sub_thread", column: "ask" }] };
+    await turnOn(askToStart);
+    await requestCommand(COORD, "bb thread spawn --prompt x", "int_ask");
+    const [approval] = (await status()).approvals;
+    expect(approval?.reason).toBe("Asks you first: Start a sub-thread.");
+
+    await waitForCalls("createOwned", 1);
+    expect(callsTo("createOwned")[0]?.input).toMatchObject({
+      owner: { ref: `approval:${approval!.id}` },
+      content: { type: "decide", consequence: "Asks you first: Start a sub-thread.", yesLabel: "Approve", noLabel: "Decline" },
+    });
+    expect(String((callsTo("createOwned")[0]?.input.content as { question: string }).question)).toMatch(/^Approve: Run `bb thread spawn --prompt x`/u);
+    expect(String(callsTo("createOwned")[0]?.input.id)).toMatch(/^cm-ap-[0-9a-f]{16}$/u);
+
+    pendingInteractions.splice(0); // the user answered it in the thread
+    expect((await status()).approvals).toEqual([]);
+    await vi.waitFor(() => expect(callsTo("resolveOwned")).toHaveLength(1));
+    expect(callsTo("resolveOwned")[0]?.input).toMatchObject({ ref: `approval:${approval!.id}`, outcome: "closed", message: "Answered in the sub-thread." });
+  });
+
+  it("runs an approval decided on its card, then refuses the same card again", async () => {
+    const { harness, status, turnOn, addStartedItem, callsTo, waitForCalls } = setup({ actionCards: true });
+    const askToMerge: CoordinatorTemplate = {
+      ...ship,
+      rules: [...ship.rules.filter((rule) => !(rule.kind === "gated" && rule.action === "merge_pr")), { kind: "gated", action: "merge_pr", column: "ask" }],
+    };
+    await turnOn(askToMerge);
+    const { item } = await addStartedItem();
+    await harness.callAgentTool("coordinator_merge_pr", { itemId: item.id }, { threadId: COORD });
+    const [approval] = (await status()).approvals;
+    const ref = `approval:${approval!.id}`;
+    await waitForCalls("createOwned", 1);
+
+    const result = await harness.callRpc("actionCards.decide", { ref, action: "yes" }) as { message: string };
+    expect(result.message).toMatch(/^Approved\. Merged the PR for "Solid strip"/u);
+    expect(harness.inspection.sdk.callsTo("environments.mergePullRequest")).toHaveLength(1);
+    await expect(harness.callRpc("actionCards.decide", { ref, action: "yes" })).rejects.toThrow(/already answered/u);
+  });
+
+  it("closes open cards when Coordinator Mode turns off", async () => {
+    const { harness, turnOn, reachQa, callsTo, waitForCalls } = setup({ actionCards: true });
+    await turnOn();
+    const item = await reachQa();
+    await waitForCalls("createOwned", 1);
+    await harness.callRpc("turnOff", { threadId: COORD });
+    await vi.waitFor(() => expect(callsTo("resolveOwned")).toHaveLength(1));
+    expect(callsTo("resolveOwned")[0]?.input).toMatchObject({ ref: `qa:${item.id}:2`, outcome: "closed", message: "Coordinator Mode was turned off." });
+  });
+
+  it("falls back to panel decisions and a text briefing when Action Cards isn't installed", async () => {
+    const { harness, status, turnOn, reachQa, callsTo } = setup();
+    await turnOn();
+    const item = await reachQa();
+    await vi.waitFor(() => expect(callsTo("createOwned").length).toBeGreaterThan(0));
+
+    const briefing = String(await harness.callAgentTool("coordinator_briefing", {}, { threadId: COORD }));
+    expect(briefing).toContain("Waiting for your approval at Your QA");
+    expect(briefing).not.toContain("::action");
+
+    await harness.callRpc("approveItem", { itemId: item.id });
+    expect((await status()).items[0]?.stageIndex).toBe(3);
+    const warnings = harness.inspection.logEntries.filter((entry) => entry.message.includes("Action Cards"));
+    expect(warnings).toHaveLength(1);
+  });
+
+  it("keeps item summaries and waiting-on current through coordinator_update_item", async () => {
+    const { harness, status, turnOn } = setup();
+    await turnOn();
+    await harness.callAgentTool("coordinator_add_item", { title: "Moss editor", summary: "Embed the Moss editor in bb." }, { threadId: COORD });
+    const [item] = (await status()).items;
+    expect(item).toMatchObject({ summary: "Embed the Moss editor in bb.", waitingOn: null, proposed: false });
+
+    await harness.callAgentTool("coordinator_update_item", { itemId: item!.id, waitingOn: "moss-multi" }, { threadId: COORD });
+    expect((await status()).items[0]).toMatchObject({ summary: "Embed the Moss editor in bb.", waitingOn: "moss-multi" });
+    await harness.callAgentTool("coordinator_update_item", { itemId: item!.id, summary: "Moss editor inside bb.", waitingOn: "" }, { threadId: COORD });
+    expect((await status()).items[0]).toMatchObject({ summary: "Moss editor inside bb.", waitingOn: null });
+
+    await expect(harness.callAgentTool("coordinator_update_item", { itemId: item!.id, summary: "x" }, { threadId: "thr_sub_9" }))
+      .rejects.toThrow(/Only a thread in Coordinator Mode/u);
+  });
+
+  it("keeps the last PR evidence for the status line", async () => {
+    const { status, event, turnOn, addStartedItem, setPullRequest } = setup();
+    await turnOn();
+    await addStartedItem();
+    expect((await status()).items[0]?.pr).toBeNull();
+    setPullRequest("open", "pending");
+    await event("thread.active", "thr_sub_1");
+    expect((await status()).items[0]?.pr).toBeNull(); // only read when a check needs it
+    await event("thread.idle", "thr_sub_1");
+    expect((await status()).items[0]?.pr).toEqual({ number: 12, url: "https://github.com/o/r/pull/12", state: "open", checks: "pending" });
+  });
+
+  it("publishes scheduled briefings to Briefs with the decisions' cards attached", async () => {
+    const { harness, threads, turnOn, reachQa, runTick, advance, callsTo, waitForCalls } = setup({ actionCards: true, briefs: true });
+    threads.set(COORD, makeThreadResponse({ id: COORD, projectId: "proj", status: "idle", title: "Moss plugins" }));
+    await turnOn({ ...ship, briefingCron: "* * * * *", briefingLabel: "Every minute" });
+    await reachQa();
+    await waitForCalls("createOwned", 1);
+    const cardId = String(callsTo("createOwned")[0]?.input.id);
+    const sends = harness.inspection.sdk.callsTo("threads.send").length;
+
+    advance(120_000);
+    await runTick();
+    const [published] = callsTo("publishFromPlugin");
+    expect(published?.pluginId).toBe("digests");
+    expect(published?.input).toMatchObject({
+      source: { pluginId: "coordinator-mode", key: COORD, name: "Moss plugins coordinator" },
+      headline: expect.stringMatching(/^1 needs you · \d+ changed$/u),
+      lede: "Solid strip: Waiting for your approval at Your QA",
+      cards: [{ threadId: COORD, id: cardId }],
+    });
+    // The cards travel separately, so the details don't repeat them.
+    expect(String(published?.input.details)).not.toContain("::action");
+    expect(harness.inspection.sdk.callsTo("threads.send")).toHaveLength(sends);
+  });
+
+  it("falls back to nudging the coordinator when Briefs isn't installed", async () => {
+    const { harness, turnOn, runTick, advance, callsTo } = setup();
+    await turnOn({ ...ship, briefingCron: "* * * * *", briefingLabel: "Every minute" });
+    advance(120_000);
+    await runTick();
+    expect(callsTo("publishFromPlugin")).toHaveLength(1);
+    const nudge = harness.inspection.sdk.callsTo("threads.send").at(-1)?.[0];
+    expect(nudge).toMatchObject({ threadId: COORD });
+    expect(JSON.stringify(nudge)).toContain("coordinator_briefing");
   });
 
   it("turns a coordinator on from the CLI with a built-in template", async () => {

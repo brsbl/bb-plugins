@@ -5,6 +5,7 @@ import type {
   CoordinatorRule,
   CoordinatorTemplate,
   GatedAction,
+  ItemPullRequest,
   LogEntry,
   PendingApproval,
   RuleColumn,
@@ -186,13 +187,14 @@ function matchCommandDepth(command: string, depth: number): GatedAction[] {
 
 /**
  * Second line of defense for commands `matchGatedCommands` doesn't recognize.
- * "self_rpc" reaches Coordinator Mode's own RPC or HTTP surface, or its `off` CLI
- * command, which an agent could use to approve its own items or drop its rules, so it is always denied. "risky" mentions a
+ * "self_rpc" reaches Coordinator Mode's own RPC or HTTP surface, Action Cards' RPC (whose clicks
+ * carry Coordinator Mode's decisions), or its `off` CLI command, which an agent could use to approve
+ * its own items or drop its rules, so it is always denied. "risky" mentions a
  * gated operation in a form the matcher can't parse, so it is never approved
  * automatically. Everything else is "safe".
  */
 export function classifyUnmatchedCommand(command: string): "self_rpc" | "risky" | "safe" {
-  if (/\bplugin\s+rpc\b|\/plugins\/coordinator-mode\b|\bplugin\s+(?:run|disable|remove|uninstall|config)\s+coordinator-mode\b|\bcoordinator-mode\s+(?:on|off)\b/i.test(command)) {
+  if (/\bplugin\s+rpc\b|\/plugins\/(?:coordinator-mode|inline-action-cards\/rpc)\b|\bplugin\s+(?:run|disable|remove|uninstall|config)\s+coordinator-mode\b|\bcoordinator-mode\s+(?:on|off)\b/i.test(command)) {
     return "self_rpc";
   }
   if (
@@ -285,7 +287,7 @@ type AdvanceOutcome = {
   text: string;
 };
 
-function stageName(template: CoordinatorTemplate, index: number): string {
+export function stageName(template: CoordinatorTemplate, index: number): string {
   const clamped = Math.min(Math.max(index, 0), template.stages.length - 1);
   return template.stages[clamped]?.name ?? `Stage ${index + 1}`;
 }
@@ -330,6 +332,110 @@ export function advanceItem(
 }
 
 // ---------------------------------------------------------------------------
+// Decision cards and status lines
+
+/** Owner ref of the QA card for an item waiting at a you_approve stage. */
+export function qaCardRef(itemId: string, stageIndex: number): string {
+  return `qa:${itemId}:${stageIndex}`;
+}
+
+/** Owner ref of the card for a pending "asks you first" approval. */
+export function approvalCardRef(approvalId: string): string {
+  return `approval:${approvalId}`;
+}
+
+export type CardRef =
+  | { kind: "qa"; itemId: string; stageIndex: number }
+  | { kind: "approval"; approvalId: string };
+
+export function parseCardRef(ref: string): CardRef | null {
+  const qa = /^qa:(.+):(\d{1,3})$/u.exec(ref);
+  if (qa?.[1] && qa[2]) return { kind: "qa", itemId: qa[1], stageIndex: Number(qa[2]) };
+  const approval = /^approval:(.+)$/u.exec(ref);
+  if (approval?.[1]) return { kind: "approval", approvalId: approval[1] };
+  return null;
+}
+
+/** Collapses whitespace to one line and clips it. Action Cards lines are single-line and at most 300 characters. */
+export function oneLine(text: string, max: number): string {
+  const single = text.replace(/\s+/gu, " ").trim();
+  return single.length <= max ? single : `${single.slice(0, max - 1)}…`;
+}
+
+function withoutPeriod(text: string): string {
+  return text.replace(/[.\s]+$/u, "");
+}
+
+function prLine(pr: ItemPullRequest | null): string | null {
+  if (!pr) return null;
+  const name = pr.number !== null ? `PR #${pr.number}` : "PR";
+  if (pr.state === "merged") return `${name} merged`;
+  if (pr.state === "closed") return `${name} closed`;
+  if (pr.state === "draft") return `Draft ${name}`;
+  const ci = pr.checks === "passing" ? "CI passing" : pr.checks === "failing" ? "CI failing" : pr.checks === "pending" ? "CI running" : null;
+  return ci ? `${name} · ${ci}` : name;
+}
+
+/** "Waiting on X" without doubling a prefix the coordinator already wrote. */
+export function waitingOnLine(waitingOn: string | null): string | null {
+  const text = waitingOn?.replace(/^waiting\s+on\s+/iu, "").trim();
+  return text ? `Waiting on ${text}` : null;
+}
+
+/**
+ * The detail half of an item's status: what it waits on, that it's blocked, its PR and CI,
+ * or the primary sub-thread's activity when nothing else is known.
+ */
+export function itemStatusDetail(item: CoordinatorItem, threadActivity: string | null = null): string | null {
+  return waitingOnLine(item.waitingOn) ?? (item.status === "blocked" ? "Blocked" : null) ?? prLine(item.pr) ?? threadActivity;
+}
+
+/** One muted line for a tracker row: stage, then the status detail. */
+export function itemStatusLine(item: CoordinatorItem, template: CoordinatorTemplate, threadActivity: string | null = null): string {
+  if (item.status === "cut") return "Stopped tracking";
+  if (item.status === "done") return template.stages.at(-1)?.name ?? "Done";
+  const stage = stageName(template, item.stageIndex);
+  const detail = itemStatusDetail(item, threadActivity);
+  return detail ? `${stage} · ${detail}` : stage;
+}
+
+/** What approving moves an item to: the next stage's name, or null after the last stage. */
+export function nextStageName(template: CoordinatorTemplate, stageIndex: number): string | null {
+  return stageIndex + 1 < template.stages.length ? stageName(template, stageIndex + 1) : null;
+}
+
+export type DecideCardContent = {
+  type: "decide";
+  question: string;
+  consequence: string;
+  yesLabel: string;
+  noLabel: string;
+};
+
+export function qaCardContent(item: CoordinatorItem, template: CoordinatorTemplate): DecideCardContent {
+  const next = nextStageName(template, item.stageIndex);
+  const context = [item.summary, itemStatusDetail(item)].filter((part): part is string => Boolean(part && part.trim()));
+  const outcome = next ? `Approving moves it to ${next}.` : "Approving marks it done.";
+  return {
+    type: "decide",
+    question: `Approve QA for “${oneLine(item.title, 240)}”?`,
+    consequence: oneLine(context.length > 0 ? `${withoutPeriod(context.map(withoutPeriod).join(" · "))}. ${outcome}` : outcome, 300),
+    yesLabel: "Approve",
+    noLabel: "Reject",
+  };
+}
+
+export function approvalCardContent(approval: PendingApproval): DecideCardContent {
+  return {
+    type: "decide",
+    question: `Approve: ${oneLine(withoutPeriod(approval.summary), 280)}?`,
+    consequence: oneLine(approval.reason?.trim() || "The coordinator rules ask you first.", 300),
+    yesLabel: "Approve",
+    noLabel: "Decline",
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Briefings
 
 type BriefingInput = {
@@ -338,25 +444,35 @@ type BriefingInput = {
   items: CoordinatorItem[];
   approvals: PendingApproval[];
   template: CoordinatorTemplate;
+  /** Live card directives by owner ref (see qaCardRef and approvalCardRef). */
+  cards?: ReadonlyMap<string, string>;
 };
 
-export function composeBriefing({ changes, items, approvals, template }: BriefingInput): Briefing {
+export function composeBriefing({ changes, items, approvals, template, cards = new Map<string, string>() }: BriefingInput): Briefing {
   const open = items.filter((item) => item.status !== "cut" && item.status !== "done");
+  const known = new Set(open.map((item) => item.id));
 
   const needsYou: Briefing["needsYou"] = [];
   const next: CoordinatorItem[] = [];
   for (const item of [...open].sort((a, b) => a.updatedAt - b.updatedAt)) {
-    const whys: string[] = [];
-    if (item.proposed) whys.push("Proposed: confirm or cut it");
+    const before = needsYou.length;
     for (const approval of approvals) {
-      if (approval.itemId === item.id) whys.push(`Approve or decline: ${approval.summary}`);
+      if (approval.itemId !== item.id) continue;
+      needsYou.push({ item, why: `Approve or decline: ${approval.summary}`, card: cards.get(approvalCardRef(approval.id)) ?? null });
     }
-    if (item.status === "active" && !item.proposed && template.stages[item.stageIndex]?.check === "you_approve") {
-      whys.push(`Waiting for your approval at ${stageName(template, item.stageIndex)}`);
+    if (template.stages[item.stageIndex]?.check === "you_approve") {
+      needsYou.push({
+        item,
+        why: `Waiting for your approval at ${stageName(template, item.stageIndex)}`,
+        card: cards.get(qaCardRef(item.id, item.stageIndex)) ?? null,
+      });
     }
-    if (item.status === "blocked") whys.push(`Blocked${item.reason ? `: ${item.reason}` : ""}`);
-    if (whys.length > 0) needsYou.push({ item, why: whys.join("; ") });
-    else if (item.status === "active") next.push(item);
+    if (item.status === "blocked") needsYou.push({ item, why: `Blocked${item.reason ? `: ${item.reason}` : ""}`, card: null });
+    if (needsYou.length === before && item.status === "active") next.push(item);
+  }
+  for (const approval of approvals) {
+    if (approval.itemId && known.has(approval.itemId)) continue;
+    needsYou.push({ item: null, why: `Approve or decline: ${approval.summary}`, card: cards.get(approvalCardRef(approval.id)) ?? null });
   }
   next.sort((a, b) => b.stageIndex - a.stageIndex || a.updatedAt - b.updatedAt);
   return { changes, needsYou, next };
@@ -366,23 +482,56 @@ function itemLabel(item: CoordinatorItem): string {
   return item.link ? `[${item.title}](${item.link})` : `**${item.title}**`;
 }
 
-export function renderBriefingMarkdown(briefing: Briefing, template: CoordinatorTemplate): string {
-  if (briefing.changes.length === 0 && briefing.needsYou.length === 0 && briefing.next.length === 0) {
+function needLine({ item, why }: Briefing["needsYou"][number], template: CoordinatorTemplate): string {
+  return item ? `- ${itemLabel(item)} (${stageName(template, item.stageIndex)}): ${why}` : `- ${why}`;
+}
+
+type RenderOptions = {
+  /**
+   * "embed" (default) puts each live card's directive on its own line in Needs you, with text for the rest.
+   * "omit" leaves decisions that have cards out, for destinations that attach the cards themselves.
+   */
+  cards?: "embed" | "omit";
+};
+
+export function renderBriefingMarkdown(briefing: Briefing, template: CoordinatorTemplate, options: RenderOptions = {}): string {
+  const mode = options.cards ?? "embed";
+  const needs = mode === "omit" ? briefing.needsYou.filter((entry) => entry.card === null) : briefing.needsYou;
+  if (briefing.changes.length === 0 && needs.length === 0 && briefing.next.length === 0) {
     return "Nothing changed.";
   }
   const lines: string[] = ["**Since you last looked**"];
   if (briefing.changes.length === 0) lines.push("Nothing changed.");
   else lines.push(...briefing.changes.map((entry) => `- ${entry.text}`));
-  if (briefing.needsYou.length > 0) {
+  if (needs.length > 0) {
     lines.push("", "**Needs you**");
-    lines.push(...briefing.needsYou.map(({ item, why }) =>
-      `- ${itemLabel(item)} (${stageName(template, item.stageIndex)}): ${why}`));
+    let previousWasCard = false;
+    for (const entry of needs) {
+      // A directive renders only as its own block, so cards sit between blank lines.
+      if (entry.card) lines.push("", entry.card);
+      else lines.push(...(previousWasCard ? [""] : []), needLine(entry, template));
+      previousWasCard = entry.card !== null;
+    }
   }
   if (briefing.next.length > 0) {
     lines.push("", "**Next**");
     lines.push(...briefing.next.map((item) => `- ${itemLabel(item)}: ${stageName(template, item.stageIndex)}`));
   }
   return lines.join("\n");
+}
+
+/** A Briefs headline such as "2 need you · 3 changed". */
+export function briefingHeadline(briefing: Briefing, extraChanges = 0): string {
+  const needs = briefing.needsYou.length;
+  return `${needs} ${needs === 1 ? "needs" : "need"} you · ${briefing.changes.length + extraChanges} changed`;
+}
+
+/** The brief's first line: the first thing that needs the user, else the first change. */
+export function briefingLede(briefing: Briefing): string {
+  const need = briefing.needsYou[0];
+  if (need) return oneLine(need.item ? `${need.item.title}: ${need.why}` : need.why, 300);
+  const change = briefing.changes[0];
+  return change ? oneLine(change.text, 300) : "Nothing changed since your last brief.";
 }
 
 // ---------------------------------------------------------------------------
@@ -407,14 +556,26 @@ function clip(text: string, max: number): string {
 
 /** Instructions injected into the coordinator's session, capped at 4096 characters. */
 export function instructionsFor(template: CoordinatorTemplate): string {
+  const track = "Track each real ask as an item with coordinator_add_item, with a one-line summary, without asking the user to confirm it. Sub-threads that existed when Coordinator Mode turned on are already tracked.";
+  // Fixed guidance comes first so the final cap only ever trims the template's own lists.
   const sections: string[] = [
     `You are the coordinator for this thread, using the "${clip(template.name, 100)}" template. Purpose: ${clip(template.purpose, 400)}`,
     [
-      "Do gated actions only through Coordinator Mode tools: coordinator_add_item, coordinator_start_sub_thread, coordinator_archive_sub_thread, coordinator_merge_pr, coordinator_briefing, coordinator_set_link, coordinator_cut_item.",
+      "Do gated actions only through Coordinator Mode tools: coordinator_add_item, coordinator_update_item, coordinator_start_sub_thread, coordinator_archive_sub_thread, coordinator_merge_pr, coordinator_briefing, coordinator_set_link, coordinator_cut_item.",
       "Shell commands such as gh pr merge or bb digest publish get the same decision as the tool. If an action is refused, tell the user why and do not work around it.",
       "Only checks advance stages. Saying a stage is done has no effect; a failed check moves the item back one stage with the reason.",
-      "When the user asks to catch up, call coordinator_briefing.",
+      "When the user asks to catch up, call coordinator_briefing and share it as written: card lines in, item IDs out.",
     ].join("\n"),
+    [
+      "Communication (keep it curt):",
+      "- To the user: put the outcome first, report only what changed, never restate unchanged items, keep replies to a few lines.",
+      "- Decisions (approvals, ask-first actions) are cards in the Coordinator panel and the briefing. Never ask for approval in prose; point to the card.",
+      "- Sub-thread prompts (coordinator_start_sub_thread): the outcome, constraints, and done condition only; no background narration.",
+      "- Keep each item's summary (one line) and waitingOn (what it waits on, or empty) current with coordinator_update_item.",
+    ].join("\n"),
+    template.intakePrefix
+      ? `Intake: ${track} When a user message starts with "${clip(template.intakePrefix, 40)}", add the rest as an item and start its sub-thread at once (startSubThread true).`
+      : `Intake: ${track}`,
     [
       "Stages:",
       ...template.stages.map((stage, i) => `${i + 1}. ${clip(stage.name, 60)}: ${CHECK_DESCRIPTIONS[stage.check]}`),
@@ -428,6 +589,9 @@ export function instructionsFor(template: CoordinatorTemplate): string {
       ...enforced.map((rule) => `- ${COLUMN_LABELS[rule.column]}: ${describeRule(rule)}`),
     ].join("\n"));
   }
+  if (template.subThreadRules.trim()) {
+    sections.push(`Sub-thread rules: ${clip(template.subThreadRules.trim(), 600)}`);
+  }
   const instructionOnly = template.rules.filter((rule) => rule.kind === "instruction");
   if (instructionOnly.length > 0) {
     sections.push([
@@ -435,12 +599,10 @@ export function instructionsFor(template: CoordinatorTemplate): string {
       ...instructionOnly.map((rule) => `- ${COLUMN_LABELS[rule.column]}: ${clip(describeRule(rule), 200)}`),
     ].join("\n"));
   }
-  if (template.subThreadRules.trim()) {
-    sections.push(`Sub-thread rules: ${clip(template.subThreadRules.trim(), 600)}`);
-  }
-  sections.push(template.intakePrefix
-    ? `Intake: when a user message starts with "${template.intakePrefix}", add the rest as an item with coordinator_add_item and start its sub-thread with coordinator_start_sub_thread. Otherwise propose items with coordinator_add_item for the user to confirm.`
-    : "Intake: propose new items with coordinator_add_item for the user to confirm.");
 
   return clip(sections.join("\n\n"), MAX_INSTRUCTIONS_LENGTH);
 }
+
+/** Instructions for every sub-thread a coordinator tracks, started or adopted: report once, briefly. */
+export const SUB_THREAD_INSTRUCTIONS =
+  "You are a sub-thread tracked by a Coordinator Mode coordinator. Don't send progress updates; Coordinator Mode tracks status and PRs. When done or blocked, reply in 3 lines or fewer: result, PR link if any, blocker. Your final reply is the report; don't message the coordinator with bb thread tell.";

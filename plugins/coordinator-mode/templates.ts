@@ -9,6 +9,8 @@ import type {
 } from "./contracts";
 
 const ON_STAGE_CHANGE = "Whenever an item changes stage";
+/** Every built-in template keeps sub-thread reports short; Coordinator Mode tracks status and PRs itself. */
+const REPORT_RULE = "Report only when done or blocked, in three lines or fewer.";
 const DAILY_9AM = "0 9 * * *";
 
 export const BUILT_IN_TEMPLATES: CoordinatorTemplate[] = [
@@ -32,7 +34,7 @@ export const BUILT_IN_TEMPLATES: CoordinatorTemplate[] = [
       { kind: "gated", action: "merge_pr", column: "never", condition: { kind: "while_merge_running" } },
       { kind: "gated", action: "merge_pr", column: "alone" },
     ],
-    subThreadRules: "Use Claude unless I say otherwise. Archive review sub-threads when their item is done.",
+    subThreadRules: `Use Claude unless I say otherwise. Archive review sub-threads when their item is done. ${REPORT_RULE}`,
     briefingCron: null,
     briefingLabel: ON_STAGE_CHANGE,
     intakePrefix: "worker:",
@@ -52,7 +54,7 @@ export const BUILT_IN_TEMPLATES: CoordinatorTemplate[] = [
       { kind: "gated", action: "start_sub_thread", column: "alone" },
       { kind: "instruction", column: "never", text: "Publish the release" },
     ],
-    subThreadRules: "",
+    subThreadRules: REPORT_RULE,
     briefingCron: DAILY_9AM,
     briefingLabel: "Daily at 9am",
     intakePrefix: null,
@@ -72,7 +74,7 @@ export const BUILT_IN_TEMPLATES: CoordinatorTemplate[] = [
       { kind: "gated", action: "start_sub_thread", column: "alone" },
       { kind: "instruction", column: "never", text: "Close a bug without verifying" },
     ],
-    subThreadRules: "",
+    subThreadRules: REPORT_RULE,
     briefingCron: DAILY_9AM,
     briefingLabel: "Daily at 9am",
     intakePrefix: null,
@@ -94,7 +96,7 @@ export const BUILT_IN_TEMPLATES: CoordinatorTemplate[] = [
       { kind: "instruction", column: "never", text: "Post anything" },
       { kind: "instruction", column: "never", text: "Write essays for me" },
     ],
-    subThreadRules: "Title sub-threads 🔥1–3 by due date and effort.",
+    subThreadRules: `Title sub-threads 🔥1–3 by due date and effort. ${REPORT_RULE}`,
     briefingCron: "0 9 * * 1",
     briefingLabel: "Mondays at 9am",
     intakePrefix: null,

@@ -3,6 +3,9 @@
 /** Server publishes on this channel when coordinator state changes; the app also polls to cover missed signals. */
 export const REALTIME_CHANNEL = "coordinator";
 
+/** RPC method Action Cards calls when the user clicks one of Coordinator Mode's owned cards. */
+export const ACTION_CARDS_DECIDE_METHOD = "actionCards.decide";
+
 /** How a stage is proven done. Each stage has exactly one check. */
 export type CheckKind =
   | "none" // first stage: an item enters here when it is created
@@ -57,6 +60,14 @@ export type CoordinatorTemplate = {
 
 export type ItemStatus = "active" | "blocked" | "cut" | "done";
 
+/** The last pull request evidence read for an item's primary sub-thread. */
+export type ItemPullRequest = {
+  number: number | null;
+  url: string | null;
+  state: "open" | "closed" | "merged" | "draft";
+  checks: "passing" | "failing" | "pending" | "none";
+};
+
 export type CoordinatorItem = {
   id: string;
   coordinatorThreadId: string;
@@ -68,8 +79,14 @@ export type CoordinatorItem = {
   link: string | null;
   primaryThreadId: string | null;
   helperThreadIds: string[];
-  /** Set while waiting for the user to confirm a proposed item. */
+  /** Always false: items are tracked directly. Kept so older readers of `status` keep working. */
   proposed: boolean;
+  /** The coordinator's one-line description of the item. */
+  summary: string | null;
+  /** What the item is waiting on, kept current by the coordinator. */
+  waitingOn: string | null;
+  /** The last PR evidence read for the item, used for its status line. */
+  pr: ItemPullRequest | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -82,6 +99,8 @@ export type PendingApproval = {
   summary: string;
   /** Opaque arguments replayed when approved. */
   args: Record<string, unknown>;
+  /** Why the rules asked you first; null for approvals raised before this was recorded. */
+  reason: string | null;
   createdAt: number;
 };
 
@@ -94,6 +113,8 @@ export type CoordinatorState = {
   appliedRulesVersion: number;
   rulesVersion: number;
   lastOpenedAt: number;
+  /** When the user was last briefed, on request or on schedule; null before the first briefing. */
+  lastBriefedAt: number | null;
   createdAt: number;
 };
 
@@ -121,7 +142,8 @@ export type LogEntry = {
 
 export type Briefing = {
   changes: LogEntry[];
-  needsYou: Array<{ item: CoordinatorItem; why: string }>;
+  /** One entry per decision or blocker. `card` is the Action Cards directive when the decision has a live card. */
+  needsYou: Array<{ item: CoordinatorItem | null; why: string; card: string | null }>;
   next: CoordinatorItem[];
 };
 

@@ -1,14 +1,17 @@
-import { randomUUID } from "node:crypto";
-import type { BbPluginApi, PluginRpcHandlers, PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
+import { createHash, randomUUID } from "node:crypto";
+import type { BbPluginApi, JsonValue, PluginRpcHandlers, PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { CronExpressionParser } from "cron-parser";
+import { z } from "zod";
 
 import {
+  ACTION_CARDS_DECIDE_METHOD,
   REALTIME_CHANNEL,
   type CheckKind,
   type CoordinatorItem,
   type CoordinatorState,
   type CoordinatorTemplate,
   type GatedAction,
+  type ItemPullRequest,
   type LogEntry,
   type PendingApproval,
   type RuleColumn,
@@ -16,18 +19,31 @@ import {
 import {
   ACTION_LABELS,
   advanceItem,
+  approvalCardContent,
+  approvalCardRef,
+  briefingHeadline,
+  briefingLede,
   classifyUnmatchedCommand,
   composeBriefing,
   decideAction,
   evaluateCheck,
   instructionsFor,
   matchGatedCommands,
+  oneLine,
+  parseCardRef,
+  qaCardContent,
+  qaCardRef,
   renderBriefingMarkdown,
+  stageName,
+  SUB_THREAD_INSTRUCTIONS,
   type CheckEvidence,
   type Decision,
+  type DecideCardContent,
 } from "./model";
 import {
   createStore,
+  isPrimaryRole,
+  type CardRecord,
   type CoordinatorRecord,
   type ItemRecord,
   type Membership,
@@ -36,17 +52,18 @@ import {
 import type { rpcContract } from "./server";
 import { BUILT_IN_TEMPLATES, parseTemplate } from "./templates";
 
-const BRIEFING_NUDGE = "Coordinator Mode: post your scheduled briefing. Call coordinator_briefing and share it.";
+// Plugin-sent messages each start a turn, so they are one line and sent only when a turn is needed.
+const BRIEFING_NUDGE = "Coordinator Mode: briefing due. Call coordinator_briefing and share it as written.";
 const TURN_ON_KICKOFF =
-  "Coordinator Mode is on. Call coordinator_briefing and share it. Existing sub-threads already appear as proposed items for me to keep or drop; don't look up threads yourself.";
-const NEW_COORDINATOR_KICKOFF =
-  "Coordinator Mode is on. Call coordinator_briefing, then ask me what you should work on first.";
-const RULES_UPDATED = "Coordinator Mode rules updated. Your instructions and tools now follow the new rules; carry on with them.";
+  "Coordinator Mode is on and existing sub-threads are tracked. Add a one-line summary to each with coordinator_update_item, then share coordinator_briefing's result.";
+const NEW_COORDINATOR_KICKOFF = "Coordinator Mode is on. In one line, ask me what to work on first.";
+const RULES_UPDATED = "Coordinator Mode rules updated; follow your new instructions.";
 const REVIEW_INSTRUCTIONS =
-  "You are a review sub-thread started by a Coordinator Mode coordinator. When your review is complete, record your verdict with the coordinator_review_verdict tool: pass true if the work is ready, or pass false with concrete findings. Only your verdict moves the item; saying it in chat does not.";
+  "Record your verdict with coordinator_review_verdict when the review is complete: pass true if the work is ready, or false with concrete findings. Only the verdict moves the item; saying it in chat does not.";
 
 const COORDINATOR_TOOLS = [
   "coordinator_add_item",
+  "coordinator_update_item",
   "coordinator_start_sub_thread",
   "coordinator_archive_sub_thread",
   "coordinator_merge_pr",
@@ -70,9 +87,20 @@ const NUDGE_DELAY_MS = 30_000;
 /** Log kinds kept out of briefings: every auto-approval is logged, but they are noise there. */
 const QUIET_KINDS: ReadonlySet<LogEntry["kind"]> = new Set(["command_approved"]);
 
+/** Action Cards, which shows decisions as owned cards, and Briefs (plugin id "digests"), which delivers scheduled briefs. */
+const ACTION_CARDS_PLUGIN = "inline-action-cards";
+const BRIEFS_PLUGIN = "digests";
+/** After a failed call to another plugin, wait this long before trying it again. */
+const PLUGIN_RETRY_MS = 60_000;
+const createdCardSchema = z.object({ directive: z.string().min(1).max(500) });
+const publishedBriefSchema = z.object({ threadId: z.string() });
+
 type Thread = PluginThreadEventPayloads["thread.idle"]["thread"];
 type Interaction = PluginThreadEventPayloads["interaction.pending"]["interaction"];
 type PrEvidence = NonNullable<CheckEvidence["pr"]>;
+type CardOutcome = "approved" | "declined" | "closed";
+/** A decision that should have a live owned card. */
+type WantedCard = { ref: string; content: DecideCardContent };
 
 /** Arguments replayed when an approval is approved. Stored as plain JSON on the approval row. */
 type ActionArgs =
@@ -93,9 +121,17 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function clip(text: string, max: number): string {
-  const single = text.replace(/\s+/gu, " ").trim();
-  return single.length <= max ? single : `${single.slice(0, max - 1)}…`;
+const clip = oneLine;
+
+/** Round-trips a value through JSON for plugin RPC input. */
+function toJson(value: unknown): JsonValue {
+  return JSON.parse(JSON.stringify(value)) as JsonValue;
+}
+
+/** A stable Action Cards id per decision ref: Action Cards upserts by ref, and ids must stay short and plain. */
+function cardIdFor(ref: string): string {
+  const kind = ref.startsWith("qa:") ? "qa" : "ap";
+  return `cm-${kind}-${createHash("sha256").update(ref).digest("hex").slice(0, 16)}`;
 }
 
 function parseActionArgs(args: Record<string, unknown>): ActionArgs | null {
@@ -135,14 +171,19 @@ function readApprovalRequest(interaction: Interaction): { kind: "command"; comma
   return null;
 }
 
-function mapPullRequest(response: unknown): PrEvidence | null {
+function mapPullRequest(response: unknown): ItemPullRequest | null {
   if (!isRecord(response) || response.outcome !== "available" || !isRecord(response.pullRequest)) return null;
   const pr = response.pullRequest;
   const state = pr.state === "open" || pr.state === "closed" || pr.state === "merged" || pr.state === "draft" ? pr.state : null;
   if (!state) return null;
   const checksState = isRecord(pr.checks) ? pr.checks.state : null;
   const checks = checksState === "passing" || checksState === "failing" || checksState === "pending" ? checksState : "none";
-  return { state, checks };
+  return {
+    number: typeof pr.number === "number" ? pr.number : null,
+    url: typeof pr.url === "string" ? pr.url : null,
+    state,
+    checks,
+  };
 }
 
 function publicState(record: CoordinatorRecord): CoordinatorState {
@@ -154,6 +195,7 @@ function publicState(record: CoordinatorRecord): CoordinatorState {
     appliedRulesVersion: record.appliedRulesVersion,
     rulesVersion: record.rulesVersion,
     lastOpenedAt: record.lastOpenedAt,
+    lastBriefedAt: record.lastBriefedAt,
     createdAt: record.createdAt,
   };
 }
@@ -169,7 +211,10 @@ function publicItem(record: ItemRecord): CoordinatorItem {
     link: record.link,
     primaryThreadId: record.primaryThreadId,
     helperThreadIds: record.helperThreadIds,
-    proposed: record.proposed,
+    proposed: false,
+    summary: record.summary,
+    waitingOn: record.waitingOn,
+    pr: record.pr,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -227,13 +272,20 @@ export function createService(bb: BbPluginApi) {
   const merging = new Set<string>();
   const nudges = new Map<string, ReturnType<typeof setTimeout>>();
   const evaluations = new Map<string, Promise<void>>();
+  let disposed = false;
 
-  const publish = (coordinatorThreadId: string) => {
+  const notifyPanel = (coordinatorThreadId: string) => {
     try {
       bb.realtime.publish(REALTIME_CHANNEL, { threadId: coordinatorThreadId });
     } catch (error) {
       bb.log.warn(`Coordinator Mode realtime publish failed: ${errorMessage(error)}`);
     }
+  };
+
+  /** Every state change goes through here: the panel refreshes and decision cards follow the new state. */
+  const publish = (coordinatorThreadId: string) => {
+    notifyPanel(coordinatorThreadId);
+    void syncCards(coordinatorThreadId);
   };
 
   const log = (coordinatorThreadId: string, itemId: string | null, kind: LogEntry["kind"], text: string, action?: GatedAction) =>
@@ -266,9 +318,10 @@ export function createService(bb: BbPluginApi) {
     });
   }
 
+  /** Best-effort one-line note; each one starts a turn, so callers send it only when a turn is needed. */
   async function sendNote(threadId: string, text: string): Promise<void> {
     try {
-      await sendText(threadId, text);
+      await sendText(threadId, clip(text, 600));
     } catch (error) {
       bb.log.warn(`Coordinator Mode could not message ${threadId}: ${errorMessage(error)}`);
     }
@@ -413,12 +466,13 @@ export function createService(bb: BbPluginApi) {
         action,
         summary: context.summary.charAt(0).toUpperCase() + context.summary.slice(1),
         args: { ...args },
+        reason: decision.reason,
         createdAt: now(),
       };
       store.approvals.create(approval);
       log(coordinator.threadId, itemId, "action_asked", `Asked you to approve: ${context.summary}.`, action);
       publish(coordinator.threadId);
-      return `Waiting for approval: ${context.summary}. The user sees an Approve / Decline card in the Coordinator panel; you will get a message when they decide. Do not retry meanwhile.`;
+      return `Waiting for approval: ${context.summary}. The user decides on a card in the Coordinator panel and the briefing; you will get a message when they decide. Do not ask in prose or retry meanwhile.`;
     }
     const text = await execute(coordinator, args);
     log(coordinator.threadId, itemId, "action_run", text, action);
@@ -464,6 +518,12 @@ export function createService(bb: BbPluginApi) {
       const environmentId = await environmentOf(item.primaryThreadId);
       if (!environmentId) return null;
       const pr = mapPullRequest(await bb.sdk.environments.pullRequest({ environmentId }));
+      if (pr) {
+        // Kept for the status line; a missing or unreadable PR leaves the last evidence in place.
+        const changed = JSON.stringify(store.items.get(item.id)?.pr ?? null) !== JSON.stringify(pr);
+        store.items.setPr(item.id, pr);
+        if (changed) notifyPanel(coordinator.threadId);
+      }
       noticeMerge(coordinator, item, pr);
       return pr;
     } catch (error) {
@@ -517,7 +577,7 @@ export function createService(bb: BbPluginApi) {
     let changed = false;
     for (let step = 0; step < MAX_ADVANCES; step += 1) {
       // Blocked items keep being checked so new evidence can move them on.
-      if (item.proposed || (item.status !== "active" && item.status !== "blocked")) break;
+      if (item.status !== "active" && item.status !== "blocked") break;
       const stage = template.stages[item.stageIndex];
       if (!stage) break;
       // After a failure, only evidence produced by new work on the primary sub-thread counts.
@@ -617,7 +677,10 @@ export function createService(bb: BbPluginApi) {
   /** When each item's PR was last read only to spot a merge outside the rules. */
   const mergeWatchReads = new Map<string, number>();
 
-  /** One background pass: retire deleted coordinators, scheduled briefings, then PR evidence where it matters. */
+  /**
+   * One background pass: retire deleted coordinators, reconcile decision cards, scheduled briefings,
+   * then PR evidence where it matters.
+   */
   async function tick(): Promise<void> {
     for (const coordinator of store.coordinators.list()) {
       const presence = await coordinatorPresence(coordinator.threadId);
@@ -626,17 +689,24 @@ export function createService(bb: BbPluginApi) {
         rpc.turnOff({ threadId: coordinator.threadId });
         continue;
       }
-      if (presence === "archived" || coordinator.paused) continue;
-      await reconcileApprovals(coordinator.threadId);
+      if (presence === "archived") continue;
+      if (!coordinator.paused) await reconcileApprovals(coordinator.threadId);
+      // Raises cards that are missing (Action Cards was down, or this is the first pass after a restart).
+      await syncCards(coordinator.threadId);
+      if (coordinator.paused) continue;
       const at = now();
       if (cronDue(coordinator, at)) {
         store.coordinators.update(coordinator.threadId, { lastBriefingAt: at });
-        await sendNote(coordinator.threadId, BRIEFING_NUDGE);
+        if (!(await publishScheduledBrief(coordinator.threadId))) await sendNote(coordinator.threadId, BRIEFING_NUDGE);
+      }
+      // Items still in the first stage (migrated proposals, for one) move on without waiting for an event.
+      for (const item of store.items.list(coordinator.threadId)) {
+        if (item.stageIndex === 0 && item.status === "active" && coordinator.template.stages[0]?.check === "none") await evaluateItem(item.id);
       }
       const firstPrStage = coordinator.template.stages.findIndex((stage) => PR_CHECKS.has(stage.check));
       if (firstPrStage < 0) continue;
       for (const item of store.items.list(coordinator.threadId)) {
-        if (item.proposed || !item.primaryThreadId || (item.status !== "active" && item.status !== "blocked")) continue;
+        if (!item.primaryThreadId || (item.status !== "active" && item.status !== "blocked")) continue;
         const check = coordinator.template.stages[item.stageIndex]?.check;
         if (check && PR_CHECKS.has(check)) {
           await evaluateItem(item.id);
@@ -698,6 +768,9 @@ export function createService(bb: BbPluginApi) {
     if (!request) return;
     const item = member.itemId ? store.items.get(member.itemId) ?? undefined : undefined;
     const where = thread.title ? `"${clip(thread.title, 60)}"` : thread.id;
+    // Adopted sub-threads existed before the coordinator tracked them, so nothing is approved on their behalf.
+    // Never and ask rules still apply to them.
+    const autoApprove = coordinator.autoApprove && member.role !== "adopted";
     const resolve = async (decision: "allow_once" | "deny"): Promise<boolean> => {
       try {
         await bb.sdk.threads.interactions.resolve({
@@ -716,7 +789,7 @@ export function createService(bb: BbPluginApi) {
     };
 
     if (request.kind === "file_change") {
-      if (coordinator.autoApprove && await resolve("allow_once")) {
+      if (autoApprove && await resolve("allow_once")) {
         log(coordinator.threadId, item?.id ?? null, "command_approved", `Approved a file change in ${where}.`);
       }
       return;
@@ -742,7 +815,7 @@ export function createService(bb: BbPluginApi) {
         publish(coordinator.threadId);
         return;
       }
-      if (coordinator.autoApprove && await resolve("allow_once")) {
+      if (autoApprove && await resolve("allow_once")) {
         log(coordinator.threadId, item?.id ?? null, "command_approved", `Approved \`${command}\` in ${where}.`);
       }
       return;
@@ -752,7 +825,7 @@ export function createService(bb: BbPluginApi) {
     const decided = actions.map((candidate) => ({
       action: candidate,
       // An archive command's target is unknown, so assume the stricter primary-thread rules.
-      decision: decide(coordinator, candidate, item, candidate === "archive_sub_thread" ? true : member.role === "primary"),
+      decision: decide(coordinator, candidate, item, candidate === "archive_sub_thread" ? true : isPrimaryRole(member.role)),
     }));
     const strictest = decided.reduce((worst, next) =>
       STRICTNESS.indexOf(next.decision.column) < STRICTNESS.indexOf(worst.decision.column) ? next : worst);
@@ -779,13 +852,14 @@ export function createService(bb: BbPluginApi) {
         action,
         summary: `Run \`${command}\` in ${where} (${actionsLabel})`,
         args: { kind: "interaction", threadId: thread.id, interactionId: interaction.id, command: request.command, itemId: item?.id ?? null },
+        reason: decision.reason,
         createdAt: now(),
       });
       log(coordinator.threadId, item?.id ?? null, "action_asked", `Asked you to approve \`${command}\` in ${where}.`, action);
       publish(coordinator.threadId);
       return;
     }
-    if (coordinator.autoApprove && await resolve("allow_once")) {
+    if (autoApprove && await resolve("allow_once")) {
       log(coordinator.threadId, item?.id ?? null, "action_run", `Allowed \`${command}\` in ${where}.`, action);
       publish(coordinator.threadId);
     }
@@ -794,36 +868,309 @@ export function createService(bb: BbPluginApi) {
   // -------------------------------------------------------------------------
   // Briefings
 
-  function briefingMarkdown(coordinator: CoordinatorRecord): string {
+  function composeFor(coordinator: CoordinatorRecord) {
     const items = store.items.list(coordinator.threadId);
     const entries = store.log.list(coordinator.threadId, coordinator.lastOpenedAt).filter((entry) => !QUIET_KINDS.has(entry.kind));
     // Rule-broken and merged-outside flags lead the briefing.
     const flagged = entries.filter((entry) => entry.kind === "rule_broken" || entry.kind === "merged_outside");
     const rest = entries.filter((entry) => entry.kind !== "rule_broken" && entry.kind !== "merged_outside");
+    const live = liveCards(coordinator);
     const briefing = composeBriefing({
       changes: rest,
-      items,
+      items: items.map(publicItem),
       approvals: store.approvals.pending(coordinator.threadId),
       template: coordinator.template,
+      cards: new Map([...live].map(([ref, card]) => [ref, card.directive])),
     });
-    const lines: string[] = [];
-    if (flagged.length > 0) lines.push("**Flagged**", ...flagged.map((entry) => `- ${entry.text}`), "");
-    lines.push(renderBriefingMarkdown(briefing, coordinator.template));
+    return { items, flagged, briefing, live };
+  }
+
+  function flaggedLines(flagged: LogEntry[]): string[] {
+    return flagged.length > 0 ? ["**Flagged**", ...flagged.map((entry) => `- ${entry.text}`), ""] : [];
+  }
+
+  function briefingMarkdown(coordinator: CoordinatorRecord): string {
+    const { items, flagged, briefing } = composeFor(coordinator);
+    const lines: string[] = [...flaggedLines(flagged), renderBriefingMarkdown(briefing, coordinator.template)];
     const open = items.filter((item) => item.status !== "cut" && item.status !== "done");
     if (open.length > 0) {
       lines.push("", "Item IDs (for Coordinator Mode tools):");
       for (const item of open) {
         const stage = coordinator.template.stages[item.stageIndex]?.name ?? "";
-        lines.push(`- ${item.title}: ${item.id} (${item.proposed ? "proposed" : `${stage}, ${item.status}`}${item.primaryThreadId ? `, thread ${item.primaryThreadId}` : ""})`);
+        const waiting = item.waitingOn ? `, waiting on ${item.waitingOn}` : "";
+        lines.push(`- ${item.title}: ${item.id} (${stage}, ${item.status}${waiting}${item.primaryThreadId ? `, thread ${item.primaryThreadId}` : ""})`);
       }
     }
     return lines.join("\n");
   }
 
+  async function threadTitle(threadId: string, fallback: string): Promise<string> {
+    try {
+      const thread = await bb.sdk.threads.get({ threadId });
+      return thread.title ?? thread.titleFallback ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  let briefsRetryAt = 0;
+  let briefsWarned = false;
+
+  /**
+   * Delivers a scheduled briefing to the Briefs inbox, with the decisions' live cards attached.
+   * Returns false when Briefs isn't installed or the call fails, so the caller nudges the coordinator instead.
+   */
+  async function publishScheduledBrief(coordinatorThreadId: string): Promise<boolean> {
+    const coordinator = store.coordinators.get(coordinatorThreadId);
+    if (!coordinator || now() < briefsRetryAt) return false;
+    const { flagged, briefing, live } = composeFor(coordinator);
+    const title = await threadTitle(coordinator.threadId, coordinator.template.name);
+    const details = [...flaggedLines(flagged), renderBriefingMarkdown(briefing, coordinator.template, { cards: "omit" })].join("\n");
+    try {
+      await bb.sdk.plugins.callRpc({
+        pluginId: BRIEFS_PLUGIN,
+        method: "publishFromPlugin",
+        input: toJson({
+          source: { pluginId: bb.pluginId, key: coordinator.threadId, name: /\bcoordinator$/iu.test(title) ? title : `${title} coordinator` },
+          headline: briefingHeadline(briefing, flagged.length),
+          lede: briefingLede(briefing),
+          details,
+          cards: [...live.values()].map((card) => ({ threadId: coordinator.threadId, id: card.cardId })),
+        }),
+        outputSchema: publishedBriefSchema,
+      });
+    } catch (error) {
+      briefsRetryAt = now() + PLUGIN_RETRY_MS;
+      if (!briefsWarned) {
+        briefsWarned = true;
+        bb.log.info(`Coordinator Mode could not publish to Briefs, so it asks the coordinator to brief in its thread: ${errorMessage(error)}`);
+      }
+      return false;
+    }
+    briefsWarned = false;
+    const at = now();
+    store.coordinators.update(coordinator.threadId, { lastOpenedAt: at, lastBriefedAt: at });
+    notifyPanel(coordinator.threadId);
+    return true;
+  }
+
+  // -------------------------------------------------------------------------
+  // Decision cards: Action Cards owned cards, kept in step with items and approvals.
+
+  let cardsRetryAt = 0;
+  let cardsWarned = false;
+  const cardSyncs = new Map<string, Promise<void>>();
+
+  function cardsFailed(what: string, error: unknown): void {
+    cardsRetryAt = now() + PLUGIN_RETRY_MS;
+    if (cardsWarned || disposed) return;
+    cardsWarned = true;
+    bb.log.warn(`Coordinator Mode could not ${what} in Action Cards, so decisions fall back to the Coordinator panel: ${errorMessage(error)}`);
+  }
+
+  /** Decisions waiting on the user right now, each of which should have a live card. */
+  function wantedCards(coordinator: CoordinatorRecord): WantedCard[] {
+    const wanted: WantedCard[] = [];
+    for (const item of store.items.list(coordinator.threadId)) {
+      if (item.status !== "active" && item.status !== "blocked") continue;
+      if (coordinator.template.stages[item.stageIndex]?.check !== "you_approve") continue;
+      // Decided but not applied yet (Coordinator Mode is paused): no longer waiting on the user.
+      if (item.approved || item.rejectedReason !== null) continue;
+      wanted.push({ ref: qaCardRef(item.id, item.stageIndex), content: qaCardContent(publicItem(item), coordinator.template) });
+    }
+    for (const approval of store.approvals.pending(coordinator.threadId)) {
+      wanted.push({ ref: approvalCardRef(approval.id), content: approvalCardContent(approval) });
+    }
+    return wanted;
+  }
+
+  /** Open cards for decisions still waiting, by ref, in decision order. */
+  function liveCards(coordinator: CoordinatorRecord): Map<string, CardRecord> {
+    const open = new Map(store.cards.open(coordinator.threadId).map((card) => [card.ref, card]));
+    const live = new Map<string, CardRecord>();
+    for (const wanted of wantedCards(coordinator)) {
+      const card = open.get(wanted.ref);
+      if (card) live.set(wanted.ref, card);
+    }
+    return live;
+  }
+
+  /** How a card that is no longer wanted was resolved, read from the state that resolved it. */
+  function closingFor(ref: string): { outcome: CardOutcome; message: string } {
+    const parsed = parseCardRef(ref);
+    if (!parsed) return { outcome: "closed", message: "No longer needed." };
+    if (parsed.kind === "approval") {
+      switch (store.approvals.get(parsed.approvalId)?.outcome) {
+        case "approved":
+          return { outcome: "approved", message: "Approved." };
+        case "declined":
+          return { outcome: "declined", message: "Declined." };
+        case "answered_elsewhere":
+          return { outcome: "closed", message: "Answered in the sub-thread." };
+        default:
+          return { outcome: "closed", message: "No longer needed." };
+      }
+    }
+    const item = store.items.get(parsed.itemId);
+    const template = item ? store.coordinators.get(item.coordinatorThreadId)?.template : undefined;
+    if (!item || !template) return { outcome: "closed", message: "No longer tracked." };
+    const title = `“${clip(item.title, 120)}”`;
+    if (item.status === "cut") return { outcome: "closed", message: `Stopped tracking ${title}.` };
+    if (item.status === "done") return { outcome: "approved", message: `Approved. ${title} is done.` };
+    if (item.stageIndex > parsed.stageIndex) {
+      return { outcome: "approved", message: `Approved. ${title} moved to ${stageName(template, item.stageIndex)}.` };
+    }
+    if (item.stageIndex < parsed.stageIndex) {
+      return { outcome: "declined", message: item.reason ? `Rejected: ${clip(item.reason, 240)}` : "Rejected." };
+    }
+    if (item.approved) return { outcome: "approved", message: `Approved. ${title} moves on when Coordinator Mode resumes.` };
+    if (item.rejectedReason !== null) return { outcome: "declined", message: `Rejected: ${clip(item.rejectedReason, 240)}` };
+    return { outcome: "closed", message: "No longer waiting on you." };
+  }
+
+  async function createCard(coordinatorThreadId: string, wanted: WantedCard): Promise<boolean> {
+    const id = cardIdFor(wanted.ref);
+    try {
+      const created = await bb.sdk.plugins.callRpc({
+        pluginId: ACTION_CARDS_PLUGIN,
+        method: "createOwned",
+        // reopen: a ref can come back (an item rejected at QA returns to it), and its old card is resolved.
+        input: toJson({ threadId: coordinatorThreadId, id, owner: { pluginId: bb.pluginId, ref: wanted.ref }, content: wanted.content, reopen: true }),
+        outputSchema: createdCardSchema,
+      });
+      cardsWarned = false;
+      store.cards.upsert({ ref: wanted.ref, coordinatorThreadId, cardId: id, directive: created.directive, createdAt: now() });
+      return true;
+    } catch (error) {
+      cardsFailed("raise a decision card", error);
+      return false;
+    }
+  }
+
+  async function resolveCard(ref: string, outcome: CardOutcome, message: string): Promise<boolean> {
+    try {
+      await bb.sdk.plugins.callRpc({
+        pluginId: ACTION_CARDS_PLUGIN,
+        method: "resolveOwned",
+        input: toJson({ pluginId: bb.pluginId, ref, outcome, message: clip(message, 300) }),
+        outputSchema: z.unknown(),
+      });
+      cardsWarned = false;
+      return true;
+    } catch (error) {
+      cardsFailed("close a decision card", error);
+      return false;
+    }
+  }
+
+  async function syncCardsNow(coordinatorThreadId: string): Promise<void> {
+    if (disposed || now() < cardsRetryAt) return;
+    const coordinator = store.coordinators.get(coordinatorThreadId);
+    if (!coordinator) return;
+    const wanted = new Set(wantedCards(coordinator).map((card) => card.ref));
+    for (const card of store.cards.open(coordinatorThreadId)) {
+      if (wanted.has(card.ref)) continue;
+      const { outcome, message } = closingFor(card.ref);
+      // A failed close keeps the row open, so the next sync tries again.
+      if (!(await resolveCard(card.ref, outcome, message))) return;
+      store.cards.resolve(card.ref, now());
+    }
+    let created = false;
+    for (const card of wantedCards(coordinator)) {
+      // Re-read each time: a decision made while an earlier card was being raised must not get a fresh card.
+      const current = store.coordinators.get(coordinatorThreadId);
+      if (disposed || !current || store.cards.get(card.ref)?.resolvedAt === null) continue;
+      if (!wantedCards(current).some((candidate) => candidate.ref === card.ref)) continue;
+      if (!(await createCard(coordinatorThreadId, card))) break;
+      created = true;
+    }
+    if (created && !disposed) notifyPanel(coordinatorThreadId);
+  }
+
+  /** Brings a coordinator's cards in line with its decisions. Serialized per coordinator. */
+  function syncCards(coordinatorThreadId: string): Promise<void> {
+    const previous = cardSyncs.get(coordinatorThreadId) ?? Promise.resolve();
+    const next = previous.then(() => syncCardsNow(coordinatorThreadId)).catch((error: unknown) => {
+      // After dispose the database and logger are gone; there is nothing left to sync.
+      if (!disposed) bb.log.warn(`Coordinator Mode could not sync decision cards: ${errorMessage(error)}`);
+    });
+    cardSyncs.set(coordinatorThreadId, next);
+    void next.finally(() => {
+      if (cardSyncs.get(coordinatorThreadId) === next) cardSyncs.delete(coordinatorThreadId);
+    });
+    return next;
+  }
+
+  async function closeCards(refs: string[], outcome: CardOutcome, message: string): Promise<void> {
+    for (const ref of refs) {
+      if (disposed || !(await resolveCard(ref, outcome, message))) return;
+    }
+  }
+
+  /**
+   * Runs a decision made on its card. The local card row is resolved first: Action Cards records
+   * this click's outcome itself, so the sync must not close the same card underneath it.
+   */
+  async function onCard<T>(ref: string, work: () => Promise<T>): Promise<T> {
+    const held = store.cards.resolve(ref, now());
+    try {
+      return await work();
+    } catch (error) {
+      if (held) store.cards.reopen(ref);
+      throw error;
+    }
+  }
+
+  async function decideCard(input: { ref: string; action: "yes" | "no" | "choose"; note?: string }): Promise<{ message: string }> {
+    const parsed = parseCardRef(input.ref);
+    if (!parsed) throw new Error("Coordinator Mode doesn't know this decision.");
+    if (input.action === "choose") throw new Error("This decision takes Approve or Reject, not a choice.");
+    const note = input.note?.trim() ?? "";
+    if (parsed.kind === "approval") {
+      const approval = store.approvals.get(parsed.approvalId);
+      if (!approval || approval.resolvedAt !== null) throw new Error("This request was already answered.");
+      return onCard(input.ref, async () => ({ message: await answerApproval(approval.id, input.action === "yes", note || undefined) }));
+    }
+    const item = store.items.get(parsed.itemId);
+    const coordinator = item ? store.coordinators.get(item.coordinatorThreadId) : null;
+    if (!item || !coordinator || (item.status !== "active" && item.status !== "blocked")) throw new Error("This item is no longer waiting on you.");
+    if (item.stageIndex !== parsed.stageIndex || coordinator.template.stages[item.stageIndex]?.check !== "you_approve"
+      || item.approved || item.rejectedReason !== null) {
+      throw new Error(`“${clip(item.title, 120)}” is no longer waiting for this approval.`);
+    }
+    const { id: itemId } = item;
+    const { stageIndex } = parsed;
+    const { template } = coordinator;
+    const title = `“${clip(item.title, 120)}”`;
+    return onCard(input.ref, async () => {
+      if (input.action === "yes") {
+        await rpc.approveItem({ itemId });
+        const after = store.items.get(itemId);
+        if (after?.status === "done") return { message: `Approved. ${title} is done.` };
+        if (after && after.stageIndex > stageIndex) return { message: `Approved. ${title} moves to ${stageName(template, after.stageIndex)}.` };
+        return { message: `Approved. ${title} moves on when Coordinator Mode resumes.` };
+      }
+      await rpc.rejectItem({ itemId, reason: note || "Rejected from the card." });
+      const after = store.items.get(itemId);
+      if (after && after.stageIndex < stageIndex) return { message: `Rejected. ${title} goes back to ${stageName(template, after.stageIndex)}.` };
+      return { message: `Rejected. ${title} goes back when Coordinator Mode resumes.` };
+    });
+  }
+
   // -------------------------------------------------------------------------
   // Items
 
-  function createItem(coordinator: CoordinatorRecord, input: { title: string; proposed: boolean; primaryThreadId?: string | null }): ItemRecord {
+  /** Text the coordinator writes for an item: one line, empty clears it, undefined leaves it. */
+  function contextText(value: string | undefined): string | null | undefined {
+    if (value === undefined) return undefined;
+    const text = clip(value, 160);
+    return text.length > 0 ? text : null;
+  }
+
+  function createItem(
+    coordinator: CoordinatorRecord,
+    input: { title: string; summary?: string; primaryThreadId?: string | null; adopted?: boolean },
+  ): ItemRecord {
     const at = now();
     const item = store.items.create({
       id: randomUUID(),
@@ -835,15 +1182,18 @@ export function createService(bb: BbPluginApi) {
       link: null,
       primaryThreadId: input.primaryThreadId ?? null,
       helperThreadIds: [],
-      proposed: input.proposed,
+      proposed: false,
+      summary: contextText(input.summary) ?? null,
+      waitingOn: null,
+      pr: null,
       approved: false,
       rejectedReason: null,
       review: null,
       failedAt: null,
       createdAt: at,
       updatedAt: at,
-    });
-    log(coordinator.threadId, item.id, "item_created", input.proposed ? `Proposed "${item.title}".` : `Added "${item.title}".`);
+    }, input.adopted ? "adopted" : "primary");
+    log(coordinator.threadId, item.id, "item_created", input.adopted ? `Tracking "${item.title}", an existing sub-thread.` : `Added "${item.title}".`);
     return item;
   }
 
@@ -857,23 +1207,31 @@ export function createService(bb: BbPluginApi) {
   };
 
   const tools = {
-    async addItem(threadId: string, input: { title: string; startSubThread?: boolean; prompt?: string }): Promise<string> {
+    async addItem(threadId: string, input: { title: string; summary?: string; startSubThread?: boolean; prompt?: string }): Promise<string> {
       const coordinator = toolCoordinator(threadId);
       const start = input.startSubThread === true;
-      const item = createItem(coordinator, { title: input.title, proposed: !start });
+      const item = createItem(coordinator, { title: input.title, summary: input.summary });
       publish(coordinator.threadId);
-      if (!start) return `Proposed item ${item.id} "${item.title}". The user confirms or drops it in the Coordinator panel; start its sub-thread once confirmed.`;
       await evaluateItem(item.id);
+      if (!start) return `Tracking item ${item.id} "${item.title}". Start its sub-thread with coordinator_start_sub_thread when work should begin.`;
       const started = await runGated(coordinator, "start_sub_thread",
         { kind: "start", itemId: item.id, prompt: input.prompt ?? input.title, title: null, role: "primary" },
         { item: store.items.get(item.id) ?? item, isPrimaryThread: true, summary: `start a sub-thread for "${item.title}"` });
       return `Added item ${item.id} "${item.title}". ${started}`;
     },
+    updateItem(threadId: string, input: { itemId: string; summary?: string; waitingOn?: string }): string {
+      const coordinator = toolCoordinator(threadId);
+      const item = requireOwnItem(coordinator, input.itemId);
+      if (input.summary === undefined && input.waitingOn === undefined) return "Nothing to update: pass summary, waitingOn, or both.";
+      store.items.setContext(item.id, { summary: contextText(input.summary), waitingOn: contextText(input.waitingOn) }, now());
+      publish(coordinator.threadId);
+      return `Updated "${item.title}".`;
+    },
     async startSubThread(threadId: string, input: { itemId: string; prompt: string; title?: string; role?: ThreadRole }): Promise<string> {
       const coordinator = toolCoordinator(threadId);
       const item = requireOwnItem(coordinator, input.itemId);
-      if (item.proposed) return `"${item.title}" is still proposed. Ask the user to confirm it in the Coordinator panel first.`;
-      if (item.status === "cut" || item.status === "done") return `"${item.title}" is ${item.status}; start nothing for it.`;
+      if (item.status === "cut") return `"${item.title}" is no longer tracked; start nothing for it.`;
+      if (item.status === "done") return `"${item.title}" is done; start nothing for it.`;
       const role: ThreadRole = input.role ?? (item.primaryThreadId ? "helper" : "primary");
       if (role === "primary" && item.primaryThreadId) return `"${item.title}" already has a primary sub-thread (${item.primaryThreadId}). Use role "helper" or "reviewer".`;
       return runGated(coordinator, "start_sub_thread",
@@ -889,7 +1247,7 @@ export function createService(bb: BbPluginApi) {
       const item = member.itemId ? store.items.get(member.itemId) ?? undefined : undefined;
       return runGated(coordinator, "archive_sub_thread",
         { kind: "archive", threadId: input.threadId, itemId: null },
-        { item, isPrimaryThread: member.role === "primary", summary: `archive ${member.role} sub-thread ${input.threadId}${item ? ` of "${item.title}"` : ""}` });
+        { item, isPrimaryThread: isPrimaryRole(member.role), summary: `archive ${member.role} sub-thread ${input.threadId}${item ? ` of "${item.title}"` : ""}` });
     },
     async mergePr(threadId: string, input: { itemId: string }): Promise<string> {
       const coordinator = toolCoordinator(threadId);
@@ -906,14 +1264,15 @@ export function createService(bb: BbPluginApi) {
     briefing(threadId: string): string {
       const coordinator = toolCoordinator(threadId);
       const markdown = briefingMarkdown(coordinator);
-      store.coordinators.update(coordinator.threadId, { lastOpenedAt: now() });
+      const at = now();
+      store.coordinators.update(coordinator.threadId, { lastOpenedAt: at, lastBriefedAt: at });
       publish(coordinator.threadId);
       return markdown;
     },
     cutItem(threadId: string, input: { itemId: string }): Promise<string> {
       const coordinator = toolCoordinator(threadId);
       requireOwnItem(coordinator, input.itemId);
-      return rpc.cutItem(input).then(() => `Cut item ${input.itemId}.`);
+      return rpc.cutItem(input).then(() => `Stopped tracking item ${input.itemId}.`);
     },
     async reviewVerdict(threadId: string, input: { pass: boolean; findings?: string }): Promise<string> {
       const member = membership.get(threadId);
@@ -941,10 +1300,51 @@ export function createService(bb: BbPluginApi) {
       })
       : store.coordinators.insert({
         threadId, projectId, template, paused: false, autoApprove: true, rulesVersion: 1, appliedRulesVersion: 1,
-        lastOpenedAt: at, lastBriefingAt: at, createdAt: at,
+        lastOpenedAt: at, lastBriefingAt: at, lastBriefedAt: null, createdAt: at,
       });
     refreshMembership();
     return coordinator;
+  }
+
+  /** Applies the user's answer to an "asks you first" approval and says what happened, in plain words. */
+  async function answerApproval(approvalId: string, approve: boolean, reason: string | undefined): Promise<string> {
+    const approval = store.approvals.get(approvalId);
+    if (!approval) throw new Error("This approval no longer exists.");
+    if (approval.resolvedAt !== null) return "This request was already answered.";
+    const coordinator = requireCoordinator(approval.coordinatorThreadId);
+    const args = parseActionArgs(approval.args);
+    if (approve && !args) throw new Error("This approval can't be replayed.");
+    if (!store.approvals.resolve(approvalId, approve ? "approved" : "declined", now())) return "This request was already answered.";
+    const label = ACTION_LABELS[approval.action];
+    if (!approve || !args) {
+      const why = reason?.trim() || "No reason given.";
+      log(coordinator.threadId, approval.itemId, "action_declined", `You declined: ${approval.summary}. ${why}`, approval.action);
+      if (args?.kind === "interaction") {
+        try {
+          await bb.sdk.threads.interactions.resolve({ threadId: args.threadId, interactionId: args.interactionId, resolution: { decision: "deny" } });
+        } catch (error) {
+          bb.log.info(`Coordinator Mode: request already answered (${errorMessage(error)}).`);
+        }
+      } else {
+        await sendNote(coordinator.threadId, `Coordinator Mode: the user declined to ${label} (${approval.summary}). Reason: ${why}`);
+      }
+      publish(coordinator.threadId);
+      return reason?.trim() ? `Declined: ${clip(reason, 240)}` : "Declined.";
+    }
+    let message: string;
+    try {
+      const text = await execute(coordinator, args);
+      log(coordinator.threadId, approval.itemId, "action_run", `Approved: ${text}`, approval.action);
+      if (args.kind !== "interaction") await sendNote(coordinator.threadId, `Coordinator Mode: the user approved. ${text}`);
+      message = `Approved. ${text}`;
+    } catch (error) {
+      const failure = errorMessage(error);
+      log(coordinator.threadId, approval.itemId, "action_declined", `Approved, but it failed: ${approval.summary}. ${failure}`, approval.action);
+      if (args.kind !== "interaction") await sendNote(coordinator.threadId, `Coordinator Mode: the user approved, but it failed to ${label}: ${failure}`);
+      message = `Approved, but it failed to ${label}: ${failure}`;
+    }
+    publish(coordinator.threadId);
+    return clip(message, 300);
   }
 
   const rpc = {
@@ -972,12 +1372,15 @@ export function createService(bb: BbPluginApi) {
       const parsed = parseTemplate(template);
       const thread = await bb.sdk.threads.get({ threadId });
       const coordinator = await insertCoordinator(threadId, parsed, thread.projectId);
-      // Existing sub-threads become proposed items the user keeps or drops.
+      // Live sub-threads are tracked at once as adopted: the rules apply to them, but nothing is auto-approved for them.
       const children = await bb.sdk.threads.list({ parentThreadId: threadId });
+      const adopted: ItemRecord[] = [];
       for (const child of children) {
         if (child.archivedAt !== null || membership.has(child.id) || store.threads.has(child.id)) continue;
-        createItem(coordinator, { title: child.title ?? child.titleFallback ?? "Untitled sub-thread", proposed: true, primaryThreadId: child.id });
+        adopted.push(createItem(coordinator, { title: child.title ?? child.titleFallback ?? "Untitled sub-thread", primaryThreadId: child.id, adopted: true }));
       }
+      refreshMembership();
+      for (const item of adopted) await evaluateItem(item.id);
       publish(threadId);
       await restartSession(threadId, TURN_ON_KICKOFF);
       return { ok: true };
@@ -997,12 +1400,14 @@ export function createService(bb: BbPluginApi) {
       return { threadId: thread.id };
     },
     turnOff({ threadId }) {
+      const open = store.cards.open(threadId).map((card) => card.ref);
       store.coordinators.delete(threadId);
       const timer = nudges.get(threadId);
       if (timer) clearTimeout(timer);
       nudges.delete(threadId);
       refreshMembership();
       publish(threadId);
+      if (open.length > 0) void closeCards(open, "closed", "Coordinator Mode was turned off.").catch(() => undefined);
       return { ok: true };
     },
     async setPaused({ threadId, paused }) {
@@ -1049,20 +1454,12 @@ export function createService(bb: BbPluginApi) {
       await evaluateItem(itemId);
       publish(item.coordinatorThreadId);
       if (item.primaryThreadId) {
-        await sendNote(item.primaryThreadId, `The user rejected this work at ${coordinator.template.stages[item.stageIndex]?.name ?? "review"}: ${why}\nPlease address it and continue.`);
+        await sendNote(item.primaryThreadId, `Rejected at ${coordinator.template.stages[item.stageIndex]?.name ?? "review"}: ${clip(why, 400)} Fix it, then report in 3 lines or fewer.`);
       }
       return { ok: true };
     },
-    async confirmItem({ itemId }) {
-      const item = requireItem(itemId);
-      if (!item.proposed) return { ok: true };
-      store.items.save({ ...item, proposed: false, updatedAt: now() });
-      refreshMembership();
-      await evaluateItem(itemId);
-      publish(item.coordinatorThreadId);
-      await sendNote(item.coordinatorThreadId, item.primaryThreadId
-        ? `Coordinator Mode: I confirmed "${item.title}" (item ${item.id}); its sub-thread ${item.primaryThreadId} is tracked.`
-        : `Coordinator Mode: I confirmed "${item.title}" (item ${item.id}). Start its sub-thread with coordinator_start_sub_thread.`);
+    /** Items are tracked directly now; kept so older panels and scripts that still confirm don't fail. */
+    confirmItem() {
       return { ok: true };
     },
     async cutItem({ itemId }) {
@@ -1070,7 +1467,7 @@ export function createService(bb: BbPluginApi) {
       if (item.status === "cut") return { ok: true };
       const next = store.items.save({ ...item, status: "cut", updatedAt: now() });
       refreshMembership();
-      log(item.coordinatorThreadId, item.id, "item_cut", `Cut "${item.title}".`);
+      log(item.coordinatorThreadId, item.id, "item_cut", `Stopped tracking "${item.title}".`);
       const coordinator = store.coordinators.get(item.coordinatorThreadId);
       if (coordinator) await retireHelpers(coordinator, next);
       publish(item.coordinatorThreadId);
@@ -1085,41 +1482,10 @@ export function createService(bb: BbPluginApi) {
       return { ok: true };
     },
     async resolveApproval({ approvalId, approve, reason }) {
-      const approval = store.approvals.get(approvalId);
-      if (!approval) throw new Error("This approval no longer exists.");
-      if (approval.resolvedAt !== null) return { ok: true };
-      const coordinator = requireCoordinator(approval.coordinatorThreadId);
-      const args = parseActionArgs(approval.args);
-      if (!store.approvals.resolve(approvalId, approve ? "approved" : "declined", now())) return { ok: true };
-      const label = ACTION_LABELS[approval.action];
-      if (!approve) {
-        const why = reason?.trim() || "No reason given.";
-        log(coordinator.threadId, approval.itemId, "action_declined", `You declined: ${approval.summary}. ${why}`, approval.action);
-        if (args?.kind === "interaction") {
-          try {
-            await bb.sdk.threads.interactions.resolve({ threadId: args.threadId, interactionId: args.interactionId, resolution: { decision: "deny" } });
-          } catch (error) {
-            bb.log.info(`Coordinator Mode: request already answered (${errorMessage(error)}).`);
-          }
-        } else {
-          await sendNote(coordinator.threadId, `Coordinator Mode: the user declined to ${label} (${approval.summary}). Reason: ${why}`);
-        }
-        publish(coordinator.threadId);
-        return { ok: true };
-      }
-      if (!args) throw new Error("This approval can't be replayed.");
-      try {
-        const text = await execute(coordinator, args);
-        log(coordinator.threadId, approval.itemId, "action_run", `Approved: ${text}`, approval.action);
-        if (args.kind !== "interaction") await sendNote(coordinator.threadId, `Coordinator Mode: the user approved. ${text}`);
-      } catch (error) {
-        const message = errorMessage(error);
-        log(coordinator.threadId, approval.itemId, "action_declined", `Approved, but it failed: ${approval.summary}. ${message}`, approval.action);
-        if (args.kind !== "interaction") await sendNote(coordinator.threadId, `Coordinator Mode: the user approved, but it failed to ${label}: ${message}`);
-      }
-      publish(coordinator.threadId);
+      await answerApproval(approvalId, approve, reason);
       return { ok: true };
     },
+    [ACTION_CARDS_DECIDE_METHOD]: (input) => decideCard(input),
     markOpened({ threadId }) {
       if (store.coordinators.get(threadId)) {
         store.coordinators.update(threadId, { lastOpenedAt: now() });
@@ -1159,11 +1525,13 @@ export function createService(bb: BbPluginApi) {
       if (!coordinator) return { tools: [], skills: [] };
       return { tools: [...COORDINATOR_TOOLS], skills: [], instructions: instructionsFor(coordinator.template) };
     }
-    if (member.role === "reviewer") return { tools: [...REVIEWER_TOOLS], skills: [], instructions: REVIEW_INSTRUCTIONS };
-    return { tools: [], skills: [] };
+    // Every tracked sub-thread, adopted ones included, reports once and briefly.
+    if (member.role === "reviewer") return { tools: [...REVIEWER_TOOLS], skills: [], instructions: `${SUB_THREAD_INSTRUCTIONS} ${REVIEW_INSTRUCTIONS}` };
+    return { tools: [], skills: [], instructions: SUB_THREAD_INSTRUCTIONS };
   }
 
   function dispose(): void {
+    disposed = true;
     for (const timer of nudges.values()) clearTimeout(timer);
     nudges.clear();
   }

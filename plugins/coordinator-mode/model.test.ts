@@ -3,14 +3,22 @@ import { describe, expect, it } from "vitest";
 import type { CoordinatorItem, CoordinatorTemplate, LogEntry, PendingApproval } from "./contracts";
 import {
   advanceItem,
+  approvalCardContent,
+  approvalCardRef,
+  briefingHeadline,
+  briefingLede,
   classifyUnmatchedCommand,
   describeRule,
   composeBriefing,
   decideAction,
   evaluateCheck,
   instructionsFor,
+  itemStatusLine,
   MAX_INSTRUCTIONS_LENGTH,
   matchGatedCommands,
+  parseCardRef,
+  qaCardContent,
+  qaCardRef,
   renderBriefingMarkdown,
 } from "./model";
 import { BUILT_IN_TEMPLATES } from "./templates";
@@ -30,6 +38,9 @@ function item(overrides: Partial<CoordinatorItem> = {}): CoordinatorItem {
     primaryThreadId: "thr_primary",
     helperThreadIds: [],
     proposed: false,
+    summary: null,
+    waitingOn: null,
+    pr: null,
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
@@ -183,32 +194,104 @@ describe("briefings", () => {
   const items = [
     item({ id: "a", title: "A", stageIndex: 2, updatedAt: 30 }),
     item({ id: "b", title: "B", stageIndex: 1, updatedAt: 5 }),
-    item({ id: "c", title: "C", stageIndex: 0, proposed: true }),
     item({ id: "d", title: "D", stageIndex: 3, updatedAt: 20 }),
     item({ id: "e", title: "E", stageIndex: 4, status: "done" }),
     item({ id: "f", title: "F", stageIndex: 1, updatedAt: 2 }),
+    item({ id: "g", title: "G", stageIndex: 1, status: "blocked", reason: "Denied merge", updatedAt: 3 }),
   ];
   const approvals: PendingApproval[] = [
-    { id: "ap_1", coordinatorThreadId: "thr_coord", itemId: "b", action: "merge_pr", summary: "Merge PR #12", args: {}, createdAt: 3 },
+    { id: "ap_1", coordinatorThreadId: "thr_coord", itemId: "b", action: "merge_pr", summary: "Merge PR #12", args: {}, reason: null, createdAt: 3 },
   ];
+  const cardFor = (id: string) => `::action{id="${id}" thread="thr_coord"}`;
 
-  it("lists every needs-you item, then what's next", () => {
+  it("lists every decision and blocker, then what's next", () => {
     const briefing = composeBriefing({ changes, items, approvals, template: SHIP });
-    expect(Object.fromEntries(briefing.needsYou.map(({ item: needed, why }) => [needed.id, why]))).toEqual({
-      a: "Waiting for your approval at Your QA",
-      b: "Approve or decline: Merge PR #12",
-      c: "Proposed: confirm or cut it",
-    });
+    expect(briefing.needsYou.map(({ item: needed, why, card }) => [needed?.id, why, card])).toEqual([
+      ["g", "Blocked: Denied merge", null],
+      ["b", "Approve or decline: Merge PR #12", null],
+      ["a", "Waiting for your approval at Your QA", null],
+    ]);
     expect(briefing.next.map((next) => next.id)).toEqual(["d", "f"]);
   });
 
   it("renders short markdown and says nothing changed when empty", () => {
     const markdown = renderBriefingMarkdown(composeBriefing({ changes, items, approvals, template: SHIP }), SHIP);
     expect(markdown).toContain("**Since you last looked**\n- A moved to Your QA");
-    expect(markdown).toContain("**Needs you**");
+    expect(markdown).toContain("**Needs you**\n- **G** (Building): Blocked: Denied merge");
+    expect(markdown).toContain("- **A** (Your QA): Waiting for your approval at Your QA");
     expect(markdown).toContain("**Next**\n- **D**: Review");
     const empty = composeBriefing({ changes: [], items: [], approvals: [], template: SHIP });
     expect(renderBriefingMarkdown(empty, SHIP)).toBe("Nothing changed.");
+  });
+
+  it("embeds each live card's directive on its own line and keeps text for the rest", () => {
+    const cards = new Map([[qaCardRef("a", 2), cardFor("cm-qa-a")], [approvalCardRef("ap_1"), cardFor("cm-ap-1")]]);
+    const briefing = composeBriefing({ changes, items, approvals, template: SHIP, cards });
+    const lines = renderBriefingMarkdown(briefing, SHIP).split("\n");
+    expect(lines).toContain(cardFor("cm-qa-a"));
+    expect(lines).toContain(cardFor("cm-ap-1"));
+    expect(lines).toContain("- **G** (Building): Blocked: Denied merge");
+    expect(lines.join("\n")).not.toContain("Waiting for your approval");
+    // A directive renders only as its own block.
+    const at = lines.indexOf(cardFor("cm-ap-1"));
+    expect([lines[at - 1], lines[at + 1]]).toEqual(["", ""]);
+
+    const omitted = renderBriefingMarkdown(briefing, SHIP, { cards: "omit" });
+    expect(omitted).not.toContain("::action");
+    expect(omitted).toContain("Blocked: Denied merge");
+  });
+
+  it("writes a Briefs headline and lede", () => {
+    const briefing = composeBriefing({ changes, items, approvals, template: SHIP });
+    expect(briefingHeadline(briefing)).toBe("3 need you · 1 changed");
+    expect(briefingHeadline(briefing, 1)).toBe("3 need you · 2 changed");
+    expect(briefingLede(briefing)).toBe("G: Blocked: Denied merge");
+    const quiet = composeBriefing({ changes: [], items: [], approvals: [], template: SHIP });
+    expect(briefingHeadline(quiet)).toBe("0 need you · 0 changed");
+    expect(briefingLede(quiet)).toBe("Nothing changed since your last brief.");
+  });
+});
+
+describe("decision cards and status lines", () => {
+  it("round-trips card refs", () => {
+    expect(parseCardRef(qaCardRef("item-1", 2))).toEqual({ kind: "qa", itemId: "item-1", stageIndex: 2 });
+    expect(parseCardRef(approvalCardRef("ap-1"))).toEqual({ kind: "approval", approvalId: "ap-1" });
+    expect(parseCardRef("other:1")).toBeNull();
+  });
+
+  it("asks for QA with where approving leads", () => {
+    const content = qaCardContent(item({ title: "Moss viewer plugin", stageIndex: 2, summary: "Review passed with small follow-ups.", pr: { number: 12, url: null, state: "open", checks: "passing" } }), SHIP);
+    expect(content).toEqual({
+      type: "decide",
+      question: "Approve QA for “Moss viewer plugin”?",
+      consequence: "Review passed with small follow-ups · PR #12 · CI passing. Approving moves it to Review.",
+      yesLabel: "Approve",
+      noLabel: "Reject",
+    });
+    const last = template("bug-triage");
+    expect(qaCardContent(item({ stageIndex: 3 }), last).consequence).toBe("Approving marks it done.");
+    expect(qaCardContent(item({ title: "x".repeat(400), summary: "y".repeat(160), stageIndex: 2 }), SHIP).question.length).toBeLessThanOrEqual(300);
+  });
+
+  it("asks for an approval with why the rules asked", () => {
+    const approval: PendingApproval = {
+      id: "ap_1", coordinatorThreadId: "thr_coord", itemId: null, action: "merge_pr", summary: "Merge the PR for \"Nav\"", args: {},
+      reason: "Asks you first: Merge a PR.", createdAt: 1,
+    };
+    expect(approvalCardContent(approval)).toEqual({
+      type: "decide", question: "Approve: Merge the PR for \"Nav\"?", consequence: "Asks you first: Merge a PR.", yesLabel: "Approve", noLabel: "Decline",
+    });
+    expect(approvalCardContent({ ...approval, reason: "r".repeat(500) }).consequence.length).toBe(300);
+  });
+
+  it("writes one status line per item", () => {
+    expect(itemStatusLine(item({ stageIndex: 1, pr: { number: 327, url: null, state: "open", checks: "passing" } }), SHIP)).toBe("Building · PR #327 · CI passing");
+    expect(itemStatusLine(item({ stageIndex: 1, waitingOn: "Waiting on moss-multi" }), SHIP)).toBe("Building · Waiting on moss-multi");
+    expect(itemStatusLine(item({ stageIndex: 1, status: "blocked" }), SHIP)).toBe("Building · Blocked");
+    expect(itemStatusLine(item({ stageIndex: 3 }), SHIP, "Working")).toBe("Review · Working");
+    expect(itemStatusLine(item({ stageIndex: 3 }), SHIP)).toBe("Review");
+    expect(itemStatusLine(item({ stageIndex: 4, status: "done" }), SHIP)).toBe("Merged");
+    expect(itemStatusLine(item({ status: "cut" }), SHIP)).toBe("Stopped tracking");
   });
 });
 
@@ -216,10 +299,13 @@ describe("instructionsFor", () => {
   it.each(BUILT_IN_TEMPLATES.map((candidate) => [candidate.id, candidate] as const))("%s fits and names the tools", (_id, candidate) => {
     const text = instructionsFor(candidate);
     expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS_LENGTH);
-    for (const tool of ["coordinator_add_item", "coordinator_start_sub_thread", "coordinator_archive_sub_thread", "coordinator_merge_pr", "coordinator_briefing", "coordinator_set_link"]) {
+    for (const tool of ["coordinator_add_item", "coordinator_update_item", "coordinator_start_sub_thread", "coordinator_archive_sub_thread", "coordinator_merge_pr", "coordinator_briefing", "coordinator_set_link"]) {
       expect(text).toContain(tool);
     }
     expect(text).toContain("Only checks advance stages");
+    expect(text).toContain("Never ask for approval in prose");
+    expect(text).toContain("without asking the user to confirm");
+    expect(text).not.toMatch(/propose/iu);
     const withoutPrefix = candidate.intakePrefix ? text.replaceAll(candidate.intakePrefix, "") : text;
     expect(withoutPrefix).not.toMatch(/\b(hub|lead|worker)s?\b/iu);
   });
@@ -237,7 +323,11 @@ describe("instructionsFor", () => {
       purpose: "p".repeat(5000),
       rules: Array.from({ length: 40 }, () => ({ kind: "instruction" as const, column: "never" as const, text: "x".repeat(500) })),
     };
-    expect(instructionsFor(huge).length).toBeLessThanOrEqual(MAX_INSTRUCTIONS_LENGTH);
+    const text = instructionsFor(huge);
+    expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS_LENGTH);
+    // The cap trims the template's own lists, never the communication rules.
+    expect(text).toContain("put the outcome first");
+    expect(text).toContain("done condition only");
   });
 });
 
@@ -248,6 +338,7 @@ describe("classifyUnmatchedCommand", () => {
     expect(classifyUnmatchedCommand("bb plugin disable coordinator-mode")).toBe("self_rpc");
     expect(classifyUnmatchedCommand("bb coordinator-mode off --thread thr_coord")).toBe("self_rpc");
     expect(classifyUnmatchedCommand("bb coordinator-mode on --thread thr_coord --template content")).toBe("self_rpc");
+    expect(classifyUnmatchedCommand("curl -X POST http://127.0.0.1:1/api/v1/plugins/inline-action-cards/rpc/act")).toBe("self_rpc");
   });
   it("never auto-approves gated operations the matcher can't parse", () => {
     expect(classifyUnmatchedCommand("gh -R o/r pr merge 12")).toBe("risky");

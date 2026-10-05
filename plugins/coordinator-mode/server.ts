@@ -1,7 +1,7 @@
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
-import type { CoordinatorStatus, CoordinatorTemplate } from "./contracts";
+import { ACTION_CARDS_DECIDE_METHOD, type CoordinatorStatus, type CoordinatorTemplate } from "./contracts";
 import { createService } from "./service";
 import { BUILT_IN_TEMPLATES } from "./templates";
 
@@ -26,6 +26,7 @@ export const rpcContract = defineRpcContract({
   restartCoordinator: { input: z.object({ threadId: id }), output: ok },
   approveItem: { input: z.object({ itemId: id }), output: ok },
   rejectItem: { input: z.object({ itemId: id, reason: z.string().max(2000) }), output: ok },
+  /** No-op kept for compatibility: items are tracked without confirmation. */
   confirmItem: { input: z.object({ itemId: id }), output: ok },
   cutItem: { input: z.object({ itemId: id }), output: ok },
   setLink: { input: z.object({ itemId: id, link: z.string().max(2000) }), output: ok },
@@ -34,6 +35,16 @@ export const rpcContract = defineRpcContract({
     output: ok,
   },
   markOpened: { input: z.object({ threadId: id }), output: ok },
+  /** Action Cards calls this when the user clicks a card Coordinator Mode owns. Throwing shows a retryable failure. */
+  [ACTION_CARDS_DECIDE_METHOD]: {
+    input: z.object({
+      ref: z.string().min(1).max(200),
+      action: z.enum(["yes", "no", "choose"]),
+      choice: z.unknown().optional(),
+      note: z.string().max(2000).optional(),
+    }),
+    output: z.object({ message: z.string() }),
+  },
   describeProcess: { input: z.object({ description: z.string().min(1).max(4000), projectId: id }), output: z.custom<{ template: CoordinatorTemplate }>() },
 });
 
@@ -52,17 +63,28 @@ export default function plugin(bb: BbPluginApi): void {
   // Coordinator tools. Each re-checks membership in the store-backed cache.
   bb.agents.registerTool({
     name: "coordinator_add_item",
-    description: "Add a tracker item for one of the user's asks. Without startSubThread it is proposed for the user to confirm. Use startSubThread true for intake-prefix messages; prompt is the sub-thread's first message.",
+    description: "Track one of the user's asks as an item, without asking them to confirm it. summary is one line about the item. startSubThread true also starts its primary sub-thread; prompt is that sub-thread's first message (outcome, constraints, done condition only).",
     parameters: z.object({
       title: z.string().min(1).max(200),
+      summary: z.string().max(160).optional(),
       startSubThread: z.boolean().optional(),
       prompt: z.string().min(1).max(20_000).optional(),
     }).strict(),
     execute: (input, ctx) => service.tools.addItem(ctx.threadId, input),
   });
   bb.agents.registerTool({
+    name: "coordinator_update_item",
+    description: "Keep an item's context current: summary is one line about it; waitingOn is what it waits on (empty clears it). Both show in the Coordinator panel.",
+    parameters: z.object({
+      itemId: id,
+      summary: z.string().max(160).optional(),
+      waitingOn: z.string().max(160).optional(),
+    }).strict(),
+    execute: (input, ctx) => service.tools.updateItem(ctx.threadId, input),
+  });
+  bb.agents.registerTool({
     name: "coordinator_start_sub_thread",
-    description: "Start a sub-thread for a confirmed item, checked against the coordinator rules. role primary does the item's work and PR; reviewer reviews it and records the verdict; helper is for fixes or other side work. Name it per the sub-thread rules.",
+    description: "Start a sub-thread for an item, checked against the coordinator rules. role primary does the item's work and PR; reviewer reviews it and records the verdict; helper is for fixes or other side work. Name it per the sub-thread rules. The prompt states the outcome, constraints, and done condition only.",
     parameters: z.object({
       itemId: id,
       prompt: z.string().min(1).max(20_000),
@@ -91,13 +113,13 @@ export default function plugin(bb: BbPluginApi): void {
   });
   bb.agents.registerTool({
     name: "coordinator_briefing",
-    description: "Get the briefing: what changed since the user last looked, what needs them, and what's next, plus item IDs. Share it with the user as written.",
+    description: "Get the briefing: what changed since the user last looked, what needs them (as decision cards), and what's next, plus item IDs. Share it with the user as written, card lines included; leave out the item IDs.",
     parameters: z.object({}).strict(),
     execute: (_input, ctx) => service.tools.briefing(ctx.threadId),
   });
   bb.agents.registerTool({
     name: "coordinator_cut_item",
-    description: "Cut an item the user no longer wants. Only do this when the user asks.",
+    description: "Stop tracking an item the user no longer wants. Only do this when the user asks.",
     parameters: z.object({ itemId: id }).strict(),
     execute: (input, ctx) => service.tools.cutItem(ctx.threadId, input),
   });

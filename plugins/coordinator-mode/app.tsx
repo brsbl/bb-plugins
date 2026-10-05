@@ -98,7 +98,7 @@ function CoordinatorPanel({ threadId }: PluginThreadPanelProps) {
       {state ? (
         <Tracker
           threadId={threadId}
-          threadName={thread?.displayTitle ?? state.template.name}
+          threadName={thread?.displayTitle ?? null}
           status={{ ...status, state }}
           onChanged={refresh}
         />
