@@ -282,10 +282,18 @@ function Desktop() {
     <div ref={promptRef} className={`cdc-prompt ${layout.composer === "hidden" ? "cdc-prompt-hidden" : ""}`} data-screen
       style={floatPoint ? { left: floatPoint.x, top: floatPoint.y, bottom: "auto", transform: "none" } : undefined}
       aria-hidden={layout.composer === "hidden"} inert={layout.composer === "hidden"}>
-      <button type="button" className="cdc-prompt-move" aria-label="Move composer. Drag or use arrow keys."
-        onPointerDown={event => startDrag(event, "prompt", "main", promptPoint())}
-        onKeyDown={event => nudge(event, "prompt", "main", promptPoint())} />
-      <Button type="button" className="cdc-prompt-minimize" variant="ghost" size="icon" aria-label="Minimize composer" onClick={() => showPrompt(false)}><Icon name="Minus" /></Button>
+      <header className="cdc-prompt-header">
+        <button type="button" className="cdc-prompt-move" aria-label="Move composer. Drag or use arrow keys."
+          onPointerDown={event => startDrag(event, "prompt", "main", promptPoint())}
+          onKeyDown={event => nudge(event, "prompt", "main", promptPoint())}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <circle cx="5" cy="3" r="1.25" /><circle cx="11" cy="3" r="1.25" />
+            <circle cx="5" cy="8" r="1.25" /><circle cx="11" cy="8" r="1.25" />
+            <circle cx="5" cy="13" r="1.25" /><circle cx="11" cy="13" r="1.25" />
+          </svg>
+        </button>
+        <Button type="button" className="cdc-prompt-minimize" variant="ghost" size="icon" aria-label="Minimize composer" onClick={() => showPrompt(false)}><Icon name="X" /></Button>
+      </header>
       <NewThreadComposer key="main-composer" draftKey={`${pluginId}:main`} layout="document" focusRequest={focusPrompt} placeholder="Ask anything, or start something new…"
         onSubmit={async request => {
           const created = await sdk.threads.spawn(request);
@@ -324,9 +332,7 @@ function Desktop() {
     </div>
     <nav className="cdc-dock" data-screen aria-label="Workspace taskbar">
       <Button data-menu-toggle variant={launcher ? "secondary" : "ghost"} size="sm" aria-expanded={launcher} onClick={() => setLauncher(value => !value)}><Icon name="GridView" />Launcher</Button>
-      <span className="cdc-divider" />
       <Button ref={composerButton} variant={layout.composer !== "hidden" ? "secondary" : "ghost"} size="sm" aria-expanded={layout.composer !== "hidden"} onClick={() => showPrompt()}><Icon name="MessageSquarePlus" />Composer</Button>
-      {layout.windows.length > 0 && <span className="cdc-divider" />}
       <div className="cdc-tasks">{layout.windows.map(win => <Button key={win.id} className="cdc-task" variant={active === win.id && !win.minimized ? "secondary" : "ghost"} size="sm" aria-label={`${win.minimized ? "Restore" : "Show"} ${windowTitle(win)}`} onClick={() => openWindow(win.id, win.kind ?? "thread")}><Icon name={win.kind === "folder" ? "Folder" : "MessageSquare"} /><span>{windowTitle(win)}</span>{win.minimized && <Icon name="Minus" />}</Button>)}</div>
     </nav>
   </div>;
