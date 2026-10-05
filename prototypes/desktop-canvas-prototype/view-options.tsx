@@ -25,7 +25,7 @@ export function ViewOptions({ state, groups, onBack, onArrange }: {
   const root = useRef<HTMLDivElement>(null);
   const { preferences: p, saving, error, update, refresh } = state;
   useEffect(() => { root.current?.querySelector("button")?.focus(); }, [page]);
-  const choose = (label: string, checked: boolean, action: () => void, checkbox = false, icon = "Check") => <Button key={label} variant="ghost" role={checkbox ? "menuitemcheckbox" : "menuitemradio"} aria-checked={checked} disabled={saving} onClick={action}><span>{label}</span>{checked && <Icon name={icon} />}</Button>;
+  const choose = (label: string, checked: boolean, action: () => void, checkbox = false, icon = "Check") => <Button key={label} variant="ghost" role={checkbox ? "menuitemcheckbox" : "menuitemradio"} aria-checked={checked} aria-disabled={saving} onClick={() => { if (!saving) action(); }}><span>{label}</span>{checked && <Icon name={icon} />}</Button>;
   return <div ref={root} className="cdc-view-options">
     <Button variant="ghost" role="menuitem" onClick={() => page === "view" ? onBack() : setPage("view")}><Icon name="ChevronLeft" />{page === "view" ? "Back" : "View options"}</Button>
     <div className="cdc-menu-label">{page === "view" ? "Sidebar & canvas" : page === "sort" ? "Sort by" : page === "visibility" ? "Visible groups" : page === "organize" ? "Organize" : "Filter"}</div>
@@ -45,11 +45,11 @@ export function ViewOptions({ state, groups, onBack, onArrange }: {
         const selected = (p.chronologicalSort === "none" ? "updated" : p.chronologicalSort) === value;
         const direction = p.sortDirection === "default" ? (value === "alpha" ? "ascending" : "descending") : p.sortDirection;
         const next = selected ? direction === "ascending" ? "descending" : "ascending" : value === "alpha" ? "ascending" : "descending";
-        return <Button key={value} variant="ghost" role="menuitemradio" aria-checked={selected} aria-label={selected ? label + ", " + direction + ". Sort " + next : label} disabled={saving} onClick={() => void update({ chronologicalSort: value, sortDirection: next })}><span>{label}</span>{selected && <Icon name={direction === "ascending" ? "ArrowUp" : "ArrowDown"} />}</Button>;
+        return <Button key={value} variant="ghost" role="menuitemradio" aria-checked={selected} aria-label={selected ? label + ", " + direction + ". Sort " + next : label} aria-disabled={saving} onClick={() => { if (!saving) void update({ chronologicalSort: value, sortDirection: next }); }}><span>{label}</span>{selected && <Icon name={direction === "ascending" ? "ArrowUp" : "ArrowDown"} />}</Button>;
       })}
       {page === "filter" && (["active", "archived"] as const).map(value => {
         const checked = p.threadLifecycles.includes(value);
-        return <Button key={value} variant="ghost" role="menuitemcheckbox" aria-checked={checked} disabled={saving || (checked && p.threadLifecycles.length === 1)} onClick={() => void update({ threadLifecycles: checked ? p.threadLifecycles.filter(v => v !== value) : [...p.threadLifecycles, value] })}><span>{value === "active" ? "Active" : "Archived"}</span>{checked && <Icon name="Check" />}</Button>;
+        return <Button key={value} variant="ghost" role="menuitemcheckbox" aria-checked={checked} aria-disabled={saving || (checked && p.threadLifecycles.length === 1)} disabled={checked && p.threadLifecycles.length === 1} onClick={() => void update({ threadLifecycles: checked ? p.threadLifecycles.filter(v => v !== value) : [...p.threadLifecycles, value] })}><span>{value === "active" ? "Active" : "Archived"}</span>{checked && <Icon name="Check" />}</Button>;
       })}
       {page === "visibility" && groups.filter(group => group.id !== "pinned").map(group => choose(group.name, !p.hiddenGroups.includes(group.id), () => void update({ hiddenGroups: p.hiddenGroups.includes(group.id) ? p.hiddenGroups.filter(id => id !== group.id) : [...p.hiddenGroups, group.id] }), true))}
     </>}
