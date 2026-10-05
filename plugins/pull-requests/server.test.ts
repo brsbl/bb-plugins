@@ -93,6 +93,13 @@ describe("PR registry and host identity", () => {
     expect(listing.items.find((item) => item.id === "github:PR_1")?.reader?.hostId).toBe("host_a");
     expect(listing.items.find((item) => item.id === "github:PR_2")?.reader?.hostId).toBe("host_b");
   });
+  it("ignores thread references in project PRs the reader neither wrote nor was asked to review", async () => {
+    const h = setup();
+    const value = { ...snapshot(), author: "mallory", requestedReviewers: ["someone-else"], body: "BB-Thread-ID: thr_a\n@thread:thr_b" };
+    h.setSearchResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [value], nextCursor: null }));
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    expect((await h.rpc<PullRequestItem>("show", { id: "github:PR_1" })).links).toEqual([]);
+  });
   it("associates description references on search and refresh while preserving explicit unlinks", async () => {
     const h = setup();
     h.threads.push(makeThreadResponse({ id: "thr_hidden", visibility: "hidden" }), makeThreadResponse({ id: "thr_deleted", deletedAt: Date.now() }));

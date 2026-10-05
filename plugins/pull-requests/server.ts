@@ -141,6 +141,9 @@ export default function plugin(bb: BbPluginApi): void {
   async function associateBodyThreads(item: PullRequestItem) {
     const { snapshot, reader } = item;
     if (!snapshot || !reader) return;
+    // Anyone who can open a PR in a project repository can write a description; only PRs the reader wrote or was asked to review may name threads.
+    const same = (login: string | null | undefined) => !!login && login.toLowerCase() === reader.login.toLowerCase();
+    if (!same(snapshot.author) && !(snapshot.requestedReviewers ?? []).some(same)) return;
     const epoch = connectionEpoch(reader), generation = itemEpochs.get(item.id) ?? 0;
     for (const threadId of referencedThreadIds(snapshot.body)) {
       if (item.links.some((link) => link.threadId === threadId)) continue;
