@@ -230,12 +230,16 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       }
       const first = await read(start, end === null ? ASSET_CHUNK_BYTES : Math.min(end - start + 1, ASSET_CHUNK_BYTES));
       if (!first.ok) return text(first.message, REFUSAL_STATUS[first.code]);
+      // An SVG can carry script: it renders only through <img>, and opened on its own
+      // it is a download in an opaque origin, never a document on bb's origin.
+      const svg = first.contentType === "image/svg+xml";
       const headers: Record<string, string> = {
         "accept-ranges": "bytes",
         "cache-control": "private, max-age=300",
-        "content-security-policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+        "content-security-policy": svg ? "sandbox; default-src 'none'" : "sandbox; default-src 'none'; style-src 'unsafe-inline'",
         "content-type": first.contentType,
         "x-content-type-options": "nosniff",
+        ...(svg ? { "content-disposition": "attachment" } : {}),
       };
       const firstBody = decode(first.data);
       if (range !== null) {

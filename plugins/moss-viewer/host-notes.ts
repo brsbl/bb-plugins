@@ -49,7 +49,7 @@ export function isInside(root: string, path: string): boolean {
   return within !== "" && within !== ".." && !within.startsWith("../") && !isAbsolute(within);
 }
 
-export async function canonicalFile(path: string): Promise<{ path: string; size: number; modifiedMs: number }> {
+export async function canonicalFile(path: string): Promise<{ path: string; size: number; modifiedMs: number; links: number }> {
   if (!isAbsolute(path)) throw new HostFileError("invalid", "The file path must be absolute.");
   let canonical: string;
   try {
@@ -59,7 +59,7 @@ export async function canonicalFile(path: string): Promise<{ path: string; size:
   }
   const details = await stat(canonical);
   if (!details.isFile()) throw new HostFileError("invalid", `${path} is not a file.`);
-  return { path: canonical, size: details.size, modifiedMs: details.mtimeMs };
+  return { path: canonical, size: details.size, modifiedMs: details.mtimeMs, links: details.nlink };
 }
 
 export async function canonicalNotesRoot(): Promise<string> {
@@ -232,12 +232,13 @@ async function readAssetChunk(directory: string, { ref, offset, length }: AssetR
   if (/^[a-z][a-z0-9+.-]*:/i.test(ref)) {
     throw new HostFileError("not_allowed", "Only note-local media loads through this host.");
   }
-  let asset: { path: string; size: number; modifiedMs: number } | null = null;
+  let asset: Awaited<ReturnType<typeof canonicalFile>> | null = null;
   for (const candidate of assetCandidates(ref)) {
     const target = resolve(directory, candidate);
     if (!isInside(directory, target)) continue;
     const file = await canonicalFile(target).catch(() => null);
-    if (file && isInside(directory, file.path)) {
+    // A file with other names may be an outside file hard-linked into the note.
+    if (file && isInside(directory, file.path) && file.links === 1) {
       asset = file;
       break;
     }

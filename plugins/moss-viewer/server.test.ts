@@ -66,6 +66,7 @@ async function setup(machines: Machines = {}) {
       if (method === "openInMoss") return { opened: true };
       if (method === "readAsset") {
         if (request.ref === "assets/missing.mp4") return { ok: false, code: "not_found", message: "assets/missing.mp4 is not in this note's folder." };
+        if (request.ref === "assets/drawing.svg") return { ok: true, contentType: "image/svg+xml", size: 4, modifiedMs: 1, offset: 0, data: Buffer.from("<svg").toString("base64") };
         const start = Math.min(request.offset as number, video.length);
         const end = Math.min(start + (request.length as number), video.length);
         return { ok: true, contentType: "video/mp4", size: video.length, modifiedMs: 1, offset: start, data: video.subarray(start, end).toString("base64") };
@@ -197,7 +198,11 @@ describe("the editor's file bridge", () => {
       ["editorWrite", { noteId: NOTE_ID, write }, { kind: "saved", version: V2, metaVersion: M1, location }],
       ["editorWatch", { noteId: NOTE_ID }, { kind: "changed", version: V1, metaVersion: M1 }],
       ["editorAssetChunk", { noteId: NOTE_ID, upload: "f".repeat(32), offset: 0, data: "AAEC" }, { kind: "staged", size: 3 }],
-      ["editorAssetCommit", { noteId: NOTE_ID, upload: "f".repeat(32), name: "shot-1-abcd1234.png", size: 3 }, { kind: "stored", ref: "assets/shot-1-abcd1234.png" }],
+      [
+        "editorAssetCommit",
+        { noteId: NOTE_ID, upload: "f".repeat(32), name: "shot-1-abcd1234.png", mimeType: "image/png", size: 3 },
+        { kind: "stored", ref: "assets/shot-1-abcd1234.png" },
+      ],
       [
         "editorAssetCopy",
         { noteId: NOTE_ID, sourceNoteId: "0f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b", sourceRef: "assets/a.png", name: "a-1-abcd1234.png" },
@@ -220,7 +225,10 @@ describe("the editor's file bridge", () => {
     await expect(send({ rename: { kind: "renameFolder", desiredName: "Clip 2" }, ops: [meta] })).rejects.toThrow();
     await expect(send({ ops: [{ kind: "delete", file: "markdown" }, meta] })).rejects.toThrow();
     await expect(send({ ops: [{ kind: "put", file: "notes.txt", text: "" }, meta] })).rejects.toThrow();
-    await expect(h.behavior.callRpc("editorAssetCommit", { hostId: "mac", noteId: NOTE_ID, upload: "f".repeat(32), name: "../a.png", size: 1 })).rejects.toThrow();
+    await expect(
+      h.behavior.callRpc("editorAssetCommit", { hostId: "mac", noteId: NOTE_ID, upload: "f".repeat(32), name: "../a.png", mimeType: "image/png", size: 1 }),
+    ).rejects.toThrow();
+    await expect(h.behavior.callRpc("editorReadCompanion", { hostId: "mac", noteId: NOTE_ID, relativePath: "~/.ssh/id_ed25519" })).rejects.toThrow();
     await expect(h.behavior.callRpc("editorReadCompanion", { hostId: "mac", noteId: NOTE_ID, relativePath: "/etc/hosts" })).rejects.toThrow();
     expect(h.inspection.experimental_hostRpcCalls).toEqual([]);
   });
@@ -336,6 +344,18 @@ describe("note media", () => {
     expect(whole.headers.get("x-content-type-options")).toBe("nosniff");
     expect((await bytes(whole)).equals(video)).toBe(true);
     expect(h.inspection.experimental_hostRpcCalls.filter((call) => call.method === "readAsset")).toHaveLength(3);
+  });
+
+  it("serves SVG sandboxed and as a download, so its script never runs on bb's origin", async () => {
+    const h = await setup();
+    const svg = await h.behavior.fetchHttp("GET", assetPath("assets/drawing.svg"));
+    expect(svg.headers.get("content-type")).toBe("image/svg+xml");
+    expect(svg.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'");
+    expect(svg.headers.get("content-disposition")).toBe("attachment");
+    expect(svg.headers.get("x-content-type-options")).toBe("nosniff");
+    const video = await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4"));
+    expect(video.headers.get("content-security-policy")).toMatch(/^sandbox; default-src 'none'/);
+    expect(video.headers.get("content-disposition")).toBeNull();
   });
 
   it("maps refusals and host failures to HTTP errors", async () => {

@@ -57,7 +57,7 @@ const assetReadResult = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(false), code: z.enum(assetRefusals), message: z.string() }),
 ]);
 const assetChunk = { upload: uploadId, offset: z.number().int().min(0), data: chunkData };
-const assetCommit = { upload: uploadId, name: assetName, size: z.number().int().min(0) };
+const assetCommit = { upload: uploadId, name: assetName, mimeType: z.string().min(1).max(200), size: z.number().int().min(0) };
 const assetCopy = { sourceNoteId: noteId, sourceRef: assetRef, name: assetName };
 
 /** The editor's file bridge as the note's host answers it; every method names the note by its meta.json id. */

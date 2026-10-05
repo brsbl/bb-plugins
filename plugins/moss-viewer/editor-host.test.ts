@@ -1,10 +1,11 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExperimentalHostWatchListener, ExperimentalHostWatchOptions } from "@get-bb/plugin-sdk/host";
 import { experimental_createHostEntryHarness } from "@get-bb/plugin-sdk/testing/host";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_ASSET_BYTES, hostContract, hostSignals } from "./contract.js";
+import { contentMatches, isSafeName } from "./editor-files.js";
 import { WATCH_LEASE_MS, createEditorHost } from "./editor-host.js";
 import { listNotes, openInMoss, readAsset, readNote } from "./host-notes.js";
 import { TestPaths, hostHelpers } from "./test/editor-doubles.js";
@@ -27,7 +28,7 @@ let host: ReturnType<typeof createHost>;
 
 function createHost() {
   let count = 0;
-  const { dispose, ...editor } = createEditorHost({
+  const editor = createEditorHost({
     helpers: hostHelpers,
     paths,
     workspaceRoot: () => realpath(join(home, "Moss")),
@@ -38,8 +39,8 @@ function createHost() {
       experimental_apiVersion: 1,
       contract: hostContract,
       experimental_signals: hostSignals,
-      handlers: { readNote, listNotes, readAsset, openInMoss, ...editor },
-      dispose,
+      handlers: { readNote, listNotes, readAsset, openInMoss, ...editor.handlers },
+      dispose: editor.dispose,
     },
     {
       experimental_paths: { dataDir: join(home, ".data"), tempDir: join(home, ".tmp") },
@@ -275,8 +276,9 @@ describe("saving a note", () => {
       await writeFile(target, meta(ID, "Plan", { second: true }));
     };
     const result = await save(write);
-    expect(result).toMatchObject({ kind: "conflict", reason: "raced", applied: [] });
-    const preserved = (result as { preserved: string[] }).preserved;
+    if (result.kind !== "conflict") throw new Error(`expected a conflict, got ${result.kind}`);
+    expect(result).toMatchObject({ reason: "raced", applied: [] });
+    const { preserved } = result;
     expect(preserved).toEqual([".meta.json.u4.displaced"]);
     expect(await text(join(plan.directory, preserved[0]!))).toBe(meta(ID, "Plan", { first: true }));
     expect(await text(join(plan.directory, "meta.json"))).toBe(meta(ID, "Plan", { second: true }));
@@ -460,60 +462,127 @@ describe("watching a note", () => {
   });
 });
 
+const PNG = (body: string) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(body)]);
+
 describe("note media", () => {
-  async function upload(name: string, bytes: Buffer, noteId = ID) {
+  async function upload(name: string, bytes: Buffer, { noteId = ID, mimeType = "image/png" } = {}) {
     const id = "a".repeat(32);
     for (let offset = 0; offset < bytes.length; offset += 128) {
       const data = bytes.subarray(offset, offset + 128).toString("base64");
       const staged = await host.experimental_call("editorAssetChunk", { noteId, upload: id, offset, data });
       if (staged.kind !== "staged") return staged;
     }
-    return host.experimental_call("editorAssetCommit", { noteId, upload: id, name, size: bytes.length });
+    return host.experimental_call("editorAssetCommit", { noteId, upload: id, name, mimeType, size: bytes.length });
   }
 
   it("creates each upload exclusively under the editor's name", async () => {
     const plan = await note("Notes/Plan");
-    const image = Buffer.from(Array.from({ length: 300 }, (_, index) => index % 256));
+    const image = PNG("x".repeat(300));
     expect(await upload("shot-1700000000000-1a2b3c4d.png", image)).toEqual({ kind: "stored", ref: "assets/shot-1700000000000-1a2b3c4d.png" });
     expect(await readFile(join(plan.directory, "assets", "shot-1700000000000-1a2b3c4d.png"))).toEqual(image);
-    expect(await upload("shot-1700000000000-1a2b3c4d.png", Buffer.from("other"))).toEqual({ kind: "exists" });
+    expect(await upload("shot-1700000000000-1a2b3c4d.png", PNG("other"))).toEqual({ kind: "exists" });
     expect(await readFile(join(plan.directory, "assets", "shot-1700000000000-1a2b3c4d.png"))).toEqual(image);
-    expect(await upload("page.html", Buffer.from("<p>"))).toEqual({ kind: "refused", reason: "type" });
+    expect(await upload("drawing-1-1a2b3c4d.svg", Buffer.from('<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"/>'), { mimeType: "image/svg+xml" })).toEqual({
+      kind: "stored",
+      ref: "assets/drawing-1-1a2b3c4d.svg",
+    });
     expect(await host.experimental_call("editorAssetChunk", { noteId: ID, upload: "b".repeat(32), offset: MAX_ASSET_BYTES, data: "AAAA" })).toEqual({
       kind: "refused",
       reason: "tooLarge",
       maxBytes: MAX_ASSET_BYTES,
     });
-    expect(await listing(join(plan.directory, "assets"))).toEqual(["shot-1700000000000-1a2b3c4d.png"]);
+    expect(await listing(join(plan.directory, "assets"))).toEqual(["drawing-1-1a2b3c4d.svg", "shot-1700000000000-1a2b3c4d.png"]);
     expect(await listing(join(home, ".tmp", "moss-uploads"))).toEqual([]);
-    expect(await upload("a.png", Buffer.from("png"), OTHER_ID)).toEqual({ kind: "notFound" });
+    expect(await upload("a.png", PNG(""), { noteId: OTHER_ID })).toEqual({ kind: "notFound" });
   });
 
-  it("copies an asset from another note, confined to that note's folder", async () => {
+  it("refuses an upload whose bytes or type are not what its name says", async () => {
+    const plan = await note("Notes/Plan");
+    const refused = { kind: "refused", reason: "type" };
+    expect(await upload("page-1-1a2b3c4d.png", Buffer.from("<html><script>alert(1)</script>"))).toEqual(refused);
+    expect(await upload("page-1-1a2b3c4d.svg", Buffer.from("<html><script>alert(1)</script>"), { mimeType: "image/svg+xml" })).toEqual(refused);
+    expect(await upload("shot-1-1a2b3c4d.png", PNG("x"), { mimeType: "video/mp4" })).toEqual(refused);
+    expect(await upload("page-1-1a2b3c4d.html", Buffer.from("<p>"), { mimeType: "text/html" })).toEqual(refused);
+    expect(await upload("CON.png", PNG("x"))).toEqual(refused);
+    expect(await stat(join(plan.directory, "assets")).catch(() => null)).toBeNull();
+  });
+
+  it("copies an asset only from a note the user opened, confined to that note's folder", async () => {
     const plan = await note("Notes/Plan");
     const source = await note("Notes/Source", { id: OTHER_ID });
     await mkdir(join(source.directory, "assets"));
-    await writeFile(join(source.directory, "assets", "a.png"), "png");
-    await writeFile(join(home, "secret.png"), "secret");
+    await writeFile(join(source.directory, "assets", "a.png"), PNG("a"));
+    await writeFile(join(home, "secret.png"), PNG("secret"));
     await symlink(join(home, "secret.png"), join(source.directory, "assets", "escape.png"));
+    await link(join(home, "secret.png"), join(source.directory, "assets", "linked.png"));
     const copy = (sourceRef: string, name: string) =>
       host.experimental_call("editorAssetCopy", { noteId: ID, sourceNoteId: OTHER_ID, sourceRef: sourceRef as Moss.MossAssetRef, name });
+
+    // A note's content can name any id; only one the user opened is a source.
+    expect(await copy("assets/a.png", "a-1-1a2b3c4d.png")).toEqual({ kind: "notFound" });
+    await read(OTHER_ID);
     expect(await copy("assets/a.png", "a-1-1a2b3c4d.png")).toEqual({ kind: "stored", ref: "assets/a-1-1a2b3c4d.png" });
-    expect(await text(join(plan.directory, "assets", "a-1-1a2b3c4d.png"))).toBe("png");
-    expect(await copy("assets/escape.png", "e-1-1a2b3c4d.png")).toEqual({ kind: "notFound" });
-    expect(await copy("assets/gone.png", "g-1-1a2b3c4d.png")).toEqual({ kind: "notFound" });
+    expect(await readFile(join(plan.directory, "assets", "a-1-1a2b3c4d.png"))).toEqual(PNG("a"));
+    for (const ref of ["assets/escape.png", "assets/linked.png", "assets/gone.png"]) {
+      expect(await copy(ref, "e-1-1a2b3c4d.png")).toEqual({ kind: "notFound" });
+    }
+    expect(await listing(join(plan.directory, "assets"))).toEqual(["a-1-1a2b3c4d.png"]);
   });
 
-  it("serves media by note id, so a URL outlives a folder rename", async () => {
+  it("serves media by note id, so a URL outlives a folder rename, but never a file linked in from outside", async () => {
     const plan = await note("Notes/Plan");
     await mkdir(join(plan.directory, "assets"));
     await writeFile(join(plan.directory, "assets", "a.png"), "png-bytes");
+    await writeFile(join(home, "secret.png"), "secret");
+    await link(join(home, "secret.png"), join(plan.directory, "assets", "linked.png"));
     await rename(plan.directory, join(home, "Moss", "Notes", "Renamed"));
-    expect(await host.experimental_call("editorAsset", { noteId: ID, ref: "assets/a.png", offset: 0, length: 3 })).toMatchObject({
-      ok: true,
-      contentType: "image/png",
-      size: 9,
-      data: Buffer.from("png").toString("base64"),
-    });
+    const serve = (ref: string) => host.experimental_call("editorAsset", { noteId: ID, ref, offset: 0, length: 3 });
+    expect(await serve("assets/a.png")).toMatchObject({ ok: true, contentType: "image/png", size: 9, data: Buffer.from("png").toString("base64") });
+    expect(await serve("assets/linked.png")).toMatchObject({ ok: false, code: "not_found" });
+  });
+});
+
+describe("names and paths from the editor", () => {
+  it("refuses a retitle whose folder name is not one safe segment, and moves nothing", async () => {
+    const plan = await note("Notes/Plan");
+    for (const desiredName of ["../Escape", "a/b", ".hidden", "CON", "x".repeat(253)]) {
+      const write = await writeFrom([put("markdown", "# Escape\n"), put("meta", meta(ID, "Escape"))], {
+        rename: { kind: "renameFolder", desiredName },
+      });
+      expect(await save(write)).toMatchObject({ kind: "failed", code: "EINVAL", applied: [], preserved: [], location: { folderName: "Plan" } });
+    }
+    expect(await listing(join(home, "Moss", "Notes"))).toEqual(["Plan"]);
+    expect(await text(plan.path)).toBe("# Plan\n");
+  });
+
+  it("reads companions only through the note's own folder, never through a hard link or a home path", async () => {
+    const plan = await note("Notes/Plan");
+    await mkdir(join(plan.directory, "assets"));
+    await writeFile(join(home, "secret.html"), "secret");
+    await link(join(home, "secret.html"), join(plan.directory, "assets", "linked-mockup.html"));
+    expect(await host.experimental_call("editorReadCompanion", { noteId: ID, relativePath: "assets/linked-mockup.html" })).toMatchObject({ kind: "absent" });
+    await expect(host.experimental_call("editorReadCompanion", { noteId: ID, relativePath: "~/secret.html" })).rejects.toThrow();
+    await expect(host.experimental_call("editorReadCompanion", { noteId: ID, relativePath: join(home, "secret.html") })).rejects.toThrow();
+  });
+
+  it("names one safe segment", () => {
+    for (const name of ["Plan", "Q3: Plan (1)", "shot-1700000000000-1a2b3c4d.png", "Été à Paris", "x".repeat(255)]) expect(isSafeName(name)).toBe(true);
+    for (const name of ["", ".", "..", ".hidden", "a/b", "a\\b", "tab\there", "nul\0", "CON", "lpt1.txt", "x".repeat(256), "é".repeat(128)]) {
+      expect(isSafeName(name)).toBe(false);
+    }
+  });
+
+  it("matches media by its first bytes", () => {
+    expect(contentMatches(".png", PNG(""))).toBe(true);
+    expect(contentMatches(".jpg", Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toBe(true);
+    expect(contentMatches(".gif", Buffer.from("GIF89a"))).toBe(true);
+    expect(contentMatches(".webp", Buffer.from("RIFF\0\0\0\0WEBPVP8 "))).toBe(true);
+    expect(contentMatches(".mp4", Buffer.from("\0\0\0\x18ftypmp42"))).toBe(true);
+    expect(contentMatches(".mov", Buffer.from("\0\0\0\x08wide"))).toBe(true);
+    expect(contentMatches(".webm", Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))).toBe(true);
+    expect(contentMatches(".svg", Buffer.from("\uFEFF  <!-- made by hand -->\n<svg viewBox='0 0 1 1'/>"))).toBe(true);
+    expect(contentMatches(".svg", Buffer.from("<html><svg/></html>"))).toBe(false);
+    expect(contentMatches(".png", Buffer.from("GIF89a"))).toBe(false);
+    expect(contentMatches(".html", Buffer.from("<p>"))).toBe(false);
   });
 });

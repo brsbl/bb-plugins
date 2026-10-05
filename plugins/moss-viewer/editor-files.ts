@@ -100,6 +100,63 @@ export async function writeNew(path: string, bytes: Uint8Array, mode = 0o644): P
   }
 }
 
+// Windows device names, refused whatever follows a dot, as Moss's filename sanitizer does.
+const RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+
+/**
+ * Whether `name` is safe as one file or folder name in a note: a single path
+ * segment, no leading dot, no control characters, no reserved device name, and
+ * at most `maxBytes` UTF-8 bytes. The host checks every name the editor sends
+ * rather than trusting it.
+ */
+export function isSafeName(name: string, maxBytes = 255): boolean {
+  return (
+    name.length > 0 &&
+    Buffer.byteLength(name, "utf8") <= maxBytes &&
+    !/[/\\\u0000-\u001f\u007f]/.test(name) &&
+    !name.startsWith(".") &&
+    !RESERVED_NAME.test(name)
+  );
+}
+
+const ascii = (head: Uint8Array, at: number, text: string) =>
+  [...text].every((char, index) => head[at + index] === char.charCodeAt(0));
+
+const bytesAt = (head: Uint8Array, at: number, bytes: readonly number[]) => bytes.every((byte, index) => head[at + index] === byte);
+
+// What a QuickTime file may start with besides `ftyp`.
+const QUICKTIME_ATOMS = ["ftyp", "moov", "mdat", "wide", "free", "skip", "pnot"];
+
+/**
+ * Whether a file's first bytes are what its extension claims, so a mislabelled
+ * upload (HTML named .png, say) is refused rather than stored and served.
+ */
+export function contentMatches(extension: string, head: Uint8Array): boolean {
+  switch (extension) {
+    case ".png":
+      return bytesAt(head, 0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    case ".jpg":
+    case ".jpeg":
+      return bytesAt(head, 0, [0xff, 0xd8, 0xff]);
+    case ".gif":
+      return ascii(head, 0, "GIF87a") || ascii(head, 0, "GIF89a");
+    case ".webp":
+      return ascii(head, 0, "RIFF") && ascii(head, 8, "WEBP");
+    case ".webm":
+      return bytesAt(head, 0, [0x1a, 0x45, 0xdf, 0xa3]);
+    case ".mp4":
+      return ascii(head, 4, "ftyp");
+    case ".mov":
+      return QUICKTIME_ATOMS.some((atom) => ascii(head, 4, atom));
+    case ".svg":
+      return /^﻿?\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE\s+svg[^>]*>\s*)?<svg[\s>]/i.test(
+        new TextDecoder().decode(head),
+      );
+    default:
+      return false;
+  }
+}
+
 const utf8 = (text: string) => new TextEncoder().encode(text);
 
 /** The note's two versions (`MossNoteVersion`, `MossMetaVersion`) over the given byte states. */

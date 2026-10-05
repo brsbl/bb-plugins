@@ -8,6 +8,7 @@ import {
   codedError,
   entryAt,
   errorCode,
+  isSafeName,
   locationOf,
   messageOf,
   noteVersions,
@@ -40,6 +41,9 @@ type Applied =
 /** Another writer changed a file while this write was applying. */
 class Raced extends Error {}
 
+/** Moss's folder-name limit; `allocateFolderName` keeps its ` (n)` suffix within it. */
+const MAX_FOLDER_NAME_BYTES = 252;
+
 const sameIgnoringCase = (left: string, right: string) =>
   left.normalize("NFC").toLowerCase() === right.normalize("NFC").toLowerCase();
 
@@ -62,6 +66,17 @@ export async function applyWrite(context: WriteContext, state: NoteState, write:
     if (context.helpers.versionToken([{ role: "companion", bytes }]) !== companion.version) return refuse("companion");
   }
   if (before.metaVersion !== write.baseMetaVersion) return refuse("meta");
+  // The editor's string is never trusted as a path: one safe segment, or nothing moves.
+  if (write.rename && !isSafeName(write.rename.desiredName, MAX_FOLDER_NAME_BYTES)) {
+    return {
+      kind: "failed",
+      code: "EINVAL",
+      message: "The new title does not make a safe folder name.",
+      applied: [],
+      preserved: [],
+      location: locationOf(state),
+    };
+  }
   return new WriteRun(context, state, write).apply();
 }
 
@@ -115,6 +130,7 @@ class WriteRun {
         caseInsensitive,
       });
       if (next === this.folderName) return true;
+      if (!isSafeName(next)) throw codedError("EINVAL", "The new title does not make a safe folder name.");
       const target = join(parent, next);
       try {
         if (caseInsensitive && sameIgnoringCase(next, this.folderName)) await rename(this.directory, target);

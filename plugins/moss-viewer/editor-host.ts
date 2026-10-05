@@ -14,7 +14,9 @@ import type {
 import { MAX_ASSET_BYTES, MAX_NOTE_BYTES, type hostSignals } from "./contract.js";
 import {
   codedError,
+  contentMatches,
   errorCode,
+  isSafeName,
   locationOf,
   pathExists,
   readOptional,
@@ -43,7 +45,21 @@ const MAX_INDEXED_DIRECTORIES = 20_000;
 export const WATCH_LEASE_MS = 60_000;
 /** A note whose files together exceed this is refused, keeping each read well under the 8 MiB host RPC limit. */
 const MAX_READ_BYTES = MAX_NOTE_BYTES + 2 * 1024 * 1024;
-const ASSET_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".mp4", ".webm", ".mov"]);
+/** The media Moss stores, each with the MIME family its bytes must match. */
+const ASSET_KINDS: Readonly<Record<string, "image" | "video">> = {
+  ".png": "image",
+  ".jpg": "image",
+  ".jpeg": "image",
+  ".gif": "image",
+  ".webp": "image",
+  ".svg": "image",
+  ".mp4": "video",
+  ".webm": "video",
+  ".mov": "video",
+};
+/** How many opened notes the host remembers as cross-note paste sources. */
+const MAX_OPENED_NOTES = 1000;
+const SNIFF_BYTES = 4096;
 
 type Lookup = { kind: "found"; directory: string } | { kind: "notFound" } | { kind: "duplicate" };
 type Missing = { kind: "notFound" } | { kind: "notEditable"; reason: Moss.MossNotEditableReason };
@@ -57,6 +73,11 @@ function idOf(metaText: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/** A file with other names may be an outside file linked into the note, so it is never read through one. */
+async function isHardLinked(path: string): Promise<boolean> {
+  return (await stat(path)).nlink > 1;
 }
 
 export function createEditorHost(deps: EditorHostDeps) {
@@ -132,6 +153,16 @@ export function createEditorHost(deps: EditorHostDeps) {
     folders.set(key, [...(folders.get(key) ?? []).filter((directory) => directory !== from), to]);
   }
 
+  // Notes the user opened in bb on this host, newest last. Only these may be a
+  // cross-note paste's source, so a note's content can never name another file to copy.
+  const opened = new Set<string>();
+  function markOpened(noteId: string): void {
+    const key = helpers.noteIdKey(noteId);
+    opened.delete(key);
+    opened.add(key);
+    if (opened.size > MAX_OPENED_NOTES) opened.delete(opened.values().next().value!);
+  }
+
   /** Moss's two-step markdown resolution: probe the candidates in order, then pick from a listing. */
   async function resolveMarkdown(directory: string, folderName: string, noteId: string): Promise<string | null> {
     for (const candidate of helpers.markdownCandidates({ folderName, noteId })) {
@@ -202,7 +233,7 @@ export function createEditorHost(deps: EditorHostDeps) {
       if (errorCode(error) === "ENOENT" || errorCode(error) === "ENOTDIR") return null;
       throw error;
     }
-    return isInside(root, target) ? readFile(target) : null;
+    return isInside(root, target) && !(await isHardLinked(target)) ? readFile(target) : null;
   }
 
   // Watches: one per note an editor has open, renewed by the editor and keyed by id.
@@ -279,7 +310,7 @@ export function createEditorHost(deps: EditorHostDeps) {
     if (change !== null) await watch.context.experimental_emitSignal("editorNoteChanged", { noteId: watch.noteId, change });
   }
 
-  return {
+  const handlers = {
     async editorRead({ noteId }: { noteId: string }): Promise<Moss.MossReadResult> {
       return exclusive<Moss.MossReadResult>(helpers.noteIdKey(noteId), async () => {
         const editable = await editableState(noteId);
@@ -287,7 +318,7 @@ export function createEditorHost(deps: EditorHostDeps) {
         const { state } = editable;
         const size = (state.markdown?.bytes.length ?? 0) + (state.comments?.length ?? 0) + (state.layout?.length ?? 0) + (state.meta?.length ?? 0);
         if (size > MAX_READ_BYTES) throw codedError("EFBIG", "This note is too large to edit in bb.");
-        return {
+        const result: Moss.MossReadResult = {
           kind: "note",
           files: {
             markdown: state.markdown!.bytes.toString("utf8"),
@@ -298,6 +329,8 @@ export function createEditorHost(deps: EditorHostDeps) {
           location: locationOf(state),
           ...stateVersions(helpers, state),
         };
+        markOpened(noteId);
+        return result;
       });
     },
 
@@ -383,7 +416,7 @@ export function createEditorHost(deps: EditorHostDeps) {
     },
 
     async editorAssetCommit(
-      { noteId, upload, name, size }: { noteId: string; upload: string; name: string; size: number },
+      { noteId, upload, name, mimeType, size }: { noteId: string; upload: string; name: string; mimeType: string; size: number },
       context: HostContext,
     ): Promise<Moss.MossAssetPutResult> {
       const staged = stagingPath(context, upload);
@@ -391,10 +424,10 @@ export function createEditorHost(deps: EditorHostDeps) {
         return await exclusive<Moss.MossAssetPutResult>(helpers.noteIdKey(noteId), async () => {
           const editable = await editableState(noteId);
           if (editable.kind !== "ok") return editable;
-          if (!ASSET_EXTENSIONS.has(extname(name).toLowerCase())) return { kind: "refused", reason: "type" };
           if ((await stat(staged).catch(() => null))?.size !== size) {
             throw codedError("EINVAL", "This upload is incomplete. Add the file again.");
           }
+          if (!mimeType.startsWith(`${ASSET_KINDS[extname(name).toLowerCase()] ?? "none"}/`)) return { kind: "refused", reason: "type" };
           return placeAsset(staged, editable.state.directory, name);
         });
       } finally {
@@ -417,13 +450,14 @@ export function createEditorHost(deps: EditorHostDeps) {
       return exclusive<Moss.MossAssetPutResult>(helpers.noteIdKey(noteId), async () => {
         const editable = await editableState(noteId);
         if (editable.kind !== "ok") return editable;
-        if (!ASSET_EXTENSIONS.has(extname(name).toLowerCase())) return { kind: "refused", reason: "type" };
+        // Only a note the user opened in bb, never an id the pasted content names.
+        if (!opened.has(helpers.noteIdKey(sourceNoteId))) return { kind: "notFound" };
         const source = await lookup(sourceNoteId);
         if (source.kind !== "found") return { kind: "notFound" };
         const sourceRoot = await realpath(source.directory);
         const file = await realpath(resolve(sourceRoot, sourceRef)).catch(() => null);
         const details = file === null ? null : await stat(file);
-        if (file === null || !isInside(sourceRoot, file) || !details?.isFile()) return { kind: "notFound" };
+        if (file === null || !isInside(sourceRoot, file) || !details?.isFile() || details.nlink > 1) return { kind: "notFound" };
         if (details.size > MAX_ASSET_BYTES) return { kind: "refused", reason: "tooLarge", maxBytes: MAX_ASSET_BYTES };
         return placeAsset(file, editable.state.directory, name);
       });
@@ -438,11 +472,28 @@ export function createEditorHost(deps: EditorHostDeps) {
       }, input);
     },
 
+  };
+
+  return {
+    handlers,
+    /** Records a note the viewer opened, so its media may be pasted into an editor. */
+    viewed: markOpened,
     /** Stops every watch, when the host worker shuts down. */
     async dispose(): Promise<void> {
       await Promise.all([...watches.values()].map(stopWatch));
     },
   };
+
+  async function readHead(path: string): Promise<Uint8Array> {
+    const handle = await open(path, "r");
+    try {
+      const buffer = new Uint8Array(SNIFF_BYTES);
+      const { bytesRead } = await handle.read(buffer, 0, SNIFF_BYTES, 0);
+      return buffer.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
+  }
 
   function stagingPath(context: HostContext, upload: string): string {
     return join(context.experimental_paths.tempDir, "moss-uploads", upload);
@@ -458,6 +509,10 @@ export function createEditorHost(deps: EditorHostDeps) {
 
   /** Creates `assets/<name>` exclusively from `source`; a taken name is the editor's to change. */
   async function placeAsset(source: string, directory: string, name: string): Promise<Moss.MossAssetPutResult> {
+    const extension = extname(name).toLowerCase();
+    // The name is re-checked here, and the bytes must be what the extension says.
+    if (!isSafeName(name) || ASSET_KINDS[extension] === undefined) return { kind: "refused", reason: "type" };
+    if (!contentMatches(extension, await readHead(source))) return { kind: "refused", reason: "type" };
     const assets = await assetsDirectory(directory);
     const temp = join(assets, helpers.sidecarFileName(name, uuid(), "tmp"));
     try {
@@ -480,16 +535,19 @@ export type EditorHost = ReturnType<typeof createEditorHost>;
 export function unsupportedEditorHost() {
   const unsupported = { kind: "notEditable" as const, reason: "hostUnsupported" as const };
   return {
-    editorRead: async (): Promise<Moss.MossReadResult> => unsupported,
-    editorReadCompanion: async (): Promise<Moss.MossCompanionRead> => {
-      throw codedError("ENOTSUP", "This host cannot edit Moss notes.");
+    handlers: {
+      editorRead: async (): Promise<Moss.MossReadResult> => unsupported,
+      editorReadCompanion: async (): Promise<Moss.MossCompanionRead> => {
+        throw codedError("ENOTSUP", "This host cannot edit Moss notes.");
+      },
+      editorWrite: async (): Promise<Moss.MossWriteResult> => unsupported,
+      editorWatch: async (): Promise<Moss.MossExternalChange> => ({ kind: "removed", reason: "hostUnsupported" }),
+      editorAssetChunk: async () => unsupported,
+      editorAssetCommit: async (): Promise<Moss.MossAssetPutResult> => unsupported,
+      editorAssetCopy: async (): Promise<Moss.MossAssetPutResult> => unsupported,
+      editorAsset: async () => ({ ok: false as const, code: "not_allowed" as const, message: "This host cannot edit Moss notes." }),
     },
-    editorWrite: async (): Promise<Moss.MossWriteResult> => unsupported,
-    editorWatch: async (): Promise<Moss.MossExternalChange> => ({ kind: "removed", reason: "hostUnsupported" }),
-    editorAssetChunk: async () => unsupported,
-    editorAssetCommit: async (): Promise<Moss.MossAssetPutResult> => unsupported,
-    editorAssetCopy: async (): Promise<Moss.MossAssetPutResult> => unsupported,
-    editorAsset: async () => ({ ok: false as const, code: "not_allowed" as const, message: "This host cannot edit Moss notes." }),
+    viewed: (_noteId: string) => undefined,
     dispose: async () => undefined,
   };
 }

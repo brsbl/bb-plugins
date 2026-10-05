@@ -49,7 +49,7 @@ export const relativePath = z
   .string()
   .min(1)
   .max(4096)
-  .refine((value) => !value.includes("\0") && !value.startsWith("/"), "Invalid note-relative path");
+  .refine((value) => !value.includes("\0") && !value.startsWith("/") && !value.startsWith("~"), "Invalid note-relative path");
 
 const fileOp = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("put"), file: noteFile, text: z.string() }).strict(),
