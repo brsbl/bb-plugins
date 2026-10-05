@@ -12,6 +12,7 @@ import { Icon } from "./components/ui/icon.js";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip.js";
 import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
 import { layoutPins, pinFile, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, unpinFile, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
+import { previewTarget } from "./open-target.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { cn } from "./lib/utils.js";
 
@@ -42,6 +43,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   const connection = useRealtimeConnectionState();
   const [pins, setPins] = useState<Reference[]>([]);
   const [more, setMore] = useState<string[]>([]);
+  const [threadHostId, setThreadHostId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [rowMenu, setRowMenu] = useState<string | null>(null);
@@ -58,7 +60,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     const request = ++generation.current;
     try {
       const result = await rpc.call("inspect", { threadId });
-      if (alive.current && request === generation.current && arranging.current.pending === 0) { setPins(result.pins); setMore(result.more); }
+      if (alive.current && request === generation.current && arranging.current.pending === 0) { setPins(result.pins); setMore(result.more); setThreadHostId(result.threadHostId); }
     } catch (cause) { report(cause); }
   }, [rpc, threadId, report]);
   useEffect(() => {
@@ -94,6 +96,15 @@ function PinStrip({ threadId }: { threadId: string }) {
   function open(pin: Reference, event: MouseEvent<HTMLAnchorElement>) {
     if (!plainClick(event)) return;
     if (pin.status !== "available") { event.preventDefault(); report(new Error(`${pin.hostName} is unavailable. Reconnect the machine and try again.`)); }
+    else if (!previewTarget(pin, threadHostId)) { event.preventDefault(); elsewhere(pin); }
+  }
+  // bb previews only files on this thread's machine, so say where the file is instead of doing nothing.
+  function elsewhere(pin: Reference) {
+    toast(`${pin.name} is on ${pin.hostName}, so it can't be previewed here.`);
+  }
+  // Clicks on a pin with no preview target are intercepted above; the pin's own target keeps FileLink's href.
+  function linkTarget(pin: Reference) {
+    return previewTarget(pin, threadHostId) ?? { kind: "host" as const, hostId: pin.hostId, path: pin.path };
   }
   const layout = layoutPins(pins, more, capacity);
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
@@ -129,9 +140,13 @@ function PinStrip({ threadId }: { threadId: string }) {
   function menuGroups(pin: Reference): PinAction[][] {
     if (pin.status === "missing") return [actions(pin)];
     const file = { target: { kind: "host" as const, hostId: pin.hostId, path: pin.path }, location: null };
+    const preview = previewTarget(pin, threadHostId);
     return [
       [
-        { label: "Open preview", run: () => { setMoreOpen(false); navigate.experimental_openFilePreview(file); } },
+        { label: "Open preview", run: () => {
+          setMoreOpen(false);
+          if (preview) navigate.experimental_openFilePreview({ target: preview, location: null }); else elsewhere(pin);
+        } },
         { label: "Open externally", disabled: pin.status !== "available", run: () => { setMoreOpen(false); navigate.experimental_openFileExternally(file); } },
       ],
       [
@@ -156,7 +171,7 @@ function PinStrip({ threadId }: { threadId: string }) {
       </span>
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void remove(pin)}
         className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
-    </span> : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} title={title(pin)}
+    </span> : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} title={title(pin)}
       aria-label={`Open ${pin.name}`} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "[&>*]:opacity-60")}><PinContents pin={pin} /></FileLink>;
     return <ContextMenu key={pin.id}><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>;
   }
@@ -166,7 +181,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     const onContextMenu = (event: MouseEvent) => { event.preventDefault(); setRowMenu(pin.id); };
     const link = pin.status === "missing"
       ? <span aria-label={`${pin.name} (missing)`} title={title(pin)} onContextMenu={onContextMenu} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
-      : <FileLink target={{ kind: "host", hostId: pin.hostId, path: pin.path }} onClick={(event) => open(pin, event)} onContextMenu={onContextMenu} title={title(pin)}
+      : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} onContextMenu={onContextMenu} title={title(pin)}
         aria-label={`Open ${pin.name}`} className={cn(rowLinkClass, pin.status === "available" ? "cursor-pointer" : "opacity-60")}>{name}</FileLink>;
     return <div key={pin.id} className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover has-[:focus-visible]:bg-state-hover has-[[data-state=open]]:bg-state-hover">
       {link}
