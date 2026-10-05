@@ -239,7 +239,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   </div>;
   // The primary button marks a comment that goes along with the choice.
   const attached = ready && noteOpen && !!note.trim();
-  const withComment = (label: string) => <>{attached && <span className="iac-attached" aria-hidden="true"><CommentIcon /></span>}{label}{attached && <span className="iac-sr-only"> with comment</span>}</>;
+  const withComment = (label: string) => <>{attached && <span className="iac-attached" aria-hidden="true"><CommentIcon /></span>}{label}{attached && <>{" "}<span className="iac-sr-only">with comment</span></>}</>;
   // A sent or finished attempt shows its own option; a ready card keeps the user's pick or the recommendation.
   const selectedId = (!ready && item.attempt?.choice?.id) || picked || choice?.recommended;
   const selected = choice?.options.find((option) => option.id === selectedId);
