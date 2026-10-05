@@ -29,7 +29,7 @@ export default function plugin(bb: BbPluginApi) {
   }
   async function define(raw: unknown) {
     const definition = digestDefinitionSchema.parse(raw);
-    if (service.store.definitions.get(definition.id)) throw new Error("This digest already exists. Keep its definition and automation together; use a new ID for a different briefing.");
+    if (service.store.definitions.get(definition.id)) throw new Error("This brief already exists. Keep its definition and automation together; use a new ID for a different briefing.");
     if (definition.enabled || definition.automationId) throw new Error("New definitions must be disabled and cannot adopt an existing automation.");
     if (definition.source) throw new Error("Plugin-owned briefs are created when their plugin publishes one.");
     return service.store.definitions.put(definition);
@@ -81,7 +81,7 @@ export default function plugin(bb: BbPluginApi) {
           return output({ definitions: service.store.definitions.list(), next: "Review and enable schedules in Briefs plugin settings. The Briefs inbox catches its own briefs. Archive briefs yourself when done. Existing automations were not changed." });
         },
       }),
-      define: cliCommand({ summary: "Create a disabled digest from a JSON definition", options: { file, json }, async run(input, ctx) { return output(await define(JSON.parse(await readFile(input.options.file, ctx)))); } }),
+      define: cliCommand({ summary: "Create a disabled brief from a JSON definition", options: { file, json }, async run(input, ctx) { return output(await define(JSON.parse(await readFile(input.options.file, ctx)))); } }),
       run: cliCommand({ summary: "Run a brief now in its own thread", options: { digest, json }, async run(input) { return output(await service.run(input.options.digest)); } }),
       status: cliCommand({ summary: "Follow a pending manual run without starting another", options: { digest, json }, async run(input) { return output(await service.runStatus(input.options.digest)); } }),
       publish: cliCommand({
@@ -91,7 +91,7 @@ export default function plugin(bb: BbPluginApi) {
           const details = await readFile(input.options.file, ctx);
           const payload = publishInputSchema.parse({ headline: input.options.headline ?? details.split(/\r?\n/).find((line) => line.trim())?.replace(/^#+\s*/, "").slice(0, 240), lede: input.options.lede, brief: input.options.brief ? JSON.parse(input.options.brief) : undefined, details, metrics: JSON.parse(input.options.metrics ?? "[]"), sources: JSON.parse(input.options.sources ?? "[]") });
           const current = service.store.issues.getByThread(requireThread(ctx));
-          if (current && current.digestId !== input.options.digest) throw new Error("This run belongs to a different digest. Publish from another thread.");
+          if (current && current.digestId !== input.options.digest) throw new Error("This run belongs to a different brief. Publish from another thread.");
           const result = current ? await service.publishCurrent(ctx.threadId!, payload) : await service.publishExternal(input.options.digest, payload, input.options.key ?? createHash("sha256").update(JSON.stringify(payload)).digest("hex"));
           return output(result);
         },
@@ -135,7 +135,7 @@ export default function plugin(bb: BbPluginApi) {
     execute: (input, ctx) => {
       const issue = service.requiredIssue(ctx.threadId);
       const definition = service.requiredDefinition(issue.digestId);
-      if (!definition.connectionIds.includes(input.connectionId)) throw new Error("This connection is not declared by the digest.");
+      if (!definition.connectionIds.includes(input.connectionId)) throw new Error("This connection is not declared by the brief.");
       return JSON.stringify(service.store.processed(issue.digestId, input.connectionId, input.messageIds));
     },
   });

@@ -102,7 +102,7 @@ describe("Digests app", () => {
 
   it("keeps one live card across a recovery banner and repeated retry directives", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
-    let issue = { ...readyIssue, state: "failed", recovery: "retry", headline: "This digest needs your attention" };
+    let issue = { ...readyIssue, state: "failed", recovery: "retry", headline: "This brief needs your attention" };
     const rpc = { getIssue: () => issue, recoveryIssue: () => issue };
     const banner = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "thread", threadId: "thr_issue" } }, rpc });
     const first = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc });
