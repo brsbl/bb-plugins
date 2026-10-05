@@ -366,13 +366,15 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     const project = projectId ? sidebar.projects.find((entry) => entry.id === projectId) : undefined;
     return project ? { key: `project:${project.id}`, label: project.name } : { key: "project:~none", label: "No project" };
   };
+  // Named groups first, then loose "Threads", then PRs with no thread or project.
+  const rank = (key: string) => key.endsWith("~none") ? 2 : key.includes("~") ? 1 : 0;
   // Pinned PRs lead their own group rather than floating above every group.
   const grouped = groupBy === "none" ? [] : [...[...pinned, ...active].reduce((groups, item) => {
     const { key, label } = groupOf(item);
     const group = groups.get(key) ?? { key, label, items: [] as PullRequestItem[] };
     group.items.push(item);
     return groups.set(key, group);
-  }, new Map<string, { key: string; label: string; items: PullRequestItem[] }>()).values()].sort((a, b) => Number(a.key.includes("~")) - Number(b.key.includes("~")) || a.label.localeCompare(b.label));
+  }, new Map<string, { key: string; label: string; items: PullRequestItem[] }>()).values()].sort((a, b) => rank(a.key) - rank(b.key) || a.label.localeCompare(b.label));
   const mutate = async (action: () => Promise<PullRequestItem>) => { try { await action(); if (mounted.current) { await load(); setError(null); } } catch (reason) { if (mounted.current) setError(message(reason)); } };
   const onUnlink = async (item: PullRequestItem, threadId: string) => {
     try { const result = await rpc.call("unlink", { id: item.id, threadId }); if (result.undoToken) setUndo({ token: result.undoToken, title: choices.get(threadId)?.title ?? "Thread" }); await load(); }
