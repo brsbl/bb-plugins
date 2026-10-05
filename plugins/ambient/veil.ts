@@ -158,7 +158,7 @@ ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent;
 /* Pending interactions overlap the scrolling timeline, so their surface must be fully opaque. */
 ${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interaction-shell"], [data-testid="approval-banner"], [data-testid="plan-review-banner"]) { background-color: var(--ambient-background); }
 /* Keep short secret-request actions on one compact row, including on mobile. */
-${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form > .sticky { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; padding-block-start: 8px; }
+${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form > .sticky { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; background-color: var(--ambient-background); padding-block-start: 8px; }
 ${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form > .sticky > button { width: auto; }
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
 ${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 68px), 594px); border-radius: 20px; }
