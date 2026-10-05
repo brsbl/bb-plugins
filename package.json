@@ -1,0 +1,27 @@
+{
+  "name": "bb-plugin-fpl-draft",
+  "version": "0.1.0",
+  "description": "Weekly match centre and player comparison for Fantasy Premier League Draft leagues.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.4.8"
+  },
+  "bb": {
+    "name": "FPL Draft",
+    "description": "Weekly match centre and player comparison for Fantasy Premier League Draft leagues.",
+    "branding": {
+      "icon": "./assets/pitch.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": []
+  }
+}
