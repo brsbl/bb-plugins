@@ -175,7 +175,6 @@ export function buildTable(args: {
     .sort(
       (a, b) =>
         b.leaguePoints - a.leaguePoints ||
-        b.pointsFor - b.pointsAgainst - (a.pointsFor - a.pointsAgainst) ||
         b.pointsFor - a.pointsFor ||
         a.leagueEntryId - b.leagueEntryId,
     )

@@ -186,11 +186,11 @@ describe("league table", () => {
     expect(table.find((row) => row.leagueEntryId === 2)?.leaguePoints).toBe(1);
   });
 
-  it("breaks ties on points for, then points against", () => {
+  it("breaks tied league points on fantasy points even when score difference disagrees", () => {
     const table = buildTable({
       matches: [
-        match({ league_entry_1: 1, league_entry_1_points: 50, league_entry_2: 2, league_entry_2_points: 10 }),
-        match({ league_entry_1: 3, league_entry_1_points: 60, league_entry_2: 4, league_entry_2_points: 20 }),
+        match({ league_entry_1: 1, league_entry_1_points: 50, league_entry_2: 2, league_entry_2_points: 0 }),
+        match({ league_entry_1: 3, league_entry_1_points: 60, league_entry_2: 4, league_entry_2_points: 59 }),
       ],
       managers,
       rules: RULES,

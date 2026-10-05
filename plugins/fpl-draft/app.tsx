@@ -273,7 +273,7 @@ function TableView({ league, week, loading, error, onRefresh }: {
   );
 }
 
-function useSquad(event: number | null, leagueEntryId: number | null, current = false) {
+function useSquad(event: number | null, leagueEntryId: number | null, refreshRevision: number) {
   const rpc = useRpc<typeof rpcContract>();
   const [players, setPlayers] = useState<SquadPlayerPayload[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -295,7 +295,7 @@ function useSquad(event: number | null, leagueEntryId: number | null, current = 
     return () => {
       cancelled = true;
     };
-  }, [current, event, leagueEntryId, rpc]);
+  }, [refreshRevision, event, leagueEntryId, rpc]);
   return { players, note };
 }
 
@@ -314,8 +314,8 @@ function toPitch(players: SquadPlayerPayload[]): PitchPlayer[] {
   }));
 }
 
-function SquadSide({ event, side }: { event: number | null; side: MatchupPayload["home"] }) {
-  const { players, note } = useSquad(event, side.leagueEntryId);
+function SquadSide({ event, side, refreshRevision }: { event: number | null; side: MatchupPayload["home"]; refreshRevision: number }) {
+  const { players, note } = useSquad(event, side.leagueEntryId, refreshRevision);
   if (note !== null) return <p className="px-2 py-6 text-center text-xs text-muted-foreground">{note}</p>;
   if (players === null) return <p className="px-2 py-6 text-center text-xs text-muted-foreground">Loading…</p>;
   return (
@@ -331,12 +331,14 @@ function SquadSide({ event, side }: { event: number | null; side: MatchupPayload
 function MatchRow({
   matchup,
   event,
+  refreshRevision,
   isViewer,
   open,
   onToggle,
 }: {
   matchup: MatchupPayload;
   event: number;
+  refreshRevision: number;
   isViewer: boolean;
   open: boolean;
   onToggle: () => void;
@@ -404,7 +406,7 @@ function MatchRow({
           <div className="grid gap-4 xl:grid-cols-2" data-match-squads="">
             {[matchup.home, matchup.away].map(side => <div key={side.leagueEntryId} className="min-w-0">
               <p className="mb-2 text-xs font-medium text-muted-foreground xl:hidden">{side.teamName}</p>
-              <SquadSide event={event} side={side} />
+              <SquadSide event={event} side={side} refreshRevision={refreshRevision} />
             </div>)}
           </div>
         </div>
@@ -425,12 +427,17 @@ function LeagueView({ league }: { league: LeaguePayload }) {
   const eventIndex = eventIds.indexOf(event);
 
   const keyOf = (matchup: MatchupPayload) => matchup.home.leagueEntryId;
+  const weekRequest = useRef(0);
+  const [refreshRevision, setRefreshRevision] = useState(0);
 
   const load = useCallback(async () => {
+    const request = ++weekRequest.current;
     setLoading(true);
     try {
       const next = await rpc.call("getWeek", { event });
+      if (request !== weekRequest.current) return;
       setWeek(next);
+      setRefreshRevision(value => value + 1);
       // Your own match starts open; the rest are one click away.
       const mine = next.matchups.find(
         (matchup) =>
@@ -440,14 +447,16 @@ function LeagueView({ league }: { league: LeaguePayload }) {
       setOpen(mine === undefined ? new Set() : new Set([mine.home.leagueEntryId]));
       setError(null);
     } catch (nextError) {
-      setError(err(nextError));
+      if (request === weekRequest.current) setError(err(nextError));
     } finally {
-      setLoading(false);
+      if (request === weekRequest.current) setLoading(false);
     }
   }, [event, league.viewerLeagueEntryId, rpc]);
 
   useEffect(() => {
+    setWeek(null);
     void load();
+    return () => { weekRequest.current += 1; };
   }, [load]);
 
   const live = week?.live ?? false;
@@ -515,6 +524,7 @@ function LeagueView({ league }: { league: LeaguePayload }) {
                 key={key}
                 matchup={matchup}
                 event={event}
+                refreshRevision={refreshRevision}
                 isViewer={
                   league.viewerLeagueEntryId !== null &&
                   (matchup.home.leagueEntryId === league.viewerLeagueEntryId ||
@@ -1132,6 +1142,12 @@ export function FplDraftPanel({ subPath }: { subPath: string }) {
     if (readyTab !== "table" || tab !== "table") return;
     void loadTable();
   }, [readyTab, tab, loadTable]);
+
+  useEffect(() => {
+    if (readyTab !== "table" || tab !== "table" || !week?.live) return;
+    const timer = setInterval(() => void loadTable(), LIVE_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [readyTab, tab, week?.live, loadTable]);
 
   return (
     <Tooltip.Provider delayDuration={300}>

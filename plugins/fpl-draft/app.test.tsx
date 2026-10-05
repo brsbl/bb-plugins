@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 const LEAGUE = {
   leagueName: "Globo Gym International Inc",
@@ -635,6 +635,56 @@ describe("load recovery", () => {
   });
 });
 
+
+describe("live refresh", () => {
+  it("refreshes mounted pitches together with same-week match totals", async () => {
+    let points = 3;
+    await render({ rpc: {
+      getSquad: () => ({ ...SQUAD, players: [sq({ name: "Live player", eventPoints: points })] }),
+    } });
+    await waitFor(() => expect(playerCards("Live player")).toHaveLength(2));
+    expect(playerCards("Live player")[0]?.textContent).toContain("3");
+    points = 17;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(playerCards("Live player")[0]?.textContent).toContain("17"));
+  });
+
+  it("polls live Table and stops after results settle or the view is left", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let calls = 0;
+    await render({ subPath: "table", rpc: {
+      getWeek: () => ({ ...WEEK, live: ++calls === 1, table: [{ ...WEEK.table[0], pointsFor: calls === 1 ? 81 : 92 }] }),
+    } });
+    await screen.findByText("81");
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(screen.getByText("92")).toBeTruthy();
+    expect(calls).toBe(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(calls).toBe(2);
+    fireEvent.click(screen.getByRole("tab", { name: "Waivers" }));
+    await screen.findByText("Suggested waivers");
+    const afterLeaving = calls;
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(calls).toBe(afterLeaving);
+  });
+
+  it("ignores an earlier gameweek response after navigation", async () => {
+    let resolveEarlier!: (week: typeof WEEK) => void;
+    const earlier = new Promise<typeof WEEK>(resolve => { resolveEarlier = resolve; });
+    await render({ rpc: {
+      getWeek: ({ event }: { event: number }) => event === 1 ? earlier : { ...WEEK, event },
+    } });
+    await screen.findByRole("button", { name: "Ask agent" });
+    fireEvent.click(screen.getByRole("button", { name: "Previous gameweek" }));
+    await screen.findByText("Gameweek 1");
+    fireEvent.click(screen.getByRole("button", { name: "Next gameweek" }));
+    await screen.findByRole("button", { name: "Ask agent" });
+    await act(async () => { resolveEarlier({ ...WEEK, event: 1, matchups: [] }); });
+    expect(screen.getByText("Gameweek 2")).toBeTruthy();
+    expect(screen.queryByText("No matches this gameweek.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Ask agent" })).toBeTruthy();
+  });
+});
 
 describe("refresh on page entry", () => {
   it("refreshes Table and asks about its gameweek while preserving the draft", async () => {
