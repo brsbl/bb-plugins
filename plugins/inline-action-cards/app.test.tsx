@@ -232,10 +232,10 @@ it("Action log keeps failures and Later cards waiting, orders row controls with 
   // Labels that collide with Object.prototype keys fall back to the role icon instead of crashing the log.
   expect(within(waiting).getByRole("button", { name: "Constructor run" })).toBeTruthy();
   // Icon peers first, then secondary, with the primary always rightmost.
-  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Comment", "Send"]);
+  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Comment", "Review and send"]);
   expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
   expect(within(failure!).getByText(/Reconnect Gmail/)).toBeTruthy();
-  expect(within(failure!).getByRole("button", { name: "Retry" })).toBeTruthy();
+  expect(within(failure!).getByRole("button", { name: "Review and retry" })).toBeTruthy();
   // A lone Open thread is its own button, never a one-item ⋯ menu.
   expect(within(failure!).queryByRole("button", { name: "More actions" })).toBeNull();
   expect(within(failure!).getByRole("button", { name: "Open thread" })).toBeTruthy();
@@ -456,4 +456,70 @@ it("Action log offers a choice card Choose, Skip and Review, never Yes or No", a
   expect(within(row).getByText("Several accounts")).toBeTruthy();
   fireEvent.click(within(row).getByRole("button", { name: "Choose" }));
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread" }));
+});
+
+it("Action log Send on a collapsed reply opens the email first and sends only once it is visible", async () => {
+  const item = { ...fixture(), content: { ...fixture().content, cc: ["ops@example.com"] }, threadTitle: "Refund follow-up", threadProjectId: "proj_cards" } as const;
+  const calls: unknown[] = [];
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
+    log: () => ({ waiting: [item], done: [] }),
+    decideFromLog: (input) => { calls.push(input); return { ...item, revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: false, sentAt: "2026-10-01T19:09:00Z" } }; },
+  } });
+  const row = await screen.findByRole("article");
+  expect(within(row).queryByRole("textbox", { name: "Draft" })).toBeNull();
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+  fireEvent.click(within(row).getByRole("button", { name: "Review and send" }));
+  // The second click of a double-click only finishes opening the email.
+  fireEvent.click(within(row).getByRole("button", { name: "Send" }));
+  expect(calls).toHaveLength(0);
+  expect((within(row).getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft");
+  expect(within(row).getByText(/To escrow@example.com · Missing refund/)).toBeTruthy();
+  expect(within(row).getByText("Cc ops@example.com")).toBeTruthy();
+  expect(within(row).getByText(/Your refund is on its way/, { selector: "summary span" })).toBeTruthy();
+  const send = within(row).getByRole("button", { name: "Send" });
+  await waitFor(() => expect(document.activeElement).toBe(send));
+  now.mockReturnValue(2_000);
+  fireEvent.click(send);
+  await waitFor(() => expect(calls).toEqual([expect.objectContaining({ id: "esc-1", action: "send" })]));
+  now.mockRestore();
+});
+
+it("a collapsed failed table reply opens before Retry can resend it", async () => {
+  const failed: Item = { ...fixture(), revision: 3, state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true }, result: { message: "Reconnect Gmail", retryable: true } };
+  const calls: string[] = [];
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "replies" }, source: '::actions{id="replies"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+    composer: { scope: { kind: "thread", threadId: "thr_test" } },
+    rpc: {
+      table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: [failed.id], items: [failed] }),
+      get: () => failed,
+      prepare: () => { calls.push("prepare"); return { ...failed, revision: 4, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false } }; },
+      submitted: () => ({ ...failed, revision: 5, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false, sentAt: "2026-10-01T19:09:00Z" } }),
+    },
+  });
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+  fireEvent.click(await screen.findByRole("button", { name: "Review and retry" }));
+  const retry = screen.getByRole("button", { name: "Retry" });
+  fireEvent.click(retry);
+  expect(calls).toHaveLength(0);
+  expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
+  await waitFor(() => expect(document.activeElement).toBe(retry));
+  now.mockReturnValue(2_000);
+  fireEvent.click(retry);
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(calls).toEqual(["prepare"]);
+  now.mockRestore();
+});
+
+it("never offers a bulk action over reply rows", async () => {
+  const items = [fixture(), { ...fixture(), id: "esc-2" }];
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.messageDirectives[1]!, { attributes: { id: "replies" }, source: '::actions{id="replies"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+    composer: { scope: { kind: "thread", threadId: "thr_test" } },
+    rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: items.map((item) => item.id), items }), get: (raw) => items.find((item) => item.id === (raw as { id: string }).id) },
+  });
+  expect(await screen.findAllByRole("button", { name: /Review/ })).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: /all$/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: /Send/ })).toBeNull();
 });
