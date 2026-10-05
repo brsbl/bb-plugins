@@ -156,7 +156,7 @@ ${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interacti
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
 ${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 68px), 594px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { ${HIDE} }
-${COMPACT_HOME} [data-testid="root-compose-compact-bottom-spacer"] { margin-block-end: -6px; }
+${COMPACT_HOME} [data-testid="root-compose-compact-bottom-spacer"] { margin-block-start: -6px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-scroll-content"] > .px-4 { padding-inline: 0; }
 ${ROOT} [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20px; padding-block: 0 6px; }
 ${ROOT} [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; ${NO_BLUR} padding-block-start: 16px; }
