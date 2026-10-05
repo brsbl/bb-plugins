@@ -68,6 +68,33 @@ export function orderWithConfiguredSections(
 }
 
 
+const SECTIONS_PLACEHOLDER = "sections";
+
+/**
+ * The thread list stores `sections` until the user first drags one, and
+ * renders it as every section without an explicit slot, in server order.
+ * Spell it out so the workflow can be merged without moving those sections.
+ */
+export function expandSectionsPlaceholder(
+  current: readonly string[],
+  sectionIds: readonly string[],
+): string[] {
+  const placeholder = current.indexOf(SECTIONS_PLACEHOLDER);
+  if (placeholder < 0) return [...current];
+  const before = new Set(current.slice(0, placeholder));
+  const expanded = sectionIds
+    .map((id) => `section:${id}`)
+    .filter((entry) => !before.has(entry));
+  const placed = new Set(expanded);
+  return [
+    ...current.slice(0, placeholder),
+    ...expanded,
+    ...current
+      .slice(placeholder + 1)
+      .filter((entry) => entry !== SECTIONS_PLACEHOLDER && !placed.has(entry)),
+  ];
+}
+
 async function callThreadList(
   fetchImpl: typeof fetch,
   method: "listPreferences" | "setPreference",
@@ -99,11 +126,13 @@ async function callThreadList(
 
 /**
  * Moves the sidebar's workflow sections into the configured order. Sections
- * outside the workflow keep their slots. Resolves without writing when the
- * sidebar already matches.
+ * outside the workflow keep their slots. `sectionIds` lists every thread
+ * section in server order. Resolves without writing when the sidebar already
+ * matches.
  */
 export async function syncSidebarOrder(
   config: WorkflowConfig,
+  sectionIds: readonly string[],
   fetchImpl: typeof fetch = (...args) => fetch(...args),
 ): Promise<void> {
   const listed = await callThreadList(fetchImpl, "listPreferences", null);
@@ -121,7 +150,8 @@ export async function syncSidebarOrder(
   ) {
     throw new Error("The thread list returned an invalid section order");
   }
-  const next = orderWithConfiguredSections(current, config);
+  const expanded = expandSectionsPlaceholder(current, sectionIds);
+  const next = orderWithConfiguredSections(expanded, config);
   if (next === null) return;
   await callThreadList(fetchImpl, "setPreference", {
     key: SECTION_ORDER_KEY,

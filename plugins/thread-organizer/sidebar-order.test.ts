@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_WORKFLOW_CONFIG, cloneWorkflowConfig, type WorkflowConfig } from "./core.js";
-import { orderWithConfiguredSections, syncSidebarOrder } from "./sidebar-order.js";
+import {
+  expandSectionsPlaceholder,
+  orderWithConfiguredSections,
+  syncSidebarOrder,
+} from "./sidebar-order.js";
 
 function workflow(): WorkflowConfig {
   const config = cloneWorkflowConfig(DEFAULT_WORKFLOW_CONFIG);
@@ -85,6 +89,20 @@ describe("orderWithConfiguredSections", () => {
 });
 
 
+describe("expandSectionsPlaceholder", () => {
+  it("spells out sections without an explicit slot, in server order", () => {
+    expect(expandSectionsPlaceholder(
+      ["pinned", "section:b", "sections", "threads", "section:c"],
+      ["a", "b", "c", "d"],
+    )).toEqual(["pinned", "section:b", "section:a", "section:c", "section:d", "threads"]);
+  });
+
+  it("leaves an order without the placeholder alone", () => {
+    expect(expandSectionsPlaceholder(["pinned", "section:a", "threads"], ["a", "b"]))
+      .toEqual(["pinned", "section:a", "threads"]);
+  });
+});
+
 describe("syncSidebarOrder", () => {
   function threadList(current: unknown) {
     const writes: unknown[] = [];
@@ -105,7 +123,7 @@ describe("syncSidebarOrder", () => {
     const config = workflow();
     config.stages = [config.stages[5]!, ...config.stages.filter((_, index) => index !== 5)];
     const list = threadList(["pinned", ...CONFIGURED, "threads"]);
-    await syncSidebarOrder(config, list.fetchImpl);
+    await syncSidebarOrder(config, [], list.fetchImpl);
     expect(list.writes).toEqual([{
       key: "manualSectionOrder",
       value: ["pinned", ...order(
@@ -122,13 +140,37 @@ describe("syncSidebarOrder", () => {
 
   it("writes nothing when the sidebar already matches", async () => {
     const list = threadList(["pinned", ...CONFIGURED, "threads"]);
-    await syncSidebarOrder(workflow(), list.fetchImpl);
+    await syncSidebarOrder(workflow(), [], list.fetchImpl);
     expect(list.writes).toEqual([]);
+  });
+
+  it("keeps unworkflowed sections in place when the thread list still stores the placeholder", async () => {
+    const config = workflow();
+    config.stages = [config.stages[5]!, ...config.stages.filter((_, index) => index !== 5)];
+    const list = threadList(["pinned", "sections", "threads"]);
+    const serverOrder = ["personal", "inbox", "planning", "design", "spec-review",
+      "building", "testing-deploy", "handoff", "on-hold"].map((key) =>
+      ["personal", "design"].includes(key) ? key : `sec_${key}`);
+    await syncSidebarOrder(config, serverOrder, list.fetchImpl);
+    expect(list.writes).toEqual([{
+      key: "manualSectionOrder",
+      value: ["pinned", ...order(
+        "personal",
+        "sec_handoff",
+        "sec_inbox",
+        "design",
+        "sec_planning",
+        "sec_spec-review",
+        "sec_building",
+        "sec_testing-deploy",
+        "sec_on-hold",
+      ), "threads"],
+    }]);
   });
 
   it("refuses an invalid stored order", async () => {
     const list = threadList("not a list");
-    await expect(syncSidebarOrder(workflow(), list.fetchImpl)).rejects.toThrow("invalid section order");
+    await expect(syncSidebarOrder(workflow(), [], list.fetchImpl)).rejects.toThrow("invalid section order");
     expect(list.writes).toEqual([]);
   });
 });

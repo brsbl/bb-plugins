@@ -337,7 +337,11 @@ export function mountThreadOrganizerSidebar({
   const onConfigEvent = (event: Event) => {
     const candidate =
       event instanceof CustomEvent ? parseWorkflowConfig(event.detail) : null;
-    if (candidate !== null) updateConfig(candidate);
+    if (candidate === null) return;
+    // A config saved outside the sidebar is not a drag: the sidebar may
+    // still render the old order, and adopting it would undo the save.
+    for (const controller of controllers.values()) controller.forgetInteraction();
+    updateConfig(candidate);
   };
   view?.addEventListener(WORKFLOW_CONFIG_EVENT, onConfigEvent);
 

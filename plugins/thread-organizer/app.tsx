@@ -780,7 +780,9 @@ export function WorkflowSettings() {
       loadedOrderRef.current = order;
       if (reordered) {
         setSidebarOrderFailed(false);
-        void syncSidebarOrder(full).catch(() => setSidebarOrderFailed(true));
+        void sdk.threadSections.list()
+          .then((sections) => syncSidebarOrder(full, sections.map((section) => section.id)))
+          .catch(() => setSidebarOrderFailed(true));
       }
       if (editRevisionRef.current === submittedRevision) {
         dirtyRef.current = false;
