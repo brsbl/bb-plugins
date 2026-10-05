@@ -1,6 +1,7 @@
 // The veil thins bb's own backgrounds so the scene shows through, and puts frosted glass behind
 // text. It is one static stylesheet, injected once while Ambient is on; the user's controls reach
 // it through custom properties on <body>, so moving a slider never rebuilds or re-parses CSS.
+import { mountScrollClip } from "./scroll-clip.js";
 
 export const VEIL_STYLE_ID = "bb-ambient-veil";
 
@@ -47,7 +48,9 @@ export function mountVeil(): () => void {
     document.head.append(style);
   }
   const mounted = style;
+  const stopScrollClip = mountScrollClip();
   return () => {
+    stopScrollClip();
     mounted.remove();
     const { body } = document;
     body.style.removeProperty("--ambient-keep");
@@ -150,9 +153,8 @@ ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in okla
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, ${mix("var(--ambient-background)", "18%")}, transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: ${mix("var(--ink)", "8%")}; }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
-/* Back the whole sticky footer, including card margins and composer gaps, within the thread column. */
-${THREAD} [data-scroll-footer] > .bg-background { --background: var(--ambient-background); background-color: transparent; isolation: isolate; }
-${THREAD} [data-scroll-footer] > .bg-background::before { ${LAYER} background-color: var(--ambient-background); top: 0; bottom: ${COLUMN_BOTTOM}; left: ${COLUMN_LEFT}; right: ${COLUMN_RIGHT}; border-radius: 0 0 20px 20px; }
+${ROOT} [data-ambient-scroll-clip] { clip-path: inset(0 0 var(--ambient-scroll-clip-bottom, 0px) 0); }
+${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
 /* Pending interactions overlap the scrolling timeline, so their surface must be fully opaque. */
 ${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interaction-shell"], [data-testid="approval-banner"], [data-testid="plan-review-banner"]) { background-color: var(--ambient-background); }
 /* Keep short secret-request actions on one compact row, including on mobile. */
@@ -168,9 +170,9 @@ ${ROOT} [data-root-compose-mobile-recents] > .sticky { position: static; backgro
 ${ROOT} [data-root-compose-mobile-recents] > .sticky [data-overflow-fade] { ${HIDE} }
 ${COMPACT_COMPOSER} [data-overflow-fade] { ${HIDE} }
 ${COMPACT_COMPOSER} > .bg-background { background: ${SHEEN}, var(--ambient-glass-fill); ${BLUR} margin-inline: ${COMPACT_INSET}; margin-block-end: 6px; padding-block-start: 12px; border-radius: 20px; ${EDGE} box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "70%")}, 0 -10px 24px -18px ${mix("var(--ink)", "40%")}; }
-/* Recent meets the opaque compact composer without a double edge or rows showing through its gaps. */
+/* Recent and the compact composer meet as one glass surface, without a double edge at the join. */
 ${COMPACT_HOME} [data-root-compose-mobile-recents] { border-radius: 20px 20px 0 0; border-block-end: 0; box-shadow: inset 0 1px 0 ${mix("var(--canvas)", "60%")}; }
-${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { background: var(--ambient-background); border-radius: 0 0 20px 20px; border-block-start: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
+${COMPACT_HOME} [data-testid="root-compose-compact-composer"] > .bg-background { background: var(--ambient-glass-fill); border-radius: 0 0 20px 20px; border-block-start: 0; box-shadow: 0 12px 32px -16px ${mix("var(--ink)", "35%")}; }
 ${ROOT} [data-app-composer]:has([data-new-thread-footer]):not([data-testid="root-compose-compact-composer"] *) { ${GLASS_SURFACE} border-radius: 20px; padding: 10px 10px 4px; }
 ${ROOT} [data-app-composer] { --background: ${mix("var(--ambient-background)", "68%")}; }
 /* The opaque follow-up shell fills the seam behind the input and its footer lip. */
