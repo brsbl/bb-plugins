@@ -1,0 +1,483 @@
+{
+  "leagueId": 24738,
+  "capturedOn": "2026-09-09",
+  "completedWeeks": [
+    1,
+    2,
+    3
+  ],
+  "matches": [
+    {
+      "event": 1,
+      "league_entry_1": 126592,
+      "league_entry_1_points": 39,
+      "league_entry_2": 126585,
+      "league_entry_2_points": 32
+    },
+    {
+      "event": 1,
+      "league_entry_1": 126593,
+      "league_entry_1_points": 50,
+      "league_entry_2": 126591,
+      "league_entry_2_points": 40
+    },
+    {
+      "event": 1,
+      "league_entry_1": 126594,
+      "league_entry_1_points": 41,
+      "league_entry_2": 126590,
+      "league_entry_2_points": 33
+    },
+    {
+      "event": 1,
+      "league_entry_1": 338698,
+      "league_entry_1_points": 40,
+      "league_entry_2": 126589,
+      "league_entry_2_points": 31
+    },
+    {
+      "event": 1,
+      "league_entry_1": 340792,
+      "league_entry_1_points": 29,
+      "league_entry_2": 126588,
+      "league_entry_2_points": 37
+    },
+    {
+      "event": 1,
+      "league_entry_1": 126586,
+      "league_entry_1_points": 37,
+      "league_entry_2": 126587,
+      "league_entry_2_points": 37
+    },
+    {
+      "event": 2,
+      "league_entry_1": 126585,
+      "league_entry_1_points": 39,
+      "league_entry_2": 126586,
+      "league_entry_2_points": 47
+    },
+    {
+      "event": 2,
+      "league_entry_1": 126587,
+      "league_entry_1_points": 41,
+      "league_entry_2": 340792,
+      "league_entry_2_points": 27
+    },
+    {
+      "event": 2,
+      "league_entry_1": 126588,
+      "league_entry_1_points": 34,
+      "league_entry_2": 338698,
+      "league_entry_2_points": 26
+    },
+    {
+      "event": 2,
+      "league_entry_1": 126589,
+      "league_entry_1_points": 29,
+      "league_entry_2": 126594,
+      "league_entry_2_points": 43
+    },
+    {
+      "event": 2,
+      "league_entry_1": 126590,
+      "league_entry_1_points": 53,
+      "league_entry_2": 126593,
+      "league_entry_2_points": 30
+    },
+    {
+      "event": 2,
+      "league_entry_1": 126591,
+      "league_entry_1_points": 60,
+      "league_entry_2": 126592,
+      "league_entry_2_points": 57
+    },
+    {
+      "event": 3,
+      "league_entry_1": 126593,
+      "league_entry_1_points": 51,
+      "league_entry_2": 126585,
+      "league_entry_2_points": 37
+    },
+    {
+      "event": 3,
+      "league_entry_1": 126594,
+      "league_entry_1_points": 41,
+      "league_entry_2": 126592,
+      "league_entry_2_points": 50
+    },
+    {
+      "event": 3,
+      "league_entry_1": 338698,
+      "league_entry_1_points": 20,
+      "league_entry_2": 126591,
+      "league_entry_2_points": 31
+    },
+    {
+      "event": 3,
+      "league_entry_1": 340792,
+      "league_entry_1_points": 34,
+      "league_entry_2": 126590,
+      "league_entry_2_points": 35
+    },
+    {
+      "event": 3,
+      "league_entry_1": 126586,
+      "league_entry_1_points": 24,
+      "league_entry_2": 126589,
+      "league_entry_2_points": 50
+    },
+    {
+      "event": 3,
+      "league_entry_1": 126587,
+      "league_entry_1_points": 27,
+      "league_entry_2": 126588,
+      "league_entry_2_points": 30
+    }
+  ],
+  "managers": [
+    {
+      "leagueEntryId": 126585,
+      "entryId": 126067,
+      "publishedPick": 2
+    },
+    {
+      "leagueEntryId": 126586,
+      "entryId": 126068,
+      "publishedPick": 6
+    },
+    {
+      "leagueEntryId": 126587,
+      "entryId": 126069,
+      "publishedPick": 5
+    },
+    {
+      "leagueEntryId": 126588,
+      "entryId": 126070,
+      "publishedPick": 12
+    },
+    {
+      "leagueEntryId": 126589,
+      "entryId": 126071,
+      "publishedPick": 4
+    },
+    {
+      "leagueEntryId": 126590,
+      "entryId": 126072,
+      "publishedPick": 7
+    },
+    {
+      "leagueEntryId": 126591,
+      "entryId": 126073,
+      "publishedPick": 9
+    },
+    {
+      "leagueEntryId": 126592,
+      "entryId": 126074,
+      "publishedPick": 11
+    },
+    {
+      "leagueEntryId": 126593,
+      "entryId": 126075,
+      "publishedPick": 10
+    },
+    {
+      "leagueEntryId": 126594,
+      "entryId": 126076,
+      "publishedPick": 8
+    },
+    {
+      "leagueEntryId": 338698,
+      "entryId": 335409,
+      "publishedPick": 3
+    },
+    {
+      "leagueEntryId": 340792,
+      "entryId": 337456,
+      "publishedPick": 1
+    }
+  ],
+  "firstProcessedRequests": {
+    "2": [
+      {
+        "entryId": 126071,
+        "index": 1
+      },
+      {
+        "entryId": 126067,
+        "index": 2
+      },
+      {
+        "entryId": 126072,
+        "index": 3
+      },
+      {
+        "entryId": 126073,
+        "index": 6
+      },
+      {
+        "entryId": 126068,
+        "index": 7
+      },
+      {
+        "entryId": 126070,
+        "index": 9
+      },
+      {
+        "entryId": 126074,
+        "index": 10
+      },
+      {
+        "entryId": 126075,
+        "index": 11
+      }
+    ],
+    "3": [
+      {
+        "entryId": 337456,
+        "index": 1
+      },
+      {
+        "entryId": 126071,
+        "index": 2
+      },
+      {
+        "entryId": 126067,
+        "index": 4
+      },
+      {
+        "entryId": 126075,
+        "index": 5
+      },
+      {
+        "entryId": 126072,
+        "index": 6
+      },
+      {
+        "entryId": 126074,
+        "index": 8
+      },
+      {
+        "entryId": 126068,
+        "index": 9
+      },
+      {
+        "entryId": 126070,
+        "index": 10
+      },
+      {
+        "entryId": 126076,
+        "index": 12
+      }
+    ]
+  },
+  "lineupScoreChecks": [
+    {
+      "week": 1,
+      "lineups": 12,
+      "scoreMatches": 12,
+      "mismatches": []
+    },
+    {
+      "week": 2,
+      "lineups": 12,
+      "scoreMatches": 12,
+      "mismatches": []
+    },
+    {
+      "week": 3,
+      "lineups": 12,
+      "scoreMatches": 12,
+      "mismatches": []
+    }
+  ],
+  "comparisons": [
+    {
+      "completedWeek": 1,
+      "targetWaiverWeek": 2,
+      "observedManagers": 8,
+      "totalManagers": 12,
+      "correctPairs": 28,
+      "comparablePairs": 28,
+      "actualFullOrderAvailable": false
+    },
+    {
+      "completedWeek": 2,
+      "targetWaiverWeek": 3,
+      "observedManagers": 9,
+      "totalManagers": 12,
+      "correctPairs": 36,
+      "comparablePairs": 36,
+      "actualFullOrderAvailable": false
+    },
+    {
+      "completedWeek": 3,
+      "targetWaiverWeek": 4,
+      "observedManagers": 0,
+      "totalManagers": 12,
+      "correctPairs": 0,
+      "comparablePairs": 0,
+      "actualFullOrderAvailable": false
+    }
+  ],
+  "carryForwardBaseline": {
+    "commonManagers": 7,
+    "correctPairs": 15,
+    "comparablePairs": 21,
+    "candidateCorrectPairs": 21
+  },
+  "decision": "historical",
+  "startingLineupPoints": [
+    {
+      "leagueEntryId": 126585,
+      "pointsByCompletedWeek": [
+        32,
+        39,
+        37
+      ]
+    },
+    {
+      "leagueEntryId": 126586,
+      "pointsByCompletedWeek": [
+        37,
+        47,
+        24
+      ]
+    },
+    {
+      "leagueEntryId": 126587,
+      "pointsByCompletedWeek": [
+        37,
+        41,
+        27
+      ]
+    },
+    {
+      "leagueEntryId": 126588,
+      "pointsByCompletedWeek": [
+        37,
+        34,
+        30
+      ]
+    },
+    {
+      "leagueEntryId": 126589,
+      "pointsByCompletedWeek": [
+        31,
+        29,
+        50
+      ]
+    },
+    {
+      "leagueEntryId": 126590,
+      "pointsByCompletedWeek": [
+        33,
+        53,
+        35
+      ]
+    },
+    {
+      "leagueEntryId": 126591,
+      "pointsByCompletedWeek": [
+        40,
+        60,
+        31
+      ]
+    },
+    {
+      "leagueEntryId": 126592,
+      "pointsByCompletedWeek": [
+        39,
+        57,
+        50
+      ]
+    },
+    {
+      "leagueEntryId": 126593,
+      "pointsByCompletedWeek": [
+        50,
+        30,
+        51
+      ]
+    },
+    {
+      "leagueEntryId": 126594,
+      "pointsByCompletedWeek": [
+        41,
+        43,
+        41
+      ]
+    },
+    {
+      "leagueEntryId": 338698,
+      "pointsByCompletedWeek": [
+        40,
+        26,
+        20
+      ]
+    },
+    {
+      "leagueEntryId": 340792,
+      "pointsByCompletedWeek": [
+        29,
+        27,
+        34
+      ]
+    }
+  ],
+  "currentPublishedQueueCheck": {
+    "scoreCutoff": 3,
+    "targetWaiverWeek": 4,
+    "source": "league/24738/details league_entries[].waiver_pick, captured 2026-09-09; recovered from the archived managers[].publishedPick values",
+    "processed": false,
+    "positions": [
+      {
+        "leagueEntryId": 126585,
+        "pick": 2
+      },
+      {
+        "leagueEntryId": 126586,
+        "pick": 6
+      },
+      {
+        "leagueEntryId": 126587,
+        "pick": 5
+      },
+      {
+        "leagueEntryId": 126588,
+        "pick": 12
+      },
+      {
+        "leagueEntryId": 126589,
+        "pick": 4
+      },
+      {
+        "leagueEntryId": 126590,
+        "pick": 7
+      },
+      {
+        "leagueEntryId": 126591,
+        "pick": 9
+      },
+      {
+        "leagueEntryId": 126592,
+        "pick": 11
+      },
+      {
+        "leagueEntryId": 126593,
+        "pick": 10
+      },
+      {
+        "leagueEntryId": 126594,
+        "pick": 8
+      },
+      {
+        "leagueEntryId": 338698,
+        "pick": 3
+      },
+      {
+        "leagueEntryId": 340792,
+        "pick": 1
+      }
+    ]
+  }
+}

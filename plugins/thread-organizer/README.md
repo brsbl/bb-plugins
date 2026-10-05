@@ -11,15 +11,27 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
 
 - New threads stay in the native Threads section until a user or agent explicitly
   moves them into a workflow stage. Reordering sections never assigns new work.
-- Unclaimed running threads appear in their remembered workflow stage, or Threads when
+- Unclaimed running threads and threads with queued messages appear in their remembered workflow stage, or Threads when
   they have not been assigned one.
-- Unclaimed idle unread threads appear in the main Inbox and stay after being marked read.
+- Unclaimed idle unread threads without queued messages appear in the main Inbox
+  and stay after being marked read, unless the Inbox is set to move them back
+  (below).
 - Additional inboxes receive threads from a selected plugin. Claimed threads stay
   in that inbox until you move or archive them, even after reading or resuming work.
   Opening a thread marks it read normally; it never also appears in the main Inbox.
+- Each additional inbox is **Filled by** a plugin or by **You**. A plugin inbox
+  catches the threads that plugin creates; the list offers only plugins that
+  have created threads. An inbox filled by You catches nothing automatically: it
+  holds the threads you move there, even after reading or new agent output,
+  until you move or archive them.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.
-- Starting unclaimed work again restores the thread’s remembered stage.
+- Set any inbox to **Move back after reading** to skip that drag: as soon as you
+  read an idle thread there, it returns to its remembered stage (or Threads when it has
+  none) without sending an entry prompt. Turning the setting on also releases
+  threads you had already read there. A thread moved out of a plugin inbox
+  this way is not claimed by it again.
+- Starting unclaimed work again or queuing a message restores the thread’s remembered stage.
 - A user move changes the remembered stage. `bb organizer phase <stage-key>`
   moves it explicitly.
 - Inbox keeps that system behavior even when its visible title changes.
@@ -35,8 +47,10 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
   `bb organizer section rule <stage-key> --set <text>`.
 - Section expansion and collapse are owned by bb and the user; Thread Organizer
   never changes them automatically.
-- Reordering a section other than the main Inbox in the native sidebar saves the same workflow
-  order used by plugin settings and future agent instructions.
+- The sidebar and the workflow share one section order. Dragging any section in
+  the sidebar, the main Inbox included, saves that order as the workflow order.
+  Reordering in settings moves the sidebar's sections to match after Save;
+  sections outside the workflow keep their places.
 - Automation-origin root threads follow the same workflow as ordinary roots.
 - Thread Organizer never renames threads. Moving between workflow stages leaves
   the user’s thread title unchanged.
@@ -118,6 +132,9 @@ bb organizer section add "Digests" --inbox --catches-plugin digests --rule "Publ
 bb organizer section type digests
 bb organizer section type digests --set stage
 bb organizer section type digests --set inbox --catches-plugin digests
+bb organizer section type handoff --set inbox
+bb organizer section after-read inbox
+bb organizer section after-read digests --set return
 bb organizer prompt                      # every section and its prompt
 bb organizer prompt review               # one section's prompt
 bb organizer prompt review --set "Run /slop-cop on this PR, then /slim-pr, /write-pr, and /merge-ready."

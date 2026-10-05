@@ -1,7 +1,9 @@
 Keep the files you return to beside the conversation they belong to.
 
-Click the pin button in the composer’s action row, search a folder you choose or paste a path,
-or use `bb file-pins pin`. Quiet file references stay above the composer, with
+Click the pin button in the composer’s action row and type one or more paths or file names
+after the **Pin files** pill; the agent finds each file, asks about any that are ambiguous, and
+pins them. Or run
+`bb file-pins pin`. Quiet file references stay above the composer, with
 files that aren't pinned behind **⋯**. Clicking a file uses bb’s usual file-opening
 behavior.
 
