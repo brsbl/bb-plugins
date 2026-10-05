@@ -8,6 +8,7 @@ import {
 import { Button } from "./components/ui/button";
 import { FolderWindow, THREAD_DRAG, threadTitle as titleOf } from "./folder-window";
 import { dockWindow, fitCamera, folderFor, readLayout, zoomAt, type Camera, type DockSide, type Layout, type Point } from "./state";
+import { CanvasMark } from "./canvas-mark";
 import "./app.css";
 
 const WINDOW_WIDTH = 680;
@@ -54,11 +55,13 @@ function Desktop() {
   const threadMap = useMemo(() => new Map(threads.map(t => [t.id, t])), [threads]);
   const projectNames = useMemo(() => new Map(data.projects.map(p => [p.id, p.name])), [data.projects]);
   const folders = useMemo(() => [
-    ...data.projects.map(p => ({ id: `project:${p.id}`, name: p.name, custom: false })),
-    ...layout.folders.map(f => ({ ...f, custom: true })),
-  ], [data.projects, layout.folders]);
+    ...data.projects.map(p => ({ id: `project:${p.id}`, name: p.name, custom: false, icon: "Folder" })),
+    ...data.sections.map(section => ({ id: `section:${section.id}`, name: section.name, custom: false, icon: "SectionAdd" })),
+    ...layout.folders.map(f => ({ ...f, custom: true, icon: "Folder" })),
+  ], [data.projects, data.sections, layout.folders]);
   const folderPosition = (id: string, index: number) => layout.positions[id] ?? { x: 48 + (index % 5) * 112, y: 80 + Math.floor(index / 5) * 112 };
-  const folderThreads = (id: string) => id === ALL_THREADS ? threads : threads.filter(t => folderFor(t, layout) === id);
+  const folderThreads = (id: string) => id === ALL_THREADS ? threads : threads.filter(t => id.startsWith("section:") ? `section:${t.sectionId}` === id : folderFor(t, layout) === id);
+  const folderIcon = (id: string) => folders.find(folder => folder.id === id)?.icon ?? "Folder";
   const windowTitle = (win: Layout["windows"][number]) => win.kind === "folder" ? (win.id === ALL_THREADS ? "Threads" : folders.find(f => f.id === win.id)?.name ?? "Folder") : threadMap.get(win.id) ? titleOf(threadMap.get(win.id)!) : "Thread";
   const camera = layout.camera;
   const zoom = camera.zoom;
@@ -277,17 +280,18 @@ function Desktop() {
         const delta = { ArrowLeft: [64, 0], ArrowRight: [-64, 0], ArrowUp: [0, 64], ArrowDown: [0, -64] }[event.key];
         if (delta) { event.preventDefault(); setLayout(current => ({ ...current, camera: { ...current.camera, x: current.camera.x + delta[0], y: current.camera.y + delta[1] } })); }
       }}>
+      <CanvasMark />
       <div className="cdc-world" style={{ transform: focused ? "none" : `translate(${camera.x}px,${camera.y}px) scale(${zoom})` }}>
         {folders.map((folder, index) => {
           const point = folderPosition(folder.id, index);
-          return <button key={folder.id} className="cdc-folder-icon" aria-label={`${folder.name} folder`} aria-pressed={selectedFolder === folder.id} title={folder.name}
+          return <button key={folder.id} className="cdc-folder-icon" aria-label={`${folder.name} ${folder.id.startsWith("section:") ? "section" : "folder"}`} aria-pressed={selectedFolder === folder.id} title={folder.name}
             style={{ left: point.x, top: point.y, display: focused ? "none" : undefined }}
             onPointerDown={event => startDrag(event, "folder", folder.id, point)} onClick={() => setSelectedFolder(folder.id)} onDoubleClick={() => openWindow(folder.id, "folder")}
             onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); openWindow(folder.id, "folder"); } else nudge(event, "folder", folder.id, point); }}
             onContextMenu={event => { event.preventDefault(); setSelectedFolder(folder.id); const rect = root.current!.getBoundingClientRect(); setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top, folderId: folder.id }); }}
-            onDragOver={event => { if (event.dataTransfer.types.includes(THREAD_DRAG)) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
+            onDragOver={event => { if (!folder.id.startsWith("section:") && event.dataTransfer.types.includes(THREAD_DRAG)) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
             onDrop={event => { event.preventDefault(); moveThread(event.dataTransfer.getData(THREAD_DRAG), folder.id); }}>
-            <Icon name="Folder" /><span>{folder.name}</span>
+            <Icon name={folder.icon} className="cdc-resource-icon" /><span>{folder.name}</span>
           </button>;
         })}
       </div>
@@ -312,7 +316,7 @@ function Desktop() {
               <button className="cdc-title" aria-label={`Move ${title} window with arrow keys`} onKeyDown={event => {
                 if (win.dock && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); event.stopPropagation(); dockWindowTo(win.id, undefined); }
                 else nudge(event, "window", win.id, win);
-              }}><Icon name={isFolder ? "Folder" : "MessageSquare"} /><span>{title}</span></button>
+              }}><Icon name={isFolder ? folderIcon(win.id) : "MessageSquare"} className={isFolder ? "cdc-resource-icon" : undefined} /><span>{title}</span></button>
               <div className="cdc-window-actions" data-no-drag>
                 <Button data-menu-toggle variant="ghost" size="icon" aria-label={`Position ${title} window`} aria-expanded={windowMenu === win.id} onClick={() => setWindowMenu(current => current === win.id ? null : win.id)}><Icon name="PanelRight" /></Button>
                 <Action icon={focus ? "Minimize2" : "Maximize2"} label={focus ? "Return to canvas" : `Focus ${title}`} onClick={() => focus ? setFocused(null) : focusWindow(win.id)} />
@@ -326,7 +330,7 @@ function Desktop() {
               <Button variant="ghost" aria-label={`Dock ${title} right`} onClick={() => dockWindowTo(win.id, "right")}>Dock right</Button>
               {win.dock && <Button variant="ghost" onClick={() => dockWindowTo(win.id, undefined)}>Undock</Button>}
             </div>}
-            <div data-window-content className="cdc-window-body" onDragOver={event => { if (isFolder && event.dataTransfer.types.includes(THREAD_DRAG)) event.preventDefault(); }} onDrop={event => { if (isFolder) { event.preventDefault(); moveThread(event.dataTransfer.getData(THREAD_DRAG), win.id); } }}>
+            <div data-window-content className="cdc-window-body" onDragOver={event => { if (isFolder && !win.id.startsWith("section:") && event.dataTransfer.types.includes(THREAD_DRAG)) event.preventDefault(); }} onDrop={event => { if (isFolder) { event.preventDefault(); moveThread(event.dataTransfer.getData(THREAD_DRAG), win.id); } }}>
               {isFolder ? <FolderWindow name={title} threads={folderThreads(win.id)} folders={folders} projectNames={projectNames} openThread={openThread} moveThread={moveThread} />
                 : live ? <ThreadChat threadId={win.id} layout="contained" variant="full" permissionPolicy="inherit" /> : <div className="cdc-overview">
                   <Icon name="MessageSquare" /><h2>{title}</h2><p>{projectNames.get(thread?.projectId ?? "") ?? "Conversation"}</p>
@@ -392,7 +396,7 @@ function Desktop() {
     <nav className="cdc-dock" data-screen aria-label="Workspace taskbar">
       <Button data-menu-toggle variant={launcher ? "secondary" : "ghost"} size="sm" aria-expanded={launcher} onClick={() => setLauncher(value => !value)}><Icon name="GridView" />Launcher</Button>
       <Button ref={composerButton} variant={layout.composer !== "hidden" ? "secondary" : "ghost"} size="sm" aria-expanded={layout.composer !== "hidden"} onClick={() => showPrompt()}><Icon name="MessageSquarePlus" />Composer</Button>
-      <div className="cdc-tasks">{layout.windows.map(win => <Button key={win.id} className="cdc-task" variant={active === win.id && !win.minimized ? "secondary" : "ghost"} size="sm" aria-label={`${win.minimized ? "Restore" : "Show"} ${windowTitle(win)}`} onClick={() => openWindow(win.id, win.kind ?? "thread")}><Icon name={win.kind === "folder" ? "Folder" : "MessageSquare"} /><span>{windowTitle(win)}</span>{win.minimized && <Icon name="Minus" />}</Button>)}</div>
+      <div className="cdc-tasks">{layout.windows.map(win => <Button key={win.id} className="cdc-task" variant={active === win.id && !win.minimized ? "secondary" : "ghost"} size="sm" aria-label={`${win.minimized ? "Restore" : "Show"} ${windowTitle(win)}`} onClick={() => openWindow(win.id, win.kind ?? "thread")}><Icon name={win.kind === "folder" ? folderIcon(win.id) : "MessageSquare"} className={win.kind === "folder" ? "cdc-resource-icon" : undefined} /><span>{windowTitle(win)}</span>{win.minimized && <Icon name="Minus" />}</Button>)}</div>
     </nav>
   </div>;
 }

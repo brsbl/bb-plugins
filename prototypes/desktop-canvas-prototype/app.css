@@ -3,7 +3,9 @@
 .cdc-desktop button, .cdc-desktop input, .cdc-desktop select { font: inherit; }
 .cdc-desktop button { cursor: pointer; }
 .cdc-desktop button:focus-visible, .cdc-desktop input:focus-visible, .cdc-desktop select:focus-visible, .cdc-canvas:focus-visible, .cdc-prompt:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.cdc-canvas { position: absolute; inset: 0; overflow: hidden; touch-action: none; background-image: radial-gradient(circle, color-mix(in oklab, var(--ink) 14%, transparent) 1px, transparent 1px); background-size: 24px 24px; cursor: grab; }
+.cdc-canvas { position: absolute; inset: 0; overflow: hidden; touch-action: none; background-color: color-mix(in oklab, var(--muted) 40%, var(--background)); background-image: linear-gradient(color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px); background-size: 24px 24px; cursor: grab; }
+.cdc-watermark { position: absolute; left: 62%; top: 48%; width: clamp(180px, 24vw, 320px); transform: translate(-50%, -50%); fill: currentColor; color: var(--foreground); opacity: 0.045; pointer-events: none; }
+.cdc-resource-icon { fill: currentColor; }
 .cdc-canvas:active { cursor: grabbing; }
 .cdc-world { position: absolute; inset: 0; transform-origin: 0 0; pointer-events: none; }
 .cdc-folder-icon { pointer-events: auto; position: absolute; width: 88px; min-height: 88px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; padding: 8px 4px 6px; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--foreground); user-select: none; touch-action: none; }
@@ -46,9 +48,10 @@
 .cdc-finder footer > span { flex: 1; font-size: var(--text-xs); color: var(--muted-foreground); }
 .cdc-finder select { max-width: 180px; min-height: 30px; padding: 4px 8px; border: 1px solid var(--input); border-radius: var(--radius); background: var(--background); }
 .cdc-empty { padding: 24px 12px; color: var(--muted-foreground); }
-.cdc-prompt { position: absolute; z-index: 70; width: min(720px, calc(100% - 64px)); left: 50%; bottom: 88px; transform: translateX(-50%); }
-.cdc-prompt > div { background: var(--background); border-radius: var(--radius); }
-.cdc-prompt-header { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 3px 6px; margin-bottom: 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); }
+.cdc-prompt { position: absolute; z-index: 70; width: min(720px, calc(100% - 64px)); left: 50%; bottom: 88px; transform: translateX(-50%); padding: 4px; border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); background: var(--background); box-shadow: var(--shadow-lg); }
+.cdc-prompt > div { background: transparent; }
+.cdc-prompt [data-promptbox] { border: 0; border-radius: 0 0 var(--radius) var(--radius); box-shadow: none; }
+.cdc-prompt-header { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 2px 4px; }
 .cdc-prompt-move { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--muted-foreground); cursor: grab !important; touch-action: none; }
 .cdc-prompt-move:hover { background: var(--state-hover); }
 .cdc-prompt-move:active { cursor: grabbing !important; }
