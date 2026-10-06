@@ -18,6 +18,7 @@ import {
   hasEntryPrompt,
   inboxStage,
   isManageableThread,
+  isRunningThread,
   isUnreadThread,
   legacySectionNames,
   localSectionName,
@@ -516,6 +517,24 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     await bb.storage.kv.set(threadStateKey(threadId), state);
   }
 
+  async function hasRunningChildren(threadId: string): Promise<boolean> {
+    let offset = 0;
+    while (!reconciliationController.signal.aborted) {
+      const children = await bb.sdk.threads.list({
+        parentThreadId: threadId,
+        archived: false,
+        includeHidden: true,
+        limit: THREAD_LIST_PAGE_SIZE,
+        offset,
+        signal: reconciliationController.signal,
+      });
+      if (children.some(isRunningThread)) return true;
+      if (children.length < THREAD_LIST_PAGE_SIZE) return false;
+      offset += THREAD_LIST_PAGE_SIZE;
+    }
+    return false;
+  }
+
   async function reconcileThread(
     threadId: string,
     options: ReconcileOptions = {},
@@ -527,6 +546,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       evictFromSectionIds,
     } = options;
     const thread = await bb.sdk.threads.get({ threadId });
+    if (thread.parentThreadId !== null) {
+      const parentThreadId = thread.parentThreadId;
+      await schedule(parentThreadId, async () => {
+        await reconcileThread(parentThreadId);
+      });
+      return null;
+    }
     if (!isManageableThread(thread)) return null;
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
@@ -610,6 +636,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
         }
       }
     }
+    const runningChildren =
+      !isRunningThread(thread) &&
+      (thread.queuedMessageCount ?? 0) === 0 &&
+      (isUnreadThread(thread) || currentStage?.key === "inbox") &&
+      !matchedInbox &&
+      (currentStage?.role !== "inbox" || currentStage.key === "inbox") &&
+      await hasRunningChildren(threadId);
     const destination = placementForThread(
       configSnapshot,
       thread,
@@ -617,6 +650,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       explicitStageKey !== undefined,
       matchedInbox,
       release,
+      runningChildren,
     );
     if (destination && !destination.sectionId) {
       throw new Error(`Stage ${destination.key} has no native section.`);
@@ -1723,6 +1757,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
 
   for (const event of [
     "thread.created",
+    "thread.unarchived",
     "thread.active",
     "thread.idle",
     "thread.failed",
@@ -1738,6 +1773,12 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       schedule(thread.id, async () => {
         await bb.storage.kv.delete(threadStateKey(thread.id));
         await bb.storage.kv.delete(legacyThreadStateKey(thread.id));
+        if (thread.parentThreadId !== null) {
+          const parentThreadId = thread.parentThreadId;
+          await schedule(parentThreadId, async () => {
+            await reconcileThread(parentThreadId);
+          });
+        }
       }),
     );
   }
