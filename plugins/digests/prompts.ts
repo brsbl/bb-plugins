@@ -1,6 +1,6 @@
 import type { Connection, DigestDefinition, Issue } from "./model.js";
 import { digestEmoji } from "./emoji.js";
-import { expectedAccount } from "./sites.js";
+import { accountUrl, expectedAccount } from "./sites.js";
 
 export function issueTitle(definition: DigestDefinition, now: number): string {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: definition.schedule?.timezone ?? "America/Los_Angeles", weekday: "short", month: "short", day: "numeric" }).formatToParts(now);
@@ -26,8 +26,8 @@ function accountInstructions(connections: Pick<Connection, "name" | "url" | "acc
   return connections.map((connection) => {
     const named = expectedAccount(connection.url);
     const account = named ?? connection.accountName;
-    return `${connection.name}: read only ${account ? `${account}, ` : ""}starting from ${connection.url}. ${named
-      ? `Build every Gmail page and source URL on this account path (for example https://mail.google.com/mail/u/${named}/#inbox/<id>); never use /u/0/ or another account index. `
+    return `${connection.name}: read only ${account ? `${account}, ` : ""}starting from ${accountUrl(connection.url)}. ${named
+      ? `Build every Gmail page and source URL with this account (for example ${accountUrl(connection.url, "#inbox/<id>")}); never use /mail/u/0/ or another account index. `
       : ""}Never switch accounts.`;
   }).join("\n");
 }

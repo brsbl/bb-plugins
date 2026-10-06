@@ -1,7 +1,7 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import type { Connection } from "./model.js";
-import { expectedAccount } from "./sites.js";
+import { accountUrl, expectedAccount } from "./sites.js";
 
 export class ConnectionError extends Error {
   constructor(message: string, readonly status: Connection["status"], readonly recovery: "retry" | "reconnect" | "upgrade", readonly accountName: string | null = null) {
@@ -72,7 +72,7 @@ export async function checkSignIn(bb: BbPluginApi, connection: Connection, lease
   // Sites finish rendering their signed-in shell after the load event, and an
   // account-specific Gmail URL redirects first. Poll for a definite answer.
   const script = `const p = await browser.getPage("connection");
-await p.goto(${JSON.stringify(connection.url)});
+await p.goto(${JSON.stringify(accountUrl(connection.url))});
 await p.snapshot();
 const probe = () => {
   const host = location.hostname;
@@ -90,10 +90,12 @@ const probe = () => {
     : /(^|\\.)x.com$/.test(host) ? accountText.match(/@[A-Za-z0-9_]+/)?.[0] : accountText;
   return { signedIn, signedOut, accountName: accountName?.trim().slice(0, 160) || null };
 };
-let status = await p.evaluate(probe);
+// A redirect can replace the document mid-probe; treat that as not settled.
+const read = async () => { try { return await p.evaluate(probe); } catch { return { signedIn: false, signedOut: false, accountName: null }; } };
+let status = await read();
 for (let attempt = 0; attempt < 30 && !status.signedOut && !(status.signedIn && status.accountName); attempt++) {
   await new Promise((resolve) => setTimeout(resolve, 500));
-  status = await p.evaluate(probe);
+  status = await read();
 }
 console.log("DIGEST_CONNECTION:" + JSON.stringify(status));`;
   const output = await browserRpc(bb, "run", { threadId: lease.threadId, sessionId: lease.sessionId, script, timeoutMs: 45000 }, z.object({ text: z.string(), exitCode: z.number() }).passthrough());

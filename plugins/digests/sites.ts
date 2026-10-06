@@ -14,3 +14,9 @@ export function expectedAccount(url: string): string | null {
     return /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/u.test(value) ? value.toLowerCase() : null;
   } catch { return null; }
 }
+
+/** Gmail serves an error page for /mail/u/<email>/ in some sessions; authuser selects the same account and keeps #fragments. */
+export function accountUrl(url: string, fragment = ""): string {
+  const account = expectedAccount(url);
+  return account ? `https://mail.google.com/mail/?authuser=${account}${fragment}` : url;
+}

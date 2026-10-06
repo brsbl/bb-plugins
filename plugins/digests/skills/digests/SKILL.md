@@ -41,8 +41,9 @@ providerId, model, and optional `{cron, timezone}` schedule. Definitions start
 disabled. `bb digest connections set --file connection.json` stores only
 `id`, `name`, `url`, `browserHostId`, and optional `desktopInstanceId`; never
 credentials. To read a specific Google account, name it in the Gmail URL
-(`https://mail.google.com/mail/u/<email>/` or `?authuser=<email>`); `/u/0/` is
-whichever account Google lists first in bb's browser. Checks report the
+(`https://mail.google.com/mail/?authuser=<email>`; `/mail/u/<email>/` is
+accepted and opened the same way). `/u/0/` is whichever account Google lists
+first in bb's browser. Checks report the
 signed-in account and fail with "Signed in as X, expected Y" on a mismatch.
 `bb digest connections status --check` performs a fresh read-only
 connection check. If the browser is unavailable, say so and offer Retry.

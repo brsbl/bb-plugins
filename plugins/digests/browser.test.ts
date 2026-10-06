@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { connectionScope, openBrowser } from "./browser";
 import { ConnectionSchema } from "./model";
-import { expectedAccount } from "./sites";
+import { accountUrl, expectedAccount } from "./sites";
 
 const dispose: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const cleanup of dispose.splice(0)) await cleanup(); });
@@ -84,5 +84,6 @@ describe("digest browser ownership", () => {
     ["https://x.com/home", null],
   ])("reads the account a connection URL names: %s", (url, expected) => {
     expect(expectedAccount(url)).toBe(expected);
+    expect(accountUrl(url, "#inbox/1")).toBe(expected ? `https://mail.google.com/mail/?authuser=${expected}#inbox/1` : url);
   });
 });

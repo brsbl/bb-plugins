@@ -5,7 +5,7 @@ import { createStore } from "./store.js";
 import { issueSchema, EmailReadInputSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
 import { executionTarget, executionFailure, ExecutionError } from "./execution.js";
-import { SITES } from "./sites.js";
+import { accountUrl, SITES } from "./sites.js";
 import { deliveryPrompt, directive, issueTitle, runPrompt, collectionInstructions } from "./prompts.js";
 
 const automationSchema = z.object({ id: z.string(), enabled: z.boolean(), nextRunAt: z.number().nullable() }).passthrough();
@@ -444,7 +444,7 @@ export function createService(bb: BbPluginApi) {
   }
   async function revealConnection(connection: Connection, threadId: string) {
     const scope = await connectionScope(bb, connection, threadId);
-    const tab = await bb.sdk.experimental_desktopBrowsers.createTab({ ...scope, url: connection.url, presentation: "reveal" });
+    const tab = await bb.sdk.experimental_desktopBrowsers.createTab({ ...scope, url: accountUrl(connection.url), presentation: "reveal" });
     if (Object.hasOwn(tab.tab, "profile")) {
       await bb.sdk.experimental_desktopBrowsers.closeTab({ ...scope, tabId: tab.tab.tabId });
       throw new Error("Update bb to 0.45 or later first, then Retry. Your existing BB Browser sign-ins will be used.");

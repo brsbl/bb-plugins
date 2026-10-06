@@ -397,7 +397,7 @@ describe("digest issue lifecycle", () => {
   });
 
   it("reads only the Gmail account its URL names and reports a mismatch", async () => {
-    const { service, setSignIn } = setup();
+    const { service, harness, setSignIn } = setup();
     service.store.connections.put({ ...service.store.connections.get("gmail")!, url: "https://mail.google.com/mail/u/me@example.com/" });
     setSignIn({ signedIn: true, signedOut: false, accountName: "work@example.com" });
     const mismatched = await service.begin("reading", "thr_account");
@@ -408,8 +408,11 @@ describe("digest issue lifecycle", () => {
     setSignIn({ signedIn: true, signedOut: false, accountName: "Me@Example.com" });
     const begun = await service.begin("reading", "thr_account");
     expect(begun).toMatchObject({ complete: false, issue: { state: "collecting" } });
-    expect(begun.instructions).toContain("https://mail.google.com/mail/u/me@example.com/#inbox/<id>");
-    expect(begun.instructions).toContain("never use /u/0/");
+    expect(begun.instructions).toContain("https://mail.google.com/mail/?authuser=me@example.com#inbox/<id>");
+    expect(begun.instructions).toContain("never use /mail/u/0/");
+    const probe = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: { script?: string } })
+      .filter((value) => value.method === "run").at(-1)?.input.script;
+    expect(probe).toContain('await p.goto("https://mail.google.com/mail/?authuser=me@example.com")');
     expect(service.store.connections.get("gmail")).toMatchObject({ status: "signed-in", accountName: "Me@Example.com" });
   });
 
