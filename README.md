@@ -264,6 +264,16 @@ Contour draws a calm night map with muted gold lines and agent peaks.
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ambient --yes`
 
+### Video Markup
+
+Review product films in bb with inline playback, frame annotations, and version history. Send selected feedback and captured frames to the agent, guided by the bundled Product Demo Direction skill.
+
+![The Video Markup panel with a marked frame, an open frame note, and selected notes in the prompt box](plugins/video-markup/docs/screenshot.png)
+
+[Source](plugins/video-markup) · [README](plugins/video-markup/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/video-markup --yes`
+
 Each `plugin/*` install ref is generated from `main` after CI passes. The separate refs are necessary because bb installs from the root of a git checkout.
 
 ## Develop

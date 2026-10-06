@@ -31,6 +31,7 @@ const pluginBbEngineOverrides = new Map([
   ["open-in-moss", ">=0.43.4"],
   ["pull-requests", ">=0.43.4"],
   ["theme-preview", ">=0.38.0"],
+  ["video-markup", ">=0.43.4"],
 ]);
 
 async function readJson(path) {
