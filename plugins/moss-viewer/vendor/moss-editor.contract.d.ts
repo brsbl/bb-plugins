@@ -58,6 +58,8 @@
  *     in this file.
  *   - API 1's baseline has no feature strings. Everything in this file is
  *     required of both sides unless it is marked optional.
+ *   - Editor features so far (0.2.0): `selection-1` (`MossEditorHandle.selection`)
+ *     and `share-with-agent-1` (`MossEditorServices.shareWithAgent`).
  * - Hosts must ignore unknown event fields and unknown manifest fields. The
  *   editor ignores unknown option fields.
  * - A result `kind` the editor does not know is treated as an error for that
@@ -386,6 +388,43 @@ export interface MossEditorServices {
     navigate?(target: MossEditorTarget): void;
     /** Link-card and embed metadata. The frame has no network access of its own. */
     unfurl?(url: string): Promise<MossEditorUnfurl | null>;
+    /**
+     * Editor feature `share-with-agent-1`. With this service the editor shows
+     * Moss's Share with Agent button above the note, and a press calls it with
+     * `selection()` at that moment (null when nothing in the body is
+     * selected). Without it the button stays hidden, as in 0.1.0.
+     */
+    shareWithAgent?(selection: MossSelection | null): void;
+}
+/**
+ * The user's selection in the note body (editor feature `selection-1`; the
+ * viewer's `MossSelection` has the same shape). Moss markdown has no persisted
+ * block ids, so the line range and the heading path are the stable reference.
+ */
+export interface MossSelection {
+    /** The selected plain text as rendered; never a `%%m:` comment marker. */
+    text: string;
+    /** The selected lines of the note's markdown as a save writes them, comment markers stripped. */
+    markdown: string;
+    /**
+     * 1-based, inclusive lines in the note's markdown file exactly as a save
+     * would write the current buffer (unsaved edits included; frontmatter and
+     * the `# Title` line counted). Inside a list, table or code block they name
+     * the items, rows or code lines selected; elsewhere every line of each
+     * block the selection touches.
+     */
+    lines: {
+        start: number;
+        end: number;
+    };
+    /** The headings over the selection's start, outermost first (a selected heading included). */
+    headings: string[];
+    /** Each top-level block the selection touches: its node type, its first line, and the innermost heading over it. */
+    blocks: {
+        type: string;
+        line: number;
+        heading?: string;
+    }[];
 }
 /** Same shape as `MossViewerNote`. */
 export interface MossEditorNote {
@@ -512,6 +551,11 @@ export interface MossEditorHandle {
      * retention (see the file header), not the editor's.
      */
     unmount(options?: MossUnmountOptions): Promise<MossUnmountResult>;
+    /**
+     * Editor feature `selection-1`: the user's selection in the note body, or
+     * null when it is collapsed, outside the body, or the note is not loaded.
+     */
+    selection(): MossSelection | null;
 }
 export interface MossReloadOptions {
     /** Default false. */

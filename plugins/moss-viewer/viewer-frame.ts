@@ -1,6 +1,7 @@
 // The parts of @moss-multi/viewer's API version 1 (packages/viewer/src/types.ts)
 // this plugin uses. The viewer runs inside its own frame document; the panel
 // mounts it there and supplies every service it may reach.
+import type { MossSelection } from "./vendor/moss-editor.contract.js";
 
 export type MossViewerTheme = "light" | "dark";
 
@@ -22,6 +23,8 @@ export interface MossViewerServices {
   unfurl?(url: string): Promise<null>;
   /** Where HTML blocks run live; without it they show Moss's cached screenshot. */
   htmlFrameUrl?: string;
+  /** Feature `share-with-agent-1`: shows Moss's Share with Agent button, which passes `selection()` (same shape as the editor's). */
+  shareWithAgent?(selection: MossSelection | null): void;
 }
 
 export interface MossViewerOptions {
@@ -117,11 +120,4 @@ export function routeFrameLinks(frame: HTMLIFrameElement, openUrl: (url: string)
   };
   document.addEventListener("click", onClick);
   return () => document.removeEventListener("click", onClick);
-}
-
-/** The text selected in a viewer or editor frame, trimmed and capped, or null when nothing is. */
-export function frameSelection(frame: HTMLIFrameElement | null, max: number): string | null {
-  const text = frame?.contentWindow?.getSelection()?.toString().trim() ?? "";
-  if (text === "") return null;
-  return text.length > max ? text.slice(0, max) : text;
 }

@@ -2,7 +2,7 @@
 // so every table shares this one append-only list.
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
-const MIGRATIONS = [
+export const MIGRATIONS = [
   `CREATE TABLE editor_saves (
       host_id TEXT NOT NULL,
       note_id TEXT NOT NULL,
@@ -22,6 +22,8 @@ const MIGRATIONS = [
       selection TEXT,
       shared_at INTEGER NOT NULL
     )`,
+  // Where a shared selection is in the note, as JSON `{lines, headings, truncated}`; null for pills shared before it.
+  `ALTER TABLE shared_notes ADD COLUMN selection_place TEXT`,
 ];
 
 export function database(bb: BbPluginApi) {
