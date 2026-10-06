@@ -13,10 +13,12 @@ function setup() {
   let beforeThreadRead = async () => {};
   let response: (input: { url: string; expectedAccountId?: string }, hostId: string) => Promise<ReadResult> = async (input) => ({ ok: true, accountId: "U_A", login: "alice", snapshot: snapshot(Number(input.url.split("/").at(-1))) });
   let searchResponse: (input: { scope: string }, hostId: string) => Promise<SearchResult> = async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [snapshot()], nextCursor: null });
+  const projects: { id: string; gitRemoteUrl: string | null }[] = [];
   const threads = [makeThreadResponse({ id: "thr_a", environmentId: "env_a", title: "Implementation" }), makeThreadResponse({ id: "thr_b", environmentId: "env_b", title: "Review" })];
   const { bb, harness } = createFakePluginHost({ pluginId: "pull-requests", experimental_hostEntry: true, sdk: {
     threads: { get: async ({ threadId }) => { await beforeThreadRead(); const thread = threads.find((entry) => entry.id === threadId); if (!thread) throw new Error("No thread"); return thread; }, list: async ({ offset = 0, environmentId } = {}) => offset ? [] : threads.filter((thread) => !environmentId || thread.environmentId === environmentId) },
     environments: { get: async ({ environmentId }) => ({ hostId: environmentId === "env_b" ? "host_b" : "host_a", path: "/repo" }), pullRequest: async () => ({ outcome: "available", pullRequest: { url: snapshot().url } }) },
+    projects: { list: async () => projects as never },
     hosts: { list: async () => [makeHostResponse({ id: "host_a", status: "connected" }), makeHostResponse({ id: "host_b", status: "connected" })] },
   }, experimental_callHostRpc: async ({ method, input, hostId }) => method === "search" ? searchResponse(input as { scope: string }, hostId) : response(input as { url: string; expectedAccountId?: string }, hostId) });
   plugin(bb); disposers.push(() => harness.lifecycle.dispose());
@@ -26,7 +28,7 @@ function setup() {
     return rpc<PullRequestItem>("link", { token: preview.token });
   };
   const settle = async () => { await vi.waitFor(async () => expect(await rpc("list", {})).toMatchObject({ coverage: { running: false } })); };
-  return { bb, harness, rpc, link, settle, threads, setSearchResponse: (next: typeof searchResponse) => { searchResponse = next; }, setBeforeThreadRead: (next: typeof beforeThreadRead) => { beforeThreadRead = next; }, setResponse: (next: typeof response) => { response = next; } };
+  return { bb, harness, rpc, link, settle, threads, projects, setSearchResponse: (next: typeof searchResponse) => { searchResponse = next; }, setBeforeThreadRead: (next: typeof beforeThreadRead) => { beforeThreadRead = next; }, setResponse: (next: typeof response) => { response = next; } };
 }
 describe("PR registry and host identity", () => {
   it("persists deduplicated links, suppression and preferred navigation independently of GitHub", async () => {
@@ -92,6 +94,36 @@ describe("PR registry and host identity", () => {
     expect(listing.items.map((item) => item.id).sort()).toEqual(["github:PR_1", "github:PR_2"]);
     expect(listing.items.find((item) => item.id === "github:PR_1")?.reader?.hostId).toBe("host_a");
     expect(listing.items.find((item) => item.id === "github:PR_2")?.reader?.hostId).toBe("host_b");
+  });
+  it("ignores thread references in project PRs the reader neither wrote nor was asked to review", async () => {
+    const h = setup();
+    const value = { ...snapshot(), author: "mallory", requestedReviewers: ["someone-else"], body: "BB-Thread-ID: thr_a\n@thread:thr_b" };
+    h.setSearchResponse(async () => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [value], nextCursor: null }));
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    expect((await h.rpc<PullRequestItem>("show", { id: "github:PR_1" })).links).toEqual([]);
+  });
+  it("leaves project-repository PRs to search instead of reading each one again", async () => {
+    const h = setup();
+    h.projects.push({ id: "proj_a", gitRemoteUrl: "https://github.com/acme/repo.git" });
+    const others = [{ ...snapshot(5), author: "mallory" }, { ...snapshot(6), author: "mallory" }];
+    let repositoryResults = others;
+    h.setSearchResponse(async (input) => ({ ok: true, accountId: "U_A", login: "alice", snapshots: input.scope === "repository" ? repositoryResults : input.scope === "authored" ? [snapshot(1)] : [], nextCursor: null }));
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    await h.link(6);
+    const reads: string[] = [];
+    h.setResponse(async (input) => { reads.push(input.url); return { ok: true, accountId: "U_A", login: "alice", snapshot: { ...snapshot(Number(input.url.split("/").at(-1))), author: "mallory" } }; });
+    repositoryResults = [];
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    expect(reads).toEqual([snapshot(6).url]);
+    const listing = await h.rpc<{ items: PullRequestItem[] }>("list", {});
+    expect(listing.items.map((item) => item.id).sort()).toEqual(["github:PR_1", "github:PR_6"]);
+  });
+  it("keeps access-loss rows in the default author filter so recovery stays reachable", async () => {
+    const h = setup(); const one = await h.link(1);
+    h.setResponse(async () => ({ ok: false, kind: "auth-changed", message: "Account switched" }));
+    await h.rpc("refresh", { id: one.id }); await h.settle();
+    const listing = await h.rpc<{ items: PullRequestItem[] }>("list", { author: "@me" });
+    expect(listing.items).toMatchObject([{ id: one.id, snapshot: null, sourceState: "auth-changed" }]);
   });
   it("associates description references on search and refresh while preserving explicit unlinks", async () => {
     const h = setup();

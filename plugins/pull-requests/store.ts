@@ -57,14 +57,20 @@ export function createStore(bb: BbPluginApi) {
   }
   return {
     get, save, byUrl, upsert, link, unlink,
-    list(args: { offset: number; limit: number; query?: string; view?: string }) {
-      const condition = `(json_extract(value,'$.discoveredFromGitHub')=1 OR EXISTS(SELECT 1 FROM pull_request_links l WHERE l.pr_id=pull_requests.id AND suppressed=0))
+    list(args: { offset: number; limit: number; query?: string; view?: string; author?: string }) {
+      const visible = `(json_extract(value,'$.discoveredFromGitHub')=1 OR EXISTS(SELECT 1 FROM pull_request_links l WHERE l.pr_id=pull_requests.id AND suppressed=0))`;
+      // "@me" means authored by the GitHub account that read the pull request. Rows whose content is
+      // hidden after access loss stay listed so their recovery state remains reachable.
+      const condition = `${visible}
+        AND (?='' OR (?='@me' AND (json_extract(value,'$.snapshot') IS NULL OR lower(json_extract(value,'$.snapshot.author'))=lower(json_extract(value,'$.reader.login')))) OR lower(coalesce(json_extract(value,'$.snapshot.author'),''))=lower(?))
         AND (?='' OR instr(lower(coalesce(json_extract(value,'$.snapshot.title'),'') || ' ' || coalesce(json_extract(value,'$.snapshot.repository'),'') || ' ' || coalesce(json_extract(value,'$.snapshot.number'),'')),lower(?))>0)
         AND (?='all' OR (?='history' AND json_extract(value,'$.snapshot.state') IN ('closed','merged')) OR (?='open' AND coalesce(json_extract(value,'$.snapshot.state'),'open') NOT IN ('closed','merged')))`;
-      const bindings = [args.query ?? "", args.query ?? "", args.view ?? "all", args.view ?? "all", args.view ?? "all"];
+      const author = args.author ?? "";
+      const bindings = [author, author, author, args.query ?? "", args.query ?? "", args.view ?? "all", args.view ?? "all", args.view ?? "all"];
       const total = (db.prepare(`SELECT count(*) AS total FROM pull_requests WHERE ${condition}`).get(...bindings) as { total: number }).total;
       const rows = db.prepare(`SELECT id FROM pull_requests WHERE ${condition} ORDER BY json_extract(value,'$.pinned') DESC, coalesce(json_extract(value,'$.snapshot.updatedAt'),'') DESC, id LIMIT ? OFFSET ?`).all(...bindings, args.limit, args.offset) as { id: string }[];
-      return { items: rows.map((row) => get(row.id)), total };
+      const authors = (db.prepare(`SELECT DISTINCT json_extract(value,'$.snapshot.author') AS author FROM pull_requests WHERE ${visible} AND json_extract(value,'$.snapshot.author') IS NOT NULL ORDER BY lower(author)`).all() as { author: string }[]).map((row) => row.author);
+      return { items: rows.map((row) => get(row.id)), total, authors };
     },
     knownOpenIds() {
       return (db.prepare("SELECT id FROM pull_requests WHERE coalesce(json_extract(value,'$.snapshot.state'),'open') NOT IN ('closed','merged') AND (json_extract(value,'$.discoveredFromGitHub')=1 OR EXISTS(SELECT 1 FROM pull_request_links l WHERE l.pr_id=pull_requests.id AND suppressed=0))").all() as { id: string }[]).map((row) => row.id);

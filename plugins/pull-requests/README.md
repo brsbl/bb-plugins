@@ -12,7 +12,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/pull-reques
 
 ## Use
 
-Open **Pull Requests** from plugin navigation. The sidebar queries GitHub for your open authored PRs, requests for your review (including team requests), and the latest 100 authored merged or closed PRs per account. It uses authenticated GitHub CLI accounts on connected machines and deduplicates PRs across sources. A bb thread is not required. Select one to inspect its Summary or read-only Changes, then open the linked thread to continue.
+Open **Pull Requests** from plugin navigation. The sidebar queries GitHub for your open authored PRs, requests for your review (including team requests), the latest 100 authored merged or closed PRs per account, and open PRs from every author in each bb project's GitHub repository. The list opens filtered to your PRs; use the filter menu to pick another author or group by project or section. It uses authenticated GitHub CLI accounts on connected machines and deduplicates PRs across sources. A bb thread is not required. Select one to inspect its Summary or read-only Changes, then open the linked thread to continue.
 
 - The compact sidebar shows active PRs in one sorted list, with separate **Pinned** and **Merged and closed** sections. Titles stay on one line with update times at the end. Pin a PR to keep it nearby.
 - The **…** menu contains **Author**, **Reviewer** (including requested teams), and **Sort by** dropdowns. “Me” means the GitHub account reading each PR. Filters and sorting cover loaded PRs; Load more expands that set.

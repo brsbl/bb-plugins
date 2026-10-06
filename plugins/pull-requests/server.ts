@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { CHANGED, hostContract, rpcContract, type Link, type PullRequestItem, type ReadResult, type SearchResult, type Reader, type Snapshot, type ThreadChoice } from "./contract.js";
-import { mapConcurrent, parsePullRequestUrl, referencedThreadIds } from "./core.js";
+import { githubRepository, mapConcurrent, parsePullRequestUrl, referencedThreadIds } from "./core.js";
 import { createStore } from "./store.js";
 
 type Thread = Pick<Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>, "id" | "title" | "titleFallback" | "projectId" | "environmentId" | "archivedAt" | "deletedAt" | "visibility">;
@@ -67,6 +67,8 @@ export default function plugin(bb: BbPluginApi): void {
   const environmentFlights = new Map<string, Promise<void>>();
   const discoveryReads = new Map<string, Promise<PullRequestItem>>();
   const refreshedInBatch = new Set<string>();
+  // Lowercase repositories whose project search completed, or null when this batch did not discover.
+  let searchedRepositories: Set<string> | null = null;
   let discovering = false;
   const previews = new Map<string, { snapshot: Snapshot; reader: Reader; thread: ThreadChoice; expires: number; evidence: Link["evidence"]; actor: string }>();
   const undos = new Map<string, { id: string; link: Link; expires: number }>();
@@ -141,6 +143,9 @@ export default function plugin(bb: BbPluginApi): void {
   async function associateBodyThreads(item: PullRequestItem) {
     const { snapshot, reader } = item;
     if (!snapshot || !reader) return;
+    // Anyone who can open a PR in a project repository can write a description; only PRs the reader wrote or was asked to review may name threads.
+    const same = (login: string | null | undefined) => !!login && login.toLowerCase() === reader.login.toLowerCase();
+    if (!same(snapshot.author) && !(snapshot.requestedReviewers ?? []).some(same)) return;
     const epoch = connectionEpoch(reader), generation = itemEpochs.get(item.id) ?? 0;
     for (const threadId of referencedThreadIds(snapshot.body)) {
       if (item.links.some((link) => link.threadId === threadId)) continue;
@@ -218,8 +223,20 @@ export default function plugin(bb: BbPluginApi): void {
     environmentFlights.set(environmentId, operation);
     return operation;
   }
+  /** Each bb project's github.com remote; projects without one are skipped. */
+  async function readProjectRepositories() {
+    try {
+      return (await bb.sdk.projects.list()).flatMap((project) => { const repository = githubRepository(project.gitRemoteUrl); return repository ? [{ id: project.id, repository }] : []; });
+    } catch { return []; }
+  }
+  let projectRepositories: ReturnType<typeof readProjectRepositories> | null = null;
   async function discover(includeArchived: boolean) {
     discovering = true; discoveryReads.clear();
+    projectRepositories = readProjectRepositories();
+    const repositories = [...new Map((await projectRepositories).map(({ repository }) => [repository.toLowerCase(), repository])).values()];
+    const searches: { scope: "authored" | "review" | "history" | "repository"; repositories?: string[] }[] = [{ scope: "authored" }, { scope: "review" }, { scope: "history" }];
+    // GitHub ORs repo: qualifiers; small batches keep each query well under the search length limit.
+    for (let index = 0; index < repositories.length; index += 5) searches.push({ scope: "repository", repositories: repositories.slice(index, index + 5) });
     coverage.checked = 0; coverage.total = 0; coverage.unavailable = 0; coverage.incomplete = false; coverage.includesArchived = includeArchived;
     const machines = (await bb.sdk.hosts.list()).filter((machine) => machine.status === "connected");
     // Prefer an established reader; credentials on each machine can have different repository access.
@@ -228,13 +245,14 @@ export default function plugin(bb: BbPluginApi): void {
     for (const machine of machines) {
       let reader: Reader | undefined;
       try {
-        for (const scope of ["authored", "review", "history"] as const) {
+        for (const { scope, repositories: batch } of searches) {
           let cursor: string | undefined;
-          // GitHub search is capped at 1,000 results; history shows the latest 100.
-          for (let page = 0; page < (scope === "history" ? 4 : 40); page++) {
+          // GitHub search is capped at 1,000 results; history shows the latest 100 and each project batch its 300 most recently updated.
+          const pages = scope === "history" ? 4 : scope === "repository" ? 12 : 40;
+          for (let page = 0; page < pages; page++) {
             const generations = new Map(itemEpochs), connections = new Map(connectionEpochs);
             const hostGeneration = hostInvalidations.get(machine.id) ?? 0;
-            const result = await searchHost({ scope, ...(cursor ? { cursor } : {}), ...(reader ? { expectedAccountId: reader.accountId } : {}) }, machine.id);
+            const result = await searchHost({ scope, ...(batch ? { repositories: batch } : {}), ...(cursor ? { cursor } : {}), ...(reader ? { expectedAccountId: reader.accountId } : {}) }, machine.id);
             assertLive();
             if (!result.ok) throw new Error(result.message);
             const key = `${machine.id}:${result.accountId}`;
@@ -253,8 +271,9 @@ export default function plugin(bb: BbPluginApi): void {
             await mapConcurrent(imported, 4, associateBodyThreads);
             changed();
             cursor = result.nextCursor ?? undefined;
+            if (batch && (!cursor || page === pages - 1)) for (const repository of batch) searchedRepositories?.add(repository.toLowerCase());
             if (!cursor) break;
-            if (scope !== "history" && page === 39) coverage.incomplete = true;
+            if (scope !== "history" && page === pages - 1) coverage.incomplete = true;
           }
           if (!reader) break;
         }
@@ -273,6 +292,22 @@ export default function plugin(bb: BbPluginApi): void {
     }
     coverage.lastDiscoveryAt = now();
   }
+  /**
+   * Project-repository search is a window over other authors' open PRs. After discovery, an unlinked,
+   * unpinned PR the reader neither wrote nor reviews is left to that search instead of being read one by
+   * one: it stays while its project's search did not complete, and leaves the inbox once a completed
+   * search or a removed project no longer returns it.
+   */
+  function leaveRepositoryOnly(id: string, projects: Set<string>) {
+    if (!searchedRepositories) return false;
+    const item = store.get(id), snapshot = item.snapshot, login = item.reader?.login.toLowerCase();
+    if (!snapshot || !login || item.links.length || item.pinned) return false;
+    if (snapshot.author?.toLowerCase() === login || snapshot.requestedReviewers?.some((reviewer) => reviewer.toLowerCase() === login)) return false;
+    const repository = snapshot.repository.toLowerCase();
+    if (projects.has(repository) && !searchedRepositories.has(repository)) return true;
+    store.save({ ...item, discoveredFromGitHub: false }); changed();
+    return true;
+  }
   function refresh(input: { discover?: boolean; includeArchived?: boolean; id?: string }) {
     if (batch) {
       if (input.discover) { rerunDiscovery = true; rerunArchived ||= input.includeArchived ?? false; }
@@ -282,11 +317,12 @@ export default function plugin(bb: BbPluginApi): void {
     batch = (async () => {
       if (input.id) await refreshOne(input.id);
       else {
-        if (input.discover) await discover(input.includeArchived ?? false);
-        await mapConcurrent(store.knownOpenIds().filter((id) => !refreshedInBatch.has(id)), 4, async (id) => { if (!lifetime.signal.aborted) await refreshOne(id); });
+        if (input.discover) { searchedRepositories = new Set(); await discover(input.includeArchived ?? false); }
+        const projects = new Set((projectRepositories ? await projectRepositories : []).map(({ repository }) => repository.toLowerCase()));
+        await mapConcurrent(store.knownOpenIds().filter((id) => !refreshedInBatch.has(id)), 4, async (id) => { if (!lifetime.signal.aborted && !leaveRepositoryOnly(id, projects)) await refreshOne(id); });
       }
     })().catch(() => { coverage.incomplete = true; }).finally(() => {
-      batch = null; discovering = false; discoveryReads.clear(); refreshedInBatch.clear(); coverage.running = false; changed();
+      batch = null; discovering = false; searchedRepositories = null; discoveryReads.clear(); refreshedInBatch.clear(); coverage.running = false; changed();
       if (rerunDiscovery && !lifetime.signal.aborted) { const includeArchived = rerunArchived; rerunDiscovery = false; rerunArchived = false; refresh({ discover: true, includeArchived }); }
     });
     return { ...coverage };
@@ -361,7 +397,7 @@ export default function plugin(bb: BbPluginApi): void {
     const parsed = rpcContract.list.input.parse(input), offset = offsetFrom(parsed.cursor);
     const page = store.list({ ...parsed, offset });
     const items = (await mapConcurrent(page.items, 4, (item) => sanitize(item))).filter((item) => item.links.length || item.discoveredFromGitHub).map((item) => ({ ...item, snapshot: item.snapshot ? { ...item.snapshot, body: "", checks: { ...item.snapshot.checks, items: [] }, stack: { ...item.snapshot.stack, items: [] } } : null }));
-    return { items, total: page.total, nextCursor: offset + page.items.length < page.total ? String(offset + page.items.length) : null, coverage: { ...coverage } };
+    return { items, total: page.total, nextCursor: offset + page.items.length < page.total ? String(offset + page.items.length) : null, coverage: { ...coverage }, authors: page.authors, projects: await (projectRepositories ??= readProjectRepositories()) };
   }
   async function source(id: string, hostId: string) {
     const item = await show(id);
@@ -443,7 +479,7 @@ export default function plugin(bb: BbPluginApi): void {
   bb.cli.register(defineCli({ name: "pull-requests", summary: "Find GitHub pull requests and related bb threads", commands: {
     list: cliCommand({ summary: "List known PRs with explicit coverage and pagination", options: { cursor: { type: "string", description: "Page cursor" }, limit: { type: "integer", min: 1, max: 100, description: "Maximum items" }, query: { type: "string", description: "Repository, PR number or title" } }, run: async ({ options }) => output(await list({ cursor: options.cursor, limit: options.limit ?? 20, query: options.query })) }),
     show: cliCommand({ summary: "Read one PR and its links", positionals: idPosition, run: async ({ positionals }) => output(await show(positionals.id)) }),
-    refresh: cliCommand({ summary: "Refresh known open PRs or query your GitHub pull requests", options: { discover: { type: "boolean", description: "Query authored PRs, review requests and recent history on GitHub" }, archived: { type: "boolean", description: "Include surviving archived thread environments in discovery" } }, run: ({ options }) => output(refresh({ discover: options.discover, includeArchived: options.archived })) }),
+    refresh: cliCommand({ summary: "Refresh known open PRs or query your GitHub pull requests", options: { discover: { type: "boolean", description: "Query authored PRs, review requests, recent history and open PRs in project repositories on GitHub" }, archived: { type: "boolean", description: "Include surviving archived thread environments in discovery" } }, run: ({ options }) => output(refresh({ discover: options.discover, includeArchived: options.archived })) }),
     link: cliCommand({ summary: "Verify and link an existing GitHub PR to a visible thread", positionals: [{ name: "url", required: true, description: "HTTPS GitHub pull request URL" }], options: { thread: threadOption, machine: { type: "string", description: "Machine for a thread without an environment" } }, run: async ({ positionals, options }, ctx) => {
       const verified = await preview({ url: positionals.url, threadId: target(options.thread, ctx.threadId), hostId: options.machine }, "agent-explicit", ctx.threadId ?? "cli");
       return output(await commitLink(verified.token));

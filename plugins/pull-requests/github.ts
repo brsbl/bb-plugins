@@ -84,13 +84,14 @@ export function projectSnapshot(pr: RawPr, now = new Date().toISOString()): Snap
   });
 }
 const stackSchema = z.object({ headRefOid: z.string(), stack: z.object({ entries: z.object({ pageInfo: z.object({ hasNextPage: z.boolean() }), nodes: z.array(z.object({ position: z.number(), pullRequest: z.object({ url: z.string(), title: z.string(), number: z.number(), state: z.string() }).nullable() }).nullable()) }) }).nullable() });
-export async function searchPullRequests(input: { scope: "authored" | "review" | "history"; cursor?: string; expectedAccountId?: string }, run: GhRunner = runGh, signal?: AbortSignal): Promise<SearchResult> {
+export async function searchPullRequests(input: { scope: "authored" | "review" | "history" | "repository"; repositories?: string[]; cursor?: string; expectedAccountId?: string }, run: GhRunner = runGh, signal?: AbortSignal): Promise<SearchResult> {
   let accountId: string | undefined;
   try {
     const account = z.object({ node_id: z.string(), login: z.string().regex(/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i) }).parse(JSON.parse(await run(["api", "user", "--hostname", "github.com"], signal)));
     accountId = account.node_id;
     assertAccount(account.node_id, input.expectedAccountId);
-    const scope = input.scope === "review" ? `is:open review-requested:${account.login}` : `author:${account.login} ${input.scope === "history" ? "is:closed" : "is:open"}`;
+    if (input.scope === "repository" && !input.repositories?.length) throw new ReadError("unavailable", "Choose at least one repository to search.");
+    const scope = input.scope === "repository" ? `is:open ${input.repositories!.map((repository) => `repo:${repository}`).join(" ")}` : input.scope === "review" ? `is:open review-requested:${account.login}` : `author:${account.login} ${input.scope === "history" ? "is:closed" : "is:open"}`;
     const query = `query { viewer { id login } search(type:ISSUE,query:${JSON.stringify(`is:pr ${scope} sort:updated-desc`)},first:25${input.cursor ? `,after:${JSON.stringify(input.cursor)}` : ""}) { pageInfo { hasNextPage endCursor } nodes { ... on PullRequest { ${prFields} } } } }`;
     const raw = JSON.parse(await run(["api", "graphql", "--hostname", "github.com", "-f", `query=${query}`], signal));
     if (raw.errors?.length) throw new ReadError("unavailable", "GitHub search returned an incomplete response. Retry.");
