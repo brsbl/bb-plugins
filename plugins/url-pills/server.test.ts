@@ -1,7 +1,7 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, expect, it } from "vitest";
-import plugin, { createIconCache } from "./server.js";
-import { ICON_LIMITS } from "./icons.js";
+import { createIconCache, ICON_LIMITS } from "@brsbl/bb-website-icons";
+import plugin from "./server.js";
 
 const hosts: ReturnType<typeof createFakePluginHost>[] = [];
 const host = () => {
