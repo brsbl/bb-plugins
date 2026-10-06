@@ -118,6 +118,10 @@ describe("thread file pins", () => {
     expect(context).not.toContain("name: file-pins");
     await expect(provider.resolve("other")).rejects.toThrow("out of date");
   });
+  it("points every thread at the skill's proactive link-pinning rule", () => {
+    const h = setup();
+    expect(h.registrations.instructionProvider?.({ threadId: "one", projectId: "p" })).toMatch(/bb file-pins pin <url> --title .*file-pins skill/);
+  });
   it("repins in place only after the replacement resolves successfully", async () => {
     const h = setup();
     const original = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/gone.md" }) as { id: string };

@@ -10,6 +10,8 @@ import { looksLikeUrl, parseWebUrl, urlPinName } from "./url-pin.js";
 // The shipped skill is the one source of the pinning instructions; the composer pill sends it to the agent.
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const SKILL_PATH = join(basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR, "skills", "file-pins", "SKILL.md");
+const PROACTIVE_PIN_INSTRUCTIONS =
+  "Without being asked, pin the few links central to this thread's work with `bb file-pins pin <url> --title \"<title>\"`: the PR you open or drive, the issue or ticket being worked, the spec or design doc, and a dev site or dashboard you hand the user (local dev or story server, its shared URL, or a deployed preview). Remove a dev site's pin when you retire its server. Load the file-pins skill for the guardrails before pinning.";
 
 // A URL pin is its exact normalized URL; a file pin is its host and canonical path.
 function samePin(a: Pin, b: Pin): boolean {
@@ -190,6 +192,8 @@ export default function plugin(bb: BbPluginApi): void {
     },
     unpin: ({ threadId, pinId }) => removePin(threadId, pinId),
   });
+  // Skills load on demand, so this always-on line points agents at the skill's proactive link-pinning rule.
+  bb.agents.contributeInstructions(() => PROACTIVE_PIN_INSTRUCTIONS);
   // Only the composer's pin button inserts this pill, so it never appears in the @ menu.
   bb.ui.registerMentionProvider({
     id: PIN_MENTION.provider, label: PIN_MENTION.label, search: () => [],

@@ -10,6 +10,7 @@ it("tells URLs from file paths, including paths with colons", () => {
 it("accepts only http(s) URLs without credentials and normalizes them", () => {
   expect(parseWebUrl(" https://Example.com ")).toBe("https://example.com/");
   expect(parseWebUrl("http://localhost:3000/a?b=1#c")).toBe("http://localhost:3000/a?b=1#c");
+  expect(parseWebUrl("http://127.0.0.1:61000/?story=button")).toBe("http://127.0.0.1:61000/?story=button");
   for (const value of ["ftp://example.com", "javascript:alert(1)", "file:///etc/hosts", "https://user:secret@example.com", "https://exa mple.com", "https://", "notes.md", `https://example.com/${"a".repeat(5000)}`]) {
     expect(parseWebUrl(value)).toBeNull();
   }
