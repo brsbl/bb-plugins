@@ -11,13 +11,13 @@ import { usePointerCoarse } from "./components/ui/hooks/use-pointer-coarse.js";
 import { Icon } from "./components/ui/icon.js";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip.js";
 import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
-import { layoutPins, pinFile, PIN_MAX_WIDTH_CLASS, PIN_SLOT_CLASS, unpinFile, useMeasurePinCapacity, type Arrangement } from "./pin-layout.js";
+import { layoutPins, pinFile, PIN_MIN_WIDTH_CLASS, unpinFile, useMeasurePins, type Arrangement } from "./pin-layout.js";
 import { previewTarget } from "./open-target.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { UrlPinIcon } from "./url-pin-icon.js";
 import { cn } from "./lib/utils.js";
 
-const linkClass = `group inline-flex h-7 min-w-0 ${PIN_MAX_WIDTH_CLASS} items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
+const linkClass = `group inline-flex h-7 min-w-0 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
 // bb's composer-stack card chrome at chip scale, kept quiet: a hairline at rest, a shadow on hover.
 const pinClass = cn(linkClass, "rounded-md border border-border-seam bg-surface-raised-solid transition-shadow hover:shadow-xs");
 // ⋯ list rows use bb's menu item density; their ⋯ shows on hover, keyboard focus and touch.
@@ -66,10 +66,9 @@ function PinStrip({ threadId }: { threadId: string }) {
   const [rowMenu, setRowMenu] = useState<string | null>(null);
   // Phones have no room beside the list, so row menus open below the row there.
   const compact = useIsCompactViewport();
-  const zone = useRef<HTMLSpanElement>(null);
-  const slot = useRef<HTMLSpanElement>(null);
+  const measureRow = useRef<HTMLDivElement>(null);
   const arranging = useRef({ pending: 0, queue: Promise.resolve() });
-  const capacity = useMeasurePinCapacity(zone, slot);
+  const metrics = useMeasurePins(measureRow, pins.map((pin) => pin.id).join("\n"));
   const root = useRef<HTMLDivElement>(null);
   const fade = useTopOfComposerStack(root, pins.length > 0);
   const generation = useRef(0);
@@ -125,7 +124,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   function linkTarget(pin: FileReference) {
     return previewTarget(pin, threadHostId) ?? { kind: "host" as const, hostId: pin.hostId, path: pin.path };
   }
-  const layout = layoutPins(pins, more, capacity);
+  const layout = layoutPins(pins, more, metrics);
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
     // Apply locally first; saves run in order and
@@ -142,14 +141,14 @@ function PinStrip({ threadId }: { threadId: string }) {
     if (isUrlPin(pin)) return pin.url;
     return `${pin.path}\n${pin.hostName}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
   }
-  // Pinned files offer Unpin (to the ⋯ list); other files offer Pin while the strip has room.
+  // Pinned files offer Unpin (to the ⋯ list); other files offer Pin while the strip has room for them.
   function actions(pin: Reference): PinAction[] {
     const pinned = !more.includes(pin.id);
+    const next = pinned ? null : pinFile(pins, current, pin.id, metrics);
     return [
       pinned
         ? { label: "Unpin", run: () => arrange(unpinFile(current, pin.id)) }
-        : { label: "Pin", disabled: !layout.canPin, hint: layout.canPin ? undefined : "No room on the strip", run: () => {
-          const next = pinFile(layout, current, pin.id);
+        : { label: "Pin", disabled: !next, hint: next ? undefined : "No room on the strip", run: () => {
           if (next) { setMoreOpen(false); arrange(next); }
         } },
       { label: "Remove", disabled: busy, run: () => void remove(pin) },
@@ -195,15 +194,16 @@ function PinStrip({ threadId }: { threadId: string }) {
     </ContextMenuContent>;
   }
   function stripPin(pin: Reference) {
-    const link = isUrlPin(pin) ? <UrlLink href={pin.url} title={title(pin)} aria-label={`Open ${pin.name}`} className={cn(pinClass, "cursor-pointer")}>
+    const style = layout.maxWidth === null ? undefined : { maxWidth: layout.maxWidth };
+    const link = isUrlPin(pin) ? <UrlLink href={pin.url} style={style} title={title(pin)} aria-label={`Open ${pin.name}`} className={cn(pinClass, "cursor-pointer")}>
       <PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pin.name}</span>
-    </UrlLink> : pin.status === "missing" ? <span className={`relative inline-flex min-w-0 ${PIN_MAX_WIDTH_CLASS}`} title={title(pin)}>
+    </UrlLink> : pin.status === "missing" ? <span className="relative inline-flex min-w-0" style={style} title={title(pin)}>
       <span aria-label={`${pin.name} (missing)`} className={cn(pinClass, "cursor-default pr-4 text-destructive/55 hover:text-destructive/55")}>
         <ReferenceIcon path={pin.path} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void remove(pin)}
         className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
-    </span> : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} title={title(pin)}
+    </span> : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} style={style} title={title(pin)}
       aria-label={`Open ${pin.name}`} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "[&>*]:opacity-60")}><PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pin.name}</span></FileLink>;
     return <ContextMenu key={pin.id}><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>;
   }
@@ -242,12 +242,14 @@ function PinStrip({ threadId }: { threadId: string }) {
         </Popover>}
       </div>
     </section>}
-    {/* Mirrors the strip row, with room for ⋯, to measure how many pin slots fit. */}
-    <div aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
-      <span ref={zone} className="min-w-0 flex-1" />
-      <span className={`${linkClass} shrink-0 px-1`}><Icon name="MoreHorizontal" className="size-4" /></span>
+    {/* Mirrors the strip row with every pin at its natural width, plus ⋯ and the minimum pin, to measure what fits. */}
+    <div ref={measureRow} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
+      {pins.map((pin) => <span key={pin.id} data-pin-id={pin.id} className={cn(pinClass, "shrink-0", !isUrlPin(pin) && pin.status === "missing" && "pr-4")}>
+        <span className="size-3.5 shrink-0" /><span className="truncate">{pin.name}</span>
+      </span>)}
+      <span data-measure="more" className={cn(linkClass, "shrink-0 px-1")}><Icon name="MoreHorizontal" className="size-4" /></span>
+      <span data-measure="min" className={cn(PIN_MIN_WIDTH_CLASS, "shrink-0")} />
     </div>
-    <span ref={slot} aria-hidden="true" className={cn(PIN_SLOT_CLASS, "pointer-events-none invisible absolute left-0 top-0 h-0")} />
   </div>;
 }
 function PinsBanner() {
