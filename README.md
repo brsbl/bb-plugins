@@ -292,11 +292,17 @@ See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template]
 
 ### Pinned Files
 
-Keep local files and web links within reach in each thread with persistent pins above the composer. Ask the agent to pin files or URLs from the composer's pin button or use the CLI, and open pins through bb's file and link handling.
+Keep a thread's key files and links one click away in a strip above the composer. Ask the agent to pin files from the composer's Pin files pill, let agents pin the PR, issue, spec and dev site they work with, and open, unpin or remove pins from their menus.
 
-![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
+![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
 
-![The pin button adds a Pin files pill to the composer](https://github.com/user-attachments/assets/4749c71d-891c-4581-817d-33bc93e678ca)
+![Unpinned files and links in the ⋯ list above the strip](plugins/file-pins/docs/more-list.png)
+
+![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
+
+![The Pin files pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
+
+![Pins truncated to fit a phone, with the rest in the ⋯ list](plugins/file-pins/docs/phone-more-list.png)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 
