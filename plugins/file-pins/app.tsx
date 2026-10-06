@@ -37,7 +37,7 @@ function plainClick(event: MouseEvent<HTMLAnchorElement>) {
   return !event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
 }
 function PinIcon({ threadId, pin }: { threadId: string; pin: Reference }) {
-  return isUrlPin(pin) ? <UrlPinIcon threadId={threadId} pin={pin} /> : <ReferenceIcon path={pin.path} />;
+  return isUrlPin(pin) ? <UrlPinIcon threadId={threadId} pin={pin} /> : <ReferenceIcon path={pin.path} muted={pin.status === "missing"} />;
 }
 
 // True while the strip is the composer stack's top row, so a fade above it covers only timeline text, never another banner.
@@ -209,7 +209,7 @@ function PinStrip({ threadId }: { threadId: string }) {
       <PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pin.name}</span>
     </UrlLink> : pin.status === "missing" ? <span className="relative inline-flex min-w-0" style={style}>
       <span aria-label={`${pin.name} (missing)`} className={cn(pinClass, "cursor-default pr-4 text-destructive/55 hover:text-destructive/55")}>
-        <ReferenceIcon path={pin.path} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
+        <ReferenceIcon path={pin.path} muted /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} onClick={() => void remove(pin)}
         className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
