@@ -194,9 +194,21 @@ function createHarness(
   const getThread = vi.fn(async ({ threadId }: { threadId: string }) =>
     getTestThread(threadId),
   );
-  const listThreads = vi.fn(async (_input?: { signal?: AbortSignal }) => [
-    ...threads.values(),
-  ]);
+  const listThreads = vi.fn(async (input?: {
+    signal?: AbortSignal;
+    parentThreadId?: string;
+    hasParent?: boolean;
+    archived?: boolean;
+    includeHidden?: boolean;
+    limit?: number;
+    offset?: number;
+  }) => [...threads.values()].filter((thread) =>
+    thread.deletedAt === null &&
+    (input?.parentThreadId === undefined || thread.parentThreadId === input.parentThreadId) &&
+    (input?.hasParent === undefined || (thread.parentThreadId !== null) === input.hasParent) &&
+    (input?.archived === undefined || (thread.archivedAt !== null) === input.archived) &&
+    (input?.includeHidden || thread.visibility === "visible")
+  ).slice(input?.offset ?? 0, (input?.offset ?? 0) + (input?.limit ?? 100)));
   const listSections = vi.fn(async () =>
     sections.map((section) => ({ ...section })),
   );
@@ -314,6 +326,9 @@ function createHarness(
       };
       sections.push(section);
       return section;
+    },
+    addThread(changes: Partial<TestThread> & { id: string }) {
+      threads.set(changes.id, makeThreadResponse(changes));
     },
     setThread(changes: Partial<TestThread>, threadId = "thr_test") {
       const thread = getTestThread(threadId);
@@ -769,6 +784,40 @@ describe("Thread Organizer server", () => {
     ).toHaveLength(0);
     expect(organizer.spawnThread).not.toHaveBeenCalled();
     await organizer.harness.lifecycle.dispose();
+  });
+
+  it.each([true, false])("keeps parents out of Inbox while any child works (remembered=%s)", async (remembered) => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const sectionId = (key: string) => config.stages.find((stage) => stage.key === key)!.sectionId;
+    if (remembered) {
+      await organizer.harness.behavior.runCli(["phase", "building"], { threadId: "thr_test" });
+    }
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    organizer.addThread({ id: "child_one", parentThreadId: "thr_test", status: "starting", visibility: "hidden" });
+    organizer.addThread({ id: "child_two", parentThreadId: "thr_test", status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", { thread: organizer.current("child_one") });
+    const destination = remembered ? sectionId("building") : null;
+    expect(organizer.current().sectionId).toBe(destination);
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(destination);
+    organizer.setThread({ status: "idle" }, "child_one");
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current("child_one"), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(destination);
+    organizer.setThread({ status: "idle" }, "child_two");
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current("child_two"), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    await replacement.harness.lifecycle.dispose();
   });
 
   it.each([
