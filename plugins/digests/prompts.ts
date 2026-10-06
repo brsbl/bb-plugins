@@ -1,5 +1,6 @@
-import type { DigestDefinition, Issue } from "./model.js";
+import type { Connection, DigestDefinition, Issue } from "./model.js";
 import { digestEmoji } from "./emoji.js";
+import { expectedAccount } from "./sites.js";
 
 export function issueTitle(definition: DigestDefinition, now: number): string {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: definition.schedule?.timezone ?? "America/Los_Angeles", weekday: "short", month: "short", day: "numeric" }).formatToParts(now);
@@ -21,11 +22,21 @@ export function runPrompt(definition: DigestDefinition): string {
   return `Prepare ${definition.name} in this thread. Call digest_begin with digestId ${JSON.stringify(definition.id)} first, then follow its instructions. Follow the returned account-preservation rules. If complete is true, emit the returned directive and stop; otherwise publish the briefing through digest_publish.`;
 }
 
-export function collectionInstructions(definition: DigestDefinition): string {
+function accountInstructions(connections: Pick<Connection, "name" | "url" | "accountName">[]): string {
+  return connections.map((connection) => {
+    const named = expectedAccount(connection.url);
+    const account = named ?? connection.accountName;
+    return `${connection.name}: read only ${account ? `${account}, ` : ""}starting from ${connection.url}. ${named
+      ? `Build every Gmail page and source URL on this account path (for example https://mail.google.com/mail/u/${named}/#inbox/<id>); never use /u/0/ or another account index. `
+      : ""}Never switch accounts.`;
+  }).join("\n");
+}
+
+export function collectionInstructions(definition: DigestDefinition, connections: Pick<Connection, "name" | "url" | "accountName">[] = []): string {
   return `[Digests recipe: ${definition.id}]
 Produce one private briefing in THIS thread. First call digest_begin with digestId ${JSON.stringify(definition.id)}. It assigns the brief, date title and Briefs section, checks each connection and returns fresh Browser Automation sessions.
 If begin returns a failure, emit its directive alone, state the failure briefly, and STOP. Never borrow another thread's tab or copy cookies. Use only returned sessions and declared connections. Close sessions by publishing or failing the brief.
-
+${connections.length ? `ACCOUNTS:\n${accountInstructions(connections)}\n` : ""}
 USER'S REQUEST (what this brief should tell them):
 ${definition.instructions}
 

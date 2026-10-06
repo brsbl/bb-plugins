@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { connectionScope, openBrowser } from "./browser";
 import { ConnectionSchema } from "./model";
+import { expectedAccount } from "./sites";
 
 const dispose: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const cleanup of dispose.splice(0)) await cleanup(); });
@@ -73,5 +74,15 @@ describe("digest browser ownership", () => {
       status: "unavailable", recovery: "retry", message: expect.stringContaining("Open bb"),
     });
     expect(harness.inspection.sdk.calls.map(({ path }) => path)).toEqual(["experimental_desktopBrowsers.listInstances"]);
+  });
+
+  it.each([
+    ["https://mail.google.com/mail/u/Me@Example.com/", "me@example.com"],
+    ["https://mail.google.com/mail/u/me%40example.com/#inbox", "me@example.com"],
+    ["https://mail.google.com/mail/?authuser=me@example.com", "me@example.com"],
+    ["https://mail.google.com/mail/u/0/", null],
+    ["https://x.com/home", null],
+  ])("reads the account a connection URL names: %s", (url, expected) => {
+    expect(expectedAccount(url)).toBe(expected);
   });
 });

@@ -250,7 +250,8 @@ export function createService(bb: BbPluginApi) {
         if (definition.automationId && !requestedRetry) {
           const recent = await automation("automations_runs", { projectId: automationProject(definition), automationId: definition.automationId, limit: 100 }, z.object({ runs: z.array(runSchema) }).passthrough());
           const run = recent.runs.find((entry) => entry.threadId === threadId);
-          if (run && Date.now() - run.scheduledFor > 15 * 60 * 1000) {
+          // Judge when the run started, so its own later begin still succeeds.
+          if (run && run.startedAt - run.scheduledFor > 15 * 60 * 1000) {
             throw new Error("bb was unavailable or this run was delayed at the scheduled time. Retry to prepare this brief now.");
           }
         }
@@ -278,11 +279,12 @@ export function createService(bb: BbPluginApi) {
             const accountName = await checkSignIn(bb, connection, lease);
             store.connections.put({ ...connection, accountName, status: "signed-in", checkedAt: Date.now(), detail: null });
           } catch (error) {
-            store.connections.put({ ...connection, accountName: null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
+            store.connections.put({ ...connection, accountName: error instanceof ConnectionError ? error.accountName : null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
             throw error;
           }
         }
-        return { issue, directive: directive(issue), sessions, instructions: collectionInstructions(definition), complete: false };
+        const connections = definition.connectionIds.map((id) => store.connections.get(id)).filter((value): value is Connection => value !== null);
+        return { issue, directive: directive(issue), sessions, instructions: collectionInstructions(definition, connections), complete: false };
       } catch (error) {
         issue = await fail(issue, error instanceof Error ? error.message : String(error), error instanceof ConnectionError ? error.recovery : "retry");
         return { issue, directive: directive(issue), sessions: [], complete: true };
@@ -292,8 +294,12 @@ export function createService(bb: BbPluginApi) {
   async function publishCurrent(threadId: string, payload: PublishInput) {
     const issue = requiredIssue(threadId);
     if (issue.state === "ready") return { issue, directive: directive(issue) };
-    if (issue.state === "failed") throw new Error("This run failed its connection check. Retry before publishing account data.");
     const definition = requiredDefinition(issue.digestId);
+    // A failed issue accepts its own thread's later successful run, but never
+    // account data collected while a declared connection is unverified.
+    if (issue.state === "failed" && definition.connectionIds.some((id) => store.connections.get(id)?.status !== "signed-in")) {
+      throw new Error("This run failed its connection check. Call digest_begin again to recheck the connection before publishing account data.");
+    }
     for (const source of payload.sources) {
       if (!definition.connectionIds.includes(source.connectionId)) throw new Error("The source is outside this brief's declared connections.");
     }
@@ -481,7 +487,7 @@ export function createService(bb: BbPluginApi) {
           const accountName = await checkSignIn(bb, connection, lease);
           store.connections.put({ ...connection, accountName, status: "signed-in", checkedAt: Date.now(), detail: null });
         } catch (error) {
-          store.connections.put({ ...connection, accountName: null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: error instanceof ConnectionError ? error.message : `Couldn’t reach ${connection.name} on its browser computer. Check that bb is connected, then Retry.` });
+          store.connections.put({ ...connection, accountName: error instanceof ConnectionError ? error.accountName : null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: error instanceof ConnectionError ? error.message : `Couldn’t reach ${connection.name} on its browser computer. Check that bb is connected, then Retry.` });
         } finally {
           if (lease) await closeBrowser(bb, lease).catch((error: unknown) => bb.log.warn(String(error)));
         }
