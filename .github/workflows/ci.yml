@@ -108,6 +108,7 @@ jobs:
       - run: git diff --check -- ${{ matrix.path }}
       - run: git diff --exit-code -- ${{ matrix.path }}
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ${{ matrix.package }}
           path: ${{ matrix.path }}/dist/
