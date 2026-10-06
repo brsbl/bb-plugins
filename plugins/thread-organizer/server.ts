@@ -171,6 +171,7 @@ interface ThreadWorkflowState {
 }
 
 interface ReconcileOptions {
+  reconcileParent?: boolean;
   explicitStageKey?: string;
   /** Let an inbox set to return read threads release this one if it is idle and read. */
   releaseRead?: boolean;
@@ -541,12 +542,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   ): Promise<EntryPromptOutcome> {
     const {
       explicitStageKey,
+      reconcileParent = true,
       releaseRead = false,
       seedLanding = false,
       evictFromSectionIds,
     } = options;
     const thread = await bb.sdk.threads.get({ threadId });
     if (thread.parentThreadId !== null) {
+      if (!reconcileParent) return null;
       const parentThreadId = thread.parentThreadId;
       await schedule(parentThreadId, async () => {
         await reconcileThread(parentThreadId);
@@ -1798,6 +1801,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     callback(event) {
       if (!event.id) return;
       const threadId = event.id;
+      const reconcileParent = event.changes.some((change) =>
+        change === "thread-created" ||
+        change === "thread-deleted" ||
+        change === "status-changed" ||
+        change === "archived-changed" ||
+        change === "parent-changed"
+      );
       const readStateChanged = event.changes.includes("read-state-changed");
       void schedule(threadId, async () => {
         if (readStateChanged) {
@@ -1805,13 +1815,13 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           if (!isUnreadThread(thread)) {
             const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
             if (returnsAfterRead(currentStage, thread)) {
-              await reconcileThread(threadId, { releaseRead: true });
+              await reconcileThread(threadId, { releaseRead: true, reconcileParent });
               return;
             }
             if (thread.queuedMessageCount === 0) return;
           }
         }
-        await reconcileThread(threadId);
+        await reconcileThread(threadId, { reconcileParent });
       });
     },
   });
