@@ -139,6 +139,11 @@ function WindowLayer() {
   );
 }
 
+const DOCK_MAX_WIDTH = 960;
+/** Launcher, Composer and the dock's padding. */
+const DOCK_FIXED_WIDTH = 250;
+const TASK_WIDTH = 150;
+
 /** Taskbar buttons that don't fit collapse into one overflow button, keeping the focused window's button visible. */
 function TaskButtons({ width }: { width: number }) {
   const manager = useWindowManager();
@@ -146,7 +151,9 @@ function TaskButtons({ width }: { width: number }) {
   const menu = useMenu();
   // A thread's docked Info and Related threads belong to its button; they minimize and restore with it.
   const tasks = manager.windows.filter((window) => !manager.windows.some((thread) => isAttached(window, thread)));
-  const capacity = Math.max(1, Math.floor((width - 300) / 156));
+  // The dock stays compact: as many buttons as fit beside Launcher and Composer, the rest behind +N.
+  const dockWidth = Math.min(width - 32, DOCK_MAX_WIDTH);
+  const capacity = Math.max(1, Math.floor((dockWidth - DOCK_FIXED_WIDTH - (tasks.length > 1 ? 52 : 0)) / TASK_WIDTH));
   const shown = tasks.slice(0, capacity);
   const focused = tasks.find((window) => window.id === manager.focusedId) ?? tasks.find((window) => manager.windows.some((other) => other.id === manager.focusedId && isAttached(other, window)));
   if (focused !== undefined && !shown.includes(focused)) shown[shown.length - 1] = focused;
