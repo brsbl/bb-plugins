@@ -220,6 +220,23 @@ describe("Digests app", () => {
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "dismissImportBanner", input: {} });
   });
 
+  it("shows the detected account and warns when it differs from the connection's account", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const connections = [
+      { id: "gmail", name: "Gmail", url: "https://mail.google.com/mail/u/me@example.com/", status: "expired", accountName: "work@example.com", detail: null },
+      { id: "x", name: "X", url: "https://x.com/home", status: "signed-in", accountName: "@me", detail: null },
+    ];
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [definition], connections, actionCardsAvailable: false, organizerReady: true }),
+      settingsPreferences: () => ({ importBannerDismissed: true }),
+      checkSettingsConnections: () => connections,
+    } });
+    const gmail = await slot.findByRole("region", { name: "Gmail" });
+    expect(gmail.querySelector(".digest-site-account")?.textContent).toBe("Signed in as work@example.com, expected me@example.com · Reconnect");
+    expect(slot.getByRole("link", { name: "Reconnect" }).getAttribute("href")).toBe("/settings/browser");
+    expect(slot.getByText("@me")).toBeDefined();
+  });
+
   it("creates a prompt digest at 10am and edits the same nested row", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     let definitions: typeof definition[] = [];

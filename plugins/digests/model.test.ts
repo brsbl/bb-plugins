@@ -107,5 +107,11 @@ describe("digest contracts", () => {
     expect(issueTitle({ ...old, id: "coworkers", connectionIds: ["linkedin"] }, date)).toBe("🤝 Reading · Mon Oct 5");
     expect(issueTitle(old, date)).toBe("📚 Reading · Mon Oct 5");
     expect(issueTitle({ ...old, emoji: "👩🏽‍💻" }, date)).toBe("👩🏽‍💻 Reading · Mon Oct 5");
+    // Starters saved before emoji existed keep their template emoji.
+    for (const { emoji, ...recipe } of DIGEST_RECIPES) {
+      const stored = DigestDefinitionSchema.parse({ ...recipe, projectId: "proj_test", createdAt: 1 });
+      expect(stored.emoji).toBeUndefined();
+      expect(issueTitle(stored, date)).toBe(`${emoji} ${recipe.name} · Mon Oct 5`);
+    }
   });
 });
