@@ -43,9 +43,8 @@ export function editorFrameDocument(policy: EditorPolicy, nonce: string): { html
 <link rel="stylesheet" href="./moss-editor.css">
 <style>
 html, body, #moss-editor { height: 100%; margin: 0; }
-/* The viewer's panel fit: Moss's 4rem desktop gutter narrows to bb's 1rem in a small panel, and the title sits
-   3rem below bb's header, or 2rem on a phone. */
-[data-moss-editor] .px-canvas-gutter { padding-left: clamp(1rem, 7.5vw - 1rem, 4rem); padding-right: clamp(1rem, 7.5vw - 1rem, 4rem); }
+/* Unlike the viewer, the editor keeps Moss's side gutters: they hold the block handles and the comment buttons,
+   which a narrower gutter pushes out of the frame. Only the title moves, to 3rem below bb's header (2rem on a phone). */
 [data-moss-editor] .pt-canvas-body-top { padding-top: 3rem; }
 @media (max-width: 767px) and (pointer: coarse) { [data-moss-editor] .pt-canvas-body-top { padding-top: 2rem; } }
 </style>

@@ -12,7 +12,7 @@ import {
 import { toast } from "sonner";
 import type { MossNoteEntry, ReadResult, rpcContract } from "./contract";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
-import { EDITOR_NOTE_CHANGED, asNoteChanged, createEditorBridge, type EditorBridge, type EditorBridgeOptions } from "./editor-bridge";
+import { EDITOR_NOTE_CHANGED, asNoteChanged, createEditorBridge, fromFrame, type EditorBridge, type EditorBridgeOptions } from "./editor-bridge";
 import { EditorStatus, MossEditorFrame, type EditorNote } from "./editor-panel";
 import type * as Moss from "./vendor/moss-editor.contract.js";
 import { formatHomePathForDisplay } from "./lib/utils";
@@ -437,7 +437,9 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
     );
 
   const keep = (target: EditorNote, kind: "receipt" | "draft", draft: Moss.MossDraft, version: string | null) =>
-    rpcRef.current.call("editorKeep", { hostId: target.hostId, noteId: target.editor.noteId, kind, draft, version }).then(() => undefined);
+    rpcRef.current
+      .call("editorKeep", { hostId: target.hostId, noteId: target.editor.noteId, kind, draft: fromFrame(draft), version })
+      .then(() => undefined);
 
   const editorFor = (target: EditorNote, targetKey: string) => (
     <MossEditorFrame
@@ -458,7 +460,9 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
         setKept({ ...kept, draft: null });
         void rpcRef.current.call("editorForget", { hostId: target.hostId, noteId: target.editor.noteId, kind: "draft" }).catch(() => undefined);
       }}
-      onSaved={(receipt, version) => {
+      onSaved={(saved, version) => {
+        // The receipt may be restored after the frame that made it is gone.
+        const receipt = fromFrame(saved);
         setKept((current) => (current?.key === targetKey ? { ...current, receipt, receiptVersion: version } : current));
         keep(target, "receipt", receipt, version).catch((error: unknown) => console.warn("[moss-editor] could not keep this save's receipt", error));
       }}

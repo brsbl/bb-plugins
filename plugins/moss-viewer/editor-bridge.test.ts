@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { afterEach, expect, it, vi } from "vitest";
 import { ASSET_CHUNK_BYTES, NOTE_CHANGED_CHANNEL } from "./contract.js";
 import { EDITOR_NOTE_CHANGED, UPLOAD_CHUNK_BYTES, asNoteChanged, createEditorBridge, type EditorBridgeOptions } from "./editor-bridge.js";
@@ -160,4 +161,21 @@ it("reads realtime payloads on the contract's channel", () => {
   for (const other of [null, "x", { hostId: "mac", noteId: ID }, { hostId: "mac", noteId: ID, change: { kind: "other" } }, { noteId: ID, change: changed("v1") }]) {
     expect(asNoteChanged(other)).toBeNull();
   }
+});
+
+it("hands bb's RPC plain objects of its own realm, though the editor builds them in its frame", async () => {
+  const { rpc, calls } = fakeRpc({ editorWrite: () => ({ kind: "notFound" }), editorAssetCopy: () => ({ kind: "notFound" }) });
+  const bridge = bridgeWith(rpc);
+  // The editor's frame is another realm, like this one.
+  const write = runInNewContext(`({ baseVersion: "v", baseMetaVersion: "m", companions: [], rename: null, ops: [{ kind: "put", file: "meta", text: "{}" }] })`);
+  const copy = runInNewContext(`({ sourceNoteId: "${ID}", sourceRef: "assets/a.png", name: "a-1-1a2b3c4d.png" })`);
+  expect(Object.getPrototypeOf(write)).not.toBe(Object.prototype);
+  await bridge.write(ID, write);
+  await bridge.assets.copyFromNote(ID, copy);
+  const sent = calls[0]!.input.write as Record<string, unknown>;
+  expect(Object.getPrototypeOf(sent)).toBe(Object.prototype);
+  expect(Object.getPrototypeOf((sent.ops as unknown[])[0])).toBe(Object.prototype);
+  expect(sent).toEqual({ baseVersion: "v", baseMetaVersion: "m", companions: [], rename: null, ops: [{ kind: "put", file: "meta", text: "{}" }] });
+  expect(Object.getPrototypeOf(calls[1]!.input)).toBe(Object.prototype);
+  expect(calls[1]!.input).toEqual({ hostId: "mac", noteId: ID, sourceNoteId: ID, sourceRef: "assets/a.png", name: "a-1-1a2b3c4d.png" });
 });

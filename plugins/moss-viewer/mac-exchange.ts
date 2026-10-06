@@ -24,8 +24,11 @@ function run() {
   let pending = "";
   for (;;) {
     const data = input.availableData;
-    if (data.length === 0) return "";
-    pending += $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding).js;
+    const text = $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding).js;
+    // An empty read is the end of input: the host worker closed the pipe or is gone, so the
+    // helper goes too. NSData's length through the bridge is not a plain 0, so the text decides.
+    if (!text) return "";
+    pending += text;
     let end;
     while ((end = pending.indexOf("\\n")) !== -1) {
       const request = JSON.parse(pending.slice(0, end));

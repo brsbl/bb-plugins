@@ -60,4 +60,6 @@ it("frames the editor under editor.json's policy, with this plugin as the asset 
   expect(html).toContain('<script nonce="n0nce" src="./theme.js"></script>');
   expect(html).toContain('<script type="module" nonce="n0nce" src="./frame.js"></script>');
   expect(html).toContain('<div id="moss-editor"></div>');
+  // The side gutters hold the block handles and comment buttons, so the editor's page leaves them to Moss.
+  expect(html).not.toContain("px-canvas-gutter");
 });

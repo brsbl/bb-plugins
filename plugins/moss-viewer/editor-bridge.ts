@@ -55,6 +55,15 @@ function uploadId(): string {
 
 const ASSET_REF = /^assets\/[^/\\\0]+$/;
 
+/**
+ * A copy of a value the editor made, in this realm. The editor runs in its own
+ * frame, so its objects carry that frame's Object.prototype, and bb's RPC client
+ * refuses anything that is not a plain object of this realm.
+ */
+export function fromFrame<T>(value: T): T {
+  return structuredClone(value);
+}
+
 export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
   const { rpc, hostId, assetRoute } = options;
   const chunkBytes = options.chunkBytes ?? UPLOAD_CHUNK_BYTES;
@@ -93,7 +102,7 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
 
     read: (noteId) => rpc.call("editorRead", { hostId, noteId }),
     readCompanion: (noteId, relativePath) => rpc.call("editorReadCompanion", { hostId, noteId, relativePath }),
-    write: (noteId, write) => rpc.call("editorWrite", { hostId, noteId, write }),
+    write: (noteId, write) => rpc.call("editorWrite", { hostId, noteId, write: fromFrame(write) }),
 
     watch(noteId, listener) {
       let watch = watches.get(noteId);
@@ -141,7 +150,7 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
         return rpc.call("editorAssetCommit", { hostId, noteId, upload, name, mimeType, size: data.size });
       },
 
-      copyFromNote: (noteId, copy) => rpc.call("editorAssetCopy", { hostId, noteId, ...copy }),
+      copyFromNote: (noteId, copy) => rpc.call("editorAssetCopy", { hostId, noteId, ...fromFrame(copy) }),
 
       url(noteId, ref) {
         const trimmed = ref.trim();
