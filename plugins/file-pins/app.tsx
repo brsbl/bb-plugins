@@ -235,12 +235,12 @@ function PinStrip({ threadId }: { threadId: string }) {
   return <div ref={root} className="relative min-w-0">
     {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
     {fade && <span aria-hidden="true" data-overflow-fade="above" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
-    {pins.length > 0 && <section aria-label="Pinned files" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
+    {pins.length > 0 && <section aria-label="Pins" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
       <div className="flex min-w-0 items-center gap-1">
         {layout.strip.map((pin) => stripPin(pin))}
         {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-          <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "file" : "files"}`} title="More files" className={cn(moreClass, "cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
-          <PopoverContent aria-label="More files" className="w-56 p-1"><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
+          <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "pin" : "pins"}`} title="More pins" className={cn(moreClass, "cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
+          <PopoverContent aria-label="More pins" className="w-56 p-1"><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
         </Popover>}
       </div>
     </section>}
@@ -272,14 +272,14 @@ function PinAction() {
   }
   return <TooltipProvider delayDuration={300}><Tooltip>
     <TooltipTrigger asChild>
-      <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Pin files"
+      <Button type="button" variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Pin"
         // Narrow composers collapse their action row on blur; keep it, and the editor's cursor, until the click lands.
         onMouseDown={(event) => event.preventDefault()}
         onClick={start}>
         <Icon name="Pin" className="size-4" />
       </Button>
     </TooltipTrigger>
-    <TooltipContent>Pin files</TooltipContent>
+    <TooltipContent>Pin</TooltipContent>
   </Tooltip></TooltipProvider>;
 }
 export default definePluginApp((app) => {
