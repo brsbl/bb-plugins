@@ -400,7 +400,7 @@ describe("sharing a note with the agent", () => {
     });
     const { context } = await resolve(h, "old");
     expect(context).toContain("The user selected this text in the note:\n\n> Old text");
-    expect(context).not.toContain("lines");
+    expect(context).not.toContain("of the file");
   });
 });
 
