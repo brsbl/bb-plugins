@@ -4,6 +4,7 @@ import {
   experimental_Icon as Icon,
   experimental_useCodeTheme as useCodeTheme,
   useBbNavigate,
+  useComposer,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
@@ -11,6 +12,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import type { MossNoteEntry, ReadResult, rpcContract } from "./contract";
+import { MAX_SHARED_SELECTION, SHARE_PROVIDER, shareLabel } from "./share";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { EDITOR_NOTE_CHANGED, asNoteChanged, createEditorBridge, fromFrame, type EditorBridge, type EditorBridgeOptions } from "./editor-bridge";
 import { EditorStatus, MossEditorFrame, type EditorNote } from "./editor-panel";
@@ -18,6 +20,7 @@ import type * as Moss from "./vendor/moss-editor.contract.js";
 import { formatHomePathForDisplay } from "./lib/utils";
 import {
   assetHref,
+  frameSelection,
   frameSource,
   frameViewer,
   routeFrameLinks,
@@ -99,6 +102,7 @@ function NoteHeader({
   onBack,
   onRefresh,
   onRestore,
+  onShare,
   onOpenInMoss,
 }: {
   path: string;
@@ -109,6 +113,7 @@ function NoteHeader({
   onBack: () => void;
   onRefresh: (() => void) | null;
   onRestore: (() => void) | null;
+  onShare: () => void;
   onOpenInMoss: () => void;
 }) {
   const copyPath = () => {
@@ -146,6 +151,7 @@ function NoteHeader({
             onClick={onRefresh}
           />
         ) : null}
+        <HeaderButton icon="ArrowUp" label="Share with Agent" onClick={onShare} />
         <HeaderButton icon="ExternalLink" label="Open in Moss" onClick={onOpenInMoss} />
       </div>
     </TooltipProvider>
@@ -265,6 +271,9 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const rpc = useRpc<typeof rpcContract>();
   const rpcRef = useRef(rpc);
   rpcRef.current = rpc;
+  const composer = useComposer();
+  // The frame mounted in the body is the open note's viewer or editor.
+  const body = useRef<HTMLDivElement>(null);
   const bbNavigate = useBbNavigate();
   const navigateRef = useRef(bbNavigate);
   navigateRef.current = bbNavigate;
@@ -490,6 +499,19 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       .catch((error: unknown) => toast.error(`Couldn't open in Moss: ${messageOf(error)}`));
   };
 
+  // Like Moss's Share with Agent, for this panel's thread: a mention the user sends, never sent for them.
+  const share = () => {
+    const title = noteTitle(note.path);
+    const selection = frameSelection(body.current?.querySelector("iframe") ?? null, MAX_SHARED_SELECTION);
+    rpcRef.current
+      .call("shareNote", { hostId: note.hostId, path: note.path, title, noteId: note.noteId, selection })
+      .then(({ id }) => {
+        composer.insertMention({ provider: SHARE_PROVIDER, id, label: shareLabel(title, selection) });
+        composer.focus();
+      })
+      .catch((error: unknown) => toast.error(`Couldn't share this note: ${messageOf(error)}`));
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <NoteHeader
@@ -500,9 +522,10 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
         onBack={back}
         onRefresh={editorNote ? null : refresh}
         onRestore={restorable ? restoreLastSave : null}
+        onShare={share}
         onOpenInMoss={openInMoss}
       />
-      <div className="relative min-h-0 flex-1">
+      <div ref={body} className="relative min-h-0 flex-1">
         {editorNote === null ? (
           <MossViewerFrame
             note={note}
