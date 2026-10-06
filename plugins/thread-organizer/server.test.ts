@@ -820,6 +820,26 @@ describe("Thread Organizer server", () => {
     await replacement.harness.lifecycle.dispose();
   });
 
+  it("finds working children past the first page and ignores archived or unrelated work", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    for (let index = 0; index < 105; index += 1) {
+      organizer.addThread({ id: `idle_${index}`, parentThreadId: "thr_test", status: "idle" });
+    }
+    organizer.addThread({ id: "working", parentThreadId: "thr_test", status: "stopping" });
+    organizer.addThread({ id: "unrelated", parentThreadId: "other", status: "active" });
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(null);
+    organizer.setThread({ archivedAt: 20 }, "working");
+    await organizer.harness.behavior.emitThreadEvent("thread.archived", { thread: organizer.current("working") });
+    const config = await configFor(organizer);
+    expect(organizer.current().sectionId).toBe(config.stages.find((stage) => stage.key === "inbox")!.sectionId);
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it.each([
     { remembered: true, read: false, combinedEvent: false },
     { remembered: false, read: true, combinedEvent: false },
