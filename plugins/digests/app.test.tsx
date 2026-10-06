@@ -231,7 +231,8 @@ describe("Digests app", () => {
       settingsPreferences: () => ({ importBannerDismissed: true }),
       checkSettingsConnections: () => connections,
     } });
-    expect(await slot.findByText("Signed in as work@example.com, expected me@example.com")).toBeDefined();
+    const gmail = await slot.findByRole("region", { name: "Gmail" });
+    expect(gmail.querySelector(".digest-site-account")?.textContent).toBe("Signed in as work@example.com, expected me@example.com · Reconnect");
     expect(slot.getByRole("link", { name: "Reconnect" }).getAttribute("href")).toBe("/settings/browser");
     expect(slot.getByText("@me")).toBeDefined();
   });
