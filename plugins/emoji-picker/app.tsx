@@ -153,7 +153,12 @@ export function ComposerEmojiPicker() {
       if (element && !element.contains(element.ownerDocument.activeElement)) return;
       setTrigger({ scope, text: composer.text, index, anchor });
     }, 400);
-    return () => window.clearTimeout(timeout);
+    const cancel = () => window.clearTimeout(timeout);
+    element?.addEventListener("focusout", cancel);
+    return () => {
+      cancel();
+      element?.removeEventListener("focusout", cancel);
+    };
   }, [composer.text, scope]);
 
   // Never apply a saved replacement to a different scope or a changed draft.
