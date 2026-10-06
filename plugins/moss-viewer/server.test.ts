@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { createFakePluginHost, makeHostResponse } from "@get-bb/plugin-sdk/testing";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ASSET_CHUNK_BYTES } from "./contract.js";
 import plugin, { parseRange } from "./server.js";
 import { loadViewerBundle } from "./viewer-bundle.js";
@@ -14,6 +14,13 @@ const vendor = fileURLToPath(new URL("./vendor/moss-viewer/", import.meta.url));
 const httpRoot = "/api/v1/plugins/moss-viewer/http";
 const video = Buffer.from(Array.from({ length: ASSET_CHUNK_BYTES * 2 + 10 }, (_, index) => index % 251));
 const notePath = "/Users/me/Moss/Notes/Clip/Clip.md";
+/** A Moss note the host says bb may not edit. */
+const readOnlyPath = "/Users/me/Moss/Notes/External/Clip/Clip.md";
+const V1 = "sha256:content-1";
+const V2 = "sha256:content-2";
+const M1 = "sha256:meta-1";
+const NOTE_ID = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+const location = { folderPath: "Notes", folderName: "Clip", markdownName: "Clip.md" };
 
 const disposers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -42,8 +49,18 @@ async function setup(machines: Machines = {}) {
       if (method === "readNote") {
         const path = request.path as string;
         const file = machines.files ? machines.files[hostId]?.[path] : path.includes("/Moss/") ? "moss" : "plain";
-        if (file === "moss") return { moss: true, path, markdown: "# Clip\n", layout: null, noteId: "clip", modifiedMs: 1 };
+        if (file === "moss") return { moss: true, path, markdown: "# Clip\n", layout: null, noteId: NOTE_ID, modifiedMs: 1, editable: path !== readOnlyPath };
         return { moss: false, path, missing: file === undefined };
+      }
+      if (method === "editorRead") return { kind: "note", files: { markdown: "# Clip\n", comments: null, layout: null, meta: "{}" }, location, version: V1, metaVersion: M1 };
+      if (method === "editorReadCompanion") return { kind: "absent", version: V2 };
+      if (method === "editorWrite") return { kind: "saved", version: V2, metaVersion: M1, location };
+      if (method === "editorWatch") return { kind: "changed", version: V1, metaVersion: M1 };
+      if (method === "editorAssetChunk") return { kind: "staged", size: Buffer.from(request.data as string, "base64").length };
+      if (method === "editorAssetCommit" || method === "editorAssetCopy") return { kind: "stored", ref: `assets/${request.name as string}` };
+      if (method === "editorAsset") {
+        const start = Math.min(request.offset as number, video.length);
+        return { ok: true, contentType: "video/mp4", size: video.length, modifiedMs: 1, offset: start, data: video.subarray(start, start + (request.length as number)).toString("base64") };
       }
       if (method === "listNotes") {
         return { notes: [{ id: "clip", title: "Clip", path: notePath, folderPath: "Notes" }], truncated: false };
@@ -51,6 +68,7 @@ async function setup(machines: Machines = {}) {
       if (method === "openInMoss") return { opened: true };
       if (method === "readAsset") {
         if (request.ref === "assets/missing.mp4") return { ok: false, code: "not_found", message: "assets/missing.mp4 is not in this note's folder." };
+        if (request.ref === "assets/drawing.svg") return { ok: true, contentType: "image/svg+xml", size: 4, modifiedMs: 1, offset: 0, data: Buffer.from("<svg").toString("base64") };
         const start = Math.min(request.offset as number, video.length);
         const end = Math.min(start + (request.length as number), video.length);
         return { ok: true, contentType: "video/mp4", size: video.length, modifiedMs: 1, offset: start, data: video.subarray(start, end).toString("base64") };
@@ -75,7 +93,7 @@ describe("reading notes", () => {
   it("reads host files on the named host or the thread's environment host, and workspace files inside the worktree", async () => {
     const h = await setup();
     const result = (await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: null, environmentId: "env" })) as Record<string, unknown>;
-    expect(result).toMatchObject({ moss: true, hostId: "mac", path: notePath, markdown: "# Clip\n", noteId: "clip", assetRoute: `${httpRoot}/asset` });
+    expect(result).toMatchObject({ moss: true, hostId: "mac", path: notePath, markdown: "# Clip\n", noteId: NOTE_ID, assetRoute: `${httpRoot}/asset` });
     expect(result.frameUrl).toMatch(new RegExp(`^${httpRoot}/viewer/[0-9a-f]{16}/frame\\.html$`));
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "readNote", hostId: "mac", input: { path: notePath } });
 
@@ -157,6 +175,164 @@ describe("reading notes", () => {
     });
     expect(await h.behavior.callRpc("openInMoss", { hostId: "mac", path: notePath })).toEqual({ opened: true });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "openInMoss", hostId: "mac", input: { path: notePath } });
+  });
+});
+
+describe("the editor's file bridge", () => {
+  const write = {
+    baseVersion: V1,
+    baseMetaVersion: M1,
+    companions: [],
+    rename: null,
+    ops: [
+      { kind: "put", file: "markdown", text: "# Clip\n\nMore.\n" },
+      { kind: "delete", file: "comments" },
+      { kind: "put", file: "meta", text: "{}" },
+    ],
+  };
+
+  it("sends each bridge call to the note's host by id", async () => {
+    const h = await setup();
+    const lastCall = () => h.inspection.experimental_hostRpcCalls.at(-1);
+    const calls: Array<[string, Record<string, unknown>, unknown]> = [
+      ["editorRead", { noteId: NOTE_ID }, { kind: "note", files: { markdown: "# Clip\n", comments: null, layout: null, meta: "{}" }, location, version: V1, metaVersion: M1 }],
+      ["editorReadCompanion", { noteId: NOTE_ID, relativePath: "assets/plan-mockup.html" }, { kind: "absent", version: V2 }],
+      ["editorWrite", { noteId: NOTE_ID, write }, { kind: "saved", version: V2, metaVersion: M1, location }],
+      ["editorWatch", { noteId: NOTE_ID }, { kind: "changed", version: V1, metaVersion: M1 }],
+      ["editorAssetChunk", { noteId: NOTE_ID, upload: "f".repeat(32), offset: 0, data: "AAEC" }, { kind: "staged", size: 3 }],
+      [
+        "editorAssetCommit",
+        { noteId: NOTE_ID, upload: "f".repeat(32), name: "shot-1-abcd1234.png", mimeType: "image/png", size: 3 },
+        { kind: "stored", ref: "assets/shot-1-abcd1234.png" },
+      ],
+      [
+        "editorAssetCopy",
+        { noteId: NOTE_ID, sourceNoteId: "0f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b", sourceRef: "assets/a.png", name: "a-1-abcd1234.png" },
+        { kind: "stored", ref: "assets/a-1-abcd1234.png" },
+      ],
+    ];
+    for (const [method, input, output] of calls) {
+      expect(await h.behavior.callRpc(method, { hostId: "studio", ...input })).toEqual(output);
+      expect(lastCall()).toMatchObject({ method, hostId: "studio", input });
+    }
+  });
+
+  it("keeps a malformed write from reaching the host", async () => {
+    const h = await setup();
+    const send = (changes: Record<string, unknown>) => h.behavior.callRpc("editorWrite", { hostId: "mac", noteId: NOTE_ID, write: { ...write, ...changes } });
+    const [markdown, comments, meta] = write.ops;
+    // Out of order, without meta.json, a rename without its markdown, a markdown delete, and an unknown file.
+    await expect(send({ ops: [meta, markdown] })).rejects.toThrow();
+    await expect(send({ ops: [markdown, comments] })).rejects.toThrow();
+    await expect(send({ rename: { kind: "renameFolder", desiredName: "Clip 2" }, ops: [meta] })).rejects.toThrow();
+    await expect(send({ ops: [{ kind: "delete", file: "markdown" }, meta] })).rejects.toThrow();
+    await expect(send({ ops: [{ kind: "put", file: "notes.txt", text: "" }, meta] })).rejects.toThrow();
+    await expect(
+      h.behavior.callRpc("editorAssetCommit", { hostId: "mac", noteId: NOTE_ID, upload: "f".repeat(32), name: "../a.png", mimeType: "image/png", size: 1 }),
+    ).rejects.toThrow();
+    await expect(h.behavior.callRpc("editorReadCompanion", { hostId: "mac", noteId: NOTE_ID, relativePath: "~/.ssh/id_ed25519" })).rejects.toThrow();
+    await expect(h.behavior.callRpc("editorReadCompanion", { hostId: "mac", noteId: NOTE_ID, relativePath: "/etc/hosts" })).rejects.toThrow();
+    expect(h.inspection.experimental_hostRpcCalls).toEqual([]);
+  });
+
+  it("tells open editors when a note changes outside bb", async () => {
+    const h = await setup();
+    await h.experimental_emitHostSignal("mac", "editorNoteChanged", { noteId: NOTE_ID, change: { kind: "changed", version: V2, metaVersion: M1 } });
+    await h.experimental_emitHostSignal("mac", "editorNoteChanged", { noteId: NOTE_ID, change: { kind: "removed", reason: "trashed" } });
+    expect(h.realtimeSignals).toEqual([
+      { channel: "editor-note-changed", payload: { hostId: "mac", noteId: NOTE_ID, change: { kind: "changed", version: V2, metaVersion: M1 } } },
+      { channel: "editor-note-changed", payload: { hostId: "mac", noteId: NOTE_ID, change: { kind: "removed", reason: "trashed" } } },
+    ]);
+  });
+
+  it("serves an editor's media by note id", async () => {
+    const h = await setup();
+    const response = await h.behavior.fetchHttp("GET", `/asset?${new URLSearchParams({ host: "mac", id: NOTE_ID, ref: "assets/clip.mp4" }).toString()}`, {
+      headers: { range: "bytes=5-9" },
+    });
+    expect(response.status).toBe(206);
+    expect((await bytes(response)).equals(video.subarray(5, 10))).toBe(true);
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "editorAsset", input: { noteId: NOTE_ID, ref: "assets/clip.mp4", offset: 5, length: 5 } });
+  });
+});
+
+describe("the editor", () => {
+  it("opens an editable note in the editor, and any other in the viewer", async () => {
+    const h = await setup();
+    const editable = (await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "mac", environmentId: null })) as Record<string, any>;
+    expect(editable.editor).toEqual({
+      noteId: NOTE_ID,
+      frameUrl: expect.stringMatching(new RegExp(`^${httpRoot}/editor/[0-9a-f]{16}/frame\\.html$`)),
+      htmlFrameUrl: expect.stringMatching(new RegExp(`^${httpRoot}/editor/[0-9a-f]{16}/moss-html-frame\\.html$`)),
+    });
+    expect(editable).not.toHaveProperty("editable");
+    expect(await h.behavior.callRpc("read", { kind: "host", path: readOnlyPath, hostId: "mac", environmentId: null })).toMatchObject({ moss: true, editor: null });
+  });
+
+  it("serves the verified editor, its page under editor.json's policy, and its HTML-block page sandboxed", async () => {
+    const h = await setup();
+    const { editor } = (await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "mac", environmentId: null })) as {
+      editor: { frameUrl: string; htmlFrameUrl: string };
+    };
+    const base = editor.frameUrl.slice(httpRoot.length).replace(/\/frame\.html$/, "");
+    const frame = await h.behavior.fetchHttp("GET", `${base}/frame.html?theme=dark`);
+    expect(frame.status).toBe(200);
+    const csp = frame.headers.get("content-security-policy")!;
+    expect(csp).toMatch(/script-src 'nonce-[^']+' 'strict-dynamic'/);
+    expect(csp).toContain("connect-src 'none'");
+    // Frames are the viewer's list, not editor.json's data: and https:.
+    expect(csp).toContain("frame-src 'self' https://www.youtube.com https://platform.twitter.com;");
+    expect(csp).not.toContain("<");
+    expect(await frame.text()).toContain('<div id="moss-editor"></div>');
+    expect(await (await h.behavior.fetchHttp("GET", `${base}/frame.js`)).text()).toContain('from "./moss-editor.js"');
+    expect((await h.behavior.fetchHttp("GET", `${base}/moss-editor.js`)).headers.get("cache-control")).toContain("immutable");
+    // The host bundles its own copy of the helpers; the editor frame never gets a route for them.
+    await expect(h.behavior.fetchHttp("GET", `${base}/moss-editor-host.js`)).rejects.toThrow("no http route");
+
+    const blocks = await h.behavior.fetchHttp("GET", editor.htmlFrameUrl.slice(httpRoot.length));
+    expect(blocks.headers.get("content-security-policy")).toMatch(/^sandbox allow-scripts; default-src 'none'/);
+  });
+});
+
+describe("kept drafts and save receipts", () => {
+  const draftFor = (markdown: string, noteId = NOTE_ID) => ({
+    noteId,
+    baseVersion: V1,
+    companions: [],
+    files: { markdown, comments: null, layout: null },
+    intents: { frontmatterMetaUpdates: {}, commentColors: { c1: 2 } },
+    at: 1,
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps each note's latest receipt and unsaved draft apart, per host, until forgotten", async () => {
+    const h = await setup();
+    const kept = (hostId = "mac") => h.behavior.callRpc("editorKept", { hostId, noteId: NOTE_ID });
+    expect(await kept()).toEqual({ receipt: null, receiptVersion: null, draft: null });
+
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# One\n"), version: "v-one" });
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# Two\n"), version: "v-two" });
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "draft", draft: draftFor("# Unsaved\n"), version: null });
+    expect(await kept()).toEqual({ receipt: draftFor("# Two\n"), receiptVersion: "v-two", draft: draftFor("# Unsaved\n") });
+    expect(await kept("studio")).toEqual({ receipt: null, receiptVersion: null, draft: null });
+
+    expect(await h.behavior.callRpc("editorForget", { hostId: "mac", noteId: NOTE_ID, kind: "draft" })).toEqual({ forgotten: true });
+    expect(await kept()).toEqual({ receipt: draftFor("# Two\n"), receiptVersion: "v-two", draft: null });
+    await expect(
+      h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "draft", draft: draftFor("# Other\n", "0f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b"), version: null }),
+    ).rejects.toThrow("another note");
+  });
+
+  it("lets a kept receipt lapse after thirty days", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
+    const h = await setup();
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# Old\n"), version: "v-old" });
+    vi.setSystemTime(new Date("2026-11-05T00:00:00Z"));
+    expect(await h.behavior.callRpc("editorKept", { hostId: "mac", noteId: NOTE_ID })).toEqual({ receipt: null, receiptVersion: null, draft: null });
   });
 });
 
@@ -281,6 +457,18 @@ describe("note media", () => {
     expect(whole.headers.get("x-content-type-options")).toBe("nosniff");
     expect((await bytes(whole)).equals(video)).toBe(true);
     expect(h.inspection.experimental_hostRpcCalls.filter((call) => call.method === "readAsset")).toHaveLength(3);
+  });
+
+  it("serves SVG sandboxed and as a download, so its script never runs on bb's origin", async () => {
+    const h = await setup();
+    const svg = await h.behavior.fetchHttp("GET", assetPath("assets/drawing.svg"));
+    expect(svg.headers.get("content-type")).toBe("image/svg+xml");
+    expect(svg.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'");
+    expect(svg.headers.get("content-disposition")).toBe("attachment");
+    expect(svg.headers.get("x-content-type-options")).toBe("nosniff");
+    const video = await h.behavior.fetchHttp("GET", assetPath("assets/clip.mp4"));
+    expect(video.headers.get("content-security-policy")).toMatch(/^sandbox; default-src 'none'/);
+    expect(video.headers.get("content-disposition")).toBeNull();
   });
 
   it("maps refusals and host failures to HTTP errors", async () => {

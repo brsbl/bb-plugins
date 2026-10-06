@@ -12,7 +12,7 @@ const MAX_LISTED_NOTES = 5000;
 const MAX_LISTED_DIRECTORIES = 20000;
 const LIST_TTL_MS = 10_000;
 
-const MEDIA_TYPES: Readonly<Record<string, string>> = {
+export const MEDIA_TYPES: Readonly<Record<string, string>> = {
   ".apng": "image/apng",
   ".avif": "image/avif",
   ".bmp": "image/bmp",
@@ -44,12 +44,12 @@ function notesRoot(): string {
   return resolve(homedir(), "Moss/Notes");
 }
 
-function isInside(root: string, path: string): boolean {
+export function isInside(root: string, path: string): boolean {
   const within = relative(root, path);
   return within !== "" && within !== ".." && !within.startsWith("../") && !isAbsolute(within);
 }
 
-async function canonicalFile(path: string): Promise<{ path: string; size: number; modifiedMs: number }> {
+export async function canonicalFile(path: string): Promise<{ path: string; size: number; modifiedMs: number; links: number }> {
   if (!isAbsolute(path)) throw new HostFileError("invalid", "The file path must be absolute.");
   let canonical: string;
   try {
@@ -59,11 +59,17 @@ async function canonicalFile(path: string): Promise<{ path: string; size: number
   }
   const details = await stat(canonical);
   if (!details.isFile()) throw new HostFileError("invalid", `${path} is not a file.`);
-  return { path: canonical, size: details.size, modifiedMs: details.mtimeMs };
+  return { path: canonical, size: details.size, modifiedMs: details.mtimeMs, links: details.nlink };
 }
 
-async function canonicalNotesRoot(): Promise<string> {
+export async function canonicalNotesRoot(): Promise<string> {
   return realpath(notesRoot()).catch(() => notesRoot());
+}
+
+/** The Moss workspace, ~/Moss, which holds Notes/ and Trash/. */
+export async function canonicalWorkspaceRoot(): Promise<string> {
+  const root = resolve(homedir(), "Moss");
+  return realpath(root).catch(() => root);
 }
 
 function hasMossMarkers(markdown: string): boolean {
@@ -216,27 +222,23 @@ function assetCandidates(ref: string): string[] {
   return candidates;
 }
 
-async function readAssetChunk({
-  notePath,
-  ref,
-  offset,
-  length,
-}: {
-  notePath: string;
+interface AssetRead {
   ref: string;
   offset: number;
   length: number;
-}) {
+}
+
+async function readAssetChunk(directory: string, { ref, offset, length }: AssetRead) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(ref)) {
     throw new HostFileError("not_allowed", "Only note-local media loads through this host.");
   }
-  const directory = await mossNoteDirectory(notePath);
-  let asset: { path: string; size: number; modifiedMs: number } | null = null;
+  let asset: Awaited<ReturnType<typeof canonicalFile>> | null = null;
   for (const candidate of assetCandidates(ref)) {
     const target = resolve(directory, candidate);
     if (!isInside(directory, target)) continue;
     const file = await canonicalFile(target).catch(() => null);
-    if (file && isInside(directory, file.path)) {
+    // A file with other names may be an outside file hard-linked into the note.
+    if (file && isInside(directory, file.path) && file.links === 1) {
       asset = file;
       break;
     }
@@ -267,9 +269,14 @@ async function readAssetChunk({
  * against the note's folder and must stay inside it, so this cannot read other
  * files on the host.
  */
-export async function readAsset(input: { notePath: string; ref: string; offset: number; length: number }) {
+export async function readAsset({ notePath, ...input }: AssetRead & { notePath: string }) {
+  return readAssetIn(() => mossNoteDirectory(notePath), input);
+}
+
+/** Reads part of a media file inside the note folder `directory` resolves to, refusing as `readAsset` does. */
+export async function readAssetIn(directory: () => Promise<string>, input: AssetRead) {
   try {
-    return await readAssetChunk(input);
+    return await readAssetChunk(await directory(), input);
   } catch (error) {
     if (error instanceof HostFileError && error.code !== "too_large") {
       return { ok: false as const, code: error.code, message: error.message };
