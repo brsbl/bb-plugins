@@ -25,6 +25,9 @@ The existing `POST /api/v1/plugins/open-in-moss/http/open` endpoint also accepts
 `{"path":"/absolute/note.md","hostId":"host_…"}` to target the file's host directly.
 Omit `hostId` for automatic discovery.
 
+When the Moss Viewer plugin is enabled, Open in Moss steps aside and links open
+in bb's file preview, where Moss Viewer renders them.
+
 Right-click still uses bb's normal menu. If Moss or the local file is
 unavailable, bb opens its own viewer and shows a notice.
 

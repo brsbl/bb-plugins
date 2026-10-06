@@ -3,14 +3,27 @@ import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
-import { CHANGED, MAX_PINS, PIN_MENTION, hostContract, moreSchema, pinsSchema, rpcContract, type Pin, type Reference } from "./contract.js";
+import { IconService, createIconCache } from "@brsbl/bb-website-icons";
+import { CHANGED, MAX_PINS, PIN_MENTION, hostContract, isUrlPin, moreSchema, pinsSchema, rpcContract, type FilePin, type Pin, type Reference, type UrlPin } from "./contract.js";
+import { looksLikeUrl, parseWebUrl, urlPinName } from "./url-pin.js";
 
 // The shipped skill is the one source of the pinning instructions; the composer pill sends it to the agent.
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const SKILL_PATH = join(basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR, "skills", "file-pins", "SKILL.md");
+const PROACTIVE_PIN_INSTRUCTIONS =
+  "Without being asked, pin the few links central to this thread's work with `bb file-pins pin <url> --title \"<title>\"`: the PR you open or drive, the issue or ticket being worked, the spec or design doc, and a dev site or dashboard you hand the user (local dev or story server, its shared URL, or a deployed preview). Remove a dev site's pin when you retire its server. Load the file-pins skill for the guardrails before pinning.";
+
+// A URL pin is its exact normalized URL; a file pin is its host and canonical path.
+function samePin(a: Pin, b: Pin): boolean {
+  if (isUrlPin(a) || isUrlPin(b)) return isUrlPin(a) && isUrlPin(b) && a.url === b.url;
+  return a.hostId === b.hostId && a.path === b.path;
+}
 
 export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({ contract: hostContract });
+  // Compact Links' resolver: only a pinned URL's public HTTPS origin is contacted, cached in this plugin's database.
+  const icons = new IconService(createIconCache(bb));
+  bb.onDispose(() => icons.setEnabled(false));
   const undos = new Map<string, { threadId: string; pin: Pin; index: number; more: boolean; expires: number }>();
   // All read-modify-write operations share a queue so CLI/UI writes cannot lose pins.
   let writes = Promise.resolve();
@@ -63,13 +76,27 @@ export default function plugin(bb: BbPluginApi): void {
     return serialize(async () => {
       await thread(threadId);
       const pins = await read(threadId);
-      const existing = pins.find((item) => item.hostId === hostId && item.path === file.path);
-      if (existing) return existing;
-      if (pins.length >= MAX_PINS) throw new Error(`A thread can hold up to ${MAX_PINS} pins. Remove a file first.`);
-      const entry: Pin = { id: randomUUID(), hostId, ...file, createdAt: new Date().toISOString() };
-      await save(threadId, [...pins, entry]);
-      return entry;
+      const entry: FilePin = { id: randomUUID(), hostId, ...file, createdAt: new Date().toISOString() };
+      return add(threadId, pins, entry);
     });
+  };
+  const pinUrl = async (threadId: string, input: string, title?: string) => {
+    const url = parseWebUrl(input);
+    if (!url) throw new Error("Only http(s) URLs can be pinned.");
+    await thread(threadId);
+    return serialize(async () => {
+      await thread(threadId);
+      const entry: UrlPin = { id: randomUUID(), kind: "url", url, name: urlPinName(url, title), createdAt: new Date().toISOString() };
+      return add(threadId, await read(threadId), entry);
+    });
+  };
+  // Duplicates are idempotent; file and URL pins share one capacity.
+  const add = async <T extends Pin>(threadId: string, pins: Pin[], entry: T): Promise<T> => {
+    const existing = pins.find((item) => samePin(item, entry));
+    if (existing) return existing as T;
+    if (pins.length >= MAX_PINS) throw new Error(`A thread can hold up to ${MAX_PINS} pins. Remove one first.`);
+    await save(threadId, [...pins, entry]);
+    return entry;
   };
   const removePin = (threadId: string, pinId: string) => serialize(async () => {
     await thread(threadId);
@@ -94,9 +121,10 @@ export default function plugin(bb: BbPluginApi): void {
     inspect: async ({ threadId }) => {
       const { pins } = await list(threadId);
       const hosts = await bb.sdk.hosts.list();
-      const result: Reference[] = [];
-      for (const hostId of new Set(pins.map((pin) => pin.hostId))) {
-        const owned = pins.filter((pin) => pin.hostId === hostId);
+      const result: Reference[] = pins.filter(isUrlPin);
+      const files = pins.filter((pin): pin is FilePin => !isUrlPin(pin));
+      for (const hostId of new Set(files.map((pin) => pin.hostId))) {
+        const owned = files.filter((pin) => pin.hostId === hostId);
         const machine = hosts.find((item) => item.id === hostId);
         const facts = machine?.status === "connected"
           ? await host.call("inspect", { paths: owned.map((pin) => pin.path) }, { hostId }).catch(() => null)
@@ -106,7 +134,7 @@ export default function plugin(bb: BbPluginApi): void {
           result.push({ ...pinned, hostName: machine?.name ?? hostId, status: fact?.status ?? "unavailable" });
         }
       }
-      return { pins: pins.map((pin) => result.find((item) => item.id === pin.id)!), more: await readMore(threadId, pins) };
+      return { pins: pins.map((pin) => result.find((item) => item.id === pin.id)!), more: await readMore(threadId, pins), threadHostId: await threadHost(threadId) };
     },
     remove: ({ threadId, pinId }) => serialize(async () => {
       await thread(threadId);
@@ -125,7 +153,7 @@ export default function plugin(bb: BbPluginApi): void {
       const undo = undos.get(undoToken);
       if (!undo || undo.threadId !== threadId || undo.expires < Date.now()) throw new Error("Undo has expired. Pin the file again.");
       const pins = await read(threadId);
-      const existing = pins.find((pin) => pin.id === undo.pin.id || (pin.hostId === undo.pin.hostId && pin.path === undo.pin.path));
+      const existing = pins.find((pin) => pin.id === undo.pin.id || samePin(pin, undo.pin));
       if (existing) { undos.delete(undoToken); return existing; }
       if (pins.length >= MAX_PINS) throw new Error("Unpin another file before restoring this pin.");
       const more = await readMore(threadId, pins);
@@ -141,9 +169,10 @@ export default function plugin(bb: BbPluginApi): void {
         await thread(threadId);
         const pins = await read(threadId);
         const index = pins.findIndex((pin) => pin.id === pinId);
-        if (index < 0) throw new Error("This file is no longer pinned.");
-        const existing = pins.find((pin) => pin.id !== pinId && pin.hostId === hostId && pin.path === file.path);
-        const replacement = existing ?? { ...pins[index]!, hostId, ...file };
+        const current = pins[index];
+        if (!current || isUrlPin(current)) throw new Error("This file is no longer pinned.");
+        const existing = pins.find((pin) => pin.id !== pinId && !isUrlPin(pin) && pin.hostId === hostId && pin.path === file.path);
+        const replacement = existing ?? { ...current, hostId, ...file };
         if (existing) pins.splice(index, 1); else pins[index] = replacement;
         await save(threadId, pins);
         return replacement;
@@ -156,8 +185,15 @@ export default function plugin(bb: BbPluginApi): void {
       const base = environment?.hostId === hostId && environment.path ? environment.path : undefined;
       return pin(threadId, hostId, path, base);
     },
+    pinUrl: ({ threadId, url, title }) => pinUrl(threadId, url, title),
+    icon: async ({ threadId, pinId }) => {
+      const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
+      return { dataUrl: pinned && isUrlPin(pinned) ? await icons.get(new URL(pinned.url).origin) : null };
+    },
     unpin: ({ threadId, pinId }) => removePin(threadId, pinId),
   });
+  // Skills load on demand, so this always-on line points agents at the skill's proactive link-pinning rule.
+  bb.agents.contributeInstructions(() => PROACTIVE_PIN_INSTRUCTIONS);
   // Only the composer's pin button inserts this pill, so it never appears in the @ menu.
   bb.ui.registerMentionProvider({
     id: PIN_MENTION.provider, label: PIN_MENTION.label, search: () => [],
@@ -185,14 +221,22 @@ export default function plugin(bb: BbPluginApi): void {
   }
   bb.cli.register(defineCli({
     name: "file-pins",
-    summary: "Pin local files to threads",
+    summary: "Pin local files and links to threads",
     commands: {
       pin: cliCommand({
-        summary: "Pin a file on its owning host",
-        positionals: [{ name: "path", required: true, description: "Absolute, ~/ or invoking-directory-relative file path" }],
-        options: { ...options, machine: { type: "string", aliases: ["host"], description: "File host ID; defaults to the invoking thread host, then target thread host" } },
+        summary: "Pin a file on its owning host, or an http(s) URL",
+        positionals: [{ name: "path", required: true, description: "Absolute, ~/ or invoking-directory-relative file path, or an http(s) URL" }],
+        options: {
+          ...options,
+          machine: { type: "string", aliases: ["host"], description: "File host ID; defaults to the invoking thread host, then target thread host" },
+          title: { type: "string", description: "Label for a URL pin, such as the page title; defaults to the site and a short path" },
+        },
         async run(input, ctx) {
           const threadId = target(input.options.thread, ctx.threadId);
+          if (looksLikeUrl(input.positionals.path)) {
+            const result = await pinUrl(threadId, input.positionals.path, input.options.title);
+            return { exitCode: 0, stdout: input.options.json ? JSON.stringify(result) : `Pinned ${result.url}\n${result.id}` };
+          }
           const hostId = input.options.machine ?? await threadHost(ctx.threadId ?? threadId);
           if (!hostId) throw new PluginCliError("A file host is required.", { code: "host_required", hint: "Pass --machine <host-id>." });
           // A cwd belongs only to the invoking thread's host, never an arbitrary selected host.
@@ -203,20 +247,20 @@ export default function plugin(bb: BbPluginApi): void {
         },
       }),
       remove: cliCommand({
-        summary: "Remove a file from the thread by pin ID without changing the file (works while the host is offline)",
+        summary: "Remove a pin from the thread by ID without changing the file (works while the host is offline)",
         positionals: [{ name: "id", required: true, description: "Pin ID from list" }],
         options,
         async run(input, ctx) {
           const result = await removePin(target(input.options.thread, ctx.threadId), input.positionals.id);
-          return { exitCode: 0, stdout: input.options.json ? JSON.stringify(result) : result.removed ? "File removed from the thread." : "Pin was already absent." };
+          return { exitCode: 0, stdout: input.options.json ? JSON.stringify(result) : result.removed ? "Pin removed from the thread." : "Pin was already absent." };
         },
       }),
       list: cliCommand({
-        summary: "List this thread's pinned files and host IDs",
+        summary: "List this thread's pins: files with their host IDs, and URLs",
         options,
         async run(input, ctx) {
           const result = await list(target(input.options.thread, ctx.threadId));
-          return { exitCode: 0, stdout: input.options.json ? JSON.stringify(result) : result.pins.map((item) => `${item.id}\t${item.hostId}\t${item.path}`).join("\n") || "No files pinned." };
+          return { exitCode: 0, stdout: input.options.json ? JSON.stringify(result) : result.pins.map((item) => isUrlPin(item) ? `${item.id}\turl\t${item.url}` : `${item.id}\t${item.hostId}\t${item.path}`).join("\n") || "Nothing pinned." };
         },
       }),
     },
