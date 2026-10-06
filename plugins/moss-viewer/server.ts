@@ -13,6 +13,7 @@ import {
 } from "./contract.js";
 import { editorFrameDocument, findEditorDirectory, loadEditorBundle } from "./editor-bundle.js";
 import { editorSaves } from "./editor-saves.js";
+import { registerShareProvider, sharedNotes } from "./shared-notes.js";
 import { findViewerDirectory, frameDocument, HTML_FRAME_CSP, loadViewerBundle, type ViewerFile } from "./viewer-bundle.js";
 
 type HttpContext = Parameters<Parameters<BbPluginApi["http"]["route"]>[2]>[0];
@@ -64,6 +65,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     bb.realtime.publish(NOTE_CHANGED_CHANNEL, { hostId, ...payload } satisfies NoteChanged);
   });
   const saves = editorSaves(bb);
+  const shares = sharedNotes(bb);
+  registerShareProvider(bb, shares);
   const bundle = await loadViewerBundle(await findViewerDirectory(import.meta.url));
   const httpRoot = `/api/v1/plugins/${encodeURIComponent(bb.pluginId)}/http`;
   const frameUrl = `${httpRoot}${bundle.base}/frame.html`;
@@ -172,6 +175,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     },
     notes: async ({ hostId }) => ({ notes: (await host.call("listNotes", {}, { hostId })).notes }),
     openInMoss: ({ hostId, path }) => host.call("openInMoss", { path }, { hostId }),
+    shareNote: (note) => ({ id: shares.share(note) }),
     // The editor's file bridge: every call goes to the note's host.
     editorRead: ({ hostId, ...input }) => host.call("editorRead", input, { hostId }),
     editorReadCompanion: ({ hostId, ...input }) => host.call("editorReadCompanion", input, { hostId }),
