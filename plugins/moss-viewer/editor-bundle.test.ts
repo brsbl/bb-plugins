@@ -60,6 +60,8 @@ it("frames the editor under editor.json's policy, with this plugin as the asset 
   expect(html).toContain('<script nonce="n0nce" src="./theme.js"></script>');
   expect(html).toContain('<script type="module" nonce="n0nce" src="./frame.js"></script>');
   expect(html).toContain('<div id="moss-editor"></div>');
-  // The side gutters hold the block handles and comment buttons, so the editor's page leaves them to Moss.
-  expect(html).not.toContain("px-canvas-gutter");
+  // Moss's gutters narrow only on a phone, and never below the comment rail on the right.
+  const phone = html.slice(html.indexOf("@media (max-width: 767px) and (pointer: coarse)"));
+  expect(html.indexOf("px-canvas-gutter")).toBeGreaterThan(html.indexOf("@media (max-width: 767px) and (pointer: coarse)"));
+  expect(phone).toContain("[data-moss-editor] .px-canvas-gutter { padding-left: 1rem; padding-right: 3.5rem; }");
 });

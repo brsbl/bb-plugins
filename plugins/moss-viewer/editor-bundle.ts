@@ -43,10 +43,15 @@ export function editorFrameDocument(policy: EditorPolicy, nonce: string): { html
 <link rel="stylesheet" href="./moss-editor.css">
 <style>
 html, body, #moss-editor { height: 100%; margin: 0; }
-/* Unlike the viewer, the editor keeps Moss's side gutters: they hold the block handles and the comment buttons,
-   which a narrower gutter pushes out of the frame. Only the title moves, to 3rem below bb's header (2rem on a phone). */
+/* The title sits 3rem below bb's header, or 2rem on a phone (bb's phone query). Moss's 4rem side gutters stay on
+   desktop. On a phone they shrink to what Moss's controls need, so the text gets most of the width: 1rem on the left,
+   where controls reach 0.75rem past the text, and 3.5rem on the right, where each comment button sits in a 2rem rail
+   moved 100% + 1.5rem past the text. Any narrower and the comment buttons leave the frame. */
 [data-moss-editor] .pt-canvas-body-top { padding-top: 3rem; }
-@media (max-width: 767px) and (pointer: coarse) { [data-moss-editor] .pt-canvas-body-top { padding-top: 2rem; } }
+@media (max-width: 767px) and (pointer: coarse) {
+  [data-moss-editor] .pt-canvas-body-top { padding-top: 2rem; }
+  [data-moss-editor] .px-canvas-gutter { padding-left: 1rem; padding-right: 3.5rem; }
+}
 </style>
 <script type="module" nonce="${nonce}" src="./frame.js"></script>
 </head>

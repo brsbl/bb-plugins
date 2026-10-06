@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import type { MossNoteEntry, ReadResult } from "./contract";
 import type { EditorBridge } from "./editor-bridge";
-import { closeEditor, frameEditor, parkFrame, statusLabel } from "./editor-frame";
+import { SLOW_SAVE_MS, closeEditor, frameEditor, parkFrame, statusLabel } from "./editor-frame";
 import { cn } from "./lib/utils";
 import type * as Moss from "./vendor/moss-editor.contract.js";
 import { frameSource, routeFrameLinks, setFrameTheme, type MossViewerTarget } from "./viewer-frame";
@@ -164,9 +164,16 @@ export function MossEditorFrame(props: EditorFrameProps) {
   );
 }
 
-/** The editor's save state, shown once in the note's header. */
+/** The editor's save state in the note's header, when there is something worth saying. */
 export function EditorStatus({ status }: { status: Moss.MossEditorStatus | null }) {
-  const shown = statusLabel(status);
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    if (status !== "saving") return;
+    const timer = window.setTimeout(() => setSlow(true), SLOW_SAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [status]);
+  const shown = statusLabel(status, { slow });
   return (
     <span
       role="status"

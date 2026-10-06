@@ -26,21 +26,23 @@ export interface StatusLabel {
   attention: boolean;
 }
 
-/** The save state bb shows once, in the note's header; null while there is nothing to say. */
-export function statusLabel(status: Moss.MossEditorStatus | null): StatusLabel | null {
+/** How long a save runs before the header says so; a quicker save needs no feedback. */
+export const SLOW_SAVE_MS = 2_000;
+
+/**
+ * What the note's header says about saving. Saving is expected to just work,
+ * so it is quiet while edits save; it speaks when the user may need to act, or
+ * when a save has run longer than SLOW_SAVE_MS (`slow`).
+ */
+export function statusLabel(status: Moss.MossEditorStatus | null, { slow }: { slow: boolean }): StatusLabel | null {
   switch (status) {
-    case "clean":
-      return { label: "Saved", icon: "Check", attention: false };
-    case "dirty":
-      return { label: "Edited", icon: "Clock", attention: false };
     case "saving":
-      return { label: "Saving…", icon: "Clock", attention: false };
+      return slow ? { label: "Saving…", icon: "Clock", attention: false } : null;
     case "conflict":
       return { label: "Changed in Moss", icon: "AlertTriangle", attention: true };
     case "error":
-      return { label: "Not saved", icon: "AlertTriangle", attention: true };
     case "removed":
-      return { label: "Can't save here", icon: "AlertTriangle", attention: true };
+      return { label: "Not saved", icon: "AlertTriangle", attention: true };
     default:
       return null;
   }
