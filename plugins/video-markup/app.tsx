@@ -357,7 +357,7 @@ function PresentVideo({threadId}: PluginThreadHeaderActionProps) {
 
 export default definePluginApp(app=>{
   app.slots.experimental_threadHeaderAction({id:"video-markup-present",title:"Video Markup",component:PresentVideo});
-  app.slots.threadPanelAction({id:"video-markup",title:"Video Markup",icon:"Clapperboard",layout:"flush",component:VideoMarkupPanel});
+  app.slots.threadPanelAction({id:"video-markup",title:"Video Markup",icon:"Play",layout:"flush",component:VideoMarkupPanel});
   app.slots.fileOpener({id:"video-markup-video",title:"Video Markup",extensions:VIDEO_EXTENSIONS,component:VideoMarkupFileViewer});
   app.slots.messageDirective({id:"video-markup",component:VideoMarkupInline});
 });

@@ -24,7 +24,7 @@
     "name": "Video Markup",
     "description": "Review product films in bb with frame notes and version history.",
     "branding": {
-      "icon": "Clapperboard"
+      "icon": "Play"
     },
     "server": "./server.ts",
     "skills": [
