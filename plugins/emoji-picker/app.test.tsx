@@ -27,6 +27,7 @@ describe("colon picker workflow", () => {
     await slot.behavior.setComposerScope({ kind: "thread", threadId: "another-thread" });
     await act(async () => { await vi.advanceTimersByTimeAsync(500); });
     expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    await slot.behavior.setComposerText("Pause");
     await slot.behavior.setComposerText("Pause:");
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
     expect(slot.getByLabelText("Search emojis")).toBeTruthy();
