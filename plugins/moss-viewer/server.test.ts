@@ -8,6 +8,7 @@ import { createFakePluginHost, makeHostResponse } from "@get-bb/plugin-sdk/testi
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ASSET_CHUNK_BYTES } from "./contract.js";
 import plugin, { parseRange } from "./server.js";
+import { MIGRATIONS } from "./storage.js";
 import { loadViewerBundle } from "./viewer-bundle.js";
 
 const vendor = fileURLToPath(new URL("./vendor/moss-viewer/", import.meta.url));
@@ -33,6 +34,8 @@ interface Machines {
   hosts?: Array<{ id: string; name: string; status: "connected" | "disconnected" }>;
   /** What each host has at a path. Without it, every host has every /Moss/ path as a note. */
   files?: Record<string, Record<string, "moss" | "plain">>;
+  /** Runs before the plugin starts, for state an earlier release left. */
+  before?: (bb: Parameters<typeof plugin>[0]) => void;
 }
 
 async function setup(machines: Machines = {}) {
@@ -76,6 +79,7 @@ async function setup(machines: Machines = {}) {
       throw new Error(`unexpected ${method}`);
     },
   });
+  machines.before?.(bb);
   await plugin(bb);
   disposers.push(() => harness.lifecycle.dispose());
   return harness;
@@ -348,14 +352,22 @@ describe("sharing a note with the agent", () => {
     vi.useRealTimers();
   });
 
-  it("resolves the composer pill to the note's path on its host and the selected text", async () => {
+  const selection = { markdown: "- First line\n- **Second** line", lines: { start: 7, end: 8 }, headings: ["Plan", "Risks"], truncated: false };
+
+  it("resolves the composer pill to the note's path on its host and the selection's markdown, lines and headings", async () => {
     const h = await setup({ hosts });
-    const shared = { hostId: "mac", path: notePath, title: "Clip", noteId: NOTE_ID, selection: "First line\nSecond line" };
+    const shared = { hostId: "mac", path: notePath, title: "Clip", noteId: NOTE_ID, selection };
     const { id } = (await h.behavior.callRpc("shareNote", shared)) as { id: string };
     const { context } = await resolve(h, id);
     expect(context).toContain(`\`${notePath}\` on MacBook Air (host \`mac\`)`);
     expect(context).toContain(`\`[[Clip|${NOTE_ID}]]\``);
-    expect(context).toContain("> First line\n> Second line");
+    expect(context).toContain("The user selected lines 7–8 of the file, under “Plan › Risks”:\n\n> - First line\n> - **Second** line");
+    expect(context).not.toContain("truncated");
+
+    const line = (await h.behavior.callRpc("shareNote", { ...shared, selection: { ...selection, lines: { start: 3, end: 3 }, headings: [], truncated: true } })) as { id: string };
+    const cut = (await resolve(h, line.id)).context;
+    expect(cut).toContain("The user selected line 3 of the file:");
+    expect(cut).toContain("The selection is truncated; read the rest from the file (line 3).");
 
     const whole = (await h.behavior.callRpc("shareNote", { ...shared, noteId: null, selection: null })) as { id: string };
     const note = (await resolve(h, whole.id)).context;
@@ -371,8 +383,24 @@ describe("sharing a note with the agent", () => {
     const h = await setup({ hosts });
     const { id } = (await h.behavior.callRpc("shareNote", { hostId: "mac", path: notePath, title: "Clip", noteId: null, selection: null })) as { id: string };
     await expect(resolve(h, "unknown")).rejects.toThrow("Share it again");
+    await expect(h.behavior.callRpc("shareNote", { hostId: "mac", path: notePath, title: "Clip", noteId: null, selection: { ...selection, markdown: "x".repeat(20_001) } })).rejects.toThrow();
     vi.setSystemTime(new Date("2026-11-05T00:00:00Z"));
     await expect(resolve(h, id)).rejects.toThrow("expired");
+  });
+
+  it("still resolves a pill shared before selections had line ranges", async () => {
+    const h = await setup({
+      hosts,
+      before: (bb) => {
+        // The shared_notes table as the first Share with Agent release made it, with one unsent pill.
+        const db = bb.storage.database();
+        bb.storage.migrate(db, MIGRATIONS.slice(0, 2));
+        db.prepare("INSERT INTO shared_notes VALUES (?, ?, ?, ?, ?, ?, ?)").run("old", "mac", notePath, "Clip", null, "Old text", Date.now());
+      },
+    });
+    const { context } = await resolve(h, "old");
+    expect(context).toContain("The user selected this text in the note:\n\n> Old text");
+    expect(context).not.toContain("lines");
   });
 });
 

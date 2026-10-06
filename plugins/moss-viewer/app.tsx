@@ -12,7 +12,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import type { MossNoteEntry, ReadResult, rpcContract } from "./contract";
-import { MAX_SHARED_SELECTION, SHARE_PROVIDER, shareLabel } from "./share";
+import { SHARE_PROVIDER, shareLabel, sharedSelection } from "./share";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { EDITOR_NOTE_CHANGED, asNoteChanged, createEditorBridge, fromFrame, type EditorBridge, type EditorBridgeOptions } from "./editor-bridge";
 import { EditorStatus, MossEditorFrame, type EditorNote } from "./editor-panel";
@@ -20,7 +20,6 @@ import type * as Moss from "./vendor/moss-editor.contract.js";
 import { formatHomePathForDisplay } from "./lib/utils";
 import {
   assetHref,
-  frameSelection,
   frameSource,
   frameViewer,
   routeFrameLinks,
@@ -102,7 +101,6 @@ function NoteHeader({
   onBack,
   onRefresh,
   onRestore,
-  onShare,
   onOpenInMoss,
 }: {
   path: string;
@@ -113,7 +111,6 @@ function NoteHeader({
   onBack: () => void;
   onRefresh: (() => void) | null;
   onRestore: (() => void) | null;
-  onShare: () => void;
   onOpenInMoss: () => void;
 }) {
   const copyPath = () => {
@@ -151,7 +148,6 @@ function NoteHeader({
             onClick={onRefresh}
           />
         ) : null}
-        <HeaderButton icon="ArrowUp" label="Share with Agent" onClick={onShare} />
         <HeaderButton icon="ExternalLink" label="Open in Moss" onClick={onOpenInMoss} />
       </div>
     </TooltipProvider>
@@ -164,6 +160,8 @@ interface FrameProps {
   notesFor: (hostId: string) => Promise<MossNoteEntry[]>;
   onNavigate: (note: MossNote, target: MossViewerTarget) => void;
   openUrl: (url: string) => void;
+  /** Moss's Share with Agent, pressed with the viewer's selection at that moment. */
+  onShare: (note: MossNote, selection: Moss.MossSelection | null) => void;
   onUnavailable: () => void;
 }
 
@@ -210,6 +208,7 @@ function MossViewerFrame(props: FrameProps) {
           navigate: (target) => latest.current.onNavigate(note, target),
           unfurl: () => Promise.resolve(null),
           htmlFrameUrl: note.htmlFrameUrl,
+          shareWithAgent: (selection) => latest.current.onShare(note, selection),
         },
       });
     } catch (error) {
@@ -272,8 +271,6 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const rpcRef = useRef(rpc);
   rpcRef.current = rpc;
   const composer = useComposer();
-  // The frame mounted in the body is the open note's viewer or editor.
-  const body = useRef<HTMLDivElement>(null);
   const bbNavigate = useBbNavigate();
   const navigateRef = useRef(bbNavigate);
   navigateRef.current = bbNavigate;
@@ -461,6 +458,7 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       notesFor={notesFor}
       onNavigate={onNavigate}
       openUrl={openUrl}
+      onShare={share}
       onStatus={(status) => setEditorState((current) => ({ ...current, status }))}
       onVersion={(version) => setEditorState((current) => ({ ...current, version }))}
       onRestoreSettled={() => {
@@ -499,15 +497,15 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       .catch((error: unknown) => toast.error(`Couldn't open in Moss: ${messageOf(error)}`));
   };
 
-  // Like Moss's Share with Agent, for this panel's thread: a mention the user sends, never sent for them.
-  const share = () => {
-    const title = noteTitle(note.path);
-    const selection = frameSelection(body.current?.querySelector("iframe") ?? null, MAX_SHARED_SELECTION);
+  // Moss's Share with Agent, for this panel's thread: a mention the user sends, never sent for them.
+  const share = (target: MossNote, selection: Moss.MossSelection | null) => {
+    const title = noteTitle(target.path);
+    const shared = sharedSelection(selection);
     rpcRef.current
-      .call("shareNote", { hostId: note.hostId, path: note.path, title, noteId: note.noteId, selection })
+      .call("shareNote", { hostId: target.hostId, path: target.path, title, noteId: target.noteId, selection: shared })
       .then(({ id }) => {
-        composer.insertMention({ provider: SHARE_PROVIDER, id, label: shareLabel(title, selection) });
-        composer.focus();
+        // insertMention focuses the composer itself.
+        composer.insertMention({ provider: SHARE_PROVIDER, id, label: shareLabel(title, shared === null ? null : selection?.text || shared.markdown) });
       })
       .catch((error: unknown) => toast.error(`Couldn't share this note: ${messageOf(error)}`));
   };
@@ -522,10 +520,9 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
         onBack={back}
         onRefresh={editorNote ? null : refresh}
         onRestore={restorable ? restoreLastSave : null}
-        onShare={share}
         onOpenInMoss={openInMoss}
       />
-      <div ref={body} className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1">
         {editorNote === null ? (
           <MossViewerFrame
             note={note}
@@ -533,6 +530,7 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
             notesFor={notesFor}
             onNavigate={onNavigate}
             openUrl={openUrl}
+            onShare={share}
             onUnavailable={() => setOriginal(true)}
           />
         ) : kept?.key === editorKey ? (
