@@ -123,6 +123,8 @@ function createHarness(
   ];
   type TestThreadChange =
     | "archived-changed"
+    | "events-appended"
+    | "status-changed"
     | "metadata-changed"
     | "order-changed"
     | "parent-changed"
@@ -194,9 +196,21 @@ function createHarness(
   const getThread = vi.fn(async ({ threadId }: { threadId: string }) =>
     getTestThread(threadId),
   );
-  const listThreads = vi.fn(async (_input?: { signal?: AbortSignal }) => [
-    ...threads.values(),
-  ]);
+  const listThreads = vi.fn(async (input?: {
+    signal?: AbortSignal;
+    parentThreadId?: string;
+    hasParent?: boolean;
+    archived?: boolean;
+    includeHidden?: boolean;
+    limit?: number;
+    offset?: number;
+  }) => [...threads.values()].filter((thread) =>
+    thread.deletedAt === null &&
+    (input?.parentThreadId === undefined || thread.parentThreadId === input.parentThreadId) &&
+    (input?.hasParent === undefined || (thread.parentThreadId !== null) === input.hasParent) &&
+    (input?.archived === undefined || (thread.archivedAt !== null) === input.archived) &&
+    (input?.includeHidden || thread.visibility === "visible")
+  ).slice(input?.offset ?? 0, (input?.offset ?? 0) + (input?.limit ?? 100)));
   const listSections = vi.fn(async () =>
     sections.map((section) => ({ ...section })),
   );
@@ -220,6 +234,15 @@ function createHarness(
     async (_args: { queuedMessageId: string; threadId: string }) =>
       ({ ok: true }) as never,
   );
+
+  const threadListOrder = { value: ["pinned", "sections", "threads"] };
+  const callRpc = vi.fn(async (args: { method: string; input?: unknown }) => {
+    if (args.method === "listPreferences") {
+      return { preferences: { manualSectionOrder: [...threadListOrder.value] } };
+    }
+    threadListOrder.value = [...(args.input as { value: string[] }).value];
+    return args.input;
+  });
 
   const host = createFakePluginHost({
     pluginId: "thread-organizer",
@@ -259,6 +282,7 @@ function createHarness(
         );
         return () => undefined;
       },
+      plugins: { callRpc: callRpc as never },
       threadSections: {
         create,
         delete: deleteSection,
@@ -279,6 +303,8 @@ function createHarness(
 
   return {
     ...host,
+    callRpc,
+    threadListOrder,
     create,
     deleteSection,
     getThread,
@@ -302,6 +328,9 @@ function createHarness(
       };
       sections.push(section);
       return section;
+    },
+    addThread(changes: Partial<TestThread> & { id: string }) {
+      threads.set(changes.id, makeThreadResponse(changes));
     },
     setThread(changes: Partial<TestThread>, threadId = "thr_test") {
       const thread = getTestThread(threadId);
@@ -367,6 +396,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
       "getConfig",
       "saveConfig",
+      "listThreadSourcePlugins",
     ]);
     expect(
       organizer.harness.inspection.registrations.agentConfigurationProvider,
@@ -395,6 +425,7 @@ describe("Thread Organizer server", () => {
     expect(organizer.harness.inspection.registrations.rpcMethods).toEqual([
       "getConfig",
       "saveConfig",
+      "listThreadSourcePlugins",
     ]);
     expect(
       organizer.harness.inspection.registrations.agentConfigurationProvider,
@@ -757,6 +788,94 @@ describe("Thread Organizer server", () => {
     await organizer.harness.lifecycle.dispose();
   });
 
+  it.each([true, false])("keeps parents out of Inbox while any child works (remembered=%s)", async (remembered) => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const sectionId = (key: string) => config.stages.find((stage) => stage.key === key)!.sectionId;
+    if (remembered) {
+      await organizer.harness.behavior.runCli(["phase", "building"], { threadId: "thr_test" });
+    }
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    organizer.addThread({ id: "child_one", parentThreadId: "thr_test", status: "starting", visibility: "hidden" });
+    organizer.addThread({ id: "child_two", parentThreadId: "thr_test", status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", { thread: organizer.current("child_one") });
+    const destination = remembered ? sectionId("building") : null;
+    expect(organizer.current().sectionId).toBe(destination);
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(destination);
+    organizer.setThread({ status: "idle" }, "child_one");
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current("child_one"), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(destination);
+    organizer.setThread({ status: "idle" }, "child_two");
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current("child_two"), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("does not reconcile parents for child output bursts but still reacts to status changes", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const inboxId = config.stages.find((stage) => stage.key === "inbox")!.sectionId;
+    organizer.setThread({ status: "idle" });
+    organizer.addThread({ id: "child", parentThreadId: "thr_test", status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.current("child"),
+    });
+    expect(organizer.current().sectionId).toBe(null);
+    organizer.getThread.mockClear();
+    organizer.listThreads.mockClear();
+    for (let index = 0; index < 50; index += 1) {
+      organizer.emitChanged(["events-appended", "title-changed"], "child");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.getThread.mock.calls.some(([input]) => input.threadId === "thr_test")).toBe(false);
+    expect(organizer.listThreads).not.toHaveBeenCalled();
+    expect(organizer.current().sectionId).toBe(null);
+
+    organizer.setThread({ status: "idle" }, "child");
+    organizer.emitChanged(["events-appended", "status-changed"], "child");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(inboxId));
+    organizer.setThread({ status: "starting" }, "child");
+    organizer.emitChanged("status-changed", "child");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(null));
+
+    organizer.setThread({ status: "idle" }, "child");
+    organizer.emitChanged("events-appended");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(inboxId));
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("finds working children past the first page and ignores archived or unrelated work", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    for (let index = 0; index < 105; index += 1) {
+      organizer.addThread({ id: `idle_${index}`, parentThreadId: "thr_test", status: "idle" });
+    }
+    organizer.addThread({ id: "working", parentThreadId: "thr_test", status: "stopping" });
+    organizer.addThread({ id: "unrelated", parentThreadId: "other", status: "active" });
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(null);
+    organizer.setThread({ archivedAt: 20 }, "working");
+    await organizer.harness.behavior.emitThreadEvent("thread.archived", { thread: organizer.current("working") });
+    const config = await configFor(organizer);
+    expect(organizer.current().sectionId).toBe(config.stages.find((stage) => stage.key === "inbox")!.sectionId);
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it.each([
     { remembered: true, read: false, combinedEvent: false },
     { remembered: false, read: true, combinedEvent: false },
@@ -823,6 +942,214 @@ describe("Thread Organizer server", () => {
     );
 
     expect(organizer.current().sectionId).toBe(inboxId);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("moves a read thread back to its stage when Inbox is set to return it", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    await saveStagePatch(organizer, "planning", { entryPrompt: "Plan it." });
+    const config = await saveStagePatch(organizer, "inbox", { returnAfterRead: true });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    const sentBefore = organizer.sendMessage.mock.calls.length;
+
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+
+    organizer.setThread({ lastReadAt: 20 });
+    organizer.emitChanged(["read-state-changed"]);
+    await vi.waitFor(() =>
+      expect(organizer.current().sectionId).toBe(sectionId("planning")),
+    );
+    organizer.emitChanged();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("planning"));
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(sentBefore);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("moves the sidebar to match every saved reorder, keeping other sections in place", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const before = await configFor(organizer);
+    const sectionIds = before.stages.map((stage) => `section:${stage.sectionId}`);
+    const edited = editableWorkflowConfig(before);
+    edited.stages = [edited.stages[5]!, ...edited.stages.filter((_, index) => index !== 5)];
+    await organizer.harness.behavior.callRpc("saveConfig", edited);
+    await vi.waitFor(() =>
+      expect(organizer.threadListOrder.value).toEqual([
+        "pinned", sectionIds[5], ...sectionIds.filter((_, index) => index !== 5), "threads",
+      ]),
+    );
+    expect(organizer.callRpc).toHaveBeenCalledWith(
+      expect.objectContaining({ pluginId: "thread-list", method: "setPreference" }),
+    );
+
+    const writes = organizer.callRpc.mock.calls.length;
+    await saveStagePatch(organizer, "planning", { rule: "Plan it." });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.callRpc.mock.calls.length).toBe(writes);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("lands the latest reorder last even when an earlier sidebar write is slow", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const base = await configFor(organizer);
+    const entry = (key: string) =>
+      `section:${base.stages.find((stage) => stage.key === key)!.sectionId}`;
+    const original = organizer.callRpc.getMockImplementation()!;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let held = false;
+    organizer.callRpc.mockImplementation(async (args) => {
+      if (args.method === "setPreference" && !held) {
+        held = true;
+        await gate;
+      }
+      return original(args);
+    });
+    const moveFirst = async (key: string) => {
+      const edited = editableWorkflowConfig(await configFor(organizer));
+      const index = edited.stages.findIndex((stage) => stage.key === key);
+      edited.stages = [edited.stages[index]!, ...edited.stages.filter((_, i) => i !== index)];
+      await organizer.harness.behavior.callRpc("saveConfig", edited);
+    };
+
+    await moveFirst("handoff");
+    await moveFirst("on-hold");
+    release();
+    await vi.waitFor(() => {
+      const order = organizer.threadListOrder.value;
+      expect(order.indexOf(entry("on-hold"))).toBe(1);
+      expect(order.indexOf(entry("handoff"))).toBe(2);
+    });
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("lists only plugins that created open root threads as inbox sources", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    expect(await organizer.harness.behavior.callRpc("listThreadSourcePlugins", {})).toEqual([]);
+    organizer.setThread({ originPluginId: "digests" });
+    expect(await organizer.harness.behavior.callRpc("listThreadSourcePlugins", {}))
+      .toEqual(["digests"]);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps read threads moved into a manual inbox and never claims threads for it", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await saveStagePatch(organizer, "handoff", { role: "inbox" });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    expect(config.stages.find((stage) => stage.key === "handoff"))
+      .not.toHaveProperty("catchesPluginId");
+
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    expect(organizer.getPluginMetadata).not.toHaveBeenCalled();
+
+    organizer.setThread({ lastReadAt: 20, sectionId: sectionId("handoff") });
+    organizer.emitChanged("order-changed");
+    organizer.emitChanged(["read-state-changed"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    await saveStagePatch(organizer, "planning", { rule: "Plan it." });
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("keeps hand-moved read threads in a returning manual inbox until a real read", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    const config = await saveStagePatch(organizer, "handoff", { role: "inbox", returnAfterRead: true });
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+
+    organizer.setThread({ status: "idle", lastReadAt: 20, latestAttentionAt: 20,
+      sectionId: sectionId("handoff") });
+    organizer.emitChanged("order-changed");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await saveStagePatch(organizer, "building", { rule: "Build it." });
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+
+    organizer.setThread({ lastReadAt: 0, latestAttentionAt: 30 });
+    organizer.emitChanged("order-changed");
+    organizer.setThread({ lastReadAt: 30 });
+    organizer.emitChanged(["read-state-changed"]);
+    await vi.waitFor(() =>
+      expect(organizer.current().sectionId).toBe(sectionId("planning")),
+    );
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("releases threads already read in Inbox when it is set to return them", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await organizer.harness.behavior.runCli(["phase", "planning"], { threadId: "thr_test" });
+    const config = await configFor(organizer);
+    const sectionId = (key: string) =>
+      config.stages.find((stage) => stage.key === key)!.sectionId;
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    organizer.setThread({ lastReadAt: 20 });
+    organizer.emitChanged(["read-state-changed"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    const sentBefore = organizer.sendMessage.mock.calls.length;
+
+    await saveStagePatch(organizer, "inbox", { returnAfterRead: true });
+    expect(organizer.current().sectionId).toBe(sectionId("planning"));
+    expect(organizer.sendMessage).toHaveBeenCalledTimes(sentBefore);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("releases a read plugin-inbox thread only when that inbox returns it", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const edited = editableWorkflowConfig(await configFor(organizer));
+    edited.stages.push({ key: "digests", title: "Digests", role: "inbox",
+      catchesPluginId: "digests", rule: "Published issues.", returnAfterRead: true });
+    const saved = await organizer.harness.behavior.callRpc("saveConfig", edited) as WorkflowConfig;
+    const sectionId = (key: string) => saved.stages.find((stage) => stage.key === key)!.sectionId;
+
+    organizer.setThread({ status: "active", lastReadAt: 20, latestAttentionAt: 20,
+      originPluginId: "digests" });
+    organizer.emitChanged("metadata-changed");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(sectionId("digests")));
+    organizer.emitChanged(["read-state-changed"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.current().sectionId).toBe(sectionId("digests"));
+
+    organizer.setThread({ status: "idle", latestAttentionAt: 30 });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    organizer.setThread({ lastReadAt: 30 });
+    organizer.emitChanged(["read-state-changed"]);
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBeNull());
+    organizer.emitChanged("metadata-changed");
+    await vi.waitFor(async () => {
+      await expect(organizer.bb.storage.kv.get("thread:v3:thr_test"))
+        .resolves.toMatchObject({ dismissedInboxPluginId: "digests" });
+    });
+    expect(organizer.current().sectionId).toBeNull();
     await organizer.harness.lifecycle.dispose();
   });
 
@@ -1473,10 +1800,51 @@ describe("config CLI", () => {
     expect(inbox.request.payload).toMatchObject({
       summary: "Digests will receive threads from digests and keep them until you move or archive them.",
     });
+    const manual = await approved(organizer, ["section", "type", "planning", "--set", "inbox"]);
+    expect(manual.request.payload).toMatchObject({
+      summary: "Planning will hold threads you move there by hand and keep them until you move or archive them.",
+    });
+    expect(await stageOf(organizer, "planning")).toMatchObject({ role: "inbox" });
+    expect(await stageOf(organizer, "planning")).not.toHaveProperty("catchesPluginId");
+    expect(await cli(organizer, ["section", "type", "planning"]))
+      .toMatchObject({ exitCode: 0, stdout: "inbox (manual)\n" });
     const count = pending(organizer).length;
     expect(await cli(organizer, ["section", "type", "inbox", "--set", "stage"]))
       .toMatchObject({ exitCode: 2 });
-    expect(await cli(organizer, ["section", "type", "planning", "--set", "inbox"]))
+    expect(pending(organizer)).toHaveLength(count);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("shows and sets an inbox's after-reading behavior after approval", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    expect(await cli(organizer, ["section", "after-read", "inbox"]))
+      .toMatchObject({ exitCode: 0, stdout: "stay\n" });
+    const set = await approved(organizer, ["section", "after-read", "inbox", "--set", "return"]);
+    expect(set.result.exitCode).toBe(0);
+    expect(await stageOf(organizer, "inbox")).toMatchObject({ returnAfterRead: true });
+    expect(await cli(organizer, ["section", "after-read", "inbox"]))
+      .toMatchObject({ exitCode: 0, stdout: "return\n" });
+    expect((await cli(organizer, ["section", "rule", "inbox"])).stdout)
+      .toContain("move back to their section once you read them");
+    await approved(organizer, ["section", "after-read", "inbox", "--set", "stay"]);
+    expect(await stageOf(organizer, "inbox")).not.toHaveProperty("returnAfterRead");
+
+    await approved(organizer, ["section", "add", "Digests", "--inbox", "--catches-plugin", "digests"]);
+    await approved(organizer, ["section", "after-read", "digests", "--set", "return"]);
+    const switched = await approved(organizer, [
+      "section", "type", "digests", "--set", "inbox", "--catches-plugin", "drafts",
+    ]);
+    expect(switched.request.payload).toMatchObject({
+      summary: "Digests will receive threads from drafts and move them back once you read them.",
+    });
+    expect(await stageOf(organizer, "digests"))
+      .toMatchObject({ catchesPluginId: "drafts", returnAfterRead: true });
+
+    const count = pending(organizer).length;
+    expect(await cli(organizer, ["section", "after-read", "planning", "--set", "return"]))
+      .toMatchObject({ exitCode: 2 });
+    expect(await cli(organizer, ["section", "after-read", "inbox", "--set", "maybe"]))
       .toMatchObject({ exitCode: 2 });
     expect(pending(organizer)).toHaveLength(count);
     await organizer.harness.lifecycle.dispose();
@@ -1615,6 +1983,13 @@ describe("config CLI", () => {
     const config = await configFor(organizer);
     const keys = config.stages.map((stage) => stage.key);
     expect(keys.indexOf("review")).toBe(keys.indexOf("testing-deploy") + 1);
+    const sidebarEntry = (key: string) =>
+      `section:${config.stages.find((stage) => stage.key === key)!.sectionId}`;
+    await vi.waitFor(() => {
+      const order = organizer.threadListOrder.value;
+      expect(order.indexOf(sidebarEntry("review")))
+        .toBe(order.indexOf(sidebarEntry("testing-deploy")) + 1);
+    });
     expect(config.stages.find((stage) => stage.key === "review")).toMatchObject({
       role: "stage",
       title: "Review",

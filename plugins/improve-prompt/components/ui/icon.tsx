@@ -122,7 +122,6 @@ import {
   UserAdd01Icon,
   UserIcon,
   WorkflowCircle03Icon,
-  ZapIcon,
   ZoomInAreaIcon,
   ZoomOutAreaIcon,
 } from "@hugeicons/core-free-icons";
@@ -390,7 +389,6 @@ const ICON_MAP = {
   UserRoundPlus: UserAdd01Icon,
   Workflow: WorkflowCircle03Icon,
   X: Cancel01Icon,
-  Zap: ZapIcon,
   ZoomIn: ZoomInAreaIcon,
   ZoomOut: ZoomOutAreaIcon,
 } as const satisfies Record<string, IconSvgElement>;

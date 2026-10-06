@@ -22,7 +22,7 @@
     "name": "Compact Links",
     "description": "Recognize website links at a glance with favicon pills in drafts and conversations.",
     "branding": {
-      "icon": "Link"
+      "icon": "Globe"
     },
     "server": "./server.ts",
     "skills": [],
@@ -37,7 +37,6 @@
     "hono": "^4.11.9",
     "typescript": "^5.7.0",
     "vitest": "^4.1.8",
-    "@types/pngjs": "6.0.5",
     "@types/react": "^19.0.0",
     "@testing-library/react": "^16.3.2",
     "jsdom": "^29.0.1",
@@ -45,7 +44,7 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "pngjs": "7.0.0",
+    "@brsbl/bb-website-icons": "0.1.0",
     "zod": "^4.3.6"
   }
 }

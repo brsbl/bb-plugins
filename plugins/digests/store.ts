@@ -75,7 +75,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
   );
   const requireIssue = (id: string): Issue => {
     const issue = issueGet(id);
-    if (issue === null) throw new Error(`No digest issue ${id}.`);
+    if (issue === null) throw new Error(`No brief ${id}.`);
     return issue;
   };
   const writeIssue = (issue: Issue): Issue => {
@@ -114,11 +114,11 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
   };
 
   const issues = {
-    /** Returns the existing issue when the digest's idempotency key was already used. */
+    /** Returns the existing issue when the brief's idempotency key was already used. */
     create(input: z.input<typeof IssueSchema>): Issue {
       const value = IssueSchema.parse(input);
       if (value.state === "ready" || value.publishedAt !== null || value.sources.length > 0) {
-        throw new Error("Use publish to complete an issue and record its sources.");
+        throw new Error("Use publish to complete a brief and record its sources.");
       }
       if (definitionGet(value.digestId) === null) throw new Error(`No digest ${value.digestId}.`);
       return db.transaction(() => {
@@ -129,7 +129,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
         const sameId = issueGet(value.id);
         if (sameId !== null) {
           if (sameId.digestId === value.digestId && sameId.dedupeKey === value.dedupeKey) return sameId;
-          throw new Error(`Issue id ${value.id} is already used by another publication.`);
+          throw new Error(`Brief id ${value.id} is already used by another publication.`);
         }
         db.prepare(`INSERT INTO digest_issues (id, digest_id, thread_id, dedupe_key, state, created_at, data)
           VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
@@ -152,10 +152,10 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
       return db.transaction(() => {
         const previous = requireIssue(id);
         if (previous.state === "ready" && Object.keys(patch).some((key) => !["readAt", "threadId"].includes(key))) {
-          throw new Error("A published digest issue cannot be rewritten.");
+          throw new Error("A published brief cannot be rewritten.");
         }
         if (previous.threadId !== null && patch.threadId !== undefined && patch.threadId !== previous.threadId) {
-          throw new Error("A digest issue already belongs to a thread.");
+          throw new Error("A brief already belongs to a thread.");
         }
         return writeIssue(IssueSchema.parse({ ...previous, ...patch }));
       }).immediate();
@@ -183,10 +183,10 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
           WHERE digest_id = ? AND connection_id = ? AND message_id = ?`);
         for (const source of payload.sources) {
           if (!definition.connectionIds.includes(source.connectionId)) {
-            throw new Error(`Connection ${source.connectionId} is not listed on this digest.`);
+            throw new Error(`Connection ${source.connectionId} is not listed on this brief.`);
           }
           if (source.deduplicate !== false && findProcessed.get(previous.digestId, source.connectionId, source.messageId) !== undefined) {
-            throw new Error(`Message ${source.messageId} from ${source.connectionId} was already digested. Remove it and revise the issue before publishing.`);
+            throw new Error(`Message ${source.messageId} from ${source.connectionId} was already digested. Remove it and revise the brief before publishing.`);
           }
         }
         const result = IssueSchema.parse({ ...previous, ...payload, state: "ready", recovery: null, publishedAt });

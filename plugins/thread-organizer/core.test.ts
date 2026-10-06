@@ -123,7 +123,8 @@ describe("workflow configuration", () => {
   it("requires unique plugin filters on additional inboxes and protects the main Inbox", () => {
     const next = editable();
     next.stages.push({ key: "digests", title: "Digests", role: "inbox", rule: "Issues." });
-    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("needs a plugin");
+    expect(core.normalizeEditableWorkflowConfig(next).stages.at(-1))
+      .not.toHaveProperty("catchesPluginId");
     next.stages.at(-1)!.catchesPluginId = "digests";
     next.stages.push({ ...next.stages.at(-1)!, key: "more", title: "More" });
     expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("already has another inbox");
@@ -136,6 +137,18 @@ describe("workflow configuration", () => {
     delete next.stages[0]!.catchesPluginId;
     next.stages[0]!.role = "stage";
     expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("protected main Inbox");
+  });
+
+  it("persists after-reading return only on inboxes", () => {
+    const next = editable();
+    next.stages[0]!.returnAfterRead = true;
+    expect(core.normalizeEditableWorkflowConfig(next).stages[0])
+      .toMatchObject({ returnAfterRead: true });
+    next.stages[0]!.returnAfterRead = false;
+    expect(core.normalizeEditableWorkflowConfig(next).stages[0])
+      .not.toHaveProperty("returnAfterRead");
+    next.stages[1]!.returnAfterRead = true;
+    expect(() => core.normalizeEditableWorkflowConfig(next)).toThrow("Only an inbox");
   });
 
   it("creates immutable, collision-free CLI keys for new stages", () => {
@@ -304,6 +317,31 @@ describe("thread placement precedence", () => {
     expect(core.buildWorkflowSkillSlot(configured)).toContain(
       "**Digests** catches threads from plugin `digests` and keeps them after reading until the user moves or archives them.",
     );
+  });
+
+  it("lets a returning inbox release a thread only when it was just read", () => {
+    const configured = core.cloneWorkflowConfig(config);
+    configured.stages[0] = { ...configured.stages[0]!, returnAfterRead: true };
+    const digests = { key: "digests", title: "Digests", role: "inbox" as const,
+      catchesPluginId: "digests", rule: "Issues.", returnAfterRead: true, sectionId: "sec_digests" };
+    configured.stages.push(digests);
+    const read = { status: "idle" as const, lastReadAt: 20, latestAttentionAt: 20 };
+
+    for (const inbox of [configured.stages[0]!, digests]) {
+      const inInbox = thread({ ...read, sectionId: inbox.sectionId });
+      expect(core.placementForThread(configured, inInbox, "building")).toBe(inbox);
+      expect(core.placementForThread(configured, inInbox, "building", false, null, true)?.key)
+        .toBe("building");
+      expect(core.placementForThread(configured, inInbox, null, false, null, true)).toBeNull();
+      const unread = thread({ ...read, lastReadAt: 0, sectionId: inbox.sectionId });
+      expect(core.placementForThread(configured, unread, "building", false, null, true)?.key)
+        .toBe(inbox.key);
+      const running = thread({ ...read, status: "active", sectionId: inbox.sectionId });
+      expect(core.returnsAfterRead(inbox, running)).toBe(false);
+    }
+    const slot = core.buildWorkflowSkillSlot(configured);
+    expect(slot).toContain("return to their workflow section once the user reads them");
+    expect(slot).toContain("moves them back out once the user reads them");
   });
 });
 

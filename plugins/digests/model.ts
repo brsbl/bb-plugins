@@ -111,7 +111,7 @@ export const SourceSchema = z.object({
 const sources = z.array(SourceSchema).max(1_000).refine((items) => {
   const keys = items.map((source) => `${source.connectionId}\u0000${source.messageId}`);
   return new Set(keys).size === keys.length;
-}, "Each source message must appear only once in an issue.");
+}, "Each source message must appear only once in a brief.");
 
 const sourceLink = z.object({
   label: z.string().trim().min(1).max(40),
@@ -199,7 +199,7 @@ export const PublishInputSchema = z.object({
   brief.summaryLinks?.forEach((link, index) => {
     if (!("section" in link)) return;
     const target = brief[link.section];
-    if (!target || (Array.isArray(target) && !target.length)) ctx.addIssue({ code: "custom", path: ["brief", "summaryLinks", index, "section"], message: "Each count needs a matching section in this issue." });
+    if (!target || (Array.isArray(target) && !target.length)) ctx.addIssue({ code: "custom", path: ["brief", "summaryLinks", index, "section"], message: "Each count needs a matching section in this brief." });
   });
 });
 

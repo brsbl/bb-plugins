@@ -14,7 +14,7 @@
     "artifacts": "node tooling/validate-plugin-artifacts.mjs",
     "build": "npm run build --workspaces --if-present",
     "check": "npm run hygiene && npm run typecheck && npm run build && npm test && npm run test:built && npm run artifacts",
-    "hygiene": "node tooling/check-repository.mjs",
+    "hygiene": "node tooling/check-repository.mjs && node tooling/check-icons.mjs",
     "new:plugin": "node tooling/create-plugin.mjs",
     "scaffold:smoke": "node tooling/scaffold-smoke.mjs",
     "test": "npm run test --workspaces --if-present && npm run scaffold:smoke",
