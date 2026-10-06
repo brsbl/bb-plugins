@@ -460,14 +460,14 @@ export default definePluginApp((app) => {
   app.slots.threadPanelAction({
     id: "comments",
     title: "Comments List",
-    icon: "ChatFeedback",
+    icon: "MessageSquare",
     component: CommentPanel,
     layout: "flush",
   });
   app.slots.messageAction({
     id: "comment-selection",
     title: "Comment",
-    icon: "ChatFeedback",
+    icon: "MessageCirclePlus",
     run(context) {
       if (context.selectedText === undefined) {
         context.openPanel({ actionId: "comments", title: "Comments List" });
