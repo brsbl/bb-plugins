@@ -11,9 +11,9 @@ it("shows a file's full path, naming its machine only when it isn't the thread's
   expect(pinTooltip({ ...file, status: "missing" }, "linux").note).toBe("Studio (missing)");
 });
 
-it("shows a URL, under its title when one was set", () => {
+it("shows a URL's title when one was set, otherwise the full URL", () => {
   expect(pinTooltip(url, "mac")).toEqual({ value: "https://example.com/launch" });
-  expect(pinTooltip({ ...url, name: "Launch checklist" }, "mac")).toEqual({ heading: "Launch checklist", value: "https://example.com/launch" });
+  expect(pinTooltip({ ...url, name: "Launch checklist" }, "mac")).toEqual({ value: "Launch checklist" });
 });
 
 it("keeps both ends of very long values", () => {
