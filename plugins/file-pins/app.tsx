@@ -139,14 +139,13 @@ function PinStrip({ threadId }: { threadId: string }) {
     saves.queue = saves.queue.then(() => rpc.call("arrange", { threadId, ...next })).then(() => undefined, report)
       .finally(() => { if (--saves.pending === 0) void refresh(); });
   }
-  // bb's tooltip in place of a native title: the full path or URL, wrapped, on hover and keyboard focus but not touch.
+  // bb's tooltip in place of a native title: the full path, or a link's title or full URL, wrapped, on hover and keyboard focus but not touch.
   function withTooltip(pin: Reference, trigger: ReactElement) {
     const tip = pinTooltip(pin, threadHostId);
     return <Tooltip>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
       <TooltipContent>
-        {tip.heading && <span className="block font-medium">{tip.heading}</span>}
-        <span className="block break-all">{tip.value}</span>
+        <span className="block [overflow-wrap:anywhere]">{tip.value}</span>
         {tip.note && <span className="block opacity-70">{tip.note}</span>}
       </TooltipContent>
     </Tooltip>;
@@ -244,7 +243,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   return <TooltipProvider delayDuration={300} disableHoverableContent><div ref={root} className="relative min-w-0">
     {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
     {fade && <span aria-hidden="true" data-overflow-fade="above" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
-    {pins.length > 0 && <section aria-label="Pins" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
+    {pins.length > 0 && <section aria-label="Pinned files and links" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
       <div className="flex min-w-0 items-center gap-1">
         {layout.strip.map((pin) => stripPin(pin))}
         {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>

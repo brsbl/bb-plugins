@@ -14,7 +14,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-viewer
 
 ## Use
 
-Open a Moss note from bb the way you open any file: a file link, the file picker, `bb thread open`, or a pin from Pins. Moss notes are Markdown files under `~/Moss/Notes`, or Markdown that uses Moss blocks such as `:::tabs` or `moss-callout`. Other Markdown files keep bb's own preview.
+Open a Moss note from bb the way you open any file: a file link, the file picker, `bb thread open`, or a pin from Pinned Files & Links. Moss notes are Markdown files under `~/Moss/Notes`, or Markdown that uses Moss blocks such as `:::tabs` or `moss-callout`. Other Markdown files keep bb's own preview.
 
 Notes in `~/Moss/Notes` on a Mac open in Moss's own editor: type with Moss's shortcuts, slash menu and formatting, add images, and comment as you would in Moss. Edits save a moment after you stop typing, to the note's own files, written the way Moss writes them. The header stays quiet while edits save, and says **Saving…** only if a save takes more than a couple of seconds, or **Not saved** if one fails. If Moss changes the note while you have unsaved edits, the editor shows **Changed in Moss** so you can reload or keep your version, and bb never overwrites what Moss wrote. If Moss later replaces a save you made in bb, **Restore your last save from bb** brings it back.
 

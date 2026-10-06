@@ -10,13 +10,13 @@ export function truncateMiddle(value: string, max = TOOLTIP_MAX_CHARS): string {
   return `${value.slice(0, head)}…${value.slice(value.length - (max - 1 - head))}`;
 }
 
-export type PinTooltip = { heading?: string; value: string; note?: string };
+export type PinTooltip = { value: string; note?: string };
 
-/** A pin's tooltip: a URL under its title when one was set, or a file's path with its machine when elsewhere. */
+/** A pin's tooltip: a URL's title when one was set, else the URL, or a file's path with its machine when elsewhere. */
 export function pinTooltip(pin: Reference, threadHostId: string | null): PinTooltip {
   if (isUrlPin(pin)) {
     const titled = pin.name !== urlPinName(pin.url);
-    return { heading: titled ? truncateMiddle(pin.name) : undefined, value: truncateMiddle(pin.url) };
+    return { value: truncateMiddle(titled ? pin.name : pin.url) };
   }
   const machine = pin.hostId !== threadHostId ? pin.hostName : undefined;
   const status = pin.status === "missing" ? "(missing)" : pin.status === "unavailable" ? "(unavailable)" : undefined;
