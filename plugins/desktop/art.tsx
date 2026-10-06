@@ -82,9 +82,9 @@ const ICON = {
   discMid: "oklch(0.85 0.04 280)",
   discDark: "oklch(0.72 0.05 230)",
   discEdge: "oklch(0.55 0.03 250)",
-  boltTop: "oklch(0.96 0.13 100)",
-  boltBottom: "oklch(0.82 0.17 75)",
-  boltEdge: "oklch(0.56 0.14 60)",
+  goldTop: "oklch(0.96 0.13 100)",
+  goldBottom: "oklch(0.82 0.17 75)",
+  goldEdge: "oklch(0.56 0.14 60)",
   titleTop: "oklch(0.72 0.14 250)",
   titleBottom: "oklch(0.52 0.21 260)",
   panel: "oklch(0.92 0.04 240)",
@@ -143,7 +143,7 @@ function IconDefs() {
       {gradient("bbd-g-recycle", ICON.recycleLight, ICON.recycle)}
       {gradient("bbd-g-note", ICON.noteTop, ICON.noteBottom)}
       {gradient("bbd-g-box", ICON.boxTop, ICON.boxFront, 0, 1)}
-      {gradient("bbd-g-bolt", ICON.boltTop, ICON.boltBottom)}
+      {gradient("bbd-g-gold", ICON.goldTop, ICON.goldBottom)}
       {gradient("bbd-g-title", ICON.titleTop, ICON.titleBottom, 0, 1)}
       {gradient("bbd-g-play", ICON.playTop, ICON.playBottom)}
       {gradient("bbd-g-red", ICON.redTop, ICON.redBottom)}
@@ -313,8 +313,11 @@ export function PluginsArt({ size = 40 }: { size?: number }) {
 export function SkillsArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>
-      <path d="M29 3 11 26h10.5L16 45l21-26H26.5L33 3Z" fill="url(#bbd-g-bolt)" stroke={ICON.boltEdge} strokeLinejoin="round" />
-      <path d="M28.5 7 16.5 23" stroke={ICON.paper} strokeOpacity="0.7" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M3 14V42C10 39.5 17 39.5 24 43C31 39.5 38 39.5 45 42V14" fill="url(#bbd-g-box)" stroke={ICON.blueOutline} strokeLinejoin="round" />
+      <path d="M5 11C11 8.5 18 8.5 24 12.5V40.5C18 36.5 11 36.5 5 39Z" fill="url(#bbd-g-cream)" stroke={ICON.paperEdge} strokeLinejoin="round" />
+      <path d="M43 11C37 8.5 30 8.5 24 12.5V40.5C30 36.5 37 36.5 43 39Z" fill={ICON.paper} stroke={ICON.paperEdge} strokeLinejoin="round" />
+      <path d="M9 17.5c3.5-1.2 7-1 11 .8M9 22.5c3.5-1.2 7-1 11 .8M9 27.5c3.5-1.2 7-1 11 .8M32 24.5c2.5-1 5-1.2 7-.6M32 29.5c2.5-1 5-1.2 7-.6" stroke={ICON.paperShade} strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M28 11.2V27l2.5-2.4L33 27V10.3" fill="url(#bbd-g-red)" stroke={ICON.redEdge} strokeLinejoin="round" />
     </IconSvg>
   );
 }
@@ -322,8 +325,8 @@ export function SkillsArt({ size = 40 }: { size?: number }) {
 export function SearchArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>
-      <path d="M8.5 43.5 19.5 30" stroke={ICON.boltEdge} strokeWidth="7" strokeLinecap="round" />
-      <path d="M8.5 43.5 19.5 30" stroke="url(#bbd-g-bolt)" strokeWidth="4.6" strokeLinecap="round" />
+      <path d="M8.5 43.5 19.5 30" stroke={ICON.goldEdge} strokeWidth="7" strokeLinecap="round" />
+      <path d="M8.5 43.5 19.5 30" stroke="url(#bbd-g-gold)" strokeWidth="4.6" strokeLinecap="round" />
       <circle cx="28" cy="20" r="14" fill={ICON.metal} stroke={ICON.metalEdge} />
       <circle cx="28" cy="20" r="11" fill="url(#bbd-g-lens)" stroke={ICON.metalEdge} strokeWidth="0.8" />
       <path d="M20.5 16a8.5 8.5 0 0 1 7-6" stroke={ICON.paper} strokeOpacity="0.9" strokeWidth="2.2" fill="none" strokeLinecap="round" />
@@ -460,12 +463,12 @@ export function InternetExplorerArt({ size = 40 }: { size?: number }) {
         <clipPath id={`${id}-gloss`}><ellipse cx="245" cy="120" rx="250" ry="105" /></clipPath>
       </defs>
       <g transform={orbit} clipPath={`url(#${id}-back)`}>
-        <path d={IE_ORBIT} fillRule="evenodd" fill="url(#bbd-g-bolt)" stroke={ICON.boltEdge} strokeWidth="0.6" />
+        <path d={IE_ORBIT} fillRule="evenodd" fill="url(#bbd-g-gold)" stroke={ICON.goldEdge} strokeWidth="0.6" />
       </g>
       {letters}
       <g transform={orbit} clipPath={`url(#${id}-front)`}>
         <path d={IE_ORBIT} fillRule="evenodd" fill="none" stroke={ICON.paper} strokeWidth="2.6" strokeLinejoin="round" />
-        <path d={IE_ORBIT} fillRule="evenodd" fill="url(#bbd-g-bolt)" stroke={ICON.boltEdge} strokeWidth="0.6" />
+        <path d={IE_ORBIT} fillRule="evenodd" fill="url(#bbd-g-gold)" stroke={ICON.goldEdge} strokeWidth="0.6" />
       </g>
     </IconSvg>
   );
@@ -474,13 +477,13 @@ export function InternetExplorerArt({ size = 40 }: { size?: number }) {
 export function PaintArt({ size = 40 }: { size?: number }) {
   return (
     <IconSvg size={size}>
-      <path d="M5 26c0-11 9-19 20-19 10 0 18 6 18 14 0 5-4 7-8 6-3-.5-5 1-4.5 4 .6 3.5-1.5 7-7.5 7C12.5 38 5 33 5 26Z" fill="url(#bbd-g-cream)" stroke={ICON.boltEdge} strokeLinejoin="round" />
+      <path d="M5 26c0-11 9-19 20-19 10 0 18 6 18 14 0 5-4 7-8 6-3-.5-5 1-4.5 4 .6 3.5-1.5 7-7.5 7C12.5 38 5 33 5 26Z" fill="url(#bbd-g-cream)" stroke={ICON.goldEdge} strokeLinejoin="round" />
       <circle cx="14" cy="23" r="3.2" fill={ICON.wmpBlue} />
       <circle cx="20" cy="15" r="3.2" fill={ICON.wmpGreen} />
       <circle cx="29" cy="13.5" r="3.2" fill={ICON.wmpYellow} />
       <circle cx="36" cy="18" r="2.8" fill={ICON.wmpOrange} />
       <circle cx="15" cy="31" r="2.8" fill={ICON.redBottom} />
-      <circle cx="24" cy="31" r="2.6" fill="none" stroke={ICON.boltEdge} strokeWidth="0.8" />
+      <circle cx="24" cy="31" r="2.6" fill="none" stroke={ICON.goldEdge} strokeWidth="0.8" />
       <path d="M27 42 43 20" stroke={ICON.pencilDark} strokeWidth="4.2" strokeLinecap="round" />
       <path d="M27 42 43 20" stroke={ICON.pencil} strokeWidth="2.6" strokeLinecap="round" />
       <path d="M23.5 46 27 41.5 29.5 43.5 26 47Z" fill={ICON.lead} />

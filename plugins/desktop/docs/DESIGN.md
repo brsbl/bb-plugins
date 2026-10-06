@@ -77,7 +77,7 @@ Use the real XP icon when bb has an XP counterpart. When it does not, build from
 | New thread | XP speech bubble (as on Information) plus starburst | `NewThreadArt` |
 | My Threads (every thread) | My Documents: folder with the item tucked in, here a speech bubble; named "My …" like XP's personal folders | `ThreadsArt` |
 | Plugins | Add or Remove Programs pattern: software box with a CD | `PluginsArt` |
-| Skills | No XP counterpart; a glossy bolt in XP style | `SkillsArt` |
+| Skills | No XP counterpart; a glossy open book with a bookmark in XP style | `SkillsArt` |
 | Minesweeper | Minesweeper: a spiked black mine with a red flag | `MinesweeperArt` |
 | Solitaire | Solitaire: two fanned cards, a spade behind a heart | `SolitaireArt` |
 | Pinball | Pinball: a reflective silver ball with a deep blue rim and upper-left highlight | `PinballArt` |
