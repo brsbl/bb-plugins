@@ -15,6 +15,7 @@ import {
 import type { rpcContract } from "./contracts.js";
 import type { Connection, DigestDefinition, Issue, SaveDigest } from "./model.js";
 import { digestEmoji } from "./emoji.js";
+import { expectedAccount } from "./sites.js";
 import { Button } from "./components/ui/button.js";
 import { Switch } from "./components/ui/switch.js";
 import "./app.css";
@@ -644,9 +645,13 @@ function DigestsSettings() {
         <div className="digest-sites">{sites.map((site) => {
           const definitions = overview.definitions.filter((definition) => definition.connectionIds.includes(site.id));
           const signedOut = ["signed-out", "expired"].includes(site.status);
+          const expected = expectedAccount(site.url);
+          const mismatch = expected && site.accountName && site.accountName.toLowerCase() !== expected;
           return <section className="digest-site" key={site.id} aria-label={site.name}>
             <div className="digest-site-header"><div><h4>{site.name}</h4><span className="digest-site-account" data-status={site.status}>
-              {site.status === "signed-in" ? site.accountName || "Signed in" : signedOut ? "Signed out" : site.status === "unknown" ? "Not checked" : "Browser unavailable"}
+              {mismatch ? `Signed in as ${site.accountName}, expected ${expected}`
+                : site.status === "signed-in" ? site.accountName || expected || "Signed in"
+                : signedOut ? expected ? `Not signed in as ${expected}` : "Signed out" : site.status === "unknown" ? "Not checked" : "Browser unavailable"}
               {signedOut && <> · <a href="/settings/browser">Reconnect</a></>}
             </span></div><Button variant="ghost" disabled={pending !== null || editing !== null} onClick={() => setEditing({ siteId: site.id })}>+ Add brief</Button></div>
             {editing?.siteId === site.id && !editing.digestId && <DigestForm connection={site} pending={pending !== null} onCancel={() => setEditing(null)} onSave={save} />}

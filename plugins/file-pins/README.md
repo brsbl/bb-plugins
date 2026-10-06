@@ -1,4 +1,4 @@
-# Pinned Files
+# Pins
 
 Keep local files and web links within reach in each thread. Pins stay above the
 composer even when the file viewer is closed, and are shared across clients.
@@ -9,7 +9,7 @@ composer even when the file viewer is closed, and are shared across clients.
 
 ![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](docs/pin-menu-dark.png)
 
-![The Pin files pill in the composer, followed by the files and link to pin](docs/pin-files-pill.png)
+![The Pin pill in the composer, followed by the files and link to pin](docs/pin-files-pill.png)
 
 ## Install
 
@@ -19,7 +19,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/file-pins -
 
 ## Use
 
-Click the pin button in the composer's action row. It adds a **Pin files** pill at the cursor;
+Click the pin button in the composer's action row. It adds a **Pin** pill at the cursor;
 type one or more paths, file names or URLs after it and send. The pill carries this plugin's
 [skill](skills/file-pins/SKILL.md) to the agent, which finds each file (absolute, `~/`, or relative
 to the workspace or the thread's files), asks about any that are ambiguous, pins them and any

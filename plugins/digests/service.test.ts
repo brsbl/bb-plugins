@@ -17,7 +17,7 @@ function setup(options: { runs?: Array<{
   id: string; threadId: string | null; status: string; scheduledFor: number; startedAt: number;
   error: string | null; skipReason: string | null;
 }>; personal?: boolean; offline?: boolean; stageSection?: boolean; dispatchFailure?: boolean; dispatchPending?: boolean } = {}) {
-  let signIn = { signedIn: true, signedOut: false };
+  let signIn: { signedIn: boolean; signedOut: boolean; accountName?: string | null } = { signedIn: true, signedOut: false };
   let tabCount = 0;
   let deliveryCount = 0;
   const threads = new Map<string, ReturnType<typeof makeThreadResponse>>();
@@ -366,6 +366,78 @@ describe("digest issue lifecycle", () => {
     });
     expect(service.store.issues.list()).toHaveLength(1);
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toEqual([]);
+  });
+
+  it("publishes a later successful run into its own failed issue without a manual Retry", async () => {
+    const { service, setSignIn } = setup();
+    setSignIn({ signedIn: false, signedOut: true });
+    const failed = await service.begin("reading", "thr_recover");
+    expect(failed.issue).toMatchObject({ state: "failed", recovery: "reconnect" });
+    await expect(service.publishCurrent("thr_recover", payload())).rejects.toThrow("digest_begin again");
+    // Another thread's passing check does not verify this run.
+    setSignIn({ signedIn: true, signedOut: false });
+    expect(await service.checkConnections("gmail")).toMatchObject([{ status: "signed-in" }]);
+    await expect(service.publishCurrent("thr_recover", payload())).rejects.toThrow("digest_begin again");
+
+    expect(await service.begin("reading", "thr_recover")).toMatchObject({ complete: false, issue: { id: failed.issue.id, state: "collecting" } });
+    await service.settled("thr_recover", true);
+    expect(service.requiredIssue("thr_recover").state).toBe("failed");
+    await expect(service.publishCurrent("thr_other", payload())).rejects.toThrow("does not belong");
+    const published = await service.publishCurrent("thr_recover", payload());
+    expect(published.issue).toMatchObject({ id: failed.issue.id, state: "ready", headline: "One worthwhile read" });
+    expect(await service.recoveryIssue("thr_recover")).toBeNull();
+    expect(service.store.issues.list()).toHaveLength(1);
+
+    // An explicit failure from the run itself stays failed.
+    await service.begin("reading", "thr_explicit");
+    await service.fail(service.requiredIssue("thr_explicit"), "Couldn’t verify unread state.");
+    await expect(service.publishCurrent("thr_explicit", payload())).rejects.toThrow("digest_begin again");
+  });
+
+  it("lets an on-time scheduled run begin again later in its own thread", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const { service } = setup({ runs: [{
+      id: "run_on_time", threadId: "thr_on_time", status: "running", scheduledFor: NOW - 30 * 60_000,
+      startedAt: NOW - 30 * 60_000, error: null, skipReason: null,
+    }] });
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_digest_new" });
+    expect(await service.begin("reading", "thr_on_time")).toMatchObject({ complete: false, issue: { state: "collecting" } });
+  });
+
+  it("lets a retried late run begin again, as when it waits for the Gmail lock", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const { service } = setup({ runs: [{
+      id: "run_late_retry", threadId: "thr_late_retry", status: "running", scheduledFor: NOW - 30 * 60_000,
+      startedAt: NOW - 10 * 60_000, error: null, skipReason: null,
+    }] });
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_digest_new" });
+    const delayed = await service.begin("reading", "thr_late_retry");
+    expect(delayed.issue.state).toBe("failed");
+    await service.retry("thr_late_retry", delayed.issue.id);
+    expect(await service.begin("reading", "thr_late_retry")).toMatchObject({ complete: false, issue: { state: "collecting" } });
+    expect(await service.begin("reading", "thr_late_retry")).toMatchObject({ complete: false, issue: { state: "collecting" } });
+  });
+
+  it("reads only the Gmail account its URL names and reports a mismatch", async () => {
+    const { service, harness, setSignIn } = setup();
+    service.store.connections.put({ ...service.store.connections.get("gmail")!, url: "https://mail.google.com/mail/u/me@example.com/" });
+    setSignIn({ signedIn: true, signedOut: false, accountName: "work@example.com" });
+    const mismatched = await service.begin("reading", "thr_account");
+    expect(mismatched.issue).toMatchObject({ state: "failed", recovery: "reconnect", details: "Signed in as work@example.com, expected me@example.com. Switch Gmail to me@example.com in the bb browser, then Retry." });
+    expect(service.store.connections.get("gmail")).toMatchObject({ status: "expired", accountName: "work@example.com" });
+    expect(await service.checkConnections("gmail")).toMatchObject([{ status: "expired", accountName: "work@example.com" }]);
+
+    setSignIn({ signedIn: true, signedOut: false, accountName: "Me@Example.com" });
+    const begun = await service.begin("reading", "thr_account");
+    expect(begun).toMatchObject({ complete: false, issue: { state: "collecting" } });
+    expect(begun.instructions).toContain("https://mail.google.com/mail/?authuser=me@example.com#inbox/<id>");
+    expect(begun.instructions).toContain("never use /mail/u/0/");
+    const probe = harness.inspection.sdk.callsTo("plugins.callRpc").map(([value]) => value as { method: string; input: { script?: string } })
+      .filter((value) => value.method === "run").at(-1)?.input.script;
+    expect(probe).toContain('await p.goto("https://mail.google.com/mail/?authuser=me@example.com")');
+    expect(service.store.connections.get("gmail")).toMatchObject({ status: "signed-in", accountName: "Me@Example.com" });
   });
 
   it("shows a delayed scheduled run in place and opens its connection only after the user retries", async () => {

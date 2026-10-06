@@ -5,7 +5,7 @@ import { createStore } from "./store.js";
 import { issueSchema, EmailReadInputSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
 import { executionTarget, executionFailure, ExecutionError } from "./execution.js";
-import { SITES } from "./sites.js";
+import { accountUrl, SITES } from "./sites.js";
 import { deliveryPrompt, directive, issueTitle, runPrompt, collectionInstructions } from "./prompts.js";
 
 const automationSchema = z.object({ id: z.string(), enabled: z.boolean(), nextRunAt: z.number().nullable() }).passthrough();
@@ -83,6 +83,9 @@ export function createService(bb: BbPluginApi) {
     issue = store.issues.get(issue.id) ?? issue;
     if (issue.state === "ready") return issue;
     if (banner) await bb.storage.kv.set(`recovery:${issue.id}`, true);
+    // A stopped turn keeps this run's verified collection publishable; an
+    // explicit check or agent failure does not.
+    else await bb.storage.kv.delete(`verified:${issue.id}`);
     const failed = changed(store.issues.update(issue.id, { state: "failed", headline: "This brief needs your attention", details: message, recovery }));
     await closeIssueBrowsers(failed);
     return failed;
@@ -240,17 +243,20 @@ export function createService(bb: BbPluginApi) {
       if (issue.state === "ready") return { issue, directive: directive(issue), sessions: [], complete: true };
       await closeIssueBrowsers(issue);
       issue = changed(store.issues.update(issue.id, { state: "collecting", headline: `Preparing ${definition.name}`, details: "The briefing is being prepared.", recovery: null }));
+      await bb.storage.kv.delete(`verified:${issue.id}`);
       const sessions: BrowserLease[] = [];
       try {
         await bb.storage.kv.delete(`recovery:${issue.id}`);
-        const requestedRetry = await bb.storage.kv.get<boolean>(`retry:${issue.id}`);
+        // A user Retry also covers this thread's later begin calls.
+        const requestedRetry = await bb.storage.kv.get<boolean>(`retry:${issue.id}`) || await bb.storage.kv.get<boolean>(`manual-retry:${issue.id}`);
         await bb.storage.kv.delete(`retry:${issue.id}`);
         await ensureSection();
         await claimInbox(issue);
         if (definition.automationId && !requestedRetry) {
           const recent = await automation("automations_runs", { projectId: automationProject(definition), automationId: definition.automationId, limit: 100 }, z.object({ runs: z.array(runSchema) }).passthrough());
           const run = recent.runs.find((entry) => entry.threadId === threadId);
-          if (run && Date.now() - run.scheduledFor > 15 * 60 * 1000) {
+          // Judge when the run started, so its own later begin still succeeds.
+          if (run && run.startedAt - run.scheduledFor > 15 * 60 * 1000) {
             throw new Error("bb was unavailable or this run was delayed at the scheduled time. Retry to prepare this brief now.");
           }
         }
@@ -278,11 +284,13 @@ export function createService(bb: BbPluginApi) {
             const accountName = await checkSignIn(bb, connection, lease);
             store.connections.put({ ...connection, accountName, status: "signed-in", checkedAt: Date.now(), detail: null });
           } catch (error) {
-            store.connections.put({ ...connection, accountName: null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
+            store.connections.put({ ...connection, accountName: error instanceof ConnectionError ? error.accountName : null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: (error instanceof Error ? error.message : String(error)).slice(0, 2000) });
             throw error;
           }
         }
-        return { issue, directive: directive(issue), sessions, instructions: collectionInstructions(definition), complete: false };
+        await bb.storage.kv.set(`verified:${issue.id}`, true);
+        const connections = definition.connectionIds.map((id) => store.connections.get(id)).filter((value): value is Connection => value !== null);
+        return { issue, directive: directive(issue), sessions, instructions: collectionInstructions(definition, connections), complete: false };
       } catch (error) {
         issue = await fail(issue, error instanceof Error ? error.message : String(error), error instanceof ConnectionError ? error.recovery : "retry");
         return { issue, directive: directive(issue), sessions: [], complete: true };
@@ -292,13 +300,18 @@ export function createService(bb: BbPluginApi) {
   async function publishCurrent(threadId: string, payload: PublishInput) {
     const issue = requiredIssue(threadId);
     if (issue.state === "ready") return { issue, directive: directive(issue) };
-    if (issue.state === "failed") throw new Error("This run failed its connection check. Retry before publishing account data.");
     const definition = requiredDefinition(issue.digestId);
+    // A failed issue accepts its own run's later publish only after this run
+    // passed every connection check, never on another thread's check.
+    if (issue.state === "failed" && !await bb.storage.kv.get<boolean>(`verified:${issue.id}`)) {
+      throw new Error("This run failed its connection check. Call digest_begin again to recheck the connection before publishing account data.");
+    }
     for (const source of payload.sources) {
       if (!definition.connectionIds.includes(source.connectionId)) throw new Error("The source is outside this brief's declared connections.");
     }
     const published = changed(store.issues.publish(issue.id, payload, Date.now()));
     await bb.storage.kv.delete(`recovery:${issue.id}`);
+    await bb.storage.kv.delete(`verified:${issue.id}`);
     await closeIssueBrowsers(published);
     await bb.sdk.threads.markUnread({ threadId });
     return { issue: published, directive: directive(published) };
@@ -438,7 +451,7 @@ export function createService(bb: BbPluginApi) {
   }
   async function revealConnection(connection: Connection, threadId: string) {
     const scope = await connectionScope(bb, connection, threadId);
-    const tab = await bb.sdk.experimental_desktopBrowsers.createTab({ ...scope, url: connection.url, presentation: "reveal" });
+    const tab = await bb.sdk.experimental_desktopBrowsers.createTab({ ...scope, url: accountUrl(connection.url), presentation: "reveal" });
     if (Object.hasOwn(tab.tab, "profile")) {
       await bb.sdk.experimental_desktopBrowsers.closeTab({ ...scope, tabId: tab.tab.tabId });
       throw new Error("Update bb to 0.45 or later first, then Retry. Your existing BB Browser sign-ins will be used.");
@@ -481,7 +494,7 @@ export function createService(bb: BbPluginApi) {
           const accountName = await checkSignIn(bb, connection, lease);
           store.connections.put({ ...connection, accountName, status: "signed-in", checkedAt: Date.now(), detail: null });
         } catch (error) {
-          store.connections.put({ ...connection, accountName: null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: error instanceof ConnectionError ? error.message : `Couldn’t reach ${connection.name} on its browser computer. Check that bb is connected, then Retry.` });
+          store.connections.put({ ...connection, accountName: error instanceof ConnectionError ? error.accountName : null, status: error instanceof ConnectionError ? error.status : "unavailable", checkedAt: Date.now(), detail: error instanceof ConnectionError ? error.message : `Couldn’t reach ${connection.name} on its browser computer. Check that bb is connected, then Retry.` });
         } finally {
           if (lease) await closeBrowser(bb, lease).catch((error: unknown) => bb.log.warn(String(error)));
         }
