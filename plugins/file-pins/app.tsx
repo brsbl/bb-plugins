@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactElement, type RefObject } from "react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { definePluginApp, experimental_FileLink as FileLink, UrlLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./comp
 import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverTrigger as PopoverTrigger } from "./pin-popover.js";
 import { layoutPins, pinFile, PIN_MIN_WIDTH_CLASS, unpinFile, useMeasurePins, type Arrangement } from "./pin-layout.js";
 import { previewTarget } from "./open-target.js";
+import { pinTooltip } from "./pin-tooltip.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { UrlPinIcon } from "./url-pin-icon.js";
 import { cn } from "./lib/utils.js";
@@ -138,9 +139,17 @@ function PinStrip({ threadId }: { threadId: string }) {
     saves.queue = saves.queue.then(() => rpc.call("arrange", { threadId, ...next })).then(() => undefined, report)
       .finally(() => { if (--saves.pending === 0) void refresh(); });
   }
-  function title(pin: Reference) {
-    if (isUrlPin(pin)) return pin.url;
-    return `${pin.path}\n${pin.hostName}${pin.status === "missing" ? " · File missing" : pin.status === "unavailable" ? " · Unavailable" : ""}`;
+  // bb's tooltip in place of a native title: the full path or URL, wrapped, on hover and keyboard focus but not touch.
+  function withTooltip(pin: Reference, trigger: ReactElement) {
+    const tip = pinTooltip(pin, threadHostId);
+    return <Tooltip>
+      <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+      <TooltipContent className="[overflow-wrap:anywhere]">
+        {tip.heading && <span className="block font-medium">{tip.heading}</span>}
+        <span className="block">{tip.value}</span>
+        {tip.note && <span className="block opacity-70">{tip.note}</span>}
+      </TooltipContent>
+    </Tooltip>;
   }
   // Pinned files offer Unpin (to the ⋯ list); other files offer Pin while the strip has room for them.
   function actions(pin: Reference): PinAction[] {
@@ -197,30 +206,30 @@ function PinStrip({ threadId }: { threadId: string }) {
   function stripPin(pin: Reference) {
     const cap = layout.caps[pin.id];
     const style = cap === undefined ? undefined : { maxWidth: cap };
-    const link = isUrlPin(pin) ? <UrlLink href={pin.url} style={style} title={title(pin)} aria-label={`Open ${pin.name}`} className={cn(pinClass, "cursor-pointer")}>
+    const link = isUrlPin(pin) ? <UrlLink href={pin.url} style={style} aria-label={`Open ${pin.name}`} className={cn(pinClass, "cursor-pointer")}>
       <PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pin.name}</span>
-    </UrlLink> : pin.status === "missing" ? <span className="relative inline-flex min-w-0" style={style} title={title(pin)}>
+    </UrlLink> : pin.status === "missing" ? <span className="relative inline-flex min-w-0" style={style}>
       <span aria-label={`${pin.name} (missing)`} className={cn(pinClass, "cursor-default pr-4 text-destructive/55 hover:text-destructive/55")}>
         <ReferenceIcon path={pin.path} /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
       </span>
-      <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} title={`Remove missing ${pin.name}`} onClick={() => void remove(pin)}
+      <button type="button" disabled={busy} aria-label={`Remove missing ${pin.name}`} onClick={() => void remove(pin)}
         className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
-    </span> : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} style={style} title={title(pin)}
+    </span> : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} style={style}
       aria-label={`Open ${pin.name}`} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "[&>*]:opacity-60")}><PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pin.name}</span></FileLink>;
-    return <ContextMenu key={pin.id}><ContextMenuTrigger asChild>{link}</ContextMenuTrigger>{contextMenu(pin)}</ContextMenu>;
+    return <ContextMenu key={pin.id}>{withTooltip(pin, <ContextMenuTrigger asChild>{link}</ContextMenuTrigger>)}{contextMenu(pin)}</ContextMenu>;
   }
   function listRow(pin: Reference) {
     const name = <><PinIcon threadId={threadId} pin={pin} /><span className="truncate">{pin.name}</span></>;
     // Right-click opens the row's ⋯ menu, anchored beside the row, in place of FileLink's own menu.
     const onContextMenu = (event: MouseEvent) => { event.preventDefault(); setRowMenu(pin.id); };
     const link = isUrlPin(pin)
-      ? <UrlLink href={pin.url} onContextMenu={onContextMenu} title={title(pin)} aria-label={`Open ${pin.name}`} className={cn(rowLinkClass, "cursor-pointer")}>{name}</UrlLink>
+      ? <UrlLink href={pin.url} onContextMenu={onContextMenu} aria-label={`Open ${pin.name}`} className={cn(rowLinkClass, "cursor-pointer")}>{name}</UrlLink>
       : pin.status === "missing"
-      ? <span aria-label={`${pin.name} (missing)`} title={title(pin)} onContextMenu={onContextMenu} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
-      : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} onContextMenu={onContextMenu} title={title(pin)}
+      ? <span tabIndex={0} aria-label={`${pin.name} (missing)`} onContextMenu={onContextMenu} className={cn(rowLinkClass, "cursor-default text-destructive/55")}>{name}<span className="sr-only"> (missing)</span></span>
+      : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} onContextMenu={onContextMenu}
         aria-label={`Open ${pin.name}`} className={cn(rowLinkClass, pin.status === "available" ? "cursor-pointer" : "opacity-60")}>{name}</FileLink>;
     return <div key={pin.id} className="group/row flex min-w-0 items-center rounded-sm pr-1 hover:bg-state-hover has-[:focus-visible]:bg-state-hover has-[[data-state=open]]:bg-state-hover">
-      {link}
+      {withTooltip(pin, link)}
       <Menu.Root modal={false} open={rowMenu === pin.id} onOpenChange={(open) => setRowMenu(open ? pin.id : null)}>
         <Menu.Trigger asChild><button type="button" aria-label={`Actions for ${pin.name}`} title="Actions" className={rowActionClass}><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
         <DropdownMenuContent side={compact ? "bottom" : "right"} align={compact ? "end" : "start"} alignOffset={compact ? 0 : -4} sideOffset={compact ? 4 : 8} collisionPadding={8} style={noMotion} className="min-w-52">
@@ -232,7 +241,7 @@ function PinStrip({ threadId }: { threadId: string }) {
       </Menu.Root>
     </div>;
   }
-  return <div ref={root} className="relative min-w-0">
+  return <TooltipProvider delayDuration={300} disableHoverableContent><div ref={root} className="relative min-w-0">
     {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
     {fade && <span aria-hidden="true" data-overflow-fade="above" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
     {pins.length > 0 && <section aria-label="Pins" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
@@ -252,7 +261,7 @@ function PinStrip({ threadId }: { threadId: string }) {
       <span data-measure="more" className={moreClass}><Icon name="MoreHorizontal" className="size-4" /></span>
       <span data-measure="min" className={cn(PIN_MIN_WIDTH_CLASS, "shrink-0")} />
     </div>
-  </div>;
+  </div></TooltipProvider>;
 }
 function PinsBanner() {
   const composer = useComposer();
