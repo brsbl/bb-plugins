@@ -1,8 +1,19 @@
 import { randomBytes } from "node:crypto";
 import { posix } from "node:path";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { ASSET_CHUNK_BYTES, hostContract, rpcContract, type AssetRefusal, type HostNote } from "./contract.js";
-import { findViewerDirectory, frameDocument, HTML_FRAME_CSP, loadViewerBundle } from "./viewer-bundle.js";
+import {
+  ASSET_CHUNK_BYTES,
+  NOTE_CHANGED_CHANNEL,
+  hostContract,
+  hostSignals,
+  rpcContract,
+  type AssetRefusal,
+  type HostNote,
+  type NoteChanged,
+} from "./contract.js";
+import { editorFrameDocument, findEditorDirectory, loadEditorBundle } from "./editor-bundle.js";
+import { editorSaves } from "./editor-saves.js";
+import { findViewerDirectory, frameDocument, HTML_FRAME_CSP, loadViewerBundle, type ViewerFile } from "./viewer-bundle.js";
 
 type HttpContext = Parameters<Parameters<BbPluginApi["http"]["route"]>[2]>[0];
 
@@ -47,11 +58,25 @@ function acceptsGzip(header: string | undefined): boolean {
 }
 
 export default async function plugin(bb: BbPluginApi): Promise<void> {
-  const host = bb.hosts.experimental_client({ contract: hostContract });
+  const host = bb.hosts.experimental_client({ contract: hostContract, experimental_signals: hostSignals });
+  // A note changed outside bb: tell open editors, which compare the version with their own.
+  host.experimental_onSignal("editorNoteChanged", ({ hostId, payload }) => {
+    bb.realtime.publish(NOTE_CHANGED_CHANNEL, { hostId, ...payload } satisfies NoteChanged);
+  });
+  const saves = editorSaves(bb);
   const bundle = await loadViewerBundle(await findViewerDirectory(import.meta.url));
   const httpRoot = `/api/v1/plugins/${encodeURIComponent(bb.pluginId)}/http`;
   const frameUrl = `${httpRoot}${bundle.base}/frame.html`;
   const htmlFramePath = `${bundle.base}/moss-viewer-frame.html`;
+  // Without a verified editor bundle, every note stays in the viewer.
+  const editorDirectory = await findEditorDirectory(import.meta.url);
+  const editorBundle =
+    editorDirectory === null
+      ? null
+      : await loadEditorBundle(editorDirectory).catch((error: unknown) => {
+          bb.log.warn(`Moss editing is off: ${error instanceof Error ? error.message : String(error)}`);
+          return null;
+        });
 
   async function locate(input: {
     kind: "host" | "workspace";
@@ -76,12 +101,20 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     return { hostId: environment.hostId, path: posix.join(environment.path, relativePath) };
   }
 
-  const opened = (note: Extract<HostNote, { moss: true }>, hostId: string) => ({
+  const opened = ({ editable, ...note }: Extract<HostNote, { moss: true }>, hostId: string) => ({
     ...note,
     hostId,
     frameUrl,
     htmlFrameUrl: `${httpRoot}${htmlFramePath}`,
     assetRoute: `${httpRoot}/asset`,
+    editor:
+      editorBundle !== null && editable && note.noteId !== null
+        ? {
+            noteId: note.noteId,
+            frameUrl: `${httpRoot}${editorBundle.base}/frame.html`,
+            htmlFrameUrl: `${httpRoot}${editorBundle.base}/moss-html-frame.html`,
+          }
+        : null,
   });
 
   /**
@@ -139,70 +172,109 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     },
     notes: async ({ hostId }) => ({ notes: (await host.call("listNotes", {}, { hostId })).notes }),
     openInMoss: ({ hostId, path }) => host.call("openInMoss", { path }, { hostId }),
+    // The editor's file bridge: every call goes to the note's host.
+    editorRead: ({ hostId, ...input }) => host.call("editorRead", input, { hostId }),
+    editorReadCompanion: ({ hostId, ...input }) => host.call("editorReadCompanion", input, { hostId }),
+    editorWrite: ({ hostId, ...input }) => host.call("editorWrite", input, { hostId }),
+    editorWatch: ({ hostId, ...input }) => host.call("editorWatch", input, { hostId }),
+    editorAssetChunk: ({ hostId, ...input }) => host.call("editorAssetChunk", input, { hostId }),
+    editorAssetCommit: ({ hostId, ...input }) => host.call("editorAssetCommit", input, { hostId }),
+    editorAssetCopy: ({ hostId, ...input }) => host.call("editorAssetCopy", input, { hostId }),
+    editorKeep: ({ hostId, noteId, kind, draft, version }) => {
+      if (draft.noteId !== noteId) throw new Error("This draft belongs to another note.");
+      saves.keep(hostId, noteId, kind, draft, version);
+      return { kept: true as const };
+    },
+    editorKept: ({ hostId, noteId }) => saves.kept(hostId, noteId),
+    editorForget: ({ hostId, noteId, kind }) => {
+      saves.forget(hostId, noteId, kind);
+      return { forgotten: true as const };
+    },
   });
 
-  bb.http.route(
-    "GET",
-    `${bundle.base}/frame.html`,
-    () => {
-      const { html, csp } = frameDocument(randomBytes(18).toString("base64"));
-      return new Response(html, {
-        headers: {
-          "cache-control": "no-store",
-          "content-security-policy": csp,
-          "content-type": "text/html; charset=utf-8",
-          "x-content-type-options": "nosniff",
-        },
-      });
-    },
-    { auth: "local" },
-  );
-
-  bb.http.route(
-    "GET",
-    htmlFramePath,
-    () =>
-      new Response(bundle.htmlFrame, {
-        headers: {
-          "cache-control": "no-store",
-          "content-security-policy": HTML_FRAME_CSP,
-          "content-type": "text/html; charset=utf-8",
-          "x-content-type-options": "nosniff",
-        },
-      }),
-    { auth: "local" },
-  );
-
-  for (const [name, file] of bundle.files) {
+  /**
+   * A frame bundle's routes: its page under a fresh script nonce, Moss's page for
+   * HTML blocks under the sandbox policy, and its verified files as immutable.
+   */
+  function routeBundle(
+    frame: { base: string; files: ReadonlyMap<string, ViewerFile>; htmlFrame: Uint8Array<ArrayBuffer> },
+    htmlFrame: string,
+    page: (nonce: string) => { html: string; csp: string },
+  ): void {
     bb.http.route(
       "GET",
-      `${bundle.base}/${name}`,
-      (context) => {
-        const gzip = file.gzip !== undefined && acceptsGzip(context.req.header("accept-encoding"));
-        const headers: Record<string, string> = {
-          "cache-control": "private, max-age=31536000, immutable",
-          "content-type": file.contentType,
-          "x-content-type-options": "nosniff",
-        };
-        if (file.gzip) headers.vary = "accept-encoding";
-        if (gzip) headers["content-encoding"] = "gzip";
-        return new Response(gzip ? file.gzip : file.body, { headers });
+      `${frame.base}/frame.html`,
+      () => {
+        const { html, csp } = page(randomBytes(18).toString("base64"));
+        return new Response(html, {
+          headers: {
+            "cache-control": "no-store",
+            "content-security-policy": csp,
+            "content-type": "text/html; charset=utf-8",
+            "x-content-type-options": "nosniff",
+          },
+        });
       },
       { auth: "local" },
     );
+
+    bb.http.route(
+      "GET",
+      htmlFrame,
+      () =>
+        new Response(frame.htmlFrame, {
+          headers: {
+            "cache-control": "no-store",
+            "content-security-policy": HTML_FRAME_CSP,
+            "content-type": "text/html; charset=utf-8",
+            "x-content-type-options": "nosniff",
+          },
+        }),
+      { auth: "local" },
+    );
+
+    for (const [name, file] of frame.files) {
+      bb.http.route(
+        "GET",
+        `${frame.base}/${name}`,
+        (context) => {
+          const gzip = file.gzip !== undefined && acceptsGzip(context.req.header("accept-encoding"));
+          const headers: Record<string, string> = {
+            "cache-control": "private, max-age=31536000, immutable",
+            "content-type": file.contentType,
+            "x-content-type-options": "nosniff",
+          };
+          if (file.gzip) headers.vary = "accept-encoding";
+          if (gzip) headers["content-encoding"] = "gzip";
+          return new Response(gzip ? file.gzip : file.body, { headers });
+        },
+        { auth: "local" },
+      );
+    }
+  }
+
+  routeBundle(bundle, htmlFramePath, frameDocument);
+  // The editor's HTML blocks run under the viewer's stricter sandbox, which also keeps them off the web.
+  if (editorBundle !== null) {
+    routeBundle(editorBundle, `${editorBundle.base}/moss-html-frame.html`, (nonce) => editorFrameDocument(editorBundle.policy, nonce));
   }
 
   bb.http.route("GET", "/asset", (context) => serveAsset(context), { auth: "local" });
 
   async function serveAsset(context: HttpContext): Promise<Response> {
     const hostId = context.req.query("host");
+    // The viewer names a note by path; the editor by meta.json id, which survives a folder rename.
     const notePath = context.req.query("note");
+    const noteId = context.req.query("id");
     const ref = context.req.query("ref");
-    if (!hostId || !notePath || !ref || notePath.length > 4096 || ref.length > 4096 || hostId.length > 200) {
+    const note = notePath ?? noteId;
+    if (!hostId || !note || !ref || note.length > 4096 || (noteId && noteId.length > 200) || ref.length > 4096 || hostId.length > 200) {
       return text("A note asset needs a host, a note, and a reference.", 400);
     }
     const read = (offset: number, length: number) =>
-      host.call("readAsset", { notePath, ref, offset, length }, { hostId });
+      notePath
+        ? host.call("readAsset", { notePath, ref, offset, length }, { hostId })
+        : host.call("editorAsset", { noteId: note, ref, offset, length }, { hostId });
     const range = parseRange(context.req.header("range"));
     try {
       let start = 0;
@@ -221,12 +293,16 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       }
       const first = await read(start, end === null ? ASSET_CHUNK_BYTES : Math.min(end - start + 1, ASSET_CHUNK_BYTES));
       if (!first.ok) return text(first.message, REFUSAL_STATUS[first.code]);
+      // An SVG can carry script: it renders only through <img>, and opened on its own
+      // it is a download in an opaque origin, never a document on bb's origin.
+      const svg = first.contentType === "image/svg+xml";
       const headers: Record<string, string> = {
         "accept-ranges": "bytes",
         "cache-control": "private, max-age=300",
-        "content-security-policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+        "content-security-policy": svg ? "sandbox; default-src 'none'" : "sandbox; default-src 'none'; style-src 'unsafe-inline'",
         "content-type": first.contentType,
         "x-content-type-options": "nosniff",
+        ...(svg ? { "content-disposition": "attachment" } : {}),
       };
       const firstBody = decode(first.data);
       if (range !== null) {
