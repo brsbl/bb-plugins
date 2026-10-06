@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-thread-organizer",
-  "version": "0.1.9",
+  "version": "0.1.14",
   "description": "Organizes bb threads with configurable workflow sections and unread Inbox routing.",
   "type": "module",
   "license": "UNLICENSED",
@@ -37,6 +37,7 @@
   "dependencies": {
     "@hugeicons/core-free-icons": "4.2.2",
     "@hugeicons/react": "^1.1.6",
+    "@radix-ui/react-dropdown-menu": "^2.1.24",
     "@radix-ui/react-popover": "^1.1.23",
     "zod": "^4.3.6"
   },

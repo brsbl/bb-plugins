@@ -21,8 +21,8 @@
     "bbPluginSdk": "^0.5.9"
   },
   "bb": {
-    "name": "Digests",
-    "description": "Issues arrive in the Digests inbox. Move or archive them when done.",
+    "name": "Briefs",
+    "description": "Briefs arrive in the Briefs inbox. Move or archive them when done.",
     "branding": {
       "icon": "MailOpen"
     },

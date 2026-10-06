@@ -1,6 +1,7 @@
 // The veil thins bb's own backgrounds so the scene shows through, and puts frosted glass behind
 // text. It is one static stylesheet, injected once while Ambient is on; the user's controls reach
 // it through custom properties on <body>, so moving a slider never rebuilds or re-parses CSS.
+import { mountScrollClip } from "./scroll-clip.js";
 
 export const VEIL_STYLE_ID = "bb-ambient-veil";
 
@@ -47,7 +48,9 @@ export function mountVeil(): () => void {
     document.head.append(style);
   }
   const mounted = style;
+  const stopScrollClip = mountScrollClip();
   return () => {
+    stopScrollClip();
     mounted.remove();
     const { body } = document;
     body.style.removeProperty("--ambient-keep");
@@ -85,7 +88,8 @@ const SECTION_BACK = `${ROOT} [data-testid$="-sidebar-top-reserve-row"] + div:ha
 const SIDEBAR_OPEN = `${ROOT} .peer[data-state="expanded"][data-side="left"] + [data-sidebar="inset"]`;
 const THREAD_TITLE_ROW =
   '[data-split-pane-id]:has([data-thread-window]) > header > [data-testid="app-page-header-content-row"]';
-const PAGE_COLUMN = ':is(.max-w-5xl, [class~="max-w-[760px]"])';
+const PLUGIN_PAGE_BODY = '[data-testid="plugin-panel-body"]';
+const PAGE_COLUMN = `:is(.max-w-5xl, [class~="max-w-[760px]"], ${PLUGIN_PAGE_BODY})`;
 
 const COLUMN_HALF = "404px";
 /** bb's pl-[104px] traffic-light reserve, plus the 6px a header pill reaches outward. */
@@ -137,6 +141,8 @@ ${THREAD}::before { ${LAYER} ${GLASS_SURFACE} background-color: var(--ambient-gl
 ${THREAD} [data-overflow-fade] { ${HIDE} }
 ${PAGE} { position: relative; isolation: isolate; }
 ${PAGE}::before { ${LAYER} ${GLASS_SURFACE} border-radius: 20px; inset: 0 8px 8px; }
+${PAGE} ${PLUGIN_PAGE_BODY} { margin-left: max(calc(var(--ambient-column-gutter, 8px) - 16px), 50% - ${COLUMN_HALF}); margin-right: max(-8px, 50% - ${COLUMN_HALF}); margin-bottom: -8px; border-radius: 20px; }
+@media (min-width: 768px) { ${PAGE} ${PLUGIN_PAGE_BODY} { margin-left: max(calc(var(--ambient-column-gutter, 8px) - 20px), 50% - ${COLUMN_HALF}); margin-right: max(-12px, 50% - ${COLUMN_HALF}); margin-bottom: -12px; } }
 ${PAGE_MAIN} ${PAGE_COLUMN}:not(${PAGE_COLUMN} *) { anchor-name: --ambient-page-column; }
 ${PAGE_MAIN} #thread-detail-secondary-panel ${PAGE_COLUMN} { anchor-name: none; }
 ${PAGE}::before { left: max(var(--ambient-column-gutter, 8px), anchor(--ambient-page-column left, 8px)); right: max(8px, anchor(--ambient-page-column right, 8px)); }
@@ -151,10 +157,17 @@ ${PAGE} .bg-card[class*="hover:bg-"]:hover { background-color: color-mix(in okla
 ${THREAD}::after { content: ""; position: absolute; z-index: 1; pointer-events: none; top: 1px; height: 28px; left: calc(${COLUMN_LEFT} + 1px); right: calc(${COLUMN_RIGHT} + 1px); border-radius: 19px 19px 0 0; background: linear-gradient(to bottom, ${mix("var(--ambient-background)", "18%")}, transparent); }
 ${THREAD} [data-timeline-row-list] :is([data-message-column].border, [data-message-column] .border) { border-color: ${mix("var(--ink)", "8%")}; }
 ${THREAD} [data-markdown-preview] div:has(> div > table) { width: 100% !important; margin-inline: 0 !important; }
+${ROOT} [data-ambient-scroll-clip] { clip-path: inset(0 0 var(--ambient-scroll-clip-bottom, 0px) 0); }
 ${THREAD} [data-scroll-footer] > .bg-background { background-color: transparent; }
+/* Pending interactions overlap the scrolling timeline, so their surface must be fully opaque. */
+${ROOT} :is([data-testid="user-question-banner"], [data-testid="plugin-interaction-shell"], [data-testid="approval-banner"], [data-testid="plan-review-banner"]) { background-color: var(--ambient-background); border-radius: 12px; }
+/* Keep short secret-request actions on one compact row, including on mobile. */
+${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form > .sticky { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; background-color: var(--ambient-background); padding-block-start: 8px; }
+${ROOT} [data-testid="plugin-interaction-shell"] [data-bb-plugin="secrets"] form > .sticky > button { width: auto; }
 ${ROOT} header.bg-surface-scrim { border-color: transparent; }
-${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 0; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 62px), 600px); border-radius: 20px; }
+${COMPACT_HOME} > [data-testid="root-compose-compact-scroll-viewport"] { top: auto !important; bottom: 6px; left: ${COMPACT_INSET}; right: ${COMPACT_INSET}; max-height: min(calc(100% - 68px), 594px); border-radius: 20px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-recents-offset"] { ${HIDE} }
+${COMPACT_HOME} [data-testid="root-compose-compact-bottom-spacer"] { margin-block-start: -6px; }
 ${COMPACT_HOME} [data-testid="root-compose-compact-scroll-content"] > .px-4 { padding-inline: 0; }
 ${ROOT} [data-root-compose-mobile-recents] { ${GLASS_SURFACE} border-radius: 20px; padding-block: 0 6px; }
 ${ROOT} [data-root-compose-mobile-recents] > .sticky { position: static; background-color: transparent; ${NO_BLUR} padding-block-start: 16px; }
