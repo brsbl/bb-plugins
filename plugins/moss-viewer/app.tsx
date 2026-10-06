@@ -151,7 +151,7 @@ function NoteHeader({
             onClick={onRefresh}
           />
         ) : null}
-        <HeaderButton icon="Upload" label="Share with Agent" onClick={onShare} />
+        <HeaderButton icon="ArrowUp" label="Share with Agent" onClick={onShare} />
         <HeaderButton icon="ExternalLink" label="Open in Moss" onClick={onOpenInMoss} />
       </div>
     </TooltipProvider>

@@ -339,7 +339,7 @@ describe("kept drafts and save receipts", () => {
 describe("sharing a note with the agent", () => {
   const hosts = [{ id: "mac", name: "MacBook Air", status: "connected" as const }];
   const resolve = (h: Awaited<ReturnType<typeof setup>>, id: string) => {
-    const provider = h.inspection.mentionProviders.find((entry) => entry.id === "moss-note");
+    const provider = h.registrations.mentionProviders.find((entry) => entry.id === "moss-note");
     if (!provider) throw new Error("no moss-note mention provider");
     return Promise.resolve(provider.resolve(id));
   };
@@ -362,7 +362,7 @@ describe("sharing a note with the agent", () => {
     expect(note).toContain(notePath);
     expect(note).not.toContain("selected");
     expect(note).not.toContain("[[");
-    expect(h.inspection.mentionProviders.find((entry) => entry.id === "moss-note")?.search({ trigger: "@", query: "Clip", projectId: null, threadId: null })).toEqual([]);
+    expect(h.registrations.mentionProviders.find((entry) => entry.id === "moss-note")?.search({ trigger: "@", query: "Clip", projectId: null, threadId: null })).toEqual([]);
   });
 
   it("refuses a pill it never made or one older than thirty days", async () => {
