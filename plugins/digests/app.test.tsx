@@ -75,7 +75,7 @@ describe("Digests app", () => {
     let retrying = false;
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
       rpc: {
-        getIssue: () => retrying ? { ...readyIssue, state: "collecting", headline: "Preparing Unread email" } : ({ ...readyIssue, state: "failed", recovery: "reconnect", headline: "Gmail is signed out", details: "Reconnect Gmail, then retry this digest." }),
+        getIssue: () => retrying ? { ...readyIssue, state: "collecting", headline: "Preparing Unread email" } : ({ ...readyIssue, state: "failed", recovery: "reconnect", headline: "Gmail is signed out", details: "Reconnect Gmail, then retry this brief." }),
         reconnect: () => ({ message: "Gmail is open in bb Browser. Sign in there, then retry." }),
         retry: () => {
           if (needsUpdate) throw new Error("Update bb to 0.45.0 or later, then retry this issue.");
@@ -86,7 +86,7 @@ describe("Digests app", () => {
     });
     const reconnect = await slot.findByRole("button", { name: "Reconnect" });
     expect(slot.inspection.rpcCalls).toHaveLength(1);
-    expect(slot.getByText("Reconnect Gmail, then retry this digest.").closest("details")).toBeNull();
+    expect(slot.getByText("Reconnect Gmail, then retry this brief.").closest("details")).toBeNull();
     fireEvent.click(reconnect);
     expect(await slot.findByText("Gmail is open in bb Browser. Sign in there, then retry.")).toBeDefined();
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "reconnect", input: { threadId: "thr_issue", id: "issue_1" } });
@@ -102,7 +102,7 @@ describe("Digests app", () => {
 
   it("keeps one live card across a recovery banner and repeated retry directives", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
-    let issue = { ...readyIssue, state: "failed", recovery: "retry", headline: "This digest needs your attention" };
+    let issue = { ...readyIssue, state: "failed", recovery: "retry", headline: "This brief needs your attention" };
     const rpc = { getIssue: () => issue, recoveryIssue: () => issue };
     const banner = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "thread", threadId: "thr_issue" } }, rpc });
     const first = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc });
@@ -191,7 +191,7 @@ describe("Digests app", () => {
     await waitFor(() => expect(finish).toBeDefined(), { timeout: 2000 });
     startingIds = [];
     await slot.behavior.emitRealtime("issues", {});
-    await waitFor(() => expect(slot.queryByText("Starting this issue…")).toBeNull());
+    await waitFor(() => expect(slot.queryByText("Starting this brief…")).toBeNull());
     finish!({ threadId: "thr_async" });
     await waitFor(() => expect(slot.inspection.navigateCalls).toContainEqual({ method: "toThread", threadId: "thr_async" }));
   });
@@ -231,14 +231,14 @@ describe("Digests app", () => {
         definitions = [saved]; return saved;
       },
     } });
-    fireEvent.click(await slot.findByRole("button", { name: "+ Add digest" }));
+    fireEvent.click(await slot.findByRole("button", { name: "+ Add brief" }));
     const name = slot.getByLabelText("Name");
     expect(document.activeElement).toBe(name);
     expect(slot.getByLabelText("Emoji")).toBeDefined();
     expect((slot.getByLabelText("After reading") as HTMLSelectElement).value).toBe("keep-unread");
     fireEvent.change(name, { target: { value: "My inbox" } });
     fireEvent.change(slot.getByLabelText("What should it tell you?"), { target: { value: "Only messages that need a reply." } });
-    fireEvent.click(slot.getByRole("button", { name: "Create digest" }));
+    fireEvent.click(slot.getByRole("button", { name: "Create brief" }));
     expect(await slot.findByText("Run now to preview")).toBeDefined();
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", emoji: "📰", instructions: "Only messages that need a reply.", connectionId: "gmail", afterReading: "keep-unread", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
     expect(slot.getByText("Only messages that need a reply.").className).toContain("digest-prompt-preview");
@@ -374,6 +374,6 @@ describe("Digests app", () => {
     expect(slot.inspection.rpcCalls).toEqual([{ method: "recoveryIssue", input: { threadId: "thr_issue" } }]);
     fireEvent.click(slot.getByRole("button", { name: "Retry" }));
     await slot.behavior.emitRealtime("issues", { id: "issue_1" });
-    await waitFor(() => expect(slot.queryByRole("article", { name: "Digest summary" })).toBeNull());
+    await waitFor(() => expect(slot.queryByRole("article", { name: "Brief summary" })).toBeNull());
   });
 });

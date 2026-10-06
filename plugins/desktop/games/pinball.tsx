@@ -123,7 +123,7 @@ const COLORS = {
   sling: "#551226",
   slingLit: "#9a2238",
   slingEdge: "#e0463c",
-  slingBolt: "oklch(0.78 0.14 235)",
+  slingInsert: "oklch(0.78 0.14 235)",
   kicker: "#f4f1ea",
   lampOff: "#5c3a12",
   lampOn: "#ffc933",
@@ -772,15 +772,13 @@ function drawSlingshots(ctx: CanvasRenderingContext2D, state: PinballState) {
     ctx.lineWidth = 2;
     ctx.lineJoin = "round";
     ctx.stroke();
-    // Electric bolt printed inside the slingshot.
-    const mx = (top.x * 2 + bottom.x + inner.x) / 4;
-    ctx.beginPath();
-    ctx.moveTo(top.x + (inner.x - top.x) * 0.15, top.y + 14);
-    ctx.lineTo(mx + 4, (top.y + bottom.y) / 2);
-    ctx.lineTo(mx - 3, (top.y + bottom.y) / 2 + 8);
-    ctx.lineTo(bottom.x + (inner.x - bottom.x) * 0.45, bottom.y + (inner.y - bottom.y) * 0.3);
-    ctx.strokeStyle = COLORS.slingBolt;
-    ctx.shadowColor = COLORS.slingBolt;
+    // A lit triangle insert inside the slingshot.
+    const cx = (top.x + bottom.x + inner.x) / 3;
+    const cy = (top.y + bottom.y + inner.y) / 3;
+    const inset = (x: number, y: number): [number, number] => [cx + (x - cx) * 0.5, cy + (y - cy) * 0.5];
+    polygon(ctx, [inset(top.x, top.y), inset(bottom.x, bottom.y), inset(inner.x, inner.y)]);
+    ctx.strokeStyle = COLORS.slingInsert;
+    ctx.shadowColor = COLORS.slingInsert;
     ctx.shadowBlur = 5;
     ctx.lineWidth = lit ? 4 : 3;
     ctx.stroke();
