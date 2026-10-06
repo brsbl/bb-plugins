@@ -4,6 +4,8 @@ Read and edit Moss notes in a bb panel the way Moss does, saving to the note's f
 
 ![A Moss note with a wiki link pill and an embedded X post in bb's panel](https://github.com/user-attachments/assets/1f0ba527-c96d-4f11-9083-a2780231f7ef)
 
+![A Moss note edited in Moss's own editor in bb's panel, with the header showing Saved](https://github.com/user-attachments/assets/37538150-e509-4a06-a261-7bb89c56db57)
+
 ## Install
 
 ```bash

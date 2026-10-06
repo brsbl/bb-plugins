@@ -186,6 +186,10 @@ Reads and edits Moss notes in a bb panel the way Moss does: tabs, tables, wiki l
 
 ![A note-local video playing inside a Moss note in bb's panel](https://github.com/user-attachments/assets/79ebbff9-b01a-4922-a5d2-b87faec47a2c)
 
+![A Moss note edited in Moss's own editor in bb's panel, with the header showing Saved](https://github.com/user-attachments/assets/37538150-e509-4a06-a261-7bb89c56db57)
+
+![A new comment thread open beside a Moss note in the editor](https://github.com/user-attachments/assets/43b636a2-4e1f-4381-a100-ff85d6d3e87e)
+
 [Source](plugins/moss-viewer) · [README](plugins/moss-viewer/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-viewer --yes`
