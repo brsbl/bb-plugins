@@ -2,7 +2,7 @@
 
 Review product films without leaving bb. Open a video, mark a paused frame, and hand precise feedback to the agent alongside the captured still. The Video Markup thread panel keeps each demo's versions and unresolved notes together.
 
-![Video Markup's inline player, annotated video frame, and selected feedback in the composer](docs/screenshot.png)
+![The Video Markup panel with a marked frame, an open frame note, and selected notes in the prompt box](docs/screenshot.png)
 
 ## Install
 

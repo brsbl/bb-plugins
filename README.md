@@ -250,7 +250,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/a
 
 Review product films in bb with inline playback, frame annotations, and version history. Send selected feedback and captured frames to the agent, guided by the bundled Product Demo Direction skill.
 
-![Video Markup's inline player, annotated video frame, and selected feedback in the composer](plugins/video-markup/docs/screenshot.png)
+![The Video Markup panel with a marked frame, an open frame note, and selected notes in the prompt box](plugins/video-markup/docs/screenshot.png)
 
 [Source](plugins/video-markup) · [README](plugins/video-markup/README.md)
 
