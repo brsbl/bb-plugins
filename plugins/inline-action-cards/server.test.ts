@@ -153,7 +153,7 @@ it("log choices submit to their owning thread and resend the same durable attemp
   expect(pending.attempt!.sentAt).toBeTruthy();
   const send = host.harness.sdk.callsTo("threads.send")[0]![0];
   expect(send).toMatchObject({ threadId: "thr_other", mode: "queue-if-active", input: [{ text: "Send Billing follow-up", mentions: [{
-    start: 5, end: 21, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:thr_other:${ref.id}:${pending.attempt!.id}` },
+    start: 5, end: 22, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:thr_other:${ref.id}:${pending.attempt!.id}` },
   }] }] });
   await expect(host.harness.behavior.callRpc("decideFromLog", args)).rejects.toThrow("changed");
   const resent = await host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: pending.revision }) as Item;
