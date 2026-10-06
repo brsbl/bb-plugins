@@ -194,11 +194,15 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/o
 
 ### Moss Viewer
 
-Reads Moss notes in a bb panel the way Moss renders them: tabs, tables, wiki links, post embeds, charts, live HTML blocks, and note-local images and video. Notes stay on the Mac that holds them, and Open in Moss takes you to the app to edit.
+Reads and edits Moss notes in a bb panel the way Moss does: tabs, tables, wiki links, post embeds, charts, live HTML blocks, comments, and note-local images and video. Notes in ~/Moss/Notes open in Moss's own editor and save to their files on the Mac that holds them; other Moss notes open read-only.
 
 ![A Moss note with a wiki link pill and an embedded X post in bb's panel](https://github.com/user-attachments/assets/1f0ba527-c96d-4f11-9083-a2780231f7ef)
 
 ![A note-local video playing inside a Moss note in bb's panel](https://github.com/user-attachments/assets/79ebbff9-b01a-4922-a5d2-b87faec47a2c)
+
+![A Moss note in Moss's own editor in bb's panel after a save, with a quiet header](https://github.com/user-attachments/assets/72e28ca7-3c9c-46b3-bca9-035f064c1fd3)
+
+![A new comment thread open beside a Moss note in the editor](https://github.com/user-attachments/assets/43b636a2-4e1f-4381-a100-ff85d6d3e87e)
 
 [Source](plugins/moss-viewer) · [README](plugins/moss-viewer/README.md)
 
