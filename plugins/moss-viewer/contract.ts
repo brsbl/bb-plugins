@@ -217,7 +217,7 @@ export const rpcContract = defineRpcContract({
     input: z.object({ hostId: id, path: filePath }).strict(),
     output: z.object({ opened: z.literal(true) }).strict(),
   },
-  /** Keeps a note (and the selected text) for the mention the panel puts in its thread's composer. */
+  /** Keeps a note (and the selection) for the mention Moss's Share with Agent puts in the panel's thread's composer. */
   shareNote: {
     input: z
       .object({
@@ -225,7 +225,15 @@ export const rpcContract = defineRpcContract({
         path: filePath,
         title: z.string().min(1).max(500),
         noteId: id.nullable(),
-        selection: z.string().min(1).max(MAX_SHARED_SELECTION).nullable(),
+        selection: z
+          .object({
+            markdown: z.string().min(1).max(MAX_SHARED_SELECTION),
+            lines: z.object({ start: z.number().int().positive(), end: z.number().int().positive() }).strict(),
+            headings: z.array(z.string().max(200)).max(20),
+            truncated: z.boolean(),
+          })
+          .strict()
+          .nullable(),
       })
       .strict(),
     output: z.object({ id: z.string() }).strict(),
