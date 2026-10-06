@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PublishInputSchema } from "./model";
 import { createService } from "./service";
+import type { SignInPage } from "./signin";
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 9, 12, 18);
@@ -17,7 +18,7 @@ function setup(options: { runs?: Array<{
   id: string; threadId: string | null; status: string; scheduledFor: number; startedAt: number;
   error: string | null; skipReason: string | null;
 }>; personal?: boolean; offline?: boolean; stageSection?: boolean; dispatchFailure?: boolean; dispatchPending?: boolean } = {}) {
-  let signIn: { signedIn: boolean; signedOut: boolean; accountName?: string | null } = { signedIn: true, signedOut: false };
+  let signIn: { page: SignInPage; accountName?: string | null } = { page: "signed-in" };
   let tabCount = 0;
   let deliveryCount = 0;
   const threads = new Map<string, ReturnType<typeof makeThreadResponse>>();
@@ -245,7 +246,7 @@ describe("digest issue lifecycle", () => {
     const { bb, service, harness, setSignIn } = setup();
     await bb.storage.kv.set("connection-settings-thread", "thr_setup");
     expect(await service.checkConnections("gmail")).toMatchObject([{ status: "signed-in" }]);
-    setSignIn({ signedIn: false, signedOut: true });
+    setSignIn({ page: "login" });
     expect(await service.checkConnections("gmail")).toMatchObject([{ status: "signed-out" }]);
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toHaveLength(2);
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.closeTab")).toHaveLength(2);
@@ -274,7 +275,7 @@ describe("digest issue lifecycle", () => {
     expect(checked).toBe(3);
     await service.checkSettingsConnections();
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toHaveLength(checked);
-    setSignIn({ signedIn: false, signedOut: true });
+    setSignIn({ page: "login" });
     expect(await service.begin("reading", "thr_fresh")).toMatchObject({ complete: true, issue: { state: "failed", recovery: "reconnect" } });
     expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.createTab")).toHaveLength(checked + 1);
     vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31_000);
@@ -305,7 +306,7 @@ describe("digest issue lifecycle", () => {
     expect(service.store.connections.get("gmail")).toMatchObject({ status: "signed-in", detail: null });
 
     await service.publishCurrent("thr_first", payload());
-    setSignIn({ signedIn: false, signedOut: false });
+    setSignIn({ page: "challenge" });
     const challenged = await service.begin("reading", "thr_second");
     expect(challenged).toMatchObject({ complete: true, sessions: [], issue: { state: "failed", recovery: "reconnect" } });
     expect(service.store.connections.get("gmail")?.status).toBe("expired");
@@ -335,7 +336,7 @@ describe("digest issue lifecycle", () => {
 
   it("retries a failed issue in the same thread without consuming sources or creating another issue", async () => {
     const { service, harness, setSignIn } = setup();
-    setSignIn({ signedIn: false, signedOut: true });
+    setSignIn({ page: "login" });
     const failed = await service.begin("reading", "thr_retry");
     expect(failed.issue).toMatchObject({ state: "failed", recovery: "reconnect" });
     await expect(service.retry("thr_intruder", failed.issue.id)).rejects.toThrow("does not belong");
@@ -343,7 +344,7 @@ describe("digest issue lifecycle", () => {
     expect(harness.inspection.sdk.callsTo("threads.send")[0]?.[0]).toMatchObject({ threadId: "thr_retry", input: [{ type: "text", mentions: [], text: expect.stringContaining("digest_begin"), visibility: "agent-only" }] });
     expect(service.requiredIssue("thr_retry")).toMatchObject({ state: "collecting", recovery: null });
     expect(await service.recoveryIssue("thr_retry")).toMatchObject({ state: "collecting" });
-    setSignIn({ signedIn: true, signedOut: false });
+    setSignIn({ page: "signed-in" });
     const retried = await service.begin("reading", "thr_retry");
     expect(retried.issue.id).toBe(failed.issue.id);
     expect(retried.sessions[0]?.tabId).toBe("tab_2");
@@ -370,12 +371,12 @@ describe("digest issue lifecycle", () => {
 
   it("publishes a later successful run into its own failed issue without a manual Retry", async () => {
     const { service, setSignIn } = setup();
-    setSignIn({ signedIn: false, signedOut: true });
+    setSignIn({ page: "login" });
     const failed = await service.begin("reading", "thr_recover");
     expect(failed.issue).toMatchObject({ state: "failed", recovery: "reconnect" });
     await expect(service.publishCurrent("thr_recover", payload())).rejects.toThrow("digest_begin again");
     // Another thread's passing check does not verify this run.
-    setSignIn({ signedIn: true, signedOut: false });
+    setSignIn({ page: "signed-in" });
     expect(await service.checkConnections("gmail")).toMatchObject([{ status: "signed-in" }]);
     await expect(service.publishCurrent("thr_recover", payload())).rejects.toThrow("digest_begin again");
 
@@ -423,13 +424,13 @@ describe("digest issue lifecycle", () => {
   it("reads only the Gmail account its URL names and reports a mismatch", async () => {
     const { service, harness, setSignIn } = setup();
     service.store.connections.put({ ...service.store.connections.get("gmail")!, url: "https://mail.google.com/mail/u/me@example.com/" });
-    setSignIn({ signedIn: true, signedOut: false, accountName: "work@example.com" });
+    setSignIn({ page: "signed-in", accountName: "work@example.com" });
     const mismatched = await service.begin("reading", "thr_account");
     expect(mismatched.issue).toMatchObject({ state: "failed", recovery: "reconnect", details: "Signed in as work@example.com, expected me@example.com. Switch Gmail to me@example.com in the bb browser, then Retry." });
     expect(service.store.connections.get("gmail")).toMatchObject({ status: "expired", accountName: "work@example.com" });
     expect(await service.checkConnections("gmail")).toMatchObject([{ status: "expired", accountName: "work@example.com" }]);
 
-    setSignIn({ signedIn: true, signedOut: false, accountName: "Me@Example.com" });
+    setSignIn({ page: "signed-in", accountName: "Me@Example.com" });
     const begun = await service.begin("reading", "thr_account");
     expect(begun).toMatchObject({ complete: false, issue: { state: "collecting" } });
     expect(begun.instructions).toContain("https://mail.google.com/mail/?authuser=me@example.com#inbox/<id>");
@@ -549,7 +550,7 @@ describe("digest issue lifecycle", () => {
 
   it.each([false, true])("keeps recovery visible when an already-failed turn settles (failed=%s)", async (failedTurn) => {
     const { service, setSignIn } = setup();
-    setSignIn({ signedIn: false, signedOut: true });
+    setSignIn({ page: "login" });
     const result = await service.begin("reading", "thr_no_directive");
     await service.settled("thr_no_directive", failedTurn);
     expect(await service.recoveryIssue("thr_no_directive")).toMatchObject({
