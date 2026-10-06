@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown,
   Circle, CircleHelp, Clock, ExternalLink, FileCode2, Github, GitMerge, GitPullRequest,
-  GitPullRequestClosed, GitPullRequestDraft, Link2, Loader2, MessageCircle,
+  GitPullRequestClosed, GitPullRequestDraft, Link2, MessageCircle,
   Pin, PinOff, Plus, RefreshCw, Search, Unlink, X, XCircle, type LucideIcon,
 } from "lucide-react";
 import {
-  definePluginApp, experimental_useSidebarThreads, Markdown, useBbNavigate, useRealtime,
+  definePluginApp, experimental_Icon, experimental_useSidebarThreads, Markdown, useBbNavigate, useRealtime,
   useRealtimeConnectionState, useRpc, type PluginNavPanelProps, type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { CHANGED, type Changes, type Listing, type PullRequestItem, type Snapshot, type ThreadChoice, type rpcContract } from "./contract";
@@ -18,7 +18,8 @@ import "./app.css";
 type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
 type Group = "history";
 type Tab = "summary" | "changes";
-type Presentation = { icon: LucideIcon; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
+type StatusGlyph = ComponentType<{ size?: number; strokeWidth?: number; className?: string; "aria-hidden"?: boolean | "true" }>;
+type Presentation = { icon: StatusGlyph; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
 type ThreadContext = { threads: ThreadChoice[]; hosts: { id: string; name: string; connected: boolean }[]; nextCursor: string | null };
 type Preview = { token: string; snapshot: Snapshot; reader: { login: string; hostId: string }; thread: ThreadChoice };
 const session = { query: "", author: "", reviewer: "", sort: "updated" as Sort, collapsed: ["history"] as Group[], scrollTop: 0 };
@@ -37,14 +38,26 @@ function safeUrl(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
   try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? url.href : undefined; } catch { return undefined; }
 }
+function AuthorTag({ author, avatarUrl }: { author: Snapshot["author"]; avatarUrl: Snapshot["authorAvatarUrl"] }) {
+  const [failedUrl, setFailedUrl] = useState<string>();
+  const src = safeUrl(avatarUrl);
+  return <span className="pr-author-tag"><span className="pr-author-avatar" aria-hidden="true">
+    {src && src !== failedUrl ? <img src={src} alt="" width={20} height={20} referrerPolicy="no-referrer" onError={() => setFailedUrl(src)} /> : author?.slice(0, 1).toUpperCase() || "?"}
+  </span>{author ? `@${author}` : "Unknown author"}</span>;
+}
 function githubFresh(item: PullRequestItem, now: number): boolean {
   return item.sourceState === "available" && item.snapshot !== null && now - Date.parse(item.snapshot.fetchedAt) <= 60_000;
+}
+/** bb's own thread-working glyph, so plugin activity matches the sidebar. */
+const BbIcon = experimental_Icon;
+function WorkingIcon({ size = 16, className }: { size?: number; className?: string }) {
+  return <BbIcon name="Loading" aria-hidden="true" className={["pr-working", className].filter(Boolean).join(" ")} style={{ width: size, height: size }} />;
 }
 function threadPresentation(thread?: PluginSidebarThread, archived = false): Presentation {
   if (!thread) return { icon: archived ? Clock : CircleHelp, label: archived ? "Archived thread" : "Thread activity unavailable", tone: "muted" };
   if (thread.hasPendingInteraction || thread.indicator === "waiting-for-input") return { icon: MessageCircle, label: thread.indicatorLabel ?? "Waiting for your input", tone: "warning" };
   if (thread.indicator === "unread-error" || thread.indicator === "queued-failed" || thread.status === "error") return { icon: AlertCircle, label: thread.indicatorLabel ?? "Thread error", tone: "danger" };
-  if (["active", "starting", "stopping"].includes(thread.status) || Object.values(thread.activity).some((count) => count > 0)) return { icon: Loader2, label: thread.indicatorLabel ?? "Thread working", spin: true };
+  if (["active", "starting", "stopping"].includes(thread.status) || Object.values(thread.activity).some((count) => count > 0)) return { icon: WorkingIcon, label: thread.indicatorLabel ?? "Thread working", spin: true };
   if (thread.runtimeStatus === "waiting-for-host") return { icon: Clock, label: "Waiting for machine", tone: "warning" };
   return { icon: Circle, label: thread.isArchived ? "Archived thread" : "Thread idle", tone: "muted" };
 }
@@ -155,7 +168,7 @@ function Empty({ title, children }: { title: string; children?: ReactNode }) {
 function Loading({ label }: { label: string }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => { const timer = window.setTimeout(() => setVisible(true), 200); return () => window.clearTimeout(timer); }, []);
-  return <div className="pr-loading" role="status" aria-busy="true" aria-label={label}>{visible && <div aria-hidden="true"><div /><div /><div /></div>}</div>;
+  return <div className="pr-loading" role="status" aria-busy="true" aria-label={label}>{visible && <><WorkingIcon className="pr-spin" /><span aria-hidden="true">{label}…</span></>}</div>;
 }
 
 export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
@@ -427,52 +440,50 @@ function PullRequestDetail({ item, loading, tab, now, context, choices, liveThre
         <button type="button" aria-current={tab === "changes" ? "page" : undefined} onClick={() => onTab("changes")}>Changes{snapshot && <span className="pr-diff-total"><span className="pr-tone-success">+{snapshot.additions}</span><span className="pr-tone-danger">−{snapshot.deletions}</span></span>}</button>
       </nav>
       <div className="pr-toolbar-actions">
-        <div className="pr-action-group"><IconButton icon={item.pinned ? PinOff : Pin} label={item.pinned ? "Unpin pull request" : "Pin pull request"} active={item.pinned} onClick={() => void onUpdate(() => rpc.call("pin", { id: item.id, pinned: !item.pinned }))} /><External className="pr-icon-link" href={item.url}><Github size={16} aria-hidden="true" /><span className="pr-sr-only">Open pull request on GitHub</span></External></div>
-        <button className="pr-button pr-button-primary" type="button" onClick={item.links.length ? openThread : onLink}>{!item.links.length ? "Link thread" : preferred && choices.has(preferred.threadId) ? "Open thread" : "Choose thread"}<ArrowRight size={14} /></button>
+        <div className="pr-action-group"><IconButton icon={item.pinned ? PinOff : Pin} label={item.pinned ? "Unpin pull request" : "Pin pull request"} active={item.pinned} onClick={() => void onUpdate(() => rpc.call("pin", { id: item.id, pinned: !item.pinned }))} />{item.links.length > 0 && <External className="pr-icon-link" href={item.url}><Github size={16} aria-hidden="true" /><span className="pr-sr-only">Open pull request on GitHub</span></External>}</div>
+        {item.links.length ? <button className="pr-button pr-button-primary" type="button" onClick={openThread}>{preferred && choices.has(preferred.threadId) ? "Open thread" : "View threads"}{preferred && choices.has(preferred.threadId) && <ArrowRight size={14} />}</button> : <External className="pr-button pr-button-primary" href={item.url}>Open on GitHub<ExternalLink size={14} /></External>}
       </div>
     </div>
     <div className="pr-detail-scroll">
       {(!githubFresh(item, now) || item.sourceMessage) && <div className="pr-source-notice"><StatusIcon icon={item.sourceState === "denied" || item.sourceState === "auth-changed" ? AlertTriangle : Clock} tone="warning" label={item.sourceState.replaceAll("-", " ")} /><span>{item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}.`}{snapshot && " Showing the last known snapshot."}</span><button type="button" className="pr-text-button" onClick={onRefresh}>Retry</button></div>}
       {tab === "changes" ? <ChangesView key={`${item.id}:${item.reader?.hostId ?? ""}:${item.reader?.accountId ?? ""}:${item.sourceState}:${snapshot?.headSha ?? "unavailable"}`} item={item} rpc={rpc} /> : <div className="pr-summary">
-        <div className="pr-summary-main">
         <header className="pr-detail-heading">
           <div className="pr-detail-meta"><StatusIcon {...lifecycle(snapshot)} /><span>{snapshot ? `${snapshot.repository} #${snapshot.number}` : "Pull request"}</span></div>
           <h1>{snapshot?.title ?? "Pull request unavailable"}</h1>
-          {snapshot && <div className="pr-branch-line"><span className="pr-author">{snapshot.author ? `@${snapshot.author}` : "Unknown author"}</span><time dateTime={snapshot.updatedAt} title={`Updated ${new Date(snapshot.updatedAt).toLocaleString()}`}>{age(snapshot.updatedAt)}</time><span aria-hidden="true">·</span><code>{snapshot.headBranch}</code><ArrowRight size={12} aria-hidden="true" /><code>{snapshot.baseBranch}</code></div>}
+          {snapshot && <><div className="pr-author-line"><AuthorTag author={snapshot.author} avatarUrl={snapshot.authorAvatarUrl} /><span>updated <time dateTime={snapshot.updatedAt} title={new Date(snapshot.updatedAt).toLocaleString()}>{age(snapshot.updatedAt)}</time></span></div>
+          <details className="pr-branches"><summary aria-label="Branches"><code title={snapshot.headBranch}>{snapshot.headBranch}</code><ArrowRight size={13} aria-hidden="true" /><code title={snapshot.baseBranch}>{snapshot.baseBranch}</code><ChevronDown size={13} aria-hidden="true" /></summary><dl><dt>From</dt><dd><code>{snapshot.headBranch}</code></dd><dt>Into</dt><dd><code>{snapshot.baseBranch}</code></dd></dl></details></>}
         </header>
+        {loading ? <aside className="pr-status-rail"><Loading label="Loading pull request status" /></aside> : snapshot && <SummaryStatusRail snapshot={snapshot} url={item.url} />}
+        <div className="pr-summary-main">
         {snapshot ? <section className="pr-description" aria-label="Description">{loading ? <Loading label="Loading pull request details" /> : snapshot.body ? <Markdown content={snapshot.body} className="pr-markdown" /> : <p className="pr-muted">No description provided.</p>}</section> : <p className="pr-unavailable">This source cannot currently read the pull request. Verify its GitHub access below.</p>}
-        <section className="pr-threads" ref={threadsSection} tabIndex={-1} aria-label="Related threads"><div className="pr-section-heading"><h2>Threads <span>{item.links.length}</span></h2><button type="button" className="pr-text-button" aria-expanded={manage} onClick={() => setManage(!manage)}>{manage ? "Done" : "Manage threads"}</button></div>{item.links.map((link) => {
+        <section className="pr-threads" ref={threadsSection} tabIndex={-1} aria-label="Related threads"><div className="pr-section-heading"><h2>Threads <span>{item.links.length}</span></h2>{item.links.length > 0 && <button type="button" className="pr-text-button" aria-expanded={manage} onClick={() => setManage(!manage)}>{manage ? "Done" : "Manage threads"}</button>}</div>{item.links.map((link) => {
           const thread = choices.get(link.threadId);
           const live = liveThreads.get(link.threadId);
-          return <div className="pr-related-thread" key={link.threadId}><StatusIcon {...threadPresentation(live, thread?.archived)} /><div className="pr-related-thread-content"><button type="button" className="pr-thread-link" disabled={!thread} onClick={() => onThread(link.threadId)}>{live?.displayTitle ?? thread?.title ?? "Unavailable thread"}</button><span className="pr-thread-evidence">{link.origin ? "Originating thread" : link.evidence === "environment" ? "Related checkout" : "Linked thread"}{thread?.archived ? " · archived" : ""}{item.preferredThreadId === link.threadId ? " · preferred" : ""}</span></div>{manage ? <><IconButton icon={Check} label={item.preferredThreadId === link.threadId ? "Clear preferred thread" : "Use as preferred thread"} active={item.preferredThreadId === link.threadId} onClick={() => void onUpdate(() => rpc.call("prefer", { id: item.id, threadId: item.preferredThreadId === link.threadId ? null : link.threadId }))} /><IconButton icon={Unlink} label={`Remove link to ${thread?.title ?? link.threadId}`} onClick={() => onUnlink(link.threadId)} /></> : <IconButton icon={ArrowRight} label={`Open ${thread?.title ?? "thread"}`} disabled={!thread} onClick={() => onThread(link.threadId)} />}</div>;
-        })}{manage && <button className="pr-text-button pr-add-thread" type="button" onClick={onLink}><Plus size={14} />Link another thread</button>}</section>
-        <details className="pr-source"><summary>Source <span>{sourceName}{item.reader ? ` · @${item.reader.login}` : ""}</span><ChevronDown size={14} /></summary><div><p>Read from GitHub on {sourceName}. Last attempt {age(item.lastAttemptAt)}.</p><label>Source machine<select value={sourceHost} onChange={(event) => setSourceHost(event.target.value)}><option value="" disabled>Select a machine</option>{context.hosts.map((host) => <option key={host.id} value={host.id} disabled={!host.connected}>{host.name}{host.connected ? "" : " · offline"}</option>)}</select></label><button type="button" className="pr-button" disabled={!sourceHost || sourceBusy} onClick={() => { setSourceBusy(true); void onUpdate(() => rpc.call("source", { id: item.id, hostId: sourceHost })).finally(() => setSourceBusy(false)); }}>{sourceBusy ? "Verifying…" : "Verify source"}</button></div></details>
+          const labels = [link.origin && "Originating thread", item.preferredThreadId === link.threadId && "Preferred", thread?.archived && "Archived"].filter(Boolean);
+          return <div className="pr-related-thread" key={link.threadId}><StatusIcon {...threadPresentation(live, thread?.archived)} /><div className="pr-related-thread-content"><button type="button" className="pr-thread-link" disabled={!thread} onClick={() => onThread(link.threadId)}>{live?.displayTitle ?? thread?.title ?? "Unavailable thread"}</button>{labels.length > 0 && <span className="pr-thread-evidence">{labels.join(" · ")}</span>}</div>{manage && <><IconButton icon={Check} label={item.preferredThreadId === link.threadId ? "Clear preferred thread" : "Use as preferred thread"} active={item.preferredThreadId === link.threadId} onClick={() => void onUpdate(() => rpc.call("prefer", { id: item.id, threadId: item.preferredThreadId === link.threadId ? null : link.threadId }))} /><IconButton icon={Unlink} label={`Remove link to ${thread?.title ?? link.threadId}`} onClick={() => onUnlink(link.threadId)} /></>}</div>;
+        })}{(manage || !item.links.length) && <button className="pr-text-button pr-add-thread" type="button" onClick={onLink}><Plus size={14} />{item.links.length ? "Link another thread" : "Link thread"}</button>}</section>
+        <details className="pr-source"><summary>Connection details<ChevronDown size={14} aria-hidden="true" /></summary><div><dl><dt>GitHub account</dt><dd>{item.reader ? <span>@{item.reader.login}</span> : "Not verified"}</dd><dt>Machine</dt><dd>{sourceName}</dd><dt>Last checked</dt><dd>{age(item.lastAttemptAt)}</dd>{snapshot && <><dt>Revision</dt><dd><code>{snapshot.headSha.slice(0, 7)}</code></dd></>}</dl><label>Source machine<select value={sourceHost} onChange={(event) => setSourceHost(event.target.value)}><option value="" disabled>Select a machine</option>{context.hosts.map((host) => <option key={host.id} value={host.id} disabled={!host.connected}>{host.name}{host.connected ? "" : " · offline"}</option>)}</select></label><button type="button" className="pr-button" disabled={!sourceHost || sourceBusy} onClick={() => { setSourceBusy(true); void onUpdate(() => rpc.call("source", { id: item.id, hostId: sourceHost })).finally(() => setSourceBusy(false)); }}>{sourceBusy ? "Verifying…" : "Verify source"}</button></div></details>
         </div>
-        {loading ? <aside className="pr-status-rail"><Loading label="Loading pull request status" /></aside> : snapshot && <SummaryStatusRail snapshot={snapshot} url={item.url}>{/* Stack relationships stay beside the review state. */}
-        {snapshot?.stack.state === "available" && snapshot.stack.items.length > 0 && <section className="pr-stack"><h2>Stack</h2>{snapshot.stack.items.map((entry) => <div key={entry.url}><StatusIcon {...lifecycle(["open", "draft", "merged", "closed"].includes(entry.state.toLowerCase()) ? { state: entry.state.toLowerCase() as Snapshot["state"] } : null)} /><External href={entry.url}>{entry.title}<span>#{entry.number}</span></External></div>)}</section>}
-        {snapshot?.stack.state === "unavailable" && <p className="pr-muted pr-stack-unavailable">Stack information unavailable.</p>}
-        </SummaryStatusRail>}
       </div>}
     </div>
   </>;
 }
 
-function SummaryStatusRail({ snapshot, url, children }: { snapshot: Snapshot; url: string; children: ReactNode }) {
+function SummaryStatusRail({ snapshot, url }: { snapshot: Snapshot; url: string }) {
   const [allChecks, setAllChecks] = useState(false);
   const checks = allChecks ? snapshot.checks.items : snapshot.checks.items.slice(0, 6);
   const merge = mergePresentation(snapshot.mergeability);
   const review = reviewPresentation(snapshot.review);
+  const checkStatus = checksPresentation(snapshot);
   return <aside className="pr-status-rail" aria-label="Pull request status">
-    <section><h2>Merge status</h2><div className="pr-rail-status"><StatusIcon {...merge} /><span>{merge.label}</span>{snapshot.queued && <StatusIcon icon={Clock} label="In merge queue" tone="warning" />}{snapshot.autoMerge && <StatusIcon icon={GitMerge} label="Auto-merge enabled on GitHub" />}</div></section>
-    <section><h2>Reviews</h2><div className="pr-rail-status"><StatusIcon {...review} /><span>{review.label}</span></div>{snapshot.requestedReviewers?.map((reviewer) => <p className="pr-requested-reviewer" key={reviewer}>@{reviewer}</p>)}{snapshot.reviewRequestsComplete === false && <p className="pr-muted">Reviewer list incomplete.</p>}</section>
-    <section><div className="pr-section-heading"><h2>Checks</h2><StatusIcon {...checksPresentation(snapshot)} count={snapshot.checks.total > 0 ? `${snapshot.checks.passing}/${snapshot.checks.total}` : undefined} /></div>
+    <section><h2>Merge</h2><div className="pr-rail-status"><StatusIcon {...merge} /><span>{merge.label}</span>{snapshot.queued && <StatusIcon icon={Clock} label="In merge queue" tone="warning" />}{snapshot.autoMerge && <StatusIcon icon={GitMerge} label="Auto-merge enabled on GitHub" />}</div></section>
+    <section><h2>Reviews</h2><div className="pr-rail-status"><StatusIcon {...review} /><span>{review.label}</span></div>{snapshot.requestedReviewers && snapshot.requestedReviewers.length > 0 && <div className="pr-requested-reviewer"><span>Requested:</span>{snapshot.requestedReviewers.map((reviewer) => <span key={reviewer}>@{reviewer}</span>)}</div>}{snapshot.reviewRequestsComplete === false && <p className="pr-muted">Reviewer list incomplete.</p>}</section>
+    <section><h2>Checks</h2><details className="pr-checks"><summary><checkStatus.icon size={16} className={`pr-tone-${checkStatus.tone}`} aria-hidden="true" /><span>{snapshot.checks.state === "none" && !snapshot.checks.complete ? "Check results incomplete" : checkStatus.label}</span><ChevronDown size={14} aria-hidden="true" /></summary><div className="pr-checks-list">
       {checks.map((check, index) => <div className="pr-check-line" key={`${check.name}:${index}`}><StatusIcon icon={check.state === "passing" ? CheckCircle2 : check.state === "failing" ? XCircle : check.state === "pending" ? Clock : check.state === "neutral" ? Circle : CircleHelp} label={`${check.name}: ${check.state}`} tone={check.state === "passing" ? "success" : check.state === "failing" ? "danger" : check.state === "pending" ? "warning" : "muted"} /><External href={check.url}>{check.name}</External></div>)}
       {snapshot.checks.items.length > 6 && <button type="button" className="pr-text-button" aria-expanded={allChecks} onClick={() => setAllChecks(!allChecks)}>{allChecks ? "Show fewer checks" : `View ${snapshot.checks.items.length - 6} more checks`}</button>}
-      {!snapshot.checks.complete && <p className="pr-muted">Check results incomplete.</p>}
       <External href={`${url}/checks`} className="pr-subtle-link">Open checks on GitHub<ExternalLink size={12} /></External>
-    </section>
-    {children}
-    <p className="pr-facts-note">Snapshot at <code>{snapshot.headSha.slice(0, 7)}</code> · {age(snapshot.fetchedAt)}</p>
+    </div></details></section>
+    {snapshot.stack.state === "available" && snapshot.stack.items.length > 0 && <section className="pr-stack"><details><summary>Stack <span>{snapshot.stack.items.length} pull requests</span><ChevronDown size={14} aria-hidden="true" /></summary>{snapshot.stack.items.map((entry) => <div key={entry.url}><StatusIcon {...lifecycle(["open", "draft", "merged", "closed"].includes(entry.state.toLowerCase()) ? { state: entry.state.toLowerCase() as Snapshot["state"] } : null)} /><External href={entry.url}>{entry.title}<span>#{entry.number}</span></External></div>)}</details></section>}
   </aside>;
 }
 
@@ -493,7 +504,12 @@ function ChangesView({ item, rpc }: { item: PullRequestItem; rpc: Rpc }) {
   if (error) return <div className="pr-error" role="alert"><span>{error}</span><button type="button" className="pr-text-button" onClick={() => setAttempt((value) => value + 1)}>Retry</button></div>;
   if (!changes) return null;
   const selected = changes.files.find((entry) => entry.path === file);
-  return <div className="pr-changes"><div className="pr-changes-revision"><span>{changes.total} changed files</span><code>{changes.headSha.slice(0, 7)}</code><External href={`${item.url}/files`} className="pr-subtle-link">Open on GitHub<ExternalLink size={12} /></External></div>{(changes.truncated || changes.message) && <p className="pr-source-notice">{changes.message ?? `Showing ${changes.files.length} of ${changes.total} files. Open GitHub for the full diff.`}</p>}<div className="pr-changes-layout"><nav aria-label="Changed files" className="pr-file-list">{changes.files.map((entry) => <button type="button" key={entry.path} onClick={() => setFile(entry.path)} aria-current={file === entry.path ? "page" : undefined}><FileCode2 size={14} aria-hidden="true" /><span>{entry.path}</span><small><span className="pr-tone-success">+{entry.additions}</span> <span className="pr-tone-danger">−{entry.deletions}</span></small></button>)}</nav><section className="pr-patch" aria-label="File changes">{selected ? <><header><code>{selected.path}</code>{selected.previousPath && <small>Renamed from {selected.previousPath}</small>}</header>{selected.patch ? <pre>{selected.patch.split("\n").map((line, index) => <span key={index} className={line.startsWith("+") && !line.startsWith("+++") ? "pr-diff-add" : line.startsWith("-") && !line.startsWith("---") ? "pr-diff-remove" : line.startsWith("@@") ? "pr-diff-hunk" : undefined}>{line || " "}</span>)}</pre> : <p className="pr-muted">No text patch available for this file. <External href={`${item.url}/files`}>Open the file on GitHub.</External></p>}</> : <p className="pr-muted">No changed files returned.</p>}</section></div></div>;
+  return <div className="pr-changes"><div className="pr-changes-revision"><span>{changes.total} changed files</span><External href={`${item.url}/files`} className="pr-subtle-link">Open on GitHub<ExternalLink size={12} /></External></div>{(changes.truncated || changes.message) && <p className="pr-source-notice">{changes.message ?? `Showing ${changes.files.length} of ${changes.total} files. Open GitHub for the full diff.`}</p>}<div className="pr-changes-layout"><nav aria-label="Changed files" className="pr-file-list">{changes.files.map((entry) => {
+    const separator = entry.path.lastIndexOf("/");
+    const directory = entry.path.slice(0, separator + 1);
+    const name = entry.path.slice(separator + 1);
+    return <button type="button" key={entry.path} title={entry.path} aria-label={entry.path} onClick={() => setFile(entry.path)} aria-current={file === entry.path ? "page" : undefined}><FileCode2 size={15} aria-hidden="true" /><span className="pr-file-name"><strong>{name}</strong>{directory && <span dir="rtl"><bdi dir="ltr">{directory}</bdi></span>}</span><small><span className="pr-tone-success">+{entry.additions}</span><span className="pr-tone-danger">−{entry.deletions}</span></small></button>;
+  })}</nav><section className="pr-patch" aria-label="File changes">{selected ? <><header><code>{selected.path}</code>{selected.previousPath && <small>Renamed from <code>{selected.previousPath}</code></small>}</header>{selected.patch ? <pre>{selected.patch.split("\n").map((line, index) => <span key={index} className={line.startsWith("+") && !line.startsWith("+++") ? "pr-diff-add" : line.startsWith("-") && !line.startsWith("---") ? "pr-diff-remove" : line.startsWith("@@") ? "pr-diff-hunk" : undefined}>{line || " "}</span>)}</pre> : <p className="pr-muted">No text patch available for this file. <External href={`${item.url}/files`}>Open the file on GitHub.</External></p>}</> : <p className="pr-muted">No changed files returned.</p>}</section></div></div>;
 }
 
 function LinkDialog({ rpc, initialUrl, choices, hosts, onClose, onLinked }: { rpc: Rpc; initialUrl: string; choices: ThreadChoice[]; hosts: ThreadContext["hosts"]; onClose(): void; onLinked(item: PullRequestItem): void }) {

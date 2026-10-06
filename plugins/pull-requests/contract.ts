@@ -11,6 +11,7 @@ export const checkSchema = z.object({ name: text, state: z.enum(["passing", "fai
 export const snapshotSchema = z.object({
   nodeId: id, url: text, repository: text, number: z.number().int().positive(), title: text, body: text,
   author: text.nullable(), state: z.enum(["open", "draft", "merged", "closed"]), headSha: text,
+  authorAvatarUrl: text.nullable().optional(),
   // Optional so snapshots saved before reviewer filtering remain readable.
   requestedReviewers: z.array(text).optional(), reviewRequestsComplete: z.boolean().optional(),
   headBranch: text, baseBranch: text, updatedAt: text, fetchedAt: text,

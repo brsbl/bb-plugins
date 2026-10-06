@@ -30,6 +30,7 @@ describe("Pull Requests access and detail lifetime", () => {
     expect(await screen.findByRole("button", { name: "Private pull request" })).toBeDefined();
     expect(await screen.findByText("Private description")).toBeDefined();
     expect(screen.getByRole("button", { name: "Link thread" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Open on GitHub" }).getAttribute("href")).toBe(item.url);
     slot.lifecycle.unmount();
   });
   it("does not restore private content from a pin response delivered after access invalidation", async () => {
@@ -171,6 +172,8 @@ describe("Pull Requests access and detail lifetime", () => {
       list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
+    const summary = (await screen.findByText("7 of 7 checks passing")).closest("summary")!;
+    fireEvent.click(summary);
     expect(await screen.findByRole("link", { name: "Check 1" })).toBeDefined();
     expect(screen.queryByRole("link", { name: "Check 7" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "View 1 more checks" }));
@@ -225,7 +228,7 @@ describe("Pull Requests access and detail lifetime", () => {
 
 
 describe("Pull Requests thread selection", () => {
-  it("opens Summary and focuses Threads when Choose thread is used from Changes", async () => {
+  it("opens Summary and focuses Threads when View threads is used from Changes", async () => {
     const item = fixture();
     item.preferredThreadId = null;
     item.links.push({ ...item.links[0]!, threadId: "thr_second" });
@@ -240,7 +243,7 @@ describe("Pull Requests thread selection", () => {
         context: () => ({ threads: [thread, { ...thread, id: "thr_second", title: "Second thread" }], hosts: [], nextCursor: null }),
         changes: () => ({ headSha: "abc1234", files: [], total: 0, truncated: false, message: null }),
       } });
-      fireEvent.click(await screen.findByRole("button", { name: "Choose thread" }));
+      fireEvent.click(await screen.findByRole("button", { name: "View threads" }));
       expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "requests", options: { subPath: "github:PR_123/summary" } });
       slot.lifecycle.rerender(<Panel subPath="github:PR_123/summary" />);
       await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("region", { name: "Related threads" })));

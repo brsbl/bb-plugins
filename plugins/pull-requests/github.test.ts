@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { projectSnapshot, readChanges, readPullRequest, searchPullRequests, type GhRunner } from "./github.js";
 import { githubNeedsAttention, originMarkers, parsePullRequestUrl, referencedThreadIds } from "./core.js";
+import { snapshotSchema } from "./contract.js";
 
 const url = "https://github.com/acme/repo/pull/42";
 const account = { node_id: "U_A", login: "alice" };
@@ -17,6 +18,17 @@ function runner(pr = rawPr()): GhRunner {
   };
 }
 describe("GitHub read boundary", () => {
+  it("keeps GitHub author avatars while accepting snapshots saved before avatars", async () => {
+    const avatarUrl = "https://avatars.githubusercontent.com/u/42?s=40";
+    const pr = { ...rawPr(), author: { login: "alice", avatarUrl } };
+    const run = vi.fn<GhRunner>(runner(pr));
+    const result = await readPullRequest({ url }, run);
+    expect(result).toMatchObject({ ok: true, snapshot: { author: "alice", authorAvatarUrl: avatarUrl } });
+    expect(run.mock.calls.some(([args]) => args.some((arg) => arg.includes("avatarUrl(size:40)")))).toBe(true);
+    const { authorAvatarUrl: _, ...legacy } = projectSnapshot(rawPr());
+    expect(snapshotSchema.parse(legacy).author).toBe("alice");
+    expect(projectSnapshot({ ...rawPr(), author: null }).authorAvatarUrl).toBeNull();
+  });
   it("deduplicates description IDs, mentions and thread links without matching partial IDs", () => {
     expect(referencedThreadIds("BB-Thread-ID: thr_a\nRelated: thr_b, @thread:thr_a\n[Review](https://brsbl.getbb.app/projects/proj_a/threads/thr_c)\n[Chat](bb://thread/thr_d)\nnot_thr_other thr_partial_suffix thr_partial-suffix")).toEqual(["thr_a", "thr_b", "thr_c", "thr_d"]);
   });

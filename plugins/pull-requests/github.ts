@@ -13,14 +13,14 @@ const viewerSchema = z.object({ id: z.string(), login: z.string() });
 const checkNode = z.object({ __typename: z.string(), name: z.string().optional(), context: z.string().optional(), status: z.string().optional(), state: z.string().optional(), conclusion: z.string().nullable().optional(), detailsUrl: z.string().nullable().optional(), targetUrl: z.string().nullable().optional() });
 const rawPrSchema = z.object({
   id: z.string(), url: z.string(), number: z.number(), title: z.string(), body: z.string(), state: z.string(), isDraft: z.boolean(), headRefOid: z.string(), headRefName: z.string(), baseRefName: z.string(), updatedAt: z.string(),
-  repository: z.object({ nameWithOwner: z.string() }), author: z.object({ login: z.string() }).nullable(),
+  repository: z.object({ nameWithOwner: z.string() }), author: z.object({ login: z.string(), avatarUrl: z.string().nullable().optional() }).nullable(),
   reviewRequests: z.object({ pageInfo: z.object({ hasNextPage: z.boolean() }), nodes: z.array(z.object({ requestedReviewer: z.object({ __typename: z.string(), login: z.string().optional(), slug: z.string().optional(), organization: z.object({ login: z.string() }).optional() }).nullable() }).nullable()) }).optional(),
   additions: z.number(), deletions: z.number(), changedFiles: z.number(), reviewDecision: z.string().nullable(), mergeable: z.string(), mergeStateStatus: z.string(),
   mergeQueueEntry: z.object({ id: z.string() }).nullable(), autoMergeRequest: z.object({ enabledAt: z.string() }).nullable(),
   commits: z.object({ nodes: z.array(z.object({ commit: z.object({ oid: z.string(), statusCheckRollup: z.object({ state: z.string(), contexts: z.object({ totalCount: z.number(), pageInfo: z.object({ hasNextPage: z.boolean() }), nodes: z.array(checkNode.nullable()) }) }).nullable() }) }).nullable()) }),
 });
 type RawPr = z.infer<typeof rawPrSchema>;
-const prFields = `id url number title body state isDraft headRefOid headRefName baseRefName updatedAt repository { nameWithOwner } author { login } reviewRequests(first:100) { pageInfo { hasNextPage } nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Mannequin { login } ... on Team { slug organization { login } } } } } additions deletions changedFiles reviewDecision mergeable mergeStateStatus mergeQueueEntry { id } autoMergeRequest { enabledAt } commits(last:1) { nodes { commit { oid statusCheckRollup { state contexts(first:100) { totalCount pageInfo { hasNextPage } nodes { __typename ... on CheckRun { name status conclusion detailsUrl } ... on StatusContext { context state targetUrl } } } } } } }`;
+const prFields = `id url number title body state isDraft headRefOid headRefName baseRefName updatedAt repository { nameWithOwner } author { login avatarUrl(size:40) } reviewRequests(first:100) { pageInfo { hasNextPage } nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Mannequin { login } ... on Team { slug organization { login } } } } } additions deletions changedFiles reviewDecision mergeable mergeStateStatus mergeQueueEntry { id } autoMergeRequest { enabledAt } commits(last:1) { nodes { commit { oid statusCheckRollup { state contexts(first:100) { totalCount pageInfo { hasNextPage } nodes { __typename ... on CheckRun { name status conclusion detailsUrl } ... on StatusContext { context state targetUrl } } } } } } }`;
 function queryFor(url: string, fields: string) {
   const pr = parsePullRequestUrl(url);
   return `query { viewer { id login } repository(owner:${JSON.stringify(pr.owner)},name:${JSON.stringify(pr.repository)}) { pullRequest(number:${pr.number}) { ${fields} } } }`;
@@ -73,7 +73,7 @@ export function projectSnapshot(pr: RawPr, now = new Date().toISOString()): Snap
   const state: Snapshot["checks"]["state"] = !commit ? "unknown" : !rollup ? "none" : rollup.state === "SUCCESS" ? "passing" : ["FAILURE", "ERROR"].includes(rollup.state) ? "failing" : ["PENDING", "EXPECTED"].includes(rollup.state) ? "pending" : "unknown";
   return snapshotSchema.parse({
     nodeId: pr.id, url: parsePullRequestUrl(pr.url).url, repository: pr.repository.nameWithOwner, number: pr.number, title: pr.title, body: pr.body,
-    author: pr.author?.login ?? null, state: pr.state === "MERGED" ? "merged" : pr.state === "CLOSED" ? "closed" : pr.isDraft ? "draft" : "open", headSha: pr.headRefOid,
+    author: pr.author?.login ?? null, authorAvatarUrl: pr.author?.avatarUrl ?? null, state: pr.state === "MERGED" ? "merged" : pr.state === "CLOSED" ? "closed" : pr.isDraft ? "draft" : "open", headSha: pr.headRefOid,
     requestedReviewers, reviewRequestsComplete: !!pr.reviewRequests && !pr.reviewRequests.pageInfo.hasNextPage && requestedReviewers.length === pr.reviewRequests.nodes.length,
     headBranch: pr.headRefName, baseBranch: pr.baseRefName, updatedAt: pr.updatedAt, fetchedAt: now,
     checks: { state, passing: count("passing"), failing: count("failing"), pending: count("pending"), total: rollup?.contexts.totalCount ?? 0, complete, items },
