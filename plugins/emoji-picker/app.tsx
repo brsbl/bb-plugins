@@ -152,7 +152,7 @@ export function ComposerEmojiPicker() {
     const timeout = window.setTimeout(() => {
       if (element && !element.contains(element.ownerDocument.activeElement)) return;
       setTrigger({ scope, text: composer.text, index, anchor });
-    }, 400);
+    }, 250);
     const cancel = () => window.clearTimeout(timeout);
     element?.addEventListener("focusout", cancel);
     return () => {

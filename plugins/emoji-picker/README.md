@@ -12,7 +12,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/emoji-picke
 
 ## Use
 
-Type `:` and pause for 400 ms to open the picker, then search or browse and select an emoji. Continuing to type or leaving the composer before it opens cancels the picker. The chosen emoji replaces the colon. Dismiss the picker to keep the colon as punctuation. Picking never sends a message.
+Type `:` and pause for 250 ms to open the picker, then search or browse and select an emoji. Continuing to type or leaving the composer before it opens cancels the picker. The chosen emoji replaces the colon. Dismiss the picker to keep the colon as punctuation. Picking never sends a message.
 
 On desktop, the picker opens above the colon, or below it when space is tight. On mobile, it opens in a drawer.
 
