@@ -67,6 +67,8 @@ export default function plugin(bb: BbPluginApi): void {
   const environmentFlights = new Map<string, Promise<void>>();
   const discoveryReads = new Map<string, Promise<PullRequestItem>>();
   const refreshedInBatch = new Set<string>();
+  // Lowercase repositories whose project search completed, or null when this batch did not discover.
+  let searchedRepositories: Set<string> | null = null;
   let discovering = false;
   const previews = new Map<string, { snapshot: Snapshot; reader: Reader; thread: ThreadChoice; expires: number; evidence: Link["evidence"]; actor: string }>();
   const undos = new Map<string, { id: string; link: Link; expires: number }>();
@@ -269,6 +271,7 @@ export default function plugin(bb: BbPluginApi): void {
             await mapConcurrent(imported, 4, associateBodyThreads);
             changed();
             cursor = result.nextCursor ?? undefined;
+            if (batch && (!cursor || page === pages - 1)) for (const repository of batch) searchedRepositories?.add(repository.toLowerCase());
             if (!cursor) break;
             if (scope !== "history" && page === pages - 1) coverage.incomplete = true;
           }
@@ -289,6 +292,22 @@ export default function plugin(bb: BbPluginApi): void {
     }
     coverage.lastDiscoveryAt = now();
   }
+  /**
+   * Project-repository search is a window over other authors' open PRs. After discovery, an unlinked,
+   * unpinned PR the reader neither wrote nor reviews is left to that search instead of being read one by
+   * one: it stays while its project's search did not complete, and leaves the inbox once a completed
+   * search or a removed project no longer returns it.
+   */
+  function leaveRepositoryOnly(id: string, projects: Set<string>) {
+    if (!searchedRepositories) return false;
+    const item = store.get(id), snapshot = item.snapshot, login = item.reader?.login.toLowerCase();
+    if (!snapshot || !login || item.links.length || item.pinned) return false;
+    if (snapshot.author?.toLowerCase() === login || snapshot.requestedReviewers?.some((reviewer) => reviewer.toLowerCase() === login)) return false;
+    const repository = snapshot.repository.toLowerCase();
+    if (projects.has(repository) && !searchedRepositories.has(repository)) return true;
+    store.save({ ...item, discoveredFromGitHub: false }); changed();
+    return true;
+  }
   function refresh(input: { discover?: boolean; includeArchived?: boolean; id?: string }) {
     if (batch) {
       if (input.discover) { rerunDiscovery = true; rerunArchived ||= input.includeArchived ?? false; }
@@ -298,11 +317,12 @@ export default function plugin(bb: BbPluginApi): void {
     batch = (async () => {
       if (input.id) await refreshOne(input.id);
       else {
-        if (input.discover) await discover(input.includeArchived ?? false);
-        await mapConcurrent(store.knownOpenIds().filter((id) => !refreshedInBatch.has(id)), 4, async (id) => { if (!lifetime.signal.aborted) await refreshOne(id); });
+        if (input.discover) { searchedRepositories = new Set(); await discover(input.includeArchived ?? false); }
+        const projects = new Set((projectRepositories ? await projectRepositories : []).map(({ repository }) => repository.toLowerCase()));
+        await mapConcurrent(store.knownOpenIds().filter((id) => !refreshedInBatch.has(id)), 4, async (id) => { if (!lifetime.signal.aborted && !leaveRepositoryOnly(id, projects)) await refreshOne(id); });
       }
     })().catch(() => { coverage.incomplete = true; }).finally(() => {
-      batch = null; discovering = false; discoveryReads.clear(); refreshedInBatch.clear(); coverage.running = false; changed();
+      batch = null; discovering = false; searchedRepositories = null; discoveryReads.clear(); refreshedInBatch.clear(); coverage.running = false; changed();
       if (rerunDiscovery && !lifetime.signal.aborted) { const includeArchived = rerunArchived; rerunDiscovery = false; rerunArchived = false; refresh({ discover: true, includeArchived }); }
     });
     return { ...coverage };

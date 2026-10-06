@@ -333,7 +333,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   }, [selection.id, loadDetail]);
   const select = (id: string | null, tab: Tab = "summary") => navigate.toPluginPanel("requests", { subPath: id ? `${id}/${tab}` : "" });
   const sameLogin = (left: string | null | undefined, right: string | null | undefined) => !!left && !!right && left.toLowerCase() === right.toLowerCase();
-  const authoredByMe = (item: PullRequestItem) => sameLogin(item.snapshot?.author, item.reader?.login);
+  // Matches the server's "@me" filter: rows hidden after access loss stay reachable for recovery.
+  const authoredByMe = (item: PullRequestItem) => !item.snapshot || sameLogin(item.snapshot.author, item.reader?.login);
   const requestedFromMe = (item: PullRequestItem) => (item.snapshot?.requestedReviewers ?? []).some((login) => sameLogin(login, item.reader?.login));
   const reviewers = [...new Set(visibleItems.flatMap((item) => item.snapshot?.requestedReviewers ?? []))].sort();
   const filtered = visibleItems.filter((item) => {
