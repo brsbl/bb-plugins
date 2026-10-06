@@ -223,7 +223,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     setDetailFailure(null);
     const current = () => mounted.current && generation === detailGeneration.current && epoch === detailEpoch.current && selectedId.current === id;
     const promise = rpc.call("show", { id }).then((item) => {
-      if (current()) setDetail(item);
+      if (current()) { setClock(Date.now()); setDetail(item); }
     }).catch((reason) => {
       if (!current()) return;
       setDetail(null); setDetailFailure(id);
@@ -239,6 +239,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     try {
       const result = await rpc.call("inbox", {});
       if (!mounted.current || generation !== readGeneration.current) return;
+      setClock(Date.now());
       const byId = new Map(result.items.map((item) => [item.id, item]));
       setItems([...byId.values()]);
       setCoverage(result.coverage); setAuthors(result.authors ?? []); setProjectRepositories(result.projects ?? []);

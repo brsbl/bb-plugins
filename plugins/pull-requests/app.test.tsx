@@ -360,6 +360,31 @@ describe("Compact pull request inbox", () => {
 });
 
 describe("Pull Requests hierarchy", () => {
+  it("keeps newly refreshed review requests in Needs attention", async () => {
+    const start = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(start);
+    let current = fixture();
+    current.snapshot!.fetchedAt = new Date(start).toISOString();
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
+      inbox: () => ({ items: [current], nextCursor: null, total: 1, coverage }), refresh: () => coverage,
+      context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
+    } });
+    try {
+      await screen.findByText("Needs fixes · Checks failed");
+      fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
+      clock.mockReturnValue(start + 5000);
+      current = { ...current, snapshot: { ...current.snapshot!, fetchedAt: new Date(start + 5000).toISOString(), requestedReviewers: ["author"], reviewRequestsComplete: true } };
+      await slot.behavior.emitRealtime(CHANGED, {});
+      expect(await screen.findByText("Needs you · Your review requested")).toBeDefined();
+      expect(screen.getByRole("button", { name: "Private pull request" })).toBeDefined();
+    } finally {
+      fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
+      slot.lifecycle.unmount();
+      clock.mockRestore();
+    }
+  });
+
   it("keeps a child's attention and prerequisites visible through search, collapse, refresh and History", async () => {
     const base = fixture();
     const root = { ...base, id: "github:PR_201", url: base.url.replace("123", "201"), snapshot: { ...base.snapshot!, number: 201, title: "Foundation", headRepository: "example/repo", headBranch: "foundation", state: "merged" as const }, links: [], preferredThreadId: null, discoveredFromGitHub: true };
