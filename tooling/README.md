@@ -18,6 +18,7 @@ This folder holds the small amount of machinery the plugins genuinely share. Run
 | [`plugin-workspaces.mjs`](plugin-workspaces.mjs) | Finds plugins and reads their names and stable IDs from their manifests. |
 | [`build-plugin.mjs`](build-plugin.mjs) | Gives every workspace the same `bb plugin build` entrypoint. |
 | [`check-repository.mjs`](check-repository.mjs) | Catches drift in manifests, lockfiles, READMEs, screenshots, skills, workflows, and layout. |
+| [`check-icons.mjs`](check-icons.mjs) | Fails on icon names missing from [`bb-icon-names.json`](bb-icon-names.json), which bb would render as its Zap fallback, and on any Zap or lightning-bolt icon. |
 | [`validate-plugin-artifacts.mjs`](validate-plugin-artifacts.mjs) | Makes sure production bundles contain everything bb needs to install them. |
 | [`create-plugin.mjs`](create-plugin.mjs) | Starts a plugin with package scripts, local SDK declarations, and a focused test. |
 | [`scaffold-smoke.mjs`](scaffold-smoke.mjs) | Runs the generator inside a clean temporary repository. |

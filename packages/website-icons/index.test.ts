@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ dns: vi.fn(), request: vi.fn() }));
 vi.mock("node:dns/promises", () => ({ lookup: mocks.dns }));
 vi.mock("node:https", () => ({ request: mocks.request }));
-import { declaredIcons, decodeIcon, ICON_LIMITS, IconService, isPublicAddress, publicLookup, publicOrigin, readPublicResource, resolveIcon } from "./icons.js";
+import { declaredIcons, decodeIcon, ICON_LIMITS, IconService, isPublicAddress, publicLookup, publicOrigin, readPublicResource, resolveIcon } from "./index.js";
 
 afterEach(() => { vi.useRealTimers(); vi.resetAllMocks(); });
 
@@ -112,6 +112,10 @@ describe("bounded raster icons", () => {
     expect(await resolveIcon("https://example.com", new AbortController().signal)).toMatch(/^data:image\/png;base64,/);
     expect(requests.map(({ url }) => url.href)).toEqual(["https://example.com/favicon.ico", "https://example.com/", "https://cdn.example.com/logo.png?v=1&size=32"]);
     expect(declaredIcons('<link rel="icon" href="http://insecure.example.com/a"><link rel="icon" href="https://user:pw@example.com/a"><link rel="icon" href="/valid.png">', new URL("https://example.com/"))).toEqual([new URL("https://example.com/valid.png")]);
+    const head = Buffer.from('<link rel="icon" href="/head.png">');
+    const page = Buffer.concat([head, Buffer.alloc(ICON_LIMITS.inputBytes)]);
+    network([{ status: 404 }, { type: "text/html", body: page, length: String(page.length) }, { body: png() }]);
+    expect(await resolveIcon("https://example.com", new AbortController().signal)).toMatch(/^data:image\/png;base64,/);
     expect(declaredIcons('<script>"<link rel="icon" href="/fake.png">"</script><!-- <link rel="icon" href="/fake.png"> --><link rel="icon" href="/real.png">', new URL("https://example.com/"))).toEqual([new URL("https://example.com/real.png")]);
   });
 });

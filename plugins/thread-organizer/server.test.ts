@@ -123,6 +123,8 @@ function createHarness(
   ];
   type TestThreadChange =
     | "archived-changed"
+    | "events-appended"
+    | "status-changed"
     | "metadata-changed"
     | "order-changed"
     | "parent-changed"
@@ -194,9 +196,21 @@ function createHarness(
   const getThread = vi.fn(async ({ threadId }: { threadId: string }) =>
     getTestThread(threadId),
   );
-  const listThreads = vi.fn(async (_input?: { signal?: AbortSignal }) => [
-    ...threads.values(),
-  ]);
+  const listThreads = vi.fn(async (input?: {
+    signal?: AbortSignal;
+    parentThreadId?: string;
+    hasParent?: boolean;
+    archived?: boolean;
+    includeHidden?: boolean;
+    limit?: number;
+    offset?: number;
+  }) => [...threads.values()].filter((thread) =>
+    thread.deletedAt === null &&
+    (input?.parentThreadId === undefined || thread.parentThreadId === input.parentThreadId) &&
+    (input?.hasParent === undefined || (thread.parentThreadId !== null) === input.hasParent) &&
+    (input?.archived === undefined || (thread.archivedAt !== null) === input.archived) &&
+    (input?.includeHidden || thread.visibility === "visible")
+  ).slice(input?.offset ?? 0, (input?.offset ?? 0) + (input?.limit ?? 100)));
   const listSections = vi.fn(async () =>
     sections.map((section) => ({ ...section })),
   );
@@ -314,6 +328,9 @@ function createHarness(
       };
       sections.push(section);
       return section;
+    },
+    addThread(changes: Partial<TestThread> & { id: string }) {
+      threads.set(changes.id, makeThreadResponse(changes));
     },
     setThread(changes: Partial<TestThread>, threadId = "thr_test") {
       const thread = getTestThread(threadId);
@@ -768,6 +785,94 @@ describe("Thread Organizer server", () => {
       organizer.harness.inspection.sdk.callsTo("threads.promptHistory"),
     ).toHaveLength(0);
     expect(organizer.spawnThread).not.toHaveBeenCalled();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it.each([true, false])("keeps parents out of Inbox while any child works (remembered=%s)", async (remembered) => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const sectionId = (key: string) => config.stages.find((stage) => stage.key === key)!.sectionId;
+    if (remembered) {
+      await organizer.harness.behavior.runCli(["phase", "building"], { threadId: "thr_test" });
+    }
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    organizer.addThread({ id: "child_one", parentThreadId: "thr_test", status: "starting", visibility: "hidden" });
+    organizer.addThread({ id: "child_two", parentThreadId: "thr_test", status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", { thread: organizer.current("child_one") });
+    const destination = remembered ? sectionId("building") : null;
+    expect(organizer.current().sectionId).toBe(destination);
+    const replacement = await organizer.harness.lifecycle.reload(plugin);
+    expect(organizer.current().sectionId).toBe(destination);
+    organizer.setThread({ status: "idle" }, "child_one");
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current("child_one"), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(destination);
+    organizer.setThread({ status: "idle" }, "child_two");
+    await replacement.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current("child_two"), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    await replacement.harness.lifecycle.dispose();
+  });
+
+  it("does not reconcile parents for child output bursts but still reacts to status changes", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const inboxId = config.stages.find((stage) => stage.key === "inbox")!.sectionId;
+    organizer.setThread({ status: "idle" });
+    organizer.addThread({ id: "child", parentThreadId: "thr_test", status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.current("child"),
+    });
+    expect(organizer.current().sectionId).toBe(null);
+    organizer.getThread.mockClear();
+    organizer.listThreads.mockClear();
+    for (let index = 0; index < 50; index += 1) {
+      organizer.emitChanged(["events-appended", "title-changed"], "child");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.getThread.mock.calls.some(([input]) => input.threadId === "thr_test")).toBe(false);
+    expect(organizer.listThreads).not.toHaveBeenCalled();
+    expect(organizer.current().sectionId).toBe(null);
+
+    organizer.setThread({ status: "idle" }, "child");
+    organizer.emitChanged(["events-appended", "status-changed"], "child");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(inboxId));
+    organizer.setThread({ status: "starting" }, "child");
+    organizer.emitChanged("status-changed", "child");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(null));
+
+    organizer.setThread({ status: "idle" }, "child");
+    organizer.emitChanged("events-appended");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(inboxId));
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("finds working children past the first page and ignores archived or unrelated work", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    for (let index = 0; index < 105; index += 1) {
+      organizer.addThread({ id: `idle_${index}`, parentThreadId: "thr_test", status: "idle" });
+    }
+    organizer.addThread({ id: "working", parentThreadId: "thr_test", status: "stopping" });
+    organizer.addThread({ id: "unrelated", parentThreadId: "other", status: "active" });
+    organizer.setThread({ status: "idle" });
+    await organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(), lastAssistantText: null,
+    });
+    expect(organizer.current().sectionId).toBe(null);
+    organizer.setThread({ archivedAt: 20 }, "working");
+    await organizer.harness.behavior.emitThreadEvent("thread.archived", { thread: organizer.current("working") });
+    const config = await configFor(organizer);
+    expect(organizer.current().sectionId).toBe(config.stages.find((stage) => stage.key === "inbox")!.sectionId);
     await organizer.harness.lifecycle.dispose();
   });
 
