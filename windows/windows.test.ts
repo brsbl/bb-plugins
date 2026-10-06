@@ -1,0 +1,211 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { crossedDragThreshold, fitDragRect, resizeInArea, trackPointer } from "./index";
+import type { ResizeEdge } from "../core";
+
+const area = { x: 0, y: 48, width: 1000, height: 772 };
+const rect = { x: 200, y: 200, width: 400, height: 300 };
+
+describe("desktop drag geometry", () => {
+  it("keeps click jitter below the four-pixel threshold", () => {
+    expect(crossedDragThreshold({ x: 2, y: 2 })).toBe(false);
+    expect(crossedDragThreshold({ x: 0, y: 4 })).toBe(true);
+  });
+  it("keeps the entire frame below chrome and above the taskbar", () => {
+    expect(fitDragRect({ ...rect, x: -500, y: -200 }, area)).toEqual({ ...rect, x: 0, y: 48 });
+    expect(fitDragRect({ ...rect, x: 1500, y: 900 }, area)).toEqual({ ...rect, x: 600, y: 520 });
+  });
+  it("fits an oversized saved frame after a viewport shrink", () => {
+    expect(fitDragRect(rect, { x: 0, y: 48, width: 200, height: 100 })).toEqual({ x: 0, y: 48, width: 200, height: 100 });
+  });
+  it.each<ResizeEdge>(["n", "s", "e", "w", "ne", "nw", "se", "sw"])("bounds the %s handle and preserves its opposite edge", (edge) => {
+    const next = resizeInArea(rect, edge, { x: edge.includes("w") ? -2000 : 2000, y: edge.includes("n") ? -2000 : 2000 }, area);
+    expect(next.x).toBeGreaterThanOrEqual(area.x);
+    expect(next.y).toBeGreaterThanOrEqual(area.y);
+    expect(next.x + next.width).toBeLessThanOrEqual(area.width);
+    expect(next.y + next.height).toBeLessThanOrEqual(area.y + area.height);
+    if (edge.includes("w")) expect(next.x + next.width).toBe(rect.x + rect.width);
+    else expect(next.x).toBe(rect.x);
+    if (edge.includes("n")) expect(next.y + next.height).toBe(rect.y + rect.height);
+    else expect(next.y).toBe(rect.y);
+  });
+  it("stops a northwest resize at the minimum without drifting the opposite corner", () => {
+    expect(resizeInArea(rect, "nw", { x: 1000, y: 1000 }, area)).toEqual({ x: 320, y: 320, width: 280, height: 180 });
+  });
+});
+
+function pointer(type: string, x: number, pointerId = 1) {
+  const event = new MouseEvent(type, { clientX: x, clientY: 0, bubbles: true });
+  Object.defineProperty(event, "pointerId", { value: pointerId });
+  return event;
+}
+function gesture() {
+  const target = document.createElement("div");
+  document.body.append(target);
+  target.setPointerCapture = vi.fn();
+  target.hasPointerCapture = vi.fn(() => true);
+  target.releasePointerCapture = vi.fn();
+  const move = vi.fn();
+  const end = vi.fn();
+  const cancel = trackPointer({ currentTarget: target, clientX: 0, clientY: 0, pointerId: 1, button: 0 } as unknown as ReactPointerEvent<HTMLElement>, move, end);
+  return { target, move, end, cancel };
+}
+
+afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ""; });
+
+describe("pointer lifecycle", () => {
+  it("releases the shield when pointerup lands outside the captured target", () => {
+    document.documentElement.style.userSelect = "text";
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 64));
+    const shield = document.querySelector(".bbd-drag-shield")!;
+    shield.dispatchEvent(pointer("pointerup", 64, 2));
+    expect(g.end).not.toHaveBeenCalled();
+    shield.dispatchEvent(pointer("pointerup", 64));
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
+    expect(document.querySelector(".bbd-drag-shield")).toBeNull();
+    expect(document.documentElement.style.userSelect).toBe("text");
+    g.target.dispatchEvent(pointer("pointerup", 64));
+    g.cancel();
+    expect(g.end).toHaveBeenCalledTimes(1);
+  });
+  it("applies the release position before committing once, including a release on the shield", () => {
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 64));
+    const shield = document.querySelector(".bbd-drag-shield")!;
+    shield.dispatchEvent(pointer("pointerup", 80, 2));
+    expect(g.move).toHaveBeenCalledTimes(1);
+    let releasePosition;
+    g.end.mockImplementation(() => { releasePosition = g.move.mock.lastCall?.[0]; });
+    shield.dispatchEvent(pointer("pointerup", 80));
+    g.target.dispatchEvent(pointer("pointerup", 100));
+    expect(g.move).toHaveBeenCalledTimes(2);
+    expect(releasePosition).toEqual({ x: 80, y: 0 });
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
+  });
+  it("does not apply release coordinates after the dragged target is removed", () => {
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 64));
+    g.target.remove();
+    document.dispatchEvent(pointer("pointerup", 80));
+    expect(g.move).toHaveBeenCalledTimes(1);
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true);
+  });
+  it("cancels a removed captured child without leaving the renderer blocked", () => {
+    document.documentElement.style.userSelect = "text";
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 10));
+    // A re-deal replaces the card while its tracker-owning game stays mounted.
+    g.target.remove();
+    document.dispatchEvent(pointer("lostpointercapture", 10, 2));
+    expect(g.end).not.toHaveBeenCalled();
+    document.dispatchEvent(pointer("lostpointercapture", 10));
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true);
+    expect(document.querySelector(".bbd-drag-shield")).toBeNull();
+    expect(document.documentElement.style.userSelect).toBe("text");
+    document.dispatchEvent(pointer("lostpointercapture", 10));
+    g.cancel();
+    expect(g.end).toHaveBeenCalledTimes(1);
+  });
+  it("publishes window drag bounds after every move and clears the scoped shield on release", () => {
+    const g = gesture();
+    g.cancel();
+    const positions: string[] = [];
+    const read = () => positions.push(g.target.style.left);
+    window.addEventListener("bbd-drag-state", read);
+    const cancel = trackPointer(
+      { currentTarget: g.target, clientX: 0, clientY: 0, pointerId: 1, button: 0 } as unknown as ReactPointerEvent<HTMLElement>,
+      (delta) => { g.target.style.left = `${delta.x}px`; },
+      undefined,
+      { threshold: 4, windowDrag: true } as Parameters<typeof trackPointer>[3],
+    );
+    try {
+      g.target.dispatchEvent(pointer("pointermove", 20));
+      expect(document.querySelector<HTMLElement>(".bbd-drag-shield")?.dataset.windowDrag).toBe("true");
+      g.target.dispatchEvent(pointer("pointermove", 40));
+      expect(positions).toEqual(["20px", "40px"]);
+      g.target.dispatchEvent(pointer("pointerup", 80));
+      expect(document.querySelector(".bbd-drag-shield")).toBeNull();
+      expect(positions).toEqual(["20px", "40px", "80px", "80px"]);
+    } finally {
+      cancel();
+      window.removeEventListener("bbd-drag-state", read);
+    }
+  });
+  it("follows the captured pointer past the threshold and commits on release", () => {
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 2));
+    expect(g.move).not.toHaveBeenCalled();
+    g.target.dispatchEvent(pointer("pointermove", 64));
+    expect(g.move).toHaveBeenLastCalledWith({ x: 64, y: 0 }, expect.anything());
+    expect(document.querySelector(".bbd-drag-shield")).not.toBeNull();
+    g.target.dispatchEvent(pointer("pointerup", 64));
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
+    expect(g.target.releasePointerCapture).toHaveBeenCalledWith(1);
+    expect(document.querySelector(".bbd-drag-shield")).toBeNull();
+  });
+  it.each(["pointercancel", "lostpointercapture"])("ends a moved drag where it got to on %s, so a window never springs back", (reason) => {
+    document.documentElement.style.userSelect = "text";
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 10));
+    g.target.dispatchEvent(pointer(reason, 10));
+    g.target.dispatchEvent(pointer("pointerup", 20));
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
+    expect(document.documentElement.style.userSelect).toBe("text");
+    expect(document.querySelector(".bbd-drag-shield")).toBeNull();
+    expect(g.target.releasePointerCapture).toHaveBeenCalledTimes(1);
+  });
+  it.each(["lostpointercapture", "unmount"])("cancels on %s before the pointer moves, or on unmount", (reason) => {
+    const g = gesture();
+    if (reason === "unmount") {
+      g.target.dispatchEvent(pointer("pointermove", 10));
+      g.cancel();
+      expect(g.end).toHaveBeenCalledExactlyOnceWith(true, true);
+    } else {
+      g.target.dispatchEvent(pointer(reason, 0));
+      expect(g.end).toHaveBeenCalledExactlyOnceWith(true, false);
+    }
+    expect(document.querySelector(".bbd-drag-shield")).toBeNull();
+  });
+  it.each(["blur", "resize", "contextmenu", "keydown"])("keeps dragging through a window %s, as bb's resizers do", (type) => {
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 10));
+    window.dispatchEvent(type === "keydown" ? new KeyboardEvent("keydown", { key: "Escape" }) : new Event(type));
+    g.target.dispatchEvent(pointer("pointermove", 30));
+    g.target.dispatchEvent(pointer("pointerup", 30));
+    expect(g.move).toHaveBeenLastCalledWith({ x: 30, y: 0 }, expect.anything());
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, true);
+  });
+  it("swallows drag-associated click and double-click, but allows later ordinary clicks", async () => {
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 10));
+    g.target.dispatchEvent(pointer("pointerup", 10));
+    const click = () => new MouseEvent("click", { detail: 1, bubbles: true, cancelable: true });
+    expect(g.target.dispatchEvent(click())).toBe(false);
+    const doubleClick = () => new MouseEvent("dblclick", { detail: 2, bubbles: true, cancelable: true });
+    expect(g.target.dispatchEvent(doubleClick())).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const plain = gesture();
+    plain.target.dispatchEvent(pointer("pointerup", 0));
+    expect(plain.end).toHaveBeenCalledExactlyOnceWith(false, false);
+    expect(plain.target.dispatchEvent(click())).toBe(true);
+    expect(plain.target.dispatchEvent(doubleClick())).toBe(true);
+  });
+  it.each([1, 2])("does not capture button %s", (button) => {
+    const target = document.createElement("div");
+    target.setPointerCapture = vi.fn();
+    trackPointer({ currentTarget: target, button } as unknown as ReactPointerEvent<HTMLElement>, vi.fn());
+    expect(target.setPointerCapture).not.toHaveBeenCalled();
+  });
+  it("ignores other pointers and preserves a tiny drag as a click", () => {
+    const g = gesture();
+    g.target.dispatchEvent(pointer("pointermove", 20, 2));
+    g.target.dispatchEvent(pointer("pointerup", 20, 2));
+    expect(g.end).not.toHaveBeenCalled();
+    g.target.dispatchEvent(pointer("pointermove", 2));
+    g.target.dispatchEvent(pointer("pointerup", 2));
+    expect(g.move).not.toHaveBeenCalled();
+    expect(g.end).toHaveBeenCalledExactlyOnceWith(false, false);
+  });
+});
