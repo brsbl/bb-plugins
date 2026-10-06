@@ -24,7 +24,7 @@ describe("Pull Requests access and detail lifetime", () => {
     const item = { ...fixture(), discoveredFromGitHub: true, links: [], preferredThreadId: null };
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
-      list: () => ({ items: [item], nextCursor: null, total: 1, coverage }), show: () => item,
+      inbox: () => ({ items: [item], nextCursor: null, total: 1, coverage }), show: () => item,
       refresh: () => coverage, context: () => ({ threads: [], hosts: [], nextCursor: null }),
     } });
     expect(await screen.findByRole("button", { name: "Private pull request" })).toBeDefined();
@@ -41,7 +41,7 @@ describe("Pull Requests access and detail lifetime", () => {
     const pin = vi.fn(() => pending);
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
-      list: () => ({ items: [current], nextCursor: null, total: 1, coverage }), show: () => current, pin,
+      inbox: () => ({ items: [current], nextCursor: null, total: 1, coverage }), show: () => current, pin,
       refresh: () => coverage, context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
     await screen.findByText("Private description");
@@ -66,7 +66,7 @@ describe("Pull Requests access and detail lifetime", () => {
     const refresh = vi.fn(() => coverage);
     const context = vi.fn(() => ({ threads: [thread], hosts: [], nextCursor: null }));
     const app = await loadPluginApp(() => import("./app"));
-    const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { list, refresh, context } });
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { inbox: list, refresh, context } });
     await waitFor(() => expect(list).toHaveBeenCalled());
     expect(refresh).not.toHaveBeenCalled();
     expect(context).not.toHaveBeenCalled();
@@ -84,7 +84,7 @@ describe("Pull Requests access and detail lifetime", () => {
     const show = vi.fn(() => pending);
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
-      list: () => ({ items: [summary], nextCursor: null, total: 1, coverage }), show, refresh: () => coverage,
+      inbox: () => ({ items: [summary], nextCursor: null, total: 1, coverage }), show, refresh: () => coverage,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
     await screen.findByRole("button", { name: "Private pull request" });
@@ -102,7 +102,7 @@ describe("Pull Requests access and detail lifetime", () => {
     const pending = new Promise<typeof coverage>((resolve) => { finish = resolve; });
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
-      list: () => ({ items: [item], nextCursor: null, total: 1, coverage }), refresh: () => pending,
+      inbox: () => ({ items: [item], nextCursor: null, total: 1, coverage }), refresh: () => pending,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
     await screen.findByRole("button", { name: "Private pull request" });
@@ -113,7 +113,7 @@ describe("Pull Requests access and detail lifetime", () => {
 
   it("ignores a late selection response and keeps loaded details visible during refresh", async () => {
     const first = fixture();
-    const second = { ...first, id: "github:PR_124", snapshot: { ...first.snapshot!, title: "Second PR", body: "Second description" } };
+    const second = { ...first, id: "github:PR_124", url: first.url.replace("123", "124"), snapshot: { ...first.snapshot!, title: "Second PR", body: "Second description" } };
     const summaries = [first, second].map((item) => ({ ...item, snapshot: { ...item.snapshot!, body: "" } }));
     let finishFirst!: (value: PullRequestItem) => void;
     const firstRead = new Promise<PullRequestItem>((resolve) => { finishFirst = resolve; });
@@ -123,7 +123,7 @@ describe("Pull Requests access and detail lifetime", () => {
     const app = await loadPluginApp(() => import("./app"));
     const Panel = app.navPanels[0]!.component;
     const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
-      list: () => ({ items: summaries, nextCursor: null, total: 2, coverage }), refresh: () => coverage,
+      inbox: () => ({ items: summaries, nextCursor: null, total: 2, coverage }), refresh: () => coverage,
       show: (raw) => (raw as { id: string }).id === first.id ? firstRead : refreshing ? refreshRead : second,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
@@ -150,7 +150,7 @@ describe("Pull Requests access and detail lifetime", () => {
     const show = vi.fn().mockReturnValueOnce(oldRead).mockReturnValue(currentRead);
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
-      list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show, refresh: () => coverage,
+      inbox: () => ({ items: [], nextCursor: null, total: 0, coverage }), show, refresh: () => coverage,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
     await waitFor(() => expect(show).toHaveBeenCalledTimes(1));
@@ -169,7 +169,7 @@ describe("Pull Requests access and detail lifetime", () => {
     item.snapshot!.checks = { state: "passing", passing: 7, failing: 0, pending: 0, total: 7, complete: true, items: Array.from({ length: 7 }, (_, index) => ({ name: `Check ${index + 1}`, state: "passing", url: `https://github.com/example/repo/actions/runs/${index + 1}` })) };
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
-      list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
+      inbox: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
     const summary = (await screen.findByText("7 of 7 checks passing")).closest("summary")!;
@@ -188,7 +188,7 @@ describe("Pull Requests access and detail lifetime", () => {
     let item = fixture();
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/summary" }, { rpc: {
-      list: () => ({ items: [], nextCursor: null, total: 0, coverage }),
+      inbox: () => ({ items: [], nextCursor: null, total: 0, coverage }),
       show: () => item,
       refresh: () => coverage,
       context: (input) => ({ threads: (input as { threadIds?: string[] }).threadIds ? [thread] : [], hosts: [{ id: "host_1", name: "Source", connected: true }], nextCursor: null }),
@@ -212,7 +212,7 @@ describe("Pull Requests access and detail lifetime", () => {
     const pending = new Promise<Changes>((resolve) => { finish = resolve; });
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/changes" }, { rpc: {
-      list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
+      inbox: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }), changes: () => pending,
     } });
     expect(await screen.findByRole("status", { name: "Loading changes" })).toBeDefined();
@@ -239,7 +239,7 @@ describe("Pull Requests thread selection", () => {
       const app = await loadPluginApp(() => import("./app"));
       const Panel = app.navPanels[0]!.component;
       const slot = renderSlot(app.navPanels[0]!, { subPath: "github:PR_123/changes" }, { rpc: {
-        list: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
+        inbox: () => ({ items: [], nextCursor: null, total: 0, coverage }), show: () => item, refresh: () => coverage,
         context: () => ({ threads: [thread, { ...thread, id: "thr_second", title: "Second thread" }], hosts: [], nextCursor: null }),
         changes: () => ({ headSha: "abc1234", files: [], total: 0, truncated: false, message: null }),
       } });
@@ -261,7 +261,7 @@ describe("Pull Requests thread selection", () => {
     try {
       const app = await loadPluginApp(() => import("./app"));
       const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
-        list: () => ({ items: [], nextCursor: null, total: 0, coverage }), refresh: () => coverage,
+        inbox: () => ({ items: [], nextCursor: null, total: 0, coverage }), refresh: () => coverage,
         context: (raw) => {
           const input = raw as { query?: string; cursor?: string };
           if (input.query === undefined || input.query === "different query") return { threads: [], hosts: [], nextCursor: null };
@@ -288,20 +288,20 @@ describe("Pull Requests thread selection", () => {
 
 
 describe("Compact pull request inbox", () => {
-  it("defaults to my pull requests, combines author and reviewer filters, and preserves them across navigation", async () => {
+  it("defaults to active pull requests, combines author and reviewer filters, and preserves them across navigation", async () => {
     const first = fixture();
     first.snapshot = { ...first.snapshot!, title: "Zebra fix", author: "author", updatedAt: "2026-10-01T00:00:00Z", requestedReviewers: ["reviewer", "acme/design"], reviewRequestsComplete: true };
-    const second = { ...first, id: "github:PR_124", snapshot: { ...first.snapshot, title: "Alpha fix", updatedAt: "2026-10-02T00:00:00Z", requestedReviewers: ["reviewer"] } };
-    const third = { ...first, id: "github:PR_125", snapshot: { ...first.snapshot, title: "Other author", author: "bob", updatedAt: "2026-10-03T00:00:00Z", requestedReviewers: ["AUTHOR"] } };
-    const closed = { ...first, id: "github:PR_126", snapshot: { ...first.snapshot, title: "Closed fix", state: "closed" as const, requestedReviewers: [] } };
+    const second = { ...first, id: "github:PR_124", url: first.url.replace("123", "124"), snapshot: { ...first.snapshot, title: "Alpha fix", updatedAt: "2026-10-02T00:00:00Z", requestedReviewers: ["reviewer"] } };
+    const third = { ...first, id: "github:PR_125", url: first.url.replace("123", "125"), snapshot: { ...first.snapshot, title: "Other author", author: "bob", updatedAt: "2026-10-03T00:00:00Z", requestedReviewers: ["AUTHOR"] } };
+    const closed = { ...first, id: "github:PR_126", url: first.url.replace("123", "126"), snapshot: { ...first.snapshot, title: "Closed fix", state: "closed" as const, requestedReviewers: [] } };
     const app = await loadPluginApp(() => import("./app"));
-    const options = { rpc: { list: () => ({ items: [first, second, third, closed], nextCursor: null, total: 4, coverage, authors: ["author", "bob"] }), refresh: () => coverage, context: () => ({ threads: [thread], hosts: [], nextCursor: null }) } };
+    const options = { rpc: { inbox: () => ({ items: [first, second, third, closed], nextCursor: null, total: 4, coverage, authors: ["author", "bob"] }), refresh: () => coverage, context: () => ({ threads: [thread], hosts: [], nextCursor: null }) } };
     let slot = renderSlot(app.navPanels[0]!, { subPath: "" }, options);
     await screen.findByRole("button", { name: "Zebra fix" });
     const titles = () => Array.from(document.querySelectorAll(".pr-row-title")).map((element) => element.textContent);
     const openMenu = () => { fireEvent.click(screen.getByLabelText("Filters and sort")); };
     const choose = (name: string, value: string) => fireEvent.change(screen.getByRole("combobox", { name }), { target: { value } });
-    expect(titles()).toEqual(["Alpha fix", "Zebra fix"]);
+    expect(titles()).toEqual(["Other author", "Alpha fix", "Zebra fix"]);
     openMenu();
     // The signed-in login is covered by "Me" and is not listed twice.
     expect(Array.from(screen.getByRole<HTMLSelectElement>("combobox", { name: "Author" }).options).map((option) => option.textContent)).toEqual(["All authors", "Me", "bob"]);
@@ -309,9 +309,9 @@ describe("Compact pull request inbox", () => {
     expect(titles()).toEqual(["Other author", "Alpha fix", "Zebra fix"]);
     expect(screen.queryByText("Authored by me")).toBeNull();
     expect(screen.queryByText("Needs my review")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Merged and closed/ }));
-    expect(titles()).toEqual(["Other author", "Alpha fix", "Zebra fix", "Closed fix"]);
-    fireEvent.click(screen.getByRole("button", { name: /Merged and closed/ }));
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(titles()).toEqual(["Closed fix"]);
+    fireEvent.click(screen.getByRole("button", { name: "Active" }));
     choose("Author", "@me");
     choose("Reviewer", "acme/design");
     expect(titles()).toEqual(["Zebra fix"]);
@@ -324,7 +324,7 @@ describe("Compact pull request inbox", () => {
     expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
     openMenu();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    expect(titles()).toEqual(["Zebra fix", "Alpha fix"]);
+    expect(titles()).toEqual(["Zebra fix", "Alpha fix", "Other author"]);
     choose("Author", "");
     choose("Reviewer", "@me");
     expect(titles()).toEqual(["Other author"]);
@@ -346,7 +346,7 @@ describe("Compact pull request inbox", () => {
     const item = fixture();
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
-      list: () => ({ items: [item], nextCursor: null, total: 1, coverage }), refresh: () => coverage,
+      inbox: () => ({ items: [item], nextCursor: null, total: 1, coverage }), refresh: () => coverage,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
     await screen.findByRole("button", { name: "Private pull request" });
@@ -355,6 +355,41 @@ describe("Compact pull request inbox", () => {
     fireEvent.submit(search.closest("form")!);
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "requests", options: { subPath: "github:PR_123/summary" } });
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    slot.lifecycle.unmount();
+  });
+});
+
+describe("Pull Requests hierarchy", () => {
+  it("keeps a child's attention and prerequisites visible through search, collapse, refresh and History", async () => {
+    const base = fixture();
+    const root = { ...base, id: "github:PR_201", url: base.url.replace("123", "201"), snapshot: { ...base.snapshot!, number: 201, title: "Foundation", headRepository: "example/repo", headBranch: "foundation", state: "merged" as const }, links: [], preferredThreadId: null, discoveredFromGitHub: true };
+    const child = { ...base, id: "github:PR_202", url: base.url.replace("123", "202"), snapshot: { ...base.snapshot!, number: 202, title: "Searchable child", headRepository: "example/repo", headBranch: "child", baseBranch: "foundation" }, links: [], preferredThreadId: null, discoveredFromGitHub: true };
+    root.snapshot.url = root.url; child.snapshot.url = child.url;
+    const app = await loadPluginApp(() => import("./app"));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
+      inbox: () => ({ items: [child, root], nextCursor: null, total: 2, coverage }), refresh: () => coverage,
+      context: () => ({ threads: [], hosts: [], nextCursor: null }),
+    } });
+    await screen.findByRole("button", { name: "Searchable child" });
+    expect(screen.getByRole("button", { name: "Foundation" })).toBeDefined();
+    fireEvent.change(screen.getByRole("textbox", { name: "Search pull requests" }), { target: { value: "Searchable" } });
+    fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
+    const disclosure = screen.getByRole("button", { name: /Foundation · 2 PRs/ });
+    expect(disclosure.textContent).toContain("1 needs fixes");
+    fireEvent.click(disclosure);
+    expect(screen.queryByRole("button", { name: "Searchable child" })).toBeNull();
+    await slot.behavior.emitRealtime(CHANGED, {});
+    await waitFor(() => expect(disclosure.getAttribute("aria-expanded")).toBe("false"));
+    fireEvent.click(disclosure);
+    expect(screen.getByRole("button", { name: "Foundation" })).toBeDefined();
+    expect(screen.getByText(/Depends on #201/)).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByRole("button", { name: "Foundation" })).toBeDefined();
+    // History retains the active descendant as relationship context.
+    expect(screen.getByRole("button", { name: "Searchable child" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Active" }));
     slot.lifecycle.unmount();
   });
 });

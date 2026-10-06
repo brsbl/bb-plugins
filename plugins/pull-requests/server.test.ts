@@ -31,6 +31,32 @@ function setup() {
   return { bb, harness, rpc, link, settle, threads, projects, setSearchResponse: (next: typeof searchResponse) => { searchResponse = next; }, setBeforeThreadRead: (next: typeof beforeThreadRead) => { beforeThreadRead = next; }, setResponse: (next: typeof response) => { response = next; } };
 }
 describe("PR registry and host identity", () => {
+  it("returns the complete known inbox before hierarchy filtering while preserving legacy list pages", async () => {
+    const h = setup(), store = createStore(h.bb);
+    for (let number = 1; number <= 151; number++) {
+      const value = snapshot(number);
+      value.state = number === 1 ? "merged" : "open";
+      value.author = number === 151 ? "bob" : "alice";
+      value.stack = { state: "available", items: [1, 151].map((number) => ({ url: snapshot(number).url, title: `PR ${number}`, number, state: number === 1 ? "MERGED" : "OPEN" })) };
+      const item = store.upsert(value, { hostId: "host_a", accountId: "U_A", login: "alice" });
+      store.save({ ...item, discoveredFromGitHub: true });
+    }
+    const inbox = await h.rpc<{ items: PullRequestItem[]; total: number; nextCursor: string | null }>("inbox", {});
+    expect(inbox.items).toHaveLength(151);
+    expect(inbox.total).toBe(151); expect(inbox.nextCursor).toBeNull();
+    expect(inbox.items.find((item) => item.snapshot?.number === 151)?.snapshot).toMatchObject({ author: "bob", body: "", checks: { items: [] }, stack: { items: [{ number: 1 }, { number: 151 }] } });
+    expect(await h.rpc("list", { limit: 100 })).toMatchObject({ total: 151, nextCursor: "100" });
+    expect(await h.rpc("list", { author: "bob" })).toMatchObject({ total: 1, items: [{ snapshot: { stack: { items: [] } } }] });
+  });
+  it("keeps unseen prerequisites when repository discovery reaches its cap and marks history caps partial", async () => {
+    const h = setup(), store = createStore(h.bb);
+    h.projects.push({ id: "proj_a", gitRemoteUrl: "https://github.com/acme/repo.git" });
+    const old = store.upsert({ ...snapshot(999), author: "bob" }, { hostId: "host_a", accountId: "U_A", login: "alice" });
+    store.save({ ...old, discoveredFromGitHub: true });
+    h.setSearchResponse(async (input) => ({ ok: true, accountId: "U_A", login: "alice", snapshots: [], nextCursor: input.scope === "repository" || input.scope === "history" ? "more" : null }));
+    await h.rpc("refresh", { discover: true }); await h.settle();
+    expect(await h.rpc("inbox", {})).toMatchObject({ total: 1, items: [{ id: old.id }], coverage: { incomplete: true } });
+  });
   it("persists deduplicated links, suppression and preferred navigation independently of GitHub", async () => {
     const h = setup();
     const first = await h.link(); await h.link(); await h.link(1, "thr_b");

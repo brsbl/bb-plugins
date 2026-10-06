@@ -11,7 +11,7 @@ import {
   useRealtimeConnectionState, useRpc, type PluginNavPanelProps, type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { CHANGED, type Changes, type Listing, type PullRequestItem, type Snapshot, type ThreadChoice, type rpcContract } from "./contract";
-import { githubNeedsAttention } from "./core";
+import { attentionSummary, dependencyGroups, dependencyStatus, filterGroups, githubFresh, isHistory, ownerThread, projectFor, statusOf, type DependencyGroup, type Entry } from "./hierarchy";
 import { DEFAULT_AUTHOR, InboxMenu, type GroupBy, type Sort } from "./inbox-menu";
 import "./app.css";
 
@@ -22,7 +22,7 @@ type StatusGlyph = ComponentType<{ size?: number; strokeWidth?: number; classNam
 type Presentation = { icon: StatusGlyph; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
 type ThreadContext = { threads: ThreadChoice[]; hosts: { id: string; name: string; connected: boolean }[]; nextCursor: string | null };
 type Preview = { token: string; snapshot: Snapshot; reader: { login: string; hostId: string }; thread: ThreadChoice };
-const session = { query: "", author: DEFAULT_AUTHOR, reviewer: "", sort: "updated" as Sort, groupBy: "none" as GroupBy, collapsed: ["history"] as Group[], scrollTop: 0 };
+const session = { query: "", author: DEFAULT_AUTHOR, reviewer: "", sort: "updated" as Sort, groupBy: "project" as GroupBy, view: "active" as "active" | "history", attention: false, collapsed: [] as Group[], scrollTop: 0 };
 const EMPTY_COVERAGE: Listing["coverage"] = { running: false, checked: 0, total: 0, unavailable: 0, incomplete: false, lastDiscoveryAt: null, includesArchived: false };
 
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
@@ -44,9 +44,6 @@ function AuthorTag({ author, avatarUrl }: { author: Snapshot["author"]; avatarUr
   return <span className="pr-author-tag"><span className="pr-author-avatar" aria-hidden="true">
     {src && src !== failedUrl ? <img src={src} alt="" width={20} height={20} referrerPolicy="no-referrer" onError={() => setFailedUrl(src)} /> : author?.slice(0, 1).toUpperCase() || "?"}
   </span>{author ? `@${author}` : "Unknown author"}</span>;
-}
-function githubFresh(item: PullRequestItem, now: number): boolean {
-  return item.sourceState === "available" && item.snapshot !== null && now - Date.parse(item.snapshot.fetchedAt) <= 60_000;
 }
 /** bb's own thread-working glyph, so plugin activity matches the sidebar. */
 const BbIcon = experimental_Icon;
@@ -98,13 +95,8 @@ function mergePresentation(value: Snapshot["mergeability"]): Presentation {
     case "unknown": return { icon: CircleHelp, label: "Mergeability unknown", tone: "muted" };
   }
 }
-function needsThread(thread?: PluginSidebarThread): boolean {
-  return !!thread && (thread.hasPendingInteraction || ["waiting-for-input", "unread-error", "queued-failed"].includes(thread.indicator) || thread.status === "error");
-}
 export function needsAttention(item: PullRequestItem, threads: ReadonlyMap<string, PluginSidebarThread>, now: number): boolean {
-  if (!item.snapshot || !["open", "draft"].includes(item.snapshot.state)) return false;
-  if (item.links.some((link) => needsThread(threads.get(link.threadId)))) return true;
-  return githubFresh(item, now) && githubNeedsAttention(item.snapshot);
+  return statusOf(item, threads, now).attention;
 }
 function parseSelection(subPath: string): { id: string | null; tab: Tab } {
   const [encoded, tab] = subPath.split("/");
@@ -185,6 +177,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const [reviewer, setReviewer] = useState(session.reviewer);
   const [sort, setSort] = useState<Sort>(session.sort);
   const [groupBy, setGroupBy] = useState<GroupBy>(session.groupBy);
+  const [view, setView] = useState(session.view);
+  const [attention, setAttention] = useState(session.attention);
   const [authors, setAuthors] = useState<string[]>([]);
   const [projectRepositories, setProjectRepositories] = useState<{ id: string; repository: string }[]>([]);
   const [collapsed, setCollapsed] = useState<Group[]>(session.collapsed);
@@ -194,9 +188,6 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const [detailFailure, setDetailFailure] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState(0);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [pageLimit, setPageLimit] = useState(1);
   const [clock, setClock] = useState(Date.now());
   const [linking, setLinking] = useState<{ url?: string } | null>(null);
   const [undo, setUndo] = useState<{ token: string; title: string } | null>(null);
@@ -246,18 +237,11 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     const generation = ++readGeneration.current;
     setListLoading(true);
     try {
-      const all: PullRequestItem[] = [];
-      let cursor: string | undefined;
-      let result: Listing | null = null;
-      for (let page = 0; page < pageLimit; page++) {
-        result = await rpc.call("list", { view: "all", limit: 100, ...(author ? { author } : {}), ...(cursor ? { cursor } : {}) });
-        all.push(...result.items); cursor = result.nextCursor ?? undefined;
-        if (!cursor) break;
-      }
-      if (!mounted.current || generation !== readGeneration.current || !result) return;
-      const byId = new Map(all.map((item) => [item.id, item]));
+      const result = await rpc.call("inbox", {});
+      if (!mounted.current || generation !== readGeneration.current) return;
+      const byId = new Map(result.items.map((item) => [item.id, item]));
       setItems([...byId.values()]);
-      setCoverage(result.coverage); setTotal(result.total); setNextCursor(result.nextCursor); setAuthors(result.authors ?? []); setProjectRepositories(result.projects ?? []);
+      setCoverage(result.coverage); setAuthors(result.authors ?? []); setProjectRepositories(result.projects ?? []);
       const requestedId = selectedId.current;
       if (requestedId) {
         // Revoke private content immediately when the summary reports lost access.
@@ -269,7 +253,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
         void loadDetail(requestedId);
       }
     } finally { if (mounted.current && generation === readGeneration.current) { setBooting(false); setListLoading(false); } }
-  }, [rpc, pageLimit, loadDetail, author]);
+  }, [rpc, loadDetail]);
   const loadContext = useCallback(async () => {
     const result = await rpc.call("context", {});
     if (mounted.current) { setContext((current) => ({ ...result, threads: [...new Map([...current.threads, ...result.threads].map((thread) => [thread.id, thread])).values()] })); setContextEpoch((value) => value + 1); }
@@ -316,15 +300,11 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     document.addEventListener("visibilitychange", visibility);
     return () => { cancelled = true; mounted.current = false; ++readGeneration.current; ++detailGeneration.current; window.clearInterval(timer); document.removeEventListener("visibilitychange", visibility); };
   }, [loadContext]);
-  useEffect(() => { if (pageLimit > 1) void load().catch((reason) => setError(message(reason))); }, [pageLimit, load]);
-  // The author filter runs on the server so it covers every stored pull request, not only loaded pages.
-  const authorLoaded = useRef(author);
-  useEffect(() => { if (authorLoaded.current === author) return; authorLoaded.current = author; void loadRef.current().catch((reason) => setError(message(reason))); }, [author]);
   const wasConnected = useRef(false);
   useEffect(() => { if (connection === "connected") { if (wasConnected.current) { ++detailEpoch.current; void loadRef.current().catch((reason) => setError(message(reason))); } wasConnected.current = true; } }, [connection]);
   useRealtime(CHANGED, () => { ++detailEpoch.current; void loadRef.current().catch((reason) => setError(message(reason))); });
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = session.scrollTop; }, []);
-  useEffect(() => { Object.assign(session, { query, author, reviewer, sort, groupBy, collapsed }); }, [query, author, reviewer, sort, groupBy, collapsed]);
+  useEffect(() => { Object.assign(session, { query, author, reviewer, sort, groupBy, view, attention, collapsed }); }, [query, author, reviewer, sort, groupBy, view, attention, collapsed]);
   useEffect(() => {
     ++detailGeneration.current;
     detailRequest.current = null;
@@ -337,70 +317,78 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const authoredByMe = (item: PullRequestItem) => !item.snapshot || sameLogin(item.snapshot.author, item.reader?.login);
   const requestedFromMe = (item: PullRequestItem) => (item.snapshot?.requestedReviewers ?? []).some((login) => sameLogin(login, item.reader?.login));
   const reviewers = [...new Set(visibleItems.flatMap((item) => item.snapshot?.requestedReviewers ?? []))].sort();
-  const filtered = visibleItems.filter((item) => {
+  const matches = (item: PullRequestItem) => {
     const snapshot = item.snapshot;
     if (author && !(author === "@me" ? authoredByMe(item) : sameLogin(snapshot?.author, author))) return false;
     if (reviewer && !(reviewer === "@me" ? requestedFromMe(item) : snapshot?.requestedReviewers?.some((login) => sameLogin(login, reviewer)))) return false;
     const haystack = [snapshot?.title, snapshot?.repository, snapshot?.number, snapshot?.headBranch, snapshot?.baseBranch, item.url, ...item.links.map((link) => choices.get(link.threadId)?.title ?? "")].join(" ").toLocaleLowerCase();
     return haystack.includes(query.trim().toLocaleLowerCase());
-  }).sort((a, b) => {
-    const time = (item: PullRequestItem) => Date.parse(item.snapshot?.updatedAt ?? "") || 0;
-    return (sort === "title" ? (a.snapshot?.title ?? "").localeCompare(b.snapshot?.title ?? "") : sort === "oldest" ? time(a) - time(b) : time(b) - time(a)) || a.id.localeCompare(b.id);
-  });
-  const isHistory = (item: PullRequestItem) => ["merged", "closed"].includes(item.snapshot?.state ?? "");
-  const pinned = filtered.filter((item) => item.pinned);
-  const active = filtered.filter((item) => !item.pinned && !isHistory(item));
-  const history = filtered.filter((item) => !item.pinned && isHistory(item));
-  const hasFilters = !!(query || author !== DEFAULT_AUTHOR || reviewer);
-  const resetFilters = () => { setQuery(""); setAuthor(DEFAULT_AUTHOR); setReviewer(""); };
-  const me = items.find((item) => item.reader)?.reader?.login ?? null;
-  // A PR belongs to its preferred (else first) linked thread's project and section; unlinked PRs fall back to a project with the same GitHub repository.
-  const groupOf = (item: PullRequestItem): { key: string; label: string } => {
-    const linked = [item.preferredThreadId, ...item.links.map((link) => link.threadId)].map((id) => id ? liveThreads.get(id) : undefined).find(Boolean);
-    if (groupBy === "section") {
-      if (!linked) return { key: "section:~none", label: "No thread" };
-      const section = linked.sectionId ? sidebar.sections.find((entry) => entry.id === linked.sectionId) : undefined;
-      return section ? { key: `section:${section.id}`, label: section.name } : { key: "section:~threads", label: "Threads" };
-    }
-    const repository = item.snapshot?.repository.toLowerCase();
-    const projectId = linked?.projectId ?? projectRepositories.find((entry) => entry.repository.toLowerCase() === repository)?.id;
-    const project = projectId ? sidebar.projects.find((entry) => entry.id === projectId) : undefined;
-    return project ? { key: `project:${project.id}`, label: project.name } : { key: "project:~none", label: "No project" };
   };
-  // Named groups first, then loose "Threads", then PRs with no thread or project.
-  const rank = (key: string) => key.endsWith("~none") ? 2 : key.includes("~") ? 1 : 0;
-  // Pinned PRs lead their own group rather than floating above every group.
-  const grouped = groupBy === "none" ? [] : [...[...pinned, ...active].reduce((groups, item) => {
-    const { key, label } = groupOf(item);
-    const group = groups.get(key) ?? { key, label, items: [] as PullRequestItem[] };
-    group.items.push(item);
-    return groups.set(key, group);
-  }, new Map<string, { key: string; label: string; items: PullRequestItem[] }>()).values()].sort((a, b) => rank(a.key) - rank(b.key) || a.label.localeCompare(b.label));
+  const groups = useMemo(() => dependencyGroups(visibleItems, clock), [visibleItems, clock]);
+  const statuses = new Map(groups.flatMap((group) => group.entries.flatMap((entry) => entry.item ? [[entry.item.id, statusOf(entry.item, liveThreads, clock, dependencyStatus(entry, group, clock), connection === "connected")] as const] : [])));
+  const filtered = filterGroups(groups, view, matches, attention, statuses).sort((a, b) => {
+    const pin = (group: DependencyGroup) => group.entries.some(({ item }) => item?.pinned) ? 1 : 0;
+    const time = (group: DependencyGroup) => Math.max(...group.entries.map(({ item }) => Date.parse(item?.snapshot?.updatedAt ?? "") || 0));
+    return pin(b) - pin(a) || (sort === "title" ? a.entries[0]!.title.localeCompare(b.entries[0]!.title) : sort === "oldest" ? time(a) - time(b) : time(b) - time(a)) || a.key.localeCompare(b.key);
+  });
+  const hasFilters = !!(query || author !== DEFAULT_AUTHOR || reviewer || attention);
+  const resetFilters = () => { setQuery(""); setAuthor(DEFAULT_AUTHOR); setReviewer(""); setAttention(false); };
+  const me = items.find((item) => item.reader)?.reader?.login ?? null;
+  const groupOf = (group: DependencyGroup): { key: string; label: string } => {
+    const item = group.entries.find((entry) => entry.item)?.item!;
+    if (groupBy === "section") {
+      const owner = ownerThread(item, choices);
+      const linked = owner && liveThreads.get(owner.id);
+      const section = linked?.sectionId ? sidebar.sections.find((entry) => entry.id === linked.sectionId) : undefined;
+      return section ? { key: `section:${section.id}`, label: section.name } : { key: "section:~none", label: "No section" };
+    }
+    const projectId = projectFor(item, choices, projectRepositories);
+    const project = projectId ? sidebar.projects.find((entry) => entry.id === projectId) : undefined;
+    return projectId ? { key: `project:${projectId}`, label: project?.name ?? "Project unavailable" } : { key: `repository:${item.snapshot?.repository.toLowerCase() ?? "unknown"}`, label: item.snapshot?.repository ?? "Repository unavailable" };
+  };
+  const grouped = [...filtered.reduce((result, group) => {
+    const { key, label } = groupOf(group);
+    const section = result.get(key) ?? { key, label, groups: [] as DependencyGroup[] };
+    section.groups.push(group); result.set(key, section); return result;
+  }, new Map<string, { key: string; label: string; groups: DependencyGroup[] }>()).values()].sort((a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key));
   const mutate = async (action: () => Promise<PullRequestItem>) => { try { await action(); if (mounted.current) { await load(); setError(null); } } catch (reason) { if (mounted.current) setError(message(reason)); } };
   const onUnlink = async (item: PullRequestItem, threadId: string) => {
     try { const result = await rpc.call("unlink", { id: item.id, threadId }); if (result.undoToken) setUndo({ token: result.undoToken, title: choices.get(threadId)?.title ?? "Thread" }); await load(); }
     catch (reason) { setError(message(reason)); }
   };
-  const renderRow = (item: PullRequestItem) => {
-    const snapshot = item.snapshot;
-    const fresh = githubFresh(item, clock);
-    const blocking = snapshot?.mergeability === "conflicts" ? mergePresentation("conflicts") : snapshot?.review === "changes-requested" ? reviewPresentation("changes-requested") : snapshot?.mergeability === "blocked" && githubNeedsAttention(snapshot) && snapshot.checks.state !== "failing" ? { icon: AlertTriangle, label: "Merge blocked; repository requirements need attention", tone: "warning" as const } : null;
-    const threadsNeedingInput = item.links.filter((link) => needsThread(liveThreads.get(link.threadId)));
-    const working = item.links.map((link) => liveThreads.get(link.threadId)).find((thread) => thread && ["active", "starting", "stopping"].includes(thread.status));
-    const githubStatus = !fresh ? { icon: Clock, label: item.sourceMessage ?? `GitHub status last checked ${age(snapshot?.fetchedAt ?? null)}`, tone: "muted" as const } : blocking ?? (snapshot && snapshot.checks.state !== "none" ? checksPresentation(snapshot) : null);
-    const threadStatus = threadsNeedingInput.length > 0 ? { ...threadPresentation(liveThreads.get(threadsNeedingInput[0]!.threadId)), label: `${threadsNeedingInput.length} ${threadsNeedingInput.length === 1 ? "thread needs" : "threads need"} attention` } : working ? threadPresentation(working) : null;
-    const status = threadsNeedingInput.length > 0 ? threadStatus : fresh && (blocking || snapshot?.checks.state === "failing") ? githubStatus : threadStatus ?? githubStatus;
-    return <div className={`pr-row${selection.id === item.id ? " pr-row-selected" : ""}`} key={item.id}>
+  const toggle = (key: string) => setCollapsed((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
+  const renderRow = (entry: Entry, group: DependencyGroup) => {
+    const item = entry.item;
+    if (!item) return <div className="pr-missing-member" key={entry.key}><External href={entry.url}>#{entry.number} {entry.title}</External><span>Unknown · Not in the known list</span></div>;
+    const snapshot = item.snapshot, status = statuses.get(item.id)!;
+    const parent = group.entries.find((member) => member.key === entry.parent);
+    const tone = status.category === "Needs you" ? "warning" : status.category === "Needs fixes" ? "danger" : "muted";
+    return <div className={`pr-row${selection.id === item.id ? " pr-row-selected" : ""}${entry.parent ? " pr-dependent-row" : ""}`} key={item.id}>
       <StatusIcon {...lifecycle(snapshot)} />
       <button type="button" className="pr-row-title" onClick={() => select(item.id)} aria-current={selection.id === item.id ? "page" : undefined} title={snapshot ? `${snapshot.title} · ${snapshot.repository} #${snapshot.number}` : item.url}>{snapshot?.title ?? "Pull request unavailable"}</button>
-      <div className="pr-row-statuses">{status && <StatusIcon {...status} label={[githubStatus?.label, threadStatus?.label].filter(Boolean).join(" · ")} />}</div>
-      <time className="pr-row-time" dateTime={snapshot?.updatedAt} title={snapshot ? `Updated ${new Date(snapshot.updatedAt).toLocaleString()}` : undefined}>{snapshot ? age(snapshot.updatedAt).replace(" ago", "").replace("just now", "now") : "—"}</time>
+      {item.pinned && <Pin size={12} aria-label="Pinned" className="pr-tone-muted" />}
+      <time className="pr-row-time" dateTime={snapshot?.updatedAt}>{snapshot ? age(snapshot.updatedAt).replace(" ago", "").replace("just now", "now") : "—"}</time>
+      <div className="pr-row-caption"><span className={`pr-row-reason pr-tone-${tone}`}>{isHistory(item) ? status.reason : `${status.category} · ${status.reason}`}{status.cached && status.category !== "Unknown" ? " · GitHub cached" : ""}</span><span className="pr-row-identity">#{entry.number}{groupBy === "none" ? ` · ${snapshot?.repository ?? ""}` : ""}{parent ? ` · Depends on #${parent.number}` : ""}</span>{entry.note && entry.note !== status.reason && <span>{entry.note}</span>}</div>
     </div>;
   };
-  const renderSection = (id: Group, label: string, items: PullRequestItem[]) => items.length > 0 && <section className="pr-list-group">
-    <button className="pr-group-title" type="button" aria-expanded={!collapsed.includes(id)} aria-controls={`pr-group-${id}`} onClick={() => setCollapsed((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])}>{label}<ChevronDown size={14} className={collapsed.includes(id) ? "pr-collapsed" : undefined} aria-hidden="true" /></button>
-    {!collapsed.includes(id) && <div id={`pr-group-${id}`}>{items.map(renderRow)}</div>}
+  const disclosure = (key: string, label: string, summary: string, children: ReactNode, className = "pr-list-group") => <section className={className} key={key}>
+    <button className="pr-group-title" type="button" aria-expanded={!collapsed.includes(key)} aria-controls={`pr-group-${encodeURIComponent(key)}`} onClick={() => toggle(key)}><ChevronDown size={14} className={collapsed.includes(key) ? "pr-collapsed" : undefined} aria-hidden="true" /><span><span className="pr-group-label">{label}</span>{summary && <span className="pr-group-summary">{summary}</span>}</span></button>
+    {!collapsed.includes(key) && <div id={`pr-group-${encodeURIComponent(key)}`}>{children}</div>}
   </section>;
+  const renderGroup = (group: DependencyGroup) => group.kind === "single" ? renderRow(group.entries[0]!, group) : disclosure(
+    `dependency:${group.key}`, `${group.entries[0]!.title} · ${group.entries.length} PRs`,
+    [group.kind === "native" ? "GitHub stack" : "Branch dependencies", group.cached ? "Cached relationships" : "", attentionSummary(group.entries, statuses), group.entries.some((entry) => !entry.item) ? "Some members not loaded" : ""].filter(Boolean).join(" · "),
+    group.entries.map((entry) => renderRow(entry, group)), "pr-dependency-group",
+  );
+  const renderProject = (section: typeof grouped[number]) => {
+    const repositories = new Map<string, DependencyGroup[]>();
+    for (const group of section.groups) {
+      const repository = group.entries.find((entry) => entry.item)?.item?.snapshot?.repository ?? "Repository unavailable";
+      repositories.set(repository, [...repositories.get(repository) ?? [], group]);
+    }
+    return disclosure(section.key, section.label, attentionSummary(section.groups.flatMap((group) => group.entries), statuses),
+      repositories.size > 1 ? [...repositories].map(([repository, groups]) => disclosure(`${section.key}:${repository}`, repository, attentionSummary(groups.flatMap((group) => group.entries), statuses), groups.map(renderGroup), "pr-repository-group")) : section.groups.map(renderGroup));
+  };
   return <main className={`pr-plugin${selection.id ? " pr-has-selection" : ""}`}>
     <aside className="pr-sidebar" aria-label="Pull requests">
       <header className="pr-list-header"><h1>Pull Requests</h1>
@@ -409,16 +397,16 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
           reviewerDataIncomplete={visibleItems.some((item) => item.snapshot && !item.snapshot.reviewRequestsComplete)} />
       </header>
       <form className="pr-list-toolbar" onSubmit={(event) => { event.preventDefault(); const known = visibleItems.find((item) => item.url === query.trim().replace(/[?#].*$/, "")); if (known) select(known.id); else if (/^https:\/\/github\.com\//i.test(query.trim())) setLinking({ url: query.trim() }); }}><label className="pr-search"><Search size={17} aria-hidden="true" /><input aria-label="Search pull requests" placeholder="Search or paste a PR link" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <IconButton icon={X} label="Clear search" onClick={() => setQuery("")} />}</label></form>
-      {hasFilters && <div className="pr-active-filters"><span>{filtered.length} matching pull requests</span><button type="button" className="pr-text-button" onClick={resetFilters}>Clear</button></div>}
+      <div className="pr-view-controls"><div role="group" aria-label="Pull request view">{(["active", "history"] as const).map((value) => <button type="button" key={value} aria-pressed={view === value} onClick={() => setView(value)}>{value === "active" ? "Active" : "History"}</button>)}</div><button type="button" aria-pressed={attention} onClick={() => setAttention((value) => !value)}>Needs attention</button></div>
+      {hasFilters && <div className="pr-active-filters"><span>{listLoading ? "Loading complete list…" : `${filtered.length} matching groups`}</span><button type="button" className="pr-text-button" onClick={resetFilters}>Clear</button></div>}
       <div ref={listRef} className="pr-list-scroll" onScroll={(event) => { session.scrollTop = event.currentTarget.scrollTop; }}>
-        {groupBy === "none" ? [...pinned, ...active].map(renderRow) : grouped.map((group) => renderSection(group.key, group.label, group.items))}
-        {renderSection("history", "Merged and closed", history)}
-        {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No matching pull requests" : "No pull requests found"}</p><small>{hasFilters ? "Try another search or filter." : "Your authored pull requests and review requests on GitHub appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
-        {nextCursor && <button className="pr-load-more" type="button" disabled={listLoading} onClick={() => setPageLimit((current) => current + 1)}>{listLoading ? "Loading more…" : `Load more · ${items.length} of ${total}`}</button>}
+        {groupBy === "none" ? filtered.map(renderGroup) : grouped.map(renderProject)}
+        {filtered.length === 0 && (booting || (!hasFilters && visibleItems.length === 0 && coverage.running) ? <Loading label="Discovering pull requests" /> : <div className="pr-list-empty"><p>{hasFilters ? "No known matching pull requests" : "No pull requests found"}</p><small>{hasFilters ? "Try another filter or refresh. Unknown statuses may still need attention." : "Your authored pull requests and review requests on GitHub appear here."}</small>{!hasFilters && <button className="pr-text-button" type="button" onClick={() => setLinking({})}>Link a pull request</button>}</div>)}
+
       </div>
       <div className="pr-list-footer">
-        <span title={nextCursor ? `Filters and sorting apply to ${items.length} loaded pull requests.` : undefined}>{nextCursor ? `${items.length} of ${total} loaded` : `${visibleItems.length} pull requests`}</span>
-        <span className="pr-sync-status" role="status">{coverage.running ? "Syncing…" : coverage.unavailable > 0 ? `${coverage.unavailable} source${coverage.unavailable === 1 ? "" : "s"} unavailable` : coverage.incomplete ? "Partial coverage" : filtered.some((item) => !isHistory(item) && !githubFresh(item, clock)) ? "Cached" : ""}</span>
+        <span>{listLoading ? "Loading complete list…" : `${visibleItems.length} known pull requests`}</span>
+        <span className="pr-sync-status" role="status">{coverage.running ? "Syncing…" : coverage.unavailable > 0 ? `${coverage.unavailable} source${coverage.unavailable === 1 ? "" : "s"} unavailable` : coverage.incomplete ? "Partial coverage" : visibleItems.some((item) => !isHistory(item) && !githubFresh(item, clock)) ? "Cached" : ""}</span>
         <IconButton icon={RefreshCw} label="Refresh pull requests" disabled={refreshing} spin={refreshing} onClick={() => void refresh(true)} />
       </div>
     </aside>

@@ -3,7 +3,7 @@ import { ArrowDownAZ, Clock, Folder, History, List, MoreHorizontal, Rows3, type 
 
 export type Sort = "updated" | "oldest" | "title";
 export type GroupBy = "none" | "project" | "section";
-export const DEFAULT_AUTHOR = "@me";
+export const DEFAULT_AUTHOR = "";
 type Props = {
   author: string; reviewer: string; sort: Sort; groupBy: GroupBy; authors: string[]; reviewers: string[]; me: string | null;
   reviewerDataIncomplete: boolean;
