@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ dns: vi.fn(), request: vi.fn() }));
 vi.mock("node:dns/promises", () => ({ lookup: mocks.dns }));
 vi.mock("node:https", () => ({ request: mocks.request }));
-import { declaredIcons, decodeIcon, ICON_LIMITS, IconService, isPublicAddress, publicLookup, publicOrigin, readPublicResource, resolveIcon } from "./icons.js";
+import { declaredIcons, decodeIcon, ICON_LIMITS, IconService, isPublicAddress, publicLookup, publicOrigin, readPublicResource, resolveIcon } from "./index.js";
 
 afterEach(() => { vi.useRealTimers(); vi.resetAllMocks(); });
 
