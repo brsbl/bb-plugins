@@ -79,7 +79,8 @@ class Helper {
       () => clearTimeout(startTimer),
       () => clearTimeout(startTimer),
     );
-    createInterface({ input: this.child.stdout }).on("line", (line) => {
+    const replies = createInterface({ input: this.child.stdout });
+    replies.on("line", (line) => {
       let message: { ready?: boolean; id?: number; ok?: boolean; errno?: number };
       try {
         message = JSON.parse(line) as typeof message;
@@ -115,6 +116,7 @@ class Helper {
     // Writing to a helper that died fails with EPIPE; unheard, that would crash the host worker mid-save.
     this.child.stdin.on("error", closed);
     this.child.stdout.on("error", closed);
+    replies.on("error", closed);
     // Nothing should keep the host worker alive but its own work.
     this.child.unref?.();
   }

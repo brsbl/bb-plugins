@@ -64,7 +64,11 @@ function fakeHelper(options: FakeOptions = {}) {
     } else {
       queueMicrotask(() => stdout.write('{"ready":true}\n'));
     }
-    if (options.brokenPipe) stdin.on("data", () => stdin.destroy(failure("EPIPE")));
+    if (options.brokenPipe) {
+      // The helper is gone: nothing answers, and the first write breaks the pipe.
+      stdin.on("data", () => stdin.destroy(failure("EPIPE")));
+      return child as unknown as ChildProcessWithoutNullStreams;
+    }
     createInterface({ input: stdin }).on("line", (line) => {
       lines.push(line);
       const request = JSON.parse(line) as { id: number; op: string; from: string; to: string };
