@@ -285,7 +285,8 @@ describe("the editor", () => {
     expect(await frame.text()).toContain('<div id="moss-editor"></div>');
     expect(await (await h.behavior.fetchHttp("GET", `${base}/frame.js`)).text()).toContain('from "./moss-editor.js"');
     expect((await h.behavior.fetchHttp("GET", `${base}/moss-editor.js`)).headers.get("cache-control")).toContain("immutable");
-    expect((await h.behavior.fetchHttp("GET", `${base}/moss-editor-host.js`)).status).toBe(404);
+    // The host bundles its own copy of the helpers; the editor frame never gets a route for them.
+    await expect(h.behavior.fetchHttp("GET", `${base}/moss-editor-host.js`)).rejects.toThrow("no http route");
 
     const blocks = await h.behavior.fetchHttp("GET", editor.htmlFrameUrl.slice(httpRoot.length));
     expect(blocks.headers.get("content-security-policy")).toMatch(/^sandbox allow-scripts; default-src 'none'/);
