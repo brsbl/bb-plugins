@@ -1,6 +1,6 @@
 ---
 name: file-pins
-description: Pin, remove, or list local files and web links in a bb thread's Pinned Files. Use when the user asks to pin a file or a URL, and proactively, without being asked, when you open or start driving a PR, start work on an issue or ticket, rely on a spec or design doc, or hand the user a dev server, story server, shared preview, deployed preview, or dashboard they will revisit.
+description: Pin, remove, or list local files and web links in a bb thread's Pins. Use when the user asks to pin a file or a URL, and proactively, without being asked, when you open or start driving a PR, start work on an issue or ticket, rely on a spec or design doc, or hand the user a dev server, story server, shared preview, deployed preview, or dashboard they will revisit.
 ---
 
 ## Pin the files and links the user names
@@ -65,5 +65,5 @@ way bb opens links. In the UI, Unpin moves a pin from the strip to the ⋯ list
 and Pin moves it back while the strip has room; Remove deletes it with an Undo
 toast. The CLI `remove` command matches the UI's Remove, without the Undo toast.
 Missing files stay visible with a small × to remove them. The composer's pin
-button adds a "Pin files" pill for the user to follow with the files or links to
+button adds a "Pin" pill for the user to follow with the files or links to
 pin; the pill sends this skill to you.

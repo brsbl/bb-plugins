@@ -23,7 +23,7 @@ export const MAX_PINS = 40;
 export const moreSchema = z.array(id).max(MAX_PINS);
 export const CHANGED = "pins-changed";
 /** The composer pill that asks the agent to pin a file; it resolves to the shipped skill. */
-export const PIN_MENTION = { provider: "pin", id: "file", label: "Pin files" } as const;
+export const PIN_MENTION = { provider: "pin", id: "file", label: "Pin" } as const;
 const status = z.enum(["available", "missing", "unavailable"]);
 export const fileReferenceSchema = filePinSchema.extend({ hostName: z.string(), status });
 export type FileReference = z.infer<typeof fileReferenceSchema>;
