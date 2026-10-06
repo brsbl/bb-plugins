@@ -83,7 +83,7 @@ function HeaderButton({
           onClick={onClick}
           className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50 max-md:pointer-coarse:size-9"
         >
-          <Icon name={icon} aria-hidden className="size-3 max-md:pointer-coarse:size-5" />
+          <Icon name={icon} fallback="MoreHorizontal" aria-hidden className="size-3 max-md:pointer-coarse:size-5" />
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>

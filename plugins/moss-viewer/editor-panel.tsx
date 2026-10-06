@@ -178,7 +178,7 @@ export function EditorStatus({ status }: { status: Moss.MossEditorStatus | null 
     >
       {shown ? (
         <>
-          <Icon name={shown.icon} aria-hidden className="size-3 max-md:pointer-coarse:size-4" />
+          <Icon name={shown.icon} fallback="MoreHorizontal" aria-hidden className="size-3 max-md:pointer-coarse:size-4" />
           {shown.label}
         </>
       ) : null}
