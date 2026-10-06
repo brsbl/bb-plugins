@@ -80,6 +80,7 @@ export function dependencyGroups(items: PullRequestItem[], now: number): Depende
   const signatures = new Map<string, string>();
   for (const claim of claims) for (const key of claim) {
     const signature = claim.join("|");
+    if (entries.get(key)?.item?.snapshot?.stack.state === "none") invalid.add(key);
     if (signatures.has(key) && signatures.get(key) !== signature) invalid.add(key);
     signatures.set(key, signature);
   }

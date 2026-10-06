@@ -25,6 +25,9 @@ describe("PR status precedence and freshness", () => {
     item.snapshot = pr(1).snapshot; item.sourceState = "available";
     item.snapshot!.requestedReviewers = ["ALICE"];
     expect(statusOf(item, new Map(), now)).toMatchObject({ category: "Needs you", reason: "Your review requested" });
+    item.snapshot!.checks.state = "failing";
+    const group = dependencyGroups([item], now)[0]!;
+    expect(attentionSummary(group.entries, new Map([[item.id, statusOf(item, threads, now)]]))).toBe("1 needs you · 1 needs fixes");
   });
   it("orders fresh failures ahead of draft/activity, then waiting, then complete decision evidence", () => {
     const item = pr(1, { state: "draft", mergeability: "conflicts" });
@@ -112,6 +115,8 @@ describe("Dependency groups", () => {
     expect(group).toMatchObject({ kind: "native", entries: [{ number: 1 }, { number: 2 }] });
     expect(group!.entries[0]!.item).toBeUndefined();
     expect(dependencyStatus(group!.entries[1]!, group!, now).uncertain).toContain("#1");
+    // A member explicitly reporting no native stack conflicts with the other claim.
+    expect(dependencyGroups([root, child], now).every((group) => group.entries[0]!.note?.includes("ambiguous"))).toBe(true);
     root.snapshot!.stack = native(child, root);
     const conflict = dependencyGroups([child, root], now);
     expect(conflict).toHaveLength(2);
