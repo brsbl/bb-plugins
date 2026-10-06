@@ -1,7 +1,7 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, expect, it } from "vitest";
-import plugin, { createIconCache } from "./server.js";
-import { ICON_LIMITS } from "./icons.js";
+import { createIconCache, ICON_LIMITS } from "@brsbl/bb-website-icons";
+import plugin from "./server.js";
 
 const hosts: ReturnType<typeof createFakePluginHost>[] = [];
 const host = () => {
@@ -30,13 +30,22 @@ it("expires successful and failed origins separately and persists without messag
   const cache = createIconCache(current.bb, () => time);
   cache.put("https://yes.example.com", "data:image/png;base64,AA==");
   cache.put("https://no.example.com", null);
-  expect(createIconCache(current.bb, () => time).get("https://yes.example.com")).toBe("data:image/png;base64,AA==");
   expect(cache.get("https://no.example.com")).toBeNull();
   time += ICON_LIMITS.negativeMs;
   expect(cache.get("https://no.example.com")).toBeUndefined();
   expect(cache.get("https://yes.example.com")).toBeTruthy();
   time += ICON_LIMITS.positiveMs;
   expect(cache.get("https://yes.example.com")).toBeUndefined();
+});
+
+it("keeps icons but retries misses after a restart or update", () => {
+  const current = host();
+  const cache = createIconCache(current.bb, () => 1_000);
+  cache.put("https://yes.example.com", "data:image/png;base64,AA==");
+  cache.put("https://no.example.com", null);
+  const reopened = createIconCache(current.bb, () => 1_000);
+  expect(reopened.get("https://yes.example.com")).toBe("data:image/png;base64,AA==");
+  expect(reopened.get("https://no.example.com")).toBeUndefined();
 });
 
 it("evicts old origins at both the count and byte budgets", () => {

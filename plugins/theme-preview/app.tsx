@@ -1281,7 +1281,7 @@ export default definePluginApp((app) => {
   app.slots.navPanel({
     id: "preview",
     title: "Theme Preview",
-    icon: "Zap",
+    icon: "Palette",
     path: "preview",
     component: PreviewPage,
   });

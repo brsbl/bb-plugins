@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type ExperimentalComposerSubmitOptions, type PluginComposerApi, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, chooseLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
@@ -67,6 +67,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const lastLoadFailed = useRef(false);
   const flight = useRef<Promise<void> | null>(null);
   const lock = useRef(false);
+  const revealedAt = useRef(0);
   const alive = useRef(true);
   const adopt = useCallback((next: Item) => {
     const changedState = current.current?.state !== next.state;
@@ -156,6 +157,10 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
 
   const act = async (action?: Action, choice?: string) => {
     if (lock.current || submitting.has(threadId)) return;
+    // A collapsed row hides the email: its first Send or Save opens the draft instead, and only a visible draft goes out.
+    if (unseen(action)) { revealedAt.current = Date.now(); setOpen(true); setTimeout(() => reviewTarget.current?.focus()); return; }
+    // The rest of the gesture that opened it (a double-click or a held Enter) must not send.
+    if ((action === "send" || action === "save-draft") && Date.now() - revealedAt.current < 500) return;
     lock.current = true; submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
     try {
       await flush();
@@ -217,6 +222,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const done = item?.state === "succeeded" || item?.state === "failed" || !!status;
   const showBody = logEntry ? viewResult : row ? expanded : !done || viewResult;
   const editor = useRef<HTMLTextAreaElement>(null);
+  const reviewTarget = useRef<HTMLButtonElement>(null);
+  const unseen = (action?: Action) => !!reply && (row || !!logEntry) && !showBody && (action === "send" || action === "save-draft");
   useLayoutEffect(() => {
     const resize = () => {
       if (editor.current) {
@@ -282,19 +289,21 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       {status && !item.attempt?.claimed && <IconButton label="Resend request" disabled={busy} onClick={() => void act()}><ResendIcon /></IconButton>}
       {(deferred || (item.state === "failed" && item.result?.retryable)) && <IconButton label={deferred ? "Resume" : reply ? "Edit draft" : "Choose again"} disabled={busy} onClick={() => void reopen()}>{reply && !deferred ? <EditIcon /> : <UndoIcon />}</IconButton>}
       <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
-      {item.state === "failed" && <ActionButton variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? "Retry" : "Check outcome"}</ActionButton>}
+      {item.state === "failed" && <ActionButton ref={reviewTarget} variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</ActionButton>}
     </div>
   </div>;
+  const recipients = reply && <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
+    {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
+  </div>;
+  const original = reply && <details className="iac-original"><summary><span>{displayName(reply.original.from)}{reply.original.date ? `, ${reply.original.date}` : ""}: “{reply.original.body.replace(/\s+/g, " ").slice(0, 160)}”</span></summary>
+    <div className="iac-email">{reply.original.body}</div>
+  </details>;
   const details = <>
     <div className="iac-header">
-      {reply ? <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
-        {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
-      </div> : <span className="iac-question">{title(item)}</span>}
+      {reply ? recipients : <span className="iac-question">{title(item)}</span>}
     </div>
     {reply ? <>
-      <details className="iac-original"><summary><span>{displayName(reply.original.from)}{reply.original.date ? `, ${reply.original.date}` : ""}: “{reply.original.body.replace(/\s+/g, " ").slice(0, 160)}”</span></summary>
-        <div className="iac-email">{reply.original.body}</div>
-      </details>
+      {original}
       <textarea ref={editor} aria-label="Draft" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={1}
         onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }}
         onBlur={() => void flush().catch(() => {})} />
@@ -323,8 +332,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     const openThread = () => navigate.toThread(threadId);
     const toggleCard = <MenuAction onSelect={() => setViewResult(!viewResult)}>{viewResult ? "Hide card" : "View card"}</MenuAction>;
     // Log actions are icon-only squares; the tooltip and accessible name carry the full label.
-    const button = (label: string, glyph: ActionGlyph, onClick: () => void, variant: "default" | "outline", isDisabled = busy, pendingText?: string) =>
-      <IconButton label={pendingText ?? label} variant={variant} disabled={isDisabled || !!pendingText} aria-busy={pendingText ? true : undefined} onClick={onClick}><ActionGlyphIcon name={glyph} /></IconButton>;
+    const button = (label: string, glyph: ActionGlyph, onClick: () => void, variant: "default" | "outline", isDisabled = busy, pendingText?: string, ref?: Ref<HTMLButtonElement>) =>
+      <IconButton ref={ref} label={pendingText ?? label} variant={variant} disabled={isDisabled || !!pendingText} aria-busy={pendingText ? true : undefined} onClick={onClick}><ActionGlyphIcon name={glyph} /></IconButton>;
     const decideButton = (action: "yes" | "no") => {
       const label = actionLabel(item, action);
       const verb = label.trim().split(/\s+/)[0]!.toLowerCase();
@@ -354,13 +363,13 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     } else if (failed) {
       menu = null;
       secondary = retryable && button(reply ? "Edit draft" : "Choose again", reply ? "edit" : "undo", () => void reopen(), "outline");
-      primary = choice ? chooseButton : retryable ? button("Retry", "retry", () => void act(item.attempt!.action), "default") : button("Open thread", "open", openThread, "default", false);
+      primary = choice ? chooseButton : retryable ? button(unseen(item.attempt!.action) ? "Review and retry" : "Retry", "retry", () => void act(item.attempt!.action), "default", busy, undefined, reviewTarget) : button("Open thread", "open", openThread, "default", false);
     } else {
       menu = <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
-        : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>Save to Gmail drafts</MenuAction>}<MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
+        : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>{unseen("save-draft") ? "Review and save to Gmail drafts" : "Save to Gmail drafts"}</MenuAction>}<MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
         <MenuAction onSelect={openThread}>Open thread</MenuAction></>;
       secondary = reply ? commentButton : choice ? null : decideButton("no");
-      primary = reply ? button("Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined)
+      primary = reply ? button(unseen("send") ? "Review and send" : "Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined, reviewTarget)
         : choice ? chooseButton : decideButton("yes");
     }
     return <article className={quiet ? "iac-log-row iac-log-quiet" : later ? "iac-log-row iac-log-later" : "iac-log-row"} aria-label={`${kind}: ${heading}`}>
@@ -385,7 +394,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       </div>
       {viewResult && <div className="iac-log-draft">
         {reply ? <>
-          {(reply.cc.length > 0 || reply.bcc.length > 0) && <p className="iac-muted">{[reply.cc.length && `Cc ${reply.cc.join(", ")}`, reply.bcc.length && `Bcc ${reply.bcc.join(", ")}`].filter(Boolean).join(" · ")}</p>}
+          {recipients}
+          {original}
           <textarea ref={editor} aria-label="Draft" value={draft} readOnly={!ready || busy} rows={1} maxLength={40000}
             onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }} onBlur={() => void flush().catch(() => {})} />
           {ready && !saveError && (saving || dirty.current) && <span className="iac-save" role="status">Saving…</span>}

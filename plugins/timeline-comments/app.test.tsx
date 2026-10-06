@@ -65,7 +65,7 @@ describe("timeline comments app", () => {
       {
         id: "comment-selection",
         title: "Comment",
-        icon: "ChatFeedback",
+        icon: "MessageCirclePlus",
       },
     ]);
     expect(app.messageActions[0]).not.toHaveProperty("placements");
@@ -73,7 +73,7 @@ describe("timeline comments app", () => {
       {
         id: "comments",
         title: "Comments List",
-        icon: "ChatFeedback",
+        icon: "MessageSquare",
         layout: "flush",
       },
     ]);

@@ -1,6 +1,15 @@
 import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import plugin from "./server.js";
+
+const icons = vi.hoisted(() => ({ origins: [] as string[] }));
+vi.mock("@brsbl/bb-website-icons", async (original) => ({
+  ...await original<typeof import("@brsbl/bb-website-icons")>(),
+  IconService: class {
+    setEnabled() {}
+    async get(origin: string) { icons.origins.push(origin); return "data:image/png;base64,AA=="; }
+  },
+}));
 
 const disposers: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); });
@@ -103,10 +112,15 @@ describe("thread file pins", () => {
     const provider = h.registrations.mentionProviders.find((item) => item.id === "pin")!;
     expect(await provider.search({ trigger: "@", query: "pin", projectId: null, threadId: "one" })).toEqual([]);
     const { context } = await provider.resolve("file");
-    expect(context).toMatch(/^## Pin the files the user names/);
+    expect(context).toMatch(/^## Pin the files and links the user names/);
     expect(context).toContain("bb file-pins pin <path>");
+    expect(context).toContain("bb file-pins pin <url>");
     expect(context).not.toContain("name: file-pins");
     await expect(provider.resolve("other")).rejects.toThrow("out of date");
+  });
+  it("points every thread at the skill's proactive link-pinning rule", () => {
+    const h = setup();
+    expect(h.registrations.instructionProvider?.({ threadId: "one", projectId: "p" })).toMatch(/bb file-pins pin <url> --title .*file-pins skill/);
   });
   it("repins in place only after the replacement resolves successfully", async () => {
     const h = setup();
@@ -133,6 +147,68 @@ describe("thread file pins", () => {
     expect(await reloaded.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [] });
     await reloaded.behavior.callRpc("undo", { threadId: "one", undoToken });
     expect(await reloaded.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ more: [third.id] });
+  });
+  it("loads pins stored before URL pins existed unchanged", async () => {
+    const h = setup();
+    const stored = [
+      { id: "a", hostId: "mac", path: "/Users/me/a.md", name: "a.md", createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "b", hostId: "linux", path: "/srv/b.ts", name: "b.ts", createdAt: "2026-01-02T00:00:00.000Z" },
+    ];
+    await h.bb.storage.kv.set("thread:one:pins:v1", stored);
+    await h.bb.storage.kv.set("thread:one:more:v1", ["b"]);
+    expect(await h.behavior.callRpc("list", { threadId: "one" })).toEqual({ pins: stored });
+    expect(await h.behavior.callRpc("inspect", { threadId: "one" })).toMatchObject({ pins: [{ id: "a", status: "available" }, { id: "b", status: "unavailable" }], more: ["b"] });
+    const link = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://example.com/docs" }) as { id: string };
+    await h.behavior.callRpc("arrange", { threadId: "one", order: [link.id, "a", "b"], more: ["b"] });
+    expect(await h.bb.storage.kv.get("thread:one:pins:v1")).toEqual([expect.objectContaining({ kind: "url" }), ...stored]);
+  });
+  it("pins http(s) URLs beside files, de-duplicates exact URLs and shares order, Undo and capacity", async () => {
+    const h = setup();
+    const file = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/note.md" });
+    const link = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://Example.com/a/b/c?q=1", title: " Example\n page " }) as { id: string };
+    expect(link).toMatchObject({ kind: "url", url: "https://example.com/a/b/c?q=1", name: "Example page" });
+    expect(await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://example.com/a/b/c?q=1" })).toEqual(link);
+    expect(await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://example.com/a/b/c" })).toMatchObject({ name: "example.com/a/…/c" });
+    for (const url of ["ftp://example.com", "javascript:alert(1)", "https://me:pw@example.com"]) {
+      await expect(h.behavior.callRpc("pinUrl", { threadId: "one", url })).rejects.toThrow("http(s)");
+    }
+    const calls = h.inspection.experimental_hostRpcCalls.length;
+    const inspected = await h.behavior.callRpc("inspect", { threadId: "one" }) as { pins: Array<{ id: string }> };
+    expect(inspected.pins.map((pin) => pin.id)).toEqual([(file as { id: string }).id, link.id, expect.any(String)]);
+    expect(inspected.pins[1]).toEqual(link);
+    expect(h.inspection.experimental_hostRpcCalls.slice(calls).flatMap(({ input }) => (input as { paths: string[] }).paths)).toEqual(["/note.md"]);
+    const { undoToken } = await h.behavior.callRpc("remove", { threadId: "one", pinId: link.id }) as { undoToken: string };
+    expect(await h.behavior.callRpc("undo", { threadId: "one", undoToken })).toEqual(link);
+    expect((await h.behavior.callRpc("list", { threadId: "one" }) as { pins: Array<{ id: string }> }).pins[1]).toEqual(link);
+    await expect(h.behavior.callRpc("repin", { threadId: "one", pinId: link.id, hostId: "mac", path: "/x.md" })).rejects.toThrow("no longer pinned");
+    for (let index = 3; index < 40; index++) await h.behavior.callRpc("pinUrl", { threadId: "one", url: `https://example.com/${index}` });
+    await expect(h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://example.com/full" })).rejects.toThrow("up to 40 pins");
+    await expect(h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/full.md" })).rejects.toThrow("up to 40 pins");
+  });
+  it("pins, lists and removes URLs from the CLI without a file host", async () => {
+    const h = setup();
+    const signal = new AbortController().signal;
+    const calls = h.inspection.experimental_hostRpcCalls.length;
+    const pinned = await h.behavior.runCli(["pin", "https://github.com/brsbl/bb-plugins/pull/343", "--title", "PR 343", "--thread", "one", "--json"], { signal });
+    expect(pinned.exitCode).toBe(0);
+    const { id } = JSON.parse(pinned.stdout ?? "") as { id: string };
+    expect((await h.behavior.runCli(["pin", "https://example.com", "--thread", "one"], { signal })).stdout).toMatch(/^Pinned https:\/\/example\.com\/\n/);
+    expect(h.inspection.experimental_hostRpcCalls).toHaveLength(calls);
+    expect((await h.behavior.runCli(["list", "--thread", "one"], { signal })).stdout).toBe(`${id}\turl\thttps://github.com/brsbl/bb-plugins/pull/343\n${(await h.behavior.callRpc("list", { threadId: "one" }) as { pins: Array<{ id: string }> }).pins[1]!.id}\turl\thttps://example.com/`);
+    expect(JSON.parse((await h.behavior.runCli(["list", "--thread", "one", "--json"], { signal })).stdout ?? "").pins[0]).toMatchObject({ id, kind: "url", name: "PR 343" });
+    expect(JSON.parse((await h.behavior.runCli(["remove", id, "--thread", "one", "--json"], { signal })).stdout ?? "")).toEqual({ removed: true });
+    const rejected = await h.behavior.runCli(["pin", "ftp://example.com/file", "--thread", "one"], { signal }).catch((error: unknown) => error);
+    expect(String((rejected as { stderr?: string }).stderr ?? rejected)).toContain("http(s)");
+  });
+  it("looks up only a URL pin's own origin for its favicon", async () => {
+    const h = setup();
+    icons.origins.length = 0;
+    const file = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/note.md" }) as { id: string };
+    const link = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://docs.example.com/private/path?token=1" }) as { id: string };
+    expect(await h.behavior.callRpc("icon", { threadId: "one", pinId: link.id })).toEqual({ dataUrl: "data:image/png;base64,AA==" });
+    expect(await h.behavior.callRpc("icon", { threadId: "one", pinId: file.id })).toEqual({ dataUrl: null });
+    expect(await h.behavior.callRpc("icon", { threadId: "two", pinId: link.id })).toEqual({ dataUrl: null });
+    expect(icons.origins).toEqual(["https://docs.example.com"]);
   });
   it("removes storage when a thread is deleted", async () => {
     const h = setup();

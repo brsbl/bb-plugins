@@ -18,11 +18,11 @@ Turns recurring product-design feedback into a searchable rule library that agen
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/design-doctrine --yes`
 
-### Digests
+### Briefs
 
-Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based digest under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own issues.
+Delivers private briefings as threads with numbered priorities, review buttons, and collapsed routine details. Add or edit a prompt-based brief under the site it reads in Settings. Connections reuse existing bb Browser sign-ins; Reading remembers summarized newsletters without marking them read. Other threads can publish their own briefs.
 
-![A Digests issue with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
+![A brief with numbered priorities and review buttons](https://github.com/user-attachments/assets/6d6f4f82-9f51-475a-b5e7-356a1e43459f)
 
 [Source](plugins/digests) · [README](plugins/digests/README.md)
 
@@ -268,7 +268,7 @@ See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template]
 
 ### Pinned Files
 
-Keep local files within reach in each thread with persistent pins above the composer. Ask the agent to pin files from the composer's pin button or use the CLI, and open pins through bb's file links.
+Keep local files and web links within reach in each thread with persistent pins above the composer. Ask the agent to pin files or URLs from the composer's pin button or use the CLI, and open pins through bb's file and link handling.
 
 ![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
 
