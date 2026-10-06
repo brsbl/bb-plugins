@@ -3,7 +3,13 @@
 Keep local files and web links within reach in each thread. Pins stay above the
 composer even when the file viewer is closed, and are shared across clients.
 
-![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
+![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](docs/strip.png)
+
+![Unpinned files and links in the ⋯ list above the strip](docs/more-list.png)
+
+![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](docs/pin-menu-dark.png)
+
+![The Pin files pill in the composer, followed by the files and link to pin](docs/pin-files-pill.png)
 
 ## Install
 
@@ -25,8 +31,8 @@ story server, its BB Connect URL, or a deployed preview). Each gets a clear titl
 URLs are never pinned, superseded links are replaced rather than piling up, and a dev site's pin is
 removed when its server is retired. A short always-on instruction points every thread at the skill's rule.
 
-Pinned files read as quiet file chips above the composer, in order, as many as fit; the strip never
-scrolls. Files that aren't pinned sit in the **⋯** list. File icons follow bb's file panel. Hover a filename for its full path and machine.
+Pinned files read as quiet raised chips above the composer, in order, as many as fit; the strip never
+scrolls. Each chip is as wide as its label, and labels truncate only when the strip runs out of room. Files that aren't pinned sit in the **⋯** list. File icons follow bb's file panel. Hover a filename for its full path and machine.
 Right-click a strip file for bb's **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin** (moves it to the **⋯** list) or **Remove**. In the **⋯** list, a
 row's hover **⋯** button or right-click offers the same file options, then **Pin** or **Remove**;
@@ -37,7 +43,7 @@ only their small **×** removes them. Availability refreshes on focus and every
 
 Pinned links sit in the same strip and **⋯** list, with the same order, capacity, Pin/Unpin,
 Remove and Undo. A link chip shows its site's icon (the same origin-only lookup as Compact Links,
-falling back to a generic link icon) and the page title the agent supplied, otherwise the site and a
+falling back to a globe when a site has none, such as a localhost dev server) and the page title the agent supplied, otherwise the site and a
 short path. Clicking it opens the URL the way bb opens links; its menu offers **Open** and
 **Copy link**, then **Unpin**/**Pin** and **Remove**. Links have no missing state.
 
@@ -64,6 +70,8 @@ pinned link's public HTTPS origin, never its path or query, and cached in the pl
 
 A normal click on a pinned file follows bb's FileLink click behavior and opener
 choices. Pin menus start with bb's open and copy items, then Pin/Unpin and Remove.
+With [Moss Viewer](../moss-viewer) installed, a pinned Moss note opens in its panel, even when the
+note lives on another machine, and **Open in Moss** there opens it for editing.
 
 The pill is a plugin mention whose content is the shipped skill, read when the
 message is sent, so the button and the agent share one set of instructions. Placing
