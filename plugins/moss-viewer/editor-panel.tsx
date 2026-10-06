@@ -23,7 +23,11 @@ export interface EditorFrameProps {
   onStatus(status: Moss.MossEditorStatus): void;
   /** The version on disk as the editor last read, saved or reloaded it. */
   onVersion(version: string): void;
-  onReady(): void;
+  /**
+   * The edits in `restoreDraft` are safe without the draft: on disk (opened clean,
+   * or saved), or settled by the user in the conflict (Overwrite, or Reload).
+   */
+  onRestoreSettled(): void;
   onSaved(receipt: Moss.MossDraft, version: string): void;
   onUnsaved(draft: Moss.MossDraft): Promise<void>;
   /** The note cannot be edited after all; the viewer takes over. */
@@ -77,6 +81,12 @@ export function MossEditorFrame(props: EditorFrameProps) {
         },
       };
       const restoreDraft = latest.current.restoreDraft;
+      let restoring = restoreDraft !== null;
+      const settleRestore = () => {
+        if (!restoring) return;
+        restoring = false;
+        latest.current.onRestoreSettled();
+      };
       try {
         handle = editor.mountMossEditor(element, {
           noteId: note.editor.noteId,
@@ -102,6 +112,10 @@ export function MossEditorFrame(props: EditorFrameProps) {
             } else if (event.kind === "reloaded") {
               latest.current.onVersion(event.version);
             }
+            // A restored draft that opened in conflict is only in this editor until it saves or the user decides.
+            if (event.kind === "saved" || event.kind === "conflictResolved" || (event.kind === "reloaded" && event.cause === "conflict")) {
+              settleRestore();
+            }
           },
         });
       } catch (error) {
@@ -115,7 +129,8 @@ export function MossEditorFrame(props: EditorFrameProps) {
         () => {
           setShown(true);
           latest.current.onStatus(mounted.status);
-          latest.current.onReady();
+          // Opened clean: the disk already holds what the draft held.
+          if (mounted.status === "clean") settleRestore();
         },
         (error: unknown) => {
           // Not editable after all, or the read failed: the note opens read-only instead.

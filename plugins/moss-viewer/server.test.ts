@@ -280,7 +280,8 @@ describe("the editor", () => {
     const csp = frame.headers.get("content-security-policy")!;
     expect(csp).toMatch(/script-src 'nonce-[^']+' 'strict-dynamic'/);
     expect(csp).toContain("connect-src 'none'");
-    expect(csp).toContain("frame-src data: https: 'self'");
+    // Frames are the viewer's list, not editor.json's data: and https:.
+    expect(csp).toContain("frame-src 'self' https://www.youtube.com https://platform.twitter.com;");
     expect(csp).not.toContain("<");
     expect(await frame.text()).toContain('<div id="moss-editor"></div>');
     expect(await (await h.behavior.fetchHttp("GET", `${base}/frame.js`)).text()).toContain('from "./moss-editor.js"');

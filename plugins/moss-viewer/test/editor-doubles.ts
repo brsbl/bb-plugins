@@ -16,6 +16,8 @@ export class TestPaths implements PathExchange {
   after: Hook | null = null;
   /** Makes the next exchange fail with this code, as an I/O error would. */
   failNext: string | null = null;
+  /** Makes the next exchange swap and then fail with this code, as a helper whose reply was lost would. */
+  failAfterSwap: string | null = null;
 
   async exchange(first: string, second: string): Promise<void> {
     await this.before?.(first, second);
@@ -31,6 +33,11 @@ export class TestPaths implements PathExchange {
     await rename(second, first);
     await rename(aside, second);
     await this.after?.(first, second);
+    if (this.failAfterSwap !== null) {
+      const code = this.failAfterSwap;
+      this.failAfterSwap = null;
+      throw Object.assign(new Error(`${code}: no reply after the swap`), { code });
+    }
   }
 
   async renameExclusive(from: string, to: string): Promise<void> {

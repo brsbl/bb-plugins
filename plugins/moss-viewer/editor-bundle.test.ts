@@ -55,7 +55,7 @@ it("frames the editor under editor.json's policy, with this plugin as the asset 
     "n0nce",
   );
   expect(csp).toBe(
-    "default-src 'none'; script-src 'nonce-n0nce' 'strict-dynamic'; img-src 'self' data: blob: https:; frame-src data: https: 'self'; connect-src 'none'",
+    "default-src 'none'; script-src 'nonce-n0nce' 'strict-dynamic'; img-src 'self' data: blob: https:; frame-src 'self' https://www.youtube.com https://platform.twitter.com; connect-src 'none'",
   );
   expect(html).toContain('<script nonce="n0nce" src="./theme.js"></script>');
   expect(html).toContain('<script type="module" nonce="n0nce" src="./frame.js"></script>');

@@ -226,8 +226,21 @@ class WriteRun {
     try {
       await this.context.paths.exchange(temp, target);
     } catch (error) {
-      await unlink(temp).catch(() => undefined);
-      if (errorCode(error) === "ENOENT") throw new Raced();
+      // A helper that timed out or died may have swapped before it failed; then the temp holds what
+      // was at the target, perhaps Moss's bytes. Only this write's own bytes may be deleted.
+      const left = await readOptional(temp).catch(() => undefined);
+      if (left === null || left?.equals(bytes)) {
+        await unlink(temp).catch(() => undefined);
+        if (errorCode(error) === "ENOENT") throw new Raced();
+        throw error;
+      }
+      // Kept as a held file: the failure path swaps it back if the target still holds this write, or reports it.
+      const holding = this.holdingPath(target, "displaced");
+      const held = await rename(temp, holding).then(
+        () => holding,
+        () => temp,
+      );
+      this.applied.push({ how: "exchanged", file, target, holding: held, wrote: bytes });
       throw error;
     }
     const applied: Applied & { how: "exchanged" } = { how: "exchanged", file, target, holding: temp, wrote: bytes };

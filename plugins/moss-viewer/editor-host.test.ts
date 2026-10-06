@@ -355,6 +355,45 @@ describe("saving a note", () => {
     expect(await listing(plan.directory)).toEqual(["Plan.md", "meta.json"]);
   });
 
+  it("keeps what a swap displaced when the helper fails after swapping, and puts Moss's bytes back", async () => {
+    const plan = await note("Notes/Plan");
+    const write = await writeFrom([put("markdown", "# From bb\n"), put("meta", meta(ID, "Plan", { updatedAt: 2 }))]);
+    paths.before = async (_temp, target) => {
+      if (!target.endsWith("meta.json")) return;
+      paths.before = null;
+      // Moss lands just before the swap, and the helper's reply never comes back.
+      await writeFile(target, meta(ID, "Plan", { fromMoss: true }));
+      paths.failAfterSwap = "ETIMEDOUT";
+    };
+    expect(await save(write)).toMatchObject({ kind: "failed", code: "ETIMEDOUT", applied: [], preserved: [] });
+    expect(await text(join(plan.directory, "meta.json"))).toBe(meta(ID, "Plan", { fromMoss: true }));
+    expect(await text(plan.path)).toBe("# Plan\n");
+    expect(await listing(plan.directory)).toEqual(["Plan.md", "meta.json"]);
+  });
+
+  it("reports Moss's displaced bytes as preserved when the helper stays down", async () => {
+    const plan = await note("Notes/Plan");
+    const write = await writeFrom([put("markdown", "# From bb\n"), put("meta", meta(ID, "Plan", { updatedAt: 2 }))]);
+    paths.before = async (_temp, target) => {
+      if (!target.endsWith("meta.json")) return;
+      paths.before = null;
+      await writeFile(target, meta(ID, "Plan", { fromMoss: true }));
+      paths.failAfterSwap = "ETIMEDOUT";
+      // The rollback's own swap fails too.
+      paths.after = () => {
+        paths.after = null;
+        paths.failNext = "EIO";
+      };
+    };
+    const result = await save(write);
+    if (result.kind !== "failed") throw new Error(`expected a failure, got ${result.kind}`);
+    expect(result).toMatchObject({ code: "ETIMEDOUT", applied: ["markdown", "meta"] });
+    expect(result.preserved).toEqual([`.Plan.md.${uuid(2)}.displaced`, `.meta.json.${uuid(4)}.displaced`]);
+    // Nothing Moss wrote is gone: its meta.json is kept beside the note, the original markdown too.
+    expect(await text(join(plan.directory, `.meta.json.${uuid(4)}.displaced`))).toBe(meta(ID, "Plan", { fromMoss: true }));
+    expect(await text(join(plan.directory, `.Plan.md.${uuid(2)}.displaced`))).toBe("# Plan\n");
+  });
+
   it("renames the folder on a retitle to a free name, moves the markdown, and is found by id afterwards", async () => {
     const plan = await note("Notes/Plan");
     await mkdir(join(home, "Moss", "Notes", "Q3 Plan"));

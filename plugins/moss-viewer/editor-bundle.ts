@@ -3,7 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import type { ViewerFile } from "./viewer-bundle.js";
+import { FRAME_SOURCES, type ViewerFile } from "./viewer-bundle.js";
 
 /** The @moss-multi/editor entry contract this plugin is written against (`MossEditorApiVersion`). */
 export const EDITOR_API = 1;
@@ -22,14 +22,17 @@ export type EditorPolicy = Readonly<Record<string, readonly string[]>>;
 /**
  * The editor's own document, under the policy editor.json declares. Its
  * `<asset-origin>` and `<html-frame-origin>` are this plugin's routes on bb's
- * origin. As in the viewer's frame, scripts are limited by nonce to the two
- * this page names and the modules they import rather than all of `'self'`,
- * because the frame shares bb's origin and session.
+ * origin. Two directives are the viewer's rather than editor.json's, because
+ * the frame shares bb's origin and session: scripts are limited by nonce to
+ * the two this page names and the modules they import, not all of `'self'`,
+ * and frames to the viewer's list, not any `data:` or `https:` page a note
+ * could point at.
  */
 export function editorFrameDocument(policy: EditorPolicy, nonce: string): { html: string; csp: string } {
   const csp = Object.entries(policy)
     .map(([directive, sources]) => {
       if (directive === "script-src") return `script-src 'nonce-${nonce}' 'strict-dynamic'`;
+      if (directive === "frame-src") return `frame-src ${FRAME_SOURCES}`;
       const resolved = sources.map((source) => (source === "<asset-origin>" || source === "<html-frame-origin>" ? "'self'" : source));
       return `${directive} ${[...new Set(resolved)].join(" ")}`;
     })

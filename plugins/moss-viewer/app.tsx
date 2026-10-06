@@ -454,9 +454,9 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       openUrl={openUrl}
       onStatus={(status) => setEditorState((current) => ({ ...current, status }))}
       onVersion={(version) => setEditorState((current) => ({ ...current, version }))}
-      onReady={() => {
-        // A restored draft is the editor's now; it is kept again if it is ever left unsaved.
-        if (kept?.key !== targetKey || kept.draft === null) return;
+      onRestoreSettled={() => {
+        // Only now can the kept draft go: until it saves or the user settles its conflict, a reload would lose it.
+        if (kept?.key !== targetKey || kept.draft === null || mount.restore !== kept.draft) return;
         setKept({ ...kept, draft: null });
         void rpcRef.current.call("editorForget", { hostId: target.hostId, noteId: target.editor.noteId, kind: "draft" }).catch(() => undefined);
       }}

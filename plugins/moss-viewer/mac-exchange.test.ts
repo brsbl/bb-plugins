@@ -21,6 +21,8 @@ interface FakeOptions {
   failToStart?: boolean;
   /** Answer failures with an errno the host does not know. */
   unknownErrno?: boolean;
+  /** Break the pipe on the first request, as writing to a helper that just died does. */
+  brokenPipe?: boolean;
 }
 
 /** Plays the osascript helper over the same line-JSON protocol, renaming on this Linux volume. */
@@ -62,6 +64,7 @@ function fakeHelper(options: FakeOptions = {}) {
     } else {
       queueMicrotask(() => stdout.write('{"ready":true}\n'));
     }
+    if (options.brokenPipe) stdin.on("data", () => stdin.destroy(failure("EPIPE")));
     createInterface({ input: stdin }).on("line", (line) => {
       lines.push(line);
       const request = JSON.parse(line) as { id: number; op: string; from: string; to: string };
@@ -143,6 +146,16 @@ it("starts a new helper after one stops", async () => {
   helper.children[0]!.emit("exit", 1, null);
   await paths.exchange(join(directory, "a"), join(directory, "b"));
   expect(helper.spawned).toHaveLength(2);
+  expect(await readFile(join(directory, "a"), "utf8")).toBe("a");
+  paths.dispose();
+});
+
+it("fails a request cleanly, without crashing, when the helper's pipe breaks", async () => {
+  const helper = fakeHelper({ brokenPipe: true });
+  const paths = macPathExchange({ spawn: helper.spawn, isMac: true });
+  await writeFile(join(directory, "a"), "a");
+  await writeFile(join(directory, "b"), "b");
+  await expect(paths.exchange(join(directory, "a"), join(directory, "b"))).rejects.toMatchObject({ code: "EIO" });
   expect(await readFile(join(directory, "a"), "utf8")).toBe("a");
   paths.dispose();
 });

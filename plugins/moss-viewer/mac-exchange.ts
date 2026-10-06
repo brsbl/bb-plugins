@@ -112,6 +112,9 @@ class Helper {
     };
     this.child.on("error", closed);
     this.child.on("exit", () => closed());
+    // Writing to a helper that died fails with EPIPE; unheard, that would crash the host worker mid-save.
+    this.child.stdin.on("error", closed);
+    this.child.stdout.on("error", closed);
     // Nothing should keep the host worker alive but its own work.
     this.child.unref?.();
   }
