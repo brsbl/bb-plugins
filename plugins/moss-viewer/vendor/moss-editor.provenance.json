@@ -1,0 +1,22 @@
+{
+  "package": "@moss-multi/editor",
+  "version": "0.1.0",
+  "api": 1,
+  "repository": "https://github.com/brsbl/moss-multi",
+  "release": {
+    "tag": "editor-v0.1.0",
+    "url": "https://github.com/brsbl/moss-multi/releases/tag/editor-v0.1.0",
+    "prerelease": true,
+    "asset": "moss-editor-0.1.0.tgz",
+    "sha256": "253ff3dc00992b21ecba248be6ea134f887ddcee1eae0ae45d19280606eaa5f1"
+  },
+  "build": {
+    "run": "https://github.com/brsbl/moss-multi/actions/runs/37402521761",
+    "sourceCommit": "bbeb50ebbf1a83ed8ab193f6d7a341e5bdc495e7"
+  },
+  "mossPin": "762abb7770714a49d912f6081384aabb958a7ea6",
+  "bundleHash": "dc4dbd173bee88a0db339cd827f56a98c41625de3756eb1b253e02e3ba6e6fa9",
+  "editorJsonSha256": "9c466ebd7e74c7eec078ed6758585ff462c23cb0b81010d4400637e0d2bdae14",
+  "contractSha256": "0cb39e44a006a56eb7a10c680a97bcf424b22ec1bd1fee1542e25a34609cfbfc",
+  "update": "Download moss-editor-<version>.tgz, contract.d.ts and SHA256SUMS from the moss-multi GitHub Release, check both against SHA256SUMS, replace vendor/moss-editor/ with the tarball's moss-editor/ folder and vendor/moss-editor.contract.d.ts with contract.d.ts, and update every field here. The server refuses to serve the editor unless every file matches editor.json."
+}

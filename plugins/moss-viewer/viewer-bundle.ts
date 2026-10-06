@@ -24,6 +24,12 @@ export const HTML_FRAME_CSP =
   "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:";
 
 /**
+ * The frames a note may load: Moss's own HTML-block page, and the viewer's two embed hosts. A frame's own
+ * navigations are checked against this list too, so an HTML block that navigates itself can't reach the web.
+ */
+export const FRAME_SOURCES = "'self' https://www.youtube.com https://platform.twitter.com";
+
+/**
  * The viewer's own document. Moss's stylesheet styles the whole page, so it gets
  * a page of its own inside an iframe. That frame shares bb's origin so its
  * requests carry bb's session, which is why scripts are limited to the two this
@@ -37,9 +43,7 @@ export function frameDocument(nonce: string): { html: string; csp: string } {
     "font-src 'self' data:",
     "img-src 'self' https: data: blob:",
     "media-src 'self' https: blob:",
-    // A frame's own navigations are checked against this list, so an HTML block that
-    // navigates itself can only reach the viewer's two embed hosts.
-    "frame-src 'self' https://www.youtube.com https://platform.twitter.com",
+    `frame-src ${FRAME_SOURCES}`,
     "connect-src 'self'",
     "worker-src 'self' blob:",
     "base-uri 'none'",
