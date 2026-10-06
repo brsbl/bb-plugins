@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { act, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parsePreferences, storageKey } from "./emojis";
@@ -11,9 +11,28 @@ beforeEach(() => {
   localStorage.clear();
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("colon picker workflow", () => {
+  it("waits before opening and cancels when typing continues or the scope changes", async () => {
+    vi.useFakeTimers();
+    const slot = renderSlot(banner, {}, { composer: { text: "Note" } });
+    await slot.behavior.setComposerText("Note:");
+    await act(async () => { await vi.advanceTimersByTimeAsync(399); });
+    expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    await slot.behavior.setComposerText("Note: keep typing");
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    await slot.behavior.setComposerText("Note: keep typing:");
+    await slot.behavior.setComposerScope({ kind: "thread", threadId: "another-thread" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    await slot.behavior.setComposerText("Pause:");
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(slot.getByLabelText("Search emojis")).toBeTruthy();
+    expect(slot.inspection.composer.submits).toEqual([]);
+  });
+
   it("replaces the new colon in the middle of a draft and preserves its attachments", async () => {
     expect(app.navPanels).toHaveLength(0);
     expect(app.composerCustomizations[0]!.actions).toBeUndefined();

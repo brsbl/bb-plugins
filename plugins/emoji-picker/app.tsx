@@ -145,10 +145,15 @@ export function ComposerEmojiPicker() {
     if (before.scope !== scope) { setTrigger(null); return; }
     if (before.text === composer.text) return;
     const index = insertedColon(before.text, composer.text);
-    setTrigger(index === null ? null : {
-      scope, text: composer.text, index,
-      anchor: captureColonAnchor(anchorElement.current?.closest("[data-app-composer]") ?? null),
-    });
+    setTrigger(null);
+    if (index === null) return;
+    const element = anchorElement.current?.closest("[data-app-composer]") ?? null;
+    const anchor = captureColonAnchor(element);
+    const timeout = window.setTimeout(() => {
+      if (element && !element.contains(element.ownerDocument.activeElement)) return;
+      setTrigger({ scope, text: composer.text, index, anchor });
+    }, 400);
+    return () => window.clearTimeout(timeout);
   }, [composer.text, scope]);
 
   // Never apply a saved replacement to a different scope or a changed draft.
