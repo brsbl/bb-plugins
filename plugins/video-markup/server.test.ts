@@ -40,6 +40,10 @@ describe("Video Markup persistence and feedback",()=>{
     await host.harness.behavior.callRpc("selectDemo",{threadId:"thr_demo",demo:"duo"});
     const next=JSON.parse(z.string().parse(await host.harness.behavior.callAgentTool("video_markup_present",{...input,file:"/renders/duo-v3.mp4",attachment:false})));
     expect(next.version).toMatchObject({demo:"duo",ordinal:3});
+    const reference=JSON.parse(z.string().parse(await host.harness.behavior.callAgentTool("video_markup_present",{...input,file:"/uploads/Screen Recording.mov"})));
+    expect(reference.version).toMatchObject({demo:"Screen Recording",ordinal:1});
+    const revision=JSON.parse(z.string().parse(await host.harness.behavior.callAgentTool("video_markup_present",{...input,file:"/uploads/duo-v4.mp4"})));
+    expect(revision.version).toMatchObject({demo:"duo",ordinal:4});
     expect((await host.harness.behavior.runCli(["present","--help"])).stdout).toContain("present");
   });
   it("persists notes and selections across plugin reload and isolates threads",async()=>{
