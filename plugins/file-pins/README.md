@@ -20,9 +20,10 @@ to the workspace or the thread's files), asks about any that are ambiguous, pins
 http(s) links with `bb file-pins pin`, and confirms.
 
 Agents also pin a thread's few key links without being asked: the PR they open or drive, the
-issue or ticket, the spec or design doc, and a deployed preview or dashboard you'll revisit. Each
-gets a clear title; secret-bearing URLs are never pinned, and superseded links are replaced rather
-than piling up. A short always-on instruction points every thread at the skill's rule.
+issue or ticket, the spec or design doc, and a dev site or dashboard they hand you (a local dev or
+story server, its BB Connect URL, or a deployed preview). Each gets a clear title; secret-bearing
+URLs are never pinned, superseded links are replaced rather than piling up, and a dev site's pin is
+removed when its server is retired. A short always-on instruction points every thread at the skill's rule.
 
 Pinned files read as quiet file chips above the composer, in order, as many as fit; the strip never
 scrolls. Files that aren't pinned sit in the **⋯** list. File icons follow bb's file panel. Hover a filename for its full path and machine.

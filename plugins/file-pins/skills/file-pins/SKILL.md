@@ -1,6 +1,6 @@
 ---
 name: file-pins
-description: Pin, remove, or list local files and web links in a bb thread's Pinned Files. Use when the user asks to pin a file or a URL, and proactively, without being asked, when you open or start driving a PR, start work on an issue or ticket, rely on a spec or design doc, or hand the user a deployed preview or dashboard they will revisit.
+description: Pin, remove, or list local files and web links in a bb thread's Pinned Files. Use when the user asks to pin a file or a URL, and proactively, without being asked, when you open or start driving a PR, start work on an issue or ticket, rely on a spec or design doc, or hand the user a dev server, story server, shared preview, deployed preview, or dashboard they will revisit.
 ---
 
 ## Pin the files and links the user names
@@ -23,7 +23,10 @@ Pin the few URLs central to this thread's work as soon as they exist:
 - the PR you open or are driving;
 - the issue or ticket being worked;
 - the spec or design doc the work follows;
-- a deployed preview or dashboard the user will revisit.
+- a dev site you hand the user: a local dev or story server you started
+  (`http://localhost:<port>/…` or `http://127.0.0.1:<port>/…`), its BB Connect
+  shared URL, or a deployed preview;
+- a dashboard the user will revisit.
 
 Guardrails:
 
@@ -34,6 +37,7 @@ Guardrails:
 - Never pin a URL that carries a secret, token, signature, or credential.
 - When a link is superseded, such as a closed PR replaced by a new one,
   `bb file-pins remove` the old pin and pin the new one instead of piling up.
+- When you retire a dev server or its share, remove its pins too.
 - Mention it in one short line, such as "Pinned the PR.", with no further chatter.
 
 ## Commands
