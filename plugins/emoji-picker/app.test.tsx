@@ -18,7 +18,7 @@ describe("colon picker workflow", () => {
     vi.useFakeTimers();
     const slot = renderSlot(banner, {}, { composer: { text: "Note" } });
     await slot.behavior.setComposerText("Note:");
-    await act(async () => { await vi.advanceTimersByTimeAsync(199); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(249); });
     expect(slot.queryByLabelText("Search emojis")).toBeNull();
     await slot.behavior.setComposerText("Note: keep typing");
     await act(async () => { await vi.advanceTimersByTimeAsync(500); });
@@ -39,7 +39,7 @@ describe("colon picker workflow", () => {
     expect(slot.queryByLabelText("Search emojis")).toBeNull();
     await slot.behavior.setComposerText("Pause");
     await slot.behavior.setComposerText("Pause:");
-    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(slot.getByLabelText("Search emojis")).toBeTruthy();
     expect(slot.inspection.composer.submits).toEqual([]);
   });
