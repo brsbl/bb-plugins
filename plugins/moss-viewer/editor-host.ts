@@ -1,5 +1,5 @@
 // The Mac host's side of @moss-multi/editor's file bridge (API 1,
-// vendor/moss-editor-host/contract.d.ts). Notes are found by meta.json id; Moss's file
+// vendor/moss-editor.contract.d.ts). Notes are found by meta.json id; Moss's file
 // rules come from the editor release's pure host helpers, never reimplemented
 // here; files move only through `applyWrite`'s verified replacement.
 import { randomUUID } from "node:crypto";
@@ -25,8 +25,8 @@ import {
   type PathExchange,
 } from "./editor-files.js";
 import { applyWrite } from "./editor-write.js";
-import { HostFileError, isInside, readAssetIn } from "./host-notes.js";
-import type * as Moss from "./vendor/moss-editor-host/contract.js";
+import { HostFileError, isInside, readAssetIn, type readNote } from "./host-notes.js";
+import type * as Moss from "./vendor/moss-editor.contract.js";
 
 type HostContext = ExperimentalHostRpcContext<typeof hostSignals>;
 
@@ -475,10 +475,29 @@ export function createEditorHost(deps: EditorHostDeps) {
 
   };
 
+  /** Whether the note with this id is the one at `notePath`, and bb may edit it. */
+  async function editableAt(noteId: string, notePath: string): Promise<boolean> {
+    try {
+      const found = await lookup(noteId);
+      if (found.kind !== "found" || (await realpath(found.directory)) !== dirname(notePath)) return false;
+      return (await refusalFor(await readState(found.directory))) === null;
+    } catch {
+      return false;
+    }
+  }
+
   return {
     handlers,
-    /** Records a note the viewer opened, so its media may be pasted into an editor. */
-    viewed: markOpened,
+    /**
+     * Completes a note the viewer read: whether it opens in the editor, and, as
+     * a note the user opened, a source its media may be pasted from.
+     */
+    async annotate(note: Awaited<ReturnType<typeof readNote>>) {
+      if (!note.moss) return note;
+      if (note.noteId === null) return { ...note, editable: false };
+      markOpened(note.noteId);
+      return { ...note, editable: await editableAt(note.noteId, note.path) };
+    },
     /** Stops every watch, when the host worker shuts down. */
     async dispose(): Promise<void> {
       await Promise.all([...watches.values()].map(stopWatch));

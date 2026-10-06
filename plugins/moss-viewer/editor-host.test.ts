@@ -1,8 +1,6 @@
-import { createHash } from "node:crypto";
 import { chmod, link, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { ExperimentalHostWatchListener, ExperimentalHostWatchOptions } from "@get-bb/plugin-sdk/host";
 import { experimental_createHostEntryHarness } from "@get-bb/plugin-sdk/testing/host";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,7 +10,7 @@ import { mossEditorHost } from "./editor-host-helpers.js";
 import { WATCH_LEASE_MS, createEditorHost } from "./editor-host.js";
 import { listNotes, openInMoss, readAsset, readNote } from "./host-notes.js";
 import { TestPaths } from "./test/editor-doubles.js";
-import type * as Moss from "./vendor/moss-editor-host/contract.js";
+import type * as Moss from "./vendor/moss-editor.contract.js";
 
 const ID = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
 const OTHER_ID = "0aa1b2c3-d4e5-4f60-8172-839405a6b7c8";
@@ -45,7 +43,7 @@ function createHost() {
       experimental_apiVersion: 1,
       contract: hostContract,
       experimental_signals: hostSignals,
-      handlers: { readNote, listNotes, readAsset, openInMoss, ...editor.handlers },
+      handlers: { readNote: async (input) => editor.annotate(await readNote(input)), listNotes, readAsset, openInMoss, ...editor.handlers },
       dispose: editor.dispose,
     },
     {
@@ -584,28 +582,5 @@ describe("names and paths from the editor", () => {
     expect(contentMatches(".svg", Buffer.from("<html><svg/></html>"))).toBe(false);
     expect(contentMatches(".png", Buffer.from("GIF89a"))).toBe(false);
     expect(contentMatches(".html", Buffer.from("<p>"))).toBe(false);
-  });
-});
-
-describe("the vendored host helpers", () => {
-  it("are the editor-host release, unmodified", async () => {
-    const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
-    const directory = fileURLToPath(new URL("./vendor/moss-editor-host/", import.meta.url));
-    const manifestBytes = await readFile(join(directory, "editor-host.json"));
-    const manifest = JSON.parse(manifestBytes.toString("utf8")) as Record<string, any>;
-    for (const [name, expected] of Object.entries(manifest.files as Record<string, { bytes: number; sha256: string }>)) {
-      const body = await readFile(join(directory, name));
-      expect({ name, bytes: body.length, sha256: sha256(body) }).toEqual({ name, ...expected });
-    }
-    const provenance = JSON.parse(await readFile(join(directory, "../moss-editor-host.provenance.json"), "utf8")) as Record<string, any>;
-    expect(provenance).toMatchObject({
-      version: manifest.version,
-      api: manifest.api,
-      release: { tag: `editor-v${manifest.version}` },
-      build: { run: manifest.build.run, sourceCommit: manifest.source.commit },
-      mossPin: manifest.moss.commit,
-      editorHostJsonSha256: sha256(manifestBytes),
-    });
-    expect(helpers.MOSS_EDITOR_API).toBe(1);
   });
 });

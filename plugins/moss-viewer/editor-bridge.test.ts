@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { ASSET_CHUNK_BYTES } from "./contract.js";
-import { UPLOAD_CHUNK_BYTES, createEditorBridge, type EditorBridgeOptions } from "./editor-bridge.js";
-import type * as Moss from "./vendor/moss-editor-host/contract.js";
+import { ASSET_CHUNK_BYTES, NOTE_CHANGED_CHANNEL } from "./contract.js";
+import { EDITOR_NOTE_CHANGED, UPLOAD_CHUNK_BYTES, asNoteChanged, createEditorBridge, type EditorBridgeOptions } from "./editor-bridge.js";
+import type * as Moss from "./vendor/moss-editor.contract.js";
 
 const ID = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
 const ROUTE = "/api/v1/plugins/moss-viewer/http/asset";
@@ -149,5 +149,15 @@ it("gives note media URLs keyed by id, and recognises only its own", () => {
     "not a url ::",
   ]) {
     expect(bridge.assets.parseUrl(foreign)).toBeNull();
+  }
+});
+
+it("reads realtime payloads on the contract's channel", () => {
+  expect(EDITOR_NOTE_CHANGED).toBe(NOTE_CHANGED_CHANNEL);
+  const payload = { hostId: "mac", noteId: ID, change: changed("v1") };
+  expect(asNoteChanged(payload)).toBe(payload);
+  expect(asNoteChanged({ hostId: "mac", noteId: ID, change: { kind: "removed", reason: "trashed" } })).not.toBeNull();
+  for (const other of [null, "x", { hostId: "mac", noteId: ID }, { hostId: "mac", noteId: ID, change: { kind: "other" } }, { noteId: ID, change: changed("v1") }]) {
+    expect(asNoteChanged(other)).toBeNull();
   }
 });

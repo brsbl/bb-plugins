@@ -14,6 +14,8 @@ const vendor = fileURLToPath(new URL("./vendor/moss-viewer/", import.meta.url));
 const httpRoot = "/api/v1/plugins/moss-viewer/http";
 const video = Buffer.from(Array.from({ length: ASSET_CHUNK_BYTES * 2 + 10 }, (_, index) => index % 251));
 const notePath = "/Users/me/Moss/Notes/Clip/Clip.md";
+/** A Moss note the host says bb may not edit. */
+const readOnlyPath = "/Users/me/Moss/Notes/External/Clip/Clip.md";
 const V1 = "sha256:content-1";
 const V2 = "sha256:content-2";
 const M1 = "sha256:meta-1";
@@ -47,7 +49,7 @@ async function setup(machines: Machines = {}) {
       if (method === "readNote") {
         const path = request.path as string;
         const file = machines.files ? machines.files[hostId]?.[path] : path.includes("/Moss/") ? "moss" : "plain";
-        if (file === "moss") return { moss: true, path, markdown: "# Clip\n", layout: null, noteId: "clip", modifiedMs: 1 };
+        if (file === "moss") return { moss: true, path, markdown: "# Clip\n", layout: null, noteId: NOTE_ID, modifiedMs: 1, editable: path !== readOnlyPath };
         return { moss: false, path, missing: file === undefined };
       }
       if (method === "editorRead") return { kind: "note", files: { markdown: "# Clip\n", comments: null, layout: null, meta: "{}" }, location, version: V1, metaVersion: M1 };
@@ -91,7 +93,7 @@ describe("reading notes", () => {
   it("reads host files on the named host or the thread's environment host, and workspace files inside the worktree", async () => {
     const h = await setup();
     const result = (await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: null, environmentId: "env" })) as Record<string, unknown>;
-    expect(result).toMatchObject({ moss: true, hostId: "mac", path: notePath, markdown: "# Clip\n", noteId: "clip", assetRoute: `${httpRoot}/asset` });
+    expect(result).toMatchObject({ moss: true, hostId: "mac", path: notePath, markdown: "# Clip\n", noteId: NOTE_ID, assetRoute: `${httpRoot}/asset` });
     expect(result.frameUrl).toMatch(new RegExp(`^${httpRoot}/viewer/[0-9a-f]{16}/frame\\.html$`));
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "readNote", hostId: "mac", input: { path: notePath } });
 
@@ -254,6 +256,42 @@ describe("the editor's file bridge", () => {
   });
 });
 
+describe("the editor", () => {
+  it("opens an editable note in the editor, and any other in the viewer", async () => {
+    const h = await setup();
+    const editable = (await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "mac", environmentId: null })) as Record<string, any>;
+    expect(editable.editor).toEqual({
+      noteId: NOTE_ID,
+      frameUrl: expect.stringMatching(new RegExp(`^${httpRoot}/editor/[0-9a-f]{16}/frame\\.html$`)),
+      htmlFrameUrl: expect.stringMatching(new RegExp(`^${httpRoot}/editor/[0-9a-f]{16}/moss-html-frame\\.html$`)),
+    });
+    expect(editable).not.toHaveProperty("editable");
+    expect(await h.behavior.callRpc("read", { kind: "host", path: readOnlyPath, hostId: "mac", environmentId: null })).toMatchObject({ moss: true, editor: null });
+  });
+
+  it("serves the verified editor, its page under editor.json's policy, and its HTML-block page sandboxed", async () => {
+    const h = await setup();
+    const { editor } = (await h.behavior.callRpc("read", { kind: "host", path: notePath, hostId: "mac", environmentId: null })) as {
+      editor: { frameUrl: string; htmlFrameUrl: string };
+    };
+    const base = editor.frameUrl.slice(httpRoot.length).replace(/\/frame\.html$/, "");
+    const frame = await h.behavior.fetchHttp("GET", `${base}/frame.html?theme=dark`);
+    expect(frame.status).toBe(200);
+    const csp = frame.headers.get("content-security-policy")!;
+    expect(csp).toMatch(/script-src 'nonce-[^']+' 'strict-dynamic'/);
+    expect(csp).toContain("connect-src 'none'");
+    expect(csp).toContain("frame-src data: https: 'self'");
+    expect(csp).not.toContain("<");
+    expect(await frame.text()).toContain('<div id="moss-editor"></div>');
+    expect(await (await h.behavior.fetchHttp("GET", `${base}/frame.js`)).text()).toContain('from "./moss-editor.js"');
+    expect((await h.behavior.fetchHttp("GET", `${base}/moss-editor.js`)).headers.get("cache-control")).toContain("immutable");
+    expect((await h.behavior.fetchHttp("GET", `${base}/moss-editor-host.js`)).status).toBe(404);
+
+    const blocks = await h.behavior.fetchHttp("GET", editor.htmlFrameUrl.slice(httpRoot.length));
+    expect(blocks.headers.get("content-security-policy")).toMatch(/^sandbox allow-scripts; default-src 'none'/);
+  });
+});
+
 describe("kept drafts and save receipts", () => {
   const draftFor = (markdown: string, noteId = NOTE_ID) => ({
     noteId,
@@ -271,18 +309,18 @@ describe("kept drafts and save receipts", () => {
   it("keeps each note's latest receipt and unsaved draft apart, per host, until forgotten", async () => {
     const h = await setup();
     const kept = (hostId = "mac") => h.behavior.callRpc("editorKept", { hostId, noteId: NOTE_ID });
-    expect(await kept()).toEqual({ receipt: null, draft: null });
+    expect(await kept()).toEqual({ receipt: null, receiptVersion: null, draft: null });
 
-    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# One\n") });
-    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# Two\n") });
-    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "draft", draft: draftFor("# Unsaved\n") });
-    expect(await kept()).toEqual({ receipt: draftFor("# Two\n"), draft: draftFor("# Unsaved\n") });
-    expect(await kept("studio")).toEqual({ receipt: null, draft: null });
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# One\n"), version: "v-one" });
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# Two\n"), version: "v-two" });
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "draft", draft: draftFor("# Unsaved\n"), version: null });
+    expect(await kept()).toEqual({ receipt: draftFor("# Two\n"), receiptVersion: "v-two", draft: draftFor("# Unsaved\n") });
+    expect(await kept("studio")).toEqual({ receipt: null, receiptVersion: null, draft: null });
 
     expect(await h.behavior.callRpc("editorForget", { hostId: "mac", noteId: NOTE_ID, kind: "draft" })).toEqual({ forgotten: true });
-    expect(await kept()).toEqual({ receipt: draftFor("# Two\n"), draft: null });
+    expect(await kept()).toEqual({ receipt: draftFor("# Two\n"), receiptVersion: "v-two", draft: null });
     await expect(
-      h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "draft", draft: draftFor("# Other\n", "0f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b") }),
+      h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "draft", draft: draftFor("# Other\n", "0f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b"), version: null }),
     ).rejects.toThrow("another note");
   });
 
@@ -290,9 +328,9 @@ describe("kept drafts and save receipts", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
     const h = await setup();
-    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# Old\n") });
+    await h.behavior.callRpc("editorKeep", { hostId: "mac", noteId: NOTE_ID, kind: "receipt", draft: draftFor("# Old\n"), version: "v-old" });
     vi.setSystemTime(new Date("2026-11-05T00:00:00Z"));
-    expect(await h.behavior.callRpc("editorKept", { hostId: "mac", noteId: NOTE_ID })).toEqual({ receipt: null, draft: null });
+    expect(await h.behavior.callRpc("editorKept", { hostId: "mac", noteId: NOTE_ID })).toEqual({ receipt: null, receiptVersion: null, draft: null });
   });
 });
 

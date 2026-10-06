@@ -15,12 +15,7 @@ export default experimental_defineHostEntry({
   contract: hostContract,
   experimental_signals: hostSignals,
   handlers: {
-    // A note the viewer opened may be the source of a paste into an editor.
-    readNote: async (input) => {
-      const note = await readNote(input);
-      if (note.moss && note.noteId !== null) editor.viewed(note.noteId);
-      return note;
-    },
+    readNote: async (input) => editor.annotate(await readNote(input)),
     listNotes,
     readAsset,
     openInMoss,

@@ -3,7 +3,7 @@
 // draft an unmount had to leave unsaved (moss-multi's contract §5.5 and
 // `unmount` returning `kept`).
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import type * as Moss from "./vendor/moss-editor-host/contract.js";
+import type * as Moss from "./vendor/moss-editor.contract.js";
 
 /** How long bb keeps a receipt or draft after it was last written. */
 export const KEEP_MS = 30 * 24 * 60 * 60 * 1000;
@@ -18,29 +18,35 @@ export function editorSaves(bb: BbPluginApi) {
       note_id TEXT NOT NULL,
       kind TEXT NOT NULL CHECK (kind IN ('receipt', 'draft')),
       draft TEXT NOT NULL,
+      -- For a receipt, the version the save produced; null for a draft.
+      version TEXT,
       kept_at INTEGER NOT NULL,
       PRIMARY KEY (host_id, note_id, kind)
     )`,
   ]);
   const upsert = db.prepare(
-    `INSERT INTO editor_saves (host_id, note_id, kind, draft, kept_at) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (host_id, note_id, kind) DO UPDATE SET draft = excluded.draft, kept_at = excluded.kept_at`,
+    `INSERT INTO editor_saves (host_id, note_id, kind, draft, version, kept_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (host_id, note_id, kind) DO UPDATE SET draft = excluded.draft, version = excluded.version, kept_at = excluded.kept_at`,
   );
-  const select = db.prepare(`SELECT kind, draft FROM editor_saves WHERE host_id = ? AND note_id = ? AND kept_at >= ?`);
+  const select = db.prepare(`SELECT kind, draft, version FROM editor_saves WHERE host_id = ? AND note_id = ? AND kept_at >= ?`);
   const remove = db.prepare(`DELETE FROM editor_saves WHERE host_id = ? AND note_id = ? AND kind = ?`);
   const prune = db.prepare(`DELETE FROM editor_saves WHERE kept_at < ?`);
 
   return {
-    /** Keeps the latest receipt or draft for a note, replacing the one before. */
-    keep(hostId: string, noteId: string, kind: SavedKind, draft: Moss.MossDraft): void {
+    /** Keeps the latest receipt (with the version its save produced) or draft for a note, replacing the one before. */
+    keep(hostId: string, noteId: string, kind: SavedKind, draft: Moss.MossDraft, version: string | null): void {
       const now = Date.now();
       prune.run(now - KEEP_MS);
-      upsert.run(hostId, noteId, kind, JSON.stringify(draft), now);
+      upsert.run(hostId, noteId, kind, JSON.stringify(draft), kind === "receipt" ? version : null, now);
     },
-    kept(hostId: string, noteId: string): Record<SavedKind, Moss.MossDraft | null> {
-      const kept: Record<SavedKind, Moss.MossDraft | null> = { receipt: null, draft: null };
-      const rows = select.all(hostId, noteId, Date.now() - KEEP_MS) as Array<{ kind: SavedKind; draft: string }>;
-      for (const row of rows) kept[row.kind] = JSON.parse(row.draft) as Moss.MossDraft;
+    kept(hostId: string, noteId: string): { receipt: Moss.MossDraft | null; receiptVersion: string | null; draft: Moss.MossDraft | null } {
+      const kept = { receipt: null as Moss.MossDraft | null, receiptVersion: null as string | null, draft: null as Moss.MossDraft | null };
+      const rows = select.all(hostId, noteId, Date.now() - KEEP_MS) as Array<{ kind: SavedKind; draft: string; version: string | null }>;
+      for (const row of rows) {
+        const draft = JSON.parse(row.draft) as Moss.MossDraft;
+        if (row.kind === "draft") kept.draft = draft;
+        else Object.assign(kept, { receipt: draft, receiptVersion: row.version });
+      }
       return kept;
     },
     forget(hostId: string, noteId: string, kind: SavedKind): void {

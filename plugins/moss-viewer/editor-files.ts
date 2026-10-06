@@ -1,5 +1,5 @@
 import { lstat, open, readFile, stat } from "node:fs/promises";
-import type * as Moss from "./vendor/moss-editor-host/contract.js";
+import type * as Moss from "./vendor/moss-editor.contract.js";
 
 /**
  * The two file operations Node lacks that the editor's lossless write needs on

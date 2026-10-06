@@ -99,13 +99,13 @@ const editorRpcMethods = {
   editorAssetCopy: { input: z.object({ ...hostIdInput, noteId, ...assetCopy }).strict(), output: assetPutResult },
   /** Keeps a note's last save receipt, or the draft an unmount left unsaved, beyond the mount. */
   editorKeep: {
-    input: z.object({ ...hostIdInput, noteId, kind: savedKind, draft }).strict(),
+    input: z.object({ ...hostIdInput, noteId, kind: savedKind, draft, version: z.string().min(1).max(200).nullable() }).strict(),
     output: z.object({ kept: z.literal(true) }).strict(),
   },
-  /** What bb kept for a note: its last receipt and any unsaved draft, each null when none. */
+  /** What bb kept for a note: its last receipt with the version that save produced, and any unsaved draft. */
   editorKept: {
     input: z.object({ ...hostIdInput, noteId }).strict(),
-    output: z.object({ receipt: draft.nullable(), draft: draft.nullable() }).strict(),
+    output: z.object({ receipt: draft.nullable(), receiptVersion: z.string().nullable(), draft: draft.nullable() }).strict(),
   },
   editorForget: {
     input: z.object({ ...hostIdInput, noteId, kind: savedKind }).strict(),
@@ -131,6 +131,8 @@ const noteFile = z.discriminatedUnion("moss", [
     layout: z.unknown(),
     noteId: id.nullable(),
     modifiedMs: z.number(),
+    /** An adopted note in ~/Moss/Notes on a volume this host can edit; see editor-host.ts. */
+    editable: z.boolean(),
   }),
   /** `missing` when no file exists at the path on this host. */
   z.object({ moss: z.literal(false), path: filePath, missing: z.boolean() }),
@@ -181,6 +183,8 @@ const readResult = z.discriminatedUnion("moss", [
     htmlFrameUrl: z.string(),
     /** The route that serves this note's media; see `assetHref`. */
     assetRoute: z.string(),
+    /** Set when the note opens in Moss's editor rather than the viewer. */
+    editor: z.object({ noteId, frameUrl: z.string(), htmlFrameUrl: z.string() }).nullable(),
   }),
   /** Not a Moss note: bb's own preview takes it, unless `message` explains why the note could not be found. */
   z.object({ moss: z.literal(false), message: z.string().nullable() }),

@@ -3,12 +3,24 @@
 // and from the watch renewals, and media URLs carry the note's id.
 import type { PluginRpcClient } from "@get-bb/plugin-sdk";
 import type { NoteChanged, rpcContract } from "./contract";
-import type * as Moss from "./vendor/moss-editor-host/contract.js";
+import type * as Moss from "./vendor/moss-editor.contract.js";
 
 /** Bytes per upload call; equal to contract.ts's ASSET_CHUNK_BYTES, which the panel does not import. */
 export const UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024;
 /** How often an open editor renews its watch. The host lets one lapse after 60 seconds. */
 export const WATCH_RENEW_MS = 15_000;
+/** contract.ts's NOTE_CHANGED_CHANNEL, for the panel, which does not import the contract's schemas. */
+export const EDITOR_NOTE_CHANGED = "editor-note-changed";
+
+/** A realtime `editor-note-changed` payload, or null for anything else. */
+export function asNoteChanged(payload: unknown): NoteChanged | null {
+  if (!payload || typeof payload !== "object") return null;
+  const { hostId, noteId, change } = payload as Record<string, unknown>;
+  const kind = change && typeof change === "object" ? (change as { kind?: unknown }).kind : undefined;
+  return typeof hostId === "string" && typeof noteId === "string" && (kind === "changed" || kind === "removed")
+    ? (payload as NoteChanged)
+    : null;
+}
 
 export interface EditorBridgeOptions {
   rpc: Pick<PluginRpcClient<typeof rpcContract>, "call">;

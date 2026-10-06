@@ -1,15 +1,20 @@
-import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import {
   definePluginApp,
   experimental_Icon as Icon,
   experimental_useCodeTheme as useCodeTheme,
   useBbNavigate,
+  useRealtime,
+  useRealtimeConnectionState,
   useRpc,
   type PluginFileOpenerProps,
 } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import type { MossNoteEntry, ReadResult, rpcContract } from "./contract";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
+import { EDITOR_NOTE_CHANGED, asNoteChanged, createEditorBridge, type EditorBridge, type EditorBridgeOptions } from "./editor-bridge";
+import { EditorStatus, MossEditorFrame, type EditorNote } from "./editor-panel";
+import type * as Moss from "./vendor/moss-editor.contract.js";
 import { formatHomePathForDisplay } from "./lib/utils";
 import {
   assetHref,
@@ -42,6 +47,19 @@ function messageOf(error: unknown): string {
 
 function noteTitle(path: string): string {
   return (path.split("/").at(-1) ?? path).replace(/\.(?:md|markdown)$/i, "");
+}
+
+/** One note on one host, so state for a note never follows the tab to another. */
+function noteKey(note: MossNote): string {
+  return `${note.hostId}\0${note.path}`;
+}
+
+/** What bb kept for the note open in the editor, by `noteKey`. */
+interface Kept {
+  key: string;
+  receipt: Moss.MossDraft | null;
+  receiptVersion: string | null;
+  draft: Moss.MossDraft | null;
 }
 
 function HeaderButton({
@@ -77,15 +95,20 @@ function NoteHeader({
   path,
   canGoBack,
   refreshing,
+  status,
   onBack,
   onRefresh,
+  onRestore,
   onOpenInMoss,
 }: {
   path: string;
   canGoBack: boolean;
   refreshing: boolean;
+  /** The editor's save state; the editor refreshes itself, so it has no Refresh button. */
+  status: ReactNode;
   onBack: () => void;
-  onRefresh: () => void;
+  onRefresh: (() => void) | null;
+  onRestore: (() => void) | null;
   onOpenInMoss: () => void;
 }) {
   const copyPath = () => {
@@ -113,12 +136,16 @@ function NoteHeader({
           </TooltipTrigger>
           <TooltipContent side="bottom">Copy file path</TooltipContent>
         </Tooltip>
-        <HeaderButton
-          icon="RotateCcw"
-          label={refreshing ? "Refreshing note" : "Refresh note"}
-          disabled={refreshing}
-          onClick={onRefresh}
-        />
+        {status}
+        {onRestore ? <HeaderButton icon="ArrowTurnBackward" label="Restore your last save from bb" onClick={onRestore} /> : null}
+        {onRefresh ? (
+          <HeaderButton
+            icon="RotateCcw"
+            label={refreshing ? "Refreshing note" : "Refresh note"}
+            disabled={refreshing}
+            onClick={onRefresh}
+          />
+        ) : null}
         <HeaderButton icon="ExternalLink" label="Open in Moss" onClick={onOpenInMoss} />
       </div>
     </TooltipProvider>
@@ -248,6 +275,50 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const [missing, setMissing] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const reads = useRef(0);
+  // Notes that opened in the viewer after the editor could not take them.
+  const [viewerOnly, setViewerOnly] = useState<ReadonlySet<string>>(() => new Set());
+  const [kept, setKept] = useState<Kept | null>(null);
+  const [editorState, setEditorState] = useState<{ status: Moss.MossEditorStatus | null; version: string | null }>({
+    status: null,
+    version: null,
+  });
+  // A restore remounts the editor with the receipt as its edits.
+  const [mount, setMount] = useState<{ count: number; restore: Moss.MossDraft | null }>({ count: 0, restore: null });
+
+  // One bridge per host serves every editor this tab opens on it.
+  const bridges = useRef(new Map<string, EditorBridge>());
+  const bridgeRpc = useMemo<EditorBridgeOptions["rpc"]>(
+    () => ({
+      call: ((...args: unknown[]) =>
+        (rpcRef.current as unknown as { call(...rest: unknown[]): Promise<unknown> }).call(...args)) as unknown as EditorBridgeOptions["rpc"]["call"],
+    }),
+    [],
+  );
+  const bridgeFor = useCallback(
+    (note: MossNote) => {
+      let bridge = bridges.current.get(note.hostId);
+      if (bridge === undefined) {
+        bridge = createEditorBridge({ rpc: bridgeRpc, hostId: note.hostId, assetRoute: note.assetRoute });
+        bridges.current.set(note.hostId, bridge);
+      }
+      return bridge;
+    },
+    [bridgeRpc],
+  );
+  useRealtime(EDITOR_NOTE_CHANGED, (payload) => {
+    const change = asNoteChanged(payload);
+    if (change) bridges.current.get(change.hostId)?.deliver(change);
+  });
+  // A change missed while the panel was away or offline shows once it is back.
+  const connection = useRealtimeConnectionState();
+  useEffect(() => {
+    const refresh = () => {
+      for (const bridge of bridges.current.values()) bridge.refresh();
+    };
+    if (connection === "connected") refresh();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [connection]);
 
   useEffect(() => {
     const read = (reads.current += 1);
@@ -305,6 +376,33 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   );
 
   const note = stack.note;
+  const key = note === null ? null : noteKey(note);
+  const editorNote = note !== null && note.editor !== null && !viewerOnly.has(key!) ? (note as EditorNote) : null;
+  const editorKey = editorNote === null ? null : key;
+
+  // What bb kept for the note: its last save receipt, and a draft an earlier close could not save.
+  useEffect(() => {
+    if (editorNote === null || editorKey === null) return;
+    let live = true;
+    setEditorState({ status: null, version: null });
+    rpcRef.current.call("editorKept", { hostId: editorNote.hostId, noteId: editorNote.editor.noteId }).then(
+      (result) => {
+        if (!live) return;
+        setKept({ key: editorKey, ...result });
+        setMount((current) => ({ count: current.count + 1, restore: result.draft }));
+      },
+      () => {
+        if (!live) return;
+        setKept({ key: editorKey, receipt: null, receiptVersion: null, draft: null });
+        setMount((current) => ({ count: current.count + 1, restore: null }));
+      },
+    );
+    return () => {
+      live = false;
+    };
+    // The note's key names it; a new read of the same note keeps its editor.
+  }, [editorKey]);
+
   if (original) return <Original />;
   if (missing !== null) {
     return (
@@ -338,6 +436,50 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
         : { note: current.back[current.back.length - 1]!, back: current.back.slice(0, -1) },
     );
 
+  const keep = (target: EditorNote, kind: "receipt" | "draft", draft: Moss.MossDraft, version: string | null) =>
+    rpcRef.current.call("editorKeep", { hostId: target.hostId, noteId: target.editor.noteId, kind, draft, version }).then(() => undefined);
+
+  const editorFor = (target: EditorNote, targetKey: string) => (
+    <MossEditorFrame
+      key={`${targetKey}\0${mount.count}`}
+      note={target}
+      title={noteTitle(target.path)}
+      theme={theme}
+      bridge={bridgeFor(target)}
+      restoreDraft={mount.restore}
+      notesFor={notesFor}
+      onNavigate={onNavigate}
+      openUrl={openUrl}
+      onStatus={(status) => setEditorState((current) => ({ ...current, status }))}
+      onVersion={(version) => setEditorState((current) => ({ ...current, version }))}
+      onReady={() => {
+        // A restored draft is the editor's now; it is kept again if it is ever left unsaved.
+        if (kept?.key !== targetKey || kept.draft === null) return;
+        setKept({ ...kept, draft: null });
+        void rpcRef.current.call("editorForget", { hostId: target.hostId, noteId: target.editor.noteId, kind: "draft" }).catch(() => undefined);
+      }}
+      onSaved={(receipt, version) => {
+        setKept((current) => (current?.key === targetKey ? { ...current, receipt, receiptVersion: version } : current));
+        keep(target, "receipt", receipt, version).catch((error: unknown) => console.warn("[moss-editor] could not keep this save's receipt", error));
+      }}
+      onUnsaved={(draft) => keep(target, "draft", draft, null)}
+      onUnavailable={() => setViewerOnly((current) => new Set(current).add(targetKey))}
+    />
+  );
+
+  // The receipt of bb's last save, offered when Moss has since replaced it.
+  const restorable =
+    editorNote !== null &&
+    kept?.key === key &&
+    kept.receipt !== null &&
+    kept.receiptVersion !== null &&
+    editorState.status === "clean" &&
+    editorState.version !== null &&
+    editorState.version !== kept.receiptVersion;
+  const restoreLastSave = () => {
+    if (kept?.receipt) setMount((current) => ({ count: current.count + 1, restore: kept.receipt }));
+  };
+
   const openInMoss = () => {
     rpcRef.current
       .call("openInMoss", { hostId: note.hostId, path: note.path })
@@ -350,19 +492,29 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
         path={note.path}
         canGoBack={stack.back.length > 0}
         refreshing={refreshing}
+        status={editorNote ? <EditorStatus status={editorState.status} /> : null}
         onBack={back}
-        onRefresh={refresh}
+        onRefresh={editorNote ? null : refresh}
+        onRestore={restorable ? restoreLastSave : null}
         onOpenInMoss={openInMoss}
       />
       <div className="relative min-h-0 flex-1">
-        <MossViewerFrame
-          note={note}
-          theme={theme}
-          notesFor={notesFor}
-          onNavigate={onNavigate}
-          openUrl={openUrl}
-          onUnavailable={() => setOriginal(true)}
-        />
+        {editorNote === null ? (
+          <MossViewerFrame
+            note={note}
+            theme={theme}
+            notesFor={notesFor}
+            onNavigate={onNavigate}
+            openUrl={openUrl}
+            onUnavailable={() => setOriginal(true)}
+          />
+        ) : kept?.key === editorKey ? (
+          editorFor(editorNote, editorKey!)
+        ) : (
+          <span role="status" className="sr-only">
+            Loading note…
+          </span>
+        )}
       </div>
     </div>
   );

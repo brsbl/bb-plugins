@@ -19,7 +19,7 @@ import {
   type NoteState,
   type PathExchange,
 } from "./editor-files.js";
-import type * as Moss from "./vendor/moss-editor-host/contract.js";
+import type * as Moss from "./vendor/moss-editor.contract.js";
 
 export interface WriteContext {
   helpers: Moss.MossEditorHostModule;

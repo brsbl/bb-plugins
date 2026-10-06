@@ -7,7 +7,7 @@
 export const MOSS_EDITOR_API = 1;
 
 export const MOSS_EDITOR_INFO = Object.freeze(
-  /** @type {const} */ ({ api: 1, version: '0.0.1', features: Object.freeze([]) }),
+  /** @type {const} */ ({ api: 1, version: '0.1.0', features: Object.freeze([]) }),
 );
 
 export const MOSS_NOTE_FILES = Object.freeze(

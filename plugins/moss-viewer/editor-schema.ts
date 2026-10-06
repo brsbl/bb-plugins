@@ -1,9 +1,9 @@
 // Schemas for the parts of @moss-multi/editor's file bridge (API 1,
-// vendor/moss-editor-host/contract.d.ts) that cross bb's RPC between the panel, the
+// vendor/moss-editor.contract.d.ts) that cross bb's RPC between the panel, the
 // server and the note's host. The types are moss-multi's; these only validate
 // them at each boundary.
 import { z } from "zod";
-import type * as Moss from "./vendor/moss-editor-host/contract.js";
+import type * as Moss from "./vendor/moss-editor.contract.js";
 
 type Assert<T extends true> = T;
 
