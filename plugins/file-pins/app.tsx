@@ -144,9 +144,9 @@ function PinStrip({ threadId }: { threadId: string }) {
     const tip = pinTooltip(pin, threadHostId);
     return <Tooltip>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-      <TooltipContent className="[overflow-wrap:anywhere]">
+      <TooltipContent>
         {tip.heading && <span className="block font-medium">{tip.heading}</span>}
-        <span className="block">{tip.value}</span>
+        <span className="block break-all">{tip.value}</span>
         {tip.note && <span className="block opacity-70">{tip.note}</span>}
       </TooltipContent>
     </Tooltip>;
