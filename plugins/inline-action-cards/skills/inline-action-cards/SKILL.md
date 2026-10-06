@@ -9,6 +9,8 @@ Whenever you need the user's decision or approval, create an action card instead
 
 Use a single card for one important item. When the user picks one of several options, use one choice card, never a table of yes/no rows. Use a table for three or more independent yes/no items, or a mixed group that should stay together. Create the item first, then emit the returned `::action{id="..."}` directive on its own line, outside code fences. Cards appear only inside assistant messages. IDs are unique within the owning thread; never reuse one for another email or decision. Use concise, task-specific IDs.
 
+**Don't nag about waiting cards.** A waiting card is your open question, and the user may simply not have answered yet. By default, don't mention it at all: it stays in the thread and in the Action log. Reshare a card only when: (1) your next step is blocked on that answer, (2) the user asks about it, or (3) the card changed (for example a revised draft). To reshare, emit the same `::action{id="..."}` (or `::actions{id="..."}`) directive again; the same live card renders in both places, so reuse the ID and don't create a new item. Reshare a card at most once per user reply, and never in two of your messages in a row without the user replying in between. Don't write "the card above is still waiting on your choice."
+
 All item data and drafts live in the plugin's SQLite storage. Never put them in thread storage. CLI JSON travels to the server; local paths do not.
 
 ## Create
@@ -46,7 +48,7 @@ bb action-cards create account-setup --item-stdin <<'JSON'
 JSON
 ```
 
-Explain tradeoffs before the card rather than in hints. A click carries `action: "choose"` and `choice: {"id","label"}` in its hidden context; act on that option only. Claim and report like Decide, for example `--message 'UserMultiple chosen'`. Later and Skip live in the card's ⋯ menu. Choice cards stand alone; tables do not accept them.
+Explain tradeoffs before the card rather than in hints. A click carries `action: "choose"` and `choice: {"id","label"}` in its hidden context; act on that option only. Claim and report like Decide, for example `--message 'UserMultiple chosen'`. Comment and Skip work as on other cards. Choice cards stand alone; tables do not accept them.
 
 ## Group items in a table
 
@@ -66,12 +68,12 @@ Tables accept up to 20 existing items from the same thread. For mixed rows, incl
 
 ## Handle a click
 
-A click submits readable text such as “Send escrow follow-up” with a named mention pill. Its user-hidden context contains `kind: inline-action-card`, `threadId`, `itemId`, `attemptId`, `action`, and `intent`, plus `note` when supplied. `approved-action` is approval for exactly that attempt. A bulk message contains one such reference per selected row. Read those IDs from context, never guess them from the label. Keep them in tool calls; do not repeat hidden IDs in user-facing replies. Legacy messages containing `[action:...] [attempt:...]` remain valid references to their existing attempts. The button submits through the existing composer pipeline (and can queue while the thread is busy). Do not ask the user to type another confirmation.
+A click submits readable text such as “Send escrow follow-up” with a named mention pill. Its user-hidden context contains `kind: inline-action-card`, `threadId`, `itemId`, `attemptId`, `action`, and `intent`, plus `note` when the user attached a comment. `approved-action` is approval for exactly that attempt. A bulk message contains one such reference per selected row. Read those IDs from context, never guess them from the label. Keep them in tool calls; do not repeat hidden IDs in user-facing replies. Legacy messages containing `[action:...] [attempt:...]` remain valid references to their existing attempts. The button submits through the existing composer pipeline (and can queue while the thread is busy). Do not ask the user to type another confirmation.
 
 1. Claim the exact attempt before acting:
    `bb action-cards claim esc-1 --attempt <uuid>`
-2. Treat the returned attempt’s `note` as part of the approval and follow it. If it conflicts with the chosen action (for example “Yes, but don’t send yet”), do not perform that action. Report `--outcome failed --retryable` with a message saying what you held and why, such as “Held the reply; not sent yet.” Do not report success for an action you held. Tell the user to use Edit draft or Choose again when they’re ready; Retry repeats the same note. Do not discard a note on retry or reconciliation. Use the returned content, especially its latest saved `draft`, `to`, `cc`, `bcc`, and `subject`. Do not use the initial draft from chat or memory. The card locks editing during the action.
-3. Execute only the claimed action using the user's connected tool. Send sends the reply; Save to Gmail drafts creates/updates the Gmail draft without sending. Yes performs the stated consequence; No declines it. Later and Skip require no external action; report `Later` or `Skipped` immediately. Later does not create a reminder.
+2. Treat the returned attempt’s `note` (the user’s comment) as part of the approval and follow it. If it conflicts with the chosen action (for example “Yes, but don’t send yet”), do not perform that action. Report `--outcome failed --retryable` with a message saying what you held and why, such as “Held the reply; not sent yet.” Do not report success for an action you held. Tell the user to use Edit draft or Choose again when they’re ready; Retry repeats the same comment. Do not discard a comment on retry or reconciliation. Use the returned content, especially its latest saved `draft`, `to`, `cc`, `bcc`, and `subject`. Do not use the initial draft from chat or memory. The card locks editing during the action.
+3. Execute only the claimed action using the user's connected tool. Send sends the reply; Save to Gmail drafts creates/updates the Gmail draft without sending. Yes performs the stated consequence; No declines it. Skip requires no external action; report `Skipped` immediately. Cards no longer offer Later; do not offer or suggest it. A legacy `later` attempt still needs no external action; report `Later`.
 4. Report the result on the same card:
 
 ```sh
@@ -93,13 +95,13 @@ bb action-cards report esc-1 --attempt <uuid> --outcome failed --message 'Gmail 
 
 The card shows Retry. A new click creates a new attempt, which must be claimed again. If a timeout or crash leaves the outcome unknown, omit `--retryable`. The card offers Check outcome; inspect the service before reporting success or safe failure. Do not send again to discover whether the earlier send worked. A message with `check-outcome` context (or a legacy `Check outcome:` message) authorizes reconciliation only, not repeating the action. A pending Resend request uses the original attempt ID, so it cannot be claimed twice.
 
-## Add a note
+## Comments with a choice
 
-Every ready card offers Add note as a speech-bubble button next to Remind me later and Skip; table rows offer it in their ⋯ menu. It focuses a short field above the buttons. Choosing an action submits the note visibly after the mention pill and includes it as `note` in hidden context. The note is saved on the attempt, returned by claim/get, and shown under the result. Empty notes keep the usual behavior; Escape or clearing the field dismisses it. Bulk approval carries each row’s own note.
+Every ready card and table row has a Comment button (speech bubble) on its action line. It opens a short field above the buttons. Choosing an action while the field has text submits the comment visibly after the mention pill and includes it as `note` in hidden context; the primary button shows a small speech bubble when a comment goes along. The comment is saved on the attempt as `note`, returned by claim/get, and shown under the result. Empty comments keep the usual behavior; Escape or clearing the field dismisses it. Bulk approval carries each row’s own comment.
 
 ## Comment without choosing
 
-When the note field contains text, Comment sends just the note with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `threadId`, and `itemId`; it has no action or attempt. This is not approval. The card stays ready and its choices remain usable. Reply to the comment; if it asks for a change, read the latest item and revise the **same** Reply draft using its revision. Decide question/consequence updates are not supported; explain the requested change instead of creating a replacement card or acting.
+When the comment field contains text, its send button sends just the comment with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `threadId`, and `itemId`; it has no action or attempt. This is not approval. The card stays ready and its choices remain usable. Reply to the comment; if it asks for a change, read the latest item and revise the **same** Reply draft using its revision. Decide question/consequence updates are not supported; explain the requested change instead of creating a replacement card or acting.
 
 Comment replaces Reply’s Ask for changes button. Existing `request-changes` messages remain valid requests to revise, never approval. For a Reply change:
 
@@ -112,8 +114,12 @@ Could you confirm when my refund check was mailed?
 TEXT
 ```
 
-A revision conflict means the user edited the draft meanwhile. Re-read and incorporate their edit rather than overwriting it. A revision is not approval to send. The original card refreshes in place; do not create another card for the revised draft. Failed actions must be reconciled or safely reopened before editing. Later/Skip cards have Resume in their ⋯ menu. Safe failures put Edit draft / Choose again there too.
+A revision conflict means the user edited the draft meanwhile. Re-read and incorporate their edit rather than overwriting it. A revision is not approval to send. The original card refreshes in place; do not create another card for the revised draft. Failed actions must be reconciled or safely reopened before editing. Skipped (and legacy Later) cards offer Resume beside View. Safe failures offer Edit draft or Choose again there too.
+
+## Action log
+
+Point users to **Action log** in the sidebar for waiting cards and past choices across threads. Read the log with `bb action-cards log --json`, or add `--thread <id>` to scope it to one thread.
 
 ## Limits
 
-Reply, Decide, and Choice only; inline only. No Gmail credentials, Gmail transport, autonomous send, scheduled reminder, Undo, or side panel is included. Agents supply the connected service and must report outcomes. The editor is a small autosaving plain-text field; it does not implement Docs rich text or proposal acceptance. Docs' private editor cannot be embedded or flushed safely by another plugin through the public SDK.
+Reply, Decide, and Choice cards, inline, plus the Action log. No Gmail credentials, Gmail transport, autonomous send, scheduled reminder, or Undo is included. Agents supply the connected service and must report outcomes. The editor is a small autosaving plain-text field; it does not implement Docs rich text or proposal acceptance. Docs' private editor cannot be embedded or flushed safely by another plugin through the public SDK.

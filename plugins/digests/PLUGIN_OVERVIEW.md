@@ -1,8 +1,8 @@
-# Digests
+# Briefs
 
-Private briefings that arrive as ordinary bb threads. Each issue opens with a
+Private briefings that arrive as ordinary bb threads. Each brief opens with a
 clear headline, numbered priorities and review buttons. Routine detail stays
-collapsed. Move or archive issues yourself when done.
+collapsed. Move or archive briefs yourself when done.
 
 Add a digest under a signed-in site in Settings: give it a name, describe what
 it should tell you, and choose a schedule. Existing starter definitions for

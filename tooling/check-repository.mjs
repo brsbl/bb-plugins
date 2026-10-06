@@ -27,6 +27,7 @@ const pluginBbEngineOverrides = new Map([
   ["context-katamari", ">=0.43.0"],
   ["file-pins", ">=0.43.4"],
   ["improve-prompt", ">=0.40.0"],
+  ["moss-viewer", ">=0.43.4"],
   ["open-in-moss", ">=0.43.4"],
   ["pull-requests", ">=0.43.4"],
   ["theme-preview", ">=0.38.0"],
