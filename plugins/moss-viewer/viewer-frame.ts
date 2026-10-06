@@ -118,3 +118,10 @@ export function routeFrameLinks(frame: HTMLIFrameElement, openUrl: (url: string)
   document.addEventListener("click", onClick);
   return () => document.removeEventListener("click", onClick);
 }
+
+/** The text selected in a viewer or editor frame, trimmed and capped, or null when nothing is. */
+export function frameSelection(frame: HTMLIFrameElement | null, max: number): string | null {
+  const text = frame?.contentWindow?.getSelection()?.toString().trim() ?? "";
+  if (text === "") return null;
+  return text.length > max ? text.slice(0, max) : text;
+}

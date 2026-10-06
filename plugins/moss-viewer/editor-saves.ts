@@ -3,6 +3,7 @@
 // draft an unmount had to leave unsaved (moss-multi's contract §5.5 and
 // `unmount` returning `kept`).
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { database } from "./storage.js";
 import type * as Moss from "./vendor/moss-editor.contract.js";
 
 /** How long bb keeps a receipt or draft after it was last written. */
@@ -11,19 +12,7 @@ export const KEEP_MS = 30 * 24 * 60 * 60 * 1000;
 export type SavedKind = "receipt" | "draft";
 
 export function editorSaves(bb: BbPluginApi) {
-  const db = bb.storage.database();
-  bb.storage.migrate(db, [
-    `CREATE TABLE editor_saves (
-      host_id TEXT NOT NULL,
-      note_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('receipt', 'draft')),
-      draft TEXT NOT NULL,
-      -- For a receipt, the version the save produced; null for a draft.
-      version TEXT,
-      kept_at INTEGER NOT NULL,
-      PRIMARY KEY (host_id, note_id, kind)
-    )`,
-  ]);
+  const db = database(bb);
   const upsert = db.prepare(
     `INSERT INTO editor_saves (host_id, note_id, kind, draft, version, kept_at) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT (host_id, note_id, kind) DO UPDATE SET draft = excluded.draft, version = excluded.version, kept_at = excluded.kept_at`,

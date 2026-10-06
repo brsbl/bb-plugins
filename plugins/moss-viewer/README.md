@@ -22,6 +22,8 @@ Other Moss notes open read-only in the Moss viewer, with tabs, tables, callouts,
 
 Wiki links open the linked note in the same tab; Back returns to the previous note. **Open in Moss** opens the note in the Moss app on the Mac that holds it.
 
+**Share with Agent** (the up arrow) puts a pill for the note in the composer of the thread the panel belongs to, so you can add a message and send it. Select text first to share that passage too. When you send, the agent gets the note's path, the machine that holds it, its Moss link, and the selected text.
+
 The note, its `layout.json`, its `assets/` folder, and the list of notes that wiki links resolve against are read on the machine that holds the file, so a bb server on another machine still shows notes from your Mac. Moss HTML blocks run live in sandboxed frames. A block can't reach bb, and its page policy keeps it from loading scripts, styles or images from the web.
 
 ## Develop
