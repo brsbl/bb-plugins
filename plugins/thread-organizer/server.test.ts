@@ -123,6 +123,8 @@ function createHarness(
   ];
   type TestThreadChange =
     | "archived-changed"
+    | "events-appended"
+    | "status-changed"
     | "metadata-changed"
     | "order-changed"
     | "parent-changed"
@@ -818,6 +820,40 @@ describe("Thread Organizer server", () => {
     expect(organizer.current().sectionId).toBe(sectionId("inbox"));
     expect(organizer.sendMessage).not.toHaveBeenCalled();
     await replacement.harness.lifecycle.dispose();
+  });
+
+  it("does not reconcile parents for child output bursts but still reacts to status changes", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const config = await configFor(organizer);
+    const inboxId = config.stages.find((stage) => stage.key === "inbox")!.sectionId;
+    organizer.setThread({ status: "idle" });
+    organizer.addThread({ id: "child", parentThreadId: "thr_test", status: "active" });
+    await organizer.harness.behavior.emitThreadEvent("thread.active", {
+      thread: organizer.current("child"),
+    });
+    expect(organizer.current().sectionId).toBe(null);
+    organizer.getThread.mockClear();
+    organizer.listThreads.mockClear();
+    for (let index = 0; index < 50; index += 1) {
+      organizer.emitChanged(["events-appended", "title-changed"], "child");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(organizer.getThread.mock.calls.some(([input]) => input.threadId === "thr_test")).toBe(false);
+    expect(organizer.listThreads).not.toHaveBeenCalled();
+    expect(organizer.current().sectionId).toBe(null);
+
+    organizer.setThread({ status: "idle" }, "child");
+    organizer.emitChanged(["events-appended", "status-changed"], "child");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(inboxId));
+    organizer.setThread({ status: "starting" }, "child");
+    organizer.emitChanged("status-changed", "child");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(null));
+
+    organizer.setThread({ status: "idle" }, "child");
+    organizer.emitChanged("events-appended");
+    await vi.waitFor(() => expect(organizer.current().sectionId).toBe(inboxId));
+    await organizer.harness.lifecycle.dispose();
   });
 
   it("finds working children past the first page and ignores archived or unrelated work", async () => {
