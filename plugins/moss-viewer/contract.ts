@@ -14,6 +14,7 @@ import {
   relativePath,
   writeResult,
 } from "./editor-schema.js";
+import { MAX_SHARED_SELECTION } from "./share.js";
 
 const id = z.string().min(1).max(200);
 export const filePath = z
@@ -215,6 +216,19 @@ export const rpcContract = defineRpcContract({
   openInMoss: {
     input: z.object({ hostId: id, path: filePath }).strict(),
     output: z.object({ opened: z.literal(true) }).strict(),
+  },
+  /** Keeps a note (and the selected text) for the mention the panel puts in its thread's composer. */
+  shareNote: {
+    input: z
+      .object({
+        hostId: id,
+        path: filePath,
+        title: z.string().min(1).max(500),
+        noteId: id.nullable(),
+        selection: z.string().min(1).max(MAX_SHARED_SELECTION).nullable(),
+      })
+      .strict(),
+    output: z.object({ id: z.string() }).strict(),
   },
   ...editorRpcMethods,
 });
