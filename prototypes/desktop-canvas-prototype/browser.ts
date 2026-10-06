@@ -73,19 +73,13 @@ export function rememberUrl(urlKey: string, url: string) {
   }
 }
 
-/** bb's "open links in the in-app browser" setting, which bb keeps in this key (on by default). */
-export function opensLinksInAppBrowser(): boolean {
-  try {
-    return JSON.parse(localStorage.getItem("bb.openLinksInAppBrowser") ?? "true") !== false;
-  } catch {
-    return true;
-  }
-}
-
-/** A web link clicked in a thread window's chat, with the thread it belongs to. */
-export function chatWebLink(target: EventTarget | null): { threadId: string; url: string; anchor: HTMLAnchorElement } | null {
+/**
+ * A web link clicked in a canvas window that belongs to a thread (its chat, Info, Related threads), with that thread:
+ * the page opens in the thread's browser window. Links being typed in a composer are left alone.
+ */
+export function windowWebLink(target: EventTarget | null): { threadId: string; url: string; anchor: HTMLAnchorElement } | null {
   if (!(target instanceof Element) || target.closest('[contenteditable="true"]') !== null) return null;
-  const threadId = target.closest<HTMLElement>("[data-chat-thread]")?.dataset.chatThread;
+  const threadId = target.closest<HTMLElement>(".cdc-window[data-window-thread]")?.dataset.windowThread;
   const anchor = target.closest("a[href]");
   if (threadId === undefined || !(anchor instanceof HTMLAnchorElement)) return null;
   if (!/^https?:$/.test(anchor.protocol) || anchor.origin === window.location.origin) return null;

@@ -6,7 +6,8 @@ import {
   type NewThreadRequest,
 } from "@get-bb/plugin-sdk/app";
 import { viewMenuEntries } from "./actions";
-import { chatWebLink, nativeBrowser, opensLinksInAppBrowser } from "./browser";
+import { toast } from "sonner";
+import { nativeBrowser, windowWebLink } from "./browser";
 import { openThreadLink } from "./browser-window";
 import { CanvasProvider, DOCK_RESERVE, useViewport, useWorkArea } from "./camera";
 import { DesktopCanvas } from "./canvas";
@@ -67,37 +68,62 @@ function linkedThreadId(target: EventTarget | null): string | null {
 }
 
 /**
- * Windows, and the links inside them: a thread link opens that thread's window, and a web link in a chat opens in that
- * thread's browser window on the canvas when bb opens links in its in-app browser, as Desktop does.
+ * Windows, and the links inside them: a thread link opens that thread's window, and a web link in a thread's window
+ * opens in that thread's browser window on the canvas (bb desktop app). Clicks are caught natively in the capture phase,
+ * before bb's own chat link handling, so the page never leaves for the system browser.
  */
 function WindowLayer() {
   const manager = useWindowManager();
   const desktop = useDesktop();
   const viewport = useViewport();
   const menu = useMenu();
-  return (
-    <div
-      className="cdc-window-layer"
-      onClickCapture={(event) => {
-        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-        const threadId = linkedThreadId(event.target);
-        const webLink = threadId === null && nativeBrowser() !== null && opensLinksInAppBrowser() ? chatWebLink(event.target) : null;
-        if (threadId === null && webLink === null) return;
+  const layerRef = useRef<HTMLDivElement>(null);
+  const latest = useRef({ manager, desktop });
+  latest.current = { manager, desktop };
+  const explained = useRef(false);
+
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (layer === null) return;
+    const onClick = (event: MouseEvent) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const threadId = linkedThreadId(event.target);
+      if (threadId !== null) {
         event.preventDefault();
         event.stopPropagation();
-        if (threadId !== null) desktop.openThread(threadId);
-        else if (webLink !== null) openThreadLink(manager, webLink.threadId, webLink.url);
-      }}
+        latest.current.desktop.openThread(threadId);
+        return;
+      }
+      const webLink = windowWebLink(event.target);
+      if (webLink === null) return;
+      if (nativeBrowser() === null) {
+        // On the web there is no bb browser to draw a page into; the link opens as usual, once explained.
+        if (!explained.current) {
+          explained.current = true;
+          toast("Links open in a canvas browser window in the bb desktop app. Here they open in a new tab.");
+        }
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      openThreadLink(latest.current.manager, webLink.threadId, webLink.url);
+    };
+    layer.addEventListener("click", onClick, true);
+    return () => layer.removeEventListener("click", onClick, true);
+  }, []);
+
+  return (
+    <div
+      ref={layerRef}
+      className="cdc-window-layer"
       onContextMenuCapture={(event) => {
-        // A link in a chat gets the canvas's own menu; Open does exactly what a click does.
+        // A link in a window gets the canvas's own menu; Open does exactly what a click does.
         const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>(".cdc-window a[href]") : null;
         if (anchor === null || anchor.closest('[contenteditable="true"]') !== null) return;
-        const webLink = linkedThreadId(anchor) === null && nativeBrowser() !== null ? chatWebLink(anchor) : null;
+        const webLink = linkedThreadId(anchor) === null ? windowWebLink(anchor) : null;
         menu.open(event, [
           { label: "Open link", icon: "ArrowUpRight", run: () => anchor.click() },
-          ...(webLink !== null && !opensLinksInAppBrowser()
-            ? [{ label: "Open in a browser window", icon: "Globe", run: () => openThreadLink(manager, webLink.threadId, webLink.url) }]
-            : []),
+          ...(webLink !== null ? [{ label: "Open in your browser", icon: "ExternalLink", run: () => void window.open(webLink.url, "_blank", "noopener,noreferrer") }] : []),
           "separator",
           { label: "Copy link", icon: "Copy", run: () => void navigator.clipboard.writeText(anchor.href) },
         ]);

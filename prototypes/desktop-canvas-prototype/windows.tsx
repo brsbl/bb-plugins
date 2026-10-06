@@ -19,7 +19,7 @@ import { fitCamera, resizeRect, revealCamera, toWorld, type Camera, type Point, 
 import { closeBrowserTab } from "./browser";
 import { useMenu } from "./menu";
 import { closeTerminalSession } from "./terminal";
-import { STORAGE_KEY, defaultRect, dockedRect, isAttached, loadWindows, serializeWindows, windowId, windowReducer, type DesktopWindow, type DockSide, type WindowSpec } from "./window-state";
+import { STORAGE_KEY, defaultRect, dockedRect, isAttached, loadWindows, serializeWindows, threadIdOf, windowId, windowReducer, type DesktopWindow, type DockSide, type WindowSpec } from "./window-state";
 
 export { threadIdOf, windowId, windowSize, type DesktopWindow, type DockSide, type WindowSpec } from "./window-state";
 
@@ -457,6 +457,7 @@ export function WindowFrame({
       data-focused={focused}
       data-maximized={maximized || undefined}
       data-dock={dock}
+      data-window-thread={threadIdOf(desktopWindow.spec) ?? undefined}
       hidden={desktopWindow.minimized}
       style={style}
       onPointerDownCapture={() => {
