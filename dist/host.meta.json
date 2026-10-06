@@ -1,0 +1,12 @@
+{
+  "sdkMajor": 0,
+  "sdkVersion": "0.5.9",
+  "artifactFormatVersion": 1,
+  "pluginId": "video-markup",
+  "pluginVersion": "0.1.0",
+  "builtWith": {
+    "bbVersion": "0.43.4",
+    "pluginSdkVersion": "0.5.9"
+  },
+  "artifactDigest": "11aeef2be52e7376b9e12ae52859de9716eb433c7f52f9f4a021954b2babcfd3"
+}
