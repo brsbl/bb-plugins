@@ -290,9 +290,9 @@ To work on one plugin, install its workspace directly: `bb plugin install "path:
 
 See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
 
-### Pinned Files
+### Pins
 
-Keep a thread's key files and links one click away in a strip above the composer. Ask the agent to pin files from the composer's Pin files pill, let agents pin the PR, issue, spec and dev site they work with, and open, unpin or remove pins from their menus.
+Keep a thread's key files and links one click away in a strip above the composer. Ask the agent to pin files from the composer's Pin pill, let agents pin the PR, issue, spec and dev site they work with, and open, unpin or remove pins from their menus.
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
 
@@ -300,7 +300,7 @@ Keep a thread's key files and links one click away in a strip above the composer
 
 ![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
 
-![The Pin files pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
+![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
 
 ![Pins truncated to fit a phone, with the rest in the ⋯ list](plugins/file-pins/docs/phone-more-list.png)
 
