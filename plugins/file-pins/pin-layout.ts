@@ -4,34 +4,47 @@ import { useLayoutEffect, useState, type RefObject } from "react";
 // files in order at their natural width, as many as fit; the ⋯ list holds the rest.
 // When they don't all fit, the longest labels truncate first, down to the minimum.
 export const PIN_MIN_WIDTH_CLASS = "w-24";
+// A pin this close to the longest pins' share keeps its full label; the longer pins absorb the difference.
+const SLACK = 16;
 
 /** Measured widths in px: the strip's room, its gap, the ⋯ button, the minimum pin, and each pin's natural width. */
 export type PinMetrics = { width: number; gap: number; more: number; min: number; pins: Record<string, number> };
-/** `maxWidth` caps the strip's longest pins so the rest keep their natural width; null when nothing truncates. */
-export type PinLayout<T extends { id: string }> = { strip: T[]; more: T[]; maxWidth: number | null };
+/** `caps` holds a max width for each strip pin that truncates; the rest keep their natural width. */
+export type PinLayout<T extends { id: string }> = { strip: T[]; more: T[]; caps: Record<string, number> };
 export type Arrangement = { order: string[]; more: string[] };
 
 /** Pinned files that no longer fit lead the ⋯ list until there is room again. */
 export function layoutPins<T extends { id: string }>(pins: readonly T[], unpinned: readonly string[], metrics: PinMetrics | null): PinLayout<T> {
   const pinned = pins.filter((pin) => !unpinned.includes(pin.id));
   const rest = pins.filter((pin) => unpinned.includes(pin.id));
-  if (!metrics) return { strip: pinned, more: rest, maxWidth: null };
+  if (!metrics) return { strip: pinned, more: rest, caps: {} };
   const natural = (pin: T) => metrics.pins[pin.id] ?? metrics.min;
   const room = (count: number) => metrics.width - Math.max(0, count - 1) * metrics.gap
     - (count < pinned.length || rest.length > 0 ? metrics.more + metrics.gap : 0);
   let count = pinned.length;
   while (count > 0 && pinned.slice(0, count).reduce((sum, pin) => sum + Math.min(natural(pin), metrics.min), 0) > room(count)) count--;
   const strip = pinned.slice(0, count);
-  return { strip, more: [...pinned.slice(count), ...rest], maxWidth: truncation(strip.map(natural), room(count)) };
+  const caps: Record<string, number> = {};
+  const space = room(count);
+  const cap = share(strip.map(natural), space);
+  if (cap !== null) {
+    // Spare labels just over the share when the longest pins can give up the difference and stay above the minimum.
+    const cut = strip.filter((pin) => natural(pin) > cap + SLACK);
+    const kept = strip.reduce((sum, pin) => cut.includes(pin) ? sum : sum + natural(pin), 0);
+    const tighter = cut.length > 0 ? (space - kept) / cut.length : 0;
+    const spare = cut.length > 0 && tighter >= metrics.min;
+    for (const pin of spare ? cut : strip) if (natural(pin) > cap) caps[pin.id] = spare ? tighter : cap;
+  }
+  return { strip, more: [...pinned.slice(count), ...rest], caps };
 }
 
 /** The widest a pin may be so the strip fits `room`: shorter pins keep their width, the longest share what is left. */
-function truncation(widths: number[], room: number): number | null {
+function share(widths: number[], room: number): number | null {
   const sorted = [...widths].sort((a, b) => a - b);
   let left = room;
   for (const [index, width] of sorted.entries()) {
-    const share = left / (sorted.length - index);
-    if (width > share) return share;
+    const each = left / (sorted.length - index);
+    if (width > each) return each;
     left -= width;
   }
   return null;

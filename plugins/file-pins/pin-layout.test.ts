@@ -9,22 +9,24 @@ const metrics = (width: number, widths: Record<string, number>): PinMetrics => (
 const even = (width: number) => metrics(width, Object.fromEntries(order.map((id) => [id, 100])));
 
 it("shows one short pin, or one long pin with room, at its full width", () => {
-  expect(layoutPins([{ id: "a" }], [], metrics(600, { a: 60 }))).toEqual({ strip: [{ id: "a" }], more: [], maxWidth: null });
-  expect(layoutPins([{ id: "a" }], [], metrics(600, { a: 320 })).maxWidth).toBeNull();
+  expect(layoutPins([{ id: "a" }], [], metrics(600, { a: 60 }))).toEqual({ strip: [{ id: "a" }], more: [], caps: {} });
+  expect(layoutPins([{ id: "a" }], [], metrics(600, { a: 320 })).caps).toEqual({});
 });
 
 it("truncates the longest pins first and leaves shorter ones whole", () => {
   // 600 - 2 gaps = 592; the 80px pin keeps its width and the two long ones share 512.
   const layout = layoutPins(pins.slice(0, 3), [], metrics(600, { a: 80, b: 400, c: 300 }));
-  expect([ids(layout.strip), layout.maxWidth]).toEqual([["a", "b", "c"], 256]);
+  expect([ids(layout.strip), layout.caps]).toEqual([["a", "b", "c"], { b: 256, c: 256 }]);
   // Only the longest pin truncates when that alone makes room.
-  expect(layoutPins(pins.slice(0, 3), [], metrics(600, { a: 80, b: 400, c: 150 })).maxWidth).toBe(362);
+  expect(layoutPins(pins.slice(0, 3), [], metrics(600, { a: 80, b: 400, c: 150 })).caps).toEqual({ b: 362 });
+  // A label just over the share (105.5 vs 105) stays whole; the two long pins give up the difference.
+  expect(layoutPins(pins.slice(0, 3), [], metrics(323, { a: 300, b: 300, c: 105.5 })).caps).toEqual({ a: 104.75, b: 104.75 });
 });
 
 it("moves pins into ⋯ only once every shown pin is at the minimum", () => {
   // Five 100px pins need 516px; at 510 each truncates slightly rather than overflowing.
   const tight = layoutPins(pins, [], even(510));
-  expect([ids(tight.strip), tight.more, tight.maxWidth]).toEqual([order, [], 98.8]);
+  expect([ids(tight.strip), tight.more, tight.caps]).toEqual([order, [], Object.fromEntries(order.map((id) => [id, 98.8]))]);
   // At 490 five minimum pins (496) no longer fit, so the last goes to ⋯, which takes its own room.
   const crowded = layoutPins(pins, [], even(490));
   expect([ids(crowded.strip), ids(crowded.more)]).toEqual([["a", "b", "c", "d"], ["e"]]);

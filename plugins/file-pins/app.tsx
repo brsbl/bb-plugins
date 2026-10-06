@@ -195,7 +195,8 @@ function PinStrip({ threadId }: { threadId: string }) {
     </ContextMenuContent>;
   }
   function stripPin(pin: Reference) {
-    const style = layout.maxWidth === null ? undefined : { maxWidth: layout.maxWidth };
+    const cap = layout.caps[pin.id];
+    const style = cap === undefined ? undefined : { maxWidth: cap };
     const link = isUrlPin(pin) ? <UrlLink href={pin.url} style={style} title={title(pin)} aria-label={`Open ${pin.name}`} className={cn(pinClass, "cursor-pointer")}>
       <PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pin.name}</span>
     </UrlLink> : pin.status === "missing" ? <span className="relative inline-flex min-w-0" style={style} title={title(pin)}>
