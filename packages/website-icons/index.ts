@@ -2,6 +2,7 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
 import { isIP, type LookupFunction } from "node:net";
 import { PNG } from "pngjs";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 export const ICON_LIMITS = {
   inputBytes: 256 * 1024,
@@ -347,4 +348,36 @@ export class IconService {
     this.pending.set(origin, { controller, result });
     return result;
   }
+}
+
+/** Only disposable origin-level raster data lives in the plugin's own database. */
+export function createIconCache(bb: Pick<BbPluginApi, "storage">, now = Date.now): IconCache {
+  const db = bb.storage.database();
+  db.exec("CREATE TABLE IF NOT EXISTS icons (origin TEXT PRIMARY KEY, data TEXT, expires INTEGER NOT NULL, touched INTEGER NOT NULL, bytes INTEGER NOT NULL)");
+  const read = db.prepare("SELECT data, expires FROM icons WHERE origin = ?");
+  const remove = db.prepare("DELETE FROM icons WHERE origin = ?");
+  const touch = db.prepare("UPDATE icons SET touched = ? WHERE origin = ?");
+  const write = db.prepare("INSERT OR REPLACE INTO icons(origin, data, expires, touched, bytes) VALUES (?, ?, ?, ?, ?)");
+  const expired = db.prepare("DELETE FROM icons WHERE expires <= ?");
+  const list = db.prepare("SELECT origin, bytes FROM icons ORDER BY touched DESC, rowid DESC");
+  const put = db.transaction((origin: string, dataUrl: string | null) => {
+    const time = now();
+    expired.run(time);
+    write.run(origin, dataUrl, time + (dataUrl ? ICON_LIMITS.positiveMs : ICON_LIMITS.negativeMs), time, Buffer.byteLength(dataUrl ?? ""));
+    let bytes = 0;
+    for (const [index, entry] of (list.all() as Array<{ origin: string; bytes: number }>).entries()) {
+      bytes += entry.bytes;
+      if (index >= ICON_LIMITS.entries || bytes > ICON_LIMITS.cacheBytes) remove.run(entry.origin);
+    }
+  });
+  return {
+    get(origin) {
+      const entry = read.get(origin) as { data: string | null; expires: number } | undefined;
+      if (!entry) return undefined;
+      if (entry.expires <= now()) { remove.run(origin); return undefined; }
+      touch.run(now(), origin);
+      return entry.data;
+    },
+    put,
+  };
 }
