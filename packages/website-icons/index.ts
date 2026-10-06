@@ -77,8 +77,11 @@ export function publicLookup(): LookupFunction {
 type Resource = { url: URL; body: Buffer; contentType: string };
 type Budget = { redirects: number };
 
-/** No ambient HTTP client, shared agent, proxy credentials, cookies or referrer. */
-export async function readPublicResource(input: URL, signal: AbortSignal, budget: Budget): Promise<Resource> {
+/**
+ * No ambient HTTP client, shared agent, proxy credentials, cookies or referrer.
+ * `truncate` keeps the first bytes of an oversized page, where <head> icon links live, instead of failing.
+ */
+export async function readPublicResource(input: URL, signal: AbortSignal, budget: Budget, { truncate = false } = {}): Promise<Resource> {
   let url = publicUrl(input.href);
   if (!url) throw new Error("Website URL is not public HTTPS");
   while (true) {
@@ -100,22 +103,26 @@ export async function readPublicResource(input: URL, signal: AbortSignal, budget
         }
         if (status < 200 || status >= 300 ||
           (reply.headers["content-encoding"] && reply.headers["content-encoding"] !== "identity") ||
-          Number(reply.headers["content-length"] ?? 0) > ICON_LIMITS.inputBytes) {
+          (!truncate && Number(reply.headers["content-length"] ?? 0) > ICON_LIMITS.inputBytes)) {
           reply.destroy();
           reject(new Error("Website resource is unavailable"));
           return;
         }
+        const contentType = String(reply.headers["content-type"] ?? "");
         const chunks: Buffer[] = [];
         let bytes = 0;
         reply.on("data", (chunk: Buffer) => {
           bytes += chunk.length;
           if (bytes > ICON_LIMITS.inputBytes) {
-            request.destroy(new Error("Website resource is too large"));
+            if (!truncate) { request.destroy(new Error("Website resource is too large")); return; }
+            chunks.push(chunk.subarray(0, chunk.length - (bytes - ICON_LIMITS.inputBytes)));
+            resolve({ status, body: Buffer.concat(chunks), contentType });
+            reply.destroy();
             return;
           }
           chunks.push(chunk);
         });
-        reply.on("end", () => resolve({ status, body: Buffer.concat(chunks), contentType: String(reply.headers["content-type"] ?? "") }));
+        reply.on("end", () => resolve({ status, body: Buffer.concat(chunks), contentType }));
         reply.on("error", reject);
         reply.on("aborted", () => reject(new Error("Website resource was interrupted")));
       });
@@ -275,7 +282,7 @@ export async function resolveIcon(origin: string, signal: AbortSignal): Promise<
     if (icon) return icon;
   } catch { signal.throwIfAborted(); }
   try {
-    const page = await readPublicResource(new URL("/", origin), signal, budget);
+    const page = await readPublicResource(new URL("/", origin), signal, budget, { truncate: true });
     if (!/^(?:text\/html|application\/xhtml\+xml)\b/i.test(page.contentType)) return null;
     for (const candidate of declaredIcons(page.body.toString("utf8"), page.url)) {
       try { const icon = await imageAt(candidate); if (icon) return icon; }
@@ -360,6 +367,8 @@ export function createIconCache(bb: Pick<BbPluginApi, "storage">, now = Date.now
   const write = db.prepare("INSERT OR REPLACE INTO icons(origin, data, expires, touched, bytes) VALUES (?, ?, ?, ?, ?)");
   const expired = db.prepare("DELETE FROM icons WHERE expires <= ?");
   const list = db.prepare("SELECT origin, bytes FROM icons ORDER BY touched DESC, rowid DESC");
+  // Misses are retried after each restart or update instead of lingering for the negative TTL.
+  db.exec("DELETE FROM icons WHERE data IS NULL");
   const put = db.transaction((origin: string, dataUrl: string | null) => {
     const time = now();
     expired.run(time);
