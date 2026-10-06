@@ -14,7 +14,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("colon picker workflow", () => {
-  it("waits before opening and cancels when typing continues or the scope changes", async () => {
+  it("waits before opening and cancels when typing continues, scope changes, or focus leaves", async () => {
     vi.useFakeTimers();
     const slot = renderSlot(banner, {}, { composer: { text: "Note" } });
     await slot.behavior.setComposerText("Note:");
@@ -25,6 +25,16 @@ describe("colon picker workflow", () => {
     expect(slot.queryByLabelText("Search emojis")).toBeNull();
     await slot.behavior.setComposerText("Note: keep typing:");
     await slot.behavior.setComposerScope({ kind: "thread", threadId: "another-thread" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    slot.container.setAttribute("data-app-composer", "");
+    slot.container.tabIndex = 0;
+    slot.container.focus();
+    await slot.behavior.setComposerText("Focus");
+    await slot.behavior.setComposerText("Focus:");
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    slot.container.blur();
+    slot.container.focus();
     await act(async () => { await vi.advanceTimersByTimeAsync(500); });
     expect(slot.queryByLabelText("Search emojis")).toBeNull();
     await slot.behavior.setComposerText("Pause");
