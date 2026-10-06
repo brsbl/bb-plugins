@@ -336,6 +336,46 @@ describe("kept drafts and save receipts", () => {
   });
 });
 
+describe("sharing a note with the agent", () => {
+  const hosts = [{ id: "mac", name: "MacBook Air", status: "connected" as const }];
+  const resolve = (h: Awaited<ReturnType<typeof setup>>, id: string) => {
+    const provider = h.registrations.mentionProviders.find((entry) => entry.id === "moss-note");
+    if (!provider) throw new Error("no moss-note mention provider");
+    return Promise.resolve(provider.resolve(id));
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("resolves the composer pill to the note's path on its host and the selected text", async () => {
+    const h = await setup({ hosts });
+    const shared = { hostId: "mac", path: notePath, title: "Clip", noteId: NOTE_ID, selection: "First line\nSecond line" };
+    const { id } = (await h.behavior.callRpc("shareNote", shared)) as { id: string };
+    const { context } = await resolve(h, id);
+    expect(context).toContain(`\`${notePath}\` on MacBook Air (host \`mac\`)`);
+    expect(context).toContain(`\`[[Clip|${NOTE_ID}]]\``);
+    expect(context).toContain("> First line\n> Second line");
+
+    const whole = (await h.behavior.callRpc("shareNote", { ...shared, noteId: null, selection: null })) as { id: string };
+    const note = (await resolve(h, whole.id)).context;
+    expect(note).toContain(notePath);
+    expect(note).not.toContain("selected");
+    expect(note).not.toContain("[[");
+    expect(h.registrations.mentionProviders.find((entry) => entry.id === "moss-note")?.search({ trigger: "@", query: "Clip", projectId: null, threadId: null })).toEqual([]);
+  });
+
+  it("refuses a pill it never made or one older than thirty days", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
+    const h = await setup({ hosts });
+    const { id } = (await h.behavior.callRpc("shareNote", { hostId: "mac", path: notePath, title: "Clip", noteId: null, selection: null })) as { id: string };
+    await expect(resolve(h, "unknown")).rejects.toThrow("Share it again");
+    vi.setSystemTime(new Date("2026-11-05T00:00:00Z"));
+    await expect(resolve(h, id)).rejects.toThrow("expired");
+  });
+});
+
 describe("the viewer bundle", () => {
   it("serves the verified bundle and its frame from one immutable prefix", async () => {
     const h = await setup();

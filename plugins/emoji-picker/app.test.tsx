@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { act, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parsePreferences, storageKey } from "./emojis";
@@ -11,9 +11,39 @@ beforeEach(() => {
   localStorage.clear();
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("colon picker workflow", () => {
+  it("waits before opening and cancels when typing continues, scope changes, or focus leaves", async () => {
+    vi.useFakeTimers();
+    const slot = renderSlot(banner, {}, { composer: { text: "Note" } });
+    await slot.behavior.setComposerText("Note:");
+    await act(async () => { await vi.advanceTimersByTimeAsync(249); });
+    expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    await slot.behavior.setComposerText("Note: keep typing");
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    await slot.behavior.setComposerText("Note: keep typing:");
+    await slot.behavior.setComposerScope({ kind: "thread", threadId: "another-thread" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    slot.container.setAttribute("data-app-composer", "");
+    slot.container.tabIndex = 0;
+    slot.container.focus();
+    await slot.behavior.setComposerText("Focus");
+    await slot.behavior.setComposerText("Focus:");
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    slot.container.blur();
+    slot.container.focus();
+    await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    expect(slot.queryByLabelText("Search emojis")).toBeNull();
+    await slot.behavior.setComposerText("Pause");
+    await slot.behavior.setComposerText("Pause:");
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(slot.getByLabelText("Search emojis")).toBeTruthy();
+    expect(slot.inspection.composer.submits).toEqual([]);
+  });
+
   it("replaces the new colon in the middle of a draft and preserves its attachments", async () => {
     expect(app.navPanels).toHaveLength(0);
     expect(app.composerCustomizations[0]!.actions).toBeUndefined();
@@ -28,7 +58,7 @@ describe("colon picker workflow", () => {
     await waitFor(() => expect(slot.queryByLabelText("Search emojis")).toBeNull());
   });
 
-  it.each(["Escape", " "])("dismisses with %j, keeps the colon, and does not reopen for saved or changed drafts", async (key) => {
+  it.each(["Escape", " ", "Enter"])("dismisses with %j, keeps the colon, and does not reopen for saved or changed drafts", async (key) => {
     const slot = renderSlot(banner, {}, { composer: { text: "Saved:" } });
     expect(slot.queryByLabelText("Search emojis")).toBeNull();
     await slot.behavior.setComposerText("Saved: ");
@@ -46,7 +76,7 @@ describe("colon picker workflow", () => {
     expect(slot.inspection.composer.text).toBe("Saved: : text:");
   });
 
-  it("dismisses a focused result with Space without selecting or sending", async () => {
+  it.each([" ", "Enter"])("dismisses a focused result with %j without selecting or sending", async (key) => {
     const slot = renderSlot(banner, {}, { composer: { text: "Before  after", attachmentCount: 1 } });
     await slot.behavior.setComposerText("Before : after");
     const search = await slot.findByLabelText("Search emojis");
@@ -54,7 +84,7 @@ describe("colon picker workflow", () => {
     fireEvent.keyDown(search, { key: "ArrowDown" });
     const rocket = slot.getByRole("button", { name: "Rocket" });
     expect(document.activeElement).toBe(rocket);
-    expect(fireEvent.keyDown(rocket, { key: " " })).toBe(false);
+    expect(fireEvent.keyDown(rocket, { key })).toBe(false);
     await waitFor(() => expect(slot.queryByLabelText("Search emojis")).toBeNull());
     expect(slot.inspection.composer.text).toBe("Before : after");
     expect(slot.inspection.composer.attachmentCount).toBe(1);
@@ -62,19 +92,19 @@ describe("colon picker workflow", () => {
     expect(parsePreferences(localStorage.getItem(storageKey)).recent).toEqual([]);
   });
 
-  it("keeps the picker open when Space belongs to text composition or a modified shortcut", async () => {
+  it.each([" ", "Enter"])("keeps the picker open when %j belongs to text composition or a modified shortcut", async (key) => {
     const slot = renderSlot(banner, {});
     await slot.behavior.setComposerText(":");
     const search = await slot.findByLabelText("Search emojis");
     for (const modifier of [{ isComposing: true }, { altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
-      expect(fireEvent.keyDown(search, { key: " ", ...modifier })).toBe(true);
+      expect(fireEvent.keyDown(search, { key, ...modifier })).toBe(true);
       expect(slot.queryByLabelText("Search emojis")).toBe(search);
     }
-    fireEvent.keyDown(search, { key: " " });
+    fireEvent.keyDown(search, { key });
     await waitFor(() => expect(slot.queryByLabelText("Search emojis")).toBeNull());
   });
 
-  it("dismisses the compact drawer with Space from its initial panel focus", async () => {
+  it.each([" ", "Enter"])("dismisses the compact drawer with %j from its initial panel focus", async (key) => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query === "(max-width: 767px)",
       media: query,
@@ -85,19 +115,19 @@ describe("colon picker workflow", () => {
     await slot.behavior.setComposerText("Note:");
     const dialog = await slot.findByRole("dialog", { name: "Insert emoji" });
     expect(document.activeElement).toBe(dialog);
-    expect(fireEvent.keyDown(dialog, { key: " " })).toBe(false);
+    expect(fireEvent.keyDown(dialog, { key })).toBe(false);
     await waitFor(() => expect(slot.queryByRole("dialog", { name: "Insert emoji" })).toBeNull());
     expect(slot.inspection.composer.text).toBe("Note:");
     await waitFor(() => expect(slot.inspection.composer.focusCount).toBeGreaterThan(0));
   });
 
-  it("inserts a preferred skin tone with the keyboard and remembers recent choices", async () => {
+  it("inserts a preferred skin tone and remembers recent choices", async () => {
     const slot = renderSlot(banner, {});
     await slot.behavior.setComposerText(":");
     const search = await slot.findByLabelText("Search emojis");
     fireEvent.change(search, { target: { value: ":thumbsup:" } });
     fireEvent.change(slot.getByLabelText("Skin tone"), { target: { value: "3" } });
-    fireEvent.keyDown(search, { key: "Enter" });
+    fireEvent.click(slot.getByRole("button", { name: "Thumbs Up" }));
     expect(slot.inspection.composer.text).toBe("👍🏽");
     expect(parsePreferences(localStorage.getItem(storageKey))).toEqual({ tone: 3, recent: ["+1"] });
     slot.lifecycle.unmount();

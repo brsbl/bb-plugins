@@ -290,7 +290,7 @@ To work on one plugin, install its workspace directly: `bb plugin install "path:
 
 See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
 
-### Pins
+### Pinned Files & Links
 
 Keep a thread's key files and links one click away in a strip above the composer. Ask the agent to pin files from the composer's Pin pill, let agents pin the PR, issue, spec and dev site they work with, and open, unpin or remove pins from their menus.
 

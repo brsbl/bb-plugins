@@ -88,7 +88,6 @@ export function EmojiPicker({ onSelect }: { onSelect: (value: string) => void })
           <Input ref={search} value={query} aria-label="Search emojis" placeholder="Search emojis…" className="pl-9 pr-8" onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
             if (event.key === "ArrowDown" && results.length) { event.preventDefault(); grid.current?.querySelector<HTMLButtonElement>("button")?.focus(); }
-            if (event.key === "Enter" && searching && results[0]) { event.preventDefault(); void pick(results[0]); }
             if (event.key === "Escape" && query) { event.preventDefault(); event.stopPropagation(); setQuery(""); }
           }} />
           {query && <Button type="button" variant="ghost" size="icon" aria-label="Clear search" className="absolute right-1 top-1/2 size-7 -translate-y-1/2" onClick={() => { setQuery(""); search.current?.focus(); }}><Icon name="X" aria-hidden="true" className="size-3" /></Button>}
@@ -128,7 +127,7 @@ export function EmojiPicker({ onSelect }: { onSelect: (value: string) => void })
           <select aria-label="Skin tone" value={preferences.tone} className="absolute inset-0 w-full cursor-pointer opacity-0" onChange={(event) => { const tone = Number(event.target.value); update((current) => ({ ...current, tone })); }}>{tones.map((tone, index) => <option key={tone} value={index}>{tone}</option>)}</select>
         </label>
       </div>
-      <div className="min-h-7 px-4 pb-2 text-xs text-muted-foreground" role="status" aria-live="polite">{status || "↑ ↓ ← → to browse · Enter to select"}</div>
+      <div className="min-h-7 px-4 pb-2 text-xs text-muted-foreground" role="status" aria-live="polite">{status || "↑ ↓ ← → to browse · Enter or Space to dismiss"}</div>
     </section>
   );
 }
@@ -146,17 +145,27 @@ export function ComposerEmojiPicker() {
     if (before.scope !== scope) { setTrigger(null); return; }
     if (before.text === composer.text) return;
     const index = insertedColon(before.text, composer.text);
-    setTrigger(index === null ? null : {
-      scope, text: composer.text, index,
-      anchor: captureColonAnchor(anchorElement.current?.closest("[data-app-composer]") ?? null),
-    });
+    setTrigger(null);
+    if (index === null) return;
+    const element = anchorElement.current?.closest("[data-app-composer]") ?? null;
+    const anchor = captureColonAnchor(element);
+    const timeout = window.setTimeout(() => {
+      if (element && !element.contains(element.ownerDocument.activeElement)) return;
+      setTrigger({ scope, text: composer.text, index, anchor });
+    }, 250);
+    const cancel = () => window.clearTimeout(timeout);
+    element?.addEventListener("focusout", cancel);
+    return () => {
+      cancel();
+      element?.removeEventListener("focusout", cancel);
+    };
   }, [composer.text, scope]);
 
   // Never apply a saved replacement to a different scope or a changed draft.
   const open = !!trigger && trigger.scope === scope && trigger.text === composer.text;
   return (
     <div className="contents" onKeyDownCapture={(event) => {
-      if (!open || event.key !== " " || event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (!open || (event.key !== " " && event.key !== "Enter") || event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
       event.preventDefault();
       event.stopPropagation();
       setTrigger(null);
