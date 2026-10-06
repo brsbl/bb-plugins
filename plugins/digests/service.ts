@@ -83,6 +83,9 @@ export function createService(bb: BbPluginApi) {
     issue = store.issues.get(issue.id) ?? issue;
     if (issue.state === "ready") return issue;
     if (banner) await bb.storage.kv.set(`recovery:${issue.id}`, true);
+    // A stopped turn keeps this run's verified collection publishable; an
+    // explicit check or agent failure does not.
+    else await bb.storage.kv.delete(`verified:${issue.id}`);
     const failed = changed(store.issues.update(issue.id, { state: "failed", headline: "This brief needs your attention", details: message, recovery }));
     await closeIssueBrowsers(failed);
     return failed;
@@ -240,10 +243,12 @@ export function createService(bb: BbPluginApi) {
       if (issue.state === "ready") return { issue, directive: directive(issue), sessions: [], complete: true };
       await closeIssueBrowsers(issue);
       issue = changed(store.issues.update(issue.id, { state: "collecting", headline: `Preparing ${definition.name}`, details: "The briefing is being prepared.", recovery: null }));
+      await bb.storage.kv.delete(`verified:${issue.id}`);
       const sessions: BrowserLease[] = [];
       try {
         await bb.storage.kv.delete(`recovery:${issue.id}`);
-        const requestedRetry = await bb.storage.kv.get<boolean>(`retry:${issue.id}`);
+        // A user Retry also covers this thread's later begin calls.
+        const requestedRetry = await bb.storage.kv.get<boolean>(`retry:${issue.id}`) || await bb.storage.kv.get<boolean>(`manual-retry:${issue.id}`);
         await bb.storage.kv.delete(`retry:${issue.id}`);
         await ensureSection();
         await claimInbox(issue);
@@ -283,6 +288,7 @@ export function createService(bb: BbPluginApi) {
             throw error;
           }
         }
+        await bb.storage.kv.set(`verified:${issue.id}`, true);
         const connections = definition.connectionIds.map((id) => store.connections.get(id)).filter((value): value is Connection => value !== null);
         return { issue, directive: directive(issue), sessions, instructions: collectionInstructions(definition, connections), complete: false };
       } catch (error) {
@@ -295,9 +301,9 @@ export function createService(bb: BbPluginApi) {
     const issue = requiredIssue(threadId);
     if (issue.state === "ready") return { issue, directive: directive(issue) };
     const definition = requiredDefinition(issue.digestId);
-    // A failed issue accepts its own thread's later successful run, but never
-    // account data collected while a declared connection is unverified.
-    if (issue.state === "failed" && definition.connectionIds.some((id) => store.connections.get(id)?.status !== "signed-in")) {
+    // A failed issue accepts its own run's later publish only after this run
+    // passed every connection check, never on another thread's check.
+    if (issue.state === "failed" && !await bb.storage.kv.get<boolean>(`verified:${issue.id}`)) {
       throw new Error("This run failed its connection check. Call digest_begin again to recheck the connection before publishing account data.");
     }
     for (const source of payload.sources) {
@@ -305,6 +311,7 @@ export function createService(bb: BbPluginApi) {
     }
     const published = changed(store.issues.publish(issue.id, payload, Date.now()));
     await bb.storage.kv.delete(`recovery:${issue.id}`);
+    await bb.storage.kv.delete(`verified:${issue.id}`);
     await closeIssueBrowsers(published);
     await bb.sdk.threads.markUnread({ threadId });
     return { issue: published, directive: directive(published) };

@@ -374,15 +374,24 @@ describe("digest issue lifecycle", () => {
     const failed = await service.begin("reading", "thr_recover");
     expect(failed.issue).toMatchObject({ state: "failed", recovery: "reconnect" });
     await expect(service.publishCurrent("thr_recover", payload())).rejects.toThrow("digest_begin again");
-
+    // Another thread's passing check does not verify this run.
     setSignIn({ signedIn: true, signedOut: false });
+    expect(await service.checkConnections("gmail")).toMatchObject([{ status: "signed-in" }]);
+    await expect(service.publishCurrent("thr_recover", payload())).rejects.toThrow("digest_begin again");
+
     expect(await service.begin("reading", "thr_recover")).toMatchObject({ complete: false, issue: { id: failed.issue.id, state: "collecting" } });
-    await service.fail(service.requiredIssue("thr_recover"), "Browser session closed.");
+    await service.settled("thr_recover", true);
+    expect(service.requiredIssue("thr_recover").state).toBe("failed");
     await expect(service.publishCurrent("thr_other", payload())).rejects.toThrow("does not belong");
     const published = await service.publishCurrent("thr_recover", payload());
     expect(published.issue).toMatchObject({ id: failed.issue.id, state: "ready", headline: "One worthwhile read" });
     expect(await service.recoveryIssue("thr_recover")).toBeNull();
     expect(service.store.issues.list()).toHaveLength(1);
+
+    // An explicit failure from the run itself stays failed.
+    await service.begin("reading", "thr_explicit");
+    await service.fail(service.requiredIssue("thr_explicit"), "Couldn’t verify unread state.");
+    await expect(service.publishCurrent("thr_explicit", payload())).rejects.toThrow("digest_begin again");
   });
 
   it("lets an on-time scheduled run begin again later in its own thread", async () => {
@@ -394,6 +403,21 @@ describe("digest issue lifecycle", () => {
     }] });
     service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_digest_new" });
     expect(await service.begin("reading", "thr_on_time")).toMatchObject({ complete: false, issue: { state: "collecting" } });
+  });
+
+  it("lets a retried late run begin again, as when it waits for the Gmail lock", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const { service } = setup({ runs: [{
+      id: "run_late_retry", threadId: "thr_late_retry", status: "running", scheduledFor: NOW - 30 * 60_000,
+      startedAt: NOW - 10 * 60_000, error: null, skipReason: null,
+    }] });
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_digest_new" });
+    const delayed = await service.begin("reading", "thr_late_retry");
+    expect(delayed.issue.state).toBe("failed");
+    await service.retry("thr_late_retry", delayed.issue.id);
+    expect(await service.begin("reading", "thr_late_retry")).toMatchObject({ complete: false, issue: { state: "collecting" } });
+    expect(await service.begin("reading", "thr_late_retry")).toMatchObject({ complete: false, issue: { state: "collecting" } });
   });
 
   it("reads only the Gmail account its URL names and reports a mismatch", async () => {
