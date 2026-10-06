@@ -31,7 +31,7 @@ function truncation(widths: number[], room: number): number | null {
   let left = room;
   for (const [index, width] of sorted.entries()) {
     const share = left / (sorted.length - index);
-    if (width > share) return Math.floor(share);
+    if (width > share) return share;
     left -= width;
   }
   return null;
@@ -67,9 +67,9 @@ export function useMeasurePins(rowRef: RefObject<HTMLElement | null>, key: strin
       const width = Math.floor(row.getBoundingClientRect().width - (Number.parseFloat(style.paddingLeft) || 0) - (Number.parseFloat(style.paddingRight) || 0));
       if (width <= 0) return;
       const next: PinMetrics = { width, gap: Number.parseFloat(style.columnGap) || 0, more: 0, min: 0, pins: {} };
+      // Exact widths against a rounded-down room, so a label that fits is never cut and the strip never overflows.
       for (const child of Array.from(row.children) as HTMLElement[]) {
-        // Round up so subpixel widths never add up to more than the strip holds.
-        const size = Math.ceil(child.getBoundingClientRect().width);
+        const size = child.getBoundingClientRect().width;
         if (child.dataset.pinId) next.pins[child.dataset.pinId] = size;
         else if (child.dataset.measure === "more") next.more = size;
         else if (child.dataset.measure === "min") next.min = size;

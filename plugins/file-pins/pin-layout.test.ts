@@ -24,7 +24,7 @@ it("truncates the longest pins first and leaves shorter ones whole", () => {
 it("moves pins into ⋯ only once every shown pin is at the minimum", () => {
   // Five 100px pins need 516px; at 510 each truncates slightly rather than overflowing.
   const tight = layoutPins(pins, [], even(510));
-  expect([ids(tight.strip), tight.more, tight.maxWidth]).toEqual([order, [], 98]);
+  expect([ids(tight.strip), tight.more, tight.maxWidth]).toEqual([order, [], 98.8]);
   // At 490 five minimum pins (496) no longer fit, so the last goes to ⋯, which takes its own room.
   const crowded = layoutPins(pins, [], even(490));
   expect([ids(crowded.strip), ids(crowded.more)]).toEqual([["a", "b", "c", "d"], ["e"]]);
