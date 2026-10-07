@@ -31,7 +31,7 @@ export function createStore(bb: BbPluginApi) {
 }
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
-  bb.rpc.registerContract(rpcContract, { get: ({ id, threadId }) => store.get(threadId, id) });
+  bb.rpc.register(rpcContract, { get: ({ id, threadId }) => store.get(threadId, id) });
   bb.agents.registerTool({
     name: "interactive_answer",
     description: "Create native interactive answers in bb: calculators, charts, tables, and explorable explanations. Call guide for the schema and examples, then publish a document. Emit the returned directive once on its own line.",

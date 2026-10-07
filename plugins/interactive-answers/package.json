@@ -18,7 +18,7 @@
   },
   "engines": {
     "bb": ">=0.0.34",
-    "bbPluginSdk": "^0.5.9"
+    "bbPluginSdk": ">=0.5.9"
   },
   "bb": {
     "name": "Interactive Answers",
