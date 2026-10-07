@@ -143,7 +143,7 @@ export function OutsideView({ call, threadId, state, parentThreadId, onChanged }
   } else {
     heading = state.section ? `${state.section.name} can't be a Space` : "This thread isn't in a Space";
     body = state.section
-      ? `${state.section.name} is an inbox, so it can't become a Space. Start a new Space with this thread, or move it into one you have.`
+      ? `Thread Organizer inboxes can't become Spaces. Start a new Space with this thread, or move it into one you have.`
       : "Start a Space with this thread, or move it into one you have. A Space keeps related threads from any project together.";
     controls = naming ? (
       <NewSpaceForm

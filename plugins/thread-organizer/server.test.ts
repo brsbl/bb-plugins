@@ -2912,6 +2912,22 @@ describe("Spaces", () => {
     }
   });
 
+  it("leaves a thread moved out of a Space in Threads", async () => {
+    const organizer = createHarness({ spaceSectionIds: [] });
+    await plugin(organizer.bb);
+    const onHold = sectionIdIn(await configFor(organizer))("on-hold")!;
+    organizer.spaces.sectionIds = [onHold];
+    organizer.setThread({ status: "idle", lastReadAt: 30, latestAttentionAt: 20,
+      sectionId: onHold });
+    await idle(organizer);
+    expect(organizer.current().sectionId).toBe(onHold);
+
+    organizer.setThread({ sectionId: null });
+    await idle(organizer);
+    expect(organizer.current().sectionId).toBeNull();
+    await organizer.harness.lifecycle.dispose();
+  });
+
   it("holds a new Space from the moment its section is adopted", async () => {
     const organizer = createHarness({ spaceSectionIds: [] });
     await plugin(organizer.bb);

@@ -744,6 +744,17 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       state.rememberedStageKey = firstWorkflowStage(configSnapshot)?.key ?? null;
     }
 
+    // Moving a thread out of a Space to the Threads list forgets the Space, so
+    // it stays where it was put instead of being filed back into the Space.
+    if (explicitStageKey === undefined && thread.sectionId === null) {
+      const remembered = configSnapshot.stages.find(
+        (stage) => stage.key === state.rememberedStageKey,
+      );
+      if (remembered && isSpaceStage(remembered, spaces)) {
+        state.rememberedStageKey = null;
+      }
+    }
+
     // A Space holds its threads the way a manual inbox does: whatever their
     // read or run state, they stay until the user drags them out, and an
     // explicit move into a Space lands there directly.

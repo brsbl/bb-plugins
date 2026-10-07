@@ -98,12 +98,12 @@ export function MemberCard({ card, now, peeked, onTogglePeek, onClosePeek, onOpe
         ) : null}
       </span>
       {peeked ? null : card.excerpt ? (
-        <span id={excerptId} className="ml-6 mt-0.5 line-clamp-2 block text-sm leading-snug text-muted-foreground">
+        <span id={excerptId} className="ml-6 mt-0.5 line-clamp-2 text-sm leading-snug text-muted-foreground">
           {card.excerpt}
         </span>
       ) : (
         <span id={excerptId} className="ml-6 mt-0.5 block text-sm leading-snug text-subtle-foreground">
-          {card.firstPrompt ? <span className="line-clamp-1 block">{card.firstPrompt}</span> : null}
+          {card.firstPrompt ? <span className="line-clamp-1">{card.firstPrompt}</span> : null}
           <span className="block text-xs">No output yet</span>
         </span>
       )}
@@ -232,7 +232,7 @@ export function SelectableCard({ card, now, checked, disabledReason, messaged, o
             {card.isCurrent ? <ThisThreadChip /> : null}
             {meta ? <span className="shrink-0 whitespace-nowrap text-xs text-subtle-foreground">{meta}</span> : null}
           </span>
-          <span className="mt-0.5 line-clamp-1 block text-sm leading-snug text-muted-foreground">
+          <span className="mt-0.5 line-clamp-1 text-sm leading-snug text-muted-foreground">
             {card.excerpt ?? "No output yet"}
           </span>
         </span>
