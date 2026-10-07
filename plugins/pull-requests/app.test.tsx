@@ -396,14 +396,14 @@ describe("Pull Requests hierarchy", () => {
       inbox: () => ({ items: [child, root], nextCursor: null, total: 2, coverage }), refresh: () => coverage,
       context: () => ({ threads: [], hosts: [], nextCursor: null }),
     } });
-    const stack = await screen.findByRole("button", { name: "Foundation · 2 PRs" });
+    const stack = await screen.findByRole("button", { name: "Foundation, stack of 2 pull requests" });
     // Members stay out of the sidebar; the stack row carries their attention.
     expect(screen.queryByRole("button", { name: "Searchable child" })).toBeNull();
     expect(stack.closest(".pr-row")!.textContent).toContain("1 needs fixes");
     fireEvent.change(screen.getByRole("textbox", { name: "Search pull requests" }), { target: { value: "Searchable" } });
     fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
-    expect(screen.getByRole("button", { name: "Foundation · 2 PRs" })).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "Foundation · 2 PRs" }));
+    expect(screen.getByRole("button", { name: "Foundation, stack of 2 pull requests" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Foundation, stack of 2 pull requests" }));
     const subPath = encodeURIComponent(`stack:${root.url.toLowerCase()}`);
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "requests", options: { subPath } });
     slot.lifecycle.rerender(<Panel subPath={subPath} />);
@@ -415,14 +415,14 @@ describe("Pull Requests hierarchy", () => {
     expect(project.querySelector("svg")).toBeNull();
     fireEvent.click(project);
     expect(project.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByRole("button", { name: "Foundation · 2 PRs" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Foundation, stack of 2 pull requests" })).toBeNull();
     await slot.behavior.emitRealtime(CHANGED, {});
     await waitFor(() => expect(project.getAttribute("aria-expanded")).toBe("false"));
     fireEvent.click(project);
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
     fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
     fireEvent.click(screen.getByRole("button", { name: "History" }));
-    expect(screen.getByRole("button", { name: "Foundation · 2 PRs" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Foundation, stack of 2 pull requests" })).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Active" }));
     slot.lifecycle.unmount();
   });

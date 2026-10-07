@@ -384,13 +384,13 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     const summary = attentionSummary(group.entries, statuses);
     const tone = group.entries.some(({ item }) => item && statuses.get(item.id)?.fixes) ? "danger" : group.entries.some(({ item }) => item && statuses.get(item.id)?.category === "Needs you") ? "warning" : "muted";
     const time = updatedAt(group);
-    const title = `${group.entries[0]!.title} · ${group.entries.length} PRs`;
+    const title = group.entries[0]!.title;
     return <div className={`pr-row${active ? " pr-row-selected" : ""}`} key={`stack:${group.key}`}>
       <StatusIcon icon={Layers} label={group.kind === "native" ? "GitHub stack" : "Branch dependencies"} />
-      <button type="button" className="pr-row-title" onClick={() => selectStack(group.key)} aria-current={selection.stack === group.key ? "page" : undefined} title={title}>{title}</button>
+      <button type="button" className="pr-row-title" onClick={() => selectStack(group.key)} aria-current={selection.stack === group.key ? "page" : undefined} aria-label={`${title}, stack of ${group.entries.length} pull requests`} title={title}>{title}</button>
       {group.entries.some(({ item }) => item?.pinned) && <Pin size={12} aria-label="Pinned" className="pr-tone-muted" />}
       <time className="pr-row-time" dateTime={time ? new Date(time).toISOString() : undefined}>{time ? age(new Date(time).toISOString()).replace(" ago", "").replace("just now", "now") : "—"}</time>
-      <div className="pr-row-caption">{summary && <span className={`pr-row-reason pr-tone-${tone}`}>{summary}</span>}<span className="pr-row-identity">{group.entries.map((entry) => `#${entry.number}`).join(" → ")}{group.cached ? " · Cached relationships" : ""}</span></div>
+      <div className="pr-row-caption">{summary && <span className={`pr-row-reason pr-tone-${tone}`}>{summary}</span>}<span className="pr-row-identity">{`Stack · ${group.entries.length} PRs · `}{group.entries.map((entry) => `#${entry.number}`).join(" → ")}{group.cached ? " · Cached relationships" : ""}</span></div>
     </div>;
   };
   const renderGroup = (group: DependencyGroup) => group.kind === "single" ? renderRow(group.entries[0]!, group) : renderStackRow(group);
