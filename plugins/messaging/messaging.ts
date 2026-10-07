@@ -87,14 +87,14 @@ export const PARENT_INSTRUCTIONS =
   "Messaging plugin: when the user asks you to delegate work to child threads that should stay quiet until they matter, start them with messaging_spawn_child (or `bb messaging spawn`). Those children report only when done, blocked, or needing a decision, so you are not woken on every child turn. Check them with messaging_list_children, ask one for an update with messaging_request_status, and send any other message with `bb thread tell <id>`. Archiving the parent archives its Messaging children.";
 
 export function formatReport(
-  child: { id: string; title: string },
+  childThreadId: string,
   kind: ReportKind,
   message: string,
 ): string {
-  return `Messaging report: @thread:${child.id} (${child.title}) ${REPORT_HEADINGS[kind]}.\n\n${message}`;
+  return `Messaging report: @thread:${childThreadId} ${REPORT_HEADINGS[kind]}.\n\n${message}`;
 }
 
-export function threadTitle(thread: {
+function threadTitle(thread: {
   title: string | null;
   titleFallback: string | null;
   id: string;
@@ -139,7 +139,7 @@ export async function spawnChild(sdk: PluginBbSdk, input: SpawnChildInput) {
     lifecycleOwnerThreadId: parent.id,
     pluginMetadata: { parentThreadId: parent.id },
     ...(input.title === undefined ? {} : { title: input.title }),
-    ...(input.providerId === undefined ? {} : { providerId: input.providerId }),
+    providerId: input.providerId ?? parent.providerId,
     ...(input.model === undefined ? {} : { model: input.model }),
   });
 }
@@ -163,10 +163,7 @@ export async function sendReport(
       "This thread was not started by the Messaging plugin, so it has no parent to report to.",
     );
   }
-  const [child] = await Promise.all([
-    sdk.threads.get({ threadId: childThreadId }),
-    liveThread(sdk, link.parentThreadId),
-  ]);
+  await liveThread(sdk, link.parentThreadId);
   await sdk.threads.send({
     threadId: link.parentThreadId,
     senderThreadId: childThreadId,
@@ -174,11 +171,7 @@ export async function sendReport(
     input: [
       {
         type: "text",
-        text: formatReport(
-          { id: child.id, title: threadTitle(child) },
-          kind,
-          trimmed,
-        ),
+        text: formatReport(childThreadId, kind, trimmed),
         mentions: [],
       },
     ],

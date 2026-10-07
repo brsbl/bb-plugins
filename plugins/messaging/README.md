@@ -7,6 +7,8 @@ and acknowledgements. Messaging children stay quiet: routine progress stays in
 the child, and the parent hears from it only through an explicit report or
 when the child fails or waits on an approval.
 
+![A parent thread woken once by its child's done report](docs/child-report.png)
+
 ## Install
 
 ```bash
@@ -20,7 +22,7 @@ from inside a thread:
 
 | Command | Agent tool | Result |
 | --- | --- | --- |
-| `bb messaging spawn "<task>"` | `messaging_spawn_child` | Starts a child in the project's default environment, or the parent's with `--environment shared`. |
+| `bb messaging spawn "<task>"` | `messaging_spawn_child` | Starts a child on the parent's provider, in the project's default environment or the parent's with `--environment shared`. |
 | `bb messaging report <kind> '<message>'` | `messaging_report_to_parent` | Sends one `done`, `blocked`, `decision`, or `status` report to the parent. |
 | `bb messaging children` | `messaging_list_children` | Lists children with their status and last report. |
 | `bb messaging request-status <child>` | `messaging_request_status` | Asks a child for a status report. |

@@ -132,6 +132,16 @@ Creates, edits, saves, and shares reusable mesh gradients from a visual studio b
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/mesh-gradient --yes`
 
+### Messaging
+
+Delegates work to child threads that stay quiet until they matter. Children report to their parent only when they finish, get blocked, or need a decision, so routine turns no longer wake the parent; parents can list children and ask any of them for status.
+
+![A parent thread woken once by its child's done report](plugins/messaging/docs/child-report.png)
+
+[Source](plugins/messaging) · [README](plugins/messaging/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/messaging --yes`
+
 ### Emoji Picker
 
 Type `:` in a composer to open the picker, then choose an emoji to replace the colon. Search by name or shortcode, browse categories, and keep recent choices and a preferred skin tone close at hand.

@@ -16,6 +16,7 @@ function host(metadata: Record<string, Record<string, unknown>>) {
       id: PARENT,
       projectId: "proj_1",
       environmentId: "env_parent",
+      providerId: "claude-code",
       title: "Parent",
     }),
     [CHILD]: makeThreadResponse({
@@ -65,6 +66,7 @@ describe("Messaging plugin", () => {
       environmentId: "env_parent",
     });
     expect(args.pluginMetadata).toEqual({ parentThreadId: PARENT });
+    expect(args.providerId).toBe("claude-code");
   });
 
   it("delivers a child's report to its parent and records it", async () => {

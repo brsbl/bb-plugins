@@ -22,7 +22,6 @@ import {
   requestStatus,
   sendReport,
   spawnChild,
-  threadTitle,
   type EnvironmentChoice,
 } from "./messaging";
 
@@ -40,7 +39,11 @@ const spawnParameters = z.object({
     .describe(
       "default: the project's default environment (usually a new worktree). shared: reuse this thread's environment.",
     ),
-  providerId: z.string().min(1).optional(),
+  providerId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Defaults to this thread's provider."),
   model: z.string().min(1).optional(),
 });
 
@@ -206,7 +209,7 @@ export default function plugin(bb: BbPluginApi): void {
               description:
                 "default: the project's default environment. shared: reuse this thread's environment.",
             },
-            provider: { type: "string", description: "Provider id" },
+            provider: { type: "string", description: "Provider id (defaults to the current thread's provider)" },
             model: { type: "string", description: "Model id" },
             json: { type: "boolean", description: "Emit JSON" },
           },
@@ -299,7 +302,7 @@ export default function plugin(bb: BbPluginApi): void {
     await notifyParent(
       bb.sdk,
       thread.id,
-      `Messaging notice: @thread:${thread.id} (${threadTitle(thread)}) failed. Review the thread before deciding next steps.${reason}`,
+      `Messaging notice: @thread:${thread.id} failed. Review the thread before deciding next steps.${reason}`,
     );
   });
 
@@ -308,7 +311,7 @@ export default function plugin(bb: BbPluginApi): void {
     await notifyParent(
       bb.sdk,
       thread.id,
-      `Messaging notice: @thread:${thread.id} (${threadTitle(thread)}) is waiting on an approval or answer and cannot continue until someone responds in that thread.`,
+      `Messaging notice: @thread:${thread.id} is waiting on an approval or answer and cannot continue until someone responds in that thread.`,
     );
   });
 }
