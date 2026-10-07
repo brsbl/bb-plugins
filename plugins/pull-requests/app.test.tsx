@@ -404,7 +404,7 @@ describe("Pull Requests hierarchy", () => {
     fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
     expect(screen.getByRole("button", { name: "Foundation, stack of 2 pull requests" })).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Foundation, stack of 2 pull requests" }));
-    const subPath = encodeURIComponent(`stack:${root.url.toLowerCase()}`);
+    const subPath = `stack:${root.id}`;
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "requests", options: { subPath } });
     slot.lifecycle.rerender(<Panel subPath={subPath} />);
     const members = await screen.findByLabelText("Pull requests in this stack");

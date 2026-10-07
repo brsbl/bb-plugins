@@ -318,7 +318,9 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     if (selection.id) void loadDetail(selection.id);
   }, [selection.id, loadDetail]);
   const select = (id: string | null, tab: Tab = "summary") => navigate.toPluginPanel("requests", { subPath: id ? `${id}/${tab}` : "" });
-  const selectStack = (key: string) => navigate.toPluginPanel("requests", { subPath: encodeURIComponent(`${STACK_PREFIX}${key}`) });
+  // Routes use the stack's first known member id; GitHub URLs contain path separators.
+  const stackId = (group: DependencyGroup) => group.entries.find((entry) => entry.item)!.item!.id;
+  const selectStack = (group: DependencyGroup) => navigate.toPluginPanel("requests", { subPath: `${STACK_PREFIX}${stackId(group)}` });
   const sameLogin = (left: string | null | undefined, right: string | null | undefined) => !!left && !!right && left.toLowerCase() === right.toLowerCase();
   // Matches the server's "@me" filter: rows hidden after access loss stay reachable for recovery.
   const authoredByMe = (item: PullRequestItem) => !item.snapshot || sameLogin(item.snapshot.author, item.reader?.login);
@@ -380,14 +382,14 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   };
   /** A stack is one sidebar row; its pull requests open in the detail pane. */
   const renderStackRow = (group: DependencyGroup) => {
-    const active = selection.stack === group.key || group.entries.some(({ item }) => item && item.id === selection.id);
+    const active = selection.stack === stackId(group) || group.entries.some(({ item }) => item && item.id === selection.id);
     const summary = attentionSummary(group.entries, statuses);
     const tone = group.entries.some(({ item }) => item && statuses.get(item.id)?.fixes) ? "danger" : group.entries.some(({ item }) => item && statuses.get(item.id)?.category === "Needs you") ? "warning" : "muted";
     const time = updatedAt(group);
     const title = group.entries[0]!.title;
     return <div className={`pr-row${active ? " pr-row-selected" : ""}`} key={`stack:${group.key}`}>
       <StatusIcon icon={Layers} label={group.kind === "native" ? "GitHub stack" : "Branch dependencies"} />
-      <button type="button" className="pr-row-title" onClick={() => selectStack(group.key)} aria-current={selection.stack === group.key ? "page" : undefined} aria-label={`${title}, stack of ${group.entries.length} pull requests`} title={title}>{title}</button>
+      <button type="button" className="pr-row-title" onClick={() => selectStack(group)} aria-current={selection.stack === stackId(group) ? "page" : undefined} aria-label={`${title}, stack of ${group.entries.length} pull requests`} title={title}>{title}</button>
       {group.entries.some(({ item }) => item?.pinned) && <Pin size={12} aria-label="Pinned" className="pr-tone-muted" />}
       <time className="pr-row-time" dateTime={time ? new Date(time).toISOString() : undefined}>{time ? age(new Date(time).toISOString()).replace(" ago", "").replace("just now", "now") : "—"}</time>
       <div className="pr-row-caption">{summary && <span className={`pr-row-reason pr-tone-${tone}`}>{summary}</span>}<span className="pr-row-identity">{`Stack · ${group.entries.length} PRs · `}{group.entries.map((entry) => `#${entry.number}`).join(" → ")}{group.cached ? " · Cached relationships" : ""}</span></div>
@@ -402,7 +404,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       {open && <div id={`pr-group-${encodeURIComponent(section.key)}`}>{section.groups.map(renderGroup)}</div>}
     </section>;
   };
-  const selectedStack = selection.stack ? groups.find((group) => group.key === selection.stack && group.kind !== "single") : undefined;
+  const selectedStack = selection.stack ? groups.find((group) => group.kind !== "single" && stackId(group) === selection.stack) : undefined;
   return <main className={`pr-plugin${selection.id || selection.stack ? " pr-has-selection" : ""}`}>
     <aside className="pr-sidebar" aria-label="Pull requests">
       <header className="pr-list-header"><h1>Pull Requests</h1>
