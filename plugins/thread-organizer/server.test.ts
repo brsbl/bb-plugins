@@ -2913,10 +2913,10 @@ describe("Spaces", () => {
   });
 
   it("leaves a thread moved out of a Space in Threads", async () => {
-    const organizer = createHarness({ spaceSectionIds: [] });
+    const organizer = createHarness({ spaceSectionIds: ["sec_7"] });
     await plugin(organizer.bb);
     const onHold = sectionIdIn(await configFor(organizer))("on-hold")!;
-    organizer.spaces.sectionIds = [onHold];
+    expect(onHold).toBe("sec_7");
     organizer.setThread({ status: "idle", lastReadAt: 30, latestAttentionAt: 20,
       sectionId: onHold });
     await idle(organizer);
