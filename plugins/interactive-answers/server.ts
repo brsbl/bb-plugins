@@ -50,7 +50,7 @@ export default function plugin(bb: BbPluginApi): void {
       guide: cliCommand({ summary: "Print the document schema and examples", run: () => ({ exitCode: 0, stdout: `${JSON.stringify(guide(), null, 2)}\n` }) }),
       example: cliCommand({ summary: "Print an example document", positionals: [{ name: "name", required: true, description: "savings or bill" }], run: ({ positionals }) => {
         if (positionals.name !== "savings" && positionals.name !== "bill") throw new Error("Choose savings or bill.");
-        return { exitCode: 0, stdout: `${JSON.stringify(positionals.name === "bill" ? bill : savings, null, 2)}\n` };
+        return { exitCode: 0, stdout: `${JSON.stringify(positionals.name === "bill" ? bill : savings)}\n` };
       } }),
       publish: cliCommand({ summary: "Save an answer and print its inline directive", options: { document: { type: "string", required: true, stdin: true, description: "Document JSON; use --document-stdin" }, thread: { type: "string", description: "Thread ID; defaults to the current thread" } }, run: ({ options }, ctx) => ({ exitCode: 0, stdout: `${store.publish(threadSchema.parse(options.thread ?? ctx.threadId), options.document).directive}\n` }) }),
     },
