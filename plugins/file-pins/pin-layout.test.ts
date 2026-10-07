@@ -32,6 +32,17 @@ it("moves pins into ⋯ only once every shown pin is at the minimum", () => {
   expect([ids(crowded.strip), ids(crowded.more)]).toEqual([["a", "b", "c", "d"], ["e"]]);
 });
 
+it("keeps labels whole on touch: pins that don't fit at full width go to ⋯", () => {
+  // Two long links in a 350px phone strip: the first keeps its whole label and the second waits in ⋯.
+  const phone = layoutPins(pins.slice(0, 2), [], metrics(350, { a: 280, b: 260 }), { whole: true });
+  expect([ids(phone.strip), ids(phone.more), phone.caps]).toEqual([["a"], ["b"], {}]);
+  // Both fit whole when there is room, with no ⋯.
+  expect(layoutPins(pins.slice(0, 2), [], metrics(350, { a: 150, b: 150 }), { whole: true })).toEqual({ strip: [{ id: "a" }, { id: "b" }], more: [], caps: {} });
+  // A lone pin wider than the row still shows, truncated beside ⋯.
+  const lone = layoutPins(pins.slice(0, 2), [], metrics(350, { a: 500, b: 100 }), { whole: true });
+  expect([ids(lone.strip), ids(lone.more), lone.caps]).toEqual([["a"], ["b"], { a: 318 }]);
+});
+
 it("lists pinned files that don't fit before unpinned ones", () => {
   const layout = layoutPins(pins, ["b"], even(212));
   expect([ids(layout.strip), ids(layout.more)]).toEqual([["a"], ["c", "d", "e", "b"]]);

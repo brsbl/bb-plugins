@@ -31,12 +31,11 @@ story server, its BB Connect URL, or a deployed preview). Each gets a clear titl
 URLs are never pinned, superseded links are replaced rather than piling up, and a dev site's pin is
 removed when its server is retired. A short always-on instruction points every thread at the skill's rule.
 
-Pinned files read as quiet raised chips above the composer, in order. With a mouse, as many fit as the
-row allows and the strip never scrolls: each chip is as wide as its label, labels truncate only when the
-strip runs out of room, and pinned files that still don't fit lead the **⋯** list. On touch screens, which
-have no hover to show a full label, every pinned file stays on the strip at its full label, up to almost the
-row's width, with the next pin peeking in, and the pins scroll sideways while **⋯** stays at the right edge.
-Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover a file for its full path and machine, or a link for its title or URL.
+Pinned files read as quiet raised chips above the composer, in order, as many as fit; the strip never
+scrolls. Each chip is as wide as its label. With a mouse, labels truncate only when the strip runs out of
+room, and pinned files that still don't fit lead the **⋯** list. On touch screens, which have no hover to
+show a full label, labels stay whole: pinned files that don't fit at full width go to **⋯**, and only a
+single pin wider than the row truncates. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover a file for its full path and machine, or a link for its title or URL.
 Right-click a strip file for bb's **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin** (moves it to the **⋯** list) or **Remove**. In the **⋯** list, a
 row's hover **⋯** button or right-click offers the same file options, then **Pin** or **Remove**;
