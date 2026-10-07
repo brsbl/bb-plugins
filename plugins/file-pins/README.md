@@ -35,7 +35,7 @@ Pinned files read as quiet raised chips above the composer, in order, as many as
 scrolls. Each chip is as wide as its label. With a mouse, labels truncate only when the strip runs out of
 room, and pinned files that still don't fit lead the **⋯** list. On touch screens, which have no hover to
 show a full label, labels stay whole: pinned files that don't fit at full width go to **⋯**, and only a
-single pin wider than the row truncates. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover a file for its full path and machine, or a link for its title or URL.
+first pin too wide to fit beside **⋯** truncates. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover a file for its full path and machine, or a link for its title or URL.
 Right-click a strip file for bb's **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin** (moves it to the **⋯** list) or **Remove**. In the **⋯** list, a
 row's hover **⋯** button or right-click offers the same file options, then **Pin** or **Remove**;

@@ -16,7 +16,7 @@ export type Arrangement = { order: string[]; more: string[] };
 /**
  * Pinned files that no longer fit lead the ⋯ list until there is room again. With `whole` (touch screens,
  * where no hover reveals a cut-off label), pins never shrink to make room: those that don't fit at full
- * width go to ⋯, and only a lone first pin wider than the row truncates.
+ * width go to ⋯, and only a first pin too wide to fit beside ⋯ truncates.
  */
 export function layoutPins<T extends { id: string }>(pins: readonly T[], unpinned: readonly string[], metrics: PinMetrics | null, { whole = false } = {}): PinLayout<T> {
   const pinned = pins.filter((pin) => !unpinned.includes(pin.id));
