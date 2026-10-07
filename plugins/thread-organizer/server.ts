@@ -1,4 +1,8 @@
-import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
+import {
+  defineRpcContract,
+  type BbPluginApi,
+  type PluginRpcHandlers,
+} from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
 import {
@@ -19,6 +23,7 @@ import {
   inboxStage,
   isManageableThread,
   isRunningThread,
+  isSpaceStage,
   isUnreadThread,
   legacySectionNames,
   localSectionName,
@@ -28,6 +33,7 @@ import {
   placementForThread,
   RETURNING_INBOX_DESCRIPTION,
   returnsAfterRead,
+  spaceStageKeys,
   stageForSectionId,
   type EditableWorkflowConfig,
   type EditableWorkflowStage,
@@ -61,6 +67,21 @@ const ENTRY_PROMPT_SAME_STAGE_COOLDOWN_MS = 10 * 60 * 1000;
 const ENTRY_PROMPT_WINDOW_MS = 30 * 60 * 1000;
 const ENTRY_PROMPT_MAX_PER_WINDOW = 3;
 const ENTRY_PROMPT_HISTORY = 6;
+
+// The Spaces plugin marks sections as Spaces and owns that list. It ships as a
+// separate package, so these mirror `PLUGIN_ID` and `ORGANIZER_SPACES_METHOD`
+// in plugins/spaces/shared.ts and `listSpaceSectionIds` in
+// plugins/spaces/contract.ts instead of importing them.
+const SPACES_PLUGIN_ID = "spaces";
+const SPACES_SUPPORT_METHOD = "spacesSupport";
+const SPACES_LIST_METHOD = "listSpaceSectionIds";
+const SPACES_RENAME_METHOD = "renameSpace";
+/** A read of the Space list is reused this long before a reconcile reads it again. */
+const SPACES_CACHE_MS = 10 * 1000;
+/** Failed reads keep the last good list this long, so a Spaces restart holds its threads. */
+const SPACES_STALE_MS = 60 * 1000;
+const SPACES_READ_TIMEOUT_MS = 5 * 1000;
+const spaceSectionIdsSchema = z.object({ sectionIds: z.array(z.string()) });
 
 const editableStageSchema = z
   .object({
@@ -128,6 +149,45 @@ export const rpcContract = defineRpcContract({
   listThreadSourcePlugins: {
     input: z.object({}).strict(),
     output: z.array(z.string()),
+  },
+  /** Keys of the sections Spaces currently marks, which the editor shows as Spaces. */
+  listSpaceStageKeys: {
+    input: z.object({}).strict(),
+    output: z.array(z.string()),
+  },
+});
+
+/**
+ * Served to Spaces: its answer says this Organizer holds Spaces, and lists
+ * every inbox section, which can never become a Space.
+ */
+export const spacesSupportContract = defineRpcContract({
+  [SPACES_SUPPORT_METHOD]: {
+    experimental_description:
+      "Thread Organizer's Spaces support and the bb section ids of its inboxes.",
+    input: z.null(),
+    output: z
+      .object({
+        version: z.literal(1),
+        inboxSectionIds: z.array(z.string()),
+        entryPromptSectionIds: z.array(z.string()),
+      })
+      .strict(),
+  },
+  /**
+   * Renames a Space through its stage title. Section names follow stage
+   * titles, so renaming the section directly would be undone on the next save.
+   */
+  [SPACES_RENAME_METHOD]: {
+    experimental_description:
+      "Rename the section of a Space by renaming its Thread Organizer stage.",
+    input: z
+      .object({
+        sectionId: z.string().min(1),
+        name: z.string().trim().min(1).max(120),
+      })
+      .strict(),
+    output: z.object({ name: z.string() }).strict(),
   },
 });
 
@@ -324,6 +384,74 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     work: () => Promise<void>,
   ): Promise<void> {
     return enqueue(threadId, work).catch(() => undefined);
+  }
+
+  // Which sections Spaces marks right now. Nothing about Spaces is stored:
+  // the list overlays the workflow at runtime and is empty without Spaces.
+  let spaceSectionIds: ReadonlySet<string> = new Set();
+  let spacesCheckedAt = Number.NEGATIVE_INFINITY;
+  let spacesGoodAt = Number.NEGATIVE_INFINITY;
+  let spacesReachable: boolean | null = null;
+  let spacesReadCount = 0;
+  let spacesAppliedRead = 0;
+  let spacesRead: Promise<ReadonlySet<string>> | null = null;
+
+  async function fetchSpaceSectionIds(): Promise<ReadonlySet<string>> {
+    const read = ++spacesReadCount;
+    const startedAt = Date.now();
+    let listed: ReadonlySet<string> | null = null;
+    let failure: unknown;
+    try {
+      const result = await bb.sdk.plugins.callRpc({
+        pluginId: SPACES_PLUGIN_ID,
+        method: SPACES_LIST_METHOD,
+        input: null,
+        outputSchema: spaceSectionIdsSchema,
+        signal: AbortSignal.timeout(SPACES_READ_TIMEOUT_MS),
+      });
+      listed = new Set(result.sectionIds);
+    } catch (error) {
+      failure = error;
+    }
+    // A newer read already answered; never let an older one overwrite it.
+    if (read < spacesAppliedRead) return spaceSectionIds;
+    spacesAppliedRead = read;
+    spacesCheckedAt = startedAt;
+    if (listed !== null) {
+      spaceSectionIds = listed;
+      spacesGoodAt = startedAt;
+      if (spacesReachable !== true) {
+        bb.log.info(`action=spaces-read sections=${listed.size}`);
+      }
+      spacesReachable = true;
+    } else {
+      // Spaces is not installed, is restarting, or predates this contract.
+      // Keep the last good list briefly, then treat every section as ordinary.
+      if (startedAt - spacesGoodAt > SPACES_STALE_MS) spaceSectionIds = new Set();
+      if (spacesReachable !== false) {
+        bb.log.info(
+          `action=spaces-unavailable error=${describeError(failure)}`,
+        );
+      }
+      spacesReachable = false;
+    }
+    return spaceSectionIds;
+  }
+
+  /** The Space sections, reread at most every ten seconds unless `fresh`. */
+  function readSpaceSectionIds(fresh = false): Promise<ReadonlySet<string>> {
+    if (!fresh) {
+      if (spacesRead !== null) return spacesRead;
+      if (Date.now() - spacesCheckedAt < SPACES_CACHE_MS) {
+        return Promise.resolve(spaceSectionIds);
+      }
+    }
+    const read = fetchSpaceSectionIds();
+    spacesRead = read;
+    void read.finally(() => {
+      if (spacesRead === read) spacesRead = null;
+    });
+    return read;
   }
 
   async function ensureWorkflowSections(
@@ -557,6 +685,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       return null;
     }
     if (!isManageableThread(thread)) return null;
+    const spaces = await readSpaceSectionIds();
     const { created, state } = await readThreadState(thread);
     const currentStage = stageForSectionId(configSnapshot, thread.sectionId);
     // A sweep must not empty an inbox filled by hand: threads dropped there
@@ -615,6 +744,15 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       state.rememberedStageKey = firstWorkflowStage(configSnapshot)?.key ?? null;
     }
 
+    // A Space holds its threads the way a manual inbox does: whatever their
+    // read or run state, they stay until the user drags them out, and an
+    // explicit move into a Space lands there directly.
+    const heldBy =
+      explicitStageKey === undefined
+        ? currentStage
+        : configSnapshot.stages.find((stage) => stage.key === explicitStageKey) ?? null;
+    const space = heldBy !== null && isSpaceStage(heldBy, spaces) ? heldBy : null;
+
     let matchedInbox: WorkflowStage | null = null;
     if (
       explicitStageKey === undefined && state.rememberedStageKey === null &&
@@ -640,13 +778,14 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       }
     }
     const runningChildren =
+      space === null &&
       !isRunningThread(thread) &&
       (thread.queuedMessageCount ?? 0) === 0 &&
       (isUnreadThread(thread) || currentStage?.key === "inbox") &&
       !matchedInbox &&
       (currentStage?.role !== "inbox" || currentStage.key === "inbox") &&
       await hasRunningChildren(threadId);
-    const destination = placementForThread(
+    const destination = space ?? placementForThread(
       configSnapshot,
       thread,
       state.rememberedStageKey,
@@ -688,26 +827,29 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     state.lastLandedStageKey = landedStageKey;
 
     // The thread's real target moved on; anything still aimed at the old
-    // stage must not fire.
+    // stage must not fire. A Space sends no entry prompt at all, so landing
+    // in one, or a section becoming one, drops every prompt still waiting.
     if (
       state.pendingEntryPrompt !== null &&
-      (state.pendingEntryPrompt.stageKey !== state.rememberedStageKey ||
+      (space !== null ||
+        state.pendingEntryPrompt.stageKey !== state.rememberedStageKey ||
         (destination?.role === "inbox" && destination.key !== "inbox"))
     ) {
       bb.log.info(
-        `thread=${threadId} action=entry-prompt-dropped stage=${state.pendingEntryPrompt.stageKey} reason=re-targeted`,
+        `thread=${threadId} action=entry-prompt-dropped stage=${state.pendingEntryPrompt.stageKey} reason=${space === null ? "re-targeted" : "space"}`,
       );
       state.pendingEntryPrompt = null;
     }
     if (
       state.queuedEntryPrompt !== null &&
-      (state.queuedEntryPrompt.stageKey !== state.rememberedStageKey ||
+      (space !== null ||
+        state.queuedEntryPrompt.stageKey !== state.rememberedStageKey ||
         (destination?.role === "inbox" && destination.key !== "inbox"))
     ) {
       await retractQueuedEntryPrompt(threadId, state);
     }
 
-    if (entered && destination && hasEntryPrompt(destination)) {
+    if (entered && destination && space === null && hasEntryPrompt(destination)) {
       state.pendingEntryPrompt = {
         attempts: 0,
         enteredAt: Date.now(),
@@ -768,6 +910,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       (candidate) => candidate.key === pending.stageKey,
     );
     if (!stage || !hasEntryPrompt(stage)) return drop("no-prompt");
+    // The prompt is paused while its section is a Space.
+    if (isSpaceStage(stage, spaceSectionIds)) return drop("space");
     if (now - pending.enteredAt > ENTRY_PROMPT_MAX_AGE_MS) {
       return drop("expired");
     }
@@ -994,6 +1138,10 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
           pendingRemovalSectionIds,
         );
         if (next.stages.length === previous.stages.length) return;
+        // Spaces marks a section it creates before filling it. Read that list
+        // now, so a new Space is held from its first reconcile instead of
+        // briefly acting as an ordinary stage.
+        await readSpaceSectionIds(true);
         next.revision = (previous.revision ?? 0) + 1;
         configSnapshot = next;
         await bb.storage.kv.set(CONFIG_KEY, configSnapshot);
@@ -1127,7 +1275,61 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       }
       return [...sources].sort();
     },
+    async listSpaceStageKeys() {
+      return spaceStageKeys(configSnapshot, await readSpaceSectionIds(true));
+    },
   });
+
+  const spacesSupportHandlers: PluginRpcHandlers<typeof spacesSupportContract> = {
+    [SPACES_SUPPORT_METHOD]: () => ({
+      version: 1,
+      inboxSectionIds: configSnapshot.stages.flatMap((stage) =>
+        stage.role === "inbox" && stage.sectionId !== null ? [stage.sectionId] : [],
+      ),
+      entryPromptSectionIds: configSnapshot.stages.flatMap((stage) =>
+        stage.role !== "inbox" && stage.sectionId !== null && hasEntryPrompt(stage)
+          ? [stage.sectionId]
+          : [],
+      ),
+    }),
+    [SPACES_RENAME_METHOD]: async ({ sectionId, name }) => {
+      if (!(await readSpaceSectionIds(true)).has(sectionId)) {
+        throw new Error("That section isn't a Space.");
+      }
+      const saved = await saveConfig((current) => {
+        const stage = current.stages.find(
+          (candidate) => candidate.sectionId === sectionId,
+        );
+        if (!stage) {
+          throw new Error("Thread Organizer doesn't manage that section.");
+        }
+        const edited = editableWorkflowConfig(current);
+        for (const entry of edited.stages) {
+          if (entry.key === stage.key) entry.title = name;
+        }
+        return {
+          ...normalizeEditableWorkflowConfig(edited),
+          ...(edited.baseRevision === undefined
+            ? {}
+            : { baseRevision: edited.baseRevision }),
+        };
+      });
+      const renamed = saved.stages.find(
+        (stage) => stage.sectionId === sectionId,
+      );
+      bb.log.info(`action=space-renamed section=${sectionId}`);
+      return { name: renamed?.title ?? name };
+    },
+  };
+  try {
+    bb.rpc.register(spacesSupportContract, spacesSupportHandlers, {
+      experimental_discoverable: true,
+    });
+  } catch (error) {
+    // A host that cannot publish RPC schemas still serves the method to Spaces.
+    bb.log.warn(`action=spaces-support-unpublished error=${describeError(error)}`);
+    bb.rpc.register(spacesSupportContract, spacesSupportHandlers);
+  }
 
   type CliResult = { exitCode: number; stdout?: string; stderr?: string };
   type CliContext = { threadId?: string; signal?: AbortSignal };
@@ -1289,6 +1491,28 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     const thread = await bb.sdk.threads.get({ threadId });
     if (!isManageableThread(thread)) {
       return { exitCode: 2, stderr: "This thread cannot be organized.\n" };
+    }
+    // Only the user moves a thread out of a Space; filing into one, or into
+    // the Space it already lives in, goes through.
+    const spaces = await readSpaceSectionIds(true);
+    const current = stageForSectionId(configSnapshot, thread.sectionId);
+    if (
+      thread.sectionId !== null &&
+      spaces.has(thread.sectionId) &&
+      current?.role !== "inbox" &&
+      stage.sectionId !== thread.sectionId
+    ) {
+      const sectionId = thread.sectionId;
+      const name =
+        current?.title ??
+        (await bb.sdk.threadSections.list()).find(
+          (section) => section.id === sectionId,
+        )?.name ??
+        sectionId;
+      return {
+        exitCode: 2,
+        stderr: `This thread lives in the Space “${name}”; drag it out of the Space to move it.\n`,
+      };
     }
     const result: { outcome: EntryPromptOutcome } = { outcome: null };
     try {
@@ -1747,13 +1971,15 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     ) {
       return { tools: [], skills: [] };
     }
+    // This callback is synchronous: use the last read and refresh it if stale.
+    void readSpaceSectionIds();
     return {
       tools: [],
       skills: ["thread-phase-organizer"],
       instructions: [
         "Thread Organizer’s current workflow for this session, generated from the user’s plugin settings:",
         "",
-        buildWorkflowSkillSlot(configSnapshot),
+        buildWorkflowSkillSlot(configSnapshot, spaceSectionIds),
       ].join("\n"),
     };
   });
@@ -1836,6 +2062,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
       ...queues.values(),
       configQueue,
       sidebarSync,
+      ...(spacesRead === null ? [] : [spacesRead]),
     ]);
   });
 

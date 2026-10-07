@@ -69,6 +69,9 @@ clearly applies, except when that rule itself requires explicit user intent.
 Choose only a key from the live settings block. Inbox is system-managed and
 can’t be selected.
 
+A thread in a Space stays there: `bb organizer phase` refuses to move it to
+another section. Leave it in place; only the user drags it out.
+
 If several stages seem relevant, use the one describing the next concrete
 action. If you lack sufficient context, leave the remembered stage unchanged
 rather than inventing a transition. Do not move the thread merely to record an

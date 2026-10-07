@@ -48,6 +48,12 @@ describe("thread phase organizer guidance", () => {
     );
   });
 
+  it("leaves a thread in its Space when the move out is refused", () => {
+    expect(skill).toContain(
+      "A thread in a Space stays there: bb organizer phase refuses to move it to another section. Leave it in place; only the user drags it out.",
+    );
+  });
+
   it("distinguishes remembered storage and internal plans from semantic stage moves", () => {
     expect(skill).toContain("Thread Organizer does not classify prompts.");
     expect(skill).toContain(

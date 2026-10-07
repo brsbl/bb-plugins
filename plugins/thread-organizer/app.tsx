@@ -229,6 +229,8 @@ interface StageCardProps {
   onDrop(index: number): void;
   onMove(index: number, direction: -1 | 1): void;
   onRemove(index: number): void;
+  /** The Spaces plugin marks this section; its type is shown, not edited. */
+  space: boolean;
   stage: EditableWorkflowStage;
   stageCount: number;
 }
@@ -424,6 +426,7 @@ function StageCard({
   onDrop,
   onMove,
   onRemove,
+  space,
   stage,
   stageCount,
 }: StageCardProps) {
@@ -482,25 +485,32 @@ function StageCard({
         <div className={`${stageTypeLayoutClass} mt-1.5 grid gap-0.5 lg:mt-0`}>
           <span className={`${fieldCaptionClass} px-1 whitespace-nowrap lg:sr-only`}>Type</span>
           <div className="flex min-w-0 flex-wrap items-center gap-x-1">
-            <TypeMenu
-              hasPrompt={hasPrompt}
-              onChange={(choice) => {
-                const {
-                  catchesPluginId,
-                  returnAfterRead: _returnAfterRead,
-                  ...fields
-                } = stage;
-                onChange(choice.role === "stage"
-                  ? { ...fields, role: "stage" }
-                  : {
-                      ...fields,
-                      role: "inbox",
-                      ...(inbox && catchesPluginId !== undefined ? { catchesPluginId } : {}),
-                      ...(choice.returnAfterRead ? { returnAfterRead: true } : {}),
-                    });
-              }}
-              stage={stage}
-            />
+            {space ? (
+              <span className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap px-1 text-sm text-foreground">
+                Space
+                <span className="text-xs text-muted-foreground">Managed by Spaces</span>
+              </span>
+            ) : (
+              <TypeMenu
+                hasPrompt={hasPrompt}
+                onChange={(choice) => {
+                  const {
+                    catchesPluginId,
+                    returnAfterRead: _returnAfterRead,
+                    ...fields
+                  } = stage;
+                  onChange(choice.role === "stage"
+                    ? { ...fields, role: "stage" }
+                    : {
+                        ...fields,
+                        role: "inbox",
+                        ...(inbox && catchesPluginId !== undefined ? { catchesPluginId } : {}),
+                        ...(choice.returnAfterRead ? { returnAfterRead: true } : {}),
+                      });
+                }}
+                stage={stage}
+              />
+            )}
             {inbox && !protectedInbox ? (
               <FilledByMenu
                 onChange={(catchesPluginId) => {
@@ -535,7 +545,8 @@ function StageCard({
             />
           </label>
         )}
-        {inbox ? (
+        {/* A Space sends no entry prompt; one saved earlier stays editable and paused. */}
+        {inbox || (space && !hasPrompt) ? (
           <span
             aria-hidden="true"
             className={`${stagePromptLayoutClass} hidden px-1 py-1.5 text-sm leading-5 text-muted-foreground lg:block`}
@@ -576,6 +587,9 @@ function StageCard({
                 </Popover.Content>
               </Popover.Portal>
             </Popover.Root>
+            {space ? (
+              <span className="px-1 text-xs text-muted-foreground">Paused while a Space</span>
+            ) : null}
           </div>
         )}
       </div>
@@ -621,6 +635,17 @@ export function WorkflowSettings() {
   const savingRef = useRef(false);
   const loadedRevisionRef = useRef(0);
   const [changedElsewhere, setChangedElsewhere] = useState(false);
+  const [spaceKeys, setSpaceKeys] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const loadSpaces = useCallback(async () => {
+    try {
+      setSpaceKeys(new Set(await rpc.call("listSpaceStageKeys", {})));
+    } catch {
+      // Without an answer every section shows its own type.
+      setSpaceKeys(new Set());
+    }
+  }, [rpc]);
 
   const load = useCallback(async () => {
     if (dirtyRef.current || savingRef.current) return;
@@ -642,12 +667,13 @@ export function WorkflowSettings() {
       cacheWorkflowConfig(full);
       loadedRevisionRef.current = full.revision ?? 0;
       setChangedElsewhere(false);
+      void loadSpaces();
     } catch (loadError) {
       setError(errorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }, [rpc]);
+  }, [loadSpaces, rpc]);
 
   useEffect(() => {
     void load();
@@ -913,6 +939,7 @@ export function WorkflowSettings() {
               moveStage(stageIndex, stageIndex + direction)
             }
             onRemove={removeStage}
+            space={stage.role === "stage" && spaceKeys.has(stage.key)}
             stage={stage}
             stageCount={config.stages.length}
           />

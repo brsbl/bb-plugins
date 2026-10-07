@@ -374,6 +374,28 @@ describe("agent guidance", () => {
     expect(instructions).not.toContain("bb organizer phase inbox");
   });
 
+  it("marks Space rows and leaves their paused prompts out of the prompt guidance", () => {
+    const config = core.cloneWorkflowConfig(core.DEFAULT_WORKFLOW_CONFIG);
+    config.stages.forEach((stage) => {
+      stage.sectionId = `sec_${stage.key}`;
+    });
+    config.stages[2] = { ...config.stages[2]!, entryPrompt: "Review." };
+    config.stages[6] = { ...config.stages[6]!, entryPrompt: "Parked." };
+    const spaces = new Set(["sec_on-hold", "sec_inbox"]);
+
+    const instructions = core.buildWorkflowSkillSlot(config, spaces);
+    expect(instructions).toContain(
+      "| on-hold | On Hold | Work intentionally paused until a later time or external condition. (Space: threads here stay here; file into it when the rule matches; never move a thread out of it) |",
+    );
+    expect(instructions.match(/\(Space:/gu)).toHaveLength(1);
+    expect(instructions).toContain("Entering `spec-review` sends");
+    expect(core.spaceStageKeys(config, spaces)).toEqual(["on-hold"]);
+    expect(core.buildWorkflowSkillSlot(config)).not.toContain("(Space:");
+    expect(core.buildWorkflowSkillSlot(config)).toContain(
+      "Entering `spec-review`, `on-hold` sends",
+    );
+  });
+
   it("contains no classifier or prompt-title derivation surface", () => {
     expect(core).not.toHaveProperty("classifyPhase");
     expect(core).not.toHaveProperty("deriveTaskTitle");

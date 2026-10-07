@@ -24,6 +24,12 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
   have created threads. An inbox filled by You catches nothing automatically: it
   holds the threads you move there, even after reading or new agent output,
   until you move or archive them.
+- A section the Spaces plugin marks as a Space holds its threads the same way
+  and never sends its entry prompt; a saved prompt is paused, not removed.
+  `bb organizer phase` can file a thread into a Space but refuses to move one
+  out; drag it out instead. Thread Organizer reads which sections are Spaces
+  from Spaces and saves nothing, so normal rules return when a section stops
+  being a Space.
 - After reading one, drag it to any workflow section to clear it from Inbox
   without starting another agent turn.
 - Set any inbox to **Move back after reading** to skip that drag: as soon as you

@@ -61,6 +61,8 @@ function createHarness(
   options: {
     iconEraSections?: boolean;
     legacyPlanning?: boolean;
+    /** Sections the Spaces plugin reports as Spaces; omitted means Spaces is not installed. */
+    spaceSectionIds?: readonly string[];
     unmanagedSections?: ReadonlyArray<{ id: string; name: string }>;
   } = {},
 ) {
@@ -243,6 +245,16 @@ function createHarness(
     threadListOrder.value = [...(args.input as { value: string[] }).value];
     return args.input;
   });
+  /** What Spaces answers; null while it is not installed. */
+  const spaces: { sectionIds: string[] | null } = {
+    sectionIds: options.spaceSectionIds ? [...options.spaceSectionIds] : null,
+  };
+  const spacesRpc = vi.fn(async (_args: { method: string; input?: unknown }) => {
+    if (spaces.sectionIds === null) {
+      throw new Error('plugin "spaces" is not installed');
+    }
+    return { sectionIds: [...spaces.sectionIds] };
+  });
 
   const host = createFakePluginHost({
     pluginId: "thread-organizer",
@@ -282,7 +294,10 @@ function createHarness(
         );
         return () => undefined;
       },
-      plugins: { callRpc: callRpc as never },
+      plugins: {
+        callRpc: (async (args: { pluginId: string; method: string; input?: unknown }) =>
+          args.pluginId === "spaces" ? spacesRpc(args) : callRpc(args)) as never,
+      },
       threadSections: {
         create,
         delete: deleteSection,
@@ -304,6 +319,8 @@ function createHarness(
   return {
     ...host,
     callRpc,
+    spaces,
+    spacesRpc,
     threadListOrder,
     create,
     deleteSection,
@@ -397,6 +414,9 @@ describe("Thread Organizer server", () => {
       "getConfig",
       "saveConfig",
       "listThreadSourcePlugins",
+      "listSpaceStageKeys",
+      "spacesSupport",
+      "renameSpace",
     ]);
     expect(
       organizer.harness.inspection.registrations.agentConfigurationProvider,
@@ -426,6 +446,9 @@ describe("Thread Organizer server", () => {
       "getConfig",
       "saveConfig",
       "listThreadSourcePlugins",
+      "listSpaceStageKeys",
+      "spacesSupport",
+      "renameSpace",
     ]);
     expect(
       organizer.harness.inspection.registrations.agentConfigurationProvider,
@@ -2667,6 +2690,244 @@ describe("entry prompts", () => {
       });
     });
     expect(organizer.sendMessage).toHaveBeenCalledTimes(1);
+    await organizer.harness.lifecycle.dispose();
+  });
+});
+
+describe("Spaces", () => {
+  type Organizer = ReturnType<typeof createHarness>;
+  const threadState = (organizer: Organizer, threadId = "thr_test") =>
+    organizer.bb.storage.kv.get(`thread:v3:${threadId}`);
+  const sectionIdIn = (config: WorkflowConfig) => (key: string) =>
+    config.stages.find((stage) => stage.key === key)!.sectionId;
+  const idle = (organizer: Organizer, threadId = "thr_test") =>
+    organizer.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: organizer.current(threadId),
+      lastAssistantText: null,
+    });
+  const SPACE_NOTE = "(Space: threads here stay here;";
+
+  it("serves Spaces every inbox section, published for discovery", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    await saveStagePatch(organizer, "handoff", { role: "inbox" });
+    const edited = editableWorkflowConfig(await configFor(organizer));
+    edited.stages.push({ key: "digests", title: "Digests", role: "inbox",
+      catchesPluginId: "digests", rule: "Published issues." });
+    const saved = await organizer.harness.behavior.callRpc("saveConfig", edited) as WorkflowConfig;
+    const sectionId = sectionIdIn(saved);
+
+    expect(await organizer.harness.behavior.callRpc("spacesSupport", null)).toEqual({
+      version: 1,
+      inboxSectionIds: [sectionId("inbox"), sectionId("handoff"), sectionId("digests")],
+      entryPromptSectionIds: [],
+    });
+    expect(
+      organizer.harness.inspection.registrations.experimental_publishedRpcMethods
+        .map(({ method }) => method),
+    ).toEqual(["spacesSupport", "renameSpace"]);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("renames a Space through its stage title, and only a Space", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const sectionId = sectionIdIn(await configFor(organizer));
+    const onHold = sectionId("on-hold")!;
+
+    await expect(
+      organizer.harness.behavior.callRpc("renameSpace", { sectionId: onHold, name: "Content" }),
+    ).rejects.toThrow("That section isn't a Space.");
+
+    organizer.spaces.sectionIds = [onHold];
+    expect(
+      await organizer.harness.behavior.callRpc("renameSpace", { sectionId: onHold, name: "Content" }),
+    ).toEqual({ name: "Content" });
+    const config = await configFor(organizer);
+    expect(config.stages.find((stage) => stage.key === "on-hold")?.title).toBe("Content");
+    expect(organizer.sections().find((section) => section.id === onHold)?.name).toBe("Content");
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("keeps today's behavior when Spaces is not installed", async () => {
+    const organizer = createHarness();
+    await plugin(organizer.bb);
+    const sectionId = sectionIdIn(await configFor(organizer));
+    organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20,
+      sectionId: sectionId("on-hold") });
+    await idle(organizer);
+
+    expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+    expect(organizer.spacesRpc).toHaveBeenCalledWith(expect.objectContaining({
+      pluginId: "spaces", method: "listSpaceSectionIds", input: null,
+    }));
+    expect(await organizer.harness.behavior.callRpc("listSpaceStageKeys", {})).toEqual([]);
+    const configuration = await organizer.harness.behavior.resolveAgentConfiguration(agentContext());
+    expect(configuration.instructions).not.toContain(SPACE_NOTE);
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("holds Space members out of Inbox and never sends the Space's entry prompt", async () => {
+    const organizer = createHarness({ spaceSectionIds: ["sec_7"] });
+    await plugin(organizer.bb);
+    const config = await saveStagePatch(organizer, "on-hold", { entryPrompt: "Parked." });
+    const sectionId = sectionIdIn(config);
+    expect(sectionId("on-hold")).toBe("sec_7");
+
+    organizer.setThread({ status: "idle", lastReadAt: 10, latestAttentionAt: 10,
+      sectionId: sectionId("on-hold") });
+    organizer.emitChanged("order-changed");
+    await vi.waitFor(async () => {
+      await expect(threadState(organizer)).resolves.toMatchObject({
+        rememberedStageKey: "on-hold",
+        lastLandedStageKey: "on-hold",
+        pendingEntryPrompt: null,
+      });
+    });
+    organizer.setThread({ latestAttentionAt: 20 });
+    await idle(organizer);
+
+    expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    expect(await organizer.harness.behavior.callRpc("listSpaceStageKeys", {})).toEqual(["on-hold"]);
+    const configuration = await organizer.harness.behavior.resolveAgentConfiguration(agentContext());
+    expect(configuration.instructions).toContain(
+      `| on-hold | On Hold | Work intentionally paused until a later time or external condition. ${SPACE_NOTE}`,
+    );
+    expect(configuration.instructions).not.toContain("Entering `on-hold`");
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("files a thread into a Space with phase but refuses to move it out", async () => {
+    const organizer = createHarness({ spaceSectionIds: ["sec_7"] });
+    await plugin(organizer.bb);
+    const sectionId = sectionIdIn(
+      await saveStagePatch(organizer, "on-hold", { entryPrompt: "Parked." }),
+    );
+    organizer.setThread({ status: "active", lastReadAt: 10, latestAttentionAt: 10 });
+    const phase = (key: string) =>
+      organizer.harness.behavior.runCli(["phase", key], { threadId: "thr_test" });
+
+    await expect(phase("on-hold")).resolves.toMatchObject({
+      exitCode: 0, stdout: "Applied On Hold to thr_test.\n",
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+    await expect(phase("building")).resolves.toMatchObject({
+      exitCode: 2,
+      stderr: "This thread lives in the Space “On Hold”; drag it out of the Space to move it.\n",
+    });
+    expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+    await expect(phase("on-hold")).resolves.toMatchObject({ exitCode: 0 });
+    expect(organizer.sendMessage).not.toHaveBeenCalled();
+    await organizer.harness.lifecycle.dispose();
+  });
+
+  it("retracts a queued entry prompt once its section becomes a Space", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const organizer = createHarness({ spaceSectionIds: [] });
+      await plugin(organizer.bb);
+      const sectionId = sectionIdIn(
+        await saveStagePatch(organizer, "handoff", { entryPrompt: "Package the handoff." }),
+      );
+      organizer.setThread({ status: "active", lastReadAt: 10, latestAttentionAt: 10 });
+      organizer.sendMessage.mockResolvedValueOnce({
+        ok: true, delivery: "queued", queuedMessage: { id: "qmsg_1" },
+      } as never);
+      await organizer.harness.behavior.runCli(["phase", "handoff"], { threadId: "thr_test" });
+      await expect(threadState(organizer)).resolves.toMatchObject({
+        queuedEntryPrompt: { queuedMessageId: "qmsg_1", stageKey: "handoff" },
+      });
+
+      organizer.spaces.sectionIds = [sectionId("handoff")!];
+      vi.setSystemTime(Date.now() + 11_000);
+      organizer.emitChanged("queue-changed");
+      await vi.waitFor(() =>
+        expect(organizer.deleteQueuedMessage).toHaveBeenCalledWith({
+          threadId: "thr_test", queuedMessageId: "qmsg_1",
+        }),
+      );
+      expect(organizer.current().sectionId).toBe(sectionId("handoff"));
+      await organizer.harness.lifecycle.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resumes normal stage behavior once a section stops being a Space", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const organizer = createHarness({ spaceSectionIds: ["sec_7"] });
+      await plugin(organizer.bb);
+      const sectionId = sectionIdIn(
+        await saveStagePatch(organizer, "on-hold", { entryPrompt: "Parked." }),
+      );
+      organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20,
+        sectionId: sectionId("on-hold") });
+      await idle(organizer);
+      expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+
+      // Stop being a Space: the next read after the cache window applies the usual rules.
+      organizer.spaces.sectionIds = [];
+      await idle(organizer);
+      expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+      vi.setSystemTime(Date.now() + 11_000);
+      await idle(organizer);
+      expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+
+      // Returning to the section it already landed in sends no prompt.
+      organizer.setThread({ lastReadAt: 20, status: "starting" });
+      await organizer.harness.behavior.emitThreadEvent("thread.active", {
+        thread: organizer.current(),
+      });
+      expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+      expect(organizer.sendMessage).not.toHaveBeenCalled();
+      await organizer.harness.lifecycle.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the last good Space list for a minute while Spaces is unreachable", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const organizer = createHarness({ spaceSectionIds: ["sec_7"] });
+      await plugin(organizer.bb);
+      const sectionId = sectionIdIn(await configFor(organizer));
+      organizer.setThread({ status: "idle", lastReadAt: 0, latestAttentionAt: 20,
+        sectionId: sectionId("on-hold") });
+      await idle(organizer);
+      expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+
+      organizer.spaces.sectionIds = null;
+      vi.setSystemTime(Date.now() + 30_000);
+      await idle(organizer);
+      expect(organizer.current().sectionId).toBe(sectionId("on-hold"));
+      vi.setSystemTime(Date.now() + 31_000);
+      await idle(organizer);
+      expect(organizer.current().sectionId).toBe(sectionId("inbox"));
+      await organizer.harness.lifecycle.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("holds a new Space from the moment its section is adopted", async () => {
+    const organizer = createHarness({ spaceSectionIds: [] });
+    await plugin(organizer.bb);
+    const content = organizer.addSection("Content");
+    organizer.addThread({ id: "thr_member", status: "idle", lastReadAt: 0,
+      latestAttentionAt: 20, sectionId: content.id });
+    organizer.spaces.sectionIds = [content.id];
+    organizer.emitSectionListChanged();
+    await vi.waitFor(async () =>
+      expect((await configFor(organizer)).stages.find(
+        (stage) => stage.sectionId === content.id,
+      )).toMatchObject({ key: "content", role: "stage" }),
+    );
+
+    await idle(organizer, "thr_member");
+    expect(organizer.current("thr_member").sectionId).toBe(content.id);
     await organizer.harness.lifecycle.dispose();
   });
 });

@@ -83,7 +83,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => {
             submitted = input;
             return saveResponse;
@@ -137,7 +137,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => {
             savedInput = input;
             return {
@@ -179,6 +179,7 @@ describe("workflow settings", () => {
     });
     expect(rendered.inspection.rpcCalls.map(({ method }) => method).sort()).toEqual([
       "getConfig",
+      "listSpaceStageKeys",
       "listThreadSourcePlugins",
       "saveConfig",
     ]);
@@ -194,7 +195,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({
@@ -274,7 +275,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => ((savedInput = input), {
             ...input,
             stages: input.stages.map((stage) => ({
@@ -314,7 +315,7 @@ describe("workflow settings", () => {
     const app = await loadApp();
     const rendered = renderSlot<{}, typeof rpcContract>(app.settingsSections[0]!, {}, {
       sdk: { plugins: { list: async () => ({ plugins: [] }) } },
-      rpc: { listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(), saveConfig: async () => configuredWorkflow() },
+      rpc: { listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(), saveConfig: async () => configuredWorkflow() },
     });
     const trigger = await rendered.findByRole("button", { name: "Edit entry prompt for Planning" });
     expect(trigger.textContent).toBe("Add prompt");
@@ -344,7 +345,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => {
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => {
             loads += 1;
             return initial;
           },
@@ -421,7 +422,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => {
             submitted = input;
             throw new Error(
@@ -503,7 +504,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => initial,
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => initial,
           saveConfig: async (input) => {
             savedInput = input;
             return {
@@ -562,7 +563,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(),
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(),
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({
@@ -617,7 +618,7 @@ describe("workflow settings", () => {
           { id: "keep-awake", name: "Keep Awake", status: "running", isOrphanedBuiltin: false },
         ] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => ["digests"],
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => ["digests"],
           getConfig: async () => initial,
           saveConfig: async (input) => {
             saved.current = input;
@@ -731,7 +732,7 @@ describe("workflow settings", () => {
       {
         sdk: { plugins: { list: async () => ({ plugins: [] }) } },
         rpc: {
-          listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(),
+          listSpaceStageKeys: async () => [], listThreadSourcePlugins: async () => [], getConfig: async () => configuredWorkflow(),
           saveConfig: async (input) => ({
             ...input,
             stages: input.stages.map((stage) => ({
@@ -801,6 +802,38 @@ describe("workflow settings", () => {
     expect(inboxRule.className).toContain("px-1");
     expect(inboxRule.className).toContain("text-sm");
 
+    rendered.lifecycle.unmount();
+  });
+
+  it("shows a Space's type as read-only and pauses its saved entry prompt", async () => {
+    const app = await loadApp();
+    const initial = configuredWorkflow();
+    initial.stages = initial.stages.map((stage) =>
+      stage.key === "handoff" ? { ...stage, entryPrompt: "Package it." } : stage,
+    );
+    const rendered = renderSlot<{}, typeof rpcContract>(app.settingsSections[0]!, {}, {
+      sdk: { plugins: { list: async () => ({ plugins: [] }) } },
+      rpc: {
+        listSpaceStageKeys: async () => ["on-hold", "handoff"],
+        listThreadSourcePlugins: async () => [],
+        getConfig: async () => initial,
+        saveConfig: async () => initial,
+      },
+    });
+
+    await rendered.findByLabelText("On Hold section title");
+    await vi.waitFor(() =>
+      expect(rendered.getAllByText("Managed by Spaces")).toHaveLength(2),
+    );
+    expect(rendered.queryByRole("button", { name: /^Section type for On Hold/ })).toBeNull();
+    expect(rendered.getByRole("button", { name: "Section type for Planning: Stage" })).toBeTruthy();
+    expect(rendered.getByLabelText("What belongs in On Hold")).toBeTruthy();
+    expect(rendered.queryByRole("button", { name: "Edit entry prompt for On Hold" })).toBeNull();
+    expect(rendered.getByRole("button", { name: "Edit entry prompt for Planning" })).toBeTruthy();
+    expect(
+      rendered.getByRole("button", { name: "Edit entry prompt for Handoff" }).textContent,
+    ).toBe("Package it.");
+    expect(rendered.getAllByText("Paused while a Space")).toHaveLength(1);
     rendered.lifecycle.unmount();
   });
 });

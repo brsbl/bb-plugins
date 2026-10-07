@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/get-bb/bb",
+  "commit": "1e2cee69ade40d437e169f712bd6599dfa1d58db",
+  "registryItems": [
+    "button",
+    "dialog",
+    "dropdown-menu",
+    "input",
+    "motion"
+  ],
+  "adaptations": [
+    "components/ui/button.tsx: shared-ui button's base and variant classes without cva, Radix Slot, or tailwind-merge; sizes carry their own text, gap, and icon size, plus a 28px xs size and bb's 28px header icon button.",
+    "components/ui/input.tsx: shared-ui input's classes with plugin-local default and sm sizes.",
+    "components/ui/menu.tsx: dropdown-menu's content and item look on plain elements (no Radix), rendered in place inside the plugin's styling scope, with arrow, Home, End, Esc, and outside-click handling.",
+    "components/ui/dialog.tsx: dialog's content look on plain elements (no Radix), covering the Space tab instead of the window, with Tab trapping, Esc, scrim click, and focus return.",
+    "components/status-glyph.tsx: plugins/thread-list/app/rows/ThreadStatusGlyph.tsx icons, tones, motion, and labels, drawn from experimental_Icon, plus the red glyph a read failure keeps.",
+    "components/model.ts: thread-list's RUNNING_RUNTIME_STATUSES and THREAD_LIST_INDICATOR_LABELS from plugins/thread-list/app/model/thread-activity.ts."
+  ]
+}

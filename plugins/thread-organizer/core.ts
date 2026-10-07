@@ -461,6 +461,32 @@ export function stageForSectionId(
   return config.stages.find((stage) => stage.sectionId === sectionId) ?? null;
 }
 
+/**
+ * The Spaces plugin owns which sections are Spaces. That list overlays the
+ * workflow stage owning each section at runtime and is never stored in this
+ * config, so a section stops being a Space the moment Spaces stops listing
+ * it. An inbox is never treated as a Space.
+ */
+export function isSpaceStage(
+  stage: WorkflowStage,
+  spaceSectionIds: ReadonlySet<string>,
+): boolean {
+  return (
+    stage.role === "stage" &&
+    stage.sectionId !== null &&
+    spaceSectionIds.has(stage.sectionId)
+  );
+}
+
+export function spaceStageKeys(
+  config: WorkflowConfig,
+  spaceSectionIds: ReadonlySet<string>,
+): string[] {
+  return config.stages
+    .filter((stage) => isSpaceStage(stage, spaceSectionIds))
+    .map((stage) => stage.key);
+}
+
 export interface AdoptableSection {
   id: string;
   name: string;
@@ -608,9 +634,21 @@ export function placementForThread(
     : rememberedStageKey === null ? null : remembered;
 }
 
-function entryPromptGuidance(config: WorkflowConfig): string[] {
+const SPACE_ROW_NOTE =
+  "(Space: threads here stay here; file into it when the rule matches; never move a thread out of it)";
+
+function entryPromptGuidance(
+  config: WorkflowConfig,
+  spaceSectionIds: ReadonlySet<string>,
+): string[] {
+  // A Space's saved prompt is paused, so agents are not told it fires.
   const keys = config.stages
-    .filter((stage) => stage.role === "stage" && hasEntryPrompt(stage))
+    .filter(
+      (stage) =>
+        stage.role === "stage" &&
+        hasEntryPrompt(stage) &&
+        !isSpaceStage(stage, spaceSectionIds),
+    )
     .map((stage) => `\`${stage.key}\``);
   if (keys.length === 0) return [];
   return [
@@ -623,12 +661,15 @@ function escapeTableCell(value: string): string {
   return value.replace(/\|/gu, "\\|").replace(/\s+/gu, " ").trim();
 }
 
-export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
+export function buildWorkflowSkillSlot(
+  config: WorkflowConfig,
+  spaceSectionIds: ReadonlySet<string> = new Set(),
+): string {
   const rows = config.stages
     .filter((stage) => stage.role === "stage")
     .map(
       (stage) =>
-        `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)} |`,
+        `| ${stage.key} | ${escapeTableCell(stage.title)} | ${escapeTableCell(stage.rule)}${isSpaceStage(stage, spaceSectionIds) ? ` ${SPACE_ROW_NOTE}` : ""} |`,
     );
   return [
     `**${escapeTableCell(inboxStage(config).title)}** is the protected main Inbox. Idle unread threads without queued messages and not claimed by another inbox go there automatically and ${inboxStage(config).returnAfterRead ? "return to their workflow section once the user reads them" : "stay until work resumes or the user moves a read thread to another workflow section"}. A running child or a queued message also returns the thread to its workflow section. Never choose an inbox with \`bb organizer phase\`.`,
@@ -641,6 +682,6 @@ export function buildWorkflowSkillSlot(config: WorkflowConfig): string {
     "| Key | Section | What belongs here |",
     "| --- | --- | --- |",
     ...rows,
-    ...entryPromptGuidance(config),
+    ...entryPromptGuidance(config, spaceSectionIds),
   ].join("\n");
 }

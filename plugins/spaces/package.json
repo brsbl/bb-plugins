@@ -1,14 +1,12 @@
 {
-  "name": "bb-plugin-thread-organizer",
-  "version": "0.1.15",
-  "description": "Organizes bb threads with configurable workflow sections and unread Inbox routing.",
+  "name": "bb-plugin-spaces",
+  "version": "0.1.0",
+  "description": "Group related threads from any project into a Space and see them all from any member's right panel.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
-    "assets",
     "dist",
     "docs",
-    "PLUGIN_OVERVIEW.md",
     "README.md",
     "skills"
   ],
@@ -20,13 +18,13 @@
   },
   "engines": {
     "bb": ">=0.0.34",
-    "bbPluginSdk": "^0.4.1"
+    "bbPluginSdk": "^0.5.9"
   },
   "bb": {
-    "name": "Thread Organizer",
-    "description": "Configurable workflow sections and unread Inbox routing.",
+    "name": "Spaces",
+    "description": "Group related threads from any project into a Space. Any member's right panel shows the whole Space, its latest outputs, and quick ways to step into each thread.",
     "branding": {
-      "icon": "./assets/thread-organizer.svg"
+      "icon": "Layers"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
@@ -34,22 +32,21 @@
       "skills"
     ]
   },
-  "dependencies": {
-    "@hugeicons/core-free-icons": "4.2.2",
-    "@hugeicons/react": "^1.1.6",
-    "@radix-ui/react-dropdown-menu": "^2.1.24",
-    "@radix-ui/react-popover": "^1.1.23",
-    "zod": "^4.3.6"
-  },
   "devDependencies": {
     "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.3",
     "better-sqlite3": "^12.10.0",
     "cron-parser": "^5.5.0",
     "hono": "^4.11.9",
     "jsdom": "^29.0.1",
     "typescript": "^5.7.0",
     "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
   }
 }
