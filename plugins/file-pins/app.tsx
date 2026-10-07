@@ -71,6 +71,9 @@ function PinStrip({ threadId }: { threadId: string }) {
   const measureRow = useRef<HTMLDivElement>(null);
   const arranging = useRef({ pending: 0, queue: Promise.resolve() });
   const metrics = useMeasurePins(measureRow, pins.map((pin) => pin.id).join("\n"));
+  // Touch screens have no hover tooltip to reveal a cut-off label, so pins keep their full width (short of the row, so the next one peeks in) and the strip scrolls.
+  const touch = usePointerCoarse();
+  const fit = touch ? null : metrics;
   const root = useRef<HTMLDivElement>(null);
   const fade = useTopOfComposerStack(root, pins.length > 0);
   const generation = useRef(0);
@@ -126,7 +129,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   function linkTarget(pin: FileReference) {
     return previewTarget(pin, threadHostId) ?? { kind: "host" as const, hostId: pin.hostId, path: pin.path };
   }
-  const layout = layoutPins(pins, more, metrics);
+  const layout = layoutPins(pins, more, fit);
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
     // Apply locally first; saves run in order and
@@ -153,7 +156,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   // Pinned files offer Unpin (to the ⋯ list); other files offer Pin while the strip has room for them.
   function actions(pin: Reference): PinAction[] {
     const pinned = !more.includes(pin.id);
-    const next = pinned ? null : pinFile(pins, current, pin.id, metrics);
+    const next = pinned ? null : pinFile(pins, current, pin.id, fit);
     return [
       pinned
         ? { label: "Unpin", run: () => arrange(unpinFile(current, pin.id)) }
@@ -244,7 +247,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
     {fade && <span aria-hidden="true" data-overflow-fade="above" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
     {pins.length > 0 && <section aria-label="Pinned files and links" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
-      <div className="flex min-w-0 items-center gap-1">
+      <div className={cn("flex min-w-0 items-center gap-1", touch && "overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:max-w-[calc(100%-2.5rem)]")}>
         {layout.strip.map((pin) => stripPin(pin))}
         {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
           <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "pin" : "pins"}`} title="More pins" className={cn(moreClass, "cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
