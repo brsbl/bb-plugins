@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown,
   Circle, CircleHelp, Clock, ExternalLink, FileCode2, Github, GitMerge, GitPullRequest,
-  GitPullRequestClosed, GitPullRequestDraft, Link2, MessageCircle,
+  GitPullRequestClosed, GitPullRequestDraft, Layers, Link2, MessageCircle,
   Pin, PinOff, Plus, RefreshCw, Search, Unlink, X, XCircle, type LucideIcon,
 } from "lucide-react";
 import {
@@ -98,10 +98,15 @@ function mergePresentation(value: Snapshot["mergeability"]): Presentation {
 export function needsAttention(item: PullRequestItem, threads: ReadonlyMap<string, PluginSidebarThread>, now: number): boolean {
   return statusOf(item, threads, now).attention;
 }
-function parseSelection(subPath: string): { id: string | null; tab: Tab } {
+const STACK_PREFIX = "stack:";
+function parseSelection(subPath: string): { id: string | null; stack: string | null; tab: Tab } {
   const [encoded, tab] = subPath.split("/");
-  try { return { id: encoded ? decodeURIComponent(encoded) : null, tab: tab === "changes" ? "changes" : "summary" }; }
-  catch { return { id: null, tab: "summary" }; }
+  try {
+    const value = encoded ? decodeURIComponent(encoded) : null;
+    if (value?.startsWith(STACK_PREFIX)) return { id: null, stack: value.slice(STACK_PREFIX.length), tab: "summary" };
+    return { id: value, stack: null, tab: tab === "changes" ? "changes" : "summary" };
+  }
+  catch { return { id: null, stack: null, tab: "summary" }; }
 }
 
 /** Status labels remain available to touch and keyboard users, without text badges. */
@@ -313,6 +318,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     if (selection.id) void loadDetail(selection.id);
   }, [selection.id, loadDetail]);
   const select = (id: string | null, tab: Tab = "summary") => navigate.toPluginPanel("requests", { subPath: id ? `${id}/${tab}` : "" });
+  const selectStack = (key: string) => navigate.toPluginPanel("requests", { subPath: encodeURIComponent(`${STACK_PREFIX}${key}`) });
   const sameLogin = (left: string | null | undefined, right: string | null | undefined) => !!left && !!right && left.toLowerCase() === right.toLowerCase();
   // Matches the server's "@me" filter: rows hidden after access loss stay reachable for recovery.
   const authoredByMe = (item: PullRequestItem) => !item.snapshot || sameLogin(item.snapshot.author, item.reader?.login);
@@ -327,10 +333,10 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   };
   const groups = useMemo(() => dependencyGroups(visibleItems, clock), [visibleItems, clock]);
   const statuses = new Map(groups.flatMap((group) => group.entries.flatMap((entry) => entry.item ? [[entry.item.id, statusOf(entry.item, liveThreads, clock, dependencyStatus(entry, group, clock), connection === "connected")] as const] : [])));
+  const updatedAt = (group: DependencyGroup) => Math.max(...group.entries.map(({ item }) => Date.parse(item?.snapshot?.updatedAt ?? "") || 0));
   const filtered = filterGroups(groups, view, matches, attention, statuses).sort((a, b) => {
     const pin = (group: DependencyGroup) => group.entries.some(({ item }) => item?.pinned) ? 1 : 0;
-    const time = (group: DependencyGroup) => Math.max(...group.entries.map(({ item }) => Date.parse(item?.snapshot?.updatedAt ?? "") || 0));
-    return pin(b) - pin(a) || (sort === "title" ? a.entries[0]!.title.localeCompare(b.entries[0]!.title) : sort === "oldest" ? time(a) - time(b) : time(b) - time(a)) || a.key.localeCompare(b.key);
+    return pin(b) - pin(a) || (sort === "title" ? a.entries[0]!.title.localeCompare(b.entries[0]!.title) : sort === "oldest" ? updatedAt(a) - updatedAt(b) : updatedAt(b) - updatedAt(a)) || a.key.localeCompare(b.key);
   });
   const hasFilters = !!(query || author !== DEFAULT_AUTHOR || reviewer || attention);
   const resetFilters = () => { setQuery(""); setAuthor(DEFAULT_AUTHOR); setReviewer(""); setAttention(false); };
@@ -364,7 +370,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     const snapshot = item.snapshot, status = statuses.get(item.id)!;
     const parent = group.entries.find((member) => member.key === entry.parent);
     const tone = status.category === "Needs you" ? "warning" : status.category === "Needs fixes" ? "danger" : "muted";
-    return <div className={`pr-row${selection.id === item.id ? " pr-row-selected" : ""}${entry.parent ? " pr-dependent-row" : ""}`} key={item.id}>
+    return <div className={`pr-row${selection.id === item.id ? " pr-row-selected" : ""}`} key={item.id}>
       <StatusIcon {...lifecycle(snapshot)} />
       <button type="button" className="pr-row-title" onClick={() => select(item.id)} aria-current={selection.id === item.id ? "page" : undefined} title={snapshot ? `${snapshot.title} · ${snapshot.repository} #${snapshot.number}` : item.url}>{snapshot?.title ?? "Pull request unavailable"}</button>
       {item.pinned && <Pin size={12} aria-label="Pinned" className="pr-tone-muted" />}
@@ -372,25 +378,32 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
       <div className="pr-row-caption"><span className={`pr-row-reason pr-tone-${tone}`}>{isHistory(item) ? status.reason : `${status.category} · ${status.reason}`}{status.cached && status.category !== "Unknown" ? " · GitHub cached" : ""}</span><span className="pr-row-identity">#{entry.number}{groupBy === "none" ? ` · ${snapshot?.repository ?? ""}` : ""}{parent ? ` · Depends on #${parent.number}` : ""}</span>{entry.note && entry.note !== status.reason && <span>{entry.note}</span>}</div>
     </div>;
   };
-  const disclosure = (key: string, label: string, summary: string, children: ReactNode, className = "pr-list-group") => <section className={className} key={key}>
-    <button className="pr-group-title" type="button" aria-expanded={!collapsed.includes(key)} aria-controls={`pr-group-${encodeURIComponent(key)}`} onClick={() => toggle(key)}><ChevronDown size={14} className={collapsed.includes(key) ? "pr-collapsed" : undefined} aria-hidden="true" /><span><span className="pr-group-label">{label}</span>{summary && <span className="pr-group-summary">{summary}</span>}</span></button>
-    {!collapsed.includes(key) && <div id={`pr-group-${encodeURIComponent(key)}`}>{children}</div>}
-  </section>;
-  const renderGroup = (group: DependencyGroup) => group.kind === "single" ? renderRow(group.entries[0]!, group) : disclosure(
-    `dependency:${group.key}`, `${group.entries[0]!.title} · ${group.entries.length} PRs`,
-    [group.kind === "native" ? "GitHub stack" : "Branch dependencies", group.cached ? "Cached relationships" : "", attentionSummary(group.entries, statuses), group.entries.some((entry) => !entry.item) ? "Some members not loaded" : ""].filter(Boolean).join(" · "),
-    group.entries.map((entry) => renderRow(entry, group)), "pr-dependency-group",
-  );
-  const renderProject = (section: typeof grouped[number]) => {
-    const repositories = new Map<string, DependencyGroup[]>();
-    for (const group of section.groups) {
-      const repository = group.entries.find((entry) => entry.item)?.item?.snapshot?.repository ?? "Repository unavailable";
-      repositories.set(repository, [...repositories.get(repository) ?? [], group]);
-    }
-    return disclosure(section.key, section.label, attentionSummary(section.groups.flatMap((group) => group.entries), statuses),
-      repositories.size > 1 ? [...repositories].map(([repository, groups]) => disclosure(`${section.key}:${repository}`, repository, attentionSummary(groups.flatMap((group) => group.entries), statuses), groups.map(renderGroup), "pr-repository-group")) : section.groups.map(renderGroup));
+  /** A stack is one sidebar row; its pull requests open in the detail pane. */
+  const renderStackRow = (group: DependencyGroup) => {
+    const active = selection.stack === group.key || group.entries.some(({ item }) => item && item.id === selection.id);
+    const summary = attentionSummary(group.entries, statuses);
+    const tone = group.entries.some(({ item }) => item && statuses.get(item.id)?.fixes) ? "danger" : group.entries.some(({ item }) => item && statuses.get(item.id)?.category === "Needs you") ? "warning" : "muted";
+    const time = updatedAt(group);
+    const title = `${group.entries[0]!.title} · ${group.entries.length} PRs`;
+    return <div className={`pr-row${active ? " pr-row-selected" : ""}`} key={`stack:${group.key}`}>
+      <StatusIcon icon={Layers} label={group.kind === "native" ? "GitHub stack" : "Branch dependencies"} />
+      <button type="button" className="pr-row-title" onClick={() => selectStack(group.key)} aria-current={selection.stack === group.key ? "page" : undefined} title={title}>{title}</button>
+      {group.entries.some(({ item }) => item?.pinned) && <Pin size={12} aria-label="Pinned" className="pr-tone-muted" />}
+      <time className="pr-row-time" dateTime={time ? new Date(time).toISOString() : undefined}>{time ? age(new Date(time).toISOString()).replace(" ago", "").replace("just now", "now") : "—"}</time>
+      <div className="pr-row-caption">{summary && <span className={`pr-row-reason pr-tone-${tone}`}>{summary}</span>}<span className="pr-row-identity">{group.entries.map((entry) => `#${entry.number}`).join(" → ")}{group.cached ? " · Cached relationships" : ""}</span></div>
+    </div>;
   };
-  return <main className={`pr-plugin${selection.id ? " pr-has-selection" : ""}`}>
+  const renderGroup = (group: DependencyGroup) => group.kind === "single" ? renderRow(group.entries[0]!, group) : renderStackRow(group);
+  const renderProject = (section: typeof grouped[number]) => {
+    const summary = attentionSummary(section.groups.flatMap((group) => group.entries), statuses);
+    const open = !collapsed.includes(section.key);
+    return <section className="pr-list-group" key={section.key}>
+      <button className="pr-group-title" type="button" aria-expanded={open} aria-controls={`pr-group-${encodeURIComponent(section.key)}`} onClick={() => toggle(section.key)}><span><span className="pr-group-label">{section.label}</span>{summary && <span className="pr-group-summary">{summary}</span>}</span></button>
+      {open && <div id={`pr-group-${encodeURIComponent(section.key)}`}>{section.groups.map(renderGroup)}</div>}
+    </section>;
+  };
+  const selectedStack = selection.stack ? groups.find((group) => group.key === selection.stack && group.kind !== "single") : undefined;
+  return <main className={`pr-plugin${selection.id || selection.stack ? " pr-has-selection" : ""}`}>
     <aside className="pr-sidebar" aria-label="Pull requests">
       <header className="pr-list-header"><h1>Pull Requests</h1>
         <InboxMenu author={author} reviewer={reviewer} sort={sort} groupBy={groupBy} authors={authors} reviewers={reviewers} me={me}
@@ -413,7 +426,8 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     </aside>
     <section className="pr-detail" aria-label="Pull request detail">
       {error && <div className="pr-error" role="alert"><AlertTriangle size={16} /><span>{error}</span><button className="pr-text-button" type="button" onClick={() => void refresh(true)}>Retry</button><IconButton icon={X} label="Dismiss error" onClick={() => setError(null)} /></div>}
-      {selected ? <PullRequestDetail key={selected.id} item={selected} loading={detailLoading} tab={selection.tab} now={clock} context={context} choices={choices} liveThreads={liveThreads} rpc={rpc} onBack={() => select(null)} onTab={(tab) => select(selected.id, tab)} onThread={(id) => navigate.toThread(id)} onUpdate={mutate} onRefresh={() => void refresh(false, selected.id)} onLink={() => setLinking({ url: selected.url })} onUnlink={(threadId) => void onUnlink(selected, threadId)} /> : selection.id ? detailLoading ? <div className="pr-empty"><Loading label="Loading pull request details" /><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></div> : <Empty title="Pull request unavailable"><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty> : <Empty title="Select a pull request">Choose one from the sidebar to review its changes.</Empty>}
+      {selection.stack ? selectedStack ? <StackDetail group={selectedStack} onBack={() => select(null)}>{selectedStack.entries.map((entry) => renderRow(entry, selectedStack))}</StackDetail> : listLoading && !items.length ? <div className="pr-empty"><Loading label="Loading stack" /></div> : <Empty title="Stack unavailable"><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty>
+        : selected ? <PullRequestDetail key={selected.id} item={selected} loading={detailLoading} tab={selection.tab} now={clock} context={context} choices={choices} liveThreads={liveThreads} rpc={rpc} onBack={() => select(null)} onTab={(tab) => select(selected.id, tab)} onThread={(id) => navigate.toThread(id)} onUpdate={mutate} onRefresh={() => void refresh(false, selected.id)} onLink={() => setLinking({ url: selected.url })} onUnlink={(threadId) => void onUnlink(selected, threadId)} /> : selection.id ? detailLoading ? <div className="pr-empty"><Loading label="Loading pull request details" /><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></div> : <Empty title="Pull request unavailable"><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty> : <Empty title="Select a pull request">Choose one from the sidebar to review its changes.</Empty>}
     </section>
     {undo && <div className="pr-undo" role="status"><span>Removed link to {undo.title}</span><button type="button" onClick={() => void mutate(async () => { const restored = await rpc.call("undo", { token: undo.token }); setUndo(null); return restored; })}>Undo</button><IconButton icon={X} label="Dismiss undo" onClick={() => setUndo(null)} /></div>}
     {linking && <LinkDialog rpc={rpc} initialUrl={linking.url ?? ""} choices={[...choices.values()]} hosts={context.hosts} onClose={() => setLinking(null)} onLinked={(item) => { setLinking(null); select(item.id); void load().catch((reason) => setError(message(reason))); }} />}
@@ -483,6 +497,21 @@ function PullRequestDetail({ item, loading, tab, now, context, choices, liveThre
         </div>
       </div>}
     </div>
+  </>;
+}
+
+function StackDetail({ group, onBack, children }: { group: DependencyGroup; onBack(): void; children: ReactNode }) {
+  const repository = group.entries.find((entry) => entry.item)?.item?.snapshot?.repository;
+  return <>
+    <div className="pr-detail-toolbar"><button type="button" className="pr-back" onClick={onBack}><ArrowLeft size={15} />Pull requests</button></div>
+    <div className="pr-detail-scroll"><div className="pr-stack-detail">
+      <header className="pr-detail-heading">
+        <div className="pr-detail-meta"><Layers size={16} aria-hidden="true" /><span>{[repository, group.kind === "native" ? "GitHub stack" : "Branch dependencies", `${group.entries.length} pull requests`].filter(Boolean).join(" · ")}</span></div>
+        <h1>{group.entries[0]!.title}</h1>
+        {group.cached && <p className="pr-muted">Relationships are from cached GitHub data.</p>}
+      </header>
+      <div className="pr-stack-members" aria-label="Pull requests in this stack">{children}</div>
+    </div></div>
   </>;
 }
 

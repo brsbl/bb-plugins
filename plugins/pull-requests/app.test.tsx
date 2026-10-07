@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CHANGED, type Changes, type PullRequestItem, type Snapshot } from "./contract";
@@ -385,35 +385,44 @@ describe("Pull Requests hierarchy", () => {
     }
   });
 
-  it("keeps a child's attention and prerequisites visible through search, collapse, refresh and History", async () => {
+  it("shows a stack as one row, opens its pull requests in detail, and collapses projects", async () => {
     const base = fixture();
     const root = { ...base, id: "github:PR_201", url: base.url.replace("123", "201"), snapshot: { ...base.snapshot!, number: 201, title: "Foundation", headRepository: "example/repo", headBranch: "foundation", state: "merged" as const }, links: [], preferredThreadId: null, discoveredFromGitHub: true };
     const child = { ...base, id: "github:PR_202", url: base.url.replace("123", "202"), snapshot: { ...base.snapshot!, number: 202, title: "Searchable child", headRepository: "example/repo", headBranch: "child", baseBranch: "foundation" }, links: [], preferredThreadId: null, discoveredFromGitHub: true };
     root.snapshot.url = root.url; child.snapshot.url = child.url;
     const app = await loadPluginApp(() => import("./app"));
+    const Panel = app.navPanels[0]!.component;
     const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
       inbox: () => ({ items: [child, root], nextCursor: null, total: 2, coverage }), refresh: () => coverage,
       context: () => ({ threads: [], hosts: [], nextCursor: null }),
     } });
-    await screen.findByRole("button", { name: "Searchable child" });
-    expect(screen.getByRole("button", { name: "Foundation" })).toBeDefined();
+    const stack = await screen.findByRole("button", { name: "Foundation · 2 PRs" });
+    // Members stay out of the sidebar; the stack row carries their attention.
+    expect(screen.queryByRole("button", { name: "Searchable child" })).toBeNull();
+    expect(stack.closest(".pr-row")!.textContent).toContain("1 needs fixes");
     fireEvent.change(screen.getByRole("textbox", { name: "Search pull requests" }), { target: { value: "Searchable" } });
     fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
-    const disclosure = screen.getByRole("button", { name: /Foundation · 2 PRs/ });
-    expect(disclosure.textContent).toContain("1 needs fixes");
-    fireEvent.click(disclosure);
-    expect(screen.queryByRole("button", { name: "Searchable child" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Foundation · 2 PRs" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Foundation · 2 PRs" }));
+    const subPath = encodeURIComponent(`stack:${root.url.toLowerCase()}`);
+    expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "requests", options: { subPath } });
+    slot.lifecycle.rerender(<Panel subPath={subPath} />);
+    const members = await screen.findByLabelText("Pull requests in this stack");
+    expect(within(members).getByRole("button", { name: "Foundation" })).toBeDefined();
+    expect(within(members).getByRole("button", { name: "Searchable child" })).toBeDefined();
+    expect(within(members).getByText(/Depends on #201/)).toBeDefined();
+    const project = screen.getByRole("button", { name: /example\/repo/ });
+    expect(project.querySelector("svg")).toBeNull();
+    fireEvent.click(project);
+    expect(project.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Foundation · 2 PRs" })).toBeNull();
     await slot.behavior.emitRealtime(CHANGED, {});
-    await waitFor(() => expect(disclosure.getAttribute("aria-expanded")).toBe("false"));
-    fireEvent.click(disclosure);
-    expect(screen.getByRole("button", { name: "Foundation" })).toBeDefined();
-    expect(screen.getByText(/Depends on #201/)).toBeDefined();
+    await waitFor(() => expect(project.getAttribute("aria-expanded")).toBe("false"));
+    fireEvent.click(project);
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
     fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
     fireEvent.click(screen.getByRole("button", { name: "History" }));
-    expect(screen.getByRole("button", { name: "Foundation" })).toBeDefined();
-    // History retains the active descendant as relationship context.
-    expect(screen.getByRole("button", { name: "Searchable child" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Foundation · 2 PRs" })).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Active" }));
     slot.lifecycle.unmount();
   });
