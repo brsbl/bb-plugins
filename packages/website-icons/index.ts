@@ -3,6 +3,7 @@ import { request as httpsRequest } from "node:https";
 import { isIP, type LookupFunction } from "node:net";
 import { PNG } from "pngjs";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { iconUrl } from "./url.js";
 
 export const ICON_LIMITS = {
   inputBytes: 256 * 1024,
@@ -39,18 +40,7 @@ export function isPublicAddress(address: string): boolean {
     !(a === 0x3fff && b < 0x1000);
 }
 
-function publicUrl(value: string): URL | null {
-  try {
-    const url = new URL(value);
-    const host = url.hostname;
-    if (url.protocol !== "https:" || url.port || url.username || url.password || isIP(host) ||
-      host.length > 253 || !host.includes(".") || host.endsWith(".") ||
-      /(?:^|\.)(?:localhost|local|internal|home|lan|onion|invalid|test)$/.test(host) ||
-      !host.split(".").every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) return null;
-    url.hash = "";
-    return url;
-  } catch { return null; }
-}
+const publicUrl = iconUrl;
 
 /** RPC takes an origin, never a pasted URL or credentials. */
 export function publicOrigin(value: string): string | null {

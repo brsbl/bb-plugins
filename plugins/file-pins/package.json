@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-file-pins",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Keep local files and web links within reach in each bb thread.",
   "type": "module",
   "files": [

@@ -1,24 +1,23 @@
 import { useEffect, useState } from "react";
 import { experimental_Icon as Icon, useRpc } from "@get-bb/plugin-sdk/app";
+import { iconUrl } from "@brsbl/bb-website-icons/url";
 import type { UrlPin, rpcContract } from "./contract.js";
+import { isLocalUrl } from "./url-pin.js";
 
 // One lookup per origin per page; the server caches origins across clients and restarts.
 // Misses are not remembered here, so a pin mounted later asks again.
 const favicons = new Map<string, Promise<string | null>>();
 const SAFE_ICON = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
 
-// Favicons are fetched only from public sites, so a link to a dev server on this machine gets its own mark.
-const LOCAL_HOST = /^(?:localhost|.+\.localhost|127(?:\.\d+){3}|0\.0\.0\.0|\[::1?\]|.+\.local)$/i;
-const isLocalUrl = (url: string) => LOCAL_HOST.test(new URL(url).hostname);
-
-/** The favicon Compact Links would show for this URL, a terminal for a local dev server, or a globe while loading, without one, or if it fails to paint. */
+/** The favicon Compact Links would show for this URL, a terminal for a dev server, or a globe while loading, without one, or if it fails to paint. */
 export function UrlPinIcon({ threadId, pin }: { threadId: string; pin: UrlPin }) {
   const rpc = useRpc<typeof rpcContract>();
-  const origin = new URL(pin.url).origin;
   const local = isLocalUrl(pin.url);
+  // Ask only for icons the server would fetch: a public HTTPS site with no port.
+  const origin = iconUrl(pin.url)?.origin ?? null;
   const [icon, setIcon] = useState<string | null>(null);
   useEffect(() => {
-    if (local) return;
+    if (origin === null) return;
     let current = true;
     let request = favicons.get(origin);
     if (!request) {
@@ -29,7 +28,7 @@ export function UrlPinIcon({ threadId, pin }: { threadId: string; pin: UrlPin })
     }
     void request.then((value) => { if (current) setIcon(value); });
     return () => { current = false; setIcon(null); };
-  }, [rpc, threadId, pin.id, origin, local]);
+  }, [rpc, threadId, pin.id, origin]);
   if (local) {
     return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="size-3.5 shrink-0">
       <rect width="18" height="18" x="3" y="3" rx="2" /><path d="m7 11 2-2-2-2M11 13h4" />

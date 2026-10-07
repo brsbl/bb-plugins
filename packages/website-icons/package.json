@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "files": [
-    "index.ts"
+    "index.ts",
+    "url.ts"
   ],
-  "exports": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./url": "./url.ts"
+  },
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
