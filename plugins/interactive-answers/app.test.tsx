@@ -12,13 +12,13 @@ it("updates results locally, restores valid inputs on remount, resets, and switc
   const first = render(<AnswerView answer={answer} />);
   expect(screen.getByText("$36.00")).toBeTruthy();
   fireEvent.change(screen.getByLabelText("People"), { target: { value: "6" } });
-  expect(screen.getByText("$24.00")).toBeTruthy();
+  expect(screen.getByText("$24.00", { selector: "dd" })).toBeTruthy();
   first.unmount();
   render(<AnswerView answer={answer} />);
-  expect(screen.getByText("$24.00")).toBeTruthy();
+  expect(screen.getByText("$24.00", { selector: "dd" })).toBeTruthy();
   fireEvent.change(screen.getByLabelText("People"), { target: { value: "0" } });
   expect(screen.getByRole("alert").textContent).toContain("last valid value");
-  expect(screen.getByText("$24.00")).toBeTruthy();
+  expect(screen.getByText("$24.00", { selector: "dd" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Reset inputs" }));
   expect(screen.getByText("$36.00")).toBeTruthy();
   expect(screen.queryByRole("alert")).toBeNull();
