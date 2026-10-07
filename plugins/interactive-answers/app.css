@@ -49,6 +49,7 @@
 .ia-diagram svg g { transition: transform 450ms ease, opacity 300ms ease; }
 .ia-diagram :is(path, rect, ellipse) { transition: fill 450ms ease; }
 .ia-diagram-choice { cursor: pointer; outline: none; }
+.ia-diagram svg > g:not(.ia-diagram-choice) { pointer-events: none; }
 .ia-diagram-choice:focus-visible { filter: drop-shadow(0 0 4px var(--ring, var(--primary))); }
 @media (prefers-reduced-motion: reduce) { .ia-diagram svg g, .ia-diagram :is(path, rect, ellipse) { transition: none; } }
 .ia-diagram svg g { animation: ia-diagram-enter 350ms ease; }
