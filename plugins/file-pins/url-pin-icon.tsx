@@ -30,7 +30,7 @@ export function usePrStateAnswers(): number {
   return useSyncExternalStore((listener) => { listeners.add(listener); return () => listeners.delete(listener); }, () => answers);
 }
 
-/** ", merged pull request" for a pinned PR whose state is known, else "", for labels and tooltips. */
+/** "merged pull request" for a pinned PR whose state is known, else "", for screen-reader labels. */
 export function prStateLabel(url: string): string {
   const pr = githubPullRequest(url);
   const state = pr ? answered.get(prKey(pr)) : undefined;

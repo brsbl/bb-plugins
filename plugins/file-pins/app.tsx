@@ -148,8 +148,6 @@ function PinStrip({ threadId }: { threadId: string }) {
   // bb's tooltip in place of a native title: the full path, or a link's title or full URL, wrapped, on hover and keyboard focus but not touch.
   function withTooltip(pin: Reference, trigger: ReactElement) {
     const tip = pinTooltip(pin, threadHostId);
-    const state = isUrlPin(pin) ? prStateLabel(pin.url) : "";
-    if (state) tip.note = state[0]!.toUpperCase() + state.slice(1);
     return <Tooltip>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
       <TooltipContent>
