@@ -1,6 +1,6 @@
 ## What you get
 
-- **A strip above the composer.** Pinned files and links sit in order as quiet raised chips. Each chip is as wide as its label; labels truncate only when the strip runs out of room, and the rest wait in the **⋯** list.
+- **A strip above the composer.** Pinned files and links sit in order as quiet raised chips. Each chip is as wide as its label; with a mouse, labels truncate only when the strip runs out of room and the rest wait in the **⋯** list. On touch screens the pins scroll sideways at full width instead.
 - **Files and links together.** Files show outline icons for code, documents and images in the theme's file color. Links show their site's icon and the page title, a terminal for a dev server on localhost or a private network, and a globe for sites that have none.
 - **Agent-assisted pinning.** The pin button adds a **Pin** pill to the composer. Type paths, file names or URLs after it and send; the agent finds each file, asks about any that are ambiguous, and pins them.
 - **Key links pinned for you.** Agents pin the PR they open, the issue or ticket, the spec they follow, and a dev site or preview they hand you, and remove a dev site's pin when its server stops.
