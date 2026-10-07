@@ -37,3 +37,16 @@ it("uses the enclosing message thread for retrieval and recovers from a failed l
   expect(view.inspection.rpcCalls).toHaveLength(2);
   view.lifecycle.unmount();
 });
+it("activates diagram choices with the keyboard and keeps the native choice control in sync", async () => {
+  await loadPluginApp(() => import("./app.js"));
+  const { AnswerView } = await import("./app.js");
+  const { city } = await import("./visual-examples.js");
+  render(<AnswerView answer={{ ...answer, document: city }} />);
+  const marker = screen.getByRole("button", { name: "Explore North Beach" });
+  fireEvent.keyDown(marker, { key: "Enter" });
+  expect((screen.getByLabelText("Where to explore") as HTMLSelectElement).value).toBe("North Beach");
+  expect(marker.getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByText("02 / North Beach")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Reset inputs" }));
+  expect(screen.getByText("01 / Golden Gate Park")).toBeTruthy();
+});

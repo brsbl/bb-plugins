@@ -45,3 +45,12 @@
 .ia-answer th { font-weight: 500; color: var(--muted-foreground); }
 .ia-answer footer { margin-top: 16px; font-size: 10px; color: var(--muted-foreground); }
 .ia-error p { margin-bottom: 8px; }
+.ia-diagram > svg { display: block; width: 100%; border-radius: 8px; background: var(--muted); overflow: hidden; }
+.ia-diagram svg g { transition: transform 450ms ease, opacity 300ms ease; }
+.ia-diagram :is(path, rect, ellipse) { transition: fill 450ms ease; }
+.ia-diagram-choice { cursor: pointer; outline: none; }
+.ia-diagram-choice:focus-visible { filter: drop-shadow(0 0 4px var(--ring, var(--primary))); }
+@media (prefers-reduced-motion: reduce) { .ia-diagram svg g, .ia-diagram :is(path, rect, ellipse) { transition: none; } }
+.ia-diagram svg g { animation: ia-diagram-enter 350ms ease; }
+@keyframes ia-diagram-enter { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ia-diagram svg g { animation: none; } }

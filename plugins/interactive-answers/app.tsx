@@ -3,6 +3,7 @@ import { definePluginApp, useRpc, type PluginMessageDirectiveProps } from "@get-
 import type { rpcContract } from "./server.js";
 import { computedValues, defaultValues, evaluate, formatValue, idSchema, validValue, type Answer, type AnswerDocument, type Block, type Control, type Values } from "./model.js";
 import "./app.css";
+import { Diagram } from "./diagram.js";
 
 function loadInputs(doc: AnswerDocument, key: string): Values {
   const values = defaultValues(doc);
@@ -84,6 +85,7 @@ export function AnswerView({ answer }: { answer: Answer }) {
     <div className="ia-blocks">{doc.blocks.map((b, i) => {
       if (b.when && inputs[b.when.control] !== b.when.equals) return null;
       switch (b.type) {
+        case "diagram": return <Diagram key={i} block={b} values={values} onChoose={(control, value) => save({ ...inputs, [control]: value })} />;
         case "text": return <section key={i}>{b.title && <h4>{b.title}</h4>}<p>{b.text}</p></section>;
         case "metrics": return <dl className="ia-metrics" key={i} aria-live="polite">{b.items.map((m, j) => <div key={j}><dt>{m.label}</dt><dd>{formatValue(evaluate(m.value, values), m.format)}</dd></div>)}</dl>;
         case "chart": return <Chart key={i} block={b} values={values} />;

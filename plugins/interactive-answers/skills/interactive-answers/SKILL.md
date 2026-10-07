@@ -11,7 +11,7 @@ call `action: "publish"` with `document` containing its JSON string. Copy the
 returned directive exactly once onto its own line in your response.
 
 With the CLI, read `bb interactive-answers guide`, or print a starter with
-`bb interactive-answers example savings` (also `bill`). Publish a file using
+`bb interactive-answers example savings` (also `bill`, `bike`, `city`, `room`, `origami`, and `garden`). Publish a file using
 `bb interactive-answers publish --document-stdin < answer.json`.
 
 - Start with the user's question and choose useful inputs. Name units and
@@ -19,7 +19,7 @@ With the CLI, read `bb interactive-answers guide`, or print a starter with
 - Native controls: `number`, `range`, and `select`. Supply valid bounds,
   a positive step, and a default on that step. Numeric expressions can refer
   to numeric controls and earlier calculations, never select controls.
-- Blocks: `text`, `metrics`, line/bar `chart`, `table`, and expandable `details`.
+- Blocks: `text`, `metrics`, line/bar `chart`, `table`, expandable `details`, and interactive vector `diagram` blocks.
   An optional `when: {control, equals}` shows a block for one control value.
 - Expressions: a number, `{ref: "name"}`, or `{op, args}`. Operations are
   `add`, `subtract`, `multiply`, `divide`, `power`, `min`, `max`, and `round`.
@@ -38,3 +38,26 @@ With the CLI, read `bb interactive-answers guide`, or print a starter with
 
 Use inline visualizations for custom HTML or games beyond this component set,
 and use action cards for approvals or actions that need to reach an agent.
+
+## Interactive diagrams
+
+A `diagram` has a title, an accessible description, a width/height viewBox,
+and up to 240 drawing elements: `path`, `rect`, `ellipse`, `line`, or `text`.
+Use a CLI visual example as a starter. Elements accept numeric expressions for
+position, size, opacity, scale, and rotation. SVG paths are fixed geometry;
+there is no raw SVG markup, HTML, script, or external asset loading.
+
+- `x` and `y` translate an element. `rotate` is degrees around `originX` and
+  `originY`; `scale` is clamped to 0–10. Ellipses are centered on their origin.
+  A line runs from its origin to local `x2`, `y2`.
+- Paint accepts hex colors, `none`, or `currentColor`. To bind paint to a
+  select, use `{control, colors: [{value, color}]}`, covering each choice once.
+- `when: {control, equals}` shows a shape for one input value.
+- `choose: {control, value}` makes a shape update an existing control. Supply
+  a meaningful `label` and at least a 24×24 visible target. Keyboard users can
+  press Enter or Space; retain the native control as an alternative.
+- Include a useful description of the illustration. Explain schematic maps,
+  illustrative growth, and simplified mechanics rather than implying live
+  geographic data, precise predictions, or complete repair instructions.
+- Transitions follow reduced-motion preferences. Do not use motion as the only
+  way to convey a change.

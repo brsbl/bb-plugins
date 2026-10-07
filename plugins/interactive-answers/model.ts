@@ -16,6 +16,19 @@ const numericControl = z.object({ id: name, label, type: z.enum(["number", "rang
 const choiceControl = z.object({ id: name, label, type: z.literal("select"), options: z.array(z.object({ value: z.string().min(1).max(80), label }).strict()).min(2).max(12), value: z.string().min(1).max(80) }).strict()
   .refine((c) => new Set(c.options.map((o) => o.value)).size === c.options.length && c.options.some((o) => o.value === c.value), "Choices must be unique and include the default");
 const when = z.object({ control: name, equals: z.union([z.string().max(80), z.number().finite()]) }).strict().optional();
+const color = z.string().regex(/^(#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|none|currentColor)$/);
+const paint = z.union([color, z.object({ control: name, colors: z.array(z.object({ value: z.string().max(80), color }).strict()).min(2).max(12) }).strict()]);
+const drawing = z.object({
+  kind: z.enum(["path", "rect", "ellipse", "line", "text"]),
+  label: label.optional(), text: z.string().max(160).optional(),
+  d: z.string().max(12000).regex(/^[MLHVCSQTAZmlhvcsqtaz0-9eE., +\-]+$/).optional(),
+  x: expression.optional(), y: expression.optional(), x2: expression.optional(), y2: expression.optional(),
+  width: expression.optional(), height: expression.optional(), rx: expression.optional(), ry: expression.optional(),
+  fill: paint.optional(), stroke: paint.optional(), strokeWidth: z.number().min(0).max(30).optional(),
+  opacity: expression.optional(), rotate: expression.optional(), originX: z.number().finite().optional(), originY: z.number().finite().optional(),
+  scale: expression.optional(), fontSize: z.number().min(8).max(80).optional(),
+  when, choose: z.object({ control: name, value: z.union([z.string().max(80), z.number().finite()]) }).strict().optional(),
+}).strict().refine((s) => (s.kind !== "path" || !!s.d) && (s.kind !== "text" || !!s.text) && (!s.choose || !!s.label), "Paths need geometry; text and interactive shapes need labels");
 const metric = z.object({ label, value: expression, format: format.optional() }).strict();
 export const documentSchema = z.object({
   title: label,
@@ -23,6 +36,7 @@ export const documentSchema = z.object({
   controls: z.array(z.union([numericControl, choiceControl])).max(12).default([]),
   calculations: z.array(z.object({ id: name, value: expression }).strict()).max(30).default([]),
   blocks: z.array(z.discriminatedUnion("type", [
+    z.object({ type: z.literal("diagram"), title: label, description: z.string().min(1).max(1200), width: z.number().min(100).max(1600), height: z.number().min(100).max(1200), elements: z.array(drawing).min(1).max(240), when }).strict(),
     z.object({ type: z.literal("text"), title: label.optional(), text: z.string().min(1).max(4000), when }).strict(),
     z.object({ type: z.literal("metrics"), items: z.array(metric).min(1).max(6), when }).strict(),
     z.object({ type: z.literal("chart"), title: label, style: z.enum(["line", "bar"]), labels: z.array(z.string().min(1).max(80)).min(2).max(40), series: z.array(z.object({ label, values: z.array(expression).min(2).max(40) }).strict()).min(1).max(4), format: format.optional(), when }).strict(),
@@ -58,12 +72,25 @@ export function parseDocument(json: string): AnswerDocument {
     else value.args.forEach(check);
   };
   doc.calculations.forEach((c) => { reserve(c.id); check(c.value); numericNames.add(c.id); });
+  const checkChoice = (id: string, value: unknown) => {
+    const c = doc.controls.find((c) => c.id === id);
+    if (!c || !validValue(c, value)) throw new Error("Diagram interactions must match a valid control value.");
+  };
   doc.blocks.forEach((b) => {
     if (b.when) {
       const c = doc.controls.find((c) => c.id === b.when!.control);
       if (!c || (c.type === "select" ? !c.options.some((o) => o.value === b.when!.equals) : typeof b.when.equals !== "number" || b.when.equals < c.min || b.when.equals > c.max)) throw new Error("Visibility conditions must match a control value.");
     }
     if (b.type === "metrics") b.items.forEach((m) => check(m.value));
+    if (b.type === "diagram") b.elements.forEach((s) => {
+      for (const key of ["x", "y", "x2", "y2", "width", "height", "rx", "ry", "opacity", "rotate", "scale"] as const) if (s[key] !== undefined) check(s[key]);
+      if (s.when) checkChoice(s.when.control, s.when.equals);
+      if (s.choose) checkChoice(s.choose.control, s.choose.value);
+      for (const p of [s.fill, s.stroke]) if (p && typeof p !== "string") {
+        const c = doc.controls.find((c) => c.id === p.control);
+        if (!c || c.type !== "select" || p.colors.length !== c.options.length || new Set(p.colors.map((v) => v.value)).size !== p.colors.length || !c.options.every((o) => p.colors.some((v) => v.value === o.value))) throw new Error("Diagram colors must cover every choice exactly once.");
+      }
+    });
     if (b.type === "chart") b.series.forEach((s) => { if (s.values.length !== b.labels.length) throw new Error("Every series needs a value for each chart label."); s.values.forEach(check); });
     if (b.type === "table") b.rows.forEach((row) => { if (row.length !== b.columns.length) throw new Error("Every table row needs a cell for each column."); row.forEach((v) => { if (typeof v !== "string") check(v); }); });
   });
