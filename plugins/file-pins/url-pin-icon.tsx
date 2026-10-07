@@ -84,7 +84,7 @@ function usePrState(threadId: string, pin: UrlPin): PrState | null | undefined {
   return ownState ?? (answered.has(key) ? answered.get(key)! : undefined);
 }
 
-/** A GitHub PR's state, else the favicon Compact Links would show for this URL, a terminal for a dev server, or a globe while loading, without one, or if it fails to paint. */
+/** The favicon Compact Links would show for this URL (with a GitHub PR's state beside it), a terminal for a dev server, or a globe while loading, without one, or if it fails to paint. */
 export function UrlPinIcon({ threadId, pin }: { threadId: string; pin: UrlPin }) {
   const rpc = useRpc<typeof rpcContract>();
   const prState = usePrState(threadId, pin);
@@ -105,17 +105,18 @@ export function UrlPinIcon({ threadId, pin }: { threadId: string; pin: UrlPin })
     void request.then((value) => { if (current) setIcon(value); });
     return () => { current = false; setIcon(null); };
   }, [rpc, threadId, pin.id, origin]);
-  if (prState) return <PrStateIcon state={prState} />;
-  // A PR without an answer yet shows the neutral globe, so GitHub's logo doesn't flash before its state.
-  if (prState === undefined) return <Icon name="Globe" fallback="Globe" className="size-3.5 shrink-0" />;
-  if (local) {
-    return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="size-3.5 shrink-0">
+  const site = local
+    ? <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="size-3.5 shrink-0">
       <rect width="18" height="18" x="3" y="3" rx="2" /><path d="m7 11 2-2-2-2M11 13h4" />
-    </svg>;
-  }
-  // Compact Links paints favicons on white so dark glyphs stay legible in dark themes.
-  return icon
-    ? <img src={icon} alt="" aria-hidden="true" draggable={false} onError={() => setIcon(null)} className="size-3.5 shrink-0 rounded-[3px] bg-white object-contain" />
+    </svg>
+    // Compact Links paints favicons on white so dark glyphs stay legible in dark themes.
+    : icon ? <img src={icon} alt="" aria-hidden="true" draggable={false} onError={() => setIcon(null)} className="size-3.5 shrink-0 rounded-[3px] bg-white object-contain" />
     // Globe ships in every supported bb; an unknown name would render the host's Zap fallback.
     : <Icon name="Globe" fallback="Globe" className="size-3.5 shrink-0" />;
+  if (prState === null) return site;
+  // A PR keeps its site icon with its state beside it; the state's slot is held while it loads so the label doesn't shift.
+  return <span className="flex shrink-0 items-center gap-0.5">
+    {site}
+    {prState ? <PrStateIcon state={prState} /> : <span aria-hidden="true" className="size-3.5 shrink-0" />}
+  </span>;
 }
