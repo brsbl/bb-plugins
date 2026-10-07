@@ -74,6 +74,16 @@ See your GitHub pull requests and review requests, inspect checks and changes, a
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/pull-requests --yes`
 
+### Spaces
+
+Group related threads from any project into a Space. Any member's right panel shows every thread in the Space with its latest output, so you can peek, reply, or open one without hunting. A Space waits in More until something in it needs you.
+
+![A Space tab listing the Content Space by Needs you, New output, and Idle, beside the sidebar holding every content thread](https://github.com/user-attachments/assets/5e65f56d-39ae-4cf0-ba02-b6f0941389b3)
+
+[Source](plugins/spaces) · [README](plugins/spaces/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/spaces --yes`
+
 ### Thread Hover Cards
 
 Shows a thread's live status, latest agent update, execution context, repository, and pull request without leaving the sidebar. Collapsed sections get a compact summary of their thread count and attention state.

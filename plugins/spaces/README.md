@@ -4,6 +4,8 @@ Group related threads from any project into a Space. Open any thread in it, and
 the right panel's **Space** tab shows every member's state and latest output,
 with quick ways to step into each one.
 
+![A Space tab listing the Content Space by Needs you, New output, and Idle, beside the sidebar holding every content thread](https://github.com/user-attachments/assets/5e65f56d-39ae-4cf0-ba02-b6f0941389b3)
+
 ## Install
 
 ```bash
