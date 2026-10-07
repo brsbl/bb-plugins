@@ -15,8 +15,8 @@ export type Arrangement = { order: string[]; more: string[] };
 
 /**
  * Pinned files that no longer fit lead the ⋯ list until there is room again. With `whole` (touch screens,
- * where no hover reveals a cut-off label), pins never shrink to make room: those that don't fit at full
- * width go to ⋯, and only a first pin too wide to fit beside ⋯ truncates.
+ * where no hover reveals a cut-off label), pins keep their full labels while they fit; the next pin fills
+ * what is left, shortened, when that is at least the minimum width, and the rest go to ⋯.
  */
 export function layoutPins<T extends { id: string }>(pins: readonly T[], unpinned: readonly string[], metrics: PinMetrics | null, { whole = false } = {}): PinLayout<T> {
   const pinned = pins.filter((pin) => !unpinned.includes(pin.id));
@@ -28,6 +28,11 @@ export function layoutPins<T extends { id: string }>(pins: readonly T[], unpinne
   const least = (pin: T) => whole ? natural(pin) : Math.min(natural(pin), metrics.min);
   let count = pinned.length;
   while (count > (whole ? 1 : 0) && pinned.slice(0, count).reduce((sum, pin) => sum + least(pin), 0) > room(count)) count--;
+  if (whole && count < pinned.length && count > 0) {
+    const used = pinned.slice(0, count).reduce((sum, pin) => sum + natural(pin), 0);
+    const left = room(count + 1) - used;
+    if (left >= metrics.min) return { strip: pinned.slice(0, count + 1), more: [...pinned.slice(count + 1), ...rest], caps: { [pinned[count]!.id]: left } };
+  }
   const strip = pinned.slice(0, count);
   const caps: Record<string, number> = {};
   const space = room(count);
