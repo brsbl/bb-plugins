@@ -151,12 +151,8 @@ export function dependencyStatus(entry: Entry, group: DependencyGroup, now: numb
   if (parent && parent.state !== "merged") return { waiting: `Prerequisite #${parent.number}${parent.state === "closed" ? " closed without merging" : " must merge first"}` };
   return entry.note ? { uncertain: entry.note } : {};
 }
-export function filterGroups(groups: DependencyGroup[], view: "active" | "history", matches: (item: PullRequestItem) => boolean, attention: boolean, statuses: ReadonlyMap<string, Status>): DependencyGroup[] {
-  return groups.filter((group) => group.entries.some(({ item }) => item && (view === "history" ? isHistory(item) : !isHistory(item)) && matches(item)) && (!attention || group.entries.some(({ item }) => item && statuses.get(item.id)?.attention)));
-}
-export function attentionSummary(entries: Entry[], statuses: ReadonlyMap<string, Status>): string {
-  const values = entries.flatMap(({ item }) => item && !isHistory(item) ? statuses.get(item.id) ?? [] : []);
-  const you = values.filter((status) => status.category === "Needs you").length;
-  const fixes = values.filter((status) => status.fixes).length;
-  return [you ? `${you} needs you` : "", fixes ? `${fixes} needs fixes` : "", values.some((status) => status.category === "Unknown") ? "Status unknown" : ""].filter(Boolean).join(" · ");
+export type StatusFilter = "open" | "merged" | "closed" | "all";
+export const matchesStatus = (item: PullRequestItem, status: StatusFilter) => status === "all" || (status === "open" ? !isHistory(item) : item.snapshot?.state === status);
+export function filterGroups(groups: DependencyGroup[], status: StatusFilter, matches: (item: PullRequestItem) => boolean, attention: boolean, statuses: ReadonlyMap<string, Status>): DependencyGroup[] {
+  return groups.filter((group) => group.entries.some(({ item }) => item && matchesStatus(item, status) && matches(item)) && (!attention || group.entries.some(({ item }) => item && statuses.get(item.id)?.attention)));
 }

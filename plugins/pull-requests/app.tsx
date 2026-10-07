@@ -11,8 +11,8 @@ import {
   useRealtimeConnectionState, useRpc, type PluginNavPanelProps, type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { CHANGED, type Changes, type Listing, type PullRequestItem, type Snapshot, type ThreadChoice, type rpcContract } from "./contract";
-import { attentionSummary, dependencyGroups, dependencyStatus, filterGroups, githubFresh, isHistory, ownerThread, projectFor, statusOf, type DependencyGroup, type Entry } from "./hierarchy";
-import { DEFAULT_AUTHOR, InboxMenu, type GroupBy, type Sort } from "./inbox-menu";
+import { dependencyGroups, dependencyStatus, filterGroups, githubFresh, isHistory, ownerThread, projectFor, statusOf, type DependencyGroup, type Entry, type StatusFilter } from "./hierarchy";
+import { DEFAULT_AUTHOR, DEFAULT_STATUS, InboxMenu, type GroupBy, type Sort } from "./inbox-menu";
 import "./app.css";
 
 type Rpc = ReturnType<typeof useRpc<typeof rpcContract>>;
@@ -22,7 +22,7 @@ type StatusGlyph = ComponentType<{ size?: number; strokeWidth?: number; classNam
 type Presentation = { icon: StatusGlyph; label: string; tone?: "success" | "danger" | "warning" | "muted" | "purple"; spin?: boolean };
 type ThreadContext = { threads: ThreadChoice[]; hosts: { id: string; name: string; connected: boolean }[]; nextCursor: string | null };
 type Preview = { token: string; snapshot: Snapshot; reader: { login: string; hostId: string }; thread: ThreadChoice };
-const session = { query: "", author: DEFAULT_AUTHOR, reviewer: "", sort: "updated" as Sort, groupBy: "project" as GroupBy, view: "active" as "active" | "history", attention: false, collapsed: [] as Group[], scrollTop: 0 };
+const session = { query: "", author: DEFAULT_AUTHOR, reviewer: "", sort: "updated" as Sort, groupBy: "project" as GroupBy, status: DEFAULT_STATUS as StatusFilter, attention: false, collapsed: [] as Group[], scrollTop: 0 };
 const EMPTY_COVERAGE: Listing["coverage"] = { running: false, checked: 0, total: 0, unavailable: 0, incomplete: false, lastDiscoveryAt: null, includesArchived: false };
 
 function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
@@ -94,6 +94,17 @@ function mergePresentation(value: Snapshot["mergeability"]): Presentation {
     case "blocked": return { icon: Clock, label: "Merge blocked by repository requirements", tone: "warning" };
     case "unknown": return { icon: CircleHelp, label: "Mergeability unknown", tone: "muted" };
   }
+}
+/** One icon for a stack: any failure wins, then pending; history members do not count. */
+function stackChecks(group: DependencyGroup): Presentation {
+  const states = group.entries.flatMap(({ item }) => item?.snapshot && !isHistory(item) ? [item.snapshot.checks.state] : []);
+  const count = (state: Snapshot["checks"]["state"]) => states.filter((value) => value === state).length;
+  if (!states.length) return { icon: Circle, label: "No open pull requests", tone: "muted" };
+  if (count("failing")) return { icon: XCircle, label: `${count("failing")} of ${states.length} pull requests failing checks`, tone: "danger" };
+  if (count("pending")) return { icon: Clock, label: `${count("pending")} of ${states.length} pull requests with pending checks`, tone: "warning" };
+  if (count("passing") && count("passing") + count("none") === states.length) return { icon: CheckCircle2, label: "Checks passing", tone: "success" };
+  if (count("none") === states.length) return { icon: Circle, label: "No checks reported", tone: "muted" };
+  return { icon: CircleHelp, label: "Checks unknown", tone: "muted" };
 }
 export function needsAttention(item: PullRequestItem, threads: ReadonlyMap<string, PluginSidebarThread>, now: number): boolean {
   return statusOf(item, threads, now).attention;
@@ -182,7 +193,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const [reviewer, setReviewer] = useState(session.reviewer);
   const [sort, setSort] = useState<Sort>(session.sort);
   const [groupBy, setGroupBy] = useState<GroupBy>(session.groupBy);
-  const [view, setView] = useState(session.view);
+  const [status, setStatus] = useState(session.status);
   const [attention, setAttention] = useState(session.attention);
   const [authors, setAuthors] = useState<string[]>([]);
   const [projectRepositories, setProjectRepositories] = useState<{ id: string; repository: string }[]>([]);
@@ -310,7 +321,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   useEffect(() => { if (connection === "connected") { if (wasConnected.current) { ++detailEpoch.current; void loadRef.current().catch((reason) => setError(message(reason))); } wasConnected.current = true; } }, [connection]);
   useRealtime(CHANGED, () => { ++detailEpoch.current; void loadRef.current().catch((reason) => setError(message(reason))); });
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = session.scrollTop; }, []);
-  useEffect(() => { Object.assign(session, { query, author, reviewer, sort, groupBy, view, attention, collapsed }); }, [query, author, reviewer, sort, groupBy, view, attention, collapsed]);
+  useEffect(() => { Object.assign(session, { query, author, reviewer, sort, groupBy, status, attention, collapsed }); }, [query, author, reviewer, sort, groupBy, status, attention, collapsed]);
   useEffect(() => {
     ++detailGeneration.current;
     detailRequest.current = null;
@@ -336,12 +347,12 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   const groups = useMemo(() => dependencyGroups(visibleItems, clock), [visibleItems, clock]);
   const statuses = new Map(groups.flatMap((group) => group.entries.flatMap((entry) => entry.item ? [[entry.item.id, statusOf(entry.item, liveThreads, clock, dependencyStatus(entry, group, clock), connection === "connected")] as const] : [])));
   const updatedAt = (group: DependencyGroup) => Math.max(...group.entries.map(({ item }) => Date.parse(item?.snapshot?.updatedAt ?? "") || 0));
-  const filtered = filterGroups(groups, view, matches, attention, statuses).sort((a, b) => {
+  const filtered = filterGroups(groups, status, matches, attention, statuses).sort((a, b) => {
     const pin = (group: DependencyGroup) => group.entries.some(({ item }) => item?.pinned) ? 1 : 0;
     return pin(b) - pin(a) || (sort === "title" ? a.entries[0]!.title.localeCompare(b.entries[0]!.title) : sort === "oldest" ? updatedAt(a) - updatedAt(b) : updatedAt(b) - updatedAt(a)) || a.key.localeCompare(b.key);
   });
-  const hasFilters = !!(query || author !== DEFAULT_AUTHOR || reviewer || attention);
-  const resetFilters = () => { setQuery(""); setAuthor(DEFAULT_AUTHOR); setReviewer(""); setAttention(false); };
+  const hasFilters = !!(query || status !== DEFAULT_STATUS || author !== DEFAULT_AUTHOR || reviewer || attention);
+  const resetFilters = () => { setQuery(""); setStatus(DEFAULT_STATUS); setAuthor(DEFAULT_AUTHOR); setReviewer(""); setAttention(false); };
   const me = items.find((item) => item.reader)?.reader?.login ?? null;
   const groupOf = (group: DependencyGroup): { key: string; label: string } => {
     const item = group.entries.find((entry) => entry.item)?.item!;
@@ -366,41 +377,37 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     catch (reason) { setError(message(reason)); }
   };
   const toggle = (key: string) => setCollapsed((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]);
-  const renderRow = (entry: Entry, group: DependencyGroup) => {
+  const shortAge = (value: string) => age(value).replace(" ago", "").replace("just now", "now");
+  const renderRow = (entry: Entry) => {
     const item = entry.item;
-    if (!item) return <div className="pr-missing-member" key={entry.key}><External href={entry.url}>#{entry.number} {entry.title}</External><span>Unknown · Not in the known list</span></div>;
-    const snapshot = item.snapshot, status = statuses.get(item.id)!;
-    const parent = group.entries.find((member) => member.key === entry.parent);
-    const tone = status.category === "Needs you" ? "warning" : status.category === "Needs fixes" ? "danger" : "muted";
+    if (!item) return <div className="pr-missing-member" key={entry.key} title="Not in the known list"><External href={entry.url}>#{entry.number} {entry.title}</External></div>;
+    const snapshot = item.snapshot;
     return <div className={`pr-row${selection.id === item.id ? " pr-row-selected" : ""}`} key={item.id}>
       <StatusIcon {...lifecycle(snapshot)} />
       <button type="button" className="pr-row-title" onClick={() => select(item.id)} aria-current={selection.id === item.id ? "page" : undefined} title={snapshot ? `${snapshot.title} · ${snapshot.repository} #${snapshot.number}` : item.url}>{snapshot?.title ?? "Pull request unavailable"}</button>
       {item.pinned && <Pin size={12} aria-label="Pinned" className="pr-tone-muted" />}
-      <time className="pr-row-time" dateTime={snapshot?.updatedAt}>{snapshot ? age(snapshot.updatedAt).replace(" ago", "").replace("just now", "now") : "—"}</time>
-      <div className="pr-row-caption"><span className={`pr-row-reason pr-tone-${tone}`}>{isHistory(item) ? status.reason : `${status.category} · ${status.reason}`}{status.cached && status.category !== "Unknown" ? " · GitHub cached" : ""}</span><span className="pr-row-identity">#{entry.number}{groupBy === "none" ? ` · ${snapshot?.repository ?? ""}` : ""}{parent ? ` · Depends on #${parent.number}` : ""}</span>{entry.note && entry.note !== status.reason && <span>{entry.note}</span>}</div>
+      {snapshot && <span className="pr-row-checks"><StatusIcon {...checksPresentation(snapshot)} /></span>}
+      <time className="pr-row-time" dateTime={snapshot?.updatedAt}>{snapshot ? shortAge(snapshot.updatedAt) : "—"}</time>
     </div>;
   };
   /** A stack is one sidebar row; its pull requests open in the detail pane. */
   const renderStackRow = (group: DependencyGroup) => {
     const active = selection.stack === stackId(group) || group.entries.some(({ item }) => item && item.id === selection.id);
-    const summary = attentionSummary(group.entries, statuses);
-    const tone = group.entries.some(({ item }) => item && statuses.get(item.id)?.fixes) ? "danger" : group.entries.some(({ item }) => item && statuses.get(item.id)?.category === "Needs you") ? "warning" : "muted";
     const time = updatedAt(group);
     const title = group.entries[0]!.title;
     return <div className={`pr-row${active ? " pr-row-selected" : ""}`} key={`stack:${group.key}`}>
-      <StatusIcon icon={Layers} label={group.kind === "native" ? "GitHub stack" : "Branch dependencies"} />
-      <button type="button" className="pr-row-title" onClick={() => selectStack(group)} aria-current={selection.stack === stackId(group) ? "page" : undefined} aria-label={`${title}, stack of ${group.entries.length} pull requests`} title={title}>{title}</button>
+      <StatusIcon icon={Layers} label={`${group.kind === "native" ? "GitHub stack" : "Branch dependencies"}: ${group.entries.map((entry) => `#${entry.number}`).join(" → ")}`} />
+      <button type="button" className="pr-row-title" onClick={() => selectStack(group)} aria-current={selection.stack === stackId(group) ? "page" : undefined} aria-label={`${title}, stack of ${group.entries.length} pull requests`} title={title}>{title}<span className="pr-row-count">{group.entries.length}</span></button>
       {group.entries.some(({ item }) => item?.pinned) && <Pin size={12} aria-label="Pinned" className="pr-tone-muted" />}
-      <time className="pr-row-time" dateTime={time ? new Date(time).toISOString() : undefined}>{time ? age(new Date(time).toISOString()).replace(" ago", "").replace("just now", "now") : "—"}</time>
-      <div className="pr-row-caption">{summary && <span className={`pr-row-reason pr-tone-${tone}`}>{summary}</span>}<span className="pr-row-identity">{`Stack · ${group.entries.length} PRs · `}{group.entries.map((entry) => `#${entry.number}`).join(" → ")}{group.cached ? " · Cached relationships" : ""}</span></div>
+      <span className="pr-row-checks"><StatusIcon {...stackChecks(group)} /></span>
+      <time className="pr-row-time" dateTime={time ? new Date(time).toISOString() : undefined}>{time ? shortAge(new Date(time).toISOString()) : "—"}</time>
     </div>;
   };
-  const renderGroup = (group: DependencyGroup) => group.kind === "single" ? renderRow(group.entries[0]!, group) : renderStackRow(group);
+  const renderGroup = (group: DependencyGroup) => group.kind === "single" ? renderRow(group.entries[0]!) : renderStackRow(group);
   const renderProject = (section: typeof grouped[number]) => {
-    const summary = attentionSummary(section.groups.flatMap((group) => group.entries), statuses);
     const open = !collapsed.includes(section.key);
     return <section className="pr-list-group" key={section.key}>
-      <button className="pr-group-title" type="button" aria-expanded={open} aria-controls={`pr-group-${encodeURIComponent(section.key)}`} onClick={() => toggle(section.key)}><span><span className="pr-group-label">{section.label}</span>{summary && <span className="pr-group-summary">{summary}</span>}</span></button>
+      <button className="pr-group-title" type="button" aria-expanded={open} aria-controls={`pr-group-${encodeURIComponent(section.key)}`} onClick={() => toggle(section.key)}><span className="pr-group-label">{section.label}</span></button>
       {open && <div id={`pr-group-${encodeURIComponent(section.key)}`}>{section.groups.map(renderGroup)}</div>}
     </section>;
   };
@@ -408,12 +415,12 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
   return <main className={`pr-plugin${selection.id || selection.stack ? " pr-has-selection" : ""}`}>
     <aside className="pr-sidebar" aria-label="Pull requests">
       <header className="pr-list-header"><h1>Pull Requests</h1>
-        <InboxMenu author={author} reviewer={reviewer} sort={sort} groupBy={groupBy} authors={authors} reviewers={reviewers} me={me}
+        <InboxMenu status={status} onStatus={setStatus} author={author} reviewer={reviewer} sort={sort} groupBy={groupBy} authors={authors} reviewers={reviewers} me={me}
           onAuthor={setAuthor} onReviewer={setReviewer} onSort={setSort} onGroupBy={setGroupBy}
           reviewerDataIncomplete={visibleItems.some((item) => item.snapshot && !item.snapshot.reviewRequestsComplete)} />
       </header>
       <form className="pr-list-toolbar" onSubmit={(event) => { event.preventDefault(); const known = visibleItems.find((item) => item.url === query.trim().replace(/[?#].*$/, "")); if (known) select(known.id); else if (/^https:\/\/github\.com\//i.test(query.trim())) setLinking({ url: query.trim() }); }}><label className="pr-search"><Search size={17} aria-hidden="true" /><input aria-label="Search pull requests" placeholder="Search or paste a PR link" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <IconButton icon={X} label="Clear search" onClick={() => setQuery("")} />}</label></form>
-      <div className="pr-view-controls"><div role="group" aria-label="Pull request view">{(["active", "history"] as const).map((value) => <button type="button" key={value} aria-pressed={view === value} onClick={() => setView(value)}>{value === "active" ? "Active" : "History"}</button>)}</div><button type="button" aria-pressed={attention} onClick={() => setAttention((value) => !value)}>Needs attention</button></div>
+      <div className="pr-view-controls"><button type="button" aria-pressed={attention} onClick={() => setAttention((value) => !value)}>Needs attention</button></div>
       {hasFilters && <div className="pr-active-filters"><span>{listLoading ? "Loading complete list…" : `${filtered.length} matching groups`}</span><button type="button" className="pr-text-button" onClick={resetFilters}>Clear</button></div>}
       <div ref={listRef} className="pr-list-scroll" onScroll={(event) => { session.scrollTop = event.currentTarget.scrollTop; }}>
         {groupBy === "none" ? filtered.map(renderGroup) : grouped.map(renderProject)}
@@ -428,7 +435,7 @@ export function PullRequestsPanel({ subPath }: PluginNavPanelProps) {
     </aside>
     <section className="pr-detail" aria-label="Pull request detail">
       {error && <div className="pr-error" role="alert"><AlertTriangle size={16} /><span>{error}</span><button className="pr-text-button" type="button" onClick={() => void refresh(true)}>Retry</button><IconButton icon={X} label="Dismiss error" onClick={() => setError(null)} /></div>}
-      {selection.stack ? selectedStack ? <StackDetail group={selectedStack} onBack={() => select(null)}>{selectedStack.entries.map((entry) => renderRow(entry, selectedStack))}</StackDetail> : listLoading && !items.length ? <div className="pr-empty"><Loading label="Loading stack" /></div> : <Empty title="Stack unavailable"><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty>
+      {selection.stack ? selectedStack ? <StackDetail group={selectedStack} onBack={() => select(null)}>{selectedStack.entries.map(renderRow)}</StackDetail> : listLoading && !items.length ? <div className="pr-empty"><Loading label="Loading stack" /></div> : <Empty title="Stack unavailable"><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty>
         : selected ? <PullRequestDetail key={selected.id} item={selected} loading={detailLoading} tab={selection.tab} now={clock} context={context} choices={choices} liveThreads={liveThreads} rpc={rpc} onBack={() => select(null)} onTab={(tab) => select(selected.id, tab)} onThread={(id) => navigate.toThread(id)} onUpdate={mutate} onRefresh={() => void refresh(false, selected.id)} onLink={() => setLinking({ url: selected.url })} onUnlink={(threadId) => void onUnlink(selected, threadId)} /> : selection.id ? detailLoading ? <div className="pr-empty"><Loading label="Loading pull request details" /><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></div> : <Empty title="Pull request unavailable"><button type="button" className="pr-text-button" onClick={() => select(null)}>Back to pull requests</button></Empty> : <Empty title="Select a pull request">Choose one from the sidebar to review its changes.</Empty>}
     </section>
     {undo && <div className="pr-undo" role="status"><span>Removed link to {undo.title}</span><button type="button" onClick={() => void mutate(async () => { const restored = await rpc.call("undo", { token: undo.token }); setUndo(null); return restored; })}>Undo</button><IconButton icon={X} label="Dismiss undo" onClick={() => setUndo(null)} /></div>}

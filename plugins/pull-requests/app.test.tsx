@@ -309,9 +309,9 @@ describe("Compact pull request inbox", () => {
     expect(titles()).toEqual(["Other author", "Alpha fix", "Zebra fix"]);
     expect(screen.queryByText("Authored by me")).toBeNull();
     expect(screen.queryByText("Needs my review")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    choose("Status", "closed");
     expect(titles()).toEqual(["Closed fix"]);
-    fireEvent.click(screen.getByRole("button", { name: "Active" }));
+    choose("Status", "open");
     choose("Author", "@me");
     choose("Reviewer", "acme/design");
     expect(titles()).toEqual(["Zebra fix"]);
@@ -363,20 +363,23 @@ describe("Pull Requests hierarchy", () => {
   it("keeps newly refreshed review requests in Needs attention", async () => {
     const start = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(start);
-    let current = fixture();
+    let current = fixture(), reads = 0;
     current.snapshot!.fetchedAt = new Date(start).toISOString();
     const app = await loadPluginApp(() => import("./app"));
     const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
-      inbox: () => ({ items: [current], nextCursor: null, total: 1, coverage }), refresh: () => coverage,
+      inbox: () => { reads++; return { items: [current], nextCursor: null, total: 1, coverage }; }, refresh: () => coverage,
       context: () => ({ threads: [thread], hosts: [], nextCursor: null }),
     } });
     try {
-      await screen.findByText("Needs fixes · Checks failed");
+      await screen.findByRole("button", { name: "Private pull request" });
       fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
       clock.mockReturnValue(start + 5000);
-      current = { ...current, snapshot: { ...current.snapshot!, fetchedAt: new Date(start + 5000).toISOString(), requestedReviewers: ["author"], reviewRequestsComplete: true } };
+      current = { ...current, snapshot: { ...current.snapshot!, fetchedAt: new Date(start + 5000).toISOString(), requestedReviewers: ["author"], reviewRequestsComplete: true, checks: { ...current.snapshot!.checks, state: "passing", failing: 0, passing: 1, items: [] } } };
+      const before = reads;
       await slot.behavior.emitRealtime(CHANGED, {});
-      expect(await screen.findByText("Needs you · Your review requested")).toBeDefined();
+      await waitFor(() => expect(reads).toBeGreaterThan(before));
+      // Only the new review request keeps it in Needs attention now that checks pass.
+      expect(await screen.findByRole("button", { name: "1 of 1 checks passing" })).toBeDefined();
       expect(screen.getByRole("button", { name: "Private pull request" })).toBeDefined();
     } finally {
       fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
@@ -399,7 +402,7 @@ describe("Pull Requests hierarchy", () => {
     const stack = await screen.findByRole("button", { name: "Foundation, stack of 2 pull requests" });
     // Members stay out of the sidebar; the stack row carries their attention.
     expect(screen.queryByRole("button", { name: "Searchable child" })).toBeNull();
-    expect(stack.closest(".pr-row")!.textContent).toContain("1 needs fixes");
+    expect(within(stack.closest(".pr-row") as HTMLElement).getByRole("button", { name: "1 of 1 pull requests failing checks" })).toBeDefined();
     fireEvent.change(screen.getByRole("textbox", { name: "Search pull requests" }), { target: { value: "Searchable" } });
     fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
     expect(screen.getByRole("button", { name: "Foundation, stack of 2 pull requests" })).toBeDefined();
@@ -410,7 +413,6 @@ describe("Pull Requests hierarchy", () => {
     const members = await screen.findByLabelText("Pull requests in this stack");
     expect(within(members).getByRole("button", { name: "Foundation" })).toBeDefined();
     expect(within(members).getByRole("button", { name: "Searchable child" })).toBeDefined();
-    expect(within(members).getByText(/Depends on #201/)).toBeDefined();
     const project = screen.getByRole("button", { name: /example\/repo/ });
     expect(project.querySelector("svg")).toBeNull();
     fireEvent.click(project);
@@ -421,9 +423,12 @@ describe("Pull Requests hierarchy", () => {
     fireEvent.click(project);
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
     fireEvent.click(screen.getByRole("button", { name: "Needs attention" }));
-    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    fireEvent.click(screen.getByLabelText("Filters and sort"));
+    const status = screen.getByRole("combobox", { name: "Status" });
+    fireEvent.change(status, { target: { value: "merged" } });
+    // Merged history keeps its active member as relationship context.
     expect(screen.getByRole("button", { name: "Foundation, stack of 2 pull requests" })).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "Active" }));
+    fireEvent.change(status, { target: { value: "open" } });
     slot.lifecycle.unmount();
   });
 });

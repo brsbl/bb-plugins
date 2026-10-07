@@ -12,10 +12,10 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/pull-reques
 
 ## Use
 
-Open **Pull Requests** from plugin navigation. The sidebar queries GitHub for your open authored PRs, requests for your review (including team requests), the latest 100 authored merged or closed PRs per account, and open PRs from every author in each bb project's GitHub repository. The Active view opens grouped by project; History contains merged and closed work. Use the filter menu to choose an author, reviewer, sort order, or grouping. It uses authenticated GitHub CLI accounts on connected machines and deduplicates PRs across sources. A bb thread is not required. Select one to inspect its Summary or read-only Changes, then open the linked thread to continue.
+Open **Pull Requests** from plugin navigation. The sidebar queries GitHub for your open authored PRs, requests for your review (including team requests), the latest 100 authored merged or closed PRs per account, and open PRs from every author in each bb project's GitHub repository. The list opens on open PRs grouped by project. Use the filter menu to choose a status (Open, Merged, Closed, or All), an author, reviewer, sort order, or grouping. It uses authenticated GitHub CLI accounts on connected machines and deduplicates PRs across sources. A bb thread is not required. Select one to inspect its Summary or read-only Changes, then open the linked thread to continue.
 
 - Projects are the only grouping level; click a project header to collapse it. Unlinked PRs use repository groups. A confirmed GitHub stack or labeled branch dependency appears as one row; select it to see its pull requests in prerequisite order. A stack keeps its full membership through search and filters; merged prerequisites remain visible as context.
-- **Needs attention** shows groups containing an input request, requested review, agent error, or fresh GitHub failure. Stack rows and collapsed projects summarize attention from every member. Pinning a member moves its whole group first within its project.
+- **Needs attention** shows groups containing an input request, requested review, agent error, or fresh GitHub failure. Each row is one line with its CI status; a stack row shows the combined CI status of its open PRs. Pinning a member moves its whole group first within its project.
 - Every PR has a readable status and reason. Live input requests win over GitHub freshness; stale or incomplete evidence is **Unknown**. **Ready for decision** means no known GitHub blocker, never user approval or QA sign-off.
 - Filters cover the complete known registry. Missing members, ambiguous dependencies, cached relationships, and incomplete GitHub discovery are labeled explicitly.
 - Paste a GitHub URL into search to open or link a PR. Manage links and the preferred thread in detail. Project ownership uses the preferred thread, then a unique verified origin, then an unambiguous repository mapping.
@@ -25,7 +25,7 @@ Cached PRs remain usable during refresh. Descriptions and diffs load when opened
 
 Each source machine needs the GitHub CLI authenticated for the repository. The page identifies its reader and freshness; offline machines and incomplete discovery stay visible. It reads GitHub and changes only local associations and preferences. It never starts an agent, submits a review, merges a PR, or marks threads read.
 
-GitHub.com is supported. Cached results render before background GitHub sync. Open searches are bounded at GitHub’s 1,000-result limit per query; partial coverage and unavailable sources are reported. Previously discovered PRs, pins and thread links are retained. History is a separate view; search caps also mark coverage as partial. The explicit CLI archived-thread discovery option remains available for finding older thread associations.
+GitHub.com is supported. Cached results render before background GitHub sync. Open searches are bounded at GitHub’s 1,000-result limit per query; partial coverage and unavailable sources are reported. Previously discovered PRs, pins and thread links are retained. Merged and closed PRs appear under the Status filter; search caps also mark coverage as partial. The explicit CLI archived-thread discovery option remains available for finding older thread associations.
 
 ## Develop
 

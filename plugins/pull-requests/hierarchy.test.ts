@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PullRequestItem, Snapshot, ThreadChoice } from "./contract";
-import { attentionSummary, dependencyGroups, dependencyStatus, filterGroups, ownerThread, projectFor, statusOf, type Activity } from "./hierarchy";
+import { dependencyGroups, dependencyStatus, filterGroups, ownerThread, projectFor, statusOf, type Activity } from "./hierarchy";
 
 const now = Date.parse("2026-10-06T12:00:00Z");
 function pr(number: number, fields: Partial<Snapshot> = {}): PullRequestItem {
@@ -26,8 +26,7 @@ describe("PR status precedence and freshness", () => {
     item.snapshot!.requestedReviewers = ["ALICE"];
     expect(statusOf(item, new Map(), now)).toMatchObject({ category: "Needs you", reason: "Your review requested" });
     item.snapshot!.checks.state = "failing";
-    const group = dependencyGroups([item], now)[0]!;
-    expect(attentionSummary(group.entries, new Map([[item.id, statusOf(item, threads, now)]]))).toBe("1 needs you · 1 needs fixes");
+    expect(statusOf(item, new Map(), now)).toMatchObject({ category: "Needs you", attention: true, fixes: true });
   });
   it("orders fresh failures ahead of draft/activity, then waiting, then complete decision evidence", () => {
     const item = pr(1, { state: "draft", mergeability: "conflicts" });
@@ -122,17 +121,16 @@ describe("Dependency groups", () => {
     expect(conflict).toHaveLength(2);
     expect(conflict.every((entry) => entry.entries[0]!.note?.includes("ambiguous"))).toBe(true);
   });
-  it("keeps filtered groups and history ancestry intact and summarizes attention on any member", () => {
+  it("keeps filtered groups and history ancestry intact", () => {
     const root = pr(1, { state: "merged" }), child = pr(2, { baseBranch: "branch1", author: "bob" }), leaf = pr(3, { baseBranch: "branch2", requestedReviewers: ["alice"] });
     child.snapshot!.checks.state = "failing";
     const groups = dependencyGroups([leaf, root, child], now);
     const statuses = new Map([root, child, leaf].map((item) => [item.id, statusOf(item, new Map(), now)]));
-    const active = filterGroups(groups, "active", (item) => item.snapshot?.title === "Change 3", true, statuses);
+    const active = filterGroups(groups, "open", (item) => item.snapshot?.title === "Change 3", true, statuses);
     expect(active).toHaveLength(1);
     expect(active[0]!.entries.map((entry) => entry.number)).toEqual([1, 2, 3]);
-    expect(attentionSummary(active[0]!.entries, statuses)).toBe("1 needs you · 1 needs fixes");
-    expect(filterGroups(groups, "history", () => true, false, statuses)[0]!.entries).toHaveLength(3);
-    expect(filterGroups(dependencyGroups([pr(4, { state: "closed" })], now), "active", () => true, false, statuses)).toEqual([]);
-    expect(filterGroups(groups, "active", () => false, true, statuses)).toEqual([]);
+    expect(filterGroups(groups, "merged", () => true, false, statuses)[0]!.entries).toHaveLength(3);
+    expect(filterGroups(dependencyGroups([pr(4, { state: "closed" })], now), "open", () => true, false, statuses)).toEqual([]);
+    expect(filterGroups(groups, "open", () => false, true, statuses)).toEqual([]);
   });
 });
