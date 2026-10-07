@@ -122,6 +122,18 @@ Edit email replies and approve decisions inside agent messages. Review one item 
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/inline-action-cards --yes`
 
+### Interactive Answers
+
+Explore calculations, charts, and explanations directly in agent answers. Adjust inputs and compare scenarios without another agent turn.
+
+![Savings calculator with sliders, live metrics, and a growth chart](https://github.com/user-attachments/assets/094bff99-5849-4f17-80db-521d32f6dd82)
+
+![Bill splitter with editable inputs and a cost breakdown table](https://github.com/user-attachments/assets/2cafefe0-2246-49bf-be27-c43a21b49584)
+
+[Source](plugins/interactive-answers) · [README](plugins/interactive-answers/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/interactive-answers --yes`
+
 ### Mesh Gradient
 
 Creates, edits, saves, and shares reusable mesh gradients from a visual studio beside a thread. Users can hand an exact saved gradient to the current agent, while agents can generate gradients, inspect the shared library, and apply saved designs through the same plugin.
