@@ -29,6 +29,7 @@ function host(metadata: Record<string, Record<string, unknown>>) {
   };
   const { bb, harness } = createFakePluginHost({
     pluginId: "messaging",
+    agentSkillIds: ["messaging"],
     sdk: {
       threads: {
         get: ({ threadId }) => threads[threadId],
