@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { pinSchema, pinsSchema } from "./contract.js";
-import { looksLikeUrl, parseWebUrl, urlLabel, urlPinName } from "./url-pin.js";
+import { isLocalUrl, looksLikeUrl, parseWebUrl, urlLabel, urlPinName } from "./url-pin.js";
 
 it("tells URLs from file paths, including paths with colons", () => {
   expect(["https://example.com", " HTTP://a.b/c", "ftp://files.example.com/x", "javascript://x"].map(looksLikeUrl)).toEqual([true, true, true, true]);
@@ -34,4 +34,14 @@ it("stores URL pins beside file pins and keeps existing file pins valid", () => 
   expect(pinSchema.safeParse({ ...link, url: "ftp://example.com/" }).success).toBe(false);
   expect(pinSchema.safeParse({ ...link, hostId: "mac" }).success).toBe(false);
   expect(pinSchema.safeParse({ ...file, kind: "url" }).success).toBe(false);
+});
+
+it("tells dev servers from websites", () => {
+  const local = ["http://localhost:3000", "http://app.localhost", "http://127.1:8080", "http://0:3000", "http://[::1]:5173", "http://[0:0:0:0:0:0:0:1]/",
+    "http://192.168.1.5:5173", "http://10.0.0.2", "http://172.20.1.1:8000", "http://100.101.102.103:3000", "http://[fd7a:115c::1]:3000",
+    "http://devbox:3000", "http://mac.local:3000", "http://api.internal:8080", "http://myapp.test"];
+  const web = ["https://example.com", "https://localhost.example.com", "https://notlocalhost.com", "http://127.0.0.1.nip.io", "http://8.8.8.8",
+    "http://172.32.0.1", "http://100.128.0.1", "https://[2606:4700::1111]", "https://github.com/get-bb/bb/pull/1"];
+  expect(local.filter((url) => !isLocalUrl(url))).toEqual([]);
+  expect(web.filter(isLocalUrl)).toEqual([]);
 });
