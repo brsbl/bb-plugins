@@ -1,0 +1,25 @@
+{
+  "name": "bb-plugin-url-pills",
+  "version": "0.1.0",
+  "description": "Recognize website links at a glance with favicon pills in drafts and conversations.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Compact Links",
+    "description": "Recognize website links at a glance with favicon pills in drafts and conversations.",
+    "branding": {
+      "icon": "Globe"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [],
+    "app": "./dist/install-app.mjs"
+  }
+}
