@@ -2,12 +2,13 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, expect, it } from "vitest";
-import { AnswerView } from "./app.js";
 import { bill } from "./examples.js";
 
 const answer = { id: "e85d6718-895b-48e5-8bc4-2a9bd3477895", threadId: "thr_test", document: bill };
 afterEach(() => { cleanup(); localStorage.clear(); });
-it("updates results locally, restores valid inputs on remount, resets, and switches representations", () => {
+it("updates results locally, restores valid inputs on remount, resets, and switches representations", async () => {
+  await loadPluginApp(() => import("./app.js"));
+  const { AnswerView } = await import("./app.js");
   const first = render(<AnswerView answer={answer} />);
   expect(screen.getByText("$36.00")).toBeTruthy();
   fireEvent.change(screen.getByLabelText("People"), { target: { value: "6" } });
