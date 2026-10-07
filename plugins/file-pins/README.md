@@ -43,7 +43,7 @@ only their small **×** removes them. Availability refreshes on focus and every
 
 Pinned links sit in the same strip and **⋯** list, with the same order, capacity, Pin/Unpin,
 Remove and Undo. A link chip shows its site's icon (the same origin-only lookup as Compact Links,
-a terminal for a dev server on localhost or a private network, or a globe when a site has none) and the page title the agent supplied, otherwise the site and a
+a terminal for a dev server on localhost or a private network, or a globe when a site has none; a GitHub pull request shows its open, draft, merged or closed state instead, looked up from GitHub's public API when pinned and rechecked while it can still change) and the page title the agent supplied, otherwise the site and a
 short path. Clicking it opens the URL the way bb opens links; its menu offers **Open** and
 **Copy link**, then **Unpin**/**Pin** and **Remove**. Links have no missing state.
 

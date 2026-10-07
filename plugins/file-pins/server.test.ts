@@ -1,5 +1,5 @@
 import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import plugin from "./server.js";
 
 const icons = vi.hoisted(() => ({ origins: [] as string[] }));
@@ -11,8 +11,15 @@ vi.mock("@brsbl/bb-website-icons", async (original) => ({
   },
 }));
 
+// GitHub's pulls API, stubbed so no test reaches the network.
+const github = { calls: [] as string[], reply: (): Response => new Response("{}", { status: 404 }) };
+beforeEach(() => {
+  github.calls.length = 0;
+  github.reply = () => new Response("{}", { status: 404 });
+  vi.stubGlobal("fetch", async (url: string) => { github.calls.push(url); return github.reply(); });
+});
 const disposers: Array<() => Promise<void>> = [];
-afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); });
+afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 function setup() {
   const { bb, harness } = createFakePluginHost({
     pluginId: "file-pins", experimental_hostEntry: true,
@@ -209,6 +216,28 @@ describe("thread file pins", () => {
     expect(await h.behavior.callRpc("icon", { threadId: "one", pinId: file.id })).toEqual({ dataUrl: null });
     expect(await h.behavior.callRpc("icon", { threadId: "two", pinId: link.id })).toEqual({ dataUrl: null });
     expect(icons.origins).toEqual(["https://docs.example.com"]);
+  });
+  it("looks a pinned PR's state up once, rechecks only when stale, and keeps the last state when GitHub can't answer", async () => {
+    const h = setup();
+    const now = vi.spyOn(Date, "now");
+    now.mockReturnValue(1_000_000_000);
+    github.reply = () => new Response(JSON.stringify({ state: "open", draft: false, merged_at: null }), { status: 200 });
+    const pr = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://github.com/get-bb/bb/pull/5075/files" }) as { id: string };
+    const other = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://example.com/" }) as { id: string };
+    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id })).toEqual({ state: "open" });
+    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: other.id })).toEqual({ state: null });
+    expect(github.calls).toEqual(["https://api.github.com/repos/get-bb/bb/pulls/5075"]);
+    // Still fresh, so no second request; once stale, a failed check keeps the last state.
+    await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id });
+    now.mockReturnValue(1_000_000_000 + 11 * 60_000);
+    github.reply = () => new Response("{}", { status: 403 });
+    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id })).toEqual({ state: "open" });
+    github.reply = () => new Response(JSON.stringify({ state: "closed", draft: false, merged_at: "2026-10-07T00:00:00Z" }), { status: 200 });
+    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id })).toEqual({ state: "merged" });
+    // A merge is final: no more requests, even much later.
+    now.mockReturnValue(1_000_000_000 + 30 * 24 * 60 * 60_000);
+    await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id });
+    expect(github.calls).toHaveLength(3);
   });
   it("removes storage when a thread is deleted", async () => {
     const h = setup();

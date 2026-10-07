@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { IconService, createIconCache } from "@brsbl/bb-website-icons";
 import { CHANGED, MAX_PINS, PIN_MENTION, hostContract, isUrlPin, moreSchema, pinsSchema, rpcContract, type FilePin, type Pin, type Reference, type UrlPin } from "./contract.js";
+import { fetchPrState, githubPullRequest, isFresh, prKey, PR_STATES, type PrState, type PullRequestRef } from "./pr-state.js";
 import { looksLikeUrl, parseWebUrl, urlPinName } from "./url-pin.js";
 
 // The shipped skill is the one source of the pinning instructions; the composer pill sends it to the agent.
@@ -25,6 +26,23 @@ export default function plugin(bb: BbPluginApi): void {
   const icons = new IconService(createIconCache(bb));
   bb.onDispose(() => icons.setEnabled(false));
   const undos = new Map<string, { threadId: string; pin: Pin; index: number; more: boolean; expires: number }>();
+  // One cached state per PR across threads; GitHub is asked only when it is stale, one request per PR at a time.
+  const prChecks = new Map<string, Promise<PrState | null>>();
+  const prState = async (pr: PullRequestRef): Promise<PrState | null> => {
+    const cacheKey = `pr:v1:${prKey(pr)}`;
+    const cached = await bb.storage.kv.get(cacheKey) as { state: PrState | null; checkedAt: number } | undefined;
+    const known = cached && typeof cached.checkedAt === "number" && (cached.state === null || PR_STATES.includes(cached.state)) ? cached : undefined;
+    if (known && isFresh(known, Date.now())) return known.state;
+    let check = prChecks.get(cacheKey);
+    if (!check) {
+      check = fetchPrState(pr).then(async (state) => {
+        await bb.storage.kv.set(cacheKey, { state, checkedAt: Date.now() });
+        return state;
+      }, () => known?.state ?? null).finally(() => prChecks.delete(cacheKey));
+      prChecks.set(cacheKey, check);
+    }
+    return check;
+  };
   // All read-modify-write operations share a queue so CLI/UI writes cannot lose pins.
   let writes = Promise.resolve();
   const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
@@ -88,6 +106,11 @@ export default function plugin(bb: BbPluginApi): void {
       await thread(threadId);
       const entry: UrlPin = { id: randomUUID(), kind: "url", url, name: urlPinName(url, title), createdAt: new Date().toISOString() };
       return add(threadId, await read(threadId), entry);
+    }).then((entry) => {
+      // Look the state up as the PR is pinned, so its icon is right the first time the strip shows it.
+      const pr = githubPullRequest(entry.url);
+      if (pr) void prState(pr);
+      return entry;
     });
   };
   // Duplicates are idempotent; file and URL pins share one capacity.
@@ -189,6 +212,11 @@ export default function plugin(bb: BbPluginApi): void {
     icon: async ({ threadId, pinId }) => {
       const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
       return { dataUrl: pinned && isUrlPin(pinned) ? await icons.get(new URL(pinned.url).origin) : null };
+    },
+    prState: async ({ threadId, pinId }) => {
+      const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
+      const pr = pinned && isUrlPin(pinned) ? githubPullRequest(pinned.url) : null;
+      return { state: pr ? await prState(pr) : null };
     },
     unpin: ({ threadId, pinId }) => removePin(threadId, pinId),
   });
