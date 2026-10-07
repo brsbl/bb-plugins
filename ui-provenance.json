@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/get-bb/bb",
+  "commit": "32efd2e3f2cd5fe072d56c880c6c94db61612089",
+  "registryItems": [
+    "button",
+    "coarse-pointer-sizing",
+    "context-menu",
+    "dropdown-menu",
+    "icon",
+    "menu-item-hover",
+    "motion",
+    "overlay-trigger",
+    "portal-scope",
+    "responsive-overlay",
+    "tooltip",
+    "use-compact-viewport",
+    "use-media-query",
+    "use-pointer-coarse",
+    "utils"
+  ],
+  "adaptations": [
+    "pin-popover.tsx: BB popover tokens and Radix primitives without animation or compact drawer conversion.",
+    "pin-layout.ts: useMeasureSidebarFooterCapacity's slot measurement, used to fit fixed-width pins on the strip.",
+    "reference-icon.tsx: resolveRightPanelFileIconName from apps/app/src/components/secondary-panel/rightPanelFileVisuals.ts."
+  ]
+}
