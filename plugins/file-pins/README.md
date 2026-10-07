@@ -66,7 +66,11 @@ Paths resolve on the selected machine through the plugin's host entry. File
 contents never enter pin storage. Pins survive reloads and thread environment
 changes and can be removed while a machine is offline. Deleting the thread
 removes its pins. Pinning does not send file content to the agent. Icons are looked up only for a
-pinned link's public HTTPS origin, never its path or query, and cached in the plugin's database.
+pinned link's public HTTPS origin, never its path or query, and cached in the plugin's database. For a
+pinned GitHub pull request, the bb server sends the PR's owner, repository and number to GitHub's public
+API, without credentials, and caches its state. GitHub answers only for public repositories, so a private
+PR keeps the site icon unless it is the thread's own PR, whose state comes from bb. A rate limit from
+GitHub pauses every lookup until it resets, and the last known state stays meanwhile.
 
 A normal click on a pinned file follows bb's FileLink click behavior and opener
 choices. Pin menus start with bb's open and copy items, then Pin/Unpin and Remove.

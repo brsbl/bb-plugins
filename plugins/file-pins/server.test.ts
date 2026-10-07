@@ -217,27 +217,49 @@ describe("thread file pins", () => {
     expect(await h.behavior.callRpc("icon", { threadId: "two", pinId: link.id })).toEqual({ dataUrl: null });
     expect(icons.origins).toEqual(["https://docs.example.com"]);
   });
-  it("looks a pinned PR's state up once, rechecks only when stale, and keeps the last state when GitHub can't answer", async () => {
+  it("looks a pinned PR's state up once, answers stale states at once while rechecking, and backs off after a failure", async () => {
     const h = setup();
     const now = vi.spyOn(Date, "now");
-    now.mockReturnValue(1_000_000_000);
+    const at = (minutes: number) => now.mockReturnValue(1_000_000_000 + minutes * 60_000);
+    at(0);
     github.reply = () => new Response(JSON.stringify({ state: "open", draft: false, merged_at: null }), { status: 200 });
     const pr = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://github.com/get-bb/bb/pull/5075/files" }) as { id: string };
     const other = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://example.com/" }) as { id: string };
-    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id })).toEqual({ state: "open" });
+    const state = () => h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id });
+    expect(await state()).toEqual({ state: "open" });
     expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: other.id })).toEqual({ state: null });
     expect(github.calls).toEqual(["https://api.github.com/repos/get-bb/bb/pulls/5075"]);
-    // Still fresh, so no second request; once stale, a failed check keeps the last state.
-    await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id });
-    now.mockReturnValue(1_000_000_000 + 11 * 60_000);
-    github.reply = () => new Response("{}", { status: 403 });
-    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id })).toEqual({ state: "open" });
+    // Fresh: no request. Stale: the last state comes back at once; a failed recheck waits out another window.
+    await state();
+    at(11);
+    github.reply = () => new Response("{}", { status: 500 });
+    expect(await state()).toEqual({ state: "open" });
+    await vi.waitFor(() => expect(github.calls).toHaveLength(2));
     github.reply = () => new Response(JSON.stringify({ state: "closed", draft: false, merged_at: "2026-10-07T00:00:00Z" }), { status: 200 });
-    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id })).toEqual({ state: "merged" });
+    expect(await state()).toEqual({ state: "open" });
+    expect(github.calls).toHaveLength(2);
+    at(22);
+    expect(await state()).toEqual({ state: "open" });
+    await vi.waitFor(async () => expect(await state()).toEqual({ state: "merged" }));
     // A merge is final: no more requests, even much later.
-    now.mockReturnValue(1_000_000_000 + 30 * 24 * 60 * 60_000);
-    await h.behavior.callRpc("prState", { threadId: "one", pinId: pr.id });
+    at(30 * 24 * 60);
+    await state();
     expect(github.calls).toHaveLength(3);
+  });
+  it("pauses every GitHub lookup until a rate limit resets", async () => {
+    const h = setup();
+    const now = vi.spyOn(Date, "now");
+    now.mockReturnValue(1_000_000_000);
+    github.reply = () => new Response("{}", { status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(1_000_000 + 600) } });
+    const first = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://github.com/a/b/pull/1" }) as { id: string };
+    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: first.id })).toEqual({ state: null });
+    github.reply = () => new Response(JSON.stringify({ state: "open", draft: false, merged_at: null }), { status: 200 });
+    const second = await h.behavior.callRpc("pinUrl", { threadId: "one", url: "https://github.com/a/b/pull/2" }) as { id: string };
+    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: second.id })).toEqual({ state: null });
+    expect(github.calls).toHaveLength(1);
+    now.mockReturnValue(1_000_000_000 + 601_000);
+    expect(await h.behavior.callRpc("prState", { threadId: "one", pinId: second.id })).toEqual({ state: "open" });
+    expect(github.calls).toHaveLength(2);
   });
   it("removes storage when a thread is deleted", async () => {
     const h = setup();

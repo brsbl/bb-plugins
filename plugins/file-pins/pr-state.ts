@@ -25,6 +25,11 @@ export const isFresh = (entry: { state: PrState | null; checkedAt: number }, now
 
 const pullSchema = z.object({ state: z.enum(["open", "closed"]), draft: z.boolean().optional(), merged_at: z.string().nullable().optional() });
 
+/** GitHub refused for its rate limit; no request should be sent before `resetAt`. */
+export class GitHubRateLimited extends Error {
+  constructor(readonly resetAt: number) { super("GitHub's rate limit is used up"); }
+}
+
 /** GitHub's public pulls API, without credentials: null when the PR is missing or private, and a throw when GitHub can't answer now. */
 export async function fetchPrState({ owner, repo, number }: PullRequestRef, fetcher: typeof fetch = fetch): Promise<PrState | null> {
   const response = await fetcher(`https://api.github.com/repos/${owner}/${repo}/pulls/${number}`, {
@@ -33,6 +38,11 @@ export async function fetchPrState({ owner, repo, number }: PullRequestRef, fetc
     signal: AbortSignal.timeout(8_000),
   });
   if (response.status === 404) return null;
+  if ((response.status === 403 || response.status === 429) && (response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after"))) {
+    const retry = Number(response.headers.get("retry-after"));
+    const reset = Number(response.headers.get("x-ratelimit-reset"));
+    throw new GitHubRateLimited(retry > 0 ? Date.now() + retry * 1000 : reset > 0 ? reset * 1000 : Date.now() + 60_000);
+  }
   if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
   const pull = pullSchema.parse(await response.json());
   if (pull.merged_at) return "merged";
