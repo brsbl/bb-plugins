@@ -86,7 +86,7 @@ export function childInstructions(parentThreadId: string): string {
 export const PARENT_INSTRUCTIONS =
   "Messaging plugin: when the user asks you to delegate work to child threads that should stay quiet until they matter, start them with messaging_spawn_child (or `bb messaging spawn`). Those children report only when done, blocked, or needing a decision, so you are not woken on every child turn. Check them with messaging_list_children, ask one for an update with messaging_request_status, and send any other message with `bb thread tell <id>`. Archiving the parent archives its Messaging children.";
 
-export function formatReport(
+function formatReport(
   childThreadId: string,
   kind: ReportKind,
   message: string,
@@ -110,7 +110,7 @@ async function liveThread(sdk: PluginBbSdk, threadId: string) {
   return thread;
 }
 
-export async function readChildLink(
+async function readChildLink(
   sdk: PluginBbSdk,
   threadId: string,
 ): Promise<ChildLink | null> {
@@ -138,9 +138,9 @@ export async function spawnChild(sdk: PluginBbSdk, input: SpawnChildInput) {
     prompt: input.prompt,
     lifecycleOwnerThreadId: parent.id,
     pluginMetadata: { parentThreadId: parent.id },
-    ...(input.title === undefined ? {} : { title: input.title }),
+    title: input.title,
     providerId: input.providerId ?? parent.providerId,
-    ...(input.model === undefined ? {} : { model: input.model }),
+    model: input.model,
   });
 }
 

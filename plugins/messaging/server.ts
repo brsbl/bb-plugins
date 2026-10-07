@@ -22,7 +22,6 @@ import {
   requestStatus,
   sendReport,
   spawnChild,
-  type EnvironmentChoice,
 } from "./messaging";
 
 const SPAWN_TOOL = "messaging_spawn_child";
@@ -99,12 +98,8 @@ export default function plugin(bb: BbPluginApi): void {
     async execute(input, ctx) {
       try {
         const child = await spawnChild(bb.sdk, {
+          ...input,
           parentThreadId: ctx.threadId,
-          prompt: input.prompt,
-          environment: input.environment,
-          ...(input.title === undefined ? {} : { title: input.title }),
-          ...(input.providerId === undefined ? {} : { providerId: input.providerId }),
-          ...(input.model === undefined ? {} : { model: input.model }),
         });
         return `Started @thread:${child.id}. It will report when done, blocked, or needing a decision.`;
       } catch (error) {
@@ -218,10 +213,10 @@ export default function plugin(bb: BbPluginApi): void {
             const child = await spawnChild(bb.sdk, {
               parentThreadId,
               prompt: positionals.prompt,
-              environment: options.environment as EnvironmentChoice,
-              ...(options.title === undefined ? {} : { title: options.title }),
-              ...(options.provider === undefined ? {} : { providerId: options.provider }),
-              ...(options.model === undefined ? {} : { model: options.model }),
+              environment: options.environment,
+              title: options.title,
+              providerId: options.provider,
+              model: options.model,
             }).catch(cliFailure);
             return {
               exitCode: 0,
