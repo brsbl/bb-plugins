@@ -1,12 +1,14 @@
 # Interactive Answers
 
-Explore charts, calculations, and explanations directly in agent answers.
+Explore charts, calculations, diagrams, and explanations directly in agent answers.
 Agents compose native controls and content; changing an input updates the
 answer immediately without another model call.
 
 ![Savings calculator with sliders, live metrics, and a growth chart](https://github.com/user-attachments/assets/094bff99-5849-4f17-80db-521d32f6dd82)
 
 ![Bill splitter with editable inputs and a cost breakdown table](https://github.com/user-attachments/assets/2cafefe0-2246-49bf-be27-c43a21b49584)
+
+![An illustrated neighborhood map with selectable markers and contextual explanations](https://github.com/user-attachments/assets/3a4bee34-eef1-4261-ac49-f160fbabec6e)
 
 ## Install
 
