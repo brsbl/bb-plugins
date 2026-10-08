@@ -1,6 +1,7 @@
 import type { KeyboardEvent, Ref } from "react";
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 import { isBlocked, itemSubtitle, type Item } from "../model.js";
+import { isRejected } from "../calendar-layout.js";
 
 export type CardSize = "month" | "week";
 
@@ -13,6 +14,8 @@ export function ItemCardView({ item, size, picked = false, dragging = false, sel
 }) {
   const subtitle = itemSubtitle(item);
   const files = item.attachments.length;
+  // A write Google refused stays queued; say so on the card instead of looking saved.
+  const rejected = isRejected(item);
   const className = [
     "cc-item", `cc-f-${item.format ?? "none"}`, `cc-item-${size}`,
     isBlocked(item) ? "cc-gated" : "", picked ? "cc-picked" : "", dragging ? "cc-dragging" : "", selected ? "cc-selected" : "", overlay ? "cc-overlay" : "",
@@ -25,7 +28,7 @@ export function ItemCardView({ item, size, picked = false, dragging = false, sel
     role="group"
     tabIndex={overlay ? -1 : 0}
     aria-roledescription="calendar item"
-    aria-label={`${item.title}. ${subtitle}`}
+    aria-label={`${item.title}. ${subtitle}${rejected ? ". Not saved to Google Calendar" : ""}`}
     data-item-id={item.id}
     data-gated={isBlocked(item) ? "true" : "false"}
     className={className}
@@ -38,6 +41,7 @@ export function ItemCardView({ item, size, picked = false, dragging = false, sel
     <div className="cc-item-text">
       <div className="cc-item-title">{item.title}</div>
       <div className="cc-item-meta">{subtitle}</div>
+      {rejected && <div className="cc-item-flag" title={item.notice ?? undefined}>Not saved to Google Calendar</div>}
       {size === "week" && <>
         {(item.time || item.days > 1) && <div className="cc-item-extra">{[item.time, item.days > 1 ? `${item.days} days` : null].filter(Boolean).join(" · ")}</div>}
         {item.target && <div className="cc-item-extra">Target: {item.target}</div>}
@@ -45,7 +49,7 @@ export function ItemCardView({ item, size, picked = false, dragging = false, sel
       </>}
       {size === "month" && item.days > 1 && <div className="cc-item-meta">{item.days} days</div>}
     </div>
-    {onMenu && <button type="button" className="cc-item-more" aria-label={`More actions for ${item.title}`} aria-haspopup="dialog"
+    {onMenu && <button type="button" className="cc-item-more" aria-label={`More actions for ${item.title}`} aria-haspopup="menu"
       onClick={(event) => onMenu(item, event.currentTarget)} {...stop}>⋯</button>}
   </div>;
 }

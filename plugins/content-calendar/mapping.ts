@@ -8,6 +8,10 @@ import {
 export const TRAY_RULE = "RRULE:FREQ=WEEKLY;BYDAY=MO";
 export const BLOCK_HEADER = "── bb Content Calendar · updated by bb ──";
 export const CC_ID = /^cc_[a-z0-9]{4,32}$/;
+/** Format version of bb's private properties, written as `ccv`. */
+export const PROPERTY_VERSION = "1";
+/** Google's limit on one private property value. */
+export const PROPERTY_MAX = 1024;
 const CHECKED = "☑";
 const UNCHECKED = "☐";
 
@@ -29,6 +33,10 @@ export interface Fields {
   gates: StoredGate[];
   attachments: Attachment[];
   pos: number;
+  /** Gate and attachment slots (`gate2`, `att7`) whose value bb couldn't read; kept as written. */
+  keep?: Record<string, string>;
+  /** Fields bb doesn't know on a gate or attachment record, keyed `gate:<id>` or `att:<id>`; kept as written. */
+  extra?: Record<string, Record<string, unknown>>;
 }
 
 /** Units of change for dirty tracking and conflicts, named by the item field she sees. */
@@ -43,6 +51,8 @@ export const UNITS = {
   waitsOn: ["gates"],
   attachments: ["attachments"],
   pos: ["pos"],
+  /** Record data bb doesn't understand; only Google changes it. */
+  slots: ["keep", "extra"],
 } as const satisfies Record<string, readonly (keyof Fields)[]>;
 export type Unit = keyof typeof UNITS;
 export const UNIT_NAMES = Object.keys(UNITS) as Unit[];
@@ -67,7 +77,11 @@ export function changedUnits(before: Fields, after: Fields): Unit[] {
 
 export function withUnit(fields: Fields, values: Partial<Fields>, unit: Unit): Fields {
   const next = { ...fields } as unknown as Record<string, unknown>;
-  for (const key of UNITS[unit]) if (key in values) next[key] = (values as unknown as Record<string, unknown>)[key];
+  for (const key of UNITS[unit]) {
+    if (key in values) next[key] = (values as unknown as Record<string, unknown>)[key];
+    // Unreadable records Google no longer has are gone, not kept.
+    else if (unit === "slots") delete next[key];
+  }
   return next as unknown as Fields;
 }
 
@@ -194,16 +208,10 @@ export function parseEvent(event: GoogleEvent, knownBlocks: readonly (string | n
     date = null;
   }
 
-  const gates: StoredGate[] = [];
-  for (let index = 1; index <= LIMITS.gates; index += 1) {
-    const parsed = storedGateSchema.safeParse(parseJson(props[`gate${index}`]));
-    if (parsed.success) gates.push(parsed.data);
-  }
-  const attachments: Attachment[] = [];
-  for (let index = 1; index <= LIMITS.attachments; index += 1) {
-    const parsed = attachmentSchema.safeParse(parseJson(props[`att${index}`]));
-    if (parsed.success) attachments.push(parsed.data);
-  }
+  const keep: Record<string, string> = {};
+  const extra: Record<string, Record<string, unknown>> = {};
+  const gates = readSlots<StoredGate>(props, "gate", LIMITS.gates, storedGateSchema.options, keep, extra);
+  const attachments = readSlots<Attachment>(props, "att", LIMITS.attachments, attachmentSchema.options, keep, extra);
   const pos = Number(props.pos);
   const { notes, found, block } = splitDescription(event.description ?? "", knownBlocks);
   return {
@@ -212,6 +220,8 @@ export function parseEvent(event: GoogleEvent, knownBlocks: readonly (string | n
       target: props.target ? props.target : null,
       notes, gates, attachments,
       pos: props.pos && Number.isFinite(pos) ? pos : 0,
+      ...(Object.keys(keep).length ? { keep } : {}),
+      ...(Object.keys(extra).length ? { extra } : {}),
     },
     ccId: props.ccId && CC_ID.test(props.ccId) ? props.ccId : null,
     blockFound: found,
@@ -237,22 +247,7 @@ export function buildEvent(
 ): { body: EventWrite; block: string } {
   const block = renderBlock(fields, itemTitle);
   const description = composeDescription(fields.notes.trim(), block, previous, full);
-  const props: Record<string, string | null> = {
-    ccId,
-    status: fields.status,
-    format: fields.format,
-    tray: fields.tray,
-    target: fields.target,
-    pos: String(fields.pos),
-  };
-  for (let index = 0; index < LIMITS.gates; index += 1) {
-    const gate = fields.gates[index];
-    props[`gate${index + 1}`] = gate ? JSON.stringify(gate) : null;
-  }
-  for (let index = 0; index < LIMITS.attachments; index += 1) {
-    const attachment = fields.attachments[index];
-    props[`att${index + 1}`] = attachment ? JSON.stringify(attachment) : null;
-  }
+  const props = privateProps(ccId, fields);
   let range: { start: EventDateTime; end: EventDateTime };
   let recurrence: string[] = [];
   if (fields.tray && !fields.rrule) {
@@ -274,6 +269,87 @@ export function buildEvent(
     },
     block,
   };
+}
+
+/** bb's private properties. Unreadable slots keep their value and unknown record fields are written back. */
+export function privateProps(ccId: string, fields: Fields): Record<string, string | null> {
+  const props: Record<string, string | null> = {
+    ccId,
+    ccv: PROPERTY_VERSION,
+    status: fields.status,
+    format: fields.format,
+    tray: fields.tray,
+    target: fields.target,
+    pos: String(fields.pos),
+  };
+  fillSlots(props, "gate", LIMITS.gates, fields.gates, fields);
+  fillSlots(props, "att", LIMITS.attachments, fields.attachments, fields);
+  return props;
+}
+
+/** The first private property over Google's 1,024-character limit, if any. */
+export function oversizedProperty(ccId: string, fields: Fields): string | null {
+  for (const [key, value] of Object.entries(privateProps(ccId, fields))) if (value !== null && value.length > PROPERTY_MAX) return key;
+  return null;
+}
+
+/** Gate or attachment slots left for bb's records after the ones it keeps unread. */
+export function slotCapacity(fields: Fields, prefix: "gate" | "att"): number {
+  const total = prefix === "gate" ? LIMITS.gates : LIMITS.attachments;
+  return total - Object.keys(fields.keep ?? {}).filter((slot) => slot.startsWith(prefix) && /^\d+$/.test(slot.slice(prefix.length))).length;
+}
+
+function fillSlots(props: Record<string, string | null>, prefix: "gate" | "att", count: number, records: readonly { id: string }[], fields: Fields): void {
+  const keep = fields.keep ?? {};
+  const extra = fields.extra ?? {};
+  let next = 0;
+  for (let index = 1; index <= count; index += 1) {
+    const slot = `${prefix}${index}`;
+    const kept = keep[slot];
+    if (kept !== undefined) {
+      props[slot] = kept;
+      continue;
+    }
+    const record = records[next];
+    next += 1;
+    props[slot] = record ? JSON.stringify({ ...extra[`${prefix}:${record.id}`], ...record }) : null;
+  }
+}
+
+interface RecordSchema {
+  shape: object;
+  safeParse(value: unknown): { success: boolean; data?: unknown };
+}
+
+/** Reads records leniently: unknown fields go to `extra`, unreadable slots to `keep`. */
+function readSlots<T extends { id: string }>(
+  props: Record<string, string>, prefix: "gate" | "att", count: number, options: readonly RecordSchema[],
+  keep: Record<string, string>, extra: Record<string, Record<string, unknown>>,
+): T[] {
+  const records: T[] = [];
+  for (let index = 1; index <= count; index += 1) {
+    const slot = `${prefix}${index}`;
+    const value = props[slot];
+    if (value === undefined || value === "") continue;
+    const json = parseJson(value);
+    let read = false;
+    if (json && typeof json === "object" && !Array.isArray(json)) {
+      for (const option of options) {
+        const known = new Set(Object.keys(option.shape));
+        const entries = Object.entries(json as Record<string, unknown>);
+        const parsed = option.safeParse(Object.fromEntries(entries.filter(([key]) => known.has(key))));
+        if (!parsed.success) continue;
+        const record = parsed.data as T;
+        const unknown = Object.fromEntries(entries.filter(([key]) => !known.has(key)));
+        if (Object.keys(unknown).length) extra[`${prefix}:${record.id}`] = unknown;
+        records.push(record);
+        read = true;
+        break;
+      }
+    }
+    if (!read) keep[slot] = value;
+  }
+  return records;
 }
 
 /** The generated summary at the end of every description. */

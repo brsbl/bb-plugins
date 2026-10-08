@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cellNumber, dayName, dropPlacement, gridWeeks, keyboardStep, parseDirective, parsePullRequest, parseSubPath, placementPos,
+  cellNumber, dayName, isRejected, dropPlacement, gridWeeks, keyboardStep, parseDirective, parsePullRequest, parseSubPath, placementPos,
   rangeLabel, rangeSubPath, samePlace, scheduledBefore, shiftRange, switchView, syncLabel,
 } from "./calendar-layout.js";
 
@@ -105,6 +105,12 @@ describe("details", () => {
     };
     expect(scheduledBefore(item)).toEqual([{ title: "Orchestration blog post", date: "2026-10-28" }]);
     expect(scheduledBefore({ ...item, date: null })).toEqual([]);
+  });
+
+  it("recognizes a write Google rejected", () => {
+    expect(isRejected({ sync: "queued", notice: "Google Calendar rejected this change: Invalid start time." })).toBe(true);
+    expect(isRejected({ sync: "queued", notice: null })).toBe(false);
+    expect(isRejected({ sync: "synced", notice: "Deleted in Google Calendar while you had unsynced changes" })).toBe(false);
   });
 
   it("parses pull request references", () => {

@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { RpcContract } from "./contract.js";
+import type { AttachmentInput, RpcContract } from "./contract.js";
 
 type In<K extends keyof RpcContract> = z.infer<RpcContract[K]["input"]>;
 type Out<K extends keyof RpcContract> = z.infer<RpcContract[K]["output"]>;
@@ -14,7 +14,9 @@ export type CalendarErrorCode =
   | "limit"
   | "calendar_deleted"
   | "calendar_id_required"
-  | "auth_failed";
+  | "auth_failed"
+  /** Google Calendar refused this item's write; it stays queued and retries with backoff. */
+  | "rejected";
 
 export class CalendarError extends Error {
   constructor(
@@ -31,8 +33,11 @@ export class CalendarError extends Error {
 
 /** Calendar operations owned by the sync engine. Host-file methods are wired in server.ts. */
 export type CalendarOperations = {
-  [K in "status" | "calendar" | "list" | "show" | "add" | "update" | "move" | "gateAdd" | "gateClear" | "gateRemove" | "attach" | "detach" | "delete" | "reapply" | "sync" | "export" | "visible" | "connectStart" | "connectFinish" | "disconnect" | "restoreCalendar"]:
+  [K in "status" | "calendar" | "list" | "show" | "add" | "update" | "move" | "gateAdd" | "gateClear" | "gateRemove" | "detach" | "delete" | "reapply" | "sync" | "export" | "visible" | "connectStart" | "connectFinish" | "disconnect" | "restoreCalendar"]:
     (input: In<K>) => Promise<Out<K>>;
+} & {
+  /** Any attachment kind; the RPC accepts links only, and file attachments arrive resolved from server.ts. */
+  attach(input: { id: string; attachment: AttachmentInput }): Promise<Out<"show">>;
 };
 
 /**
@@ -43,7 +48,7 @@ export type CalendarOperations = {
  * otherwise the item resolves with `sync: "conflict"`.
  */
 export interface CalendarService extends CalendarOperations {
-  /** Like the operation, but rejects a same-field conflict instead of returning it. */
+  /** Like the operation, but rejects a same-field conflict (`conflict`) or a write Google refused (`rejected`) instead of returning it. */
   strict: Pick<CalendarOperations, "add" | "update" | "move" | "gateAdd" | "gateClear" | "gateRemove" | "attach" | "detach" | "reapply">;
   /** Look up an item without touching Google (used for file attachments). */
   get(id: string): Promise<Out<"show">>;
@@ -51,6 +56,9 @@ export interface CalendarService extends CalendarOperations {
   tick(): Promise<void>;
   /** Milliseconds until the next tick: 60s while a view is visible, 10 minutes otherwise, sooner while writes wait to retry. */
   nextTickDelay(): number;
+  /** Records that a file on a machine was attached through bb, so it may be opened later. */
+  trustFile(machineId: string, path: string): void;
+  isTrustedFile(machineId: string, path: string): boolean;
   dispose(): void;
 }
 

@@ -124,7 +124,11 @@ describe("connect", () => {
     expect((await noClient.service.status({})).state).toBe("needs_client");
 
     const { service } = setup();
-    expect(await service.list({})).toEqual({ items: [], nextCursor: null });
+    await expect(service.list({})).rejects.toMatchObject({ code: "not_connected" });
+    await expect(service.export({})).rejects.toMatchObject({ code: "not_connected" });
+    await expect(noClient.service.list({})).rejects.toMatchObject({ code: "needs_client" });
+    expect(await service.calendar({ from: "2026-10-05", to: "2026-10-11" }))
+      .toMatchObject({ items: [], evergreen: [], later: [], status: { state: "not_connected" } });
     await expect(service.add({ title: "x", format: null, when: { date: "2026-10-09" } }))
       .rejects.toMatchObject({ code: "not_connected", hint: "Run `bb content-calendar connect`" });
   });
@@ -567,5 +571,99 @@ describe("inserts and repeat rules", () => {
     await service.tick();
     expect(await service.show({ id: item.id })).toMatchObject({ date: "2026-10-20", tray: null });
     expect(google.list()).toHaveLength(1);
+  });
+});
+
+describe("failed writes", () => {
+  it("a row that can't be built doesn't block later rows or the pull", async () => {
+    const { service, google, credentials } = await connected();
+    const a = await service.add({ title: "A", format: "tweet", when: { date: "2026-10-12" } });
+    const b = await service.add({ title: "B", format: "blog", when: { date: "2026-10-13" } });
+
+    const broken = await service.update({ id: a.id, time: "25:00" });
+    expect(broken.sync).toBe("queued");
+    expect(broken.notice).toMatch(/^Couldn't sync this change/);
+    await expect(service.strict.update({ id: a.id, title: "A, again" })).rejects.toMatchObject({ code: "rejected" });
+
+    expect(await service.update({ id: b.id, title: "B edited" })).toMatchObject({ sync: "synced", notice: null });
+    expect(only(google, b.id).summary).toBe("☐ B edited");
+    google.createEvent(credentials().calendarId!, { summary: "Hers", date: "2026-10-16" });
+    await service.tick();
+    expect((await service.list({})).items.map((item) => item.title)).toContain("Hers");
+    expect((await service.status({})).message).toContain("1 change couldn't be saved to Google Calendar");
+  });
+
+  it("refuses a gate too long for one Google Calendar property", async () => {
+    const { service } = await connected();
+    const item = await service.add({ title: "Gated", format: null, when: { date: "2026-10-09" } });
+    const url = `https://example.com/${"a".repeat(870)}`;
+    await expect(service.gateAdd({ id: item.id, gate: { kind: "text", text: "x".repeat(200), url } })).rejects.toMatchObject({ code: "limit" });
+    expect(await service.show({ id: item.id })).toMatchObject({ waitsOn: [], sync: "synced" });
+  });
+
+  it("reports a write Google rejects, retries it with backoff, and fails strict writes", async () => {
+    const { service, google } = await connected();
+    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const patches = () => google.requests.filter((request) => request.method === "PATCH").length;
+
+    google.rejectWrites = 1;
+    const before = patches();
+    const updated = await service.update({ id: item.id, title: "Rejected once" });
+    expect(updated).toMatchObject({ sync: "queued", notice: "Google Calendar rejected this change: Bad Request" });
+    expect(patches()).toBe(before + 1);
+    expect((await service.status({})).message).toContain("1 change couldn't be saved to Google Calendar");
+
+    await service.tick();
+    expect(patches()).toBe(before + 1);
+    expect(service.nextTickDelay()).toBeLessThanOrEqual(60_000);
+
+    clock = new Date(clock.getTime() + 61_000);
+    await service.tick();
+    expect(await service.show({ id: item.id })).toMatchObject({ sync: "synced", notice: null, title: "Rejected once" });
+    expect(only(google, item.id).summary).toBe("☐ Rejected once");
+
+    google.rejectWrites = 1;
+    await expect(service.strict.update({ id: item.id, title: "Strict" })).rejects.toMatchObject({ code: "rejected" });
+  });
+});
+
+describe("records written by other apps", () => {
+  it("keeps unknown record fields and unreadable slots through bb writes", async () => {
+    const { service, google } = await connected();
+    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    const eventId = only(google, item.id).id;
+    google.setPrivate(eventId, "att1", JSON.stringify({ id: "a1", kind: "url", url: "https://example.com/a", future: "keep me" }));
+    google.setPrivate(eventId, "att2", "{not json");
+    await service.tick();
+    expect((await service.show({ id: item.id })).attachments).toEqual([{ id: "a1", kind: "url", url: "https://example.com/a" }]);
+
+    await service.update({ id: item.id, title: "Written by bb" });
+    let props = only(google, item.id).extendedProperties!.private!;
+    expect(JSON.parse(props.att1!)).toMatchObject({ id: "a1", kind: "url", future: "keep me" });
+    expect(props.att2).toBe("{not json");
+    expect(props.ccv).toBe("1");
+
+    await service.attach({ id: item.id, attachment: { kind: "pr", repo: "get-bb/bb", number: 1 } });
+    props = only(google, item.id).extendedProperties!.private!;
+    expect(props.att2).toBe("{not json");
+    expect(JSON.parse(props.att3!)).toMatchObject({ id: "a2", kind: "pr" });
+  });
+
+  it("an event created in Google with a format color gets that format and keeps the color", async () => {
+    const { service, google, credentials } = await connected();
+    const eventId = google.createEvent(credentials().calendarId!, { summary: "Blog idea", date: "2026-10-16", colorId: "10" });
+    await service.tick();
+    expect((await service.list({})).items[0]).toMatchObject({ title: "Blog idea", format: "blog", status: "idea" });
+    expect(google.event(eventId)).toMatchObject({ summary: "☐ Blog idea", colorId: "10" });
+  });
+});
+
+describe("trusted files", () => {
+  it("remembers files attached through bb", async () => {
+    const { service } = setup();
+    service.trustFile("mac-1", "/Users/brsbl/Moss/Notes/Draft/Draft.md");
+    service.trustFile("mac-1", "/Users/brsbl/Moss/Notes/Draft/Draft.md");
+    expect(service.isTrustedFile("mac-1", "/Users/brsbl/Moss/Notes/Draft/Draft.md")).toBe(true);
+    expect(service.isTrustedFile("mac-2", "/Users/brsbl/Moss/Notes/Draft/Draft.md")).toBe(false);
   });
 });

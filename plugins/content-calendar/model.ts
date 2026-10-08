@@ -44,7 +44,7 @@ export const LIMITS = {
 
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date").refine(validDate, "Not a real date");
 export const isoMonth = z.string().regex(/^\d{4}-\d{2}$/, "Use a YYYY-MM month");
-export const clockTime = z.string().regex(/^\d{2}:\d{2}$/, "Use HH:MM");
+export const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM between 00:00 and 23:59");
 export const itemId = z.string().regex(/^cc_[a-z0-9]{4,32}$/, "Item IDs look like cc_7k2m9q");
 export const formatSchema = z.enum(FORMATS);
 export const statusSchema = z.enum(STATUSES);

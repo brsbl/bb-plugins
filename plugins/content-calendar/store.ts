@@ -29,6 +29,11 @@ export const MIGRATIONS = [
   "CREATE TABLE cc_deleted_events (event_id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL)",
   "ALTER TABLE cc_items ADD COLUMN raw TEXT",
   "ALTER TABLE cc_items ADD COLUMN client_id TEXT",
+  "ALTER TABLE cc_items ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE cc_items ADD COLUMN retry_at TEXT",
+  "ALTER TABLE cc_items ADD COLUMN failed TEXT",
+  "CREATE INDEX IF NOT EXISTS cc_items_client ON cc_items (client_id) WHERE event_id IS NULL",
+  "CREATE TABLE cc_trusted_files (machine_id TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY (machine_id, path))",
 ];
 
 /** One cached item and its event. `base` is the last version read from or confirmed by Google. */
@@ -53,6 +58,12 @@ export interface Row {
   raw: string | null;
   /** The event ID bb inserts with, so a retried insert finds the first one. */
   clientId: string | null;
+  /** Failed pushes in a row; drives the retry backoff. */
+  attempts: number;
+  /** Not retried before this time. */
+  retryAt: string | null;
+  /** Why the last push failed (Google refused it, or bb couldn't build it). */
+  failed: string | null;
   seriesStart: string | null;
   conflict: Conflict | null;
   /** bb's losing unit values, written back by reapply. */
@@ -75,6 +86,9 @@ interface RawRow {
   block: string | null;
   raw: string | null;
   client_id: string | null;
+  attempts: number;
+  retry_at: string | null;
+  failed: string | null;
   series_start: string | null;
   conflict: string | null;
   lost: string | null;
@@ -97,6 +111,9 @@ function fromRaw(raw: RawRow): Row {
     block: raw.block,
     raw: raw.raw,
     clientId: raw.client_id,
+    attempts: raw.attempts,
+    retryAt: raw.retry_at,
+    failed: raw.failed,
     seriesStart: raw.series_start,
     conflict: raw.conflict ? (JSON.parse(raw.conflict) as Conflict) : null,
     lost: raw.lost ? (JSON.parse(raw.lost) as Partial<Fields>) : null,
@@ -104,6 +121,11 @@ function fromRaw(raw: RawRow): Row {
     updatedAt: raw.updated_at,
   };
 }
+
+/** A row for reading: everything but Google's raw description. It can't be written back. */
+export type ItemRow = Omit<Row, "raw">;
+
+const ITEM_COLUMNS = "cc_id, event_id, etag, created, fields, base, dirty, rewrite, seq, deleted, block, NULL AS raw, client_id, attempts, retry_at, failed, series_start, conflict, lost, notice, updated_at";
 
 export type Store = ReturnType<typeof createStore>;
 
@@ -113,14 +135,25 @@ export function createStore(db: Db, migrate: ServiceDeps["migrate"]) {
   const byId = db.prepare(`${select} WHERE cc_id = ?`);
   const byEvent = db.prepare(`${select} WHERE event_id = ?`);
   const all = db.prepare(`${select} ORDER BY cc_id`);
+  const liveItems = db.prepare(`SELECT ${ITEM_COLUMNS} FROM cc_items WHERE deleted = 0 ORDER BY cc_id`);
+  const liveItem = db.prepare(`SELECT ${ITEM_COLUMNS} FROM cc_items WHERE cc_id = ? AND deleted = 0`);
+  const counts = db.prepare(`SELECT
+    COUNT(seq) AS queued,
+    COALESCE(SUM(conflict IS NOT NULL AND deleted = 0), 0) AS conflicts,
+    COALESCE(SUM(failed IS NOT NULL AND seq IS NOT NULL), 0) AS failed,
+    MIN(CASE WHEN seq IS NOT NULL THEN retry_at END) AS nextRetry
+    FROM cc_items`);
+  const trustAdd = db.prepare("INSERT OR IGNORE INTO cc_trusted_files (machine_id, path) VALUES (?, ?)");
+  const trustHas = db.prepare("SELECT 1 FROM cc_trusted_files WHERE machine_id = ? AND path = ?");
   const byClient = db.prepare(`${select} WHERE client_id = ? AND event_id IS NULL`);
   const queue = db.prepare(`${select} WHERE seq IS NOT NULL ORDER BY seq`);
   const upsert = db.prepare(`INSERT INTO cc_items
-    (cc_id, event_id, etag, created, fields, base, dirty, rewrite, seq, deleted, block, raw, client_id, series_start, conflict, lost, notice, updated_at)
-    VALUES (@cc_id, @event_id, @etag, @created, @fields, @base, @dirty, @rewrite, @seq, @deleted, @block, @raw, @client_id, @series_start, @conflict, @lost, @notice, @updated_at)
+    (cc_id, event_id, etag, created, fields, base, dirty, rewrite, seq, deleted, block, raw, client_id, attempts, retry_at, failed, series_start, conflict, lost, notice, updated_at)
+    VALUES (@cc_id, @event_id, @etag, @created, @fields, @base, @dirty, @rewrite, @seq, @deleted, @block, @raw, @client_id, @attempts, @retry_at, @failed, @series_start, @conflict, @lost, @notice, @updated_at)
     ON CONFLICT (cc_id) DO UPDATE SET event_id = excluded.event_id, etag = excluded.etag, created = excluded.created,
       fields = excluded.fields, base = excluded.base, dirty = excluded.dirty, rewrite = excluded.rewrite, seq = excluded.seq,
-      deleted = excluded.deleted, block = excluded.block, raw = excluded.raw, client_id = excluded.client_id, series_start = excluded.series_start, conflict = excluded.conflict,
+      deleted = excluded.deleted, block = excluded.block, raw = excluded.raw, client_id = excluded.client_id,
+      attempts = excluded.attempts, retry_at = excluded.retry_at, failed = excluded.failed, series_start = excluded.series_start, conflict = excluded.conflict,
       lost = excluded.lost, notice = excluded.notice, updated_at = excluded.updated_at`);
   const remove = db.prepare("DELETE FROM cc_items WHERE cc_id = ?");
   const rename = db.prepare("UPDATE cc_items SET cc_id = ? WHERE cc_id = ?");
@@ -162,6 +195,23 @@ export function createStore(db: Db, migrate: ServiceDeps["migrate"]) {
     rows(): Row[] {
       return (all.all() as RawRow[]).map(fromRaw);
     },
+    /** Live items for reads, without Google's raw descriptions. */
+    items(): ItemRow[] {
+      return (liveItems.all() as RawRow[]).map(fromRaw);
+    },
+    item(ccId: string): ItemRow | null {
+      const raw = liveItem.get(ccId) as RawRow | undefined;
+      return raw ? fromRaw(raw) : null;
+    },
+    counts(): { queued: number; conflicts: number; failed: number; nextRetry: string | null } {
+      return counts.get() as { queued: number; conflicts: number; failed: number; nextRetry: string | null };
+    },
+    trustFile(machineId: string, path: string): void {
+      trustAdd.run(machineId, path);
+    },
+    isTrustedFile(machineId: string, path: string): boolean {
+      return trustHas.get(machineId, path) !== undefined;
+    },
     queued(): Row[] {
       return (queue.all() as RawRow[]).map(fromRaw);
     },
@@ -180,6 +230,9 @@ export function createStore(db: Db, migrate: ServiceDeps["migrate"]) {
         block: row.block,
         raw: row.raw,
         client_id: row.clientId,
+        attempts: row.attempts,
+        retry_at: row.retryAt,
+        failed: row.failed,
         series_start: row.seriesStart,
         conflict: row.conflict ? JSON.stringify(row.conflict) : null,
         lost: row.lost ? JSON.stringify(row.lost) : null,

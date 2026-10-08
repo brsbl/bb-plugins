@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { clockTime } from "./model.js";
 import {
-  BLOCK_HEADER, TRAY_RULE, buildEvent, changedUnits, htmlToText, looksLikeEditorHtml, parseEvent, renderBlock, spliceBlock,
+  BLOCK_HEADER, TRAY_RULE, buildEvent, changedUnits, htmlToText, looksLikeEditorHtml, oversizedProperty, parseEvent, privateProps, renderBlock, spliceBlock,
   splitDescription,
   type EventDateTime, type Fields, type GoogleEvent,
 } from "./mapping.js";
@@ -206,5 +207,32 @@ describe("description writes", () => {
   it("writes bb's notes when her notes changed in bb", () => {
     const { body } = buildEvent("cc_7k2m9q", changed, MONDAY, noTitles, { raw: "<p>old</p>", block, notesDirty: true }, false);
     expect(body.description).toBe(`${changed.notes}\n\n${newBlock}`);
+  });
+});
+
+describe("clockTime", () => {
+  it("accepts only real times of day", () => {
+    expect(["00:00", "09:30", "23:59"].map((value) => clockTime.safeParse(value).success)).toEqual([true, true, true]);
+    expect(["24:00", "25:00", "12:60", "9:30"].map((value) => clockTime.safeParse(value).success)).toEqual([false, false, false, false]);
+  });
+});
+
+describe("private property limits", () => {
+  it("finds a record over Google's 1,024-character limit", () => {
+    const url = `https://example.com/${"a".repeat(870)}`;
+    expect(oversizedProperty("cc_7k2m9q", fields())).toBeNull();
+    expect(oversizedProperty("cc_7k2m9q", fields({ gates: [{ id: "g1", kind: "text", text: "x".repeat(200), url, cleared: false }] }))).toBe("gate1");
+  });
+
+  it("parses records leniently and writes them back as found", () => {
+    const { event } = asEvent("ev1", "cc_7k2m9q", fields());
+    const props = { ...event.extendedProperties!.private!, gate1: JSON.stringify({ id: "g1", kind: "pr", repo: "get-bb/bb", number: 1, cleared: true, by: "app" }), gate2: "{broken" };
+    const parsed = parseEvent({ ...event, extendedProperties: { private: props } }, []);
+    expect(parsed.fields.gates).toEqual([{ id: "g1", kind: "pr", repo: "get-bb/bb", number: 1, cleared: true }]);
+    const written = privateProps("cc_7k2m9q", parsed.fields);
+    expect(JSON.parse(written.gate1!)).toEqual({ id: "g1", kind: "pr", repo: "get-bb/bb", number: 1, cleared: true, by: "app" });
+    expect(written.gate2).toBe("{broken");
+    expect(written.gate3).toBeNull();
+    expect(written.ccv).toBe("1");
   });
 });

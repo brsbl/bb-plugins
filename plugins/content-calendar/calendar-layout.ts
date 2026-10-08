@@ -235,3 +235,8 @@ export function whereLabel(item: Pick<Item, "date" | "tray">): string {
   if (item.date) return dayName(item.date);
   return item.tray === "evergreen" ? "Evergreen" : "Later";
 }
+
+/** The server keeps a write Google refused queued and says so in `notice`. */
+export function isRejected(item: Pick<Item, "notice" | "sync">): boolean {
+  return item.sync !== "synced" && !!item.notice && /^Google Calendar rejected/i.test(item.notice);
+}

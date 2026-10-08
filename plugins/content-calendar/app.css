@@ -108,6 +108,7 @@ textarea.cc-input { height: auto; }
 .cc-item-text { min-width: 0; flex: 1; }
 .cc-item-title { display: -webkit-box; overflow: hidden; font-weight: 500; overflow-wrap: break-word; hyphens: auto; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .cc-item-meta { display: -webkit-box; overflow: hidden; color: var(--muted-foreground); font-size: 11px; overflow-wrap: break-word; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cc-item-flag { overflow: hidden; color: var(--destructive-text, var(--destructive)); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 .cc-item-extra { margin-top: 3px; overflow: hidden; color: var(--muted-foreground); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 .cc-item-more { position: absolute; top: 2px; right: 2px; visibility: hidden; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 4px; background: var(--cc-hover); color: var(--muted-foreground); font: inherit; font-size: 12px; line-height: 1; cursor: pointer; }
 .cc-item:hover .cc-item-more, .cc-item:focus-within .cc-item-more { visibility: visible; }
@@ -168,6 +169,8 @@ textarea.cc-input { height: auto; }
 .cc-notice { margin: 8px 14px; color: var(--muted-foreground); font-size: 12px; }
 .cc-section .cc-notice { margin: 4px 4px 0; }
 .cc-notice-warn { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--warning-text, var(--cc-essay)); }
+.cc-notice-error { padding: 8px 10px; border: 1px solid color-mix(in oklab, var(--destructive) 40%, var(--border)); border-radius: 8px; background: color-mix(in oklab, var(--destructive) 6%, transparent); color: var(--destructive-text, var(--destructive)); }
+.cc-foot-error { color: var(--destructive-text, var(--destructive)); }
 .cc-detail > .cc-error { margin: 6px 14px; }
 .cc-inline-form, .cc-picker { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
 .cc-results { max-height: 180px; overflow: auto; }

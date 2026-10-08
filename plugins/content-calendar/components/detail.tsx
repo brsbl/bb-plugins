@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { LIMITS, STAGE_LABELS, TRAY_LABELS, todayInCalendar, type Attachment, type Format, type Gate, type Item, type Tray } from "../model.js";
 import type { GateInput, UpdateInput } from "../contract.js";
-import { parsePullRequest, scheduledBefore, shortDate } from "../calendar-layout.js";
+import { isDate, isRejected, parsePullRequest, scheduledBefore, shortDate } from "../calendar-layout.js";
 import { readableError, useCalendarRpc, useDeferredDelete, useLiveReload, type When } from "./data.js";
 import { FormatSelect, MoveTo } from "./board.js";
 import { Popover, usePopover } from "./popover.js";
@@ -12,12 +12,29 @@ import { FilePicker } from "./file-picker.js";
 type FileState = "available" | "missing" | "offline";
 type Machines = { id: string; name: string; connected: boolean }[];
 
-/** Edits a field locally and saves it on blur or Enter; outside edits replace it unless it is being edited. */
-function useDraft(value: string) {
+/**
+ * Edits a field locally and saves it on blur or Enter. The value at focus is
+ * remembered, and blur commits only when the draft differs from it, so an
+ * outside update that lands while the field is focused is never written back.
+ */
+export function useDraft(value: string) {
   const [draft, setDraft] = useState(value);
-  const editing = useRef(false);
-  useEffect(() => { if (!editing.current) setDraft(value); }, [value]);
-  return { draft, setDraft, editing };
+  const base = useRef<string | null>(null);
+  const latest = useRef(value); latest.current = value;
+  useEffect(() => { if (base.current === null) setDraft(value); }, [value]);
+  return {
+    draft,
+    setDraft,
+    onFocus: () => { if (base.current === null) base.current = draft; },
+    /** Ends the edit: the draft when she changed it, otherwise null (and the field shows the latest value). */
+    finish: (): string | null => {
+      const start = base.current ?? latest.current;
+      base.current = null;
+      if (draft === start) { setDraft(latest.current); return null; }
+      return draft;
+    },
+    reset: () => { base.current = null; setDraft(latest.current); },
+  };
 }
 
 /**
@@ -93,24 +110,35 @@ function DetailBody({ item, error, onDismissError, onClose, update, move, act, r
   const title = useDraft(item.title);
   const target = useDraft(item.target ?? "");
   const notes = useDraft(item.notes);
+  const date = useDraft(item.date ?? "");
   const menu = usePopover<"menu" | "move">();
   const posted = item.status === "posted";
   const id = item.id;
   const commitTitle = () => {
-    title.editing.current = false;
-    const value = title.draft.trim();
+    const edited = title.finish();
+    if (edited === null) return;
+    const value = edited.trim();
     if (!value) { title.setDraft(item.title); return; }
     if (value !== item.title) void update({ title: value }, { title: value });
   };
   const commitTarget = () => {
-    target.editing.current = false;
-    const value = target.draft.trim();
+    const edited = target.finish();
+    if (edited === null) return;
+    const value = edited.trim();
     if (value !== (item.target ?? "")) void update({ target: value || null }, { target: value || null });
   };
   const commitNotes = () => {
-    notes.editing.current = false;
-    if (notes.draft !== item.notes) void update({ notes: notes.draft }, { notes: notes.draft });
+    const edited = notes.finish();
+    if (edited !== null && edited !== item.notes) void update({ notes: edited }, { notes: edited });
   };
+  // The date saves on blur or Enter, so typing it digit by digit moves the item once.
+  const commitDate = () => {
+    const edited = date.finish();
+    if (edited === null) return;
+    if (!isDate(edited)) { date.setDraft(item.date ?? ""); return; }
+    if (edited !== item.date) void move({ date: edited });
+  };
+  const rejected = isRejected(item);
   const whenMode = item.tray ?? "date";
   const before = scheduledBefore(item);
 
@@ -119,25 +147,28 @@ function DetailBody({ item, error, onDismissError, onClose, update, move, act, r
       <input type="checkbox" className="cc-check cc-check-large" aria-label="Posted" checked={posted}
         onChange={(event) => void update({ status: event.target.checked ? "posted" : "ready" }, { status: event.target.checked ? "posted" : "ready" })} />
       <input className="cc-title-input" aria-label="Title" value={title.draft} maxLength={LIMITS.title}
-        onFocus={() => { title.editing.current = true; }} onChange={(event) => title.setDraft(event.target.value)} onBlur={commitTitle}
+        onFocus={title.onFocus} onChange={(event) => title.setDraft(event.target.value)} onBlur={commitTitle}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
-          if (event.key === "Escape") { title.setDraft(item.title); title.editing.current = false; }
+          if (event.key === "Escape") title.reset();
         }} />
-      <button type="button" className="cc-icon-button" aria-label="More" aria-haspopup="dialog" onClick={(event) => menu.toggle("menu", event.currentTarget)}>⋯</button>
+      <button type="button" className="cc-icon-button" aria-label="More" aria-haspopup="menu" aria-expanded={menu.open?.kind === "menu"} onClick={(event) => menu.toggle("menu", event.currentTarget)}>⋯</button>
       {onClose && <button type="button" className="cc-icon-button" aria-label="Close" onClick={onClose}>×</button>}
     </div>
-    {menu.open && <Popover anchor={menu.open.anchor} onClose={menu.close} align="end" width={menu.open.kind === "move" ? 260 : 190} label={menu.open.kind === "move" ? `Move ${item.title}` : `Actions for ${item.title}`}>
+    {menu.open && <Popover anchor={menu.open.anchor} onClose={menu.close} align="end" width={menu.open.kind === "move" ? 260 : 190} label={menu.open.kind === "move" ? `Move ${item.title}` : `Actions for ${item.title}`}
+      role={menu.open.kind === "menu" ? "menu" : "dialog"}>
       {menu.open.kind === "menu" ? <div className="cc-menu">
-        <button type="button" onClick={() => menu.show("move", menu.open!.anchor)}>Move to…</button>
-        <button type="button" className="cc-danger" onClick={() => { menu.close(); remove(item); }}>Delete</button>
+        <button type="button" role="menuitem" onClick={() => menu.show("move", menu.open!.anchor)}>Move to…</button>
+        <button type="button" role="menuitem" className="cc-danger" onClick={() => { menu.close(); remove(item); }}>Delete</button>
       </div> : <MoveTo item={item} onMove={(when) => { menu.close(); void move(when); }} />}
     </Popover>}
     {item.conflict && <div className="cc-notice cc-notice-warn" role="alert">
       <span>{item.conflict.message || `Changed in Google Calendar; your ${item.conflict.fields.join(", ")} change wasn't applied`}</span>
       <button type="button" className="cc-button" onClick={() => void act(() => rpc.call("reapply", { id }))}>Reapply</button>
     </div>}
-    {item.notice && <p className="cc-notice">{item.notice}</p>}
+    {item.notice && (rejected
+      ? <p className="cc-notice cc-notice-error" role="alert">{item.notice}</p>
+      : <p className="cc-notice">{item.notice}</p>)}
     {error && <p className="cc-error" role="alert">{error} <button type="button" className="cc-link" onClick={onDismissError}>Dismiss</button></p>}
     <div className="cc-rows">
       <div className="cc-field">
@@ -165,7 +196,9 @@ function DetailBody({ item, error, onDismissError, onClose, update, move, act, r
             <option value="evergreen">{TRAY_LABELS.evergreen}</option>
             <option value="later">{TRAY_LABELS.later}</option>
           </select>
-          {item.date && <input type="date" className="cc-input" aria-label="Date" value={item.date} onChange={(event) => { if (event.target.value) void move({ date: event.target.value }); }} />}
+          {item.date && <input type="date" className="cc-input" aria-label="Date" value={date.draft}
+            onFocus={date.onFocus} onChange={(event) => date.setDraft(event.target.value)} onBlur={commitDate}
+            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") date.reset(); }} />}
           {item.days > 1 && <span className="cc-muted">{item.days} days</span>}
         </span>
       </div>
@@ -179,7 +212,7 @@ function DetailBody({ item, error, onDismissError, onClose, update, move, act, r
       <div className="cc-field">
         <label htmlFor={`cc-target-${id}`}>Target</label>
         <input id={`cc-target-${id}`} className="cc-input" value={target.draft} maxLength={LIMITS.target} placeholder="Add a target"
-          onFocus={() => { target.editing.current = true; }} onChange={(event) => target.setDraft(event.target.value)} onBlur={commitTarget}
+          onFocus={target.onFocus} onChange={(event) => target.setDraft(event.target.value)} onBlur={commitTarget}
           onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
       </div>
     </div>
@@ -188,10 +221,11 @@ function DetailBody({ item, error, onDismissError, onClose, update, move, act, r
     <section className="cc-section">
       <h3><label htmlFor={`cc-notes-${id}`}>Notes</label></h3>
       <textarea id={`cc-notes-${id}`} className="cc-input cc-notes" value={notes.draft} maxLength={LIMITS.notes}
-        onFocus={() => { notes.editing.current = true; }} onChange={(event) => notes.setDraft(event.target.value)} onBlur={commitNotes} />
+        onFocus={notes.onFocus} onChange={(event) => notes.setDraft(event.target.value)} onBlur={commitNotes} />
     </section>
     <footer className="cc-detail-foot">
-      {item.sync === "queued" ? <span><i className="cc-dot cc-dot-warn" aria-hidden="true" />Not synced yet</span>
+      {rejected ? <span className="cc-foot-error"><i className="cc-dot cc-dot-error" aria-hidden="true" />Not saved to Google Calendar</span>
+        : item.sync === "queued" ? <span><i className="cc-dot cc-dot-warn" aria-hidden="true" />Not synced yet</span>
         : item.sync === "conflict" ? <span><i className="cc-dot cc-dot-warn" aria-hidden="true" />Google Calendar kept its change</span>
         : <span><i className="cc-dot cc-dot-ok" aria-hidden="true" />Saved to Google Calendar</span>}
     </footer>
@@ -318,9 +352,9 @@ function Attachments({ item, act, open }: { item: Item; act: (run: () => Promise
     : attachment.kind === "url" ? attachment.title || attachment.url
       : attachment.kind === "pr" ? `${attachment.repo} #${attachment.number}` : attachment.title || attachment.threadId;
   const full = item.attachments.length >= LIMITS.attachments;
-  return <Section title="Attachments" action={!full && <button type="button" className="cc-text-button" aria-haspopup="dialog" onClick={(event) => menu.toggle("attach", event.currentTarget)}>Attach</button>}>
-    {menu.open && <Popover anchor={menu.open.anchor} onClose={menu.close} align="end" width={180} label="Attach">
-      <div className="cc-menu">{(Object.keys(ATTACH_LABELS) as AttachMode[]).map((kind) => <button key={kind} type="button" onClick={() => { setMode(kind); menu.close(); }}>{ATTACH_LABELS[kind]}</button>)}</div>
+  return <Section title="Attachments" action={!full && <button type="button" className="cc-text-button" aria-haspopup="menu" aria-expanded={!!menu.open} onClick={(event) => menu.toggle("attach", event.currentTarget)}>Attach</button>}>
+    {menu.open && <Popover anchor={menu.open.anchor} onClose={menu.close} align="end" width={180} label="Attach" role="menu">
+      <div className="cc-menu">{(Object.keys(ATTACH_LABELS) as AttachMode[]).map((kind) => <button key={kind} type="button" role="menuitem" onClick={() => { setMode(kind); menu.close(); }}>{ATTACH_LABELS[kind]}</button>)}</div>
     </Popover>}
     {item.attachments.length === 0 && !mode && <p className="cc-empty-line">Attach Moss notes, links, pull requests, or bb threads.</p>}
     {item.attachments.map((attachment) => {

@@ -76,6 +76,8 @@ cc_7k2m9q  2026-10-28  ☐ Orchestration blog post  (bb blog post · Ready)
 - If Google kept a same-field change made elsewhere, the command **exits non-zero with code
   `conflict`** and names the fields. The write did not happen. Tell the user, and run
   `reapply <id>` only if they want bb's value.
+- If Google refuses a write outright, the command **exits non-zero with code `rejected`**.
+  Nothing changed in Google. Run `show <id>` to see the current item before retrying.
 - A queued write that later conflicts shows `"sync": "conflict"` in `list`, `show`, and `status`.
 - `not_connected` or `needs_client` means Google isn't set up; follow the setup below.
 
@@ -87,6 +89,8 @@ The user does steps 1–6 in their browser; never ask them to paste the client s
 2. **APIs & Services → Library:** enable the **Google Calendar API**.
 3. **OAuth consent screen:** user type **External**. Set the publishing status to
    **In production**, not Testing; Google expires refresh tokens after 7 days in Testing.
+   With a Google Workspace account, choose **Internal** instead: it skips both the
+   unverified-app warning and the 7-day token expiry.
 4. Add the scope `https://www.googleapis.com/auth/calendar.app.created`, and no other.
    It lets bb create and edit only its own calendar.
 5. **Credentials → Create credentials → OAuth client ID**, application type **Desktop app**.
@@ -94,7 +98,7 @@ The user does steps 1–6 in their browser; never ask them to paste the client s
    `bb content-calendar connect` in a thread: it shows a masked form that saves them straight
    to secret settings, and the values never pass through the agent.
 7. `bb content-calendar connect` prints Google's sign-in address. The user opens it and approves.
-   Google shows a one-time "unverified app" warning for a personal client; continue past it.
+   With an External consent screen, Google shows a one-time "unverified app" warning; continue past it.
 8. The browser lands on a `127.0.0.1` address that doesn't load. The user copies that whole
    address, and you run `bb content-calendar connect --paste '<url>'`.
 

@@ -38,6 +38,8 @@ export class FakeGoogle {
   loseResponses = 0;
   /** PATCH with `recurrence: []` leaves the repeat rule in place. */
   ignoreEmptyRecurrence = false;
+  /** The next N event inserts or patches answer 400, as Google does for a body it won't accept. */
+  rejectWrites = 0;
   private readonly events = new Map<string, StoredEvent>();
   private readonly codes = new Map<string, { challenge: string; scope: string; clientId: string }>();
   private readonly refreshTokens = new Set<string>();
@@ -132,6 +134,16 @@ export class FakeGoogle {
     this.edit(id, (event) => {
       if (colorId === null) delete event.colorId;
       else event.colorId = colorId;
+    });
+  }
+
+  /** Another app writes a private property (or removes it with `null`). */
+  setPrivate(id: string, key: string, value: string | null): void {
+    this.edit(id, (event) => {
+      const props = { ...(event.extendedProperties?.private ?? {}) };
+      if (value === null) delete props[key];
+      else props[key] = value;
+      event.extendedProperties = { ...event.extendedProperties, private: props };
     });
   }
 
@@ -342,21 +354,31 @@ export class FakeGoogle {
       if (this.events.has(requested)) return error(409, "The requested identifier already exists.");
       id = requested;
     }
+    if (this.rejectWrites > 0) {
+      this.rejectWrites -= 1;
+      return error(400, "Bad Request");
+    }
     const event: StoredEvent = { id, calendarId, seq: 0, status: "confirmed" };
     applyPatch(event, body);
     if (!validWhen(event)) return error(400, "Invalid start or end");
+    if (oversized(event)) return error(400, "Extended property value too long");
     this.stamp(event, true);
     this.events.set(event.id, event);
     return json(200, publicEvent(event));
   }
 
   private patchEvent(event: StoredEvent, body: Json): Response {
+    if (this.rejectWrites > 0) {
+      this.rejectWrites -= 1;
+      return error(400, "Bad Request");
+    }
     const draft = structuredClone(event);
     const hadRule = (draft.recurrence ?? []).length > 0;
     const recurrence = body.recurrence;
     const ignored = this.ignoreEmptyRecurrence && Array.isArray(recurrence) && recurrence.length === 0;
     applyPatch(draft, ignored ? Object.fromEntries(Object.entries(body).filter(([key]) => key !== "recurrence")) : body);
     if (!validWhen(draft)) return error(400, "Invalid start or end");
+    if (oversized(draft)) return error(400, "Extended property value too long");
     this.events.set(event.id, draft);
     this.stamp(draft);
     if (hadRule && !(draft.recurrence ?? []).length) this.cancelExceptions(draft.id);
@@ -392,6 +414,11 @@ function applyPatch(event: StoredEvent, body: Json): void {
       target[key] = structuredClone(value);
     }
   }
+}
+
+/** Google caps each private property value at 1,024 characters. */
+function oversized(event: StoredEvent): boolean {
+  return Object.values(event.extendedProperties?.private ?? {}).some((value) => value.length > 1024);
 }
 
 function validWhen(event: StoredEvent): boolean {

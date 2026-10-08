@@ -1,6 +1,4 @@
 import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
-import { createHash } from "node:crypto";
-import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "./model.js";
 import { CalendarError, type ServiceDeps } from "./service-api.js";
@@ -21,6 +19,7 @@ const status = { state: "synced", calendarId: "cal", lastSyncedAt: null, queued:
 
 function makeService() {
   const write = () => vi.fn(async (_input: unknown) => item());
+  const trusted = new Set<string>();
   const strict = { add: write(), update: write(), move: write(), gateAdd: write(), gateClear: write(), gateRemove: write(), attach: write(), detach: write(), reapply: write() };
   return {
     ...strict, strict,
@@ -30,6 +29,9 @@ function makeService() {
     list: vi.fn(async (_input: unknown) => ({ items: [item(), item({ id: "cc_tray01", date: null, tray: "later", format: null, status: "idea" })], nextCursor: null })),
     show: vi.fn(async () => item()), get: vi.fn(async (_id: string) => item()),
     calendar: vi.fn(), delete: vi.fn(async () => ({ deleted: true })), export: vi.fn(async () => ({ exportedAt: "2026-10-07T00:00:00.000Z", items: [item()] })),
+    // The engine's record of files attached through bb, keyed by machine and canonical path.
+    trustFile: vi.fn(async (machineId: string, path: string) => { trusted.add(`${machineId}\0${path}`); }),
+    isTrustedFile: vi.fn(async (machineId: string, path: string) => trusted.has(`${machineId}\0${path}`)),
     visible: vi.fn(async () => ({ ok: true })), tick: vi.fn(async () => undefined), nextTickDelay: vi.fn(() => 600_000), dispose: vi.fn(),
   };
 }
@@ -39,11 +41,8 @@ const disposers: Array<() => Promise<void>> = [];
 beforeEach(() => { service = makeService(); state.service = service; });
 afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); });
 
-let current: BbPluginApi;
-/** Records a file as attached through bb, which openAttachment and inspectFiles require. */
-const trust = (machineId: string, path: string) =>
-  current.storage.kv.set(`attached-file:${createHash("sha256").update(`${machineId}\0${path}`).digest("hex")}`, true);
-const trustAll = async (list: Item["attachments"]) => { for (const entry of list) if (entry.kind === "file") await trust(entry.machineId, entry.path); };
+/** Records files as attached through bb, which openAttachment and inspectFiles require. */
+const trustAll = async (list: Item["attachments"]) => { for (const entry of list) if (entry.kind === "file") await service.trustFile(entry.machineId, entry.path); };
 
 function setup(options: { settings?: Record<string, string>; openInMoss?: boolean } = {}) {
   const { bb, harness } = createFakePluginHost({
@@ -62,7 +61,6 @@ function setup(options: { settings?: Record<string, string>; openInMoss?: boolea
     },
   });
   plugin(bb);
-  current = bb;
   disposers.push(() => harness.lifecycle.dispose());
   return harness;
 }
@@ -118,6 +116,50 @@ describe("content-calendar CLI", () => {
     expect(JSON.parse(result.stdout ?? "")).toMatchObject({ ok: false, error: { code: "not_connected", message: "Google Calendar isn't connected.", hint: "Run `bb content-calendar connect`." } });
   });
 
+  it("exits non-zero with code rejected when Google refuses a write", async () => {
+    const h = setup();
+    service.strict.update.mockRejectedValueOnce(new CalendarError("rejected", "Google Calendar refused this change."));
+    const result = await cli(h, ["update", "cc_abc123", "--title", "New title", "--json"]);
+    expect(result.exitCode).not.toBe(0);
+    const { error } = JSON.parse(result.stdout ?? "");
+    expect(error).toMatchObject({ code: "rejected", message: "Google Calendar refused this change." });
+    expect(error.hint).toContain("bb content-calendar show");
+  });
+
+  it("passes not_connected and needs_client through list and export", async () => {
+    const h = setup();
+    service.list.mockRejectedValueOnce(new CalendarError("needs_client", "No Google OAuth client is saved.", "Save one in Settings → Content Calendar."));
+    const listed = await cli(h, ["list", "--json"]);
+    expect(listed.exitCode).not.toBe(0);
+    expect(JSON.parse(listed.stdout ?? "")).toMatchObject({ ok: false, error: { code: "needs_client" } });
+    service.export.mockRejectedValueOnce(new CalendarError("not_connected", "Google Calendar isn't connected.", "Run `bb content-calendar connect`."));
+    const exported = await cli(h, ["export", "--json"]);
+    expect(exported.exitCode).not.toBe(0);
+    expect(JSON.parse(exported.stdout ?? "")).toMatchObject({ ok: false, error: { code: "not_connected", hint: "Run `bb content-calendar connect`." } });
+  });
+
+  it("validates --time against the contract before writing", async () => {
+    const h = setup();
+    for (const time of ["25:00", "9:30", "12:60"]) {
+      const result = await cli(h, ["update", "cc_abc123", "--time", time, "--json"]);
+      expect(result.exitCode, time).not.toBe(0);
+      expect(JSON.parse(result.stdout ?? "")).toMatchObject({ ok: false, error: { code: "invalid" } });
+    }
+    expect(service.strict.update).not.toHaveBeenCalled();
+    await cli(h, ["update", "cc_abc123", "--time", "09:30"]);
+    await cli(h, ["update", "cc_abc123", "--time", "none"]);
+    expect(service.strict.update.mock.calls.map(([input]) => input)).toEqual([{ id: "cc_abc123", time: "09:30" }, { id: "cc_abc123", time: null }]);
+  });
+
+  it("accepts only links, PRs, and threads through the attach RPC", async () => {
+    const h = setup();
+    await expect(h.behavior.callRpc("attach", { id: "cc_abc123", attachment: { kind: "file", machineId: "mac", path: "/etc/passwd", name: "passwd" } })).rejects.toThrow();
+    expect(service.attach).not.toHaveBeenCalled();
+    expect(service.trustFile).not.toHaveBeenCalled();
+    await h.behavior.callRpc("attach", { id: "cc_abc123", attachment: { kind: "pr", repo: "get-bb/bb", number: 4772 } });
+    expect(service.attach).toHaveBeenCalledWith({ id: "cc_abc123", attachment: { kind: "pr", repo: "get-bb/bb", number: 4772 } });
+  });
+
   it("prints the inline directive with the week normalized to Monday", async () => {
     const h = setup();
     const week = await cli(h, ["view", "--week", "2026-10-07"]);
@@ -133,6 +175,7 @@ describe("content-calendar CLI", () => {
     expect(result.exitCode).toBe(0);
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "mac", input: { path: "notes/Draft.md", cwd: "/Users/me/project" } });
     expect(service.strict.attach).toHaveBeenCalledWith({ id: "cc_abc123", attachment: { kind: "file", machineId: "mac", path: "/Users/me/Moss/Notes/Draft.md", name: "Draft.md" } });
+    expect(service.trustFile).toHaveBeenCalledWith("mac", "/Users/me/Moss/Notes/Draft.md");
     const offline = await cli(h, ["attach", "cc_abc123", "--file", "/x.md", "--machine", "linux", "--json"], "thr_invoking");
     expect(JSON.parse(offline.stdout ?? "")).toMatchObject({ ok: false, error: { code: "offline" } });
   });

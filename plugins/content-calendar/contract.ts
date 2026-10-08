@@ -56,6 +56,13 @@ export const attachmentInput = z.discriminatedUnion("kind", [
   attachmentSchema.options[3].omit({ id: true }),
 ]);
 export type AttachmentInput = z.infer<typeof attachmentInput>;
+/** What the `attach` RPC accepts: links, PRs, and threads. Files go only through `attachFile`, which resolves them on their machine. */
+export const linkAttachmentInput = z.discriminatedUnion("kind", [
+  attachmentSchema.options[1].omit({ id: true }),
+  attachmentSchema.options[2].omit({ id: true }),
+  attachmentSchema.options[3].omit({ id: true }),
+]);
+export type LinkAttachmentInput = z.infer<typeof linkAttachmentInput>;
 
 export const listInput = z.object({
   from: isoDate.optional(),
@@ -122,7 +129,7 @@ export const rpcContract = defineRpcContract({
   gateAdd: { input: z.object({ id: itemId, gate: gateInput }).strict(), output: item },
   gateClear: { input: z.object({ id: itemId, gateId: z.string().min(1).max(16), cleared: z.boolean().optional() }).strict(), output: item },
   gateRemove: { input: z.object({ id: itemId, gateId: z.string().min(1).max(16) }).strict(), output: item },
-  attach: { input: z.object({ id: itemId, attachment: attachmentInput }).strict(), output: item },
+  attach: { input: z.object({ id: itemId, attachment: linkAttachmentInput }).strict(), output: item },
   /** Attach a file by path on a machine; the server resolves it there first. */
   attachFile: { input: z.object({ id: itemId, machineId: z.string().min(1).max(200), path }).strict(), output: item },
   detach: { input: z.object({ id: itemId, attachmentId: z.string().min(1).max(16) }).strict(), output: item },

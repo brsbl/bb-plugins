@@ -160,3 +160,85 @@ it("submits the masked client form without rendering the values", async () => {
   await waitFor(() => expect(submitted).toEqual([{ clientId: "client-123", clientSecret: "s3cret" }]));
   expect(document.body.textContent).not.toContain("s3cret");
 });
+
+it("opens an item menu from the keyboard, moves through it with the arrows, and returns focus on Escape", async () => {
+  await renderPage();
+  const trigger = screen.getByRole("button", { name: "More actions for Ambient tweet" });
+  expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
+  trigger.focus();
+  fireEvent.click(trigger);
+  const menu = await screen.findByRole("menu", { name: "Actions for Ambient tweet" });
+  await waitFor(() => expect(document.activeElement).toBe(within(menu).getByRole("menuitem", { name: "Open" })));
+  fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+  expect(document.activeElement).toBe(within(menu).getByRole("menuitem", { name: "Move to…" }));
+  fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+  expect(document.activeElement).toBe(within(menu).getByRole("menuitem", { name: "Delete" }));
+  fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+  expect(document.activeElement).toBe(trigger);
+});
+
+it("debounces change signals into one reload, and refreshes only the status for status signals", async () => {
+  const slot = await renderPage();
+  const count = (method: string) => slot.inspection.rpcCalls.filter((call) => call.method === method).length;
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 400));
+  await settle();
+  const calendar = count("calendar");
+  await slot.behavior.emitRealtime("changed", { reason: "items" });
+  await slot.behavior.emitRealtime("changed", { reason: "sync" });
+  await settle();
+  expect(count("calendar")).toBe(calendar + 1);
+  const statuses = count("status");
+  await slot.behavior.emitRealtime("changed", { reason: "status" });
+  await settle();
+  expect(count("calendar")).toBe(calendar + 1);
+  expect(count("status")).toBeGreaterThan(statuses);
+});
+
+async function renderDetail(patch: Partial<Item> = {}) {
+  const current = { value: item("cc_ambient", { title: "Ambient tweet", status: "drafting", date: "2026-10-07", target: "3+ net follows", ...patch }) };
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.threadPanelActions[0]!, { threadId: "thr_test", params: { itemId: "cc_ambient" } }, {
+    rpc: {
+      show: () => current.value,
+      update: (input: unknown) => { current.value = { ...current.value, ...(input as Partial<Item>) }; return current.value; },
+      move: (input: unknown) => { current.value = { ...current.value, date: (input as { when: { date: string } }).when.date }; return current.value; },
+    },
+  });
+  await screen.findByRole("article", { name: "Item: Ambient tweet" });
+  return { slot, current };
+}
+
+it("never writes back an outside change that lands while a field is focused", async () => {
+  const { slot, current } = await renderDetail();
+  const calls = (method: string) => slot.inspection.rpcCalls.filter((call) => call.method === method).length;
+  for (const [label, field, next] of [["Title", "title", "Ambient tweet, from Google"], ["Target", "target", "5 net follows"], ["Notes", "notes", "Edited on her phone"]] as const) {
+    const input = screen.getByLabelText(label) as HTMLInputElement | HTMLTextAreaElement;
+    input.focus();
+    const shows = calls("show");
+    current.value = { ...current.value, [field]: next };
+    await slot.behavior.emitRealtime("changed", { reason: "items" });
+    await waitFor(() => expect(calls("show")).toBeGreaterThan(shows));
+    input.blur();
+    await waitFor(() => expect(input.value).toBe(next));
+  }
+  expect(calls("update")).toBe(0);
+});
+
+it("saves a typed date once, on blur", async () => {
+  const { slot } = await renderDetail();
+  const date = screen.getByLabelText("Date") as HTMLInputElement;
+  date.focus();
+  fireEvent.change(date, { target: { value: "2026-10-01" } });
+  fireEvent.change(date, { target: { value: "2026-10-19" } });
+  expect(slot.inspection.rpcCalls.some((call) => call.method === "move")).toBe(false);
+  date.blur();
+  await waitFor(() => expect(slot.inspection.rpcCalls.filter((call) => call.method === "move")).toEqual([{ method: "move", input: { id: "cc_ambient", when: { date: "2026-10-19" } } }]));
+});
+
+it("shows a change Google rejected as an error, not as saved", async () => {
+  await renderDetail({ sync: "queued", notice: "Google Calendar rejected this change: Invalid start time." });
+  expect(screen.getAllByRole("alert").some((alert) => alert.textContent === "Google Calendar rejected this change: Invalid start time.")).toBe(true);
+  expect(screen.getByText("Not saved to Google Calendar")).toBeTruthy();
+  expect(screen.queryByText("Saved to Google Calendar")).toBeNull();
+});

@@ -5,6 +5,8 @@ import type { EventWrite, GoogleEvent } from "./mapping.js";
 
 export const SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
 export const REDIRECT_URI = "http://127.0.0.1:53682/";
+/** Every Google request gives up after this long and counts as Google being unreachable. */
+export const REQUEST_TIMEOUT = 20_000;
 
 export interface GoogleEndpoints {
   apiBase: string;
@@ -93,6 +95,7 @@ async function postToken(fetchFn: typeof fetch, endpoints: GoogleEndpoints, form
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
       body: new URLSearchParams(form).toString(),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
     });
   } catch {
     throw new GoogleUnavailable("Google sign-in is unreachable");
@@ -163,7 +166,9 @@ export function createGoogleClient(options: GoogleClientOptions) {
     if (init.ifMatch) headers["if-match"] = init.ifMatch;
     let response: Response;
     try {
-      response = await options.fetch(url.toString(), { method, headers, body: init.body === undefined ? undefined : JSON.stringify(init.body) });
+      response = await options.fetch(url.toString(), {
+        method, headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+      });
     } catch {
       throw new GoogleUnavailable("Google Calendar is unreachable");
     }
@@ -182,6 +187,8 @@ export function createGoogleClient(options: GoogleClientOptions) {
       }
       throw new GoogleHttpError(response.status, body?.error?.message ?? `Google Calendar returned ${response.status}`);
     }
+    // A success whose body never arrived (timeout mid-read) is retried like any unreachable request.
+    if (body === null) throw new GoogleUnavailable("Google Calendar's response was cut off");
     return body as T;
   };
 

@@ -1,8 +1,7 @@
-import { createHash } from "node:crypto";
 import { extname, posix } from "node:path";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { CHANGED, attachmentInput, hostContract, rpcContract, type AttachmentInput, type ConnectionState, type ConnectionStatus, type GateInput } from "./contract.js";
+import { CHANGED, attachmentInput, hostContract, linkAttachmentInput, rpcContract, type ConnectionState, type LinkAttachmentInput, type ConnectionStatus, type GateInput } from "./contract.js";
 import { createCalendarService } from "./engine.js";
 import {
   FORMATS, LIMITS, STATUSES, TRAYS, TRAY_LABELS, attachmentSchema, gateLabel, isoDate, isoMonth, mondayOf, viewDirective,
@@ -73,7 +72,9 @@ function toCliError(error: unknown): PluginCliError {
   if (error instanceof PluginCliError) return error;
   if (error instanceof CalendarError) {
     const kept = error.code === "conflict" && error.fields?.length ? `Google Calendar kept: ${error.fields.join(", ")}.` : undefined;
-    const hint = [kept, error.hint].filter(Boolean).join(" ");
+    // Google refused the write outright; nothing changed there.
+    const rejected = error.code === "rejected" ? "Run `bb content-calendar show <id>` to see what Google Calendar has." : undefined;
+    const hint = [kept, error.hint, rejected].filter((part, index, all) => part && all.indexOf(part) === index).join(" ");
     return new PluginCliError(error.message, { code: error.code, ...(hint ? { hint } : {}) });
   }
   if (error instanceof z.ZodError) {
@@ -214,13 +215,12 @@ export default function plugin(bb: BbPluginApi): void {
     await onlineMachine(machineId);
     const file = await host.call("resolveFile", { path, ...(cwd ? { cwd } : {}) }, { hostId: machineId, signal });
     const attachment = attachmentInput.parse({ kind: "file", machineId, path: file.path, name: file.name });
-    await bb.storage.kv.set(trustKey(machineId, file.path), true);
+    await service.trustFile(machineId, file.path);
     return strict ? service.strict.attach({ id, attachment }) : service.attach({ id, attachment });
   };
   // File records round-trip through Google Calendar, where other apps can rewrite them. bb only checks
-  // or opens a machine path that was attached through bb itself.
-  const trustKey = (machineId: string, path: string) => `attached-file:${createHash("sha256").update(`${machineId}\0${path}`).digest("hex")}`;
-  const attachedThroughBb = async (machineId: string, path: string) => (await bb.storage.kv.get<boolean>(trustKey(machineId, path))) === true;
+  // or opens a machine path that was attached through bb itself; the engine keeps that record.
+  const attachedThroughBb = async (machineId: string, path: string) => (await service.isTrustedFile(machineId, path)) === true;
 
   const threadRoute = async (threadId: string) => {
     const base = (bb.server.experimental_appUrl ?? "").replace(/\/+$/, "");
@@ -239,7 +239,7 @@ export default function plugin(bb: BbPluginApi): void {
     gateAdd: (input) => after(service.gateAdd(input)),
     gateClear: (input) => after(service.gateClear(input)),
     gateRemove: (input) => after(service.gateRemove(input)),
-    attach: (input) => after(service.attach(input)),
+    attach: (input) => after(service.attach({ id: input.id, attachment: linkAttachmentInput.parse(input.attachment) })),
     detach: (input) => after(service.detach(input)),
     delete: (input) => after(service.delete(input)),
     reapply: (input) => after(service.reapply(input)),
@@ -506,7 +506,7 @@ export default function plugin(bb: BbPluginApi): void {
             const { hostId, cwd } = await invokingMachine(ctx, options.machine);
             item = await attachFile(positionals.id, hostId, options.file, cwd, true, ctx.signal);
           } else {
-            let attachment: AttachmentInput;
+            let attachment: LinkAttachmentInput;
             if (options.url) attachment = { kind: "url", url: options.url, ...(options.title ? { title: options.title } : {}) };
             else if (options.pr) {
               const pr = parsePr(options.pr);
@@ -517,7 +517,7 @@ export default function plugin(bb: BbPluginApi): void {
               const title = options.title ?? (await bb.sdk.threads.get({ threadId }).then((thread) => thread.title ?? undefined, () => undefined));
               attachment = { kind: "thread", threadId, ...(title ? { title: title.slice(0, 300) } : {}) };
             }
-            item = await service.strict.attach(rpcContract.attach.input.parse({ id: positionals.id, attachment: attachmentInput.parse(attachment) }));
+            item = await service.strict.attach(rpcContract.attach.input.parse({ id: positionals.id, attachment: linkAttachmentInput.parse(attachment) }));
           }
           return output(options.json, item, () => itemDetail(item));
         }),

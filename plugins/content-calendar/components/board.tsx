@@ -212,22 +212,23 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
     </DndContext>
     <div className="cc-sr-only" aria-live="assertive" aria-atomic="true">{said}</div>
     {pop.open && popState && <Popover anchor={pop.open.anchor} onClose={closePop} align={popState.kind === "add" ? "start" : "end"} width={popState.kind === "add" ? 280 : 240}
+      role={popState.kind === "menu" ? "menu" : "dialog"}
       label={popState.kind === "add" ? "New item" : popState.kind === "menu" ? `Actions for ${popState.item.title}` : `Move ${popState.item.title}`}>
       {popState.kind === "add" && <QuickAdd when={popState.when} onClose={closePop} onCreate={async (title, format) => {
         await data.add({ title, format, when: popState.when });
       }} />}
       {popState.kind === "menu" && <div className="cc-menu">
-        <button type="button" onClick={() => { onOpen(popState.item); closePop(); }}>Open</button>
-        <button type="button" onClick={() => setPopState({ kind: "move", item: popState.item })}>Move to…</button>
+        <button type="button" role="menuitem" onClick={() => { onOpen(popState.item); closePop(); }}>Open</button>
+        <button type="button" role="menuitem" onClick={() => setPopState({ kind: "move", item: popState.item })}>Move to…</button>
         {(() => {
           const list = listOf(containerOf(popState.item));
           const index = list.findIndex((entry) => entry.id === popState.item.id);
           return <>
-            {index > 0 && <button type="button" onClick={() => { reorder(popState.item, "up"); closePop(); }}>Move up</button>}
-            {index >= 0 && index < list.length - 1 && <button type="button" onClick={() => { reorder(popState.item, "down"); closePop(); }}>Move down</button>}
+            {index > 0 && <button type="button" role="menuitem" onClick={() => { reorder(popState.item, "up"); closePop(); }}>Move up</button>}
+            {index >= 0 && index < list.length - 1 && <button type="button" role="menuitem" onClick={() => { reorder(popState.item, "down"); closePop(); }}>Move down</button>}
           </>;
         })()}
-        <button type="button" className="cc-danger" onClick={() => { data.remove(popState.item); closePop(); }}>Delete</button>
+        <button type="button" role="menuitem" className="cc-danger" onClick={() => { data.remove(popState.item); closePop(); }}>Delete</button>
       </div>}
       {popState.kind === "move" && <MoveTo item={popState.item} onMove={(when) => {
         const container: Container = "date" in when ? `day:${when.date}` : `tray:${when.tray}`;

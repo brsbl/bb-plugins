@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { z } from "zod";
-import type { ConnectionState, ConnectionStatus, RpcContract } from "./contract.js";
+import type { AttachmentInput, ConnectionState, ConnectionStatus, RpcContract } from "./contract.js";
 import {
   CALENDAR_NAME, CALENDAR_TIME_ZONE, LIMITS, addDays, mondayOf, todayInCalendar,
   type Attachment, type Gate, type Item, type StoredGate,
@@ -10,13 +10,13 @@ import {
 } from "./service-api.js";
 import {
   UNIT_NAMES, buildEvent, changedUnits, isUnit, occurrenceDate, parseEvent, pickUnit, renderBlock, sameUnit,
-  splitDescription, withUnit, type EventWrite, type Fields, type GoogleEvent, type ParsedEvent, type Unit,
+  oversizedProperty, slotCapacity, splitDescription, withUnit, type EventWrite, type Fields, type GoogleEvent, type ParsedEvent, type Unit,
 } from "./mapping.js";
 import {
   GOOGLE_ENDPOINTS, GoogleAuthRevoked, GoogleHttpError, GoogleUnavailable, buildAuthUrl, createGoogleClient, createPkce,
   exchangeCode, type GoogleEndpoints,
 } from "./google.js";
-import { createStore, type Row } from "./store.js";
+import { createStore, type ItemRow, type Row } from "./store.js";
 
 type In<K extends keyof RpcContract> = z.infer<RpcContract[K]["input"]>;
 type StrictOps = CalendarService["strict"];
@@ -24,6 +24,9 @@ type StrictOps = CalendarService["strict"];
 const VISIBLE_WINDOW = 90_000;
 const VISIBLE_DELAY = 60_000;
 const IDLE_DELAY = 600_000;
+const RETRY_BASE = 60_000;
+const RETRY_MAX = 6 * 60 * 60_000;
+const PROPERTY_LIMIT_TEXT = "1,024 characters";
 const DELETED_NOTICE = "Deleted in Google Calendar while you had unsynced changes";
 const CONNECT_HINT = "Run `bb content-calendar connect`";
 const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -31,7 +34,7 @@ const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 const EVENT_ID_ALPHABET = "0123456789abcdefghijklmnopqrstuv";
 const UNIT_LABELS: Record<Unit, string> = {
   title: "title", format: "format", status: "checkbox", date: "date", time: "time", target: "target",
-  notes: "notes", waitsOn: "waits-on", attachments: "attachments", pos: "order",
+  notes: "notes", waitsOn: "waits-on", attachments: "attachments", pos: "order", slots: "unreadable records",
 };
 
 /** The Content calendar is gone in Google. */
@@ -55,6 +58,8 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
   let failures = 0;
   let lastVisible = Number.NEGATIVE_INFINITY;
   let syncing = false;
+  /** A sync step failed for a reason other than Google being unreachable. */
+  let syncError: string | null = null;
   let disposed = false;
 
   let chain: Promise<unknown> = Promise.resolve();
@@ -76,11 +81,17 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     const row = store.row(ccId);
     return row && !row.deleted ? row : null;
   };
-  const itemTitle = (ccId: string) => live(ccId)?.fields.title ?? null;
+  const itemTitle = (ccId: string) => store.item(ccId)?.fields.title ?? null;
 
-  const readGate = (gate: StoredGate): Gate => {
+  type Lookup = (ccId: string) => ItemRow | null;
+  const lookupIn = (rows: readonly ItemRow[]): Lookup => {
+    const byId = new Map(rows.map((row) => [row.ccId, row]));
+    return (ccId) => byId.get(ccId) ?? null;
+  };
+
+  const readGate = (gate: StoredGate, lookup: Lookup): Gate => {
     if (gate.kind !== "item") return { ...gate };
-    const target = live(gate.itemId);
+    const target = lookup(gate.itemId);
     return {
       id: gate.id, kind: "item", itemId: gate.itemId,
       cleared: target?.fields.status === "posted",
@@ -89,7 +100,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     };
   };
 
-  const view = (row: Row): Item => {
+  const view = (row: ItemRow, lookup: Lookup = (ccId) => store.item(ccId)): Item => {
     const fields = row.fields;
     return {
       id: row.ccId,
@@ -102,15 +113,21 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       tray: fields.tray,
       target: fields.target,
       notes: fields.notes,
-      waitsOn: fields.gates.map(readGate),
+      waitsOn: fields.gates.map((gate) => readGate(gate, lookup)),
       attachments: fields.attachments,
       sync: row.conflict ? "conflict" : row.seq !== null ? "queued" : "synced",
       conflict: row.conflict,
       pos: fields.pos,
-      notice: row.notice,
+      notice: row.failed ?? row.notice,
       updatedAt: row.updatedAt,
     };
   };
+  const views = (rows: readonly ItemRow[]): Item[] => {
+    const lookup = lookupIn(rows);
+    return rows.map((row) => view(row, lookup)).sort(compareItems);
+  };
+  const inRange = (fields: Fields, from?: string, to?: string) =>
+    !fields.tray && fields.date !== null && (!from || addDays(fields.date, fields.days - 1) >= from) && (!to || fields.date <= to);
 
   const compareItems = (a: Item, b: Item): number => {
     const rank = (item: Item) => (item.tray === null ? 0 : item.tray === "evergreen" ? 1 : 2);
@@ -131,14 +148,19 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     else if (!credentials.refreshToken || (!calendarId && !problem)) state = "not_connected";
     else if (problem) ({ state, message } = problem);
     else if (offline) { state = "offline"; message = offline; }
+    else if (syncError) { state = "offline"; message = syncError; }
     else state = syncing || !store.meta.get("lastSyncedAt") ? "syncing" : "synced";
-    const rows = store.rows();
+    const counts = store.counts();
+    if (counts.failed > 0 && state !== "needs_client" && state !== "not_connected") {
+      const failed = `${counts.failed} ${counts.failed === 1 ? "change" : "changes"} couldn't be saved to Google Calendar; retrying`;
+      message = message ? `${message}. ${failed}` : failed;
+    }
     return {
       state,
       calendarId,
       lastSyncedAt: store.meta.get("lastSyncedAt"),
-      queued: rows.filter((row) => row.seq !== null).length,
-      conflicts: rows.filter((row) => row.conflict !== null && !row.deleted).length,
+      queued: counts.queued,
+      conflicts: counts.conflicts,
       message,
     };
   };
@@ -153,11 +175,14 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     return credentials;
   };
 
-  /** Live rows, or null while Google isn't connected (reads are empty then). */
-  const readable = async (): Promise<Row[] | null> => {
+  const connected = async (): Promise<boolean> => {
     const credentials = await deps.credentials.get();
-    if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) return null;
-    return store.rows().filter((row) => !row.deleted);
+    return !!(credentials.clientId && credentials.clientSecret && credentials.refreshToken);
+  };
+
+  /** Reads need a connection, like writes; the cache isn't shown while Google is disconnected. */
+  const ensureReadable = async (): Promise<void> => {
+    await ensureWritable();
   };
 
   const liveRow = (ccId: string): Row => {
@@ -179,7 +204,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
 
   const sameBucket = (a: Fields, b: Fields) => (a.tray ? b.tray === a.tray : !b.tray && b.date === a.date);
   const bucket = (fields: Fields, except: string | null) =>
-    store.rows().filter((row) => !row.deleted && row.ccId !== except && sameBucket(fields, row.fields)).sort((a, b) => a.fields.pos - b.fields.pos);
+    store.items().filter((row) => row.ccId !== except && sameBucket(fields, row.fields)).sort((a, b) => a.fields.pos - b.fields.pos);
   const appendPos = (fields: Fields, except: string | null) => {
     const rows = bucket(fields, except);
     return rows.length ? rows[rows.length - 1]!.fields.pos + 1 : 1;
@@ -203,8 +228,17 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     row.dirty = [...new Set([...row.dirty, ...units])];
     withoutUnits(row, units);
     row.updatedAt = nowIso();
+    row.retryAt = null;
     row.seq ??= store.nextSeq();
     store.put(row);
+  };
+
+  /** Google's limit is per private property; refuse before queueing a write it would reject. */
+  const assertFits = (ccId: string, fields: Fields) => {
+    const key = oversizedProperty(ccId, fields);
+    if (key) {
+      throw new CalendarError("limit", `This is too long to store in Google Calendar (${key} is over ${PROPERTY_LIMIT_TEXT})`, "Use a shorter text, URL, path, or title");
+    }
   };
 
   // Pushing to Google.
@@ -245,7 +279,8 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     const lostUnits: Unit[] = [];
     let lost: Partial<Fields> = row.lost ?? {};
     for (const unit of UNIT_NAMES) {
-      if (!row.dirty.includes(unit)) {
+      // bb never edits records it couldn't read, so Google's copy of them always wins.
+      if (!row.dirty.includes(unit) || unit === "slots") {
         fields = withUnit(fields, theirs, unit);
         continue;
       }
@@ -419,18 +454,41 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     deps.log.warn(`Content Calendar: ${row.ccId} kept changing in Google Calendar; retrying on the next sync`);
   };
 
-  const flush = async (): Promise<boolean> => {
+  const globalFailure = (error: unknown) =>
+    error instanceof GoogleUnavailable || error instanceof GoogleAuthRevoked || error instanceof CalendarGone;
+
+  /**
+   * Pushes queued rows in order. One row's failure never blocks the others: it is
+   * recorded on the row and retried with backoff, and skipped for the rest of this sync.
+   */
+  const flush = async (failed: Set<string>): Promise<boolean> => {
     const calendar = calendarId();
+    const now = deps.now().getTime();
     let pushed = false;
     for (const queued of store.queued()) {
+      if (failed.has(queued.ccId) || (queued.retryAt && Date.parse(queued.retryAt) > now)) continue;
       const row = store.row(queued.ccId);
       if (!row || row.seq === null) continue;
       try {
         await push(calendar, row);
         pushed = true;
+        const after = store.row(row.ccId);
+        if (after && (after.failed || after.attempts)) {
+          after.failed = null;
+          after.attempts = 0;
+          after.retryAt = null;
+          store.put(after);
+        }
       } catch (error) {
-        if (!(error instanceof GoogleHttpError)) throw error;
-        deps.log.warn(`Content Calendar: Google Calendar rejected ${row.ccId}: ${error.message}`);
+        if (globalFailure(error)) throw error;
+        failed.add(row.ccId);
+        const reason = error instanceof Error ? error.message : String(error);
+        const current = store.row(row.ccId) ?? row;
+        current.attempts += 1;
+        current.retryAt = new Date(now + Math.min(RETRY_BASE * 2 ** (current.attempts - 1), RETRY_MAX)).toISOString();
+        current.failed = error instanceof GoogleHttpError ? `Google Calendar rejected this change: ${reason}` : `Couldn't sync this change: ${reason}`;
+        store.put(current);
+        deps.log.warn(`Content Calendar: ${row.ccId} wasn't saved to Google Calendar: ${reason}`);
       }
     }
     return pushed;
@@ -479,10 +537,9 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     let ccId = parsed.ccId;
     let rewrite = false;
     if (!ccId) {
-      // Created in Google Calendar: a new Idea with no format; bb adds ☐ and its block.
+      // Created in Google Calendar: a new Idea whose format follows a format color; bb adds ☐ and its block.
       ccId = freshId();
       rewrite = true;
-      fields.format = null;
       fields.pos = appendPos(fields, null);
     } else {
       const owner = store.row(ccId);
@@ -517,6 +574,9 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       block: parsed.block,
       raw: event.description ?? "",
       clientId: null,
+      attempts: 0,
+      retryAt: null,
+      failed: null,
       seriesStart: parsed.start,
       conflict: null,
       lost: null,
@@ -607,6 +667,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
   };
 
   const handleSyncError = (error: unknown) => {
+    syncError = null;
     if (error instanceof GoogleUnavailable) {
       failures += 1;
       offline = error.rateLimited ? "Google Calendar is rate-limiting bb; changes are queued" : "Google Calendar is unreachable; changes are queued";
@@ -617,21 +678,26 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       setFailure({ state: "calendar_deleted", message: "The Content calendar was deleted in Google Calendar" });
     } else {
       failures += 1;
-      deps.log.error(`Content Calendar sync failed: ${error instanceof Error ? error.message : String(error)}`);
+      const reason = error instanceof Error ? error.message : String(error);
+      syncError = `Sync failed: ${reason}`;
+      deps.log.error(`Content Calendar sync failed: ${reason}`);
     }
     deps.publish("status");
   };
 
   /** Flush queued writes in order, pull Google's changes, roll trays forward, and flush what that produced. */
-  const runSync = async (force = false): Promise<void> => {
-    if (disposed || !(await canSync(force))) return;
-    const wasOffline = offline !== null;
+  /** Returns the rows whose push failed during this sync. */
+  const runSync = async (force = false): Promise<Set<string>> => {
+    const failed = new Set<string>();
+    if (disposed || !(await canSync(force))) return failed;
+    const wasOffline = offline !== null || syncError !== null;
     syncing = true;
     try {
-      let changed = await flush();
+      let changed = await flush(failed);
       changed = (await pull()) || changed;
-      if (roll() || store.queued().length) changed = (await flush()) || changed;
+      if (roll() || store.counts().queued > failed.size) changed = (await flush(failed)) || changed;
       offline = null;
+      syncError = null;
       failures = 0;
       if (changed || wasOffline) deps.publish(changed ? "sync" : "status");
     } catch (error) {
@@ -639,15 +705,19 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     } finally {
       syncing = false;
     }
+    return failed;
   };
 
   // Operations.
 
   const finishWrite = async (ccId: string, units: readonly Unit[], strict: boolean): Promise<Item> => {
     deps.publish("items");
-    await runSync();
-    const row = store.row(ccId);
-    if (!row || row.deleted) throw new CalendarError("not_found", `${ccId} was deleted in Google Calendar`);
+    const failed = await runSync();
+    const row = store.item(ccId);
+    if (!row) throw new CalendarError("not_found", `${ccId} was deleted in Google Calendar`);
+    if (strict && failed.has(ccId) && row.failed) {
+      throw new CalendarError("rejected", row.failed, "The change is saved in bb and retries automatically; fix the item or run `bb content-calendar sync` later");
+    }
     if (strict && row.conflict && row.conflict.fields.some((field) => units.includes(field as Unit))) {
       throw new CalendarError("conflict", row.conflict.message, `Run \`bb content-calendar reapply ${ccId}\` to write your value over Google Calendar's`, row.conflict.fields);
     }
@@ -661,6 +731,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       const next = change(structuredClone(row.fields), row);
       const units = changedUnits(row.fields, next);
       if (units.length === 0) return view(row);
+      assertFits(ccId, next);
       commitLocal(row, next, units);
       return finishWrite(ccId, units, strict);
     });
@@ -699,7 +770,8 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       fields.pos = appendPos(fields, null);
       store.put({
         ccId, eventId: null, etag: null, created: null, fields, base: null, dirty: [...UNIT_NAMES], rewrite: false,
-        seq: store.nextSeq(), deleted: false, block: null, raw: null, clientId: newClientId(), seriesStart: null, conflict: null, lost: null, notice: null, updatedAt: nowIso(),
+        seq: store.nextSeq(), deleted: false, block: null, raw: null, clientId: newClientId(),
+        attempts: 0, retryAt: null, failed: null, seriesStart: null, conflict: null, lost: null, notice: null, updatedAt: nowIso(),
       });
       return finishWrite(ccId, UNIT_NAMES, strict);
     });
@@ -753,7 +825,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
 
   const gateAdd = (input: In<"gateAdd">, strict: boolean) =>
     mutate(input.id, strict, (fields) => {
-      if (fields.gates.length >= LIMITS.gates) throw limit(`An item can wait on up to ${LIMITS.gates} things`, "Remove or clear a gate first");
+      if (fields.gates.length >= slotCapacity(fields, "gate")) throw limit(`An item can wait on up to ${LIMITS.gates} things`, "Remove or clear a gate first");
       const id = nextChildId("g", fields.gates);
       const gate = input.gate;
       if (gate.kind === "item") {
@@ -789,13 +861,12 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       return fields;
     });
 
-  const attach = (input: In<"attach">, strict: boolean) =>
+  const attach = (input: { id: string; attachment: AttachmentInput }, strict: boolean) =>
     mutate(input.id, strict, (fields) => {
-      if (fields.attachments.length >= LIMITS.attachments) throw limit(`An item can have up to ${LIMITS.attachments} attachments`, "Detach one first");
+      if (fields.attachments.length >= slotCapacity(fields, "att")) throw limit(`An item can have up to ${LIMITS.attachments} attachments`, "Detach one first");
       const attachment = { ...input.attachment, id: nextChildId("a", fields.attachments) } as Attachment;
       const reference = attachment.kind === "file" ? attachment.path : attachment.kind === "url" ? attachment.url : "";
       if (reference.length > LIMITS.reference) throw limit(`Keep URLs and paths to ${LIMITS.reference} characters`);
-      if (JSON.stringify(attachment).length > 1024) throw limit("This attachment is too long to store in Google Calendar", "Use a shorter path, name, or title");
       fields.attachments.push(attachment);
       return fields;
     });
@@ -847,7 +918,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
         throw new CalendarError("invalid", "bb can't reach a calendar with that ID", "Use the ID of the Content calendar bb created, from its settings in Google Calendar");
       }
     }
-    if (store.meta.get("everConnected") || store.rows().length > 0) {
+    if (store.meta.get("everConnected") || store.items().length > 0) {
       throw new CalendarError(
         "calendar_id_required",
         "bb was connected before, so it won't create a second Content calendar",
@@ -889,26 +960,30 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
   const operations: CalendarOperations = {
     status: () => statusNow(),
 
+    // The page shows the connect steps from `status`, so a disconnected calendar is empty arrays plus that status.
     calendar: async (input) => {
       const status = await statusNow();
-      const rows = (await readable()) ?? [];
-      const items = rows.map(view).sort(compareItems);
+      if (!(await connected())) return { items: [], evergreen: [], later: [], status };
+      const rows = store.items();
+      const lookup = lookupIn(rows);
       const trays = input.trays !== false;
+      const pick = (keep: (fields: Fields) => boolean) =>
+        rows.filter((row) => keep(row.fields)).map((row) => view(row, lookup)).sort(compareItems);
       return {
-        items: items.filter((item) => item.tray === null && intersects(item, input.from, input.to)),
-        evergreen: trays ? items.filter((item) => item.tray === "evergreen") : [],
-        later: trays ? items.filter((item) => item.tray === "later") : [],
+        items: pick((fields) => inRange(fields, input.from, input.to)),
+        evergreen: trays ? pick((fields) => fields.tray === "evergreen") : [],
+        later: trays ? pick((fields) => fields.tray === "later") : [],
         status,
       };
     },
 
     list: async (input) => {
-      let items = ((await readable()) ?? []).map(view);
+      await ensureReadable();
+      let items = views(store.items());
       if (input.tray) items = items.filter((item) => item.tray === input.tray);
       if (input.from || input.to) items = items.filter((item) => item.tray === null && intersects(item, input.from, input.to));
       if (input.format) items = items.filter((item) => item.format === input.format);
       if (input.status) items = items.filter((item) => item.status === input.status);
-      items.sort(compareItems);
       let offset = 0;
       if (input.cursor) {
         try {
@@ -962,10 +1037,10 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
         return statusNow();
       }),
 
-    export: async () => ({
-      exportedAt: nowIso(),
-      items: ((await readable()) ?? []).map(view).sort(compareItems),
-    }),
+    export: async () => {
+      await ensureReadable();
+      return { exportedAt: nowIso(), items: views(store.items()) };
+    },
 
     visible: async () => {
       lastVisible = deps.now().getTime();
@@ -1075,15 +1150,23 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     ...operations,
     strict,
     get: async (id) => {
-      if (!(await readable())) throw new CalendarError("not_connected", "Google Calendar isn't connected", CONNECT_HINT);
-      return view(liveRow(id));
+      await ensureReadable();
+      const row = store.item(id);
+      if (!row) throw new CalendarError("not_found", `No item ${id}`, "Run `bb content-calendar list` to see item IDs");
+      return view(row);
     },
     tick: () => serialize(() => runSync()),
     nextTickDelay: () => {
-      const queued = store.queued().length;
+      const now = deps.now().getTime();
+      const { queued, failed, nextRetry } = store.counts();
       if (failures > 0 && queued > 0) return Math.min(15_000 * 2 ** (failures - 1), 300_000);
-      return deps.now().getTime() - lastVisible <= VISIBLE_WINDOW ? VISIBLE_DELAY : IDLE_DELAY;
+      const polling = now - lastVisible <= VISIBLE_WINDOW ? VISIBLE_DELAY : IDLE_DELAY;
+      // Rows waiting out a rejection retry when due; other queued rows retry on the next poll.
+      if (failed > 0 && nextRetry) return Math.max(1_000, Math.min(polling, Date.parse(nextRetry) - now));
+      return polling;
     },
+    trustFile: (machineId, path) => store.trustFile(machineId, path),
+    isTrustedFile: (machineId, path) => store.isTrustedFile(machineId, path),
     dispose: () => {
       disposed = true;
     },

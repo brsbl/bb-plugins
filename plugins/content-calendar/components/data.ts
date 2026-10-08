@@ -10,16 +10,40 @@ export type When = { date: string } | { tray: Tray };
 export const useCalendarRpc = (): Rpc => useRpc<RpcContract>();
 export const readableError = (error: unknown) => error instanceof Error && error.message ? error.message : "Something went wrong. Try again.";
 
-/** Reloads on the plugin's change signal, and after the realtime socket reconnects (signals are not replayed). */
-export function useLiveReload(reload: () => void) {
-  const latest = useRef(reload); latest.current = reload;
-  useRealtime(CHANGED, () => latest.current());
+/** Reason the server publishes with CHANGED when only the connection state moved. */
+const STATUS_REASON = "status";
+const RELOAD_DEBOUNCE_MS = 250;
+
+/**
+ * Reloads on the plugin's change signal, and after the realtime socket
+ * reconnects (signals are not replayed). Signals are debounced so a burst
+ * (the engine's "items" then "sync") becomes one reload. A `status`-only
+ * signal calls `onStatus` instead, or nothing when the view shows no status.
+ */
+export function useLiveReload(reload: () => void, onStatus?: () => void) {
+  const latest = useRef({ reload, onStatus }); latest.current = { reload, onStatus };
+  const pending = useRef<{ timer: ReturnType<typeof setTimeout>; full: boolean } | null>(null);
+  const schedule = useCallback((full: boolean) => {
+    if (!full && !latest.current.onStatus && !pending.current) return;
+    const wasFull = pending.current?.full ?? false;
+    if (pending.current) clearTimeout(pending.current.timer);
+    const entry = { full: full || wasFull, timer: setTimeout(() => {
+      pending.current = null;
+      if (entry.full) latest.current.reload(); else latest.current.onStatus?.();
+    }, RELOAD_DEBOUNCE_MS) };
+    pending.current = entry;
+  }, []);
+  useEffect(() => () => { if (pending.current) clearTimeout(pending.current.timer); pending.current = null; }, []);
+  useRealtime(CHANGED, (payload) => {
+    const reason = payload && typeof payload === "object" ? (payload as { reason?: unknown }).reason : undefined;
+    schedule(reason !== STATUS_REASON);
+  });
   const state = useRealtimeConnectionState();
   const previous = useRef(state);
   useEffect(() => {
-    if (state === "connected" && previous.current !== "connected") latest.current();
+    if (state === "connected" && previous.current !== "connected") schedule(true);
     previous.current = state;
-  }, [state]);
+  }, [state, schedule]);
 }
 
 /** Tells the server a calendar is on screen about every 30 seconds, so it polls Google every minute. */
@@ -54,7 +78,7 @@ export function useStatus() {
     } catch (err) { if (current === version.current) setError(readableError(err)); }
   }, [rpc]);
   useEffect(() => { void reload(); }, [reload]);
-  useLiveReload(() => void reload());
+  useLiveReload(() => void reload(), () => void reload());
   return { status, error, reload, setStatus };
 }
 
@@ -91,7 +115,14 @@ export function useCalendarData(from: string, to: string, trays: boolean) {
     } catch (err) { if (current === version.current) setLoadError(readableError(err)); }
   }, [rpc, from, to, trays]);
   useEffect(() => { void load(); }, [load]);
-  useLiveReload(() => void load());
+  // A status-only signal refreshes the connection state without refetching items.
+  const loadStatus = useCallback(async () => {
+    try {
+      const status = await rpc.call("status", {});
+      setData((current) => current && { ...current, status });
+    } catch { /* the next full reload reports it */ }
+  }, [rpc]);
+  useLiveReload(() => void load(), () => void loadStatus());
   useVisiblePing();
 
   const setOverride = useCallback((id: string, value: Item | null) => setOverrides((map) => new Map(map).set(id, value)), []);
