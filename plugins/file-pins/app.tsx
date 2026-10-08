@@ -15,8 +15,7 @@ import { layoutPins, pinFile, PIN_MIN_WIDTH_CLASS, unpinFile, useMeasurePins, ty
 import { previewTarget } from "./open-target.js";
 import { pinTooltip } from "./pin-tooltip.js";
 import { ReferenceIcon } from "./reference-icon.js";
-import { githubPullRequest } from "./pr-state.js";
-import { prStateLabel, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
+import { prStateLabel, showsPrState, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
 import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
@@ -72,6 +71,8 @@ function PinStrip({ threadId }: { threadId: string }) {
   const measureRow = useRef<HTMLDivElement>(null);
   const arranging = useRef({ pending: 0, queue: Promise.resolve() });
   const metrics = useMeasurePins(measureRow, pins.map((pin) => pin.id).join("\n"));
+  // Touch screens have no hover tooltip to reveal a cut-off label, so pins keep whole labels and the rest wait in ⋯.
+  const whole = usePointerCoarse();
   // Re-render labels when a pinned PR's state arrives, so they name it for screen readers.
   usePrStateAnswers();
   const openLabel = (pin: Reference) => {
@@ -133,7 +134,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   function linkTarget(pin: FileReference) {
     return previewTarget(pin, threadHostId) ?? { kind: "host" as const, hostId: pin.hostId, path: pin.path };
   }
-  const layout = layoutPins(pins, more, metrics);
+  const layout = layoutPins(pins, more, metrics, { whole });
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
     // Apply locally first; saves run in order and
@@ -160,7 +161,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   // Pinned files offer Unpin (to the ⋯ list); other files offer Pin while the strip has room for them.
   function actions(pin: Reference): PinAction[] {
     const pinned = !more.includes(pin.id);
-    const next = pinned ? null : pinFile(pins, current, pin.id, metrics);
+    const next = pinned ? null : pinFile(pins, current, pin.id, metrics, { whole });
     return [
       pinned
         ? { label: "Unpin", run: () => arrange(unpinFile(current, pin.id)) }
@@ -255,14 +256,14 @@ function PinStrip({ threadId }: { threadId: string }) {
         {layout.strip.map((pin) => stripPin(pin))}
         {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
           <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "pin" : "pins"}`} title="More pins" className={cn(moreClass, "cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
-          <PopoverContent aria-label="More pins" className="w-56 p-1"><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
+          <PopoverContent aria-label="More pins" className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
         </Popover>}
       </div>
     </section>}
     {/* Mirrors the strip row with every pin at its natural width, plus ⋯ and the minimum pin, to measure what fits. */}
     <div ref={measureRow} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
       {pins.map((pin) => <span key={pin.id} data-pin-id={pin.id} className={cn(pinClass, "shrink-0", !isUrlPin(pin) && pin.status === "missing" && "pr-4")}>
-        {isUrlPin(pin) && githubPullRequest(pin.url) ? <span className="flex shrink-0 gap-0.5"><span className="size-3.5" /><span className="size-3.5" /></span> : <span className="size-3.5 shrink-0" />}
+        {isUrlPin(pin) && showsPrState(pin.url) ? <span className="flex shrink-0 gap-0.5"><span className="size-3.5" /><span className="size-3.5" /></span> : <span className="size-3.5 shrink-0" />}
         <span className="truncate">{pin.name}</span>
       </span>)}
       <span data-measure="more" className={moreClass}><Icon name="MoreHorizontal" className="size-4" /></span>

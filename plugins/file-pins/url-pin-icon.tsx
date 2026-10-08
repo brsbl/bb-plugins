@@ -30,6 +30,12 @@ export function usePrStateAnswers(): number {
   return useSyncExternalStore((listener) => { listeners.add(listener); return () => listeners.delete(listener); }, () => answers);
 }
 
+/** True for a GitHub PR pin that shows, or may still show, a state beside its icon; false once GitHub has none to give. */
+export function showsPrState(url: string): boolean {
+  const pr = githubPullRequest(url);
+  return pr !== null && answered.get(prKey(pr)) !== null;
+}
+
 /** "merged pull request" for a pinned PR whose state is known, else "", for screen-reader labels. */
 export function prStateLabel(url: string): string {
   const pr = githubPullRequest(url);
