@@ -61,7 +61,7 @@ img, svg { display: block; max-width: 100%; }
 .ia-dots { display: flex; gap: 5px; }
 .ia-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--border); transition: background .3s; }
 .ia-dots i[aria-current=step] { background: var(--ring); }
-.ia-reveal { animation: ia-reveal .55s var(--ia-ease) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.ia-reveal { animation: ia-reveal .38s var(--ia-ease) both; animation-delay: calc(var(--i, 0) * 45ms); }
 @keyframes ia-reveal { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; } }
 `;

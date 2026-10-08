@@ -32,28 +32,28 @@
   .fx nav .prev { color: var(--muted-foreground); }
   .fx nav button:hover { opacity: .7; }
   .fx nav button:disabled { opacity: 0; pointer-events: none; }
-  .fx .in { animation: fx-in .55s var(--ia-ease) both; animation-delay: var(--t, 0ms); }
+  .fx .in { animation: fx-in .38s var(--ia-ease) both; animation-delay: var(--t, 0ms); }
   @keyframes fx-in { from { opacity: 0; transform: translateY(6px); } }
-  .fx .ill.in svg { animation: fx-pop .7s var(--ia-ease) both; animation-delay: calc(var(--t, 0ms) + 160ms); }
+  .fx .ill.in svg { animation: fx-pop .5s var(--ia-ease) both; animation-delay: calc(var(--t, 0ms) + 80ms); }
   @keyframes fx-pop { from { opacity: 0; transform: scale(.94); } }
 </style>
 
 <div class="fx" id="fx">
   <h2 class="in" style="--t:0ms">Let's fold an origami baby fox!</h2>
-  <p class="sub in" style="--t:90ms">This beginner-friendly version takes about <b>5–10</b> minutes.</p>
-  <section class="panel in" style="--t:220ms" aria-label="Folding steps">
+  <p class="sub in" style="--t:45ms">This beginner-friendly version takes about <b>5–10</b> minutes.</p>
+  <section class="panel in" style="--t:110ms" aria-label="Folding steps">
     <div class="top"><span class="count swap" id="count" aria-live="polite">Step 1 of 12</span><span class="level">Beginner</span></div>
     <div class="bar" id="bar" role="progressbar" aria-valuemin="1" aria-valuemax="12" aria-valuenow="1" aria-label="Progress"></div>
-    <div class="ill in" style="--t:380ms" id="ill">
+    <div class="ill in" style="--t:190ms" id="ill">
       <svg viewBox="0 0 363.5 224" role="img" aria-labelledby="stitle" id="svg"></svg>
     </div>
-    <div class="text in" style="--t:560ms">
+    <div class="text in" style="--t:280ms">
       <h3 class="swap" id="stitle"></h3>
       <p class="desc swap" id="desc"></p>
       <div class="tip swap" id="tip"></div>
     </div>
   </section>
-  <nav class="in" style="--t:680ms">
+  <nav class="in" style="--t:340ms">
     <button class="prev" id="prev" type="button">← Previous step</button>
     <button class="next" id="next" type="button">Next step →</button>
   </nav>
@@ -253,6 +253,6 @@
   setText(step, true);
   setChrome(-1, null);
   $("prev").disabled = step === 0;
-  setTimeout(() => go(step, true), reduced ? 0 : 420);
+  setTimeout(() => go(step, true), reduced ? 0 : 220);
 })();
 </script>

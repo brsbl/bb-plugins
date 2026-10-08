@@ -26,7 +26,7 @@
   .hint { margin: 7px 0 0; font-size: 10.5px; color: var(--muted-foreground); }
 
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px 22px; margin-top: 24px; }
-  .sw { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; border-radius: 7px; animation: sw-in .5s var(--ia-ease) both; animation-delay: calc(560ms + var(--i) * 130ms); }
+  .sw { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; border-radius: 7px; animation: sw-in .5s var(--ia-ease) both; animation-delay: calc(260ms + var(--i) * 55ms); }
   @keyframes sw-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
   .chip { display: block; aspect-ratio: 100 / 74; border-radius: 6px; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.08); transition: transform .25s var(--ia-ease); }
   .sw::before { content: ""; position: absolute; inset: -6px; border-radius: 12px; border: 1.5px solid var(--foreground); opacity: 0; transform: scale(.96); transition: opacity .25s, transform .35s var(--ia-ease); pointer-events: none; }

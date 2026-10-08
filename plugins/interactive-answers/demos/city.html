@@ -68,14 +68,14 @@
   .sf-w { opacity: 0; animation: sf-w .32s ease both; animation-delay: var(--d); }
   @keyframes sf-w { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: none; } }
   .sf-enter { opacity: 0; }
-  .sf-enter.go { animation: ia-reveal .6s var(--ia-ease) both; animation-delay: var(--d, 0ms); opacity: 1; }
+  .sf-enter.go { animation: ia-reveal .4s var(--ia-ease) both; animation-delay: var(--d, 0ms); opacity: 1; }
   @media (prefers-reduced-motion: reduce) { .sf-map, .sf-detail { transition: none; } }
 </style>
 
 <h2 class="ia-title" id="title">San Francisco, your way</h2>
 <p class="ia-subtitle" id="subtitle">Tap a location on the map to discover its story and browse photos.</p>
 
-<div class="sf-map sf-enter" style="--d:380ms" id="map" data-expanded="false">
+<div class="sf-map sf-enter" style="--d:150ms" id="map" data-expanded="false">
   <div class="sf-gl" id="gl"></div>
   <div class="sf-ov" id="ov">
     <svg id="route" aria-hidden="true">
@@ -97,7 +97,7 @@
   </div>
 </div>
 
-<section class="sf-detail ia-panel sf-enter" style="--d:950ms" id="detail" aria-live="polite">
+<section class="sf-detail ia-panel sf-enter" style="--d:420ms" id="detail" aria-live="polite">
   <div class="sf-body" id="body">
     <div class="sf-photos" id="photos"></div>
     <h3 class="sf-name" id="name"></h3>
@@ -312,7 +312,7 @@
   function drawRoute(start) {
     showMarker("haight");
     if (reduce) { progress = 1; MARKERS.forEach((m) => showMarker(m.id)); place(); return; }
-    const dur = 3300, t0 = performance.now() + start;
+    const dur = 1900, t0 = performance.now() + start;
     let shownCam = false, shownEnd = false;
     const tick = (now) => {
       const t = Math.max(0, Math.min(1, (now - t0) / dur));
@@ -438,17 +438,17 @@
     return start + i * per;
   };
   renderDetail(state.place);
-  stream($("title"), 0, 70);
-  stream($("subtitle"), 230, 22);
+  stream($("title"), 0, 40);
+  stream($("subtitle"), 120, 12);
   [...body.children].forEach((el, i) => {
-    el.classList.add("sf-enter"); el.style.setProperty("--d", 1000 + i * 90 + "ms");
+    el.classList.add("sf-enter"); el.style.setProperty("--d", 450 + i * 50 + "ms");
     el.addEventListener("animationend", (e) => { if (e.target === el) el.classList.remove("sf-enter", "go"); }, { once: false });
   });
-  let tEnd = stream($("story"), 1300, 16);
-  stream($("before"), tEnd + 100, 16);
+  let tEnd = stream($("story"), 600, 8);
+  stream($("before"), tEnd + 60, 8);
   syncGroup();
   setTimeout(() => document.querySelectorAll(".sf-enter").forEach((el) => el.classList.add("go")), 30);
   place();
-  drawRoute(550);
+  drawRoute(250);
 })();
 </script>

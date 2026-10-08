@@ -22,9 +22,9 @@
   .ia-seg button[aria-pressed=false] { color: var(--muted-foreground); }
   .ia-seg button[aria-pressed=false]:hover { color: var(--foreground); }
 
-  .diagram { position: relative; margin-top: 9px; aspect-ratio: 1398 / 903; border: 1px solid var(--diagram-border); border-radius: 14px; background: var(--diagram-bg); overflow: hidden; animation: fade .6s .25s var(--ia-ease) both; }
+  .diagram { position: relative; margin-top: 9px; aspect-ratio: 1398 / 903; border: 1px solid var(--diagram-border); border-radius: 14px; background: var(--diagram-bg); overflow: hidden; animation: fade .45s .05s var(--ia-ease) both; }
   .diagram svg { width: 100%; height: 100%; max-width: none; overflow: visible; font-family: var(--font); }
-  .caption { margin: 9px 0 0; font-size: 9.2px; color: var(--muted-foreground); animation: fade .5s .7s both; }
+  .caption { margin: 9px 0 0; font-size: 9.2px; color: var(--muted-foreground); animation: fade .4s .3s both; }
   @keyframes fade { from { opacity: 0; } }
 
   /* Parts: group opacity dims the parts that are not part of the current step. */
@@ -59,13 +59,13 @@
   .callout.on circle { fill: var(--foreground); stroke: var(--foreground); }
   .callout.on text { fill: var(--background); }
   .callout:focus-visible circle { stroke: var(--ring); stroke-width: 4; }
-  .pop { transform-box: fill-box; transform-origin: center; animation: pop .45s var(--ia-ease) both; animation-delay: calc(1050ms + var(--i, 0) * 90ms); }
+  .pop { transform-box: fill-box; transform-origin: center; animation: pop .45s var(--ia-ease) both; animation-delay: calc(480ms + var(--i, 0) * 50ms); }
   @keyframes pop { from { opacity: 0; transform: scale(.6); } }
 
   /* Entrance: tubes and tyres draw on, then parts settle in. */
-  .draw { stroke-dasharray: 1; animation: draw .9s cubic-bezier(.4,0,.2,1) both; animation-delay: var(--d, .35s); }
+  .draw { stroke-dasharray: 1; animation: draw .6s cubic-bezier(.4,0,.2,1) both; animation-delay: var(--d, .15s); }
   @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-  .rise { animation: rise .6s var(--ia-ease) both; animation-delay: var(--d, .7s); }
+  .rise { animation: rise .45s var(--ia-ease) both; animation-delay: var(--d, .35s); }
   @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
 
   .lower { padding: 22px 25px 16px; }
@@ -89,7 +89,7 @@
   .check input:checked { background: var(--foreground); border-color: var(--foreground); }
   .check input:checked::after { transform: translateY(-1px) rotate(-45deg) scale(1); }
   .check small { grid-column: 2; margin-top: 2px; font-size: 10.6px; color: var(--muted-foreground); }
-  .s-line { animation: ia-reveal .5s var(--ia-ease) both; animation-delay: calc(var(--base, 0ms) + var(--i, 0) * 110ms); }
+  .s-line { animation: ia-reveal .38s var(--ia-ease) both; animation-delay: calc(var(--base, 0ms) + var(--i, 0) * 40ms); }
 
   .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 13px; border-top: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent); }
   .ia-dots { gap: 5px; padding-left: 2px; }
@@ -126,7 +126,7 @@
 
 <div class="lower">
   <div class="stage" id="stage" aria-live="polite"></div>
-  <div class="foot s-line" style="--base:1500ms;--i:0">
+  <div class="foot s-line" style="--base:300ms;--i:0">
     <div class="ia-dots" id="dots" aria-hidden="true"></div>
     <div class="nav">
       <button type="button" class="ia-btn" id="back">Back</button>
@@ -174,7 +174,7 @@
     }
     return `
       <circle cx="${cx}" cy="${cy}" r="190" fill="none" stroke="var(--ink)" stroke-width="9" stroke-dasharray="4.6 3.9"/>
-      <circle class="draw" style="--d:.3s" pathLength="1" cx="${cx}" cy="${cy}" r="178" fill="none" stroke="var(--ink)" stroke-width="26"/>
+      <circle class="draw" style="--d:0.15s" pathLength="1" cx="${cx}" cy="${cy}" r="178" fill="none" stroke="var(--ink)" stroke-width="26"/>
       <circle cx="${cx}" cy="${cy}" r="161" fill="none" stroke="var(--rim)" stroke-width="10"/>
       <circle cx="${cx}" cy="${cy}" r="155.5" fill="none" stroke="var(--spoke)" stroke-width="1.5" opacity=".6"/>
       <g stroke="var(--spoke)" stroke-width="2">${spokes}</g>
@@ -186,7 +186,7 @@
   const tube = (d, w) => `<path class="tube" d="${d}" stroke="var(--edge)" stroke-width="${w + 4}"/><path class="tube" d="${d}" stroke="var(--paper)" stroke-width="${w}"/>`;
   const FRAME = [["M552 412 L648 424 L932 304", 46], ["M547 388 L616 614", 44], ["M944 362 L632 606", 46], ["M934 290 L948 382", 50]];
   const frameEdge = FRAME.map(([d, w]) => `<path class="tube" d="${d}" stroke="var(--frame-edge)" stroke-width="${w + 18}"/>`).join("");
-  const frameFill = FRAME.map(([d, w], i) => `<path class="tube draw" style="--d:${0.35 + i * 0.12}s" pathLength="1" d="${d}" stroke="var(--frame)" stroke-width="${w}"/>`).join("");
+  const frameFill = FRAME.map(([d, w], i) => `<path class="tube draw" style="--d:${0.18 + i * 0.06}s" pathLength="1" d="${d}" stroke="var(--frame)" stroke-width="${w}"/>`).join("");
 
   const art = `
     <g class="guides">
@@ -194,8 +194,8 @@
       <line x1="547" y1="388" x2="501" y2="240"/><line x1="922" y1="232" x2="956" y2="74"/>
       <line x1="620" y1="622" x2="620" y2="700"/><line x1="702" y1="787" x2="760" y2="842"/>
     </g>
-    <g class="mv" data-m="rear"><g class="part" data-part="rear"><g class="rise" style="--d:.3s">${wheel(317, 607)}</g></g></g>
-    <g class="rise" style="--d:.45s">
+    <g class="mv" data-m="rear"><g class="part" data-part="rear"><g class="rise" style="--d:0.15s">${wheel(317, 607)}</g></g></g>
+    <g class="rise" style="--d:0.23s">
       ${tube("M548 440 L330 604", 22)}
       ${tube("M322 609 L612 622", 22)}
       <path d="M470 463 Q560 452 652 446" fill="none" stroke="var(--edge)" stroke-width="3"/>
@@ -204,12 +204,12 @@
     </g>
     <g class="frame-edge">${frameEdge}</g>
     <g class="frame-fill">${frameFill}</g>
-    <g class="mv" data-m="pedalL"><g class="part" data-part="pedals"><g class="rise" style="--d:.8s">
+    <g class="mv" data-m="pedalL"><g class="part" data-part="pedals"><g class="rise" style="--d:0.40s">
       <rect x="520" y="535" width="62" height="24" rx="4" class="ink"/>
       <rect x="526" y="540" width="11" height="14" rx="2" fill="var(--refl)"/>
       <circle cx="566" cy="547" r="9.5" fill="var(--paper)" stroke="var(--ink)" stroke-width="3"/>
     </g></g></g>
-    <g class="mv" data-m="drive"><g class="part" data-part="drive"><g class="rise" style="--d:.65s">
+    <g class="mv" data-m="drive"><g class="part" data-part="drive"><g class="rise" style="--d:0.33s">
       <path d="M352 585 L590 583" stroke="var(--drive)" stroke-width="32" stroke-linecap="round" fill="none"/>
       <circle cx="620" cy="622" r="47" fill="none" stroke="var(--drive)" stroke-width="22"/>
       <path d="M332 626 L604 667" stroke="var(--drive)" stroke-width="5" stroke-linecap="round"/>
@@ -218,7 +218,7 @@
       <circle cx="620" cy="622" r="23" fill="var(--frame)"/>
       <circle cx="620" cy="622" r="8.5" class="ink"/>
     </g></g></g>
-    <g class="rise" style="--d:.55s">
+    <g class="rise" style="--d:0.28s">
       ${tube("M944 300 L922 234", 30)}
       <g fill="var(--mech)" opacity=".55">
         <rect x="987" y="398" width="22" height="58" rx="5" transform="rotate(-20 998 427)"/>
@@ -227,9 +227,9 @@
       </g>
       <circle cx="1024" cy="472" r="5" fill="var(--paper)"/>
     </g>
-    <g class="mv" data-m="front"><g class="part" data-part="front"><g class="rise" style="--d:.4s">${wheel(1050, 607)}</g></g></g>
-    <g class="rise" style="--d:.6s"><g opacity=".8">${tube("M950 372 Q996 478 1048 604", 24)}</g></g>
-    <g class="mv" data-m="handle"><g class="part" data-part="handle"><g class="rise" style="--d:.75s">
+    <g class="mv" data-m="front"><g class="part" data-part="front"><g class="rise" style="--d:0.20s">${wheel(1050, 607)}</g></g></g>
+    <g class="rise" style="--d:0.30s"><g opacity=".8">${tube("M950 372 Q996 478 1048 604", 24)}</g></g>
+    <g class="mv" data-m="handle"><g class="part" data-part="handle"><g class="rise" style="--d:0.38s">
       <path class="inks" stroke-width="22" d="M790 129 L838 132 Q876 138 886 186 Q894 226 918 228 Q946 229 960 186 Q976 128 1014 125 L1060 127"/>
       <path class="inks" stroke-width="13" d="M858 152 L1046 152"/>
       <path class="inks" stroke-width="34" d="M752 127 L812 128"/>
@@ -239,12 +239,12 @@
       <path class="inks cable" stroke-width="3" d="M990 168 Q944 262 993 396"/>
       <path class="inks cable" stroke-width="3" d="M962 192 Q912 252 866 336"/>
     </g></g></g>
-    <g class="mv" data-m="saddle"><g class="part" data-part="saddle"><g class="rise" style="--d:.7s">
+    <g class="mv" data-m="saddle"><g class="part" data-part="saddle"><g class="rise" style="--d:0.35s">
       <path class="inks" stroke-width="26" d="M514 300 L544 386"/>
       <path class="ink" d="M425 285 C420 258 445 252 475 256 L612 262 C636 265 642 280 628 292 C600 304 560 300 535 306 L478 316 C440 318 428 302 425 285 Z"/>
     </g></g></g>
-    <g class="rise" style="--d:.7s">${tube("M530 383 L566 376", 15)}</g>
-    <g class="mv" data-m="pedalR"><g class="part" data-part="pedals"><g class="rise" style="--d:.85s">
+    <g class="rise" style="--d:0.35s">${tube("M530 383 L566 376", 15)}</g>
+    <g class="mv" data-m="pedalR"><g class="part" data-part="pedals"><g class="rise" style="--d:0.42s">
       <rect x="654" y="684" width="98" height="28" rx="4" class="ink"/>
       <rect x="661" y="689" width="11" height="18" rx="2" fill="var(--refl)"/>
       <rect x="734" y="689" width="11" height="18" rx="2" fill="var(--refl)"/>

@@ -154,7 +154,7 @@ scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 // ---------- Materials and textures (Poly Haven, CC0) ----------
 const tex = new THREE.TextureLoader();
 const PH = "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/";
-const load = (url, srgb, rep) => { const t = tex.load(url); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...rep); t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
+const load = (url, srgb, rep) => { const t = tex.load(url, () => { dirty = 2; }); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...rep); t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
 const floorMat = new THREE.MeshStandardMaterial({
   map: load(PH + "wood_floor/wood_floor_diff_1k.jpg", true, [1.7, 1.7]),
   normalMap: load(PH + "wood_floor/wood_floor_nor_gl_1k.jpg", false, [1.7, 1.7]),
@@ -366,14 +366,20 @@ function frame(now) {
   if (moving || changed || dirty > 0) { composer.render(); dirty = Math.max(0, dirty - 1); }
 }
 
-Promise.all([
-  place("modern_arm_chair_01", { x: -1.55, z: -0.55, rotY: 0.95 }),
-  place("coffee_table_round_01", { x: -0.6, z: -0.45, width: 0.62 }),
-  place("potted_plant_01", { x: -2.05, z: -1.55 }),
-]).then(() => {
-  resize(); base = camera.position.clone(); idleSince = performance.now();
-  $("load").hidden = true; dirty = 3;
-  requestAnimationFrame(frame);
-});
-setTimeout(() => { if (!base) { resize(); base = camera.position.clone(); $("load").hidden = true; requestAnimationFrame(frame); } }, 12000);
+// Show the room as soon as its shell renders; furniture and textures stream in and fade up as they arrive.
+resize(); base = camera.position.clone(); idleSince = performance.now(); dirty = 3;
+requestAnimationFrame((now) => { frame(now); requestAnimationFrame(() => { $("load").hidden = true; }); });
+const fadeIn = (obj) => {
+  if (!obj) return;
+  const mats = []; obj.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) { m.transparent = true; m.opacity = 0; mats.push(m); } });
+  const t0 = performance.now(), reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const tick = (now) => { const k = reduce ? 1 : Math.min(1, (now - t0) / 450); for (const m of mats) m.opacity = k; dirty = 2; if (k < 1) requestAnimationFrame(tick); else for (const m of mats) m.transparent = false; };
+  requestAnimationFrame(tick);
+};
+place("modern_arm_chair_01", { x: -1.55, z: -0.55, rotY: 0.95 }).then(fadeIn);
+place("coffee_table_round_01", { x: -0.6, z: -0.45, width: 0.62 }).then(fadeIn);
+place("potted_plant_01", { x: -2.05, z: -1.55 }).then(fadeIn);
+// Textures load asynchronously; redraw once each arrives.
+THREE.DefaultLoadingManager.onLoad = () => { dirty = 2; };
+THREE.DefaultLoadingManager.onProgress = () => { dirty = 2; };
 </script>

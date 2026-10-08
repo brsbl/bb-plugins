@@ -137,8 +137,11 @@ Use only these steps (Inter is bb's font; keep `var(--font)`):
 ### Motion
 
 - Stream the card in on load: title, then each section top to bottom,
-  opacity 0→1 and translateY 6px→0 over 450ms with `--ia-ease`, staggered
-  60–100ms (`.ia-reveal` with `--i`). Grids and swatches pop in one by one.
+  opacity 0→1 and translateY 6px→0 over ~380ms with `--ia-ease`, staggered
+  40–60ms (`.ia-reveal` with `--i`). Grids and swatches pop in one by one.
+  The whole entrance finishes within about 1 s, and the hero is readable by
+  0.5 s. Never wait on photos, fonts or downloads before starting it; let late
+  images fade in where they land.
 - Every interaction visibly changes the hero: crossfade or slide content
   (250–350ms), transition colors (500–600ms), morph or move drawn parts
   (600–800ms), draw lines with `stroke-dashoffset`.
@@ -196,9 +199,12 @@ site or terrain. Use 2D for everything else; 3D costs downloads and battery.
   "Drag to look around" hint, constrained `OrbitControls` (no zoom or pan,
   limited angles, damping), and a slow camera drift that stops after a few
   seconds.
-- **Cost.** Render on demand, only while easing, dragging, or drifting. Show a
-  shimmer while assets load, with a timeout fallback, and a plain message if
-  WebGL is unavailable. Turn off drift and easing for reduced motion.
+- **Cost.** Render on demand, only while easing, dragging, or drifting. Draw
+  the procedural shell on the first frame and stream models and textures in
+  with a short fade as they arrive. The sandboxed frame re-downloads every
+  asset on each view (about 1.5 s for a furnished room), so never block the
+  first render on them. Show a plain message if WebGL is unavailable. Turn
+  off drift and easing for reduced motion.
 - **Check every preset at 2×** and fix these first:
   - Jagged edges: the composer needs MSAA.
   - Dotted edges: the depth-of-field aperture is too wide.
