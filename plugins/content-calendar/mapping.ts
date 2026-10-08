@@ -330,8 +330,9 @@ export function htmlToText(value: string): string {
   }
   return text.replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (entity, name: string) => {
       const lower = name.toLowerCase();
-      if (lower.startsWith("#x")) return String.fromCodePoint(Number.parseInt(lower.slice(2), 16));
-      if (lower.startsWith("#")) return String.fromCodePoint(Number.parseInt(lower.slice(1), 10));
+      // Descriptions come from Google, where any app can write them; an out-of-range entity stays literal.
+      const code = lower.startsWith("#x") ? Number.parseInt(lower.slice(2), 16) : lower.startsWith("#") ? Number.parseInt(lower.slice(1), 10) : null;
+      if (code !== null) return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity;
       return ENTITIES[lower] ?? entity;
     });
 }

@@ -150,4 +150,8 @@ describe("splitDescription", () => {
     expect(splitDescription(html, [block])).toEqual({ notes: "My notes & plans", found: true });
     expect(htmlToText("a<br/>b")).toBe("a\nb");
   });
+
+  it("keeps out-of-range character references literal instead of throwing", () => {
+    expect(htmlToText("x &#99999999; &#x110000; &#0; &#65;")).toBe("x &#99999999; &#x110000; &#0; A");
+  });
 });

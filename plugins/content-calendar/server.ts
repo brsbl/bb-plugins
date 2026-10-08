@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { extname, posix } from "node:path";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi, type PluginCliContext } from "@get-bb/plugin-sdk";
 import { z } from "zod";
@@ -213,8 +214,13 @@ export default function plugin(bb: BbPluginApi): void {
     await onlineMachine(machineId);
     const file = await host.call("resolveFile", { path, ...(cwd ? { cwd } : {}) }, { hostId: machineId, signal });
     const attachment = attachmentInput.parse({ kind: "file", machineId, path: file.path, name: file.name });
+    await bb.storage.kv.set(trustKey(machineId, file.path), true);
     return strict ? service.strict.attach({ id, attachment }) : service.attach({ id, attachment });
   };
+  // File records round-trip through Google Calendar, where other apps can rewrite them. bb only checks
+  // or opens a machine path that was attached through bb itself.
+  const trustKey = (machineId: string, path: string) => `attached-file:${createHash("sha256").update(`${machineId}\0${path}`).digest("hex")}`;
+  const attachedThroughBb = async (machineId: string, path: string) => (await bb.storage.kv.get<boolean>(trustKey(machineId, path))) === true;
 
   const threadRoute = async (threadId: string) => {
     const base = (bb.server.experimental_appUrl ?? "").replace(/\/+$/, "");
@@ -253,7 +259,10 @@ export default function plugin(bb: BbPluginApi): void {
     attachFile: ({ id, machineId, path }) => after(attachFile(id, machineId, path, undefined, false)),
     inspectFiles: async ({ id }) => {
       const item = await service.get(id);
-      const files = item.attachments.filter((attachment): attachment is Extract<Attachment, { kind: "file" }> => attachment.kind === "file");
+      const all = item.attachments.filter((attachment): attachment is Extract<Attachment, { kind: "file" }> => attachment.kind === "file");
+      const trusted = new Set<string>();
+      for (const file of all) if (await attachedThroughBb(file.machineId, file.path)) trusted.add(file.id);
+      const files = all.filter((file) => trusted.has(file.id));
       const online = new Map((await machines()).map((machine) => [machine.id, machine.connected]));
       const result: Array<{ attachmentId: string; status: "available" | "missing" | "offline" }> = [];
       for (const machineId of new Set(files.map((file) => file.machineId))) {
@@ -265,7 +274,7 @@ export default function plugin(bb: BbPluginApi): void {
           result.push({ attachmentId: file.id, status: facts ? facts.files.find((fact) => fact.path === file.path)?.status ?? "missing" : "offline" });
         }
       }
-      return { files: files.map((file) => result.find((entry) => entry.attachmentId === file.id)!) };
+      return { files: all.map((file) => result.find((entry) => entry.attachmentId === file.id) ?? { attachmentId: file.id, status: "missing" as const }) };
     },
     openAttachment: async ({ id, attachmentId }) => {
       const item = await service.get(id);
@@ -278,6 +287,9 @@ export default function plugin(bb: BbPluginApi): void {
       if (attachment.kind === "url") return { opened: "url" as const, url: attachment.url };
       if (attachment.kind === "pr") return { opened: "url" as const, url: `https://github.com/${attachment.repo}/pull/${attachment.number}` };
       if (attachment.kind === "thread") return { opened: "url" as const, url: await threadRoute(attachment.threadId) };
+      if (!(await attachedThroughBb(attachment.machineId, attachment.path))) {
+        throw new CalendarError("invalid", "This file was attached outside bb, so bb won't open it.", "Remove it and attach the file again from bb.");
+      }
       const preview = { opened: "preview" as const, hostId: attachment.machineId, path: attachment.path };
       if (![".md", ".markdown"].includes(extname(attachment.path).toLowerCase())) return preview;
       // The Mac decides whether this is a Moss note under ~/Moss; anything it refuses opens in the preview.

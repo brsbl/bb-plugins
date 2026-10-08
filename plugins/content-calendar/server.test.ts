@@ -1,4 +1,6 @@
 import { createFakePluginHost, makeHostResponse, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
+import { createHash } from "node:crypto";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "./model.js";
 import { CalendarError, type ServiceDeps } from "./service-api.js";
@@ -37,6 +39,12 @@ const disposers: Array<() => Promise<void>> = [];
 beforeEach(() => { service = makeService(); state.service = service; });
 afterEach(async () => { for (const dispose of disposers.splice(0)) await dispose(); });
 
+let current: BbPluginApi;
+/** Records a file as attached through bb, which openAttachment and inspectFiles require. */
+const trust = (machineId: string, path: string) =>
+  current.storage.kv.set(`attached-file:${createHash("sha256").update(`${machineId}\0${path}`).digest("hex")}`, true);
+const trustAll = async (list: Item["attachments"]) => { for (const entry of list) if (entry.kind === "file") await trust(entry.machineId, entry.path); };
+
 function setup(options: { settings?: Record<string, string>; openInMoss?: boolean } = {}) {
   const { bb, harness } = createFakePluginHost({
     pluginId: "content-calendar",
@@ -54,6 +62,7 @@ function setup(options: { settings?: Record<string, string>; openInMoss?: boolea
     },
   });
   plugin(bb);
+  current = bb;
   disposers.push(() => harness.lifecycle.dispose());
   return harness;
 }
@@ -165,6 +174,7 @@ describe("attachments", () => {
 
   it("opens Moss notes on the Mac and sends every other file to the preview", async () => {
     const h = setup();
+    await trustAll(attachments);
     service.get.mockResolvedValue(item({ attachments }));
     expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a1" })).toEqual({ opened: "moss" });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "openInMoss", hostId: "mac" });
@@ -176,18 +186,34 @@ describe("attachments", () => {
 
   it("falls back to the preview when the Mac refuses to open a note", async () => {
     const h = setup({ openInMoss: false });
+    await trustAll(attachments);
     service.get.mockResolvedValue(item({ attachments }));
     expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a1" })).toEqual({ opened: "preview", hostId: "mac", path: "/Users/me/Moss/Notes/Draft.md" });
   });
 
   it("reports available, missing, and offline files", async () => {
     const h = setup();
-    service.get.mockResolvedValue(item({ attachments: [...attachments, { id: "a5", kind: "file", machineId: "mac", path: "/Users/me/gone.md", name: "gone.md" }] }));
+    const all: Item["attachments"] = [...attachments, { id: "a5", kind: "file", machineId: "mac", path: "/Users/me/gone.md", name: "gone.md" }];
+    await trustAll(all);
+    service.get.mockResolvedValue(item({ attachments: all }));
     expect(await h.behavior.callRpc("inspectFiles", { id: "cc_abc123" })).toEqual({ files: [
       { attachmentId: "a1", status: "available" },
       { attachmentId: "a2", status: "available" },
       { attachmentId: "a4", status: "offline" },
       { attachmentId: "a5", status: "missing" },
     ] });
+  });
+
+  it("never checks or opens a file record that was not attached through bb", async () => {
+    const h = setup();
+    service.get.mockResolvedValue(item({ attachments }));
+    const calls = h.inspection.experimental_hostRpcCalls.length;
+    await expect(h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a2" })).rejects.toThrow(/attached outside bb/);
+    expect(await h.behavior.callRpc("inspectFiles", { id: "cc_abc123" })).toEqual({ files: [
+      { attachmentId: "a1", status: "missing" },
+      { attachmentId: "a2", status: "missing" },
+      { attachmentId: "a4", status: "missing" },
+    ] });
+    expect(h.inspection.experimental_hostRpcCalls).toHaveLength(calls);
   });
 });
