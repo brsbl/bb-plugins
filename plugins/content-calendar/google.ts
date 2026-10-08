@@ -209,9 +209,17 @@ export function createGoogleClient(options: GoogleClientOptions) {
         query: { singleEvents: "false", showDeleted: "true", maxResults: "250", syncToken: query.syncToken, pageToken: query.pageToken },
       }),
     getEvent: (calendarId: string, eventId: string) => request<GoogleEvent>("GET", eventPath(calendarId, eventId)),
-    insertEvent: (calendarId: string, body: EventWrite) => request<GoogleEvent>("POST", `${calendarPath(calendarId)}/events`, { body }),
+    // Insert has nothing to clear, and Google rejects null values there ("Required"), so nulls are dropped.
+    insertEvent: (calendarId: string, body: EventWrite) => request<GoogleEvent>("POST", `${calendarPath(calendarId)}/events`, { body: withoutNulls(body) }),
     patchEvent: (calendarId: string, eventId: string, body: EventWrite, etag: string | null) =>
       request<GoogleEvent>("PATCH", eventPath(calendarId, eventId), { body, ifMatch: etag ?? undefined }),
     deleteEvent: (calendarId: string, eventId: string) => request<void>("DELETE", eventPath(calendarId, eventId)),
   };
+}
+
+/** A copy without null values, at any depth. */
+export function withoutNulls<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(withoutNulls) as T;
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).filter(([, inner]) => inner !== null).map(([key, inner]) => [key, withoutNulls(inner)])) as T;
 }
