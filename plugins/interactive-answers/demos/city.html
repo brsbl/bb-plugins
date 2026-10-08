@@ -243,7 +243,8 @@
   // ---------- Map ----------
   const mapEl = $("map"), glEl = $("gl");
   mapEl.dataset.expanded = String(state.expanded);
-  const homeZoom = () => Math.log2((360 * mapEl.clientWidth) / (512 * HOME.lonSpan)) + Math.log2(S);
+  // The frame can start before layout (width 0); fall back to the card width until it is measured.
+  const homeZoom = () => Math.log2((360 * (mapEl.clientWidth || 460)) / (512 * HOME.lonSpan)) + Math.log2(S);
   let map = null, ready = false;
   try {
     map = new maplibregl.Map({
@@ -256,6 +257,14 @@
     map.on("load", () => { ready = true; place(); });
     map.on("move", place); map.on("resize", place);
   } catch (error) { console.error(error); }
+  // Re-home once the container has its real width, if the map started unmeasured.
+  if (map && !mapEl.clientWidth) {
+    const ro = new ResizeObserver(() => {
+      if (!mapEl.clientWidth) return;
+      ro.disconnect(); map.resize(); map.jumpTo({ center: HOME.center, zoom: homeZoom() });
+    });
+    ro.observe(mapEl);
+  }
   window.answer?.onTheme?.(() => { applyPalette(); map?.setStyle(buildStyle()); });
 
   const project = (ll) => {
