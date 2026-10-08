@@ -346,6 +346,8 @@ export class FakeGoogle {
   }
 
   private insertEvent(calendarId: string, body: Json): Response {
+    // Like Google, insert rejects null values (PATCH uses them to clear fields).
+    if (hasNull(body)) return error(400, "Required");
     let id = this.nextId();
     const requested = body.id;
     if (requested !== undefined) {
@@ -455,4 +457,11 @@ function json(status: number, body: unknown): Response {
 
 function error(status: number, message: string): Response {
   return json(status, { error: { code: status, message, errors: [{ reason: status === 429 ? "rateLimitExceeded" : "fake" }] } });
+}
+
+function hasNull(value: unknown): boolean {
+  if (value === null) return true;
+  if (Array.isArray(value)) return value.some(hasNull);
+  if (typeof value === "object") return Object.values(value as Json).some(hasNull);
+  return false;
 }
