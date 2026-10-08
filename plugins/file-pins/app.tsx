@@ -15,8 +15,7 @@ import { layoutPins, pinFile, PIN_MIN_WIDTH_CLASS, unpinFile, useMeasurePins, ty
 import { previewTarget } from "./open-target.js";
 import { pinTooltip } from "./pin-tooltip.js";
 import { ReferenceIcon } from "./reference-icon.js";
-import { githubPullRequest } from "./pr-state.js";
-import { prStateLabel, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
+import { prStateLabel, showsPrState, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
 import { cn } from "./lib/utils.js";
 
 const linkClass = `group inline-flex h-7 min-w-0 items-center gap-1.5 rounded px-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`;
@@ -264,7 +263,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     {/* Mirrors the strip row with every pin at its natural width, plus ⋯ and the minimum pin, to measure what fits. */}
     <div ref={measureRow} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
       {pins.map((pin) => <span key={pin.id} data-pin-id={pin.id} className={cn(pinClass, "shrink-0", !isUrlPin(pin) && pin.status === "missing" && "pr-4")}>
-        {isUrlPin(pin) && githubPullRequest(pin.url) ? <span className="flex shrink-0 gap-0.5"><span className="size-3.5" /><span className="size-3.5" /></span> : <span className="size-3.5 shrink-0" />}
+        {isUrlPin(pin) && showsPrState(pin.url) ? <span className="flex shrink-0 gap-0.5"><span className="size-3.5" /><span className="size-3.5" /></span> : <span className="size-3.5 shrink-0" />}
         <span className="truncate">{pin.name}</span>
       </span>)}
       <span data-measure="more" className={moreClass}><Icon name="MoreHorizontal" className="size-4" /></span>

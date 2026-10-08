@@ -302,7 +302,7 @@ Keep a thread's key files and links one click away in a strip above the composer
 
 ![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
 
-![Pins truncated to fit a phone, with the rest in the ⋯ list](plugins/file-pins/docs/phone-more-list.png)
+![Pins with whole labels on a phone, the last one shortened to fill the row, and the rest in the full-width ⋯ list](plugins/file-pins/docs/phone-more-list.png)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 
