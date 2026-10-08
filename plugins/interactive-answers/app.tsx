@@ -100,7 +100,8 @@ export function HtmlAnswerView({ id, threadId, widget }: { id: string; threadId:
         const json = JSON.stringify(message.state ?? null);
         try { if (json.length <= MAX_STATE_LENGTH) localStorage.setItem(key, json); } catch { /* Storage may be unavailable; the answer still works. */ }
       }
-      if (message.type === "open" && typeof message.url === "string" && /^https?:\/\//.test(message.url)) window.open(message.url, "_blank", "noopener,noreferrer");
+      // Only follow a link the user just clicked; activation in the frame propagates to this page.
+      if (message.type === "open" && typeof message.url === "string" && /^https?:\/\//.test(message.url) && navigator.userActivation?.isActive) window.open(message.url, "_blank", "noopener,noreferrer");
     };
     window.addEventListener("message", onMessage);
     const sendTheme = () => frame.current?.contentWindow?.postMessage({ source: WIDGET_MESSAGE_SOURCE, type: "theme", theme: readTheme() }, "*");

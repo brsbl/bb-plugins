@@ -51,7 +51,8 @@ division by zero and overflowing calculations display as unavailable.
 When an answer needs its own layout or illustration, the agent publishes HTML
 with inline styles and scripts. bb renders it like an inline-vis preview: in a
 sandboxed, opaque-origin frame that cannot reach bb, cookies, or the
-conversation. The card sizes itself to the content, follows bb's light and
+conversation. Like inline-vis, its scripts can load remote content and use the
+network, so agents are told never to send user input anywhere. The card sizes itself to the content, follows bb's light and
 dark theme tokens and Inter type, saves its state in the browser, and opens web
 links in a new tab.
 

@@ -68,8 +68,9 @@ the content; `width` (320–1200) caps the card width.
   normally; use stable public sources and credit them in your prose.
 - Use real buttons, visible focus, and `prefers-reduced-motion`. Animate
   changes so users can see what moved, and never rely on motion alone.
-- The frame cannot reach bb, cookies, storage, or the conversation, and inputs
-  never reach the agent. `demos/` in the plugin holds complete examples.
+- The frame cannot reach bb, cookies, or the conversation, and inputs are not
+  sent to the agent. Its scripts can use the network, so never send what the
+  user enters to any server. `demos/` in the plugin holds complete examples.
 
 ## Interactive diagrams
 
