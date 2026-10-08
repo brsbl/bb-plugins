@@ -99,6 +99,12 @@ function formatOption(value: string | undefined): Format | null | undefined {
   return value === undefined ? undefined : value === "none" ? null : (value as Format);
 }
 
+/** Dev QA only: point the engine at `fake-google-server.ts` instead of Google. */
+function devGoogleEndpoints(base: string | undefined) {
+  if (!base || !/^http:\/\/127\.0\.0\.1:\d+$/.test(base)) return undefined;
+  return { apiBase: `${base}/calendar/v3`, authUrl: `${base}/o/oauth2/v2/auth`, tokenUrl: `${base}/token` };
+}
+
 export default function plugin(bb: BbPluginApi): void {
   const settings = bb.settings.define({
     clientId: { type: "string", label: "Google OAuth client ID", description: "From your Google Cloud project's Desktop app OAuth client", secret: true },
@@ -129,6 +135,7 @@ export default function plugin(bb: BbPluginApi): void {
     fetch: ((input: Parameters<typeof fetch>[0], init?: RequestInit) => globalThis.fetch(input, init)) as typeof fetch,
     now: () => new Date(),
     log: bb.log,
+    google: devGoogleEndpoints(process.env.BB_CONTENT_CALENDAR_FAKE_GOOGLE),
   });
   bb.onDispose(() => service.dispose());
 
