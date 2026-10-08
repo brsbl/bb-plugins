@@ -149,17 +149,21 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
     // Alt+Up/Down reorders within the day or tray.
     if (!picked && event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
       event.preventDefault();
-      const container = containerOf(item);
-      const list = listOf(container);
-      const index = list.findIndex((entry) => entry.id === item.id);
-      const neighbour = list[event.key === "ArrowUp" ? index - 1 : index + 1];
-      if (!neighbour) { say(`${item.title} is already ${event.key === "ArrowUp" ? "first" : "last"}.`); return; }
-      refocus.current = item.id;
-      void data.move(item, containerWhen(container), event.key === "ArrowUp" ? { before: neighbour.id } : { after: neighbour.id }, list);
-      say(`Moved ${item.title} ${event.key === "ArrowUp" ? "above" : "below"} ${neighbour.title}.`);
+      reorder(item, event.key === "ArrowUp" ? "up" : "down");
       return;
     }
     if (event.key === "Enter") { event.preventDefault(); onOpen(item); }
+  };
+  /** Moves an item one place up or down within its day or tray: Alt+arrows, or Move up/down in its menu. */
+  const reorder = (item: Item, direction: "up" | "down") => {
+    const container = containerOf(item);
+    const list = listOf(container);
+    const index = list.findIndex((entry) => entry.id === item.id);
+    const neighbour = list[direction === "up" ? index - 1 : index + 1];
+    if (!neighbour) { say(`${item.title} is already ${direction === "up" ? "first" : "last"}.`); return; }
+    refocus.current = item.id;
+    void data.move(item, containerWhen(container), direction === "up" ? { before: neighbour.id } : { after: neighbour.id }, list);
+    say(`Moved ${item.title} ${direction === "up" ? "above" : "below"} ${neighbour.title}.`);
   };
   const onCardBlur = (item: Item) => {
     if (pickedRef.current?.item.id !== item.id) return;
@@ -212,6 +216,14 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
       {popState.kind === "menu" && <div className="cc-menu">
         <button type="button" onClick={() => { onOpen(popState.item); closePop(); }}>Open</button>
         <button type="button" onClick={() => setPopState({ kind: "move", item: popState.item })}>Move to…</button>
+        {(() => {
+          const list = listOf(containerOf(popState.item));
+          const index = list.findIndex((entry) => entry.id === popState.item.id);
+          return <>
+            {index > 0 && <button type="button" onClick={() => { reorder(popState.item, "up"); closePop(); }}>Move up</button>}
+            {index >= 0 && index < list.length - 1 && <button type="button" onClick={() => { reorder(popState.item, "down"); closePop(); }}>Move down</button>}
+          </>;
+        })()}
         <button type="button" className="cc-danger" onClick={() => { data.remove(popState.item); closePop(); }}>Delete</button>
       </div>}
       {popState.kind === "move" && <MoveTo item={popState.item} onMove={(when) => {
