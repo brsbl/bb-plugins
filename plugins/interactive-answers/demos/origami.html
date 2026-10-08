@@ -1,0 +1,258 @@
+<!-- width: 460 -->
+<style>
+  body { padding: 25px 24px 22px; }
+  .fx { --or: #e07a2e; --dash-on: #e8822a; --dash-off: color-mix(in srgb, var(--muted-foreground) 30%, var(--card)); --ill: var(--muted); }
+  .fx h2 { margin: 0; font-size: 17.5px; line-height: 1.25; font-weight: 500; letter-spacing: -.012em; }
+  .fx .sub { margin: 3px 0 0; font-size: 11.6px; line-height: 1.35; color: var(--muted-foreground); }
+  .fx .sub b { font-weight: 400; color: color-mix(in srgb, var(--or) 60%, var(--muted-foreground)); }
+  .fx .panel { margin-top: 16px; border: 1px solid var(--border); border-radius: 15px; padding: 15px 13px 13px; background: var(--card); }
+  .fx .top { display: flex; justify-content: space-between; align-items: baseline; font-size: 10.6px; line-height: 1.3; }
+  .fx .count { color: var(--or); font-weight: 600; letter-spacing: .01em; text-transform: uppercase; }
+  .fx .level { color: var(--muted-foreground); }
+  .fx .bar { display: flex; gap: 5.3px; margin-top: 12px; }
+  .fx .bar i { flex: 1; height: 4.3px; border-radius: 3px; background: var(--dash-off); position: relative; overflow: hidden; }
+  .fx .bar i::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--dash-on); transform: scaleX(0); transform-origin: left; transition: transform .32s var(--ia-ease); transition-delay: var(--d, 0ms); }
+  .fx .bar i.on::after { transform: scaleX(1); }
+  .fx .ill { margin-top: 12px; height: 237px; border-radius: 10px; background: var(--ill); overflow: hidden; }
+  .fx .ill svg { width: 100%; height: 100%; }
+  .fx .ill polygon { stroke: #b4602a; stroke-width: .6; stroke-opacity: .75; stroke-linejoin: round; transition: fill .45s ease; }
+  .fx .ill .white { stroke: #cbbfb2; }
+  .fx .ill .crease { fill: none; stroke: #b4602a; stroke-width: .8; stroke-dasharray: 3 2.4; transition: opacity .35s; }
+  .fx .ill .crease.paper { stroke: #c4b8aa; }
+  .fx .ill .arrow { fill: none; stroke: var(--foreground); stroke-width: 1.05; stroke-linecap: round; stroke-linejoin: round; }
+  .fx .ill .face { fill: #2a1d16; transition: opacity .4s ease .25s; }
+  .fx .text { position: relative; }
+  .fx .text h3 { margin: 15px 0 0; font-size: 15.4px; line-height: 1.3; font-weight: 500; letter-spacing: -.008em; }
+  .fx .text .desc { margin: 4px 0 0; font-size: 12.4px; line-height: 1.33; letter-spacing: -.012em; min-height: calc(3em * 1.33); }
+  .fx .tip { margin-top: 14px; min-height: 53px; border-radius: 8px; background: var(--ill); padding: 9px 11px; font-size: 10.9px; line-height: 1.4; color: var(--muted-foreground); }
+  .fx .swap { transition: opacity .18s ease, transform .18s ease; }
+  .fx .swap.out { opacity: 0; transform: translateY(3px); }
+  .fx nav { display: flex; justify-content: space-between; margin-top: 21px; }
+  .fx nav button { border: 0; background: none; padding: 4px 0; font-size: 12.6px; line-height: 1.3; color: var(--foreground); border-radius: 4px; transition: opacity .2s, color .2s; }
+  .fx nav .prev { color: var(--muted-foreground); }
+  .fx nav button:hover { opacity: .7; }
+  .fx nav button:disabled { opacity: 0; pointer-events: none; }
+  .fx .in { animation: fx-in .55s var(--ia-ease) both; animation-delay: var(--t, 0ms); }
+  @keyframes fx-in { from { opacity: 0; transform: translateY(6px); } }
+  .fx .ill.in svg { animation: fx-pop .7s var(--ia-ease) both; animation-delay: calc(var(--t, 0ms) + 160ms); }
+  @keyframes fx-pop { from { opacity: 0; transform: scale(.94); } }
+</style>
+
+<div class="fx" id="fx">
+  <h2 class="in" style="--t:0ms">Let's fold an origami baby fox!</h2>
+  <p class="sub in" style="--t:90ms">This beginner-friendly version takes about <b>5–10</b> minutes.</p>
+  <section class="panel in" style="--t:220ms" aria-label="Folding steps">
+    <div class="top"><span class="count swap" id="count" aria-live="polite">Step 1 of 12</span><span class="level">Beginner</span></div>
+    <div class="bar" id="bar" role="progressbar" aria-valuemin="1" aria-valuemax="12" aria-valuenow="1" aria-label="Progress"></div>
+    <div class="ill in" style="--t:380ms" id="ill">
+      <svg viewBox="0 0 363.5 224" role="img" aria-labelledby="stitle" id="svg"></svg>
+    </div>
+    <div class="text in" style="--t:560ms">
+      <h3 class="swap" id="stitle"></h3>
+      <p class="desc swap" id="desc"></p>
+      <div class="tip swap" id="tip"></div>
+    </div>
+  </section>
+  <nav class="in" style="--t:680ms">
+    <button class="prev" id="prev" type="button">← Previous step</button>
+    <button class="next" id="next" type="button">Next step →</button>
+  </nav>
+</div>
+
+<script>
+(() => {
+  const M = "#e8853c", D = "#cd6b35", H = "#e6884f", HR = "#e98d55", E = "#ec8b47", W = "#fbf9f5", WT = "#fdf7ef";
+  // Square (step 1), triangle (steps 2-3), and the folded body (step 4+), in illustration px.
+  const T1 = [182, 17], R1 = [277, 112], B1 = [182, 207], L1 = [87, 112];
+  const L2 = [87, 157], R2 = [277, 157], T2 = [182, 62], C2 = [182, 157];
+  const BL = [108, 174.75], BR = [244.5, 174.75], TOP = [244.5, 38];
+  const T = [171.25, 56.75], N = [214.5, 67.25], X = [226.5, 114.75], EB = [242, 174.5];
+  const Dt = N, Dr = [243, 84], Db = [227, 114.75], Dl = [197.5, 97.25];
+  const A = [150, 174.75], Bp = [128, 154.75], TT = [146, 133.2];
+  const EDGE = [[240.5, 42], [244.5, 38], [244.5, 174.75], [240.5, 174.75]];
+  const MID = [N, [240, 44], [241, 174.5], X];
+
+  const body = (extra = {}) => Object.assign({
+    earB: { p: [EB, TOP, [238, 62], EB], f: D, o: 0 },
+    back: { p: [BL, BR, TOP, BL], f: M },
+    front: { p: [BR, BL, BL, TOP], f: M },
+    edge: { p: EDGE, f: E },
+  }, extra);
+  const ear = { p: [T, N, X, EB], f: D };
+  const mid = { p: MID, f: M };
+
+  const steps = [
+    { t: "Start with a square", d: "Place the paper colored side down. Fold it corner to corner, then unfold to leave one diagonal crease.", tip: "Thin square paper about 15 cm wide is easiest for small hands.",
+      g: { back: { p: [L1, R1, T1, L1], f: W, c: "white" }, front: { p: [L1, R1, R1, B1], f: W, c: "white" } },
+      crease: "M87 112L277 112", paper: true, arrow: "M202 200C316 184 316 40 202 24" },
+    { t: "Fold into a triangle", d: "Fold the bottom corner up to meet the top corner along the crease.", tip: "Line up the corners exactly before you press the fold flat.",
+      g: { back: { p: [L2, R2, T2, L2], f: M }, front: { p: [L2, R2, R2, T2], f: M } },
+      arrow: "M200 188C262 176 256 96 202 70" },
+    { t: "Crease the center", d: "Fold the left corner onto the right corner, crease firmly, then unfold.", tip: "This center crease becomes the fox's back.",
+      g: { back: { p: [L2, C2, T2, L2], f: M }, front: { p: [C2, R2, R2, T2], f: M } },
+      crease: "M182 62L182 157", arrow: "M100 146C126 90 238 90 264 146" },
+    { t: "Fold in half", d: "Fold the right half over onto the left half along the center crease.", tip: "Keep the folded edge on the right; the open edges face up and left.",
+      g: body(), arrow: "M270 146Q256 84 198 110" },
+    { t: "Crease the ear line", d: "Fold the top point down to the left, starting the crease at the bottom corner. Unfold.", tip: "Fold through all layers so the crease shows on both sides.",
+      g: body(), crease: "M244.5 174.75L212.5 60", arrow: "M238 44Q212 16 180 46" },
+    { t: "Fold the front ear", d: "Fold only the front layer along the crease so its point sticks up to the left.", tip: "The back layers stay standing along the folded edge.",
+      g: body({ mid, ear }), arrow: "M238 46Q214 18 184 46" },
+    { t: "Fold the back ear behind", d: "Fold the matching back layer behind along the same crease.", tip: "Both ear points should line up exactly when you are done.",
+      g: body({ earB: { p: [EB, [163.5, 66], N, EB], f: "#bd6230", o: 1 }, mid, ear }), arrow: "M240 30Q220 10 196 30", dashed: true },
+    { t: "Crease the head line", d: "Fold the middle point down to the notch between the ears, crease firmly, then unfold.", tip: "This crease sets the size of the fox's head.",
+      g: body({ earB: { p: [EB, T, N, EB], f: D, o: 0 }, mid, ear }), crease: "M214.5 67.25L243 84", arrow: "M252 48Q264 74 247 96" },
+    { t: "Lift the middle flap", d: "Separate the middle flap from the two outer ears. Lift it toward you until upright.", tip: "Lift the middle layer only. The outer points remain ears.",
+      g: body({ earB: { p: [EB, T, N, EB], f: D, o: 0 }, mid, ear, hl: { p: [N, X, [220.5, 91]], f: H, o: 0 }, hr: { p: [N, [220.5, 91], X], f: HR, o: 0 } }),
+      arrow: "M234.5 53.5Q221 26 203.5 45.5" },
+    { t: "Open and flatten the head", d: "Open that upright flap's pocket. Press its tip downward, spreading both sides into a small diamond.", tip: "Center the nose over the crease; keep both ears raised.",
+      g: body({ earB: { p: [EB, T, N, EB], f: D, o: 0 }, mid: { p: [Dt, [240, 44], [241, 174.5], Db], f: M }, ear: { p: [T, Dt, Db, EB], f: D }, hl: { p: [Dt, Db, Dl], f: H }, hr: { p: [Dt, Dr, Db], f: HR } }),
+      via: { hl: [N, X, [223, 46]], hr: [N, [229, 44], X] }, act: "M226 40Q234 62 228 90" },
+    { t: "Fold the tail tip", d: "Fold the bottom-left point up at a slant so its white side shows as the tail tip.", tip: "Real foxes have white tail tips, so let the paper's white side show.",
+      g: null, arrow: "M98 162Q100 128 134 126" },
+    { t: "Meet your baby fox!", d: "Draw two tiny eyes and a nose on the head. Stand it on its base so it sits up.", tip: "Fold a few in different sizes to make a whole fox family.",
+      g: null, face: true },
+  ];
+  const head = { earB: { p: [EB, T, N, EB], f: D, o: 0 }, mid: { p: [Dt, [240, 44], [241, 174.5], Db], f: M }, ear: { p: [T, Dt, Db, EB], f: D }, hl: { p: [Dt, Db, Dl], f: H }, hr: { p: [Dt, Dr, Db], f: HR } };
+  steps[10].g = body(Object.assign({}, head, { back: { p: [A, BR, TOP, Bp], f: M }, front: { p: [BR, A, Bp, TOP], f: M }, tail: { p: [TT, A, Bp], f: WT, c: "white" } }));
+  steps[11].g = steps[10].g;
+  steps[9].g.tail = { p: [BL, A, Bp], f: M, o: 0, c: "white" };
+
+  // Every piece keeps a geometry on every step so it can fade in where it will appear.
+  const ORDER = ["earB", "back", "front", "tail", "edge", "mid", "ear", "hl", "hr"];
+  const pad = (p) => { const q = p.slice(); while (q.length < 4) q.push(q[q.length - 1]); return q; };
+  const geo = steps.map(() => ({}));
+  for (const id of ORDER) {
+    const present = steps.map((s) => s.g[id]);
+    steps.forEach((s, i) => {
+      let src = present[i], hidden = !src;
+      if (!src) { for (let j = i + 1; j < steps.length && !src; j++) src = present[j]; for (let j = i - 1; j >= 0 && !src; j--) src = present[j]; }
+      geo[i][id] = { p: pad(src.p), f: src.f, o: hidden ? 0 : (src.o ?? 1), c: src.c || "" };
+    });
+  }
+
+  const NS = "http://www.w3.org/2000/svg";
+  const $ = (id) => document.getElementById(id), svg = $("svg");
+  const el = (tag, attrs = {}, parent = svg) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
+  const title = el("title"); title.id = "stitle-svg";
+  const art = el("g");
+  const polys = {}; for (const id of ORDER) polys[id] = el("polygon", {}, art);
+  const crease = el("path", { class: "crease" });
+  const arrowG = el("g", { class: "arrow" });
+  const face = el("g", { class: "face", opacity: 0 });
+  el("circle", { cx: 211.5, cy: 92.5, r: 1.7 }, face); el("circle", { cx: 230.5, cy: 88.5, r: 1.7 }, face);
+  el("path", { d: "M223.6 106.2l5.2-.6-2.2 4.6z" }, face);
+
+  const ptsStr = (p) => p.map((q) => q[0].toFixed(2) + "," + q[1].toFixed(2)).join(" ");
+  const cur = {}; // id -> {p, o}
+  const apply = (id, p, o) => { cur[id] = { p, o }; polys[id].setAttribute("points", ptsStr(p)); polys[id].setAttribute("opacity", o); };
+  const ease = (t) => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let anim = 0;
+  function tween(target, ms) {
+    return new Promise((done) => {
+      const from = {}; for (const id of ORDER) from[id] = cur[id];
+      const my = ++anim, t0 = performance.now();
+      const frame = (now) => {
+        if (my !== anim) return done(false);
+        const k = reduced ? 1 : Math.min(1, (now - t0) / ms), e = ease(k);
+        for (const id of ORDER) {
+          const a = from[id], b = target[id];
+          apply(id, a.p.map((q, i) => [q[0] + (b.p[i][0] - q[0]) * e, q[1] + (b.p[i][1] - q[1]) * e]), a.o + (b.o - a.o) * e);
+        }
+        k < 1 ? requestAnimationFrame(frame) : done(true);
+      };
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function drawArrow(d, dashed, transient) {
+    arrowG.replaceChildren();
+    if (!d) return;
+    const path = el("path", { d }, arrowG);
+    const len = path.getTotalLength(), end = path.getPointAtLength(len), back = path.getPointAtLength(Math.max(0, len - 5));
+    const ang = Math.atan2(end.y - back.y, end.x - back.x), s = 4.6, spread = .5;
+    const hx = (a) => (end.x - s * Math.cos(ang + a)).toFixed(2) + " " + (end.y - s * Math.sin(ang + a)).toFixed(2);
+    const headP = el("path", { d: `M${hx(spread)}L${end.x.toFixed(2)} ${end.y.toFixed(2)}L${hx(-spread)}` }, arrowG);
+    const dur = reduced ? 1 : 420;
+    if (dashed) path.setAttribute("stroke-dasharray", "4 2.2 1 2.2");
+    path.animate(dashed ? [{ opacity: 0 }, { opacity: 1 }] : [{ strokeDasharray: `${len} ${len}`, strokeDashoffset: len }, { strokeDasharray: `${len} ${len}`, strokeDashoffset: 0 }], { duration: dur, easing: "cubic-bezier(.3,.6,.3,1)", fill: "both", delay: 120 });
+    headP.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, delay: 120 + dur * .85, fill: "both" });
+    if (transient) arrowG.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, delay: 120 + dur + 120, fill: "forwards" });
+  }
+
+  const bar = $("bar");
+  for (let i = 0; i < steps.length; i++) bar.appendChild(document.createElement("i"));
+  const dashes = [...bar.children];
+
+  let step = 0;
+  const saved = window.answer && window.answer.state;
+  if (saved && Number.isInteger(saved.step) && saved.step >= 1 && saved.step <= 12) step = saved.step - 1;
+
+  function setText(i, instant) {
+    const s = steps[i];
+    const fill = () => {
+      $("count").textContent = `Step ${i + 1} of ${steps.length}`;
+      $("stitle").textContent = s.t; $("desc").textContent = s.d; $("tip").textContent = s.tip;
+      title.textContent = `Diagram: ${s.t}`;
+    };
+    const nodes = ["count", "stitle", "desc", "tip"].map($);
+    if (instant) return fill();
+    nodes.forEach((n) => n.classList.add("out"));
+    setTimeout(() => { fill(); nodes.forEach((n) => n.classList.remove("out")); }, reduced ? 0 : 170);
+  }
+
+  function setChrome(i, prevI) {
+    dashes.forEach((d, j) => {
+      const on = j <= i;
+      const dir = prevI == null ? j : (i > prevI ? j - prevI - 1 : prevI - j);
+      d.style.setProperty("--d", Math.max(0, dir) * 45 + "ms");
+      d.classList.toggle("on", on);
+    });
+    bar.setAttribute("aria-valuenow", i + 1);
+    $("prev").disabled = i === 0;
+    $("next").textContent = i === steps.length - 1 ? "Start over ↺" : "Next step →";
+  }
+
+  async function go(i, first) {
+    const prevI = step; step = i;
+    const s = steps[i];
+    setChrome(i, first ? null : prevI);
+    setText(i, first);
+    crease.style.opacity = 0;
+    face.setAttribute("opacity", 0);
+    drawArrow(null);
+    if (!first) window.answer && window.answer.save({ step: i + 1 });
+    if (first) { for (const id of ORDER) apply(id, geo[i][id].p, geo[i][id].o); }
+    for (const id of ORDER) polys[id].setAttribute("class", geo[i][id].c), polys[id].style.fill = geo[i][id].f;
+    if (!first) {
+      if (s.via && i === prevI + 1) {
+        const mid = {}; for (const id of ORDER) mid[id] = s.via[id] ? { p: pad(s.via[id]), o: 1 } : geo[i][id];
+        if (s.act) drawArrow(s.act, false, true);
+        if (!(await tween(mid, 380))) return;
+        if (!(await tween(geo[i], 460))) return;
+      } else if (!(await tween(geo[i], 620))) return;
+    }
+    if (step !== i) return;
+    if (s.crease) { crease.setAttribute("d", s.crease); crease.classList.toggle("paper", !!s.paper); crease.style.opacity = 1; }
+    if (s.face) face.setAttribute("opacity", 1);
+    drawArrow(s.arrow, s.dashed);
+  }
+
+  const next = () => go(step === steps.length - 1 ? 0 : step + 1);
+  const prev = () => { if (step > 0) go(step - 1); };
+  $("next").addEventListener("click", next);
+  $("prev").addEventListener("click", prev);
+  addEventListener("keydown", (e) => {
+    if (e.altKey || e.metaKey || e.ctrlKey) return;
+    if (e.key === "ArrowRight") { e.preventDefault(); if (step < steps.length - 1) go(step + 1); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); prev(); }
+  });
+
+  // First paint: diagram and progress settle in with the entrance.
+  for (const id of ORDER) apply(id, geo[step][id].p, geo[step][id].o);
+  setText(step, true);
+  setChrome(-1, null);
+  $("prev").disabled = step === 0;
+  setTimeout(() => go(step, true), reduced ? 0 : 420);
+})();
+</script>

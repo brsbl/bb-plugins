@@ -1,7 +1,6 @@
 import { expect, it } from "vitest";
 import { computedValues, defaultValues, evaluate, parseDocument, validValue } from "./model.js";
 import { bill, savings } from "./examples.js";
-import { visualExamples } from "./visual-examples.js";
 
 it("recalculates compound growth and bill shares from the same document the agent publishes", () => {
   const doc = parseDocument(JSON.stringify(savings));
@@ -23,8 +22,7 @@ it("does not execute content and keeps invalid arithmetic out of displayed resul
   expect(evaluate({ op: "power", args: [10, 1000] }, {})).toBeNull();
   expect(evaluate({ ref: "constructor" }, {})).toBeNull();
 });
-it("accepts all visual examples and rejects diagrams with invalid bindings or executable paint", () => {
-  for (const doc of Object.values(visualExamples)) expect(parseDocument(JSON.stringify(doc)).title).toBe(doc.title);
+it("rejects diagrams with invalid bindings or executable paint", () => {
   const make = (element: unknown) => JSON.stringify({ title: "Diagram", blocks: [{ type: "diagram", title: "Drawing", description: "A sample", width: 400, height: 200, elements: [element] }] });
   expect(() => parseDocument(make({ kind: "rect", width: { ref: "missing" } }))).toThrow("Unknown numeric reference");
   expect(() => parseDocument(make({ kind: "rect", fill: "url(https://example.com)" }))).toThrow();

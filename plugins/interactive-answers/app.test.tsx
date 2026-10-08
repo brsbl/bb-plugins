@@ -4,7 +4,7 @@ import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, expect, it } from "vitest";
 import { bill } from "./examples.js";
 
-const answer = { id: "e85d6718-895b-48e5-8bc4-2a9bd3477895", threadId: "thr_test", document: bill };
+const answer = { id: "e85d6718-895b-48e5-8bc4-2a9bd3477895", threadId: "thr_test", kind: "document" as const, document: bill };
 afterEach(() => { cleanup(); localStorage.clear(); });
 it("updates results locally, restores valid inputs on remount, resets, and switches representations", async () => {
   await loadPluginApp(() => import("./app.js"));
@@ -37,16 +37,22 @@ it("uses the enclosing message thread for retrieval and recovers from a failed l
   expect(view.inspection.rpcCalls).toHaveLength(2);
   view.lifecycle.unmount();
 });
-it("activates diagram choices with the keyboard and keeps the native choice control in sync", async () => {
+it("renders HTML answers in an opaque-origin sandbox, sizes them, and saves state only from their own frame", async () => {
   await loadPluginApp(() => import("./app.js"));
   const { AnswerView } = await import("./app.js");
-  const { city } = await import("./visual-examples.js");
-  render(<AnswerView answer={{ ...answer, document: city }} />);
-  const marker = screen.getByRole("button", { name: "Explore North Beach" });
-  fireEvent.keyDown(marker, { key: "Enter" });
-  expect((screen.getByLabelText("Where to explore") as HTMLSelectElement).value).toBe("North Beach");
-  expect(marker.getAttribute("aria-pressed")).toBe("true");
-  expect(screen.getByText("02 / North Beach")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Reset inputs" }));
-  expect(screen.getByText("01 / Golden Gate Park")).toBeTruthy();
+  const { stepper } = await import("./examples.js");
+  const view = render(<AnswerView answer={{ id: answer.id, threadId: answer.threadId, kind: "html", widget: stepper }} />);
+  const frame = view.getByTitle(stepper.title) as HTMLIFrameElement;
+  expect(frame.getAttribute("sandbox")).toBe("allow-scripts");
+  expect(frame.getAttribute("srcdoc")).toContain("Repot a houseplant");
+  const key = `interactive-answers:${answer.threadId}:${answer.id}`;
+  fireEvent(window, new MessageEvent("message", { data: { source: "interactive-answer", id: answer.id, type: "state", state: { step: 2 } }, source: window }));
+  expect(localStorage.getItem(key)).toBeNull();
+  fireEvent(window, new MessageEvent("message", { data: { source: "interactive-answer", id: answer.id, type: "height", height: 512 }, source: frame.contentWindow }));
+  fireEvent(window, new MessageEvent("message", { data: { source: "interactive-answer", id: answer.id, type: "state", state: { step: 2 } }, source: frame.contentWindow }));
+  expect(frame.style.height).toBe("512px");
+  expect(JSON.parse(localStorage.getItem(key)!)).toEqual({ step: 2 });
+  view.unmount();
+  const restored = render(<AnswerView answer={{ id: answer.id, threadId: answer.threadId, kind: "html", widget: stepper }} />);
+  expect(restored.getByTitle(stepper.title).getAttribute("srcdoc")).toContain('state: {"step":2}');
 });

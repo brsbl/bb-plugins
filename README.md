@@ -124,13 +124,11 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 ### Interactive Answers
 
-Explore calculations, charts, diagrams, and explanations directly in agent answers. Adjust inputs and compare scenarios without another agent turn.
+Explore calculations, charts, illustrated guides, maps, and previews directly in agent answers. Agents publish native calculators or sandboxed HTML interfaces you can use without another agent turn.
 
 ![Savings calculator with sliders, live metrics, and a growth chart](https://github.com/user-attachments/assets/094bff99-5849-4f17-80db-521d32f6dd82)
 
 ![Bill splitter with editable inputs and a cost breakdown table](https://github.com/user-attachments/assets/2cafefe0-2246-49bf-be27-c43a21b49584)
-
-![An illustrated neighborhood map with selectable markers and contextual explanations](https://github.com/user-attachments/assets/3a4bee34-eef1-4261-ac49-f160fbabec6e)
 
 [Source](plugins/interactive-answers) · [README](plugins/interactive-answers/README.md)
 

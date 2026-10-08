@@ -1,0 +1,208 @@
+<!-- width: 440 -->
+<style>
+  body { padding: 20px 18px 22px; }
+  .title { margin: 0; font-size: 21px; line-height: 1.2; font-weight: 500; letter-spacing: -.015em; }
+  .subtitle { margin: 3px 0 0; font-size: 10.5px; line-height: 1.3; color: var(--muted-foreground); }
+  .panel { margin: 13px -5px 0; padding: 11px 4px 4px; border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); border-radius: 12px; }
+  .eyebrow { padding: 0 9px; font-size: 10.5px; line-height: 1.2; letter-spacing: .035em; text-transform: uppercase; font-weight: 500; color: color-mix(in srgb, var(--foreground) 78%, var(--card)); }
+  .sel { display: flex; align-items: center; gap: 10px; margin: 6px 0 6px; padding: 0 9px; min-height: 26px; }
+  .sel-chip { flex: none; width: 29px; height: 26px; border-radius: 5px; background: #e6ddce; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.06); transition: background-color .6s var(--ia-ease); }
+  .sel-text { display: grid; line-height: 1.15; }
+  .sel-name { font-size: 12.5px; font-weight: 500; }
+  .sel-hex { font-size: 9px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .sel-name, .sel-hex { transition: opacity .25s; }
+  .sel.swap .sel-name, .sel.swap .sel-hex { opacity: 0; }
+
+  .room { position: relative; border-radius: 10px; overflow: hidden; background: #ece5da; }
+  .room svg { width: 100%; height: auto; }
+  .wall { transition: fill .6s cubic-bezier(.4,.1,.2,1); }
+  .instant .wall, .instant .sel-chip { transition: none !important; }
+  .shade { mix-blend-mode: multiply; pointer-events: none; }
+  .glow { mix-blend-mode: screen; pointer-events: none; }
+
+  .modes { display: flex; gap: 8px; margin-top: 19px; }
+  .modes button { height: 28px; padding: 0 15px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); background: var(--card); font-size: 10.5px; color: var(--foreground); box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: background .2s, color .2s, border-color .2s; }
+  .modes button[aria-pressed=true] { background: var(--foreground); color: var(--background); border-color: var(--foreground); font-weight: 650; box-shadow: none; }
+  .hint { margin: 7px 0 0; font-size: 10.5px; color: var(--muted-foreground); }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px 22px; margin-top: 24px; }
+  .sw { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; border-radius: 7px; animation: sw-in .5s var(--ia-ease) both; animation-delay: calc(560ms + var(--i) * 130ms); }
+  @keyframes sw-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
+  .chip { display: block; aspect-ratio: 100 / 74; border-radius: 6px; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.08); transition: transform .25s var(--ia-ease); }
+  .sw::before { content: ""; position: absolute; inset: -6px; border-radius: 12px; border: 1.5px solid var(--foreground); opacity: 0; transform: scale(.96); transition: opacity .25s, transform .35s var(--ia-ease); pointer-events: none; }
+  .sw[aria-pressed=true]::before { opacity: 1; transform: none; }
+  .sw:hover .chip { transform: translateY(-1px); }
+  .lab { display: grid; grid-template-columns: 1fr auto; align-items: end; margin-top: 7px; font-size: 10.5px; line-height: 1.3; color: color-mix(in srgb, var(--foreground) 62%, var(--card)); }
+  .lab b { grid-column: 1; font-weight: 400; }
+  .lab span { grid-column: 1; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+  .tick { grid-column: 2; grid-row: 1 / 3; align-self: end; width: 13px; height: 13px; margin-bottom: 1px; opacity: 0; transform: scale(.4); transition: opacity .2s, transform .3s var(--ia-ease); }
+  .sw[aria-pressed=true] .lab { color: var(--foreground); }
+  .sw[aria-pressed=true] .lab b, .sw[aria-pressed=true] .lab span { font-weight: 600; }
+  .sw[aria-pressed=true] .tick { opacity: 1; transform: none; }
+  .sw:focus-visible { outline-offset: 8px; border-radius: 12px; }
+</style>
+
+<div id="app" class="instant">
+  <h2 class="title ia-reveal" style="--i:0">Live wall color preview</h2>
+  <p class="subtitle ia-reveal" style="--i:1">Tap a swatch below to repaint the room.</p>
+
+  <section class="panel ia-reveal" style="--i:2" aria-label="Interactive color explorer">
+    <div class="eyebrow">Interactive color explorer</div>
+    <div class="sel" id="sel" aria-live="polite">
+      <span class="sel-chip" id="selChip"></span>
+      <span class="sel-text"><span class="sel-name" id="selName">Not selected</span><span class="sel-hex" id="selHex">Wall color: N/A</span></span>
+    </div>
+    <div class="room ia-reveal" style="--i:3">
+      <svg viewBox="0 0 400 235" role="img" aria-label="Empty room with a door, a wall lamp, a wooden ceiling and floor">
+        <defs>
+          <linearGradient id="lShade" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#e5e4e2"/>
+            <stop offset=".3" stop-color="#fdfcfb"/>
+            <stop offset=".62" stop-color="#f9f8f6"/>
+            <stop offset="1" stop-color="#ebe9e6"/>
+          </linearGradient>
+          <linearGradient id="lShadeV" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#eae9e7"/>
+            <stop offset=".35" stop-color="#ffffff"/>
+            <stop offset="1" stop-color="#f5f3f0"/>
+          </linearGradient>
+          <linearGradient id="rShade" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#e8e6e2"/>
+            <stop offset=".35" stop-color="#f1efec"/>
+            <stop offset="1" stop-color="#f6f4f1"/>
+          </linearGradient>
+          <linearGradient id="rShadeV" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f0eeea"/>
+            <stop offset=".4" stop-color="#ffffff"/>
+            <stop offset="1" stop-color="#f6f4f1"/>
+          </linearGradient>
+          <radialGradient id="glow" cx="124" cy="118" r="135" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#40372a" stop-opacity="1"/>
+            <stop offset=".25" stop-color="#251e13" stop-opacity="1"/>
+            <stop offset=".6" stop-color="#0c0905" stop-opacity="1"/>
+            <stop offset="1" stop-color="#000" stop-opacity="1"/>
+          </radialGradient>
+          <radialGradient id="glowR" cx="250" cy="110" r="160" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#120e08"/>
+            <stop offset="1" stop-color="#000"/>
+          </radialGradient>
+          <linearGradient id="ceil" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#8f6240"/>
+            <stop offset="1" stop-color="#7c5434"/>
+          </linearGradient>
+          <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ad845c"/>
+            <stop offset="1" stop-color="#c39a6c"/>
+          </linearGradient>
+          <linearGradient id="door" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#8f4c2b"/>
+            <stop offset="1" stop-color="#a65b33"/>
+          </linearGradient>
+          <linearGradient id="shadeLamp" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f6efdc"/>
+            <stop offset="1" stop-color="#ede1c4"/>
+          </linearGradient>
+          <clipPath id="clipL"><path d="M0 0H37.7L246.4 49V183.1L0 222.7Z"/></clipPath>
+          <clipPath id="clipR"><path d="M246.4 49L382.6 0H400V224.9L246.4 183.1Z"/></clipPath>
+        </defs>
+
+        <!-- Walls: base paint fill, then multiply shading, then screen-blended lamp glow -->
+        <g clip-path="url(#clipL)">
+          <rect class="wall" id="wallL" width="400" height="235" fill="#ece5da"/>
+          <rect class="shade" width="246.4" height="235" fill="url(#lShade)"/>
+          <rect class="shade" width="246.4" height="235" fill="url(#lShadeV)"/>
+          <rect class="glow" width="246.4" height="235" fill="url(#glow)"/>
+        </g>
+        <g clip-path="url(#clipR)">
+          <rect class="wall" id="wallR" width="400" height="235" fill="#ece5da"/>
+          <rect class="shade" x="246" width="154" height="235" fill="url(#rShade)"/>
+          <rect class="shade" x="246" width="154" height="235" fill="url(#rShadeV)"/>
+          <rect class="glow" x="246" width="154" height="235" fill="url(#glowR)"/>
+        </g>
+        <!-- Corner seam -->
+        <path d="M246.4 49V183.1" stroke="#000" stroke-opacity=".06" stroke-width=".8"/>
+
+        <!-- Ceiling -->
+        <path d="M37.7 0H382.6L246.4 49Z" fill="url(#ceil)"/>
+
+        <!-- Floor and baseboards -->
+        <path d="M0 222.7L246.4 183.1L400 224.9V235H0Z" fill="url(#floor)"/>
+        <path d="M0 219.4L246.4 179.8L400 221.6V224.9L246.4 183.1L0 222.7Z" fill="#a2683c"/>
+        <path d="M0 219.4L246.4 179.8L400 221.6" fill="none" stroke="#6f4122" stroke-width=".7"/>
+        <path d="M0 222.7L246.4 183.1L400 224.9" fill="none" stroke="#7d4b28" stroke-opacity=".7" stroke-width=".5"/>
+
+        <!-- Door -->
+        <rect x="-2" y="63.4" width="54.2" height="175" fill="url(#door)" stroke="#5b2f17" stroke-width=".9"/>
+        <circle cx="42" cy="168" r="3.1" fill="#f1e2c2" stroke="#b58d5c" stroke-width=".4"/>
+
+        <!-- Swing-arm wall lamp -->
+        <path d="M126 131.2V183" stroke="#c9c3ba" stroke-width=".6" fill="none"/>
+        <path d="M121.7 119.5V131.2H144.2" stroke="#8d8781" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+        <rect x="143.4" y="125.4" width="4.4" height="11" rx=".8" fill="#9a948d"/>
+        <path d="M111.8 102.6H137.4L140.6 120.4H105.2Z" fill="url(#shadeLamp)" stroke="#d9cdb0" stroke-width=".4"/>
+        <path d="M106.4 119.5H139.4" stroke="#fffaf0" stroke-width=".8" opacity=".8"/>
+      </svg>
+    </div>
+  </section>
+
+  <div class="modes ia-reveal" style="--i:5" role="group" aria-label="Walls to paint">
+    <button type="button" data-mode="both" aria-pressed="true">Both walls</button>
+    <button type="button" data-mode="accent" aria-pressed="false">Accent wall</button>
+  </div>
+  <p class="hint ia-reveal" style="--i:6">Choose a color to preview</p>
+
+  <div class="grid" id="grid" role="group" aria-label="Paint swatches"></div>
+</div>
+
+<script>
+(() => {
+  const BASE = "#ece5da";
+  const SWATCHES = [
+    ["Periwinkle", "#949AC2"], ["Mineral blue", "#639CA9"], ["Clarity", "#63A8F8"],
+    ["Sea-glass teal", "#829FC2"], ["Eucalyptus", "#7BA89F"], ["Cornflower blue", "#7998AB"],
+  ];
+  const app = document.getElementById("app");
+  const grid = document.getElementById("grid");
+  const wallL = document.getElementById("wallL"), wallR = document.getElementById("wallR");
+  const sel = document.getElementById("sel"), selChip = document.getElementById("selChip");
+  const selName = document.getElementById("selName"), selHex = document.getElementById("selHex");
+  const modeButtons = [...document.querySelectorAll("[data-mode]")];
+
+  const saved = window.answer && window.answer.state;
+  let color = saved && SWATCHES.some(([, hex]) => hex === saved.color) ? saved.color : null;
+  let mode = saved && saved.mode === "accent" ? "accent" : "both";
+
+  const tick = '<svg class="tick" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="currentColor"/><path d="M4.6 8.3l2.2 2.2 4.6-4.8" fill="none" stroke="var(--card)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const buttons = SWATCHES.map(([name, hex], i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "sw"; b.style.setProperty("--i", i); b.style.setProperty("--c", hex);
+    b.dataset.hex = hex; b.setAttribute("aria-label", `${name}, ${hex}`);
+    b.innerHTML = `<span class="chip"></span><span class="lab"><b>${name}</b><span>${hex}</span>${tick}</span>`;
+    b.addEventListener("click", () => { color = hex; render(true); save(); });
+    grid.append(b);
+    return b;
+  });
+  modeButtons.forEach((b) => b.addEventListener("click", () => { mode = b.dataset.mode; render(true); save(); }));
+
+  let swapTimer;
+  function render(animate) {
+    const paint = color || BASE;
+    wallR.style.fill = paint;
+    wallL.style.fill = mode === "both" ? paint : BASE;
+    selChip.style.backgroundColor = color || "";
+    buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.hex === color)));
+    modeButtons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+    const name = color ? SWATCHES.find(([, hex]) => hex === color)[0] : "Not selected";
+    const hexText = `Wall color: ${color || "N/A"}`;
+    if (selName.textContent === name && selHex.textContent === hexText) return;
+    clearTimeout(swapTimer);
+    if (!animate) { selName.textContent = name; selHex.textContent = hexText; return; }
+    sel.classList.add("swap");
+    swapTimer = setTimeout(() => { selName.textContent = name; selHex.textContent = hexText; sel.classList.remove("swap"); }, 180);
+  }
+  function save() { window.answer && window.answer.save({ color, mode }); }
+
+  render(false);
+  requestAnimationFrame(() => requestAnimationFrame(() => app.classList.remove("instant")));
+})();
+</script>

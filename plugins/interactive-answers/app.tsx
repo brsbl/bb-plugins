@@ -1,7 +1,8 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { definePluginApp, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { computedValues, defaultValues, evaluate, formatValue, idSchema, validValue, type Answer, type AnswerDocument, type Block, type Control, type Values } from "./model.js";
+import { computedValues, defaultValues, evaluate, formatValue, idSchema, validValue, type Answer, type AnswerDocument, type Block, type Control, type HtmlAnswer, type Values } from "./model.js";
+import { buildWidgetDocument, fallbackTheme, THEME_TOKENS, WIDGET_MESSAGE_SOURCE, type WidgetTheme } from "./widget.js";
 import "./app.css";
 import { Diagram } from "./diagram.js";
 
@@ -66,7 +67,58 @@ function Chart({ block: b, values }: { block: Extract<Block, { type: "chart" }>;
   </section>;
 }
 
+const MAX_STATE_LENGTH = 100_000;
+
+function readTheme(): WidgetTheme {
+  if (typeof document === "undefined") return fallbackTheme;
+  const root = getComputedStyle(document.documentElement);
+  const tokens: WidgetTheme["tokens"] = { ...fallbackTheme.tokens };
+  for (const name of THEME_TOKENS) { const value = root.getPropertyValue(`--${name}`).trim(); if (value) tokens[name] = value; }
+  const dark = document.documentElement.classList.contains("dark") || root.colorScheme === "dark";
+  return { scheme: dark ? "dark" : "light", font: getComputedStyle(document.body).fontFamily || fallbackTheme.font, tokens };
+}
+
+function loadState(key: string): unknown {
+  try { return JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return null; }
+}
+
+// Mirrors bb's inline-vis sandbox: scripts run in an opaque origin with no access to bb.
+export function HtmlAnswerView({ id, threadId, widget }: { id: string; threadId: string; widget: HtmlAnswer }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(240);
+  const key = `interactive-answers:${threadId}:${id}`;
+  // Built once per answer; later theme changes are posted so state inside the frame survives.
+  const srcDoc = useMemo(() => buildWidgetDocument({ id, html: widget.html, state: loadState(key), theme: readTheme() }), [id, key, widget.html]);
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data: unknown = event.data;
+      if (event.source !== frame.current?.contentWindow || !data || typeof data !== "object") return;
+      const message = data as { source?: unknown; id?: unknown; type?: unknown; height?: unknown; state?: unknown; url?: unknown };
+      if (message.source !== WIDGET_MESSAGE_SOURCE || message.id !== id) return;
+      if (message.type === "height" && typeof message.height === "number" && Number.isFinite(message.height)) setHeight(Math.min(4000, Math.max(40, Math.ceil(message.height))));
+      if (message.type === "state") {
+        const json = JSON.stringify(message.state ?? null);
+        try { if (json.length <= MAX_STATE_LENGTH) localStorage.setItem(key, json); } catch { /* Storage may be unavailable; the answer still works. */ }
+      }
+      if (message.type === "open" && typeof message.url === "string" && /^https?:\/\//.test(message.url)) window.open(message.url, "_blank", "noopener,noreferrer");
+    };
+    window.addEventListener("message", onMessage);
+    const sendTheme = () => frame.current?.contentWindow?.postMessage({ source: WIDGET_MESSAGE_SOURCE, type: "theme", theme: readTheme() }, "*");
+    const observer = new MutationObserver(sendTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
+    return () => { window.removeEventListener("message", onMessage); observer.disconnect(); };
+  }, [id, key]);
+  return <div className="ia-widget" style={widget.width ? { maxWidth: widget.width } : undefined}>
+    <iframe ref={frame} title={widget.title} srcDoc={srcDoc} sandbox="allow-scripts" style={{ height }} />
+  </div>;
+}
+
 export function AnswerView({ answer }: { answer: Answer }) {
+  if (answer.kind === "html") return <HtmlAnswerView id={answer.id} threadId={answer.threadId} widget={answer.widget} />;
+  return <DocumentAnswerView answer={answer} />;
+}
+
+function DocumentAnswerView({ answer }: { answer: Extract<Answer, { kind: "document" }> }) {
   const doc = answer.document;
   const key = `interactive-answers:${answer.threadId}:${answer.id}`;
   const [inputs, setInputs] = useState(() => loadInputs(doc, key));

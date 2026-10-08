@@ -8,7 +8,8 @@
     "dist",
     "README.md",
     "skills",
-    "assets"
+    "assets",
+    "demos"
   ],
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",

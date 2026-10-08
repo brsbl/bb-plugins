@@ -41,3 +41,35 @@ export const bill: AnswerDocument = {
     { type: "text", text: "Shares are rounded to cents. Settle any rounding difference with one person." },
   ],
 };
+
+// A compact HTML answer showing the kit, saved state, and reduced motion.
+export const stepper = {
+  title: "Repot a houseplant",
+  width: 520,
+  html: `<style>
+.steps { margin-top: 16px; padding: 16px; }
+.steps h3 { margin: 10px 0 4px; font-size: 15px; font-weight: 500; }
+.steps p { margin: 0; color: var(--muted-foreground); }
+footer { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+</style>
+<h2 class="ia-title">Repot a houseplant</h2>
+<p class="ia-subtitle">Three steps, about 15 minutes.</p>
+<section class="steps ia-panel" aria-live="polite"><span class="ia-eyebrow" id="count"></span><h3 id="name"></h3><p id="text"></p></section>
+<footer><div class="ia-dots" id="dots"></div><div><button class="ia-btn" id="back">Back</button> <button class="ia-btn ia-btn-primary" id="next">Next →</button></div></footer>
+<script>
+const steps = [["Water the day before", "Moist roots slide out of the old pot without tearing."], ["Loosen the root ball", "Tease circling roots apart with your fingers."], ["Set it at the same depth", "Fill around the roots with fresh mix and water until it drains."]];
+let step = Math.min(steps.length - 1, Math.max(0, answer.state?.step ?? 0));
+const $ = (id) => document.getElementById(id);
+$("dots").innerHTML = steps.map(() => "<i></i>").join("");
+function show() {
+  $("count").textContent = "Step " + (step + 1) + " of " + steps.length;
+  [$("name").textContent, $("text").textContent] = steps[step];
+  [...$("dots").children].forEach((dot, i) => i === step ? dot.setAttribute("aria-current", "step") : dot.removeAttribute("aria-current"));
+  $("back").disabled = step === 0; $("next").disabled = step === steps.length - 1;
+  answer.save({ step });
+}
+$("back").onclick = () => { step--; show(); };
+$("next").onclick = () => { step++; show(); };
+show();
+</script>`,
+};

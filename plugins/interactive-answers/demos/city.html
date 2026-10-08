@@ -1,0 +1,445 @@
+<!-- width: 500 -->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" crossorigin="anonymous">
+<style>
+  body { padding: 20px 20px 14px; }
+  .ia-title { font-size: 25px; font-weight: 500; letter-spacing: -.025em; line-height: 1.15; }
+  .ia-subtitle { margin-top: 2px; font-size: 12.5px; letter-spacing: -.005em; }
+  .sf-map { position: relative; height: 267px; margin-top: 24px; border-radius: 14px; overflow: hidden; background: var(--sf-water); transition: height .5s var(--ia-ease); isolation: isolate; }
+  .sf-map[data-expanded=true] { height: 420px; }
+  .sf-gl { position: absolute; left: 0; top: 0; width: 800%; height: 800%; transform: scale(.125); transform-origin: 0 0; }
+  .sf-gl canvas { outline: none; }
+  .sf-gl .maplibregl-ctrl-attrib, .sf-gl .maplibregl-ctrl-logo { display: none; }
+  .sf-ov { position: absolute; inset: 0; pointer-events: none; }
+  .sf-ov #route { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .sf-lbl { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; color: var(--sf-label); font-size: 10px; line-height: 1.1; text-align: center; letter-spacing: -.005em; text-shadow: 0 0 2px var(--sf-halo), 0 0 2px var(--sf-halo), 0 0 3px var(--sf-halo); }
+  .sf-lbl.city { font-size: 17.5px; font-weight: 600; color: var(--sf-city); letter-spacing: .005em; }
+  .sf-lbl.dist { font-size: 9.6px; font-weight: 500; letter-spacing: .2em; color: var(--sf-dist); line-height: 1.22; }
+  .sf-shield { position: absolute; transform: translate(-50%, -50%); width: 20px; height: 20px; }
+  .sf-mk { position: absolute; left: 0; top: 0; pointer-events: auto; border: 0; padding: 0; background: none; width: 24px; height: 24px; transform: translate(-50%, -50%); transition: opacity .3s; }
+  .sf-mk .b { position: absolute; inset: 0; border-radius: 50%; background: var(--sf-badge); box-shadow: 0 1px 3px rgba(0,0,0,.22), 0 0 0 .5px rgba(0,0,0,.08); display: grid; place-items: center; color: var(--sf-glyph); transition: transform .35s cubic-bezier(.3,1.5,.5,1), box-shadow .3s, opacity .3s, background .3s; }
+  .sf-mk .b svg { width: 14px; height: 14px; }
+  .sf-mk[aria-pressed=true] .b { transform: scale(1.18); box-shadow: 0 0 0 1.5px var(--sf-badge), 0 0 0 3px var(--sf-ring), 0 2px 6px rgba(0,0,0,.22); }
+  .sf-mk[data-off=true] .b { background: color-mix(in srgb, var(--sf-badge) 70%, transparent); box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+  .sf-mk[data-off=true] .b svg { opacity: .45; filter: grayscale(1); }
+  .sf-mk .t { position: absolute; left: 50%; top: 100%; margin-top: 4px; transform: translateX(-50%); white-space: nowrap; font-size: 9.5px; letter-spacing: -.005em; color: var(--sf-label); text-shadow: 0 0 2px var(--sf-halo), 0 0 2px var(--sf-halo), 0 0 3px var(--sf-halo); max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
+  .sf-mk.small .t { font-size: 8.6px; max-width: 80px; }
+  .sf-mk[data-hide=true], .sf-mk.out { opacity: 0; pointer-events: none; }
+  .sf-mk.pop .b { animation: sf-pop .5s cubic-bezier(.3,1.6,.5,1) both; }
+  @keyframes sf-pop { from { transform: scale(0); } }
+  .sf-pill { position: absolute; top: 9px; pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; height: 31px; padding: 0 12px 0 14px; border: 0; border-radius: 999px; background: var(--sf-badge); color: var(--foreground); font-size: 11.5px; letter-spacing: -.005em; box-shadow: 0 1px 4px rgba(0,0,0,.14), 0 0 0 .5px rgba(0,0,0,.05); transition: transform .15s; }
+  .sf-pill:active { transform: scale(.97); }
+  .sf-pill svg { width: 10px; height: 10px; }
+  .sf-groups { left: 10px; padding-right: 13px; }
+  .sf-expand { right: 10px; }
+  .sf-info { position: absolute; left: 11px; top: 44px; pointer-events: auto; width: 15px; height: 15px; padding: 0; border: 0; background: none; color: var(--sf-label); display: grid; place-items: center; }
+  .sf-info svg { width: 12px; height: 12px; }
+  .sf-attrib { position: absolute; right: 6px; bottom: 4px; font-size: 8.5px; color: var(--sf-label); opacity: .72; pointer-events: auto; text-shadow: 0 0 2px var(--sf-halo); }
+  .sf-attrib a { color: inherit; text-decoration: none; }
+  .sf-pop { position: absolute; pointer-events: auto; background: var(--sf-badge); border-radius: 12px; box-shadow: 0 6px 22px rgba(0,0,0,.16), 0 0 0 .5px rgba(0,0,0,.06); padding: 4px; opacity: 0; transform: translateY(-4px) scale(.98); transform-origin: top left; transition: opacity .18s, transform .22s var(--ia-ease); visibility: hidden; }
+  .sf-pop.open { opacity: 1; transform: none; visibility: visible; }
+  .sf-menu { left: 10px; top: 45px; min-width: 150px; }
+  .sf-menu button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; border: 0; background: none; padding: 7px 10px; border-radius: 8px; font-size: 12px; text-align: left; }
+  .sf-menu button:hover { background: var(--muted); }
+  .sf-menu button svg { width: 11px; height: 11px; opacity: 0; }
+  .sf-menu button[aria-checked=true] svg { opacity: 1; }
+  .sf-infopop { left: 10px; top: 64px; max-width: 230px; padding: 9px 11px; font-size: 11px; line-height: 1.4; color: var(--muted-foreground); }
+  .sf-infopop a { color: var(--foreground); }
+
+  .sf-detail { margin-top: 16px; padding: 13px 13px 13px; border-radius: 16px; transition: height .45s var(--ia-ease); overflow: hidden; }
+  .sf-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  .sf-photos figure { margin: 0; height: 141px; border-radius: 12px; overflow: hidden; background: var(--muted); }
+  .sf-photos img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.04); transition: opacity .5s ease, transform .9s var(--ia-ease); }
+  .sf-photos img.in { opacity: 1; transform: none; }
+  .sf-name { margin: 13px 0 0; font-size: 15.5px; font-weight: 400; letter-spacing: -.015em; line-height: 1.25; }
+  .sf-time { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 11.5px; color: var(--muted-foreground); }
+  .sf-time svg { width: 11px; height: 11px; }
+  .sf-h { margin: 10px 0 0; font-size: 11.5px; font-weight: 500; letter-spacing: -.005em; }
+  .sf-p { margin: 4px 0 0; max-width: 398px; font-size: 10.1px; line-height: 11.4px; letter-spacing: -.01em; color: color-mix(in srgb, var(--foreground) 78%, transparent); }
+  .sf-h + .sf-p { margin-top: 4px; }
+  .sf-detail { container-type: inline-size; }
+  @container (max-width: 420px) { .sf-br { display: none; } }
+  .sf-p + .sf-h { margin-top: 12px; }
+  .sf-btn { display: flex; width: 100%; align-items: center; justify-content: center; gap: 5px; margin-top: 14px; height: 22px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); font-size: 11px; letter-spacing: -.005em; transition: background .25s, color .25s, border-color .25s; }
+  .sf-btn:hover { background: var(--muted); }
+  .sf-btn[aria-pressed=false] { background: var(--foreground); border-color: var(--foreground); color: var(--background); }
+  .sf-btn svg { width: 10px; height: 10px; }
+  .sf-body > * { transition: opacity .25s ease, transform .35s var(--ia-ease); }
+  .sf-body.fade > * { opacity: 0; transform: translateY(3px); }
+  .sf-w { opacity: 0; animation: sf-w .32s ease both; animation-delay: var(--d); }
+  @keyframes sf-w { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: none; } }
+  .sf-enter { opacity: 0; }
+  .sf-enter.go { animation: ia-reveal .6s var(--ia-ease) both; animation-delay: var(--d, 0ms); opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .sf-map, .sf-detail { transition: none; } }
+</style>
+
+<h2 class="ia-title" id="title">San Francisco, your way</h2>
+<p class="ia-subtitle" id="subtitle">Tap a location on the map to discover its story and browse photos.</p>
+
+<div class="sf-map sf-enter" style="--d:380ms" id="map" data-expanded="false">
+  <div class="sf-gl" id="gl"></div>
+  <div class="sf-ov" id="ov">
+    <svg id="route" aria-hidden="true">
+      <defs><mask id="reveal" maskUnits="userSpaceOnUse"><path id="routeMask" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1 2" stroke-dashoffset="1"/></mask></defs>
+      <path id="routeLine" fill="none" stroke="var(--sf-route)" stroke-width="1.7" stroke-dasharray="3.2 2.4" stroke-linejoin="round" mask="url(#reveal)"/>
+    </svg>
+    <div id="labels"></div>
+    <div id="markers"></div>
+    <button class="sf-pill sf-groups" id="groupsBtn" aria-haspopup="menu" aria-expanded="false"><span id="groupsLabel">All groups</span><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.8 5 6.8l3-3"/></svg></button>
+    <button class="sf-info" id="infoBtn" aria-label="Map data and attribution" aria-expanded="false"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1"><circle cx="6" cy="6" r="5.3"/><path d="M6 5.3v3.2" stroke-linecap="round"/><circle cx="6" cy="3.6" r=".55" fill="currentColor" stroke="none"/></svg></button>
+    <button class="sf-pill sf-expand" id="expandBtn" aria-pressed="false"><span id="expandLabel">Expand</span><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" id="expandIcon"><path d="M6 1.5h2.5V4M8.5 1.5 5.8 4.2M4 8.5H1.5V6M1.5 8.5l2.7-2.7"/></svg></button>
+    <div class="sf-pop sf-menu" id="menu" role="menu" aria-label="Filter places">
+      <button role="menuitemradio" data-group="all" aria-checked="true">All groups<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3 5 8.6l4.6-5.2"/></svg></button>
+      <button role="menuitemradio" data-group="sights" aria-checked="false">Sights<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3 5 8.6l4.6-5.2"/></svg></button>
+      <button role="menuitemradio" data-group="neighborhoods" aria-checked="false">Neighborhoods<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3 5 8.6l4.6-5.2"/></svg></button>
+    </div>
+    <div class="sf-pop sf-infopop" id="infopop">Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, tiles by <a href="https://openfreemap.org">OpenFreeMap</a> using the <a href="https://openmaptiles.org">OpenMapTiles</a> schema. Photos from Wikimedia Commons.</div>
+    <div class="sf-attrib"><a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a></div>
+  </div>
+</div>
+
+<section class="sf-detail ia-panel sf-enter" style="--d:950ms" id="detail" aria-live="polite">
+  <div class="sf-body" id="body">
+    <div class="sf-photos" id="photos"></div>
+    <h3 class="sf-name" id="name"></h3>
+    <div class="sf-time"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"><circle cx="6" cy="6" r="5"/><path d="M6 3.4V6l-1.6 1.4"/></svg><span id="time"></span></div>
+    <h4 class="sf-h">The story</h4>
+    <p class="sf-p" id="story"></p>
+    <h4 class="sf-h">Before you go</h4>
+    <p class="sf-p" id="before"></p>
+    <button class="sf-btn" id="itinBtn" aria-pressed="true"></button>
+  </div>
+</section>
+
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js" integrity="sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp" crossorigin="anonymous"></script>
+<script>
+(() => {
+  const S = 8; // render at 8x zoom-scale, then CSS-scale down, so street-level vector data shows at city scale
+  const W = (u) => "https://upload.wikimedia.org/wikipedia/commons/thumb/" + u;
+  const PLACES = {
+    alcatraz: {
+      name: "Alcatraz Island", at: [-122.4230, 37.8267], group: "sights", time: "3–3.5 hours", glyph: "tower",
+      story: "First a military fort and prison, Alcatraz became a federal penitentiary in 1934. After |it closed in 1963, Indigenous activists occupied the island from 1969 to 1971, bringing national attention to Native American rights.",
+      before: "Reserve the official ferry in advance. Allow time to board at Pier 33.",
+      photos: [
+        ["f/f0/Alcatraz_Island_viewed_from_the_north.jpg/500px-Alcatraz_Island_viewed_from_the_north.jpg", "Alcatraz Island and its water tower seen from the bay"],
+        ["0/05/Alcatraz_Prison_Cell.jpg/500px-Alcatraz_Prison_Cell.jpg", "A cell behind bars in the Alcatraz cellhouse"],
+        ["0/06/Lighthouse_California-05967_-_Alcatraz_Island_Lighthouse_%2820637738295%29.jpg/500px-Lighthouse_California-05967_-_Alcatraz_Island_Lighthouse_%2820637738295%29.jpg", "The Alcatraz lighthouse beside the main cellhouse"],
+      ],
+    },
+    haight: {
+      name: "Haight-Ashbury", at: [-122.4469, 37.7699], group: "neighborhoods", time: "1–1.5 hours", glyph: "check",
+      story: "The epicenter of San Francisco's 1967 Summer of Love, this neighborhood became a symbol of counterculture, psychedelic rock, communal living and antiwar activism.",
+      before: "See the famous intersection, browse vintage stores and visit Amoeba Music.",
+      photos: [
+        ["4/4c/Haight-Ashbury_sign.JPG/500px-Haight-Ashbury_sign.JPG", "Haight and Ashbury street signs against a blue sky"],
+        ["1/17/Row_of_Victorian_houses_in_San_Francisco.JPG/500px-Row_of_Victorian_houses_in_San_Francisco.JPG", "Painted Victorian houses in the Haight"],
+        ["2/29/Haight_Ashbury.jpg/500px-Haight_Ashbury.jpg", "A shopfront at the corner of Haight and Ashbury"],
+      ],
+    },
+    camera: {
+      name: "Camera Obscura", at: [-122.5141, 37.7783], group: "sights", time: "30–45 minutes", glyph: "camera",
+      story: "Built in 1946 beside the Cliff House, the Giant Camera uses a rotating lens and mirror to project a live, 360-degree view of Ocean Beach and Seal Rocks onto a dish inside a darkened room. It is listed on the National Register of Historic Places.",
+      before: "Hours change with the weather and season, so check before you go. A visit takes about 15 minutes; pair it with the Sutro Baths ruins next door.",
+      photos: [
+        ["b/bd/Giant_Camera%2C_San_Francisco.jpg/500px-Giant_Camera%2C_San_Francisco.jpg", "The Camera Obscura building at Ocean Beach"],
+        ["7/79/2017_Cliff_House_from_Sutro_Baths_1.jpg/500px-2017_Cliff_House_from_Sutro_Baths_1.jpg", "The Cliff House above the Sutro Baths ruins"],
+        ["c/c3/SFCA_Ocean_Beach.jpg/500px-SFCA_Ocean_Beach.jpg", "Ocean Beach stretching south from the Cliff House"],
+      ],
+    },
+  };
+  // Markers: the three places plus the Pier 33 ferry landing, which opens Alcatraz.
+  const MARKERS = [
+    { id: "haight", place: "haight", at: PLACES.haight.at, label: "Haight-Ashbury", group: "neighborhoods" },
+    { id: "camera", place: "camera", at: PLACES.camera.at, label: "Camera Obscura", group: "sights" },
+    { id: "pier", place: "alcatraz", at: [-122.4057, 37.8085], label: "Pier 33 Alcatraz Landing", group: "sights", glyph: "ferry", small: true },
+    { id: "alcatraz", place: "alcatraz", at: PLACES.alcatraz.at, label: "Alcatraz Island", group: "sights" },
+  ];
+  // Walking/transit route: Haight-Ashbury → west through Golden Gate Park → Camera Obscura → east along Geary → Pier 33.
+  const LEG1 = [[-122.4469,37.7699],[-122.4503,37.7695],[-122.4533,37.7692],[-122.4545,37.7712],[-122.4590,37.7713],[-122.4660,37.7715],[-122.4720,37.7707],[-122.4790,37.7703],[-122.4860,37.7700],[-122.4930,37.7701],[-122.5000,37.7698],[-122.5060,37.7697],[-122.5097,37.7699],[-122.5101,37.7735],[-122.5110,37.7760],[-122.5128,37.7775],[-122.5141,37.7783]];
+  const LEG2 = [[-122.5141,37.7783],[-122.5108,37.7792],[-122.5050,37.7795],[-122.4950,37.7800],[-122.4850,37.7805],[-122.4750,37.7810],[-122.4650,37.7815],[-122.4589,37.7816],[-122.4475,37.7827],[-122.4340,37.7843],[-122.4214,37.7856],[-122.4120,37.7868],[-122.4083,37.7873],[-122.4094,37.7930],[-122.4102,37.7975],[-122.4112,37.8030],[-122.4105,37.8058],[-122.4060,37.8065],[-122.4045,37.8076],[-122.4057,37.8085]];
+  const LABELS = [
+    { f: [.706, .558], text: "San Francisco", cls: "city" },
+    { f: [.395, .634], text: "RICHMOND<br>DISTRICT", cls: "dist" },
+    { f: [.287, .917], text: "SUNSET<br>DISTRICT", cls: "dist" },
+  ];
+  const SHIELDS = [
+    { f: [.362, .164], kind: "us", n: "101" },
+    { f: [.897, .341], kind: "i", n: "80" },
+    { f: [.778, .875], kind: "i", n: "280" },
+  ];
+  // Home framing matches the reference card: Ocean Beach at 20% across, the Presidio shore a third down.
+  const HOME = { center: [-122.4509, 37.7905], lonSpan: 0.197, aspect: 267 / 460 };
+  // Labels and shields sit where the reference places them in the home view, then stay pinned to the map.
+  const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+  const fromFrac = ([fx, fy]) => {
+    const span = HOME.lonSpan * Math.PI / 180, y = mercY(HOME.center[1]) - (fy - .5) * HOME.aspect * span;
+    return [HOME.center[0] + (fx - .5) * HOME.lonSpan, (2 * Math.atan(Math.exp(y)) - Math.PI / 2) * 180 / Math.PI];
+  };
+  [...LABELS, ...SHIELDS].forEach((x) => { x.at = fromFrac(x.f); });
+
+  const GLYPHS = {
+    check: '<svg viewBox="0 0 14 14" fill="none" stroke="#e5383b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 7.6 5.6 10l5.4-6.4"/><path d="M3.6 4.4a4.6 4.6 0 0 0 .2 5.7" stroke-width="1.3" opacity=".75"/></svg>',
+    camera: '<svg viewBox="0 0 14 14" fill="currentColor"><path d="M5.1 3h3.8l.8 1.3h1.8c.6 0 1 .4 1 1v5c0 .6-.4 1-1 1H2.5c-.6 0-1-.4-1-1v-5c0-.6.4-1 1-1h1.8z"/><circle cx="7" cy="7.6" r="2" style="fill:var(--sf-badge)"/><circle cx="7" cy="7.6" r="1.2"/></svg>',
+    ferry: '<svg viewBox="0 0 14 14" fill="currentColor"><path d="M5.5 2.5h3v1.6h1.6v2.6L12 7.4 10.6 11H3.4L2 7.4l1.9-.7V4.1h1.6z"/><path d="M1.5 12.2c1 .6 1.8.6 2.8 0s1.8-.6 2.7 0 1.8.6 2.7 0 1.8-.6 2.8 0" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round"/><rect x="5" y="5" width="4" height="1.3" rx=".3" style="fill:var(--sf-badge)"/></svg>',
+    tower: '<svg viewBox="0 0 14 14" fill="currentColor"><path d="M6 1.5h2l.4 1.6h.6v1H5v-1h.6z"/><path d="M5.4 4.6h3.2l.9 7.4H4.5z"/><path d="M2.5 12.2h9v.9h-9z"/><rect x="6.4" y="6.4" width="1.2" height="1.6" style="fill:var(--sf-badge)"/></svg>',
+  };
+  const SVG_PLUS = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M5 1.8v6.4M1.8 5h6.4"/></svg>';
+
+  const $ = (id) => document.getElementById(id);
+  // "|" marks where the reference card breaks a line; it only applies when the paragraph is full width.
+  const setText = (el, text) => {
+    el.dataset.text = text; el.textContent = "";
+    text.split("|").forEach((part, i) => { if (i) el.append(Object.assign(document.createElement("br"), { className: "sf-br" })); el.append(part); });
+  };
+  const saved = window.answer?.state || {};
+  const state = {
+    place: PLACES[saved.place] ? saved.place : "alcatraz",
+    itinerary: Array.isArray(saved.itinerary) ? saved.itinerary.filter((id) => PLACES[id]) : ["haight", "camera", "alcatraz"],
+    expanded: !!saved.expanded,
+    group: ["all", "sights", "neighborhoods"].includes(saved.group) ? saved.group : "all",
+  };
+  const save = () => window.answer?.save({ ...state });
+
+  // ---------- Palette (light: Apple-Maps-like; dark: muted night map) ----------
+  const PALETTES = {
+    light: { water: "#9ad7f6", land: "#f7f6f4", park: "#bfe9b4", wood: "#b3e2a6", sand: "#f1ead6", minor: "#ffffff", minorCase: "#dcdbe4", major: "#ffffff", majorCase: "#c9c9d6", arterial: "#a7adc8", motorway: "#9aa1c2", label: "#3c3c43", city: "#1d1d1f", dist: "#5d5d66", halo: "rgba(255,255,255,.92)", badge: "#ffffff", route: "#111111", ring: "#111111", glyph: "#4b4b50" },
+    dark: { water: "#1d3a52", land: "#24262a", park: "#2c4430", wood: "#2a4230", sand: "#3a3729", minor: "#3a3c42", minorCase: "#2b2d32", major: "#474a52", majorCase: "#33353b", arterial: "#5d6378", motorway: "#6b7290", label: "#c9c9cf", city: "#f2f2f4", dist: "#a5a5ad", halo: "rgba(20,21,24,.9)", badge: "#2b2c30", route: "#f2f2f2", ring: "#f2f2f2", glyph: "#d8d8dd" },
+  };
+  let pal;
+  const applyPalette = () => {
+    pal = PALETTES[window.answer?.theme?.scheme === "dark" || document.documentElement.dataset.scheme === "dark" ? "dark" : "light"];
+    const r = document.documentElement.style;
+    r.setProperty("--sf-water", pal.water); r.setProperty("--sf-label", pal.label); r.setProperty("--sf-city", pal.city);
+    r.setProperty("--sf-dist", pal.dist); r.setProperty("--sf-halo", pal.halo); r.setProperty("--sf-badge", pal.badge);
+    r.setProperty("--sf-route", pal.route); r.setProperty("--sf-ring", pal.ring); r.setProperty("--sf-glyph", pal.glyph);
+  };
+  applyPalette();
+
+  const w = (px) => px * S; // line widths in final CSS px
+  const z = (stops) => ["interpolate", ["exponential", 1.6], ["zoom"], ...stops.flatMap(([zz, v]) => [zz, w(v)])];
+  const notBrunnel = ["!=", ["get", "brunnel"], "tunnel"];
+  const greenPark = ["!", ["match", ["get", "class"], ["historic", "historic_district", "marine", "sustainable"], true, false]];
+  const cls = (...c) => ["match", ["get", "class"], c, true, false];
+  const buildStyle = () => ({
+    version: 8,
+    sources: { omt: { type: "vector", url: "https://tiles.openfreemap.org/planet", attribution: "© OpenStreetMap contributors, OpenFreeMap, OpenMapTiles" } },
+    layers: [
+      { id: "bg", type: "background", paint: { "background-color": pal.land } },
+      { id: "wood", type: "fill", source: "omt", "source-layer": "landcover", filter: cls("wood", "grass", "scrub"), paint: { "fill-color": pal.wood, "fill-opacity": .9 } },
+      { id: "sand", type: "fill", source: "omt", "source-layer": "landcover", filter: cls("sand"), paint: { "fill-color": pal.sand } },
+      { id: "park", type: "fill", source: "omt", "source-layer": "park", filter: greenPark, paint: { "fill-color": pal.park } },
+      { id: "green", type: "fill", source: "omt", "source-layer": "landuse", filter: cls("cemetery", "pitch", "playground", "golf", "park", "garden", "zoo"), paint: { "fill-color": pal.park, "fill-opacity": .8 } },
+      { id: "water", type: "fill", source: "omt", "source-layer": "water", filter: notBrunnel, paint: { "fill-color": pal.water } },
+      { id: "minor-case", type: "line", source: "omt", "source-layer": "transportation", filter: ["all", notBrunnel, cls("minor", "service")], layout: { "line-join": "round" }, paint: { "line-color": pal.minorCase, "line-width": z([[12, .8], [16, 4]]) } },
+      { id: "major-case", type: "line", source: "omt", "source-layer": "transportation", filter: ["all", notBrunnel, cls("tertiary", "secondary", "primary")], layout: { "line-join": "round" }, paint: { "line-color": pal.majorCase, "line-width": z([[12, 1.3], [16, 6]]) } },
+      { id: "minor", type: "line", source: "omt", "source-layer": "transportation", filter: ["all", notBrunnel, cls("minor", "service")], layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": pal.minor, "line-width": z([[12, .45], [16, 3]]) } },
+      { id: "park-over", type: "fill", source: "omt", "source-layer": "park", filter: greenPark, paint: { "fill-color": pal.park, "fill-opacity": .82 } },
+      { id: "major", type: "line", source: "omt", "source-layer": "transportation", filter: ["all", notBrunnel, cls("tertiary", "secondary", "primary")], layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": pal.major, "line-width": z([[12, .8], [16, 4.5]]) } },
+      { id: "arterial", type: "line", source: "omt", "source-layer": "transportation", filter: ["all", notBrunnel, cls("trunk")], layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": pal.arterial, "line-width": z([[12, 1], [16, 5]]) } },
+      { id: "motorway", type: "line", source: "omt", "source-layer": "transportation", filter: ["all", notBrunnel, cls("motorway"), ["!=", ["get", "ramp"], 1]], layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": pal.motorway, "line-width": z([[12, 1.5], [16, 6]]) } },
+    ],
+  });
+
+  // ---------- Map ----------
+  const mapEl = $("map"), glEl = $("gl");
+  mapEl.dataset.expanded = String(state.expanded);
+  const homeZoom = () => Math.log2((360 * mapEl.clientWidth) / (512 * HOME.lonSpan)) + Math.log2(S);
+  let map = null, ready = false;
+  try {
+    map = new maplibregl.Map({
+      container: glEl, style: buildStyle(), center: HOME.center, zoom: homeZoom(),
+      pixelRatio: (window.devicePixelRatio || 1) / S, attributionControl: false,
+      scrollZoom: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, boxZoom: false, keyboard: false,
+      fadeDuration: 0, renderWorldCopies: false, maxPitch: 0,
+    });
+    map.touchZoomRotate.disableRotation();
+    map.on("load", () => { ready = true; place(); });
+    map.on("move", place); map.on("resize", place);
+  } catch (error) { console.error(error); }
+  window.answer?.onTheme?.(() => { applyPalette(); map?.setStyle(buildStyle()); });
+
+  const project = (ll) => {
+    if (!map) return { x: 0, y: 0 };
+    const p = map.project(ll); return { x: p.x / S, y: p.y / S };
+  };
+
+  // Labels + shields
+  const labelEls = LABELS.map((l) => { const el = document.createElement("div"); el.className = "sf-lbl " + l.cls; el.innerHTML = l.text; $("labels").append(el); return el; });
+  const shieldSvg = (s) => s.kind === "us"
+    ? `<svg viewBox="0 0 18 18"><path d="M2.2 2.4h13.6c.2 1.2-.2 2 .4 3.2.8 1.6.4 4.6-1.6 6.8C12.8 14.3 10.6 15 9 16c-1.6-1-3.8-1.7-5.6-3.6-2-2.2-2.4-5.2-1.6-6.8.6-1.2.2-2 .4-3.2z" fill="#fff" stroke="#444" stroke-width="1"/><text x="9" y="10.6" text-anchor="middle" font-size="${s.n.length > 2 ? 6.2 : 7.4}" font-weight="700" font-family="Inter Variable, sans-serif" fill="#222">${s.n}</text></svg>`
+    : `<svg viewBox="0 0 18 18"><path d="M2.3 3.2c2.2.5 4.4-.3 6.7-1.3 2.3 1 4.5 1.8 6.7 1.3.6 2.2.6 4.6 0 6.7C14.6 13 12 14.8 9 16.2 6 14.8 3.4 13 2.3 9.9c-.6-2.1-.6-4.5 0-6.7z" fill="#2c4bb3" stroke="#fff" stroke-width="1"/><path d="M2.6 3.3c2.2.5 4.3-.3 6.4-1.2 2.1.9 4.2 1.7 6.4 1.2.2.9.3 1.7.3 2.5H2.3c0-.8.1-1.6.3-2.5z" fill="#d9342b"/><text x="9" y="12.3" text-anchor="middle" font-size="${s.n.length > 2 ? 5.6 : 6.4}" font-weight="700" font-family="Inter Variable, sans-serif" fill="#fff">${s.n}</text></svg>`;
+  const shieldEls = SHIELDS.map((s) => { const el = document.createElement("div"); el.className = "sf-shield"; el.innerHTML = shieldSvg(s); $("labels").append(el); return el; });
+
+  // Markers
+  const markerEls = MARKERS.map((m) => {
+    const el = document.createElement("button");
+    el.className = "sf-mk out" + (m.small ? " small" : ""); el.dataset.id = m.id;
+    el.setAttribute("aria-label", m.label);
+    el.innerHTML = `<span class="b">${GLYPHS[m.glyph || PLACES[m.place].glyph]}</span><span class="t">${m.label}</span>`;
+    el.addEventListener("click", () => select(m.place, true));
+    $("markers").append(el); return el;
+  });
+
+  // Route
+  let progress = 0; // 0..1 across both legs
+  const routeD = () => {
+    const pts = [...LEG1, ...LEG2.slice(1)].map(project);
+    return pts.map((p, i) => (i ? "L" : "M") + p.x.toFixed(1) + " " + p.y.toFixed(1)).join("");
+  };
+  function place() {
+    LABELS.forEach((l, i) => { const p = project(l.at); labelEls[i].style.left = p.x + "px"; labelEls[i].style.top = p.y + "px"; });
+    SHIELDS.forEach((s, i) => { const p = project(s.at); shieldEls[i].style.left = p.x + "px"; shieldEls[i].style.top = p.y + "px"; });
+    MARKERS.forEach((m, i) => { const p = project(m.at); markerEls[i].style.left = p.x + "px"; markerEls[i].style.top = p.y + "px"; });
+    const d = routeD();
+    $("routeLine").setAttribute("d", d); $("routeMask").setAttribute("d", d);
+    $("routeMask").setAttribute("stroke-dashoffset", String(1 - progress));
+  }
+
+  // Lengths of each leg (in projected px) let the route draw at constant speed and reveal markers on arrival.
+  const legLen = (leg) => leg.reduce((s, ll, i) => i ? s + Math.hypot(ll[0] - leg[i - 1][0], (ll[1] - leg[i - 1][1]) * 1.26) : 0, 0);
+  const split = legLen(LEG1) / (legLen(LEG1) + legLen(LEG2));
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const showMarker = (id) => { const el = markerEls[MARKERS.findIndex((m) => m.id === id)]; el.classList.remove("out"); el.classList.add("pop"); };
+  function drawRoute(start) {
+    showMarker("haight");
+    if (reduce) { progress = 1; MARKERS.forEach((m) => showMarker(m.id)); place(); return; }
+    const dur = 3300, t0 = performance.now() + start;
+    let shownCam = false, shownEnd = false;
+    const tick = (now) => {
+      const t = Math.max(0, Math.min(1, (now - t0) / dur));
+      progress = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      progress = .03 + progress * .97;
+      if (!shownCam && progress >= split) { shownCam = true; showMarker("camera"); }
+      if (!shownEnd && progress >= .985) { shownEnd = true; showMarker("pier"); setTimeout(() => showMarker("alcatraz"), 160); }
+      $("routeMask").setAttribute("stroke-dashoffset", String(1 - progress));
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- Markers state ----------
+  function syncMarkers() {
+    MARKERS.forEach((m, i) => {
+      const el = markerEls[i];
+      el.setAttribute("aria-pressed", String(m.place === state.place && (m.id !== "pier")));
+      el.dataset.off = String(m.id !== "pier" && !state.itinerary.includes(m.place));
+      el.dataset.hide = String(!(state.group === "all" || state.group === m.group));
+    });
+  }
+
+  // ---------- Detail panel ----------
+  const detail = $("detail"), body = $("body");
+  function renderDetail(id) {
+    const p = PLACES[id];
+    $("photos").innerHTML = "";
+    p.photos.forEach(([src, alt], i) => {
+      const fig = document.createElement("figure");
+      const img = new Image(); img.alt = alt; img.decoding = "async"; img.referrerPolicy = "no-referrer";
+      img.style.transitionDelay = i * 90 + "ms";
+      img.onload = () => requestAnimationFrame(() => img.classList.add("in"));
+      img.src = W(src); fig.append(img); $("photos").append(fig);
+    });
+    $("name").textContent = p.name; $("time").textContent = p.time;
+    setText($("story"), p.story); setText($("before"), p.before);
+    syncButton();
+  }
+  function syncButton() {
+    const on = state.itinerary.includes(state.place);
+    const b = $("itinBtn");
+    b.setAttribute("aria-pressed", String(on));
+    b.innerHTML = on ? "Remove from my itinerary" : SVG_PLUS + "Add to my day";
+  }
+  let swapping = null;
+  function select(id, fromMap) {
+    if (id === state.place) { if (fromMap) nudge(id); return; }
+    state.place = id; save(); syncMarkers(); nudge(id);
+    const from = detail.offsetHeight;
+    detail.style.height = from + "px";
+    body.classList.add("fade");
+    clearTimeout(swapping);
+    swapping = setTimeout(() => {
+      renderDetail(id);
+      detail.style.height = "auto";
+      const to = detail.offsetHeight;
+      detail.style.height = from + "px"; detail.offsetHeight;
+      detail.style.height = to + "px";
+      body.classList.remove("fade");
+      setTimeout(() => { detail.style.height = ""; }, 480);
+    }, 200);
+  }
+  function nudge(id) {
+    if (!map || !ready) return;
+    const c = map.getCenter(), t = PLACES[id].at;
+    map.easeTo({ center: [c.lng + (t[0] - c.lng) * .3, c.lat + (t[1] - c.lat) * .3], duration: 800, easing: (x) => 1 - Math.pow(1 - x, 3) });
+  }
+  $("itinBtn").addEventListener("click", () => {
+    const i = state.itinerary.indexOf(state.place);
+    if (i >= 0) state.itinerary.splice(i, 1); else state.itinerary.push(state.place);
+    save(); syncButton(); syncMarkers();
+  });
+
+  // ---------- Map controls ----------
+  const expandBtn = $("expandBtn");
+  const syncExpand = () => {
+    mapEl.dataset.expanded = String(state.expanded);
+    expandBtn.setAttribute("aria-pressed", String(state.expanded));
+    $("expandLabel").textContent = state.expanded ? "Collapse" : "Expand";
+    $("expandIcon").innerHTML = state.expanded
+      ? '<path d="M8.5 4H6V1.5M6 4l2.7-2.7M1.5 6H4v2.5M4 6 1.3 8.7"/>'
+      : '<path d="M6 1.5h2.5V4M8.5 1.5 5.8 4.2M4 8.5H1.5V6M1.5 8.5l2.7-2.7"/>';
+  };
+  expandBtn.addEventListener("click", () => { state.expanded = !state.expanded; syncExpand(); save(); });
+  syncExpand();
+
+  const menu = $("menu"), groupsBtn = $("groupsBtn"), infoBtn = $("infoBtn"), infopop = $("infopop");
+  const LABEL = { all: "All groups", sights: "Sights", neighborhoods: "Neighborhoods" };
+  const setMenu = (open) => { menu.classList.toggle("open", open); groupsBtn.setAttribute("aria-expanded", String(open)); if (open) setInfo(false); };
+  const setInfo = (open) => { infopop.classList.toggle("open", open); infoBtn.setAttribute("aria-expanded", String(open)); if (open) setMenu(false); };
+  groupsBtn.addEventListener("click", (e) => { e.stopPropagation(); setMenu(!menu.classList.contains("open")); if (menu.classList.contains("open")) menu.querySelector("[aria-checked=true]").focus(); });
+  infoBtn.addEventListener("click", (e) => { e.stopPropagation(); setInfo(!infopop.classList.contains("open")); });
+  menu.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-group]"); if (!b) return;
+    state.group = b.dataset.group; save(); syncGroup(); setMenu(false); groupsBtn.focus();
+  });
+  menu.addEventListener("keydown", (e) => {
+    const items = [...menu.querySelectorAll("button")], i = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); }
+    if (e.key === "Escape") { setMenu(false); groupsBtn.focus(); }
+  });
+  document.addEventListener("click", (e) => { if (!menu.contains(e.target)) setMenu(false); if (!infopop.contains(e.target)) setInfo(false); });
+  function syncGroup() {
+    $("groupsLabel").textContent = LABEL[state.group];
+    menu.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.group === state.group)));
+    syncMarkers();
+  }
+
+  // ---------- Entrance ----------
+  // Text streams in word by word, like the reference answer being written.
+  const stream = (el, start, per) => {
+    if (reduce) return start;
+    const words = (el.dataset.text ?? el.textContent).split(/(\s+|\|)/);
+    el.textContent = "";
+    let i = 0;
+    for (const w of words) {
+      if (w === "|") { el.append(Object.assign(document.createElement("br"), { className: "sf-br" })); continue; }
+      if (/^\s+$/.test(w) || !w) { el.append(w); continue; }
+      const span = document.createElement("span"); span.className = "sf-w"; span.textContent = w;
+      span.style.setProperty("--d", start + i++ * per + "ms"); el.append(span);
+    }
+    return start + i * per;
+  };
+  renderDetail(state.place);
+  stream($("title"), 0, 70);
+  stream($("subtitle"), 230, 22);
+  [...body.children].forEach((el, i) => {
+    el.classList.add("sf-enter"); el.style.setProperty("--d", 1000 + i * 90 + "ms");
+    el.addEventListener("animationend", (e) => { if (e.target === el) el.classList.remove("sf-enter", "go"); }, { once: false });
+  });
+  let tEnd = stream($("story"), 1300, 16);
+  stream($("before"), tEnd + 100, 16);
+  syncGroup();
+  setTimeout(() => document.querySelectorAll(".sf-enter").forEach((el) => el.classList.add("go")), 30);
+  place();
+  drawRoute(550);
+})();
+</script>

@@ -1,0 +1,98 @@
+// Builds the sandboxed document for an HTML answer. The app renders it with
+// sandbox="allow-scripts" (an opaque origin, like bb's inline-vis previews);
+// this file only supplies the shared design kit and the postMessage bridge.
+
+export const WIDGET_MESSAGE_SOURCE = "interactive-answer";
+export const THEME_TOKENS = ["background", "foreground", "card", "card-foreground", "muted", "muted-foreground", "border", "input", "ring", "primary", "primary-foreground", "accent", "accent-foreground", "destructive"] as const;
+
+export type WidgetTheme = { scheme: "light" | "dark"; font: string; tokens: Partial<Record<(typeof THEME_TOKENS)[number], string>> };
+export const fallbackTheme: WidgetTheme = {
+  scheme: "light",
+  font: "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+  tokens: { background: "#ffffff", foreground: "#111111", card: "#ffffff", muted: "#f4f4f2", "muted-foreground": "#6b6b6b", border: "#e6e6e3", ring: "#2f80ed", primary: "#111111", "primary-foreground": "#ffffff", accent: "#f4f4f2" },
+};
+
+const KIT = String.raw`
+/* bb's UI font is Inter Variable; a sandboxed frame cannot use the parent's copy. */
+@font-face { font-family: "Inter Variable"; src: url("https://rsms.me/inter/font-files/InterVariable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root { color-scheme: light; --ia-radius: 14px; --ia-ease: cubic-bezier(.2,.7,.2,1); }
+:root[data-scheme=dark] { color-scheme: dark; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; }
+body { padding: 20px 22px 22px; font: 13px/1.45 var(--font); color: var(--foreground); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+img, svg { display: block; max-width: 100%; }
+.ia-title { margin: 0; font-size: 20px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; }
+.ia-subtitle { margin: 3px 0 0; font-size: 12px; color: var(--muted-foreground); }
+.ia-eyebrow { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); font-weight: 500; }
+.ia-muted { color: var(--muted-foreground); }
+.ia-panel { border: 1px solid var(--border); border-radius: var(--ia-radius); background: var(--card); }
+.ia-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); }
+.ia-seg button, .ia-chip { border: 1px solid transparent; background: transparent; border-radius: 999px; padding: 5px 11px; font-size: 11.5px; line-height: 1.2; color: var(--muted-foreground); transition: background .2s, color .2s; }
+.ia-chip { border-color: var(--border); }
+.ia-seg button[aria-pressed=true], .ia-chip[aria-pressed=true] { background: var(--foreground); color: var(--background); border-color: var(--foreground); font-weight: 500; }
+.ia-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); font-size: 12px; font-weight: 500; transition: opacity .2s, background .2s; }
+.ia-btn:hover { background: var(--muted); }
+.ia-btn-primary { background: var(--foreground); border-color: var(--foreground); color: var(--background); }
+.ia-btn-primary:hover { background: var(--foreground); opacity: .88; }
+.ia-btn:disabled { opacity: .45; cursor: default; }
+.ia-link { border: 0; background: none; padding: 4px 0; font-size: 12px; color: var(--foreground); }
+.ia-check { display: grid; grid-template-columns: 16px 1fr; gap: 2px 9px; align-items: start; font-size: 12px; cursor: pointer; }
+.ia-check input { width: 14px; height: 14px; margin: 1px 0 0; accent-color: var(--foreground); }
+.ia-check small { grid-column: 2; color: var(--muted-foreground); font-size: 11.5px; }
+.ia-dots { display: flex; gap: 5px; }
+.ia-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--border); transition: background .3s; }
+.ia-dots i[aria-current=step] { background: var(--ring); }
+.ia-reveal { animation: ia-reveal .55s var(--ia-ease) both; animation-delay: calc(var(--i, 0) * 70ms); }
+@keyframes ia-reveal { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; } }
+`;
+
+// Runs before the agent's markup. Exposes window.answer and reports height.
+function bridge(id: string, state: unknown, theme: WidgetTheme) {
+  return String.raw`(() => {
+  const SOURCE = ${JSON.stringify(WIDGET_MESSAGE_SOURCE)}, ID = ${JSON.stringify(id)};
+  const post = (type, data) => parent.postMessage({ source: SOURCE, id: ID, type, ...data }, "*");
+  const listeners = new Set();
+  const apply = (theme) => {
+    const root = document.documentElement;
+    root.dataset.scheme = theme.scheme;
+    root.style.setProperty("--font", theme.font);
+    for (const [name, value] of Object.entries(theme.tokens)) root.style.setProperty("--" + name, value);
+  };
+  let theme = ${JSON.stringify(theme)};
+  apply(theme);
+  window.answer = Object.freeze({
+    id: ID,
+    state: ${JSON.stringify(state ?? null)},
+    save(value) { try { post("state", { state: JSON.parse(JSON.stringify(value ?? null)) }); } catch { /* Not serializable; nothing to save. */ } },
+    get theme() { return theme; },
+    onTheme(callback) { listeners.add(callback); return () => listeners.delete(callback); },
+  });
+  addEventListener("message", (event) => {
+    if (event.source !== parent || !event.data || event.data.source !== SOURCE || event.data.type !== "theme") return;
+    theme = event.data.theme; apply(theme);
+    for (const callback of listeners) try { callback(theme); } catch (error) { console.error(error); }
+  });
+  let last = 0;
+  const report = () => { const height = Math.ceil(document.documentElement.getBoundingClientRect().height); if (height !== last) { last = height; post("height", { height }); } };
+  addEventListener("DOMContentLoaded", () => { new ResizeObserver(report).observe(document.documentElement); report(); });
+  addEventListener("load", report);
+  // Sandboxed frames cannot open windows; ask bb to open web links instead.
+  addEventListener("click", (event) => {
+    const link = event.target instanceof Element && event.target.closest("a[href]");
+    if (!link || event.defaultPrevented) return;
+    const url = new URL(link.getAttribute("href"), "https://invalid.invalid/");
+    if (url.protocol !== "https:" && url.protocol !== "http:") return;
+    event.preventDefault(); post("open", { url: url.href });
+  });
+})();`;
+}
+
+export function buildWidgetDocument({ id, html, state, theme }: { id: string; html: string; state: unknown; theme: WidgetTheme }): string {
+  // Escape "</" so stored values cannot terminate the bridge script early.
+  const script = bridge(id, state, theme).replaceAll("</", "<\\/");
+  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}</style><script>${script}</script></head><body>${html}</body></html>`;
+}

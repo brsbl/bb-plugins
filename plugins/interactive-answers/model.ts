@@ -48,7 +48,17 @@ export type AnswerDocument = z.infer<typeof documentSchema>;
 export type Control = AnswerDocument["controls"][number];
 export type Block = AnswerDocument["blocks"][number];
 export type Values = Record<string, number | string>;
-export const answerSchema = z.object({ id: idSchema, threadId: threadSchema, document: documentSchema }).strict();
+export const MAX_HTML_LENGTH = 400_000;
+export const htmlAnswerSchema = z.object({
+  title: label,
+  html: z.string().min(1).max(MAX_HTML_LENGTH),
+  width: z.number().int().min(320).max(1200).optional(),
+}).strict();
+export type HtmlAnswer = z.infer<typeof htmlAnswerSchema>;
+export const answerSchema = z.union([
+  z.object({ id: idSchema, threadId: threadSchema, kind: z.literal("document"), document: documentSchema }).strict(),
+  z.object({ id: idSchema, threadId: threadSchema, kind: z.literal("html"), widget: htmlAnswerSchema }).strict(),
+]);
 export type Answer = z.infer<typeof answerSchema>;
 
 // Bound nesting before recursive schema validation, including documents read from storage.
