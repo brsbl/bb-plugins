@@ -44,8 +44,8 @@ img, svg { display: block; max-width: 100%; }
 .ia-stage { border-radius: var(--ia-radius-stage); background: var(--ia-stage); overflow: hidden; }
 .ia-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .ia-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--ia-radius-photo); }
-.ia-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--ia-hairline); background: var(--card); }
-.ia-seg button, .ia-chip { border: 1px solid transparent; background: transparent; border-radius: 999px; padding: 5px 11px; font-size: 11.5px; line-height: 1.2; color: var(--muted-foreground); transition: background .2s, color .2s; }
+.ia-seg { display: inline-flex; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--ia-hairline); background: var(--card); }
+.ia-seg button, .ia-chip { white-space: nowrap; border: 1px solid transparent; background: transparent; border-radius: 999px; padding: 5px 11px; font-size: 11.5px; line-height: 1.2; color: var(--muted-foreground); transition: background .2s, color .2s; }
 .ia-chip { border-color: var(--ia-hairline); }
 .ia-seg button[aria-pressed=true], .ia-chip[aria-pressed=true] { background: var(--foreground); color: var(--background); border-color: var(--foreground); font-weight: 500; }
 .ia-btn, .ia-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--ia-hairline); background: var(--card); font-size: 12px; font-weight: 500; color: var(--ia-ink); transition: opacity .2s, background .2s; }
