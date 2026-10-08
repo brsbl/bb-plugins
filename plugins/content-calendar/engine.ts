@@ -1155,7 +1155,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       if (!row) throw new CalendarError("not_found", `No item ${id}`, "Run `bb content-calendar list` to see item IDs");
       return view(row);
     },
-    tick: () => serialize(() => runSync()),
+    tick: () => serialize(async () => { await runSync(); }),
     nextTickDelay: () => {
       const now = deps.now().getTime();
       const { queued, failed, nextRetry } = store.counts();
