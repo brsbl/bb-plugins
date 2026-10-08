@@ -15,7 +15,16 @@ export const fallbackTheme: WidgetTheme = {
 const KIT = String.raw`
 /* bb's UI font is Inter Variable; a sandboxed frame cannot use the parent's copy. */
 @font-face { font-family: "Inter Variable"; src: url("https://rsms.me/inter/font-files/InterVariable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
-:root { color-scheme: light; --ia-radius: 14px; --ia-ease: cubic-bezier(.2,.7,.2,1); }
+:root {
+  color-scheme: light; --ia-ease: cubic-bezier(.2,.7,.2,1);
+  /* Three ink levels: headings/labels, body copy, meta. Surfaces: card, stage, hairline. */
+  --ia-ink: var(--foreground);
+  --ia-body: color-mix(in srgb, var(--foreground) 76%, var(--card));
+  --ia-meta: color-mix(in srgb, var(--foreground) 52%, var(--card));
+  --ia-stage: color-mix(in srgb, var(--foreground) 4%, var(--card));
+  --ia-hairline: color-mix(in srgb, var(--foreground) 9%, var(--card));
+  --ia-radius: 16px; --ia-radius-stage: 12px; --ia-radius-photo: 12px;
+}
 :root[data-scheme=dark] { color-scheme: dark; }
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; background: transparent; }
@@ -24,20 +33,27 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 img, svg { display: block; max-width: 100%; }
-.ia-title { margin: 0; font-size: 20px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; }
-.ia-subtitle { margin: 3px 0 0; font-size: 12px; color: var(--muted-foreground); }
-.ia-eyebrow { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); font-weight: 500; }
-.ia-muted { color: var(--muted-foreground); }
-.ia-panel { border: 1px solid var(--border); border-radius: var(--ia-radius); background: var(--card); }
-.ia-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); }
+.ia-title { margin: 0; font-size: 20px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; color: var(--ia-ink); }
+.ia-subtitle { margin: 3px 0 0; font-size: 12px; line-height: 1.4; color: var(--ia-meta); }
+.ia-eyebrow { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ia-meta); font-weight: 500; }
+.ia-h { margin: 0; font-size: 13px; line-height: 1.3; font-weight: 500; color: var(--ia-ink); }
+.ia-item-title { margin: 0; font-size: 15px; line-height: 1.3; font-weight: 500; letter-spacing: -.01em; color: var(--ia-ink); }
+.ia-body { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ia-body); }
+.ia-meta, .ia-muted { font-size: 11px; line-height: 1.4; color: var(--ia-meta); }
+.ia-panel { padding: 14px 16px; border: 1px solid var(--ia-hairline); border-radius: var(--ia-radius); background: var(--card); }
+.ia-stage { border-radius: var(--ia-radius-stage); background: var(--ia-stage); overflow: hidden; }
+.ia-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ia-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--ia-radius-photo); }
+.ia-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--ia-hairline); background: var(--card); }
 .ia-seg button, .ia-chip { border: 1px solid transparent; background: transparent; border-radius: 999px; padding: 5px 11px; font-size: 11.5px; line-height: 1.2; color: var(--muted-foreground); transition: background .2s, color .2s; }
-.ia-chip { border-color: var(--border); }
+.ia-chip { border-color: var(--ia-hairline); }
 .ia-seg button[aria-pressed=true], .ia-chip[aria-pressed=true] { background: var(--foreground); color: var(--background); border-color: var(--foreground); font-weight: 500; }
-.ia-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); font-size: 12px; font-weight: 500; transition: opacity .2s, background .2s; }
+.ia-btn, .ia-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--ia-hairline); background: var(--card); font-size: 12px; font-weight: 500; color: var(--ia-ink); transition: opacity .2s, background .2s; }
 .ia-btn:hover { background: var(--muted); }
+/* Primary works alone or combined with .ia-btn. */
 .ia-btn-primary { background: var(--foreground); border-color: var(--foreground); color: var(--background); }
 .ia-btn-primary:hover { background: var(--foreground); opacity: .88; }
-.ia-btn:disabled { opacity: .45; cursor: default; }
+.ia-btn:disabled, .ia-btn-primary:disabled { opacity: .45; cursor: default; }
 .ia-link { border: 0; background: none; padding: 4px 0; font-size: 12px; color: var(--foreground); }
 .ia-check { display: grid; grid-template-columns: 16px 1fr; gap: 2px 9px; align-items: start; font-size: 12px; cursor: pointer; }
 .ia-check input { width: 14px; height: 14px; margin: 1px 0 0; accent-color: var(--foreground); }

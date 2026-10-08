@@ -54,23 +54,115 @@ Write body markup with inline `<style>` and `<script>`. It renders in a
 sandboxed, opaque-origin frame inside a rounded bb card that sizes itself to
 the content; `width` (320–1200) caps the card width.
 
-- Follow bb's theme with `--background`, `--foreground`, `--card`, `--muted`,
-  `--muted-foreground`, `--border`, `--ring`, and `--font`. Fixed colors are
-  fine inside illustrations, photos, maps, and swatches.
-- Kit classes: `.ia-title`, `.ia-subtitle`, `.ia-eyebrow`, `.ia-panel`,
-  `.ia-seg` (buttons with `aria-pressed`), `.ia-chip`, `.ia-btn`,
-  `.ia-btn-primary`, `.ia-check`, `.ia-dots`, `.ia-reveal` (set `--i` to
-  stagger an entrance).
+The target look is a finished product card, not a web page: quiet, compact,
+black-on-white type, one accent, a large illustration or photo set, and calm
+motion. Most failures are small: gray headings, washed-out body text, bold
+weights, thick borders, icon-sized illustrations, or nothing moving. Follow the
+numbers below; they are measured from cards that read as high fidelity.
+
+### Anatomy
+
+1. **Header**: `.ia-title` (one short line, sentence case, no emoji), then
+   `.ia-subtitle` saying what to do ("Tap a swatch to repaint the room.").
+   A segmented control may sit top-right of the header.
+2. **Hero**: the main visual inside `.ia-stage` (or a photo row / map),
+   200–320px tall, full width. It is the largest thing in the card.
+3. **Controls** directly under the hero: `.ia-seg`, swatches, chips, tiles.
+4. **Detail**: `.ia-item-title`, a `.ia-meta` line, `.ia-h` headings with
+   `.ia-body` paragraphs, an optional tip in `.ia-stage` with `.ia-meta` text.
+5. **Footer**: progress (`.ia-dots` or a dashed bar) on the left, actions on
+   the right (`.ia-btn` Back, `.ia-btn-primary` Next →), or `.ia-link` text
+   buttons ("← Previous step", "Next step →").
+
+Put grouped detail in one `.ia-panel`. Never nest panels more than once.
+Publish a single column with `width` 440–540; go wider only for maps or
+side-by-side comparisons that need it.
+
+### Type and ink
+
+Use only these steps (Inter is bb's font; keep `var(--font)`):
+
+| Role | Size / line height | Weight | Ink |
+|---|---|---|---|
+| Card title | 20px / 1.2, tracking −0.02em | 500 | `--ia-ink` |
+| Item title (step, place) | 15px / 1.3, tracking −0.01em | 500 | `--ia-ink` |
+| Section heading | 13px / 1.3 | 500 | `--ia-ink` |
+| Body | 12px / 1.45 | 400 | `--ia-body` |
+| Subtitle, meta, caption | 11–12px / 1.4 | 400 | `--ia-meta` |
+| Eyebrow, step counter | 10.5px caps, tracking 0.04em | 500 | `--ia-meta` or the accent |
+| Buttons, pills, labels | 11.5–12px | 500 | `--ia-ink` |
+
+- Headings, labels and selected values are always `--ia-ink`, never gray.
+  Paragraphs are always `--ia-body`; only subtitles, captions, durations,
+  hex values and hints use `--ia-meta`. Do not invent other grays.
+- Never use weights above 600, all-caps headings, or text below 10.5px.
+- On a tinted surface, tint the text toward that hue instead of gray (dark
+  green text on a pale green tile).
+
+### Space, shape, color
+
+- Body padding stays 20–22px. Title→subtitle 3px; header→hero 16px; between
+  sections 16–20px; inside panels 14–16px; grid gaps 8–10px.
+- Radii: panels 16px, stage and photos 12px, tiles 10–12px, pills fully
+  round. Borders are 1px `--ia-hairline` or none; no drop shadows on content.
+- Surfaces: `--card` for the card, `--ia-stage` behind illustrations and tips.
+- One accent per card, used for the step counter, progress, and the active
+  element. Selected controls are solid `--ia-ink` with `--card` text.
+- Use fixed colors only for depicted things (paint, map water, plants).
+- Visual choices (colors, materials, photos, products) are large tiles: the
+  swatch or image fills the tile (~4:3, 10–12px radius) with the name in ink
+  and the code or price in meta underneath. Show selection with a 1.5px ink
+  ring and a small ✓, never an inverted fill. Solid ink fill is only for
+  text controls (`.ia-seg`, chips, primary buttons).
+
+### Illustrations, photos, maps
+
+- Draw the subject itself as a detailed inline SVG, not an icon: realistic
+  proportions, secondary parts present (spokes, tread, cables, knobs,
+  baseboards, folds), centered in the stage with ~10% margin.
+- Draw only what the answer is about. Keep scenes sparse (an empty room for
+  paint, the bike alone for assembly) so the part that changes dominates.
+- Flat vector style: no outlines except hairlines, no gradients except soft
+  lighting on large planes, 2–3 tones per material (base, shade, highlight).
+- Show state on the drawing: inactive parts light gray (#c9c9c9), the active
+  part near-black or the accent; numbered callouts as 18px circles (white with
+  hairline, filled `--ia-ink` when active). Caption simplifications under the
+  stage in `.ia-meta` ("Illustrative schematic, not to scale.").
+- Use real photos for real places and things: `.ia-photos` (three square
+  tiles) or a bento of one tall plus two stacked, 6–8px gaps, 12px radius.
+- Use a real map for places (MapLibre with OpenFreeMap tiles, restyled light:
+  pale land, sky-blue water, green parks, white roads), your own labels and
+  white pill controls, white circular markers, and a dashed ink route.
+
+### Motion
+
+- Stream the card in on load: title, then each section top to bottom,
+  opacity 0→1 and translateY 6px→0 over 450ms with `--ia-ease`, staggered
+  60–100ms (`.ia-reveal` with `--i`). Grids and swatches pop in one by one.
+- Every interaction visibly changes the hero: crossfade or slide content
+  (250–350ms), transition colors (500–600ms), morph or move drawn parts
+  (600–800ms), draw lines with `stroke-dashoffset`.
+- Respect `prefers-reduced-motion` (the kit shortens animations) and never use
+  motion as the only signal.
+
+### Behavior
+
 - `window.answer.state` holds the last value passed to `window.answer.save()`
   in this browser. Save after each meaningful change so a reload restores it.
   `window.answer.onTheme(callback)` reports theme changes.
-- Draw illustrations as inline SVG. Remote images, map tiles, and scripts load
-  normally; use stable public sources and credit them in your prose.
-- Use real buttons, visible focus, and `prefers-reduced-motion`. Animate
-  changes so users can see what moved, and never rely on motion alone.
+- Use real buttons with `aria-pressed` or `aria-current`, visible focus, and
+  keyboard support (arrow keys for steps).
 - The frame cannot reach bb, cookies, or the conversation, and inputs are not
   sent to the agent. Its scripts can use the network, so never send what the
-  user enters to any server. `demos/` in the plugin holds complete examples.
+  user enters to any server. Credit photo and map sources in your prose.
+
+### Check before you publish
+
+If you can, write the HTML to a file, render it at 2× (Browser Automation)
+inside a 500px-wide white card, and check: headings black, body one gray,
+nothing below 10.5px, hero is the largest element, no overflow or clipped
+text, entrance plays, and one interaction changes the hero. Fix, then publish.
+`demos/` in the plugin holds complete examples at this standard.
 
 ## Interactive diagrams
 
