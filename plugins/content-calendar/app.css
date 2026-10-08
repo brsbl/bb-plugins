@@ -65,7 +65,9 @@ textarea.cc-input { height: auto; }
 .cc-page-layout { display: flex; height: 100%; min-height: 0; }
 .cc-page-main { flex: 1; min-width: 0; overflow: auto; padding-bottom: 16px; }
 .cc-page-detail { width: clamp(300px, 30%, 400px); flex: none; overflow: auto; border-left: 1px solid var(--border); }
-@media (max-width: 900px) {
+.cc-page { container-type: inline-size; }
+/* Below this width a side-by-side pane would crush the grid, so detail floats over it instead. */
+@container (max-width: 1300px) {
   .cc-page-layout { position: relative; }
   .cc-page-detail { position: absolute; inset: 0 0 0 auto; width: min(400px, 100%); background: var(--background); box-shadow: -8px 0 24px color-mix(in oklab, var(--foreground) 12%, transparent); z-index: 2; }
 }
@@ -217,5 +219,3 @@ textarea.cc-input { height: auto; }
   .cc-embed-week .cc-day-items { flex: 1; min-width: 0; }
   .cc-embed-week .cc-item-week { margin-bottom: 3px; }
 }
-/* With item detail open, weekends get full-width columns so their titles stay readable. */
-.cc-with-detail .cc-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
