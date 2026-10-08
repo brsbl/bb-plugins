@@ -153,7 +153,10 @@ site or terrain. Use 2D for everything else; 3D costs downloads and battery.
 `demos/room-3d.html` is the reference implementation.
 
 - **Stack.** Three.js pinned by version through an import map
-  (`https://unpkg.com/three@0.170.0/...`). `WebGLRenderer` with ACES filmic
+  (`https://unpkg.com/three@0.170.0/...`) and `<script type="module" async>`.
+  Without `async`, the card keeps its default height until every import
+  downloads. The sandboxed frame cannot reuse cached files, so this happens
+  on every load. `WebGLRenderer` with ACES filmic
   tone mapping, sRGB output, soft shadows (`PCFSoftShadowMap`), and pixel ratio
   capped at 2. Post-process through an `EffectComposer` whose render target is
   `{ samples: 4, type: HalfFloatType }` (without it edges alias and gradients
