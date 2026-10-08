@@ -24,7 +24,7 @@
     "name": "Content Calendar",
     "description": "Plan content on a month or week calendar stored in Google Calendar.",
     "branding": {
-      "icon": "CalendarDays"
+      "icon": "Calendar"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
