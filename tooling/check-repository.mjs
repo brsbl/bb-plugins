@@ -24,6 +24,7 @@ const hostEntryMinimumBb = [0, 43, 4];
 // Keep newer host requirements scoped to the plugin that consumes them
 // instead of raising the compatibility floor for every package.
 const pluginBbEngineOverrides = new Map([
+  ["content-calendar", ">=0.43.4"],
   ["context-katamari", ">=0.43.0"],
   ["file-pins", ">=0.43.4"],
   ["improve-prompt", ">=0.40.0"],
