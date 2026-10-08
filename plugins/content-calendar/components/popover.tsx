@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 
 const FOCUSABLE = "button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])";
 const MENU_ITEMS = "[role='menuitem']:not(:disabled)";
+// Open panels per trigger: a menu item can open the next panel on the same trigger before the first one's cleanup runs.
+const openOn = new WeakMap<HTMLElement, number>();
 
 /**
  * A small floating panel anchored under a trigger. It portals to the body so
@@ -39,13 +41,17 @@ export function Popover({ anchor, onClose, width = 240, align = "start", label, 
   }, [position, role]);
 
   // However it closes, return focus to the trigger if it was inside the panel and nothing else took it.
+  // aria-expanded also keeps a hover-revealed trigger (a card's ⋯) visible, so it can take focus back.
   useLayoutEffect(() => {
     const node = panel.current;
+    if (anchor) { openOn.set(anchor, (openOn.get(anchor) ?? 0) + 1); anchor.setAttribute("aria-expanded", "true"); }
     return () => {
-      if (!node?.contains(document.activeElement)) return;
+      if (anchor) openOn.set(anchor, (openOn.get(anchor) ?? 1) - 1);
+      const refocus = !!node?.contains(document.activeElement);
       setTimeout(() => {
         const current = document.activeElement;
-        if (anchor?.isConnected && (!current || current === document.body || !current.isConnected)) anchor.focus({ preventScroll: true });
+        if (refocus && anchor?.isConnected && (!current || current === document.body || !current.isConnected)) anchor.focus({ preventScroll: true });
+        if (anchor && !openOn.get(anchor)) anchor.setAttribute("aria-expanded", "false");
       }, 0);
     };
   }, [anchor]);

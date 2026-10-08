@@ -111,7 +111,7 @@ textarea.cc-input { height: auto; }
 .cc-item-flag { overflow: hidden; color: var(--destructive-text, var(--destructive)); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 .cc-item-extra { margin-top: 3px; overflow: hidden; color: var(--muted-foreground); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 .cc-item-more { position: absolute; top: 2px; right: 2px; visibility: hidden; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 4px; background: var(--cc-hover); color: var(--muted-foreground); font: inherit; font-size: 12px; line-height: 1; cursor: pointer; }
-.cc-item:hover .cc-item-more, .cc-item:focus-within .cc-item-more { visibility: visible; }
+.cc-item:hover .cc-item-more, .cc-item:focus-within .cc-item-more, .cc-item-more[aria-expanded="true"] { visibility: visible; }
 .cc-item-more:hover { background: var(--cc-selected); color: var(--foreground); }
 .cc-item-week { margin-bottom: 6px; padding: 6px 6px 6px 8px; border: 1px solid var(--border); border-left: 3px solid var(--cc-c); }
 .cc-item-week.cc-gated { border-left-style: dashed; }
