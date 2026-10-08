@@ -485,3 +485,87 @@ describe("polling", () => {
     expect(service.nextTickDelay()).toBe(600_000);
   });
 });
+
+describe("descriptions bb didn't write", () => {
+  it("keeps tag-like text bb wrote intact across writes and syncs", async () => {
+    const { service, google } = await connected();
+    const notes = "Use <br> tags\nand </div> too";
+    const item = await service.add({ title: "Markup post", format: "blog", when: { date: "2026-10-09" }, notes });
+    await service.gateAdd({ id: item.id, gate: { kind: "text", text: "fix </div> bug" } });
+    await service.update({ id: item.id, title: "Markup post, again" });
+    google.rename(only(google, item.id).id, "☐ Renamed in Google");
+    await service.tick();
+    await service.update({ id: item.id, target: "Readers" });
+
+    expect((await service.show({ id: item.id })).notes).toBe(notes);
+    const description = only(google, item.id).description!;
+    expect(description.startsWith(`${notes}\n\n${BLOCK_HEADER}`)).toBe(true);
+    expect(description.split(BLOCK_HEADER)).toHaveLength(2);
+    expect(description).toContain("fix </div> bug (not cleared)");
+  });
+
+  it("never resends her HTML description unless the block changed, and then keeps her markup", async () => {
+    const { service, google } = await connected();
+    const item = await service.add({ title: "Essay", format: "essay", when: { date: "2026-10-20" }, notes: "Outline" });
+    const eventId = only(google, item.id).id;
+    const block = google.event(eventId).description!.slice("Outline\n\n".length);
+    const prefix = "<p>Read <a href=\"https://example.com/draft\">the draft</a></p>";
+    const html = `${prefix}${block.split("\n").join("<br>")}`;
+    google.editDescription(eventId, html);
+
+    const renamed = await service.update({ id: item.id, title: "Essay, retitled" });
+    expect(renamed).toMatchObject({ title: "Essay, retitled", notes: "Read the draft", sync: "synced" });
+    expect(google.event(eventId).description).toBe(html);
+
+    await service.update({ id: item.id, target: "Subscribers" });
+    const written = google.event(eventId).description!;
+    expect(written.startsWith(prefix)).toBe(true);
+    expect(written).toContain("Target: Subscribers");
+    expect(written.split(BLOCK_HEADER)).toHaveLength(2);
+  });
+});
+
+describe("inserts and repeat rules", () => {
+  it("a retried insert after a lost response doesn't duplicate the event", async () => {
+    const { service, google } = await connected();
+    google.loseResponses = 1;
+    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    expect(item.sync).toBe("queued");
+    expect(google.list()).toHaveLength(1);
+
+    await service.tick();
+    expect(google.requests.some((request) => request.status === 409)).toBe(true);
+    expect(google.list()).toHaveLength(1);
+    expect(only(google, item.id).summary).toBe("☐ Ambient tweet");
+    expect(await service.show({ id: item.id })).toMatchObject({ sync: "synced" });
+  });
+
+  it("deleting an item whose insert response was lost deletes the event it created", async () => {
+    const { service, google } = await connected();
+    google.loseResponses = 1;
+    const item = await service.add({ title: "Ambient tweet", format: "tweet", when: { date: "2026-10-09" } });
+    expect(google.list()).toHaveLength(1);
+    await service.delete({ id: item.id });
+    expect(google.list()).toHaveLength(0);
+    await service.tick();
+    expect((await service.list({})).items).toEqual([]);
+  });
+
+  it("replaces a series with a single event when Google keeps the repeat rule", async () => {
+    const { service, google } = await connected();
+    const item = await service.add({ title: "Ambient clip", format: "tweet", when: { tray: "evergreen" } });
+    const seriesId = only(google, item.id).id;
+    google.ignoreEmptyRecurrence = true;
+
+    const dated = await service.move({ id: item.id, when: { date: "2026-10-20" } });
+    expect(dated).toMatchObject({ id: item.id, date: "2026-10-20", tray: null, sync: "synced" });
+    const single = only(google, item.id);
+    expect(single.id).not.toBe(seriesId);
+    expect(single.recurrence).toBeUndefined();
+    expect(single.start).toEqual({ date: "2026-10-20" });
+
+    await service.tick();
+    expect(await service.show({ id: item.id })).toMatchObject({ date: "2026-10-20", tray: null });
+    expect(google.list()).toHaveLength(1);
+  });
+});

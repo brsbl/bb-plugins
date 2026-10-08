@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  BLOCK_HEADER, TRAY_RULE, buildEvent, changedUnits, htmlToText, parseEvent, renderBlock, splitDescription,
+  BLOCK_HEADER, TRAY_RULE, buildEvent, changedUnits, htmlToText, looksLikeEditorHtml, parseEvent, renderBlock, spliceBlock,
+  splitDescription,
   type EventDateTime, type Fields, type GoogleEvent,
 } from "./mapping.js";
 
@@ -133,7 +134,7 @@ describe("splitDescription", () => {
   it("keeps text she adds inside or after the block as notes", () => {
     const lines = block.split("\n");
     const description = ["My notes", "", lines[0], "Inside the block", ...lines.slice(1), "After the block"].join("\n");
-    expect(splitDescription(description, [block])).toEqual({ notes: "My notes\n\nInside the block\nAfter the block", found: true });
+    expect(splitDescription(description, [block])).toMatchObject({ notes: "My notes\n\nInside the block\nAfter the block", found: true, block });
   });
 
   it("keeps her edit of a block line as notes", () => {
@@ -142,16 +143,68 @@ describe("splitDescription", () => {
   });
 
   it("treats the whole description as notes when the block is missing", () => {
-    expect(splitDescription("Only her text", [block])).toEqual({ notes: "Only her text", found: false });
+    expect(splitDescription("Only her text", [block])).toEqual({ notes: "Only her text", found: false, block: null });
   });
 
   it("compares text, not the HTML Google's editor saves", () => {
     const html = `<p>My <b>notes</b> &amp; plans</p>${block.split("\n").map((line) => line.replace(/ {2,}/g, (spaces) => "&nbsp;".repeat(spaces.length))).join("<br>")}`;
-    expect(splitDescription(html, [block])).toEqual({ notes: "My notes & plans", found: true });
+    expect(splitDescription(html, [block])).toMatchObject({ notes: "My notes & plans", found: true });
     expect(htmlToText("a<br/>b")).toBe("a\nb");
   });
 
   it("keeps out-of-range character references literal instead of throwing", () => {
     expect(htmlToText("x &#99999999; &#x110000; &#0; &#65;")).toBe("x &#99999999; &#x110000; &#0; A");
+  });
+});
+
+describe("tag-like text bb wrote", () => {
+  it("is never read as HTML, in notes or in the block", () => {
+    const item = fields({
+      notes: "Use <br> tags\nand </div> too",
+      gates: [{ id: "g1", kind: "text", text: "fix </div> bug", cleared: false }],
+    });
+    const { body, block } = buildEvent("cc_7k2m9q", item, MONDAY, noTitles);
+    expect(looksLikeEditorHtml(body.description!)).toBe(false);
+    expect(splitDescription(body.description!, [block])).toMatchObject({ notes: "Use <br> tags\nand </div> too", found: true });
+  });
+});
+
+describe("description writes", () => {
+  const item = fields();
+  const block = renderBlock(item, noTitles);
+  const changed = fields({ target: "Signups" });
+  const newBlock = renderBlock(changed, noTitles);
+
+  it("leaves the description out when neither her notes nor the block changed", () => {
+    const { body } = buildEvent("cc_7k2m9q", item, MONDAY, noTitles, { raw: "<p>Her <a href=\"https://x.test/a\">link</a></p>", block, notesDirty: false }, false);
+    expect(body.description).toBeUndefined();
+    expect("description" in body).toBe(false);
+  });
+
+  it("splices a changed block into her HTML, keeping her markup byte-for-byte", () => {
+    const prefix = "<p>Read <a href=\"https://x.test/a\">this</a> &amp; <b>that</b></p>";
+    const raw = `${prefix}${block.split("\n").join("<br>")}`;
+    const { body } = buildEvent("cc_7k2m9q", changed, MONDAY, noTitles, { raw, block, notesDirty: false }, false);
+    expect(body.description!.startsWith(prefix)).toBe(true);
+    expect(body.description).toContain("Target: Signups");
+    expect(body.description!.split(BLOCK_HEADER)).toHaveLength(2);
+    expect(splitDescription(body.description!, [newBlock])).toMatchObject({ notes: "Read this & that", found: true });
+  });
+
+  it("appends after her HTML when the old block can't be found", () => {
+    const raw = "<p>Only <i>her</i> text</p>";
+    const spliced = spliceBlock(raw, block, newBlock);
+    expect(spliced.startsWith(raw)).toBe(true);
+    expect(htmlToText(spliced)).toContain("Target: Signups");
+  });
+
+  it("moves her plain-text lines inside the old block above the new one", () => {
+    const raw = `Notes\n\n${block.replace(BLOCK_HEADER, `${BLOCK_HEADER}\nHer line`)}\nAfter`;
+    expect(spliceBlock(raw, block, newBlock)).toBe(`Notes\n\nHer line\nAfter\n\n${newBlock}`);
+  });
+
+  it("writes bb's notes when her notes changed in bb", () => {
+    const { body } = buildEvent("cc_7k2m9q", changed, MONDAY, noTitles, { raw: "<p>old</p>", block, notesDirty: true }, false);
+    expect(body.description).toBe(`${changed.notes}\n\n${newBlock}`);
   });
 });

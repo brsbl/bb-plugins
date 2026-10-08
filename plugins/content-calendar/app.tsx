@@ -55,7 +55,7 @@ function ConnectedPage({ range, today, go, status, onStatus }: {
   const data = useCalendarData(from, to, true);
   const [selected, setSelected] = useState<string | null>(null);
   const live = data.view?.status ?? status;
-  return <div className="cc-page-layout">
+  return <div className={selected ? "cc-page-layout cc-with-detail" : "cc-page-layout"}>
     <div className="cc-page-main">
       <div className="cc-toolbar">
         <button type="button" className="cc-button cc-icon-only" aria-label={range.view === "week" ? "Previous week" : "Previous month"} onClick={() => go(shiftRange(range, -1))}>‹</button>

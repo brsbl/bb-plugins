@@ -5,8 +5,8 @@
   "type": "module",
   "license": "UNLICENSED",
   "files": [
-    "assets",
     "dist",
+    "docs",
     "README.md",
     "skills"
   ],

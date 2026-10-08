@@ -27,6 +27,8 @@ export const MIGRATIONS = [
   "CREATE INDEX cc_items_seq ON cc_items (seq)",
   "CREATE TABLE cc_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
   "CREATE TABLE cc_deleted_events (event_id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL)",
+  "ALTER TABLE cc_items ADD COLUMN raw TEXT",
+  "ALTER TABLE cc_items ADD COLUMN client_id TEXT",
 ];
 
 /** One cached item and its event. `base` is the last version read from or confirmed by Google. */
@@ -47,6 +49,10 @@ export interface Row {
   deleted: boolean;
   /** The block text bb last wrote. */
   block: string | null;
+  /** The description exactly as Google last returned it. */
+  raw: string | null;
+  /** The event ID bb inserts with, so a retried insert finds the first one. */
+  clientId: string | null;
   seriesStart: string | null;
   conflict: Conflict | null;
   /** bb's losing unit values, written back by reapply. */
@@ -67,6 +73,8 @@ interface RawRow {
   seq: number | null;
   deleted: number;
   block: string | null;
+  raw: string | null;
+  client_id: string | null;
   series_start: string | null;
   conflict: string | null;
   lost: string | null;
@@ -87,6 +95,8 @@ function fromRaw(raw: RawRow): Row {
     seq: raw.seq,
     deleted: raw.deleted === 1,
     block: raw.block,
+    raw: raw.raw,
+    clientId: raw.client_id,
     seriesStart: raw.series_start,
     conflict: raw.conflict ? (JSON.parse(raw.conflict) as Conflict) : null,
     lost: raw.lost ? (JSON.parse(raw.lost) as Partial<Fields>) : null,
@@ -103,13 +113,14 @@ export function createStore(db: Db, migrate: ServiceDeps["migrate"]) {
   const byId = db.prepare(`${select} WHERE cc_id = ?`);
   const byEvent = db.prepare(`${select} WHERE event_id = ?`);
   const all = db.prepare(`${select} ORDER BY cc_id`);
+  const byClient = db.prepare(`${select} WHERE client_id = ? AND event_id IS NULL`);
   const queue = db.prepare(`${select} WHERE seq IS NOT NULL ORDER BY seq`);
   const upsert = db.prepare(`INSERT INTO cc_items
-    (cc_id, event_id, etag, created, fields, base, dirty, rewrite, seq, deleted, block, series_start, conflict, lost, notice, updated_at)
-    VALUES (@cc_id, @event_id, @etag, @created, @fields, @base, @dirty, @rewrite, @seq, @deleted, @block, @series_start, @conflict, @lost, @notice, @updated_at)
+    (cc_id, event_id, etag, created, fields, base, dirty, rewrite, seq, deleted, block, raw, client_id, series_start, conflict, lost, notice, updated_at)
+    VALUES (@cc_id, @event_id, @etag, @created, @fields, @base, @dirty, @rewrite, @seq, @deleted, @block, @raw, @client_id, @series_start, @conflict, @lost, @notice, @updated_at)
     ON CONFLICT (cc_id) DO UPDATE SET event_id = excluded.event_id, etag = excluded.etag, created = excluded.created,
       fields = excluded.fields, base = excluded.base, dirty = excluded.dirty, rewrite = excluded.rewrite, seq = excluded.seq,
-      deleted = excluded.deleted, block = excluded.block, series_start = excluded.series_start, conflict = excluded.conflict,
+      deleted = excluded.deleted, block = excluded.block, raw = excluded.raw, client_id = excluded.client_id, series_start = excluded.series_start, conflict = excluded.conflict,
       lost = excluded.lost, notice = excluded.notice, updated_at = excluded.updated_at`);
   const remove = db.prepare("DELETE FROM cc_items WHERE cc_id = ?");
   const rename = db.prepare("UPDATE cc_items SET cc_id = ? WHERE cc_id = ?");
@@ -143,6 +154,11 @@ export function createStore(db: Db, migrate: ServiceDeps["migrate"]) {
       const raw = byEvent.get(eventId) as RawRow | undefined;
       return raw ? fromRaw(raw) : null;
     },
+    /** A row whose insert may have reached Google under its client ID. */
+    rowByClient(clientId: string): Row | null {
+      const raw = byClient.get(clientId) as RawRow | undefined;
+      return raw ? fromRaw(raw) : null;
+    },
     rows(): Row[] {
       return (all.all() as RawRow[]).map(fromRaw);
     },
@@ -162,6 +178,8 @@ export function createStore(db: Db, migrate: ServiceDeps["migrate"]) {
         seq: row.seq,
         deleted: row.deleted ? 1 : 0,
         block: row.block,
+        raw: row.raw,
+        client_id: row.clientId,
         series_start: row.seriesStart,
         conflict: row.conflict ? JSON.stringify(row.conflict) : null,
         lost: row.lost ? JSON.stringify(row.lost) : null,

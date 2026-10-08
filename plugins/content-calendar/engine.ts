@@ -3,14 +3,14 @@ import type { z } from "zod";
 import type { ConnectionState, ConnectionStatus, RpcContract } from "./contract.js";
 import {
   CALENDAR_NAME, CALENDAR_TIME_ZONE, LIMITS, addDays, mondayOf, todayInCalendar,
-  type Attachment, type Gate, type Item, type Status, type StoredGate,
+  type Attachment, type Gate, type Item, type StoredGate,
 } from "./model.js";
 import {
   CalendarError, type CalendarOperations, type CalendarService, type Credentials, type ServiceDeps,
 } from "./service-api.js";
 import {
   UNIT_NAMES, buildEvent, changedUnits, isUnit, occurrenceDate, parseEvent, pickUnit, renderBlock, sameUnit,
-  splitDescription, withUnit, type Fields, type GoogleEvent, type ParsedEvent, type Unit,
+  splitDescription, withUnit, type EventWrite, type Fields, type GoogleEvent, type ParsedEvent, type Unit,
 } from "./mapping.js";
 import {
   GOOGLE_ENDPOINTS, GoogleAuthRevoked, GoogleHttpError, GoogleUnavailable, buildAuthUrl, createGoogleClient, createPkce,
@@ -27,6 +27,8 @@ const IDLE_DELAY = 600_000;
 const DELETED_NOTICE = "Deleted in Google Calendar while you had unsynced changes";
 const CONNECT_HINT = "Run `bb content-calendar connect`";
 const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+/** Google event IDs are base32hex. */
+const EVENT_ID_ALPHABET = "0123456789abcdefghijklmnopqrstuv";
 const UNIT_LABELS: Record<Unit, string> = {
   title: "title", format: "format", status: "checkbox", date: "date", time: "time", target: "target",
   notes: "notes", waitsOn: "waits-on", attachments: "attachments", pos: "order",
@@ -173,6 +175,8 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     }
   };
 
+  const newClientId = () => [...randomBytes(26)].map((byte) => EVENT_ID_ALPHABET[byte % EVENT_ID_ALPHABET.length]).join("");
+
   const sameBucket = (a: Fields, b: Fields) => (a.tray ? b.tray === a.tray : !b.tray && b.date === a.date);
   const bucket = (fields: Fields, except: string | null) =>
     store.rows().filter((row) => !row.deleted && row.ccId !== except && sameBucket(fields, row.fields)).sort((a, b) => a.fields.pos - b.fields.pos);
@@ -220,17 +224,21 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     }
   };
 
-  /** Google's version wins wherever bb has no unsynced change; same-field changes become a conflict. */
-  const read = (event: GoogleEvent, block: string | null, lastStatus?: Status): ParsedEvent => {
-    const first = parseEvent(event, [block], lastStatus);
+  /** Reads an event against what bb knows of it. An unchanged description keeps the notes bb already has. */
+  const read = (event: GoogleEvent, row: Row | null): ParsedEvent => {
+    const first = parseEvent(event, [row?.block], row?.base?.status);
+    if (row?.base && row.raw !== null && (event.description ?? "") === row.raw) {
+      return { ...first, fields: { ...first.fields, notes: row.base.notes }, blockFound: true, block: row.block };
+    }
     if (first.blockFound) return first;
     const guess = renderBlock(first.fields, itemTitle);
     const split = splitDescription(event.description ?? "", [guess]);
-    return split.found ? { ...first, fields: { ...first.fields, notes: split.notes }, blockFound: true } : first;
+    return split.found ? { ...first, fields: { ...first.fields, notes: split.notes }, blockFound: true, block: guess } : first;
   };
 
+  /** Google's version wins wherever bb has no unsynced change; same-field changes become a conflict. */
   const merge = (row: Row, event: GoogleEvent) => {
-    const parsed = read(event, row.block, row.base?.status);
+    const parsed = read(event, row);
     const theirs = parsed.fields;
     let fields = row.fields;
     const dirty: Unit[] = [];
@@ -265,19 +273,21 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     row.etag = event.etag ?? null;
     row.created = event.created ?? row.created;
     row.seriesStart = parsed.start;
+    row.raw = event.description ?? "";
+    row.block ??= parsed.block;
     row.updatedAt = event.updated ?? nowIso();
     if (!dirty.length && !row.rewrite) row.seq = null;
   };
 
-  const confirm = (row: Row, event: GoogleEvent, block: string) => {
-    const parsed = parseEvent(event, [block]);
+  /** Google accepted bb's write: what bb sent is now the base. No re-parse, so nothing bb wrote is reinterpreted. */
+  const confirm = (row: Row, event: GoogleEvent, body: EventWrite, block: string) => {
     row.eventId = event.id;
     row.etag = event.etag ?? null;
     row.created = event.created ?? row.created;
-    row.block = block;
-    row.seriesStart = parsed.start;
-    row.base = parsed.fields;
-    row.fields = parsed.fields;
+    if (body.description !== undefined) row.block = block;
+    row.raw = event.description ?? body.description ?? row.raw;
+    row.seriesStart = parseEvent(event, []).start;
+    row.base = row.fields;
     row.dirty = [];
     row.rewrite = false;
     row.seq = null;
@@ -291,57 +301,88 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       return false;
     }
     row.fields = { ...row.fields, tray: "later", date: null, rrule: null, anchor: null, time: null, minutes: null, days: 1 };
-    row.eventId = null;
-    row.etag = null;
-    row.created = null;
-    row.base = null;
-    row.block = null;
-    row.seriesStart = null;
-    row.dirty = [...UNIT_NAMES];
+    unlinkEvent(row);
     row.notice = DELETED_NOTICE;
     row.seq ??= store.nextSeq();
     store.put(row);
     return true;
   };
 
+  /** Forget the Google event so the next push inserts a new one, keeping her raw description for the splice. */
+  const unlinkEvent = (row: Row) => {
+    row.eventId = null;
+    row.etag = null;
+    row.created = null;
+    row.base = null;
+    row.seriesStart = null;
+    row.clientId = newClientId();
+    row.dirty = UNIT_NAMES.filter((unit) => unit !== "notes" || row.dirty.includes("notes"));
+  };
+
   const isGone = (error: unknown) => error instanceof GoogleHttpError && (error.status === 404 || error.status === 410);
+
+  const getOrNull = (calendar: string, eventId: string) =>
+    google.getEvent(calendar, eventId).catch((error: unknown) => {
+      if (isGone(error)) return null;
+      throw error;
+    });
 
   const push = async (calendar: string, row: Row): Promise<void> => {
     if (row.deleted) {
-      if (row.eventId) {
+      // An insert whose response was lost may still have created the event under its client ID.
+      const eventId = row.eventId ?? row.clientId;
+      if (eventId) {
         try {
-          await google.deleteEvent(calendar, row.eventId);
+          await google.deleteEvent(calendar, eventId);
         } catch (error) {
           if (!isGone(error)) throw error;
           await assertCalendar(calendar);
         }
-        store.markDeleted(row.eventId, nowIso());
+        store.markDeleted(eventId, nowIso());
       }
       store.remove(row.ccId);
       return;
     }
     for (let attempt = 0; attempt < 4; attempt += 1) {
-      const { body, block } = buildEvent(row.ccId, row.fields, monday(), itemTitle);
+      const previous = { raw: row.raw, block: row.block, notesDirty: row.dirty.includes("notes") };
+      const { body, block } = buildEvent(row.ccId, row.fields, monday(), itemTitle, previous, !row.eventId);
       if (!row.eventId) {
+        const clientId = (row.clientId ??= newClientId());
         try {
-          confirm(row, await google.insertEvent(calendar, body), block);
+          confirm(row, await google.insertEvent(calendar, { ...body, id: clientId }), body, block);
           return;
         } catch (error) {
-          if (isGone(error)) await assertCalendar(calendar);
-          throw error;
+          if (!(error instanceof GoogleHttpError && error.status === 409)) {
+            if (isGone(error)) await assertCalendar(calendar);
+            throw error;
+          }
+          // An earlier insert landed: take that event and write bb's version over it.
+          const existing = await getOrNull(calendar, clientId);
+          if (existing && existing.status !== "cancelled") {
+            const parsed = read(existing, null);
+            row.eventId = existing.id;
+            row.etag = existing.etag ?? null;
+            row.created = existing.created ?? null;
+            row.base = parsed.fields;
+            row.raw = existing.description ?? "";
+            row.block = parsed.block ?? row.block;
+            row.seriesStart = parsed.start;
+            row.dirty = [...UNIT_NAMES];
+          } else {
+            row.clientId = newClientId();
+          }
+          store.put(row);
+          continue;
         }
       }
+      let updated: GoogleEvent;
       try {
-        confirm(row, await google.patchEvent(calendar, row.eventId, body, row.etag), block);
-        return;
+        updated = await google.patchEvent(calendar, row.eventId, body, row.etag);
       } catch (error) {
         if (!(error instanceof GoogleHttpError)) throw error;
         if (error.status === 412) {
           // Changed in Google since bb last saw it: read her latest version, keep bb-only changes, then retry.
-          const latest = await google.getEvent(calendar, row.eventId).catch((inner: unknown) => {
-            if (isGone(inner)) return null;
-            throw inner;
-          });
+          const latest = await getOrNull(calendar, row.eventId);
           if (latest && latest.status !== "cancelled") {
             merge(row, latest);
             store.put(row);
@@ -354,7 +395,26 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
           throw error;
         }
         if (!goneInGoogle(row)) return;
+        continue;
       }
+      if (body.recurrence.length === 0 && (updated.recurrence ?? []).length > 0) {
+        // Google kept the repeat rule: replace the series with a single event carrying the same ccId.
+        row.etag = updated.etag ?? null;
+        store.put(row);
+        try {
+          await google.deleteEvent(calendar, updated.id);
+        } catch (error) {
+          if (!isGone(error)) throw error;
+        }
+        store.markDeleted(updated.id, nowIso());
+        if (body.description !== undefined) row.block = block;
+        row.raw = updated.description ?? body.description ?? row.raw;
+        unlinkEvent(row);
+        store.put(row);
+        continue;
+      }
+      confirm(row, updated, body, block);
+      return;
     }
     deps.log.warn(`Content Calendar: ${row.ccId} kept changing in Google Calendar; retrying on the next sync`);
   };
@@ -383,13 +443,29 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       store.forgetDeleted(eventId);
       return false;
     }
-    const row = store.rowByEvent(eventId);
+    const row = store.rowByEvent(eventId) ?? store.rowByClient(eventId);
     if (!row) return false;
     goneInGoogle(row);
     return true;
   };
 
   const upsert = (event: GoogleEvent): boolean => {
+    const pending = store.rowByClient(event.id);
+    if (pending) {
+      // bb's own insert, whose response was lost: adopt the event; the queued push writes bb's version.
+      const parsed = read(event, null);
+      pending.eventId = event.id;
+      pending.etag = event.etag ?? null;
+      pending.created = event.created ?? null;
+      pending.base = parsed.fields;
+      pending.raw = event.description ?? "";
+      pending.block = parsed.block ?? pending.block;
+      pending.seriesStart = parsed.start;
+      pending.dirty = [...UNIT_NAMES];
+      pending.seq ??= store.nextSeq();
+      store.put(pending);
+      return true;
+    }
     const existing = store.rowByEvent(event.id);
     if (existing) {
       if (existing.etag && existing.etag === event.etag) return false;
@@ -438,7 +514,9 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       rewrite,
       seq: rewrite || dirty.length ? store.nextSeq() : null,
       deleted: false,
-      block: null,
+      block: parsed.block,
+      raw: event.description ?? "",
+      clientId: null,
       seriesStart: parsed.start,
       conflict: null,
       lost: null,
@@ -621,7 +699,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       fields.pos = appendPos(fields, null);
       store.put({
         ccId, eventId: null, etag: null, created: null, fields, base: null, dirty: [...UNIT_NAMES], rewrite: false,
-        seq: store.nextSeq(), deleted: false, block: null, seriesStart: null, conflict: null, lost: null, notice: null, updatedAt: nowIso(),
+        seq: store.nextSeq(), deleted: false, block: null, raw: null, clientId: newClientId(), seriesStart: null, conflict: null, lost: null, notice: null, updatedAt: nowIso(),
       });
       return finishWrite(ccId, UNIT_NAMES, strict);
     });
@@ -865,7 +943,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
       serialize(async () => {
         await ensureWritable();
         const row = liveRow(input.id);
-        if (!row.eventId) {
+        if (!row.eventId && !row.clientId) {
           store.remove(row.ccId);
         } else {
           row.deleted = true;
@@ -967,10 +1045,10 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
               store.remove(row.ccId);
               continue;
             }
-            store.put({
-              ...row, eventId: null, etag: null, created: null, base: null, block: null, seriesStart: null,
-              dirty: [...UNIT_NAMES], rewrite: true, seq: row.seq ?? store.nextSeq(),
-            });
+            unlinkEvent(row);
+            row.rewrite = true;
+            row.seq ??= store.nextSeq();
+            store.put(row);
           }
         });
         await useCalendar(created.id, true);

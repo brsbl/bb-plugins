@@ -104,10 +104,12 @@ export interface GoogleEvent {
   extendedProperties?: { private?: Record<string, string>; shared?: Record<string, string> };
 }
 
-/** A PATCH/insert body. `null` clears a field or a private property. */
+/** A PATCH/insert body. `null` clears a field or a private property; a missing description is left as it is. */
 export interface EventWrite {
+  /** Client-chosen ID on insert, so a retried insert can't create a second event. */
+  id?: string;
   summary: string;
-  description: string;
+  description?: string;
   colorId: string | null;
   start: EventDateTime;
   end: EventDateTime;
@@ -124,6 +126,18 @@ export interface ParsedEvent {
   prefixed: boolean;
   /** Start date of the event or series. */
   start: string | null;
+  /** The known block the description matched. */
+  block: string | null;
+}
+
+/** What bb knows about the description in Google, so it can avoid resending her text. */
+export interface DescriptionBase {
+  /** The description as Google last returned it. */
+  raw: string | null;
+  /** The block bb last wrote. */
+  block: string | null;
+  /** Her notes changed in bb; bb's notes win for this write. */
+  notesDirty: boolean;
 }
 
 /** Resolves an item gate's target title; null when the item is gone. */
@@ -191,7 +205,7 @@ export function parseEvent(event: GoogleEvent, knownBlocks: readonly (string | n
     if (parsed.success) attachments.push(parsed.data);
   }
   const pos = Number(props.pos);
-  const { notes, found } = splitDescription(event.description ?? "", knownBlocks);
+  const { notes, found, block } = splitDescription(event.description ?? "", knownBlocks);
   return {
     fields: {
       title, format, status, date, time, minutes, days, tray, rrule, anchor,
@@ -203,6 +217,7 @@ export function parseEvent(event: GoogleEvent, knownBlocks: readonly (string | n
     blockFound: found,
     prefixed: prefix !== null,
     start: start?.date ?? null,
+    block,
   };
 }
 
@@ -211,9 +226,17 @@ export function occurrenceDate(event: GoogleEvent): string | null {
   return readWhen(event.originalStartTime)?.date ?? readWhen(event.start)?.date ?? null;
 }
 
-export function buildEvent(ccId: string, fields: Fields, monday: string, itemTitle: ItemTitle): { body: EventWrite; block: string } {
+/**
+ * The event body for a write. With `previous`, the description is sent only when her
+ * notes changed in bb or the block changed, and a block change is spliced into Google's
+ * raw description so text and markup bb didn't write stay byte-for-byte. `full` always
+ * includes a description (inserts).
+ */
+export function buildEvent(
+  ccId: string, fields: Fields, monday: string, itemTitle: ItemTitle, previous?: DescriptionBase, full = true,
+): { body: EventWrite; block: string } {
   const block = renderBlock(fields, itemTitle);
-  const notes = fields.notes.trim();
+  const description = composeDescription(fields.notes.trim(), block, previous, full);
   const props: Record<string, string | null> = {
     ccId,
     status: fields.status,
@@ -243,7 +266,7 @@ export function buildEvent(ccId: string, fields: Fields, monday: string, itemTit
   return {
     body: {
       summary: `${fields.status === "posted" ? CHECKED : UNCHECKED} ${fields.title}`,
-      description: notes ? `${notes}\n\n${block}` : block,
+      ...(description === undefined ? {} : { description }),
       colorId: fields.format ? FORMAT_COLOR_IDS[fields.format] : null,
       ...range,
       recurrence,
@@ -283,12 +306,61 @@ function labeled(label: string, values: string[]): string[] {
   return values.map((value, index) => `${index === 0 ? label : " ".repeat(label.length)}${value}`);
 }
 
+export function composeDescription(notes: string, block: string, previous: DescriptionBase | undefined, full: boolean): string | undefined {
+  const fresh = notes ? `${notes}\n\n${block}` : block;
+  if (!previous || previous.raw === null || previous.notesDirty) return fresh;
+  if (previous.block === block) return full ? previous.raw : undefined;
+  return spliceBlock(previous.raw, previous.block, block);
+}
+
+/** Replaces bb's old block in a raw description, keeping everything before it byte-for-byte. */
+export function spliceBlock(raw: string, oldBlock: string | null, block: string): string {
+  if (oldBlock) {
+    const at = raw.lastIndexOf(oldBlock);
+    if (at >= 0) return raw.slice(0, at) + block + raw.slice(at + oldBlock.length);
+  }
+  const html = looksLikeEditorHtml(raw);
+  const at = raw.lastIndexOf(BLOCK_HEADER);
+  if (oldBlock && at >= 0) {
+    // Her lines inside or after the old block move above the new one.
+    const tail = raw.slice(at);
+    const closing = html ? (/(?:<\/[a-z][a-z0-9]*>\s*)*$/i.exec(tail)?.[0] ?? "") : "";
+    const lines = (html ? htmlToText(tail.slice(0, tail.length - closing.length)) : tail).split("\n");
+    const extras = withoutBlockLines(lines, oldBlock.split("\n").map(normalizeLine)).map((line) => line.trimEnd()).filter((line) => line.trim() !== "");
+    const head = raw.slice(0, at);
+    if (html) return `${head}${extras.map((line) => `${escapeHtml(line)}<br>`).join("")}${extras.length ? "<br>" : ""}${blockHtml(block)}${closing}`;
+    return `${head}${extras.length ? `${extras.join("\n")}\n\n` : ""}${block}`;
+  }
+  if (raw.trim() === "") return html ? blockHtml(block) : block;
+  return html ? `${raw}<br><br>${blockHtml(block)}` : `${raw}\n\n${block}`;
+}
+
+function blockHtml(block: string): string {
+  return block.split("\n").map(escapeHtml).join("<br>");
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Google Calendar's web editor saves descriptions as single-line HTML. bb's own
+ * descriptions always contain newlines, so tag-like text bb wrote is never read as HTML.
+ */
+export function looksLikeEditorHtml(value: string): boolean {
+  return !value.includes("\n") && /<(br|p|div|a|b|i|u|span|ul|ol|li|h[1-6]|strong|em)\b[^>]*>|<\/(p|div|a|b|i|u|span|ul|ol|li|h[1-6]|strong|em)>/i.test(value);
+}
+
 /**
  * Splits a description into her notes and bb's block. The block is found by the
  * text bb wrote, line by line, so lines she added inside or after it stay notes.
  */
-export function splitDescription(description: string, knownBlocks: readonly (string | null | undefined)[]): { notes: string; found: boolean } {
-  const lines = htmlToText(description).split("\n");
+export function splitDescription(
+  description: string, knownBlocks: readonly (string | null | undefined)[],
+): { notes: string; found: boolean; block: string | null } {
+  const html = looksLikeEditorHtml(description);
+  const lines = (html ? htmlToText(description) : description.replace(/\r\n?/g, "\n")).split("\n");
+  const tidy = (text: string) => (html ? text.replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n").trim() : text.trim());
   for (const block of knownBlocks) {
     if (!block) continue;
     const blockLines = block.split("\n").map(normalizeLine);
@@ -297,37 +369,34 @@ export function splitDescription(description: string, knownBlocks: readonly (str
       if (normalizeLine(lines[index]!) === blockLines[0]) { at = index; break; }
     }
     if (at < 0) continue;
-    const kept = lines.slice(0, at);
-    let next = 1;
-    for (const line of lines.slice(at + 1)) {
-      // Block lines match in order; a line she edited or removed is skipped over.
-      const match = blockLines.indexOf(normalizeLine(line), next);
-      if (match >= 0) next = match + 1;
-      else kept.push(line);
-    }
-    return { notes: tidyNotes(kept.join("\n")), found: true };
+    return { notes: tidy([...lines.slice(0, at), ...withoutBlockLines(lines.slice(at), blockLines)].join("\n")), found: true, block };
   }
-  return { notes: tidyNotes(lines.join("\n")), found: false };
+  return { notes: tidy(lines.join("\n")), found: false, block: null };
 }
 
-function tidyNotes(text: string): string {
-  return text.replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+/** Lines that aren't bb's block lines, which match in order; a line she edited or removed is skipped over. */
+function withoutBlockLines(lines: readonly string[], blockLines: readonly string[]): string[] {
+  const kept: string[] = [];
+  let next = 0;
+  for (const line of lines) {
+    const match = blockLines.indexOf(normalizeLine(line), next);
+    if (match >= 0) next = match + 1;
+    else kept.push(line);
+  }
+  return kept;
 }
 
 function normalizeLine(line: string): string {
   return line.replace(/\s+/g, " ").trim();
 }
 
-/** Google's editor may save descriptions as HTML; bb compares text. */
+/** Text of the HTML Google's editor saves; bb compares text, not markup. */
 export function htmlToText(value: string): string {
-  let text = value.replace(/\r\n?/g, "\n");
-  if (/<(br|p|div|a|b|i|u|span|ul|ol|li|h[1-6]|strong|em)\b[^>]*>|<\/[a-z][a-z0-9]*>/i.test(text)) {
-    text = text
-      .replace(/\n/g, "")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/(p|div|li|h[1-6]|ul|ol)>/gi, "\n")
-      .replace(/<[^>]*>/g, "");
-  }
+  const text = value
+    .replace(/\r?\n/g, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|ul|ol)>/gi, "\n")
+    .replace(/<[^>]*>/g, "");
   return text.replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (entity, name: string) => {
       const lower = name.toLowerCase();
       // Descriptions come from Google, where any app can write them; an out-of-range entity stays literal.

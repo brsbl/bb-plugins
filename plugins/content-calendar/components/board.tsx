@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection, useDraggable, useDroppable, useSensor, useSensors,
   type Announcements, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
@@ -184,10 +184,13 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
     onOpen={onOpen} onToggle={(target, posted) => void data.setPosted(target, posted)} onMenu={(target, anchor) => openPop({ kind: "menu", item: target }, anchor)}
     onKeyDown={onCardKey} onBlur={onCardBlur} />;
   const inlineWeek = mode === "inline" && range.view === "week";
+  // bb renders its own dnd-kit contexts in other React roots, whose ids also start at 0; a unique id keeps
+  // each card's aria-describedby pointing at this calendar's instructions, not bb's.
+  const dndId = `cc-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const month = range.start.slice(0, 7);
 
   return <div ref={root} className={`cc-board cc-board-${mode} cc-view-${range.view}`}>
-    <DndContext sensors={sensors} collisionDetection={collisions} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}
+    <DndContext id={dndId} sensors={sensors} collisionDetection={collisions} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}
       onDragCancel={() => { setActive(null); setOver(null); }}
       accessibility={{ announcements, screenReaderInstructions: { draggable: "To move this item, press Space to pick it up, use the arrow keys to move it a day or a week, then press Space to drop it or Escape to cancel. Alt+Up and Alt+Down reorder it within its day. Move to… in its menu also moves it." } }}>
       <div className="cc-grid" aria-label="Calendar">

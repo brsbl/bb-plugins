@@ -34,6 +34,10 @@ export class FakeGoogle {
   offline = false;
   /** The next N API requests answer 429. */
   rateLimited = 0;
+  /** The next N requests reach Google, but their responses are lost on the way back. */
+  loseResponses = 0;
+  /** PATCH with `recurrence: []` leaves the repeat rule in place. */
+  ignoreEmptyRecurrence = false;
   private readonly events = new Map<string, StoredEvent>();
   private readonly codes = new Map<string, { challenge: string; scope: string; clientId: string }>();
   private readonly refreshTokens = new Set<string>();
@@ -50,6 +54,10 @@ export class FakeGoogle {
     if (this.offline) throw new TypeError("fetch failed");
     const response = this.handle(method, url, new Headers(init?.headers), typeof init?.body === "string" ? init.body : "");
     this.requests.push({ method, path: url.pathname, status: response.status });
+    if (this.loseResponses > 0) {
+      this.loseResponses -= 1;
+      throw new TypeError("fetch failed");
+    }
     return response;
   };
 
@@ -326,7 +334,15 @@ export class FakeGoogle {
   }
 
   private insertEvent(calendarId: string, body: Json): Response {
-    const event: StoredEvent = { id: this.nextId(), calendarId, seq: 0, status: "confirmed" };
+    let id = this.nextId();
+    const requested = body.id;
+    if (requested !== undefined) {
+      if (typeof requested !== "string" || !/^[a-v0-9]{5,1024}$/.test(requested)) return error(400, "Invalid resource id value.");
+      // IDs stay taken after delete, like Google's.
+      if (this.events.has(requested)) return error(409, "The requested identifier already exists.");
+      id = requested;
+    }
+    const event: StoredEvent = { id, calendarId, seq: 0, status: "confirmed" };
     applyPatch(event, body);
     if (!validWhen(event)) return error(400, "Invalid start or end");
     this.stamp(event, true);
@@ -337,7 +353,9 @@ export class FakeGoogle {
   private patchEvent(event: StoredEvent, body: Json): Response {
     const draft = structuredClone(event);
     const hadRule = (draft.recurrence ?? []).length > 0;
-    applyPatch(draft, body);
+    const recurrence = body.recurrence;
+    const ignored = this.ignoreEmptyRecurrence && Array.isArray(recurrence) && recurrence.length === 0;
+    applyPatch(draft, ignored ? Object.fromEntries(Object.entries(body).filter(([key]) => key !== "recurrence")) : body);
     if (!validWhen(draft)) return error(400, "Invalid start or end");
     this.events.set(event.id, draft);
     this.stamp(draft);
