@@ -54,13 +54,14 @@ function ConnectedPage({ range, today, go, status, onStatus }: {
   const { from, to } = rangeDays(range);
   const data = useCalendarData(from, to, true);
   const [selected, setSelected] = useState<string | null>(null);
+  const [jump, setJump] = useState(0);
   const live = data.view?.status ?? status;
   return <div className="cc-page-layout">
     <div className="cc-page-main">
       <div className="cc-toolbar">
         <button type="button" className="cc-button cc-icon-only" aria-label={range.view === "week" ? "Previous week" : "Previous month"} onClick={() => go(shiftRange(range, -1))}>‹</button>
         <button type="button" className="cc-button cc-icon-only" aria-label={range.view === "week" ? "Next week" : "Next month"} onClick={() => go(shiftRange(range, 1))}>›</button>
-        <button type="button" className="cc-button" onClick={() => go(todayRange(range.view, today))}>Today</button>
+        <button type="button" className="cc-button" onClick={() => { go(todayRange(range.view, today)); setJump((value) => value + 1); }}>Today</button>
         <h2 className="cc-range">{rangeLabel(range)}</h2>
         <span className="cc-seg cc-seg-buttons" role="group" aria-label="View">
           {(["month", "week"] as const).map((view) => <button key={view} type="button" aria-pressed={range.view === view} onClick={() => go(switchView(range, view, today))}>{view === "month" ? "Month" : "Week"}</button>)}
@@ -73,7 +74,7 @@ function ConnectedPage({ range, today, go, status, onStatus }: {
       <Banner status={live} onStatus={(next) => { onStatus(next); void data.reload(); }} />
       {data.actionError && <p className="cc-error cc-error-line" role="alert">{data.actionError} <button type="button" className="cc-link" onClick={data.dismissError}>Dismiss</button></p>}
       {data.loadError && !data.view && <p className="cc-error cc-error-line" role="alert">{data.loadError} <button type="button" className="cc-link" onClick={() => void data.reload()}>Retry</button></p>}
-      {data.view ? <CalendarBoard range={range} mode="page" data={data} view={data.view} selectedId={selected} onOpen={(item: Item) => setSelected(item.id)} />
+      {data.view ? <CalendarBoard range={range} mode="page" data={data} view={data.view} selectedId={selected} jumpToken={jump} onOpen={(item: Item) => setSelected(item.id)} />
         : !data.loadError && <p className="cc-muted cc-page-empty" role="status">Loading…</p>}
     </div>
     {selected && <aside className="cc-page-detail" aria-label="Item detail">
@@ -111,6 +112,7 @@ export function CalendarDirective({ attributes }: PluginMessageDirectiveProps) {
 function InlineCalendar({ initial }: { initial: CalendarRange }) {
   const navigate = useBbNavigate();
   const [range, setRange] = useState(initial);
+  const [jump, setJump] = useState(0);
   const { status } = useStatus();
   const openPage = () => navigate.toPluginPanel(PAGE_PATH, { subPath: rangeSubPath(range) });
   const unit = range.view === "week" ? "week" : "month";
@@ -119,23 +121,24 @@ function InlineCalendar({ initial }: { initial: CalendarRange }) {
       <b>Content Calendar</b><span className="cc-muted">{rangeLabel(range)}</span><span className="cc-spacer" />
       <button type="button" className="cc-button cc-icon-only" aria-label={`Previous ${unit}`} onClick={() => setRange(shiftRange(range, -1))}>‹</button>
       <button type="button" className="cc-button cc-icon-only" aria-label={`Next ${unit}`} onClick={() => setRange(shiftRange(range, 1))}>›</button>
+      <button type="button" className="cc-button" onClick={() => { setRange(todayRange(range.view, todayInCalendar())); setJump((value) => value + 1); }}>Today</button>
       <button type="button" className="cc-button" onClick={openPage}>Open calendar</button>
     </div>
     {!status ? <p className="cc-muted cc-embed-message" role="status">Loading…</p>
       : !connected(status) ? <p className="cc-muted cc-embed-message">Google Calendar isn't connected yet. Open the calendar to connect it.</p>
-        : <InlineBoard range={range} onOpen={(item) => {
+        : <InlineBoard range={range} jumpToken={jump} onOpen={(item) => {
           if (!navigate.openThreadPanel({ actionId: DETAIL_ACTION, title: item.title, params: { itemId: item.id } })) openPage();
         }} />}
     <div className="cc-embed-foot"><span>Drag to move · click an item to edit it in the side panel</span><span className="cc-spacer" />{status && connected(status) && <SyncText status={status} />}</div>
   </section>;
 }
 
-function InlineBoard({ range, onOpen }: { range: CalendarRange; onOpen: (item: Item) => void }) {
+function InlineBoard({ range, jumpToken, onOpen }: { range: CalendarRange; jumpToken: number; onOpen: (item: Item) => void }) {
   const { from, to } = rangeDays(range);
   const data = useCalendarData(from, to, false);
   return <>
     {data.actionError && <p className="cc-error cc-error-line" role="alert">{data.actionError} <button type="button" className="cc-link" onClick={data.dismissError}>Dismiss</button></p>}
-    {data.view ? <CalendarBoard range={range} mode="inline" data={data} view={data.view} onOpen={onOpen} />
+    {data.view ? <CalendarBoard range={range} mode="inline" data={data} view={data.view} jumpToken={jumpToken} onOpen={onOpen} />
       : <p className={data.loadError ? "cc-error cc-embed-message" : "cc-muted cc-embed-message"} role="status">{data.loadError ?? "Loading…"}</p>}
   </>;
 }
