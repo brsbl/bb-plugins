@@ -89,9 +89,10 @@ textarea.cc-input { height: auto; }
 .cc-outside .cc-day-head > span { opacity: .45; }
 .cc-over, .cc-day.cc-is-today.cc-over { background: var(--cc-selected); outline: 2px solid var(--foreground); outline-offset: -2px; }
 .cc-day-head { display: flex; justify-content: space-between; align-items: center; height: 18px; padding: 0 2px 3px; color: var(--muted-foreground); font-size: 11px; }
-/* Today: a tinted cell with a top rule, a filled date badge, and a "Today" label, all from the theme's primary ink. */
-.cc-root { --cc-today: var(--primary, var(--foreground)); --cc-today-ink: var(--primary-foreground, var(--background)); --cc-today-tint: color-mix(in oklab, var(--cc-today) 9%, var(--canvas, var(--background))); }
-.cc-day.cc-is-today { background: var(--cc-today-tint); box-shadow: inset 0 3px 0 var(--cc-today), inset 0 0 0 1px color-mix(in oklab, var(--cc-today) 40%, transparent); }
+/* Today: an accent-tinted cell with a top rule, a filled date badge, and a "Today" label. bb's accent hue
+   (light and dark) keeps it apart from gray weekends and the drag outline. */
+.cc-root { --cc-today: var(--timeline-accent, oklch(0.55 0.1 250)); --cc-today-ink: var(--canvas, var(--background)); --cc-today-tint: color-mix(in oklab, var(--cc-today) 14%, var(--canvas, var(--background))); }
+.cc-day.cc-is-today { background: var(--cc-today-tint); box-shadow: inset 0 3px 0 var(--cc-today); }
 .cc-day-date { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .cc-today { padding: 0 6px; border-radius: 9px; background: var(--cc-today); color: var(--cc-today-ink); font-weight: 600; }
 .cc-today-label { color: var(--cc-today); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
