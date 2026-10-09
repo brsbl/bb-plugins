@@ -1,4 +1,4 @@
-.ia-answer { position: relative; color: var(--foreground); background: var(--card, var(--background)); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin: 12px 0; font-family: inherit; font-size: 13px; line-height: 1.5; min-width: 0; overflow-wrap: anywhere; }
+.ia-answer { color: var(--foreground); background: var(--card, var(--background)); border: 1px solid var(--border); border-radius: 12px; padding: 20px; font-family: inherit; font-size: 13px; line-height: 1.5; min-width: 0; overflow-wrap: anywhere; }
 .ia-answer * { box-sizing: border-box; }
 .ia-answer header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
 .ia-answer h3 { font-size: 19px; font-weight: 600; letter-spacing: -.025em; margin: 3px 0 0; line-height: 1.3; }
@@ -54,11 +54,14 @@
 .ia-diagram svg g { animation: ia-diagram-enter 350ms ease; }
 @keyframes ia-diagram-enter { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ia-diagram svg g { animation: none; } }
-.ia-widget { position: relative; margin: 12px 0; border: 1px solid var(--border); border-radius: 24px; background: var(--card, var(--background)); overflow: hidden; }
+.ia-widget { border: 1px solid var(--border); border-radius: 24px; background: var(--card, var(--background)); overflow: hidden; }
 .ia-widget iframe { display: block; width: 100%; border: 0; background: transparent; }
-/* Appears for a moment when the agent acts on an answer, so changes never look like they came from nowhere. */
-.ia-agent { position: absolute; right: 12px; bottom: 12px; z-index: 1; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 999px; background: color-mix(in srgb, var(--foreground) 88%, transparent); color: var(--background); font-size: 11px; font-weight: 500; line-height: 1.2; pointer-events: none; backdrop-filter: blur(8px); animation: ia-agent 2.6s cubic-bezier(.2,.7,.2,1) both; }
-.ia-agent i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: ia-agent-dot 1s ease-in-out infinite alternate; }
+/* Space above each answer holds the agent tag, so the tag never covers the answer's controls. */
+.ia-host { position: relative; margin: 20px 0 12px; }
+.ia-host > .ia-widget, .ia-host > .ia-answer { transition: border-color .25s, box-shadow .25s; }
+.ia-host[data-agent] > .ia-widget, .ia-host[data-agent] > .ia-answer { border-color: var(--foreground); box-shadow: 0 0 0 1px var(--foreground); }
+.ia-agent { position: absolute; left: 16px; top: 0; translate: 0 -50%; z-index: 1; display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 32px); padding: 4px 10px 4px 8px; border-radius: 999px; background: var(--foreground); color: var(--background); font-size: 11.5px; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; animation: ia-agent 3.2s cubic-bezier(.2,.7,.2,1) both; }
+.ia-agent i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: ia-agent-dot 1s ease-in-out infinite alternate; }
 @keyframes ia-agent-dot { from { opacity: .35; } }
-@keyframes ia-agent { 0% { opacity: 0; transform: translateY(4px); } 8%, 82% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes ia-agent { 0% { opacity: 0; transform: translateY(3px); } 8%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ia-agent, .ia-agent i { animation: none; } }

@@ -15,7 +15,13 @@ type Options = {
 };
 const SAVE_DELAY_MS = 300;
 const HEARTBEAT_MS = 10_000;
-const AGENT_BADGE_MS = 2600;
+const AGENT_BADGE_MS = 3200;
+// "set people", "preset Big lead": the action plus a short hint of its arguments.
+const describe = (action: string, args: unknown[]) => {
+  const first = args[0];
+  const detail = first && typeof first === "object" && !Array.isArray(first) ? Object.keys(first).slice(0, 2) : args.filter((a) => typeof a === "string" || typeof a === "number").slice(0, 2).map(String);
+  return [action, ...detail].join(" ").slice(0, 40);
+};
 
 export function useLiveAnswer({ id, threadId, initial, actions, onRemoteState, onCommand }: Options) {
   const rpc = useRpc<typeof rpcContract>();
@@ -74,7 +80,7 @@ export function useLiveAnswer({ id, threadId, initial, actions, onRemoteState, o
     const p = payload as { cmdId?: unknown; id?: unknown; clientId?: unknown; action?: unknown; args?: unknown };
     if (p.clientId !== clientId || p.id !== id || typeof p.cmdId !== "string" || typeof p.action !== "string") return;
     const cmdId = p.cmdId;
-    showAgent(p.action);
+    showAgent(describe(p.action, Array.isArray(p.args) ? p.args : []));
     const reply = (outcome: { ok: boolean; value?: unknown; error?: string }) => { rpc.call("result", { cmdId, clientId, ...outcome }).catch(() => { /* The agent sees a timeout. */ }); };
     handlers.current.onCommand(p.action, Array.isArray(p.args) ? p.args : []).then(
       (value) => reply({ ok: true, value: value ?? null }),

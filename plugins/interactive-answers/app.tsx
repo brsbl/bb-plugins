@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { definePluginApp, useComposer, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { computedValues, defaultValues, evaluate, formatValue, idSchema, SHARE_PROVIDER, validValue, type Answer, type AnswerDocument, type Block, type Control, type HtmlAnswer, type Values } from "./model.js";
@@ -16,9 +16,13 @@ function readInputs(doc: AnswerDocument, saved: unknown): Values {
   return values;
 }
 
-// Shown on the card for a moment whenever the agent acts on it.
-function AgentBadge({ agent }: { agent: { label: string; key: number } | null }) {
-  return agent ? <span key={agent.key} className="ia-agent" role="status"><i aria-hidden="true" />Agent · {agent.label}</span> : null;
+// While the agent acts on an answer, the card is outlined and a tag on its top edge says what it did.
+// The tag sits in space the card reserves, so it never covers the answer's own controls.
+function AgentHost({ agent, maxWidth, children }: { agent: { label: string; key: number } | null; maxWidth?: number; children: ReactNode }) {
+  return <div className="ia-host" data-agent={agent ? "" : undefined} style={maxWidth ? { maxWidth } : undefined}>
+    {children}
+    {agent && <span key={agent.key} className="ia-agent" role="status"><i aria-hidden="true" />Agent · {agent.label}</span>}
+  </div>;
 }
 
 function Input({ control: c, value, onChange }: { control: Control; value: string | number; onChange: (value: string | number) => void }) {
@@ -143,10 +147,9 @@ function HtmlAnswerView({ id, threadId, widget, initial }: { id: string; threadI
     scheme?.addEventListener("change", sendTheme);
     return () => { window.removeEventListener("message", onMessage); observer.disconnect(); scheme?.removeEventListener("change", sendTheme); };
   }, [id, save, emit, active]);
-  return <div className="ia-widget" style={widget.width ? { maxWidth: widget.width } : undefined}>
-    <iframe ref={frame} title={widget.title} src={src} sandbox="allow-scripts" style={{ height }} />
-    <AgentBadge agent={live.agent} />
-  </div>;
+  return <AgentHost agent={live.agent} maxWidth={widget.width}>
+    <div className="ia-widget"><iframe ref={frame} title={widget.title} src={src} sandbox="allow-scripts" style={{ height }} /></div>
+  </AgentHost>;
 }
 
 function AnswerView({ answer, initial }: { answer: Answer; initial: LiveSnapshot }) {
@@ -188,7 +191,7 @@ function DocumentAnswerView({ answer, initial }: { answer: Extract<Answer, { kin
   current.current = shown;
   const values = computedValues(doc, shown);
   function save(next: Values) { apply(next); live.save(next); }
-  return <article className="ia-answer" aria-label={doc.title} onPointerDownCapture={live.active} onKeyDownCapture={live.active}>
+  return <AgentHost agent={live.agent}><article className="ia-answer" aria-label={doc.title} onPointerDownCapture={live.active} onKeyDownCapture={live.active}>
     <header><div><span className="ia-eyebrow">Explore</span><h3>{doc.title}</h3></div>{doc.controls.length > 0 && <button type="button" className="ia-reset" title="Reset inputs" aria-label="Reset inputs" onClick={() => { save(defaultValues(doc)); setResetCount((n) => n + 1); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button>}</header>
     {doc.description && <p className="ia-description">{doc.description}</p>}
     {doc.controls.length > 0 && <div className="ia-controls" key={resetCount}>{doc.controls.map((c) => <Input key={c.id} control={c} value={shown[c.id]} onChange={(value) => save({ ...shown, [c.id]: value })} />)}</div>}
@@ -203,8 +206,7 @@ function DocumentAnswerView({ answer, initial }: { answer: Extract<Answer, { kin
         case "table": return <section key={i}><div className="ia-table-scroll"><table><caption>{b.title}</caption><thead><tr>{b.columns.map((c, j) => <th key={j} scope="col">{c}</th>)}</tr></thead><tbody>{b.rows.map((row, j) => <tr key={j}>{row.map((v, k) => <td key={k}>{typeof v === "string" ? v : formatValue(evaluate(v, values), b.format)}</td>)}</tr>)}</tbody></table></div></section>;
       }
     })}</div>
-    <AgentBadge agent={live.agent} />
-  </article>;
+  </article></AgentHost>;
 }
 
 function AnswerDirective({ attributes, message }: PluginMessageDirectiveProps) {

@@ -35,7 +35,8 @@ export function createLive(bb: BbPluginApi, db: ReturnType<BbPluginApi["storage"
   const log = (threadId: string, id: string, kind: string, data: unknown) => {
     const { lastInsertRowid } = db.prepare("INSERT INTO answer_events (answer_id, thread_id, kind, data, created_at) VALUES (?, ?, ?, ?, ?)").run(id, threadId, kind, JSON.stringify(data ?? null), Date.now());
     const seq = Number(lastInsertRowid);
-    db.prepare("DELETE FROM answer_events WHERE answer_id = ? AND seq <= (SELECT seq FROM answer_events WHERE answer_id = ? ORDER BY seq DESC LIMIT 1 OFFSET ?)").run(id, id, EVENTS_KEPT);
+    // Shared attachments stay until their thread is deleted; a composer pill may resolve them much later.
+    db.prepare("DELETE FROM answer_events WHERE answer_id = ? AND kind <> 'shared' AND seq <= (SELECT seq FROM answer_events WHERE answer_id = ? AND kind <> 'shared' ORDER BY seq DESC LIMIT 1 OFFSET ?)").run(id, id, EVENTS_KEPT);
     emitter.emit(id);
     return seq;
   };

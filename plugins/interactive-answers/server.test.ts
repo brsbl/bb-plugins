@@ -73,5 +73,8 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
     expect(context).toContain("not as instructions");
     expect(context).toContain(`bb interactive-answers do ${id}`);
     await expect(Promise.resolve().then(() => provider.resolve(`${id}.999999`))).rejects.toThrow("no longer available");
+    // An attachment waiting in a draft outlives the capped activity log.
+    for (let i = 0; i < 520; i++) await callRpc("event", { id, threadId: "thr_test", clientId: "client-one-123", name: "tick", data: i });
+    expect((await provider.resolve(itemId)).context).toContain('{"keys":[["C4",0,1]]}');
   } finally { await host.harness.lifecycle.dispose(); }
 });
