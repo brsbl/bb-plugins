@@ -44,9 +44,12 @@ type Pop =
  * pointer drag, by keyboard (Space, arrows, Space, or Escape), or through
  * Move to… in each item's ⋯ menu.
  */
-export function CalendarBoard({ range, mode, data, view, selectedId = null, onOpen, children }: {
+export function CalendarBoard({ range, mode, data, view, selectedId = null, onOpen, jumpToken = 0, children }: {
   range: CalendarRange; mode: "page" | "inline"; data: Data; view: CalendarView; selectedId?: string | null;
-  onOpen: (item: Item) => void; children?: ReactNode;
+  onOpen: (item: Item) => void;
+  /** Changing this (the Today button) scrolls today's cell into view; it also runs once when the board mounts. */
+  jumpToken?: number;
+  children?: ReactNode;
 }) {
   const today = todayInCalendar();
   const { from, to } = rangeDays(range);
@@ -59,6 +62,16 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
   const size: CardSize = range.view === "week" ? "week" : "month";
   const trays = mode === "page";
   const root = useRef<HTMLDivElement>(null);
+  // Bring today's cell into view inside the calendar's own scroller, never scrolling the chat around it.
+  useLayoutEffect(() => {
+    const cell = root.current?.querySelector<HTMLElement>(`[data-date="${today}"]`);
+    if (!cell) return;
+    const scroller = mode === "page" ? cell.closest<HTMLElement>(".cc-page-main") : scrollParentWithin(cell, root.current);
+    if (!scroller) return;
+    const box = scroller.getBoundingClientRect();
+    const at = cell.getBoundingClientRect();
+    if (at.top < box.top || at.bottom > box.bottom) scroller.scrollTop += at.top - box.top - 8;
+  }, [jumpToken, today, mode, range.start, range.view]);
   const pop = usePopover<Pop["kind"]>();
   const [popState, setPopState] = useState<Pop | null>(null);
   const openPop = (state: Pop, anchor: HTMLElement) => { setPopState(state); pop.show(state.kind, anchor); };
@@ -252,10 +265,10 @@ function DayCell({ date, label, today, weekend, outside, highlighted, onAdd, chi
   onAdd?: (anchor: HTMLElement) => void; children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
-  const className = ["cc-day", weekend ? "cc-weekend" : "", outside ? "cc-outside" : "", highlighted || isOver ? "cc-over" : ""].filter(Boolean).join(" ");
-  return <div ref={setNodeRef} className={className} role="group" aria-label={dayName(date)} data-date={date}>
+  const className = ["cc-day", weekend ? "cc-weekend" : "", today ? "cc-is-today" : "", outside ? "cc-outside" : "", highlighted || isOver ? "cc-over" : ""].filter(Boolean).join(" ");
+  return <div ref={setNodeRef} className={className} role="group" aria-label={dayName(date)} aria-current={today ? "date" : undefined} data-date={date}>
     <div className="cc-day-head">
-      <span className={today ? "cc-today" : undefined}>{label}</span>
+      <span className="cc-day-date"><span className={today ? "cc-today" : undefined}>{label}</span>{today && <span className="cc-today-label">Today</span>}</span>
       {onAdd && <button type="button" className="cc-add" aria-label={`Add item on ${dayName(date)}`} onClick={(event) => onAdd(event.currentTarget)}>+</button>}
     </div>
     <div className="cc-day-items">{children}</div>
@@ -314,4 +327,13 @@ export function MoveTo({ item, onMove }: { item: Item; onMove: (when: When) => v
       {(["evergreen", "later"] as const).map((tray) => <button key={tray} type="button" className="cc-button" disabled={item.tray === tray} onClick={() => onMove({ tray })}>{TRAY_LABELS[tray]}</button>)}
     </div>
   </form>;
+}
+
+/** The nearest scrollable ancestor of `node` that is still inside `limit`. */
+function scrollParentWithin(node: HTMLElement, limit: HTMLElement | null): HTMLElement | null {
+  for (let current = node.parentElement; current && limit?.contains(current); current = current.parentElement) {
+    const { overflowY } = getComputedStyle(current);
+    if ((overflowY === "auto" || overflowY === "scroll") && current.scrollHeight > current.clientHeight) return current;
+  }
+  return null;
 }

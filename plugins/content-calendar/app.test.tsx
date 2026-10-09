@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import type { ConnectionStatus } from "./contract.js";
 import type { Item } from "./model.js";
 
@@ -71,6 +71,23 @@ it("gives every item a checkbox and never crosses anything out", async () => {
   expect(within(card("Ambient tweet")).getByText("Tweet · Drafting")).toBeTruthy();
   for (const element of document.querySelectorAll<HTMLElement>("*")) expect(element.style.textDecoration).not.toContain("line-through");
   expect(readFileSync(join(process.cwd(), "app.css"), "utf8")).not.toMatch(/line-through/);
+});
+
+it("marks today's cell with a filled date badge and a Today label", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-08T19:00:00Z"));
+  try {
+    await renderPage();
+    const today = document.querySelector<HTMLElement>('[data-date="2026-10-08"]')!;
+    expect(today.getAttribute("aria-current")).toBe("date");
+    expect(today.classList.contains("cc-is-today")).toBe(true);
+    expect(today.getAttribute("aria-label")).toBe("Thursday, October 8");
+    expect(within(today).getByText("Today")).toBeTruthy();
+    expect(document.querySelectorAll(".cc-is-today")).toHaveLength(1);
+    expect(document.querySelector('[data-date="2026-10-07"]')!.getAttribute("aria-current")).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("labels items without a format and draws waiting items dashed", async () => {
