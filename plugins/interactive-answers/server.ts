@@ -59,8 +59,8 @@ export default function plugin(bb: BbPluginApi): void {
     getState: ({ id, threadId }) => { const { state, version } = live.getState(threadId, id); return { state, version }; },
     setState: ({ id, threadId, clientId, state }) => ({ version: live.setState(threadId, id, state, clientId) }),
     event: ({ id, threadId, clientId, name, data }) => ({ seq: live.event(threadId, id, clientId, name, data) }),
-    presence: ({ id, threadId, clientId, actions, active, closed }) => { live.presence(threadId, id, clientId, actions, active, closed); return { ok: true }; },
-    result: ({ cmdId, clientId, ok, value, error }) => { live.result(cmdId, clientId, { ok, value, error }); return { ok: true }; },
+    presence: ({ id, threadId, clientId, actions, active, closed }) => { live.presence(threadId, id, clientId, actions, active, closed); return { ok: true as const }; },
+    result: ({ cmdId, clientId, ok, value, error }) => { live.result(cmdId, clientId, { ok, value, error }); return { ok: true as const }; },
   });
   // HTML answers load from bb's own address instead of an inline srcdoc frame: hosts such as the
   // mobile app's WebView only allow frame navigations to the bb server, so about:srcdoc stays blank.

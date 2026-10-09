@@ -115,7 +115,7 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and relays sta
   send({ type: "actions", actions: ["next"] });
   await waitFor(() => expect(backend.calls.filter((c) => c.method === "presence").at(-1)?.input.actions).toEqual(["next"]));
   const posted: unknown[] = [];
-  frame.contentWindow!.postMessage = ((message: unknown) => { posted.push(message); }) as typeof frame.contentWindow.postMessage;
+  frame.contentWindow!.postMessage = ((message: unknown) => { posted.push(message); }) as Window["postMessage"];
   await view.behavior.emitRealtime("command", { cmdId: "8c1b0c47-7f2a-4a39-9d29-4e7a8a0b9a14", id: answer.id, threadId: answer.threadId, clientId: backend.clientId(), action: "next", args: [] });
   const command = posted.find((m) => (m as { type?: string }).type === "command") as { cmdId: string; action: string };
   expect(command.action).toBe("next");

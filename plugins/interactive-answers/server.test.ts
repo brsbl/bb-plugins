@@ -46,6 +46,7 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
     const waiting = cli("watch", id, "--since", String(history[1].seq), "--wait", "5");
     await callRpc("event", { id, threadId: "thr_test", clientId: "client-one-123", name: "step", data: 4 });
     expect(JSON.parse((await waiting).stdout!)).toMatchObject({ kind: "event", data: { name: "step", data: 4 } });
+    await expect(callRpc("event", { id, threadId: "thr_test", clientId: "client-one-123", name: "big", data: "x".repeat(30_000) })).rejects.toThrow();
 
     expect((await cli("do", id, "next")).stderr).toContain("not open anywhere");
     await callRpc("presence", { id, threadId: "thr_test", clientId: "client-one-123", actions: ["next"], active: false });

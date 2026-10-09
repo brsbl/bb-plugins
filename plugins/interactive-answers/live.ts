@@ -8,15 +8,19 @@ import { COMMAND_CHANNEL, idSchema, MAX_STATE_LENGTH, STATE_CHANNEL, threadSchem
 const PRESENCE_TTL_MS = 35_000;
 const COMMAND_TIMEOUT_MS = 10_000;
 const EVENTS_KEPT = 500;
+const MAX_EVENT_LENGTH = 20_000;
+const MAX_CLIENTS = 20;
 
 const clientSchema = z.string().min(8).max(64);
 const actionName = z.string().min(1).max(80).regex(/^[A-Za-z][\w.-]*$/);
+// Event payloads, command arguments, and results are logged, so each is bounded.
+const small = z.unknown().refine((value) => JSON.stringify(value ?? null).length <= MAX_EVENT_LENGTH, `Limited to ${MAX_EVENT_LENGTH} characters of JSON.`);
 export const liveRpc = {
   getState: { input: z.object({ id: idSchema, threadId: threadSchema }).strict(), output: z.object({ state: z.unknown(), version: z.number().int() }).strict() },
   setState: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, state: z.unknown() }).strict(), output: z.object({ version: z.number().int() }).strict() },
-  event: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, name: actionName, data: z.unknown() }).strict(), output: z.object({ seq: z.number().int() }).strict() },
+  event: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, name: actionName, data: small }).strict(), output: z.object({ seq: z.number().int() }).strict() },
   presence: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, actions: z.array(actionName).max(50), active: z.boolean(), closed: z.boolean().optional() }).strict(), output: z.object({ ok: z.literal(true) }).strict() },
-  result: { input: z.object({ cmdId: z.string().uuid(), clientId: clientSchema, ok: z.boolean(), value: z.unknown().optional(), error: z.string().max(2000).optional() }).strict(), output: z.object({ ok: z.literal(true) }).strict() },
+  result: { input: z.object({ cmdId: z.string().uuid(), clientId: clientSchema, ok: z.boolean(), value: small.optional(), error: z.string().max(2000).optional() }).strict(), output: z.object({ ok: z.literal(true) }).strict() },
 };
 
 export type LiveEvent = { seq: number; kind: string; at: number; data: unknown };
@@ -30,7 +34,7 @@ export function createLive(bb: BbPluginApi, db: ReturnType<BbPluginApi["storage"
   const log = (threadId: string, id: string, kind: string, data: unknown) => {
     const { lastInsertRowid } = db.prepare("INSERT INTO answer_events (answer_id, thread_id, kind, data, created_at) VALUES (?, ?, ?, ?, ?)").run(id, threadId, kind, JSON.stringify(data ?? null), Date.now());
     const seq = Number(lastInsertRowid);
-    if (seq % 50 === 0) db.prepare("DELETE FROM answer_events WHERE answer_id = ? AND seq <= ?").run(id, seq - EVENTS_KEPT);
+    db.prepare("DELETE FROM answer_events WHERE answer_id = ? AND seq <= (SELECT seq FROM answer_events WHERE answer_id = ? ORDER BY seq DESC LIMIT 1 OFFSET ?)").run(id, id, EVENTS_KEPT);
     emitter.emit(id);
     return seq;
   };
@@ -45,7 +49,8 @@ export function createLive(bb: BbPluginApi, db: ReturnType<BbPluginApi["storage"
     if (json.length > MAX_STATE_LENGTH) throw new Error(`Answer state is limited to ${MAX_STATE_LENGTH} characters.`);
     const version = getState(threadId, id).version + 1;
     db.prepare("INSERT INTO answer_state (id, thread_id, state, version, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET state = excluded.state, version = excluded.version, updated_at = excluded.updated_at").run(id, threadId, json, version, Date.now());
-    log(threadId, id, "state", { by, version, state });
+    // Large states are stored in full but logged by size only.
+    log(threadId, id, "state", json.length <= MAX_EVENT_LENGTH ? { by, version, state } : { by, version, size: json.length });
     bb.realtime.publish(STATE_CHANNEL, { id, threadId, version, by });
     return version;
   };
@@ -64,8 +69,10 @@ export function createLive(bb: BbPluginApi, db: ReturnType<BbPluginApi["storage"
     presence(threadId: string, id: string, clientId: string, actions: string[], active: boolean, closed = false) {
       assertAnswer(threadId, id);
       const map = clients.get(id) ?? new Map<string, Client>(); clients.set(id, map);
-      if (closed) { map.delete(clientId); return; }
       const now = Date.now(), prev = map.get(clientId);
+      for (const [key, c] of map) if (now - c.lastSeen >= PRESENCE_TTL_MS) map.delete(key);
+      if (closed) { map.delete(clientId); if (!map.size) clients.delete(id); return; }
+      if (!prev && map.size >= MAX_CLIENTS) throw new Error("This answer is open in too many places.");
       map.set(clientId, { threadId, lastSeen: now, lastActive: active || !prev ? now : prev.lastActive, actions });
     },
     result(cmdId: string, clientId: string, outcome: { ok: boolean; value?: unknown; error?: string }) {
@@ -83,7 +90,7 @@ export function createLive(bb: BbPluginApi, db: ReturnType<BbPluginApi["storage"
     // Runs an action in the most recently active open copy of the answer and returns what it reports.
     async command(threadId: string, id: string, action: string, args: unknown[]) {
       assertAnswer(threadId, id);
-      actionName.parse(action);
+      actionName.parse(action); small.parse(args);
       const [target] = openClients(threadId, id);
       if (!target) throw new Error("This answer is not open anywhere. Open its thread in bb, then try again.");
       if (!target.actions.includes(action)) throw new Error(`Unknown action "${action}". Available: ${target.actions.join(", ") || "none"}.`);
@@ -98,6 +105,7 @@ export function createLive(bb: BbPluginApi, db: ReturnType<BbPluginApi["storage"
       return outcome;
     },
     removeThread(threadId: string) {
+      for (const [id, map] of clients) { for (const [key, c] of map) if (c.threadId === threadId) map.delete(key); if (!map.size) clients.delete(id); }
       db.prepare("DELETE FROM answer_state WHERE thread_id = ?").run(threadId);
       db.prepare("DELETE FROM answer_events WHERE thread_id = ?").run(threadId);
     },
