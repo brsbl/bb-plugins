@@ -34,11 +34,28 @@ bb interactive-answers example stepper | bb interactive-answers publish --answer
 Emit the returned `::interactive-answer{id="…"}` directive on its own line in
 an assistant message. `bb interactive-answers guide` prints the complete schema.
 
-Inputs persist in the current browser, separately for each answer. Reset restores
-the defaults. Inputs are never submitted to an agent and are not approvals.
-Published answers are immutable; a revised answer gets a new ID. Documents are
-stored in the plugin database, scoped to their thread, and removed when that
-thread is deleted. Browser input copies remain in browser storage until cleared.
+Inputs are saved with each answer on the bb server, so they follow you across
+devices and every open copy updates live. Reset restores the defaults. Inputs
+are context the agent can read, never approvals. Published answers are
+immutable; a revised answer gets a new ID. Answers, their state, and their
+event logs are stored in the plugin database, scoped to their thread, and
+removed when that thread is deleted.
+
+## Agents can use answers too
+
+An agent can read and drive an answer it published, the way a person would:
+
+```sh
+bb interactive-answers state <id>                  # current state
+bb interactive-answers watch <id> --since 0 --wait 20  # what changed, as JSON lines
+bb interactive-answers actions <id>                # open copies and their actions
+bb interactive-answers do <id> set --args '{"people": 6}'
+```
+
+Native calculators expose `set` and `reset`. HTML answers expose their own
+actions with `window.answer.expose()`, such as `play` on a synth. Commands run
+in the copy you used most recently, and the card shows "Agent · <action>" each
+time the agent acts.
 
 This is a bb implementation inspired by interactive answers, not an OpenAI
 integration. It works with any bb agent that can call plugin tools. Answers
@@ -52,8 +69,8 @@ When an answer needs its own layout or illustration, the agent publishes HTML
 with inline styles and scripts. bb renders it like an inline-vis preview: in a
 sandboxed, opaque-origin frame that cannot reach bb, cookies, or the
 conversation. Like inline-vis, its scripts can load remote content and use the
-network, so agents are told never to send user input anywhere. The card sizes itself to the content, follows bb's light and
-dark theme tokens and Inter type, saves its state in the browser, and opens web
+network, so agents are told never to send user input anywhere else. The card sizes itself to the content, follows bb's light and
+dark theme tokens and Inter type, syncs its state through bb, and opens web
 links in a new tab.
 
 `demos/` contains five complete answers recreating the interactive answers from

@@ -143,3 +143,7 @@ export function formatValue(value: number | null, style?: z.infer<typeof format>
   if (value === null) return "Unavailable";
   return `${style?.prefix ?? ""}${new Intl.NumberFormat(undefined, { maximumFractionDigits: style?.decimals ?? 2, minimumFractionDigits: style?.decimals ?? 0 }).format(value)}${style?.suffix ?? ""}`;
 }
+// Realtime channels shared by the server and app.
+export const COMMAND_CHANNEL = "command";
+export const STATE_CHANNEL = "state";
+export const MAX_STATE_LENGTH = 100_000;

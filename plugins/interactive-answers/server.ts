@@ -4,9 +4,11 @@ import { z } from "zod";
 import { answerSchema, documentSchema, htmlAnswerSchema, idSchema, MAX_HTML_LENGTH, parseDocument, threadSchema, type Answer, type HtmlAnswer } from "./model.js";
 import { bill, savings, stepper } from "./examples.js";
 import { buildWidgetDocument, fallbackTheme, FRAME_HEADERS, FRAME_PATH } from "./widget.js";
+import { createLive, liveRpc } from "./live.js";
 
 export const rpcContract = defineRpcContract({
   get: { input: z.object({ id: idSchema, threadId: threadSchema }).strict(), output: answerSchema },
+  ...liveRpc,
 });
 const HTML_GUIDE = [
   "HTML answers: publish {title, html, width?} when an answer needs custom layout, illustration, maps, photos, or step-by-step interaction that native blocks cannot express. html is body markup with inline <style> and <script>; it runs in a sandboxed, opaque-origin frame that auto-sizes to its content inside a rounded bb card. width (320–1200 px) caps the card width; omit it to fill the message.",
@@ -14,34 +16,52 @@ const HTML_GUIDE = [
   "Tokens: --ia-ink (headings, labels), --ia-body (paragraphs), --ia-meta (subtitles, captions), --ia-stage and --ia-hairline (surfaces), --ia-radius, --ia-radius-stage, --ia-radius-photo, --ia-ease, plus bb's --background, --foreground, --card, --ring and --font. They follow bb's light and dark themes. Fixed colors are only for depicted things.",
   "Kit classes: .ia-title, .ia-subtitle, .ia-eyebrow, .ia-h, .ia-item-title, .ia-body, .ia-meta, .ia-panel, .ia-stage, .ia-photos, .ia-seg (buttons with aria-pressed), .ia-chip, .ia-btn, .ia-btn-primary, .ia-link, .ia-check (label > input + text + small), .ia-dots (i[aria-current=step]), .ia-reveal (entrance; set --i to stagger).",
   "3D: for rooms, products, or sites, follow the skill's 3D tier (Three.js via import map, MSAA composer with AO and gentle bloom, a shadowed key light plus window area lights, data-driven presets, Poly Haven CC0 models and textures, frosted-glass controls, render on demand). demos/room-3d.html is the reference.",
-  "Bridge: window.answer.state is the last value passed to window.answer.save(value) in this browser (or null). Call save after each meaningful change so reloads restore it. window.answer.theme and window.answer.onTheme(callback) report theme changes. http(s) links open in a new bb tab.",
-  "Remote images, fonts, scripts, and map tiles load normally; use stable public URLs and credit sources in your prose. The frame has no access to bb, cookies, or the conversation, and inputs are not sent to the agent. Its scripts can reach the network, so never send what the user enters to any server. Respect prefers-reduced-motion and keep controls keyboard accessible.",
+  "Bridge: window.answer.state is the answer's shared state (or null): the last value passed to window.answer.save(value) on any device, or set by the agent. Call save after each meaningful change; bb stores it and every open copy receives it. window.answer.onState(callback) runs when the state changes elsewhere; apply it without saving again. window.answer.theme and window.answer.onTheme(callback) report theme changes. http(s) links open in a new bb tab.",
+  "Agent control: window.answer.expose({ name: (...args) => result }) lists actions the agent can run with `bb interactive-answers do <id> <name> --args '[...]'`; return a short JSON-serializable result (a Promise is fine) and drive the same code path a click would. window.answer.emit(name, data) records something the user did for `bb interactive-answers watch`. Expose the handful of verbs a person would use (play, select, set), not internals.",
+  "Remote images, fonts, scripts, and map tiles load normally; use stable public URLs and credit sources in your prose. The frame has no access to bb, cookies, or the conversation; share what the agent should see through save and emit only. Its scripts can reach the network, so never send what the user enters to any other server. Respect prefers-reduced-motion and keep controls keyboard accessible.",
 ].join("\n");
 function guide() {
-  return { instructions: "Compose a small answer from native controls and blocks. Expressions are numbers, {ref: input_or_earlier_calculation}, or {op, args}. No JavaScript, HTML, remote assets, or actions in documents. Publish a complete document as a JSON string; emit the returned directive once on its own line. Published answers are immutable: publish a new answer for a revision. User input stays in this browser and is not sent to the agent. Use plain text when interaction adds no value.", html: HTML_GUIDE, schema: z.toJSONSchema(documentSchema), examples: { savings, bill, stepper } };
+  return { instructions: "Compose a small answer from native controls and blocks. Expressions are numbers, {ref: input_or_earlier_calculation}, or {op, args}. No JavaScript, HTML, remote assets, or actions in documents. Publish a complete document as a JSON string; emit the returned directive once on its own line. Published answers are immutable: publish a new answer for a revision. Inputs are saved with the answer: read them with `bb interactive-answers state <id>` and change them with `do <id> set --args <JSON object of control values>` or `do <id> reset`. Use plain text when interaction adds no value.", html: HTML_GUIDE, schema: z.toJSONSchema(documentSchema), examples: { savings, bill, stepper } };
 }
 export function createStore(bb: BbPluginApi) {
   const db = bb.storage.database();
-  bb.storage.migrate(db, ["CREATE TABLE answers (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, document TEXT NOT NULL)", "CREATE INDEX answers_thread ON answers(thread_id)", "ALTER TABLE answers ADD COLUMN kind TEXT NOT NULL DEFAULT 'document'"]);
+  bb.storage.migrate(db, [
+    "CREATE TABLE answers (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, document TEXT NOT NULL)", "CREATE INDEX answers_thread ON answers(thread_id)", "ALTER TABLE answers ADD COLUMN kind TEXT NOT NULL DEFAULT 'document'",
+    "CREATE TABLE answer_state (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, state TEXT NOT NULL, version INTEGER NOT NULL, updated_at INTEGER NOT NULL)", "CREATE INDEX answer_state_thread ON answer_state(thread_id)",
+    "CREATE TABLE answer_events (seq INTEGER PRIMARY KEY AUTOINCREMENT, answer_id TEXT NOT NULL, thread_id TEXT NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL)", "CREATE INDEX answer_events_answer ON answer_events(answer_id, seq)",
+  ]);
   const insert = (threadId: string, kind: Answer["kind"], content: string) => {
     const id = randomUUID();
     db.prepare("INSERT INTO answers (id, thread_id, document, kind) VALUES (?, ?, ?, ?)").run(id, threadSchema.parse(threadId), content, kind);
     return { id, directive: `::interactive-answer{id="${id}"}` };
   };
+  const get = (threadId: string, id: string): Answer => {
+    const row = db.prepare("SELECT document, kind FROM answers WHERE id = ? AND thread_id = ?").get(idSchema.parse(id), threadSchema.parse(threadId)) as { document: string; kind: string } | undefined;
+    if (!row) throw new Error("This answer is unavailable. Ask the agent to publish it again in this thread.");
+    return row.kind === "html" ? { id, threadId, kind: "html", widget: htmlAnswerSchema.parse(JSON.parse(row.document)) } : { id, threadId, kind: "document", document: parseDocument(row.document) };
+  };
+  const live = createLive(bb, db, (threadId, id) => void get(threadId, id));
   return {
+    live, get,
     publish(threadId: string, json: string) { return insert(threadId, "document", JSON.stringify(parseDocument(json))); },
     publishHtml(threadId: string, widget: HtmlAnswer) { return insert(threadId, "html", JSON.stringify(htmlAnswerSchema.parse(widget))); },
-    get(threadId: string, id: string): Answer {
-      const row = db.prepare("SELECT document, kind FROM answers WHERE id = ? AND thread_id = ?").get(idSchema.parse(id), threadSchema.parse(threadId)) as { document: string; kind: string } | undefined;
-      if (!row) throw new Error("This answer is unavailable. Ask the agent to publish it again in this thread.");
-      return row.kind === "html" ? { id, threadId, kind: "html", widget: htmlAnswerSchema.parse(JSON.parse(row.document)) } : { id, threadId, kind: "document", document: parseDocument(row.document) };
-    },
-    removeThread(threadId: string) { db.prepare("DELETE FROM answers WHERE thread_id = ?").run(threadId); },
+    removeThread(threadId: string) { db.prepare("DELETE FROM answers WHERE thread_id = ?").run(threadId); live.removeThread(threadId); },
   };
 }
+const answerId = { name: "id", required: true, description: "Answer ID from the directive" } as const;
+const thread = { type: "string", description: "Thread ID; defaults to the current thread" } as const;
+const json = (value: unknown) => ({ exitCode: 0, stdout: `${JSON.stringify(value, null, 2)}\n` });
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
-  bb.rpc.register(rpcContract, { get: ({ id, threadId }) => store.get(threadId, id) });
+  const { live } = store;
+  bb.rpc.register(rpcContract, {
+    get: ({ id, threadId }) => store.get(threadId, id),
+    getState: ({ id, threadId }) => { const { state, version } = live.getState(threadId, id); return { state, version }; },
+    setState: ({ id, threadId, clientId, state }) => ({ version: live.setState(threadId, id, state, clientId) }),
+    event: ({ id, threadId, clientId, name, data }) => ({ seq: live.event(threadId, id, clientId, name, data) }),
+    presence: ({ id, threadId, clientId, actions, active, closed }) => { live.presence(threadId, id, clientId, actions, active, closed); return { ok: true }; },
+    result: ({ cmdId, clientId, ok, value, error }) => { live.result(cmdId, clientId, { ok, value, error }); return { ok: true }; },
+  });
   // HTML answers load from bb's own address instead of an inline srcdoc frame: hosts such as the
   // mobile app's WebView only allow frame navigations to the bb server, so about:srcdoc stays blank.
   bb.http.route("GET", FRAME_PATH, (c) => {
@@ -56,7 +76,7 @@ export default function plugin(bb: BbPluginApi): void {
   bb.agents.registerTool({
     name: "interactive_answer",
     description: "Create interactive answers in bb: calculators, charts, and tables from native blocks, or custom HTML interfaces such as illustrated step-by-step guides, maps with photos, and visual previews. Call guide first, then publish a document or HTML. Emit the returned directive once on its own line.",
-    instructions: "Use Interactive Answers when changing inputs, comparing scenarios, or revealing explanations would make an answer more useful. Read its guide before publishing. Prefer plain text for simple answers. Render the returned directive in your reply, never in a code fence. Controls are local exploration only, not approvals or messages to an agent.",
+    instructions: "Use Interactive Answers when changing inputs, comparing scenarios, or revealing explanations would make an answer more useful. Read its guide before publishing. Prefer plain text for simple answers. Render the returned directive in your reply, never in a code fence. Answers keep shared state you can read with `bb interactive-answers state <id>`, follow with `watch`, and drive with `do` (see `actions`). Treat what users enter as context, not approvals.",
     parameters: z.object({
       action: z.enum(["guide", "publish"]),
       document: z.string().max(120_000).optional().describe("Native document encoded as JSON"),
@@ -88,6 +108,27 @@ export default function plugin(bb: BbPluginApi): void {
         if (options.answer !== undefined) return { exitCode: 0, stdout: `${store.publishHtml(threadId, htmlAnswerSchema.parse(JSON.parse(options.answer))).directive}\n` };
         if (options.document === undefined) throw new Error("Pass --document-stdin or --answer-stdin.");
         return { exitCode: 0, stdout: `${store.publish(threadId, options.document).directive}\n` };
+      } }),
+      state: cliCommand({ summary: "Print an answer's shared state, or replace it with --set", positionals: [answerId], options: { set: { type: "string", stdin: true, description: "New state as JSON; open copies update immediately" }, thread }, run: ({ positionals, options }, ctx) => {
+        const threadId = threadSchema.parse(options.thread ?? ctx.threadId);
+        if (options.set !== undefined) live.setState(threadId, positionals.id, JSON.parse(options.set), "agent");
+        return json(live.getState(threadId, positionals.id));
+      } }),
+      watch: cliCommand({ summary: "Print an answer's events after --since as JSON lines, waiting up to --wait for new ones", positionals: [answerId], options: { since: { type: "integer", min: 0, max: Number.MAX_SAFE_INTEGER, default: 0, description: "Last seq you have seen; 0 prints recent history" }, wait: { type: "duration", defaultUnit: "s", min: 0, max: 25_000, default: 0, description: "How long to wait for a new event (max 25s)" }, thread }, run: async ({ positionals, options }, ctx) => {
+        const found = await live.watch(threadSchema.parse(options.thread ?? ctx.threadId), positionals.id, options.since, options.wait);
+        return { exitCode: 0, stdout: found.map((e) => `${JSON.stringify(e)}\n`).join("") };
+      } }),
+      do: cliCommand({ summary: "Run an exposed action in the open answer and print its result", positionals: [answerId, { name: "action", required: true, description: "Action name from `actions`" }], options: { args: { type: "string", description: "Arguments as a JSON array, or one JSON value" }, thread }, run: async ({ positionals, options }, ctx) => {
+        const parsed: unknown = options.args === undefined ? [] : JSON.parse(options.args);
+        const outcome = await live.command(threadSchema.parse(options.thread ?? ctx.threadId), positionals.id, positionals.action, Array.isArray(parsed) ? parsed : [parsed]);
+        if (!outcome.ok) throw new Error(outcome.error ?? "The action failed.");
+        return json(outcome.value ?? null);
+      } }),
+      actions: cliCommand({ summary: "List where an answer is open and the actions it exposes", positionals: [answerId], options: { thread }, run: ({ positionals, options }, ctx) => {
+        const threadId = threadSchema.parse(options.thread ?? ctx.threadId);
+        store.get(threadId, positionals.id);
+        const open = live.openClients(threadId, positionals.id);
+        return json({ open: open.length, actions: open[0]?.actions ?? [], copies: open.map(({ actions, lastActive }) => ({ actions, lastActiveAt: new Date(lastActive).toISOString() })) });
       } }),
     },
   }));

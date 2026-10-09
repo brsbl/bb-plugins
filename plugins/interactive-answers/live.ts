@@ -1,0 +1,105 @@
+// Shared answer state, the event log the agent watches, and agent commands to open cards.
+import { randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { z } from "zod";
+import { COMMAND_CHANNEL, idSchema, MAX_STATE_LENGTH, STATE_CHANNEL, threadSchema } from "./model.js";
+
+const PRESENCE_TTL_MS = 35_000;
+const COMMAND_TIMEOUT_MS = 10_000;
+const EVENTS_KEPT = 500;
+
+const clientSchema = z.string().min(8).max(64);
+const actionName = z.string().min(1).max(80).regex(/^[A-Za-z][\w.-]*$/);
+export const liveRpc = {
+  getState: { input: z.object({ id: idSchema, threadId: threadSchema }).strict(), output: z.object({ state: z.unknown(), version: z.number().int() }).strict() },
+  setState: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, state: z.unknown() }).strict(), output: z.object({ version: z.number().int() }).strict() },
+  event: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, name: actionName, data: z.unknown() }).strict(), output: z.object({ seq: z.number().int() }).strict() },
+  presence: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, actions: z.array(actionName).max(50), active: z.boolean(), closed: z.boolean().optional() }).strict(), output: z.object({ ok: z.literal(true) }).strict() },
+  result: { input: z.object({ cmdId: z.string().uuid(), clientId: clientSchema, ok: z.boolean(), value: z.unknown().optional(), error: z.string().max(2000).optional() }).strict(), output: z.object({ ok: z.literal(true) }).strict() },
+};
+
+export type LiveEvent = { seq: number; kind: string; at: number; data: unknown };
+type Client = { threadId: string; lastSeen: number; lastActive: number; actions: string[] };
+
+export function createLive(bb: BbPluginApi, db: ReturnType<BbPluginApi["storage"]["database"]>, assertAnswer: (threadId: string, id: string) => void) {
+  const emitter = new EventEmitter(); emitter.setMaxListeners(0);
+  const clients = new Map<string, Map<string, Client>>();
+  const pending = new Map<string, { clientId: string; resolve: (v: { ok: boolean; value?: unknown; error?: string }) => void }>();
+
+  const log = (threadId: string, id: string, kind: string, data: unknown) => {
+    const { lastInsertRowid } = db.prepare("INSERT INTO answer_events (answer_id, thread_id, kind, data, created_at) VALUES (?, ?, ?, ?, ?)").run(id, threadId, kind, JSON.stringify(data ?? null), Date.now());
+    const seq = Number(lastInsertRowid);
+    if (seq % 50 === 0) db.prepare("DELETE FROM answer_events WHERE answer_id = ? AND seq <= ?").run(id, seq - EVENTS_KEPT);
+    emitter.emit(id);
+    return seq;
+  };
+  const getState = (threadId: string, id: string) => {
+    assertAnswer(threadId, id);
+    const row = db.prepare("SELECT state, version, updated_at FROM answer_state WHERE id = ? AND thread_id = ?").get(id, threadId) as { state: string; version: number; updated_at: number } | undefined;
+    return row ? { state: JSON.parse(row.state) as unknown, version: row.version, updatedAt: row.updated_at } : { state: null, version: 0, updatedAt: null };
+  };
+  const setState = (threadId: string, id: string, state: unknown, by: string) => {
+    assertAnswer(threadId, id);
+    const json = JSON.stringify(state ?? null);
+    if (json.length > MAX_STATE_LENGTH) throw new Error(`Answer state is limited to ${MAX_STATE_LENGTH} characters.`);
+    const version = getState(threadId, id).version + 1;
+    db.prepare("INSERT INTO answer_state (id, thread_id, state, version, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET state = excluded.state, version = excluded.version, updated_at = excluded.updated_at").run(id, threadId, json, version, Date.now());
+    log(threadId, id, "state", { by, version, state });
+    bb.realtime.publish(STATE_CHANNEL, { id, threadId, version, by });
+    return version;
+  };
+  const events = (threadId: string, id: string, since: number, limit = 200): LiveEvent[] =>
+    (db.prepare("SELECT seq, kind, data, created_at FROM answer_events WHERE answer_id = ? AND thread_id = ? AND seq > ? ORDER BY seq LIMIT ?").all(id, threadId, since, limit) as { seq: number; kind: string; data: string; created_at: number }[])
+      .map((r) => ({ seq: r.seq, kind: r.kind, at: r.created_at, data: JSON.parse(r.data) as unknown }));
+  const openClients = (threadId: string, id: string) => {
+    const now = Date.now();
+    return [...(clients.get(id)?.entries() ?? [])].filter(([, c]) => c.threadId === threadId && now - c.lastSeen < PRESENCE_TTL_MS)
+      .sort((a, b) => b[1].lastActive - a[1].lastActive).map(([clientId, c]) => ({ clientId, actions: c.actions, lastActive: c.lastActive }));
+  };
+
+  return {
+    getState, setState, events, openClients,
+    event(threadId: string, id: string, clientId: string, name: string, data: unknown) { assertAnswer(threadId, id); return log(threadId, id, "event", { by: clientId, name, data }); },
+    presence(threadId: string, id: string, clientId: string, actions: string[], active: boolean, closed = false) {
+      assertAnswer(threadId, id);
+      const map = clients.get(id) ?? new Map<string, Client>(); clients.set(id, map);
+      if (closed) { map.delete(clientId); return; }
+      const now = Date.now(), prev = map.get(clientId);
+      map.set(clientId, { threadId, lastSeen: now, lastActive: active || !prev ? now : prev.lastActive, actions });
+    },
+    result(cmdId: string, clientId: string, outcome: { ok: boolean; value?: unknown; error?: string }) {
+      const p = pending.get(cmdId); if (!p || p.clientId !== clientId) return;
+      pending.delete(cmdId); p.resolve(outcome);
+    },
+    // Waits for events after `since`, up to `waitMs`, so an agent can follow along without busy polling.
+    async watch(threadId: string, id: string, since: number, waitMs: number) {
+      assertAnswer(threadId, id);
+      const found = events(threadId, id, since);
+      if (found.length || waitMs <= 0) return found;
+      await new Promise<void>((resolve) => { const done = () => { clearTimeout(t); emitter.off(id, done); resolve(); }; const t = setTimeout(done, waitMs); emitter.on(id, done); });
+      return events(threadId, id, since);
+    },
+    // Runs an action in the most recently active open copy of the answer and returns what it reports.
+    async command(threadId: string, id: string, action: string, args: unknown[]) {
+      assertAnswer(threadId, id);
+      actionName.parse(action);
+      const [target] = openClients(threadId, id);
+      if (!target) throw new Error("This answer is not open anywhere. Open its thread in bb, then try again.");
+      if (!target.actions.includes(action)) throw new Error(`Unknown action "${action}". Available: ${target.actions.join(", ") || "none"}.`);
+      const cmdId = randomUUID();
+      log(threadId, id, "command", { action, args, to: target.clientId });
+      const outcome = await new Promise<{ ok: boolean; value?: unknown; error?: string }>((resolve) => {
+        const timer = setTimeout(() => { pending.delete(cmdId); resolve({ ok: false, error: "The answer did not respond in time." }); }, COMMAND_TIMEOUT_MS);
+        pending.set(cmdId, { clientId: target.clientId, resolve: (v) => { clearTimeout(timer); resolve(v); } });
+        bb.realtime.publish(COMMAND_CHANNEL, { cmdId, id, threadId, clientId: target.clientId, action, args });
+      });
+      log(threadId, id, "result", { action, ...outcome });
+      return outcome;
+    },
+    removeThread(threadId: string) {
+      db.prepare("DELETE FROM answer_state WHERE thread_id = ?").run(threadId);
+      db.prepare("DELETE FROM answer_events WHERE thread_id = ?").run(threadId);
+    },
+  };
+}

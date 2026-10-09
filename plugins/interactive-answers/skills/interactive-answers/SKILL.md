@@ -40,13 +40,36 @@ at 16 KiB; pass larger HTML answers as `--answer '<json>'`.
   `prefix`, `suffix`, and `decimals` (0–6). Chart data is also accessible as a table.
 - Show sources and consequential assumptions in accompanying prose. Do not
   imply a scenario is a prediction or that sample values are live data.
-- Inputs update immediately and persist in that browser. They are not sent
-  to the agent, shared across devices, or approvals to take action.
+- Inputs update immediately and are saved with the answer, so they follow the
+  user across devices and you can read them. They are context, not approvals
+  to take action.
 - Answers render after publication, not progressively during generation.
   Published documents are immutable; publish a fresh answer for a revision.
   Old answers retain their original content. Do not reuse another thread's ID.
 
 Use action cards for approvals or actions that need to reach an agent.
+
+## Reading and driving an answer
+
+Every answer has shared state, an event log, and actions you can run while it
+is open. Use them when the user asks you to look at, demonstrate, or change
+something in an answer; do not poll answers nobody mentioned.
+
+```sh
+bb interactive-answers state <id>                 # current state and version
+bb interactive-answers state <id> --set '<json>'  # replace it; open copies update
+bb interactive-answers watch <id> --since <seq> --wait 20  # new events as JSON lines
+bb interactive-answers actions <id>               # open copies and their actions
+bb interactive-answers do <id> <action> --args '[...]'     # run one, print its result
+```
+
+- Native documents expose `set` (one object of control values) and `reset`,
+  and return the inputs plus every metric as displayed.
+- `do` runs in the copy the user touched most recently and fails when the
+  answer is not open. The card shows "Agent · <action>" each time you act.
+- Events are `state` (who saved and the value), `event` (from
+  `window.answer.emit`), `command`, and `result`. Pass the last `seq` you saw
+  to `--since`.
 
 ## HTML answers
 
@@ -226,14 +249,21 @@ simple sites.
 
 ### Behavior
 
-- `window.answer.state` holds the last value passed to `window.answer.save()`
-  in this browser. Save after each meaningful change so a reload restores it.
+- `window.answer.state` is the answer's shared state: the last value passed to
+  `window.answer.save()` on any device, or set by the agent. Save after each
+  meaningful change. `window.answer.onState(callback)` runs when the state
+  changes elsewhere; apply it without saving again.
   `window.answer.onTheme(callback)` reports theme changes.
+- `window.answer.expose({ play: () => …, select: (name) => … })` lists the
+  actions an agent can run with `do`. Expose the verbs a person would use,
+  drive the same code path a click does, and return a small JSON result (a
+  Promise is fine). `window.answer.emit(name, data)` records a user action in
+  the event log.
 - Use real buttons with `aria-pressed` or `aria-current`, visible focus, and
   keyboard support (arrow keys for steps).
-- The frame cannot reach bb, cookies, or the conversation, and inputs are not
-  sent to the agent. Its scripts can use the network, so never send what the
-  user enters to any server. Credit photo and map sources in your prose.
+- The frame cannot reach bb, cookies, or the conversation; it shares only what
+  it saves or emits. Its scripts can use the network, so never send what the
+  user enters to any other server. Credit photo and map sources in your prose.
 
 ### Check before you publish
 

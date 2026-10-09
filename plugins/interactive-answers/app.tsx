@@ -2,20 +2,23 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { definePluginApp, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { computedValues, defaultValues, evaluate, formatValue, idSchema, validValue, type Answer, type AnswerDocument, type Block, type Control, type HtmlAnswer, type Values } from "./model.js";
+import { useLiveAnswer, type LiveSnapshot } from "./use-live.js";
 import { fallbackTheme, FRAME_PATH, THEME_TOKENS, WIDGET_MESSAGE_SOURCE, type WidgetTheme } from "./widget.js";
 import "./app.css";
 import { Diagram } from "./diagram.js";
 
-function loadInputs(doc: AnswerDocument, key: string): Values {
-  const values = defaultValues(doc);
-  try {
-    const saved: unknown = JSON.parse(localStorage.getItem(key) ?? "null");
-    if (saved && typeof saved === "object") for (const c of doc.controls) {
-      const value = (saved as Record<string, unknown>)[c.id];
-      if (validValue(c, value)) values[c.id] = value;
-    }
-  } catch { /* Storage may be unavailable; exploration still works. */ }
+function readInputs(doc: AnswerDocument, saved: unknown, base = defaultValues(doc)): Values {
+  const values = { ...base };
+  if (saved && typeof saved === "object") for (const c of doc.controls) {
+    const value = (saved as Record<string, unknown>)[c.id];
+    if (validValue(c, value)) values[c.id] = value;
+  }
   return values;
+}
+
+// Shown on the card for a moment whenever the agent acts on it.
+function AgentBadge({ agent }: { agent: { label: string; key: number } | null }) {
+  return agent ? <span key={agent.key} className="ia-agent" role="status"><i aria-hidden="true" />Agent · {agent.label}</span> : null;
 }
 
 function Input({ control: c, value, onChange }: { control: Control; value: string | number; onChange: (value: string | number) => void }) {
@@ -67,7 +70,6 @@ function Chart({ block: b, values }: { block: Extract<Block, { type: "chart" }>;
   </section>;
 }
 
-const MAX_STATE_LENGTH = 100_000;
 const PLUGIN_ID = "interactive-answers";
 
 function readTheme(): WidgetTheme {
@@ -79,29 +81,39 @@ function readTheme(): WidgetTheme {
   return { scheme: dark ? "dark" : "light", font: getComputedStyle(document.body).fontFamily || fallbackTheme.font, tokens };
 }
 
-function loadState(key: string): unknown {
-  try { return JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return null; }
-}
-
 // Mirrors bb's inline-vis sandbox: scripts run in an opaque origin with no access to bb.
-export function HtmlAnswerView({ id, threadId, widget }: { id: string; threadId: string; widget: HtmlAnswer }) {
+export function HtmlAnswerView({ id, threadId, widget, initial }: { id: string; threadId: string; widget: HtmlAnswer; initial: LiveSnapshot }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(240);
-  const key = `interactive-answers:${threadId}:${id}`;
-  // Built once per answer; later theme changes are posted so state inside the frame survives.
-  // The plugin route serves the answer; saved state and theme ride in the fragment, which never leaves the browser.
-  const src = useMemo(() => `/api/v1/plugins/${PLUGIN_ID}/http${FRAME_PATH}?thread=${encodeURIComponent(threadId)}&id=${encodeURIComponent(id)}#${encodeURIComponent(JSON.stringify({ state: loadState(key), theme: readTheme() }))}`, [id, key, threadId]);
+  const [actions, setActions] = useState<string[]>([]);
+  const results = useRef(new Map<string, (outcome: { ok: boolean; value?: unknown; error?: string }) => void>());
+  const post = (message: Record<string, unknown>) => frame.current?.contentWindow?.postMessage({ source: WIDGET_MESSAGE_SOURCE, ...message }, "*");
+  const live = useLiveAnswer({
+    id, threadId, initial, actions,
+    onRemoteState: (state) => post({ type: "state", state }),
+    onCommand: (action, args) => new Promise((resolve, reject) => {
+      const cmdId = crypto.randomUUID();
+      const timer = setTimeout(() => { results.current.delete(cmdId); reject(new Error("The answer did not respond.")); }, 9000);
+      results.current.set(cmdId, (outcome) => { clearTimeout(timer); results.current.delete(cmdId); if (outcome.ok) resolve(outcome.value); else reject(new Error(outcome.error ?? "The action failed.")); });
+      post({ type: "command", cmdId, action, args });
+    }),
+  });
+  const { save, emit, active } = live;
+  // Built once per answer; later state and theme changes are posted so the frame keeps running.
+  // The plugin route serves the answer; the shared state and theme ride in the fragment.
+  const src = useMemo(() => `/api/v1/plugins/${PLUGIN_ID}/http${FRAME_PATH}?thread=${encodeURIComponent(threadId)}&id=${encodeURIComponent(id)}#${encodeURIComponent(JSON.stringify({ state: live.initialState, theme: readTheme() }))}`, [id, threadId, live.initialState]);
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const data: unknown = event.data;
       if (event.source !== frame.current?.contentWindow || !data || typeof data !== "object") return;
-      const message = data as { source?: unknown; id?: unknown; type?: unknown; height?: unknown; state?: unknown; url?: unknown };
+      const message = data as { source?: unknown; id?: unknown; type?: unknown; height?: unknown; state?: unknown; url?: unknown; actions?: unknown; name?: unknown; data?: unknown; cmdId?: unknown; ok?: unknown; value?: unknown; error?: unknown };
       if (message.source !== WIDGET_MESSAGE_SOURCE || message.id !== id) return;
       if (message.type === "height" && typeof message.height === "number" && Number.isFinite(message.height)) setHeight(Math.min(4000, Math.max(40, Math.ceil(message.height))));
-      if (message.type === "state") {
-        const json = JSON.stringify(message.state ?? null);
-        try { if (json.length <= MAX_STATE_LENGTH) localStorage.setItem(key, json); } catch { /* Storage may be unavailable; the answer still works. */ }
-      }
+      if (message.type === "state") save(message.state);
+      if (message.type === "event" && typeof message.name === "string") emit(message.name, message.data);
+      if (message.type === "active") active();
+      if (message.type === "actions" && Array.isArray(message.actions)) setActions(message.actions.filter((a): a is string => typeof a === "string").slice(0, 50));
+      if (message.type === "result" && typeof message.cmdId === "string") results.current.get(message.cmdId)?.({ ok: message.ok === true, value: message.value, error: typeof message.error === "string" ? message.error : undefined });
       // Only follow a link the user just clicked; activation in the frame propagates to this page.
       if (message.type === "open" && typeof message.url === "string" && /^https?:\/\//.test(message.url) && navigator.userActivation?.isActive) window.open(message.url, "_blank", "noopener,noreferrer");
     };
@@ -110,37 +122,60 @@ export function HtmlAnswerView({ id, threadId, widget }: { id: string; threadId:
     const observer = new MutationObserver(sendTheme);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
     return () => { window.removeEventListener("message", onMessage); observer.disconnect(); };
-  }, [id, key]);
+  }, [id, save, emit, active]);
   return <div className="ia-widget" style={widget.width ? { maxWidth: widget.width } : undefined}>
     <iframe ref={frame} title={widget.title} src={src} sandbox="allow-scripts" style={{ height }} />
+    <AgentBadge agent={live.agent} />
   </div>;
 }
 
-export function AnswerView({ answer }: { answer: Answer }) {
-  if (answer.kind === "html") return <HtmlAnswerView id={answer.id} threadId={answer.threadId} widget={answer.widget} />;
-  return <DocumentAnswerView answer={answer} />;
+export function AnswerView({ answer, initial = { state: null, version: 0 } }: { answer: Answer; initial?: LiveSnapshot }) {
+  if (answer.kind === "html") return <HtmlAnswerView id={answer.id} threadId={answer.threadId} widget={answer.widget} initial={initial} />;
+  return <DocumentAnswerView answer={answer} initial={initial} />;
 }
 
-function DocumentAnswerView({ answer }: { answer: Extract<Answer, { kind: "document" }> }) {
+const DOCUMENT_ACTIONS = ["set", "reset"];
+
+function DocumentAnswerView({ answer, initial }: { answer: Extract<Answer, { kind: "document" }>; initial: LiveSnapshot }) {
   const doc = answer.document;
-  const key = `interactive-answers:${answer.threadId}:${answer.id}`;
-  const [inputs, setInputs] = useState(() => loadInputs(doc, key));
+  const [inputs, setInputs] = useState<Values | null>(null);
   const [resetCount, setResetCount] = useState(0);
-  const [storageFailed, setStorageFailed] = useState(false);
-  const values = computedValues(doc, inputs);
-  const save = (next: Values) => {
-    setInputs(next);
-    try { localStorage.setItem(key, JSON.stringify(next)); setStorageFailed(false); }
-    catch { setStorageFailed(true); }
+  const current = useRef<Values>(defaultValues(doc));
+  const apply = (next: Values) => { current.current = next; setInputs(next); };
+  // Results the agent gets back after acting: the inputs and every metric as shown.
+  const summary = (next: Values) => {
+    const computed = computedValues(doc, next);
+    const metrics = Object.fromEntries(doc.blocks.flatMap((b) => b.type === "metrics" ? b.items.map((m) => [m.label, formatValue(evaluate(m.value, computed), m.format)]) : []));
+    return { inputs: next, metrics };
   };
-  return <article className="ia-answer" aria-label={doc.title}>
+  const live = useLiveAnswer({
+    id: answer.id, threadId: answer.threadId, initial, actions: DOCUMENT_ACTIONS,
+    onRemoteState: (state) => apply(readInputs(doc, state)),
+    onCommand: async (action, args) => {
+      if (action === "reset") { save(defaultValues(doc)); setResetCount((n) => n + 1); return summary(current.current); }
+      const changes = args[0];
+      if (!changes || typeof changes !== "object" || Array.isArray(changes)) throw new Error(`Pass an object of control values, e.g. {"${doc.controls[0]?.id ?? "control"}": …}.`);
+      for (const [name, value] of Object.entries(changes)) {
+        const control = doc.controls.find((c) => c.id === name);
+        if (!control) throw new Error(`Unknown control "${name}". Controls: ${doc.controls.map((c) => c.id).join(", ")}.`);
+        if (!validValue(control, value)) throw new Error(`Invalid value for "${name}".`);
+      }
+      save({ ...current.current, ...(changes as Values) });
+      return summary(current.current);
+    },
+  });
+  const shown = inputs ?? readInputs(doc, live.initialState);
+  current.current = shown;
+  const values = computedValues(doc, shown);
+  function save(next: Values) { apply(next); live.save(next); }
+  return <article className="ia-answer" aria-label={doc.title} onPointerDownCapture={live.active} onKeyDownCapture={live.active}>
     <header><div><span className="ia-eyebrow">Explore</span><h3>{doc.title}</h3></div>{doc.controls.length > 0 && <button type="button" className="ia-reset" title="Reset inputs" aria-label="Reset inputs" onClick={() => { save(defaultValues(doc)); setResetCount((n) => n + 1); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button>}</header>
     {doc.description && <p className="ia-description">{doc.description}</p>}
-    {doc.controls.length > 0 && <div className="ia-controls" key={resetCount}>{doc.controls.map((c) => <Input key={c.id} control={c} value={inputs[c.id]} onChange={(value) => save({ ...inputs, [c.id]: value })} />)}</div>}
+    {doc.controls.length > 0 && <div className="ia-controls" key={resetCount}>{doc.controls.map((c) => <Input key={c.id} control={c} value={shown[c.id]} onChange={(value) => save({ ...shown, [c.id]: value })} />)}</div>}
     <div className="ia-blocks">{doc.blocks.map((b, i) => {
-      if (b.when && inputs[b.when.control] !== b.when.equals) return null;
+      if (b.when && shown[b.when.control] !== b.when.equals) return null;
       switch (b.type) {
-        case "diagram": return <Diagram key={i} block={b} values={values} onChoose={(control, value) => save({ ...inputs, [control]: value })} />;
+        case "diagram": return <Diagram key={i} block={b} values={values} onChoose={(control, value) => save({ ...shown, [control]: value })} />;
         case "text": return <section key={i}>{b.title && <h4>{b.title}</h4>}<p>{b.text}</p></section>;
         case "metrics": return <dl className="ia-metrics" key={i} aria-live="polite">{b.items.map((m, j) => <div key={j}><dt>{m.label}</dt><dd>{formatValue(evaluate(m.value, values), m.format)}</dd></div>)}</dl>;
         case "chart": return <Chart key={i} block={b} values={values} />;
@@ -148,13 +183,13 @@ function DocumentAnswerView({ answer }: { answer: Extract<Answer, { kind: "docum
         case "table": return <section key={i}><div className="ia-table-scroll"><table><caption>{b.title}</caption><thead><tr>{b.columns.map((c, j) => <th key={j} scope="col">{c}</th>)}</tr></thead><tbody>{b.rows.map((row, j) => <tr key={j}>{row.map((v, k) => <td key={k}>{typeof v === "string" ? v : formatValue(evaluate(v, values), b.format)}</td>)}</tr>)}</tbody></table></div></section>;
       }
     })}</div>
-    {doc.controls.length > 0 && <footer>{storageFailed ? "Inputs work here but could not be saved in this browser." : "Inputs stay in this browser."}</footer>}
+    <AgentBadge agent={live.agent} />
   </article>;
 }
 
 function AnswerDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const rpc = useRpc<typeof rpcContract>();
-  const [answer, setAnswer] = useState<Answer | null>(null);
+  const [answer, setAnswer] = useState<{ answer: Answer; initial: LiveSnapshot } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const id = attributes.id;
@@ -163,10 +198,10 @@ function AnswerDirective({ attributes, message }: PluginMessageDirectiveProps) {
     let active = true;
     setAnswer(null); setError(null);
     if (!idSchema.safeParse(id).success) { setError("This interactive answer has an invalid ID."); return; }
-    void rpc.call("get", { id, threadId }).then((value) => { if (active) setAnswer(value); }).catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : "Could not load this answer."); });
+    void Promise.all([rpc.call("get", { id, threadId }), rpc.call("getState", { id, threadId })]).then(([value, initial]) => { if (active) setAnswer({ answer: value, initial }); }).catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : "Could not load this answer."); });
     return () => { active = false; };
   }, [rpc, id, threadId, attempt]);
   if (error) return <div className="ia-answer ia-error" role="alert"><p>{error}</p><button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry</button></div>;
-  return answer ? <AnswerView key={`${answer.threadId}:${answer.id}`} answer={answer} /> : <div className="ia-answer" role="status">Loading interactive answer…</div>;
+  return answer ? <AnswerView key={`${answer.answer.threadId}:${answer.answer.id}`} answer={answer.answer} initial={answer.initial} /> : <div className="ia-answer" role="status">Loading interactive answer…</div>;
 }
 export default definePluginApp((app) => { app.slots.messageDirective({ id: "interactive-answer", component: AnswerDirective }); });

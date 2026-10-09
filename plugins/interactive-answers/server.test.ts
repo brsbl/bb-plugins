@@ -27,3 +27,41 @@ it("publishes immutable answers, confines reads to their thread, and survives re
     expect(await host.harness.behavior.callRpc("get", { id, threadId: "thr_test" })).toMatchObject({ kind: "document", document: bill });
   } finally { await host.harness.lifecycle.dispose(); }
 });
+
+it("shares answer state, logs events for watch, and runs agent commands in the most recently used open copy", async () => {
+  const host = createFakePluginHost({ pluginId: "interactive-answers" });
+  try {
+    plugin(host.bb);
+    const { runCli, callRpc } = host.harness.behavior;
+    const id = /id="([^"]+)"/.exec((await runCli(["publish", "--thread", "thr_test", "--answer", JSON.stringify(stepper)])).stdout!)![1];
+    const cli = (...argv: string[]) => runCli([...argv, "--thread", "thr_test"]);
+    expect(JSON.parse((await cli("state", id)).stdout!)).toMatchObject({ state: null, version: 0 });
+    await callRpc("setState", { id, threadId: "thr_test", clientId: "client-one-123", state: { step: 2 } });
+    expect(await callRpc("getState", { id, threadId: "thr_test" })).toEqual({ state: { step: 2 }, version: 1 });
+    await expect(callRpc("setState", { id, threadId: "thr_other", clientId: "client-one-123", state: {} })).rejects.toThrow("unavailable");
+    expect(JSON.parse((await cli("state", id, "--set", JSON.stringify({ step: 3 }))).stdout!)).toMatchObject({ state: { step: 3 }, version: 2 });
+    expect(host.harness.inspection.realtimeSignals.at(-1)).toEqual({ channel: "state", payload: { id, threadId: "thr_test", version: 2, by: "agent" } });
+    const history = (await cli("watch", id)).stdout!.trim().split("\n").map((line) => JSON.parse(line));
+    expect(history.map((e) => e.kind)).toEqual(["state", "state"]);
+    const waiting = cli("watch", id, "--since", String(history[1].seq), "--wait", "5");
+    await callRpc("event", { id, threadId: "thr_test", clientId: "client-one-123", name: "step", data: 4 });
+    expect(JSON.parse((await waiting).stdout!)).toMatchObject({ kind: "event", data: { name: "step", data: 4 } });
+
+    expect((await cli("do", id, "next")).stderr).toContain("not open anywhere");
+    await callRpc("presence", { id, threadId: "thr_test", clientId: "client-one-123", actions: ["next"], active: false });
+    await callRpc("presence", { id, threadId: "thr_test", clientId: "client-two-123", actions: ["next"], active: false });
+    await callRpc("presence", { id, threadId: "thr_test", clientId: "client-one-123", actions: ["next"], active: true });
+    expect(JSON.parse((await cli("actions", id)).stdout!)).toMatchObject({ open: 2, actions: ["next"] });
+    expect((await cli("do", id, "jump")).stderr).toContain("Available: next");
+    const done = cli("do", id, "next", "--args", "[2]");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const command = host.harness.inspection.realtimeSignals.at(-1)!;
+    expect(command).toMatchObject({ channel: "command", payload: { id, clientId: "client-one-123", action: "next", args: [2] } });
+    const { cmdId } = command.payload as { cmdId: string };
+    await callRpc("result", { cmdId, clientId: "client-two-123", ok: false, error: "wrong copy" });
+    await callRpc("result", { cmdId, clientId: "client-one-123", ok: true, value: { step: 5 } });
+    expect(JSON.parse((await done).stdout!)).toEqual({ step: 5 });
+    const tail = (await cli("watch", id, "--since", String(history[1].seq))).stdout!.trim().split("\n").map((line) => JSON.parse(line));
+    expect(tail.map((e) => e.kind)).toEqual(["event", "command", "result"]);
+  } finally { await host.harness.lifecycle.dispose(); }
+});

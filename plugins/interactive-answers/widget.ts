@@ -66,35 +66,59 @@ img, svg { display: block; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; } }
 `;
 
-// Runs before the agent's markup. Exposes window.answer and reports height.
+// Runs before the agent's markup. Exposes window.answer, relays shared state and agent commands, and reports height.
 function bridge(id: string, state: unknown, theme: WidgetTheme) {
   return String.raw`(() => {
   const SOURCE = ${JSON.stringify(WIDGET_MESSAGE_SOURCE)}, ID = ${JSON.stringify(id)};
   const post = (type, data) => parent.postMessage({ source: SOURCE, id: ID, type, ...data }, "*");
-  const listeners = new Set();
+  const listeners = new Set(), stateListeners = new Set();
+  const notify = (set, value) => { for (const callback of set) try { callback(value); } catch (error) { console.error(error); } };
+  const plain = (value) => JSON.parse(JSON.stringify(value ?? null));
   const apply = (theme) => {
     const root = document.documentElement;
     root.dataset.scheme = theme.scheme;
     root.style.setProperty("--font", theme.font);
     for (const [name, value] of Object.entries(theme.tokens)) root.style.setProperty("--" + name, value);
   };
-  // Served from bb's own address, the page receives the browser's saved state and theme in its fragment.
+  // Served from bb's own address, the page receives the shared state and theme in its fragment.
   let init = {};
   try { if (location.hash.length > 1) init = JSON.parse(decodeURIComponent(location.hash.slice(1))); } catch { /* No fragment state. */ }
   let theme = init.theme || ${JSON.stringify(theme)};
   apply(theme);
+  let state = "state" in init ? init.state : ${JSON.stringify(state ?? null)};
+  const actions = new Map();
   window.answer = Object.freeze({
     id: ID,
-    state: "state" in init ? init.state : ${JSON.stringify(state ?? null)},
-    save(value) { try { post("state", { state: JSON.parse(JSON.stringify(value ?? null)) }); } catch { /* Not serializable; nothing to save. */ } },
+    get state() { return state; },
+    save(value) { try { state = plain(value); post("state", { state }); } catch { /* Not serializable; nothing to save. */ } },
+    onState(callback) { stateListeners.add(callback); return () => stateListeners.delete(callback); },
     get theme() { return theme; },
     onTheme(callback) { listeners.add(callback); return () => listeners.delete(callback); },
+    // Actions the agent can run with \`bb interactive-answers do\`.
+    expose(map) {
+      for (const [name, run] of Object.entries(map || {})) if (typeof run === "function" && /^[A-Za-z][\w.-]*$/.test(name)) actions.set(name, run);
+      post("actions", { actions: [...actions.keys()] });
+    },
+    emit(name, data) { try { post("event", { name: String(name), data: plain(data) }); } catch { /* Not serializable; nothing to record. */ } },
   });
-  addEventListener("message", (event) => {
-    if (event.source !== parent || !event.data || event.data.source !== SOURCE || event.data.type !== "theme") return;
-    theme = event.data.theme; apply(theme);
-    for (const callback of listeners) try { callback(theme); } catch (error) { console.error(error); }
+  addEventListener("message", async (event) => {
+    const message = event.data;
+    if (event.source !== parent || !message || message.source !== SOURCE) return;
+    if (message.type === "theme") { theme = message.theme; apply(theme); notify(listeners, theme); }
+    if (message.type === "state") { state = message.state; notify(stateListeners, state); }
+    if (message.type === "command") {
+      const run = actions.get(message.action);
+      try {
+        if (!run) throw new Error("Unknown action " + message.action);
+        const value = await run(...(Array.isArray(message.args) ? message.args : []));
+        post("result", { cmdId: message.cmdId, ok: true, value: value === undefined ? null : plain(value) });
+      } catch (error) { post("result", { cmdId: message.cmdId, ok: false, error: String(error && error.message || error).slice(0, 2000) }); }
+    }
   });
+  // Tells bb which copy a person is using, so agent commands go to the screen they are looking at.
+  let lastActive = 0;
+  const active = () => { const now = Date.now(); if (now - lastActive > 4000) { lastActive = now; post("active", {}); } };
+  addEventListener("pointerdown", active, true); addEventListener("keydown", active, true);
   // iOS mutes Web Audio while the ringer switch is on silent. When an answer starts audio (always from a tap),
   // switch the page to a playback session: the audioSession API where it exists, else a silent looping clip.
   const BaseAudio = window.AudioContext || window.webkitAudioContext;
