@@ -128,10 +128,20 @@ export function HtmlAnswerView({ id, threadId, widget, initial }: { id: string; 
       if (message.type === "open" && typeof message.url === "string" && /^https?:\/\//.test(message.url) && navigator.userActivation?.isActive) window.open(message.url, "_blank", "noopener,noreferrer");
     };
     window.addEventListener("message", onMessage);
-    const sendTheme = () => frame.current?.contentWindow?.postMessage({ source: WIDGET_MESSAGE_SOURCE, type: "theme", theme: readTheme() }, "*");
+    // Themes switch by swapping stylesheets as well as root attributes, so watch both and post only real changes.
+    let lastTheme = JSON.stringify(readTheme());
+    const sendTheme = () => {
+      const theme = readTheme(), json = JSON.stringify(theme);
+      if (json === lastTheme) return;
+      lastTheme = json;
+      frame.current?.contentWindow?.postMessage({ source: WIDGET_MESSAGE_SOURCE, type: "theme", theme }, "*");
+    };
     const observer = new MutationObserver(sendTheme);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
-    return () => { window.removeEventListener("message", onMessage); observer.disconnect(); };
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+    const scheme = window.matchMedia?.("(prefers-color-scheme: dark)");
+    scheme?.addEventListener("change", sendTheme);
+    return () => { window.removeEventListener("message", onMessage); observer.disconnect(); scheme?.removeEventListener("change", sendTheme); };
   }, [id, save, emit, active]);
   return <div className="ia-widget" style={widget.width ? { maxWidth: widget.width } : undefined}>
     <iframe ref={frame} title={widget.title} src={src} sandbox="allow-scripts" style={{ height }} />
