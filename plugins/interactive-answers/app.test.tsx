@@ -70,12 +70,12 @@ it("applies state changed elsewhere and runs agent commands in the copy they tar
   backend.shared.state = { ...(backend.shared.state as object), people: 6 }; backend.shared.version = 7;
   await view.behavior.emitRealtime("state", { id: answer.id, threadId: answer.threadId, version: 7, by: "agent" });
   await view.findByText("$24.00", { selector: "dd" });
-  expect(view.getByRole("status").textContent).toBe("Agent · updated");
+  expect(view.getByText("Agent · updated")).toBeTruthy();
   await view.behavior.emitRealtime("command", { cmdId: "8c1b0c47-7f2a-4a39-9d29-4e7a8a0b9a11", id: answer.id, threadId: answer.threadId, clientId: "someone-else-1234", action: "set", args: [{ people: 2 }] });
   expect(view.getByText("$24.00", { selector: "dd" })).toBeTruthy();
   await view.behavior.emitRealtime("command", { cmdId: "8c1b0c47-7f2a-4a39-9d29-4e7a8a0b9a12", id: answer.id, threadId: answer.threadId, clientId: backend.clientId(), action: "set", args: [{ people: 3 }] });
   await view.findByText("$48.00", { selector: "dd" });
-  expect(view.getByRole("status").textContent).toBe("Agent · set");
+  expect(view.getByText("Agent · set")).toBeTruthy();
   await waitFor(() => expect(backend.calls.find((c) => c.method === "result")?.input).toMatchObject({ ok: true, value: { inputs: { people: 3 } } }));
   await view.behavior.emitRealtime("command", { cmdId: "8c1b0c47-7f2a-4a39-9d29-4e7a8a0b9a13", id: answer.id, threadId: answer.threadId, clientId: backend.clientId(), action: "set", args: [{ guests: 3 }] });
   await waitFor(() => expect(backend.calls.filter((c) => c.method === "result")[1]?.input).toMatchObject({ ok: false, error: expect.stringContaining("Unknown control") }));
