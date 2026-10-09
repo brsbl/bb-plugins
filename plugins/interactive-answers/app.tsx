@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { definePluginApp, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { computedValues, defaultValues, evaluate, formatValue, idSchema, validValue, type Answer, type AnswerDocument, type Block, type Control, type HtmlAnswer, type Values } from "./model.js";
-import { buildWidgetDocument, fallbackTheme, THEME_TOKENS, WIDGET_MESSAGE_SOURCE, type WidgetTheme } from "./widget.js";
+import { fallbackTheme, FRAME_PATH, THEME_TOKENS, WIDGET_MESSAGE_SOURCE, type WidgetTheme } from "./widget.js";
 import "./app.css";
 import { Diagram } from "./diagram.js";
 
@@ -68,6 +68,7 @@ function Chart({ block: b, values }: { block: Extract<Block, { type: "chart" }>;
 }
 
 const MAX_STATE_LENGTH = 100_000;
+const PLUGIN_ID = "interactive-answers";
 
 function readTheme(): WidgetTheme {
   if (typeof document === "undefined") return fallbackTheme;
@@ -88,7 +89,8 @@ export function HtmlAnswerView({ id, threadId, widget }: { id: string; threadId:
   const [height, setHeight] = useState(240);
   const key = `interactive-answers:${threadId}:${id}`;
   // Built once per answer; later theme changes are posted so state inside the frame survives.
-  const srcDoc = useMemo(() => buildWidgetDocument({ id, html: widget.html, state: loadState(key), theme: readTheme() }), [id, key, widget.html]);
+  // The plugin route serves the answer; saved state and theme ride in the fragment, which never leaves the browser.
+  const src = useMemo(() => `/api/v1/plugins/${PLUGIN_ID}/http${FRAME_PATH}?thread=${encodeURIComponent(threadId)}&id=${encodeURIComponent(id)}#${encodeURIComponent(JSON.stringify({ state: loadState(key), theme: readTheme() }))}`, [id, key, threadId]);
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const data: unknown = event.data;
@@ -110,7 +112,7 @@ export function HtmlAnswerView({ id, threadId, widget }: { id: string; threadId:
     return () => { window.removeEventListener("message", onMessage); observer.disconnect(); };
   }, [id, key]);
   return <div className="ia-widget" style={widget.width ? { maxWidth: widget.width } : undefined}>
-    <iframe ref={frame} title={widget.title} srcDoc={srcDoc} sandbox="allow-scripts" style={{ height }} />
+    <iframe ref={frame} title={widget.title} src={src} sandbox="allow-scripts" style={{ height }} />
   </div>;
 }
 

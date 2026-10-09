@@ -78,11 +78,14 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
     root.style.setProperty("--font", theme.font);
     for (const [name, value] of Object.entries(theme.tokens)) root.style.setProperty("--" + name, value);
   };
-  let theme = ${JSON.stringify(theme)};
+  // Served from bb's own address, the page receives the browser's saved state and theme in its fragment.
+  let init = {};
+  try { if (location.hash.length > 1) init = JSON.parse(decodeURIComponent(location.hash.slice(1))); } catch { /* No fragment state. */ }
+  let theme = init.theme || ${JSON.stringify(theme)};
   apply(theme);
   window.answer = Object.freeze({
     id: ID,
-    state: ${JSON.stringify(state ?? null)},
+    state: "state" in init ? init.state : ${JSON.stringify(state ?? null)},
     save(value) { try { post("state", { state: JSON.parse(JSON.stringify(value ?? null)) }); } catch { /* Not serializable; nothing to save. */ } },
     get theme() { return theme; },
     onTheme(callback) { listeners.add(callback); return () => listeners.delete(callback); },
@@ -106,6 +109,16 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
   });
 })();`;
 }
+
+export const FRAME_PATH = "/frame";
+// Forces an opaque origin even when the frame URL is opened directly, matching sandbox="allow-scripts".
+export const FRAME_HEADERS = {
+  "content-type": "text/html; charset=utf-8",
+  "content-security-policy": "sandbox allow-scripts",
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "no-referrer",
+  "cache-control": "private, max-age=3600",
+};
 
 export function buildWidgetDocument({ id, html, state, theme }: { id: string; html: string; state: unknown; theme: WidgetTheme }): string {
   // Escape "</" so stored values cannot terminate the bridge script early.

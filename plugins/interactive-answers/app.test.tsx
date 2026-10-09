@@ -44,7 +44,7 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and saves stat
   const view = render(<AnswerView answer={{ id: answer.id, threadId: answer.threadId, kind: "html", widget: stepper }} />);
   const frame = view.getByTitle(stepper.title) as HTMLIFrameElement;
   expect(frame.getAttribute("sandbox")).toBe("allow-scripts");
-  expect(frame.getAttribute("srcdoc")).toContain("Repot a houseplant");
+  expect(frame.getAttribute("src")).toContain(`/api/v1/plugins/interactive-answers/http/frame?thread=thr_test&id=${answer.id}#`);
   const key = `interactive-answers:${answer.threadId}:${answer.id}`;
   fireEvent(window, new MessageEvent("message", { data: { source: "interactive-answer", id: answer.id, type: "state", state: { step: 2 } }, source: window }));
   expect(localStorage.getItem(key)).toBeNull();
@@ -54,5 +54,6 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and saves stat
   expect(JSON.parse(localStorage.getItem(key)!)).toEqual({ step: 2 });
   view.unmount();
   const restored = render(<AnswerView answer={{ id: answer.id, threadId: answer.threadId, kind: "html", widget: stepper }} />);
-  expect(restored.getByTitle(stepper.title).getAttribute("srcdoc")).toContain('state: {"step":2}');
+  const fragment = restored.getByTitle(stepper.title).getAttribute("src")!.split("#")[1];
+  expect(JSON.parse(decodeURIComponent(fragment)).state).toEqual({ step: 2 });
 });

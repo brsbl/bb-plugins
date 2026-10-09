@@ -17,6 +17,11 @@ it("publishes immutable answers, confines reads to their thread, and survives re
     const html = await host.harness.behavior.runCli(["publish", "--thread", "thr_test", "--answer", JSON.stringify(stepper)]);
     const htmlId = /id="([^"]+)"/.exec(html.stdout!)![1];
     expect((await host.harness.behavior.runCli(["publish", "--thread", "thr_test", "--answer", JSON.stringify({ html: "<p>Hi</p>" })])).exitCode).toBe(1);
+    const page = await host.harness.behavior.fetchHttp("GET", `/frame?thread=thr_test&id=${htmlId}`);
+    expect(page.status).toBe(200);
+    expect(page.headers.get("content-security-policy")).toBe("sandbox allow-scripts");
+    expect(await page.text()).toContain("Repot a houseplant");
+    expect((await host.harness.behavior.fetchHttp("GET", `/frame?thread=thr_other&id=${htmlId}`)).status).toBe(404);
     host = await host.harness.lifecycle.reload(plugin);
     expect(await host.harness.behavior.callRpc("get", { id: htmlId, threadId: "thr_test" })).toEqual({ id: htmlId, threadId: "thr_test", kind: "html", widget: stepper });
     expect(await host.harness.behavior.callRpc("get", { id, threadId: "thr_test" })).toMatchObject({ kind: "document", document: bill });

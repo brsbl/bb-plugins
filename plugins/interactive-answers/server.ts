@@ -3,6 +3,7 @@ import { cliCommand, defineCli, defineRpcContract, type BbPluginApi } from "@get
 import { z } from "zod";
 import { answerSchema, documentSchema, htmlAnswerSchema, idSchema, MAX_HTML_LENGTH, parseDocument, threadSchema, type Answer, type HtmlAnswer } from "./model.js";
 import { bill, savings, stepper } from "./examples.js";
+import { buildWidgetDocument, fallbackTheme, FRAME_HEADERS, FRAME_PATH } from "./widget.js";
 
 export const rpcContract = defineRpcContract({
   get: { input: z.object({ id: idSchema, threadId: threadSchema }).strict(), output: answerSchema },
@@ -41,6 +42,17 @@ export function createStore(bb: BbPluginApi) {
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
   bb.rpc.register(rpcContract, { get: ({ id, threadId }) => store.get(threadId, id) });
+  // HTML answers load from bb's own address instead of an inline srcdoc frame: hosts such as the
+  // mobile app's WebView only allow frame navigations to the bb server, so about:srcdoc stays blank.
+  bb.http.route("GET", FRAME_PATH, (c) => {
+    try {
+      const answer = store.get(String(c.req.query("thread") ?? ""), String(c.req.query("id") ?? ""));
+      if (answer.kind !== "html") return new Response("Not an HTML answer", { status: 404 });
+      return new Response(buildWidgetDocument({ id: answer.id, html: answer.widget.html, state: null, theme: fallbackTheme }), { headers: FRAME_HEADERS });
+    } catch {
+      return new Response("This answer is unavailable.", { status: 404 });
+    }
+  });
   bb.agents.registerTool({
     name: "interactive_answer",
     description: "Create interactive answers in bb: calculators, charts, and tables from native blocks, or custom HTML interfaces such as illustrated step-by-step guides, maps with photos, and visual previews. Call guide first, then publish a document or HTML. Emit the returned directive once on its own line.",
