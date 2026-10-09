@@ -95,7 +95,7 @@ textarea.cc-input { height: auto; }
 .cc-day.cc-is-today { background: var(--cc-today-tint); box-shadow: inset 0 3px 0 var(--cc-today); }
 .cc-day-date { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .cc-today { padding: 0 6px; border-radius: 9px; background: var(--cc-today); color: var(--cc-today-ink); font-weight: 600; }
-.cc-today-label { color: var(--cc-today); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.cc-today-label { color: color-mix(in oklab, var(--cc-today) 70%, var(--foreground)); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 /* The + sits in reserved space and only appears on hover or focus, so nothing shifts. */
 .cc-add { visibility: hidden; width: 18px; height: 16px; border: 0; border-radius: 4px; background: none; color: var(--muted-foreground); font-size: 14px; line-height: 12px; cursor: pointer; }
 .cc-day:hover .cc-add, .cc-add:focus-visible { visibility: visible; }
