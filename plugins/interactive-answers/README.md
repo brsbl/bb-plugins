@@ -75,15 +75,6 @@ network, so agents are told never to send user input anywhere else. The card siz
 dark theme tokens and Inter type, syncs its state through bb, and opens web
 links in a new tab.
 
-`demos/` contains five complete answers recreating the interactive answers from
-OpenAI's GPT-6 launch video: a youth-bike assembly guide with an exploded
-schematic, a San Francisco day route on a live map with photos, a wall-color
-preview, a 12-step origami fox, and a container-garden plan. `room-3d.html` is a real-time Three.js version of the
-wall-color preview, with time-of-day lighting, depth of field, and CC0 Poly Haven
-furniture and textures. The map uses
-MapLibre with OpenFreeMap tiles (© OpenStreetMap contributors); photos are
-Wikimedia Commons images credited in each file.
-
 ## Develop
 
 From the repository root, install dependencies with `npm ci`. Remote CI runs

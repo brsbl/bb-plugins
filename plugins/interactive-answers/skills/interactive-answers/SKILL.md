@@ -184,7 +184,6 @@ Use only these steps (Inter is bb's font; keep `var(--font)`):
 Use a real-time 3D scene when the answer is about space or material under
 light: a room to repaint, furniture in a space, a product to turn around, a
 site or terrain. Use 2D for everything else; 3D costs downloads and battery.
-`demos/room-3d.html` is the reference implementation.
 
 - **Stack.** Three.js pinned by version through an import map
   (`https://unpkg.com/three@0.170.0/...`) and `<script type="module" async>`.
@@ -199,16 +198,17 @@ site or terrain. Use 2D for everything else; 3D costs downloads and battery.
   `OutputPass`.
 - **Light like a photographer.** Image-based fill from `RoomEnvironment`
   through `PMREMGenerator` (no download), kept low (0.05–0.3). One shadowed key
-  light whose shadow tells the story: sun through a window lands as a
-  window-shaped patch, with plant and frame shadows, inside the frame. A
-  `RectAreaLight` in every window for soft sky fill. Practical lights (lamps)
+  light whose shadow tells the story, inside the frame: sun through a window
+  landing as a window-shaped patch, or a product's soft contact shadow. A
+  `RectAreaLight` for each large soft source (a window, a softbox, open sky). Practical lights (lamps)
   pair an emissive mesh with a point light. Exposure 0.8–1.5.
 - **Presets are data.** Each time-of-day or mood preset sets sun direction,
   color and intensity, sky colors, fill, lamps, and exposure. Ease every value
   over ~900ms, including paint colors. Re-check each preset by eye; a low sun
   often lands outside the view, so aim it where the camera can see it.
-- **Assets.** Build architecture procedurally with real thickness (walls with
-  openings, frames, sills, baseboards, crown, door panels). Use Poly Haven CC0
+- **Assets.** Build simple structure procedurally with real thickness: for a
+  room, walls with openings, frames, sills, baseboards, crown, and door panels;
+  for a product or site, its plinth, ground, or terrain. Use Poly Haven CC0
   assets for everything organic or detailed. They are CORS-open and in meters:
   - Textures: `dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/<name>/<name>_{diff,nor_gl,rough}_1k.jpg`.
     Use 1k, set the diffuse to sRGB, repeat, and anisotropy 8.
@@ -279,7 +279,6 @@ If you can, write the HTML to a file, render it at 2× (Browser Automation)
 inside a 500px-wide white card, and check: headings black, body one gray,
 nothing below 10.5px, hero is the largest element, no overflow or clipped
 text, entrance plays, and one interaction changes the hero. Fix, then publish.
-`demos/` in the plugin holds complete examples at this standard.
 
 ## Interactive diagrams
 
