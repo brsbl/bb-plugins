@@ -81,7 +81,7 @@ it("marks today's cell with a filled date badge and a Today label", async () => 
     const today = document.querySelector<HTMLElement>('[data-date="2026-10-08"]')!;
     expect(today.getAttribute("aria-current")).toBe("date");
     expect(today.classList.contains("cc-is-today")).toBe(true);
-    expect(today.getAttribute("aria-label")).toBe("Today, Thursday, October 8");
+    expect(today.getAttribute("aria-label")).toBe("Thursday, October 8");
     expect(within(today).getByText("Today")).toBeTruthy();
     expect(document.querySelectorAll(".cc-is-today")).toHaveLength(1);
     expect(document.querySelector('[data-date="2026-10-07"]')!.getAttribute("aria-current")).toBeNull();

@@ -266,7 +266,7 @@ function DayCell({ date, label, today, weekend, outside, highlighted, onAdd, chi
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
   const className = ["cc-day", weekend ? "cc-weekend" : "", today ? "cc-is-today" : "", outside ? "cc-outside" : "", highlighted || isOver ? "cc-over" : ""].filter(Boolean).join(" ");
-  return <div ref={setNodeRef} className={className} role="group" aria-label={today ? `Today, ${dayName(date)}` : dayName(date)} aria-current={today ? "date" : undefined} data-date={date}>
+  return <div ref={setNodeRef} className={className} role="group" aria-label={dayName(date)} aria-current={today ? "date" : undefined} data-date={date}>
     <div className="cc-day-head">
       <span className="cc-day-date"><span className={today ? "cc-today" : undefined}>{label}</span>{today && <span className="cc-today-label">Today</span>}</span>
       {onAdd && <button type="button" className="cc-add" aria-label={`Add item on ${dayName(date)}`} onClick={(event) => onAdd(event.currentTarget)}>+</button>}
