@@ -1,0 +1,12 @@
+{
+  "sdkMajor": 0,
+  "sdkVersion": "0.5.9",
+  "artifactFormatVersion": 1,
+  "pluginId": "content-calendar",
+  "pluginVersion": "0.1.2",
+  "builtWith": {
+    "bbVersion": "0.43.4",
+    "pluginSdkVersion": "0.5.9"
+  },
+  "artifactDigest": "e5e4650a3f1325d434c384793e88d265e37d8b1cf12f8d1e4b6db4730e227338"
+}

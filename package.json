@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-content-calendar",
+  "version": "0.1.2",
+  "description": "Plan content on a month or week calendar stored in Google Calendar.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "skills"
+  ],
+  "engines": {
+    "bb": ">=0.43.4",
+    "bbPluginSdk": ">=0.5.9"
+  },
+  "bb": {
+    "name": "Content Calendar",
+    "description": "Plan content on a month or week calendar stored in Google Calendar.",
+    "branding": {
+      "icon": "Calendar"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "host": "./dist/install-host.mjs",
+    "skills": [
+      "skills"
+    ]
+  }
+}
