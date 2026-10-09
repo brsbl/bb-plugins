@@ -23,6 +23,7 @@ function server(kind: "document" | "html" = "document") {
       presence: log("presence", () => ({ ok: true as const })),
       event: log("event", () => ({ seq: 1 })),
       result: log("result", () => ({ ok: true as const })),
+      share: log("share", () => ({ itemId: `${answer.id}.12` })),
     },
   };
 }
@@ -121,5 +122,13 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and relays sta
   expect(command.action).toBe("next");
   send({ type: "result", cmdId: command.cmdId, ok: true, value: { step: 5 } });
   await waitFor(() => expect(backend.calls.find((c) => c.method === "result")?.input).toMatchObject({ cmdId: "8c1b0c47-7f2a-4a39-9d29-4e7a8a0b9a14", ok: true, value: { step: 5 } }));
+  // Sending needs a click inside the answer; then the data rides on the user's next message as a pill.
+  send({ type: "send", label: "Synth take", data: { keys: [["C4", 0, 1]] } });
+  expect(backend.calls.some((c) => c.method === "share")).toBe(false);
+  Object.defineProperty(navigator, "userActivation", { value: { isActive: true }, configurable: true });
+  send({ type: "send", label: "Synth take", data: { keys: [["C4", 0, 1]] } });
+  await waitFor(() => expect(view.inspection.composer.mentions).toEqual([{ provider: "shared", id: `${answer.id}.12`, label: "Synth take" }]));
+  expect(backend.calls.find((c) => c.method === "share")?.input).toMatchObject({ label: "Synth take", data: { keys: [["C4", 0, 1]] } });
+  Object.defineProperty(navigator, "userActivation", { value: undefined, configurable: true });
   view.lifecycle.unmount();
 });

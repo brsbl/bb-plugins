@@ -89,6 +89,7 @@ export function useLiveAnswer({ id, threadId, initial, actions, onRemoteState, o
   });
 
   return {
+    clientId,
     initialState,
     agent,
     save,

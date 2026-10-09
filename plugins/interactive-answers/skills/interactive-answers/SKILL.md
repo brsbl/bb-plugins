@@ -70,11 +70,14 @@ bb interactive-answers do <id> <action> --args '[...]'     # run one, print its 
 - Events are `state` (who saved and the value), `event` (from
   `window.answer.emit`), `command`, and `result`. Pass the last `seq` you saw
   to `--since`.
-- For instruments, drills, and other things a person performs, record what
-  they do with timing, emit it when they pause (for example `played` with each
-  note as `[note, start, length]`), and expose a `take` action that returns the
-  latest one. That lets you answer what they played, or demonstrate something,
-  watch them try it, and critique the attempt.
+- For instruments, drills, and other things a person performs, give them
+  Record and "Send to agent" controls. Record what they do with timing (for
+  example each note as `[note, start, length]`), and on Send call
+  `window.answer.send(label, take)`: it attaches the take to their next message
+  as a pill, so you receive it when they ask for something. Also expose a
+  `take` action that returns the latest recording. That lets you answer what
+  they played, or demonstrate something, let them try it, and critique the
+  attempt.
 
 ## HTML answers
 

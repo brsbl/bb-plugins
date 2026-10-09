@@ -53,7 +53,9 @@ bb interactive-answers do <id> set --args '{"people": 6}'
 ```
 
 Native calculators expose `set` and `reset`. HTML answers expose their own
-actions with `window.answer.expose()`, such as `play` on a synth. Commands run
+actions with `window.answer.expose()`, such as `play` on a synth. An answer can
+also hand something to the agent on purpose: `window.answer.send()` attaches it
+to your next message as a pill, such as a phrase you recorded on the synth. Commands run
 in the copy you used most recently, and the card shows "Agent · <action>" each
 time the agent acts.
 

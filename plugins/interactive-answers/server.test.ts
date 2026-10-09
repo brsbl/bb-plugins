@@ -64,5 +64,13 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
     expect(JSON.parse((await done).stdout!)).toEqual({ step: 5 });
     const tail = (await cli("watch", id, "--since", String(history[1].seq))).stdout!.trim().split("\n").map((line) => JSON.parse(line));
     expect(tail.map((e) => e.kind)).toEqual(["event", "command", "result"]);
+    const { itemId } = await callRpc("share", { id, threadId: "thr_test", clientId: "client-one-123", label: "Synth take", data: { keys: [["C4", 0, 1]] } }) as { itemId: string };
+    const provider = host.harness.inspection.registrations.mentionProviders.find((p) => p.id === "shared")!;
+    expect(await provider.search({ trigger: "@", query: "", projectId: null, threadId: "thr_test" })).toEqual([]);
+    const { context } = await provider.resolve(itemId);
+    expect(context).toContain('"Synth take"');
+    expect(context).toContain('{"keys":[["C4",0,1]]}');
+    expect(context).toContain(`bb interactive-answers do ${id}`);
+    await expect(Promise.resolve().then(() => provider.resolve(`${id}.999999`))).rejects.toThrow("no longer available");
   } finally { await host.harness.lifecycle.dispose(); }
 });

@@ -100,6 +100,8 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
       post("actions", { actions: [...actions.keys()] });
     },
     emit(name, data) { try { post("event", { name: String(name), data: plain(data) }); } catch { /* Not serializable; nothing to record. */ } },
+    // Attaches data to the user's next message as a pill in the composer. Call it from a click.
+    send(label, data) { try { post("send", { label: String(label).slice(0, 80), data: plain(data) }); } catch { /* Not serializable; nothing to send. */ } },
   });
   addEventListener("message", async (event) => {
     const message = event.data;

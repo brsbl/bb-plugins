@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { answerSchema, documentSchema, htmlAnswerSchema, idSchema, MAX_HTML_LENGTH, parseDocument, threadSchema, type Answer, type HtmlAnswer } from "./model.js";
+import { SHARE_PROVIDER, answerSchema, documentSchema, htmlAnswerSchema, idSchema, MAX_HTML_LENGTH, parseDocument, threadSchema, type Answer, type HtmlAnswer } from "./model.js";
 import { bill, savings, stepper } from "./examples.js";
 import { buildWidgetDocument, fallbackTheme, FRAME_HEADERS, FRAME_PATH } from "./widget.js";
 import { createLive, liveRpc } from "./live.js";
@@ -17,7 +17,7 @@ const HTML_GUIDE = [
   "Kit classes: .ia-title, .ia-subtitle, .ia-eyebrow, .ia-h, .ia-item-title, .ia-body, .ia-meta, .ia-panel, .ia-stage, .ia-photos, .ia-seg (buttons with aria-pressed), .ia-chip, .ia-btn, .ia-btn-primary, .ia-link, .ia-check (label > input + text + small), .ia-dots (i[aria-current=step]), .ia-reveal (entrance; set --i to stagger).",
   "3D: for rooms, products, or sites, follow the skill's 3D tier (Three.js via import map, MSAA composer with AO and gentle bloom, a shadowed key light plus window area lights, data-driven presets, Poly Haven CC0 models and textures, frosted-glass controls, render on demand). demos/room-3d.html is the reference.",
   "Bridge: window.answer.state is the answer's shared state (or null): the last value passed to window.answer.save(value) on any device, or set by the agent. Call save after each meaningful change; bb stores it and every open copy receives it. window.answer.onState(callback) runs when the state changes elsewhere; apply it without saving again. window.answer.theme and window.answer.onTheme(callback) report theme changes. http(s) links open in a new bb tab.",
-  "Agent control: window.answer.expose({ name: (...args) => result }) lists actions the agent can run with `bb interactive-answers do <id> <name> --args '[...]'`; return a short JSON-serializable result (a Promise is fine) and drive the same code path a click would. window.answer.emit(name, data) records something the user did for `bb interactive-answers watch`. Expose the handful of verbs a person would use (play, select, set), not internals.",
+  "Agent control: window.answer.expose({ name: (...args) => result }) lists actions the agent can run with `bb interactive-answers do <id> <name> --args '[...]'`; return a short JSON-serializable result (a Promise is fine) and drive the same code path a click would. window.answer.emit(name, data) records something the user did for `bb interactive-answers watch`. window.answer.send(label, data), called from a click, attaches data to the user's next message as a pill, so they choose when you see it: use it for things like a recorded take or a finished attempt. Expose the handful of verbs a person would use (play, select, set), not internals.",
   "Remote images, fonts, scripts, and map tiles load normally; use stable public URLs and credit sources in your prose. The frame has no access to bb, cookies, or the conversation; share what the agent should see through save and emit only. Its scripts can reach the network, so never send what the user enters to any other server. Respect prefers-reduced-motion and keep controls keyboard accessible.",
 ].join("\n");
 function guide() {
@@ -60,6 +60,7 @@ export default function plugin(bb: BbPluginApi): void {
     setState: ({ id, threadId, clientId, state }) => ({ version: live.setState(threadId, id, state, clientId) }),
     event: ({ id, threadId, clientId, name, data }) => ({ seq: live.event(threadId, id, clientId, name, data) }),
     presence: ({ id, threadId, clientId, actions, active, closed }) => { live.presence(threadId, id, clientId, actions, active, closed); return { ok: true as const }; },
+    share: ({ id, threadId, clientId, label, data }) => ({ itemId: live.share(threadId, id, clientId, label, data) }),
     result: ({ cmdId, clientId, ok, value, error }) => { live.result(cmdId, clientId, { ok, value, error }); return { ok: true as const }; },
   });
   // HTML answers load from bb's own address instead of an inline srcdoc frame: hosts such as the
@@ -132,5 +133,15 @@ export default function plugin(bb: BbPluginApi): void {
       } }),
     },
   }));
+  // Only an answer's own "send to agent" control inserts this pill, so it never appears in the @ menu.
+  bb.ui.registerMentionProvider({
+    id: SHARE_PROVIDER, label: "Interactive answers", search: () => [],
+    resolve(itemId) {
+      const { id, threadId, label, data } = live.shared(itemId);
+      const answer = store.get(threadId, id);
+      const title = answer.kind === "html" ? answer.widget.title : answer.document.title;
+      return { context: [`The user sent "${label}" from the interactive answer ${id} ("${title}"):`, JSON.stringify(data), `Answer in the card with \`bb interactive-answers do ${id} <action>\` (\`actions ${id}\` lists them) as well as in your reply.`].join("\n") };
+    },
+  });
   bb.events.on("thread.deleted", ({ thread }) => store.removeThread(thread.id));
 }

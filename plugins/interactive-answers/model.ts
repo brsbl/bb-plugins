@@ -147,3 +147,5 @@ export function formatValue(value: number | null, style?: z.infer<typeof format>
 export const COMMAND_CHANNEL = "command";
 export const STATE_CHANNEL = "state";
 export const MAX_STATE_LENGTH = 100_000;
+// Mention provider for things a user sends from an answer to the agent.
+export const SHARE_PROVIDER = "shared";

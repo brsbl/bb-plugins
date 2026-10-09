@@ -20,6 +20,7 @@ export const liveRpc = {
   setState: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, state: z.unknown() }).strict(), output: z.object({ version: z.number().int() }).strict() },
   event: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, name: actionName, data: small }).strict(), output: z.object({ seq: z.number().int() }).strict() },
   presence: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, actions: z.array(actionName).max(50), active: z.boolean(), closed: z.boolean().optional() }).strict(), output: z.object({ ok: z.literal(true) }).strict() },
+  share: { input: z.object({ id: idSchema, threadId: threadSchema, clientId: clientSchema, label: z.string().trim().min(1).max(80), data: small }).strict(), output: z.object({ itemId: z.string() }).strict() },
   result: { input: z.object({ cmdId: z.string().uuid(), clientId: clientSchema, ok: z.boolean(), value: small.optional(), error: z.string().max(2000).optional() }).strict(), output: z.object({ ok: z.literal(true) }).strict() },
 };
 
@@ -66,6 +67,14 @@ export function createLive(bb: BbPluginApi, db: ReturnType<BbPluginApi["storage"
   return {
     getState, setState, events, openClients,
     event(threadId: string, id: string, clientId: string, name: string, data: unknown) { assertAnswer(threadId, id); return log(threadId, id, "event", { by: clientId, name, data }); },
+    // Something the user chose to send to the agent; a composer pill points at it until the message is sent.
+    share(threadId: string, id: string, clientId: string, label: string, data: unknown) { assertAnswer(threadId, id); return `${id}.${log(threadId, id, "shared", { by: clientId, label, data })}`; },
+    shared(itemId: string) {
+      const [id, seq] = itemId.split(".");
+      const row = db.prepare("SELECT thread_id, data FROM answer_events WHERE answer_id = ? AND seq = ? AND kind = 'shared'").get(id, Number(seq)) as { thread_id: string; data: string } | undefined;
+      if (!row) throw new Error("This attachment is no longer available. Send it from the answer again.");
+      return { id, threadId: row.thread_id, ...(JSON.parse(row.data) as { label: string; data: unknown }) };
+    },
     presence(threadId: string, id: string, clientId: string, actions: string[], active: boolean, closed = false) {
       assertAnswer(threadId, id);
       const map = clients.get(id) ?? new Map<string, Client>(); clients.set(id, map);

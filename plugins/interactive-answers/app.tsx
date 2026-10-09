@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { definePluginApp, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useComposer, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { computedValues, defaultValues, evaluate, formatValue, idSchema, validValue, type Answer, type AnswerDocument, type Block, type Control, type HtmlAnswer, type Values } from "./model.js";
+import { computedValues, defaultValues, evaluate, formatValue, idSchema, SHARE_PROVIDER, validValue, type Answer, type AnswerDocument, type Block, type Control, type HtmlAnswer, type Values } from "./model.js";
 import { useLiveAnswer, type LiveSnapshot } from "./use-live.js";
 import { fallbackTheme, FRAME_PATH, THEME_TOKENS, WIDGET_MESSAGE_SOURCE, type WidgetTheme } from "./widget.js";
 import "./app.css";
@@ -99,6 +99,15 @@ export function HtmlAnswerView({ id, threadId, widget, initial }: { id: string; 
     }),
   });
   const { save, emit, active } = live;
+  const rpc = useRpc<typeof rpcContract>();
+  const composer = useComposer();
+  // Only a click inside the answer can attach something to the user's message.
+  const send = (label: string, data: unknown) => {
+    if (!navigator.userActivation?.isActive) return;
+    rpc.call("share", { id, threadId, clientId: live.clientId, label, data: data ?? null }).then(({ itemId }) => { composer.insertMention({ provider: SHARE_PROVIDER, id: itemId, label }); composer.focus(); }, () => { /* The user can send again. */ });
+  };
+  const sendRef = useRef(send);
+  sendRef.current = send;
   // Built once per answer; later state and theme changes are posted so the frame keeps running.
   // The plugin route serves the answer; the shared state and theme ride in the fragment.
   const src = useMemo(() => `/api/v1/plugins/${PLUGIN_ID}/http${FRAME_PATH}?thread=${encodeURIComponent(threadId)}&id=${encodeURIComponent(id)}#${encodeURIComponent(JSON.stringify({ state: live.initialState, theme: readTheme() }))}`, [id, threadId, live.initialState]);
@@ -106,12 +115,13 @@ export function HtmlAnswerView({ id, threadId, widget, initial }: { id: string; 
     const onMessage = (event: MessageEvent) => {
       const data: unknown = event.data;
       if (event.source !== frame.current?.contentWindow || !data || typeof data !== "object") return;
-      const message = data as { source?: unknown; id?: unknown; type?: unknown; height?: unknown; state?: unknown; url?: unknown; actions?: unknown; name?: unknown; data?: unknown; cmdId?: unknown; ok?: unknown; value?: unknown; error?: unknown };
+      const message = data as { source?: unknown; id?: unknown; type?: unknown; height?: unknown; state?: unknown; url?: unknown; actions?: unknown; name?: unknown; label?: unknown; data?: unknown; cmdId?: unknown; ok?: unknown; value?: unknown; error?: unknown };
       if (message.source !== WIDGET_MESSAGE_SOURCE || message.id !== id) return;
       if (message.type === "height" && typeof message.height === "number" && Number.isFinite(message.height)) setHeight(Math.min(4000, Math.max(40, Math.ceil(message.height))));
       if (message.type === "state") save(message.state);
       if (message.type === "event" && typeof message.name === "string") emit(message.name, message.data);
       if (message.type === "active") active();
+      if (message.type === "send" && typeof message.label === "string" && message.label.trim()) sendRef.current(message.label.trim().slice(0, 80), message.data);
       if (message.type === "actions" && Array.isArray(message.actions)) setActions(message.actions.filter((a): a is string => typeof a === "string").slice(0, 50));
       if (message.type === "result" && typeof message.cmdId === "string") results.current.get(message.cmdId)?.({ ok: message.ok === true, value: message.value, error: typeof message.error === "string" ? message.error : undefined });
       // Only follow a link the user just clicked; activation in the frame propagates to this page.
