@@ -7,8 +7,8 @@ import { fallbackTheme, FRAME_PATH, THEME_TOKENS, WIDGET_MESSAGE_SOURCE, type Wi
 import "./app.css";
 import { Diagram } from "./diagram.js";
 
-function readInputs(doc: AnswerDocument, saved: unknown, base = defaultValues(doc)): Values {
-  const values = { ...base };
+function readInputs(doc: AnswerDocument, saved: unknown): Values {
+  const values = defaultValues(doc);
   if (saved && typeof saved === "object") for (const c of doc.controls) {
     const value = (saved as Record<string, unknown>)[c.id];
     if (validValue(c, value)) values[c.id] = value;
@@ -82,7 +82,7 @@ function readTheme(): WidgetTheme {
 }
 
 // Mirrors bb's inline-vis sandbox: scripts run in an opaque origin with no access to bb.
-export function HtmlAnswerView({ id, threadId, widget, initial }: { id: string; threadId: string; widget: HtmlAnswer; initial: LiveSnapshot }) {
+function HtmlAnswerView({ id, threadId, widget, initial }: { id: string; threadId: string; widget: HtmlAnswer; initial: LiveSnapshot }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(240);
   const [actions, setActions] = useState<string[]>([]);
@@ -110,7 +110,7 @@ export function HtmlAnswerView({ id, threadId, widget, initial }: { id: string; 
   sendRef.current = send;
   // Built once per answer; later state and theme changes are posted so the frame keeps running.
   // The plugin route serves the answer; the shared state and theme ride in the fragment.
-  const src = useMemo(() => `/api/v1/plugins/${PLUGIN_ID}/http${FRAME_PATH}?thread=${encodeURIComponent(threadId)}&id=${encodeURIComponent(id)}#${encodeURIComponent(JSON.stringify({ state: live.initialState, theme: readTheme() }))}`, [id, threadId, live.initialState]);
+  const src = useMemo(() => `/api/v1/plugins/${PLUGIN_ID}/http${FRAME_PATH}?thread=${encodeURIComponent(threadId)}&id=${encodeURIComponent(id)}#${encodeURIComponent(JSON.stringify({ state: initial.state, theme: readTheme() }))}`, [id, threadId, initial.state]);
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const data: unknown = event.data;
@@ -149,7 +149,7 @@ export function HtmlAnswerView({ id, threadId, widget, initial }: { id: string; 
   </div>;
 }
 
-export function AnswerView({ answer, initial = { state: null, version: 0 } }: { answer: Answer; initial?: LiveSnapshot }) {
+function AnswerView({ answer, initial }: { answer: Answer; initial: LiveSnapshot }) {
   if (answer.kind === "html") return <HtmlAnswerView id={answer.id} threadId={answer.threadId} widget={answer.widget} initial={initial} />;
   return <DocumentAnswerView answer={answer} initial={initial} />;
 }
@@ -184,7 +184,7 @@ function DocumentAnswerView({ answer, initial }: { answer: Extract<Answer, { kin
       return summary(current.current);
     },
   });
-  const shown = inputs ?? readInputs(doc, live.initialState);
+  const shown = inputs ?? readInputs(doc, initial.state);
   current.current = shown;
   const values = computedValues(doc, shown);
   function save(next: Values) { apply(next); live.save(next); }

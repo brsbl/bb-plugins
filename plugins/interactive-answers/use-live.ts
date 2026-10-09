@@ -17,17 +17,11 @@ const SAVE_DELAY_MS = 300;
 const HEARTBEAT_MS = 10_000;
 const AGENT_BADGE_MS = 2600;
 
-// Answers published before state moved to the server kept it in this browser; carry it over once.
-function legacyState(key: string): unknown {
-  try { return JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return null; }
-}
-
 export function useLiveAnswer({ id, threadId, initial, actions, onRemoteState, onCommand }: Options) {
   const rpc = useRpc<typeof rpcContract>();
   const [clientId] = useState(() => crypto.randomUUID());
-  const [initialState] = useState(() => initial.version === 0 ? legacyState(`interactive-answers:${threadId}:${id}`) ?? initial.state : initial.state);
   const version = useRef(initial.version);
-  const pending = useRef<{ state: unknown } | null>(initial.version === 0 && initialState !== null ? { state: initialState } : null);
+  const pending = useRef<{ state: unknown } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handlers = useRef({ onRemoteState, onCommand });
   handlers.current = { onRemoteState, onCommand };
@@ -42,7 +36,7 @@ export function useLiveAnswer({ id, threadId, initial, actions, onRemoteState, o
     pending.current = null;
     void rpc.call("setState", { id, threadId, clientId, state: next.state }).then((r) => { version.current = Math.max(version.current, r.version); }, () => { /* Offline; the next edit retries. */ });
   }, [rpc, id, threadId, clientId]);
-  useEffect(() => { if (pending.current) flush(); return flush; }, [flush]);
+  useEffect(() => flush, [flush]);
   const save = useCallback((state: unknown) => {
     if (JSON.stringify(state ?? null).length > MAX_STATE_LENGTH) return;
     pending.current = { state: state ?? null };
@@ -90,7 +84,6 @@ export function useLiveAnswer({ id, threadId, initial, actions, onRemoteState, o
 
   return {
     clientId,
-    initialState,
     agent,
     save,
     active: useCallback(() => ping(true), [ping]),

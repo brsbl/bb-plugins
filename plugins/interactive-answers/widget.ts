@@ -67,7 +67,7 @@ img, svg { display: block; max-width: 100%; }
 `;
 
 // Runs before the agent's markup. Exposes window.answer, relays shared state and agent commands, and reports height.
-function bridge(id: string, state: unknown, theme: WidgetTheme) {
+function bridge(id: string, theme: WidgetTheme) {
   return String.raw`(() => {
   const SOURCE = ${JSON.stringify(WIDGET_MESSAGE_SOURCE)}, ID = ${JSON.stringify(id)};
   const post = (type, data) => parent.postMessage({ source: SOURCE, id: ID, type, ...data }, "*");
@@ -85,7 +85,7 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
   try { if (location.hash.length > 1) init = JSON.parse(decodeURIComponent(location.hash.slice(1))); } catch { /* No fragment state. */ }
   let theme = init.theme || ${JSON.stringify(theme)};
   apply(theme);
-  let state = "state" in init ? init.state : ${JSON.stringify(state ?? null)};
+  let state = "state" in init ? init.state : null;
   const actions = new Map();
   window.answer = Object.freeze({
     id: ID,
@@ -166,8 +166,7 @@ export const FRAME_HEADERS = {
   "cache-control": "private, max-age=3600",
 };
 
-export function buildWidgetDocument({ id, html, state, theme }: { id: string; html: string; state: unknown; theme: WidgetTheme }): string {
-  // Escape "</" so stored values cannot terminate the bridge script early.
-  const script = bridge(id, state, theme).replaceAll("</", "<\\/");
+export function buildWidgetDocument({ id, html, theme }: { id: string; html: string; theme: WidgetTheme }): string {
+  const script = bridge(id, theme);
   return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}</style><script>${script}</script></head><body>${html}</body></html>`;
 }

@@ -43,7 +43,6 @@
 .ia-answer table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .ia-answer :is(td, th) { padding: 9px 8px; border-bottom: 1px solid var(--border); text-align: left; font-variant-numeric: tabular-nums; }
 .ia-answer th { font-weight: 500; color: var(--muted-foreground); }
-.ia-answer footer { margin-top: 16px; font-size: 10px; color: var(--muted-foreground); }
 .ia-error p { margin-bottom: 8px; }
 .ia-diagram > svg { display: block; width: 100%; border-radius: 8px; background: var(--muted); overflow: hidden; }
 .ia-diagram svg g { transition: transform 450ms ease, opacity 300ms ease; }

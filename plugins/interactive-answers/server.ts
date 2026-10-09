@@ -69,7 +69,7 @@ export default function plugin(bb: BbPluginApi): void {
     try {
       const answer = store.get(String(c.req.query("thread") ?? ""), String(c.req.query("id") ?? ""));
       if (answer.kind !== "html") return new Response("Not an HTML answer", { status: 404 });
-      return new Response(buildWidgetDocument({ id: answer.id, html: answer.widget.html, state: null, theme: fallbackTheme }), { headers: FRAME_HEADERS });
+      return new Response(buildWidgetDocument({ id: answer.id, html: answer.widget.html, theme: fallbackTheme }), { headers: FRAME_HEADERS });
     } catch {
       return new Response("This answer is unavailable.", { status: 404 });
     }

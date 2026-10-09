@@ -6,7 +6,7 @@ import { bill, stepper } from "./examples.js";
 
 const answer = { id: "e85d6718-895b-48e5-8bc4-2a9bd3477895", threadId: "thr_test", kind: "document" as const, document: bill };
 const props = { attributes: { id: answer.id }, source: "", message: { id: "msg_1", threadId: answer.threadId, turnId: null, projectId: null }, openWorkspaceFile: null };
-afterEach(() => { cleanup(); localStorage.clear(); });
+afterEach(cleanup);
 
 // A stand-in server: answers by kind and one shared state row.
 function server(kind: "document" | "html" = "document") {
@@ -48,16 +48,6 @@ it("saves inputs to the shared answer state, restores them on remount, resets, a
   fireEvent.change(view.getByLabelText("Breakdown"), { target: { value: "table" } });
   expect(view.queryByRole("img")).toBeNull();
   expect(view.getByRole("table")).toBeTruthy();
-  view.lifecycle.unmount();
-});
-
-it("carries state saved in this browser by earlier versions over to the server once", async () => {
-  localStorage.setItem(`interactive-answers:${answer.threadId}:${answer.id}`, JSON.stringify({ ...bill.controls.reduce((v, c) => ({ ...v, [c.id]: c.value }), {}), people: 6 }));
-  const app = await loadPluginApp(() => import("./app.js"));
-  const backend = server();
-  const view = renderSlot(app.messageDirectives[0]!, props, { rpc: backend.rpc });
-  await view.findByText("$36.00", { selector: "dd" }).catch(() => undefined);
-  await waitFor(() => expect(backend.shared.state).toMatchObject({ people: 6 }));
   view.lifecycle.unmount();
 });
 
