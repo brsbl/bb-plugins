@@ -95,6 +95,26 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
     theme = event.data.theme; apply(theme);
     for (const callback of listeners) try { callback(theme); } catch (error) { console.error(error); }
   });
+  // iOS mutes Web Audio while the ringer switch is on silent. When an answer starts audio (always from a tap),
+  // switch the page to a playback session: the audioSession API where it exists, else a silent looping clip.
+  const BaseAudio = window.AudioContext || window.webkitAudioContext;
+  if (BaseAudio) {
+    let silent = null;
+    const unlock = () => {
+      try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch { /* Not supported. */ }
+      if (silent || !/iP(hone|ad|od)|Macintosh.*Mobile/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform))) return;
+      const n = 4000, bytes = new Uint8Array(44 + n), view = new DataView(bytes.buffer), text = (o, str) => [...str].forEach((ch, i) => bytes[o + i] = ch.charCodeAt(0));
+      text(0, "RIFF"); view.setUint32(4, 36 + n, true); text(8, "WAVEfmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+      view.setUint32(24, 8000, true); view.setUint32(28, 8000, true); view.setUint16(32, 1, true); view.setUint16(34, 8, true); text(36, "data"); view.setUint32(40, n, true); bytes.fill(128, 44);
+      silent = new Audio(URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }))); silent.loop = true; silent.setAttribute("playsinline", ""); silent.play().catch(() => { silent = null; });
+    };
+    class PlaybackAudioContext extends BaseAudio {
+      constructor(...args) { super(...args); unlock(); }
+      resume() { unlock(); return super.resume(); }
+    }
+    window.AudioContext = PlaybackAudioContext;
+    if (window.webkitAudioContext) window.webkitAudioContext = PlaybackAudioContext;
+  }
   let last = 0;
   const report = () => { const height = Math.ceil(document.documentElement.getBoundingClientRect().height); if (height !== last) { last = height; post("height", { height }); } };
   addEventListener("DOMContentLoaded", () => { new ResizeObserver(report).observe(document.documentElement); report(); });
