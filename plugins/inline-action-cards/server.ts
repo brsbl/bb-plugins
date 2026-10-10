@@ -283,9 +283,16 @@ export default function plugin(bb: BbPluginApi): void {
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
     table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable, submitted: store.submitted, prepareBatch: store.prepareBatch,
   });
+  // The idle payload can lag a queued message that is already starting, so settle first and re-read the thread.
   bb.events.on("thread.idle", ({ thread }) => {
     if (thread.queuedMessageCount > 0) return;
-    try { store.undelivered(thread.id); } catch (err) { bb.log.warn(`Could not check an idle thread for undelivered card requests: ${err instanceof Error ? err.message : String(err)}`); }
+    setTimeout(() => void (async () => {
+      try {
+        const latest = await bb.sdk.threads.get({ threadId: thread.id });
+        if (latest.status !== "idle" || latest.queuedMessageCount > 0) return;
+        store.undelivered(thread.id);
+      } catch (err) { bb.log.warn(`Could not check an idle thread for undelivered card requests: ${err instanceof Error ? err.message : String(err)}`); }
+    })(), 3000);
   });
   bb.events.on("message.cancelled", ({ entry }) => {
     try { store.cancelled(entry); } catch (err) { bb.log.warn(`Could not reopen an action card after its queued request was deleted: ${err instanceof Error ? err.message : String(err)}`); }
