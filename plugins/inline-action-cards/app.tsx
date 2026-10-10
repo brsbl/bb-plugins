@@ -393,7 +393,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
     </article>;
   }
   if (row && sheet) return <SheetRowView item={item} done={done} result={result} expanded={expanded} onExpand={(open) => onExpand?.(open)}
-    sheet={sheet} disabled={disabled} followUpCount={followUps.length} failure={failure}
+    sheet={sheet} disabled={disabled} followUpCount={followUps.length} failure={failure} resend={pending && !busy && !status ? () => void act() : null}
     body={<div className="iac-row-expanded">{details}</div>} />;
   return <article className="iac-card" aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
     {done ? result : null}

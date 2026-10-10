@@ -223,6 +223,32 @@ it("stages row answers, offers the matching bulk answer, and sends every answer 
   await waitFor(() => expect(screen.getAllByText("Switch sent")).toHaveLength(2));
 });
 
+it("keeps a prepared but unsent row open with Resend instead of folding it away as sent", async () => {
+  let items: Item[] = [
+    { ...fixture(), id: "one", revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false }, content: { type: "decide", question: "Switch one?", consequence: "Keep schedules", yesLabel: "Switch" } },
+    { ...fixture(), id: "two", content: { type: "decide", question: "Switch two?", consequence: "Keep schedules", yesLabel: "Switch" } },
+  ];
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+    composer: { scope: { kind: "thread", threadId: "thr_test" } },
+    rpc: {
+      table: () => ({ id: "digests", threadId: "thr_test", title: "Digests", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
+      get: (raw) => ({ ...items.find((item) => item.id === (raw as { id: string }).id)!, followUps: [] }),
+      submitted: (raw) => {
+        const id = (raw as { id: string }).id;
+        items = items.map((item): Item => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item);
+        return items.find((item) => item.id === id);
+      },
+    },
+  });
+  expect(await screen.findByText("1 to decide · 1 not sent")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /sent or done/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Resend" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(slot.inspection.composer.mentions).toMatchObject([{ id: "thr_test:one:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
+  expect(await screen.findByRole("button", { name: /1 sent or done/ })).toBeTruthy();
+});
+
 it("drops a staged answer when the agent changes its row, and keeps answers across a remount", async () => {
   let items: Item[] = ["one", "two"].map((id) => ({ ...fixture(), id, content: { type: "choice", question: `Pick ${id}`, recommended: "b", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] } }));
   const app = await loadPluginApp(() => import("./app.js"));

@@ -62,9 +62,18 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
     }
     return next;
   }), []);
-  const load = useCallback(async () => {
-    try { const next = await rpc.call("table", { id, threadId }); setTable(next); reconcile(next.items); setError(null); }
-    catch (err) { setError(readableError(err)); }
+  // One table read at a time: events that arrive meanwhile share a single trailing reload.
+  const loading = useRef<Promise<void> | null>(null);
+  const again = useRef(false);
+  const load = useCallback(async (): Promise<void> => {
+    if (loading.current) { again.current = true; return loading.current; }
+    const run = (async () => {
+      try { const next = await rpc.call("table", { id, threadId }); setTable(next); reconcile(next.items); setError(null); }
+      catch (err) { setError(readableError(err)); }
+    })();
+    loading.current = run;
+    try { await run; } finally { loading.current = null; }
+    if (again.current) { again.current = false; await load(); }
   }, [rpc, id, threadId, reconcile]);
   // Folded rows are not mounted, so the sheet itself follows results; a failure moves back into the open list.
   useEffect(() => {
@@ -72,7 +81,13 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
     const timer = setInterval(() => { void load(); }, 5000);
     return () => clearInterval(timer);
   }, [load]);
-  useRealtime("items", () => { void load(); });
+  const ids = useRef<string[]>([]); ids.current = table?.ids ?? [];
+  // Only this thread's rows matter; a change elsewhere never reloads this sheet.
+  useRealtime("items", (payload) => {
+    const change = payload as { threadId?: unknown; id?: unknown } | null;
+    if (change?.threadId !== threadId || (typeof change.id === "string" && !ids.current.includes(change.id))) return;
+    void load();
+  });
   const updateItem = useCallback((next: Item, own = false) => {
     setTable((value) => {
       const previous = value?.items.find((item) => item.id === next.id);
@@ -130,9 +145,13 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
   const staged = ready.filter((item) => saved.stages[item.id]?.revision === item.revision);
   const failed = table.items.filter((item) => item.state === "failed");
   // Open rows stay in place; anything sent or done folds into one group below them.
-  const finished = table.items.filter((item) => item.state === "pending" || item.state === "succeeded");
+  // A request that never reached the composer is not sent: it stays open with Resend.
+  const unsent = table.items.filter((item) => item.state === "pending" && !item.attempt?.sentAt && !item.attempt?.claimed);
+  const finished = table.items.filter((item) => item.state === "succeeded" || (item.state === "pending" && !unsent.includes(item)));
   const toDecide = ready.length - staged.length;
-  const summary = [toDecide ? `${toDecide} to decide` : ready.length ? "All answered" : "All sent", failed.length ? `${failed.length} need${failed.length === 1 ? "s" : ""} attention` : null].filter(Boolean).join(" · ");
+  const summary = [toDecide ? `${toDecide} to decide` : ready.length ? "All answered" : unsent.length ? null : "All sent",
+    unsent.length ? `${unsent.length} not sent` : null,
+    failed.length ? `${failed.length} need${failed.length === 1 ? "s" : ""} attention` : null].filter(Boolean).join(" · ");
   // Matching rows keep their one-click "… all"; otherwise the agent's recommendations can be staged at once.
   const all = bulkLabel(table.items);
   const suggested = ready.filter((item) => !saved.stages[item.id] && recommendation(item));
@@ -167,9 +186,11 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
 }
 
 // One sheet row: question, its staged answer, and the full card body when open.
-export function SheetRowView({ item, done, result, expanded, onExpand, sheet, disabled, followUpCount, failure, body }: {
+export function SheetRowView({ item, done, result, expanded, onExpand, sheet, disabled, followUpCount, failure, body, resend }: {
   item: Item; done: boolean; result: ReactNode; expanded: boolean; onExpand: (open: boolean) => void; sheet: SheetBinding;
   disabled: boolean; followUpCount: number; failure: ReactNode; body: ReactNode;
+  // Set while this row's request was prepared but never reached the composer.
+  resend: (() => void) | null;
 }) {
   const { content } = item;
   const staged = sheet.staged;
@@ -195,7 +216,7 @@ export function SheetRowView({ item, done, result, expanded, onExpand, sheet, di
       <div className="iac-row-answer">
         {sheet.changed && !staged && <span className="iac-tag iac-tag-changed">Changed — review again</span>}
         {staged && <span id={status} className="iac-sr-only">Not sent yet</span>}
-        {answer}
+        {resend ? <><span className="iac-muted">Not sent</span><ActionButton variant="outline" onClick={resend}>Resend</ActionButton></> : answer}
       </div>
     </div>}
     {expanded && body}
