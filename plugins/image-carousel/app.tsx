@@ -22,32 +22,25 @@ function loadImage(rpc: Rpc, image: ImageRef) {
   return url;
 }
 
-const slideImages = (carousel: Carousel, index: number): ImageRef[] => {
-  if (carousel.kind === "research") { const slide = carousel.slides[index]; return slide ? [slide.image] : []; }
-  const slide = carousel.slides[index];
-  return slide ? [slide.before, slide.after] : [];
-};
-
 function Shot({ rpc, image, alt }: { rpc: Rpc; image: ImageRef; alt: string }) {
-  const [state, setState] = useState<{ sha: string; url: string | null; failed: boolean }>({ sha: image.sha256, url: null, failed: false });
+  const [state, setState] = useState<{ url: string | null; failed: boolean }>({ url: null, failed: false });
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState(false);
   const frame = useRef<HTMLButtonElement>(null);
   const closeViewer = useCallback(() => { setOpen(false); frame.current?.focus(); }, []);
   useEffect(() => {
     let live = true;
-    setState({ sha: image.sha256, url: null, failed: false });
-    loadImage(rpc, image).then((url) => { if (live) setState({ sha: image.sha256, url, failed: false }); }, () => { if (live) setState({ sha: image.sha256, url: null, failed: true }); });
+    setState({ url: null, failed: false });
+    loadImage(rpc, image).then((url) => { if (live) setState({ url, failed: false }); }, () => { if (live) setState({ url: null, failed: true }); });
     return () => { live = false; };
   }, [rpc, image, attempt]);
-  const current = state.sha === image.sha256 ? state : { url: null, failed: false };
-  if (current.failed) return <div className="icx-frame icx-frame-empty" role="alert">Image unavailable<button type="button" className="icx-retry" onClick={() => setAttempt((value) => value + 1)}>Retry</button></div>;
-  if (!current.url) return <div className="icx-frame icx-frame-empty" aria-busy="true"><span className="icx-sr-only">Loading image</span></div>;
+  if (state.failed) return <div className="icx-frame icx-frame-empty" role="alert">Image unavailable<button type="button" className="icx-retry" onClick={() => setAttempt((value) => value + 1)}>Retry</button></div>;
+  if (!state.url) return <div className="icx-frame icx-frame-empty" aria-busy="true"><span className="icx-sr-only">Loading image</span></div>;
   return <>
     <button ref={frame} type="button" className="icx-frame icx-frame-button" aria-label={`View full size: ${alt}`} onClick={() => setOpen(true)}>
-      <img src={current.url} alt={alt} draggable={false} />
+      <img src={state.url} alt={alt} draggable={false} />
     </button>
-    {open && <Viewer url={current.url} alt={alt} onClose={closeViewer} />}
+    {open && <Viewer url={state.url} alt={alt} onClose={closeViewer} />}
   </>;
 }
 
@@ -88,9 +81,6 @@ function CarouselView({ carousel }: { carousel: Carousel }) {
     if (caption.current) caption.current.scrollTop = 0;
     measure();
   }, [index, measure]);
-  useEffect(() => {
-    for (const neighbor of [index - 1, index + 1]) for (const image of slideImages(carousel, neighbor)) void loadImage(rpc, image).catch(() => undefined);
-  }, [carousel, index, rpc]);
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
@@ -103,10 +93,10 @@ function CarouselView({ carousel }: { carousel: Carousel }) {
       <Arrow direction="previous" disabled={index === 0} onClick={() => move(-1)} />
       <div className="icx-media" role="group" aria-roledescription="slide" aria-label={`${index + 1} of ${count}: ${slide.title}`}>
         {carousel.kind === "research"
-          ? <Shot rpc={rpc} image={carousel.slides[index]!.image} alt={slide.title} />
+          ? <Shot key={carousel.slides[index]!.image.sha256} rpc={rpc} image={carousel.slides[index]!.image} alt={slide.title} />
           : <div className="icx-pair">
-            <figure><figcaption className="icx-tag">Before</figcaption><Shot rpc={rpc} image={carousel.slides[index]!.before} alt={`Before: ${slide.title}`} /></figure>
-            <figure><figcaption className="icx-tag icx-tag-after">After</figcaption><Shot rpc={rpc} image={carousel.slides[index]!.after} alt={`After: ${slide.title}`} /></figure>
+            <figure><figcaption className="icx-tag">Before</figcaption><Shot key={carousel.slides[index]!.before.sha256} rpc={rpc} image={carousel.slides[index]!.before} alt={`Before: ${slide.title}`} /></figure>
+            <figure><figcaption className="icx-tag icx-tag-after">After</figcaption><Shot key={carousel.slides[index]!.after.sha256} rpc={rpc} image={carousel.slides[index]!.after} alt={`After: ${slide.title}`} /></figure>
           </div>}
       </div>
       <Arrow direction="next" disabled={index === count - 1} onClick={() => move(1)} />
