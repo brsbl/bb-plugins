@@ -17,29 +17,30 @@
 .ac-context-body strong, .ac-context-body b { color: var(--foreground); font-weight: 500; }
 .ac-context .ac-link { margin-top: calc(var(--ac-s) * 1); }
 /* Options: bb question-form rows */
-.ac-options { display: grid; gap: 2px; min-width: 0; margin: 0 calc(var(--ac-option-px) * -1); padding: 0; border: 0; }
-.ac-option { position: relative; display: flex; align-items: flex-start; gap: calc(var(--ac-s) * 2.5); padding: var(--ac-option-py) var(--ac-option-px); border-radius: var(--ac-radius-control); cursor: pointer; }
-.ac-option:hover:not(:has(input:disabled)) { background: var(--state-hover, var(--muted)); }
-.ac-option:has(input:checked) { background: var(--surface-selected, var(--muted)); }
-.ac-option:has(input:focus-visible) { outline: 1px solid var(--ring); outline-offset: -1px; }
+.ac-options { display: grid; gap: calc(var(--ac-s) * 1); min-width: 0; margin: 0; padding: 0; border: 0; }
+.ac-option { position: relative; display: flex; align-items: flex-start; gap: calc(var(--ac-s) * 2); padding: calc(var(--ac-s) * 1) 0; cursor: pointer; }
+.ac-option:hover:not(:has(input:disabled)) .ac-glyph { border-color: var(--muted-foreground); }
+.ac-option:has(input:focus-visible) .ac-glyph { outline: 2px solid var(--ring); outline-offset: 2px; }
 .ac-option:has(input:disabled) { cursor: default; opacity: .6; }
 .ac-option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
 .ac-glyph { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: var(--ac-glyph); height: var(--ac-glyph); margin-top: 2px; box-sizing: border-box; border: 1px solid var(--input, var(--border)); border-radius: 50%; }
-.ac-glyph svg { width: 75%; height: 75%; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
-.ac-option:has(input:checked) .ac-glyph { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
-.ac-option:has(input:checked) .ac-glyph svg { opacity: 1; }
+.ac-option:has(input:checked) .ac-glyph { border-color: var(--primary); background: var(--primary); box-shadow: inset 0 0 0 3px var(--card); }
 .ac-option-text { display: grid; min-width: 0; }
-.ac-option-label { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--ac-s) * 2); font-weight: 500; }
+.ac-option-label { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--ac-s) * 2); }
 .ac-option[data-destructive] .ac-option-label { color: var(--destructive); }
 .ac-option-hint { color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.4; }
 .ac-tag { padding: 0 calc(var(--ac-s) * 1.5); border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: var(--ac-meta); font-weight: 400; line-height: 1.4; }
 /* Note and submit: "Add note" sits left of Submit; once opened the textarea takes the full width above it. */
-.ac-submit { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: calc(var(--ac-s) * 2); }
-.ac-note-toggle { height: var(--ac-control); padding-inline: var(--ac-option-px); }
+.ac-submit { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: calc(var(--ac-s) * 2); }
+.ac-note-toggle { display: inline-flex; align-items: center; gap: calc(var(--ac-s) * 1.5); padding: 0; border: 0; background: none; color: var(--muted-foreground); font: inherit; font-size: var(--ac-body); cursor: pointer; }
+.ac-note-toggle:hover { color: var(--foreground); }
+.ac-note-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 2px; }
+.ac-note-toggle svg { width: var(--ac-glyph); height: var(--ac-glyph); }
+.ac-note-toggle:disabled { opacity: .5; cursor: default; }
 .ac-textarea { display: block; flex: 1 0 100%; width: 100%; min-height: 36px; max-height: 12lh; box-sizing: border-box; padding: calc(var(--ac-s) * 2) calc(var(--ac-s) * 3); border: 1px solid var(--border); border-radius: var(--ac-radius-control); background: var(--surface-raised, var(--muted)); color: var(--foreground); font: inherit; font-size: var(--ac-body); line-height: 1.6; resize: none; field-sizing: content; }
 .ac-textarea::placeholder { color: var(--muted-foreground); }
 .ac-textarea:focus-visible { outline: none; border-color: color-mix(in oklab, var(--ring) 50%, transparent); box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 40%, transparent); }
-.ac-button { height: var(--ac-control); }
+.ac-button { height: var(--ac-control); margin-left: auto; }
 /* Outcome */
 .ac-outcome { display: grid; gap: 2px; }
 .ac-outcome-line { display: flex; flex-wrap: wrap; align-items: center; column-gap: calc(var(--ac-s) * 2); row-gap: 2px; }
@@ -65,7 +66,7 @@
 /* Long unbroken text (URLs, paths) wraps instead of widening the card. */
 .ac-card, .ac-card > *, .ac-row > *, .ac-spec, .ac-spec-frame { min-width: 0; }
 .ac-context { overflow-wrap: anywhere; }
-.ac-row > .ac-note-toggle { justify-self: start; margin-left: calc(var(--ac-option-px) * -1); }
+.ac-row > .ac-note-toggle { justify-self: start; }
 /* Body: what the decision is about, then the answer, stacked like bb's question form. */
 .ac-body { display: grid; gap: var(--ac-gap); }
 .ac-about, .ac-answer { display: grid; gap: var(--ac-gap); min-width: 0; }
