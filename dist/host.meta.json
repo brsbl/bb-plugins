@@ -1,0 +1,12 @@
+{
+  "sdkMajor": 0,
+  "sdkVersion": "0.5.9",
+  "artifactFormatVersion": 1,
+  "pluginId": "moss-viewer",
+  "pluginVersion": "0.1.0",
+  "builtWith": {
+    "bbVersion": "0.43.4",
+    "pluginSdkVersion": "0.5.9"
+  },
+  "artifactDigest": "3496b742829bb268d44a75c92725c8139825b5677992ced7f5201eb66bc4295a"
+}

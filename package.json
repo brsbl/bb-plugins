@@ -1,0 +1,27 @@
+{
+  "name": "bb-plugin-moss-viewer",
+  "version": "0.1.0",
+  "description": "Read and edit Moss notes in a bb panel with Moss's own viewer and editor.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "vendor",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.43.4",
+    "bbPluginSdk": ">=0.5.9"
+  },
+  "bb": {
+    "name": "Moss Viewer",
+    "description": "Read and edit Moss notes in a bb panel the way Moss does, saving to the note's files on your Mac.",
+    "branding": {
+      "icon": "FileText"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "host": "./dist/install-host.mjs",
+    "skills": []
+  }
+}
