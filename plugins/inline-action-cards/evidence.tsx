@@ -75,7 +75,7 @@ export function AnswerBar({ value, onChange, onAsk, onSubmit, submitLabel, disab
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6M7 11l5-5 5 5" /></svg>
       </button>}
     </div>
-    <ActionButton className="iac-ask-button" variant="outline" disabled={disabled || !typed} onClick={onAsk} title="Send the comment as a question; nothing is decided">Ask</ActionButton>
+    <ActionButton className="iac-ask-button" variant="outline" disabled={disabled || !typed} onClick={onAsk}>Ask</ActionButton>
     {children}
   </div>;
 }
