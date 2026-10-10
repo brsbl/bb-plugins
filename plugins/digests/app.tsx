@@ -244,46 +244,32 @@ function emailParts(item: EmailRow) {
   };
 }
 
-function emailKind(item: EmailRow): string | undefined {
-  if (item.kind) return item.kind;
-  const text = `${item.title} ${item.sender ?? ""} ${item.subject ?? ""} ${item.text}`;
-  if (/\bstatements?\b/iu.test(text)) return "statement";
-  if (/\b(dividend|trade confirmation|brokerage|investment|retirement|robinhood)\b/iu.test(text)) return "account";
-  if (/\b(receipt|payment (?:complete|completed|received)|order confirmation)\b/iu.test(text)) return "receipt";
-  if (/\b(bill|invoice|autopay|payment due|amount due)\b/iu.test(text)) return "bill";
-  if (/\b(shipp?ing|shipped|package|tracking|delivery)\b/iu.test(text)) return "shipping";
-  if (/\b(event|meetup|invitation|meeting|rsvp)\b/iu.test(text)) return "event";
-  if (/\b(newsletter|digest|product updates|this week in|new this month)\b/iu.test(text)) return "newsletter";
-  if (/\b(sign-in|security alert|verification code)\b/iu.test(text)) return "alert";
-  return undefined;
-}
-
-function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: string; issueDate: number }) {
+function EmailList({ items, label, issueDate, threadId }: { items: EmailRow[]; label: string; issueDate: number; threadId: string }) {
   const navigate = useBbNavigate();
-  return <div className="digest-email-scroll" role="region" aria-label={label} tabIndex={0}>
-    <table className="digest-email-table">
-      <colgroup><col className="digest-col-sender" /><col className="digest-col-subject" /><col className="digest-col-detail" /><col className="digest-col-kind" /><col className="digest-col-date" /></colgroup>
-      <thead><tr><th scope="col">Sender</th><th scope="col">Subject</th><th scope="col">Summary</th><th scope="col">Type</th><th scope="col">Received</th></tr></thead>
-      <tbody>{items.map((item, index) => {
-        const { sender, subject } = emailParts(item);
-        const kind = emailKind(item);
-        const date = item.receivedAt === undefined ? null : new Date(item.receivedAt);
-        const sameDay = date?.toDateString() === new Date(issueDate).toDateString();
-        const dateLabel = date ? new Intl.DateTimeFormat(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric" }).format(date) : "";
-        return <tr key={index} className="digest-email-row" onClick={(event) => {
-          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-          event.preventDefault();
-          if (safeLink(item.url)) navigate.openUrl(item.url);
-        }}>
-          <td className="digest-email-sender" title={sender}><a href={safeLink(item.url)} aria-label={[sender, subject, item.text].filter(Boolean).join(" · ")}>{sender || "Email"}</a></td>
-          <td title={subject}>{subject}</td>
-          <td className="digest-email-detail" title={item.text}><span>{item.text}</span></td>
-          <td>{kind && <span className="digest-email-kind" data-kind={kind}>{kind[0]!.toUpperCase() + kind.slice(1)}</span>}</td>
-          <td className="digest-email-date">{date && <time dateTime={date.toISOString()} title={date.toLocaleString()}>{dateLabel}</time>}</td>
-        </tr>;
-      })}</tbody>
-    </table>
-  </div>;
+  const composer = useComposer();
+  // Ask only drafts into this thread's own composer; the user still decides what to send.
+  const canAsk = composer.scope.kind === "thread" && composer.scope.threadId === threadId;
+  return <ul className="digest-email-list" aria-label={label}>{items.map((item, index) => {
+    const { sender, subject } = emailParts(item);
+    const name = [sender, subject].filter(Boolean).join(" · ");
+    const date = item.receivedAt === undefined ? null : new Date(item.receivedAt);
+    const sameDay = date?.toDateString() === new Date(issueDate).toDateString();
+    const dateLabel = date ? new Intl.DateTimeFormat(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric" }).format(date) : "";
+    return <li key={index} className="digest-email-row">
+      <div className="digest-email-main" title={name}>
+        <span className="digest-email-sender">{sender || "Email"}</span>
+        <span className="digest-email-detail">{item.text || subject}</span>
+      </div>
+      {date && <time className="digest-email-date" dateTime={date.toISOString()} title={date.toLocaleString()}>{dateLabel}</time>}
+      <div className="digest-email-actions">
+        {canAsk && <Button variant="ghost" aria-label={`Ask about ${name}`} onClick={() => {
+          composer.updateText((current) => `${current.trim() ? `${current.trimEnd()}\n` : ""}About ${name}: `);
+          composer.focus();
+        }}>Ask</Button>}
+        <Button aria-label={`Open ${name}`} onClick={() => { if (safeLink(item.url)) navigate.openUrl(item.url); }}>Open</Button>
+      </div>
+    </li>;
+  })}</ul>;
 }
 
 function sectionLabel(label: string): string {
@@ -294,9 +280,9 @@ function summaryLabel(label: string): string {
   return sectionLabel(label).replace(/\bno action needed\b/giu, "need nothing from you");
 }
 
-function BriefCards({ brief, headline, prefix, issueDate, expanded, setExpanded }: {
-  brief: Brief; headline: string; prefix: string; issueDate: number;
-  expanded: "tail" | "all" | null; setExpanded: (section: "tail" | "all" | null) => void;
+function BriefCards({ brief, headline, prefix, issueDate, threadId, expanded, setExpanded }: {
+  brief: Brief; headline: string; prefix: string; issueDate: number; threadId: string;
+  expanded: "tail" | null; setExpanded: (section: "tail" | null) => void;
 }) {
   const navigate = useBbNavigate();
   const open = (url: string) => { if (safeLink(url)) navigate.openUrl(url); };
@@ -322,12 +308,11 @@ function BriefCards({ brief, headline, prefix, issueDate, expanded, setExpanded 
       </li>; })}
     </ol></section>}
     {brief.later.length > 0 && <section className="digest-group digest-later"><h3 id={`${prefix}-later`} className="digest-section-heading" data-tone="neutral" tabIndex={-1}><CountLabel label={brief.laterLabel} count={brief.later.length} /></h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></section>}
-    {brief.tail && <details className="digest-more" id={`${prefix}-tail`} data-tone="neutral" open={expanded === "tail"}><summary onClick={(event) => { event.preventDefault(); setExpanded(expanded === "tail" ? null : "tail"); }}>
+    {brief.all ? <section className="digest-group" id={`${prefix}-all`}><h3 className="digest-section-heading" data-tone="neutral"><CountLabel label={brief.all.label} count={brief.all.items.length} /></h3>
+      <EmailList items={brief.all.items} label={brief.all.label} issueDate={issueDate} threadId={threadId} /></section>
+      : brief.tail && <details className="digest-more" id={`${prefix}-tail`} data-tone="neutral" open={expanded === "tail"}><summary onClick={(event) => { event.preventDefault(); setExpanded(expanded === "tail" ? null : "tail"); }}>
       <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><CountLabel label={sectionLabel(brief.tail.label)} count={brief.tail.items?.length} />
-    </summary>{brief.tail.items?.length ? <EmailList items={brief.tail.items} label={sectionLabel(brief.tail.label)} issueDate={issueDate} /> : <NewsletterText content={brief.tail.details} />}</details>}
-    {brief.all && <details className="digest-more" id={`${prefix}-all`} data-tone="neutral" open={expanded === "all"}><summary onClick={(event) => { event.preventDefault(); setExpanded(expanded === "all" ? null : "all"); }}>
-      <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><CountLabel label={brief.all.label} count={brief.all.items.length} />
-    </summary><EmailList items={brief.all.items} label={brief.all.label} issueDate={issueDate} /></details>}
+    </summary>{brief.tail.items?.length ? <EmailList items={brief.tail.items} label={sectionLabel(brief.tail.label)} issueDate={issueDate} threadId={threadId} /> : <NewsletterText content={brief.tail.details} />}</details>}
   </div>;
 }
 
@@ -335,13 +320,10 @@ function EmailReadStatus({ issue }: { issue: Issue }) {
   if (!issue.emailReads?.length || issue.state === "collecting") return null;
   const uncertain = issue.emailReads.filter((read) => read.wasUnread && read.afterReading === "keep-unread" && read.status !== "restored-unread");
   if (uncertain.length) return <div className="digest-read-warning" role="alert">
-    <p>Couldn’t confirm {uncertain.length === 1 ? "1 email is" : `${uncertain.length} emails are`} unread again. Check these in Gmail and mark them unread if needed.</p>
+    <p>{uncertain.length === 1 ? "1 email" : `${uncertain.length} emails`} may now show as read:</p>
     <ul>{uncertain.map((read) => <li key={read.messageId}>{read.url ? <NewsletterLink href={safeLink(read.url)}>{read.title ?? "Review email"}</NewsletterLink> : read.title ?? "Email with an unconfirmed unread state"}</li>)}</ul>
   </div>;
-  const kept = issue.emailReads.filter((read) => read.status === "restored-unread").length;
-  const left = issue.emailReads.filter((read) => read.status === "left-read").length;
-  const unchanged = issue.emailReads.filter((read) => read.status === "unchanged-read").length;
-  return <p className="digest-read-status">{[kept && `${kept} restored to unread`, left && `${left} left read`, unchanged && `${unchanged} already read`].filter(Boolean).join(" · ")}</p>;
+  return null;
 }
 
 function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
@@ -353,7 +335,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const prefix = useId();
-  const [expanded, setExpanded] = useState<"tail" | "all" | null>(null);
+  const [expanded, setExpanded] = useState<"tail" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState<"retry" | "reconnect" | null>(null);
@@ -387,11 +369,11 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
   return (
     <article className="digest-issue" aria-label="Brief summary" data-state={issue.state}>
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
-      {issue.brief?.summaryLinks?.length && issue.state === "ready" ? <div className="digest-lede digest-summary-links">{issue.brief.summaryLinks.map((link, index) => <span key={index}>
+      {issue.brief?.summaryLinks?.length && !issue.brief.all && issue.state === "ready" ? <div className="digest-lede digest-summary-links">{issue.brief.summaryLinks.map((link, index) => <span key={index}>
         {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a aria-label={summaryLabel(link.label)} data-tone={link.section === "items" ? headingTone(issue.brief!) : "neutral"} href={`#${prefix}-${link.section}`} onClick={(event) => {
           event.preventDefault();
           const target = document.getElementById(`${prefix}-${link.section}`);
-          if (link.section === "tail" || link.section === "all") setExpanded(link.section);
+          if (link.section === "tail") setExpanded(link.section);
           const focus = target?.querySelector("summary") ?? target;
           // Email sections stay bounded inside this slot; growing the host timeline
           // and scrolling it concurrently fights the host's bottom anchoring.
@@ -400,7 +382,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
         }}><CountLabel label={summaryLabel(link.label)} /></a> : <span><CountLabel label={summaryLabel(link.label)} /></span>}
       </span>)}</div> : issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
-      {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} issueDate={issue.createdAt} expanded={expanded} setExpanded={setExpanded} />}
+      {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} issueDate={issue.createdAt} threadId={threadId} expanded={expanded} setExpanded={setExpanded} />}
       <EmailReadStatus issue={issue} />
       {(!issue.brief || issue.state === "failed") && mainContent?.trim() && issue.state !== "collecting" && <NewsletterText className="digest-story" content={mainContent} />}
       {!issue.brief && moreContent.trim() && <details className="digest-more">
