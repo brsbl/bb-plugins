@@ -28,7 +28,6 @@ const rowLinkClass = "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-
 const rowActionClass = "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 [@media(hover:none)]:opacity-100";
 const noMotion = { animation: "none", transition: "none" };
 const menuClass = "min-w-40 p-1";
-const menuItemClass = "min-h-6 px-2 py-1 text-xs leading-4";
 type PinAction = { label: string; hint?: string; disabled?: boolean; run(): void };
 async function copyText(text: string, copied: string, failed: string) {
   try { await navigator.clipboard.writeText(text); toast.success(copied); } catch { toast.error(failed); }
@@ -156,7 +155,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     return <Tooltip>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
       <TooltipContent side="top" sideOffset={6} className="w-72 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg">
-        <div className="border-b bg-muted/30 px-3 py-1.5 text-[11px] leading-4 text-muted-foreground break-all">{tip.address}</div>
+        <div className="border-b bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground break-all">{tip.address}</div>
         {isUrlPin(pin) ? <LinkPreviewCard threadId={threadId} pin={pin} /> : <div className="flex items-start gap-2 px-3 py-2.5">
           <span className="mt-0.5 shrink-0"><PinIcon threadId={threadId} pin={pin} /></span>
           <div className="min-w-0">
@@ -211,8 +210,8 @@ function PinStrip({ threadId }: { threadId: string }) {
   function contextMenu(pin: Reference) {
     return <ContextMenuContent style={noMotion} className={menuClass}>
       {menuGroups(pin).map((group, index) => <Fragment key={index}>
-        {index > 0 && <ContextMenuSeparator className="my-0.5" />}
-        {group.map((action) => <ContextMenuItem className={menuItemClass} key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></ContextMenuItem>)}
+        {index > 0 && <ContextMenuSeparator />}
+        {group.map((action) => <ContextMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></ContextMenuItem>)}
       </Fragment>)}
     </ContextMenuContent>;
   }
@@ -247,8 +246,8 @@ function PinStrip({ threadId }: { threadId: string }) {
         <Menu.Trigger asChild><button type="button" aria-label={`Actions for ${pin.name}`} title="Actions" className={rowActionClass}><Icon name="MoreHorizontal" className="size-4" /></button></Menu.Trigger>
         <DropdownMenuContent side={compact ? "bottom" : "right"} align={compact ? "end" : "start"} alignOffset={compact ? 0 : -4} sideOffset={compact ? 4 : 8} collisionPadding={8} style={noMotion} className={menuClass}>
           {menuGroups(pin).map((group, index) => <Fragment key={index}>
-            {index > 0 && <DropdownMenuSeparator className="my-0.5" />}
-            {group.map((action) => <DropdownMenuItem className={menuItemClass} key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
+            {index > 0 && <DropdownMenuSeparator />}
+            {group.map((action) => <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.run}><ActionLabel action={action} /></DropdownMenuItem>)}
           </Fragment>)}
         </DropdownMenuContent>
       </Menu.Root>

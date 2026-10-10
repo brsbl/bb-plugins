@@ -23,11 +23,11 @@ export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlP
   const title = pin.name !== urlPinName(pin.url) ? pin.name : preview?.title || pin.name;
   const image = preview?.image && /^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(preview.image) && !failedImage ? preview.image : null;
   return <>
-    <div className="flex h-28 items-center justify-center overflow-hidden border-b bg-muted/30">
+    <div className="flex h-32 items-center justify-center overflow-hidden border-b bg-muted/30">
       {image ? <img src={image} alt="" draggable={false} onError={() => setFailedImage(true)} className="h-full w-full object-cover" />
-        : <span className="flex size-14 items-center justify-center rounded-xl border bg-popover shadow-sm [&_img]:size-10 [&_svg]:size-10"><UrlPinIcon threadId={threadId} pin={pin} /></span>}
+        : <span className="flex size-16 items-center justify-center rounded-xl border bg-popover shadow-sm [&_img]:size-10 [&_svg]:size-10"><UrlPinIcon threadId={threadId} pin={pin} /></span>}
     </div>
-    <div className="space-y-1 px-3 py-2">
+    <div className="space-y-1 px-4 py-3">
       <div className="truncate text-[11px] leading-4 text-muted-foreground">{site}</div>
       <div className="line-clamp-2 text-xs font-medium leading-5">{title}</div>
       {preview?.description && preview.description !== title && <div className="line-clamp-2 text-[11px] leading-4 text-muted-foreground">{preview.description}</div>}
