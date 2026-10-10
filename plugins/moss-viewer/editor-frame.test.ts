@@ -1,5 +1,5 @@
-import { expect, it, vi } from "vitest";
-import { closeEditor, statusLabel } from "./editor-frame.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { closeEditor, createTypingGate, statusLabel } from "./editor-frame.js";
 import type * as Moss from "./vendor/moss-editor.contract.js";
 
 const draft = (markdown: string): Moss.MossDraft => ({
@@ -52,4 +52,56 @@ it("keeps edits the final save could not write as a draft before the editor goes
   });
   await closeEditor(closing, { saved: vi.fn(), unsaved });
   expect(order).toEqual(["flush", "kept # Mine\n", "discard"]);
+});
+
+describe("createTypingGate", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("holds a change from disk while the user types, and applies the latest once they pause", () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    let focused = true;
+    const gate = createTypingGate({ focused: () => focused, unsaved: () => false, now: () => clock, idleMs: 1_500 });
+    const applied: string[] = [];
+
+    gate.offer(() => applied.push("idle"));
+    expect(applied).toEqual(["idle"]);
+
+    gate.input();
+    gate.offer(() => applied.push("first"));
+    gate.offer(() => applied.push("second"));
+    clock = 1_000;
+    vi.advanceTimersByTime(1_000);
+    expect(applied).toEqual(["idle"]);
+    clock = 1_600;
+    vi.advanceTimersByTime(600);
+    expect(applied).toEqual(["idle", "second"]);
+
+    // Leaving the editor applies what it held at once.
+    gate.input();
+    gate.offer(() => applied.push("on blur"));
+    focused = false;
+    gate.flush();
+    expect(applied).toEqual(["idle", "second", "on blur"]);
+  });
+
+  it("holds while edits are unsaved, and not when the editor is not focused", () => {
+    vi.useFakeTimers();
+    let unsaved = true;
+    let focused = true;
+    const gate = createTypingGate({ focused: () => focused, unsaved: () => unsaved, now: () => 10_000 });
+    const applied: string[] = [];
+    gate.offer(() => applied.push("held"));
+    vi.advanceTimersByTime(5_000);
+    expect(applied).toEqual([]);
+    unsaved = false;
+    vi.advanceTimersByTime(1_000);
+    expect(applied).toEqual(["held"]);
+
+    unsaved = true;
+    focused = false;
+    gate.offer(() => applied.push("unfocused"));
+    expect(applied).toEqual(["held", "unfocused"]);
+    gate.dispose();
+  });
 });
