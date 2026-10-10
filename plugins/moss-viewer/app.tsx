@@ -52,7 +52,7 @@ const NOTES_TTL_MS = 30_000;
 /** Well inside the host's 60s watch lease, so a watch outlives a missed renewal. */
 const VIEWER_WATCH_RENEW_MS = 20_000;
 /** How long a note on disk must stay still before the viewer reads it again. */
-const RELOAD_QUIET_MS = 300;
+const RELOAD_QUIET_MS = 750;
 /** Show the frame even if moss never reports ready, rather than leaving the tab blank. */
 const READY_TIMEOUT_MS = 5_000;
 
