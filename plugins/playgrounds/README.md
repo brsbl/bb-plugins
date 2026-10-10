@@ -19,29 +19,9 @@ If you used the earlier Interactive Answers plugin, uninstall it first
 (`bb plugin uninstall interactive-answers`). Both register the same commands,
 and answers it published use its old directive, so they stay as plain text.
 
-## Save playgrounds for later
-
-![The Playgrounds library listing saved playgrounds](docs/library.png)
-
-Choose **Save to library** under any playground to keep it, with its current
-inputs, in your own library. Saved playgrounds are private to you; there is no
-sharing. Open **Playgrounds** in the sidebar to use, rename, or remove them.
-To bring one back into a conversation, @-mention it in the composer, or ask the
-agent to run `bb playgrounds publish --saved <savedId>`.
-
-```bash
-bb playgrounds save <id> --title "Dinner split"
-bb playgrounds saved
-bb playgrounds publish --saved <savedId>
-bb playgrounds rename-saved <savedId> --title "New name"
-bb playgrounds unsave <savedId>
-```
-
-A saved playground has its own inputs, so using it in the library or in a new
-thread doesn't change the original, and it stays saved after the thread it came
-from is deleted.
-
 ## Use
+
+![An HTML playground with a step-by-step repotting guide](docs/html-playground.png)
 
 Ask for a calculator, scenario comparison, or interactive explanation. The
 plugin gives agents a `playground` tool, a document guide, examples,

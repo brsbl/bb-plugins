@@ -25,18 +25,8 @@ afterEach(() => {
   cleanup();
 });
 
-const SAVED_ID = "3f8b6c2e-5d1a-4b7e-9c0f-1a2b3c4d5e6f";
-
 function server(kind: "document" | "html" = "document") {
   const shared = { state: null as unknown, version: 0 };
-  const library: {
-    savedId: string;
-    id: string;
-    threadId: string;
-    title: string;
-    kind: "document";
-    savedAt: number;
-  }[] = [];
   const calls: { method: string; input: Record<string, unknown> }[] = [];
   const log =
     <T,>(method: string, run: (input: Record<string, unknown>) => T) =>
@@ -71,22 +61,6 @@ function server(kind: "document" | "html" = "document") {
       share: log("share", () => ({ itemId: `${answer.id}.12` })),
       frameBase: log("frameBase", () => ({
         base: "/api/v1/plugins/playgrounds/http",
-      })),
-      save: log("save", () => {
-        const saved = {
-          savedId: SAVED_ID,
-          id: answer.id,
-          threadId: `saved_${SAVED_ID}`,
-          title: bill.title,
-          kind: "document" as const,
-          savedAt: 1_700_000_000_000,
-        };
-        library.push(saved);
-        return saved;
-      }),
-      listSaved: log("listSaved", () => ({ saved: [...library] })),
-      findSaved: log("findSaved", ({ id }) => ({
-        saved: library.find((item) => item.id === id) ?? null,
       })),
     },
   };
@@ -433,50 +407,4 @@ it("keeps a newer remote state when a frame saves the state it booted with", asy
   send({ type: "state", state: { step: 7 }, base: 4 });
   await waitFor(() => expect(backend.shared.state).toEqual({ step: 7 }));
   view.lifecycle.unmount();
-});
-
-it("saves a playground to the personal library and reopens it from the library page", async () => {
-  const app = await loadPluginApp(() => import("./app.js"));
-  const backend = server();
-  const view = renderSlot(app.messageDirectives[0]!, props, {
-    rpc: backend.rpc,
-  });
-  await view.findByText("$36.00");
-  fireEvent.click(view.getByText("Save to library"));
-  await view.findByText("Saved to your library");
-  expect(backend.calls.find((c) => c.method === "save")?.input).toEqual({
-    id: answer.id,
-    threadId: answer.threadId,
-  });
-  fireEvent.click(view.getByText("Open"));
-  expect(view.inspection.navigateCalls.at(-1)).toMatchObject({
-    method: "toPluginPanel",
-    path: "library",
-    options: { subPath: SAVED_ID },
-  });
-  view.lifecycle.unmount();
-
-  const list = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: backend.rpc });
-  fireEvent.click(await list.findByText(bill.title));
-  expect(list.inspection.navigateCalls.at(-1)).toMatchObject({
-    method: "toPluginPanel",
-    path: "library",
-    options: { subPath: SAVED_ID },
-  });
-  list.lifecycle.unmount();
-
-  const detail = renderSlot(app.navPanels[0]!, { subPath: SAVED_ID }, { rpc: backend.rpc });
-  await detail.findByText("$36.00");
-  expect(backend.calls.filter((c) => c.method === "get").at(-1)?.input).toEqual({
-    id: answer.id,
-    threadId: `saved_${SAVED_ID}`,
-  });
-  expect(detail.queryByText("Save to library")).toBeNull();
-  detail.lifecycle.unmount();
-
-  const again = renderSlot(app.messageDirectives[0]!, props, {
-    rpc: backend.rpc,
-  });
-  await again.findByText("Saved to your library");
-  again.lifecycle.unmount();
 });
