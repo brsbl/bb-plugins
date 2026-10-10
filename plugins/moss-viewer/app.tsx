@@ -23,7 +23,8 @@ import {
 import { EDITOR_NOTE_CHANGED, asNoteChanged, createEditorBridge, fromFrame, type EditorBridge, type EditorBridgeOptions } from "./editor-bridge";
 import { EditorStatus, MossEditorFrame, type EditorNote } from "./editor-panel";
 import type * as Moss from "./vendor/moss-editor.contract.js";
-import { formatHomePathForDisplay } from "./lib/utils";
+import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "./components/ui/coarse-pointer-sizing";
+import { cn, formatHomePathForDisplay } from "./lib/utils";
 import {
   assetHref,
   frameSource,
@@ -50,6 +51,8 @@ type ReadInput = {
 const NOTES_TTL_MS = 30_000;
 /** Well inside the host's 60s watch lease, so a watch outlives a missed renewal. */
 const VIEWER_WATCH_RENEW_MS = 20_000;
+/** How long a note on disk must stay still before the viewer reads it again. */
+const RELOAD_QUIET_MS = 750;
 /** Show the frame even if moss never reports ready, rather than leaving the tab blank. */
 const READY_TIMEOUT_MS = 5_000;
 
@@ -74,9 +77,11 @@ interface Kept {
   draft: Moss.MossDraft | null;
 }
 
-// FilePreview's header icon button and file icon, from bb's secondary panel.
-const HEADER_ICON_BUTTON_CLASS =
-  "inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm p-0 text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50 [&_[data-icon-root]]:size-3 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:[&_[data-icon-root]]:size-5";
+// bb's header icon button (28px, 16px glyph), the size its roomier panel and thread headers use.
+const HEADER_ICON_BUTTON_CLASS = cn(
+  "inline-flex shrink-0 cursor-pointer items-center justify-center text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50",
+  COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
+);
 /** Below this header width bb's file header folds its actions into a menu. */
 const NARROW_HEADER_PX = 560;
 /** How long the path's tooltip says Copied. */
@@ -128,7 +133,7 @@ function HeaderButton({
 
 function NoteIcon() {
   return (
-    <span className="flex size-3.5 shrink-0 items-center justify-center text-subtle-foreground max-md:pointer-coarse:size-5">
+    <span className="flex size-4 shrink-0 items-center justify-center text-subtle-foreground max-md:pointer-coarse:size-5">
       <Icon name="File" fallback="FileText" aria-hidden className="size-full" />
     </span>
   );
@@ -157,7 +162,7 @@ function NotePath({ path }: { path: string }) {
             type="button"
             aria-label="Copy file path"
             onClick={copyPath}
-            className="min-w-0 cursor-pointer rounded-sm text-left font-mono text-xs font-medium leading-5 text-file-accent underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-md:pointer-coarse:text-sm"
+            className="min-w-0 cursor-pointer rounded-sm text-left font-mono text-sm font-medium leading-6 text-file-accent underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <span dir="rtl" className="block w-min max-w-full truncate">
               {`\u200e${formatHomePathForDisplay(path)}`}
@@ -203,15 +208,15 @@ function NoteHeader({
     <TooltipProvider delayDuration={300}>
       <div
         ref={ref}
-        className="flex h-9 shrink-0 items-center gap-2 bg-surface-raised px-4 max-md:pointer-coarse:h-12 max-md:pointer-coarse:px-3"
+        className="flex h-12 shrink-0 items-center gap-4 bg-surface-raised px-5 max-md:pointer-coarse:h-14 max-md:pointer-coarse:px-4"
       >
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {canGoBack ? <HeaderButton icon="ChevronLeft" label="Back" onClick={onBack} /> : null}
           <NoteIcon />
           <NotePath path={path} />
           {status}
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {narrow
             ? null
             : actions.map((action) => (
@@ -228,7 +233,7 @@ function NoteHeader({
               <DropdownMenuContent
                 align="end"
                 mobileTitle="Note actions"
-                className="max-md:pointer-coarse:[&_[role=menuitem]]:min-h-11 max-md:pointer-coarse:[&_[role=menuitem]]:text-sm"
+                className="min-w-44 p-1.5 [&_[role=menuitem]]:min-h-9 [&_[role=menuitem]]:gap-2.5 [&_[role=menuitem]]:px-2.5 max-md:pointer-coarse:[&_[role=menuitem]]:min-h-11 max-md:pointer-coarse:[&_[role=menuitem]]:text-sm"
               >
                 {actions.map((action) => (
                   <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.onSelect}>
@@ -518,22 +523,44 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   viewerRef.current = viewerNote;
   // The version on screen, by note: it moves only when a read lands, so a failed read is tried again.
   const shownVersion = useRef<{ key: string; version: string | null } | null>(null);
-  const reloadViewer = useCallback(() => {
+  // Changes in a burst read the note once: one read at a time, started after a short quiet spell,
+  // with one more after it when something changed meanwhile.
+  const reload = useRef<{ timer: number | undefined; reading: boolean; again: boolean }>({ timer: undefined, reading: false, again: false });
+  const readChanged = useCallback(() => {
+    const state = reload.current;
     const shown = viewerRef.current;
     if (shown === null) return;
+    if (state.reading) {
+      state.again = true;
+      return;
+    }
+    state.reading = true;
+    state.again = false;
     const { hostId, path } = shown;
     const key = noteKey(shown);
-    rpcRef.current.call("read", { kind: "host", path, hostId, environmentId: null }).then(
-      (result) => {
-        if (!result.moss) return;
-        if (shownVersion.current?.key === key) shownVersion.current = { key, version: result.version ?? null };
-        setStack((current) =>
-          current.note?.hostId === hostId && current.note.path === path ? { ...current, note: result } : current,
-        );
-      },
-      (error: unknown) => console.warn("[moss-viewer] could not read the changed note", error),
-    );
+    rpcRef.current
+      .call("read", { kind: "host", path, hostId, environmentId: null })
+      .then(
+        (result) => {
+          if (!result.moss || viewerRef.current === null || noteKey(viewerRef.current) !== key) return;
+          if (shownVersion.current?.key === key) shownVersion.current = { key, version: result.version ?? null };
+          setStack((current) =>
+            current.note?.hostId === hostId && current.note.path === path ? { ...current, note: result } : current,
+          );
+        },
+        (error: unknown) => console.warn("[moss-viewer] could not read the changed note", error),
+      )
+      .finally(() => {
+        state.reading = false;
+        if (state.again) readChanged();
+      });
   }, []);
+  const reloadViewer = useCallback(() => {
+    const state = reload.current;
+    window.clearTimeout(state.timer);
+    state.timer = window.setTimeout(readChanged, RELOAD_QUIET_MS);
+  }, [readChanged]);
+  useEffect(() => () => window.clearTimeout(reload.current.timer), []);
   const watchKey = viewerNote === null ? null : noteKey(viewerNote);
   useEffect(() => {
     const shown = viewerRef.current;
