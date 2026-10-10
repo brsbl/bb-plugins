@@ -32,12 +32,12 @@
 .ac-option-hint { color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.4; }
 .ac-tag { padding: 0 calc(var(--ac-s) * 1.5); border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: var(--ac-meta); font-weight: 400; line-height: 1.4; }
 /* Note and submit: "Add note" sits left of Submit; once opened the textarea takes the full width above it. */
-.ac-submit { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--ac-gap); }
-.ac-note-toggle { height: var(--ac-control); margin-left: calc(var(--ac-option-px) * -1); padding-inline: var(--ac-option-px); color: var(--muted-foreground); font-size: var(--ac-body); font-weight: 400; }
+.ac-submit { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; gap: var(--ac-gap) calc(var(--ac-s) * 1); }
+.ac-note-toggle { height: var(--ac-control); padding-inline: var(--ac-option-px); color: var(--muted-foreground); font-size: var(--ac-body); font-weight: 400; }
 .ac-textarea { display: block; flex: 1 0 100%; width: 100%; min-height: calc(var(--ac-body) * 1.5 * 2 + var(--ac-s) * 4); max-height: 12lh; box-sizing: border-box; padding: calc(var(--ac-s) * 2) calc(var(--ac-s) * 3); border: 1px solid var(--input, var(--border)); border-radius: var(--ac-radius-control); background: transparent; color: inherit; font: inherit; font-size: var(--ac-body); line-height: 1.5; resize: none; field-sizing: content; }
 .ac-textarea::placeholder { color: var(--muted-foreground); }
 .ac-textarea:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--ring); }
-.ac-button { height: var(--ac-control); margin-left: auto; }
+.ac-button { height: var(--ac-control); }
 /* Outcome */
 .ac-outcome { display: grid; gap: 2px; }
 .ac-outcome-line { display: flex; flex-wrap: wrap; align-items: center; column-gap: calc(var(--ac-s) * 2); row-gap: 2px; }
@@ -63,23 +63,16 @@
 /* Long unbroken text (URLs, paths) wraps instead of widening the card. */
 .ac-card, .ac-card > *, .ac-row > *, .ac-spec, .ac-spec-frame { min-width: 0; }
 .ac-context { overflow-wrap: anywhere; }
-.ac-note-toggle { justify-self: start; }
-/* Answers sit in a right column beside the question; below ~520px of card width they stack under it. */
+.ac-note-toggle { justify-self: end; }
+/* Answers sit under the question and its evidence, as one block against the card's right edge. */
 .ac-card, .ac-row { container: ac / inline-size; }
-.ac-body { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: calc(var(--ac-s) * 6); row-gap: var(--ac-gap); align-items: start; }
+.ac-body { display: grid; gap: var(--ac-gap); }
 .ac-about { display: grid; gap: var(--ac-gap); min-width: 0; }
-.ac-answer { display: grid; justify-items: end; min-width: 0; max-width: 20rem; }
-.ac-answer > .ac-options { justify-self: end; width: max-content; max-width: 100%; margin: 0; }
+.ac-answer { display: grid; justify-items: end; min-width: 0; }
+.ac-answer > .ac-options { width: max-content; max-width: 100%; margin: 0 calc(var(--ac-option-px) * -1) 0 0; }
+.ac-answer .ac-option-label { flex-wrap: nowrap; white-space: nowrap; }
 .ac-answer .ac-outcome { justify-items: end; text-align: right; }
 .ac-answer .ac-outcome-line { justify-content: flex-end; }
 .ac-answer .ac-outcome-note { padding-left: 0; }
-@container ac (max-width: 520px) {
-  .ac-body { grid-template-columns: minmax(0, 1fr); }
-  .ac-answer { justify-items: stretch; max-width: none; }
-  .ac-answer > .ac-options { justify-self: stretch; width: auto; margin-inline: calc(var(--ac-option-px) * -1); }
-  .ac-answer .ac-outcome { justify-items: stretch; text-align: left; }
-  .ac-answer .ac-outcome-line { justify-content: flex-start; }
-  .ac-answer .ac-outcome-note { padding-left: calc(1em + var(--ac-s) * 2); }
-}
-.ac-answer .ac-option-label { flex-wrap: nowrap; white-space: nowrap; }
 @container ac (max-width: 520px) { .ac-answer .ac-option-label { flex-wrap: wrap; white-space: normal; } }
+.ac-row > .ac-note-toggle { margin-right: calc(var(--ac-option-px) * -1); }
