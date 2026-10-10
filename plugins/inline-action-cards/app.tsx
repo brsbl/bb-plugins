@@ -232,7 +232,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const tools = (ready || pending) && <span className="iac-header-tools">
     {pending && !busy && <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton>}
     {reply && <IconButton label="Save to Gmail drafts" disabled={disabled} onClick={() => void act("save-draft")}><DraftIcon /></IconButton>}
-    <IconButton label="Skip — tell the agent you're passing" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
+    <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
   </span>;
   // The primary button marks a comment that goes along with the choice.
   const attached = ready && !!note.trim();

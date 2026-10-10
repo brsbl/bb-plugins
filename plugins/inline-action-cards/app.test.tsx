@@ -75,7 +75,7 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
 }
 it("flushes an immediate edit before submitting Send exactly once", async () => {
   const { slot, calls, get } = await setup();
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "My latest edit" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "My latest edit" } });
   const send = screen.getByRole("button", { name: /^Send$/ });
   fireEvent.click(send);
   fireEvent.click(send);
@@ -105,10 +105,10 @@ it("replaces an obsolete local error when the agent reports success", async () =
 });
 it("keeps an unsaved edit visible and offers recovery without submitting", async () => {
   const { slot, calls } = await setup("", true);
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Keep this edit" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "Keep this edit" } });
   fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   await screen.findByRole("button", { name: "Retry save" });
-  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Keep this edit");
+  expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Keep this edit");
   expect(calls).toEqual(["save"]);
   expect(slot.inspection.composer.submits).toHaveLength(0);
 });
@@ -255,14 +255,14 @@ it("Action log refresh updates the reviewed draft while preserving unsaved local
   } });
   await screen.findByRole("button", { name: "Review" });
   fireEvent.click(screen.getByRole("button", { name: "Review" }));
-  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Original draft");
+  expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft");
   item = { ...item, revision: 2, content: { ...item.content, draft: "Updated elsewhere" } } as typeof item;
   await slot.behavior.emitRealtime("items", {});
-  await waitFor(() => expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Updated elsewhere"));
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Unsaved local edit" } });
+  await waitFor(() => expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Updated elsewhere"));
+  fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "Unsaved local edit" } });
   item = { ...item, revision: 3, content: { ...item.content, draft: "Another remote update" } } as typeof item;
   await slot.behavior.emitRealtime("items", {});
-  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Unsaved local edit");
+  expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Unsaved local edit");
 });
 
 it("Action log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
@@ -338,7 +338,7 @@ it("sends a comment along with the chosen option", async () => {
   const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "UserSingle" }, { id: "multi", label: "UserMultiple" }] };
   const { slot, get } = await setup("", false, { ...fixture(), id: "setup", content });
   fireEvent.change(await screen.findByRole("textbox", { name: "Comment" }), { target: { value: "Keep the pool as backup" } });
-  expect(screen.getByRole("button", { name: "Use UserMultiple with comment" }).className).toContain("iac-note-submit");
+  expect(screen.getAllByRole("button", { name: "Use UserMultiple with comment" }).some((button) => button.className.includes("iac-note-submit"))).toBe(true);
   fireEvent.click(screen.getAllByRole("button", { name: "Use UserMultiple with comment" }).find((button) => !button.className.includes("iac-note-submit"))!);
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(get().attempt).toMatchObject({ action: "choose", note: "Keep the pool as backup" });
