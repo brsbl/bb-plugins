@@ -349,7 +349,7 @@ it("submits the picked option from a choice card, marking but never preselecting
   let release!: () => void;
   const { slot, calls, get } = await setup("", false, { ...fixture(), id: "setup", content }, new Promise<void>((resolve) => { release = resolve; }));
   await screen.findByRole("group", { name: "Which account setup?" });
-  expect(screen.getByRole("radio", { name: /UserMultiple\s*\(recommended\)/ })).toBeTruthy();
+  expect(screen.getByText("(recommended)").closest("label")?.textContent).toContain("UserMultiple");
   expect(screen.getAllByRole("radio").some((radio) => (radio as HTMLInputElement).checked)).toBe(false);
   expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
   answer(/^UserSingle/);
