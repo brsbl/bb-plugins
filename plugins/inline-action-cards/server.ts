@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionLabel, actionMessage, mentionId, title, logSchema, actionSchema, assertAction, bulkLabel, contentSchema, draftSchema, idSchema, itemSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type Item } from "./model.js";
+import { actionLabel, actionMessage, mentionId, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type FollowUp, type Item } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
 export const rpcContract = defineRpcContract({
   log: { input: z.object({ threadId: idSchema.optional() }).strict(), output: logSchema },
   decideFromLog: { input: versioned.extend({ action: actionSchema.optional() }), output: itemSchema },
-  get: { input: ref, output: itemSchema },
+  get: { input: ref, output: itemViewSchema },
   save: { input: versioned.extend({ draft: draftSchema }), output: itemSchema },
   prepare: { input: versioned.extend({ action: actionSchema, note: noteSchema.optional() }), output: itemSchema },
   comment: { input: versioned.extend({ note: noteSchema.refine((value) => value.length > 0, "Write a comment first.") }), output: z.object({ item: itemSchema, commentId: z.string().uuid(), note: noteSchema }).strict() },
@@ -17,6 +17,11 @@ export const rpcContract = defineRpcContract({
   table: { input: ref, output: tableViewSchema },
   prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive(), note: noteSchema.optional() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
   submitted: { input: ref.extend({ attemptId: z.string().uuid() }), output: itemSchema },
+  // A decision sheet sends every staged row in one message: each row gets its own attempt.
+  prepareBatch: { input: ref.extend({ items: z.array(z.object({
+    id: idSchema, revision: z.number().int().positive(), action: z.enum(["send", "save-draft", "yes", "no", "skip", "choose"]),
+    choice: idSchema.optional(), note: noteSchema.optional(),
+  }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
 });
 type QueueEntry = PluginThreadEventPayloads["message.cancelled"]["entry"];
 
@@ -26,6 +31,8 @@ export function createStore(bb: BbPluginApi) {
     "CREATE TABLE action_items (thread_id TEXT NOT NULL, item_id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (thread_id, item_id))",
     "CREATE TABLE action_tables (thread_id TEXT NOT NULL, table_id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (thread_id, table_id))",
     "CREATE TABLE action_comments (thread_id TEXT NOT NULL, item_id TEXT NOT NULL, comment_id TEXT NOT NULL, note TEXT NOT NULL, PRIMARY KEY (thread_id, item_id, comment_id))",
+    // The agent's answer to a follow-up, shown on the card under the question.
+    "ALTER TABLE action_comments ADD COLUMN answer TEXT",
   ]);
   const read = db.prepare("SELECT value FROM action_items WHERE thread_id = ? AND item_id = ?");
   const write = db.prepare("INSERT INTO action_items VALUES (?, ?, ?) ON CONFLICT(thread_id, item_id) DO UPDATE SET value=excluded.value");
@@ -52,6 +59,10 @@ export function createStore(bb: BbPluginApi) {
     bb.realtime.publish("items", { threadId, id });
     return next;
   };
+  const readFollowUps = db.prepare("SELECT comment_id AS commentId, note, answer FROM action_comments WHERE thread_id = ? AND item_id = ? ORDER BY rowid");
+  const followUps = (threadId: string, id: string): FollowUp[] =>
+    (readFollowUps.all(threadId, id) as FollowUp[]).map((row) => followUpSchema.parse(row));
+  const view = (item: Item) => ({ ...item, followUps: followUps(item.threadId, item.id) });
   const table = (threadId: string, id: string) => {
     const row = readTable.get(threadId, id) as { value: string } | undefined;
     if (!row) throw new Error("This table is unavailable. Ask the agent to recreate it.");
@@ -69,6 +80,7 @@ export function createStore(bb: BbPluginApi) {
   };
   return {
     get,
+    view: (threadId: string, id: string) => view(get(threadId, id)),
     async log(threadId?: string) {
       const rows = (threadId
         ? db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId)
@@ -85,14 +97,14 @@ export function createStore(bb: BbPluginApi) {
       return { waiting: [...sorted.filter((item) => item.state !== "succeeded"), ...sorted.filter(later)],
         done: sorted.filter((item) => item.state === "succeeded" && !later(item)) };
     },
-    table,
+    table: (threadId: string, id: string) => { const value = table(threadId, id); return { ...value, items: value.items.map(view) }; },
     comment(input: z.infer<typeof rpcContract.comment.input>) {
       return db.transaction(() => {
         const item = get(input.threadId, input.id);
         if (item.revision !== input.revision || item.state !== "ready") throw new Error("This card changed. Review it before commenting.");
         const note = rpcContract.comment.input.parse(input).note;
         const commentId = randomUUID();
-        db.prepare("INSERT INTO action_comments VALUES (?, ?, ?, ?)").run(item.threadId, item.id, commentId, note);
+        db.prepare("INSERT INTO action_comments (thread_id, item_id, comment_id, note) VALUES (?, ?, ?, ?)").run(item.threadId, item.id, commentId, note);
         return { item, commentId, note };
       })();
     },
@@ -104,9 +116,7 @@ export function createStore(bb: BbPluginApi) {
     createTable(threadId: string, id: string, raw: unknown) {
       const content = tableContentSchema.parse(raw);
       return db.transaction(() => {
-        content.ids.forEach((itemId) => {
-          if (get(threadId, itemId).content.type === "choice") throw new Error("Choice cards stand alone. Emit them with ::action instead of adding them to a table.");
-        });
+        content.ids.forEach((itemId) => get(threadId, itemId));
         if (readTable.get(threadId, id)) throw new Error("That table ID already exists. Reuse its directive.");
         const value = { ...content, threadId, id };
         db.prepare("INSERT INTO action_tables VALUES (?, ?, ?)").run(threadId, id, JSON.stringify(value));
@@ -126,6 +136,55 @@ export function createStore(bb: BbPluginApi) {
       })();
       bb.realtime.publish("items", { threadId: input.threadId });
       return next;
+    },
+    prepareBatch(input: z.infer<typeof rpcContract.prepareBatch.input>) {
+      const next = db.transaction(() => {
+        const group = tableSchema.parse(JSON.parse((readTable.get(input.threadId, input.id) as { value: string } | undefined)?.value ?? "null"));
+        if (new Set(input.items.map((entry) => entry.id)).size !== input.items.length) throw new Error("Each row can be sent once.");
+        return input.items.map((entry) => {
+          if (!group.ids.includes(entry.id)) throw new Error("That row does not belong to this table.");
+          const item = get(input.threadId, entry.id);
+          if (item.revision !== entry.revision) throw new Error("This table changed. Review the remaining rows, then try again.");
+          if (entry.action === "choose") {
+            const option = item.content.type === "choice" ? item.content.options.find((candidate) => candidate.id === entry.choice) : undefined;
+            if (!option) throw new Error("Pick an option for each choice row first.");
+            prepare(item, "choose", entry.note);
+            item.attempt!.choice = { id: option.id, label: option.label };
+          } else prepare(item, entry.action, entry.note);
+          item.revision++; item.updatedAt = new Date().toISOString();
+          return persist(item);
+        });
+      })();
+      bb.realtime.publish("items", { threadId: input.threadId });
+      return next;
+    },
+    // An agent acted on a comment instead of a click (for example it closed the PR the card asked about).
+    // Settling the card records that result; nothing was approved, so there is no attempt.
+    resolve(threadId: string, id: string, message: string) {
+      return change(threadId, id, null, (item) => {
+        if (item.state !== "ready") throw new Error("Only an unanswered card can be resolved. Report the claimed attempt instead.");
+        item.state = "succeeded";
+        item.result = { message, retryable: false };
+      });
+    },
+    // The thread went idle with nothing queued, yet a sent request was never claimed: the agent never got it
+    // (for example bb refused a competing turn). Clearing sentAt shows the card as not sent, with Resend.
+    undelivered(threadId: string) {
+      const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
+      const cutoff = Date.now() - 5000;
+      for (const row of rows) {
+        const item = itemSchema.parse(JSON.parse(row.value));
+        const sentAt = item.attempt?.sentAt;
+        if (item.state !== "pending" || !sentAt || item.attempt!.claimed || Date.parse(sentAt) > cutoff) continue;
+        change(threadId, item.id, null, (next) => { if (next.attempt && !next.attempt.claimed) delete next.attempt.sentAt; });
+      }
+    },
+    answer(threadId: string, id: string, commentId: string, message: string) {
+      const answer = answerSchema.parse(message);
+      const result = db.prepare("UPDATE action_comments SET answer = ? WHERE thread_id = ? AND item_id = ? AND comment_id = ?").run(answer, threadId, id, z.string().uuid().parse(commentId));
+      if (!result.changes) throw new Error("That follow-up is unavailable. Read the card's follow-ups with bb action-cards get.");
+      bb.realtime.publish("items", { threadId, id });
+      return view(get(threadId, id));
     },
     create(threadId: string, id: string, raw: unknown) {
       const content = contentSchema.parse(raw);
@@ -220,9 +279,20 @@ export default function plugin(bb: BbPluginApi): void {
       // Record the send like an inline card does, so the card settles in its thread.
       return store.submitted({ threadId: item.threadId, id: item.id, attemptId: item.attempt!.id });
     },
-    get: ({ threadId, id }) => store.get(threadId, id),
+    get: ({ threadId, id }) => store.view(threadId, id),
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
-    table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable, submitted: store.submitted,
+    table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable, submitted: store.submitted, prepareBatch: store.prepareBatch,
+  });
+  // The idle payload can lag a queued message that is already starting, so settle first and re-read the thread.
+  bb.events.on("thread.idle", ({ thread }) => {
+    if (thread.queuedMessageCount > 0) return;
+    setTimeout(() => void (async () => {
+      try {
+        const latest = await bb.sdk.threads.get({ threadId: thread.id });
+        if (latest.status !== "idle" || latest.queuedMessageCount > 0) return;
+        store.undelivered(thread.id);
+      } catch (err) { bb.log.warn(`Could not check an idle thread for undelivered card requests: ${err instanceof Error ? err.message : String(err)}`); }
+    })(), 3000);
   });
   bb.events.on("message.cancelled", ({ entry }) => {
     try { store.cancelled(entry); } catch (err) { bb.log.warn(`Could not reopen an action card after its queued request was deleted: ${err instanceof Error ? err.message : String(err)}`); }
@@ -236,8 +306,8 @@ export default function plugin(bb: BbPluginApi): void {
       if (attempt.startsWith("comment_")) {
         const note = store.getComment(item.threadId, item.id, attempt.slice("comment_".length));
         return { context: JSON.stringify({
-          kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "comment", note,
-          instruction: "This is a comment, not approval for an action. Reply to the note. If it requests a change, revise the same Reply draft using its latest revision. For Decide cards, explain the requested change; question/consequence updates are not supported. Do not execute an action or create/claim an attempt.",
+          kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "comment", note, commentId: attempt.slice("comment_".length),
+          instruction: "This is the user's comment on the card, not a click: it never approves the card's own action, so do not create or claim an attempt. Treat it like a chat message from the user. Answer a question on the card with bb action-cards answer <itemId> --comment <commentId> --message-stdin and keep any chat reply to one short line. Follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization; when the request is ambiguous or the card's own action needs approval, ask the user to use the card's buttons instead. If it requests a change to a Reply, revise the same draft using its latest revision; Decide and Choice question/consequence updates are not supported, so explain the change. If what you did makes the card moot (for example the user said 'close this' and you closed the PR, or they withdrew the question), settle it with bb action-cards resolve <itemId> --message '<what happened>'. Other cards in the same table stay as the user left them.",
         }) };
       }
       const changes = attempt === "changes";
@@ -256,7 +326,7 @@ export default function plugin(bb: BbPluginApi): void {
   const threadOption = { type: "string", description: "Owning thread; defaults to this thread" } as const;
   const itemPosition = [{ name: "id", required: true, description: "Stable item ID" }] as const;
   const scope = (ctx: PluginCliContext, thread?: string) => idSchema.parse(thread ?? ctx.threadId);
-  const output = (item: Item) => ({ exitCode: 0, stdout: `${JSON.stringify(item, null, 2)}\n` });
+  const output = (item: Item | z.infer<typeof itemViewSchema>) => ({ exitCode: 0, stdout: `${JSON.stringify(item, null, 2)}\n` });
   bb.cli.register(defineCli({
     name: "action-cards", summary: "Create inline cards, read saved drafts, and report action results",
     commands: {
@@ -274,7 +344,7 @@ export default function plugin(bb: BbPluginApi): void {
       }),
       "create-table": cliCommand({
         summary: "Group existing items in an inline table", positionals: itemPosition,
-        options: { thread: threadOption, table: { type: "string", required: true, stdin: true, description: "Table JSON with title and item ids; use --table-stdin" } },
+        options: { thread: threadOption, table: { type: "string", required: true, stdin: true, description: "Table JSON with title and up to 20 item ids (Reply, Decide, or Choice); use --table-stdin" } },
         run({ options, positionals }, ctx) {
           const id = idSchema.parse(positionals.id);
           store.createTable(scope(ctx, options.thread), id, JSON.parse(options.table));
@@ -291,9 +361,22 @@ export default function plugin(bb: BbPluginApi): void {
         },
       }),
       get: cliCommand({
-        summary: "Read the latest saved draft, action, and result", positionals: itemPosition,
+        summary: "Read the latest saved draft, action, result, and follow-ups", positionals: itemPosition,
         options: { thread: threadOption },
-        run: ({ options, positionals }, ctx) => output(store.get(scope(ctx, options.thread), idSchema.parse(positionals.id))),
+        run: ({ options, positionals }, ctx) => output(store.view(scope(ctx, options.thread), idSchema.parse(positionals.id))),
+      }),
+      resolve: cliCommand({
+        summary: "Settle a card you acted on from a comment, without a click", positionals: itemPosition,
+        options: { thread: threadOption, message: { type: "string", required: true, description: "Short result shown on the card, for example 'Closed the PR'" } },
+        run: ({ options, positionals }, ctx) => output(store.resolve(scope(ctx, options.thread), idSchema.parse(positionals.id), z.string().trim().min(1).max(500).parse(options.message))),
+      }),
+      answer: cliCommand({
+        summary: "Answer a follow-up question on its card", positionals: itemPosition,
+        options: {
+          thread: threadOption, comment: { type: "string", required: true, description: "commentId from the follow-up's context" },
+          message: { type: "string", required: true, stdin: true, description: "Markdown answer shown on the card; use --message-stdin" },
+        },
+        run: ({ options, positionals }, ctx) => output(store.answer(scope(ctx, options.thread), idSchema.parse(positionals.id), options.comment, options.message)),
       }),
       revise: cliCommand({
         summary: "Update the same ready draft after a comment", positionals: itemPosition,

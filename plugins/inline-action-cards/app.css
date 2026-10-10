@@ -1,19 +1,16 @@
-.iac-card, .iac-table { --iac-gap: calc(var(--spacing, .25rem) * 2); margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius-lg, .75rem); background: var(--card); color: var(--foreground); font-size: 13px; line-height: 1.6; }
+.iac-card, .iac-table { --iac-gap: calc(var(--spacing, .25rem) * 2); margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius-lg, .75rem); background: var(--card); color: var(--foreground); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
 .iac-card { padding: 14px 16px; }
-.iac-header, .iac-result-line, .iac-row-line, .iac-table-header { display: flex; align-items: center; justify-content: space-between; gap: var(--iac-gap); }
+.iac-header, .iac-row-line, .iac-table-header { display: flex; align-items: center; justify-content: space-between; gap: var(--iac-gap); }
 .iac-header { align-items: flex-start; }
-.iac-recipient-line { flex: 1; min-width: 0; padding-top: 4px; overflow-wrap: anywhere; font-size: 12px; }
+.iac-recipient-line { flex: 1; min-width: 0; padding-top: 4px; overflow-wrap: anywhere; font-size: var(--text-xs, .75rem); }
 .iac-muted, .iac-consequence, .iac-save, .iac-progress, .iac-result-line time { color: var(--muted-foreground); }
 .iac-question { padding-top: 4px; font-weight: 500; overflow-wrap: anywhere; }
 .iac-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
-.iac-footer { margin-top: 8px; }
 /* One action line: icon tools stay whole; labels wrap only when nothing else fits. */
-.iac-tools { display: flex; flex-shrink: 0; align-items: center; gap: var(--iac-gap); margin-right: auto; }
-.iac-footer > button { min-width: 0; height: auto; min-height: 28px; white-space: normal; }
 .iac-attached { display: inline-flex; margin-right: 4px; vertical-align: -2px; }
 .iac-card .iac-attached svg, .iac-row .iac-attached svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .iac-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.iac-actions button { font-size: 12px; }
+.iac-actions button { font-size: var(--text-xs, .75rem); }
 .iac-progress { font-style: italic; }
 .iac-button-label { display: grid; }
 .iac-button-label > span { grid-area: 1 / 1; }
@@ -37,7 +34,7 @@
 @keyframes iac-progress-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
 .iac-icon { width: 28px; height: 28px; padding: 5px; color: var(--muted-foreground); }
 .iac-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.iac-original { margin: 8px 0 12px; min-width: 0; font-size: 12px; }
+.iac-original { margin: 8px 0 12px; min-width: 0; font-size: var(--text-xs, .75rem); }
 .iac-original summary { display: flex; align-items: baseline; gap: 6px; color: var(--muted-foreground); cursor: pointer; }
 .iac-original summary::before { content: "▸"; flex-shrink: 0; }
 .iac-original[open] summary::before { content: "▾"; }
@@ -47,21 +44,16 @@
 .iac-card textarea:not([readonly]):hover, .iac-row textarea:not([readonly]):hover { background: var(--state-hover, var(--muted)); }
 .iac-card textarea:not([readonly]):focus, .iac-row textarea:not([readonly]):focus { background: var(--state-hover, var(--muted)); box-shadow: 0 0 0 1px var(--border); }
 .iac-original summary:focus-visible { outline: 1px solid var(--ring); outline-offset: 3px; }
-.iac-save { display: block; text-align: right; font-size: 11px; }
+.iac-save { display: block; text-align: right; font-size: var(--text-xs, .75rem); }
 .iac-consequence { margin: 4px 0 0; overflow-wrap: anywhere; }
 .iac-error, .iac-failed { color: var(--destructive); }
-.iac-error { margin-top: 8px; font-size: 12px; }
-.iac-result-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.iac-result-line time { font-size: 11px; white-space: nowrap; }
+.iac-error { margin-top: 8px; font-size: var(--text-xs, .75rem); }
+.iac-result-line time { font-size: var(--text-xs, .75rem); white-space: nowrap; }
 .iac-result-line + .iac-body, .iac-result-line + .iac-row-expanded { margin-top: 12px; }
-.iac-table-header { padding: 10px 16px; color: var(--muted-foreground); font-size: 12px; }
+.iac-table-header { padding: 10px 16px; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
 .iac-table > .iac-error { padding: 0 16px 10px; }
 .iac-row { padding: 12px 16px; border-top: 1px solid var(--border); }
 .iac-row-line { align-items: center; }
-.iac-row-description { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.iac-row-description .iac-consequence { font-size: 12px; }
-.iac-row-line > .iac-choice { margin-top: 0; min-width: 160px; }
-.iac-row .iac-footer > button:last-child { min-width: 64px; }
 .iac-row-expanded { margin-top: 12px; }
 .iac-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 8px -8px 0; }
 .iac-option { display: flex; min-width: 0; align-items: center; gap: 10px; min-height: 32px; padding: 4px 8px; border-radius: var(--radius-md, .5rem); cursor: pointer; }
@@ -72,14 +64,13 @@
 .iac-option input { flex-shrink: 0; width: 14px; height: 14px; margin: 0; accent-color: var(--primary); }
 .iac-option-text { display: flex; flex: 1; min-width: 0; align-items: baseline; gap: 8px; }
 .iac-option-label { flex-shrink: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iac-option-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: 12px; }
-.iac-tag { flex-shrink: 0; padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: 11px; line-height: 16px; }
-.iac-options + .iac-consequence { margin-top: 8px; font-size: 12px; }
+.iac-option-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
+.iac-tag { flex-shrink: 0; padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); line-height: 16px; }
+.iac-options + .iac-consequence { margin-top: 8px; font-size: var(--text-xs, .75rem); }
 .iac-choose { min-width: 0; max-width: 100%; }
 .iac-choose .iac-button-label { min-width: 0; }
 .iac-choose .iac-button-label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iac-card:has(.iac-options) .iac-footer { min-width: 0; }
-.iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: 12px; box-shadow: var(--shadow-md); }
+.iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: var(--text-xs, .75rem); box-shadow: var(--shadow-md); }
 .iac-menu { min-width: 170px; padding: 4px; }
 .iac-menu-item { padding: 6px 8px; border-radius: var(--radius-sm, .25rem); cursor: pointer; outline: none; }
 .iac-menu-item[data-highlighted] { background: var(--state-hover, var(--muted)); }
@@ -88,36 +79,19 @@
   .iac-card, .iac-row { padding: 12px; }
   .iac-table-header { padding: 8px 12px; }
   .iac-row-line { flex-wrap: wrap; }
-  .iac-row-line > .iac-choice { margin-left: auto; }
-  .iac-result-line { align-items: flex-start; flex-wrap: wrap; }
-  .iac-result-copy { flex-basis: 160px; }
-  .iac-result-line > .iac-actions { margin-left: auto; }
 }
 
-.iac-choice { min-width: 0; }
-.iac-row-line:has(.iac-note-field) { flex-wrap: wrap; }
-.iac-row-line:has(.iac-note-field) > .iac-choice { flex-basis: 100%; }
-.iac-card .iac-note-field, .iac-row .iac-note-field { padding: 4px 0; max-height: 100px; overflow-y: auto; }
-.iac-result-note { margin-top: 2px; white-space: pre-wrap; font-size: 12px; overflow-wrap: anywhere; }
 
-/* The comment field and its send button read as one control. */
-/* bb's text input treatment: quiet input border, 1px ring on keyboard or pointer focus. */
-.iac-note-entry { display: flex; align-items: flex-end; gap: 4px; margin-top: 8px; padding: 1px 1px 1px 7px; border: 1px solid var(--input); border-radius: var(--radius-md, .5rem); background: transparent; }
-.iac-note-entry:has(.iac-note-field:focus-visible) { box-shadow: 0 0 0 1px var(--ring); }
-:is(.iac-card, .iac-row) .iac-note-entry textarea:not([readonly]):is(:hover, :focus) { background: transparent; box-shadow: none; }
-.iac-note-entry .iac-icon { width: 24px; height: 24px; padding: 4px; }
-.iac-note-entry .iac-note-field { flex: 1; min-width: 0; }
-
-.iac-log { --iac-gap: 8px; --iac-log-button: 28px; container-type: inline-size; padding: 16px 24px 24px; color: var(--foreground); font-size: 13px; line-height: 1.5; }
+.iac-log { --iac-gap: 8px; --iac-log-button: 28px; container-type: inline-size; padding: 16px 24px 24px; color: var(--foreground); font-size: var(--text-sm, .8125rem); line-height: 1.5; }
 .iac-log-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding-bottom: 4px; }
-.iac-log h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; }
+.iac-log h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-sm, .8125rem); font-weight: 600; }
 .iac-log-count { color: var(--muted-foreground); font-weight: 400; font-variant-numeric: tabular-nums; }
 .iac-log-mark { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 12px; height: 12px; }
 .iac-log-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--attention, var(--primary)); }
 .iac-log-check { width: 12px; height: 12px; fill: none; stroke: var(--success, currentColor); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 @media (prefers-reduced-motion: no-preference) { .iac-log-dot { animation: iac-log-pulse 2.4s ease-in-out infinite; } }
 @keyframes iac-log-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-.iac-log-see-all { color: var(--muted-foreground); font-size: 12px; text-decoration: none; }
+.iac-log-see-all { color: var(--muted-foreground); font-size: var(--text-xs, .75rem); text-decoration: none; }
 .iac-log-see-all:hover { color: var(--foreground); text-decoration: underline; }
 .iac-log-see-all:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
 .iac-log-done { margin-top: 28px; }
@@ -129,8 +103,8 @@
 .iac-log-kind svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .iac-log-main { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
 .iac-log-title, .iac-log-meta, .iac-log-meta > *, .iac-log-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iac-log-title { font-size: 14px; font-weight: 600; }
-.iac-log-meta { display: flex; color: var(--muted-foreground); font-size: 12px; }
+.iac-log-title { font-size: var(--text-base, .9375rem); font-weight: 600; }
+.iac-log-meta { display: flex; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
 .iac-log-meta > * { flex-shrink: 1; }
 .iac-log-meta > :not(:first-child)::before { content: "·"; padding: 0 6px; color: var(--muted-foreground); }
 .iac-log-meta > time { flex-shrink: 0; }
@@ -151,15 +125,15 @@
 .iac-log-primary .iac-icon:hover:not(:disabled) { background: color-mix(in oklab, var(--foreground) 90%, transparent); color: var(--background); }
 .iac-log-actions .iac-icon[aria-busy="true"] svg { animation: iac-log-pulse 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .iac-log-actions .iac-icon[aria-busy="true"] svg { animation: none; } }
-.iac-log-status { box-sizing: border-box; width: 100%; padding-right: 2px; color: var(--muted-foreground); opacity: .75; font-size: 12px; font-style: italic; text-align: right; }
+.iac-log-status { box-sizing: border-box; width: 100%; padding-right: 2px; color: var(--muted-foreground); opacity: .75; font-size: var(--text-xs, .75rem); font-style: italic; text-align: right; }
 /* Done status needs no button, so it may use both columns. */
 .iac-log-quiet .iac-log-secondary { grid-column: 3 / 5; }
 .iac-log-quiet .iac-log-title, .iac-log-later .iac-log-title { color: var(--muted-foreground); }
 .iac-log-review [aria-expanded="true"] { background: var(--state-active, var(--muted)); color: var(--foreground); }
 .iac-log-draft, .iac-log-row > .iac-error { grid-column: 2 / -1; }
 .iac-log-draft { margin-top: 8px; }
-.iac-log-draft p { margin: 0 0 4px; font-size: 12px; overflow-wrap: anywhere; }
-.iac-log-options { margin: 0; padding-left: 18px; font-size: 12px; }
+.iac-log-draft p { margin: 0 0 4px; font-size: var(--text-xs, .75rem); overflow-wrap: anywhere; }
+.iac-log-options { margin: 0; padding-left: 18px; font-size: var(--text-xs, .75rem); }
 .iac-log-draft textarea { display: block; box-sizing: border-box; width: 100%; resize: none; font: inherit; line-height: 1.6; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 8px; }
 .iac-log-row > .iac-error { margin-top: 6px; }
 .iac-log-more { margin: 6px 0 0 20px; color: var(--muted-foreground); }
@@ -172,3 +146,229 @@
   .iac-log-meta > .iac-failed + ::before { content: none; }
 }
 @media (max-width: 480px) { .iac-log { padding: 12px 16px 20px; } }
+
+/* Header tools: Comment sits beside the question it belongs to. */
+.iac-header-tools { display: flex; flex-shrink: 0; margin: -2px -6px 0 0; }
+
+/* Evidence: agent-supplied Markdown and images. Long context stays bounded until opened. */
+.iac-evidence { display: grid; gap: 10px; margin-top: 10px; min-width: 0; }
+.iac-clip { position: relative; max-height: 220px; overflow: hidden; }
+.iac-clip[data-open] { max-height: none; }
+.iac-clip[data-clipped] { cursor: pointer; mask-image: linear-gradient(to bottom, #000 70%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent); }
+.iac-clip[data-clipped]:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-sm, .25rem); }
+.iac-context { font-size: var(--text-sm, .8125rem); line-height: 1.6; overflow-wrap: anywhere; }
+.iac-context > :first-child { margin-top: 0; }
+.iac-context > :last-child { margin-bottom: 0; }
+.iac-media { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.iac-media[data-count="1"] { grid-template-columns: minmax(0, 420px); }
+.iac-figure { display: grid; gap: 4px; min-width: 0; color: inherit; text-decoration: none; }
+.iac-figure img { display: block; width: 100%; max-height: 220px; object-fit: contain; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--surface-recessed, var(--muted)); }
+.iac-figure:hover img { border-color: var(--ring); }
+.iac-figure:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-md, .5rem); }
+.iac-caption { overflow: hidden; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); text-overflow: ellipsis; white-space: nowrap; }
+
+/* Follow-ups: the user's question, then the agent's answer on the card. */
+.iac-followups { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; font-size: var(--text-sm, .8125rem); }
+.iac-ask { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.iac-answer { margin: 2px 0 0; padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; }
+.iac-answer > :first-child { margin-top: 0; }
+.iac-answer > :last-child { margin-bottom: 0; }
+.iac-waiting { font-style: italic; }
+
+/* Decision sheet: every row answers inline; answers stage until one Send. */
+.iac-sheet .iac-table-header { gap: 12px; }
+.iac-sheet-title { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
+.iac-sheet-title > :first-child { color: var(--foreground); font-weight: 600; }
+.iac-sheet-counts { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.iac-sheet-row { padding: 8px 16px; }
+.iac-sheet-row .iac-row-line { align-items: center; gap: 12px; }
+.iac-row-summary { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; gap: 1px; padding: 2px 4px; margin: -2px -4px; border: 0; border-radius: var(--radius-sm, .25rem); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.iac-row-summary:hover { background: var(--state-hover, var(--muted)); }
+.iac-row-summary:focus-visible { outline: 1px solid var(--ring); outline-offset: 1px; }
+.iac-row-question { font-weight: 500; overflow-wrap: anywhere; }
+.iac-disclosure { display: inline-block; margin-left: 6px; color: var(--muted-foreground); font-size: var(--text-2xs, .625rem); vertical-align: 1px; }
+.iac-row-sub { max-width: 100%; overflow: hidden; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); text-overflow: ellipsis; white-space: nowrap; }
+.iac-row-summary[aria-expanded="true"] .iac-row-sub { display: none; }
+.iac-row-answer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; max-width: 60%; }
+.iac-sheet-row .iac-row-expanded { margin-top: 6px; padding: 0 0 6px; }
+.iac-sheet-row .iac-row-expanded > .iac-consequence { margin-top: 0; font-size: var(--text-xs, .75rem); }
+.iac-hints { margin: 10px 0 0; padding-left: 16px; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
+.iac-hints b { color: var(--foreground); font-weight: 500; }
+.iac-staged-action { font-size: var(--text-xs, .75rem); font-weight: 500; }
+
+/* Segmented answers: real radios, so arrow keys move between options. */
+.iac-segments { display: inline-flex; flex-wrap: wrap; max-width: 100%; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, .5rem); overflow: hidden; }
+.iac-segment { position: relative; display: inline-flex; align-items: center; min-height: 26px; padding: 0 10px; font-size: var(--text-xs, .75rem); white-space: nowrap; cursor: pointer; user-select: none; }
+.iac-segment + .iac-segment { border-left: 1px solid var(--input, var(--border)); }
+.iac-segment input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+.iac-segment:hover:not(:has(input:disabled)) { background: var(--state-hover, var(--muted)); }
+.iac-segment:has(input:checked) { background: var(--primary); color: var(--primary-foreground); }
+.iac-segment:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: -2px; }
+.iac-segment:has(input:disabled) { cursor: default; opacity: .6; }
+/* The agent's recommendation: a small dot, with the word in the accessible name and tooltip. */
+.iac-segment[data-recommended]::after { content: ""; width: 5px; height: 5px; margin-left: 6px; border-radius: 50%; background: currentColor; opacity: .55; }
+.iac-tag-staged, .iac-tag-changed { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+/* Quiet text, not a pill: ten staged rows should still read as one calm list. */
+.iac-tag-staged { padding: 0; border: 0; color: var(--muted-foreground); }
+.iac-tag-changed { border-color: var(--warning, var(--border)); color: var(--warning-text, var(--foreground)); }
+.iac-tag .iac-clear { width: 16px; height: 16px; padding: 2px; border-radius: 999px; }
+.iac-tag .iac-clear svg { width: 10px; height: 10px; }
+.iac-sheet-footer { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 16px; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius-lg, .75rem) var(--radius-lg, .75rem); background: var(--card); font-size: var(--text-xs, .75rem); }
+.iac-sheet-footer > .iac-muted { margin-right: 4px; }
+.iac-sheet > .iac-error { padding: 8px 16px; border-top: 1px solid var(--border); }
+@container (max-width: 520px) {
+  .iac-sheet-row { padding: 8px 12px; }
+  .iac-sheet-row .iac-row-line { flex-direction: column; align-items: stretch; gap: 6px; }
+  .iac-sheet-row .iac-row-line > .iac-row-summary { align-self: stretch; width: calc(100% + 8px); box-sizing: border-box; margin: -2px -4px; overflow: hidden; }
+  .iac-sheet-row .iac-row-line > .iac-row-answer { align-self: stretch; }
+  .iac-row-answer { max-width: none; justify-content: flex-start; }
+  .iac-segments { display: flex; flex: 1; }
+  .iac-segment { flex: 1 1 auto; justify-content: center; min-height: 36px; }
+  .iac-sheet-footer { padding: 8px 12px; }
+  .iac-sheet-footer > .iac-muted { flex-basis: 100%; }
+}
+
+/* Corner tools, the one-line answer bar, and the sticky-note comment. */
+.iac-header { align-items: flex-start; }
+.iac-header-tools { display: flex; flex-shrink: 0; gap: 2px; margin: -4px -8px 0 auto; }
+.iac-answer-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.iac-note-input { display: flex; flex: 1 1 200px; min-width: 0; align-items: center; gap: 6px; height: 32px; box-sizing: border-box; padding: 0 3px 0 9px; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, .5rem); background: transparent; }
+.iac-note-input:focus-within { box-shadow: 0 0 0 1px var(--ring); }
+.iac-note-input input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; background: transparent; color: inherit; font: inherit; font-size: var(--text-sm, .8125rem); }
+.iac-note-input input::placeholder { color: var(--muted-foreground); }
+.iac-note-icon, .iac-attached, .iac-row-mark, .iac-result-note svg { flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.iac-note-icon { width: 15px; height: 15px; color: var(--muted-foreground); }
+.iac-note-input[data-typed] .iac-note-icon { color: var(--foreground); }
+/* The field's own submit: an outlined circle, centered on the field's line. */
+.iac-note-submit { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; align-self: center; width: 24px; height: 24px; padding: 0; border: 1.5px solid var(--foreground); border-radius: 999px; background: transparent; color: var(--foreground); cursor: pointer; }
+.iac-note-submit svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.iac-note-submit:hover:not(:disabled) { background: var(--state-hover, var(--muted)); }
+.iac-note-submit:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.iac-note-submit:disabled { opacity: .45; cursor: default; }
+.iac-answer-bar > button { flex-shrink: 0; height: 32px; }
+.iac-attached { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; }
+.iac-card .iac-header + .iac-consequence { margin-top: 2px; }
+
+/* The comment that went with an answer, as a small sticky note under the result. */
+.iac-result-note { display: flex; width: fit-content; max-width: 100%; align-items: flex-start; gap: 6px; margin-top: 6px; padding: 3px 8px; border-radius: var(--radius-sm, .25rem); background: var(--surface-attention, var(--muted)); color: var(--foreground); font-size: var(--text-xs, .75rem); white-space: pre-wrap; overflow-wrap: anywhere; }
+.iac-result-note svg { width: 13px; height: 13px; margin-top: 2px; color: var(--muted-foreground); }
+@media (prefers-reduced-motion: no-preference) {
+  .iac-result-line[data-accepted] .iac-result-note { animation: iac-note-dock 320ms cubic-bezier(.2, .8, .2, 1) both; }
+  .iac-result-line[data-accepted][data-state="succeeded"] .iac-result > span:first-child { display: inline-block; animation: iac-check-pop 360ms cubic-bezier(.2, .8, .2, 1) both; }
+}
+@keyframes iac-note-dock { from { opacity: 0; transform: translateY(-10px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes iac-check-pop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.2); opacity: 1; } 100% { transform: none; } }
+
+/* Focused sheet: each row is its question and its answer. */
+.iac-sheet .iac-row-question { display: inline; font-weight: 500; }
+.iac-row-mark { display: inline-block; width: 12px; height: 12px; margin-left: 6px; color: var(--muted-foreground); vertical-align: -1px; }
+.iac-sheet-row[data-open] { background: var(--surface-raised, transparent); }
+.iac-sheet-row .iac-answer-bar { justify-content: flex-start; }
+.iac-quiet { color: var(--muted-foreground); }
+.iac-quiet:hover:not(:disabled) { color: var(--foreground); }
+.iac-finished-toggle { display: flex; width: 100%; align-items: center; gap: 6px; padding: 9px 16px; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--muted-foreground); font: inherit; font-size: var(--text-xs, .75rem); text-align: left; cursor: pointer; }
+.iac-finished-toggle:hover { color: var(--foreground); background: var(--state-hover, var(--muted)); }
+.iac-finished-toggle:focus-visible { outline: 1px solid var(--ring); outline-offset: -1px; }
+.iac-finished-toggle .iac-disclosure { margin-left: 0; }
+.iac-finished .iac-row { padding-top: 6px; padding-bottom: 6px; color: var(--muted-foreground); }
+@container (max-width: 520px) {
+  .iac-answer-bar { justify-content: flex-end; }
+  .iac-note-input { flex-basis: 100%; height: 40px; }
+  .iac-answer-bar > button { height: 40px; }
+  .iac-finished-toggle { padding: 10px 12px; }
+}
+
+/* A sent or finished card is one compact unit: status with its actions right after it, the comment underneath. */
+.iac-result-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 2px 10px; min-width: 0; }
+.iac-result-head > [role="status"] { min-width: 0; overflow-wrap: anywhere; }
+.iac-result-actions { flex-shrink: 0; gap: 0; margin: -4px 0 -4px -4px; }
+.iac-result-actions > button { height: 26px; }
+.iac-result-actions > button:not(.iac-icon) { padding-inline: 6px; }
+.iac-card[data-compact] { width: fit-content; max-width: 100%; box-sizing: border-box; padding: 10px 14px; }
+.iac-sheet-row .iac-result-line { padding: 1px 0; }
+/* The sheet header keeps its bulk action beside the count it acts on. */
+.iac-sheet .iac-table-header { justify-content: flex-start; }
+.iac-sheet .iac-table-header .iac-quiet { height: 24px; margin: -4px 0 -4px -6px; padding: 0 6px; }
+
+/* Comfortable density on bb's 4px spacing scale (--spacing): one decision per row with room around it. */
+.iac-card, .iac-table { --iac-s: var(--spacing, .25rem); line-height: 1.55; }
+.iac-card { padding: calc(var(--iac-s) * 5) calc(var(--iac-s) * 5); }
+.iac-card[data-compact] { padding: calc(var(--iac-s) * 3.5) calc(var(--iac-s) * 4.5); }
+.iac-card .iac-question { font-size: var(--text-base, .9375rem); line-height: 1.45; }
+.iac-card .iac-consequence { margin-top: calc(var(--iac-s) * 1.5); }
+.iac-evidence, .iac-followups, .iac-hints { margin-top: calc(var(--iac-s) * 4); }
+.iac-options { margin-top: calc(var(--iac-s) * 4); gap: calc(var(--iac-s) * 1); }
+.iac-option { min-height: calc(var(--iac-s) * 10); }
+.iac-answer-bar { margin-top: calc(var(--iac-s) * 5); gap: calc(var(--iac-s) * 2.5); }
+.iac-note-input { height: calc(var(--iac-s) * 9); padding-left: calc(var(--iac-s) * 3); }
+.iac-answer-bar > button { height: calc(var(--iac-s) * 9); padding-inline: calc(var(--iac-s) * 4); }
+.iac-note-submit { width: calc(var(--iac-s) * 7); height: calc(var(--iac-s) * 7); }
+.iac-result-head { gap: calc(var(--iac-s) * 1) calc(var(--iac-s) * 3); }
+.iac-result-note { margin-top: calc(var(--iac-s) * 2.5); padding: calc(var(--iac-s) * 1) calc(var(--iac-s) * 2.5); }
+
+.iac-sheet .iac-table-header { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); gap: calc(var(--iac-s) * 4); }
+.iac-sheet .iac-table-header .iac-sheet-title > :first-child { font-size: var(--text-base, .9375rem); }
+.iac-sheet-row { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); }
+.iac-sheet-row .iac-row-line { gap: calc(var(--iac-s) * 6); }
+.iac-sheet .iac-row-question { font-size: var(--text-base, .9375rem); line-height: 1.45; }
+.iac-sheet-row .iac-row-expanded { margin-top: calc(var(--iac-s) * 3); padding-bottom: calc(var(--iac-s) * 1); }
+.iac-segment { min-height: calc(var(--iac-s) * 9); padding: 0 calc(var(--iac-s) * 4); font-size: var(--text-sm, .8125rem); }
+.iac-finished-toggle { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); }
+.iac-finished .iac-row { padding-top: calc(var(--iac-s) * 3); padding-bottom: calc(var(--iac-s) * 3); }
+.iac-sheet-footer { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); gap: calc(var(--iac-s) * 3); }
+.iac-sheet-footer > button, .iac-row-answer > button { height: calc(var(--iac-s) * 9); padding-inline: calc(var(--iac-s) * 4); }
+@container (max-width: 520px) {
+  .iac-card { padding: calc(var(--iac-s) * 4); }
+  .iac-sheet .iac-table-header, .iac-sheet-row, .iac-finished-toggle, .iac-sheet-footer { padding-inline: calc(var(--iac-s) * 4); }
+  .iac-sheet-row .iac-row-line { gap: calc(var(--iac-s) * 3); }
+  .iac-segment, .iac-note-input, .iac-answer-bar > button, .iac-sheet-footer > button, .iac-row-answer > button { min-height: calc(var(--iac-s) * 11); height: auto; }
+  .iac-note-input { height: calc(var(--iac-s) * 11); }
+}
+.iac-sheet .iac-row-question { display: flex; max-width: 100%; min-width: 0; align-items: center; }
+.iac-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iac-row-summary[aria-expanded="true"] .iac-row-title { white-space: normal; overflow-wrap: anywhere; }
+.iac-row-question > .iac-row-mark, .iac-row-question > .iac-disclosure { flex-shrink: 0; }
+@container (max-width: 520px) {
+  .iac-row-title { display: -webkit-box; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+}
+.iac-unsent { font-size: var(--text-sm, .8125rem); white-space: nowrap; }
+
+/* A plain form. Labels sit above controls; every target is large; nothing is hidden. */
+.iac-card.iac-form { padding: calc(var(--iac-s) * 5); }
+.iac-field { min-width: 0; margin: 0; padding: 0; border: 0; }
+.iac-field[disabled] .iac-radio, .iac-field[disabled] .iac-text { opacity: .6; cursor: default; }
+.iac-label { display: block; padding: 0; font-size: var(--text-base, .9375rem); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.iac-help { margin: calc(var(--iac-s) * 1.5) 0 0; color: var(--muted-foreground); line-height: 1.5; overflow-wrap: anywhere; }
+.iac-field .iac-evidence { margin-top: calc(var(--iac-s) * 3); }
+.iac-field .iac-clip, .iac-field .iac-clip[data-clipped] { max-height: none; mask-image: none; -webkit-mask-image: none; cursor: auto; }
+.iac-radios { display: grid; gap: calc(var(--iac-s) * 2); margin-top: calc(var(--iac-s) * 4); }
+.iac-radio { display: flex; align-items: flex-start; gap: calc(var(--iac-s) * 3); min-height: calc(var(--iac-s) * 12); box-sizing: border-box; padding: calc(var(--iac-s) * 3) calc(var(--iac-s) * 3.5); border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, .5rem); font-size: var(--text-base, .9375rem); cursor: pointer; }
+.iac-radio:hover:not(:has(input:disabled)) { background: var(--state-hover, var(--muted)); }
+.iac-radio:has(input:checked) { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.iac-radio:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
+.iac-radio input { flex-shrink: 0; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--primary); }
+.iac-radio-text { display: grid; gap: 2px; min-width: 0; }
+.iac-radio-hint { color: var(--muted-foreground); font-size: var(--text-sm, .8125rem); }
+.iac-sub-label { display: block; margin: calc(var(--iac-s) * 4) 0 calc(var(--iac-s) * 1.5); font-weight: 500; }
+.iac-text, .iac-card .iac-draft, .iac-form-row .iac-draft { display: block; width: 100%; box-sizing: border-box; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, .5rem); background: transparent; color: inherit; font: inherit; font-size: var(--text-base, .9375rem); }
+.iac-text { height: calc(var(--iac-s) * 11); padding: 0 calc(var(--iac-s) * 3); }
+.iac-card .iac-draft, .iac-form-row .iac-draft { min-height: 120px; max-height: 480px; padding: calc(var(--iac-s) * 3); line-height: 1.6; resize: vertical; }
+.iac-text:focus, .iac-card .iac-draft:focus, .iac-form-row .iac-draft:focus { outline: 2px solid var(--ring); outline-offset: 1px; box-shadow: none; background: transparent; }
+.iac-submit-row { display: flex; margin-top: calc(var(--iac-s) * 5); }
+.iac-submit-row > button { height: calc(var(--iac-s) * 11); min-width: 120px; padding-inline: calc(var(--iac-s) * 6); font-size: var(--text-base, .9375rem); }
+.iac-form-row { padding: calc(var(--iac-s) * 5); border-top: 1px solid var(--border); }
+.iac-sheet.iac-form .iac-table-header { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); }
+.iac-sheet.iac-form .iac-sheet-title { font-size: var(--text-base, .9375rem); font-weight: 600; color: var(--foreground); }
+.iac-sheet.iac-form > .iac-submit-row { margin: 0; padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5) calc(var(--iac-s) * 5); border-top: 1px solid var(--border); }
+.iac-confirm { display: grid; gap: calc(var(--iac-s) * 1.5); }
+.iac-confirm-answer { font-size: var(--text-base, .9375rem); }
+.iac-confirm .iac-result-note { margin-top: 0; }
+.iac-confirm time { color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
+.iac-confirm-actions { display: flex; flex-wrap: wrap; gap: calc(var(--iac-s) * 2); }
+.iac-confirm-actions:empty { display: none; }
+.iac-confirm-actions > button { height: calc(var(--iac-s) * 10); padding-inline: calc(var(--iac-s) * 4); }
+@container (max-width: 520px) {
+  .iac-card.iac-form, .iac-form-row { padding: calc(var(--iac-s) * 4); }
+  .iac-sheet.iac-form .iac-table-header, .iac-sheet.iac-form > .iac-submit-row { padding-inline: calc(var(--iac-s) * 4); }
+  .iac-submit-row > button, .iac-confirm-actions > button { flex: 1; }
+}

@@ -26,12 +26,15 @@ vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
   } };
 });
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Billing follow-up", subject: "Missing refund", to: ["billing@example.com"], cc: [], bcc: [], original: { from: "Billing", body: "Your refund is on its way." }, draft: "Original draft" } });
-afterEach(() => { cleanup(); submittedMessages.length = 0; });
+afterEach(() => { cleanup(); submittedMessages.length = 0; localStorage.clear(); });
 // Radix tooltips measure their content; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
-function addRowNote(row: HTMLElement) {
-  expect(within(row).queryByRole("button", { name: "More actions" })).toBeNull();
-  fireEvent.click(within(row).getByRole("button", { name: "Comment" }));
+// Answer a form field the way a person does: pick the radio, then press Submit.
+function answer(label: RegExp | string, within_: HTMLElement = document.body) {
+  fireEvent.click(within(within_).getByRole("radio", { name: label }));
+}
+function submit(within_: HTMLElement = document.body) {
+  fireEvent.click(within(within_).getByRole("button", { name: "Submit" }));
 }
 async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>) {
   let item = initialItem;
@@ -67,7 +70,7 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
       },
     },
   });
-  await screen.findByRole("article");
+  await screen.findByRole("form");
   return { slot, calls, get: () => item, reportSuccess: async () => {
     item = { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Sent", retryable: false } };
     await slot.behavior.emitRealtime("items", {});
@@ -75,20 +78,23 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
 }
 it("flushes an immediate edit before submitting Send exactly once", async () => {
   const { slot, calls, get } = await setup();
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "My latest edit" } });
-  const send = screen.getByRole("button", { name: /^Send$/ });
-  fireEvent.click(send);
-  fireEvent.click(send);
+  fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "My latest edit" } });
+  answer("Send");
+  const button = screen.getByRole("button", { name: "Submit" });
+  fireEvent.click(button);
+  fireEvent.click(button);
   await waitFor(() => expect(calls).toEqual(["save", "prepare", "submitted"]));
   expect(slot.inspection.composer.submits).toHaveLength(1);
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Billing follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
-  await screen.findByText("Approved to send");
+  await screen.findByText(/Sent\. Waiting for the agent\./);
+  expect(screen.getByText(/You chose Send/)).toBeTruthy();
   expect(screen.queryByRole("textbox")).toBeNull();
 });
 it("preserves an existing composer message", async () => {
   const { slot, calls } = await setup("Please also check another message");
-  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
+  answer("Send");
+  submit();
   await screen.findByRole("alert");
   expect(slot.inspection.composer.text).toBe("Please also check another message");
   expect(slot.inspection.composer.submits).toHaveLength(0);
@@ -96,7 +102,8 @@ it("preserves an existing composer message", async () => {
 });
 it("replaces an obsolete local error when the agent reports success", async () => {
   const { reportSuccess } = await setup("Another composer message");
-  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
+  answer("Send");
+  submit();
   await screen.findByRole("alert");
   // Another client can complete the item while this view retains a local error.
   await reportSuccess();
@@ -105,26 +112,32 @@ it("replaces an obsolete local error when the agent reports success", async () =
 });
 it("keeps an unsaved edit visible and offers recovery without submitting", async () => {
   const { slot, calls } = await setup("", true);
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Keep this edit" } });
-  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "Keep this edit" } });
+  answer("Send");
+  submit();
   await screen.findByRole("button", { name: "Retry save" });
-  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Keep this edit");
+  expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Keep this edit");
   expect(calls).toEqual(["save"]);
   expect(slot.inspection.composer.submits).toHaveLength(0);
 });
 
-it("keeps the expanded table reply in place while Send is pending", async () => {
+it("stages a reviewed table reply and sends it only with the sheet", async () => {
   let items = [fixture(), { ...fixture(), id: "esc-2" }];
+  const calls: unknown[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "inbox" }, source: '::actions{id="inbox"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
     composer: { scope: { kind: "thread", threadId: "thr_test" } },
     rpc: {
-      table: () => ({ id: "inbox", threadId: "thr_test", title: "Replies", ids: items.map((item) => item.id), items }),
+      table: () => ({ id: "inbox", threadId: "thr_test", title: "Replies", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
       get: (raw) => items.find((item) => item.id === (raw as { id: string }).id),
-      prepare: (raw) => {
-        const id = (raw as { id: string }).id;
-        items = items.map((item): Item => item.id === id ? { ...item, revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: false } } : item);
-        return items.find((item) => item.id === id);
+      prepareBatch: (raw) => {
+        const input = raw as { items: { id: string; revision: number; action: NonNullable<Item["attempt"]>["action"]; note?: string }[] };
+        calls.push(input);
+        items = items.map((item, index): Item => {
+          const entry = input.items.find((candidate) => candidate.id === item.id);
+          return entry ? { ...item, revision: item.revision + 1, state: "pending", attempt: { id: `ea45f71a-c216-4da4-a226-65736f4eccf${index}`, action: entry.action, claimed: false, ...(entry.note ? { note: entry.note } : {}) } } : item;
+        });
+        return items.filter((item) => input.items.some((entry) => entry.id === item.id));
       },
       submitted: (raw) => {
         const id = (raw as { id: string }).id;
@@ -133,66 +146,135 @@ it("keeps the expanded table reply in place while Send is pending", async () => 
       },
     },
   });
-  const reviews = await screen.findAllByRole("button", { name: /Review/ });
-  fireEvent.click(reviews[0]!);
-  expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(1);
-  fireEvent.click(screen.getByRole("button", { name: /Review/ }));
-  expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(1);
-  fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
+  const rows = await screen.findAllByRole("group", { name: /^Reply:/ });
+  // A form shows every draft; nothing hides behind Review.
+  expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(2);
+  answer("Send", rows[1]!);
+  expect(slot.inspection.composer.submits).toHaveLength(0);
+  submit();
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-  await screen.findByText("Approved to send");
-  expect(screen.getByRole("textbox", { name: "Draft" }).getAttribute("readonly")).not.toBeNull();
-  expect(screen.queryByRole("button", { name: "Sending…" })).toBeNull();
+  expect(calls).toEqual([expect.objectContaining({ items: [expect.objectContaining({ id: "esc-2", action: "send" })] })]);
+  await screen.findByText(/Sent\. Waiting for the agent\./);
 });
 
-it.each(["send", "yes", "no"] as const)("shows %s loading only while it is sent, then settles", async (action) => {
+it.each(["send", "yes", "no"] as const)("shows %s as submitting only while it is sent, then confirms the choice", async (action) => {
   const item = fixture();
   if (action !== "send") item.content = { type: "decide", question: "Switch digests?", consequence: "Keep schedules", yesLabel: "Switch", noLabel: "Keep" };
   let release!: () => void;
   const { slot } = await setup("", false, item, new Promise<void>((resolve) => { release = resolve; }));
   const label = action === "send" ? "Send" : action === "yes" ? "Switch" : "Keep";
-  const button = screen.getByRole("button", { name: label });
-  const classes = button.className;
+  answer(label);
+  const button = screen.getByRole("button", { name: "Submit" });
   fireEvent.click(button);
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-  const pending = screen.getByRole("button", { name: action === "send" ? "Sending…" : action === "yes" ? "Switching…" : "Keeping…" });
+  const pending = screen.getByRole("button", { name: "Submitting…" });
   expect(pending).toBe(button);
-  expect(pending.className).toBe(classes);
   expect(pending.getAttribute("aria-busy")).toBe("true");
   expect((pending as HTMLButtonElement).disabled).toBe(true);
-  const other = screen.getByRole("button", { name: action === "send" ? "Comment" : action === "yes" ? "Keep" : "Switch" });
-  expect((other as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByRole("button", { name: "Skip" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByRole("radio", { name: label }).matches(":disabled")).toBe(true);
   release();
-  const status = await screen.findByRole("status");
-  expect(status.textContent).toMatch(new RegExp(`^✓ ${action === "send" ? "Approved to send" : `${label} sent`} · `));
-  expect(screen.queryByRole("button", { name: label })).toBeNull();
-  expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+  expect(await screen.findByText(new RegExp(`You chose ${label}$`))).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
+  expect(screen.queryByRole("radio")).toBeNull();
 });
 
-it("keeps the bulk button busy only while sending, without treating a row click as bulk", async () => {
-  let items: Item[] = ["one", "two"].map((id) => ({ ...fixture(), id, content: { type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", actionKey: "switch" } }));
+it("answers several rows as one form and sends every answer in one message", async () => {
+  let items: Item[] = ["one", "two", "three"].map((id) => ({ ...fixture(), id, content: { type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", noLabel: "Keep", actionKey: "switch" } }));
+  const calls: { items: { id: string; action: string }[] }[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
-  const prepare = (item: Item): Item => ({ ...item, revision: item.revision + 1, state: "pending", attempt: { id: item.id === "one" ? "ea45f71a-c216-4da4-a226-65736f4eccfd" : "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "yes", claimed: false } });
-  const settle = (id: string) => { items = items.map((item) => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item); return items.find((item) => item.id === id); };
   const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
     composer: { scope: { kind: "thread", threadId: "thr_test" } },
     rpc: {
-      table: () => ({ id: "digests", threadId: "thr_test", title: "Digests", ids: items.map((item) => item.id), items }),
+      table: () => ({ id: "digests", threadId: "thr_test", title: "Digests", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
       get: (raw) => items.find((item) => item.id === (raw as { id: string }).id),
-      prepare: (raw) => { items = items.map((item) => item.id === (raw as { id: string }).id ? prepare(item) : item); return items[0]; },
-      prepareTable: () => { items = items.map((item) => item.state === "ready" ? prepare(item) : item); return [items[1]]; },
-      submitted: (raw) => settle((raw as { id: string }).id),
+      prepareBatch: (raw) => {
+        const input = raw as { items: { id: string; revision: number; action: NonNullable<Item["attempt"]>["action"]; note?: string }[] };
+        calls.push(input as never);
+        items = items.map((item, index): Item => {
+          const entry = input.items.find((candidate) => candidate.id === item.id);
+          return entry ? { ...item, revision: item.revision + 1, state: "pending", attempt: { id: `ea45f71a-c216-4da4-a226-65736f4eccf${index}`, action: entry.action, claimed: false, ...(entry.note ? { note: entry.note } : {}) } } : item;
+        });
+        return items.filter((item) => input.items.some((entry) => entry.id === item.id));
+      },
+      submitted: (raw) => {
+        const id = (raw as { id: string }).id;
+        items = items.map((item): Item => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item);
+        return items.find((item) => item.id === id);
+      },
     },
   });
-  const button = await screen.findByRole("button", { name: "Switch all" });
-  fireEvent.click(within(screen.getAllByRole("article")[0]!).getByRole("button", { name: "Switch" }));
+  const rows = await screen.findAllByRole("group", { name: /^Decision:/ });
+  expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
+  answer("Switch", rows[0]!);
+  answer("Keep", rows[1]!);
+  expect(slot.inspection.composer.submits).toHaveLength(0);
+  submit();
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-  expect(button.getAttribute("aria-busy")).toBeNull();
-  fireEvent.click(button);
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(2));
-  await waitFor(() => expect(button.getAttribute("aria-busy")).toBeNull());
-  await waitFor(() => expect(screen.getAllByText("Switch sent")).toHaveLength(2));
+  expect(calls).toEqual([{ id: "digests", threadId: "thr_test", items: [expect.objectContaining({ id: "one", action: "yes" }), expect.objectContaining({ id: "two", action: "no" })] }]);
+  expect(submittedMessages[0]!.split("\n")).toHaveLength(2);
+  expect(slot.inspection.composer.mentions).toHaveLength(2);
+  await waitFor(() => expect(screen.getAllByText(/Sent\. Waiting for the agent\./)).toHaveLength(2));
+  expect(within(rows[2]!).getByRole("radio", { name: "Switch" })).toBeTruthy();
+});
+
+it("shows a card whose request never reached the agent as not sent, with Resend", async () => {
+  const item: Item = { ...fixture(), revision: 3, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, note: "how do i test?" }, content: { type: "decide", question: "Merge PR #42?", consequence: "Squash-merge it.", yesLabel: "Merge" } };
+  const { slot } = await setup("", false, item);
+  expect((await screen.findByRole("status")).textContent).toContain("Not sent: it didn't reach the agent.");
+  expect(screen.getByText(/You chose Merge/)).toBeTruthy();
+  expect(screen.getByText("how do i test?")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Resend" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(slot.inspection.composer.mentions).toMatchObject([{ id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
+});
+
+it("keeps a prepared but unsent row in place with Resend", async () => {
+  let items: Item[] = [
+    { ...fixture(), id: "one", revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false }, content: { type: "decide", question: "Switch one?", consequence: "Keep schedules", yesLabel: "Switch" } },
+    { ...fixture(), id: "two", content: { type: "decide", question: "Switch two?", consequence: "Keep schedules", yesLabel: "Switch" } },
+  ];
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+    composer: { scope: { kind: "thread", threadId: "thr_test" } },
+    rpc: {
+      table: () => ({ id: "digests", threadId: "thr_test", title: "Digests", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
+      get: (raw) => ({ ...items.find((item) => item.id === (raw as { id: string }).id)!, followUps: [] }),
+      submitted: (raw) => {
+        const id = (raw as { id: string }).id;
+        items = items.map((item): Item => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item);
+        return items.find((item) => item.id === id);
+      },
+    },
+  });
+  fireEvent.click(await screen.findByRole("button", { name: "Resend" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(slot.inspection.composer.mentions).toMatchObject([{ id: "thr_test:one:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
+  expect(await screen.findByText(/Sent\. Waiting for the agent\./)).toBeTruthy();
+});
+
+it("drops an answer when the agent changes its row, and keeps answers across a remount", async () => {
+  let items: Item[] = ["one", "two"].map((id) => ({ ...fixture(), id, content: { type: "choice", question: `Pick ${id}`, recommended: "b", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] } }));
+  const app = await loadPluginApp(() => import("./app.js"));
+  const props = { attributes: { id: "plans" }, source: '::actions{id="plans"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null };
+  const rpc = {
+    table: () => ({ id: "plans", threadId: "thr_test", title: "Plans", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
+    get: (raw: unknown) => ({ ...items.find((item) => item.id === (raw as { id: string }).id)!, followUps: [] }),
+  };
+  const checked = () => screen.getAllByRole("radio").filter((radio) => (radio as HTMLInputElement).checked).length;
+  let slot = renderSlot(app.messageDirectives[1]!, props, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc });
+  const rows = await screen.findAllByRole("group", { name: /^Choice:/ });
+  answer(/^Plan B/, rows[0]!);
+  answer(/^Plan A/, rows[1]!);
+  expect(checked()).toBe(2);
+  slot.lifecycle.unmount();
+  slot = renderSlot(app.messageDirectives[1]!, props, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc });
+  await screen.findAllByRole("group", { name: /^Choice:/ });
+  await waitFor(() => expect(checked()).toBe(2));
+  items = items.map((item) => item.id === "two" ? { ...item, revision: 2 } : item);
+  await slot.behavior.emitRealtime("items", {});
+  await waitFor(() => expect(checked()).toBe(1));
+  slot.lifecycle.unmount();
+  localStorage.clear();
 });
 
 it("Action log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
@@ -204,14 +286,14 @@ it("Action log refresh updates the reviewed draft while preserving unsaved local
   } });
   await screen.findByRole("button", { name: "Review" });
   fireEvent.click(screen.getByRole("button", { name: "Review" }));
-  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Original draft");
+  expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft");
   item = { ...item, revision: 2, content: { ...item.content, draft: "Updated elsewhere" } } as typeof item;
   await slot.behavior.emitRealtime("items", {});
-  await waitFor(() => expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Updated elsewhere"));
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Unsaved local edit" } });
+  await waitFor(() => expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Updated elsewhere"));
+  fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "Unsaved local edit" } });
   item = { ...item, revision: 3, content: { ...item.content, draft: "Another remote update" } } as typeof item;
   await slot.behavior.emitRealtime("items", {});
-  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Unsaved local edit");
+  expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Unsaved local edit");
 });
 
 it("Action log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
@@ -260,46 +342,44 @@ it("thread panel Action log lists only its thread, drops thread names, and links
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
 });
 
-it("submits the selected option from a choice card, starting from the recommendation", async () => {
+it("submits the picked option from a choice card, marking but never preselecting the recommendation", async () => {
   const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [
     { id: "single", label: "UserSingle", hint: "One account for every thread" }, { id: "multi", label: "UserMultiple" }, { id: "pool", label: "Pool" },
   ] };
   let release!: () => void;
   const { slot, calls, get } = await setup("", false, { ...fixture(), id: "setup", content }, new Promise<void>((resolve) => { release = resolve; }));
-  await screen.findByRole("radiogroup", { name: "Which account setup?" });
-  expect(screen.getByText("Recommended")).toBeTruthy();
-  expect((screen.getByRole("radio", { name: /UserMultiple/ }) as HTMLInputElement).checked).toBe(true);
-  expect(screen.getByRole("button", { name: "Use UserMultiple" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("radio", { name: /UserSingle/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Use UserSingle" }));
+  await screen.findByRole("group", { name: "Which account setup?" });
+  expect(screen.getByText("(recommended)").closest("label")?.textContent).toContain("UserMultiple");
+  expect(screen.getAllByRole("radio").some((radio) => (radio as HTMLInputElement).checked)).toBe(false);
+  expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
+  answer(/^UserSingle/);
+  submit();
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(calls).toEqual(["choose"]);
   expect(get().attempt).toMatchObject({ action: "choose", choice: { id: "single", label: "UserSingle" } });
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:setup:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Which account setup" }]);
-  expect(screen.getByRole("button", { name: "Using…" }).getAttribute("aria-busy")).toBe("true");
-  expect((screen.getByRole("radio", { name: /UserMultiple/ }) as HTMLInputElement).disabled).toBe(true);
+  expect(screen.getByRole("button", { name: "Submitting…" }).getAttribute("aria-busy")).toBe("true");
   release();
-  expect((await screen.findByRole("status")).textContent).toMatch(/^✓ UserSingle chosen · /);
+  expect(await screen.findByText(/You chose UserSingle/)).toBeTruthy();
   expect(calls).toEqual(["choose", "submitted"]);
-  expect(screen.queryByRole("button", { name: "Using…" })).toBeNull();
 });
-it("sends a comment along with the chosen option", async () => {
+it("sends the note along with the chosen option", async () => {
   const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "UserSingle" }, { id: "multi", label: "UserMultiple" }] };
   const { slot, get } = await setup("", false, { ...fixture(), id: "setup", content });
-  fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "Keep the pool as backup" } });
-  fireEvent.click(screen.getByRole("button", { name: "Use UserMultiple with comment" }));
+  answer(/^UserMultiple/);
+  fireEvent.change(await screen.findByRole("textbox", { name: "Note (optional)" }), { target: { value: "Keep the pool as backup" } });
+  submit();
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(get().attempt).toMatchObject({ action: "choose", note: "Keep the pool as backup" });
   expect(submittedMessages[0]).toContain(" — Keep the pool as backup");
 });
-it("disables the primary button until an option is picked when nothing is recommended", async () => {
+it("keeps Submit disabled until an option is picked or a note is written", async () => {
   const content = { type: "choice" as const, question: "Pick a plan", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] };
   await setup("", false, { ...fixture(), id: "plan", content });
-  const button = await screen.findByRole("button", { name: "Choose an option" });
+  const button = await screen.findByRole("button", { name: "Submit" });
   expect((button as HTMLButtonElement).disabled).toBe(true);
-  fireEvent.click(screen.getByRole("radio", { name: "Plan B" }));
-  expect((screen.getByRole("button", { name: "Use Plan B" }) as HTMLButtonElement).disabled).toBe(false);
+  answer("Plan B");
+  expect((button as HTMLButtonElement).disabled).toBe(false);
 });
 
 it.each(["reply", "decide"] as const)("round-trips a %s note through click, message context, CLI claim, reload and result", async (type) => {
@@ -319,11 +399,10 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
         submitted: (input) => host.harness.behavior.callRpc("submitted", input),
       },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
-    const field = screen.getByRole("textbox", { name: "Comment" });
-    expect(document.activeElement).toBe(field);
-    fireEvent.change(field, { target: { value: note } });
-    fireEvent.click(screen.getByRole("button", { name: type === "reply" ? "Send with comment" : "Switch with comment" }));
+    await screen.findByRole("radio", { name: type === "reply" ? "Send" : "Switch" });
+    answer(type === "reply" ? "Send" : "Switch");
+    fireEvent.change(await screen.findByRole("textbox", { name: "Note (optional)" }), { target: { value: note } });
+    submit();
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
     expect(submittedMessages[0]).toContain(` — ${note}`);
     const mention = slot.inspection.composer.mentions[0]!;
@@ -343,19 +422,10 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
   } finally { await host.harness.lifecycle.dispose(); }
 });
 
-it("dismisses a comment with Escape or clearing, keeping empty approval unchanged", async () => {
+it("sends an answer without a note as plain approval", async () => {
   const { slot, get } = await setup();
-  fireEvent.click(screen.getByRole("button", { name: "Comment" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "Do not send" } });
-  fireEvent.keyDown(screen.getByRole("textbox", { name: "Comment" }), { key: "Escape" });
-  expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Comment" })));
-  fireEvent.click(screen.getByRole("button", { name: "Comment" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "Temporary" } });
-  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "" } });
-  expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Comment" })));
-  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  answer("Send");
+  submit();
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(get().attempt?.note).toBe("");
   expect(submittedMessages[0]).not.toContain(" — ");
@@ -376,11 +446,10 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
         comment: (input) => host.harness.behavior.callRpc("comment", input),
       },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
-    expect(screen.queryByRole("button", { name: "Send comment" })).toBeNull();
     const note = "Can you keep Money on the old one?";
-    fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: note } });
-    fireEvent.click(screen.getByRole("button", { name: "Send comment" }));
+    // A note with no answer picked is sent on its own as a question.
+    fireEvent.change(await screen.findByRole("textbox", { name: "Note (optional)" }), { target: { value: note } });
+    submit();
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
     expect(submittedMessages[0]).toContain(note);
     expect(submittedMessages[0]).toMatch(type === "reply" ? /^Billing follow-up / : /^Switch digests /);
@@ -392,13 +461,13 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
     expect(context).not.toHaveProperty("attemptId");
     const saved = JSON.parse((await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId])).stdout!);
     expect(saved).toMatchObject({ state: "ready", attempt: null, revision: 1 });
-    expect((screen.getByRole("button", { name: type === "reply" ? "Send" : "Switch" }) as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    expect((screen.getByRole("radio", { name: type === "reply" ? "Send" : "Switch" }) as HTMLInputElement).disabled).toBe(false);
+    expect((screen.getByRole("textbox", { name: "Note (optional)" }) as HTMLInputElement).value).toBe("");
     slot.lifecycle.unmount();
   } finally { await host.harness.lifecycle.dispose(); }
 });
 
-it("keeps separate row notes on bulk choices and offers comments on collapsed Reply rows", async () => {
+it("keeps each row's own note in one submitted form, and shows Reply rows in full", async () => {
   const host = createFakePluginHost({ pluginId: "inline-action-cards" });
   plugin(host.bb);
   try {
@@ -410,18 +479,17 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
       rpc: {
         table: (input) => host.harness.behavior.callRpc("table", input),
         get: (input) => host.harness.behavior.callRpc("get", input),
-        prepareTable: (input) => host.harness.behavior.callRpc("prepareTable", input),
+        prepareBatch: (input) => host.harness.behavior.callRpc("prepareBatch", input),
         submitted: (input) => host.harness.behavior.callRpc("submitted", input),
       },
     });
-    await screen.findByRole("button", { name: "Switch all" });
+    const rows = await screen.findAllByRole("group", { name: /^Decision:/ });
     expect(screen.queryByRole("alert")).toBeNull();
-    const rows = screen.getAllByRole("article");
     for (const [index, row] of rows.entries()) {
-      addRowNote(row);
-      fireEvent.change(await within(row).findByRole("textbox", { name: "Comment" }), { target: { value: `Condition ${index}` } });
+      answer("Switch", row);
+      fireEvent.change(within(row).getByRole("textbox", { name: "Note (optional)" }), { target: { value: `Condition ${index}` } });
     }
-    fireEvent.click(screen.getByRole("button", { name: "Switch all" }));
+    submit();
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
     expect(submittedMessages[0]).toContain(" — Condition 0");
     expect(submittedMessages[0]).toContain(" — Condition 1");
@@ -439,9 +507,9 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
     composer: { scope: { kind: "thread", threadId: "thr_test" } },
     rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: [item.id], items: [item] }), get: () => item },
   });
-  addRowNote(await screen.findByRole("article"));
+  await screen.findByRole("group", { name: /^Reply:/ });
   expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Comment" })));
+  expect(screen.getByRole("textbox", { name: "Note (optional)" })).toBeTruthy();
   replySlot.lifecycle.unmount();
 });
 
@@ -485,7 +553,7 @@ it("Action log Send on a collapsed reply opens the email first and sends only on
   now.mockRestore();
 });
 
-it("a collapsed failed table reply opens before Retry can resend it", async () => {
+it("retries a failed table reply from its confirmation", async () => {
   const failed: Item = { ...fixture(), revision: 3, state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true }, result: { message: "Reconnect Gmail", retryable: true } };
   const calls: string[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
@@ -498,28 +566,19 @@ it("a collapsed failed table reply opens before Retry can resend it", async () =
       submitted: () => ({ ...failed, revision: 5, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false, sentAt: "2026-10-01T19:09:00Z" } }),
     },
   });
-  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
-  fireEvent.click(await screen.findByRole("button", { name: "Review and retry" }));
-  const retry = screen.getByRole("button", { name: "Retry" });
-  fireEvent.click(retry);
-  expect(calls).toHaveLength(0);
-  expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
-  await waitFor(() => expect(document.activeElement).toBe(retry));
-  now.mockReturnValue(2_000);
-  fireEvent.click(retry);
+  expect(await screen.findByText("Reconnect Gmail")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(calls).toEqual(["prepare"]);
-  now.mockRestore();
 });
-
-it("never offers a bulk action over reply rows", async () => {
+it("never offers a bulk action, and Submit waits for an answer", async () => {
   const items = [fixture(), { ...fixture(), id: "esc-2" }];
   const app = await loadPluginApp(() => import("./app.js"));
   renderSlot(app.messageDirectives[1]!, { attributes: { id: "replies" }, source: '::actions{id="replies"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
     composer: { scope: { kind: "thread", threadId: "thr_test" } },
     rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: items.map((item) => item.id), items }), get: (raw) => items.find((item) => item.id === (raw as { id: string }).id) },
   });
-  expect(await screen.findAllByRole("button", { name: /Review/ })).toHaveLength(2);
+  expect(await screen.findAllByRole("group", { name: /^Reply:/ })).toHaveLength(2);
   expect(screen.queryByRole("button", { name: /all$/ })).toBeNull();
-  expect(screen.queryByRole("button", { name: /Send/ })).toBeNull();
+  expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
 });

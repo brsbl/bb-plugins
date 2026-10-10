@@ -7,7 +7,7 @@ description: Use whenever you need a user decision or approval in any thread, in
 
 Whenever you need the user's decision or approval, create an action card instead of asking in prose. This applies in any thread: merge or ship a prepared PR, send an email, apply a proposed change, switch a setting, or choose between two options. Explain the proposed action and tradeoffs before the card so the user can approve a concrete result. Existing authorization still applies; do not add a new approval step to work the user already authorized.
 
-Use a single card for one important item. When the user picks one of several options, use one choice card, never a table of yes/no rows. Use a table for three or more independent yes/no items, or a mixed group that should stay together. Create the item first, then emit the returned `::action{id="..."}` directive on its own line, outside code fences. Cards appear only inside assistant messages. IDs are unique within the owning thread; never reuse one for another email or decision. Use concise, task-specific IDs.
+Use a single card for one important item. When the user picks one of several options, use one choice card, never a table of yes/no rows. When you need three or more decisions at once, put them all in **one table** (a decision sheet, up to 20 rows of any type) instead of several cards or messages: the user answers every row, then sends all answers together. Create the item first, then emit the returned `::action{id="..."}` directive on its own line, outside code fences. Cards appear only inside assistant messages. IDs are unique within the owning thread; never reuse one for another email or decision. Use concise, task-specific IDs.
 
 **Don't nag about waiting cards.** A waiting card is your open question, and the user may simply not have answered yet. By default, don't mention it at all: it stays in the thread and in the Action log. Reshare a card only when: (1) your next step is blocked on that answer, (2) the user asks about it, or (3) the card changed (for example a revised draft). To reshare, emit the same `::action{id="..."}` (or `::actions{id="..."}`) directive again; the same live card renders in both places, so reuse the ID and don't create a new item. Reshare a card at most once per user reply, and never in two of your messages in a row without the user replying in between. Don't write "the card above is still waiting on your choice."
 
@@ -38,6 +38,24 @@ JSON
 
 Replace example identifiers with the actual target and include the exact reviewed head when approval depends on a revision. After a click, claim and report the attempt using the flow below, whatever service or setting the action affects.
 
+## Give the decision its context
+
+Any card (Reply, Decide, or Choice) accepts optional evidence so the user can decide without leaving the card:
+
+- `context`: Markdown, up to 20,000 characters, rendered like a chat message (headings, lists, code blocks, tables, links). Lead with what changes and the risk; long context is clipped until the user opens it.
+- `media`: up to 4 images, each `{"src","alt","caption"?}`. `src` is an `https://` URL or an **absolute path** to a `.png`, `.jpg`, `.gif`, `.webp`, `.avif` or `.svg` file on the thread's host (for example a screenshot you just captured). Relative paths, `http:`, and `data:` URLs are rejected.
+- Decide cards also accept `recommended: "yes" | "no"`; Choice cards keep `recommended: "<option id>"`. The form labels that option "(recommended)" but never preselects it.
+
+```sh
+bb action-cards create merge-412 --item-stdin <<'JSON'
+{"type":"decide","question":"Merge PR #412 — shorten sessions to 7 days?","consequence":"Squash-merge #412 into main at 3f2a1c9.","yesLabel":"Merge","noLabel":"Keep open","recommended":"yes",
+ "context":"Sessions expire after **7 days** instead of 30.\n\n```diff\n- SESSION_TTL = days(30)\n+ SESSION_TTL = days(7)\n```\n\n| Check | Result |\n| --- | --- |\n| CI | ✅ 214 passed |",
+ "media":[{"src":"/Users/me/project/.shots/login.png","alt":"Sign-in screen after the change","caption":"Sign-in after expiry"}]}
+JSON
+```
+
+Keep `question` and `consequence` short; they are what the user scans in a table. Put detail in `context`, not in the question.
+
 ## Choose one option
 
 A choice card asks one question and lists 2–6 options as a compact single-select list. The user picks one and clicks “Use <option>”. Give each option a stable `id`, a short `label` (80 characters at most; aim for a few words), and an optional one-line `hint`; the card truncates long hints. Set `recommended` to an option id to mark it and preselect it; otherwise nothing is selected. Add `consequence` only when it applies to every option.
@@ -48,11 +66,13 @@ bb action-cards create account-setup --item-stdin <<'JSON'
 JSON
 ```
 
-Explain tradeoffs before the card rather than in hints. A click carries `action: "choose"` and `choice: {"id","label"}` in its hidden context; act on that option only. Claim and report like Decide, for example `--message 'UserMultiple chosen'`. Comment and Skip work as on other cards. Choice cards stand alone; tables do not accept them.
+Explain tradeoffs in `context` or before the card rather than in hints. A click carries `action: "choose"` and `choice: {"id","label"}` in its hidden context; act on that option only. Claim and report like Decide, for example `--message 'UserMultiple chosen'`. Comments work as on other cards. Choice cards can also be rows in a table.
 
-## Group items in a table
+## Group many decisions in a table (decision sheet)
 
-Create the items first, then create a table that references those same IDs. Emit its returned `::actions{id="..."}` directive on its own line. Rows keep their order as results arrive. Reply rows open their full editor with Review; only one is open at a time.
+Create the items first, then create a table that references those same IDs. Emit its returned `::actions{id="..."}` directive on its own line. Rows keep their order as results arrive. Order rows by importance and keep each `question` scannable.
+
+Every card renders as a plain form. Its question is the field label; `consequence` and `context` show in full as help text. The answer is a radio group (Decide shows your Yes/No labels, Choice shows its options, Reply shows Send / Save to Gmail drafts under the full draft), followed by an optional one-line **Note** field and a **Submit** button. A table is one form with one Submit at the end: it sends one message with a mention per answered row, each with its own attempt and note. Rows the user left unanswered send nothing, so don't assume an answer for them. Keep `consequence` short and put long detail in `context`; both show in full.
 
 ```sh
 bb action-cards create news-1 --item-stdin <<'JSON'
@@ -64,7 +84,9 @@ bb action-cards create-table newsletters --table-stdin <<'JSON'
 JSON
 ```
 
-Tables accept up to 20 existing items from the same thread. For mixed rows, include Reply and Decide IDs in the same list. A Decide item can supply `yesLabel`/`noLabel` for precise verbs. They still map to the existing `yes`/`no` actions. Use `actionKey` only when rows perform the **same operation** (for example `archive-email`); matching keys and affirmative labels enable Archive all. Do not give archive, delete, or differently scoped actions the same key. The bulk button approves only the currently ready rows; failed rows require their own retry. Each selected item gets its own attempt and outcome, so partial failures remain visible.
+Tables accept up to 20 existing items from the same thread, of any type. For mixed rows, include Reply, Decide, and Choice IDs in the same list. A Decide item can supply `yesLabel`/`noLabel` for precise verbs. They still map to the existing `yes`/`no` actions. Use `actionKey` only when rows perform the **same operation** (for example `archive-email`); matching keys and affirmative labels enable Archive all. Do not give archive, delete, or differently scoped actions the same key. The bulk button stages Yes on the currently ready rows; the user still presses Send. Failed rows require their own retry. Each sent row gets its own attempt and outcome, so partial failures remain visible.
+
+When a sheet message arrives, handle every reference in it: claim each attempt, act on it, and report each result on its own row before replying. Summarize the batch in one short message (what succeeded, what failed and why); don't restate each row.
 
 ## Handle a click
 
@@ -83,6 +105,8 @@ bb action-cards report receipts-1 --attempt <uuid> --outcome succeeded --message
 
 The card collapses to a result line and adds the local time. Use “Sent to Billing team”, “Archived”, or “Filed under Receipts” as appropriate. The draft stays reachable through View. Do not promise Undo: this plugin has no reversible service action. Put useful result detail in the message when needed. Read persisted state any time with `bb action-cards get esc-1`.
 
+If bb could not deliver a click (for example it refused a competing turn), the card notices once the thread is idle with nothing queued and shows “Not sent” with Resend. Resend reuses the same attempt ID, so claim it as usual; it can never be claimed twice.
+
 A rejected claim is not approval to try again. It means the attempt is stale, already claimed, or finished. Read its state and reconcile the external service result; never repeat the side effect. The claim is durable across reloads. Retain the external service's receipt in the thread when available. This prevents duplicate execution from repeated clicks/messages but cannot make external APIs exactly-once.
 
 ## Failure and retry
@@ -97,11 +121,29 @@ The card shows Retry. A new click creates a new attempt, which must be claimed a
 
 ## Comments with a choice
 
-Every ready card and table row has a Comment button (speech bubble) on its action line. It opens a short field above the buttons. Choosing an action while the field has text submits the comment visibly after the mention pill and includes it as `note` in hidden context; the primary button shows a small speech bubble when a comment goes along. The comment is saved on the attempt as `note`, returned by claim/get, and shown under the result. Empty comments keep the usual behavior; Escape or clearing the field dismisses it. Bulk approval carries each row’s own comment.
+The **Note** field sits under the answer. When Submit carries an answer, the note goes after the mention pill and is included as `note` in hidden context.
 
 ## Comment without choosing
 
-When the comment field contains text, its send button sends just the comment with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `threadId`, and `itemId`; it has no action or attempt. This is not approval. The card stays ready and its choices remain usable. Reply to the comment; if it asks for a change, read the latest item and revise the **same** Reply draft using its revision. Decide question/consequence updates are not supported; explain the requested change instead of creating a replacement card or acting.
+When the user writes a note but picks no answer, Submit sends just the note as a follow-up question, with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `commentId`, `threadId`, and `itemId`; it has no action or attempt. A comment never approves the card's own action: never claim or create an attempt for it. Treat it as a chat message from the user. Answer questions, and follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization. If it is ambiguous, or the card's own action needs approval, ask the user to submit an answer on the card. The card stays ready, and other rows in the same table keep their answers.
+
+Answer the follow-up **on the card** so the answer sits next to the decision it is about:
+
+```sh
+bb action-cards answer rotate-key --comment <commentId> --message-stdin <<'MD'
+Three CI secrets use it: **deploy**, **e2e**, and **nightly**. I rotate all three in the same step.
+MD
+```
+
+When what you did makes the card moot, settle it so it stops waiting. For example, the user commented “close this” on a Close PR card and you closed the PR, or they withdrew the question:
+
+```sh
+bb action-cards resolve pr-412 --message 'Closed the PR'
+```
+
+`resolve` only works on an unanswered card and records no approval; a clicked card is reported through its claimed attempt instead.
+
+The answer renders as Markdown under the question on the card; `bb action-cards get` returns the card's `followUps`. Keep your chat reply to one short line (or none), and do not re-emit the table. If the follow-up asks for a change, read the latest item and revise the **same** Reply draft using its revision. Decide question/consequence updates are not supported; explain the requested change instead of creating a replacement card.
 
 Comment replaces Reply’s Ask for changes button. Existing `request-changes` messages remain valid requests to revise, never approval. For a Reply change:
 

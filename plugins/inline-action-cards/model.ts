@@ -6,6 +6,14 @@ const label = z.string().trim().min(1).max(80).regex(/^[^\r\n]+$/);
 const address = z.string().trim().min(1).max(320).regex(/^[^\r\n]+$/);
 export const noteSchema = z.string().trim().max(1000);
 export const draftSchema = z.string().max(40_000);
+// Optional evidence on any card: Markdown the host renders like a chat message, and up to four images.
+const contextSchema = z.string().trim().min(1).max(20_000);
+// An https URL, or an absolute path to an image on the thread's host (served through bb's host-files route).
+// Paths must name an image file, so a card can never link the user to arbitrary host files.
+export const mediaSrcSchema = z.string().trim().max(2000).refine((value) => /^https:\/\/\S+$/i.test(value) || /^\/[^\0\r\n]+\.(?:png|jpe?g|gif|webp|avif|svg)$/i.test(value),
+  "Use an https URL or an absolute path to a .png, .jpg, .gif, .webp, .avif or .svg file on the thread's host");
+export const mediaSchema = z.object({ src: mediaSrcSchema, alt: line, caption: line.optional() }).strict();
+const evidence = { context: contextSchema.optional(), media: z.array(mediaSchema).min(1).max(4).optional() };
 export const contentSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("reply"),
@@ -16,17 +24,22 @@ export const contentSchema = z.discriminatedUnion("type", [
     subject: line,
     original: z.object({ from: line, date: line.optional(), body: z.string().max(60_000) }).strict(),
     draft: draftSchema,
+    ...evidence,
   }).strict(),
   z.object({
     type: z.literal("decide"), question: line, consequence: line,
     yesLabel: line.optional(), noLabel: line.optional(),
     // Explicit semantic key: matching button copy alone is not enough for bulk approval.
     actionKey: idSchema.optional(),
+    // The agent's suggestion; a decision sheet's Accept recommended stages it, nothing sends it.
+    recommended: z.enum(["yes", "no"]).optional(),
+    ...evidence,
   }).strict(),
   z.object({
     type: z.literal("choice"), question: line,
     options: z.array(z.object({ id: idSchema, label, hint: line.optional() }).strict()).min(2).max(6),
     recommended: idSchema.optional(), consequence: line.optional(),
+    ...evidence,
   }).strict().superRefine((value, ctx) => {
     const ids = value.options.map((option) => option.id);
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["options"], message: "Each option needs its own id" });
@@ -61,7 +74,13 @@ export const tableContentSchema = z.object({
   ids: z.array(idSchema).min(1).max(20).refine((ids) => new Set(ids).size === ids.length, "Each item must appear once"),
 }).strict();
 export const tableSchema = tableContentSchema.extend({ id: idSchema, threadId: idSchema });
-export const tableViewSchema = tableSchema.extend({ items: z.array(itemSchema) });
+// A comment the user sent from a card, and the agent's answer once it replies on the card.
+export const answerSchema = z.string().trim().min(1).max(8000);
+export const followUpSchema = z.object({ commentId: z.string().uuid(), note: noteSchema, answer: answerSchema.nullable() }).strict();
+export type FollowUp = z.infer<typeof followUpSchema>;
+export const itemViewSchema = itemSchema.extend({ followUps: z.array(followUpSchema) });
+export type ItemView = z.infer<typeof itemViewSchema>;
+export const tableViewSchema = tableSchema.extend({ items: z.array(itemViewSchema) });
 export type TableView = z.infer<typeof tableViewSchema>;
 
 export function actionLabel(item: Item, action: Action): string {
