@@ -6,8 +6,8 @@ import {
   useRpc,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
-import { CHANGED, type rpcContract } from "./contract.js";
-import { settingsSchema, type DelegationSettings, type SettingsOverrides } from "./settings.js";
+import type { rpcContract } from "./contract.js";
+import { CHANGED, settingsSchema, type DelegationSettings, type SettingsOverrides } from "./settings.js";
 import { Switch } from "./components/ui/switch.js";
 import "./app.css";
 

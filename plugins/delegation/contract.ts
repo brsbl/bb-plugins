@@ -2,7 +2,8 @@ import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { overridesSchema, settingsSchema } from "./settings.js";
 
-export const CHANGED = "settings-changed";
+export { CHANGED } from "./settings.js";
+
 
 export const rpcContract = defineRpcContract({
   getSettings: { input: z.object({}).strict(), output: settingsSchema },

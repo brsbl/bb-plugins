@@ -68,3 +68,6 @@ export function parseSettingValue(key: SettingKey, raw: string): SettingsOverrid
 export function isSettingKey(value: string): value is SettingKey {
   return Object.hasOwn(DEFAULTS, value);
 }
+
+/** Realtime channel the form listens on for saves from the CLI or another window. */
+export const CHANGED = "settings-changed";
