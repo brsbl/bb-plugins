@@ -155,8 +155,8 @@ function PinStrip({ threadId }: { threadId: string }) {
     const tip = pinTooltip(pin, threadHostId);
     return <Tooltip>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-      <TooltipContent side="top" sideOffset={6} className="w-80 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg">
-        <div className="border-b bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground break-all">{tip.address}</div>
+      <TooltipContent side="top" sideOffset={6} className="w-72 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg">
+        <div className="border-b bg-muted/30 px-3 py-1.5 text-[11px] leading-4 text-muted-foreground break-all">{tip.address}</div>
         {isUrlPin(pin) ? <LinkPreviewCard threadId={threadId} pin={pin} /> : <div className="flex items-start gap-2 px-3 py-2.5">
           <span className="mt-0.5 shrink-0"><PinIcon threadId={threadId} pin={pin} /></span>
           <div className="min-w-0">
