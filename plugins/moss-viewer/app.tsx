@@ -100,6 +100,29 @@ function useElementWidth<T extends HTMLElement>() {
   return { ref, width };
 }
 
+const HEADER_COLLAPSED_KEY = "moss-viewer:header-collapsed";
+
+/** Whether the note header is hidden, remembered across notes and reloads on this device. */
+function useHeaderCollapsed(): [boolean, (collapsed: boolean) => void] {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem(HEADER_COLLAPSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const set = useCallback((next: boolean) => {
+    setCollapsed(next);
+    try {
+      if (next) window.localStorage.setItem(HEADER_COLLAPSED_KEY, "1");
+      else window.localStorage.removeItem(HEADER_COLLAPSED_KEY);
+    } catch {
+      // Without storage the choice lasts for this panel only.
+    }
+  }, []);
+  return [collapsed, set];
+}
+
 function HeaderButton({
   icon,
   label,
@@ -192,6 +215,7 @@ function NoteHeader({
   actions,
   onBack,
   onSendToAgent,
+  onCollapse,
 }: {
   path: string;
   canGoBack: boolean;
@@ -201,6 +225,8 @@ function NoteHeader({
   actions: HeaderAction[];
   onBack: () => void;
   onSendToAgent: () => void;
+  /** Hides the header, leaving bb's tab and a Show header button over the note. */
+  onCollapse: () => void;
 }) {
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const narrow = width > 0 && width < NARROW_HEADER_PX;
@@ -243,6 +269,7 @@ function NoteHeader({
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
+          <HeaderButton icon="ChevronUp" label="Hide header" onClick={onCollapse} />
         </div>
       </div>
     </TooltipProvider>
@@ -382,6 +409,7 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const [stack, setStack] = useState<{ note: MossNote | null; back: MossNote[] }>({ note: null, back: [] });
   const [original, setOriginal] = useState(false);
   const [missing, setMissing] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useHeaderCollapsed();
   // The open viewer's or editor's selection, read when the user sends the note to the agent.
   const selectionSource = useRef<(() => Moss.MossSelection | null) | null>(null);
   const setSelectionSource = useCallback((source: (() => Moss.MossSelection | null) | null) => {
@@ -704,19 +732,30 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <NoteHeader
-        path={note.path}
-        canGoBack={stack.back.length > 0}
-        status={editorNote ? <EditorStatus status={editorState.status} /> : null}
-        actions={[
-          ...(restorable ? [{ icon: "ArrowTurnBackward", label: "Restore your last save from bb", onSelect: restoreLastSave }] : []),
-          { icon: "FolderOpen", label: "Show in Finder", onSelect: revealNote },
-          { icon: "ExternalLink", label: "Open in Moss", onSelect: openInMoss },
-        ]}
-        onBack={back}
-        onSendToAgent={sendToAgent}
-      />
+      {collapsed ? null : (
+        <NoteHeader
+          path={note.path}
+          canGoBack={stack.back.length > 0}
+          status={editorNote ? <EditorStatus status={editorState.status} /> : null}
+          actions={[
+            ...(restorable ? [{ icon: "ArrowTurnBackward", label: "Restore your last save from bb", onSelect: restoreLastSave }] : []),
+            { icon: "FolderOpen", label: "Show in Finder", onSelect: revealNote },
+            { icon: "ExternalLink", label: "Open in Moss", onSelect: openInMoss },
+          ]}
+          onBack={back}
+          onSendToAgent={sendToAgent}
+          onCollapse={() => setCollapsed(true)}
+        />
+      )}
       <div className="relative min-h-0 flex-1">
+        {collapsed ? (
+          <TooltipProvider delayDuration={300}>
+            <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-lg border border-border bg-surface-raised px-1 py-1 shadow-sm">
+              {editorNote ? <EditorStatus status={editorState.status} /> : null}
+              <HeaderButton icon="ChevronDown" label="Show header" onClick={() => setCollapsed(false)} />
+            </div>
+          </TooltipProvider>
+        ) : null}
         {editorNote === null ? (
           <MossViewerFrame
             note={note}
