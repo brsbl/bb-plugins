@@ -9,8 +9,6 @@ import {
 export const CHANGED = "changed";
 /** Settings page path of the nav panel; the inline calendar links here. */
 export const PAGE_PATH = "calendar";
-/** threadPanelAction id that shows one item's detail beside a chat. */
-export const DETAIL_ACTION = "item";
 
 const path = z.string().min(1).max(LIMITS.reference).refine((value) => !value.includes("\0"), "Invalid path");
 

@@ -53,11 +53,11 @@ async function renderPage(subPath = "month/2026-10") {
 }
 const card = (title: string) => screen.getByText(title).closest<HTMLElement>("[data-item-id]")!;
 
-it("registers the page, directive, detail panel, and connect form", async () => {
+it("registers the page, directive, and connect form, and no side panel", async () => {
   const app = await loadPluginApp(() => import("./app.js"));
   expect(app.navPanels.map((panel) => [panel.id, panel.path, panel.icon])).toEqual([["calendar", "calendar", "Calendar"]]);
   expect(app.messageDirectives.map((directive) => directive.id)).toEqual(["content-calendar"]);
-  expect(app.threadPanelActions.map((action) => action.id)).toEqual(["item"]);
+  expect(app.threadPanelActions).toEqual([]);
   expect(app.pendingInteractions.map((interaction) => interaction.id)).toEqual(["connect-client"]);
 });
 
@@ -133,7 +133,7 @@ it("cancels a keyboard move with Escape", async () => {
   expect(slot.inspection.rpcCalls.some((call) => call.method === "move")).toBe(false);
 });
 
-it("renders an inline week from the directive and opens items in the side panel", async () => {
+it("renders an inline week from the directive and edits items in place", async () => {
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.messageDirectives[0]!, {
     attributes: { view: "week", start: "2026-10-05" }, source: '::content-calendar{view="week" start="2026-10-05"}',
@@ -145,7 +145,11 @@ it("renders an inline week from the directive and opens items in the side panel"
   expect(screen.queryByRole("region", { name: "Later" })).toBeNull();
   expect(slot.inspection.rpcCalls).toContainEqual({ method: "calendar", input: { from: "2026-10-05", to: "2026-10-11", trays: false } });
   fireEvent.click(screen.getByText("Ambient tweet"));
-  expect(slot.inspection.navigateCalls).toContainEqual({ method: "openThreadPanel", options: { actionId: "item", title: "Ambient tweet", params: { itemId: "cc_ambient" } } });
+  const editor = await screen.findByRole("dialog", { name: "Edit Ambient tweet" });
+  expect(within(editor).getByRole("article", { name: "Item: Ambient tweet" })).toBeTruthy();
+  expect(slot.inspection.navigateCalls.some((call) => call.method === "openThreadPanel")).toBe(false);
+  fireEvent.click(within(editor).getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   fireEvent.click(screen.getByRole("button", { name: "Open calendar" }));
   expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "calendar", options: { subPath: "week/2026-10-05" } });
 });
@@ -212,25 +216,43 @@ it("debounces change signals into one reload, and refreshes only the status for 
   expect(count("status")).toBeGreaterThan(statuses);
 });
 
+it("opens an item's editor beside it on click, and Escape closes it and returns focus to the item", async () => {
+  await renderPage();
+  const ambient = card("Ambient tweet");
+  fireEvent.click(ambient);
+  const editor = await screen.findByRole("dialog", { name: "Edit Ambient tweet" });
+  expect(within(editor).getByRole("article", { name: "Item: Ambient tweet" })).toBeTruthy();
+  expect(ambient.className).toContain("cc-selected");
+  expect(document.querySelector(".cc-page-detail")).toBeNull();
+  await waitFor(() => expect(document.activeElement).toBe(editor));
+  fireEvent.keyDown(editor, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(document.activeElement).toBe(ambient);
+  expect(ambient.className).not.toContain("cc-selected");
+});
+
 async function renderDetail(patch: Partial<Item> = {}) {
   const current = { value: item("cc_ambient", { title: "Ambient tweet", status: "drafting", date: "2026-10-07", target: "3+ net follows", ...patch }) };
   const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.threadPanelActions[0]!, { threadId: "thr_test", params: { itemId: "cc_ambient" } }, {
+  const page = app.navPanels.find((panel) => panel.id === "calendar")!;
+  const slot = renderSlot(page, { subPath: "month/2026-10" }, {
     rpc: {
+      ...rpc([current.value]),
       show: () => current.value,
       update: (input: unknown) => { current.value = { ...current.value, ...(input as Partial<Item>) }; return current.value; },
       move: (input: unknown) => { current.value = { ...current.value, date: (input as { when: { date: string } }).when.date }; return current.value; },
     },
   });
-  await screen.findByRole("article", { name: "Item: Ambient tweet" });
-  return { slot, current };
+  fireEvent.click(await screen.findByText("Ambient tweet"));
+  const article = await screen.findByRole("article", { name: "Item: Ambient tweet" });
+  return { slot, current, article };
 }
 
 it("never writes back an outside change that lands while a field is focused", async () => {
-  const { slot, current } = await renderDetail();
+  const { slot, current, article } = await renderDetail();
   const calls = (method: string) => slot.inspection.rpcCalls.filter((call) => call.method === method).length;
   for (const [label, field, next] of [["Title", "title", "Ambient tweet, from Google"], ["Target", "target", "5 net follows"], ["Notes", "notes", "Edited on her phone"]] as const) {
-    const input = screen.getByLabelText(label) as HTMLInputElement | HTMLTextAreaElement;
+    const input = within(article).getByLabelText(label) as HTMLInputElement | HTMLTextAreaElement;
     input.focus();
     const shows = calls("show");
     current.value = { ...current.value, [field]: next };
@@ -243,8 +265,8 @@ it("never writes back an outside change that lands while a field is focused", as
 });
 
 it("saves a typed date once, on blur", async () => {
-  const { slot } = await renderDetail();
-  const date = screen.getByLabelText("Date") as HTMLInputElement;
+  const { slot, article } = await renderDetail();
+  const date = within(article).getByLabelText("Date") as HTMLInputElement;
   date.focus();
   fireEvent.change(date, { target: { value: "2026-10-01" } });
   fireEvent.change(date, { target: { value: "2026-10-19" } });
@@ -254,8 +276,8 @@ it("saves a typed date once, on blur", async () => {
 });
 
 it("shows a change Google rejected as an error, not as saved", async () => {
-  await renderDetail({ sync: "queued", notice: "Google Calendar rejected this change: Invalid start time." });
-  expect(screen.getAllByRole("alert").some((alert) => alert.textContent === "Google Calendar rejected this change: Invalid start time.")).toBe(true);
-  expect(screen.getByText("Not saved to Google Calendar")).toBeTruthy();
-  expect(screen.queryByText("Saved to Google Calendar")).toBeNull();
+  const { article } = await renderDetail({ sync: "queued", notice: "Google Calendar rejected this change: Invalid start time." });
+  expect(within(article).getAllByRole("alert").some((alert) => alert.textContent === "Google Calendar rejected this change: Invalid start time.")).toBe(true);
+  expect(within(article).getByText("Not saved to Google Calendar")).toBeTruthy();
+  expect(within(article).queryByText("Saved to Google Calendar")).toBeNull();
 });

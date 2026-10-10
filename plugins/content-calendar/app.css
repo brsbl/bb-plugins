@@ -60,17 +60,9 @@ textarea.cc-input { height: auto; }
 .cc-sync { display: inline-flex; align-items: center; color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
 
 /* Page */
-.cc-page { height: 100%; overflow: hidden; }
+.cc-page { height: 100%; overflow: hidden; container-type: inline-size; }
 .cc-page-empty { padding: 24px 16px; }
-.cc-page-layout { display: flex; height: 100%; min-height: 0; }
-.cc-page-main { flex: 1; min-width: 0; overflow: auto; padding-bottom: 16px; }
-.cc-page-detail { width: clamp(300px, 30%, 400px); flex: none; overflow: auto; border-left: 1px solid var(--border); }
-.cc-page { container-type: inline-size; }
-/* Below this width a side-by-side pane would crush the grid, so detail floats over it instead. */
-@container (max-width: 1300px) {
-  .cc-page-layout { position: relative; }
-  .cc-page-detail { position: absolute; inset: 0 0 0 auto; width: min(400px, 100%); background: var(--background); box-shadow: -8px 0 24px color-mix(in oklab, var(--foreground) 12%, transparent); z-index: 2; }
-}
+.cc-page-main { height: 100%; overflow: auto; padding-bottom: 16px; }
 .cc-header { display: flex; align-items: center; gap: 8px; }
 .cc-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 16px 0; }
 .cc-range { min-width: 150px; margin: 0 0 0 4px; font-size: 14px; font-weight: 600; }
@@ -94,13 +86,13 @@ textarea.cc-input { height: auto; }
 .cc-root { --cc-today: var(--timeline-accent, oklch(0.55 0.1 250)); --cc-today-ink: var(--canvas, var(--background)); --cc-today-tint: color-mix(in oklab, var(--cc-today) 14%, var(--canvas, var(--background))); }
 .cc-day.cc-is-today { background: var(--cc-today-tint); box-shadow: inset 0 3px 0 var(--cc-today); }
 .cc-day-date { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.cc-grid-dow .cc-day-wd { display: none; }
 .cc-today { padding: 0 6px; border-radius: 9px; background: var(--cc-today); color: var(--cc-today-ink); font-weight: 600; }
 .cc-today-label { color: color-mix(in oklab, var(--cc-today) 70%, var(--foreground)); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 /* The + sits in reserved space and only appears on hover or focus, so nothing shifts. */
 .cc-add { visibility: hidden; width: 18px; height: 16px; border: 0; border-radius: 4px; background: none; color: var(--muted-foreground); font-size: 14px; line-height: 12px; cursor: pointer; }
 .cc-day:hover .cc-add, .cc-add:focus-visible { visibility: visible; }
 .cc-add:hover { background: var(--cc-hover); }
-.cc-view-week.cc-board-page .cc-day { min-height: 420px; }
 
 /* Items: the left rule is the format color; dashed while it waits on something. Nothing is ever struck through. */
 .cc-item { position: relative; display: flex; gap: 6px; align-items: flex-start; margin-bottom: 3px; padding: 3px 4px 3px 7px; border-left: 3px solid var(--cc-c); border-radius: 3px; background: var(--background); cursor: grab; touch-action: manipulation; }
@@ -130,6 +122,8 @@ textarea.cc-input { height: auto; }
 .cc-empty-line { margin: 4px 0; color: var(--muted-foreground); font-size: 12px; }
 
 /* Popovers */
+.cc-editor { padding: 0; overflow: auto; overscroll-behavior: contain; }
+.cc-editor:focus { outline: none; }
 .cc-popover { position: fixed; z-index: 1000; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--popover, var(--background)); color: var(--popover-foreground, var(--foreground)); box-shadow: 0 6px 20px color-mix(in oklab, var(--foreground) 14%, transparent); }
 .cc-menu button { display: block; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .cc-menu button:hover { background: var(--cc-hover); }
@@ -186,8 +180,6 @@ textarea.cc-input { height: auto; }
 .cc-result:hover, .cc-result[aria-selected="true"] { background: var(--cc-hover); }
 .cc-detail-foot { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 12px; }
 .cc-detail-foot span { display: inline-flex; align-items: center; }
-.cc-panel { height: 100%; overflow: auto; }
-.cc-panel > p { padding: 16px; }
 
 /* Connect */
 .cc-connect { max-width: 640px; margin: 0 auto; padding: 24px 20px; }
@@ -209,23 +201,52 @@ textarea.cc-input { height: auto; }
 .cc-embed .cc-grid { border-top: 0; border-left: 0; }
 .cc-embed .cc-day:nth-child(7n) { border-right: 0; }
 .cc-embed .cc-dow:nth-child(7n) { border-right: 0; }
-.cc-embed-week .cc-day { height: 150px; min-height: 0; overflow-y: auto; border-bottom: 0; }
-.cc-embed-month .cc-board { height: 556px; overflow-y: auto; }
-.cc-embed-month .cc-day { min-height: 106px; }
 .cc-embed-message { margin: 0; padding: 16px 10px; }
 .cc-embed-foot { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 11px; }
 .cc-embed-foot .cc-sync { font-size: 11px; }
 .cc-embed .cc-error-line { margin: 4px 10px; }
 
-/* Inline in chat: when the side panel narrows the chat, the week becomes a day-by-day list instead of breaking words. */
 .cc-embed { container-type: inline-size; }
-@container (max-width: 700px) {
-  .cc-embed-week .cc-grid { grid-template-columns: minmax(0, 1fr); }
-  .cc-embed-week .cc-dow { display: none; }
-  .cc-embed-week .cc-board { max-height: 300px; overflow-y: auto; }
-  .cc-embed-week .cc-day { display: flex; gap: 8px; height: auto; min-height: 30px; overflow: visible; border-right: 0; border-bottom: 1px solid var(--border); }
-  .cc-embed-week .cc-day-head { flex: none; width: 56px; height: auto; padding-top: 4px; }
-  .cc-embed-week .cc-day-date { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .cc-embed-week .cc-day-items { flex: 1; min-width: 0; }
-  .cc-embed-week .cc-item-week { margin-bottom: 3px; }
+
+@container (width > 720px) {
+  .cc-view-week.cc-board-page .cc-day { min-height: 420px; }
+  .cc-embed-week .cc-day { height: 150px; min-height: 0; overflow-y: auto; border-bottom: 0; }
+  .cc-embed-month .cc-board { height: 556px; overflow-y: auto; }
+  .cc-embed-month .cc-day { min-height: 106px; }
+}
+
+@container (width <= 720px) {
+  .cc-grid { grid-template-columns: minmax(0, 1fr); }
+  .cc-dow, .cc-day.cc-outside { display: none; }
+  .cc-day { display: flex; gap: 8px; min-height: 34px; padding: 5px 8px 2px 6px; }
+  .cc-day-head { flex: none; align-items: flex-start; width: 80px; height: auto; padding: 2px 0 0; }
+  .cc-day-date { flex-wrap: wrap; gap: 2px 4px; }
+  .cc-grid-dow .cc-day-wd { display: inline; }
+  .cc-day-num { font-size: 12px; font-weight: 600; }
+  .cc-day-num:not(.cc-today) { color: var(--foreground); }
+  .cc-day-items { flex: 1; min-width: 0; }
+  .cc-item-week { margin-bottom: 4px; }
+  .cc-embed .cc-day { border-right: 0; }
+  .cc-embed-week .cc-board { max-height: 360px; overflow-y: auto; }
+  .cc-embed-month .cc-board { max-height: 420px; overflow-y: auto; }
+}
+
+@container (width <= 520px) {
+  .cc-toolbar { padding: 10px 12px 0; }
+  .cc-range { order: -1; flex-basis: 100%; min-width: 0; margin: 0; }
+  .cc-seg-buttons { margin-left: auto; }
+  .cc-legend { gap: 4px 12px; padding: 8px 12px; }
+  .cc-board-page .cc-grid { margin: 0 12px; }
+  .cc-trays { margin: 12px 12px 0; }
+  .cc-error-line { margin: 4px 12px 8px; }
+  .cc-banner { margin: 0 12px 10px; }
+  .cc-embed-bar { flex-wrap: wrap; row-gap: 4px; height: auto; padding: 6px 10px; }
+  .cc-embed-bar .cc-spacer { flex-basis: 100%; }
+  .cc-embed-foot { flex-wrap: wrap; row-gap: 2px; }
+  .cc-header .cc-dot { margin-right: 0; }
+  .cc-header .cc-sync-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+
+@media (hover: none) {
+  .cc-add, .cc-li-remove { visibility: visible; }
 }
