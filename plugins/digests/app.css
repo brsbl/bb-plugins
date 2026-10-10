@@ -212,7 +212,7 @@
 .digest-summary-links a:focus-visible, .digest-section-heading:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-sm, 4px); }
 /* One bounded table opens at a time. Expansion never adds an entire inbox to the timeline. */
 .digest-email-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-lg, 8px); overflow: hidden; }
-.digest-email-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 12px; padding: 6px 6px 6px 12px; }
+.digest-email-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 12px; padding: 6px 8px 6px 12px; }
 .digest-email-row + .digest-email-row { border-top: 1px solid var(--border); }
 .digest-email-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 13px; line-height: 18px; }
 .digest-email-sender { flex: none; width: 128px; overflow: hidden; color: var(--foreground); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }

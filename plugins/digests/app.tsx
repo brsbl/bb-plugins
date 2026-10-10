@@ -380,7 +380,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
           if (link.section === "items" || link.section === "later") focus?.scrollIntoView?.({ block: "nearest" });
           (focus as HTMLElement | null)?.focus({ preventScroll: true });
         }}><CountLabel label={summaryLabel(link.label)} /></a> : <span><CountLabel label={summaryLabel(link.label)} /></span>}
-      </span>)}</div> : issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
+      </span>)}</div> : !issue.brief?.all && issue.lede?.trim() && <NewsletterText className="digest-lede" content={issue.lede} />}
       {issue.state === "collecting" && <p className="digest-muted" role="status">Gathering your updates. This summary will update here.</p>}
       {issue.brief && issue.state === "ready" && <BriefCards brief={issue.brief} headline={issue.headline} prefix={prefix} issueDate={issue.createdAt} threadId={threadId} expanded={expanded} setExpanded={setExpanded} />}
       <EmailReadStatus issue={issue} />

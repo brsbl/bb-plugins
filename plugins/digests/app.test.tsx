@@ -304,6 +304,7 @@ describe("Digests app", () => {
     expect(list.querySelectorAll("li")).toHaveLength(2);
     expect(slot.getByText("Confirm Thursday.")).toBeDefined();
     expect(slot.queryByRole("link", { name: /unread emails/ })).toBeNull();
+    expect(slot.container.querySelector(".digest-lede")).toBeNull();
     expect(slot.container.querySelector("details")).toBeNull();
     expect(slot.container.querySelectorAll("time")).toHaveLength(1);
     fireEvent.click(slot.getByRole("button", { name: "Open Amex · Autopay processed" }));
