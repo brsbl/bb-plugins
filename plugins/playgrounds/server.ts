@@ -113,7 +113,6 @@ export function createStore(bb: BbPluginApi) {
     "CREATE INDEX answer_events_answer ON answer_events(answer_id, seq)",
     "CREATE INDEX answer_events_thread ON answer_events(thread_id)",
     "CREATE TABLE saved_playgrounds (id TEXT PRIMARY KEY, answer_id TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL, saved_at INTEGER NOT NULL)",
-    "CREATE INDEX answer_events_thread ON answer_events(thread_id)",
   ]);
   const owned = db.prepare(
     "SELECT 1 FROM answers WHERE id = ? AND thread_id = ?",
