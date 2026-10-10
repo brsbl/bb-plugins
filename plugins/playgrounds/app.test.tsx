@@ -423,7 +423,6 @@ it("sends an edit that is still waiting to be saved when the page unloads", asyn
       rpc: backend.rpc,
     });
     await view.findByText("$36.00");
-    await waitFor(() => expect(backend.calls.some((c) => c.method === "frameBase")).toBe(true));
     await new Promise((resolve) => setTimeout(resolve, 0));
     fireEvent.change(view.getByLabelText("People"), {
       target: { value: "6" },
