@@ -986,6 +986,7 @@ function SavedPlaygroundPage({
               value={title}
               maxLength={160}
               autoFocus
+              onFocus={(event) => event.target.select()}
               onChange={(event) => setTitle(event.target.value)}
             />
             <button type="submit" className="pg-save-action">

@@ -400,6 +400,8 @@
   outline-offset: 2px;
 }
 .pg-library {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 760px;
   margin: 0 auto;
   padding: 24px;

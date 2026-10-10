@@ -17,6 +17,8 @@ and answers it published use its old directive, so they stay as plain text.
 
 ## Save playgrounds for later
 
+![The Playgrounds library listing saved playgrounds](docs/library.png)
+
 Choose **Save to library** under any playground to keep it, with its current
 inputs, in your own library. Saved playgrounds are private to you; there is no
 sharing. Open **Playgrounds** in the sidebar to use, rename, or remove them.
