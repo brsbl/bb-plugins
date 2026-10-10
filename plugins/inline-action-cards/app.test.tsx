@@ -70,7 +70,7 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
       },
     },
   });
-  await screen.findByRole("article");
+  await screen.findByRole("form");
   return { slot, calls, get: () => item, reportSuccess: async () => {
     item = { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Sent", retryable: false } };
     await slot.behavior.emitRealtime("items", {});
@@ -398,6 +398,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
         submitted: (input) => host.harness.behavior.callRpc("submitted", input),
       },
     });
+    await screen.findByRole("radio", { name: type === "reply" ? "Send" : "Switch" });
     answer(type === "reply" ? "Send" : "Switch");
     fireEvent.change(await screen.findByRole("textbox", { name: "Note (optional)" }), { target: { value: note } });
     submit();
