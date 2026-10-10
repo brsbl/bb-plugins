@@ -1,12 +1,13 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   definePluginApp,
   useBbNavigate,
   useComposer,
   useRpc,
   type PluginMessageDirectiveProps,
+  type PluginNavPanelProps,
 } from "@get-bb/plugin-sdk/app";
-import type { rpcContract } from "./server.js";
+import type { rpcContract, SavedPlayground } from "./server.js";
 import {
   computedValues,
   defaultValues,
@@ -832,7 +833,15 @@ function DocumentAnswerView({
   );
 }
 
-function PlaygroundLoader({ id, threadId }: { id: string; threadId: string }) {
+function PlaygroundLoader({
+  id,
+  threadId,
+  footer,
+}: {
+  id: string;
+  threadId: string;
+  footer?: (answer: Answer) => ReactNode;
+}) {
   const rpc = useRpc<typeof rpcContract>();
   const [answer, setAnswer] = useState<{
     answer: Answer;
@@ -870,11 +879,14 @@ function PlaygroundLoader({ id, threadId }: { id: string; threadId: string }) {
       </div>
     );
   return answer ? (
-    <AnswerView
-      key={`${answer.answer.threadId}:${answer.answer.id}`}
-      answer={answer.answer}
-      initial={answer.initial}
-    />
+    <>
+      <AnswerView
+        key={`${answer.answer.threadId}:${answer.answer.id}`}
+        answer={answer.answer}
+        initial={answer.initial}
+      />
+      {footer?.(answer.answer)}
+    </>
   ) : (
     <div className="pg-answer" role="status">
       Loading playground…
@@ -882,13 +894,219 @@ function PlaygroundLoader({ id, threadId }: { id: string; threadId: string }) {
   );
 }
 
+const LIBRARY_PATH = "library";
+
+function SaveControl({ answer }: { answer: Answer }) {
+  const rpc = useRpc<typeof rpcContract>();
+  const navigate = useBbNavigate();
+  const [saved, setSaved] = useState<SavedPlayground | null>(null);
+  const [status, setStatus] = useState<"idle" | "saving" | "failed">("idle");
+  useEffect(() => {
+    let active = true;
+    rpc.call("findSaved", { id: answer.id }).then(
+      (result) => {
+        if (active && result.saved) setSaved(result.saved);
+      },
+      () => {},
+    );
+    return () => {
+      active = false;
+    };
+  }, [rpc, answer.id]);
+  if (saved)
+    return (
+      <div className="pg-save" role="status">
+        <span>Saved to your library</span>
+        <button
+          type="button"
+          className="pg-save-action"
+          onClick={() => navigate.toPluginPanel(LIBRARY_PATH, { subPath: saved.savedId })}
+        >
+          Open
+        </button>
+      </div>
+    );
+  return (
+    <div className="pg-save">
+      <button
+        type="button"
+        className="pg-save-action"
+        disabled={status === "saving"}
+        onClick={() => {
+          setStatus("saving");
+          rpc
+            .call("save", { id: answer.id, threadId: answer.threadId })
+            .then(setSaved, () => setStatus("failed"));
+        }}
+      >
+        {status === "failed" ? "Couldn't save. Try again" : "Save to library"}
+      </button>
+    </div>
+  );
+}
+
 function AnswerDirective({ attributes, message }: PluginMessageDirectiveProps) {
-  return <PlaygroundLoader id={attributes.id ?? ""} threadId={message.threadId} />;
+  return (
+    <PlaygroundLoader
+      id={attributes.id ?? ""}
+      threadId={message.threadId}
+      footer={(answer) => <SaveControl answer={answer} />}
+    />
+  );
+}
+
+const savedDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+
+function SavedPlaygroundPage({
+  saved,
+  onChanged,
+}: {
+  saved: SavedPlayground;
+  onChanged: () => void;
+}) {
+  const rpc = useRpc<typeof rpcContract>();
+  const navigate = useBbNavigate();
+  const [title, setTitle] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const back = () => navigate.toPluginPanel(LIBRARY_PATH);
+  return (
+    <div className="pg-library">
+      <header className="pg-library-header">
+        <button type="button" className="pg-save-action" onClick={back}>
+          ← Library
+        </button>
+        {title === null ? (
+          <h2>{saved.title}</h2>
+        ) : (
+          <form
+            className="pg-rename"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const next = title.trim();
+              if (!next) return;
+              void rpc.call("renameSaved", { savedId: saved.savedId, title: next }).then(() => {
+                setTitle(null);
+                onChanged();
+              });
+            }}
+          >
+            <input
+              aria-label="Playground name"
+              value={title}
+              maxLength={160}
+              autoFocus
+              onFocus={(event) => event.target.select()}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+            <button type="submit" className="pg-save-action">
+              Save
+            </button>
+          </form>
+        )}
+        <div className="pg-library-actions">
+          {title === null && (
+            <button type="button" className="pg-save-action" onClick={() => setTitle(saved.title)}>
+              Rename
+            </button>
+          )}
+          <button
+            type="button"
+            className="pg-save-action"
+            onClick={() => {
+              if (!confirming) return setConfirming(true);
+              void rpc.call("deleteSaved", { savedId: saved.savedId }).then(() => {
+                onChanged();
+                back();
+              });
+            }}
+          >
+            {confirming ? "Confirm remove" : "Remove"}
+          </button>
+        </div>
+      </header>
+      <PlaygroundLoader id={saved.id} threadId={saved.threadId} />
+    </div>
+  );
+}
+
+function LibraryPage({ subPath }: PluginNavPanelProps) {
+  const rpc = useRpc<typeof rpcContract>();
+  const navigate = useBbNavigate();
+  const [saved, setSaved] = useState<SavedPlayground[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    rpc.call("listSaved", {}).then(
+      (result) => {
+        setSaved(result.saved);
+        setError(null);
+      },
+      () => setError("Could not load your saved playgrounds."),
+    );
+  }, [rpc]);
+  useEffect(load, [load]);
+  if (error)
+    return (
+      <div className="pg-library" role="alert">
+        <p>{error}</p>
+        <button type="button" className="pg-save-action" onClick={load}>
+          Retry
+        </button>
+      </div>
+    );
+  if (!saved)
+    return (
+      <div className="pg-library" role="status">
+        Loading…
+      </div>
+    );
+  const selected = saved.find((item) => item.savedId === subPath);
+  if (selected) return <SavedPlaygroundPage saved={selected} onChanged={load} />;
+  return (
+    <div className="pg-library">
+      <header className="pg-library-header">
+        <h2>Saved playgrounds</h2>
+      </header>
+      {saved.length === 0 ? (
+        <p className="pg-library-empty">
+          Nothing saved yet. Choose “Save to library” under a playground in any thread to keep it
+          here with its inputs.
+        </p>
+      ) : (
+        <ul className="pg-library-list">
+          {saved.map((item) => (
+            <li key={item.savedId}>
+              <button
+                type="button"
+                onClick={() =>
+                  navigate.toPluginPanel(LIBRARY_PATH, {
+                    subPath: item.savedId,
+                  })
+                }
+              >
+                <strong>{item.title}</strong>
+                <span>
+                  {item.kind === "html" ? "Custom" : "Calculator"} · Saved{" "}
+                  {savedDate.format(item.savedAt)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export default definePluginApp((app) => {
   app.slots.messageDirective({
     id: "playground",
     component: AnswerDirective,
+  });
+  app.slots.navPanel({
+    id: "library",
+    title: "Playgrounds",
+    icon: "Play",
+    path: LIBRARY_PATH,
+    component: LibraryPage,
   });
 });
