@@ -46,7 +46,7 @@ export function OptionList({ name, label, options, value, recommended, disabled,
     <legend className="ac-sr">{label}</legend>
     {options.map((option) => <label key={option.id} className="ac-option" data-destructive={option.destructive || undefined}>
       <input type="radio" name={name} value={option.id} checked={value === option.id} onChange={() => onChange(option.id)} />
-      <span className="ac-glyph" aria-hidden="true" />
+      <span className="ac-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span>
       <span className="ac-option-text">
         <span className="ac-option-label">{option.label}{recommended === option.id && <span className="ac-tag">Recommended</span>}</span>
         {option.hint && <span className="ac-option-hint">{option.hint}</span>}
@@ -62,7 +62,7 @@ export function NoteField({ value, onChange, disabled, placeholder = "Add a note
   const shown = open || !!value;
   useLayoutEffect(() => { if (open) ref.current?.focus(); }, [open]);
   if (!shown) return <Button type="button" size="sm" variant="ghost" className="ac-note-toggle" disabled={disabled} onClick={() => setOpen(true)}><NoteIcon />Add note</Button>;
-  return <textarea ref={ref} className="ac-textarea" aria-label="Note" placeholder={placeholder} value={value} rows={2} maxLength={1000} disabled={disabled}
+  return <textarea ref={ref} className="ac-textarea" aria-label="Note" placeholder={placeholder} value={value} rows={1} maxLength={1000} disabled={disabled}
     onChange={(event) => onChange(event.target.value)}
     onBlur={() => { if (!value.trim()) setOpen(false); }}
     onKeyDown={(event) => {

@@ -24,19 +24,21 @@
 .ac-option:has(input:focus-visible) { outline: 1px solid var(--ring); outline-offset: -1px; }
 .ac-option:has(input:disabled) { cursor: default; opacity: .6; }
 .ac-option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
-.ac-glyph { flex-shrink: 0; width: var(--ac-glyph); height: var(--ac-glyph); margin-top: 2px; box-sizing: border-box; border: 1px solid var(--input, var(--border)); border-radius: 50%; }
-.ac-option:has(input:checked) .ac-glyph { border: 5px solid var(--primary); }
+.ac-glyph { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: var(--ac-glyph); height: var(--ac-glyph); margin-top: 2px; box-sizing: border-box; border: 1px solid var(--input, var(--border)); border-radius: 50%; }
+.ac-glyph svg { width: 75%; height: 75%; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.ac-option:has(input:checked) .ac-glyph { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
+.ac-option:has(input:checked) .ac-glyph svg { opacity: 1; }
 .ac-option-text { display: grid; min-width: 0; }
 .ac-option-label { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--ac-s) * 2); font-weight: 500; }
 .ac-option[data-destructive] .ac-option-label { color: var(--destructive); }
 .ac-option-hint { color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.4; }
 .ac-tag { padding: 0 calc(var(--ac-s) * 1.5); border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: var(--ac-meta); font-weight: 400; line-height: 1.4; }
 /* Note and submit: "Add note" sits left of Submit; once opened the textarea takes the full width above it. */
-.ac-submit { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; gap: var(--ac-gap) calc(var(--ac-s) * 1); }
-.ac-note-toggle { height: var(--ac-control); padding-inline: var(--ac-option-px); color: var(--muted-foreground); font-size: var(--ac-body); font-weight: 400; }
-.ac-textarea { display: block; flex: 1 0 100%; width: 100%; min-height: calc(var(--ac-body) * 1.5 * 2 + var(--ac-s) * 4); max-height: 12lh; box-sizing: border-box; padding: calc(var(--ac-s) * 2) calc(var(--ac-s) * 3); border: 1px solid var(--input, var(--border)); border-radius: var(--ac-radius-control); background: transparent; color: inherit; font: inherit; font-size: var(--ac-body); line-height: 1.5; resize: none; field-sizing: content; }
+.ac-submit { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: calc(var(--ac-s) * 2); }
+.ac-note-toggle { height: var(--ac-control); padding-inline: var(--ac-option-px); }
+.ac-textarea { display: block; flex: 1 0 100%; width: 100%; min-height: 36px; max-height: 12lh; box-sizing: border-box; padding: calc(var(--ac-s) * 2) calc(var(--ac-s) * 3); border: 1px solid var(--border); border-radius: var(--ac-radius-control); background: var(--surface-raised, var(--muted)); color: var(--foreground); font: inherit; font-size: var(--ac-body); line-height: 1.6; resize: none; field-sizing: content; }
 .ac-textarea::placeholder { color: var(--muted-foreground); }
-.ac-textarea:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--ring); }
+.ac-textarea:focus-visible { outline: none; border-color: color-mix(in oklab, var(--ring) 50%, transparent); box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 40%, transparent); }
 .ac-button { height: var(--ac-control); }
 /* Outcome */
 .ac-outcome { display: grid; gap: 2px; }
@@ -63,16 +65,7 @@
 /* Long unbroken text (URLs, paths) wraps instead of widening the card. */
 .ac-card, .ac-card > *, .ac-row > *, .ac-spec, .ac-spec-frame { min-width: 0; }
 .ac-context { overflow-wrap: anywhere; }
-.ac-note-toggle { justify-self: end; }
-/* Answers sit under the question and its evidence, as one block against the card's right edge. */
-.ac-card, .ac-row { container: ac / inline-size; }
+.ac-row > .ac-note-toggle { justify-self: start; margin-left: calc(var(--ac-option-px) * -1); }
+/* Body: what the decision is about, then the answer, stacked like bb's question form. */
 .ac-body { display: grid; gap: var(--ac-gap); }
-.ac-about { display: grid; gap: var(--ac-gap); min-width: 0; }
-.ac-answer { display: grid; justify-items: end; min-width: 0; }
-.ac-answer > .ac-options { width: max-content; max-width: 100%; margin: 0 calc(var(--ac-option-px) * -1) 0 0; }
-.ac-answer .ac-option-label { flex-wrap: nowrap; white-space: nowrap; }
-.ac-answer .ac-outcome { justify-items: end; text-align: right; }
-.ac-answer .ac-outcome-line { justify-content: flex-end; }
-.ac-answer .ac-outcome-note { padding-left: 0; }
-@container ac (max-width: 520px) { .ac-answer .ac-option-label { flex-wrap: wrap; white-space: normal; } }
-.ac-row > .ac-note-toggle { margin-right: calc(var(--ac-option-px) * -1); }
+.ac-about, .ac-answer { display: grid; gap: var(--ac-gap); min-width: 0; }
