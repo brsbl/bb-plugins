@@ -126,3 +126,4 @@ reduced.addEventListener('change', () => { stopAnimation(); resume(); });
 new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (!visible) stopAnimation(); else resume(); }).observe(root);
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopAnimation(); else resume(); });
 refresh();
+if (isDirty(state)) text('press-status', 'Saved composition restored · ready to print');
