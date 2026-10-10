@@ -289,3 +289,38 @@
 /* The sheet header keeps its bulk action beside the count it acts on. */
 .iac-sheet .iac-table-header { justify-content: flex-start; }
 .iac-sheet .iac-table-header .iac-quiet { height: 24px; margin: -4px 0 -4px -6px; padding: 0 6px; }
+
+/* Comfortable density on bb's 4px spacing scale (--spacing): one decision per row with room around it. */
+.iac-card, .iac-table { --iac-s: var(--spacing, .25rem); line-height: 1.55; }
+.iac-card { padding: calc(var(--iac-s) * 5) calc(var(--iac-s) * 5); }
+.iac-card[data-compact] { padding: calc(var(--iac-s) * 3.5) calc(var(--iac-s) * 4.5); }
+.iac-card .iac-question { font-size: var(--text-base, .9375rem); line-height: 1.45; }
+.iac-card .iac-consequence { margin-top: calc(var(--iac-s) * 1.5); }
+.iac-evidence, .iac-followups, .iac-hints { margin-top: calc(var(--iac-s) * 4); }
+.iac-options { margin-top: calc(var(--iac-s) * 4); gap: calc(var(--iac-s) * 1); }
+.iac-option { min-height: calc(var(--iac-s) * 10); }
+.iac-answer-bar { margin-top: calc(var(--iac-s) * 5); gap: calc(var(--iac-s) * 2.5); }
+.iac-note-input { height: calc(var(--iac-s) * 9); padding-left: calc(var(--iac-s) * 3); }
+.iac-answer-bar > button { height: calc(var(--iac-s) * 9); padding-inline: calc(var(--iac-s) * 4); }
+.iac-note-submit { width: calc(var(--iac-s) * 7); height: calc(var(--iac-s) * 7); }
+.iac-result-head { gap: calc(var(--iac-s) * 1) calc(var(--iac-s) * 3); }
+.iac-result-note { margin-top: calc(var(--iac-s) * 2.5); padding: calc(var(--iac-s) * 1) calc(var(--iac-s) * 2.5); }
+
+.iac-sheet .iac-table-header { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); gap: calc(var(--iac-s) * 4); }
+.iac-sheet .iac-table-header .iac-sheet-title > :first-child { font-size: var(--text-base, .9375rem); }
+.iac-sheet-row { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); }
+.iac-sheet-row .iac-row-line { gap: calc(var(--iac-s) * 6); }
+.iac-sheet .iac-row-question { font-size: var(--text-base, .9375rem); line-height: 1.45; }
+.iac-sheet-row .iac-row-expanded { margin-top: calc(var(--iac-s) * 3); padding-bottom: calc(var(--iac-s) * 1); }
+.iac-segment { min-height: calc(var(--iac-s) * 9); padding: 0 calc(var(--iac-s) * 4); font-size: var(--text-sm, .8125rem); }
+.iac-finished-toggle { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); }
+.iac-finished .iac-row { padding-top: calc(var(--iac-s) * 3); padding-bottom: calc(var(--iac-s) * 3); }
+.iac-sheet-footer { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); gap: calc(var(--iac-s) * 3); }
+.iac-sheet-footer > button, .iac-row-answer > button { height: calc(var(--iac-s) * 9); padding-inline: calc(var(--iac-s) * 4); }
+@container (max-width: 520px) {
+  .iac-card { padding: calc(var(--iac-s) * 4); }
+  .iac-sheet .iac-table-header, .iac-sheet-row, .iac-finished-toggle, .iac-sheet-footer { padding-inline: calc(var(--iac-s) * 4); }
+  .iac-sheet-row .iac-row-line { gap: calc(var(--iac-s) * 3); }
+  .iac-segment, .iac-note-input, .iac-answer-bar > button, .iac-sheet-footer > button, .iac-row-answer > button { min-height: calc(var(--iac-s) * 11); height: auto; }
+  .iac-note-input { height: calc(var(--iac-s) * 11); }
+}
