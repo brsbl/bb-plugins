@@ -1,12 +1,12 @@
 {
   "sdkMajor": 0,
-  "sdkVersion": "0.6.37",
+  "sdkVersion": "0.5.9",
   "artifactFormatVersion": 1,
   "pluginId": "open-in-moss",
   "pluginVersion": "0.1.0",
   "builtWith": {
-    "bbVersion": "0.46.0",
-    "pluginSdkVersion": "0.6.37"
+    "bbVersion": "0.43.4",
+    "pluginSdkVersion": "0.5.9"
   },
-  "artifactDigest": "b8768a525c6ed16a71bf4537e533f7789cf6487dc7ad3bd8309379aa8e4a9406"
+  "artifactDigest": "0ba03f8463e9521a6d80402be5f97d80fc2978ba3247ccfa8506d6a2cbb3c803"
 }

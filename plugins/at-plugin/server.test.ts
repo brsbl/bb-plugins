@@ -155,7 +155,7 @@ describe("provider registration and package shape", () => {
     );
   });
 
-  it("uses the vendored SDK 0.6.37 and the default plugin branding", async () => {
+  it("uses the vendored SDK 0.5.9 and the default plugin branding", async () => {
     const packageText = await readFile(new URL("./package.json", import.meta.url), "utf8");
     const packageJson: unknown = JSON.parse(packageText);
 
@@ -169,7 +169,7 @@ describe("provider registration and package shape", () => {
         skills: ["skills"],
       },
       devDependencies: {
-        "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.6.37.tgz",
+        "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",
       },
     });
     expect(packageJson).not.toHaveProperty("dependencies");
