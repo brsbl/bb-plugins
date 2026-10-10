@@ -4,7 +4,7 @@ import plugin, { createStore } from "./server.js";
 import { actionMessage, type Item } from "./model.js";
 
 const ref = { threadId: "thr_test", id: "esc-1" };
-const reply = { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], original: { from: "Escrow", body: "Your refund is on the way." }, draft: "Original draft" };
+const reply = { type: "reply", summary: "Billing follow-up", subject: "Missing refund", to: ["billing@example.com"], original: { from: "Billing", body: "Your refund is on the way." }, draft: "Original draft" };
 const hosts: ReturnType<typeof createFakePluginHost>[] = [];
 function setup() { const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); return { ...host, store: createStore(host.bb) }; }
 afterEach(async () => { for (const host of hosts.splice(0)) await host.harness.lifecycle.dispose(); });
@@ -135,7 +135,7 @@ it("CLI log defaults to all threads, supports JSON and explicit thread filters",
   expect(JSON.parse(scoped.stdout!).waiting).toMatchObject([{ threadId: "thr_two" }]);
   const text = await host.harness.behavior.runCli(["log"]);
   expect(text.stdout).toContain("Waiting on you\n");
-  expect(text.stdout).toContain("Escrow follow-up");
+  expect(text.stdout).toContain("Billing follow-up");
   expect(text.stdout).toContain("Done\n");
   const invalid = await host.harness.behavior.runCli(["log", "--thread", "../escape"]);
   expect(invalid.exitCode).not.toBe(0);
@@ -152,8 +152,8 @@ it("log choices submit to their owning thread and resend the same durable attemp
   expect(pending.state).toBe("pending");
   expect(pending.attempt!.sentAt).toBeTruthy();
   const send = host.harness.sdk.callsTo("threads.send")[0]![0];
-  expect(send).toMatchObject({ threadId: "thr_other", mode: "queue-if-active", input: [{ text: "Send Escrow follow-up", mentions: [{
-    start: 5, end: 21, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:thr_other:${ref.id}:${pending.attempt!.id}` },
+  expect(send).toMatchObject({ threadId: "thr_other", mode: "queue-if-active", input: [{ text: "Send Billing follow-up", mentions: [{
+    start: 5, end: 22, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:thr_other:${ref.id}:${pending.attempt!.id}` },
   }] }] });
   await expect(host.harness.behavior.callRpc("decideFromLog", args)).rejects.toThrow("changed");
   const resent = await host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: pending.revision }) as Item;
