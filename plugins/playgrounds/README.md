@@ -59,12 +59,6 @@ bb playgrounds example stepper | bb playgrounds publish --playground-stdin
 Emit the returned `::playground{id="…"}` directive on its own line in
 an assistant message.
 
-For a working isometric explanation, ask **“Use Anatomy to explain typography
-or interface motion.”** The bundled `anatomy` skill includes Ryan’s drawing kit
-and two product-design instruments: a typography printing press that produces
-real text layouts, and a spring rig that drives an interruptible interface
-drawer. Each is a normal playground you can save.
-
 Inputs are saved with each playground on the bb server, so they follow you across
 devices and every open copy updates live. Inputs are context the agent can
 read, never approvals. Published playgrounds are immutable; a revised playground gets
@@ -115,16 +109,6 @@ from that frame's window:
   third-party font request.
 - Height is clamped to 4,000 px, frames load lazily, and data shared with the
   agent is framed as untrusted.
-
-## Credits
-
-The Anatomy skill and drawing kit were created by
-[Ryan (@wheresryan22)](https://skills.wheresryan.sh/anatomy), and are bundled
-under his [MIT license](skills/anatomy/LICENSE) with
-[pinned source provenance](skills/anatomy/upstream.json).
-[The Bugged Dev's interactive lever demo](https://x.com/thebuggeddev/status/2108720133422395590)
-inspired the learning format. The bb integration and design instruments are
-independently authored; no media or code from that demo is bundled.
 
 ## Develop
 

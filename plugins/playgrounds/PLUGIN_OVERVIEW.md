@@ -7,13 +7,7 @@ Answers you can play with: calculators, guides, previews. Agents put a playgroun
 - Inputs saved with the playground, so they follow you across devices and every open copy updates live.
 - An agent that can read your inputs, follow what you do, and drive the playground when you ask it to.
 - A private library: save any playground with its inputs, reopen it from the Playgrounds page, or @-mention it to bring it into a new conversation.
-- Anatomy explainers: working isometric instruments for typography and interface motion, with controls and guided experiments. Print real text layouts or tune a spring-driven drawer, then save either playground.
 
 Install Playgrounds, then ask for a calculator, a scenario comparison, or a walkthrough.
-
-The bundled [Anatomy skill and drawing kit](https://skills.wheresryan.sh/anatomy)
-were created by [Ryan (@wheresryan22)](https://github.com/wheresryan22) and are
-used under the MIT license. The learning format is inspired by
-[The Bugged Dev's interactive physics demo](https://x.com/thebuggeddev/status/2108720133422395590).
 
 Inspired by OpenAI's [Intelligent UI](https://openai.com/index/gpt-6-for-everyone/) in ChatGPT.
