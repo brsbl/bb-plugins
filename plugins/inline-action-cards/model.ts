@@ -8,9 +8,10 @@ export const noteSchema = z.string().trim().max(1000);
 export const draftSchema = z.string().max(40_000);
 // Optional evidence on any card: Markdown the host renders like a chat message, and up to four images.
 const contextSchema = z.string().trim().min(1).max(20_000);
-// An https URL, or an absolute path on the thread's host (served through bb's host-files route).
-export const mediaSrcSchema = z.string().trim().max(2000).refine((value) => /^https:\/\/\S+$/i.test(value) || /^\/[^\0\r\n]+$/.test(value),
-  "Use an https URL or an absolute file path on the thread's host");
+// An https URL, or an absolute path to an image on the thread's host (served through bb's host-files route).
+// Paths must name an image file, so a card can never link the user to arbitrary host files.
+export const mediaSrcSchema = z.string().trim().max(2000).refine((value) => /^https:\/\/\S+$/i.test(value) || /^\/[^\0\r\n]+\.(?:png|jpe?g|gif|webp|avif|svg)$/i.test(value),
+  "Use an https URL or an absolute path to a .png, .jpg, .gif, .webp, .avif or .svg file on the thread's host");
 export const mediaSchema = z.object({ src: mediaSrcSchema, alt: line, caption: line.optional() }).strict();
 const evidence = { context: contextSchema.optional(), media: z.array(mediaSchema).min(1).max(4).optional() };
 export const contentSchema = z.discriminatedUnion("type", [

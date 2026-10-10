@@ -276,7 +276,7 @@ describe("decision sheets", () => {
     const decide = { type: "decide", question: "Merge #412?", consequence: "Squash-merge it.", recommended: "yes", context: "## Diff\n- `TTL` 30d → 7d", media: [{ src: "/tmp/shot.png", alt: "Screenshot" }, { src: "https://example.com/a.png", alt: "Chart", caption: "p95" }] };
     expect(store.create(ref.threadId, "d", decide).content).toMatchObject({ context: decide.context, media: decide.media, recommended: "yes" });
     expect(store.create(ref.threadId, "plain", { type: "decide", question: "Archive?", consequence: "Archive it." }).content).not.toHaveProperty("context");
-    for (const src of ["shot.png", "http://example.com/a.png", "javascript:alert(1)"]) expect(() => store.create(ref.threadId, "bad", { ...decide, media: [{ src, alt: "x" }] })).toThrow();
+    for (const src of ["shot.png", "http://example.com/a.png", "javascript:alert(1)", "/Users/me/.ssh/id_ed25519", "/etc/passwd"]) expect(() => store.create(ref.threadId, "bad", { ...decide, media: [{ src, alt: "x" }] })).toThrow();
     expect(() => store.create(ref.threadId, "bad", { ...decide, media: Array.from({ length: 5 }, () => decide.media[0]) })).toThrow();
     expect(() => store.create(ref.threadId, "bad", { ...decide, recommended: "maybe" })).toThrow();
   });

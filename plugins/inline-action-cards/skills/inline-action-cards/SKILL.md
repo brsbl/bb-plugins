@@ -43,7 +43,7 @@ Replace example identifiers with the actual target and include the exact reviewe
 Any card (Reply, Decide, or Choice) accepts optional evidence so the user can decide without leaving the card:
 
 - `context`: Markdown, up to 20,000 characters, rendered like a chat message (headings, lists, code blocks, tables, links). Lead with what changes and the risk; long context is clipped until the user opens it.
-- `media`: up to 4 images, each `{"src","alt","caption"?}`. `src` is an `https://` URL or an **absolute path** to an image file on the thread's host (for example a screenshot you just captured). Relative paths, `http:`, and `data:` URLs are rejected.
+- `media`: up to 4 images, each `{"src","alt","caption"?}`. `src` is an `https://` URL or an **absolute path** to a `.png`, `.jpg`, `.gif`, `.webp`, `.avif` or `.svg` file on the thread's host (for example a screenshot you just captured). Relative paths, `http:`, and `data:` URLs are rejected.
 - Decide cards also accept `recommended: "yes" | "no"`; Choice cards keep `recommended: "<option id>"`. In a table, Accept recommended stages these for the user to review; nothing is sent until they press Send.
 
 ```sh

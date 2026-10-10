@@ -67,7 +67,7 @@ export function createStore(bb: BbPluginApi) {
     const row = readTable.get(threadId, id) as { value: string } | undefined;
     if (!row) throw new Error("This table is unavailable. Ask the agent to recreate it.");
     const value = tableSchema.parse(JSON.parse(row.value));
-    return { ...value, items: value.ids.map((itemId) => view(get(threadId, itemId))) };
+    return { ...value, items: value.ids.map((itemId) => get(threadId, itemId)) };
   };
   const prepare = (item: Item, action: z.infer<typeof actionSchema>, note?: string) => {
     if (item.state !== "ready" && !(item.state === "failed" && item.result?.retryable)) throw new Error("This card already has an action in progress or has finished.");
@@ -97,14 +97,14 @@ export function createStore(bb: BbPluginApi) {
       return { waiting: [...sorted.filter((item) => item.state !== "succeeded"), ...sorted.filter(later)],
         done: sorted.filter((item) => item.state === "succeeded" && !later(item)) };
     },
-    table,
+    table: (threadId: string, id: string) => { const value = table(threadId, id); return { ...value, items: value.items.map(view) }; },
     comment(input: z.infer<typeof rpcContract.comment.input>) {
       return db.transaction(() => {
         const item = get(input.threadId, input.id);
         if (item.revision !== input.revision || item.state !== "ready") throw new Error("This card changed. Review it before commenting.");
         const note = rpcContract.comment.input.parse(input).note;
         const commentId = randomUUID();
-        db.prepare("INSERT INTO action_comments VALUES (?, ?, ?, ?)").run(item.threadId, item.id, commentId, note);
+        db.prepare("INSERT INTO action_comments (thread_id, item_id, comment_id, note) VALUES (?, ?, ?, ?)").run(item.threadId, item.id, commentId, note);
         return { item, commentId, note };
       })();
     },

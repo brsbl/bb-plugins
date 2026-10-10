@@ -39,6 +39,13 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
     noteEditor.current.style.height = "0px";
     noteEditor.current.style.height = `${Math.min(noteEditor.current.scrollHeight, 100)}px`;
   }, [note, noteOpen, expanded]);
+  // Comment moves focus into the field as soon as it renders.
+  const focusNote = useRef(false);
+  useLayoutEffect(() => {
+    if (!focusNote.current || !noteEditor.current) return;
+    focusNote.current = false;
+    noteEditor.current.focus();
+  });
   const [viewResult, setViewResult] = useState(false);
   const onItemRef = useRef(onItem); onItemRef.current = onItem;
   const onExpandRef = useRef(onExpand); onExpandRef.current = onExpand;
@@ -238,7 +245,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = (open: boolean) => row ? onExpand?.(open) : setViewResult(open);
-  const openNote = () => { setNoteOpen(true); if (row) onExpand?.(true); setTimeout(() => noteEditor.current?.focus()); };
+  const openNote = () => { focusNote.current = true; setNoteOpen(true); if (row) onExpand?.(true); };
   const commentToggle = <IconButton ref={commentButton} label="Comment" aria-expanded={noteOpen || (row && expanded)} disabled={disabled} onClick={openNote}><CommentIcon /></IconButton>;
   // A pending request offers Resend only once it is not already being sent.
   const utilities = <div className="iac-tools">
@@ -301,7 +308,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const details = <>
     {!row && <div className="iac-header">
       {reply ? recipients : <span className="iac-question">{title(item)}</span>}
-      {ready && !noteOpen && !note && <span className="iac-header-tools">{commentToggle}</span>}
+      {!done && !showNote && <span className="iac-header-tools">{commentToggle}</span>}
     </div>}
     {row && reply && recipients}
     {reply ? <>
