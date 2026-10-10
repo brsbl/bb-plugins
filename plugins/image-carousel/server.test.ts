@@ -1,6 +1,6 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { createStore, type ImageFile } from "./server.js";
+import plugin, { createStore, readFromThreadHost, type ImageFile } from "./server.js";
 import { MAX_IMAGE_BYTES } from "./model.js";
 
 const png = (tag: string) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(tag)]);
@@ -60,5 +60,39 @@ describe("image carousel store", () => {
     expect(store.get(second.id).slides).toHaveLength(1);
     store.remove(second.id);
     expect(count(db)).toBe(0);
+  });
+});
+
+describe("image reads stay on the invoking thread's machine", () => {
+  const pngBase64 = png("x").toString("base64");
+  function hostWith(environment: { hostId: string; path: string | null } | null) {
+    const host = createFakePluginHost({ pluginId: "image-carousel", sdk: {
+      threads: { get: () => ({ id: "thr_1", ...(environment ? { environment } : {}) }) },
+      files: { read: () => ({ content: pngBase64, contentEncoding: "base64", sizeBytes: 9, path: "/x", sha256: "0" }) },
+      system: { config: () => ({ primaryHostId: "host_primary" }) },
+    } });
+    hosts.push(host);
+    return host;
+  }
+
+  it("reads relative paths from the thread's own machine and directory", async () => {
+    const host = hostWith({ hostId: "host_thread", path: "/work/tree" });
+    await readFromThreadHost(host.bb)({ threadId: "thr_1", path: "shots/a.png" });
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([[{ hostId: "host_thread", path: "/work/tree/shots/a.png" }]]);
+  });
+
+  it("refuses to fall back to another machine when the thread has no environment", async () => {
+    const host = hostWith(null);
+    await expect(readFromThreadHost(host.bb)({ threadId: "thr_1", cwd: "/elsewhere", path: "a.png" })).rejects.toThrow("no machine");
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([]);
+  });
+
+  it("only creates carousels for the thread that runs the command", async () => {
+    const host = hostWith({ hostId: "host_thread", path: "/work" });
+    plugin(host.bb);
+    const carousel = JSON.stringify({ kind: "research", slides: [{ image: "a.png", title: "A" }] });
+    expect((await host.harness.behavior.runCli(["create", "--carousel", carousel])).stderr).toContain("Run create from the bb thread");
+    expect((await host.harness.behavior.runCli(["create", "--carousel", carousel, "--thread", "thr_other"], { threadId: "thr_1" })).exitCode).not.toBe(0);
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([]);
   });
 });

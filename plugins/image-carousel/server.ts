@@ -97,12 +97,11 @@ export function readFromThreadHost(bb: BbPluginApi): ReadImage {
   return async ({ threadId, cwd, path: file }) => {
     const thread = await bb.sdk.threads.get({ threadId, include: "environment" });
     const environment = "environment" in thread ? thread.environment ?? null : null;
-    const hostId = environment?.hostId ?? (await bb.sdk.system.config()).primaryHostId ?? undefined;
-    if (!hostId) throw new Error("No machine is available to read these images.");
-    const root = cwd ?? environment?.path;
+    if (!environment) throw new Error("This thread has no machine to read images from.");
+    const root = cwd ?? environment.path;
     if (!path.isAbsolute(file) && !root) throw new Error(`Use an absolute path for ${file}; this thread has no workspace.`);
     const resolved = path.isAbsolute(file) ? file : path.resolve(root!, file);
-    const result = await bb.sdk.files.read({ hostId, path: resolved });
+    const result = await bb.sdk.files.read({ hostId: environment.hostId, path: resolved });
     if (result.sizeBytes > MAX_IMAGE_BYTES) throw new Error(`${file} is larger than ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);
     if (result.contentEncoding !== "base64") throw new Error(`${file} is not a PNG, JPEG, GIF, or WebP image.`);
     return { bytes: Buffer.from(result.content, "base64"), name: path.basename(resolved) };
@@ -115,26 +114,17 @@ export default function plugin(bb: BbPluginApi): void {
     get: ({ id }) => store.get(id),
     image: ({ sha256 }) => store.image(sha256),
   });
-  const threadOf = (ctx: PluginCliContext, thread?: string) => {
-    const threadId = thread ?? ctx.threadId;
-    if (!threadId) throw new Error("Run this from a bb thread or pass --thread.");
-    return threadId;
-  };
   const json = (value: unknown) => ({ exitCode: 0, stdout: `${JSON.stringify(value, null, 2)}\n` });
   const idPosition = [{ name: "id", required: true, description: "Carousel ID printed by create" }] as const;
   bb.cli.register(defineCli({
     name: "image-carousel", summary: "Show screenshots inline as a research or before/after carousel",
     commands: {
       create: cliCommand({
-        summary: "Copy the images into a new carousel and print its directive",
-        options: {
-          thread: { type: "string", description: "Owning thread; defaults to this thread" },
-          carousel: { type: "string", required: true, stdin: true, description: "Carousel JSON; use --carousel-stdin" },
-        },
+        summary: "Copy images from this thread's machine into a new carousel and print its directive",
+        options: { carousel: { type: "string", required: true, stdin: true, description: "Carousel JSON; use --carousel-stdin" } },
         async run({ options }, ctx) {
-          const threadId = threadOf(ctx, options.thread);
-          const cwd = options.thread === undefined || options.thread === ctx.threadId ? ctx.cwd : undefined;
-          const carousel = await store.create(threadId, JSON.parse(options.carousel), cwd);
+          if (!ctx.threadId) throw new Error("Run create from the bb thread whose machine has the images.");
+          const carousel = await store.create(ctx.threadId, JSON.parse(options.carousel), ctx.cwd);
           return { exitCode: 0, stdout: `::image-carousel{id="${carousel.id}"}\n` };
         },
       }),

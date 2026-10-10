@@ -14,7 +14,7 @@ Only show real captures. Never present mockups or placeholders as research or as
 
 ## Create
 
-Image paths are read from the thread's machine. Relative paths resolve against the current directory. The images are copied into the plugin, so the carousel keeps working after the files, worktree, or thread are cleaned up.
+Run `create` from the thread whose machine has the images: paths are read only from that thread's machine, and relative paths resolve against the current directory. The images are copied into the plugin, so the carousel keeps working after the files, worktree, or thread are cleaned up.
 
 The JSON must be a single line: `--carousel-stdin` accepts exactly one line. Use `\n` inside a description for a line break.
 
