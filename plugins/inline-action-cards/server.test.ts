@@ -311,6 +311,10 @@ describe("decision sheets", () => {
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:d:comment_${commentId}`)).context);
     expect(context).toMatchObject({ intent: "comment", commentId });
     expect(context.instruction).toContain("bb action-cards answer");
+    // One rule: a comment never approves the card's own action, and a card it makes moot is resolved.
+    expect(context.instruction).toContain("never approves the card's own action");
+    expect(context.instruction).toContain("bb action-cards resolve");
+    expect(context.instruction).not.toMatch(/Do not execute an action/);
     expect(await host.harness.behavior.callRpc("get", { threadId: ref.threadId, id: "d" })).toMatchObject({ followUps: [{ commentId, note: "Which CI secrets use it?", answer: null }] });
     const answered = await host.harness.behavior.runCli(["answer", "d", "--thread", ref.threadId, "--comment", commentId, "--message", "Three: **deploy**, **e2e**, and **nightly**."]);
     expect(JSON.parse(answered.stdout!)).toMatchObject({ revision: 1, state: "ready", followUps: [{ commentId, answer: "Three: **deploy**, **e2e**, and **nightly**." }] });

@@ -125,7 +125,7 @@ Every ready card ends with one line: a comment field (sticky-note icon), then th
 
 ## Comment without choosing
 
-When the comment field contains text, its own submit (or Enter) sends just the comment as a follow-up question with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `commentId`, `threadId`, and `itemId`; it has no action or attempt. This is not approval. The card stays ready, its choices remain usable, and other rows in the same table keep their staged answers.
+When the comment field contains text, its own submit (or Enter) sends just the comment as a follow-up question with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `commentId`, `threadId`, and `itemId`; it has no action or attempt. A comment never approves the card's own action: never claim or create an attempt for it. Treat it as a chat message from the user. Answer questions, and follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization. If it is ambiguous, or the card's own action needs approval, ask the user to use the card's buttons. The card stays ready, its choices remain usable, and other rows in the same table keep their staged answers.
 
 Answer the follow-up **on the card** so the answer sits next to the decision it is about:
 
@@ -135,7 +135,7 @@ Three CI secrets use it: **deploy**, **e2e**, and **nightly**. I rotate all thre
 MD
 ```
 
-If the comment asks you to act and you do it (for example the user comments “delete this” and you close the PR the card asked about), settle the card so it stops waiting:
+When what you did makes the card moot, settle it so it stops waiting. For example, the user commented “close this” on a Close PR card and you closed the PR, or they withdrew the question:
 
 ```sh
 bb action-cards resolve pr-412 --message 'Closed the PR'
@@ -143,7 +143,7 @@ bb action-cards resolve pr-412 --message 'Closed the PR'
 
 `resolve` only works on an unanswered card and records no approval; a clicked card is reported through its claimed attempt instead.
 
-The answer renders as Markdown under the question on the card; `bb action-cards get` returns the card's `followUps`. Keep your chat reply to one short line (or none), and do not re-emit the table. If the follow-up asks for a change, read the latest item and revise the **same** Reply draft using its revision. Decide question/consequence updates are not supported; explain the requested change instead of creating a replacement card or acting.
+The answer renders as Markdown under the question on the card; `bb action-cards get` returns the card's `followUps`. Keep your chat reply to one short line (or none), and do not re-emit the table. If the follow-up asks for a change, read the latest item and revise the **same** Reply draft using its revision. Decide question/consequence updates are not supported; explain the requested change instead of creating a replacement card.
 
 Comment replaces Reply’s Ask for changes button. Existing `request-changes` messages remain valid requests to revise, never approval. For a Reply change:
 
