@@ -97,6 +97,13 @@ async function readLayout(directory: string): Promise<unknown> {
 }
 
 /** Reads a Markdown file and, when it is a Moss note, the sidecars the viewer needs. */
+/** The note's version on disk: its file and its layout, the two things the viewer shows. */
+export async function noteVersion(file: string): Promise<string> {
+  const note = await stat(file).catch(() => null);
+  const layout = await stat(join(dirname(file), "layout.json")).catch(() => null);
+  return [note ? `${note.mtimeMs}:${note.size}` : "missing", layout ? `${layout.mtimeMs}:${layout.size}` : "none"].join("/");
+}
+
 export async function readNote({ path }: { path: string }) {
   if (!MARKDOWN.test(path)) return { moss: false as const, path, missing: false };
   let file: Awaited<ReturnType<typeof canonicalFile>>;
@@ -125,6 +132,7 @@ export async function readNote({ path }: { path: string }) {
     layout: await readLayout(directory),
     noteId: await readNoteId(directory),
     modifiedMs: file.modifiedMs,
+    version: await noteVersion(file.path),
   };
 }
 
@@ -298,4 +306,18 @@ export async function openInMoss({ path }: { path: string }): Promise<{ opened: 
     });
   });
   return { opened: true };
+}
+
+/** Shows the canonical note in Finder, selected. */
+export async function revealNote({ path }: { path: string }): Promise<{ revealed: true }> {
+  if (platform() !== "darwin") throw new HostFileError("unsupported", "Notes show in Finder only on a Mac.");
+  if (!MARKDOWN.test(path)) throw new HostFileError("invalid", "Only Markdown notes show in Finder.");
+  const file = await canonicalFile(path);
+  await new Promise<void>((accept, reject) => {
+    execFile("/usr/bin/open", ["-R", file.path], { timeout: 15_000 }, (error) => {
+      if (error) reject(new HostFileError("unsupported", "Finder could not show this note."));
+      else accept();
+    });
+  });
+  return { revealed: true };
 }

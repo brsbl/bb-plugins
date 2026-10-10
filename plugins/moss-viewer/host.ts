@@ -2,14 +2,16 @@ import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { hostContract, hostSignals } from "./contract.js";
 import { createEditorHost } from "./editor-host.js";
 import { mossEditorHost } from "./editor-host-helpers.js";
-import { canonicalWorkspaceRoot, listNotes, openInMoss, readAsset, readNote } from "./host-notes.js";
+import { canonicalWorkspaceRoot, listNotes, openInMoss, readAsset, readNote, revealNote } from "./host-notes.js";
 import { macPathExchange } from "./mac-exchange.js";
+import { createViewerWatches } from "./viewer-watch.js";
 
 // Editing needs an atomic exchange on the note's volume. Where the Mac helper
 // cannot provide one (any other platform, or a volume that cannot swap), every
 // note answers hostUnsupported and stays in the viewer.
 const paths = macPathExchange();
 const editor = createEditorHost({ helpers: mossEditorHost, paths, workspaceRoot: canonicalWorkspaceRoot });
+const viewerWatches = createViewerWatches();
 
 export default experimental_defineHostEntry({
   contract: hostContract,
@@ -19,10 +21,12 @@ export default experimental_defineHostEntry({
     listNotes,
     readAsset,
     openInMoss,
+    revealNote,
+    watchNote: viewerWatches.watchNote,
     ...editor.handlers,
   },
   dispose: async () => {
     paths.dispose();
-    await editor.dispose();
+    await Promise.all([editor.dispose(), viewerWatches.dispose()]);
   },
 });

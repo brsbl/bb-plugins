@@ -15,6 +15,8 @@ export const snapshotSchema = z.object({
   authorAvatarUrl: text.nullable().optional(),
   // Optional so snapshots saved before reviewer filtering remain readable.
   requestedReviewers: z.array(text).optional(), reviewRequestsComplete: z.boolean().optional(),
+  // Absent in older caches; null when GitHub cannot resolve the head repository.
+  headRepository: text.nullable().optional(),
   headBranch: text, baseBranch: text, updatedAt: text, fetchedAt: text,
   checks: z.object({ state: z.enum(["passing", "failing", "pending", "none", "unknown"]), passing: z.number(), failing: z.number(), pending: z.number(), total: z.number(), complete: z.boolean(), items: z.array(checkSchema) }),
   review: z.enum(["approved", "changes-requested", "required", "none", "unknown"]),
@@ -59,6 +61,8 @@ export const hostContract = defineRpcContract({
 export const listInput = z.object({ cursor: text.optional(), limit: z.number().int().min(1).max(100).default(100), query: text.max(300).optional(), view: z.enum(["all", "open", "history"]).default("all"), author: text.max(100).optional() });
 export const rpcContract = defineRpcContract({
   list: { input: listInput, output: listingSchema },
+  // Complete known registry for hierarchy/filtering; the paginated CLI list stays compatible.
+  inbox: { input: z.object({}), output: listingSchema },
   show: { input: z.object({ id }), output: itemSchema },
   refresh: { input: z.object({ discover: z.boolean().default(false), includeArchived: z.boolean().default(false), id: id.optional() }), output: coverageSchema },
   context: { input: z.object({ query: text.max(300).optional(), cursor: text.optional(), threadIds: z.array(id).max(100).optional() }), output: z.object({ threads: z.array(threadSchema), nextCursor: text.nullable(), hosts: z.array(z.object({ id, name: text, connected: z.boolean() })) }) },

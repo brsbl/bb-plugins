@@ -1,13 +1,15 @@
 import { useEffect, useRef } from "react";
+import type { StatusFilter } from "./hierarchy";
 import { ArrowDownAZ, Clock, Folder, History, List, MoreHorizontal, Rows3, type LucideIcon } from "lucide-react";
 
 export type Sort = "updated" | "oldest" | "title";
 export type GroupBy = "none" | "project" | "section";
-export const DEFAULT_AUTHOR = "@me";
+export const DEFAULT_AUTHOR = "";
+export const DEFAULT_STATUS: StatusFilter = "open";
 type Props = {
-  author: string; reviewer: string; sort: Sort; groupBy: GroupBy; authors: string[]; reviewers: string[]; me: string | null;
+  status: StatusFilter; author: string; reviewer: string; sort: Sort; groupBy: GroupBy; authors: string[]; reviewers: string[]; me: string | null;
   reviewerDataIncomplete: boolean;
-  onAuthor(value: string): void; onReviewer(value: string): void; onSort(value: Sort): void; onGroupBy(value: GroupBy): void;
+  onStatus(value: StatusFilter): void; onAuthor(value: string): void; onReviewer(value: string): void; onSort(value: Sort): void; onGroupBy(value: GroupBy): void;
 };
 /** "Me" already covers the signed-in account, so it is not repeated by login. */
 const people = (values: string[], selected: string, me: string | null) => [...new Set([...values, ...(selected && selected !== "@me" ? [selected] : [])])]
@@ -22,7 +24,7 @@ function Segmented<T extends string>({ label, value, options, onChange }: { labe
   </div></div>;
 }
 
-export function InboxMenu({ author, reviewer, sort, groupBy, authors, reviewers, me, reviewerDataIncomplete, onAuthor, onReviewer, onSort, onGroupBy }: Props) {
+export function InboxMenu({ status, onStatus, author, reviewer, sort, groupBy, authors, reviewers, me, reviewerDataIncomplete, onAuthor, onReviewer, onSort, onGroupBy }: Props) {
   const root = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const dismiss = (event: Event) => {
@@ -38,15 +40,16 @@ export function InboxMenu({ author, reviewer, sort, groupBy, authors, reviewers,
     document.addEventListener("keydown", dismiss);
     return () => { document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", dismiss); };
   }, []);
-  const active = author !== DEFAULT_AUTHOR || !!reviewer;
+  const active = status !== DEFAULT_STATUS || author !== DEFAULT_AUTHOR || !!reviewer;
   return <details ref={root} className="pr-list-options">
     <summary className={`pr-icon-button${active ? " pr-is-active" : ""}`} aria-label="Filters and sort" title="Filters and sort"><MoreHorizontal size={19} aria-hidden="true" /></summary>
     <div className="pr-options-panel">
+      <label className="pr-option-row"><span>Status</span><select aria-label="Status" value={status} onChange={(event) => onStatus(event.target.value as StatusFilter)}><option value="open">Open</option><option value="merged">Merged</option><option value="closed">Closed</option><option value="all">All</option></select></label>
       <label className="pr-option-row"><span>Author</span><select aria-label="Author" value={author} onChange={(event) => onAuthor(event.target.value)}><option value="">All authors</option><option value="@me">Me</option>{people(authors, author, me).map((login) => <option key={login} value={login}>{login}</option>)}</select></label>
       <label className="pr-option-row"><span>Reviewer</span><select aria-label="Reviewer" value={reviewer} onChange={(event) => onReviewer(event.target.value)}><option value="">Anyone</option><option value="@me">Me</option>{people(reviewers, reviewer, me).map((login) => <option key={login} value={login}>{login}</option>)}</select></label>
       <Segmented label="Sort by" value={sort} options={SORTS} onChange={onSort} />
       <Segmented label="Group by" value={groupBy} options={GROUPS} onChange={onGroupBy} />
-      {active && <button type="button" className="pr-text-button" onClick={() => { onAuthor(DEFAULT_AUTHOR); onReviewer(""); }}>Clear filters</button>}
+      {active && <button type="button" className="pr-text-button" onClick={() => { onStatus(DEFAULT_STATUS); onAuthor(DEFAULT_AUTHOR); onReviewer(""); }}>Clear filters</button>}
       {reviewer && reviewerDataIncomplete && <p className="pr-options-note">Some reviewer data is incomplete. Refresh to update it.</p>}
     </div>
   </details>;
