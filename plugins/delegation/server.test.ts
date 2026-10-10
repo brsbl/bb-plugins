@@ -2,7 +2,7 @@ import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
 import plugin from "./server";
-import { DEFAULTS } from "./settings";
+import { FALLBACKS } from "./settings";
 import { archiveCascade, listAll, workerState, type ThreadRow } from "./threads";
 
 function row(overrides: Partial<ThreadRow> & { id: string }): ThreadRow {
@@ -44,23 +44,37 @@ function setup(rows: ThreadRow[]) {
 const signal = new AbortController().signal;
 
 describe("Delegation settings", () => {
-  it("starts from brsbl's defaults and declares no generic settings form", async () => {
+  const run = (harness: ReturnType<typeof setup>, argv: string[]) =>
+    harness.behavior.runCli(argv, { signal }).catch((error: Error) => ({ exitCode: 1, stdout: "", stderr: error.message }));
+
+  it("starts from neutral fallbacks and declares no generic settings form", async () => {
     const harness = setup([]);
     expect(harness.inspection.registrations.settingsDescriptors).toEqual({});
-    expect(await harness.behavior.callRpc("getSettings", {})).toEqual(DEFAULTS);
-    expect(JSON.parse((await harness.behavior.runCli(["settings", "--json"], { signal })).stdout)).toEqual(DEFAULTS);
+    expect(((await harness.behavior.callRpc("getState", {})) as { settings: unknown }).settings).toEqual(FALLBACKS);
+    expect(JSON.parse((await harness.behavior.runCli(["settings", "--json"], { signal })).stdout)).toEqual(FALLBACKS);
+    expect((await harness.behavior.runCli(["sources"], { signal })).stdout).toContain("No sources recorded yet");
   });
 
-  it("saves from the form and the CLI, and resets to defaults", async () => {
+  it("lets a recorded source win over an override, and says so", async () => {
     const harness = setup([]);
-    await harness.behavior.callRpc("saveSettings", { values: { machine: "host_mac", retryLimit: 4 } });
-    expect((await harness.behavior.runCli(["set", "mayArchiveOrStop", "true"], { signal })).stdout).toBe("mayArchiveOrStop\ttrue");
-    const text = (await harness.behavior.runCli(["settings"], { signal })).stdout;
-    expect(text).toContain('machine\t"host_mac"\n');
-    expect(text).toContain('provider\t"claude-code"\t(default)');
-    await harness.behavior.runCli(["reset", "machine"], { signal });
-    expect(await harness.behavior.callRpc("getSettings", {})).toEqual({ ...DEFAULTS, retryLimit: 4, mayArchiveOrStop: true });
+    await harness.behavior.callRpc("saveSettings", { values: { mayArchiveOrStop: false, retryLimit: 4 } });
+    await harness.behavior.runCli(["record", "mayArchiveOrStop", "true", "--from", "~/.bb/AGENTS.md", "--quote", "stop its runtime and archive the worker"], { signal });
+    const settings = JSON.parse((await harness.behavior.runCli(["settings", "--json"], { signal })).stdout);
+    expect(settings).toMatchObject({ mayArchiveOrStop: true, retryLimit: 4 });
+    const explained = JSON.parse((await harness.behavior.runCli(["settings", "--json", "--explain"], { signal })).stdout);
+    expect(explained.explain.mayArchiveOrStop).toEqual({ value: true, origin: "source", source: "~/.bb/AGENTS.md", quote: "stop its runtime and archive the worker", ignoredOverride: false });
+    expect(explained.explain.retryLimit).toEqual({ value: 4, origin: "override" });
+    expect(explained.checkedAt).toEqual(expect.any(Number));
+    expect((await harness.behavior.runCli(["set", "mayArchiveOrStop", "false"], { signal })).stdout).toContain("~/.bb/AGENTS.md sets true and wins");
+    await harness.behavior.runCli(["forget", "mayArchiveOrStop"], { signal });
+    expect(JSON.parse((await harness.behavior.runCli(["settings", "--json"], { signal })).stdout).mayArchiveOrStop).toBe(false);
     expect(harness.inspection.realtimeSignals.at(-1)?.channel).toBe("settings-changed");
+  });
+
+  it("requires a file and a quote for every source", async () => {
+    const harness = setup([]);
+    expect((await run(harness, ["record", "workerReportLines", "3", "--from", "~/.claude/CLAUDE.md"])).stderr).toContain("A source needs --from and --quote.");
+    expect((await run(harness, ["record", "workerReportLines", "99", "--from", "x", "--quote", "y"])).stderr).toContain('"99" isn\'t a valid workerReportLines.');
   });
 
   it("keeps valid settings and unknown keys when another version's value doesn't parse", async () => {
@@ -68,17 +82,16 @@ describe("Delegation settings", () => {
     await bb.storage.kv.set("settings", { retryLimit: 4, futureKey: 1, environment: "cloud" });
     plugin(bb);
     disposers.push(() => harness.lifecycle.dispose());
-    expect(await harness.behavior.callRpc("getSettings", {})).toEqual({ ...DEFAULTS, retryLimit: 4 });
+    expect(((await harness.behavior.callRpc("getState", {})) as { settings: unknown }).settings).toEqual({ ...FALLBACKS, retryLimit: 4 });
     await harness.behavior.runCli(["set", "reportStyle", "prose"], { signal });
     expect(await bb.storage.kv.get("settings")).toEqual({ retryLimit: 4, futureKey: 1, environment: "cloud", reportStyle: "prose" });
   });
 
   it("rejects unknown settings and invalid values", async () => {
     const harness = setup([]);
-    const run = (argv: string[]) => harness.behavior.runCli(argv, { signal }).catch((error: Error) => ({ exitCode: 1, stdout: "", stderr: error.message }));
-    expect((await run(["set", "colour", "red"])).stderr).toContain('Unknown setting "colour".');
-    expect((await run(["set", "retryLimit", "99"])).stderr).toContain('"99" isn\'t a valid retryLimit.');
-    expect((await run(["set", "environment", "cloud"])).exitCode).not.toBe(0);
+    expect((await run(harness, ["set", "colour", "red"])).stderr).toContain('Unknown setting "colour".');
+    expect((await run(harness, ["set", "retryLimit", "99"])).stderr).toContain('"99" isn\'t a valid retryLimit.');
+    expect((await run(harness, ["set", "environment", "cloud"])).exitCode).not.toBe(0);
     await expect(harness.behavior.callRpc("saveSettings", { values: { colour: "red" } })).rejects.toThrow();
   });
 });

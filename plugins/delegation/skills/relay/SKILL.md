@@ -14,6 +14,8 @@ thread one message that carries everything it needs.
 bb delegation settings --json
 ```
 
+The values come from the user's own instructions first (`delegation-defaults`).
+
 Use `relayBatching` from its output: `batch` combines everything for one thread
 into a single message; `each` sends each request as it arrives.
 

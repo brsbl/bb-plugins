@@ -2,7 +2,7 @@
 
 Skills for handing work to other bb threads and bringing back only what matters.
 
-![Delegation's settings form with provider, model, machine, and section pickers, switches, and number fields](docs/settings.png)
+![Delegation's settings form, with values quoted from AGENTS.md, CLAUDE.md, and memory, and an ignored override flagged](docs/settings.png)
 
 ## Install
 
@@ -20,21 +20,28 @@ Ask a thread to "launch an agent for this and parent it". The lead starts a work
 | `relay` | Passing your decision or request to an existing thread in one batched message that quotes you |
 | `collect-results` | Waiting on workers without polling, reading their reports and artifacts, and retrying stalls and provider errors |
 | `report-results` | Short, batched reports with evidence inline and decisions as action cards |
-| `thread-lifecycle` | Archiving, stopping, unparenting, and section moves, only when you ask |
+| `thread-lifecycle` | Archiving, stopping, unparenting, and section moves, following your instructions |
+| `delegation-defaults` | Reading your AGENTS.md, CLAUDE.md, skills, and memory into the settings, with quotes |
 
 The skills build on existing ones rather than repeating them: `spawn` for machine capacity and model tiers, `handoff` for transferring work in progress, `comms` for writing style, `inline-action-cards` for cards, `bb-thread-status-report` for every running thread, and `tidy` for post-merge cleanup.
 
 ### Settings
 
-Settings → Delegation is a form: provider and machine dropdowns filled from your bb, bb's own model picker, your sidebar sections, switches, and number fields. Each change saves on its own. Agents read the same values with `bb delegation settings --json`, so the skills never hard-code them, and anything you say in a request overrides a setting.
+Delegation keeps no rules of its own. Each setting resolves in this order:
 
-| Setting | Default | What it controls |
+1. **Your instructions.** The `delegation-defaults` skill reads `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, your memory notes, and your skills, then records what they say about each setting with the file and your exact words. These win.
+2. **Your override**, from Settings → Delegation or `bb delegation set`. It applies only where your instructions are silent; the form marks an override your instructions outrank as ignored.
+3. **A fallback** that defers to bb or the spawn skill.
+
+Settings → Delegation shows every setting's value and where it came from, with provider, machine, and section dropdowns filled from your bb and bb's own model picker. Rows your instructions set are locked and quote them. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
+
+| Setting | Fallback | What it controls |
 | --- | --- | --- |
-| `provider` | `claude-code` | Provider for new workers unless you name another. Changing it clears the chosen models. |
-| `model`, `reasoningLevel` | blank | Model and reasoning level for new workers; blank uses spawn's normal tier. |
-| `qaModel` | `cheapest` | Model for QA, smoke tests, and other mechanical checks; `cheapest` picks the cheapest model the provider lists. |
+| `provider`, `model`, `reasoningLevel` | blank | Provider, model, and reasoning level for new workers; blank lets bb or spawn's normal tier decide. Changing the provider clears the model. |
+| `avoidModels` | blank | Model IDs no worker should run, comma-separated. |
+| `qaProvider`, `qaModel`, `qaReasoningLevel` | blank | The same for QA and smoke-test threads; blank uses the worker values, and `cheapest` picks the cheapest model the provider lists. |
 | `machine` | blank | Machine for new workers; blank uses the lead's machine unless spawn's capacity check moves the job. |
-| `environment` | `worktree` | `worktree` for a new managed worktree, `personal` for a personal workspace, or `lead` to share the lead's environment. |
+| `environment` | blank | `worktree`, `personal`, `lead` to share the lead's environment, or blank for spawn's choice. |
 | `section` | blank | Sidebar section for new workers; blank uses the lead's section. |
 | `parentWorkers` | on | Parents workers to the lead so bb tells it when they finish, fail, or need input. |
 | `workerReportLines` | `3` | Most lines in a worker's final reply (1–20). |
@@ -44,19 +51,22 @@ Settings → Delegation is a form: provider and machine dropdowns filled from yo
 | `evidenceInline` | on | Shows screenshots and videos in the report instead of describing them. |
 | `relayBatching` | `batch` | `batch` sends each thread one combined message; `each` sends requests as they come. |
 | `retryLimit` | `2` | Retries of a worker's failed turn, such as a provider 429, before it's reported as blocked (0–10). |
-| `mayArchiveOrStop` | off | Off: no agent archives or stops a thread unless you ask for that thread. |
+| `mayArchiveOrStop` | off | On: a lead stops and archives the workers it started once their work is handed back. Off: only when you ask. |
 
 ### Commands
 
 ```bash
-bb delegation settings [--json]
+bb delegation settings [--json] [--explain]
 bb delegation set <key> <value>
 bb delegation reset <key>
+bb delegation sources [--json]
+bb delegation record <key> <value> --from <file> --quote <words> [--note <text>]
+bb delegation forget <key> | --all
 bb delegation children [--thread <lead-id>] [--json]
 bb delegation cascade [--thread <id>] [--json]
 ```
 
-`settings` prints the effective values and marks defaults; `set` and `reset` change one. `children` lists a lead's workers, most urgent first: `needs-input`, `error`, `host-offline`, `retry-queued`, `working`, or `idle`. `cascade` lists every thread that `bb thread archive` would also archive: children, threads it is the lifecycle owner of, and hidden forks, recursively. Both default to the current thread.
+`settings` prints the effective values and where each comes from; `set` and `reset` change your override. `sources`, `record`, and `forget` manage the values read from your instructions. `children` lists a lead's workers, most urgent first: `needs-input`, `error`, `host-offline`, `retry-queued`, `working`, or `idle`. `cascade` lists every thread that `bb thread archive` would also archive: children, threads it is the lifecycle owner of, and hidden forks, recursively. Both default to the current thread.
 
 ## Develop
 

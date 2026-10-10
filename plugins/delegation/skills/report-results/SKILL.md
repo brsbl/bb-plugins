@@ -11,6 +11,8 @@ description: Turn delegated workers' results into a short report for the user, w
 bb delegation settings --json
 ```
 
+The values come from the user's own instructions first (`delegation-defaults`).
+
 This skill uses `reportStyle`, `reportMaxBullets`, `decisionsAsActionCards`,
 `evidenceInline`, and `workerReportLines` from its output.
 

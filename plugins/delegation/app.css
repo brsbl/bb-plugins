@@ -31,3 +31,12 @@
 }
 .dl-description code { font-family: var(--font-mono); font-size: 12px; }
 .dl-select:disabled { opacity: 0.6; cursor: progress; }
+.dl-origin { display: grid; gap: 2px; margin-top: 4px; }
+.dl-origin-line { margin: 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.dl-origin-tag { color: var(--foreground); font-weight: 500; }
+.dl-origin-warn { color: var(--warning-text, var(--foreground)); }
+.dl-link { padding: 0; border: 0; background: none; color: var(--foreground); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.dl-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.dl-text { width: 220px; padding: 0 8px; }
+.dl-input:disabled, .dl-switch:disabled { opacity: 0.6; cursor: not-allowed; }
+.dl-select:disabled { cursor: not-allowed; }

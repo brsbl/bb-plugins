@@ -7,7 +7,10 @@ import {
   useSdk,
 } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./contract.js";
-import { CHANGED, settingsSchema, type DelegationSettings, type SettingsOverrides } from "./settings.js";
+import {
+  CHANGED, FALLBACKS, stateSchema,
+  type DelegationSettings, type DelegationState, type SettingKey, type SettingsOverrides,
+} from "./settings.js";
 import { Switch } from "./components/ui/switch.js";
 import "./app.css";
 
@@ -18,8 +21,44 @@ function errorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : "Couldn't save. Try again.";
 }
 
-function Row({ label, description, control, below, htmlFor }: {
-  label: string; description: string; control: ReactNode; below?: ReactNode; htmlFor?: string;
+function shown(value: string | number | boolean): string {
+  if (typeof value === "boolean") return value ? "on" : "off";
+  return value === "" ? "blank" : String(value);
+}
+
+/** Where a row's value comes from: the user's instructions, their override, or the fallback. */
+function Origin({ settingKey, state, onReset }: { settingKey: SettingKey; state: DelegationState; onReset: () => void }) {
+  const entry = state.explain[settingKey];
+  if (!entry) return null;
+  if (entry.origin === "source") {
+    return (
+      <div className="dl-origin">
+        <p className="dl-origin-line"><span className="dl-origin-tag">From {entry.source}</span> “{entry.quote}”</p>
+        {entry.note ? <p className="dl-origin-line">{entry.note}</p> : null}
+        {entry.ignoredOverride !== undefined ? (
+          <p className="dl-origin-line dl-origin-warn">
+            Your override ({shown(entry.ignoredOverride)}) is ignored: your instructions win.{" "}
+            <button type="button" className="dl-link" onClick={onReset}>Remove override</button>
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+  if (entry.origin === "override") {
+    return (
+      <div className="dl-origin">
+        <p className="dl-origin-line">
+          <span className="dl-origin-tag">Your override.</span> Your instructions don't set this.{" "}
+          <button type="button" className="dl-link" onClick={onReset}>Remove override</button>
+        </p>
+      </div>
+    );
+  }
+  return <div className="dl-origin"><p className="dl-origin-line">Your instructions don't set this, so it uses the fallback.</p></div>;
+}
+
+function Row({ label, description, control, below, htmlFor, origin }: {
+  label: string; description: string; control: ReactNode; below?: ReactNode; htmlFor?: string; origin: ReactNode;
 }) {
   return (
     <div className="dl-row">
@@ -27,6 +66,7 @@ function Row({ label, description, control, below, htmlFor }: {
         <div className="dl-row-text">
           <label className="dl-label" htmlFor={htmlFor}>{label}</label>
           <p className="dl-description">{description}</p>
+          {origin}
         </div>
         <div className="dl-control">{control}</div>
       </div>
@@ -45,8 +85,8 @@ function Select({ id, value, options, onChange, label, disabled }: {
   );
 }
 
-function NumberField({ id, value, min, max, onSave, label }: {
-  id?: string; value: number; min: number; max: number; onSave: (value: number) => void; label: string;
+function NumberField({ id, value, min, max, onSave, label, disabled }: {
+  id?: string; value: number; min: number; max: number; onSave: (value: number) => void; label: string; disabled?: boolean;
 }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => setDraft(String(value)), [value]);
@@ -57,8 +97,20 @@ function NumberField({ id, value, min, max, onSave, label }: {
   };
   return (
     <input id={id} className="dl-input dl-number" type="number" inputMode="numeric" aria-label={label}
-      min={min} max={max} step={1} value={draft}
+      min={min} max={max} step={1} value={draft} disabled={disabled}
       onChange={(event) => setDraft(event.target.value)} onBlur={commit}
+      onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+  );
+}
+
+function TextField({ id, value, onSave, label, placeholder, disabled }: {
+  id?: string; value: string; onSave: (value: string) => void; label: string; placeholder: string; disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <input id={id} className="dl-input dl-text" aria-label={label} value={draft} placeholder={placeholder} disabled={disabled}
+      onChange={(event) => setDraft(event.target.value)} onBlur={() => { if (draft.trim() !== value) onSave(draft.trim()); }}
       onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
   );
 }
@@ -73,6 +125,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 const ENVIRONMENTS: Option[] = [
+  { value: "", label: "Spawn's choice for the job" },
   { value: "worktree", label: "New worktree" },
   { value: "personal", label: "Personal workspace" },
   { value: "lead", label: "The lead's environment" },
@@ -85,22 +138,33 @@ const RELAYS: Option[] = [
   { value: "batch", label: "One message per thread" },
   { value: "each", label: "Each request as it comes" },
 ];
+const REASONING: Option[] = [
+  { value: "", label: "The model's default" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "Extra high" },
+  { value: "max", label: "Max" },
+];
 
 export function DelegationSettingsForm() {
   const rpc = useRpc<typeof rpcContract>();
   const sdk = useSdk();
   const rpcRef = useRef(rpc);
   rpcRef.current = rpc;
-  const [settings, setSettings] = useState<DelegationSettings | null>(null);
+  const [state, setState] = useState<DelegationState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [providers, setProviders] = useState<Option[]>([]);
   const [machines, setMachines] = useState<Array<Option & { connected: boolean }>>([]);
   const [sections, setSections] = useState<Option[]>([]);
-  const ids = { provider: useId(), machine: useId(), environment: useId(), section: useId(), lines: useId(), bullets: useId(), style: useId(), relay: useId(), retries: useId() };
+  const ids = {
+    provider: useId(), qaProvider: useId(), reasoning: useId(), qaReasoning: useId(), avoid: useId(), machine: useId(),
+    environment: useId(), section: useId(), lines: useId(), bullets: useId(), style: useId(), relay: useId(), retries: useId(),
+  };
 
   useEffect(() => {
     let live = true;
-    rpcRef.current.call("getSettings", {}).then((next) => { if (live) setSettings(next); }, (cause) => { if (live) setError(errorMessage(cause)); });
+    rpcRef.current.call("getState", {}).then((next) => { if (live) setState(next); }, (cause) => { if (live) setError(errorMessage(cause)); });
     void sdk.providers.list().then((list) => {
       if (live) setProviders(list.filter((entry) => entry.available).map((entry) => ({ value: entry.id, label: entry.displayName })));
     }, () => undefined);
@@ -117,17 +181,17 @@ export function DelegationSettingsForm() {
   }, [sdk]);
 
   useRealtime(CHANGED, (payload) => {
-    const parsed = settingsSchema.safeParse(payload);
-    if (parsed.success) setSettings(parsed.data);
+    const parsed = stateSchema.safeParse(payload);
+    if (parsed.success) setState(parsed.data);
   });
 
   const save = useCallback((values: SettingsOverrides, reset?: string[]) => {
-    setSettings((current) => (current ? { ...current, ...values } : current));
     setError(null);
     rpcRef.current.call("saveSettings", { values, ...(reset ? { reset } : {}) })
-      .then(setSettings, (cause) => setError(errorMessage(cause)));
+      .then(setState, (cause) => setError(errorMessage(cause)));
   }, []);
 
+  const settings = state?.settings;
   // Models come from the machine workers run on: the chosen one, else the first connected one.
   const routingHost = settings?.machine || machines.find((machine) => machine.connected)?.value || null;
   const routing = routingHost ? { kind: "host" as const, hostId: routingHost } : undefined;
@@ -135,6 +199,7 @@ export function DelegationSettingsForm() {
   // Picking "Choose a model" starts from the provider's default model.
   const [loadingModel, setLoadingModel] = useState<"model" | "qaModel" | null>(null);
   const chooseModel = useCallback(async (field: "model" | "qaModel", providerId: string) => {
+    if (!providerId) { setError("Pick a provider first."); return; }
     setLoadingModel(field);
     try {
       const catalog = await sdk.providers.models(routingHost ? { providerId, hostId: routingHost } : { providerId });
@@ -143,109 +208,146 @@ export function DelegationSettingsForm() {
         setError(catalog.modelLoadError ? `Couldn't load this provider's models (${catalog.modelLoadError.code.replaceAll("_", " ")}).` : "This provider has no models to choose from.");
         return;
       }
-      save(field === "model"
-        ? { model: model.model, reasoningLevel: model.defaultReasoningEffort }
-        : { qaModel: model.model });
+      save(field === "model" ? { model: model.model, reasoningLevel: model.defaultReasoningEffort } : { qaModel: model.model });
     } catch (cause) { setError(errorMessage(cause)); } finally { setLoadingModel(null); }
   }, [routingHost, save, sdk]);
 
-  if (!settings) {
+  if (!state || !settings) {
     return error ? <p className="dl-error" role="alert">{error}</p> : <p className="dl-description" role="status">Loading…</p>;
   }
 
+  const locked = (key: SettingKey) => state.explain[key]?.origin === "source";
+  const origin = (...keys: SettingKey[]) => <Origin settingKey={keys[0]!} state={state} onReset={() => save({}, keys)} />;
   const withCurrent = (options: Option[], value: string, missing: string) =>
     value && !options.some((option) => option.value === value) ? [...options, { value, label: `${value} (${missing})` }] : options;
-  const providerOptions = withCurrent(providers, settings.provider, "unavailable");
+  const providerOptions = withCurrent([{ value: "", label: "The project's default" }, ...providers], settings.provider, "unavailable");
+  const qaProvider = settings.qaProvider || settings.provider;
+  const checked = state.checkedAt === null ? null : new Date(state.checkedAt).toLocaleString();
 
   return (
     <div className="dl-settings">
-      <p className="dl-description">The Delegation skills follow these, and agents read them with <code>bb delegation settings</code>. Anything you say in a request wins.</p>
+      <p className="dl-description">
+        These come from your own instructions first: AGENTS.md, CLAUDE.md, your skills, and your memory. An agent reads them and records each value with a quote, and those win. An override you set here applies only where your instructions are silent. Agents read the result with <code>bb delegation settings</code>.
+      </p>
+      <p className="dl-description">
+        {checked ? <>Instructions last read {checked}.</> : <>Your instructions haven't been read yet.</>}{" "}
+        Ask any thread to “refresh the delegation defaults” after you change them.
+      </p>
       {error ? <p className="dl-error" role="alert">{error}</p> : null}
       <Group title="Workers">
-        <Row label="Provider" htmlFor={ids.provider}
+        <Row label="Provider" htmlFor={ids.provider} origin={origin("provider")}
           description="Runs new workers unless you name another provider in the request."
-          control={<Select id={ids.provider} label="Provider" value={settings.provider} options={providerOptions}
-            onChange={(provider) => save({ provider }, ["model", "reasoningLevel", "qaModel"])} />} />
-        <Row label="Model"
+          control={<Select id={ids.provider} label="Provider" value={settings.provider} options={providerOptions} disabled={locked("provider")}
+            onChange={(provider) => save({ provider }, ["model", "reasoningLevel"])} />} />
+        <Row label="Model" origin={origin("model")}
           description="The model new workers use. Spawn's normal tier picks the provider's current everyday model."
-          control={<Select label="Model" value={settings.model || loadingModel === "model" ? "chosen" : "tier"} disabled={loadingModel === "model"}
+          control={<Select label="Model" value={settings.model || loadingModel === "model" ? "chosen" : "tier"} disabled={locked("model") || loadingModel === "model"}
             options={[{ value: "tier", label: "Spawn's normal tier" }, { value: "chosen", label: loadingModel === "model" ? "Loading models…" : "Choose a model" }]}
-            onChange={(mode) => (mode === "tier" ? save({ model: "", reasoningLevel: "" }) : void chooseModel("model", settings.provider))} />}
-          below={settings.model ? (
+            onChange={(mode) => (mode === "tier" ? save({ model: "" }) : void chooseModel("model", settings.provider))} />}
+          below={settings.model && settings.provider ? (
             <div className="dl-below">
-              <ProviderModelPicker allowProviderChange={false} align="end" {...(routing ? { routing } : {})}
-                value={{ providerId: settings.provider, model: settings.model, reasoningLevel: (settings.reasoningLevel || "high") as ReasoningLevel }}
+              <ProviderModelPicker allowProviderChange={false} align="end" disabled={locked("model")} {...(routing ? { routing } : {})}
+                value={{ providerId: settings.provider, model: settings.model, reasoningLevel: (settings.reasoningLevel || "medium") as ReasoningLevel }}
                 onChange={(next) => {
                   // The picker re-emits its normalized value (service tier, a supported reasoning
                   // level) on every render; save only fields this form stores, and only on change.
-                  if (next.model !== settings.model || next.reasoningLevel !== settings.reasoningLevel) save({ model: next.model, reasoningLevel: next.reasoningLevel });
+                  if (next.model !== settings.model) save({ model: next.model });
+                  else if (!locked("reasoningLevel") && next.reasoningLevel !== settings.reasoningLevel && settings.reasoningLevel) save({ reasoningLevel: next.reasoningLevel });
                 }} />
             </div>
           ) : null} />
-        <Row label="QA and smoke-test model"
-          description="For QA, smoke tests, and other mechanical checks."
-          control={<Select label="QA and smoke-test model" value={settings.qaModel !== "cheapest" || loadingModel === "qaModel" ? "chosen" : "cheapest"} disabled={loadingModel === "qaModel"}
-            options={[{ value: "cheapest", label: "Cheapest available" }, { value: "chosen", label: loadingModel === "qaModel" ? "Loading models…" : "Choose a model" }]}
-            onChange={(mode) => (mode === "cheapest" ? save({ qaModel: "cheapest" }) : void chooseModel("qaModel", settings.provider))} />}
-          below={settings.qaModel !== "cheapest" ? (
+        <Row label="Reasoning" htmlFor={ids.reasoning} origin={origin("reasoningLevel")}
+          description="Reasoning level for new workers."
+          control={<Select id={ids.reasoning} label="Reasoning" value={settings.reasoningLevel} options={withCurrent(REASONING, settings.reasoningLevel, "custom")}
+            disabled={locked("reasoningLevel")} onChange={(reasoningLevel) => save({ reasoningLevel })} />} />
+        <Row label="Models to avoid" htmlFor={ids.avoid} origin={origin("avoidModels")}
+          description="Model IDs no worker should run, separated by commas."
+          control={<TextField id={ids.avoid} label="Models to avoid" placeholder="None" value={settings.avoidModels}
+            disabled={locked("avoidModels")} onSave={(avoidModels) => save({ avoidModels })} />} />
+        <Row label="Machine" htmlFor={ids.machine} origin={origin("machine")}
+          description="Where new workers run. The lead's machine is used unless the spawn skill's capacity check moves the job."
+          control={<Select id={ids.machine} label="Machine" value={settings.machine} disabled={locked("machine")}
+            options={withCurrent([{ value: "", label: "The lead's machine" }, ...machines], settings.machine, "removed")}
+            onChange={(machine) => save({ machine })} />} />
+        <Row label="Environment" htmlFor={ids.environment} origin={origin("environment")}
+          description="Review and QA of another thread's change still attach to that thread's environment."
+          control={<Select id={ids.environment} label="Environment" value={settings.environment} options={ENVIRONMENTS} disabled={locked("environment")}
+            onChange={(environment) => save({ environment: environment as DelegationSettings["environment"] })} />} />
+        <Row label="Section" htmlFor={ids.section} origin={origin("section")}
+          description="The sidebar section new workers are filed into."
+          control={<Select id={ids.section} label="Section" value={settings.section} disabled={locked("section")}
+            options={withCurrent([{ value: "", label: "The lead's section" }, ...sections], settings.section, "deleted")}
+            onChange={(section) => save({ section })} />} />
+        <Row label="Parent workers to the lead" origin={origin("parentWorkers")}
+          description="bb tells the lead when a parented worker finishes, fails, or needs input."
+          control={<Switch aria-label="Parent workers to the lead" checked={settings.parentWorkers} disabled={locked("parentWorkers")}
+            onCheckedChange={(parentWorkers) => save({ parentWorkers })} />} />
+      </Group>
+
+      <Group title="QA and smoke tests">
+        <Row label="Provider" htmlFor={ids.qaProvider} origin={origin("qaProvider")}
+          description="Runs threads that only exercise the product: QA fixtures and smoke tests."
+          control={<Select id={ids.qaProvider} label="QA provider" value={settings.qaProvider} disabled={locked("qaProvider")}
+            options={withCurrent([{ value: "", label: "Same as workers" }, ...providers], settings.qaProvider, "unavailable")}
+            onChange={(next) => save({ qaProvider: next }, ["qaModel"])} />} />
+        <Row label="Model" origin={origin("qaModel")}
+          description="Cheapest available picks the lowest-cost model the provider lists."
+          control={<Select label="QA model" disabled={locked("qaModel") || loadingModel === "qaModel"}
+            value={loadingModel === "qaModel" || (settings.qaModel && settings.qaModel !== "cheapest") ? "chosen" : settings.qaModel === "cheapest" ? "cheapest" : "same"}
+            options={[{ value: "same", label: "Same as workers" }, { value: "cheapest", label: "Cheapest available" }, { value: "chosen", label: loadingModel === "qaModel" ? "Loading models…" : "Choose a model" }]}
+            onChange={(mode) => (mode === "same" ? save({ qaModel: "" }) : mode === "cheapest" ? save({ qaModel: "cheapest" }) : void chooseModel("qaModel", qaProvider))} />}
+          below={settings.qaModel && settings.qaModel !== "cheapest" && qaProvider ? (
             <div className="dl-below">
-              <ProviderModelPicker allowProviderChange={false} align="end" {...(routing ? { routing } : {})}
-                value={{ providerId: settings.provider, model: settings.qaModel, reasoningLevel: "low" }}
+              <ProviderModelPicker allowProviderChange={false} align="end" disabled={locked("qaModel")} {...(routing ? { routing } : {})}
+                value={{ providerId: qaProvider, model: settings.qaModel, reasoningLevel: (settings.qaReasoningLevel || "low") as ReasoningLevel }}
                 onChange={(next) => { if (next.model !== settings.qaModel) save({ qaModel: next.model }); }} />
             </div>
           ) : null} />
-        <Row label="Machine" htmlFor={ids.machine}
-          description="Where new workers run. The lead's machine is used unless the spawn skill's capacity check moves the job."
-          control={<Select id={ids.machine} label="Machine" value={settings.machine}
-            options={withCurrent([{ value: "", label: "The lead's machine" }, ...machines], settings.machine, "removed")}
-            onChange={(machine) => save({ machine })} />} />
-        <Row label="Environment" htmlFor={ids.environment}
-          description="Review and QA of another thread's change still attach to that thread's environment."
-          control={<Select id={ids.environment} label="Environment" value={settings.environment} options={ENVIRONMENTS}
-            onChange={(environment) => save({ environment: environment as DelegationSettings["environment"] })} />} />
-        <Row label="Section" htmlFor={ids.section}
-          description="The sidebar section new workers are filed into."
-          control={<Select id={ids.section} label="Section" value={settings.section}
-            options={withCurrent([{ value: "", label: "The lead's section" }, ...sections], settings.section, "deleted")}
-            onChange={(section) => save({ section })} />} />
-        <Row label="Parent workers to the lead"
-          description="bb tells the lead when a parented worker finishes, fails, or needs input."
-          control={<Switch aria-label="Parent workers to the lead" checked={settings.parentWorkers} onCheckedChange={(parentWorkers) => save({ parentWorkers })} />} />
+        <Row label="Reasoning" htmlFor={ids.qaReasoning} origin={origin("qaReasoningLevel")}
+          description="Reasoning level for QA and smoke-test threads."
+          control={<Select id={ids.qaReasoning} label="QA reasoning" value={settings.qaReasoningLevel} options={withCurrent(REASONING, settings.qaReasoningLevel, "custom")}
+            disabled={locked("qaReasoningLevel")} onChange={(qaReasoningLevel) => save({ qaReasoningLevel })} />} />
       </Group>
 
       <Group title="Reports">
-        <Row label="Worker report length" htmlFor={ids.lines}
+        <Row label="Worker report length" htmlFor={ids.lines} origin={origin("workerReportLines")}
           description="Most lines in a worker's final reply: the result, a PR link, and any blocker."
-          control={<NumberField id={ids.lines} label="Worker report length" value={settings.workerReportLines} min={1} max={20} onSave={(workerReportLines) => save({ workerReportLines })} />} />
-        <Row label="Report length" htmlFor={ids.bullets}
+          control={<NumberField id={ids.lines} label="Worker report length" value={settings.workerReportLines} min={1} max={20} disabled={locked("workerReportLines")}
+            onSave={(workerReportLines) => save({ workerReportLines })} />} />
+        <Row label="Report length" htmlFor={ids.bullets} origin={origin("reportMaxBullets")}
           description="Most bullets in a report to you, after a one-line outcome."
-          control={<NumberField id={ids.bullets} label="Report length" value={settings.reportMaxBullets} min={1} max={20} onSave={(reportMaxBullets) => save({ reportMaxBullets })} />} />
-        <Row label="Report style" htmlFor={ids.style}
+          control={<NumberField id={ids.bullets} label="Report length" value={settings.reportMaxBullets} min={1} max={20} disabled={locked("reportMaxBullets")}
+            onSave={(reportMaxBullets) => save({ reportMaxBullets })} />} />
+        <Row label="Report style" htmlFor={ids.style} origin={origin("reportStyle")}
           description="How the lead writes what its workers found."
-          control={<Select id={ids.style} label="Report style" value={settings.reportStyle} options={REPORT_STYLES}
+          control={<Select id={ids.style} label="Report style" value={settings.reportStyle} options={REPORT_STYLES} disabled={locked("reportStyle")}
             onChange={(reportStyle) => save({ reportStyle: reportStyle as DelegationSettings["reportStyle"] })} />} />
-        <Row label="Ask for decisions with action cards"
+        <Row label="Ask for decisions with action cards" origin={origin("decisionsAsActionCards")}
           description="Every decision you owe arrives as an inline card instead of a question in prose."
-          control={<Switch aria-label="Ask for decisions with action cards" checked={settings.decisionsAsActionCards} onCheckedChange={(decisionsAsActionCards) => save({ decisionsAsActionCards })} />} />
-        <Row label="Show evidence inline"
+          control={<Switch aria-label="Ask for decisions with action cards" checked={settings.decisionsAsActionCards} disabled={locked("decisionsAsActionCards")}
+            onCheckedChange={(decisionsAsActionCards) => save({ decisionsAsActionCards })} />} />
+        <Row label="Show evidence inline" origin={origin("evidenceInline")}
           description="Screenshots and videos appear in the report instead of being described or linked."
-          control={<Switch aria-label="Show evidence inline" checked={settings.evidenceInline} onCheckedChange={(evidenceInline) => save({ evidenceInline })} />} />
+          control={<Switch aria-label="Show evidence inline" checked={settings.evidenceInline} disabled={locked("evidenceInline")}
+            onCheckedChange={(evidenceInline) => save({ evidenceInline })} />} />
       </Group>
 
       <Group title="Relays and retries">
-        <Row label="Relay batching" htmlFor={ids.relay}
+        <Row label="Relay batching" htmlFor={ids.relay} origin={origin("relayBatching")}
           description="How your decisions and requests reach a thread that is already working."
-          control={<Select id={ids.relay} label="Relay batching" value={settings.relayBatching} options={RELAYS}
+          control={<Select id={ids.relay} label="Relay batching" value={settings.relayBatching} options={RELAYS} disabled={locked("relayBatching")}
             onChange={(relayBatching) => save({ relayBatching: relayBatching as DelegationSettings["relayBatching"] })} />} />
-        <Row label="Automatic retries" htmlFor={ids.retries}
+        <Row label="Automatic retries" htmlFor={ids.retries} origin={origin("retryLimit")}
           description="Retries of a worker's failed turn, such as a provider 429, before it's reported as blocked."
-          control={<NumberField id={ids.retries} label="Automatic retries" value={settings.retryLimit} min={0} max={10} onSave={(retryLimit) => save({ retryLimit })} />} />
+          control={<NumberField id={ids.retries} label="Automatic retries" value={settings.retryLimit} min={0} max={10} disabled={locked("retryLimit")}
+            onSave={(retryLimit) => save({ retryLimit })} />} />
       </Group>
 
       <Group title="Archiving">
-        <Row label="Agents may archive or stop threads"
-          description="Off: no agent archives or stops a thread unless you ask for that thread."
-          control={<Switch aria-label="Agents may archive or stop threads" checked={settings.mayArchiveOrStop} onCheckedChange={(mayArchiveOrStop) => save({ mayArchiveOrStop })} />} />
+        <Row label="Archive and stop finished workers" origin={origin("mayArchiveOrStop")}
+          description={`On: a lead may stop and archive a worker once its work is handed back. Off: only when you ask. Fallback: ${FALLBACKS.mayArchiveOrStop ? "on" : "off"}.`}
+          control={<Switch aria-label="Archive and stop finished workers" checked={settings.mayArchiveOrStop} disabled={locked("mayArchiveOrStop")}
+            onCheckedChange={(mayArchiveOrStop) => save({ mayArchiveOrStop })} />} />
       </Group>
     </div>
   );

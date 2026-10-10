@@ -1,15 +1,14 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { overridesSchema, settingsSchema } from "./settings.js";
+import { overridesSchema, stateSchema } from "./settings.js";
 
 export { CHANGED } from "./settings.js";
 
-
 export const rpcContract = defineRpcContract({
-  getSettings: { input: z.object({}).strict(), output: settingsSchema },
-  /** Merge the given values; `null` resets a setting to its default. */
+  getState: { input: z.object({}).strict(), output: stateSchema },
+  /** Merge override values; `reset` removes overrides so the source or fallback applies. */
   saveSettings: {
     input: z.object({ values: overridesSchema, reset: z.array(z.string()).optional() }).strict(),
-    output: settingsSchema,
+    output: stateSchema,
   },
 });

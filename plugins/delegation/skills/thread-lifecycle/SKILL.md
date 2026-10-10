@@ -1,6 +1,6 @@
 ---
 name: thread-lifecycle
-description: Rules for archiving, stopping, deleting, unparenting, and moving delegated bb threads. Use before running `bb thread archive`, `stop`, or `delete`, or `bb thread update` with `--clear-parent-thread`, `--parent-thread`, or `--section`; when a worker finishes; or when the user asks to clean up, archive, stop, or reorganize workers. tidy owns post-merge cleanup once the user asks for it.
+description: Rules for archiving, stopping, deleting, unparenting, and moving delegated bb threads, following the user's own instructions as recorded in the Delegation settings. Use before running `bb thread archive`, `stop`, or `delete`, or `bb thread update` with `--clear-parent-thread`, `--parent-thread`, or `--section`; when a worker finishes; or when the user asks to clean up, archive, stop, or reorganize workers. tidy owns post-merge cleanup once the user asks for it.
 ---
 
 # Thread lifecycle
@@ -11,24 +11,25 @@ description: Rules for archiving, stopping, deleting, unparenting, and moving de
 bb delegation settings --json
 ```
 
+The values come from the user's own instructions first (`delegation-defaults`).
+
 This skill uses `mayArchiveOrStop` from its output.
 
-## Archive and stop only when asked
+## Finished workers
 
-When `mayArchiveOrStop` is false:
+When `mayArchiveOrStop` is true, the lead stops and archives a worker it
+started once the worker's results are handed back and integrated, and only if
+it owns nothing still needed: a running preview, unpushed or unmerged work, or
+a decision still waiting on the user. Stop its runtime with
+`bb thread stop <id>`, run the cascade check below, then archive it. Never
+archive a thread you didn't start, or your own, unless the user asks.
 
-- Never archive, stop, or delete a thread, including a finished worker and
-  your own thread, unless the user asks for that thread. A finished worker
-  stays idle where it is.
-- This overrides generic guidance to stop and archive finished workers, such
-  as spawn's "collect and release" step or global agent instructions.
-- One exception: when a worker is causing harm right now, such as deleting
-  data or pushing where it shouldn't, and a steering message hasn't stopped
-  it, stop that worker with `bb thread stop <id>` and tell the user at once.
+When `mayArchiveOrStop` is false, archive, stop, or delete a thread only when
+the user asks for that thread. A finished worker stays idle where it is.
 
-When `mayArchiveOrStop` is true, you may archive a finished worker once its
-results are integrated and it owns nothing still needed: a running preview,
-unpushed commits, or an open decision. Run the cascade check below first.
+Either way, when a worker is causing harm right now, such as deleting data or
+pushing where it shouldn't, and a steering message hasn't stopped it, stop it
+with `bb thread stop <id>` and tell the user at once.
 
 ## Check what an archive takes with it
 
@@ -37,13 +38,14 @@ threads whose lifecycle owner it is, and its hidden forks. It also retires the
 thread's environment. Before archiving:
 
 1. Run `bb delegation cascade --thread <id>`.
-2. If it lists any thread, name those threads and their states to the user,
-   and ask with an action card before archiving. Offer unparenting them first
+2. If it lists any thread that isn't itself a finished worker you may
+   archive, name those threads and their states to the user, and ask with an
+   action card before archiving. Offer unparenting them first
    (`bb thread update <child> --clear-parent-thread`) as an option when they
    should survive.
 3. If the thread's environment hosts a running preview or unpushed work, say
    so in the same card.
-4. Archive only the thread the user named, then confirm in one line.
+4. Archive only that thread, then confirm in one line.
 
 ## Unparent and move only on request
 

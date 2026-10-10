@@ -11,6 +11,8 @@ description: Wait for delegated bb workers without polling, read their final rep
 bb delegation settings --json
 ```
 
+The values come from the user's own instructions first (`delegation-defaults`).
+
 This skill uses `retryLimit` from its output.
 
 ## Wait without polling

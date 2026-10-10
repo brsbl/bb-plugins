@@ -332,9 +332,9 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 ### Delegation
 
-Agent skills for handing a job to another bb thread and bringing back only what matters: launch and parent a worker, relay your decisions to it, collect its results, and report them briefly. Defaults such as provider, environment, report length, and whether agents may archive threads are set once in Settings.
+Agent skills for handing a job to another bb thread and bringing back only what matters: launch and parent a worker, relay your decisions to it, collect its results, and report them briefly. Its defaults come from your own AGENTS.md, CLAUDE.md, skills, and memory, quoted in Settings, where you can override what they leave open.
 
-![Delegation's settings form with provider, model, machine, and section pickers, switches, and number fields](plugins/delegation/docs/settings.png)
+![Delegation's settings form, with values quoted from AGENTS.md, CLAUDE.md, and memory, and an ignored override flagged](plugins/delegation/docs/settings.png)
 
 [Source](plugins/delegation) · [README](plugins/delegation/README.md)
 

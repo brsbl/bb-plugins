@@ -14,8 +14,10 @@ passes only what matters back to the user. This skill covers the start.
 bb delegation settings --json
 ```
 
-Use the values it prints. Anything the user says in the current request
-overrides a setting. Don't restate the values to the user.
+Use the values it prints. They come from the user's own instructions first
+(see `delegation-defaults`; refresh them if `bb delegation sources` shows none
+recorded). Anything the user says in the current request overrides a setting.
+Don't restate the values to the user.
 
 ## Delegate or do it yourself
 
@@ -37,10 +39,11 @@ To move work already in progress to a new owner, use `handoff` instead.
 
 | Choice | Rule |
 | --- | --- |
-| Provider | The one the user names, else `provider`. |
-| Model | The one the user names. For QA, smoke tests, and other mechanical checks, `qaModel`; when it is `cheapest`, pick the cheapest generally available model in `bb provider models <provider> --json`. Otherwise `model` with `--reasoning-level <reasoningLevel>`; when either is blank, follow spawn's normal tier and default. |
+| Provider and model | The ones the user names. Otherwise `provider`, `model`, and `--reasoning-level <reasoningLevel>`; leave out any that is blank so bb or spawn's normal tier decides. |
+| QA and smoke tests | For threads that only exercise the product, use `qaProvider` (blank: the worker provider), `qaModel` (blank: the worker model; `cheapest`: the cheapest generally available model in `bb provider models <provider> --json`), and `qaReasoningLevel`. |
+| Models to avoid | Never spawn a model listed in `avoidModels`, even when a tier or catalog default would pick it. |
 | Machine | The one the user names, else `machine`. When blank, use the lead's machine unless spawn's capacity check offloads the job. |
-| Environment | `environment`: `worktree` → `--new-environment worktree`; `personal` → `--new-environment personal`; `lead` → `--environment "$BB_ENVIRONMENT_ID"`. Review or QA of another thread's change attaches to that thread's environment, as spawn describes. |
+| Environment | `environment`: `worktree` → `--new-environment worktree`; `personal` → `--new-environment personal`; `lead` → `--environment "$BB_ENVIRONMENT_ID"`; blank → spawn's choice for the job. Review or QA of another thread's change attaches to that thread's environment, as spawn describes. |
 | Parent | When `parentWorkers` is true, pass `--parent-thread "$BB_THREAD_ID"` so bb tells the lead when the worker finishes. Follow spawn's caveat for remote personal workspaces. |
 | Section | When `section` is set, pass `--section <id>`. When blank, use the lead's section from `bb thread show "$BB_THREAD_ID" --json` (`.thread.sectionId`), and omit the flag when that is null. |
 | Permissions | spawn's defaults. |
@@ -76,10 +79,10 @@ unblock you.
 ```
 
 Fill `<workerReportLines>` from the settings. Keep the "Don't archive or stop"
-line whenever `mayArchiveOrStop` is false.
+line in every worker prompt: archiving belongs to the lead (`thread-lifecycle`).
 
-spawn's "completion pings" instruction conflicts with the user's rule that a
-worker's final reply is its report. Leave pings out.
+If spawn's "completion pings" step conflicts with the user's instructions on
+cross-thread messages, their instructions win; leave pings out.
 
 ## Spawn it
 
@@ -88,7 +91,7 @@ Pass the prompt through stdin so the shell can't rewrite it:
 ```sh
 bb thread spawn \
   --project "$BB_PROJECT_ID" \
-  --provider <provider> --model <model> \
+  --provider '<provider>' --model '<model>' \
   --permission-mode auto \
   --title "<title>" \
   --new-environment worktree \
