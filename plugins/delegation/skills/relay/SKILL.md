@@ -39,7 +39,7 @@ into a single message; `each` sends each request as it arrives.
    | Idle | `bb thread tell <id> --message-file -`, which starts a turn. |
    | Busy, and the message changes its current work: stop, a new hard constraint, or a conflicting change | The default mode, which steers the live turn. |
    | Busy, and it can wait for the turn to finish | `--mode queue`. |
-   | Waiting on an interaction | Find it with `bb thread interactions list <id>`, then `answer`, `approve`, or `deny` it instead of telling. |
+   | Waiting on an interaction | Find it with `bb thread interactions list <id>` and resolve the one the user decided on: `answer` a question, `approve` or `deny` a command, file change, or plan, `grant` or `deny` a permission, or `respond` to a plugin form. Never resolve one the user hasn't decided. |
    | Errored | Follow `collect-results` before relaying. |
 
 5. **Confirm in one line**, such as "Sent to @thread:thr_abc123." Don't wait

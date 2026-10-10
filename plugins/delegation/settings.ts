@@ -51,9 +51,24 @@ export const SETTING_KEYS = Object.keys(DEFAULTS) as SettingKey[];
 export const overridesSchema = settingsSchema.partial();
 export type SettingsOverrides = z.infer<typeof overridesSchema>;
 
-export function effectiveSettings(overrides: SettingsOverrides | undefined): DelegationSettings {
-  const parsed = overridesSchema.safeParse(overrides ?? {});
-  return { ...DEFAULTS, ...(parsed.success ? parsed.data : {}) };
+/**
+ * Read stored overrides key by key, so a value another plugin version wrote
+ * (an unknown key, or one this version no longer accepts) is skipped instead
+ * of discarding every setting.
+ */
+export function readOverrides(stored: unknown): SettingsOverrides {
+  if (stored === null || typeof stored !== "object" || Array.isArray(stored)) return {};
+  const result: Record<string, unknown> = {};
+  for (const key of SETTING_KEYS) {
+    if (!Object.hasOwn(stored, key)) continue;
+    const parsed = settingsSchema.shape[key].safeParse((stored as Record<string, unknown>)[key]);
+    if (parsed.success) result[key] = parsed.data;
+  }
+  return result as SettingsOverrides;
+}
+
+export function effectiveSettings(stored: unknown): DelegationSettings {
+  return { ...DEFAULTS, ...readOverrides(stored) };
 }
 
 /** Coerce a CLI string to the setting's type, then validate it. */

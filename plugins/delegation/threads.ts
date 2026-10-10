@@ -10,24 +10,32 @@ export type WorkerState = (typeof STATES)[number];
 
 export function workerState(row: ThreadRow): WorkerState {
   if (row.hasPendingInteraction) return "needs-input";
+  // A failed turn stays in "error" while Provider Retry's queued retry waits; that retry owns it.
+  if (row.queuedWork === "waiting" && (row.status === "error" || row.status === "idle")) return "retry-queued";
   if (row.status === "error" || row.queuedWork === "failed") return "error";
   const display = row.runtime.displayStatus;
   if (display === "waiting-for-host" || display === "host-reconnecting") return "host-offline";
   if (row.status !== "idle" || display === "provisioning") return "working";
-  if (row.queuedWork === "waiting") return "retry-queued";
   return "idle";
 }
 
 const PAGE = 200;
 
+/** Every non-deleted thread matching `args`, archived ones included. */
 export async function listAll(list: ThreadsArea["list"], args: ListArgs): Promise<ThreadRow[]> {
-  const rows: ThreadRow[] = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const page = await list({ ...args, limit: PAGE, offset });
-    rows.push(...page);
-    if (page.length < PAGE) return rows.filter((row) => row.archivedAt === null && row.deletedAt === null);
+  const rows = new Map<string, ThreadRow>();
+  // Ask for archived rows explicitly too, whatever the route's default.
+  for (const archived of [undefined, true]) {
+    for (let offset = 0; ; offset += PAGE) {
+      const page = await list({ ...args, ...(archived ? { archived } : {}), limit: PAGE, offset });
+      for (const row of page) if (row.deletedAt === null) rows.set(row.id, row);
+      if (page.length < PAGE) break;
+    }
   }
+  return [...rows.values()];
 }
+
+export const unarchived = (rows: ThreadRow[]) => rows.filter((row) => row.archivedAt === null);
 
 export interface ChildSummary {
   id: string;
@@ -76,7 +84,8 @@ export interface CascadeEntry extends ChildSummary {
 /**
  * Mirrors bb's archive walk (apps/server thread-archive listArchiveCandidates):
  * archiving a thread also archives, recursively, its children, the threads whose
- * lifecycle owner it is, and its hidden forks.
+ * lifecycle owner it is, and its hidden forks. Like bb, the walk passes through
+ * threads that are already archived to reach live ones beneath them.
  */
 export function archiveCascade(rootId: string, rows: ThreadRow[]): CascadeEntry[] {
   const edges = new Map<string, Array<{ row: ThreadRow; reason: CascadeReason }>>();
@@ -100,6 +109,7 @@ export function archiveCascade(rootId: string, rows: ThreadRow[]): CascadeEntry[
       if (seen.has(row.id)) continue;
       seen.add(row.id);
       queue.push(row.id);
+      if (row.archivedAt !== null) continue;
       const [summary] = summarizeChildren([row]);
       result.push({ ...summary!, reason, via: owner });
     }

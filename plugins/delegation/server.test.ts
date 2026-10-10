@@ -31,6 +31,7 @@ function setup(rows: ThreadRow[]) {
       threads: {
         list: async (args) => rows
           .filter((entry) => args?.parentThreadId === undefined || entry.parentThreadId === args.parentThreadId)
+          .filter((entry) => !args?.archived || entry.archivedAt !== null)
           .slice(args?.offset ?? 0, (args?.offset ?? 0) + (args?.limit ?? rows.length)),
       },
     },
@@ -62,6 +63,16 @@ describe("Delegation settings", () => {
     expect(harness.inspection.realtimeSignals.at(-1)?.channel).toBe("settings-changed");
   });
 
+  it("keeps valid settings and unknown keys when another version's value doesn't parse", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "delegation" });
+    await bb.storage.kv.set("settings", { retryLimit: 4, futureKey: 1, environment: "cloud" });
+    plugin(bb);
+    disposers.push(() => harness.lifecycle.dispose());
+    expect(await harness.behavior.callRpc("getSettings", {})).toEqual({ ...DEFAULTS, retryLimit: 4 });
+    await harness.behavior.runCli(["set", "reportStyle", "prose"], { signal });
+    expect(await bb.storage.kv.get("settings")).toEqual({ retryLimit: 4, futureKey: 1, environment: "cloud", reportStyle: "prose" });
+  });
+
   it("rejects unknown settings and invalid values", async () => {
     const harness = setup([]);
     const run = (argv: string[]) => harness.behavior.runCli(argv, { signal }).catch((error: Error) => ({ exitCode: 1, stdout: "", stderr: error.message }));
@@ -78,6 +89,7 @@ describe("worker state", () => {
     expect(workerState(row({ id: "b", status: "error" }))).toBe("error");
     expect(workerState(row({ id: "c", status: "active", runtime: { displayStatus: "waiting-for-host", hostReconnectGraceExpiresAt: null } }))).toBe("host-offline");
     expect(workerState(row({ id: "d", queuedWork: "waiting" }))).toBe("retry-queued");
+    expect(workerState(row({ id: "d2", status: "error", queuedWork: "waiting" }))).toBe("retry-queued");
     expect(workerState(row({ id: "e", status: "starting" }))).toBe("working");
     expect(workerState(row({ id: "f" }))).toBe("idle");
   });
@@ -121,6 +133,17 @@ describe("archive cascade", () => {
       ["owned", "lifecycle", "lead"],
       ["worker", "child", "lead"],
     ]);
+  });
+
+  it("walks through archived threads to the live ones beneath them, like bb", async () => {
+    const harness = setup([
+      row({ id: "lead" }),
+      row({ id: "worker", parentThreadId: "lead", archivedAt: 5 }),
+      row({ id: "grandchild", parentThreadId: "worker" }),
+    ]);
+    const json = JSON.parse((await harness.behavior.runCli(["cascade", "--thread", "lead", "--json"], { signal })).stdout);
+    expect(json.threads.map((entry: { id: string; via: string }) => [entry.id, entry.via])).toEqual([["grandchild", "worker"]]);
+    expect((await harness.behavior.runCli(["children", "--thread", "lead"], { signal })).stdout).toBe("No workers.");
   });
 
   it("reports a thread that archives alone", async () => {

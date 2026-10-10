@@ -175,7 +175,11 @@ export function DelegationSettingsForm() {
             <div className="dl-below">
               <ProviderModelPicker allowProviderChange={false} align="end" {...(routing ? { routing } : {})}
                 value={{ providerId: settings.provider, model: settings.model, reasoningLevel: (settings.reasoningLevel || "high") as ReasoningLevel }}
-                onChange={(next) => save({ model: next.model, reasoningLevel: next.reasoningLevel })} />
+                onChange={(next) => {
+                  // The picker re-emits its normalized value (service tier, a supported reasoning
+                  // level) on every render; save only fields this form stores, and only on change.
+                  if (next.model !== settings.model || next.reasoningLevel !== settings.reasoningLevel) save({ model: next.model, reasoningLevel: next.reasoningLevel });
+                }} />
             </div>
           ) : null} />
         <Row label="QA and smoke-test model"
@@ -187,7 +191,7 @@ export function DelegationSettingsForm() {
             <div className="dl-below">
               <ProviderModelPicker allowProviderChange={false} align="end" {...(routing ? { routing } : {})}
                 value={{ providerId: settings.provider, model: settings.qaModel, reasoningLevel: "low" }}
-                onChange={(next) => save({ qaModel: next.model })} />
+                onChange={(next) => { if (next.model !== settings.qaModel) save({ qaModel: next.model }); }} />
             </div>
           ) : null} />
         <Row label="Machine" htmlFor={ids.machine}

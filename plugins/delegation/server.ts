@@ -1,23 +1,27 @@
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { CHANGED, rpcContract } from "./contract.js";
 import {
-  DEFAULTS, SETTING_KEYS, effectiveSettings, isSettingKey, overridesSchema, parseSettingValue,
+  DEFAULTS, SETTING_KEYS, effectiveSettings, isSettingKey, parseSettingValue, readOverrides,
   type DelegationSettings, type SettingKey, type SettingsOverrides,
 } from "./settings.js";
-import { archiveCascade, formatCascade, formatChildren, listAll, summarizeChildren } from "./threads.js";
+import { archiveCascade, formatCascade, formatChildren, listAll, summarizeChildren, unarchived } from "./threads.js";
 
 const SETTINGS_KEY = "settings";
 
 export default function plugin(bb: BbPluginApi): void {
+  // The raw stored object, kept whole so keys from another plugin version survive a save.
+  async function stored(): Promise<Record<string, unknown>> {
+    const value = await bb.storage.kv.get<unknown>(SETTINGS_KEY);
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? { ...value as Record<string, unknown> } : {};
+  }
   async function overrides(): Promise<SettingsOverrides> {
-    const stored = overridesSchema.safeParse(await bb.storage.kv.get(SETTINGS_KEY) ?? {});
-    return stored.success ? stored.data : {};
+    return readOverrides(await stored());
   }
   // One writer at a time, so concurrent saves from the form and the CLI don't drop a field.
   let queue: Promise<unknown> = Promise.resolve();
   function save(values: SettingsOverrides, reset: readonly string[] = []): Promise<DelegationSettings> {
     const run = queue.then(async () => {
-      const next: SettingsOverrides = { ...await overrides(), ...values };
+      const next: Record<string, unknown> = { ...await stored(), ...values };
       for (const key of reset) if (isSettingKey(key)) delete next[key];
       // Storing only what differs from a default lets later default changes reach the user.
       for (const key of SETTING_KEYS) if (next[key] === DEFAULTS[key]) delete next[key];
@@ -98,7 +102,7 @@ export default function plugin(bb: BbPluginApi): void {
         async run(input, ctx) {
           const threadId = target(input.options.thread, ctx.threadId);
           const rows = await listAll(bb.sdk.threads.list, { parentThreadId: threadId, includeHidden: true, signal: ctx.signal });
-          const children = summarizeChildren(rows);
+          const children = summarizeChildren(unarchived(rows));
           return { exitCode: 0, stdout: input.options.json ? JSON.stringify({ threadId, children }) : formatChildren(children) };
         },
       }),

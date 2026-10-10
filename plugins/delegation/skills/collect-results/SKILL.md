@@ -45,9 +45,9 @@ It lists the lead's workers, most urgent first, as `needs-input`, `error`,
 
 | State | What to do |
 | --- | --- |
-| `needs-input` | Read it with `bb thread interactions list <id>`. If the user's instructions already answer it, answer it. Otherwise it becomes a decision for the user through `report-results`. |
-| `error` | Find the cause in `bb thread log <id> --limit 3`. For a transient provider failure (429, overloaded, 5xx, dropped connection), run `bb thread retry <id> --reason "<cause>"`, up to `retryLimit` times per worker. Don't retry auth, configuration, or task failures; report them as blocked. |
-| `retry-queued` | The Provider Retry plugin already queued a retry for after a subscription limit resets. Leave it; `bb thread queue list <id>` shows when. |
+| `needs-input` | Read it with `bb thread interactions list <id>`. You may `answer` a question only when the user's own words already answer it. Never `approve`, `grant`, `deny`, or `respond` to a command, file change, plan, permission, or plugin form yourself: each one is a decision for the user through `report-results`, resolved with `relay` after they decide. |
+| `error` | First check `bb thread queue list <id>`: if a retry is already queued, treat it as `retry-queued`. Otherwise find the cause in `bb thread log <id> --limit 3`. For a transient provider failure (429, overloaded, 5xx, dropped connection), run `bb thread retry <id> --reason "<cause>"`, up to `retryLimit` times per worker. Don't retry auth, configuration, or task failures; report them as blocked. |
+| `retry-queued` | A retry is already queued, usually by the Provider Retry plugin after a provider limit or overload. Leave it and don't run `bb thread retry` too; `bb thread queue list <id>` shows when it runs. |
 | `host-offline` | The worker's machine is asleep or disconnected. Retrying won't help. Mention it once if it blocks the user. |
 | `working` with no new events for 30 minutes or more | Read the last turn with `bb thread log <id> --limit 1`. If it is stuck on a hung command or a wrong path, steer it once with `relay`. |
 
