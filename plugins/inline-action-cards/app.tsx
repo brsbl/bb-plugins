@@ -5,7 +5,7 @@ import { actionLabel, actionMessage, idSchema, title, type Action, type FollowUp
 import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
 import { FollowUps, Media } from "./evidence.js";
-import { Button, ContextBlock, DecisionCard, DecisionHeader, DecisionRow, NoteField, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
+import { Button, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, DecisionRow, NoteField, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { DecisionSheet, type SheetBinding } from "./sheet.js";
 import { readableError, submitDraft, submitting } from "./submit.js";
 import "./app.css";
@@ -249,21 +249,22 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
   const consequence = choice ? choice.consequence : item.content.type === "decide" ? item.content.consequence : null;
   const { context, media } = item.content;
-  const field = <>
-    <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />
-    {reply && <>
-      {recipients}
-      {original}
-      <textarea ref={editor} aria-label="Draft" className="ac-textarea" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={4}
-        onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }}
-        onBlur={() => void flush().catch(() => {})} />
-      {ready && !saveError && (saving || dirty.current) && <span className="ac-meta" role="status">Saving…</span>}
+  const field = <DecisionBody
+    about={<>
+      <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />
+      {reply && <>
+        {recipients}
+        {original}
+        <textarea ref={editor} aria-label="Draft" className="ac-textarea" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={4}
+          onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }}
+          onBlur={() => void flush().catch(() => {})} />
+        {ready && !saveError && (saving || dirty.current) && <span className="ac-meta" role="status">Saving…</span>}
+      </>}
+      {context && <ContextBlock><Markdown content={context} /></ContextBlock>}
+      <Media media={media} threadId={threadId} />
+      <FollowUps items={followUps} />
     </>}
-    {context && <ContextBlock><Markdown content={context} /></ContextBlock>}
-    <Media media={media} threadId={threadId} />
-    <FollowUps items={followUps} />
-    <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={pickOption} />
-  </>;
+    answer={<OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={pickOption} />} />;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
@@ -272,15 +273,12 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const chosen = item.attempt ? item.attempt.choice?.label ?? actionLabel(item, item.attempt.action) : null;
   const where = stalled ? "Not sent: it didn't reach the agent." : item.state === "failed" ? item.result?.message ?? "Failed." : item.state === "succeeded" ? resultLabel(item) : status ? "Sent, waiting for the agent" : "";
   const tone = stalled ? "unsent" : item.state === "failed" ? "failed" : item.state === "succeeded" ? "done" : "sent";
-  const result = <>
-    <div className="ac-question">{heading}</div>
-    <Outcome tone={tone} answer={chosen ?? ""} note={item.attempt?.note} status={where} time={new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+  const result = <DecisionBody about={<div className="ac-question">{heading}</div>} answer={<Outcome tone={tone} answer={chosen ?? ""} note={item.attempt?.note} status={where} time={new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
       actions={(stalled || item.state === "failed" || deferred) ? <>
         {(deferred || (item.state === "failed" && item.result?.retryable)) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</Button>}
         {stalled && <Button type="button" size="sm" variant="default" disabled={busy} onClick={() => void act()}>Resend</Button>}
         {item.state === "failed" && <Button ref={reviewTarget} type="button" size="sm" variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</Button>}
-      </> : undefined} />
-  </>;
+      </> : undefined} />} />;
   if (logEntry) {
     const failed = item.state === "failed";
     const retryable = failed && !!item.result?.retryable;

@@ -64,3 +64,22 @@
 .ac-card, .ac-card > *, .ac-row > *, .ac-spec, .ac-spec-frame { min-width: 0; }
 .ac-context { overflow-wrap: anywhere; }
 .ac-note-toggle { justify-self: start; }
+/* Answers sit in a right column beside the question; below ~520px of card width they stack under it. */
+.ac-card, .ac-row { container: ac / inline-size; }
+.ac-body { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: calc(var(--ac-s) * 6); row-gap: var(--ac-gap); align-items: start; }
+.ac-about { display: grid; gap: var(--ac-gap); min-width: 0; }
+.ac-answer { display: grid; justify-items: end; min-width: 0; max-width: 20rem; }
+.ac-answer > .ac-options { justify-self: end; width: max-content; max-width: 100%; margin: 0; }
+.ac-answer .ac-outcome { justify-items: end; text-align: right; }
+.ac-answer .ac-outcome-line { justify-content: flex-end; }
+.ac-answer .ac-outcome-note { padding-left: 0; }
+@container ac (max-width: 520px) {
+  .ac-body { grid-template-columns: minmax(0, 1fr); }
+  .ac-answer { justify-items: stretch; max-width: none; }
+  .ac-answer > .ac-options { justify-self: stretch; width: auto; margin-inline: calc(var(--ac-option-px) * -1); }
+  .ac-answer .ac-outcome { justify-items: stretch; text-align: left; }
+  .ac-answer .ac-outcome-line { justify-content: flex-start; }
+  .ac-answer .ac-outcome-note { padding-left: calc(1em + var(--ac-s) * 2); }
+}
+.ac-answer .ac-option-label { flex-wrap: nowrap; white-space: nowrap; }
+@container ac (max-width: 520px) { .ac-answer .ac-option-label { flex-wrap: wrap; white-space: normal; } }

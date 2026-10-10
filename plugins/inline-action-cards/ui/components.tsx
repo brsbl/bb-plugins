@@ -21,6 +21,11 @@ export function DecisionHeader({ question, consequence, id }: { question: string
   </div>;
 }
 
+/** The decision's two columns: what it is about on the left, the answer on the right. Narrow cards stack them. */
+export function DecisionBody({ about, answer }: { about: ReactNode; answer: ReactNode }) {
+  return <div className="ac-body"><div className="ac-about">{about}</div><div className="ac-answer">{answer}</div></div>;
+}
+
 /** Evidence sits in a recessed block below the question; a long one previews and opens in place. */
 export function ContextBlock({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
