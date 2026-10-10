@@ -80,8 +80,9 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   const { slot, calls, get } = await setup();
   fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "My latest edit" } });
   answer("Send");
-  submit();
-  submit();
+  const button = screen.getByRole("button", { name: "Submit" });
+  fireEvent.click(button);
+  fireEvent.click(button);
   await waitFor(() => expect(calls).toEqual(["save", "prepare", "submitted"]));
   expect(slot.inspection.composer.submits).toHaveLength(1);
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Billing follow-up" }]);
@@ -348,7 +349,7 @@ it("submits the picked option from a choice card, marking but never preselecting
   let release!: () => void;
   const { slot, calls, get } = await setup("", false, { ...fixture(), id: "setup", content }, new Promise<void>((resolve) => { release = resolve; }));
   await screen.findByRole("group", { name: "Which account setup?" });
-  expect(screen.getByRole("radio", { name: /UserMultiple \(recommended\)/ })).toBeTruthy();
+  expect(screen.getByRole("radio", { name: /UserMultiple\s*\(recommended\)/ })).toBeTruthy();
   expect(screen.getAllByRole("radio").some((radio) => (radio as HTMLInputElement).checked)).toBe(false);
   expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
   answer(/^UserSingle/);
