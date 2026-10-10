@@ -14,9 +14,7 @@ passes only what matters back to the user. This skill covers the start.
 bb delegation settings --json
 ```
 
-Use the values it prints. They come from the user's own instructions first
-(see `delegation-defaults`; refresh them if `bb delegation sources` shows none
-recorded). Anything the user says in the current request overrides a setting.
+Use the values it prints. The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them. Anything the user says in the current request overrides a setting.
 Don't restate the values to the user.
 
 ## Delegate or do it yourself

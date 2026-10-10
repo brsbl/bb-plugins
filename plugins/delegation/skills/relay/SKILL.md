@@ -14,7 +14,7 @@ thread one message that carries everything it needs.
 bb delegation settings --json
 ```
 
-The values come from the user's own instructions first (`delegation-defaults`).
+The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them.
 
 Use `relayBatching` from its output: `batch` combines everything for one thread
 into a single message; `each` sends each request as it arrives.

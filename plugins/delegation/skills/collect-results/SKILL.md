@@ -11,7 +11,7 @@ description: Wait for delegated bb workers without polling, read their final rep
 bb delegation settings --json
 ```
 
-The values come from the user's own instructions first (`delegation-defaults`).
+The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them.
 
 This skill uses `retryLimit` from its output.
 

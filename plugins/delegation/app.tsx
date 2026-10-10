@@ -251,6 +251,7 @@ export function DelegationSettingsForm() {
                 onChange={(next) => {
                   // The picker re-emits its normalized value (service tier, a supported reasoning
                   // level) on every render; save only fields this form stores, and only on change.
+                  if (locked("model")) return; // A source owns it; a save would be ignored and the picker would re-emit forever.
                   if (next.model !== settings.model) save({ model: next.model });
                   else if (!locked("reasoningLevel") && next.reasoningLevel !== settings.reasoningLevel && settings.reasoningLevel) save({ reasoningLevel: next.reasoningLevel });
                 }} />
@@ -300,7 +301,7 @@ export function DelegationSettingsForm() {
             <div className="dl-below">
               <ProviderModelPicker allowProviderChange={false} align="end" disabled={locked("qaModel")} {...(routing ? { routing } : {})}
                 value={{ providerId: qaProvider, model: settings.qaModel, reasoningLevel: (settings.qaReasoningLevel || "low") as ReasoningLevel }}
-                onChange={(next) => { if (next.model !== settings.qaModel) save({ qaModel: next.model }); }} />
+                onChange={(next) => { if (!locked("qaModel") && next.model !== settings.qaModel) save({ qaModel: next.model }); }} />
             </div>
           ) : null} />
         <Row label="Reasoning" htmlFor={ids.qaReasoning} origin={origin("qaReasoningLevel")}
