@@ -6,7 +6,7 @@
   "license": "MIT",
   "copyright": "Copyright (c) 2026 Ryan",
   "changes": [
-    "SKILL.md is preserved as ANATOMY.md behind a bb-specific entrypoint.",
+    "SKILL.md is preserved as ANATOMY.md behind bb's playground-design skill entrypoint.",
     "Prebuilt example HTML and upstream repository metadata are omitted; all example source, kit, references, and scripts are preserved."
   ],
   "files": {
