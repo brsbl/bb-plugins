@@ -192,7 +192,7 @@ function NoteHeader({
   canGoBack: boolean;
   /** The editor's save state. */
   status: ReactNode;
-  /** The note's other actions: buttons beside the path, or a menu when the panel is narrow. */
+  /** The note's other actions: buttons beside Send to agent, or a menu when the panel is narrow. */
   actions: HeaderAction[];
   onBack: () => void;
   onSendToAgent: () => void;
@@ -210,13 +210,13 @@ function NoteHeader({
           <NoteIcon />
           <NotePath path={path} />
           {status}
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {narrow
             ? null
             : actions.map((action) => (
                 <HeaderButton key={action.label} icon={action.icon} label={action.label} disabled={action.disabled} onClick={action.onSelect} />
               ))}
-        </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1">
           <HeaderButton icon="MessageSquarePlus" label="Send to agent" onClick={onSendToAgent} />
           {narrow ? (
             <DropdownMenu modal={false}>
