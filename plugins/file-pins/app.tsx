@@ -14,6 +14,7 @@ import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverT
 import { layoutPins, pinFile, PIN_MIN_WIDTH_CLASS, useMeasurePins, type Arrangement } from "./pin-layout.js";
 import { previewTarget } from "./open-target.js";
 import { pinTooltip } from "./pin-tooltip.js";
+import { LinkPreviewCard } from "./link-preview-card.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { prStateLabel, showsPrState, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
 import { cn } from "./lib/utils.js";
@@ -154,27 +155,27 @@ function PinStrip({ threadId }: { threadId: string }) {
     const tip = pinTooltip(pin, threadHostId);
     return <Tooltip>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-      <TooltipContent side="top" sideOffset={6} className="w-72 border bg-popover p-0 text-popover-foreground shadow-md">
+      <TooltipContent side="top" sideOffset={6} className="w-80 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg">
         <div className="border-b bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground break-all">{tip.address}</div>
-        <div className="flex items-start gap-2 px-3 py-2.5">
+        {isUrlPin(pin) ? <LinkPreviewCard threadId={threadId} pin={pin} /> : <div className="flex items-start gap-2 px-3 py-2.5">
           <span className="mt-0.5 shrink-0"><PinIcon threadId={threadId} pin={pin} /></span>
           <div className="min-w-0">
             <div className="font-medium leading-5 break-words">{tip.title}</div>
             {tip.note && <div className="mt-0.5 text-xs text-muted-foreground">{tip.note}</div>}
           </div>
-        </div>
+        </div>}
       </TooltipContent>
     </Tooltip>;
   }
   // Overflowed pins can move back to the strip; Unpin always removes with Undo.
   function actions(pin: Reference): PinAction[] {
-    const next = more.includes(pin.id) ? pinFile(pins, current, pin.id, metrics, { whole }) : null;
-    const promote: PinAction[] = more.includes(pin.id) ? [{
+    if (!more.includes(pin.id)) return [{ label: "Unpin", disabled: busy, run: () => void remove(pin) }];
+    const next = pinFile(pins, current, pin.id, metrics, { whole });
+    return [{
       label: "Pin", disabled: !next, hint: next ? undefined : "No room on the strip", run: () => {
         if (next) { setMoreOpen(false); arrange(next); }
       },
-    }] : [];
-    return [...promote, { label: "Unpin", disabled: busy, run: () => void remove(pin) }];
+    }];
   }
   // bb's FileLink menu items that the public SDK can reproduce, then this plugin's actions.
   // "Open with" and "Open in" need core-only openers and local app targets, so they are left out.

@@ -7,8 +7,6 @@ composer even when the file viewer is closed, and are shared across clients.
 
 ![Unpinned files and links in the ⋯ list above the strip](docs/more-list.png)
 
-![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove before the menu update, in dark mode](docs/pin-menu-dark.png)
-
 ![The Pin pill in the composer, followed by the files and link to pin](docs/pin-files-pill.png)
 
 ## Install
@@ -35,10 +33,10 @@ Pinned files read as quiet raised chips above the composer, in order, as many as
 scrolls. Each chip is as wide as its label. With a mouse, labels truncate only when the strip runs out of
 room, and pinned files that still don't fit lead the **⋯** list. On touch screens, which have no hover to
 show a full label, pins keep their whole labels while they fit, the next pin fills what is left of the
-row (shortened), and the rest go to **⋯**. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a small preview card: its URL or file path sits in a subtle header above the title and icon, with file availability and machine details when needed.
+row (shortened), and the rest go to **⋯**. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a preview card with its URL or path in a subtle header. Web links use Moss’s rich-card layout: a thumbnail or site-icon fallback, site name, title, and description. Files show their title, availability, and machine when needed.
 Right-click a strip file for **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin**. Compact menus use the same actions in the **⋯** list;
-previously hidden items also offer **Pin** while the strip has room. **Unpin** removes the
+Previously hidden items offer **Pin** instead of **Unpin**, while the strip has room. **Unpin** removes the
 item from the thread and offers **Undo**. Missing files keep their light red tint and
 assistive labels, and their **×** also unpins them. Availability refreshes on focus and every
 30 seconds.
@@ -64,7 +62,7 @@ together. Only `http` and `https` URLs without credentials can be pinned.
 Paths resolve on the selected machine through the plugin's host entry. File
 contents never enter pin storage. Pins survive reloads and thread environment
 changes and can be removed while a machine is offline. Deleting the thread
-removes its pins. Pinning does not send file content to the agent. Icons are looked up only for a
+removes its pins. Pinning does not send file content to the agent. Web preview metadata and PNG/JPEG thumbnails are fetched on hover from public HTTPS destinations, without cookies or credentials, and cached in memory for up to an hour. Local URLs and unavailable pages keep the site-icon fallback. Redirects and resolved addresses are checked before connecting; previews never load remote images in the browser. Icons are looked up only for a
 pinned link's public HTTPS origin, never its path or query, and cached in the plugin's database. For a
 pinned GitHub pull request, the bb server sends the PR's owner, repository and number to GitHub's public
 API, without credentials, and caches its state. GitHub answers only for public repositories, so a private

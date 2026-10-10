@@ -21,6 +21,7 @@
   "adaptations": [
     "pin-popover.tsx: BB popover tokens and Radix primitives without animation or compact drawer conversion.",
     "pin-layout.ts: useMeasureSidebarFooterCapacity's slot measurement, used to fit fixed-width pins on the strip.",
-    "reference-icon.tsx: resolveRightPanelFileIconName from apps/app/src/components/secondary-panel/rightPanelFileVisuals.ts."
+    "reference-icon.tsx: resolveRightPanelFileIconName from apps/app/src/components/secondary-panel/rightPanelFileVisuals.ts.",
+    "link-preview-card.tsx: Moss EmbedPillHoverCard.tsx and typeahead/HoverCard.tsx at 4fa391258f4c33a3e3a3aae4401c2f72dcb355c6; 320px card, 128px media band, site/title/description hierarchy. Adapted to BB tokens with the requested URL header."
   ]
 }
