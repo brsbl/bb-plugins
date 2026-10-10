@@ -8,7 +8,7 @@ import { drawLever } from './art.mjs';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const inlineModule = (path) => read(path).replace(/^export /gm, '');
-const names = ['iso', 'solidSvg', 'slabOf', 'cylinder', 'lineSvg', 'segment', 'planOutline', 'pathOf', 'sideRing', 'sideArc'];
+const names = ['fitProjection', 'iso', 'solidSvg', 'slabOf', 'cylinder', 'lineSvg', 'segment', 'planOutline', 'pathOf', 'sideRing', 'sideArc'];
 
 export function buildLeverPlayground() {
   const controls = Object.entries(LIMITS).map(([key, [min, max, step]]) => {

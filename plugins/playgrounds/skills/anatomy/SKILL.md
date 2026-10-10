@@ -107,3 +107,5 @@ Add a small visible footer linking “Drawing kit: Anatomy by Ryan” and
 “Learning-demo inspiration: The Bugged Dev” to the sources above. Credit them
 in the handoff too. Do not imply either creator authored or endorsed the new
 lesson, and do not copy media or code from the X demo without a reuse license.
+
+When inlining kit source into a script tag, escape literal closing-script sequences (`</script`) as `<\/script` before embedding it. The kit includes a page generator whose source itself contains a script tag.

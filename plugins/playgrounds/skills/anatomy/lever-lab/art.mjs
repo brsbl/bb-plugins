@@ -1,6 +1,7 @@
 // Drawing uses Ryan's Anatomy kit; all dimensions are illustrative world units.
 export function drawLever(k, state, angle) {
-  const P = { origin: [340, 292], scale: 1.55, azimuth: 27, elevation: 23 };
+  const bounds = [-190, 190].flatMap(x => [-48, 48].flatMap(y => [-10, 192].map(z => [x, y, z])));
+  const P = k.fitProjection(bounds, 680, 355, { pad: 24, azimuth: 75, elevation: 15 });
   const pivot = 148;
   const at = (p) => k.iso(p, P);
   const solid = (plan, z, height, tone = "mid") => k.solidSvg(k.slabOf(plan, z, height, P, 4, 0.5), { tone });
