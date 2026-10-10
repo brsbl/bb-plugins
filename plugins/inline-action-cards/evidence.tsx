@@ -55,18 +55,32 @@ export function FollowUps({ items }: { items: FollowUp[] }) {
   </ol>;
 }
 
-// One field for a comment: it rides along with the decision, or Ask sends it now as a follow-up.
-export function CommentField({ value, onChange, onAsk, onClose, disabled, busy, inputRef }: {
-  value: string; onChange: (value: string) => void; onAsk: () => void; onClose: () => void;
-  disabled: boolean; busy: boolean; inputRef: Ref<HTMLTextAreaElement>;
+// The answer bar: a one-line comment field, Ask, then the card's answer buttons.
+// With text typed, the field's own submit accepts the primary answer with that comment.
+export function AnswerBar({ value, onChange, onAsk, onSubmit, submitLabel, disabled, submitDisabled = false, busy, inputRef, children }: {
+  value: string; onChange: (value: string) => void; onAsk: () => void; onSubmit?: () => void; submitLabel?: string;
+  disabled: boolean; submitDisabled?: boolean; busy: boolean; inputRef: Ref<HTMLInputElement>; children?: ReactNode;
 }) {
-  return <div className="iac-note-entry">
-    <textarea className="iac-note-field" ref={inputRef} aria-label="Comment" placeholder="Comment on your answer, or ask a question" value={value} rows={1} maxLength={1000} disabled={busy}
-      onChange={(event) => onChange(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") { event.preventDefault(); onClose(); }
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && value.trim()) { event.preventDefault(); onAsk(); }
-      }} />
-    <ActionButton className="iac-ask-button" disabled={disabled || !value.trim()} onClick={onAsk}>Ask</ActionButton>
+  const typed = !!value.trim();
+  return <div className="iac-answer-bar">
+    <div className="iac-note-input" data-typed={typed || undefined}>
+      <NoteIcon />
+      <input ref={inputRef} type="text" aria-label="Comment" placeholder="Add a comment" value={value} maxLength={1000} disabled={busy}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && value) { event.preventDefault(); onChange(""); }
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && typed && onSubmit) { event.preventDefault(); onSubmit(); }
+        }} />
+      {onSubmit && typed && <button type="button" className="iac-note-submit" aria-label={submitLabel} title={submitLabel} disabled={disabled || submitDisabled} onClick={onSubmit}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6M7 11l5-5 5 5" /></svg>
+      </button>}
+    </div>
+    <ActionButton className="iac-ask-button" variant="outline" disabled={disabled || !typed} onClick={onAsk} title="Send the comment as a question; nothing is decided">Ask</ActionButton>
+    {children}
   </div>;
+}
+
+// A sticky note: the comment that rides along with an answer.
+export function NoteIcon({ className = "iac-note-icon" }: { className?: string }) {
+  return <svg className={className} viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 20.5H7A2.5 2.5 0 0 1 4.5 18V6A2.5 2.5 0 0 1 7 3.5h10A2.5 2.5 0 0 1 19.5 6v9.5z" /><path d="M14.5 20.5v-3a2 2 0 0 1 2-2h3M8.5 8.5h7M8.5 12h4" /></svg>;
 }

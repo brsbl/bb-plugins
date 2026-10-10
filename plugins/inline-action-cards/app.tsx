@@ -2,10 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, chooseLabel, idSchema, title, type Action, type FollowUp, type Item, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, CommentIcon, DraftIcon, EditIcon, ResendIcon, SkipIcon, UndoIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, DraftIcon, EditIcon, ResendIcon, SkipIcon, UndoIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
 import { Consequence } from "./consequence.js";
-import { CommentField, Evidence, FollowUps } from "./evidence.js";
+import { AnswerBar, Evidence, FollowUps, NoteIcon } from "./evidence.js";
 import { DecisionSheet, SheetRowView, type SheetBinding } from "./sheet.js";
 import { readableError, submitDraft, submitting } from "./submit.js";
 import "./app.css";
@@ -19,33 +19,14 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   logEntry?: { threadTitle: string; threadProjectId: string | null; showThread: boolean };
 }) {
   const navigate = useBbNavigate();
-  const [noteOpen, setNoteOpen] = useState(false);
   const [localNote, setLocalNote] = useState("");
   const note = sheet ? sheet.note : localNote;
-  const noteEditor = useRef<HTMLTextAreaElement>(null);
-  const commentButton = useRef<HTMLButtonElement>(null);
+  const noteEditor = useRef<HTMLInputElement>(null);
   const changeNote = (value: string) => sheet ? sheet.setNote(value) : setLocalNote(value);
+  const clearNote = () => changeNote("");
   const [followUps, setFollowUps] = useState<FollowUp[]>(initialItem?.followUps ?? []);
-  // Escape or clearing the field hands focus back to the Comment button.
-  const refocusComment = useRef(false);
-  const closeNote = (refocus = false) => { refocusComment.current = refocus; changeNote(""); setNoteOpen(false); };
-  useEffect(() => {
-    if (noteOpen || !refocusComment.current) return;
-    refocusComment.current = false;
-    commentButton.current?.focus();
-  }, [noteOpen]);
-  useLayoutEffect(() => {
-    if (!noteOpen || !noteEditor.current) return;
-    noteEditor.current.style.height = "0px";
-    noteEditor.current.style.height = `${Math.min(noteEditor.current.scrollHeight, 100)}px`;
-  }, [note, noteOpen, expanded]);
-  // Comment moves focus into the field as soon as it renders.
-  const focusNote = useRef(false);
-  useLayoutEffect(() => {
-    if (!focusNote.current || !noteEditor.current) return;
-    focusNote.current = false;
-    noteEditor.current.focus();
-  });
+  // Set when this view watches a ready card leave with a comment: its result plays "sent with your comment".
+  const [accepted, setAccepted] = useState(false);
   const [viewResult, setViewResult] = useState(false);
   const onItemRef = useRef(onItem); onItemRef.current = onItem;
   const onExpandRef = useRef(onExpand); onExpandRef.current = onExpand;
@@ -73,11 +54,13 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const alive = useRef(true);
   const adopt = useCallback((next: Item & { followUps?: FollowUp[] }, own = false) => {
     const changedState = current.current?.state !== next.state;
+    const leftWithNote = current.current?.state === "ready" && next.state !== "ready" && !!next.attempt?.note;
     const { followUps: latest, ...plain } = next;
     current.current = plain;
     if (alive.current) {
       setItem(plain); onItemRef.current?.(plain, own);
       if (latest) setFollowUps(latest);
+      if (leftWithNote) setAccepted(true);
       if (changedState && (next.state === "succeeded" || next.state === "failed")) onExpandRef.current?.(false);
       if (changedState && (next.state === "succeeded" || next.state === "failed")) setError(null);
     }
@@ -209,14 +192,14 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
       const submittedText = composer.text;
       await composer.experimental_submit({ experimental_data: { itemId: id } });
       if (composer.text === submittedText) throw new Error("The comment was not submitted. Send the prepared composer message.");
-      closeNote();
+      clearNote();
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
   };
   const reopen = async () => {
     if (!current.current || lock.current) return;
     lock.current = true; setBusy(true);
-    try { adopt(await rpc.call("reopen", { id, threadId, revision: current.current.revision })); setError(null); closeNote(); }
+    try { adopt(await rpc.call("reopen", { id, threadId, revision: current.current.revision })); setError(null); clearNote(); }
     catch (err) { setError(readableError(err)); }
     finally { lock.current = false; setBusy(false); }
   };
@@ -245,47 +228,41 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = (open: boolean) => row ? onExpand?.(open) : setViewResult(open);
-  const openNote = () => { focusNote.current = true; setNoteOpen(true); if (row) onExpand?.(true); };
-  const commentToggle = <IconButton ref={commentButton} label="Comment" aria-expanded={noteOpen || (row && expanded)} disabled={disabled} onClick={openNote}><CommentIcon /></IconButton>;
-  // A pending request offers Resend only once it is not already being sent.
-  const utilities = <div className="iac-tools">
+  // Card tools sit in the top-right corner; X dismisses the card (Skip).
+  const tools = (ready || pending) && <span className="iac-header-tools">
     {pending && !busy && <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton>}
-    <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
     {reply && <IconButton label="Save to Gmail drafts" disabled={disabled} onClick={() => void act("save-draft")}><DraftIcon /></IconButton>}
-  </div>;
-  // The comment sits with the card's content, not under its buttons; sheet rows show it whenever they are open.
-  const showNote = ready && (sheet ? expanded : noteOpen || !!note);
-  const noteField = showNote && <CommentField inputRef={noteEditor} value={note} disabled={disabled} busy={busy}
-    onChange={(value) => { changeNote(value); if (!value && !sheet) closeNote(true); }}
-    onClose={() => sheet ? onExpand?.(false) : closeNote(true)} onAsk={() => void comment()} />;
+    <IconButton label="Skip — tell the agent you're passing" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
+  </span>;
   // The primary button marks a comment that goes along with the choice.
   const attached = ready && !!note.trim();
-  const withComment = (label: string) => <>{attached && <span className="iac-attached" aria-hidden="true"><CommentIcon /></span>}{label}{attached && <>{" "}<span className="iac-sr-only">with comment</span></>}</>;
+  const withComment = (label: string) => <>{attached && <NoteIcon className="iac-attached" />}{label}{attached && <>{" "}<span className="iac-sr-only">with comment</span></>}</>;
   // A sent or finished attempt shows its own option; a ready card keeps the user's pick or the recommendation.
   const staged = sheet?.staged;
   const selectedId = (!ready && item.attempt?.choice?.id) || (sheet ? staged?.action === "choose" ? staged.choice : undefined : picked || choice?.recommended);
   const selected = choice?.options.find((option) => option.id === selectedId);
   const primary: Action = reply ? "send" : choice ? "choose" : "yes";
   const primaryLabel = reply ? "Send" : choice ? selected ? chooseLabel(selected.label) : "Choose an option" : actionLabel(item, "yes");
-  const controls = <div className="iac-actions iac-footer">
-    {ready || pending ? <>
-      {utilities}
-      {!reply && !choice && <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
-      <PendingButton variant="default" className={choice ? "iac-choose" : undefined} pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled || (!!choice && !selected)} onClick={() => void act(primary, selected?.id)}>{withComment(primaryLabel)}</PendingButton>
-    </> : null}
-  </div>;
+  const primaryButton = <PendingButton variant="default" className={choice ? "iac-choose" : undefined} pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled || (!!choice && !selected)} onClick={() => void act(primary, selected?.id)}>{withComment(primaryLabel)}</PendingButton>;
+  const secondaryButton = !reply && !choice && <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>;
+  // One line: comment, Ask, then the answers. A sheet row's answer is staged in its header, so its bar keeps only the comment.
+  const staging = !!sheet && !reply;
+  const answerBar = (ready || pending) && <AnswerBar inputRef={noteEditor} value={note} disabled={disabled} submitDisabled={!!choice && !selected} busy={busy} onChange={changeNote} onAsk={() => void comment()}
+    {...(staging ? {} : { onSubmit: () => void act(primary, selected?.id), submitLabel: `${primaryLabel} with comment` })}>
+    {staging ? sheet!.staged && <ActionButton onClick={sheet!.clear}>Clear answer</ActionButton> : <>{secondaryButton}{primaryButton}</>}
+  </AnswerBar>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
   </div></div>;
   const time = status ? status.time : item.updatedAt;
-  const result = <div className="iac-result-line">
+  const result = <div className="iac-result-line" data-accepted={accepted || undefined} data-state={item.state}>
     <div className="iac-result-copy"><span className={item.state === "failed" ? "iac-failed" : "iac-result"} role="status">
       <span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> {status ? status.label : resultLabel(item)}
       {row && <span className="iac-muted"> · {title(item)}</span>}
       <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
     </span>
-    {item.attempt?.note && <div className="iac-muted iac-result-note">{item.attempt.note}</div>}</div>
+    {item.attempt?.note && <div className="iac-result-note"><NoteIcon />{item.attempt.note}</div>}</div>
     <div className="iac-actions">
       {status && !item.attempt?.claimed && <IconButton label="Resend request" disabled={busy} onClick={() => void act()}><ResendIcon /></IconButton>}
       {(deferred || (item.state === "failed" && item.result?.retryable)) && <IconButton label={deferred ? "Resume" : reply ? "Edit draft" : "Choose again"} disabled={busy} onClick={() => void reopen()}>{reply && !deferred ? <EditIcon /> : <UndoIcon />}</IconButton>}
@@ -304,12 +281,11 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
     <Evidence content={item.content} threadId={threadId} />
     {choice && row && choice.options.some((option) => option.hint) && <ul className="iac-hints">{choice.options.filter((option) => option.hint).map((option) => <li key={option.id}><b>{option.label}</b> {option.hint}</li>)}</ul>}
     <FollowUps items={followUps} />
-    {noteField}
   </>;
   const details = <>
     {!row && <div className="iac-header">
       {reply ? recipients : <span className="iac-question">{title(item)}</span>}
-      {!done && !showNote && <span className="iac-header-tools">{commentToggle}</span>}
+      {tools}
     </div>}
     {row && reply && recipients}
     {reply ? <>
@@ -333,7 +309,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
         </label>)}
       </div>}
     </>}
-    {!done && (!row || reply) && controls}
+    {!done && answerBar}
   </>;
   if (logEntry) {
     const failed = item.state === "failed";
@@ -419,7 +395,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
     </article>;
   }
   if (row && sheet) return <SheetRowView item={item} done={done} result={result} expanded={expanded} onExpand={(open) => onExpand?.(open)}
-    sheet={sheet} disabled={disabled} commentToggle={ready ? commentToggle : null} followUpCount={followUps.length} failure={failure}
+    sheet={sheet} disabled={disabled} followUpCount={followUps.length} failure={failure}
     body={<div className="iac-row-expanded">{details}</div>} />;
   return <article className="iac-card" aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
     {done ? result : null}

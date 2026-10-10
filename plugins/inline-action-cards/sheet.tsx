@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useComposer, useComposerView, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, title, type Action, type Item, type TableView } from "./model.js";
-import { ActionButton, IconButton, PendingButton, SkipIcon } from "./controls.js";
+import { ActionButton, PendingButton } from "./controls.js";
+import { NoteIcon } from "./evidence.js";
 import { appendActionNote, insertActionMention } from "./presentation.js";
 import { readableError, submitDraft, submitting } from "./submit.js";
 import { ActionCard } from "./app.js";
@@ -39,6 +40,7 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [showFinished, setShowFinished] = useState(false);
   const [saved, setSaved] = useState<Saved>(() => restore(key));
   const lock = useRef(false);
   useEffect(() => {
@@ -120,35 +122,38 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
   if (!table) return <div className="iac-card" role="status">{error ?? "Loading actions…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const ready = table.items.filter((item) => item.state === "ready");
   const staged = ready.filter((item) => saved.stages[item.id]?.revision === item.revision);
-  const counts = [
-    [table.items.filter((item) => item.state === "succeeded").length, "done"],
-    [table.items.filter((item) => item.state === "failed").length, "need attention"],
-    [table.items.filter((item) => item.state === "pending").length, "sent"],
-    [staged.length, "to send"],
-    [ready.length - staged.length, "open"],
-  ] as const;
+  const failed = table.items.filter((item) => item.state === "failed");
+  // Open rows stay in place; anything sent or done folds into one group below them.
+  const finished = table.items.filter((item) => item.state === "pending" || item.state === "succeeded");
+  const toDecide = ready.length - staged.length;
+  const summary = [toDecide ? `${toDecide} to decide` : ready.length ? "All answered" : "All sent", failed.length ? `${failed.length} need${failed.length === 1 ? "s" : ""} attention` : null].filter(Boolean).join(" · ");
   // Matching rows keep their one-click "… all"; otherwise the agent's recommendations can be staged at once.
   const all = bulkLabel(table.items);
   const suggested = ready.filter((item) => !saved.stages[item.id] && recommendation(item));
   const bulk = all && ready.some((item) => !saved.stages[item.id])
     ? { label: all, run: () => ready.forEach((item) => stageRow(item, "yes")) }
     : suggested.length ? { label: `Accept ${suggested.length} recommended`, run: () => suggested.forEach((item) => { const pick = recommendation(item)!; stageRow(item, pick.action, pick.choice); }) } : null;
+  const row = (item: TableView["items"][number]) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row expanded={open === item.id}
+    onExpand={(expanded) => setOpen((value) => expanded ? item.id : value === item.id ? null : value)} onItem={updateItem}
+    sheet={{
+      staged: saved.stages[item.id] ?? null, changed: saved.changed.includes(item.id), note: saved.notes[item.id] ?? "",
+      stage: (action, choice) => stageRow(item, action, choice), clear: () => clearRow(item.id), setNote: (note) => setNote(item.id, note),
+    }} />;
   return <section className="iac-table iac-sheet" aria-label={table.title}>
     <div className="iac-table-header">
-      <div className="iac-sheet-title"><span>{table.title}</span>
-        <span className="iac-sheet-counts" role="status">{counts.filter(([count]) => count > 0).map(([count, label]) => `${count} ${label}`).join(" · ")}</span>
-      </div>
-      {bulk && <ActionButton variant="outline" disabled={busy} onClick={bulk.run}>{bulk.label}</ActionButton>}
+      <div className="iac-sheet-title"><span>{table.title}</span><span className="iac-sheet-counts">{summary}</span></div>
+      {bulk && <ActionButton className="iac-quiet" disabled={busy} onClick={bulk.run}>{bulk.label}</ActionButton>}
     </div>
-    {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row expanded={open === item.id}
-      onExpand={(expanded) => setOpen((value) => expanded ? item.id : value === item.id ? null : value)} onItem={updateItem}
-      sheet={{
-        staged: saved.stages[item.id] ?? null, changed: saved.changed.includes(item.id), note: saved.notes[item.id] ?? "",
-        stage: (action, choice) => stageRow(item, action, choice), clear: () => clearRow(item.id), setNote: (note) => setNote(item.id, note),
-      }} />)}
+    {table.items.filter((item) => !finished.includes(item)).map(row)}
+    {finished.length > 0 && <>
+      <button type="button" className="iac-finished-toggle" aria-expanded={showFinished} onClick={() => setShowFinished(!showFinished)}>
+        <span className="iac-disclosure" aria-hidden="true">{showFinished ? "▾" : "▸"}</span>{finished.length} sent or done
+      </button>
+      {showFinished && <div className="iac-finished">{finished.map(row)}</div>}
+    </>}
     {error && <div className="iac-error" role="alert">{error}</div>}
     {staged.length > 0 && <div className="iac-sheet-footer">
-      <span className="iac-muted">Answers send together in one message.</span>
+      <span className="iac-muted" role="status">{staged.length} {staged.length === 1 ? "answer" : "answers"} not sent yet</span>
       <ActionButton disabled={busy} onClick={() => setSaved((value) => ({ ...value, stages: {} }))}>Clear</ActionButton>
       <PendingButton variant="default" pending={busy} pendingLabel="Sending…" onClick={() => void send()}>{`Send ${staged.length} ${staged.length === 1 ? "answer" : "answers"}`}</PendingButton>
     </div>}
@@ -156,36 +161,35 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
 }
 
 // One sheet row: question, its staged answer, and the full card body when open.
-export function SheetRowView({ item, done, result, expanded, onExpand, sheet, disabled, commentToggle, followUpCount, failure, body }: {
+export function SheetRowView({ item, done, result, expanded, onExpand, sheet, disabled, followUpCount, failure, body }: {
   item: Item; done: boolean; result: ReactNode; expanded: boolean; onExpand: (open: boolean) => void; sheet: SheetBinding;
-  disabled: boolean; commentToggle: ReactNode; followUpCount: number; failure: ReactNode; body: ReactNode;
+  disabled: boolean; followUpCount: number; failure: ReactNode; body: ReactNode;
 }) {
   const { content } = item;
   const staged = sheet.staged;
-  const sub = content.type === "reply" ? `To ${content.to.join(", ")} · ${content.subject}`
-    : content.type === "decide" ? content.consequence : content.consequence ?? `${content.options.length} options`;
-  const extras = [content.context || content.media?.length ? "details" : null, followUpCount ? `${followUpCount} ${followUpCount === 1 ? "follow-up" : "follow-ups"}` : null].filter(Boolean);
   const name = `iac-sheet-${item.threadId}-${item.id}`;
+  const status = `${name}-status`;
   const answer = content.type === "decide"
-    ? <Segments name={name} label={title(item)} disabled={disabled} value={staged && (staged.action === "yes" || staged.action === "no") ? staged.action : null}
+    ? <Segments name={name} label={title(item)} describedBy={staged ? status : undefined} disabled={disabled} value={staged && (staged.action === "yes" || staged.action === "no") ? staged.action : null}
       recommended={content.recommended ?? null} options={[{ id: "yes", label: actionLabel(item, "yes") }, { id: "no", label: actionLabel(item, "no") }]}
       onChange={(value) => sheet.stage(value as Action)} />
     : content.type === "choice"
-      ? <Segments name={name} label={title(item)} disabled={disabled} value={staged?.action === "choose" ? staged.choice ?? null : null}
+      ? <Segments name={name} label={title(item)} describedBy={staged ? status : undefined} disabled={disabled} value={staged?.action === "choose" ? staged.choice ?? null : null}
         recommended={content.recommended ?? null} options={content.options} onChange={(value) => sheet.stage("choose", value)} />
       : staged ? <span className="iac-staged-action">{actionLabel(item, staged.action)}</span>
         : <ActionButton variant="outline" disabled={disabled} aria-expanded={expanded} onClick={() => onExpand(!expanded)}>{expanded ? "Close" : "Review"}</ActionButton>;
-  return <article className="iac-row iac-sheet-row" data-staged={staged ? true : undefined} aria-label={`${content.type === "reply" ? "Reply" : content.type === "choice" ? "Choice" : "Decision"}: ${title(item)}`}>
+  return <article className="iac-row iac-sheet-row" data-staged={staged ? true : undefined} data-open={expanded || undefined} aria-label={`${content.type === "reply" ? "Reply" : content.type === "choice" ? "Choice" : "Decision"}: ${title(item)}`}>
     {done ? result : <div className="iac-row-line">
       <button type="button" className="iac-row-summary" aria-expanded={expanded} onClick={() => onExpand(!expanded)}>
-        <span className="iac-row-question">{title(item)}<span className="iac-disclosure" aria-hidden="true">{expanded ? "▾" : "▸"}</span></span>
-        <span className="iac-row-sub">{sub}{extras.length > 0 && <span className="iac-row-extras"> · {extras.join(" · ")}</span>}</span>
+        <span className="iac-row-question">{title(item)}
+          {(sheet.note.trim() || followUpCount > 0) && <NoteIcon className="iac-row-mark" />}
+          <span className="iac-disclosure" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+        </span>
       </button>
       <div className="iac-row-answer">
         {sheet.changed && !staged && <span className="iac-tag iac-tag-changed">Changed — review again</span>}
-        {staged && <span className="iac-tag iac-tag-staged">Not sent<IconButton label="Clear answer" className="iac-clear" onClick={sheet.clear}><SkipIcon /></IconButton></span>}
+        {staged && <span id={status} className="iac-sr-only">Not sent yet</span>}
         {answer}
-        {!expanded && commentToggle}
       </div>
     </div>}
     {expanded && body}
@@ -193,10 +197,10 @@ export function SheetRowView({ item, done, result, expanded, onExpand, sheet, di
   </article>;
 }
 
-function Segments({ name, label, options, value, recommended, disabled, onChange }: {
-  name: string; label: string; options: { id: string; label: string }[]; value: string | null; recommended: string | null; disabled: boolean; onChange: (value: string) => void;
+function Segments({ name, label, describedBy, options, value, recommended, disabled, onChange }: {
+  name: string; label: string; describedBy?: string; options: { id: string; label: string }[]; value: string | null; recommended: string | null; disabled: boolean; onChange: (value: string) => void;
 }) {
-  return <div role="radiogroup" aria-label={label} className="iac-segments">
+  return <div role="radiogroup" aria-label={label} aria-describedby={describedBy} className="iac-segments">
     {options.map((option) => <label key={option.id} className="iac-segment" data-recommended={recommended === option.id || undefined} title={recommended === option.id ? `${option.label} (recommended)` : option.label}>
       <input type="radio" name={name} value={option.id} checked={value === option.id} disabled={disabled} onChange={() => onChange(option.id)} />
       <span>{option.label}</span>

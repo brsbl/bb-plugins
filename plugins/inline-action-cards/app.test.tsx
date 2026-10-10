@@ -31,7 +31,7 @@ afterEach(() => { cleanup(); submittedMessages.length = 0; localStorage.clear();
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 function addRowNote(row: HTMLElement) {
   expect(within(row).queryByRole("button", { name: "More actions" })).toBeNull();
-  fireEvent.click(within(row).getByRole("button", { name: "Comment" }));
+  fireEvent.click(row.querySelector(".iac-row-summary")!);
 }
 async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>) {
   let item = initialItem;
@@ -145,12 +145,13 @@ it("stages a reviewed table reply and sends it only with the sheet", async () =>
   expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
   expect(slot.inspection.composer.submits).toHaveLength(0);
-  expect(screen.getByText("Not sent")).toBeTruthy();
+  expect(screen.getByText("Not sent yet")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Send 1 answer" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(calls).toEqual([expect.objectContaining({ items: [expect.objectContaining({ id: "esc-2", action: "send" })] })]);
+  fireEvent.click(await screen.findByRole("button", { name: /1 sent or done/ }));
   await screen.findByText("Approved to send");
-  expect(screen.queryByText("Not sent")).toBeNull();
+  expect(screen.queryByText("Not sent yet")).toBeNull();
 });
 
 it.each(["send", "yes", "no"] as const)("shows %s loading only while it is sent, then settles", async (action) => {
@@ -168,7 +169,7 @@ it.each(["send", "yes", "no"] as const)("shows %s loading only while it is sent,
   expect(pending.className).toBe(classes);
   expect(pending.getAttribute("aria-busy")).toBe("true");
   expect((pending as HTMLButtonElement).disabled).toBe(true);
-  const other = screen.getByRole("button", { name: action === "send" ? "Comment" : action === "yes" ? "Keep" : "Switch" });
+  const other = screen.getByRole("button", { name: action === "send" ? "Ask" : action === "yes" ? "Keep" : "Switch" });
   expect((other as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: "Skip" }) as HTMLButtonElement).disabled).toBe(true);
   release();
@@ -207,15 +208,18 @@ it("stages row answers, offers the matching bulk answer, and sends every answer 
   const rows = screen.getAllByRole("article");
   fireEvent.click(within(rows[0]!).getByRole("radio", { name: "Keep" }));
   expect(slot.inspection.composer.submits).toHaveLength(0);
-  expect(screen.getByText("1 to send · 2 open")).toBeTruthy();
+  expect(screen.getByText("2 to decide")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Switch all" }));
   expect((within(rows[0]!).getByRole("radio", { name: "Switch" }) as HTMLInputElement).checked).toBe(true);
+  expect(screen.getByText("All answered")).toBeTruthy();
+  fireEvent.click(rows[2]!.querySelector(".iac-row-summary")!);
   fireEvent.click(within(rows[2]!).getByRole("button", { name: "Clear answer" }));
   fireEvent.click(screen.getByRole("button", { name: "Send 2 answers" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(calls).toEqual([{ id: "digests", threadId: "thr_test", items: [expect.objectContaining({ id: "one", action: "yes" }), expect.objectContaining({ id: "two", action: "yes" })] }]);
   expect(submittedMessages[0]!.split("\n")).toHaveLength(2);
   expect(slot.inspection.composer.mentions).toHaveLength(2);
+  fireEvent.click(await screen.findByRole("button", { name: /2 sent or done/ }));
   await waitFor(() => expect(screen.getAllByText("Switch sent")).toHaveLength(2));
 });
 
@@ -229,14 +233,14 @@ it("drops a staged answer when the agent changes its row, and keeps answers acro
   };
   let slot = renderSlot(app.messageDirectives[1]!, props, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc });
   fireEvent.click(await screen.findByRole("button", { name: "Accept 2 recommended" }));
-  expect(screen.getAllByText("Not sent")).toHaveLength(2);
+  expect(screen.getAllByText("Not sent yet")).toHaveLength(2);
   slot.lifecycle.unmount();
   slot = renderSlot(app.messageDirectives[1]!, props, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc });
-  expect(await screen.findAllByText("Not sent")).toHaveLength(2);
+  expect(await screen.findAllByText("Not sent yet")).toHaveLength(2);
   items = items.map((item) => item.id === "two" ? { ...item, revision: 2 } : item);
   await slot.behavior.emitRealtime("items", {});
   await screen.findByText("Changed — review again");
-  expect(screen.getAllByText("Not sent")).toHaveLength(1);
+  expect(screen.getAllByText("Not sent yet")).toHaveLength(1);
   expect(screen.getByRole("button", { name: "Send 1 answer" })).toBeTruthy();
   slot.lifecycle.unmount();
   localStorage.clear();
@@ -333,9 +337,9 @@ it("submits the selected option from a choice card, starting from the recommenda
 it("sends a comment along with the chosen option", async () => {
   const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "UserSingle" }, { id: "multi", label: "UserMultiple" }] };
   const { slot, get } = await setup("", false, { ...fixture(), id: "setup", content });
-  fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "Keep the pool as backup" } });
-  fireEvent.click(screen.getByRole("button", { name: "Use UserMultiple with comment" }));
+  fireEvent.change(await screen.findByRole("textbox", { name: "Comment" }), { target: { value: "Keep the pool as backup" } });
+  expect(screen.getByRole("button", { name: "Use UserMultiple with comment" }).className).toContain("iac-note-submit");
+  fireEvent.click(screen.getAllByRole("button", { name: "Use UserMultiple with comment" }).find((button) => !button.className.includes("iac-note-submit"))!);
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(get().attempt).toMatchObject({ action: "choose", note: "Keep the pool as backup" });
   expect(submittedMessages[0]).toContain(" — Keep the pool as backup");
@@ -366,11 +370,11 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
         submitted: (input) => host.harness.behavior.callRpc("submitted", input),
       },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
-    const field = screen.getByRole("textbox", { name: "Comment" });
-    expect(document.activeElement).toBe(field);
+    const field = await screen.findByRole("textbox", { name: "Comment" });
     fireEvent.change(field, { target: { value: note } });
-    fireEvent.click(screen.getByRole("button", { name: type === "reply" ? "Send with comment" : "Switch with comment" }));
+    // The field's own submit accepts the primary answer with the comment.
+    const submit = screen.getAllByRole("button", { name: type === "reply" ? "Send with comment" : "Switch with comment" }).find((button) => button.className.includes("iac-note-submit"))!;
+    fireEvent.click(submit);
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
     expect(submittedMessages[0]).toContain(` — ${note}`);
     const mention = slot.inspection.composer.mentions[0]!;
@@ -390,18 +394,15 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
   } finally { await host.harness.lifecycle.dispose(); }
 });
 
-it("dismisses a comment with Escape or clearing, keeping empty approval unchanged", async () => {
+it("clears a comment with Escape, keeping empty approval unchanged and never approving on plain Enter", async () => {
   const { slot, get } = await setup();
-  fireEvent.click(screen.getByRole("button", { name: "Comment" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "Do not send" } });
-  fireEvent.keyDown(screen.getByRole("textbox", { name: "Comment" }), { key: "Escape" });
-  expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Comment" })));
-  fireEvent.click(screen.getByRole("button", { name: "Comment" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "Temporary" } });
-  fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: "" } });
-  expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Comment" })));
+  const field = screen.getByRole("textbox", { name: "Comment" }) as HTMLInputElement;
+  fireEvent.change(field, { target: { value: "Do not send" } });
+  fireEvent.keyDown(field, { key: "Enter" });
+  expect(slot.inspection.composer.submits).toHaveLength(0);
+  fireEvent.keyDown(field, { key: "Escape" });
+  expect(field.value).toBe("");
+  expect(screen.queryByRole("button", { name: "Send with comment" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(get().attempt?.note).toBe("");
@@ -423,8 +424,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
         comment: (input) => host.harness.behavior.callRpc("comment", input),
       },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Comment" }));
-    expect((screen.getByRole("button", { name: "Ask" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((await screen.findByRole("button", { name: "Ask" }) as HTMLButtonElement).disabled).toBe(true);
     const note = "Can you keep Money on the old one?";
     fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), { target: { value: note } });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
@@ -440,7 +440,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
     const saved = JSON.parse((await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId])).stdout!);
     expect(saved).toMatchObject({ state: "ready", attempt: null, revision: 1 });
     expect((screen.getByRole("button", { name: type === "reply" ? "Send" : "Switch" }) as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    expect((screen.getByRole("textbox", { name: "Comment" }) as HTMLInputElement).value).toBe("");
     slot.lifecycle.unmount();
   } finally { await host.harness.lifecycle.dispose(); }
 });
@@ -489,7 +489,7 @@ it("keeps separate row notes on bulk choices and offers comments on collapsed Re
   });
   addRowNote(await screen.findByRole("article"));
   expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Comment" })));
+  expect(screen.getByRole("textbox", { name: "Comment" })).toBeTruthy();
   replySlot.lifecycle.unmount();
 });
 

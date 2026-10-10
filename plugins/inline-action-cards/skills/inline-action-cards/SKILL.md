@@ -119,7 +119,7 @@ The card shows Retry. A new click creates a new attempt, which must be claimed a
 
 ## Comments with a choice
 
-Every ready card has a Comment button (speech bubble) beside its question; a table row shows its comment field whenever the row is open. The field sits under the card's context, above the answer buttons. Choosing an action while the field has text submits the comment visibly after the mention pill and includes it as `note` in hidden context; the primary button shows a small speech bubble when a comment goes along. The comment is saved on the attempt as `note`, returned by claim/get, and shown under the result. Empty comments keep the usual behavior; Escape or clearing the field dismisses it. Sending a table carries each row’s own comment.
+Every ready card ends with one line: a comment field (sticky-note icon), **Ask**, then the answer buttons; Skip and other card tools sit in the top-right corner. A table row shows that comment field when the row is open, and the comment rides with the row's staged answer. Choosing an answer while the field has text (or pressing the field's own submit, which names the answer, for example “Merge with comment”) submits the comment visibly after the mention pill and includes it as `note` in hidden context. The comment is saved on the attempt as `note`, returned by claim/get, and shown under the result. Empty comments keep the usual behavior; Escape or clearing the field dismisses it. Sending a table carries each row’s own comment.
 
 ## Comment without choosing
 

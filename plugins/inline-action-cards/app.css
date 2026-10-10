@@ -255,3 +255,53 @@
   .iac-sheet-footer { padding: 8px 12px; }
   .iac-sheet-footer > .iac-muted { flex-basis: 100%; }
 }
+
+/* Revision 2: corner tools, one-line answer bar, sticky-note comment. */
+.iac-header { align-items: flex-start; }
+.iac-header-tools { display: flex; flex-shrink: 0; gap: 2px; margin: -4px -8px 0 auto; }
+.iac-answer-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.iac-note-input { display: flex; flex: 1 1 200px; min-width: 0; align-items: center; gap: 6px; height: 32px; box-sizing: border-box; padding: 0 3px 0 9px; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, .5rem); background: transparent; }
+.iac-note-input:focus-within { box-shadow: 0 0 0 1px var(--ring); }
+.iac-note-input input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; background: transparent; color: inherit; font: inherit; font-size: var(--text-sm, .8125rem); }
+.iac-note-input input::placeholder { color: var(--muted-foreground); }
+.iac-note-icon, .iac-attached, .iac-row-mark, .iac-result-note svg { flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.iac-note-icon { width: 15px; height: 15px; color: var(--muted-foreground); }
+.iac-note-input[data-typed] .iac-note-icon { color: var(--foreground); }
+/* The field's own submit: an outlined circle, centered on the field's line. */
+.iac-note-submit { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; align-self: center; width: 24px; height: 24px; padding: 0; border: 1.5px solid var(--foreground); border-radius: 999px; background: transparent; color: var(--foreground); cursor: pointer; }
+.iac-note-submit svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.iac-note-submit:hover:not(:disabled) { background: var(--state-hover, var(--muted)); }
+.iac-note-submit:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.iac-note-submit:disabled { opacity: .45; cursor: default; }
+.iac-answer-bar > button { flex-shrink: 0; height: 32px; }
+.iac-attached { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; }
+.iac-card .iac-header + * { margin-top: 2px; }
+
+/* The comment that went with an answer, as a small sticky note under the result. */
+.iac-result-note { display: inline-flex; max-width: 100%; align-items: flex-start; gap: 6px; margin-top: 6px; padding: 3px 8px; border-radius: var(--radius-sm, .25rem); background: var(--surface-attention, var(--muted)); color: var(--foreground); font-size: var(--text-xs, .75rem); white-space: pre-wrap; overflow-wrap: anywhere; }
+.iac-result-note svg { width: 13px; height: 13px; margin-top: 2px; color: var(--muted-foreground); }
+@media (prefers-reduced-motion: no-preference) {
+  .iac-result-line[data-accepted] .iac-result-note { animation: iac-note-dock 320ms cubic-bezier(.2, .8, .2, 1) both; }
+  .iac-result-line[data-accepted][data-state="succeeded"] .iac-result > span:first-child { display: inline-block; animation: iac-check-pop 360ms cubic-bezier(.2, .8, .2, 1) both; }
+}
+@keyframes iac-note-dock { from { opacity: 0; transform: translateY(-10px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes iac-check-pop { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.2); opacity: 1; } 100% { transform: none; } }
+
+/* Focused sheet: each row is its question and its answer. */
+.iac-sheet .iac-row-question { display: inline; font-weight: 500; }
+.iac-row-mark { width: 12px; height: 12px; margin-left: 6px; color: var(--muted-foreground); vertical-align: -1px; }
+.iac-sheet-row[data-open] { background: var(--surface-raised, transparent); }
+.iac-sheet-row .iac-answer-bar { justify-content: flex-start; }
+.iac-quiet { color: var(--muted-foreground); }
+.iac-quiet:hover:not(:disabled) { color: var(--foreground); }
+.iac-finished-toggle { display: flex; width: 100%; align-items: center; gap: 6px; padding: 9px 16px; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--muted-foreground); font: inherit; font-size: var(--text-xs, .75rem); text-align: left; cursor: pointer; }
+.iac-finished-toggle:hover { color: var(--foreground); background: var(--state-hover, var(--muted)); }
+.iac-finished-toggle:focus-visible { outline: 1px solid var(--ring); outline-offset: -1px; }
+.iac-finished-toggle .iac-disclosure { margin-left: 0; }
+.iac-finished .iac-row { padding-top: 6px; padding-bottom: 6px; color: var(--muted-foreground); }
+@container (max-width: 520px) {
+  .iac-answer-bar { justify-content: flex-end; }
+  .iac-note-input { flex-basis: 100%; height: 40px; }
+  .iac-answer-bar > button { height: 40px; }
+  .iac-finished-toggle { padding: 10px 12px; }
+}
