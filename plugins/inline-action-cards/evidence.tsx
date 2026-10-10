@@ -8,6 +8,17 @@ export function mediaUrl(threadId: string, src: string): string {
   return `/api/v1/threads/${encodeURIComponent(threadId)}/host-files/${src.slice(1).split("/").map(encodeURIComponent).join("/")}`;
 }
 
+// Images and screenshots the agent attached, linked to full size.
+export function Media({ media, threadId }: { media?: Content["media"]; threadId: string }) {
+  if (!media?.length) return null;
+  return <div className="iac-media" data-count={media.length}>
+    {media.map((image) => <a key={image.src} className="iac-figure" href={mediaUrl(threadId, image.src)} target="_blank" rel="noreferrer" title={image.caption ?? image.alt}>
+      <img src={mediaUrl(threadId, image.src)} alt={image.alt} loading="lazy" />
+      {image.caption && <span className="iac-caption">{image.caption}</span>}
+    </a>)}
+  </div>;
+}
+
 // Context is bounded; a clipped preview opens in place when clicked.
 export function Evidence({ content, threadId }: { content: Content; threadId: string }) {
   const { context, media } = content;

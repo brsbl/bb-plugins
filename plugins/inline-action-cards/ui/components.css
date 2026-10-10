@@ -1,0 +1,66 @@
+.ac-card { display: grid; gap: var(--ac-gap); padding: var(--ac-pad); border: 1px solid var(--border); border-radius: var(--ac-radius); background: var(--card); }
+.ac-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ac-meta { color: var(--muted-foreground); font-size: var(--ac-meta); }
+.ac-link { padding: 0; border: 0; background: none; color: var(--muted-foreground); font: inherit; font-size: var(--ac-meta); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.ac-link:hover { color: var(--foreground); }
+/* Header */
+.ac-header { display: grid; gap: 2px; }
+.ac-question { font-size: var(--ac-title); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.ac-consequence { margin: 0; color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.45; overflow-wrap: anywhere; }
+/* Context */
+.ac-context { padding: calc(var(--ac-s) * 2) calc(var(--ac-s) * 2.5); border-radius: var(--ac-radius-control); background: var(--surface-raised, var(--muted)); color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.5; }
+.ac-context-body { max-height: var(--ac-context-max); overflow: hidden; }
+.ac-context[data-long]:not([data-open]) .ac-context-body { mask-image: linear-gradient(to bottom, #000 65%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent); }
+.ac-context[data-open] .ac-context-body { max-height: none; }
+.ac-context-body > :first-child { margin-top: 0; } .ac-context-body > :last-child { margin-bottom: 0; }
+.ac-context-body p { margin: 0 0 calc(var(--ac-s) * 1.5); }
+.ac-context-body strong, .ac-context-body b { color: var(--foreground); font-weight: 500; }
+.ac-context .ac-link { margin-top: calc(var(--ac-s) * 1); }
+/* Options: bb question-form rows */
+.ac-options { display: grid; gap: 2px; min-width: 0; margin: 0 calc(var(--ac-option-px) * -1); padding: 0; border: 0; }
+.ac-option { position: relative; display: flex; align-items: flex-start; gap: calc(var(--ac-s) * 2.5); padding: var(--ac-option-py) var(--ac-option-px); border-radius: var(--ac-radius-control); cursor: pointer; }
+.ac-option:hover:not(:has(input:disabled)) { background: var(--state-hover, var(--muted)); }
+.ac-option:has(input:checked) { background: var(--surface-selected, var(--muted)); }
+.ac-option:has(input:focus-visible) { outline: 1px solid var(--ring); outline-offset: -1px; }
+.ac-option:has(input:disabled) { cursor: default; opacity: .6; }
+.ac-option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+.ac-glyph { flex-shrink: 0; width: var(--ac-glyph); height: var(--ac-glyph); margin-top: 2px; box-sizing: border-box; border: 1px solid var(--input, var(--border)); border-radius: 50%; }
+.ac-option:has(input:checked) .ac-glyph { border: 5px solid var(--primary); }
+.ac-option-text { display: grid; min-width: 0; }
+.ac-option-label { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--ac-s) * 2); font-weight: 500; }
+.ac-option[data-destructive] .ac-option-label { color: var(--destructive); }
+.ac-option-hint { color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.4; }
+.ac-tag { padding: 0 calc(var(--ac-s) * 1.5); border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: var(--ac-meta); font-weight: 400; line-height: 1.4; }
+/* Note and submit: "Add note" sits left of Submit; once opened the textarea takes the full width above it. */
+.ac-submit { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--ac-gap); }
+.ac-note-toggle { height: var(--ac-control); margin-left: calc(var(--ac-option-px) * -1); padding-inline: var(--ac-option-px); color: var(--muted-foreground); font-size: var(--ac-body); font-weight: 400; }
+.ac-textarea { display: block; flex: 1 0 100%; width: 100%; min-height: calc(var(--ac-body) * 1.5 * 2 + var(--ac-s) * 4); max-height: 12lh; box-sizing: border-box; padding: calc(var(--ac-s) * 2) calc(var(--ac-s) * 3); border: 1px solid var(--input, var(--border)); border-radius: var(--ac-radius-control); background: transparent; color: inherit; font: inherit; font-size: var(--ac-body); line-height: 1.5; resize: none; field-sizing: content; }
+.ac-textarea::placeholder { color: var(--muted-foreground); }
+.ac-textarea:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--ring); }
+.ac-button { height: var(--ac-control); margin-left: auto; }
+/* Outcome */
+.ac-outcome { display: grid; gap: 2px; }
+.ac-outcome-line { display: flex; flex-wrap: wrap; align-items: center; column-gap: calc(var(--ac-s) * 2); row-gap: 2px; }
+.ac-outcome-icon { width: 1em; text-align: center; font-weight: 600; }
+.ac-outcome[data-tone="done"] .ac-outcome-icon { color: var(--success-foreground, var(--success)); }
+.ac-outcome[data-tone="failed"] .ac-outcome-icon, .ac-outcome[data-tone="unsent"] .ac-outcome-icon, .ac-outcome[data-tone="failed"] .ac-outcome-status, .ac-outcome[data-tone="unsent"] .ac-outcome-status { color: var(--destructive); }
+.ac-outcome-answer { font-weight: 500; }
+.ac-outcome-status { color: var(--muted-foreground); font-size: var(--ac-meta); }
+.ac-outcome-actions { display: flex; justify-content: flex-end; gap: calc(var(--ac-s) * 1); margin-top: calc(var(--ac-s) * 1); }
+.ac-outcome-actions button { height: calc(var(--ac-control) - 4px); }
+.ac-outcome-note { padding-left: calc(1em + var(--ac-s) * 2); color: var(--muted-foreground); font-size: var(--ac-meta); }
+/* Group */
+.ac-group { gap: 0; padding: 0; }
+.ac-group-head { display: flex; align-items: baseline; gap: calc(var(--ac-s) * 2); padding: calc(var(--ac-s) * 2.5) var(--ac-pad); border-bottom: 1px solid var(--border); }
+.ac-group-title { font-size: var(--ac-title); font-weight: 600; }
+.ac-row { display: grid; gap: var(--ac-gap); padding: var(--ac-pad); border-bottom: 1px solid var(--border); }
+.ac-group-foot { padding: calc(var(--ac-s) * 2.5) var(--ac-pad); }
+/* Specimen only */
+.ac-spec { display: grid; gap: 20px; }
+.ac-spec-frame { display: grid; gap: 8px; }
+.ac-spec-frame > .ac-card + .ac-card { margin-top: 4px; }
+.ac-spec-title { color: var(--muted-foreground); font-size: var(--text-xs, .75rem); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+/* Long unbroken text (URLs, paths) wraps instead of widening the card. */
+.ac-card, .ac-card > *, .ac-row > *, .ac-spec, .ac-spec-frame { min-width: 0; }
+.ac-context { overflow-wrap: anywhere; }
+.ac-note-toggle { justify-self: start; }

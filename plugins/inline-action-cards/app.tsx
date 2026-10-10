@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
-import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, Markdown, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, idSchema, title, type Action, type FollowUp, type Item, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
+import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
-import { Evidence, FollowUps, NoteIcon } from "./evidence.js";
+import { FollowUps, Media } from "./evidence.js";
+import { Button, ContextBlock, DecisionCard, DecisionHeader, DecisionRow, NoteField, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { DecisionSheet, type SheetBinding } from "./sheet.js";
 import { readableError, submitDraft, submitting } from "./submit.js";
 import "./app.css";
 import "./compact.css";
+import { Specimen } from "./ui/specimen.js";
 
 export function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, sheet, logEntry }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
@@ -20,7 +22,6 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const navigate = useBbNavigate();
   const [localNote, setLocalNote] = useState("");
   const note = sheet ? sheet.note : localNote;
-  const noteEditor = useRef<HTMLInputElement>(null);
   const changeNote = (value: string) => sheet ? sheet.setNote(value) : setLocalNote(value);
   const clearNote = () => changeNote("");
   const [followUps, setFollowUps] = useState<FollowUp[]>(initialItem?.followUps ?? []);
@@ -235,63 +236,51 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const original = reply && <details className="iac-original"><summary><span>{displayName(reply.original.from)}{reply.original.date ? `, ${reply.original.date}` : ""}: “{reply.original.body.replace(/\s+/g, " ").slice(0, 160)}”</span></summary>
     <div className="iac-email">{reply.original.body}</div>
   </details>;
-  // A plain form: one radio group for the answer, an optional note, and Submit.
+  // The proposal: Action Cards design-system components (ui/), fed by this card's state.
   const staged = sheet?.staged;
   const value = sheet ? staged ? staged.action === "choose" ? staged.choice ?? null : staged.action : null : picked;
-  const formOptions: { id: string; label: string; hint?: string }[] = reply ? [{ id: "send", label: "Send" }, { id: "save-draft", label: "Save to Gmail drafts" }]
+  const formOptions: Option[] = reply ? [{ id: "send", label: "Send" }, { id: "save-draft", label: "Save to Gmail drafts" }]
     : choice ? choice.options : [{ id: "yes", label: actionLabel(item, "yes") }, { id: "no", label: actionLabel(item, "no") }];
   const suggested = choice ? choice.recommended : item.content.type === "decide" ? item.content.recommended : undefined;
   const pickOption = (optionId: string) => { if (sheet) { if (choice) sheet.stage("choose", optionId); else sheet.stage(optionId as Action); } else setPicked(optionId); };
   // With no answer picked, Submit sends the note on its own as a question.
   const submit = () => { if (value) void act(choice ? "choose" : value as Action, choice ? value : undefined); else if (note.trim()) void comment(); };
   const fieldId = `iac-${threadId}-${id}`;
+  const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
   const consequence = choice ? choice.consequence : item.content.type === "decide" ? item.content.consequence : null;
-  const field = <fieldset className="iac-field" disabled={!ready || busy}>
-    <legend className="iac-label">{reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item)}</legend>
-    {consequence && <p className="iac-help">{consequence}</p>}
+  const { context, media } = item.content;
+  const field = <>
+    <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />
     {reply && <>
       {recipients}
       {original}
-      <label className="iac-sub-label" htmlFor={`${fieldId}-draft`}>Draft</label>
-      <textarea id={`${fieldId}-draft`} ref={editor} className="iac-draft" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={4}
+      <textarea ref={editor} aria-label="Draft" className="ac-textarea" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={4}
         onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }}
         onBlur={() => void flush().catch(() => {})} />
-      {ready && !saveError && (saving || dirty.current) && <span className="iac-save" role="status">Saving…</span>}
+      {ready && !saveError && (saving || dirty.current) && <span className="ac-meta" role="status">Saving…</span>}
     </>}
-    <Evidence content={item.content} threadId={threadId} />
+    {context && <ContextBlock><Markdown content={context} /></ContextBlock>}
+    <Media media={media} threadId={threadId} />
     <FollowUps items={followUps} />
-    <div className="iac-radios">
-      {formOptions.map((option) => <label key={option.id} className="iac-radio">
-        <input type="radio" name={fieldId} value={option.id} checked={value === option.id} onChange={() => pickOption(option.id)} />
-        <span className="iac-radio-text"><span>{option.label}{suggested === option.id && <span className="iac-muted"> (recommended)</span>}</span>
-          {option.hint && <span className="iac-radio-hint">{option.hint}</span>}</span>
-      </label>)}
-    </div>
-    <label className="iac-sub-label" htmlFor={`${fieldId}-note`}>Note <span className="iac-muted">(optional)</span></label>
-    <input id={`${fieldId}-note`} ref={noteEditor} className="iac-text" type="text" value={note} maxLength={1000} onChange={(event) => changeNote(event.target.value)} />
-  </fieldset>;
-  const submitButton = <div className="iac-submit-row">
-    <PendingButton type="submit" variant="default" pending={!!sending} pendingLabel="Submitting…" disabled={disabled || (!value && !note.trim())}>Submit</PendingButton>
-  </div>;
+    <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={pickOption} />
+  </>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
   </div></div>;
   const time = status ? status.time : item.updatedAt;
-  // The submitted state reads like a form confirmation: what you chose, your note, and where it stands.
   const chosen = item.attempt ? item.attempt.choice?.label ?? actionLabel(item, item.attempt.action) : null;
-  const where = stalled ? "Not sent: it didn't reach the agent." : item.state === "failed" ? item.result?.message ?? "Failed." : item.state === "succeeded" ? resultLabel(item) : status ? "Sent. Waiting for the agent." : null;
-  const result = <div className="iac-confirm" data-accepted={accepted || undefined} data-state={stalled ? "failed" : item.state}>
-    <div className="iac-label">{title(item)}</div>
-    {chosen && <div className="iac-confirm-answer"><span aria-hidden="true">{item.state === "failed" || stalled ? "⚠" : "✓"}</span> {item.attempt?.action === "skip" || item.attempt?.action === "later" ? chosen : `You chose ${chosen}`}</div>}
-    {item.attempt?.note && <div className="iac-result-note"><NoteIcon />{item.attempt.note}</div>}
-    {where && <div className={item.state === "failed" || stalled ? "iac-failed" : "iac-muted"} role="status">{where} <time dateTime={time}>{new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>}
-    <div className="iac-confirm-actions">
-      {stalled && <ActionButton variant="default" disabled={busy} onClick={() => void act()}>Resend</ActionButton>}
-      {item.state === "failed" && <ActionButton ref={reviewTarget} variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</ActionButton>}
-      {(deferred || (item.state === "failed" && item.result?.retryable)) && <ActionButton variant="outline" disabled={busy} onClick={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</ActionButton>}
-    </div>
-  </div>;
+  const where = stalled ? "Not sent: it didn't reach the agent." : item.state === "failed" ? item.result?.message ?? "Failed." : item.state === "succeeded" ? resultLabel(item) : status ? "Sent, waiting for the agent" : "";
+  const tone = stalled ? "unsent" : item.state === "failed" ? "failed" : item.state === "succeeded" ? "done" : "sent";
+  const result = <>
+    <div className="ac-question">{heading}</div>
+    <Outcome tone={tone} answer={chosen ?? ""} note={item.attempt?.note} status={where} time={new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+      actions={(stalled || item.state === "failed" || deferred) ? <>
+        {(deferred || (item.state === "failed" && item.result?.retryable)) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</Button>}
+        {stalled && <Button type="button" size="sm" variant="default" disabled={busy} onClick={() => void act()}>Resend</Button>}
+        {item.state === "failed" && <Button ref={reviewTarget} type="button" size="sm" variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</Button>}
+      </> : undefined} />
+  </>;
   if (logEntry) {
     const failed = item.state === "failed";
     const retryable = failed && !!item.result?.retryable;
@@ -375,14 +364,14 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
       {failure}
     </article>;
   }
-  if (row && sheet) return <div className="iac-form-row" aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`} role="group">
-    {done ? result : field}
+  if (row && sheet) return <DecisionRow>
+    {done ? result : <>{field}<NoteField value={note} onChange={changeNote} disabled={!ready || busy} /></>}
     {failure}
-  </div>;
-  return <form className="iac-card iac-form" aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`} onSubmit={(event) => { event.preventDefault(); submit(); }}>
-    {done ? result : <>{field}{submitButton}</>}
+  </DecisionRow>;
+  return <DecisionCard label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`} onSubmit={submit}>
+    {done ? result : <>{field}<SubmitRow note={note} onNote={changeNote} disabled={disabled} canSubmit={!!value || !!note.trim()} pending={!!sending} /></>}
     {failure}
-  </form>;
+  </DecisionCard>;
 }
 
 // A Map, not an object literal, so agent-written labels such as "Constructor" cannot reach prototype keys.
@@ -458,5 +447,6 @@ export default definePluginApp((app) => {
   app.experimental_icons.register({ name: "inline-action-cards/skip-forward", component: ({ className }) =>
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 4 11 8-11 8V4ZM19 4v16" /></svg> });
   app.slots.messageDirective({ id: "action", component: ActionDirective });
+  app.slots.messageDirective({ id: "action-specimen", component: () => <div className="iac-container"><Specimen /></div> });
   app.slots.messageDirective({ id: "actions", component: ActionsDirective });
 });

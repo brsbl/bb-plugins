@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useComposer, useComposerView, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionMessage, type Action, type Item, type TableView } from "./model.js";
-import { ActionButton, PendingButton } from "./controls.js";
+import { ActionButton } from "./controls.js";
+import { DecisionGroup, SubmitRow } from "./ui/components.js";
 import { appendActionNote, insertActionMention, insertCommentMention } from "./presentation.js";
 import { readableError, submitDraft, submitting } from "./submit.js";
 import { ActionCard } from "./app.js";
@@ -144,17 +145,15 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
   const ready = table.items.filter((item) => item.state === "ready");
   const answers = ready.filter((item) => saved.stages[item.id]?.revision === item.revision).length;
   const questions = ready.filter((item) => !saved.stages[item.id] && (saved.notes[item.id] ?? "").trim()).length;
-  // One plain form: every decision is a field, and one Submit sends what you filled in.
-  return <form className="iac-table iac-sheet iac-form" aria-label={table.title} onSubmit={(event) => { event.preventDefault(); void send(); }}>
-    <div className="iac-table-header"><span className="iac-sheet-title">{table.title}</span></div>
+  // One form: every decision is a row, and one Submit sends what you filled in.
+  const count = answers + questions;
+  return <DecisionGroup title={table.title} progress={ready.length ? `${answers} of ${ready.length} answered` : undefined} onSubmit={() => void send()}
+    footer={ready.length > 0 ? <SubmitRow canSubmit={count > 0} pending={busy} submitLabel={count ? `Submit ${count} ${count === 1 ? "answer" : "answers"}` : "Submit"} /> : null}>
     {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row onItem={updateItem}
       sheet={{
         staged: saved.stages[item.id] ?? null, changed: saved.changed.includes(item.id), note: saved.notes[item.id] ?? "",
         stage: (action, choice) => stageRow(item, action, choice), clear: () => clearRow(item.id), setNote: (note) => setNote(item.id, note),
       }} />)}
     {error && <div className="iac-error" role="alert">{error}</div>}
-    {ready.length > 0 && <div className="iac-submit-row">
-      <PendingButton type="submit" variant="default" pending={busy} pendingLabel="Submitting…" disabled={!answers && !questions}>Submit</PendingButton>
-    </div>}
-  </form>;
+  </DecisionGroup>;
 }

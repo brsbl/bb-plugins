@@ -1,0 +1,28 @@
+/* Action Cards design tokens. Every size in the card UI comes from here, and every value maps to bb's own scale:
+   type = bb text tokens (which already step up on coarse pointers), space = bb --spacing (4px),
+   controls = bb's compact control (h-8) and its coarse-pointer size (h-10), colors = bb semantic tokens. */
+.ac {
+  --ac-s: var(--spacing, .25rem);
+  --ac-title: var(--text-sm, .8125rem);
+  --ac-body: var(--text-sm, .8125rem);
+  --ac-meta: var(--text-xs, .75rem);
+  --ac-pad: calc(var(--ac-s) * 3);            /* card inset, 12px */
+  --ac-gap: calc(var(--ac-s) * 2);            /* between blocks inside a card, 8px */
+  --ac-control: calc(var(--ac-s) * 8);        /* buttons and inputs, 32px */
+  --ac-option-py: calc(var(--ac-s) * 1.5);    /* option row: 6px + text = ~32px */
+  --ac-option-px: calc(var(--ac-s) * 2.5);
+  --ac-glyph: 16px;                            /* radio / check glyph */
+  --ac-context-max: 132px;                     /* context preview before "Show more" */
+  --ac-radius: var(--radius-lg, .75rem);
+  --ac-radius-control: var(--radius-md, .5rem);
+  color: var(--foreground);
+  font-size: var(--ac-body);
+  line-height: 1.5;
+}
+@media (max-width: 767px) and (pointer: coarse) {
+  .ac {
+    --ac-control: calc(var(--ac-s) * 10);     /* 40px, bb's coarse-pointer control */
+    --ac-option-py: calc(var(--ac-s) * 2.5);  /* ~44px rows */
+    --ac-glyph: 20px;
+  }
+}
