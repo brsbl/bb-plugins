@@ -244,32 +244,88 @@ function emailParts(item: EmailRow) {
   };
 }
 
+const AVATAR_COLORS = ["#d9705a", "#6676c9", "#3f9a7a", "#b7792c", "#8a63c2", "#c2577e", "#6f8f2f"];
+
+function avatar(sender: string) {
+  const words = sender.replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/u).filter(Boolean);
+  const initials = (words.length > 1 ? words[0]![0]! + words[words.length - 1]![0]! : (words[0] ?? "?").slice(0, 2)).toUpperCase();
+  let hash = 0;
+  for (const char of sender.toLowerCase()) hash = (hash * 31 + char.codePointAt(0)!) >>> 0;
+  return { initials, color: AVATAR_COLORS[hash % AVATAR_COLORS.length]! };
+}
+
 function EmailList({ items, label, issueDate, threadId }: { items: EmailRow[]; label: string; issueDate: number; threadId: string }) {
   const navigate = useBbNavigate();
   const composer = useComposer();
-  // Ask only drafts into this thread's own composer; the user still decides what to send.
-  const canAsk = composer.scope.kind === "thread" && composer.scope.threadId === threadId;
+  // Row buttons only fill this thread's own composer; the user still decides what to send.
+  const canCompose = composer.scope.kind === "thread" && composer.scope.threadId === threadId;
+  const compose = (text: string) => {
+    composer.updateText((current) => `${current.trim() ? `${current.trimEnd()}\n` : ""}${text}`);
+    composer.focus();
+  };
   return <ul className="digest-email-list" aria-label={label}>{items.map((item, index) => {
     const { sender, subject } = emailParts(item);
     const name = [sender, subject].filter(Boolean).join(" · ");
+    const face = avatar(sender || subject);
     const date = item.receivedAt === undefined ? null : new Date(item.receivedAt);
     const sameDay = date?.toDateString() === new Date(issueDate).toDateString();
     const dateLabel = date ? new Intl.DateTimeFormat(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric" }).format(date) : "";
-    return <li key={index} className="digest-email-row">
+    return <li key={index} className="digest-row-grid digest-email-row">
+      <span className="digest-avatar" style={{ background: face.color }} aria-hidden>{face.initials}</span>
       <div className="digest-email-main" title={name}>
         <span className="digest-email-sender">{sender || "Email"}</span>
         <span className="digest-email-detail">{item.text || subject}</span>
       </div>
-      {date && <time className="digest-email-date" dateTime={date.toISOString()} title={date.toLocaleString()}>{dateLabel}</time>}
+      <div className="digest-email-meta">
+      <span className="digest-email-date">{date && <time dateTime={date.toISOString()} title={date.toLocaleString()}>{dateLabel}</time>}</span>
       <div className="digest-email-actions">
-        {canAsk && <Button variant="ghost" aria-label={`Ask about ${name}`} onClick={() => {
-          composer.updateText((current) => `${current.trim() ? `${current.trimEnd()}\n` : ""}About ${name}: `);
-          composer.focus();
-        }}>Ask</Button>}
-        <Button aria-label={`Open ${name}`} onClick={() => { if (safeLink(item.url)) navigate.openUrl(item.url); }}>Open</Button>
+        <Button variant={canCompose ? "ghost" : "outline"} aria-label={`Open ${name}`} onClick={() => { if (safeLink(item.url)) navigate.openUrl(item.url); }}>Open</Button>
+        {canCompose && (item.intent === "reply"
+          ? <Button variant="default" aria-label={`Draft a reply to ${name}`} onClick={() => compose(`Draft a reply to ${name}`)}>Draft reply</Button>
+          : <Button aria-label={`Ask about ${name}`} onClick={() => compose(`About ${name}: `)}>Ask</Button>)}
+      </div>
       </div>
     </li>;
   })}</ul>;
+}
+
+const INTENTS = [["urgent", "Urgent", "danger"], ["reply", "Reply", "warning"], ["decide", "Decide", "neutral"]] as const;
+
+function TriageHeading({ label, count, tone, id }: { label: string; count: number; tone: Tone; id?: string }) {
+  return <h3 id={id} className="digest-row-grid digest-triage-heading" data-tone={tone} tabIndex={-1}>
+    <span className="digest-triage-label">{tone !== "neutral" && <span className="digest-triage-dot" aria-hidden />}{label}<span className="digest-triage-count">{count}</span></span>
+  </h3>;
+}
+
+/** Emails grouped by what they need from you; untagged mail folds into one FYI line. */
+function EmailTriage({ all, prefix, issueDate, threadId }: { all: NonNullable<Brief["all"]>; prefix: string; issueDate: number; threadId: string }) {
+  const [fyiOpen, setFyiOpen] = useState(false);
+  const tagged = all.items.some((item) => item.intent);
+  if (!tagged) return <section className="digest-triage-group" id={`${prefix}-all`}>
+    <TriageHeading label={all.label} count={all.items.length} tone="neutral" />
+    <EmailList items={all.items} label={all.label} issueDate={issueDate} threadId={threadId} />
+  </section>;
+  const rest = all.items.filter((item) => !item.intent);
+  const senders = [...new Set(rest.map((item) => emailParts(item).sender).filter(Boolean))];
+  return <>
+    {INTENTS.map(([intent, label, tone]) => {
+      const group = all.items.filter((item) => item.intent === intent);
+      return group.length > 0 && <section key={intent} className="digest-triage-group">
+        <TriageHeading id={`${prefix}-${intent}`} label={label} count={group.length} tone={tone} />
+        <EmailList items={group} label={label} issueDate={issueDate} threadId={threadId} />
+      </section>;
+    })}
+    {rest.length > 0 && <section className="digest-triage-fyi" id={`${prefix}-all`}>
+      <button type="button" className="digest-row-grid digest-fyi-line" aria-expanded={fyiOpen} onClick={() => setFyiOpen(!fyiOpen)}>
+        <Icon name="ChevronRight" className="digest-chevron" aria-hidden />
+        <span className="digest-email-main">
+          <span className="digest-email-sender">FYI<span className="digest-triage-count">{rest.length}</span></span>
+          <span className="digest-email-detail">{senders.join(" · ")}</span>
+        </span>
+      </button>
+      {fyiOpen && <EmailList items={rest} label="FYI" issueDate={issueDate} threadId={threadId} />}
+    </section>}
+  </>;
 }
 
 function sectionLabel(label: string): string {
@@ -287,8 +343,9 @@ function BriefCards({ brief, headline, prefix, issueDate, threadId, expanded, se
   const navigate = useBbNavigate();
   const open = (url: string) => { if (safeLink(url)) navigate.openUrl(url); };
   const tone = headingTone(brief);
+  const triage = brief.all?.items.some((item) => item.intent) ?? false;
   return <div className="digest-brief">
-    {brief.items.length > 0 && <section className="digest-group"><h3 id={`${prefix}-items`} className="digest-section-heading" data-tone={tone} tabIndex={-1}><CountLabel label={brief.heading} count={brief.items.length} /></h3><ol className="digest-cards">
+    {brief.items.length > 0 && !triage && <section className="digest-group"><h3 id={`${prefix}-items`} className="digest-section-heading" data-tone={tone} tabIndex={-1}><CountLabel label={brief.heading} count={brief.items.length} /></h3><ol className="digest-cards">
       {brief.items.map((item, index) => {
         const deadline = item.deadline?.trim();
         const repeatsHeadline = deadline && /^(?:due )?(today|this week)$/iu.test(deadline)
@@ -308,8 +365,7 @@ function BriefCards({ brief, headline, prefix, issueDate, threadId, expanded, se
       </li>; })}
     </ol></section>}
     {brief.later.length > 0 && <section className="digest-group digest-later"><h3 id={`${prefix}-later`} className="digest-section-heading" data-tone="neutral" tabIndex={-1}><CountLabel label={brief.laterLabel} count={brief.later.length} /></h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></section>}
-    {brief.all ? <section className="digest-group" id={`${prefix}-all`}><h3 className="digest-section-heading" data-tone="neutral"><CountLabel label={brief.all.label} count={brief.all.items.length} /></h3>
-      <EmailList items={brief.all.items} label={brief.all.label} issueDate={issueDate} threadId={threadId} /></section>
+    {brief.all ? <EmailTriage all={brief.all} prefix={prefix} issueDate={issueDate} threadId={threadId} />
       : brief.tail && <details className="digest-more" id={`${prefix}-tail`} data-tone="neutral" open={expanded === "tail"}><summary onClick={(event) => { event.preventDefault(); setExpanded(expanded === "tail" ? null : "tail"); }}>
       <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><CountLabel label={sectionLabel(brief.tail.label)} count={brief.tail.items?.length} />
     </summary>{brief.tail.items?.length ? <EmailList items={brief.tail.items} label={sectionLabel(brief.tail.label)} issueDate={issueDate} threadId={threadId} /> : <NewsletterText content={brief.tail.details} />}</details>}
@@ -367,7 +423,7 @@ function IssueSummary({ issue: savedIssue, threadId, loadError, refresh }: {
   };
 
   return (
-    <article className="digest-issue" aria-label="Brief summary" data-state={issue.state}>
+    <article className="digest-issue" aria-label="Brief summary" data-state={issue.state} data-layout={issue.brief?.all && issue.state === "ready" ? "rows" : undefined}>
       <h2 className="digest-headline">{issue.state === "failed" && <Icon name="AlertTriangle" className="digest-warning-icon" aria-hidden />}<span>{issue.headline}</span></h2>
       {issue.brief?.summaryLinks?.length && !issue.brief.all && issue.state === "ready" ? <div className="digest-lede digest-summary-links">{issue.brief.summaryLinks.map((link, index) => <span key={index}>
         {index > 0 && <span aria-hidden> · </span>}{"section" in link ? <a aria-label={summaryLabel(link.label)} data-tone={link.section === "items" ? headingTone(issue.brief!) : "neutral"} href={`#${prefix}-${link.section}`} onClick={(event) => {

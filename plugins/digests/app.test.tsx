@@ -314,6 +314,35 @@ describe("Digests app", () => {
     expect(slot.inspection.rpcCalls.filter((call) => call.method !== "getIssue")).toHaveLength(0);
   });
 
+  it("groups tagged emails into Reply and Decide, folds the rest into FYI, and drafts replies in the composer", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
+      composer: { scope: { kind: "thread", threadId: "thr_issue" } },
+      rpc: { getIssue: () => ({ ...readyIssue, headline: "Maya is waiting on you", brief: {
+        heading: "Do next", items: [{ title: "Reply to Maya", text: "Dinner.", action: { label: "Review reply", url: "https://example.test/maya" } }],
+        later: [], laterLabel: "Later",
+        all: { label: "All unread", items: [
+          { title: "Maya Chen · Dinner Saturday?", sender: "Maya Chen", subject: "Dinner Saturday?", text: "Asks if 7pm works.", url: "https://example.test/maya", intent: "reply" },
+          { title: "Alumni Office · Career week", sender: "Alumni Office", subject: "Career week", text: "Mentor for 2 hours?", url: "https://example.test/alumni", intent: "decide" },
+          { title: "Chase · Statement", sender: "Chase", subject: "Statement", text: "$412.18 due Oct 28.", url: "https://example.test/chase" },
+        ] },
+      } }) },
+    });
+    expect(await slot.findByRole("list", { name: "Reply" })).toBeDefined();
+    expect(slot.getByRole("list", { name: "Decide" }).querySelectorAll("li")).toHaveLength(1);
+    expect(slot.queryByRole("button", { name: "Review reply" })).toBeNull();
+    const fyi = slot.getByRole("button", { name: /FYI/ });
+    expect(fyi.getAttribute("aria-expanded")).toBe("false");
+    expect(fyi.textContent).toContain("Chase");
+    expect(slot.queryByRole("list", { name: "FYI" })).toBeNull();
+    fireEvent.click(fyi);
+    expect(slot.getByRole("list", { name: "FYI" }).querySelectorAll("li")).toHaveLength(1);
+    expect(slot.queryByRole("button", { name: "Draft a reply to Alumni Office · Career week" })).toBeNull();
+    fireEvent.click(slot.getByRole("button", { name: "Draft a reply to Maya Chen · Dinner Saturday?" }));
+    expect(slot.inspection.composer.text).toBe("Draft a reply to Maya Chen · Dinner Saturday?");
+    expect(slot.inspection.rpcCalls.filter((call) => call.method !== "getIssue")).toHaveLength(0);
+  });
+
   it("keeps repeat senders flat in a collapsed tail when no full list exists", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const rows = ["Robinhood", "Figma", "robinhood", "Robinhood", "Figma"].map((sender, index) => ({
