@@ -37,15 +37,19 @@ const uploadId = z.string().regex(/^[0-9a-f]{32}$/);
 /** Base64 of at most one ASSET_CHUNK_BYTES chunk. */
 const chunkData = z.string().max(Math.ceil(ASSET_CHUNK_BYTES / 3) * 4);
 
-/** Signals from a host to the server: a note an editor watches changed on disk, outside bb. */
+/** Signals from a host to the server: a note an editor or viewer watches changed on disk, outside bb. */
 export const hostSignals = {
   editorNoteChanged: { payload: z.object({ noteId, change: externalChange }) },
+  viewerNoteChanged: { payload: z.object({ path: filePath, version: z.string() }) },
 };
 
 /** The realtime channel that relays `editorNoteChanged` to open editors. */
 export const NOTE_CHANGED_CHANNEL = "editor-note-changed";
 export const noteChanged = z.object({ hostId: id, noteId, change: externalChange });
 export type NoteChanged = z.infer<typeof noteChanged>;
+/** The realtime channel that relays `viewerNoteChanged` to panels showing the note read-only. */
+export const VIEWER_NOTE_CHANGED_CHANNEL = "viewer-note-changed";
+export type ViewerNoteChanged = { hostId: string; path: string; version: string };
 
 const assetReadResult = z.discriminatedUnion("ok", [
   z.object({
@@ -170,6 +174,11 @@ export const hostContract = defineRpcContract({
     input: z.object({ path: filePath }).strict(),
     output: z.object({ revealed: z.literal(true) }).strict(),
   },
+  /** Watches a note the viewer shows, for VIEWER_WATCH_LEASE_MS; renew to keep it, and compare the version. */
+  watchNote: {
+    input: z.object({ path: filePath }).strict(),
+    output: z.object({ version: z.string() }).strict(),
+  },
   ...editorHostMethods,
 });
 
@@ -224,6 +233,10 @@ export const rpcContract = defineRpcContract({
   revealNote: {
     input: z.object({ hostId: id, path: filePath }).strict(),
     output: z.object({ revealed: z.literal(true) }).strict(),
+  },
+  watchNote: {
+    input: z.object({ hostId: id, path: filePath }).strict(),
+    output: z.object({ version: z.string() }).strict(),
   },
   /** Keeps a note (and the selection) for the mention Send to agent puts in the panel's thread's composer. */
   shareNote: {

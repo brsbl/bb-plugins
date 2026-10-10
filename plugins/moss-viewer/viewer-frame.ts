@@ -52,6 +52,16 @@ interface FrameGlobals {
 
 export const SUPPORTED_VIEWER_API = 1;
 
+/** contract.ts's VIEWER_NOTE_CHANGED_CHANNEL, for the panel, which does not import the contract's schemas. */
+export const VIEWER_NOTE_CHANGED = "viewer-note-changed";
+
+/** A `viewerNoteChanged` relay, or null for anything else on the channel. */
+export function asViewerNoteChanged(payload: unknown): { hostId: string; path: string; version: string } | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const { hostId, path, version } = payload as Record<string, unknown>;
+  return typeof hostId === "string" && typeof path === "string" && typeof version === "string" ? { hostId, path, version } : null;
+}
+
 /** The frame's document URL, carrying the theme its first paint should use. */
 export function frameSource(frameUrl: string, theme: MossViewerTheme): string {
   return `${frameUrl}?theme=${theme}`;

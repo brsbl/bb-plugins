@@ -70,6 +70,7 @@ async function setup(machines: Machines = {}) {
       }
       if (method === "openInMoss") return { opened: true };
       if (method === "revealNote") return { revealed: true };
+      if (method === "watchNote") return { version: "v1" };
       if (method === "readAsset") {
         if (request.ref === "assets/missing.mp4") return { ok: false, code: "not_found", message: "assets/missing.mp4 is not in this note's folder." };
         if (request.ref === "assets/drawing.svg") return { ok: true, contentType: "image/svg+xml", size: 4, modifiedMs: 1, offset: 0, data: Buffer.from("<svg").toString("base64") };
@@ -250,6 +251,14 @@ describe("the editor's file bridge", () => {
       { channel: "editor-note-changed", payload: { hostId: "mac", noteId: NOTE_ID, change: { kind: "changed", version: V2, metaVersion: M1 } } },
       { channel: "editor-note-changed", payload: { hostId: "mac", noteId: NOTE_ID, change: { kind: "removed", reason: "trashed" } } },
     ]);
+  });
+
+  it("watches a note the viewer shows on its host, and tells its panels when it changes", async () => {
+    const h = await setup();
+    expect(await h.behavior.callRpc("watchNote", { hostId: "mac", path: notePath })).toEqual({ version: "v1" });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "watchNote", hostId: "mac", input: { path: notePath } });
+    await h.experimental_emitHostSignal("mac", "viewerNoteChanged", { path: notePath, version: "v2" });
+    expect(h.realtimeSignals).toEqual([{ channel: "viewer-note-changed", payload: { hostId: "mac", path: notePath, version: "v2" } }]);
   });
 
   it("serves an editor's media by note id", async () => {

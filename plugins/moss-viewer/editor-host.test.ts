@@ -43,7 +43,7 @@ function createHost() {
       experimental_apiVersion: 1,
       contract: hostContract,
       experimental_signals: hostSignals,
-      handlers: { readNote: async (input) => editor.annotate(await readNote(input)), listNotes, readAsset, openInMoss, revealNote, ...editor.handlers },
+      handlers: { readNote: async (input) => editor.annotate(await readNote(input)), listNotes, readAsset, openInMoss, revealNote, watchNote: async () => ({ version: "v" }), ...editor.handlers },
       dispose: editor.dispose,
     },
     {

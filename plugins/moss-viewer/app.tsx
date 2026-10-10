@@ -18,18 +18,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu";
 import { EDITOR_NOTE_CHANGED, asNoteChanged, createEditorBridge, fromFrame, type EditorBridge, type EditorBridgeOptions } from "./editor-bridge";
 import { EditorStatus, MossEditorFrame, type EditorNote } from "./editor-panel";
 import type * as Moss from "./vendor/moss-editor.contract.js";
-import { cn, formatHomePathForDisplay } from "./lib/utils";
+import { formatHomePathForDisplay } from "./lib/utils";
 import {
   assetHref,
   frameSource,
   frameViewer,
+  VIEWER_NOTE_CHANGED,
+  asViewerNoteChanged,
   routeFrameLinks,
   safeExternalUrl,
   setFrameTheme,
@@ -48,6 +48,8 @@ type ReadInput = {
 };
 
 const NOTES_TTL_MS = 30_000;
+/** Well inside the host's 60s watch lease, so a watch outlives a missed renewal. */
+const VIEWER_WATCH_RENEW_MS = 20_000;
 /** Show the frame even if moss never reports ready, rather than leaving the tab blank. */
 const READY_TIMEOUT_MS = 5_000;
 
@@ -77,7 +79,8 @@ const HEADER_ICON_BUTTON_CLASS =
   "inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm p-0 text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50 [&_[data-icon-root]]:size-3 max-md:pointer-coarse:h-9 max-md:pointer-coarse:w-9 max-md:pointer-coarse:[&_[data-icon-root]]:size-5";
 /** Below this header width bb's file header folds its actions into a menu. */
 const NARROW_HEADER_PX = 560;
-const LOADING_ICON_DELAY_MS = 160;
+/** How long the path's tooltip says Copied. */
+const COPIED_MS = 1_500;
 
 function useElementWidth<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -123,23 +126,50 @@ function HeaderButton({
   );
 }
 
-function NoteIcon({ loading }: { loading: boolean }) {
-  const [spinning, setSpinning] = useState(false);
-  useEffect(() => {
-    setSpinning(false);
-    if (!loading) return;
-    const timer = window.setTimeout(() => setSpinning(true), LOADING_ICON_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [loading]);
+function NoteIcon() {
   return (
     <span className="flex size-3.5 shrink-0 items-center justify-center text-subtle-foreground max-md:pointer-coarse:size-5">
-      <Icon
-        name={spinning ? "Spinner" : "File"}
-        fallback="FileText"
-        aria-hidden
-        className={cn("size-full", spinning && "animate-spin motion-reduce:animate-none")}
-      />
+      <Icon name="File" fallback="FileText" aria-hidden className="size-full" />
     </span>
+  );
+}
+
+/** The note's path: clicking it copies the path, and its tooltip says Copied for a moment. */
+function NotePath({ path }: { path: string }) {
+  const [hovered, setHovered] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), COPIED_MS);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  const copyPath = () => {
+    void navigator.clipboard.writeText(path).then(
+      () => setCopied(true),
+      () => toast.error("Failed to copy file path"),
+    );
+  };
+  return (
+    <>
+      <Tooltip open={hovered || copied} onOpenChange={setHovered}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="Copy file path"
+            onClick={copyPath}
+            className="min-w-0 cursor-pointer rounded-sm text-left font-mono text-xs font-medium leading-5 text-file-accent underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-md:pointer-coarse:text-sm"
+          >
+            <span dir="rtl" className="block w-min max-w-full truncate">
+              {`\u200e${formatHomePathForDisplay(path)}`}
+            </span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{copied ? "Copied" : "Copy file path"}</TooltipContent>
+      </Tooltip>
+      <span role="status" className="sr-only">
+        {copied ? "File path copied" : ""}
+      </span>
+    </>
   );
 }
 
@@ -153,7 +183,6 @@ interface HeaderAction {
 function NoteHeader({
   path,
   canGoBack,
-  loading,
   status,
   actions,
   onBack,
@@ -161,8 +190,7 @@ function NoteHeader({
 }: {
   path: string;
   canGoBack: boolean;
-  loading: boolean;
-  /** The editor's save state; the editor refreshes itself, so it has no Refresh action. */
+  /** The editor's save state. */
   status: ReactNode;
   /** The note's other actions: buttons beside the path, or a menu when the panel is narrow. */
   actions: HeaderAction[];
@@ -171,12 +199,6 @@ function NoteHeader({
 }) {
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const narrow = width > 0 && width < NARROW_HEADER_PX;
-  const copyPath = () => {
-    void navigator.clipboard.writeText(path).then(
-      () => toast.success("File path copied"),
-      () => toast.error("Failed to copy file path"),
-    );
-  };
   return (
     <TooltipProvider delayDuration={300}>
       <div
@@ -185,22 +207,8 @@ function NoteHeader({
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {canGoBack ? <HeaderButton icon="ChevronLeft" label="Back" onClick={onBack} /> : null}
-          <NoteIcon loading={loading} />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label="Copy file path"
-                onClick={copyPath}
-                className="min-w-0 cursor-pointer rounded-sm text-left font-mono text-xs font-medium leading-5 text-file-accent underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-md:pointer-coarse:text-sm"
-              >
-                <span dir="rtl" className="block w-min max-w-full truncate">
-                  {`\u200e${formatHomePathForDisplay(path)}`}
-                </span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Copy file path</TooltipContent>
-          </Tooltip>
+          <NoteIcon />
+          <NotePath path={path} />
           {status}
           {narrow
             ? null
@@ -222,11 +230,6 @@ function NoteHeader({
                 mobileTitle="Note actions"
                 className="max-md:pointer-coarse:[&_[role=menuitem]]:min-h-11 max-md:pointer-coarse:[&_[role=menuitem]]:text-sm"
               >
-                <DropdownMenuLabel className="max-w-80 break-all font-mono">{formatHomePathForDisplay(path)}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={copyPath}>
-                  <Icon name="Copy" aria-hidden /> Copy file path
-                </DropdownMenuItem>
                 {actions.map((action) => (
                   <DropdownMenuItem key={action.label} disabled={action.disabled} onSelect={action.onSelect}>
                     <Icon name={action.icon} fallback="MoreHorizontal" aria-hidden /> {action.label}
@@ -263,6 +266,8 @@ function MossViewerFrame(props: FrameProps) {
   const [initialTheme] = useState(theme);
   const [loads, setLoads] = useState(0);
   const [shown, setShown] = useState(false);
+  // Where the reader was, so a note read again after a change on disk opens at the same place.
+  const scrolled = useRef<{ path: string; top: number } | null>(null);
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -309,8 +314,13 @@ function MossViewerFrame(props: FrameProps) {
       if (live) setShown(true);
     };
     const timeout = window.setTimeout(reveal, READY_TIMEOUT_MS);
-    void handle.ready.then(reveal);
+    const kept = scrolled.current;
+    void handle.ready.then(() => {
+      reveal();
+      if (live && kept?.path === note.path) frame.contentDocument?.scrollingElement?.scrollTo({ top: kept.top });
+    });
     return () => {
+      scrolled.current = { path: note.path, top: frame.contentDocument?.scrollingElement?.scrollTop ?? 0 };
       live = false;
       window.clearTimeout(timeout);
       handleRef.current = null;
@@ -367,7 +377,6 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const [stack, setStack] = useState<{ note: MossNote | null; back: MossNote[] }>({ note: null, back: [] });
   const [original, setOriginal] = useState(false);
   const [missing, setMissing] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   // The open viewer's or editor's selection, read when the user sends the note to the agent.
   const selectionSource = useRef<(() => Moss.MossSelection | null) | null>(null);
   const setSelectionSource = useCallback((source: (() => Moss.MossSelection | null) | null) => {
@@ -502,6 +511,62 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
     // The note's key names it; a new read of the same note keeps its editor.
   }, [editorKey]);
 
+  // A note in the viewer follows its file: the host watches it while the panel renews the lease,
+  // and the panel reads it again when the host signals a change or a renewal reports a new version.
+  const viewerNote = editorNote === null ? note : null;
+  const viewerRef = useRef(viewerNote);
+  viewerRef.current = viewerNote;
+  const seenVersion = useRef<string | null>(null);
+  const reloadViewer = useCallback(() => {
+    const shown = viewerRef.current;
+    if (shown === null) return;
+    const { hostId, path } = shown;
+    rpcRef.current.call("read", { kind: "host", path, hostId, environmentId: null }).then(
+      (result) => {
+        if (!result.moss) return;
+        setStack((current) =>
+          current.note?.hostId === hostId && current.note.path === path ? { ...current, note: result } : current,
+        );
+      },
+      (error: unknown) => console.warn("[moss-viewer] could not read the changed note", error),
+    );
+  }, []);
+  const watchKey = viewerNote === null ? null : noteKey(viewerNote);
+  useEffect(() => {
+    const shown = viewerRef.current;
+    if (watchKey === null || shown === null) return;
+    const { hostId, path } = shown;
+    let live = true;
+    seenVersion.current = null;
+    const renew = () => {
+      rpcRef.current.call("watchNote", { hostId, path }).then(
+        ({ version }) => {
+          if (!live) return;
+          if (seenVersion.current !== null && seenVersion.current !== version) reloadViewer();
+          seenVersion.current = version;
+        },
+        // The host is away or cannot watch this file; the next renewal tries again.
+        () => undefined,
+      );
+    };
+    renew();
+    const timer = window.setInterval(renew, VIEWER_WATCH_RENEW_MS);
+    window.addEventListener("focus", renew);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", renew);
+    };
+  }, [watchKey, connection, reloadViewer]);
+  useRealtime(VIEWER_NOTE_CHANGED, (payload) => {
+    const change = asViewerNoteChanged(payload);
+    const shown = viewerRef.current;
+    if (change === null || shown === null || change.hostId !== shown.hostId || change.path !== shown.path) return;
+    if (change.version === seenVersion.current) return;
+    seenVersion.current = change.version;
+    reloadViewer();
+  });
+
   if (original) return <Original />;
   if (missing !== null) {
     return (
@@ -517,16 +582,6 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       </span>
     );
   }
-
-  const refresh = () => {
-    setRefreshing(true);
-    readNote(note.hostId, note.path)
-      .then((next) => {
-        if (next) setStack((current) => ({ ...current, note: next }));
-      })
-      .catch((error: unknown) => toast.error(`Couldn't refresh this note: ${messageOf(error)}`))
-      .finally(() => setRefreshing(false));
-  };
 
   const back = () =>
     setStack((current) =>
@@ -621,13 +676,9 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       <NoteHeader
         path={note.path}
         canGoBack={stack.back.length > 0}
-        loading={refreshing}
         status={editorNote ? <EditorStatus status={editorState.status} /> : null}
         actions={[
           ...(restorable ? [{ icon: "ArrowTurnBackward", label: "Restore your last save from bb", onSelect: restoreLastSave }] : []),
-          ...(editorNote
-            ? []
-            : [{ icon: "RotateCcw", label: refreshing ? "Refreshing note" : "Refresh note", disabled: refreshing, onSelect: refresh }]),
           { icon: "FolderOpen", label: "Show in Finder", onSelect: revealNote },
           { icon: "ExternalLink", label: "Open in Moss", onSelect: openInMoss },
         ]}
