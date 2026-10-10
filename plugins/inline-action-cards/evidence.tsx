@@ -55,30 +55,6 @@ export function FollowUps({ items }: { items: FollowUp[] }) {
   </ol>;
 }
 
-// The answer bar: a one-line comment field, then the card's answer buttons.
-// Choosing an answer sends the typed comment with it; the field's own submit sends the comment alone as a follow-up.
-export function AnswerBar({ value, onChange, onSend, disabled, busy, inputRef, children }: {
-  value: string; onChange: (value: string) => void; onSend: () => void;
-  disabled: boolean; busy: boolean; inputRef: Ref<HTMLInputElement>; children?: ReactNode;
-}) {
-  const typed = !!value.trim();
-  return <div className="iac-answer-bar">
-    <div className="iac-note-input" data-typed={typed || undefined}>
-      <NoteIcon />
-      <input ref={inputRef} type="text" aria-label="Comment" placeholder="Add a comment or ask a question" value={value} maxLength={1000} disabled={busy}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && value) { event.preventDefault(); onChange(""); }
-          if (event.key === "Enter" && typed && !disabled) { event.preventDefault(); onSend(); }
-        }} />
-      {typed && <button type="button" className="iac-note-submit" aria-label="Send comment" title="Send comment (nothing is decided)" disabled={disabled} onClick={onSend}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6M7 11l5-5 5 5" /></svg>
-      </button>}
-    </div>
-    {children}
-  </div>;
-}
-
 // A sticky note: the comment that rides along with an answer.
 export function NoteIcon({ className = "iac-note-icon" }: { className?: string }) {
   return <svg className={className} viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 20.5H7A2.5 2.5 0 0 1 4.5 18V6A2.5 2.5 0 0 1 7 3.5h10A2.5 2.5 0 0 1 19.5 6v9.5z" /><path d="M14.5 20.5v-3a2 2 0 0 1 2-2h3M8.5 8.5h7M8.5 12h4" /></svg>;
