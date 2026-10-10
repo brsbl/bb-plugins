@@ -5,6 +5,8 @@ playground right in their message, built from native controls or a custom HTML
 interface, and changing an input updates it immediately without another model
 call.
 
+Inspired by OpenAI's [Intelligent UI](https://openai.com/index/gpt-6-for-everyone/) in ChatGPT.
+
 ## Install
 
 Requires bb 0.46 or newer.
