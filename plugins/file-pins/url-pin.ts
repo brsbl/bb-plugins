@@ -17,6 +17,17 @@ export function parseWebUrl(input: string): string | null {
   } catch { return null; }
 }
 
+const DEV_NAME = /(?:^|\.)(?:localhost|local|internal|lan|home|test)$/;
+const PRIVATE_IPV4 = /^(?:127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|0\.0\.0\.0$)/;
+
+/** A dev server rather than a website: loopback, a private network address, or a machine or dev-only name. */
+export function isLocalUrl(href: string): boolean {
+  const host = new URL(href).hostname.toLowerCase();
+  if (host.startsWith("[")) return /^\[(?:::1?|f[cd][\da-f]*:.*|fe[89ab][\da-f]*:.*)\]$/.test(host);
+  if (/^[\d.]+$/.test(host)) return PRIVATE_IPV4.test(host);
+  return !host.includes(".") || DEV_NAME.test(host);
+}
+
 function decode(segment: string): string {
   try { return decodeURIComponent(segment); } catch { return segment; }
 }

@@ -98,6 +98,16 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
 
+### Content Calendar
+
+Plans deliverables on a month or week calendar stored on a dedicated Google calendar, with drag-and-drop rescheduling, Evergreen and Later trays, gates, and attached Moss notes. Agents manage it through `bb content-calendar` and show it live inline in chat.
+
+![Content Calendar month view with Evergreen and Later trays](plugins/content-calendar/docs/calendar-month.png)
+
+[Source](plugins/content-calendar) · [README](plugins/content-calendar/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/content-calendar --yes`
+
 ### Context Katamari
 
 Shows how full each thread's context window is as a Katamari Damacy-style ball in a floating window. The ball grows as context fills, pops when the thread compacts, and rolls only while the thread is working.
@@ -302,7 +312,7 @@ Keep a thread's key files and links one click away in a strip above the composer
 
 ![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
 
-![Pins truncated to fit a phone, with the rest in the ⋯ list](plugins/file-pins/docs/phone-more-list.png)
+![Pins with whole labels on a phone, the last one shortened to fill the row, and the rest in the full-width ⋯ list](plugins/file-pins/docs/phone-more-list.png)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 

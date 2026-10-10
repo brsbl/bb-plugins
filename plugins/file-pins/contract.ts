@@ -1,5 +1,6 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { PR_STATES } from "./pr-state.js";
 import { MAX_TITLE_LENGTH, MAX_URL_LENGTH, parseWebUrl } from "./url-pin.js";
 
 const id = z.string().min(1).max(200);
@@ -79,6 +80,11 @@ export const rpcContract = defineRpcContract({
   icon: {
     input: z.object({ threadId: id, pinId: id }).strict(),
     output: z.object({ dataUrl: z.string().max(128 * 1024).nullable() }),
+  },
+  // A GitHub PR pin's state (open, draft, merged or closed), or null for other pins and PRs GitHub won't show without a login.
+  prState: {
+    input: z.object({ threadId: id, pinId: id }).strict(),
+    output: z.object({ state: z.enum(PR_STATES).nullable() }),
   },
   unpin: {
     input: z.object({ threadId: id, pinId: id }).strict(),
