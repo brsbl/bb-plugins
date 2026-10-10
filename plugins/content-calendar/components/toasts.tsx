@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-// A per-surface toast line (page, side panel, inline calendar). Undo for a
+// A per-surface toast line (page, inline calendar). Undo for a
 // delete lives here, so it shows beside the calendar it came from.
 
 export interface ToastInput { message: string; action?: { label: string; run: () => void }; duration?: number; tone?: "info" | "error" }
