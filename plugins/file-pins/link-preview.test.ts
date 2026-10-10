@@ -32,3 +32,23 @@ it("does not fetch local addresses or request previews after disposal", async ()
   expect(await previews.get('https://example.com')).toBeNull();
   expect(load).not.toHaveBeenCalled();
 });
+
+it("reads late head metadata on large pages such as YouTube", async () => {
+  const resources = await import("@brsbl/bb-website-icons");
+  const html = `<head><script>${" ".repeat(800_000)}</script><meta property="og:title" content="Video title"></head>`;
+  const fetch = vi.spyOn(resources, "readPublicResource").mockImplementation(async (url, _signal, _budget, options) => ({
+    url, contentType: "text/html", body: Buffer.from(html).subarray(0, options?.maxBytes ?? 256 * 1024),
+  }));
+  const previews = new LinkPreviews();
+  try { expect((await previews.get("https://www.youtube.com/watch?v=example"))?.title).toBe("Video title"); }
+  finally { previews.dispose(); fetch.mockRestore(); }
+});
+
+it("previews a direct raster image instead of discarding non-HTML responses", async () => {
+  const resources = await import("@brsbl/bb-website-icons");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+  const fetch = vi.spyOn(resources, "readPublicResource").mockImplementation(async (url) => ({ url, contentType: "image/png", body: png }));
+  const previews = new LinkPreviews();
+  try { expect((await previews.get("https://example.com/cover.png"))?.image).toBe(`data:image/png;base64,${png.toString("base64")}`); }
+  finally { previews.dispose(); fetch.mockRestore(); }
+});
