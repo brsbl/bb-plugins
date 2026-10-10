@@ -61,9 +61,9 @@ the thread moves. Deleting the thread removes its pins. Pins do not copy file or
 page contents or automatically add them to agent context.
 
 Pins show above the thread composer; links show their site's icon and open the
-way bb opens links. In the UI, Unpin moves a pin from the strip to the ⋯ list
-and Pin moves it back while the strip has room; Remove deletes it with an Undo
-toast. The CLI `remove` command matches the UI's Remove, without the Undo toast.
+way bb opens links. In the UI, Unpin removes an item from the thread with an Undo toast.
+Pin moves a previously hidden item back to the strip while there is room.
+The CLI `remove` command matches Unpin, without the Undo toast.
 Missing files stay visible with a small × to remove them. The composer's pin
 button adds a "Pin" pill for the user to follow with the files or links to
 pin; the pill sends this skill to you.

@@ -71,7 +71,8 @@ type Budget = { redirects: number };
  * No ambient HTTP client, shared agent, proxy credentials, cookies or referrer.
  * `truncate` keeps the first bytes of an oversized page, where <head> icon links live, instead of failing.
  */
-export async function readPublicResource(input: URL, signal: AbortSignal, budget: Budget, { truncate = false } = {}): Promise<Resource> {
+export async function readPublicResource(input: URL, signal: AbortSignal, budget: Budget, { truncate = false, maxBytes = ICON_LIMITS.inputBytes }: { truncate?: boolean; maxBytes?: number } = {}): Promise<Resource> {
+  if (!Number.isInteger(maxBytes) || maxBytes <= 0 || maxBytes > 2 * 1024 * 1024) throw new Error("Invalid website resource limit");
   let url = publicUrl(input.href);
   if (!url) throw new Error("Website URL is not public HTTPS");
   while (true) {
@@ -93,7 +94,7 @@ export async function readPublicResource(input: URL, signal: AbortSignal, budget
         }
         if (status < 200 || status >= 300 ||
           (reply.headers["content-encoding"] && reply.headers["content-encoding"] !== "identity") ||
-          (!truncate && Number(reply.headers["content-length"] ?? 0) > ICON_LIMITS.inputBytes)) {
+          (!truncate && Number(reply.headers["content-length"] ?? 0) > maxBytes)) {
           reply.destroy();
           reject(new Error("Website resource is unavailable"));
           return;
@@ -103,9 +104,9 @@ export async function readPublicResource(input: URL, signal: AbortSignal, budget
         let bytes = 0;
         reply.on("data", (chunk: Buffer) => {
           bytes += chunk.length;
-          if (bytes > ICON_LIMITS.inputBytes) {
+          if (bytes > maxBytes) {
             if (!truncate) { request.destroy(new Error("Website resource is too large")); return; }
-            chunks.push(chunk.subarray(0, chunk.length - (bytes - ICON_LIMITS.inputBytes)));
+            chunks.push(chunk.subarray(0, chunk.length - (bytes - maxBytes)));
             resolve({ status, body: Buffer.concat(chunks), contentType });
             reply.destroy();
             return;
