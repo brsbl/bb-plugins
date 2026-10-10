@@ -105,6 +105,8 @@ bb action-cards report receipts-1 --attempt <uuid> --outcome succeeded --message
 
 The card collapses to a result line and adds the local time. Use “Sent to Billing team”, “Archived”, or “Filed under Receipts” as appropriate. The draft stays reachable through View. Do not promise Undo: this plugin has no reversible service action. Put useful result detail in the message when needed. Read persisted state any time with `bb action-cards get esc-1`.
 
+If bb could not deliver a click (for example it refused a competing turn), the card notices once the thread is idle with nothing queued and shows “Not sent” with Resend. Resend reuses the same attempt ID, so claim it as usual; it can never be claimed twice.
+
 A rejected claim is not approval to try again. It means the attempt is stale, already claimed, or finished. Read its state and reconcile the external service result; never repeat the side effect. The claim is durable across reloads. Retain the external service's receipt in the thread when available. This prevents duplicate execution from repeated clicks/messages but cannot make external APIs exactly-once.
 
 ## Failure and retry
@@ -132,6 +134,14 @@ bb action-cards answer rotate-key --comment <commentId> --message-stdin <<'MD'
 Three CI secrets use it: **deploy**, **e2e**, and **nightly**. I rotate all three in the same step.
 MD
 ```
+
+If the comment asks you to act and you do it (for example the user comments “delete this” and you close the PR the card asked about), settle the card so it stops waiting:
+
+```sh
+bb action-cards resolve pr-412 --message 'Closed the PR'
+```
+
+`resolve` only works on an unanswered card and records no approval; a clicked card is reported through its claimed attempt instead.
 
 The answer renders as Markdown under the question on the card; `bb action-cards get` returns the card's `followUps`. Keep your chat reply to one short line (or none), and do not re-emit the table. If the follow-up asks for a change, read the latest item and revise the **same** Reply draft using its revision. Decide question/consequence updates are not supported; explain the requested change instead of creating a replacement card or acting.
 

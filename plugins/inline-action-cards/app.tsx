@@ -208,7 +208,9 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const ready = item?.state === "ready";
   const pending = item?.state === "pending";
   const status = item && !busy ? sentStatus(item) : null;
-  const done = item?.state === "succeeded" || item?.state === "failed" || !!status;
+  // Prepared and once submitted, but never claimed by the time the thread went idle: the agent never got it.
+  const stalled = !!item && item.state === "pending" && !busy && !status && !item.attempt?.claimed && !row;
+  const done = item?.state === "succeeded" || item?.state === "failed" || !!status || stalled;
   const showBody = logEntry ? viewResult : row ? expanded : !done || viewResult;
   const editor = useRef<HTMLTextAreaElement>(null);
   const reviewTarget = useRef<HTMLButtonElement>(null);
@@ -257,12 +259,13 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   // Status, its actions and the comment stay together as one compact unit.
   const result = <div className="iac-result-line" data-accepted={accepted || undefined} data-state={item.state}>
     <div className="iac-result-head">
-      <span className={item.state === "failed" ? "iac-failed" : "iac-result"} role="status">
-        <span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> {status ? status.label : resultLabel(item)}
+      <span className={item.state === "failed" || stalled ? "iac-failed" : "iac-result"} role="status">
+        <span aria-hidden="true">{item.state === "failed" || stalled ? "⚠" : "✓"}</span> {stalled ? `Not sent: “${actionLabel(item, item.attempt!.action)}” didn't reach the agent` : status ? status.label : resultLabel(item)}
         {row && <span className="iac-muted"> · {title(item)}</span>}
         <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
       </span>
       <span className="iac-actions iac-result-actions">
+        {stalled && <ActionButton variant="default" disabled={busy} onClick={() => void act()}>Resend</ActionButton>}
         {status && !item.attempt?.claimed && <IconButton label="Resend request" disabled={busy} onClick={() => void act()}><ResendIcon /></IconButton>}
         {(deferred || (item.state === "failed" && item.result?.retryable)) && <IconButton label={deferred ? "Resume" : reply ? "Edit draft" : "Choose again"} disabled={busy} onClick={() => void reopen()}>{reply && !deferred ? <EditIcon /> : <UndoIcon />}</IconButton>}
         <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>

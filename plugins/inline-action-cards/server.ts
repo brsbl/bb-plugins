@@ -158,6 +158,27 @@ export function createStore(bb: BbPluginApi) {
       bb.realtime.publish("items", { threadId: input.threadId });
       return next;
     },
+    // An agent acted on a comment instead of a click (for example it closed the PR the card asked about).
+    // Settling the card records that result; nothing was approved, so there is no attempt.
+    resolve(threadId: string, id: string, message: string) {
+      return change(threadId, id, null, (item) => {
+        if (item.state !== "ready") throw new Error("Only an unanswered card can be resolved. Report the claimed attempt instead.");
+        item.state = "succeeded";
+        item.result = { message, retryable: false };
+      });
+    },
+    // The thread went idle with nothing queued, yet a sent request was never claimed: the agent never got it
+    // (for example bb refused a competing turn). Clearing sentAt shows the card as not sent, with Resend.
+    undelivered(threadId: string) {
+      const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
+      const cutoff = Date.now() - 5000;
+      for (const row of rows) {
+        const item = itemSchema.parse(JSON.parse(row.value));
+        const sentAt = item.attempt?.sentAt;
+        if (item.state !== "pending" || !sentAt || item.attempt!.claimed || Date.parse(sentAt) > cutoff) continue;
+        change(threadId, item.id, null, (next) => { if (next.attempt && !next.attempt.claimed) delete next.attempt.sentAt; });
+      }
+    },
     answer(threadId: string, id: string, commentId: string, message: string) {
       const answer = answerSchema.parse(message);
       const result = db.prepare("UPDATE action_comments SET answer = ? WHERE thread_id = ? AND item_id = ? AND comment_id = ?").run(answer, threadId, id, z.string().uuid().parse(commentId));
@@ -262,6 +283,10 @@ export default function plugin(bb: BbPluginApi): void {
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
     table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable, submitted: store.submitted, prepareBatch: store.prepareBatch,
   });
+  bb.events.on("thread.idle", ({ thread }) => {
+    if (thread.queuedMessageCount > 0) return;
+    try { store.undelivered(thread.id); } catch (err) { bb.log.warn(`Could not check an idle thread for undelivered card requests: ${err instanceof Error ? err.message : String(err)}`); }
+  });
   bb.events.on("message.cancelled", ({ entry }) => {
     try { store.cancelled(entry); } catch (err) { bb.log.warn(`Could not reopen an action card after its queued request was deleted: ${err instanceof Error ? err.message : String(err)}`); }
   });
@@ -275,7 +300,7 @@ export default function plugin(bb: BbPluginApi): void {
         const note = store.getComment(item.threadId, item.id, attempt.slice("comment_".length));
         return { context: JSON.stringify({
           kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "comment", note, commentId: attempt.slice("comment_".length),
-          instruction: "This is a comment or follow-up question, not approval for an action. Answer it on the card with bb action-cards answer <itemId> --comment <commentId> --message-stdin, and keep any chat reply to one short line. If it requests a change, revise the same Reply draft using its latest revision. For Decide and Choice cards, explain the requested change; question/consequence updates are not supported. Do not execute an action or create/claim an attempt. Other cards in the same table stay as the user left them.",
+          instruction: "This is a comment or follow-up question, not approval for an action. Answer it on the card with bb action-cards answer <itemId> --comment <commentId> --message-stdin, and keep any chat reply to one short line. If it requests a change, revise the same Reply draft using its latest revision. For Decide and Choice cards, explain the requested change; question/consequence updates are not supported. Do not execute an action or create/claim an attempt. If the comment itself asks you to act and you do (for example 'delete this' and you close the PR), settle the card with bb action-cards resolve <itemId> --message '<what you did>' so it stops waiting. Other cards in the same table stay as the user left them.",
         }) };
       }
       const changes = attempt === "changes";
@@ -332,6 +357,11 @@ export default function plugin(bb: BbPluginApi): void {
         summary: "Read the latest saved draft, action, result, and follow-ups", positionals: itemPosition,
         options: { thread: threadOption },
         run: ({ options, positionals }, ctx) => output(store.view(scope(ctx, options.thread), idSchema.parse(positionals.id))),
+      }),
+      resolve: cliCommand({
+        summary: "Settle a card you acted on from a comment, without a click", positionals: itemPosition,
+        options: { thread: threadOption, message: { type: "string", required: true, description: "Short result shown on the card, for example 'Closed the PR'" } },
+        run: ({ options, positionals }, ctx) => output(store.resolve(scope(ctx, options.thread), idSchema.parse(positionals.id), z.string().trim().min(1).max(500).parse(options.message))),
       }),
       answer: cliCommand({
         summary: "Answer a follow-up question on its card", positionals: itemPosition,

@@ -223,6 +223,16 @@ it("stages row answers, offers the matching bulk answer, and sends every answer 
   await waitFor(() => expect(screen.getAllByText("Switch sent")).toHaveLength(2));
 });
 
+it("shows a card whose request never reached the agent as not sent, with Resend", async () => {
+  const item: Item = { ...fixture(), revision: 3, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, note: "how do i test?" }, content: { type: "decide", question: "Merge PR #42?", consequence: "Squash-merge it.", yesLabel: "Merge" } };
+  const { slot } = await setup("", false, item);
+  expect((await screen.findByRole("status")).textContent).toContain("Not sent: “Merge” didn't reach the agent");
+  expect(screen.getByText("how do i test?")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Resend" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(slot.inspection.composer.mentions).toMatchObject([{ id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
+});
+
 it("keeps a prepared but unsent row open with Resend instead of folding it away as sent", async () => {
   let items: Item[] = [
     { ...fixture(), id: "one", revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false }, content: { type: "decide", question: "Switch one?", consequence: "Keep schedules", yesLabel: "Switch" } },

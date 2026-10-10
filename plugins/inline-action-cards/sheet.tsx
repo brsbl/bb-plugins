@@ -208,7 +208,9 @@ export function SheetRowView({ item, done, result, expanded, onExpand, sheet, di
   return <article className="iac-row iac-sheet-row" data-staged={staged ? true : undefined} data-open={expanded || undefined} aria-label={`${content.type === "reply" ? "Reply" : content.type === "choice" ? "Choice" : "Decision"}: ${title(item)}`}>
     {done ? result : <div className="iac-row-line">
       <button type="button" className="iac-row-summary" aria-expanded={expanded} onClick={() => onExpand(!expanded)}>
-        <span className="iac-row-question">{title(item)}
+        {/* A long question truncates to one line; its marks stay beside it. The full text shows when the row opens. */}
+        <span className="iac-row-question" title={expanded ? undefined : title(item)}>
+          <span className="iac-row-title">{title(item)}</span>
           {(sheet.note.trim() || followUpCount > 0) && <NoteIcon className="iac-row-mark" />}
           <span className="iac-disclosure" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
         </span>

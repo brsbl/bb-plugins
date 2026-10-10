@@ -324,3 +324,7 @@
   .iac-segment, .iac-note-input, .iac-answer-bar > button, .iac-sheet-footer > button, .iac-row-answer > button { min-height: calc(var(--iac-s) * 11); height: auto; }
   .iac-note-input { height: calc(var(--iac-s) * 11); }
 }
+.iac-sheet .iac-row-question { display: flex; max-width: 100%; min-width: 0; align-items: center; }
+.iac-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iac-row-summary[aria-expanded="true"] .iac-row-title { white-space: normal; overflow-wrap: anywhere; }
+.iac-row-question > .iac-row-mark, .iac-row-question > .iac-disclosure { flex-shrink: 0; }

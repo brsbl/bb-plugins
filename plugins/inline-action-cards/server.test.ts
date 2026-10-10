@@ -320,3 +320,37 @@ describe("decision sheets", () => {
     expect(table).toBeInstanceOf(Error);
   });
 });
+
+describe("settling and undelivered requests", () => {
+  it("resolves an unanswered card after a comment, and only an unanswered one", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const decide = { type: "decide", question: "Merge PR #42?", consequence: "Squash-merge it.", yesLabel: "Merge" };
+    await host.harness.behavior.runCli(["create", "pr-42", "--thread", ref.threadId, "--item", JSON.stringify(decide)]);
+    const resolved = JSON.parse((await host.harness.behavior.runCli(["resolve", "pr-42", "--thread", ref.threadId, "--message", "Closed the PR"])).stdout!);
+    expect(resolved).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Closed the PR", retryable: false } });
+    const again = await host.harness.behavior.runCli(["resolve", "pr-42", "--thread", ref.threadId, "--message", "Twice"]).then((result) => result.exitCode, () => 1);
+    expect(again).not.toBe(0);
+  });
+  it("marks a sent but never claimed request as not sent once its thread is idle", () => {
+    const { store, bb } = setup();
+    for (const id of ["stuck", "fresh", "claimed"]) store.create(ref.threadId, id, { type: "decide", question: `${id}?`, consequence: "Do it." });
+    const stuck = store.prepare({ ...ref, id: "stuck", revision: 1, action: "yes", note: "how do i test?" });
+    store.submitted({ ...ref, id: "stuck", attemptId: stuck.attempt!.id });
+    const aged = store.get(ref.threadId, "stuck");
+    aged.attempt!.sentAt = new Date(Date.now() - 60_000).toISOString();
+    bb.storage.database().prepare("UPDATE action_items SET value = ? WHERE thread_id = ? AND item_id = ?").run(JSON.stringify(aged), ref.threadId, "stuck");
+    const fresh = store.prepare({ ...ref, id: "fresh", revision: 1, action: "yes" });
+    store.submitted({ ...ref, id: "fresh", attemptId: fresh.attempt!.id });
+    const claimed = store.prepare({ ...ref, id: "claimed", revision: 1, action: "yes" });
+    store.claim(ref.threadId, "claimed", claimed.attempt!.id);
+    store.undelivered(ref.threadId);
+    expect(store.get(ref.threadId, "stuck")).toMatchObject({ state: "pending", attempt: { id: stuck.attempt!.id, note: "how do i test?", claimed: false } });
+    expect(store.get(ref.threadId, "stuck").attempt).not.toHaveProperty("sentAt");
+    // A just-sent request may still be starting a turn; a claimed one is the agent's.
+    expect(store.get(ref.threadId, "fresh").attempt!.sentAt).toBeTruthy();
+    expect(store.get(ref.threadId, "claimed").attempt!.sentAt).toBeTruthy();
+    // Resend keeps the same attempt, so a late duplicate cannot be claimed twice.
+    expect(store.claim(ref.threadId, "stuck", stuck.attempt!.id).attempt!.claimed).toBe(true);
+  });
+});
+});
