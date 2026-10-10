@@ -258,7 +258,10 @@ function createStore(bb: BbPluginApi) {
     },
     publishSaved(threadId: string, savedId: string) {
       const saved = savedRow(savedId);
-      copyAnswers(saved.threadId, threadSchema.parse(threadId), saved.id);
+      const target = threadSchema.parse(threadId);
+      if (exists(target, saved.id))
+        live.setState(target, saved.id, live.getState(saved.threadId, saved.id).state, "saved");
+      else copyAnswers(saved.threadId, target, saved.id);
       return { id: saved.id, directive: `::playground{id="${saved.id}"}` };
     },
     removeThread(threadId: string) {

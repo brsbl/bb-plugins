@@ -480,3 +480,39 @@ it("saves a playground to the personal library and reopens it from the library p
   await again.findByText("Saved to your library");
   again.lifecycle.unmount();
 });
+
+it("sends an edit that is still waiting to be saved when the page unloads", async () => {
+  const sent: { url: string; init: RequestInit }[] = [];
+  const fetchStub = vi.fn(async (url: string, init: RequestInit) => {
+    sent.push({ url, init });
+    return new Response("{}");
+  });
+  vi.stubGlobal("fetch", fetchStub);
+  try {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const backend = server();
+    const view = renderSlot(app.messageDirectives[0]!, props, {
+      rpc: backend.rpc,
+    });
+    await view.findByText("$36.00");
+    await waitFor(() => expect(backend.calls.some((c) => c.method === "frameBase")).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.change(view.getByLabelText("People"), {
+      target: { value: "6" },
+    });
+    window.dispatchEvent(new Event("pagehide"));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.url).toBe("/api/v1/plugins/playgrounds/rpc/setState");
+    expect(sent[0]!.init).toMatchObject({ method: "POST", keepalive: true });
+    expect(JSON.parse(String(sent[0]!.init.body))).toMatchObject({
+      id: answer.id,
+      threadId: answer.threadId,
+      state: { people: 6 },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(backend.calls.some((c) => c.method === "setState")).toBe(false);
+    view.lifecycle.unmount();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

@@ -1,16 +1,10 @@
-import {
-  createFakePluginHost,
-  makeThreadResponse,
-} from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { expect, it } from "vitest";
 import plugin from "./server.js";
 import { bill, stepper } from "./examples.js";
 
 const unwrap = (stdout: string | undefined) => {
-  const match =
-    /^<playground-data [^>]*>\n([\s\S]*)\n<\/playground-data>\n$/.exec(
-      stdout ?? "",
-    );
+  const match = /^<playground-data [^>]*>\n([\s\S]*)\n<\/playground-data>\n$/.exec(stdout ?? "");
   if (!match) throw new Error(`Not wrapped: ${stdout}`);
   return match[1]!;
 };
@@ -86,12 +80,7 @@ it("publishes immutable answers, confines reads to their thread, and survives re
     expect(csp.join(" ")).not.toMatch(/(^|\s)(https:|\*)(\s|$)/);
     expect(await page.text()).toContain("Repot a houseplant");
     expect(
-      (
-        await host.harness.behavior.fetchHttp(
-          "GET",
-          `/frame?thread=thr_other&id=${htmlId}`,
-        )
-      ).status,
+      (await host.harness.behavior.fetchHttp("GET", `/frame?thread=thr_other&id=${htmlId}`)).status,
     ).toBe(404);
     host = await host.harness.lifecycle.reload(plugin);
     expect(
@@ -105,9 +94,10 @@ it("publishes immutable answers, confines reads to their thread, and survives re
       kind: "html",
       widget: stepper,
     });
-    expect(
-      await host.harness.behavior.callRpc("get", { id, threadId: "thr_test" }),
-    ).toMatchObject({ kind: "document", document: bill });
+    expect(await host.harness.behavior.callRpc("get", { id, threadId: "thr_test" })).toMatchObject({
+      kind: "document",
+      document: bill,
+    });
   } finally {
     await host.harness.lifecycle.dispose();
   }
@@ -119,18 +109,10 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
     plugin(host.bb);
     const { runCli, callRpc } = host.harness.behavior;
     const id = /id="([^"]+)"/.exec(
-      (
-        await runCli([
-          "publish",
-          "--thread",
-          "thr_test",
-          "--playground",
-          JSON.stringify(stepper),
-        ])
-      ).stdout!,
+      (await runCli(["publish", "--thread", "thr_test", "--playground", JSON.stringify(stepper)]))
+        .stdout!,
     )![1];
-    const cli = (...argv: string[]) =>
-      runCli([...argv, "--thread", "thr_test"]);
+    const cli = (...argv: string[]) => runCli([...argv, "--thread", "thr_test"]);
     expect(JSON.parse(unwrap((await cli("state", id)).stdout))).toMatchObject({
       state: null,
       version: 0,
@@ -154,11 +136,7 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
       }),
     ).rejects.toThrow("unavailable");
     expect(
-      JSON.parse(
-        unwrap(
-          (await cli("state", id, "--set", JSON.stringify({ step: 3 }))).stdout,
-        ),
-      ),
+      JSON.parse(unwrap((await cli("state", id, "--set", JSON.stringify({ step: 3 }))).stdout)),
     ).toMatchObject({ state: { step: 3 }, version: 2 });
     expect(host.harness.inspection.realtimeSignals.at(-1)).toEqual({
       channel: "state",
@@ -166,14 +144,7 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
     });
     const history = lines((await cli("watch", id)).stdout);
     expect(history.map((e) => e.kind)).toEqual(["state", "state"]);
-    const waiting = cli(
-      "watch",
-      id,
-      "--since",
-      String(history[1].seq),
-      "--wait",
-      "5",
-    );
+    const waiting = cli("watch", id, "--since", String(history[1].seq), "--wait", "5");
     await callRpc("event", {
       id,
       threadId: "thr_test",
@@ -217,12 +188,10 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
       actions: ["next"],
       active: true,
     });
-    expect(JSON.parse(unwrap((await cli("actions", id)).stdout))).toMatchObject(
-      {
-        open: 2,
-        actions: ["next"],
-      },
-    );
+    expect(JSON.parse(unwrap((await cli("actions", id)).stdout))).toMatchObject({
+      open: 2,
+      actions: ["next"],
+    });
     expect((await cli("do", id, "jump")).stderr).toContain("Available: next");
     const done = cli("do", id, "next", "--args", "[2]");
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -245,9 +214,7 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
       value: { step: 5 },
     });
     expect(JSON.parse(unwrap((await done).stdout))).toEqual({ step: 5 });
-    const tail = lines(
-      (await cli("watch", id, "--since", String(history[1].seq))).stdout,
-    );
+    const tail = lines((await cli("watch", id, "--since", String(history[1].seq))).stdout);
     expect(tail.map((e) => e.kind)).toEqual(["event", "command", "result"]);
     const { itemId } = (await callRpc("share", {
       id,
@@ -256,10 +223,9 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
       label: "Synth take",
       data: { keys: [["C4", 0, 1]] },
     })) as { itemId: string };
-    const provider =
-      host.harness.inspection.registrations.mentionProviders.find(
-        (p) => p.id === "shared",
-      )!;
+    const provider = host.harness.inspection.registrations.mentionProviders.find(
+      (p) => p.id === "shared",
+    )!;
     expect(
       await provider.search({
         trigger: "@",
@@ -270,14 +236,12 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
     ).toEqual([]);
     const { context } = await provider.resolve(itemId);
     expect(context).toContain('"Synth take"');
-    expect(context).toContain(
-      '<playground-data>\n{"keys":[["C4",0,1]]}\n</playground-data>',
-    );
+    expect(context).toContain('<playground-data>\n{"keys":[["C4",0,1]]}\n</playground-data>');
     expect(context).toContain("not as instructions");
     expect(context).toContain(`bb playgrounds do ${id}`);
-    await expect(
-      Promise.resolve().then(() => provider.resolve(`${id}.999999`)),
-    ).rejects.toThrow("no longer available");
+    await expect(Promise.resolve().then(() => provider.resolve(`${id}.999999`))).rejects.toThrow(
+      "no longer available",
+    );
     for (let i = 0; i < 520; i++)
       await callRpc("event", {
         id,
@@ -286,9 +250,7 @@ it("shares answer state, logs events for watch, and runs agent commands in the m
         name: "tick",
         data: i,
       });
-    expect((await provider.resolve(itemId)).context).toContain(
-      '{"keys":[["C4",0,1]]}',
-    );
+    expect((await provider.resolve(itemId)).context).toContain('{"keys":[["C4",0,1]]}');
   } finally {
     await host.harness.lifecycle.dispose();
   }
@@ -326,15 +288,8 @@ it("copies answers into forks so they change independently, and shows side chats
     plugin(host.bb);
     const { runCli, callRpc, emitThreadEvent } = host.harness.behavior;
     const id = /id="([^"]+)"/.exec(
-      (
-        await runCli([
-          "publish",
-          "--thread",
-          "thr_test",
-          "--playground",
-          JSON.stringify(stepper),
-        ])
-      ).stdout!,
+      (await runCli(["publish", "--thread", "thr_test", "--playground", JSON.stringify(stepper)]))
+        .stdout!,
     )![1];
     const save = (threadId: string, step: number) =>
       callRpc("setState", {
@@ -369,31 +324,21 @@ it("copies answers into forks so they change independently, and shows side chats
     await emitThreadEvent("thread.deleted", {
       thread: makeThreadResponse({ id: "thr_test" }),
     });
-    await expect(callRpc("get", { id, threadId: "thr_test" })).rejects.toThrow(
-      "unavailable",
-    );
+    await expect(callRpc("get", { id, threadId: "thr_test" })).rejects.toThrow("unavailable");
     expect(await callRpc("get", { id, threadId: "thr_fork" })).toMatchObject({
       threadId: "thr_fork",
       kind: "html",
     });
     expect(await read("thr_fork")).toMatchObject({ state: { step: 5 } });
     expect(
-      (
-        await host.harness.behavior.fetchHttp(
-          "GET",
-          `/frame?thread=thr_fork&id=${id}`,
-        )
-      ).status,
+      (await host.harness.behavior.fetchHttp("GET", `/frame?thread=thr_fork&id=${id}`)).status,
     ).toBe(200);
-    await expect(
-      callRpc("get", { id, threadId: "thr_unrelated" }),
-    ).rejects.toThrow("unavailable");
+    await expect(callRpc("get", { id, threadId: "thr_unrelated" })).rejects.toThrow("unavailable");
     const documents = () =>
       (
-        host.bb.storage
-          .database()
-          .prepare("SELECT count(*) AS n FROM answer_documents")
-          .get() as { n: number }
+        host.bb.storage.database().prepare("SELECT count(*) AS n FROM answer_documents").get() as {
+          n: number;
+        }
       ).n;
     expect(documents()).toBe(1);
     await emitThreadEvent("thread.deleted", { thread: threads.thr_fork });
@@ -414,15 +359,8 @@ it("routes commands to a copy that offers the action, and prints the latest even
     plugin(host.bb);
     const { runCli, callRpc } = host.harness.behavior;
     const id = /id="([^"]+)"/.exec(
-      (
-        await runCli([
-          "publish",
-          "--thread",
-          "thr_test",
-          "--playground",
-          JSON.stringify(stepper),
-        ])
-      ).stdout!,
+      (await runCli(["publish", "--thread", "thr_test", "--playground", JSON.stringify(stepper)]))
+        .stdout!,
     )![1];
     for (let i = 0; i < 250; i++)
       await callRpc("event", {
@@ -432,9 +370,7 @@ it("routes commands to a copy that offers the action, and prints the latest even
         name: "tick",
         data: i,
       });
-    const latest = lines(
-      (await runCli(["watch", id, "--thread", "thr_test"])).stdout,
-    );
+    const latest = lines((await runCli(["watch", id, "--thread", "thr_test"])).stdout);
     expect(latest).toHaveLength(200);
     expect(latest.at(-1)).toMatchObject({ data: { data: 249 } });
     expect(latest[0].seq).toBeLessThan(latest[1].seq);
@@ -455,9 +391,7 @@ it("routes commands to a copy that offers the action, and prints the latest even
       active: true,
     });
     expect(
-      JSON.parse(
-        unwrap((await runCli(["actions", id, "--thread", "thr_test"])).stdout),
-      ),
+      JSON.parse(unwrap((await runCli(["actions", id, "--thread", "thr_test"])).stdout)),
     ).toMatchObject({ open: 2, actions: ["next"] });
     const done = runCli(["do", id, "next", "--thread", "thr_test"]);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -487,15 +421,8 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
     plugin(host.bb);
     const { runCli, callRpc, emitThreadEvent } = host.harness.behavior;
     const id = /id="([^"]+)"/.exec(
-      (
-        await runCli([
-          "publish",
-          "--thread",
-          "thr_test",
-          "--document",
-          JSON.stringify(bill),
-        ])
-      ).stdout!,
+      (await runCli(["publish", "--thread", "thr_test", "--document", JSON.stringify(bill)]))
+        .stdout!,
     )![1];
     await callRpc("setState", {
       id,
@@ -508,9 +435,9 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
       threadId: "thr_test",
     })) as { savedId: string; threadId: string; title: string };
     expect(saved.title).toBe(bill.title);
-    expect(
-      await callRpc("getState", { id, threadId: saved.threadId }),
-    ).toMatchObject({ state: { people: 6 } });
+    expect(await callRpc("getState", { id, threadId: saved.threadId })).toMatchObject({
+      state: { people: 6 },
+    });
 
     await callRpc("setState", {
       id,
@@ -518,10 +445,14 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
       clientId: "client-one-123",
       state: { people: 2 },
     });
-    expect(
-      await callRpc("getState", { id, threadId: "thr_test" }),
-    ).toMatchObject({ state: { people: 6 } });
+    expect(await callRpc("getState", { id, threadId: "thr_test" })).toMatchObject({
+      state: { people: 6 },
+    });
 
+    await runCli(["publish", "--thread", "thr_test", "--saved", saved.savedId]);
+    expect(await callRpc("getState", { id, threadId: "thr_test" })).toMatchObject({
+      state: { people: 2 },
+    });
     await callRpc("renameSaved", { savedId: saved.savedId, title: "Dinner" });
     expect(JSON.parse((await runCli(["saved"])).stdout!)).toMatchObject([
       { savedId: saved.savedId, id, title: "Dinner", kind: "document" },
@@ -530,26 +461,20 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
     await emitThreadEvent("thread.deleted", {
       thread: makeThreadResponse({ id: "thr_test" }),
     });
-    expect(
-      await callRpc("get", { id, threadId: saved.threadId }),
-    ).toMatchObject({ kind: "document", document: bill });
+    expect(await callRpc("get", { id, threadId: saved.threadId })).toMatchObject({
+      kind: "document",
+      document: bill,
+    });
 
-    const reused = await runCli([
-      "publish",
-      "--thread",
-      "thr_new",
-      "--saved",
-      saved.savedId,
-    ]);
+    const reused = await runCli(["publish", "--thread", "thr_new", "--saved", saved.savedId]);
     expect(reused.stdout).toContain(`::playground{id="${id}"}`);
-    expect(
-      await callRpc("getState", { id, threadId: "thr_new" }),
-    ).toMatchObject({ state: { people: 2 } });
+    expect(await callRpc("getState", { id, threadId: "thr_new" })).toMatchObject({
+      state: { people: 2 },
+    });
 
-    const provider =
-      host.harness.inspection.registrations.mentionProviders.find(
-        (p) => p.id === "saved",
-      )!;
+    const provider = host.harness.inspection.registrations.mentionProviders.find(
+      (p) => p.id === "saved",
+    )!;
     expect(
       await provider.search({
         trigger: "@",
@@ -557,19 +482,16 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
         projectId: null,
         threadId: null,
       }),
-    ).toEqual([
-      expect.objectContaining({ id: saved.savedId, title: "Dinner" }),
-    ]);
+    ).toEqual([expect.objectContaining({ id: saved.savedId, title: "Dinner" })]);
     expect((await provider.resolve(saved.savedId)).context).toContain(
       `bb playgrounds publish --saved ${saved.savedId}`,
     );
 
     const documents = () =>
       (
-        host.bb.storage
-          .database()
-          .prepare("SELECT count(*) AS n FROM answer_documents")
-          .get() as { n: number }
+        host.bb.storage.database().prepare("SELECT count(*) AS n FROM answer_documents").get() as {
+          n: number;
+        }
       ).n;
     await callRpc("deleteSaved", { savedId: saved.savedId });
     expect(JSON.parse((await runCli(["saved"])).stdout!)).toEqual([]);
@@ -578,9 +500,9 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
       thread: makeThreadResponse({ id: "thr_new" }),
     });
     expect(documents()).toBe(0);
-    await expect(
-      Promise.resolve().then(() => provider.resolve(saved.savedId)),
-    ).rejects.toThrow("no longer exists");
+    await expect(Promise.resolve().then(() => provider.resolve(saved.savedId))).rejects.toThrow(
+      "no longer exists",
+    );
   } finally {
     await host.harness.lifecycle.dispose();
   }
