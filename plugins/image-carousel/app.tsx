@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { definePluginApp, useRpc, type PluginMessageDirectiveProps, type PluginRpcClient } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { carouselIdSchema, type Carousel, type ImageRef } from "./model.js";
@@ -30,6 +31,9 @@ const slideImages = (carousel: Carousel, index: number): ImageRef[] => {
 function Shot({ rpc, image, alt }: { rpc: Rpc; image: ImageRef; alt: string }) {
   const [state, setState] = useState<{ sha: string; url: string | null; failed: boolean }>({ sha: image.sha256, url: null, failed: false });
   const [attempt, setAttempt] = useState(0);
+  const [open, setOpen] = useState(false);
+  const frame = useRef<HTMLButtonElement>(null);
+  const closeViewer = useCallback(() => { setOpen(false); frame.current?.focus(); }, []);
   useEffect(() => {
     let live = true;
     setState({ sha: image.sha256, url: null, failed: false });
@@ -39,9 +43,28 @@ function Shot({ rpc, image, alt }: { rpc: Rpc; image: ImageRef; alt: string }) {
   const current = state.sha === image.sha256 ? state : { url: null, failed: false };
   if (current.failed) return <div className="icx-frame icx-frame-empty" role="alert">Image unavailable<button type="button" className="icx-retry" onClick={() => setAttempt((value) => value + 1)}>Retry</button></div>;
   if (!current.url) return <div className="icx-frame icx-frame-empty" aria-busy="true"><span className="icx-sr-only">Loading image</span></div>;
-  return <a className="icx-frame" href={current.url} target="_blank" rel="noreferrer" title="Open the full-size image">
-    <img src={current.url} alt={alt} draggable={false} />
-  </a>;
+  return <>
+    <button ref={frame} type="button" className="icx-frame icx-frame-button" aria-label={`View full size: ${alt}`} onClick={() => setOpen(true)}>
+      <img src={current.url} alt={alt} draggable={false} />
+    </button>
+    {open && <Viewer url={current.url} alt={alt} onClose={closeViewer} />}
+  </>;
+}
+
+function Viewer({ url, alt, onClose }: { url: string; alt: string; onClose: () => void }) {
+  const close = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    close.current?.focus();
+    const onKey = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+  return createPortal(<div className="icx-viewer" role="dialog" aria-modal="true" aria-label={alt} onClick={onClose} onKeyDown={(event) => event.stopPropagation()}>
+    <img src={url} alt={alt} />
+    <button ref={close} type="button" className="icx-viewer-close" aria-label="Close full-size image" onClick={onClose}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
+  </div>, document.body);
 }
 
 function Arrow({ direction, disabled, onClick }: { direction: "previous" | "next"; disabled: boolean; onClick: () => void }) {

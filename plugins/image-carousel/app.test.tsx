@@ -47,4 +47,8 @@ it("shows a research slide with its source host", async () => {
   expect(await screen.findByAltText("Product A")).toBeTruthy();
   expect(screen.getByRole("link", { name: /example\.com/ }).getAttribute("href")).toBe("https://example.com/app");
   expect(screen.getByRole("button", { name: "Next slide" }).getAttribute("aria-disabled")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: "View full size: Product A" }));
+  expect(screen.getByRole("dialog", { name: "Product A" })).toBeTruthy();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
