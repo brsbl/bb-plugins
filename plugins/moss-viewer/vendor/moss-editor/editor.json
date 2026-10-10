@@ -1,8 +1,11 @@
 {
   "name": "@moss-multi/editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "api": 1,
-  "features": [],
+  "features": [
+    "selection-1",
+    "share-with-agent-1"
+  ],
   "entry": "moss-editor.js",
   "css": "moss-editor.css",
   "hostEntry": "moss-editor-host.js",
@@ -17,15 +20,15 @@
   },
   "source": {
     "repo": "brsbl/moss-multi",
-    "commit": "bbeb50ebbf1a83ed8ab193f6d7a341e5bdc495e7",
-    "headSha": "bbeb50ebbf1a83ed8ab193f6d7a341e5bdc495e7",
+    "commit": "31f3f265db773f1d082e608214172f49377171f6",
+    "headSha": "31f3f265db773f1d082e608214172f49377171f6",
     "dirty": false,
     "diffHash": ""
   },
   "build": {
-    "run": "https://github.com/brsbl/moss-multi/actions/runs/37402521761"
+    "run": "https://github.com/brsbl/moss-multi/actions/runs/37462706158"
   },
-  "bundleHash": "dc4dbd173bee88a0db339cd827f56a98c41625de3756eb1b253e02e3ba6e6fa9",
+  "bundleHash": "58fb45526f2a0edec654b018aecb314dd1d230d7d45fe20a8e4594781697cc72",
   "files": {
     "assets/charter_bold-DWf1YoLo.woff2": {
       "bytes": 15028,
@@ -148,16 +151,16 @@
       "sha256": "391a3a86f40e253b584defa5f284c7402a2175a705ebb2b4b9460112fc92dc77"
     },
     "moss-editor-host.js": {
-      "bytes": 13858,
-      "sha256": "58a5700641c1921ff3b6e48113f21f4c1967edafc7652c3fe7cae8f07f89ddc0"
+      "bytes": 13893,
+      "sha256": "ae52e46cbf41e8d1a59828be18d48b617d3bbe76437bab00bc0b7c1f0dd79c52"
     },
     "moss-editor.css": {
       "bytes": 190148,
       "sha256": "2ad4e078d040c5ca410bb29bb9ea918ca40a7952088c9db57d870c66cca9fdbf"
     },
     "moss-editor.js": {
-      "bytes": 2460399,
-      "sha256": "76905a5cc93e58aea600777b11757c6175c6f0d58d5719ee1693a8359d1595f2"
+      "bytes": 2472109,
+      "sha256": "3eb5ee2ace35a33fc9571fa571b9e2dc369d125b8b2b6a3826cd26af7e4ae122"
     },
     "moss-html-frame.html": {
       "bytes": 405,

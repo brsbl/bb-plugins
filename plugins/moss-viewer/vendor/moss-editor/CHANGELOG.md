@@ -1,5 +1,18 @@
 # @moss-multi/editor
 
+## 0.2.0
+
+API version 1; additions only, listed in `MOSS_EDITOR_INFO.features` and editor.json `features`
+(docs/design/editor-embed.md §8.1).
+
+- **`selection-1`: `handle.selection()`** returns the user's selection as `MossSelection` (`text`, `markdown`,
+  `lines`, `headings`, `blocks`), or null when it is collapsed, outside the note body or the note is not loaded.
+  `lines` are 1-based in the file exactly as a save would write the current buffer, unsaved edits included.
+- **`share-with-agent-1`: optional `services.shareWithAgent(selection)`.** With it, Moss's Share with Agent button
+  shows above the note and a press calls the service with the current selection (or null). Without it nothing changes.
+- `contract.d.ts` adds `MossSelection`, `MossEditorServices.shareWithAgent` and `MossEditorHandle.selection`; nothing
+  else in it changes.
+
 ## 0.1.0
 
 API version 1 (`src/contract.ts`), no feature strings.

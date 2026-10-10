@@ -20,6 +20,8 @@ export interface EditorFrameProps {
   notesFor(hostId: string): Promise<MossNoteEntry[]>;
   onNavigate(note: MossNote, target: MossViewerTarget): void;
   openUrl(url: string): void;
+  /** Moss's Share with Agent, pressed with the editor's selection at that moment. */
+  onShare(note: MossNote, selection: Moss.MossSelection | null): void;
   onStatus(status: Moss.MossEditorStatus): void;
   /** The version on disk as the editor last read, saved or reloaded it. */
   onVersion(version: string): void;
@@ -103,6 +105,7 @@ export function MossEditorFrame(props: EditorFrameProps) {
                 ),
             navigate: (target) => latest.current.onNavigate(note, target),
             unfurl: () => Promise.resolve(null),
+            shareWithAgent: (selection) => latest.current.onShare(note, selection),
           },
           onEvent: (event) => {
             latest.current.onStatus(event.status);

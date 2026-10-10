@@ -32,7 +32,10 @@ URLs are never pinned, superseded links are replaced rather than piling up, and 
 removed when its server is retired. A short always-on instruction points every thread at the skill's rule.
 
 Pinned files read as quiet raised chips above the composer, in order, as many as fit; the strip never
-scrolls. Each chip is as wide as its label, and labels truncate only when the strip runs out of room. Files that aren't pinned sit in the **⋯** list. File icons follow bb's file panel. Hover a file for its full path and machine, or a link for its title or URL.
+scrolls. Each chip is as wide as its label. With a mouse, labels truncate only when the strip runs out of
+room, and pinned files that still don't fit lead the **⋯** list. On touch screens, which have no hover to
+show a full label, pins keep their whole labels while they fit, the next pin fills what is left of the
+row (shortened), and the rest go to **⋯**. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover a file for its full path and machine, or a link for its title or URL.
 Right-click a strip file for bb's **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin** (moves it to the **⋯** list) or **Remove**. In the **⋯** list, a
 row's hover **⋯** button or right-click offers the same file options, then **Pin** or **Remove**;
@@ -43,7 +46,7 @@ only their small **×** removes them. Availability refreshes on focus and every
 
 Pinned links sit in the same strip and **⋯** list, with the same order, capacity, Pin/Unpin,
 Remove and Undo. A link chip shows its site's icon (the same origin-only lookup as Compact Links,
-falling back to a globe when a site has none, such as a localhost dev server) and the page title the agent supplied, otherwise the site and a
+a terminal for a dev server on localhost or a private network, or a globe when a site has none; a GitHub pull request also shows its open, draft, merged or closed state beside GitHub's icon, looked up from GitHub's public API when pinned and rechecked while it can still change) and the page title the agent supplied, otherwise the site and a
 short path. Clicking it opens the URL the way bb opens links; its menu offers **Open** and
 **Copy link**, then **Unpin**/**Pin** and **Remove**. Links have no missing state.
 
@@ -66,7 +69,11 @@ Paths resolve on the selected machine through the plugin's host entry. File
 contents never enter pin storage. Pins survive reloads and thread environment
 changes and can be removed while a machine is offline. Deleting the thread
 removes its pins. Pinning does not send file content to the agent. Icons are looked up only for a
-pinned link's public HTTPS origin, never its path or query, and cached in the plugin's database.
+pinned link's public HTTPS origin, never its path or query, and cached in the plugin's database. For a
+pinned GitHub pull request, the bb server sends the PR's owner, repository and number to GitHub's public
+API, without credentials, and caches its state. GitHub answers only for public repositories, so a private
+PR keeps the site icon unless it is the thread's own PR, whose state comes from bb. A rate limit from
+GitHub pauses every lookup until it resets, and the last known state stays meanwhile.
 
 A normal click on a pinned file follows bb's FileLink click behavior and opener
 choices. Pin menus start with bb's open and copy items, then Pin/Unpin and Remove.
