@@ -1,10 +1,12 @@
 {
   "name": "bb-plugin-file-pins",
-  "version": "0.1.0",
-  "description": "Keep local files within reach in each bb thread.",
+  "version": "0.1.8",
+  "description": "Keep local files and web links within reach in each bb thread.",
   "type": "module",
   "files": [
+    "assets",
     "dist",
+    "docs",
     "README.md",
     "PLUGIN_OVERVIEW.md",
     "skills"
@@ -20,10 +22,13 @@
     "bbPluginSdk": ">=0.5.9"
   },
   "bb": {
-    "name": "Pinned Files",
-    "description": "Pin local files to a thread and open them from a persistent strip above the chat composer.",
+    "name": "Pinned Files & Links",
+    "description": "Pin local files and web links to a thread and open them from a persistent strip above the chat composer.",
     "branding": {
-      "icon": "Pin"
+      "icon": "./assets/file-pins.svg",
+      "logo": {
+        "light": "./assets/file-pins.svg"
+      }
     },
     "server": "./server.ts",
     "app": "./app.tsx",
@@ -33,11 +38,12 @@
     ]
   },
   "dependencies": {
-    "zod": "^4.3.6",
-    "tailwind-merge": "^3.4.0",
+    "@brsbl/bb-website-icons": "0.1.0",
     "@radix-ui/react-slot": "^1.3.0",
     "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1"
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.4.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.5.9.tgz",

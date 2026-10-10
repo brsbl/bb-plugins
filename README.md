@@ -60,6 +60,20 @@ Rewrites a rough bb composer draft into a clearer, context-complete prompt for r
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
 
+### Pull Requests
+
+See your GitHub pull requests and review requests, inspect checks and changes, and continue related work in bb. Thread links are optional and survive branch changes.
+
+![Compact Pull Requests sidebar with status icons and timestamps](https://github.com/user-attachments/assets/00c9963c-89ac-4ee6-86e4-06c7840c725c)
+
+![Pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/1ed45e6e-163d-44e9-852a-7e818eef0c2c)
+
+![Read-only changed file selection](https://github.com/user-attachments/assets/e664001b-4dbc-4ecc-8f48-38e79cd82dc1)
+
+[Source](plugins/pull-requests) · [README](plugins/pull-requests/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/pull-requests --yes`
+
 ### Thread Hover Cards
 
 Shows a thread's live status, latest agent update, execution context, repository, and pull request without leaving the sidebar. Collapsed sections get a compact summary of their thread count and attention state.
@@ -83,6 +97,16 @@ Organizes work into configurable workflow sections that agents follow, and keeps
 [Source](plugins/thread-organizer) · [README](plugins/thread-organizer/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/thread-organizer --yes`
+
+### Content Calendar
+
+Plans deliverables on a month or week calendar stored on a dedicated Google calendar, with drag-and-drop rescheduling, Evergreen and Later trays, gates, and attached Moss notes. Agents manage it through `bb content-calendar` and show it live inline in chat.
+
+![Content Calendar month view with Evergreen and Later trays](plugins/content-calendar/docs/calendar-month.png)
+
+[Source](plugins/content-calendar) · [README](plugins/content-calendar/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/content-calendar --yes`
 
 ### Context Katamari
 
@@ -180,11 +204,15 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/o
 
 ### Moss Viewer
 
-Reads Moss notes in a bb panel the way Moss renders them: tabs, tables, wiki links, post embeds, charts, live HTML blocks, and note-local images and video. Notes stay on the Mac that holds them, and Open in Moss takes you to the app to edit.
+Reads and edits Moss notes in a bb panel the way Moss does: tabs, tables, wiki links, post embeds, charts, live HTML blocks, comments, and note-local images and video. Notes in ~/Moss/Notes open in Moss's own editor and save to their files on the Mac that holds them; other Moss notes open read-only.
 
 ![A Moss note with a wiki link pill and an embedded X post in bb's panel](https://github.com/user-attachments/assets/1f0ba527-c96d-4f11-9083-a2780231f7ef)
 
 ![A note-local video playing inside a Moss note in bb's panel](https://github.com/user-attachments/assets/79ebbff9-b01a-4922-a5d2-b87faec47a2c)
+
+![A Moss note in Moss's own editor in bb's panel after a save, with a quiet header](https://github.com/user-attachments/assets/72e28ca7-3c9c-46b3-bca9-035f064c1fd3)
+
+![A new comment thread open beside a Moss note in the editor](https://github.com/user-attachments/assets/43b636a2-4e1f-4381-a100-ff85d6d3e87e)
 
 [Source](plugins/moss-viewer) · [README](plugins/moss-viewer/README.md)
 
@@ -246,6 +274,16 @@ Contour draws a calm night map with muted gold lines and agent peaks.
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/ambient --yes`
 
+### Video Markup
+
+Review product films in bb with inline playback, frame annotations, and version history. Send selected feedback and captured frames to the agent, guided by the bundled Product Demo Direction skill.
+
+![The Video Markup panel with a marked frame, an open frame note, and selected notes in the prompt box](plugins/video-markup/docs/screenshot.png)
+
+[Source](plugins/video-markup) · [README](plugins/video-markup/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/video-markup --yes`
+
 Each `plugin/*` install ref is generated from `main` after CI passes. The separate refs are necessary because bb installs from the root of a git checkout.
 
 ## Develop
@@ -262,13 +300,19 @@ To work on one plugin, install its workspace directly: `bb plugin install "path:
 
 See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template](tooling/plugin-catalog-entry.md), and [repository tooling](tooling/README.md).
 
-### Pinned Files
+### Pinned Files & Links
 
-Keep local files within reach in each thread with persistent pins above the composer. Ask the agent to pin files from the composer's pin button or use the CLI, and open pins through bb's file links.
+Keep a thread's key files and links one click away in a strip above the composer. Ask the agent to pin files from the composer's Pin pill, let agents pin the PR, issue, spec and dev site they work with, and open, unpin or remove pins from their menus.
 
-![Persistent thread file pins](https://github.com/user-attachments/assets/6e33e4f9-e0e5-4db6-892f-631bf0567b35)
+![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
 
-![The pin button adds a Pin files pill to the composer](https://github.com/user-attachments/assets/4749c71d-891c-4581-817d-33bc93e678ca)
+![Unpinned files and links in the ⋯ list above the strip](plugins/file-pins/docs/more-list.png)
+
+![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](plugins/file-pins/docs/pin-menu-dark.png)
+
+![The Pin pill in the composer, followed by the files and link to pin](plugins/file-pins/docs/pin-files-pill.png)
+
+![Pins with whole labels on a phone, the last one shortened to fill the row, and the rest in the full-width ⋯ list](plugins/file-pins/docs/phone-more-list.png)
 
 [Source](plugins/file-pins) · [README](plugins/file-pins/README.md)
 

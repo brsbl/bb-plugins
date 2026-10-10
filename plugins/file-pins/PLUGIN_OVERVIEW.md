@@ -1,13 +1,18 @@
-Keep the files you return to beside the conversation they belong to.
+## What you get
 
-Click the pin button in the composer’s action row and type one or more paths or file names
-after the **Pin files** pill; the agent finds each file, asks about any that are ambiguous, and
-pins them. Or run
-`bb file-pins pin`. Quiet file references stay above the composer, with
-files that aren't pinned behind **⋯**. Clicking a file uses bb’s usual file-opening
-behavior.
+- **A strip above the composer.** Pinned files and links sit in order as quiet raised chips. Each chip is as wide as its label; labels truncate only when the strip runs out of room, and the rest wait in the **⋯** list. On touch screens pins keep whole labels while they fit, only the last pin on the strip shortens, and more pins move to **⋯** instead.
+- **Files and links together.** Files show outline icons for code, documents and images in the theme's file color. Links show their site's icon and the page title, a terminal for a dev server on localhost or a private network, and a globe for sites that have none. A public GitHub pull request also shows its state beside GitHub's icon: open, draft, merged or closed, in the theme's PR colors.
+- **Agent-assisted pinning.** The pin button adds a **Pin** pill to the composer. Type paths, file names or URLs after it and send; the agent finds each file, asks about any that are ambiguous, and pins them.
+- **Key links pinned for you.** Agents pin the PR they open, the issue or ticket, the spec they follow, and a dev site or preview they hand you, and remove a dev site's pin when its server stops.
 
-Right-click a pin to unpin it to the ⋯ list or remove it; pin files back from the ⋯ list while the strip has room. Remove offers Undo in the toast. Missing files
-stay visible with a light red tint and a × to remove them. Pins persist per thread across clients and
-restarts. No pins means no strip. Files stay on their original machine; no file
-contents are copied into pin storage.
+## How it works
+
+Click a pin to open it the way bb opens files and links. Right-click a file for **Open preview**, **Open externally**, **Copy file path** and **Copy file name**, then **Unpin** to move it to the ⋯ list or **Remove**, which offers **Undo**. Pin a file back from the ⋯ list while the strip has room. Missing files stay visible with a light red tint.
+
+With Moss Viewer installed, a pinned Moss note opens in its panel, even when the note lives on another machine, and **Open in Moss** there opens it for editing.
+
+Pins persist per thread across clients and restarts. Agents and scripts can also run `bb file-pins pin`, `list` and `remove`.
+
+## Privacy
+
+Files stay on their machine; pins store only the path, and no file contents are copied or sent to the agent. Link icons are looked up by the link's public HTTPS origin only, never its path or query. For a pinned GitHub pull request, the bb server sends its owner, repository and number to GitHub's public API, without credentials, to read its state; private repositories' PRs keep the site icon, except the thread's own PR, whose state comes from bb.

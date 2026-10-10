@@ -2,6 +2,8 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
 import { isIP, type LookupFunction } from "node:net";
 import { PNG } from "pngjs";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { iconUrl } from "./url.js";
 
 export const ICON_LIMITS = {
   inputBytes: 256 * 1024,
@@ -38,18 +40,7 @@ export function isPublicAddress(address: string): boolean {
     !(a === 0x3fff && b < 0x1000);
 }
 
-function publicUrl(value: string): URL | null {
-  try {
-    const url = new URL(value);
-    const host = url.hostname;
-    if (url.protocol !== "https:" || url.port || url.username || url.password || isIP(host) ||
-      host.length > 253 || !host.includes(".") || host.endsWith(".") ||
-      /(?:^|\.)(?:localhost|local|internal|home|lan|onion|invalid|test)$/.test(host) ||
-      !host.split(".").every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) return null;
-    url.hash = "";
-    return url;
-  } catch { return null; }
-}
+const publicUrl = iconUrl;
 
 /** RPC takes an origin, never a pasted URL or credentials. */
 export function publicOrigin(value: string): string | null {
@@ -76,8 +67,11 @@ export function publicLookup(): LookupFunction {
 type Resource = { url: URL; body: Buffer; contentType: string };
 type Budget = { redirects: number };
 
-/** No ambient HTTP client, shared agent, proxy credentials, cookies or referrer. */
-export async function readPublicResource(input: URL, signal: AbortSignal, budget: Budget): Promise<Resource> {
+/**
+ * No ambient HTTP client, shared agent, proxy credentials, cookies or referrer.
+ * `truncate` keeps the first bytes of an oversized page, where <head> icon links live, instead of failing.
+ */
+export async function readPublicResource(input: URL, signal: AbortSignal, budget: Budget, { truncate = false } = {}): Promise<Resource> {
   let url = publicUrl(input.href);
   if (!url) throw new Error("Website URL is not public HTTPS");
   while (true) {
@@ -99,22 +93,26 @@ export async function readPublicResource(input: URL, signal: AbortSignal, budget
         }
         if (status < 200 || status >= 300 ||
           (reply.headers["content-encoding"] && reply.headers["content-encoding"] !== "identity") ||
-          Number(reply.headers["content-length"] ?? 0) > ICON_LIMITS.inputBytes) {
+          (!truncate && Number(reply.headers["content-length"] ?? 0) > ICON_LIMITS.inputBytes)) {
           reply.destroy();
           reject(new Error("Website resource is unavailable"));
           return;
         }
+        const contentType = String(reply.headers["content-type"] ?? "");
         const chunks: Buffer[] = [];
         let bytes = 0;
         reply.on("data", (chunk: Buffer) => {
           bytes += chunk.length;
           if (bytes > ICON_LIMITS.inputBytes) {
-            request.destroy(new Error("Website resource is too large"));
+            if (!truncate) { request.destroy(new Error("Website resource is too large")); return; }
+            chunks.push(chunk.subarray(0, chunk.length - (bytes - ICON_LIMITS.inputBytes)));
+            resolve({ status, body: Buffer.concat(chunks), contentType });
+            reply.destroy();
             return;
           }
           chunks.push(chunk);
         });
-        reply.on("end", () => resolve({ status, body: Buffer.concat(chunks), contentType: String(reply.headers["content-type"] ?? "") }));
+        reply.on("end", () => resolve({ status, body: Buffer.concat(chunks), contentType }));
         reply.on("error", reject);
         reply.on("aborted", () => reject(new Error("Website resource was interrupted")));
       });
@@ -274,7 +272,7 @@ export async function resolveIcon(origin: string, signal: AbortSignal): Promise<
     if (icon) return icon;
   } catch { signal.throwIfAborted(); }
   try {
-    const page = await readPublicResource(new URL("/", origin), signal, budget);
+    const page = await readPublicResource(new URL("/", origin), signal, budget, { truncate: true });
     if (!/^(?:text\/html|application\/xhtml\+xml)\b/i.test(page.contentType)) return null;
     for (const candidate of declaredIcons(page.body.toString("utf8"), page.url)) {
       try { const icon = await imageAt(candidate); if (icon) return icon; }
@@ -347,4 +345,38 @@ export class IconService {
     this.pending.set(origin, { controller, result });
     return result;
   }
+}
+
+/** Only disposable origin-level raster data lives in the plugin's own database. */
+export function createIconCache(bb: Pick<BbPluginApi, "storage">, now = Date.now): IconCache {
+  const db = bb.storage.database();
+  db.exec("CREATE TABLE IF NOT EXISTS icons (origin TEXT PRIMARY KEY, data TEXT, expires INTEGER NOT NULL, touched INTEGER NOT NULL, bytes INTEGER NOT NULL)");
+  const read = db.prepare("SELECT data, expires FROM icons WHERE origin = ?");
+  const remove = db.prepare("DELETE FROM icons WHERE origin = ?");
+  const touch = db.prepare("UPDATE icons SET touched = ? WHERE origin = ?");
+  const write = db.prepare("INSERT OR REPLACE INTO icons(origin, data, expires, touched, bytes) VALUES (?, ?, ?, ?, ?)");
+  const expired = db.prepare("DELETE FROM icons WHERE expires <= ?");
+  const list = db.prepare("SELECT origin, bytes FROM icons ORDER BY touched DESC, rowid DESC");
+  // Misses are retried after each restart or update instead of lingering for the negative TTL.
+  db.exec("DELETE FROM icons WHERE data IS NULL");
+  const put = db.transaction((origin: string, dataUrl: string | null) => {
+    const time = now();
+    expired.run(time);
+    write.run(origin, dataUrl, time + (dataUrl ? ICON_LIMITS.positiveMs : ICON_LIMITS.negativeMs), time, Buffer.byteLength(dataUrl ?? ""));
+    let bytes = 0;
+    for (const [index, entry] of (list.all() as Array<{ origin: string; bytes: number }>).entries()) {
+      bytes += entry.bytes;
+      if (index >= ICON_LIMITS.entries || bytes > ICON_LIMITS.cacheBytes) remove.run(entry.origin);
+    }
+  });
+  return {
+    get(origin) {
+      const entry = read.get(origin) as { data: string | null; expires: number } | undefined;
+      if (!entry) return undefined;
+      if (entry.expires <= now()) { remove.run(origin); return undefined; }
+      touch.run(now(), origin);
+      return entry.data;
+    },
+    put,
+  };
 }

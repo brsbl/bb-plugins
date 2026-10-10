@@ -1,8 +1,9 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { connectionScope, openBrowser } from "./browser";
+import { checkSignIn, connectionScope, openBrowser } from "./browser";
 import { ConnectionSchema } from "./model";
+import { accountUrl, expectedAccount } from "./sites";
 
 const dispose: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const cleanup of dispose.splice(0)) await cleanup(); });
@@ -73,5 +74,39 @@ describe("digest browser ownership", () => {
       status: "unavailable", recovery: "retry", message: expect.stringContaining("Open bb"),
     });
     expect(harness.inspection.sdk.calls.map(({ path }) => path)).toEqual(["experimental_desktopBrowsers.listInstances"]);
+  });
+
+  it.each([
+    ["https://mail.google.com/mail/u/Me@Example.com/", "me@example.com"],
+    ["https://mail.google.com/mail/u/me%40example.com/#inbox", "me@example.com"],
+    ["https://mail.google.com/mail/?authuser=me@example.com", "me@example.com"],
+    ["https://mail.google.com/mail/u/0/", null],
+    ["https://x.com/home", null],
+  ])("reads the account a connection URL names: %s", (url, expected) => {
+    expect(expectedAccount(url)).toBe(expected);
+    expect(accountUrl(url, "#inbox/1")).toBe(expected ? `https://mail.google.com/mail/?authuser=${expected}#inbox/1` : url);
+  });
+
+  it.each([
+    ["linkedin", { page: "signed-in", accountName: "Ada Example" }, { accountName: "Ada Example" }],
+    ["x", { page: "signed-in", accountName: "@example_handle" }, { accountName: "@example_handle" }],
+    ["linkedin", { page: "authwall", accountName: null }, { status: "signed-out", recovery: "reconnect", message: "LinkedIn is signed out (it showed its sign-in wall). Reconnect it in the bb browser, then Retry." }],
+    ["x", { page: "login", accountName: null }, { status: "signed-out", recovery: "reconnect", message: "X is signed out (it showed its sign-in page). Reconnect it in the bb browser, then Retry." }],
+    ["linkedin", { page: "challenge", accountName: null }, { status: "expired", recovery: "reconnect", message: expect.stringContaining("security check") }],
+    ["x", { page: null, accountName: null }, { status: "unavailable", recovery: "retry", message: expect.stringContaining("didn’t finish loading") }],
+  ])("reports what the %s page showed: %j", async (id, probed, expected) => {
+    const site = ConnectionSchema.parse({ id, name: id === "x" ? "X" : "LinkedIn", url: id === "x" ? "https://x.com/home" : "https://www.linkedin.com/feed/" });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "digests",
+      sdk: { plugins: { callRpc: async ({ outputSchema }) => outputSchema.parse({ text: `DIGEST_CONNECTION:${JSON.stringify(probed)}`, exitCode: 0 }) } },
+    });
+    dispose.push(() => harness.lifecycle.dispose());
+    const lease = { hostId: "host_browser", instanceId: "desktop_1", generation: "generation_1", threadId: "thr_issue", tabId: "tab_1", sessionId: "session_1", connectionId: id };
+    const result = checkSignIn(bb, site, lease);
+    if ("accountName" in expected) await expect(result).resolves.toBe(expected.accountName);
+    else await expect(result).rejects.toMatchObject(expected);
+    expect(harness.inspection.sdk.callsTo("plugins.callRpc")[0]?.[0]).toMatchObject({
+      pluginId: "browser-automation", method: "run", input: { sessionId: "session_1", script: expect.stringContaining(`p.goto(${JSON.stringify(site.url)})`) },
+    });
   });
 });

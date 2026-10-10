@@ -31,7 +31,7 @@ It keeps unread agent output in Inbox and lets plugins have their own inboxes.
   none) without sending an entry prompt. Turning the setting on also releases
   threads you had already read there. A thread moved out of a plugin inbox
   this way is not claimed by it again.
-- Starting unclaimed work again or queuing a message restores the thread’s remembered stage.
+- Starting unclaimed work again, running a child thread, or queuing a message restores the thread’s remembered stage (or Threads if none). Hidden children count too. The parent can return to Inbox once every child has stopped, following its normal unread rule.
 - A user move changes the remembered stage. `bb organizer phase <stage-key>`
   moves it explicitly.
 - Inbox keeps that system behavior even when its visible title changes.

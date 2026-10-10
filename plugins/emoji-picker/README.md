@@ -12,11 +12,11 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/emoji-picke
 
 ## Use
 
-Type `:` wherever you want an emoji in your draft, then search or browse the picker and select one. The chosen emoji replaces the colon. Dismiss the picker to keep the colon as punctuation. Picking never sends a message.
+Type `:` and pause for 250 ms to open the picker, then search or browse and select an emoji. Continuing to type or leaving the composer before it opens cancels the picker. The chosen emoji replaces the colon. Dismiss the picker to keep the colon as punctuation. Picking never sends a message.
 
 On desktop, the picker opens above the colon, or below it when space is tight. On mobile, it opens in a drawer.
 
-Use the arrow keys to browse, Enter to select, and Space to dismiss the picker and return to your draft. From search, Down focuses the first result. Skin tone and the last 24 choices are remembered in this browser.
+Use the arrow keys to browse. Return (Enter) or Space dismisses the picker and returns to your draft without selecting an emoji or sending a message. Click an emoji to insert it. From search, Down focuses the first result. Skin tone and the last 24 choices are remembered in this browser.
 
 The [Emoji Mart](https://github.com/missive/emoji-mart) Unicode 15 dataset is bundled for offline use. Emoji appearance and support depend on your operating system. The plugin sends no search or usage data to a server.
 

@@ -45,16 +45,16 @@ describe("Digests app", () => {
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
       rpc: { getIssue: () => ({ ...readyIssue,
         lede: "A quiet weekend: **14 new emails**, but only **2 need you**. Google flagged a sign-in to ==confirm today==.",
-        details: "## Reply to\n\n[**Felix Rieseberg**](https://example.test/felix) :chip[Anthropic] suggested **Thursday at 3pm**.\n\n**[Review reply](https://example.test/reply)**\n\n## The rest\n\nYour scorecard gained :gain[+12 followers]. An [unsafe link](javascript:alert%281%29) stays inert.\n\n<script>window.untrusted = true</script>\n\n<!-- more -->\n\nEarlier context: `:chip[not a chip]`.",
+        details: "## Reply to\n\n[**Ada Example**](https://example.test/ada) :chip[Example Co] suggested **Thursday at 3pm**.\n\n**[Review reply](https://example.test/reply)**\n\n## The rest\n\nYour scorecard gained :gain[+12 followers]. An [unsafe link](javascript:alert%281%29) stays inert.\n\n<script>window.untrusted = true</script>\n\n<!-- more -->\n\nEarlier context: `:chip[not a chip]`.",
       }) },
     });
     expect(await slot.findByRole("heading", { name: readyIssue.headline })).toBeDefined();
     expect(slot.getByText("14 new emails").tagName).toBe("STRONG");
     expect(slot.getByText("confirm today").tagName).toBe("MARK");
-    expect(slot.getByText("Anthropic").className).toBe("digest-chip");
+    expect(slot.getByText("Example Co").className).toBe("digest-chip");
     expect(slot.getByText("+12 followers").className).toBe("digest-gain");
     expect(slot.getByRole("heading", { name: "Reply to" }).closest("details")).toBeNull();
-    expect(slot.getByRole("link", { name: "Felix Rieseberg" }).getAttribute("href")).toBe("https://example.test/felix");
+    expect(slot.getByRole("link", { name: "Ada Example" }).getAttribute("href")).toBe("https://example.test/ada");
     expect(slot.getByRole("link", { name: "Review reply" }).closest("p")?.className).toBe("digest-item-actions");
     expect(slot.queryByRole("link", { name: "unsafe link" })).toBeNull();
     expect(slot.container.querySelector("script, dl, time")).toBeNull();
@@ -220,6 +220,23 @@ describe("Digests app", () => {
     expect(slot.inspection.rpcCalls).toContainEqual({ method: "dismissImportBanner", input: {} });
   });
 
+  it("shows the detected account and warns when it differs from the connection's account", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const connections = [
+      { id: "gmail", name: "Gmail", url: "https://mail.google.com/mail/u/me@example.com/", status: "expired", accountName: "work@example.com", detail: null },
+      { id: "x", name: "X", url: "https://x.com/home", status: "signed-in", accountName: "@me", detail: null },
+    ];
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [definition], connections, actionCardsAvailable: false, organizerReady: true }),
+      settingsPreferences: () => ({ importBannerDismissed: true }),
+      checkSettingsConnections: () => connections,
+    } });
+    const gmail = await slot.findByRole("region", { name: "Gmail" });
+    expect(gmail.querySelector(".digest-site-account")?.textContent).toBe("Signed in as work@example.com, expected me@example.com · Reconnect");
+    expect(slot.getByRole("link", { name: "Reconnect" }).getAttribute("href")).toBe("/settings/browser");
+    expect(slot.getByText("@me")).toBeDefined();
+  });
+
   it("creates a prompt digest at 10am and edits the same nested row", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     let definitions: typeof definition[] = [];
@@ -256,7 +273,7 @@ describe("Digests app", () => {
   it("shows source rows and a collapsed tail without performing account actions", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
-      heading: "Needs you", items: [{ title: "Reply to Felix", text: "Coffee Thursday at 3pm.", urgency: "today", action: { label: "Review reply", url: "https://example.test/reply" } }],
+      heading: "Needs you", items: [{ title: "Reply to Ada", text: "Coffee Thursday at 3pm.", urgency: "today", action: { label: "Review reply", url: "https://example.test/reply" } }],
       later: [], laterLabel: "Later", tail: { label: "12 routine emails", details: "Receipts and newsletters." },
     } }) } });
     const action = await slot.findByRole("button", { name: "Review reply" });
@@ -300,7 +317,7 @@ describe("Digests app", () => {
     }));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
       heading: "Needs you", items: [
-        { title: "Reply to Felix", text: "Confirm Thursday.", action: { label: "Review reply", url: "https://example.test/reply" } },
+        { title: "Reply to Ada", text: "Confirm Thursday.", action: { label: "Review reply", url: "https://example.test/reply" } },
         { title: "Check a new sign-in", tone: "danger", text: "An unfamiliar device.", action: { label: "Review alert", url: "https://example.test/alert" } },
       ], later: [], laterLabel: "Later", tail: { label: "Routine (5)", details: "", items: rows },
     } }) } });
