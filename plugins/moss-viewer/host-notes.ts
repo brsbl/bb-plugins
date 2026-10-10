@@ -97,6 +97,13 @@ async function readLayout(directory: string): Promise<unknown> {
 }
 
 /** Reads a Markdown file and, when it is a Moss note, the sidecars the viewer needs. */
+/** The note's version on disk: its file and its layout, the two things the viewer shows. */
+export async function noteVersion(file: string): Promise<string> {
+  const note = await stat(file).catch(() => null);
+  const layout = await stat(join(dirname(file), "layout.json")).catch(() => null);
+  return [note ? `${note.mtimeMs}:${note.size}` : "missing", layout ? `${layout.mtimeMs}:${layout.size}` : "none"].join("/");
+}
+
 export async function readNote({ path }: { path: string }) {
   if (!MARKDOWN.test(path)) return { moss: false as const, path, missing: false };
   let file: Awaited<ReturnType<typeof canonicalFile>>;
@@ -125,6 +132,7 @@ export async function readNote({ path }: { path: string }) {
     layout: await readLayout(directory),
     noteId: await readNoteId(directory),
     modifiedMs: file.modifiedMs,
+    version: await noteVersion(file.path),
   };
 }
 

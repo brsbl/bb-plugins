@@ -516,14 +516,17 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const viewerNote = editorNote === null ? note : null;
   const viewerRef = useRef(viewerNote);
   viewerRef.current = viewerNote;
-  const seenVersion = useRef<string | null>(null);
+  // The version on screen, by note: it moves only when a read lands, so a failed read is tried again.
+  const shownVersion = useRef<{ key: string; version: string | null } | null>(null);
   const reloadViewer = useCallback(() => {
     const shown = viewerRef.current;
     if (shown === null) return;
     const { hostId, path } = shown;
+    const key = noteKey(shown);
     rpcRef.current.call("read", { kind: "host", path, hostId, environmentId: null }).then(
       (result) => {
         if (!result.moss) return;
+        if (shownVersion.current?.key === key) shownVersion.current = { key, version: result.version ?? null };
         setStack((current) =>
           current.note?.hostId === hostId && current.note.path === path ? { ...current, note: result } : current,
         );
@@ -537,13 +540,15 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
     if (watchKey === null || shown === null) return;
     const { hostId, path } = shown;
     let live = true;
-    seenVersion.current = null;
+    // A note opened (or returned to with Back) is as new as the read that brought it, whatever changed since.
+    if (shownVersion.current?.key !== watchKey) shownVersion.current = { key: watchKey, version: shown.version ?? null };
     const renew = () => {
       rpcRef.current.call("watchNote", { hostId, path }).then(
         ({ version }) => {
-          if (!live) return;
-          if (seenVersion.current !== null && seenVersion.current !== version) reloadViewer();
-          seenVersion.current = version;
+          if (!live || shownVersion.current?.key !== watchKey) return;
+          // A host older than live reload reads no version; its first renewal stands in.
+          if (shownVersion.current.version === null) shownVersion.current = { key: watchKey, version };
+          else if (shownVersion.current.version !== version) reloadViewer();
         },
         // The host is away or cannot watch this file; the next renewal tries again.
         () => undefined,
@@ -562,8 +567,7 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
     const change = asViewerNoteChanged(payload);
     const shown = viewerRef.current;
     if (change === null || shown === null || change.hostId !== shown.hostId || change.path !== shown.path) return;
-    if (change.version === seenVersion.current) return;
-    seenVersion.current = change.version;
+    if (change.version === shownVersion.current?.version) return;
     reloadViewer();
   });
 

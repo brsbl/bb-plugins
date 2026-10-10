@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { homedir, platform, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { listNotes, openInMoss, readAsset, readNote, revealNote } from "./host-notes.js";
+import { listNotes, noteVersion, openInMoss, readAsset, readNote, revealNote } from "./host-notes.js";
 
 vi.mock("node:child_process", () => ({ execFile: vi.fn((_file, _args, _options, callback) => callback(null)) }));
 vi.mock("node:os", async (original) => ({
@@ -45,6 +45,8 @@ it("reads a Moss note with its layout and id, and leaves other Markdown to bb", 
     layout,
     noteId: "note-1",
     modifiedMs: expect.any(Number),
+    // The version the viewer's watch reports, so the panel can tell what changed since this read.
+    version: await noteVersion(tweets.path),
   });
 
   await mkdir(join(home, "Code"), { recursive: true });

@@ -136,6 +136,8 @@ const noteFile = z.discriminatedUnion("moss", [
     layout: z.unknown(),
     noteId: id.nullable(),
     modifiedMs: z.number(),
+    /** The note's version on disk as read, in `watchNote`'s terms; absent from hosts older than live reload. */
+    version: z.string().optional(),
     /** An adopted note in ~/Moss/Notes on a volume this host can edit; see editor-host.ts. */
     editable: z.boolean(),
   }),
@@ -191,6 +193,8 @@ const readResult = z.discriminatedUnion("moss", [
     layout: z.unknown(),
     noteId: id.nullable(),
     modifiedMs: z.number(),
+    /** The note's version on disk as read, in `watchNote`'s terms. */
+    version: z.string().optional(),
     /** The viewer's frame document. */
     frameUrl: z.string(),
     /** The sandboxed page each of the note's HTML blocks runs in. */

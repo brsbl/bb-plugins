@@ -2,11 +2,11 @@
 // watches the note's folder and signals when the note or its layout changes on
 // disk. The panel renews the watch as a lease, and each renewal also reports
 // the current version, which catches a missed signal.
-import { readdir, stat } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { readdir } from "node:fs/promises";
+import { basename, dirname } from "node:path";
 import type { ExperimentalHostRpcContext, ExperimentalHostWatchSubscription } from "@get-bb/plugin-sdk/host";
 import type { hostSignals } from "./contract.js";
-import { canonicalFile } from "./host-notes.js";
+import { canonicalFile, noteVersion } from "./host-notes.js";
 
 /** A watch the panel stops renewing ends after this long. */
 export const VIEWER_WATCH_LEASE_MS = 60_000;
@@ -22,13 +22,6 @@ interface ViewerWatch {
   context: HostContext;
   subscription: Promise<ExperimentalHostWatchSubscription> | null;
   expiry: ReturnType<typeof setTimeout> | undefined;
-}
-
-/** The note's version on disk: its file and its layout, the two things the viewer shows. */
-export async function noteVersion(file: string): Promise<string> {
-  const note = await stat(file).catch(() => null);
-  const layout = await stat(join(dirname(file), "layout.json")).catch(() => null);
-  return [note ? `${note.mtimeMs}:${note.size}` : "missing", layout ? `${layout.mtimeMs}:${layout.size}` : "none"].join("/");
 }
 
 /** The note's subfolders, so a note at the top of a large tree watches only its own folder. */
