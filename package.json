@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-digests",
+  "version": "0.1.0",
+  "description": "Private briefings with clear next steps, delivered as threads using your browser sign-ins.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md",
+    "PLUGIN_OVERVIEW.md",
+    "skills"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Briefs",
+    "description": "Briefs arrive in the Briefs inbox. Move or archive them when done.",
+    "branding": {
+      "icon": "MailOpen"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [
+      "skills"
+    ],
+    "app": "./dist/install-app.mjs"
+  }
+}
