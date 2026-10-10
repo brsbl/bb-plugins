@@ -2,6 +2,7 @@ import { readPublicResource } from "@brsbl/bb-website-icons";
 import { iconUrl } from "@brsbl/bb-website-icons/url";
 
 export type LinkPreview = { title: string; description: string; site: string; image: string | null };
+const IMAGE_BYTES = 2 * 1024 * 1024;
 
 function decode(value: string): string {
   const named: Record<string, string> = { amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", nbsp: " " };
@@ -33,7 +34,7 @@ export function pageMetadata(html: string) {
 /** Only bounded PNG/JPEG raster data, never SVG or page markup. */
 export function previewImage(body: Buffer): string | null {
   let width = 0, height = 0, mime = "";
-  if (body.length > 256 * 1024) return null;
+  if (body.length > IMAGE_BYTES) return null;
   if (body.length >= 33 && body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
     width = body.readUInt32BE(16); height = body.readUInt32BE(20); mime = "image/png";
   } else if (body[0] === 255 && body[1] === 216) {
@@ -84,7 +85,7 @@ export class LinkPreviews {
     let image: string | null = null;
     if (meta.image) {
       try {
-        const asset = await readPublicResource(new URL(meta.image, page.url), signal, { redirects: 0 });
+        const asset = await readPublicResource(new URL(meta.image, page.url), signal, { redirects: 0 }, { maxBytes: IMAGE_BYTES });
         image = previewImage(asset.body);
       } catch { /* Keep metadata and the site's cached-icon fallback. */ }
     }

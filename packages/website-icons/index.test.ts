@@ -83,6 +83,15 @@ describe("public origin and connection policy", () => {
     network([{ body: Buffer.alloc(ICON_LIMITS.inputBytes + 1) }]);
     await expect(readPublicResource(new URL("https://example.com/favicon.ico"), new AbortController().signal, { redirects: 0 })).rejects.toThrow("large");
   });
+
+  it("allows a larger bounded preview image without changing the default icon budget", async () => {
+    const body = Buffer.alloc(400 * 1024);
+    network([{ body, length: String(body.length) }]);
+    const resource = await readPublicResource(new URL("https://example.com/cover.png"), new AbortController().signal, { redirects: 0 }, { maxBytes: 2 * 1024 * 1024 });
+    expect(resource.body.length).toBe(body.length);
+    network([{ body: Buffer.alloc(2 * 1024 * 1024 + 1) }]);
+    await expect(readPublicResource(new URL("https://example.com/cover.png"), new AbortController().signal, { redirects: 0 }, { maxBytes: 2 * 1024 * 1024 })).rejects.toThrow("large");
+  });
 });
 
 describe("bounded raster icons", () => {
