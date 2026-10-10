@@ -31,12 +31,25 @@ export function pageMetadata(html: string) {
   };
 }
 
-/** Only bounded PNG/JPEG raster data, never SVG or page markup. */
+/** Only bounded PNG/JPEG/WebP raster data, never SVG or page markup. */
 export function previewImage(body: Buffer): string | null {
   let width = 0, height = 0, mime = "";
   if (body.length > IMAGE_BYTES) return null;
   if (body.length >= 33 && body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
     width = body.readUInt32BE(16); height = body.readUInt32BE(20); mime = "image/png";
+  } else if (body.length >= 30 && body.toString("ascii", 0, 4) === "RIFF" && body.toString("ascii", 8, 12) === "WEBP" && body.readUInt32LE(4) + 8 === body.length) {
+    const kind = body.toString("ascii", 12, 16);
+    const size = body.readUInt32LE(16);
+    if (size + 20 > body.length) return null;
+    if (kind === "VP8X" && size === 10 && !(body[20] & 2)) {
+      width = body.readUIntLE(24, 3) + 1; height = body.readUIntLE(27, 3) + 1;
+    } else if (kind === "VP8 " && size >= 10 && body.subarray(23, 26).equals(Buffer.from([0x9d, 0x01, 0x2a]))) {
+      width = body.readUInt16LE(26) & 0x3fff; height = body.readUInt16LE(28) & 0x3fff;
+    } else if (kind === "VP8L" && size >= 5 && body[20] === 0x2f) {
+      const bits = body.readUInt32LE(21);
+      width = (bits & 0x3fff) + 1; height = ((bits >>> 14) & 0x3fff) + 1;
+    }
+    mime = "image/webp";
   } else if (body[0] === 255 && body[1] === 216) {
     for (let i = 2; i + 8 < body.length;) {
       if (body[i++] !== 255) break;
@@ -79,7 +92,12 @@ export class LinkPreviews {
     return result;
   }
   private async load(url: URL, signal: AbortSignal): Promise<LinkPreview | null> {
-    const page = await readPublicResource(url, signal, { redirects: 0 }, { truncate: true });
+    // Some sites (including YouTube) put metadata after large inline scripts.
+    const page = await readPublicResource(url, signal, { redirects: 0 }, { truncate: true, maxBytes: IMAGE_BYTES });
+    if (/^image\//i.test(page.contentType)) {
+      const image = page.body.length < IMAGE_BYTES ? previewImage(page.body) : null;
+      return image ? { title: page.url.pathname.split("/").pop() || page.url.hostname, description: "", site: page.url.hostname, image } : null;
+    }
     if (!/^text\/html\b/i.test(page.contentType)) return null;
     const meta = pageMetadata(page.body.toString("utf8"));
     let image: string | null = null;

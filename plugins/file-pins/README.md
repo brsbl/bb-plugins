@@ -62,7 +62,7 @@ together. Only `http` and `https` URLs without credentials can be pinned.
 Paths resolve on the selected machine through the plugin's host entry. File
 contents never enter pin storage. Pins survive reloads and thread environment
 changes and can be removed while a machine is offline. Deleting the thread
-removes its pins. Pinning does not send file content to the agent. Web preview metadata and PNG/JPEG thumbnails are fetched on hover from public HTTPS destinations, without cookies or credentials, and cached in memory for up to an hour. Local URLs and unavailable pages keep the site-icon fallback. Redirects and resolved addresses are checked before connecting; previews never load remote images in the browser. Icons are looked up only for a
+removes its pins. Pinning does not send file content to the agent. Web preview metadata and PNG/JPEG/WebP thumbnails are fetched on hover from public HTTPS destinations, without cookies or credentials, and cached in memory for up to an hour. Direct raster image links show the image itself. Local URLs, PDFs, and unavailable pages keep the site-icon fallback. Redirects and resolved addresses are checked before connecting; previews never load remote images in the browser. Icons are looked up only for a
 pinned link's public HTTPS origin, never its path or query, and cached in the plugin's database. For a
 pinned GitHub pull request, the bb server sends the PR's owner, repository and number to GitHub's public
 API, without credentials, and caches its state. GitHub answers only for public repositories, so a private

@@ -21,10 +21,10 @@ export function LinkPreviewCard({ threadId, pin }: { threadId: string; pin: UrlP
   }, [rpc, threadId, pin.id]);
   const site = preview?.site || new URL(pin.url).hostname.replace(/^www\./, "");
   const title = pin.name !== urlPinName(pin.url) ? pin.name : preview?.title || pin.name;
-  const image = preview?.image && /^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(preview.image) && !failedImage ? preview.image : null;
+  const image = preview?.image && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(preview.image) && !failedImage ? preview.image : null;
   return <>
     <div className="flex h-32 items-center justify-center overflow-hidden border-b bg-muted/30">
-      {image ? <img src={image} alt="" draggable={false} onError={() => setFailedImage(true)} className="h-full w-full object-cover" />
+      {image ? <img src={image} alt="" draggable={false} onError={() => setFailedImage(true)} className="h-full w-full object-contain" />
         : <span className="flex size-16 items-center justify-center rounded-xl border bg-popover shadow-sm [&_img]:size-10 [&_svg]:size-10"><UrlPinIcon threadId={threadId} pin={pin} /></span>}
     </div>
     <div className="space-y-1 px-4 py-3">

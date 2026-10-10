@@ -52,3 +52,16 @@ it("previews a direct raster image instead of discarding non-HTML responses", as
   try { expect((await previews.get("https://example.com/cover.png"))?.image).toBe(`data:image/png;base64,${png.toString("base64")}`); }
   finally { previews.dispose(); fetch.mockRestore(); }
 });
+
+it("accepts bounded static WebP thumbnails and rejects animation, truncation and huge canvases", () => {
+  // Extended WebP header, following https://developers.google.com/speed/webp/docs/riff_container.
+  const webp = Buffer.alloc(40);
+  webp.write("RIFF"); webp.writeUInt32LE(webp.length - 8, 4); webp.write("WEBPVP8X", 8); webp.writeUInt32LE(10, 16);
+  webp.writeUIntLE(1279, 24); webp.writeUIntLE(719, 27);
+  expect(previewImage(webp)).toBe(`data:image/webp;base64,${webp.toString("base64")}`);
+  expect(previewImage(webp.subarray(0, 35))).toBeNull();
+  webp[20] = 2;
+  expect(previewImage(webp)).toBeNull();
+  webp[20] = 0; webp.writeUIntLE(9999, 24);
+  expect(previewImage(webp)).toBeNull();
+});
