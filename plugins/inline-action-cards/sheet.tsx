@@ -218,7 +218,7 @@ export function SheetRowView({ item, done, result, expanded, onExpand, sheet, di
       <div className="iac-row-answer">
         {sheet.changed && !staged && <span className="iac-tag iac-tag-changed">Changed — review again</span>}
         {staged && <span id={status} className="iac-sr-only">Not sent yet</span>}
-        {resend ? <><span className="iac-muted">Not sent</span><ActionButton variant="outline" onClick={resend}>Resend</ActionButton></> : answer}
+        {resend ? <><span className="iac-failed iac-unsent"><span aria-hidden="true">⚠</span> Not sent</span><ActionButton variant="default" onClick={resend}>Resend</ActionButton></> : answer}
       </div>
     </div>}
     {expanded && body}

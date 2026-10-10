@@ -328,3 +328,7 @@
 .iac-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iac-row-summary[aria-expanded="true"] .iac-row-title { white-space: normal; overflow-wrap: anywhere; }
 .iac-row-question > .iac-row-mark, .iac-row-question > .iac-disclosure { flex-shrink: 0; }
+@container (max-width: 520px) {
+  .iac-row-title { display: -webkit-box; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+}
+.iac-unsent { font-size: var(--text-sm, .8125rem); white-space: nowrap; }
