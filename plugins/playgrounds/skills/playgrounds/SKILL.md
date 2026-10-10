@@ -18,10 +18,10 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 
 ## Choose the form
 
-- For a crafted isometric explainer or an interactive product-design lesson, load
-  the bundled `anatomy` skill. It adds Ryan's Anatomy drawing kit, a typography
-  printing press, and an interface motion rig with guided experiments. Publish
-  the result as an ordinary HTML playground and use the same private library.
+- Before writing any HTML playground, load the `playground-design` skill: the
+  card design rules, plus Anatomy (Ryan's drawing kit, a typography printing
+  press, and an interface motion rig) for lessons that teach through a working
+  object. Publish the result as an ordinary HTML playground.
 
 - **Native document** for calculators, scenario comparisons, charts, and
   tables. Bounded arithmetic, no code, accessible by construction.
@@ -99,6 +99,8 @@ parameter) shows one in the current thread with its saved inputs. When the user
 Write body markup with inline `<style>` and `<script>`. It renders in a
 sandboxed, opaque-origin frame inside a rounded bb card that sizes itself to
 the content; `width` (320–1200) caps the card width.
+
+For how it should look, follow the `playground-design` skill.
 
 ### Behavior
 

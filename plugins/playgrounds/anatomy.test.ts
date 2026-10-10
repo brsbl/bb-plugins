@@ -4,7 +4,7 @@ import { Script } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { htmlAnswerSchema } from "./model.js";
 
-const skill = new URL("./skills/anatomy/", import.meta.url);
+const skill = new URL("./skills/playground-design/", import.meta.url);
 describe("Anatomy design instruments", () => {
   for (const instrument of ["typography-press", "motion-rig"]) {
     it(`${instrument} produces a self-contained payload accepted by the current sandbox`, async () => {
