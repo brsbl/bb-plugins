@@ -175,8 +175,8 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
 }
 
 export const FRAME_PATH = "/frame";
-export const IMAGE_HOSTS = ["https://upload.wikimedia.org"] as const;
-export const FRAME_CSP = [
+const IMAGE_HOSTS = ["https://upload.wikimedia.org"] as const;
+const FRAME_CSP = [
   "sandbox allow-scripts",
   "default-src 'none'",
   "script-src 'unsafe-inline'",

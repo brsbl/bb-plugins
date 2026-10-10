@@ -97,7 +97,7 @@ export const liveRpc = {
   },
 };
 
-export type LiveEvent = {
+type LiveEvent = {
   seq: number;
   kind: string;
   at: number;
