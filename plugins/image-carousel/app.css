@@ -1,0 +1,41 @@
+.icx { --icx-arrow: 32px; --icx-gap: 10px; --icx-caption: 84px; container-type: inline-size; margin: 12px 0; color: var(--foreground); outline: none; }
+.icx-heading { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.icx-row { display: grid; grid-template-columns: var(--icx-arrow) minmax(0, 1fr) var(--icx-arrow); gap: var(--icx-gap); align-items: center; }
+.icx-arrow { display: grid; place-items: center; width: var(--icx-arrow); height: var(--icx-arrow); padding: 0; border: 0; border-radius: 999px; background: var(--muted); color: var(--foreground); cursor: pointer; }
+.icx-arrow:hover:not([aria-disabled="true"]) { background: var(--accent); }
+.icx-arrow:focus-visible, .icx-caption:focus-visible, .icx-frame:focus-visible, .icx-retry:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.icx-arrow[aria-disabled="true"] { opacity: .35; cursor: default; }
+.icx-arrow svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icx-media { min-width: 0; }
+.icx-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--icx-gap); }
+.icx-pair figure { min-width: 0; margin: 0; }
+.icx-tag { margin-bottom: 4px; color: var(--muted-foreground); font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.icx-tag-after { color: var(--primary); }
+.icx-frame { display: block; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 8px; background: var(--muted); }
+.icx-frame-button { width: 100%; padding: 0; border: 0; cursor: zoom-in; }
+.icx-frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.icx-frame-empty { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted-foreground); font-size: 12px; }
+.icx-caption { height: var(--icx-caption); margin-top: 12px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; font-size: 13px; line-height: 1.5; }
+.icx-caption-more { mask-image: linear-gradient(#000 70%, transparent); }
+.icx-caption-title { font-weight: 600; overflow-wrap: anywhere; }
+.icx-caption-text { margin: 2px 0 0; color: var(--muted-foreground); white-space: pre-line; overflow-wrap: anywhere; }
+.icx-source { display: inline-block; margin-top: 2px; color: var(--primary); font-size: 12px; text-decoration: none; }
+.icx-source:hover { text-decoration: underline; }
+.icx-position { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; }
+.icx-count { color: var(--muted-foreground); font-size: 12px; font-variant-numeric: tabular-nums; }
+.icx-dots { display: flex; gap: 5px; }
+.icx-dots i { width: 6px; height: 6px; border-radius: 999px; background: var(--border); }
+.icx-dots i.icx-dot-on { background: var(--foreground); }
+.icx-note { display: flex; align-items: center; gap: 8px; margin: 12px 0; color: var(--muted-foreground); font-size: 13px; }
+.icx-retry { padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--foreground); font-size: 12px; cursor: pointer; }
+.icx-viewer { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px; background: color-mix(in oklab, var(--background) 30%, transparent); backdrop-filter: blur(6px); cursor: zoom-out; }
+.icx-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 12px 40px color-mix(in oklab, var(--foreground) 25%, transparent); }
+.icx-viewer-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 999px; background: var(--muted); color: var(--foreground); cursor: pointer; }
+.icx-viewer-close svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.icx-viewer-close:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.icx-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@container (max-width: 560px) {
+  .icx-row { --icx-arrow: 28px; --icx-gap: 6px; }
+  .icx-pair { grid-template-columns: minmax(0, 1fr); }
+  .icx-caption { --icx-caption: 104px; }
+}
