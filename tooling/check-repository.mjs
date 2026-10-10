@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import {
   pluginSdkArchive,
-  pluginSdkVersion,
+  pluginSdkFor,
   sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
 
@@ -30,6 +30,7 @@ const pluginBbEngineOverrides = new Map([
   ["improve-prompt", ">=0.40.0"],
   ["moss-viewer", ">=0.43.4"],
   ["open-in-moss", ">=0.43.4"],
+  ["playgrounds", ">=0.46.0"],
   ["pull-requests", ">=0.43.4"],
   ["theme-preview", ">=0.38.0"],
   ["video-markup", ">=0.43.4"],
@@ -234,15 +235,31 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
         `${slug}: bb.host requires engines.bb >=${hostEntryMinimumBb.join(".")}`,
       );
     }
+    const pluginSdk = await pluginSdkFor(directory);
     assert(
-      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion),
-      `${slug}: SDK floor is newer than vendored SDK ${pluginSdkVersion}`,
+      sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdk.version),
+      `${slug}: SDK floor is newer than vendored SDK ${pluginSdk.version}`,
     );
     assert(
       manifest.devDependencies?.["@bb/plugin-sdk"] === undefined,
       `${slug}: legacy @bb/plugin-sdk dependency remains`,
     );
-    if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
+    if (pluginSdk.pinned !== null) {
+      assert(
+        manifest.devDependencies?.["@get-bb/plugin-sdk"] ===
+          `file:./vendor/${pluginSdk.archive}`,
+        `${slug}: pinned plugin SDK dependency drift`,
+      );
+      const pinnedArchive = await readFile(
+        resolve(directory, "vendor", pluginSdk.archive),
+      ).catch(() => null);
+      assert(pinnedArchive !== null, `${slug}: pinned SDK archive missing`);
+      assert(
+        createHash("sha256").update(pinnedArchive).digest("hex") ===
+          pluginSdk.pinned.sha256,
+        `${slug}: pinned SDK archive hash mismatch`,
+      );
+    } else if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
       // Plugins may vendor the SDK archive next to their sources so a
       // pinned-commit install is standalone; that copy must stay byte-equal
       // to the shared tooling archive.

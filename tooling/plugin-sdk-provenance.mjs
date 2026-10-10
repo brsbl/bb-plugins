@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 const provenance = JSON.parse(
   await readFile(
@@ -19,6 +20,25 @@ if (provenance.archive !== `get-bb-plugin-sdk-${packageVersion}.tgz`) {
 
 export const pluginSdkArchive = provenance.archive;
 export const pluginSdkVersion = packageVersion;
+
+// A plugin that needs a newer SDK than the repository pin carries its own
+// archive and provenance under vendor/; every other plugin uses the shared pin.
+export async function pluginSdkFor(pluginDirectory) {
+  const record = await readFile(
+    resolve(pluginDirectory, "vendor/sdk-provenance.json"),
+    "utf8",
+  ).then(JSON.parse, () => null);
+  if (record === null) {
+    return { version: pluginSdkVersion, archive: pluginSdkArchive, pinned: null };
+  }
+  const version = /^@get-bb\/plugin-sdk@(\d+\.\d+\.\d+)$/.exec(
+    record.package,
+  )?.[1];
+  if (version === undefined || record.archive !== `get-bb-plugin-sdk-${version}.tgz`) {
+    throw new Error(`${pluginDirectory}: invalid vendor/sdk-provenance.json`);
+  }
+  return { version, archive: record.archive, pinned: record };
+}
 
 function parseVersion(value) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(value);

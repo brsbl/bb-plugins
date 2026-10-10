@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   definePluginApp,
-  experimental_usePluginId,
   useBbNavigate,
   useComposer,
   useRpc,
@@ -383,7 +382,7 @@ function HtmlAnswerView({
     frame.current?.contentWindow?.postMessage({ source: WIDGET_MESSAGE_SOURCE, ...message }, "*");
   const latestState = useRef<{ state: unknown } | null>(null);
   const remoteVersion = useRef(initial.version);
-  const pluginId = experimental_usePluginId();
+  const frameBase = useFrameBase();
   const budgets = useRef({
     event: { tokens: MESSAGE_BURST, at: Date.now() },
     actions: { tokens: MESSAGE_BURST, at: Date.now() },
@@ -459,8 +458,10 @@ function HtmlAnswerView({
   gestures.current = { send, open };
   const src = useMemo(
     () =>
-      `/api/v1/plugins/${pluginId}/http${FRAME_PATH}?thread=${encodeURIComponent(threadId)}&id=${encodeURIComponent(id)}#${encodeURIComponent(JSON.stringify({ state: initial.state, version: initial.version, theme: readTheme() }))}`,
-    [pluginId, id, threadId, initial.state, initial.version],
+      frameBase === null
+        ? null
+        : `${frameBase}${FRAME_PATH}?thread=${encodeURIComponent(threadId)}&id=${encodeURIComponent(id)}#${encodeURIComponent(JSON.stringify({ state: initial.state, version: initial.version, theme: readTheme() }))}`,
+    [frameBase, id, threadId, initial.state, initial.version],
   );
   useEffect(() => {
     const spend = (kind: keyof typeof budgets.current) => {
@@ -594,11 +595,12 @@ function HtmlAnswerView({
         <iframe
           ref={frame}
           title={widget.title}
-          src={src}
+          src={src ?? undefined}
           sandbox="allow-scripts"
           loading="lazy"
           style={{ height }}
           onLoad={() => {
+            if (src === null) return;
             if (latestState.current)
               post({
                 type: "state",
@@ -886,6 +888,29 @@ function PlaygroundLoader({
 }
 
 const LIBRARY_PATH = "library";
+
+let frameBaseRequest: Promise<string> | null = null;
+
+function useFrameBase() {
+  const rpc = useRpc<typeof rpcContract>();
+  const [base, setBase] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    frameBaseRequest ??= rpc.call("frameBase", {}).then((result) => result.base);
+    frameBaseRequest.then(
+      (value) => {
+        if (active) setBase(value);
+      },
+      () => {
+        frameBaseRequest = null;
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [rpc]);
+  return base;
+}
 
 function SaveControl({ answer }: { answer: Answer }) {
   const rpc = useRpc<typeof rpcContract>();

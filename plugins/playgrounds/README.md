@@ -5,7 +5,9 @@ playground right in their message, built from native controls or a custom HTML
 interface, and changing an input updates it immediately without another model
 call.
 
-Install it with:
+## Install
+
+Requires bb 0.46 or newer.
 
 ```bash
 bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/playgrounds --yes
@@ -105,3 +107,15 @@ from that frame's window:
   third-party font request.
 - Height is clamped to 4,000 px, frames load lazily, and data shared with the
   agent is framed as untrusted.
+
+## Develop
+
+```bash
+npm ci
+npm run check --workspace=bb-plugin-playgrounds
+```
+
+Playgrounds needs plugin SDK 0.6.37, newer than this repository's shared pin,
+so it carries its own SDK archive and provenance in `vendor/`. Run checks in
+remote CI. For local interaction verification, install the plugin only into an
+isolated source dev app.

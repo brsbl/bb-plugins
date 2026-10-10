@@ -45,6 +45,10 @@ export const rpcContract = defineRpcContract({
       .strict(),
     output: savedSchema,
   },
+  frameBase: {
+    input: z.object({}).strict(),
+    output: z.object({ base: z.string() }).strict(),
+  },
   findSaved: {
     input: z.object({ id: idSchema }).strict(),
     output: z.object({ saved: savedSchema.nullable() }).strict(),
@@ -316,6 +320,7 @@ export default function plugin(bb: BbPluginApi): void {
     }),
     save: async ({ id, threadId, title }) =>
       store.save(await store.resolve(threadId, id), id, title),
+    frameBase: () => ({ base: `/api/v1/plugins/${bb.pluginId}/http` }),
     findSaved: ({ id }) => ({ saved: store.findSaved(id) }),
     listSaved: () => ({ saved: store.listSaved() }),
     renameSaved: ({ savedId, title }) => store.renameSaved(savedId, title),

@@ -69,6 +69,9 @@ function server(kind: "document" | "html" = "document") {
       event: log("event", () => ({ seq: 1 })),
       result: log("result", () => ({ ok: true as const })),
       share: log("share", () => ({ itemId: `${answer.id}.12` })),
+      frameBase: log("frameBase", () => ({
+        base: "/api/v1/plugins/playgrounds/http",
+      })),
       save: log("save", () => {
         const saved = {
           savedId: SAVED_ID,
@@ -218,6 +221,7 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and relays sta
     pluginId: "playgrounds",
   });
   const frame = (await view.findByTitle(stepper.title)) as HTMLIFrameElement;
+  await waitFor(() => expect(frame.getAttribute("src")).toBeTruthy());
   expect(frame.getAttribute("sandbox")).toBe("allow-scripts");
   expect(frame.getAttribute("src")).toContain(
     `/api/v1/plugins/playgrounds/http/frame?thread=thr_test&id=${answer.id}#`,
@@ -371,6 +375,7 @@ it("keeps a newer remote state when a frame saves the state it booted with", asy
     pluginId: "playgrounds",
   });
   const frame = (await view.findByTitle(stepper.title)) as HTMLIFrameElement;
+  await waitFor(() => expect(frame.getAttribute("src")).toBeTruthy());
   expect(JSON.parse(decodeURIComponent(frame.getAttribute("src")!.split("#")[1])).version).toBe(3);
   const posted: unknown[] = [];
   frame.contentWindow!.postMessage = ((message: unknown) => {

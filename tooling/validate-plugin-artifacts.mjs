@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { readPluginWorkspaces } from "./plugin-workspaces.mjs";
 import { pluginBuildBbVersion } from "./plugin-build-provenance.mjs";
 import {
+  pluginSdkFor,
   pluginSdkVersion,
   sdkRangeIncludesVersion,
 } from "./plugin-sdk-provenance.mjs";
@@ -222,9 +223,10 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (options.expectedName && manifest.bb.name !== options.expectedName) {
     throw new Error(`${directory}: expected display name ${options.expectedName}`);
   }
-  if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, pluginSdkVersion)) {
+  const { version: sdkVersion } = await pluginSdkFor(directory);
+  if (!sdkRangeIncludesVersion(manifest.engines?.bbPluginSdk, sdkVersion)) {
     throw new Error(
-      `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${pluginSdkVersion}`,
+      `${directory}: engines.bbPluginSdk must be a compatible floor at or below ${sdkVersion}`,
     );
   }
 
