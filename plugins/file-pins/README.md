@@ -7,7 +7,7 @@ composer even when the file viewer is closed, and are shared across clients.
 
 ![Unpinned files and links in the ⋯ list above the strip](docs/more-list.png)
 
-![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove, in dark mode](docs/pin-menu-dark.png)
+![A pinned file's menu with Open preview, Open externally, Copy file path, Copy file name, Unpin and Remove before the menu update, in dark mode](docs/pin-menu-dark.png)
 
 ![The Pin pill in the composer, followed by the files and link to pin](docs/pin-files-pill.png)
 
@@ -35,20 +35,16 @@ Pinned files read as quiet raised chips above the composer, in order, as many as
 scrolls. Each chip is as wide as its label. With a mouse, labels truncate only when the strip runs out of
 room, and pinned files that still don't fit lead the **⋯** list. On touch screens, which have no hover to
 show a full label, pins keep their whole labels while they fit, the next pin fills what is left of the
-row (shortened), and the rest go to **⋯**. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover a file for its full path and machine, or a link for its title or URL.
-Right-click a strip file for bb's **Open preview**, **Open externally**, **Copy file path** and
-**Copy file name**, then **Unpin** (moves it to the **⋯** list) or **Remove**. In the **⋯** list, a
-row's hover **⋯** button or right-click offers the same file options, then **Pin** or **Remove**;
-**Pin** is unavailable when the strip has no room. If the window narrows, pinned files that no longer fit lead the **⋯** list until
-there is room again. **Remove**'s toast offers **Undo**. Missing filenames and icons have a light red tint and are labeled for assistive technology;
-only their small **×** removes them. Availability refreshes on focus and every
+row (shortened), and the rest go to **⋯**. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a small preview card: its URL or file path sits in a subtle header above the title and icon, with file availability and machine details when needed.
+Right-click a strip file for **Open preview**, **Open externally**, **Copy file path** and
+**Copy file name**, then **Unpin**. Compact menus use the same actions in the **⋯** list;
+previously hidden items also offer **Pin** while the strip has room. **Unpin** removes the
+item from the thread and offers **Undo**. Missing files keep their light red tint and
+assistive labels, and their **×** also unpins them. Availability refreshes on focus and every
 30 seconds.
 
-Pinned links sit in the same strip and **⋯** list, with the same order, capacity, Pin/Unpin,
-Remove and Undo. A link chip shows its site's icon (the same origin-only lookup as Compact Links,
-a terminal for a dev server on localhost or a private network, or a globe when a site has none; a GitHub pull request also shows its open, draft, merged or closed state beside GitHub's icon, looked up from GitHub's public API when pinned and rechecked while it can still change) and the page title the agent supplied, otherwise the site and a
-short path. Clicking it opens the URL the way bb opens links; its menu offers **Open** and
-**Copy link**, then **Unpin**/**Pin** and **Remove**. Links have no missing state.
+Pinned links share the same menus and Undo behavior. Clicking a link follows bb's browser
+preference; its menu offers **Open**, **Copy link**, and **Unpin**.
 
 A thread without pins shows no strip; the pin button is always in the action row.
 
@@ -76,7 +72,7 @@ PR keeps the site icon unless it is the thread's own PR, whose state comes from 
 GitHub pauses every lookup until it resets, and the last known state stays meanwhile.
 
 A normal click on a pinned file follows bb's FileLink click behavior and opener
-choices. Pin menus start with bb's open and copy items, then Pin/Unpin and Remove.
+choices. Pin menus start with bb's open and copy items, then Pin/Unpin.
 With [Moss Viewer](../moss-viewer) installed, a pinned Moss note opens in its panel, even when the
 note lives on another machine, and **Open in Moss** there opens it for editing.
 
