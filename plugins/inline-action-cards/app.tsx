@@ -254,19 +254,22 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
   </div></div>;
   const time = status ? status.time : item.updatedAt;
+  // Status, its actions and the comment stay together as one compact unit.
   const result = <div className="iac-result-line" data-accepted={accepted || undefined} data-state={item.state}>
-    <div className="iac-result-copy"><span className={item.state === "failed" ? "iac-failed" : "iac-result"} role="status">
-      <span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> {status ? status.label : resultLabel(item)}
-      {row && <span className="iac-muted"> · {title(item)}</span>}
-      <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
-    </span>
-    {item.attempt?.note && <div className="iac-result-note"><NoteIcon />{item.attempt.note}</div>}</div>
-    <div className="iac-actions">
-      {status && !item.attempt?.claimed && <IconButton label="Resend request" disabled={busy} onClick={() => void act()}><ResendIcon /></IconButton>}
-      {(deferred || (item.state === "failed" && item.result?.retryable)) && <IconButton label={deferred ? "Resume" : reply ? "Edit draft" : "Choose again"} disabled={busy} onClick={() => void reopen()}>{reply && !deferred ? <EditIcon /> : <UndoIcon />}</IconButton>}
-      <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
-      {item.state === "failed" && <ActionButton ref={reviewTarget} variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</ActionButton>}
+    <div className="iac-result-head">
+      <span className={item.state === "failed" ? "iac-failed" : "iac-result"} role="status">
+        <span aria-hidden="true">{item.state === "failed" ? "⚠" : "✓"}</span> {status ? status.label : resultLabel(item)}
+        {row && <span className="iac-muted"> · {title(item)}</span>}
+        <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
+      </span>
+      <span className="iac-actions iac-result-actions">
+        {status && !item.attempt?.claimed && <IconButton label="Resend request" disabled={busy} onClick={() => void act()}><ResendIcon /></IconButton>}
+        {(deferred || (item.state === "failed" && item.result?.retryable)) && <IconButton label={deferred ? "Resume" : reply ? "Edit draft" : "Choose again"} disabled={busy} onClick={() => void reopen()}>{reply && !deferred ? <EditIcon /> : <UndoIcon />}</IconButton>}
+        <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
+        {item.state === "failed" && <ActionButton ref={reviewTarget} variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</ActionButton>}
+      </span>
     </div>
+    {item.attempt?.note && <div className="iac-result-note"><NoteIcon />{item.attempt.note}</div>}
   </div>;
   const recipients = reply && <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
     {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
@@ -395,7 +398,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   if (row && sheet) return <SheetRowView item={item} done={done} result={result} expanded={expanded} onExpand={(open) => onExpand?.(open)}
     sheet={sheet} disabled={disabled} followUpCount={followUps.length} failure={failure} resend={pending && !busy && !status ? () => void act() : null}
     body={<div className="iac-row-expanded">{details}</div>} />;
-  return <article className="iac-card" aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
+  return <article className="iac-card" data-compact={done && !showBody ? true : undefined} aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
     {done ? result : null}
     {showBody && <div className="iac-body">{details}</div>}
     {failure}

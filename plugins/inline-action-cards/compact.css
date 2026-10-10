@@ -14,9 +14,6 @@
   .iac-consequence:not([data-open]) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
   .iac-consequence[role="button"] { cursor: pointer; border-radius: var(--radius-sm, .25rem); }
   .iac-consequence[role="button"]:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
-  .iac-result-line { align-items: flex-start; flex-wrap: wrap; }
-  .iac-result-line > :first-child { flex-basis: 160px; }
-  .iac-result-line > .iac-actions { margin-left: auto; }
   .iac-result-line + .iac-body, .iac-result-line + .iac-row-expanded, .iac-row-expanded { margin-top: 8px; }
   /* Choice cards: full-width rows with 44px touch targets; the hint drops under its label so neither truncates early. */
   .iac-option { min-height: 44px; }

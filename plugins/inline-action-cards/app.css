@@ -1,6 +1,6 @@
 .iac-card, .iac-table { --iac-gap: calc(var(--spacing, .25rem) * 2); margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius-lg, .75rem); background: var(--card); color: var(--foreground); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
 .iac-card { padding: 14px 16px; }
-.iac-header, .iac-result-line, .iac-row-line, .iac-table-header { display: flex; align-items: center; justify-content: space-between; gap: var(--iac-gap); }
+.iac-header, .iac-row-line, .iac-table-header { display: flex; align-items: center; justify-content: space-between; gap: var(--iac-gap); }
 .iac-header { align-items: flex-start; }
 .iac-recipient-line { flex: 1; min-width: 0; padding-top: 4px; overflow-wrap: anywhere; font-size: var(--text-xs, .75rem); }
 .iac-muted, .iac-consequence, .iac-save, .iac-progress, .iac-result-line time { color: var(--muted-foreground); }
@@ -48,7 +48,6 @@
 .iac-consequence { margin: 4px 0 0; overflow-wrap: anywhere; }
 .iac-error, .iac-failed { color: var(--destructive); }
 .iac-error { margin-top: 8px; font-size: var(--text-xs, .75rem); }
-.iac-result-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .iac-result-line time { font-size: var(--text-xs, .75rem); white-space: nowrap; }
 .iac-result-line + .iac-body, .iac-result-line + .iac-row-expanded { margin-top: 12px; }
 .iac-table-header { padding: 10px 16px; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
@@ -80,9 +79,6 @@
   .iac-card, .iac-row { padding: 12px; }
   .iac-table-header { padding: 8px 12px; }
   .iac-row-line { flex-wrap: wrap; }
-  .iac-result-line { align-items: flex-start; flex-wrap: wrap; }
-  .iac-result-copy { flex-basis: 160px; }
-  .iac-result-line > .iac-actions { margin-left: auto; }
 }
 
 
@@ -218,7 +214,7 @@
 .iac-tag .iac-clear { width: 16px; height: 16px; padding: 2px; border-radius: 999px; }
 .iac-tag .iac-clear svg { width: 10px; height: 10px; }
 .iac-sheet-footer { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 16px; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius-lg, .75rem) var(--radius-lg, .75rem); background: var(--card); font-size: var(--text-xs, .75rem); }
-.iac-sheet-footer > .iac-muted { margin-right: auto; }
+.iac-sheet-footer > .iac-muted { margin-right: 4px; }
 .iac-sheet > .iac-error { padding: 8px 16px; border-top: 1px solid var(--border); }
 @container (max-width: 520px) {
   .iac-sheet-row { padding: 8px 12px; }
@@ -281,3 +277,15 @@
   .iac-answer-bar > button { height: 40px; }
   .iac-finished-toggle { padding: 10px 12px; }
 }
+
+/* A sent or finished card is one compact unit: status with its actions right after it, the comment underneath. */
+.iac-result-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 2px 10px; min-width: 0; }
+.iac-result-head > [role="status"] { min-width: 0; overflow-wrap: anywhere; }
+.iac-result-actions { flex-shrink: 0; gap: 0; margin: -4px 0 -4px -4px; }
+.iac-result-actions > button { height: 26px; }
+.iac-result-actions > button:not(.iac-icon) { padding-inline: 6px; }
+.iac-card[data-compact] { width: fit-content; max-width: 100%; box-sizing: border-box; padding: 10px 14px; }
+.iac-sheet-row .iac-result-line { padding: 1px 0; }
+/* The sheet header keeps its bulk action beside the count it acts on. */
+.iac-sheet .iac-table-header { justify-content: flex-start; }
+.iac-sheet .iac-table-header .iac-quiet { height: 24px; margin: -4px 0 -4px -6px; padding: 0 6px; }
