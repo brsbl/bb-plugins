@@ -358,7 +358,8 @@ async function rebuildCommittedBundles(
   } as const;
   await execFileAsync(
     "npm",
-    ["ci", "--ignore-scripts", "--prefer-offline", "--no-audit", "--no-fund", "--loglevel=error"],
+    // bb runs plugins with NODE_ENV=production, which would skip the build tools.
+    ["ci", "--include=dev", "--ignore-scripts", "--prefer-offline", "--no-audit", "--no-fund", "--loglevel=error"],
     { ...options, cwd: directory },
   );
   await execFileAsync("npm", ["run", "build", "--silent"], {
