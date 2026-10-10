@@ -22,7 +22,7 @@ import {
   type HtmlAnswer,
   type Values,
 } from "./model.js";
-import { useLiveAnswer, type LiveSnapshot } from "./use-live.js";
+import { useFrameBase, useLiveAnswer, type LiveSnapshot } from "./use-live.js";
 import {
   fallbackTheme,
   FRAME_PATH,
@@ -578,8 +578,15 @@ function HtmlAnswerView({
     });
     const scheme = window.matchMedia?.("(prefers-color-scheme: dark)");
     scheme?.addEventListener("change", sendTheme);
+    const flushFrameState = () => {
+      if (frameStateTimer.current === undefined) return;
+      clearTimeout(frameStateTimer.current);
+      applyFrameState();
+    };
+    window.addEventListener("pagehide", flushFrameState, true);
     return () => {
       window.removeEventListener("message", onMessage);
+      window.removeEventListener("pagehide", flushFrameState, true);
       if (frameStateTimer.current !== undefined) {
         clearTimeout(frameStateTimer.current);
         applyFrameState();
@@ -825,13 +832,7 @@ function DocumentAnswerView({
   );
 }
 
-function PlaygroundLoader({
-  id,
-  threadId,
-}: {
-  id: string;
-  threadId: string;
-}) {
+function PlaygroundLoader({ id, threadId }: { id: string; threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const [answer, setAnswer] = useState<{
     answer: Answer;
@@ -881,36 +882,8 @@ function PlaygroundLoader({
   );
 }
 
-let frameBaseRequest: Promise<string> | null = null;
-
-function useFrameBase() {
-  const rpc = useRpc<typeof rpcContract>();
-  const [base, setBase] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    frameBaseRequest ??= rpc.call("frameBase", {}).then((result) => result.base);
-    frameBaseRequest.then(
-      (value) => {
-        if (active) setBase(value);
-      },
-      () => {
-        frameBaseRequest = null;
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [rpc]);
-  return base;
-}
-
 function AnswerDirective({ attributes, message }: PluginMessageDirectiveProps) {
-  return (
-    <PlaygroundLoader
-      id={attributes.id ?? ""}
-      threadId={message.threadId}
-    />
-  );
+  return <PlaygroundLoader id={attributes.id ?? ""} threadId={message.threadId} />;
 }
 
 export default definePluginApp((app) => {
