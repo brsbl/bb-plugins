@@ -402,7 +402,7 @@ export default function plugin(bb: BbPluginApi): void {
   });
   bb.agents.configure(() => ({
     tools: ["playground"],
-    skills: ["playgrounds"],
+    skills: ["playgrounds", "anatomy"],
   }));
   bb.cli.register(
     defineCli({
