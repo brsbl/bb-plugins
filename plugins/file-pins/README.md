@@ -33,7 +33,7 @@ Pinned files read as quiet raised chips above the composer, in order, as many as
 scrolls. Each chip is as wide as its label. With a mouse, labels truncate only when the strip runs out of
 room, and pinned files that still don't fit lead the **⋯** list. On touch screens, which have no hover to
 show a full label, pins keep their whole labels while they fit, the next pin fills what is left of the
-row (shortened), and the rest go to **⋯**. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a preview card with its URL or path in a subtle header. Web links use Moss’s rich-card layout: a thumbnail or site-icon fallback, site name, title, and description. Files show their title, availability, and machine when needed.
+row (shortened), and the rest go to **⋯**. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a preview card with its URL or path in a subtle header. Web links use Moss’s rich-card layout: a thumbnail, site name, title, and description. Cards fit the image’s aspect ratio (192–288px wide); links without thumbnails use a compact text card with a small site icon. Files show their title, availability, and machine when needed.
 Right-click a strip file for **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin**. Compact menus use the same actions in the **⋯** list;
 Previously hidden items offer **Pin** instead of **Unpin**, while the strip has room. **Unpin** removes the
