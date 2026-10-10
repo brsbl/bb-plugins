@@ -353,4 +353,3 @@ describe("settling and undelivered requests", () => {
     expect(store.claim(ref.threadId, "stuck", stuck.attempt!.id).attempt!.claimed).toBe(true);
   });
 });
-});
