@@ -2,7 +2,7 @@ import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { hostContract, hostSignals } from "./contract.js";
 import { createEditorHost } from "./editor-host.js";
 import { mossEditorHost } from "./editor-host-helpers.js";
-import { canonicalWorkspaceRoot, listNotes, openInMoss, readAsset, readNote } from "./host-notes.js";
+import { canonicalWorkspaceRoot, listNotes, openInMoss, readAsset, readNote, revealNote } from "./host-notes.js";
 import { macPathExchange } from "./mac-exchange.js";
 
 // Editing needs an atomic exchange on the note's volume. Where the Mac helper
@@ -19,6 +19,7 @@ export default experimental_defineHostEntry({
     listNotes,
     readAsset,
     openInMoss,
+    revealNote,
     ...editor.handlers,
   },
   dispose: async () => {

@@ -175,6 +175,7 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     },
     notes: async ({ hostId }) => ({ notes: (await host.call("listNotes", {}, { hostId })).notes }),
     openInMoss: ({ hostId, path }) => host.call("openInMoss", { path }, { hostId }),
+    revealNote: ({ hostId, path }) => host.call("revealNote", { path }, { hostId }),
     shareNote: (note) => ({ id: shares.share(note) }),
     // The editor's file bridge: every call goes to the note's host.
     editorRead: ({ hostId, ...input }) => host.call("editorRead", input, { hostId }),

@@ -69,6 +69,7 @@ async function setup(machines: Machines = {}) {
         return { notes: [{ id: "clip", title: "Clip", path: notePath, folderPath: "Notes" }], truncated: false };
       }
       if (method === "openInMoss") return { opened: true };
+      if (method === "revealNote") return { revealed: true };
       if (method === "readAsset") {
         if (request.ref === "assets/missing.mp4") return { ok: false, code: "not_found", message: "assets/missing.mp4 is not in this note's folder." };
         if (request.ref === "assets/drawing.svg") return { ok: true, contentType: "image/svg+xml", size: 4, modifiedMs: 1, offset: 0, data: Buffer.from("<svg").toString("base64") };
@@ -179,6 +180,8 @@ describe("reading notes", () => {
     });
     expect(await h.behavior.callRpc("openInMoss", { hostId: "mac", path: notePath })).toEqual({ opened: true });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "openInMoss", hostId: "mac", input: { path: notePath } });
+    expect(await h.behavior.callRpc("revealNote", { hostId: "mac", path: notePath })).toEqual({ revealed: true });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "revealNote", hostId: "mac", input: { path: notePath } });
   });
 });
 

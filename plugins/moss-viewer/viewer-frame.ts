@@ -38,6 +38,8 @@ export interface MossViewerOptions {
 export interface MossViewerHandle {
   readonly ready: Promise<void>;
   setTheme(theme: MossViewerTheme): void;
+  /** Feature `selection-1`: the user's selection in the note, or null when nothing is selected. */
+  selection?(): MossSelection | null;
   unmount(): void;
 }
 

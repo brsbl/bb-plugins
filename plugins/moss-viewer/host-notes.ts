@@ -299,3 +299,17 @@ export async function openInMoss({ path }: { path: string }): Promise<{ opened: 
   });
   return { opened: true };
 }
+
+/** Shows the canonical note in Finder, selected. */
+export async function revealNote({ path }: { path: string }): Promise<{ revealed: true }> {
+  if (platform() !== "darwin") throw new HostFileError("unsupported", "Notes show in Finder only on a Mac.");
+  if (!MARKDOWN.test(path)) throw new HostFileError("invalid", "Only Markdown notes show in Finder.");
+  const file = await canonicalFile(path);
+  await new Promise<void>((accept, reject) => {
+    execFile("/usr/bin/open", ["-R", file.path], { timeout: 15_000 }, (error) => {
+      if (error) reject(new HostFileError("unsupported", "Finder could not show this note."));
+      else accept();
+    });
+  });
+  return { revealed: true };
+}

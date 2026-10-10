@@ -8,7 +8,7 @@ import { MAX_ASSET_BYTES, hostContract, hostSignals } from "./contract.js";
 import { contentMatches } from "./editor-files.js";
 import { mossEditorHost } from "./editor-host-helpers.js";
 import { WATCH_LEASE_MS, createEditorHost } from "./editor-host.js";
-import { listNotes, openInMoss, readAsset, readNote } from "./host-notes.js";
+import { listNotes, openInMoss, readAsset, readNote, revealNote } from "./host-notes.js";
 import { TestPaths } from "./test/editor-doubles.js";
 import type * as Moss from "./vendor/moss-editor.contract.js";
 
@@ -43,7 +43,7 @@ function createHost() {
       experimental_apiVersion: 1,
       contract: hostContract,
       experimental_signals: hostSignals,
-      handlers: { readNote: async (input) => editor.annotate(await readNote(input)), listNotes, readAsset, openInMoss, ...editor.handlers },
+      handlers: { readNote: async (input) => editor.annotate(await readNote(input)), listNotes, readAsset, openInMoss, revealNote, ...editor.handlers },
       dispose: editor.dispose,
     },
     {

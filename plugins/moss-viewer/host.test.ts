@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { homedir, platform, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { listNotes, openInMoss, readAsset, readNote } from "./host-notes.js";
+import { listNotes, openInMoss, readAsset, readNote, revealNote } from "./host-notes.js";
 
 vi.mock("node:child_process", () => ({ execFile: vi.fn((_file, _args, _options, callback) => callback(null)) }));
 vi.mock("node:os", async (original) => ({
@@ -125,4 +125,13 @@ it("opens only the canonical note in the Moss app, and only on a Mac", async () 
   expect(execFile).toHaveBeenLastCalledWith("/usr/bin/open", ["-a", "Moss", tweets.path], { timeout: 15_000 }, expect.any(Function));
   vi.mocked(platform).mockReturnValueOnce("linux");
   await expect(openInMoss({ path: tweets.path })).rejects.toThrow("Mac");
+});
+
+it("reveals only the canonical note in Finder, and only on a Mac", async () => {
+  const tweets = await note("Tweets", "# Tweets\n", { id: "t", title: "Tweets" });
+  await symlink(tweets.path, join(home, "alias.md"));
+  expect(await revealNote({ path: join(home, "alias.md") })).toEqual({ revealed: true });
+  expect(execFile).toHaveBeenLastCalledWith("/usr/bin/open", ["-R", tweets.path], { timeout: 15_000 }, expect.any(Function));
+  vi.mocked(platform).mockReturnValueOnce("linux");
+  await expect(revealNote({ path: tweets.path })).rejects.toThrow("Mac");
 });

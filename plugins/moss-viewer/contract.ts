@@ -166,6 +166,10 @@ export const hostContract = defineRpcContract({
     input: z.object({ path: filePath }).strict(),
     output: z.object({ opened: z.literal(true) }).strict(),
   },
+  revealNote: {
+    input: z.object({ path: filePath }).strict(),
+    output: z.object({ revealed: z.literal(true) }).strict(),
+  },
   ...editorHostMethods,
 });
 
@@ -217,7 +221,11 @@ export const rpcContract = defineRpcContract({
     input: z.object({ hostId: id, path: filePath }).strict(),
     output: z.object({ opened: z.literal(true) }).strict(),
   },
-  /** Keeps a note (and the selection) for the mention Moss's Share with Agent puts in the panel's thread's composer. */
+  revealNote: {
+    input: z.object({ hostId: id, path: filePath }).strict(),
+    output: z.object({ revealed: z.literal(true) }).strict(),
+  },
+  /** Keeps a note (and the selection) for the mention Send to agent puts in the panel's thread's composer. */
   shareNote: {
     input: z
       .object({

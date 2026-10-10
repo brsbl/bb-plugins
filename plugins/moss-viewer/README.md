@@ -20,9 +20,9 @@ Notes in `~/Moss/Notes` on a Mac open in Moss's own editor: type with Moss's sho
 
 Other Moss notes open read-only in the Moss viewer, with tabs, tables, callouts, wiki links, note-local images and video, and post embeds: Markdown with Moss blocks outside `~/Moss/Notes`, notes Moss hasn't opened yet, trashed and external notes, and notes on machines other than a Mac.
 
-Wiki links open the linked note in the same tab; Back returns to the previous note. **Open in Moss** opens the note in the Moss app on the Mac that holds it.
+Wiki links open the linked note in the same tab; Back returns to the previous note. The header matches bb's file preview: click the path to copy it, **Show in Finder** reveals the note on the Mac that holds it, and **Open in Moss** opens it in the Moss app there. In a narrow panel these fold into the **Note actions** menu.
 
-**Share with Agent**, Moss's own button above the note, puts a pill for the note in the composer of the thread the panel belongs to, so you can add a message and send it. Select text first to share that passage too. When you send, the agent gets the note's path, the machine that holds it, its Moss link, and the selection: its Markdown, its lines in the file, and the headings above it. A selection over 20,000 characters is cut, and the agent is told to read the rest from the file.
+**Send to agent**, at the right of the header, puts a pill for the note in the composer of the thread the panel belongs to, so you can add a message and send it. Select text first to share that passage too. When you send, the agent gets the note's path, the machine that holds it, its Moss link, and the selection: its Markdown, its lines in the file, and the headings above it. A selection over 20,000 characters is cut, and the agent is told to read the rest from the file.
 
 The note, its `layout.json`, its `assets/` folder, and the list of notes that wiki links resolve against are read on the machine that holds the file, so a bb server on another machine still shows notes from your Mac. Moss HTML blocks run live in sandboxed frames. A block can't reach bb, and its page policy keeps it from loading scripts, styles or images from the web.
 
