@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   definePluginApp,
   experimental_usePluginId,
@@ -43,11 +35,7 @@ import {
 import "./app.css";
 import { Diagram } from "./diagram.js";
 
-function readInputs(
-  doc: AnswerDocument,
-  saved: unknown,
-  base = defaultValues(doc),
-): Values {
+function readInputs(doc: AnswerDocument, saved: unknown, base = defaultValues(doc)): Values {
   const values = { ...base };
   if (saved && typeof saved === "object")
     for (const c of doc.controls) {
@@ -117,11 +105,7 @@ function Input({
         )}
       </label>
       {c.type === "select" ? (
-        <select
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        >
+        <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
           {c.options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -156,29 +140,20 @@ function Input({
       )}
       {invalid && c.type !== "select" && (
         <small id={`${id}-error`} role="alert">
-          Use {c.min}–{c.max} in steps of {c.step}. Results use the last valid
-          value.
+          Use {c.min}–{c.max} in steps of {c.step}. Results use the last valid value.
         </small>
       )}
     </div>
   );
 }
 
-function Chart({
-  block: b,
-  values,
-}: {
-  block: Extract<Block, { type: "chart" }>;
-  values: Values;
-}) {
+function Chart({ block: b, values }: { block: Extract<Block, { type: "chart" }>; values: Values }) {
   const titleId = useId();
   const data = b.series.map((s) => ({
     label: s.label,
     values: s.values.map((v) => evaluate(v, values)),
   }));
-  const numbers = data
-    .flatMap((s) => s.values)
-    .filter((n): n is number => n !== null);
+  const numbers = data.flatMap((s) => s.values).filter((n): n is number => n !== null);
   const magnitude = Math.max(1, ...numbers.map(Math.abs));
   const low = Math.min(0, ...numbers.map((v) => v / magnitude));
   const high = Math.max(0, ...numbers.map((v) => v / magnitude));
@@ -236,11 +211,7 @@ function Chart({
               ) : (
                 <rect
                   key={i}
-                  x={
-                    78 +
-                    (i * 380) / b.labels.length +
-                    si * (300 / b.labels.length / data.length)
-                  }
+                  x={78 + (i * 380) / b.labels.length + si * (300 / b.labels.length / data.length)}
                   y={Math.min(y(v), y(0))}
                   width={280 / b.labels.length / data.length}
                   height={Math.max(0, Math.abs(y(v) - y(0)))}
@@ -257,29 +228,18 @@ function Chart({
         {labelIndexes.map((i) => (
           <text
             key={i}
-            x={
-              b.style === "line"
-                ? x(i)
-                : 78 + ((i + 0.4) * 380) / b.labels.length
-            }
+            x={b.style === "line" ? x(i) : 78 + ((i + 0.4) * 380) / b.labels.length}
             y="200"
             textAnchor="middle"
           >
-            {b.labels[i].length > 16
-              ? `${b.labels[i].slice(0, 15)}…`
-              : b.labels[i]}
+            {b.labels[i].length > 16 ? `${b.labels[i].slice(0, 15)}…` : b.labels[i]}
           </text>
         ))}
       </svg>
       <div className="pg-legend">
         {data.map((s, i) => (
           <span key={i}>
-            <svg
-              width="24"
-              height="12"
-              aria-hidden="true"
-              className={`pg-series pg-series-${i}`}
-            >
+            <svg width="24" height="12" aria-hidden="true" className={`pg-series pg-series-${i}`}>
               <line
                 x1="1"
                 x2="23"
@@ -350,9 +310,7 @@ function fontFaceRules(sheet: CSSStyleSheet): CSSFontFaceRule[] {
       const imported = (rule as CSSImportRule).styleSheet;
       return imported ? fontFaceRules(imported) : [];
     }
-    return rule.type === CSSRule.FONT_FACE_RULE
-      ? [rule as CSSFontFaceRule]
-      : [];
+    return rule.type === CSSRule.FONT_FACE_RULE ? [rule as CSSFontFaceRule] : [];
   });
 }
 
@@ -370,18 +328,9 @@ function loadUiFont(): Promise<ArrayBuffer | null> {
   uiFont ??= (async () => {
     for (const sheet of Array.from(document.styleSheets)) {
       for (const rule of fontFaceRules(sheet)) {
-        const family = rule.style
-          .getPropertyValue("font-family")
-          .replace(/["']/g, "")
-          .trim();
-        const range = rule.style
-          .getPropertyValue("unicode-range")
-          .toUpperCase();
-        if (
-          family !== UI_FONT_FAMILY ||
-          !coversCodePoint(range, LATIN_CODE_POINT)
-        )
-          continue;
+        const family = rule.style.getPropertyValue("font-family").replace(/["']/g, "").trim();
+        const range = rule.style.getPropertyValue("unicode-range").toUpperCase();
+        if (family !== UI_FONT_FAMILY || !coversCodePoint(range, LATIN_CODE_POINT)) continue;
         const url = /url\(\s*["']?([^"')]+)["']?\s*\)/.exec(
           rule.style.getPropertyValue("src"),
         )?.[1];
@@ -405,9 +354,7 @@ function readTheme(): WidgetTheme {
     const value = root.getPropertyValue(`--${name}`).trim();
     if (value) tokens[name] = value;
   }
-  const dark =
-    document.documentElement.classList.contains("dark") ||
-    root.colorScheme === "dark";
+  const dark = document.documentElement.classList.contains("dark") || root.colorScheme === "dark";
   return {
     scheme: dark ? "dark" : "light",
     font: getComputedStyle(document.body).fontFamily || fallbackTheme.font,
@@ -430,16 +377,10 @@ function HtmlAnswerView({
   const [height, setHeight] = useState(240);
   const [actions, setActions] = useState<string[]>([]);
   const results = useRef(
-    new Map<
-      string,
-      (outcome: { ok: boolean; value?: unknown; error?: string }) => void
-    >(),
+    new Map<string, (outcome: { ok: boolean; value?: unknown; error?: string }) => void>(),
   );
   const post = (message: Record<string, unknown>) =>
-    frame.current?.contentWindow?.postMessage(
-      { source: WIDGET_MESSAGE_SOURCE, ...message },
-      "*",
-    );
+    frame.current?.contentWindow?.postMessage({ source: WIDGET_MESSAGE_SOURCE, ...message }, "*");
   const latestState = useRef<{ state: unknown } | null>(null);
   const remoteVersion = useRef(initial.version);
   const pluginId = experimental_usePluginId();
@@ -505,10 +446,7 @@ function HtmlAnswerView({
       })
       .then(
         ({ itemId }) => {
-          composer.insert(
-            { provider: SHARE_PROVIDER, id: itemId, label },
-            { at: "end" },
-          );
+          composer.insert({ provider: SHARE_PROVIDER, id: itemId, label }, { at: "end" });
           composer.focus();
         },
         () => {},
@@ -539,11 +477,7 @@ function HtmlAnswerView({
     };
     const onMessage = (event: MessageEvent) => {
       const data: unknown = event.data;
-      if (
-        event.source !== frame.current?.contentWindow ||
-        !data ||
-        typeof data !== "object"
-      )
+      if (event.source !== frame.current?.contentWindow || !data || typeof data !== "object")
         return;
       const message = data as {
         source?: unknown;
@@ -571,8 +505,7 @@ function HtmlAnswerView({
         const next = Math.min(4000, Math.max(40, Math.ceil(message.height)));
         if (pendingHeight.current === null)
           setTimeout(() => {
-            if (pendingHeight.current !== null)
-              setHeight(pendingHeight.current);
+            if (pendingHeight.current !== null) setHeight(pendingHeight.current);
             pendingHeight.current = null;
           }, HEIGHT_DELAY_MS);
         pendingHeight.current = next;
@@ -580,10 +513,7 @@ function HtmlAnswerView({
       if (message.type === "state") {
         frameState.current = message;
         if (frameStateTimer.current === undefined)
-          frameStateTimer.current = setTimeout(
-            applyFrameState,
-            FRAME_STATE_DELAY_MS,
-          );
+          frameStateTimer.current = setTimeout(applyFrameState, FRAME_STATE_DELAY_MS);
       }
       if (message.type === "active") {
         const now = Date.now();
@@ -592,28 +522,12 @@ function HtmlAnswerView({
           active();
         }
       }
-      if (
-        message.type === "event" &&
-        typeof message.name === "string" &&
-        spend("event")
-      )
+      if (message.type === "event" && typeof message.name === "string" && spend("event"))
         emit(message.name, message.data);
-      if (
-        message.type === "send" &&
-        typeof message.label === "string" &&
-        message.label.trim()
-      )
+      if (message.type === "send" && typeof message.label === "string" && message.label.trim())
         gestures.current.send(message.label.trim().slice(0, 80), message.data);
-      if (
-        message.type === "actions" &&
-        Array.isArray(message.actions) &&
-        spend("actions")
-      )
-        setActions(
-          message.actions
-            .filter((a): a is string => typeof a === "string")
-            .slice(0, 50),
-        );
+      if (message.type === "actions" && Array.isArray(message.actions) && spend("actions"))
+        setActions(message.actions.filter((a): a is string => typeof a === "string").slice(0, 50));
       if (message.type === "result" && typeof message.cmdId === "string")
         results.current.get(message.cmdId)?.({
           ok: message.ok === true,
@@ -628,10 +542,7 @@ function HtmlAnswerView({
       const message = frameState.current;
       frameState.current = null;
       if (message) {
-        if (
-          typeof message.base === "number" &&
-          message.base < remoteVersion.current
-        ) {
+        if (typeof message.base === "number" && message.base < remoteVersion.current) {
           post({
             type: "state",
             state: latestState.current?.state ?? null,
@@ -705,13 +616,7 @@ function HtmlAnswerView({
   );
 }
 
-function AnswerView({
-  answer,
-  initial,
-}: {
-  answer: Answer;
-  initial: LiveSnapshot;
-}) {
+function AnswerView({ answer, initial }: { answer: Answer; initial: LiveSnapshot }) {
   if (answer.kind === "html")
     return (
       <HtmlAnswerView
@@ -746,10 +651,7 @@ function DocumentAnswerView({
     const metrics = Object.fromEntries(
       doc.blocks.flatMap((b) =>
         b.type === "metrics"
-          ? b.items.map((m) => [
-              m.label,
-              formatValue(evaluate(m.value, computed), m.format),
-            ])
+          ? b.items.map((m) => [m.label, formatValue(evaluate(m.value, computed), m.format)])
           : [],
       ),
     );
@@ -778,8 +680,7 @@ function DocumentAnswerView({
           throw new Error(
             `Unknown control "${name}". Controls: ${doc.controls.map((c) => c.id).join(", ")}.`,
           );
-        if (!validValue(control, value))
-          throw new Error(`Invalid value for "${name}".`);
+        if (!validValue(control, value)) throw new Error(`Invalid value for "${name}".`);
       }
       save({ ...current.current, ...(changes as Values) });
       return summary(current.current);
@@ -853,9 +754,7 @@ function DocumentAnswerView({
                     key={i}
                     block={b}
                     values={values}
-                    onChoose={(control, value) =>
-                      save({ ...shown, [control]: value })
-                    }
+                    onChoose={(control, value) => save({ ...shown, [control]: value })}
                   />
                 );
               case "text":
@@ -871,9 +770,7 @@ function DocumentAnswerView({
                     {b.items.map((m, j) => (
                       <div key={j}>
                         <dt>{m.label}</dt>
-                        <dd>
-                          {formatValue(evaluate(m.value, values), m.format)}
-                        </dd>
+                        <dd>{formatValue(evaluate(m.value, values), m.format)}</dd>
                       </div>
                     ))}
                   </dl>
@@ -909,10 +806,7 @@ function DocumentAnswerView({
                                 <td key={k}>
                                   {typeof v === "string"
                                     ? v
-                                    : formatValue(
-                                        evaluate(v, values),
-                                        b.format,
-                                      )}
+                                    : formatValue(evaluate(v, values), b.format)}
                                 </td>
                               ))}
                             </tr>
@@ -954,20 +848,13 @@ function PlaygroundLoader({
       setError("This playground has an invalid ID.");
       return;
     }
-    void Promise.all([
-      rpc.call("get", { id, threadId }),
-      rpc.call("getState", { id, threadId }),
-    ])
+    void Promise.all([rpc.call("get", { id, threadId }), rpc.call("getState", { id, threadId })])
       .then(([value, initial]) => {
         if (active) setAnswer({ answer: value, initial });
       })
       .catch((err: unknown) => {
         if (active)
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Could not load this playground.",
-          );
+          setError(err instanceof Error ? err.message : "Could not load this playground.");
       });
     return () => {
       active = false;
@@ -1005,6 +892,18 @@ function SaveControl({ answer }: { answer: Answer }) {
   const navigate = useBbNavigate();
   const [saved, setSaved] = useState<SavedPlayground | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "failed">("idle");
+  useEffect(() => {
+    let active = true;
+    rpc.call("findSaved", { id: answer.id }).then(
+      (result) => {
+        if (active && result.saved) setSaved(result.saved);
+      },
+      () => {},
+    );
+    return () => {
+      active = false;
+    };
+  }, [rpc, answer.id]);
   if (saved)
     return (
       <div className="pg-save" role="status">
@@ -1012,9 +911,7 @@ function SaveControl({ answer }: { answer: Answer }) {
         <button
           type="button"
           className="pg-save-action"
-          onClick={() =>
-            navigate.toPluginPanel(LIBRARY_PATH, { subPath: saved.savedId })
-          }
+          onClick={() => navigate.toPluginPanel(LIBRARY_PATH, { subPath: saved.savedId })}
         >
           Open
         </button>
@@ -1078,12 +975,10 @@ function SavedPlaygroundPage({
               event.preventDefault();
               const next = title.trim();
               if (!next) return;
-              void rpc
-                .call("renameSaved", { savedId: saved.savedId, title: next })
-                .then(() => {
-                  setTitle(null);
-                  onChanged();
-                });
+              void rpc.call("renameSaved", { savedId: saved.savedId, title: next }).then(() => {
+                setTitle(null);
+                onChanged();
+              });
             }}
           >
             <input
@@ -1100,11 +995,7 @@ function SavedPlaygroundPage({
         )}
         <div className="pg-library-actions">
           {title === null && (
-            <button
-              type="button"
-              className="pg-save-action"
-              onClick={() => setTitle(saved.title)}
-            >
+            <button type="button" className="pg-save-action" onClick={() => setTitle(saved.title)}>
               Rename
             </button>
           )}
@@ -1113,12 +1004,10 @@ function SavedPlaygroundPage({
             className="pg-save-action"
             onClick={() => {
               if (!confirming) return setConfirming(true);
-              void rpc
-                .call("deleteSaved", { savedId: saved.savedId })
-                .then(() => {
-                  onChanged();
-                  back();
-                });
+              void rpc.call("deleteSaved", { savedId: saved.savedId }).then(() => {
+                onChanged();
+                back();
+              });
             }}
           >
             {confirming ? "Confirm remove" : "Remove"}
@@ -1161,8 +1050,7 @@ function LibraryPage({ subPath }: PluginNavPanelProps) {
       </div>
     );
   const selected = saved.find((item) => item.savedId === subPath);
-  if (selected)
-    return <SavedPlaygroundPage saved={selected} onChanged={load} />;
+  if (selected) return <SavedPlaygroundPage saved={selected} onChanged={load} />;
   return (
     <div className="pg-library">
       <header className="pg-library-header">
@@ -1170,8 +1058,8 @@ function LibraryPage({ subPath }: PluginNavPanelProps) {
       </header>
       {saved.length === 0 ? (
         <p className="pg-library-empty">
-          Nothing saved yet. Choose “Save to library” under a playground in any
-          thread to keep it here with its inputs.
+          Nothing saved yet. Choose “Save to library” under a playground in any thread to keep it
+          here with its inputs.
         </p>
       ) : (
         <ul className="pg-library-list">

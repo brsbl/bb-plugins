@@ -1,10 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  cliCommand,
-  defineCli,
-  defineRpcContract,
-  type BbPluginApi,
-} from "@get-bb/plugin-sdk";
+import { cliCommand, defineCli, defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
   SHARE_PROVIDER,
@@ -19,12 +14,7 @@ import {
   type HtmlAnswer,
 } from "./model.js";
 import { bill, savings, stepper } from "./examples.js";
-import {
-  buildWidgetDocument,
-  fallbackTheme,
-  FRAME_HEADERS,
-  FRAME_PATH,
-} from "./widget.js";
+import { buildWidgetDocument, fallbackTheme, FRAME_HEADERS, FRAME_PATH } from "./widget.js";
 import { createLive, liveRpc } from "./live.js";
 
 const savedSchema = z
@@ -54,6 +44,10 @@ export const rpcContract = defineRpcContract({
       })
       .strict(),
     output: savedSchema,
+  },
+  findSaved: {
+    input: z.object({ id: idSchema }).strict(),
+    output: z.object({ saved: savedSchema.nullable() }).strict(),
   },
   listSaved: {
     input: z.object({}).strict(),
@@ -114,9 +108,7 @@ export function createStore(bb: BbPluginApi) {
     "CREATE INDEX answer_events_thread ON answer_events(thread_id)",
     "CREATE TABLE saved_playgrounds (id TEXT PRIMARY KEY, answer_id TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL, saved_at INTEGER NOT NULL)",
   ]);
-  const owned = db.prepare(
-    "SELECT 1 FROM answers WHERE id = ? AND thread_id = ?",
-  );
+  const owned = db.prepare("SELECT 1 FROM answers WHERE id = ? AND thread_id = ?");
   const exists = (threadId: string, id: string) =>
     owned.get(idSchema.parse(id), threadSchema.parse(threadId)) !== undefined;
   const copyAnswers = db.transaction(
@@ -133,16 +125,11 @@ export function createStore(bb: BbPluginApi) {
     Promise.resolve()
       .then(() => bb.sdk.threads.get({ threadId }))
       .catch(() => null);
-  const resolveFrom = async (
-    threadId: string,
-    id: string,
-    depth: number,
-  ): Promise<string> => {
+  const resolveFrom = async (threadId: string, id: string, depth: number): Promise<string> => {
     if (exists(threadId, id)) return threadId;
     const thread = depth < MAX_FORK_DEPTH ? await lookupThread(threadId) : null;
     if (!thread?.sourceThreadId) throw new Error(UNAVAILABLE);
-    if (sharesConversation(thread))
-      return resolveFrom(thread.sourceThreadId, id, depth + 1);
+    if (sharesConversation(thread)) return resolveFrom(thread.sourceThreadId, id, depth + 1);
     const origin = await resolveFrom(thread.sourceThreadId, id, depth + 1);
     copyAnswers(origin, threadId, id);
     return threadId;
@@ -151,13 +138,12 @@ export function createStore(bb: BbPluginApi) {
     const id = randomUUID();
     const thread = threadSchema.parse(threadId);
     db.transaction(() => {
-      db.prepare(
-        "INSERT INTO answer_documents (id, document, kind) VALUES (?, ?, ?)",
-      ).run(id, content, kind);
-      db.prepare("INSERT INTO answers (id, thread_id) VALUES (?, ?)").run(
+      db.prepare("INSERT INTO answer_documents (id, document, kind) VALUES (?, ?, ?)").run(
         id,
-        thread,
+        content,
+        kind,
       );
+      db.prepare("INSERT INTO answers (id, thread_id) VALUES (?, ?)").run(id, thread);
     })();
     return { id, directive: `::playground{id="${id}"}` };
   };
@@ -186,9 +172,7 @@ export function createStore(bb: BbPluginApi) {
   };
   const savedRow = (savedId: string): SavedPlayground => {
     const row = db
-      .prepare(
-        "SELECT id, answer_id, title, kind, saved_at FROM saved_playgrounds WHERE id = ?",
-      )
+      .prepare("SELECT id, answer_id, title, kind, saved_at FROM saved_playgrounds WHERE id = ?")
       .get(idSchema.parse(savedId)) as
       | {
           id: string;
@@ -224,18 +208,13 @@ export function createStore(bb: BbPluginApi) {
       return insert(threadId, "document", JSON.stringify(parseDocument(json)));
     },
     publishHtml(threadId: string, widget: HtmlAnswer) {
-      return insert(
-        threadId,
-        "html",
-        JSON.stringify(htmlAnswerSchema.parse(widget)),
-      );
+      return insert(threadId, "html", JSON.stringify(htmlAnswerSchema.parse(widget)));
     },
     save(threadId: string, id: string, title?: string): SavedPlayground {
       const answer = get(threadId, id);
       const savedId = randomUUID();
       const name = (
-        title ??
-        (answer.kind === "html" ? answer.widget.title : answer.document.title)
+        title ?? (answer.kind === "html" ? answer.widget.title : answer.document.title)
       ).slice(0, 160);
       db.transaction(() => {
         db.prepare(
@@ -247,12 +226,20 @@ export function createStore(bb: BbPluginApi) {
     },
     listSaved(): SavedPlayground[] {
       return (
-        db
-          .prepare("SELECT id FROM saved_playgrounds ORDER BY saved_at DESC")
-          .all() as { id: string }[]
+        db.prepare("SELECT id FROM saved_playgrounds ORDER BY saved_at DESC").all() as {
+          id: string;
+        }[]
       ).map((row) => savedRow(row.id));
     },
     saved: savedRow,
+    findSaved(id: string): SavedPlayground | null {
+      const row = db
+        .prepare(
+          "SELECT id FROM saved_playgrounds WHERE answer_id = ? ORDER BY saved_at DESC LIMIT 1",
+        )
+        .get(idSchema.parse(id)) as { id: string } | undefined;
+      return row ? savedRow(row.id) : null;
+    },
     renameSaved(savedId: string, title: string) {
       savedRow(savedId);
       db.prepare("UPDATE saved_playgrounds SET title = ? WHERE id = ?").run(
@@ -274,9 +261,7 @@ export function createStore(bb: BbPluginApi) {
     removeThread(threadId: string) {
       db.transaction(() => {
         const ids = (
-          db
-            .prepare("SELECT id FROM answers WHERE thread_id = ?")
-            .all(threadId) as { id: string }[]
+          db.prepare("SELECT id FROM answers WHERE thread_id = ?").all(threadId) as { id: string }[]
         ).map((row) => row.id);
         db.prepare("DELETE FROM answers WHERE thread_id = ?").run(threadId);
         const unused = db.prepare(
@@ -306,60 +291,32 @@ const fromAnswer = (id: string, body: string) => ({
     "",
   ].join("\n"),
 });
-const json = (id: string, value: unknown) =>
-  fromAnswer(id, JSON.stringify(value, null, 2));
+const json = (id: string, value: unknown) => fromAnswer(id, JSON.stringify(value, null, 2));
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
   const { live } = store;
   bb.rpc.register(rpcContract, {
-    get: async ({ id, threadId }) =>
-      store.get(await store.resolve(threadId, id), id),
+    get: async ({ id, threadId }) => store.get(await store.resolve(threadId, id), id),
     getState: async ({ id, threadId }) => {
-      const { state, version } = live.getState(
-        await store.resolve(threadId, id),
-        id,
-      );
+      const { state, version } = live.getState(await store.resolve(threadId, id), id);
       return { state, version };
     },
     setState: async ({ id, threadId, clientId, state }) => ({
-      version: live.setState(
-        await store.resolve(threadId, id),
-        id,
-        state,
-        clientId,
-      ),
+      version: live.setState(await store.resolve(threadId, id), id, state, clientId),
     }),
     event: async ({ id, threadId, clientId, name, data }) => ({
-      seq: live.event(
-        await store.resolve(threadId, id),
-        id,
-        clientId,
-        name,
-        data,
-      ),
+      seq: live.event(await store.resolve(threadId, id), id, clientId, name, data),
     }),
     presence: async ({ id, threadId, clientId, actions, active, closed }) => {
-      live.presence(
-        await store.resolve(threadId, id),
-        id,
-        clientId,
-        actions,
-        active,
-        closed,
-      );
+      live.presence(await store.resolve(threadId, id), id, clientId, actions, active, closed);
       return { ok: true as const };
     },
     share: async ({ id, threadId, clientId, label, data }) => ({
-      itemId: live.share(
-        await store.resolve(threadId, id),
-        id,
-        clientId,
-        label,
-        data,
-      ),
+      itemId: live.share(await store.resolve(threadId, id), id, clientId, label, data),
     }),
     save: async ({ id, threadId, title }) =>
       store.save(await store.resolve(threadId, id), id, title),
+    findSaved: ({ id }) => ({ saved: store.findSaved(id) }),
     listSaved: () => ({ saved: store.listSaved() }),
     renameSaved: ({ savedId, title }) => store.renameSaved(savedId, title),
     deleteSaved: ({ savedId }) => {
@@ -374,12 +331,8 @@ export default function plugin(bb: BbPluginApi): void {
   bb.http.route("GET", FRAME_PATH, async (c) => {
     try {
       const id = String(c.req.query("id") ?? "");
-      const answer = store.get(
-        await store.resolve(String(c.req.query("thread") ?? ""), id),
-        id,
-      );
-      if (answer.kind !== "html")
-        return new Response("Not an HTML playground", { status: 404 });
+      const answer = store.get(await store.resolve(String(c.req.query("thread") ?? ""), id), id);
+      if (answer.kind !== "html") return new Response("Not an HTML playground", { status: 404 });
       return new Response(
         buildWidgetDocument({
           id: answer.id,
@@ -402,32 +355,20 @@ export default function plugin(bb: BbPluginApi): void {
     parameters: z
       .object({
         action: z.enum(["guide", "publish"]),
-        document: z
-          .string()
-          .max(120_000)
-          .optional()
-          .describe("Native document encoded as JSON"),
+        document: z.string().max(120_000).optional().describe("Native document encoded as JSON"),
         html: z
           .string()
           .max(MAX_HTML_LENGTH)
           .optional()
-          .describe(
-            "Body markup for an HTML playground, with inline <style> and <script>",
-          ),
-        title: z
-          .string()
-          .max(160)
-          .optional()
-          .describe("Accessible title, required with html"),
+          .describe("Body markup for an HTML playground, with inline <style> and <script>"),
+        title: z.string().max(160).optional().describe("Accessible title, required with html"),
         width: z
           .number()
           .int()
           .min(320)
           .max(1200)
           .optional()
-          .describe(
-            "Optional maximum card width in pixels for an HTML playground",
-          ),
+          .describe("Optional maximum card width in pixels for an HTML playground"),
         saved: z
           .string()
           .uuid()
@@ -450,8 +391,7 @@ export default function plugin(bb: BbPluginApi): void {
             ...(input.width === undefined ? {} : { width: input.width }),
           }),
         );
-      if (!input.document)
-        throw new Error("Publish requires a document or html.");
+      if (!input.document) throw new Error("Publish requires a document or html.");
       return JSON.stringify(store.publish(ctx.threadId, input.document));
     },
   });
@@ -477,8 +417,7 @@ export default function plugin(bb: BbPluginApi): void {
             {
               name: "name",
               required: true,
-              description:
-                "savings, bill (documents), or stepper (HTML playground)",
+              description: "savings, bill (documents), or stepper (HTML playground)",
             },
           ],
           run: ({ positionals }) => {
@@ -499,8 +438,7 @@ export default function plugin(bb: BbPluginApi): void {
             document: {
               type: "string",
               stdin: true,
-              description:
-                "Native document JSON on one line; use --document-stdin",
+              description: "Native document JSON on one line; use --document-stdin",
             },
             playground: {
               type: "string",
@@ -531,9 +469,7 @@ export default function plugin(bb: BbPluginApi): void {
                 stdout: `${store.publishHtml(threadId, htmlAnswerSchema.parse(JSON.parse(options.playground))).directive}\n`,
               };
             if (options.document === undefined)
-              throw new Error(
-                "Pass --document-stdin, --playground-stdin, or --saved.",
-              );
+              throw new Error("Pass --document-stdin, --playground-stdin, or --saved.");
             return {
               exitCode: 0,
               stdout: `${store.publish(threadId, options.document).directive}\n`,
@@ -541,8 +477,7 @@ export default function plugin(bb: BbPluginApi): void {
           },
         }),
         save: cliCommand({
-          summary:
-            "Save a playground, with its current inputs, to the user's personal library",
+          summary: "Save a playground, with its current inputs, to the user's personal library",
           positionals: [answerId],
           options: {
             title: { type: "string", description: "Name in the library" },
@@ -599,8 +534,7 @@ export default function plugin(bb: BbPluginApi): void {
           },
         }),
         state: cliCommand({
-          summary:
-            "Print a playground's shared state, or replace it with --set",
+          summary: "Print a playground's shared state, or replace it with --set",
           positionals: [answerId],
           options: {
             set: {
@@ -616,16 +550,8 @@ export default function plugin(bb: BbPluginApi): void {
               positionals.id,
             );
             if (options.set !== undefined)
-              live.setState(
-                threadId,
-                positionals.id,
-                JSON.parse(options.set),
-                "agent",
-              );
-            return json(
-              positionals.id,
-              live.getState(threadId, positionals.id),
-            );
+              live.setState(threadId, positionals.id, JSON.parse(options.set), "agent");
+            return json(positionals.id, live.getState(threadId, positionals.id));
           },
         }),
         watch: cliCommand({
@@ -652,23 +578,16 @@ export default function plugin(bb: BbPluginApi): void {
           },
           run: async ({ positionals, options }, ctx) => {
             const found = await live.watch(
-              await store.resolve(
-                options.thread ?? ctx.threadId ?? "",
-                positionals.id,
-              ),
+              await store.resolve(options.thread ?? ctx.threadId ?? "", positionals.id),
               positionals.id,
               options.since,
               options.wait,
             );
-            return fromAnswer(
-              positionals.id,
-              found.map((e) => JSON.stringify(e)).join("\n"),
-            );
+            return fromAnswer(positionals.id, found.map((e) => JSON.stringify(e)).join("\n"));
           },
         }),
         do: cliCommand({
-          summary:
-            "Run an exposed action in the open playground and print its result",
+          summary: "Run an exposed action in the open playground and print its result",
           positionals: [
             answerId,
             {
@@ -685,13 +604,9 @@ export default function plugin(bb: BbPluginApi): void {
             thread,
           },
           run: async ({ positionals, options }, ctx) => {
-            const parsed: unknown =
-              options.args === undefined ? [] : JSON.parse(options.args);
+            const parsed: unknown = options.args === undefined ? [] : JSON.parse(options.args);
             const outcome = await live.command(
-              await store.resolve(
-                options.thread ?? ctx.threadId ?? "",
-                positionals.id,
-              ),
+              await store.resolve(options.thread ?? ctx.threadId ?? "", positionals.id),
               positionals.id,
               positionals.action,
               Array.isArray(parsed) ? parsed : [parsed],
@@ -759,8 +674,7 @@ export default function plugin(bb: BbPluginApi): void {
     resolve(itemId) {
       const { id, threadId, label, data } = live.shared(itemId);
       const answer = store.get(threadId, id);
-      const title =
-        answer.kind === "html" ? answer.widget.title : answer.document.title;
+      const title = answer.kind === "html" ? answer.widget.title : answer.document.title;
       return {
         context: [
           `The user attached ${JSON.stringify(label)} from the playground ${id} (${JSON.stringify(title)}).`,

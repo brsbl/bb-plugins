@@ -47,8 +47,7 @@ function server(kind: "document" | "html" = "document") {
   return {
     shared,
     calls,
-    clientId: () =>
-      calls.find((c) => c.method === "presence")!.input.clientId as string,
+    clientId: () => calls.find((c) => c.method === "presence")!.input.clientId as string,
     rpc: {
       get: log("get", () =>
         kind === "html"
@@ -83,6 +82,9 @@ function server(kind: "document" | "html" = "document") {
         return saved;
       }),
       listSaved: log("listSaved", () => ({ saved: [...library] })),
+      findSaved: log("findSaved", ({ id }) => ({
+        saved: library.find((item) => item.id === id) ?? null,
+      })),
     },
   };
 }
@@ -96,9 +98,7 @@ it("saves inputs to the shared answer state, restores them on remount, resets, a
   await first.findByText("$36.00");
   fireEvent.change(first.getByLabelText("People"), { target: { value: "6" } });
   expect(first.getByText("$24.00", { selector: "dd" })).toBeTruthy();
-  await waitFor(() =>
-    expect(backend.shared.state).toMatchObject({ people: 6 }),
-  );
+  await waitFor(() => expect(backend.shared.state).toMatchObject({ people: 6 }));
   first.lifecycle.unmount();
   const view = renderSlot(app.messageDirectives[0]!, props, {
     rpc: backend.rpc,
@@ -125,12 +125,11 @@ it("applies state changed elsewhere and runs agent commands in the copy they tar
     rpc: backend.rpc,
   });
   await view.findByText("$36.00");
-  await waitFor(() =>
-    expect(backend.calls.some((c) => c.method === "presence")).toBe(true),
-  );
-  expect(
-    backend.calls.find((c) => c.method === "presence")!.input.actions,
-  ).toEqual(["set", "reset"]);
+  await waitFor(() => expect(backend.calls.some((c) => c.method === "presence")).toBe(true));
+  expect(backend.calls.find((c) => c.method === "presence")!.input.actions).toEqual([
+    "set",
+    "reset",
+  ]);
   backend.shared.state = { ...(backend.shared.state as object), people: 6 };
   backend.shared.version = 7;
   await view.behavior.emitRealtime("state", {
@@ -161,9 +160,10 @@ it("applies state changed elsewhere and runs agent commands in the copy they tar
   await view.findByText("$48.00", { selector: "dd" });
   expect(view.getByText("Agent · set people 3")).toBeTruthy();
   await waitFor(() =>
-    expect(
-      backend.calls.find((c) => c.method === "result")?.input,
-    ).toMatchObject({ ok: true, value: { inputs: { people: 3 } } }),
+    expect(backend.calls.find((c) => c.method === "result")?.input).toMatchObject({
+      ok: true,
+      value: { inputs: { people: 3 } },
+    }),
   );
   await view.behavior.emitRealtime("command", {
     cmdId: "8c1b0c47-7f2a-4a39-9d29-4e7a8a0b9a13",
@@ -174,9 +174,7 @@ it("applies state changed elsewhere and runs agent commands in the copy they tar
     args: [{ guests: 3 }],
   });
   await waitFor(() =>
-    expect(
-      backend.calls.filter((c) => c.method === "result")[1]?.input,
-    ).toMatchObject({
+    expect(backend.calls.filter((c) => c.method === "result")[1]?.input).toMatchObject({
       ok: false,
       error: expect.stringContaining("Unknown control"),
     }),
@@ -206,9 +204,7 @@ it("uses the enclosing message thread for retrieval and recovers from a failed l
   failed = false;
   fireEvent.click(view.getByRole("button", { name: "Retry" }));
   await view.findByText(bill.title);
-  expect(
-    view.inspection.rpcCalls.filter((c) => c.method === "get"),
-  ).toHaveLength(2);
+  expect(view.inspection.rpcCalls.filter((c) => c.method === "get")).toHaveLength(2);
   view.lifecycle.unmount();
 });
 
@@ -226,10 +222,9 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and relays sta
   expect(frame.getAttribute("src")).toContain(
     `/api/v1/plugins/playgrounds/http/frame?thread=thr_test&id=${answer.id}#`,
   );
-  expect(
-    JSON.parse(decodeURIComponent(frame.getAttribute("src")!.split("#")[1]))
-      .state,
-  ).toEqual({ step: 2 });
+  expect(JSON.parse(decodeURIComponent(frame.getAttribute("src")!.split("#")[1])).state).toEqual({
+    step: 2,
+  });
   const send = (
     data: Record<string, unknown>,
     source: MessageEventSource | null = frame.contentWindow,
@@ -253,25 +248,18 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and relays sta
   });
   for (let i = 0; i < 200; i++) send({ type: "event", name: "spam", data: i });
   await waitFor(() =>
-    expect(
-      backend.calls.filter((c) => c.method === "event").length,
-    ).toBeGreaterThan(30),
+    expect(backend.calls.filter((c) => c.method === "event").length).toBeGreaterThan(30),
   );
-  expect(backend.calls.filter((c) => c.method === "event").length).toBeLessThan(
-    50,
-  );
+  expect(backend.calls.filter((c) => c.method === "event").length).toBeLessThan(50);
   send({ type: "actions", actions: ["next"] });
   await waitFor(() =>
-    expect(
-      backend.calls.filter((c) => c.method === "presence").at(-1)?.input
-        .actions,
-    ).toEqual(["next"]),
+    expect(backend.calls.filter((c) => c.method === "presence").at(-1)?.input.actions).toEqual([
+      "next",
+    ]),
   );
   const count = (method: string, active?: boolean) =>
     backend.calls.filter(
-      (c) =>
-        c.method === method &&
-        (active === undefined || c.input.active === active),
+      (c) => c.method === method && (active === undefined || c.input.active === active),
     ).length;
   const eventsBefore = count("event");
   for (let i = 0; i < 100; i++) send({ type: "event", name: "spam", data: i });
@@ -294,15 +282,14 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and relays sta
     action: "next",
     args: [],
   });
-  const command = posted.find(
-    (m) => (m as { type?: string }).type === "command",
-  ) as { cmdId: string; action: string };
+  const command = posted.find((m) => (m as { type?: string }).type === "command") as {
+    cmdId: string;
+    action: string;
+  };
   expect(command.action).toBe("next");
   send({ type: "result", cmdId: command.cmdId, ok: true, value: { step: 5 } });
   await waitFor(() =>
-    expect(
-      backend.calls.find((c) => c.method === "result")?.input,
-    ).toMatchObject({
+    expect(backend.calls.find((c) => c.method === "result")?.input).toMatchObject({
       cmdId: "8c1b0c47-7f2a-4a39-9d29-4e7a8a0b9a14",
       ok: true,
       value: { step: 5 },
@@ -317,9 +304,9 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and relays sta
     args: [{ bpm: 90, lead: { wave: "saw" } }],
   });
   expect(view.getByText("Agent · play")).toBeTruthy();
-  const play = posted.find(
-    (m) => (m as { action?: string }).action === "play",
-  ) as { cmdId: string };
+  const play = posted.find((m) => (m as { action?: string }).action === "play") as {
+    cmdId: string;
+  };
   send({ type: "result", cmdId: play.cmdId, ok: true, value: null });
   backend.shared.state = { step: 7 };
   backend.shared.version = 50;
@@ -330,15 +317,11 @@ it("renders HTML answers in an opaque-origin sandbox, sizes them, and relays sta
     by: "agent",
   });
   await waitFor(() =>
-    expect(posted).toContainEqual(
-      expect.objectContaining({ type: "state", state: { step: 7 } }),
-    ),
+    expect(posted).toContainEqual(expect.objectContaining({ type: "state", state: { step: 7 } })),
   );
   posted.length = 0;
   fireEvent.load(frame);
-  expect(posted).toContainEqual(
-    expect.objectContaining({ type: "state", state: { step: 7 } }),
-  );
+  expect(posted).toContainEqual(expect.objectContaining({ type: "state", state: { step: 7 } }));
   expect(posted).toContainEqual(expect.objectContaining({ type: "theme" }));
   send({ type: "send", label: "Synth take", data: { keys: [["C4", 0, 1]] } });
   expect(backend.calls.some((c) => c.method === "share")).toBe(false);
@@ -388,10 +371,7 @@ it("keeps a newer remote state when a frame saves the state it booted with", asy
     pluginId: "playgrounds",
   });
   const frame = (await view.findByTitle(stepper.title)) as HTMLIFrameElement;
-  expect(
-    JSON.parse(decodeURIComponent(frame.getAttribute("src")!.split("#")[1]))
-      .version,
-  ).toBe(3);
+  expect(JSON.parse(decodeURIComponent(frame.getAttribute("src")!.split("#")[1])).version).toBe(3);
   const posted: unknown[] = [];
   frame.contentWindow!.postMessage = ((message: unknown) => {
     posted.push(message);
@@ -437,8 +417,7 @@ it("keeps a newer remote state when a frame saves the state it booted with", asy
   expect(
     backend.calls.some(
       (c) =>
-        c.method === "setState" &&
-        JSON.stringify(c.input.state) === JSON.stringify({ step: 2 }),
+        c.method === "setState" && JSON.stringify(c.input.state) === JSON.stringify({ step: 2 }),
     ),
   ).toBe(false);
   posted.length = 0;
@@ -472,11 +451,7 @@ it("saves a playground to the personal library and reopens it from the library p
   });
   view.lifecycle.unmount();
 
-  const list = renderSlot(
-    app.navPanels[0]!,
-    { subPath: "" },
-    { rpc: backend.rpc },
-  );
+  const list = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: backend.rpc });
   fireEvent.click(await list.findByText(bill.title));
   expect(list.inspection.navigateCalls.at(-1)).toMatchObject({
     method: "toPluginPanel",
@@ -485,15 +460,18 @@ it("saves a playground to the personal library and reopens it from the library p
   });
   list.lifecycle.unmount();
 
-  const detail = renderSlot(
-    app.navPanels[0]!,
-    { subPath: SAVED_ID },
-    { rpc: backend.rpc },
-  );
+  const detail = renderSlot(app.navPanels[0]!, { subPath: SAVED_ID }, { rpc: backend.rpc });
   await detail.findByText("$36.00");
-  expect(backend.calls.filter((c) => c.method === "get").at(-1)?.input).toEqual(
-    { id: answer.id, threadId: `saved_${SAVED_ID}` },
-  );
+  expect(backend.calls.filter((c) => c.method === "get").at(-1)?.input).toEqual({
+    id: answer.id,
+    threadId: `saved_${SAVED_ID}`,
+  });
   expect(detail.queryByText("Save to library")).toBeNull();
   detail.lifecycle.unmount();
+
+  const again = renderSlot(app.messageDirectives[0]!, props, {
+    rpc: backend.rpc,
+  });
+  await again.findByText("Saved to your library");
+  again.lifecycle.unmount();
 });
