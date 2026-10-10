@@ -218,6 +218,16 @@ Reads and edits Moss notes in a bb panel the way Moss does: tabs, tables, wiki l
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-viewer --yes`
 
+### Playgrounds
+
+Answers you can play with: agents put calculators, charts, step-by-step guides, and visual previews right in their message, and changing an input updates them without another agent turn.
+
+![An HTML playground with a step-by-step repotting guide in a bb thread](plugins/playgrounds/docs/html-playground.png)
+
+[Source](plugins/playgrounds) · [README](plugins/playgrounds/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/playgrounds --yes`
+
 ### Saved Places
 
 Your saved places on a map that gets clearer as you zoom, with lists, notes, walking distance between saves, and an Ask agent button that hands the current view to a new thread. It now lives in its own template repository, [brsbl/saved-places](https://github.com/brsbl/saved-places), so you can make a copy with your own Google Maps saves.
