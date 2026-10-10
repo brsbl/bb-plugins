@@ -123,6 +123,57 @@ function useHeaderCollapsed(): [boolean, (collapsed: boolean) => void] {
   return [collapsed, set];
 }
 
+/** How long a slid-down header stays after the pointer leaves it. */
+const SLIDE_UP_DELAY_MS = 300;
+
+/**
+ * A collapsed header: hovering (or tapping) the top edge of the note slides it
+ * down over the note, and it slides back up once the pointer leaves. Keyboard
+ * focus inside it keeps it down, so a focused control is never hidden.
+ */
+function SlideDownHeader({ children }: { children: ReactNode }) {
+  const [shown, setShown] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const show = () => {
+    window.clearTimeout(timer.current);
+    setShown(true);
+  };
+  const hide = () => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(function later() {
+      // An open menu from the header lives outside it; wait for it to close.
+      const focused = panel.current?.contains(document.activeElement) && document.activeElement?.matches(":focus-visible");
+      if (panel.current?.querySelector('[data-state="open"]') || focused) {
+        timer.current = window.setTimeout(later, SLIDE_UP_DELAY_MS);
+        return;
+      }
+      setShown(false);
+    }, SLIDE_UP_DELAY_MS);
+  };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return (
+    <>
+      <div aria-hidden className="absolute inset-x-0 top-0 z-10 h-3" onPointerEnter={show} onClick={show} />
+      <div
+        ref={panel}
+        className={cn(
+          "absolute inset-x-0 top-0 z-20 shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none",
+          shown ? "translate-y-0" : "-translate-y-full",
+        )}
+        onPointerEnter={show}
+        onPointerLeave={hide}
+        onFocus={show}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hide();
+        }}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
 function HeaderButton({
   icon,
   label,
@@ -215,7 +266,8 @@ function NoteHeader({
   actions,
   onBack,
   onSendToAgent,
-  onCollapse,
+  collapsed,
+  onToggleCollapsed,
 }: {
   path: string;
   canGoBack: boolean;
@@ -225,8 +277,10 @@ function NoteHeader({
   actions: HeaderAction[];
   onBack: () => void;
   onSendToAgent: () => void;
-  /** Hides the header, leaving bb's tab and a Show header button over the note. */
-  onCollapse: () => void;
+  /** The header is hidden, and showing only while it slides down over the note. */
+  collapsed: boolean;
+  /** Hides the header, or keeps a slid-down one shown. */
+  onToggleCollapsed: () => void;
 }) {
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const narrow = width > 0 && width < NARROW_HEADER_PX;
@@ -269,7 +323,11 @@ function NoteHeader({
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
-          <HeaderButton icon="ChevronUp" label="Hide header" onClick={onCollapse} />
+          <HeaderButton
+            icon={collapsed ? "ChevronDown" : "ChevronUp"}
+            label={collapsed ? "Keep header shown" : "Hide header"}
+            onClick={onToggleCollapsed}
+          />
         </div>
       </div>
     </TooltipProvider>
@@ -730,31 +788,33 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       .catch((error: unknown) => toast.error(`Couldn't send this note to the agent: ${messageOf(error)}`));
   };
 
+  const header = (
+    <NoteHeader
+      path={note.path}
+      canGoBack={stack.back.length > 0}
+      status={editorNote ? <EditorStatus status={editorState.status} /> : null}
+      actions={[
+        ...(restorable ? [{ icon: "ArrowTurnBackward", label: "Restore your last save from bb", onSelect: restoreLastSave }] : []),
+        { icon: "FolderOpen", label: "Show in Finder", onSelect: revealNote },
+        { icon: "ExternalLink", label: "Open in Moss", onSelect: openInMoss },
+      ]}
+      onBack={back}
+      onSendToAgent={sendToAgent}
+      collapsed={collapsed}
+      onToggleCollapsed={() => setCollapsed(!collapsed)}
+    />
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      {collapsed ? null : (
-        <NoteHeader
-          path={note.path}
-          canGoBack={stack.back.length > 0}
-          status={editorNote ? <EditorStatus status={editorState.status} /> : null}
-          actions={[
-            ...(restorable ? [{ icon: "ArrowTurnBackward", label: "Restore your last save from bb", onSelect: restoreLastSave }] : []),
-            { icon: "FolderOpen", label: "Show in Finder", onSelect: revealNote },
-            { icon: "ExternalLink", label: "Open in Moss", onSelect: openInMoss },
-          ]}
-          onBack={back}
-          onSendToAgent={sendToAgent}
-          onCollapse={() => setCollapsed(true)}
-        />
-      )}
-      <div className="relative min-h-0 flex-1">
-        {collapsed ? (
-          <TooltipProvider delayDuration={300}>
-            <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-lg border border-border bg-surface-raised px-1 py-1 shadow-sm">
-              {editorNote ? <EditorStatus status={editorState.status} /> : null}
-              <HeaderButton icon="ChevronDown" label="Show header" onClick={() => setCollapsed(false)} />
-            </div>
-          </TooltipProvider>
+      {collapsed ? null : header}
+      <div className={cn("relative min-h-0 flex-1", collapsed && "overflow-hidden")}>
+        {collapsed ? <SlideDownHeader>{header}</SlideDownHeader> : null}
+        {collapsed && editorNote ? (
+          // A save that needs attention stays in view while the header is hidden; the badge is empty otherwise.
+          <div className="pointer-events-none absolute right-4 top-4 z-10 rounded-md bg-surface-raised px-2 has-[[role=status]:empty]:hidden">
+            <EditorStatus status={editorState.status} />
+          </div>
         ) : null}
         {editorNote === null ? (
           <MossViewerFrame
