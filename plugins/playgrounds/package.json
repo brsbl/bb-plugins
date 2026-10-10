@@ -1,0 +1,55 @@
+{
+  "name": "bb-plugin-playgrounds",
+  "version": "0.1.0",
+  "description": "Answers you can play with: calculators, guides, previews.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "icons",
+    "README.md",
+    "skills"
+  ],
+  "scripts": {
+    "build": "node ../../tooling/build-plugin.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bb": ">=0.46.0",
+    "bbPluginSdk": "^0.6.37"
+  },
+  "bb": {
+    "name": "Playgrounds",
+    "description": "Answers you can play with: calculators, guides, previews.",
+    "branding": {
+      "icon": "./icons/playgrounds.svg"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [
+      "skills"
+    ]
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "file:../../tooling/vendor/get-bb-plugin-sdk-0.6.37.tgz",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "better-sqlite3": "^12.10.0",
+    "cron-parser": "^5.5.0",
+    "hono": "^4.11.9",
+    "jsdom": "^29.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}
