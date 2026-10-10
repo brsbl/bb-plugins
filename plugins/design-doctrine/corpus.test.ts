@@ -238,6 +238,33 @@ describe("doctrine corpus", () => {
     await second.finish(false);
   });
 
+  it("publishes a batch on top of the base branch as it is when the batch finishes", async () => {
+    const publication = await openPublication(source);
+    await commitRule(join(publication.root, "..", ".."), "ddr_002.md");
+    const publisher = join(workspace, "publisher");
+    await execFileAsync("git", ["clone", "--quiet", join(workspace, "origin.git"), publisher]);
+    await git(publisher, "config", "user.email", "publisher@example.test");
+    await git(publisher, "config", "user.name", "Publisher");
+    await commitRule(publisher, "ddr_003.md");
+    await git(publisher, "push", "--quiet", "origin", "main");
+    const bin = join(workspace, "bin");
+    await mkdir(bin);
+    await writeFile(join(bin, "gh"), "#!/bin/sh\n", "utf8");
+    await chmod(join(bin, "gh"), 0o755);
+    const savedPath = process.env.PATH;
+    process.env.PATH = `${bin}:${savedPath ?? ""}`;
+    try {
+      await publication.finish(true);
+    } finally {
+      process.env.PATH = savedPath;
+    }
+
+    const origin = join(workspace, "origin.git");
+    const branch = (await git(origin, "branch", "--list", "doctrine/*")).replace(/^\*?\s*/, "");
+    expect(await git(origin, "rev-parse", `${branch}^`)).toBe(await git(origin, "rev-parse", "main"));
+    expect(await git(origin, "log", "-1", "--format=%s", branch)).toBe("add ddr_002.md");
+  });
+
   describe("withdrawing a rule from its open pull request", () => {
     const FAKE_GH = `#!/bin/sh
 echo "$*" >> "$FAKE_GH_LOG"
