@@ -15,7 +15,9 @@ export function parsePullRequestUrl(raw: string) {
   return { owner, repository, number: Number(number), url: `https://github.com/${owner}/${repository}/pull/${number}` };
 }
 export function originMarkers(body: string): string[] {
-  return [...new Set(Array.from(body.matchAll(/^BB-Thread-ID: (thr_[a-zA-Z0-9]+)\s*$/gm), (match) => match[1]!))];
+  const legacy = Array.from(body.matchAll(/^BB-Thread-ID: (thr_[a-zA-Z0-9]+)\s*$/gm), (match) => match[1]!);
+  const linked = Array.from(body.matchAll(/^BB-Thread: \[[^\n]*\]\(https:\/\/brsbl\.getbb\.app\/projects\/proj_[a-zA-Z0-9]+\/threads\/(thr_[a-zA-Z0-9]+)\)\s*$/gm), (match) => match[1]!);
+  return [...new Set([...legacy, ...linked])];
 }
 export function referencedThreadIds(body: string): string[] {
   // IDs also appear in @thread mentions, Markdown links and bb deep links.

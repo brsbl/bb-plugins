@@ -11,16 +11,27 @@ export const runGh: GhRunner = (args, signal) => new Promise((resolve, reject) =
 });
 const viewerSchema = z.object({ id: z.string(), login: z.string() });
 const checkNode = z.object({ __typename: z.string(), name: z.string().optional(), context: z.string().optional(), status: z.string().optional(), state: z.string().optional(), conclusion: z.string().nullable().optional(), detailsUrl: z.string().nullable().optional(), targetUrl: z.string().nullable().optional() });
+const nativeStackSchema = z.object({ entries: z.object({ pageInfo: z.object({ hasNextPage: z.boolean() }), nodes: z.array(z.object({ position: z.number(), pullRequest: z.object({ url: z.string(), title: z.string(), number: z.number(), state: z.string() }).nullable() }).nullable()) }) }).nullable();
+const stackFields = "stack { entries(first:100) { pageInfo { hasNextPage } nodes { position pullRequest { url title number state } } } }";
+function projectStack(stack: z.infer<typeof nativeStackSchema> | undefined): Snapshot["stack"] {
+  if (stack === null) return { state: "none", items: [] };
+  if (!stack || stack.entries.pageInfo.hasNextPage || stack.entries.nodes.some((entry) => !entry?.pullRequest)) return { state: "unavailable", items: [] };
+  const nodes = stack.entries.nodes.filter((entry) => entry !== null).sort((a, b) => a.position - b.position);
+  if (new Set(nodes.map((entry) => entry.position)).size !== nodes.length) return { state: "unavailable", items: [] };
+  return { state: "available", items: nodes.flatMap((entry) => entry.pullRequest ? [{ ...entry.pullRequest, url: parsePullRequestUrl(entry.pullRequest.url).url }] : []) };
+}
 const rawPrSchema = z.object({
   id: z.string(), url: z.string(), number: z.number(), title: z.string(), body: z.string(), state: z.string(), isDraft: z.boolean(), headRefOid: z.string(), headRefName: z.string(), baseRefName: z.string(), updatedAt: z.string(),
   repository: z.object({ nameWithOwner: z.string() }), author: z.object({ login: z.string(), avatarUrl: z.string().nullable().optional() }).nullable(),
+  stack: nativeStackSchema.optional(),
+  headRepository: z.object({ nameWithOwner: z.string() }).nullable().optional(),
   reviewRequests: z.object({ pageInfo: z.object({ hasNextPage: z.boolean() }), nodes: z.array(z.object({ requestedReviewer: z.object({ __typename: z.string(), login: z.string().optional(), slug: z.string().optional(), organization: z.object({ login: z.string() }).optional() }).nullable() }).nullable()) }).optional(),
   additions: z.number(), deletions: z.number(), changedFiles: z.number(), reviewDecision: z.string().nullable(), mergeable: z.string(), mergeStateStatus: z.string(),
   mergeQueueEntry: z.object({ id: z.string() }).nullable(), autoMergeRequest: z.object({ enabledAt: z.string() }).nullable(),
   commits: z.object({ nodes: z.array(z.object({ commit: z.object({ oid: z.string(), statusCheckRollup: z.object({ state: z.string(), contexts: z.object({ totalCount: z.number(), pageInfo: z.object({ hasNextPage: z.boolean() }), nodes: z.array(checkNode.nullable()) }) }).nullable() }) }).nullable()) }),
 });
 type RawPr = z.infer<typeof rawPrSchema>;
-const prFields = `id url number title body state isDraft headRefOid headRefName baseRefName updatedAt repository { nameWithOwner } author { login avatarUrl(size:40) } reviewRequests(first:100) { pageInfo { hasNextPage } nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Mannequin { login } ... on Team { slug organization { login } } } } } additions deletions changedFiles reviewDecision mergeable mergeStateStatus mergeQueueEntry { id } autoMergeRequest { enabledAt } commits(last:1) { nodes { commit { oid statusCheckRollup { state contexts(first:100) { totalCount pageInfo { hasNextPage } nodes { __typename ... on CheckRun { name status conclusion detailsUrl } ... on StatusContext { context state targetUrl } } } } } } }`;
+const prFields = `id url number title body state isDraft headRefOid headRefName baseRefName updatedAt headRepository { nameWithOwner } repository { nameWithOwner } author { login avatarUrl(size:40) } reviewRequests(first:100) { pageInfo { hasNextPage } nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Mannequin { login } ... on Team { slug organization { login } } } } } additions deletions changedFiles reviewDecision mergeable mergeStateStatus mergeQueueEntry { id } autoMergeRequest { enabledAt } commits(last:1) { nodes { commit { oid statusCheckRollup { state contexts(first:100) { totalCount pageInfo { hasNextPage } nodes { __typename ... on CheckRun { name status conclusion detailsUrl } ... on StatusContext { context state targetUrl } } } } } } }`;
 function queryFor(url: string, fields: string) {
   const pr = parsePullRequestUrl(url);
   return `query { viewer { id login } repository(owner:${JSON.stringify(pr.owner)},name:${JSON.stringify(pr.repository)}) { pullRequest(number:${pr.number}) { ${fields} } } }`;
@@ -75,15 +86,16 @@ export function projectSnapshot(pr: RawPr, now = new Date().toISOString()): Snap
     nodeId: pr.id, url: parsePullRequestUrl(pr.url).url, repository: pr.repository.nameWithOwner, number: pr.number, title: pr.title, body: pr.body,
     author: pr.author?.login ?? null, authorAvatarUrl: pr.author?.avatarUrl ?? null, state: pr.state === "MERGED" ? "merged" : pr.state === "CLOSED" ? "closed" : pr.isDraft ? "draft" : "open", headSha: pr.headRefOid,
     requestedReviewers, reviewRequestsComplete: !!pr.reviewRequests && !pr.reviewRequests.pageInfo.hasNextPage && requestedReviewers.length === pr.reviewRequests.nodes.length,
+    headRepository: pr.headRepository?.nameWithOwner ?? null,
     headBranch: pr.headRefName, baseBranch: pr.baseRefName, updatedAt: pr.updatedAt, fetchedAt: now,
     checks: { state, passing: count("passing"), failing: count("failing"), pending: count("pending"), total: rollup?.contexts.totalCount ?? 0, complete, items },
     review: pr.reviewDecision === "APPROVED" ? "approved" : pr.reviewDecision === "CHANGES_REQUESTED" ? "changes-requested" : pr.reviewDecision === "REVIEW_REQUIRED" ? "required" : pr.reviewDecision === null ? "none" : "unknown",
     mergeability: pr.mergeable === "CONFLICTING" ? "conflicts" : ["BLOCKED", "BEHIND", "DIRTY"].includes(pr.mergeStateStatus) ? "blocked" : pr.mergeable === "MERGEABLE" ? "mergeable" : "unknown",
     queued: pr.mergeQueueEntry !== null, autoMerge: pr.autoMergeRequest !== null, additions: pr.additions, deletions: pr.deletions, changedFiles: pr.changedFiles,
-    originThreadIds: originMarkers(pr.body), stack: { state: "unavailable", items: [] },
+    originThreadIds: originMarkers(pr.body), stack: projectStack(pr.stack),
   });
 }
-const stackSchema = z.object({ headRefOid: z.string(), stack: z.object({ entries: z.object({ pageInfo: z.object({ hasNextPage: z.boolean() }), nodes: z.array(z.object({ position: z.number(), pullRequest: z.object({ url: z.string(), title: z.string(), number: z.number(), state: z.string() }).nullable() }).nullable()) }) }).nullable() });
+
 export async function searchPullRequests(input: { scope: "authored" | "review" | "history" | "repository"; repositories?: string[]; cursor?: string; expectedAccountId?: string }, run: GhRunner = runGh, signal?: AbortSignal): Promise<SearchResult> {
   let accountId: string | undefined;
   try {
@@ -92,8 +104,19 @@ export async function searchPullRequests(input: { scope: "authored" | "review" |
     assertAccount(account.node_id, input.expectedAccountId);
     if (input.scope === "repository" && !input.repositories?.length) throw new ReadError("unavailable", "Choose at least one repository to search.");
     const scope = input.scope === "repository" ? `is:open ${input.repositories!.map((repository) => `repo:${repository}`).join(" ")}` : input.scope === "review" ? `is:open review-requested:${account.login}` : `author:${account.login} ${input.scope === "history" ? "is:closed" : "is:open"}`;
-    const query = `query { viewer { id login } search(type:ISSUE,query:${JSON.stringify(`is:pr ${scope} sort:updated-desc`)},first:25${input.cursor ? `,after:${JSON.stringify(input.cursor)}` : ""}) { pageInfo { hasNextPage endCursor } nodes { ... on PullRequest { ${prFields} } } } }`;
-    const raw = JSON.parse(await run(["api", "graphql", "--hostname", "github.com", "-f", `query=${query}`], signal));
+    const query = (withStack: boolean) => `query { viewer { id login } search(type:ISSUE,query:${JSON.stringify(`is:pr ${scope} sort:updated-desc`)},first:25${input.cursor ? `,after:${JSON.stringify(input.cursor)}` : ""}) { pageInfo { hasNextPage endCursor } nodes { ... on PullRequest { ${prFields} ${withStack ? stackFields : ""} } } } }`;
+    // Native stack fields are optional on GitHub. Retry only an unsupported-field response,
+    // preserving ordinary authorization, transport and partial-response failures.
+    const search = async (withStack: boolean) => JSON.parse(await run(["api", "graphql", "--hostname", "github.com", "-f", `query=${query(withStack)}`], signal));
+    const unsupported = (value: string) => /(?:undefinedField|doesn.t exist|Cannot query field|not defined)/i.test(value) && /stack/i.test(value);
+    let raw;
+    try { raw = await search(true); }
+    catch (error) {
+      const detail = String((error as { stderr?: string }).stderr ?? error);
+      if (!unsupported(detail)) throw error;
+      raw = await search(false);
+    }
+    if (raw.errors?.some((error: unknown) => unsupported(JSON.stringify(error)))) raw = await search(false);
     if (raw.errors?.length) throw new ReadError("unavailable", "GitHub search returned an incomplete response. Retry.");
     const data = z.object({ viewer: viewerSchema, search: z.object({ pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }), nodes: z.array(rawPrSchema.nullable()) }) }).parse(raw.data);
     assertAccount(data.viewer.id, account.node_id);
@@ -126,12 +149,11 @@ export async function readPullRequest(input: { url: string; expectedAccountId?: 
     assertAccount(result.viewer.id, input.expectedAccountId);
     const snapshot = projectSnapshot(rawPrSchema.parse(result.pr));
     try {
-      const enrichment = await graphql(run, queryFor(input.url, "headRefOid stack { entries(first:100) { pageInfo { hasNextPage } nodes { position pullRequest { url title number state } } } }"), signal);
+      const enrichment = await graphql(run, queryFor(input.url, `headRefOid ${stackFields}`), signal);
       assertAccount(enrichment.viewer.id, result.viewer.id);
-      const stack = stackSchema.parse(enrichment.pr);
+      const stack = z.object({ headRefOid: z.string(), stack: nativeStackSchema }).parse(enrichment.pr);
       if (stack.headRefOid !== snapshot.headSha) throw new ReadError("unavailable", "The pull request changed during refresh. Retry for the current revision.", true);
-      if (stack.stack === null) snapshot.stack = { state: "none", items: [] };
-      else if (!stack.stack.entries.pageInfo.hasNextPage) snapshot.stack = { state: "available", items: stack.stack.entries.nodes.filter((entry) => entry !== null).sort((a, b) => a.position - b.position).flatMap((entry) => entry.pullRequest ? [{ ...entry.pullRequest, url: parsePullRequestUrl(entry.pullRequest.url).url }] : []) };
+      snapshot.stack = projectStack(stack.stack);
     } catch (error) {
       if (error instanceof ReadError && error.fatal) throw error;
       const failure = classifyFailure(error);

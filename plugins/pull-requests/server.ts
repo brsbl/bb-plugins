@@ -271,9 +271,9 @@ export default function plugin(bb: BbPluginApi): void {
             await mapConcurrent(imported, 4, associateBodyThreads);
             changed();
             cursor = result.nextCursor ?? undefined;
-            if (batch && (!cursor || page === pages - 1)) for (const repository of batch) searchedRepositories?.add(repository.toLowerCase());
+            if (batch && !cursor) for (const repository of batch) searchedRepositories?.add(repository.toLowerCase());
             if (!cursor) break;
-            if (scope !== "history" && page === pages - 1) coverage.incomplete = true;
+            if (page === pages - 1) coverage.incomplete = true;
           }
           if (!reader) break;
         }
@@ -399,6 +399,12 @@ export default function plugin(bb: BbPluginApi): void {
     const items = (await mapConcurrent(page.items, 4, (item) => sanitize(item))).filter((item) => item.links.length || item.discoveredFromGitHub).map((item) => ({ ...item, snapshot: item.snapshot ? { ...item.snapshot, body: "", checks: { ...item.snapshot.checks, items: [] }, stack: { ...item.snapshot.stack, items: [] } } : null }));
     return { items, total: page.total, nextCursor: offset + page.items.length < page.total ? String(offset + page.items.length) : null, coverage: { ...coverage }, authors: page.authors, projects: await (projectRepositories ??= readProjectRepositories()) };
   }
+  async function inbox() {
+    // Read membership in one SQLite snapshot, before any async sanitization or UI filters.
+    const all = store.list({ offset: 0, limit: -1, view: "all" });
+    const items = (await mapConcurrent(all.items, 4, sanitize)).filter((item) => item.links.length || item.discoveredFromGitHub).map((item) => ({ ...item, snapshot: item.snapshot ? { ...item.snapshot, body: "", checks: { ...item.snapshot.checks, items: [] } } : null }));
+    return { items, total: items.length, nextCursor: null, coverage: { ...coverage }, authors: [...new Set(items.flatMap((item) => item.snapshot?.author ? [item.snapshot.author] : []))].sort(), projects: await (projectRepositories ??= readProjectRepositories()) };
+  }
   async function source(id: string, hostId: string) {
     const item = await show(id);
     const choices = await mapConcurrent(item.links, 4, async (link) => threadChoice(await eligibleThread(link.threadId)));
@@ -420,7 +426,7 @@ export default function plugin(bb: BbPluginApi): void {
     changed(); return sanitize(value);
   }
   bb.rpc.register(rpcContract, {
-    list, show: ({ id }) => show(id), refresh,
+    list, inbox, show: ({ id }) => show(id), refresh,
     context: async ({ query, cursor, threadIds }) => {
       const offset = offsetFrom(cursor);
       const threads = threadIds ? (await mapConcurrent([...new Set(threadIds)], 4, async (id) => eligibleThread(id).catch(() => null))).filter((thread) => thread !== null) : await bb.sdk.threads.list({ includeHidden: false, limit: PAGE, offset, signal: lifetime.signal });
