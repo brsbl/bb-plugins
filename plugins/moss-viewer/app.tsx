@@ -144,7 +144,7 @@ function SlideDownHeader({ children }: { children: ReactNode }) {
     timer.current = window.setTimeout(function later() {
       // An open menu from the header lives outside it; wait for it to close.
       const focused = panel.current?.contains(document.activeElement) && document.activeElement?.matches(":focus-visible");
-      if (panel.current?.querySelector('[data-state="open"]') || focused) {
+      if (panel.current?.querySelector('[data-state="open"]') || panel.current?.matches(":hover") || focused) {
         timer.current = window.setTimeout(later, SLIDE_UP_DELAY_MS);
         return;
       }
@@ -152,9 +152,22 @@ function SlideDownHeader({ children }: { children: ReactNode }) {
     }, SLIDE_UP_DELAY_MS);
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  // A press elsewhere, or focus moving into the note's frame (a tap there), slides it back up.
+  useEffect(() => {
+    if (!shown) return;
+    const pressed = (event: PointerEvent) => {
+      if (!panel.current?.contains(event.target as Node)) hide();
+    };
+    document.addEventListener("pointerdown", pressed, true);
+    window.addEventListener("blur", hide);
+    return () => {
+      document.removeEventListener("pointerdown", pressed, true);
+      window.removeEventListener("blur", hide);
+    };
+  }, [shown]);
   return (
     <>
-      <div aria-hidden className="absolute inset-x-0 top-0 z-10 h-3" onPointerEnter={show} onClick={show} />
+      <div aria-hidden className="absolute inset-x-0 top-0 z-10 h-3" onPointerEnter={show} onPointerLeave={hide} onClick={show} />
       <div
         ref={panel}
         className={cn(
