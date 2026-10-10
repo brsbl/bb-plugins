@@ -1,7 +1,6 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Markdown } from "@get-bb/plugin-sdk/app";
 import type { Content, FollowUp } from "./model.js";
-import { ActionButton } from "./controls.js";
 
 // Absolute paths live on the thread's host; bb serves them through its host-files route.
 export function mediaUrl(threadId: string, src: string): string {
