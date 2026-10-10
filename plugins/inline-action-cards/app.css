@@ -332,3 +332,43 @@
   .iac-row-title { display: -webkit-box; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 }
 .iac-unsent { font-size: var(--text-sm, .8125rem); white-space: nowrap; }
+
+/* A plain form. Labels sit above controls; every target is large; nothing is hidden. */
+.iac-card.iac-form { padding: calc(var(--iac-s) * 5); }
+.iac-field { min-width: 0; margin: 0; padding: 0; border: 0; }
+.iac-field[disabled] .iac-radio, .iac-field[disabled] .iac-text { opacity: .6; cursor: default; }
+.iac-label { display: block; padding: 0; font-size: var(--text-base, .9375rem); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.iac-help { margin: calc(var(--iac-s) * 1.5) 0 0; color: var(--muted-foreground); line-height: 1.5; overflow-wrap: anywhere; }
+.iac-field .iac-evidence { margin-top: calc(var(--iac-s) * 3); }
+.iac-field .iac-clip, .iac-field .iac-clip[data-clipped] { max-height: none; mask-image: none; -webkit-mask-image: none; cursor: auto; }
+.iac-radios { display: grid; gap: calc(var(--iac-s) * 2); margin-top: calc(var(--iac-s) * 4); }
+.iac-radio { display: flex; align-items: flex-start; gap: calc(var(--iac-s) * 3); min-height: calc(var(--iac-s) * 12); box-sizing: border-box; padding: calc(var(--iac-s) * 3) calc(var(--iac-s) * 3.5); border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, .5rem); font-size: var(--text-base, .9375rem); cursor: pointer; }
+.iac-radio:hover:not(:has(input:disabled)) { background: var(--state-hover, var(--muted)); }
+.iac-radio:has(input:checked) { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.iac-radio:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
+.iac-radio input { flex-shrink: 0; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--primary); }
+.iac-radio-text { display: grid; gap: 2px; min-width: 0; }
+.iac-radio-hint { color: var(--muted-foreground); font-size: var(--text-sm, .8125rem); }
+.iac-sub-label { display: block; margin: calc(var(--iac-s) * 4) 0 calc(var(--iac-s) * 1.5); font-weight: 500; }
+.iac-text, .iac-card .iac-draft, .iac-form-row .iac-draft { display: block; width: 100%; box-sizing: border-box; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, .5rem); background: transparent; color: inherit; font: inherit; font-size: var(--text-base, .9375rem); }
+.iac-text { height: calc(var(--iac-s) * 11); padding: 0 calc(var(--iac-s) * 3); }
+.iac-card .iac-draft, .iac-form-row .iac-draft { min-height: 120px; max-height: 480px; padding: calc(var(--iac-s) * 3); line-height: 1.6; resize: vertical; }
+.iac-text:focus, .iac-card .iac-draft:focus, .iac-form-row .iac-draft:focus { outline: 2px solid var(--ring); outline-offset: 1px; box-shadow: none; background: transparent; }
+.iac-submit-row { display: flex; margin-top: calc(var(--iac-s) * 5); }
+.iac-submit-row > button { height: calc(var(--iac-s) * 11); min-width: 120px; padding-inline: calc(var(--iac-s) * 6); font-size: var(--text-base, .9375rem); }
+.iac-form-row { padding: calc(var(--iac-s) * 5); border-top: 1px solid var(--border); }
+.iac-sheet.iac-form .iac-table-header { padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5); }
+.iac-sheet.iac-form .iac-sheet-title { font-size: var(--text-base, .9375rem); font-weight: 600; color: var(--foreground); }
+.iac-sheet.iac-form > .iac-submit-row { margin: 0; padding: calc(var(--iac-s) * 4) calc(var(--iac-s) * 5) calc(var(--iac-s) * 5); border-top: 1px solid var(--border); }
+.iac-confirm { display: grid; gap: calc(var(--iac-s) * 1.5); }
+.iac-confirm-answer { font-size: var(--text-base, .9375rem); }
+.iac-confirm .iac-result-note { margin-top: 0; }
+.iac-confirm time { color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
+.iac-confirm-actions { display: flex; flex-wrap: wrap; gap: calc(var(--iac-s) * 2); }
+.iac-confirm-actions:empty { display: none; }
+.iac-confirm-actions > button { height: calc(var(--iac-s) * 10); padding-inline: calc(var(--iac-s) * 4); }
+@container (max-width: 520px) {
+  .iac-card.iac-form, .iac-form-row { padding: calc(var(--iac-s) * 4); }
+  .iac-sheet.iac-form .iac-table-header, .iac-sheet.iac-form > .iac-submit-row { padding-inline: calc(var(--iac-s) * 4); }
+  .iac-submit-row > button, .iac-confirm-actions > button { flex: 1; }
+}

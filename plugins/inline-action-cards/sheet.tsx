@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useComposer, useComposerView, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, actionMessage, bulkLabel, title, type Action, type Item, type TableView } from "./model.js";
+import { actionMessage, type Action, type Item, type TableView } from "./model.js";
 import { ActionButton, PendingButton } from "./controls.js";
-import { NoteIcon } from "./evidence.js";
-import { appendActionNote, insertActionMention } from "./presentation.js";
+import { appendActionNote, insertActionMention, insertCommentMention } from "./presentation.js";
 import { readableError, submitDraft, submitting } from "./submit.js";
 import { ActionCard } from "./app.js";
 
@@ -24,11 +23,6 @@ function restore(key: string): Saved {
   } catch { return empty; }
 }
 
-function recommendation(item: Item): Omit<Stage, "revision"> | null {
-  if (item.content.type === "decide" && item.content.recommended) return { action: item.content.recommended };
-  if (item.content.type === "choice" && item.content.recommended) return { action: "choose", choice: item.content.recommended };
-  return null;
-}
 
 export function DecisionSheet({ id, threadId }: { id: string; threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
@@ -39,8 +33,6 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
   const [table, setTable] = useState<TableView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState<string | null>(null);
-  const [showFinished, setShowFinished] = useState(false);
   const [saved, setSaved] = useState<Saved>(() => restore(key));
   const lock = useRef(false);
   useEffect(() => {
@@ -108,7 +100,9 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
   const send = async () => {
     if (!table || lock.current || submitting.has(threadId)) return;
     const rows = table.items.filter((item) => item.state === "ready" && saved.stages[item.id]?.revision === item.revision);
-    if (!rows.length) return;
+    // A note with no answer is a question about that row.
+    const questions = table.items.filter((item) => item.state === "ready" && !saved.stages[item.id] && (saved.notes[item.id] ?? "").trim());
+    if (!rows.length && !questions.length) return;
     lock.current = true; submitting.add(threadId); setBusy(true); setError(null);
     try {
       const checkComposer = () => {
@@ -116,15 +110,16 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
         if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try again.");
       };
       checkComposer();
-      const items = await rpc.call("prepareBatch", { id, threadId, items: rows.map((item) => {
+      const items = !rows.length ? [] : await rpc.call("prepareBatch", { id, threadId, items: rows.map((item) => {
         const stage = saved.stages[item.id]!;
         return { id: item.id, revision: item.revision, action: stage.action as "yes", ...(stage.choice ? { choice: stage.choice } : {}), note: (saved.notes[item.id] ?? "").trim() };
       }) });
       items.forEach((item) => updateItem(item));
       // Each comment now lives on its attempt; the staged copies are done.
+      const asked = await Promise.all(questions.map((item) => rpc.call("comment", { id: item.id, threadId, revision: item.revision, note: (saved.notes[item.id] ?? "").trim() })));
       setSaved((value) => {
         const stages = { ...value.stages }, notes = { ...value.notes };
-        for (const item of items) { delete stages[item.id]; delete notes[item.id]; }
+        for (const item of [...items, ...asked.map((entry) => entry.item)]) { delete stages[item.id]; delete notes[item.id]; }
         return { ...value, stages, notes };
       });
       checkComposer();
@@ -134,6 +129,11 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
         insertActionMention(composer, item);
         appendActionNote(composer, item);
       });
+      asked.forEach((entry, index) => {
+        if (items.length || index) composer.updateText((value) => `${value}\n`);
+        insertCommentMention(composer, entry.item, entry.commentId);
+        composer.updateText((value) => `${value} ${entry.note}`);
+      });
       if (!await submitDraft(composer, { experimental_data: { tableId: id } })) throw new Error("The request was not submitted. Send the prepared composer message, or resend each pending row.");
       (await Promise.all(items.map((item) => rpc.call("submitted", { id: item.id, threadId, attemptId: item.attempt!.id })))).forEach((item) => updateItem(item));
     } catch (err) { setError(readableError(err)); }
@@ -142,98 +142,19 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
 
   if (!table) return <div className="iac-card" role="status">{error ?? "Loading actions…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const ready = table.items.filter((item) => item.state === "ready");
-  const staged = ready.filter((item) => saved.stages[item.id]?.revision === item.revision);
-  const failed = table.items.filter((item) => item.state === "failed");
-  // Open rows stay in place; anything sent or done folds into one group below them.
-  // A request that never reached the composer is not sent: it stays open with Resend.
-  const unsent = table.items.filter((item) => item.state === "pending" && !item.attempt?.sentAt && !item.attempt?.claimed);
-  const finished = table.items.filter((item) => item.state === "succeeded" || (item.state === "pending" && !unsent.includes(item)));
-  const toDecide = ready.length - staged.length;
-  const summary = [toDecide ? `${toDecide} to decide` : ready.length ? "All answered" : unsent.length ? null : "All sent",
-    unsent.length ? `${unsent.length} not sent` : null,
-    failed.length ? `${failed.length} need${failed.length === 1 ? "s" : ""} attention` : null].filter(Boolean).join(" · ");
-  // Matching rows keep their one-click "… all"; otherwise the agent's recommendations can be staged at once.
-  const all = bulkLabel(table.items);
-  const suggested = ready.filter((item) => !saved.stages[item.id] && recommendation(item));
-  const bulk = all && ready.some((item) => !saved.stages[item.id])
-    ? { label: all, run: () => ready.forEach((item) => stageRow(item, "yes")) }
-    : suggested.length ? { label: `Accept ${suggested.length} recommended`, run: () => suggested.forEach((item) => { const pick = recommendation(item)!; stageRow(item, pick.action, pick.choice); }) } : null;
-  const row = (item: TableView["items"][number]) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row expanded={open === item.id}
-    onExpand={(expanded) => setOpen((value) => expanded ? item.id : value === item.id ? null : value)} onItem={updateItem}
-    sheet={{
-      staged: saved.stages[item.id] ?? null, changed: saved.changed.includes(item.id), note: saved.notes[item.id] ?? "",
-      stage: (action, choice) => stageRow(item, action, choice), clear: () => clearRow(item.id), setNote: (note) => setNote(item.id, note),
-    }} />;
-  return <section className="iac-table iac-sheet" aria-label={table.title}>
-    <div className="iac-table-header">
-      <div className="iac-sheet-title"><span>{table.title}</span><span className="iac-sheet-counts">{summary}</span></div>
-      {bulk && <ActionButton className="iac-quiet" disabled={busy} onClick={bulk.run}>{bulk.label}</ActionButton>}
-    </div>
-    {table.items.filter((item) => !finished.includes(item)).map(row)}
-    {finished.length > 0 && <>
-      <button type="button" className="iac-finished-toggle" aria-expanded={showFinished} onClick={() => setShowFinished(!showFinished)}>
-        <span className="iac-disclosure" aria-hidden="true">{showFinished ? "▾" : "▸"}</span>{finished.length} sent or done
-      </button>
-      {showFinished && <div className="iac-finished">{finished.map(row)}</div>}
-    </>}
+  const answers = ready.filter((item) => saved.stages[item.id]?.revision === item.revision).length;
+  const questions = ready.filter((item) => !saved.stages[item.id] && (saved.notes[item.id] ?? "").trim()).length;
+  // One plain form: every decision is a field, and one Submit sends what you filled in.
+  return <form className="iac-table iac-sheet iac-form" aria-label={table.title} onSubmit={(event) => { event.preventDefault(); void send(); }}>
+    <div className="iac-table-header"><span className="iac-sheet-title">{table.title}</span></div>
+    {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row onItem={updateItem}
+      sheet={{
+        staged: saved.stages[item.id] ?? null, changed: saved.changed.includes(item.id), note: saved.notes[item.id] ?? "",
+        stage: (action, choice) => stageRow(item, action, choice), clear: () => clearRow(item.id), setNote: (note) => setNote(item.id, note),
+      }} />)}
     {error && <div className="iac-error" role="alert">{error}</div>}
-    {staged.length > 0 && <div className="iac-sheet-footer">
-      <span className="iac-muted" role="status">{staged.length} {staged.length === 1 ? "answer" : "answers"} not sent yet</span>
-      <ActionButton disabled={busy} onClick={() => setSaved((value) => ({ ...value, stages: {} }))}>Clear</ActionButton>
-      <PendingButton variant="default" pending={busy} pendingLabel="Sending…" onClick={() => void send()}>{`Send ${staged.length} ${staged.length === 1 ? "answer" : "answers"}`}</PendingButton>
+    {ready.length > 0 && <div className="iac-submit-row">
+      <PendingButton type="submit" variant="default" pending={busy} pendingLabel="Submitting…" disabled={!answers && !questions}>Submit</PendingButton>
     </div>}
-  </section>;
-}
-
-// One sheet row: question, its staged answer, and the full card body when open.
-export function SheetRowView({ item, done, result, expanded, onExpand, sheet, disabled, followUpCount, failure, body, resend }: {
-  item: Item; done: boolean; result: ReactNode; expanded: boolean; onExpand: (open: boolean) => void; sheet: SheetBinding;
-  disabled: boolean; followUpCount: number; failure: ReactNode; body: ReactNode;
-  // Set while this row's request was prepared but never reached the composer.
-  resend: (() => void) | null;
-}) {
-  const { content } = item;
-  const staged = sheet.staged;
-  const name = `iac-sheet-${item.threadId}-${item.id}`;
-  const status = `${name}-status`;
-  const answer = content.type === "decide"
-    ? <Segments name={name} label={title(item)} describedBy={staged ? status : undefined} disabled={disabled} value={staged && (staged.action === "yes" || staged.action === "no") ? staged.action : null}
-      recommended={content.recommended ?? null} options={[{ id: "yes", label: actionLabel(item, "yes") }, { id: "no", label: actionLabel(item, "no") }]}
-      onChange={(value) => sheet.stage(value as Action)} />
-    : content.type === "choice"
-      ? <Segments name={name} label={title(item)} describedBy={staged ? status : undefined} disabled={disabled} value={staged?.action === "choose" ? staged.choice ?? null : null}
-        recommended={content.recommended ?? null} options={content.options} onChange={(value) => sheet.stage("choose", value)} />
-      : staged ? <span className="iac-staged-action">{actionLabel(item, staged.action)}</span>
-        : <ActionButton variant="outline" disabled={disabled} aria-expanded={expanded} onClick={() => onExpand(!expanded)}>{expanded ? "Close" : "Review"}</ActionButton>;
-  return <article className="iac-row iac-sheet-row" data-staged={staged ? true : undefined} data-open={expanded || undefined} aria-label={`${content.type === "reply" ? "Reply" : content.type === "choice" ? "Choice" : "Decision"}: ${title(item)}`}>
-    {done ? result : <div className="iac-row-line">
-      <button type="button" className="iac-row-summary" aria-expanded={expanded} onClick={() => onExpand(!expanded)}>
-        {/* A long question truncates to one line; its marks stay beside it. The full text shows when the row opens. */}
-        <span className="iac-row-question" title={expanded ? undefined : title(item)}>
-          <span className="iac-row-title">{title(item)}</span>
-          {(sheet.note.trim() || followUpCount > 0) && <NoteIcon className="iac-row-mark" />}
-          <span className="iac-disclosure" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-        </span>
-      </button>
-      <div className="iac-row-answer">
-        {sheet.changed && !staged && <span className="iac-tag iac-tag-changed">Changed — review again</span>}
-        {staged && <span id={status} className="iac-sr-only">Not sent yet</span>}
-        {resend ? <><span className="iac-failed iac-unsent"><span aria-hidden="true">⚠</span> Not sent</span><ActionButton variant="default" onClick={resend}>Resend</ActionButton></> : answer}
-      </div>
-    </div>}
-    {expanded && body}
-    {failure}
-  </article>;
-}
-
-function Segments({ name, label, describedBy, options, value, recommended, disabled, onChange }: {
-  name: string; label: string; describedBy?: string; options: { id: string; label: string }[]; value: string | null; recommended: string | null; disabled: boolean; onChange: (value: string) => void;
-}) {
-  return <div role="radiogroup" aria-label={label} aria-describedby={describedBy} className="iac-segments">
-    {options.map((option) => <label key={option.id} className="iac-segment" data-recommended={recommended === option.id || undefined} title={recommended === option.id ? `${option.label} (recommended)` : option.label}>
-      <input type="radio" name={name} value={option.id} checked={value === option.id} disabled={disabled} onChange={() => onChange(option.id)} />
-      <span>{option.label}</span>
-      {recommended === option.id && <span className="iac-sr-only"> (recommended)</span>}
-    </label>)}
-  </div>;
+  </form>;
 }

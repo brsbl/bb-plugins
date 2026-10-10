@@ -44,7 +44,7 @@ Any card (Reply, Decide, or Choice) accepts optional evidence so the user can de
 
 - `context`: Markdown, up to 20,000 characters, rendered like a chat message (headings, lists, code blocks, tables, links). Lead with what changes and the risk; long context is clipped until the user opens it.
 - `media`: up to 4 images, each `{"src","alt","caption"?}`. `src` is an `https://` URL or an **absolute path** to a `.png`, `.jpg`, `.gif`, `.webp`, `.avif` or `.svg` file on the thread's host (for example a screenshot you just captured). Relative paths, `http:`, and `data:` URLs are rejected.
-- Decide cards also accept `recommended: "yes" | "no"`; Choice cards keep `recommended: "<option id>"`. In a table, Accept recommended stages these for the user to review; nothing is sent until they press Send.
+- Decide cards also accept `recommended: "yes" | "no"`; Choice cards keep `recommended: "<option id>"`. The form labels that option "(recommended)" but never preselects it.
 
 ```sh
 bb action-cards create merge-412 --item-stdin <<'JSON'
@@ -72,7 +72,7 @@ Explain tradeoffs in `context` or before the card rather than in hints. A click 
 
 Create the items first, then create a table that references those same IDs. Emit its returned `::actions{id="..."}` directive on its own line. Rows keep their order as results arrive. Order rows by importance and keep each `question` scannable.
 
-In a table, each row answers inline: Decide rows show your Yes/No labels, Choice rows show their options, and Reply rows open their full draft with Review before Send can be staged. Answers are **staged**, not sent; the user can add a per-row comment, open a row for its context, ask about it, and then press **Send N answers**. That one message carries one mention per answered row, each with its own attempt and comment. Rows the user left unanswered send nothing; don't assume an answer for them. Only one row is open at a time.
+Every card renders as a plain form. Its question is the field label; `consequence` and `context` show in full as help text. The answer is a radio group (Decide shows your Yes/No labels, Choice shows its options, Reply shows Send / Save to Gmail drafts under the full draft), followed by an optional one-line **Note** field and a **Submit** button. A table is one form with one Submit at the end: it sends one message with a mention per answered row, each with its own attempt and note. Rows the user left unanswered send nothing, so don't assume an answer for them. Keep `consequence` short and put long detail in `context`; both show in full.
 
 ```sh
 bb action-cards create news-1 --item-stdin <<'JSON'
@@ -121,11 +121,11 @@ The card shows Retry. A new click creates a new attempt, which must be claimed a
 
 ## Comments with a choice
 
-Every ready card ends with one line: a comment field (sticky-note icon), then the answer buttons. A table row shows that comment field when the row is open, and the comment rides with the row's staged answer. Choosing an answer while the field has text submits the comment visibly after the mention pill and includes it as `note` in hidden context. The comment is saved on the attempt as `note`, returned by claim/get, and shown under the result. Empty comments keep the usual behavior; Escape or clearing the field dismisses it. Sending a table carries each row’s own comment.
+The **Note** field sits under the answer. When Submit carries an answer, the note goes after the mention pill and is included as `note` in hidden context.
 
 ## Comment without choosing
 
-When the comment field contains text, its own submit (or Enter) sends just the comment as a follow-up question with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `commentId`, `threadId`, and `itemId`; it has no action or attempt. A comment never approves the card's own action: never claim or create an attempt for it. Treat it as a chat message from the user. Answer questions, and follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization. If it is ambiguous, or the card's own action needs approval, ask the user to use the card's buttons. The card stays ready, its choices remain usable, and other rows in the same table keep their staged answers.
+When the user writes a note but picks no answer, Submit sends just the note as a follow-up question, with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `commentId`, `threadId`, and `itemId`; it has no action or attempt. A comment never approves the card's own action: never claim or create an attempt for it. Treat it as a chat message from the user. Answer questions, and follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization. If it is ambiguous, or the card's own action needs approval, ask the user to submit an answer on the card. The card stays ready, and other rows in the same table keep their answers.
 
 Answer the follow-up **on the card** so the answer sits next to the decision it is about:
 

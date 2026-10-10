@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, actionMessage, chooseLabel, idSchema, title, type Action, type FollowUp, type Item, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, DraftIcon, EditIcon, ResendIcon, UndoIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
+import { actionLabel, actionMessage, idSchema, title, type Action, type FollowUp, type Item, type ActionLog } from "./model.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
-import { Consequence } from "./consequence.js";
-import { AnswerBar, Evidence, FollowUps, NoteIcon } from "./evidence.js";
-import { DecisionSheet, SheetRowView, type SheetBinding } from "./sheet.js";
+import { Evidence, FollowUps, NoteIcon } from "./evidence.js";
+import { DecisionSheet, type SheetBinding } from "./sheet.js";
 import { readableError, submitDraft, submitting } from "./submit.js";
 import "./app.css";
 import "./compact.css";
@@ -209,9 +208,9 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const pending = item?.state === "pending";
   const status = item && !busy ? sentStatus(item) : null;
   // Prepared and once submitted, but never claimed by the time the thread went idle: the agent never got it.
-  const stalled = !!item && item.state === "pending" && !busy && !status && !item.attempt?.claimed && !row;
+  const stalled = !!item && item.state === "pending" && !busy && !status && !item.attempt?.claimed;
   const done = item?.state === "succeeded" || item?.state === "failed" || !!status || stalled;
-  const showBody = logEntry ? viewResult : row ? expanded : !done || viewResult;
+  const showBody = logEntry ? viewResult : row ? !!sheet || expanded : !done || viewResult;
   const editor = useRef<HTMLTextAreaElement>(null);
   const reviewTarget = useRef<HTMLButtonElement>(null);
   const unseen = (action?: Action) => !!reply && (row || !!logEntry) && !showBody && (action === "send" || action === "save-draft");
@@ -230,91 +229,69 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = (open: boolean) => row ? onExpand?.(open) : setViewResult(open);
-  // Card tools sit in the top-right corner.
-  const tools = (ready || pending) && (reply || (pending && !busy)) && <span className="iac-header-tools">
-    {pending && !busy && <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton>}
-    {reply && <IconButton label="Save to Gmail drafts" disabled={disabled} onClick={() => void act("save-draft")}><DraftIcon /></IconButton>}
-  </span>;
-  // The primary button marks a comment that goes along with the choice.
-  const attached = ready && !!note.trim();
-  const withComment = (label: string) => <>{attached && <NoteIcon className="iac-attached" />}{label}{attached && <>{" "}<span className="iac-sr-only">with comment</span></>}</>;
-  // A sent or finished attempt shows its own option; a ready card keeps the user's pick or the recommendation.
-  const staged = sheet?.staged;
-  const selectedId = (!ready && item.attempt?.choice?.id) || (sheet ? staged?.action === "choose" ? staged.choice : undefined : picked || choice?.recommended);
-  const selected = choice?.options.find((option) => option.id === selectedId);
-  const primary: Action = reply ? "send" : choice ? "choose" : "yes";
-  const primaryLabel = reply ? "Send" : choice ? selected ? chooseLabel(selected.label) : "Choose an option" : actionLabel(item, "yes");
-  const primaryButton = <PendingButton variant="default" className={choice ? "iac-choose" : undefined} pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled || (!!choice && !selected)} onClick={() => void act(primary, selected?.id)}>{withComment(primaryLabel)}</PendingButton>;
-  const secondaryButton = !reply && !choice && <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>;
-  // One line: comment, then the answers. A sheet row's answer is staged in its header, so its bar keeps only the comment.
-  const staging = !!sheet && !reply;
-  const answerBar = (ready || pending) && <AnswerBar inputRef={noteEditor} value={note} disabled={disabled} busy={busy} onChange={changeNote} onSend={() => void comment()}>
-    {staging ? sheet!.staged && <ActionButton onClick={sheet!.clear}>Clear answer</ActionButton> : <>{secondaryButton}{primaryButton}</>}
-  </AnswerBar>;
-  const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
-    {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
-    {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
-  </div></div>;
-  const time = status ? status.time : item.updatedAt;
-  // Status, its actions and the comment stay together as one compact unit.
-  const result = <div className="iac-result-line" data-accepted={accepted || undefined} data-state={item.state}>
-    <div className="iac-result-head">
-      <span className={item.state === "failed" || stalled ? "iac-failed" : "iac-result"} role="status">
-        <span aria-hidden="true">{item.state === "failed" || stalled ? "⚠" : "✓"}</span> {stalled ? `Not sent: “${actionLabel(item, item.attempt!.action)}” didn't reach the agent` : status ? status.label : resultLabel(item)}
-        {row && <span className="iac-muted"> · {title(item)}</span>}
-        <time dateTime={time}> · {new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
-      </span>
-      <span className="iac-actions iac-result-actions">
-        {stalled && <ActionButton variant="default" disabled={busy} onClick={() => void act()}>Resend</ActionButton>}
-        {status && !item.attempt?.claimed && <IconButton label="Resend request" disabled={busy} onClick={() => void act()}><ResendIcon /></IconButton>}
-        {(deferred || (item.state === "failed" && item.result?.retryable)) && <IconButton label={deferred ? "Resume" : reply ? "Edit draft" : "Choose again"} disabled={busy} onClick={() => void reopen()}>{reply && !deferred ? <EditIcon /> : <UndoIcon />}</IconButton>}
-        <ActionButton aria-expanded={showBody} onClick={() => setOpen(!showBody)}>{showBody ? "Hide" : "View"}</ActionButton>
-        {item.state === "failed" && <ActionButton ref={reviewTarget} variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</ActionButton>}
-      </span>
-    </div>
-    {item.attempt?.note && <div className="iac-result-note"><NoteIcon />{item.attempt.note}</div>}
-  </div>;
   const recipients = reply && <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
     {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
   </div>;
   const original = reply && <details className="iac-original"><summary><span>{displayName(reply.original.from)}{reply.original.date ? `, ${reply.original.date}` : ""}: “{reply.original.body.replace(/\s+/g, " ").slice(0, 160)}”</span></summary>
     <div className="iac-email">{reply.original.body}</div>
   </details>;
-  // Context, follow-ups and the comment field read top to bottom before the answer.
-  const discussion = <>
-    <Evidence content={item.content} threadId={threadId} />
-    {choice && row && choice.options.some((option) => option.hint) && <ul className="iac-hints">{choice.options.filter((option) => option.hint).map((option) => <li key={option.id}><b>{option.label}</b> {option.hint}</li>)}</ul>}
-    <FollowUps items={followUps} />
-  </>;
-  const details = <>
-    {!row && <div className="iac-header">
-      {reply ? recipients : <span className="iac-question">{title(item)}</span>}
-      {tools}
-    </div>}
-    {row && reply && recipients}
-    {reply ? <>
+  // A plain form: one radio group for the answer, an optional note, and Submit.
+  const staged = sheet?.staged;
+  const value = sheet ? staged ? staged.action === "choose" ? staged.choice ?? null : staged.action : null : picked;
+  const formOptions: { id: string; label: string; hint?: string }[] = reply ? [{ id: "send", label: "Send" }, { id: "save-draft", label: "Save to Gmail drafts" }]
+    : choice ? choice.options : [{ id: "yes", label: actionLabel(item, "yes") }, { id: "no", label: actionLabel(item, "no") }];
+  const suggested = choice ? choice.recommended : item.content.type === "decide" ? item.content.recommended : undefined;
+  const pickOption = (optionId: string) => { if (sheet) { if (choice) sheet.stage("choose", optionId); else sheet.stage(optionId as Action); } else setPicked(optionId); };
+  // With no answer picked, Submit sends the note on its own as a question.
+  const submit = () => { if (value) void act(choice ? "choose" : value as Action, choice ? value : undefined); else if (note.trim()) void comment(); };
+  const fieldId = `iac-${threadId}-${id}`;
+  const consequence = choice ? choice.consequence : item.content.type === "decide" ? item.content.consequence : null;
+  const field = <fieldset className="iac-field" disabled={!ready || busy}>
+    <legend className="iac-label">{reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item)}</legend>
+    {consequence && <p className="iac-help">{consequence}</p>}
+    {reply && <>
+      {recipients}
       {original}
-      <textarea ref={editor} aria-label="Draft" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={1}
+      <label className="iac-sub-label" htmlFor={`${fieldId}-draft`}>Draft</label>
+      <textarea id={`${fieldId}-draft`} ref={editor} className="iac-draft" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={4}
         onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }}
         onBlur={() => void flush().catch(() => {})} />
       {ready && !saveError && (saving || dirty.current) && <span className="iac-save" role="status">Saving…</span>}
-      {discussion}
-    </> : <>
-      {choice ? choice.consequence && <Consequence>{choice.consequence}</Consequence> : item.content.type === "decide" && <Consequence>{item.content.consequence}</Consequence>}
-      {discussion}
-      {choice && !row && <div role="radiogroup" aria-label={choice.question} className="iac-options">
-        {choice.options.map((option) => <label key={option.id} className="iac-option">
-          <input type="radio" name={`iac-${threadId}-${id}`} value={option.id} checked={selectedId === option.id} disabled={!ready || busy} onChange={() => setPicked(option.id)} />
-          <span className="iac-option-text">
-            <span className="iac-option-label">{option.label}</span>
-            {choice.recommended === option.id && <span className="iac-tag">Recommended</span>}
-            {option.hint && <span className="iac-option-hint" title={option.hint}>{option.hint}</span>}
-          </span>
-        </label>)}
-      </div>}
     </>}
-    {!done && answerBar}
-  </>;
+    <Evidence content={item.content} threadId={threadId} />
+    <FollowUps items={followUps} />
+    <div className="iac-radios">
+      {formOptions.map((option) => <label key={option.id} className="iac-radio">
+        <input type="radio" name={fieldId} value={option.id} checked={value === option.id} onChange={() => pickOption(option.id)} />
+        <span className="iac-radio-text"><span>{option.label}{suggested === option.id && <span className="iac-muted"> (recommended)</span>}</span>
+          {option.hint && <span className="iac-radio-hint">{option.hint}</span>}</span>
+      </label>)}
+    </div>
+    <label className="iac-sub-label" htmlFor={`${fieldId}-note`}>Note <span className="iac-muted">(optional)</span></label>
+    <input id={`${fieldId}-note`} ref={noteEditor} className="iac-text" type="text" value={note} maxLength={1000} onChange={(event) => changeNote(event.target.value)} />
+  </fieldset>;
+  const submitButton = <div className="iac-submit-row">
+    <PendingButton type="submit" variant="default" pending={!!sending} pendingLabel="Submitting…" disabled={disabled || (!value && !note.trim())}>Submit</PendingButton>
+  </div>;
+  const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
+    {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
+    {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
+  </div></div>;
+  const time = status ? status.time : item.updatedAt;
+  // The submitted state reads like a form confirmation: what you chose, your note, and where it stands.
+  const chosen = item.attempt ? item.attempt.choice?.label ?? actionLabel(item, item.attempt.action) : null;
+  const where = stalled ? "Not sent: it didn't reach the agent." : item.state === "failed" ? item.result?.message ?? "Failed." : item.state === "succeeded" ? resultLabel(item) : status ? "Sent. Waiting for the agent." : null;
+  const result = <div className="iac-confirm" data-accepted={accepted || undefined} data-state={stalled ? "failed" : item.state}>
+    <div className="iac-label">{title(item)}</div>
+    {chosen && <div className="iac-confirm-answer"><span aria-hidden="true">{item.state === "failed" || stalled ? "⚠" : "✓"}</span> {item.attempt?.action === "skip" || item.attempt?.action === "later" ? chosen : `You chose ${chosen}`}</div>}
+    {item.attempt?.note && <div className="iac-result-note"><NoteIcon />{item.attempt.note}</div>}
+    {where && <div className={item.state === "failed" || stalled ? "iac-failed" : "iac-muted"} role="status">{where} <time dateTime={time}>{new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>}
+    <div className="iac-confirm-actions">
+      {stalled && <ActionButton variant="default" disabled={busy} onClick={() => void act()}>Resend</ActionButton>}
+      {item.state === "failed" && <ActionButton ref={reviewTarget} variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</ActionButton>}
+      {(deferred || (item.state === "failed" && item.result?.retryable)) && <ActionButton variant="outline" disabled={busy} onClick={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</ActionButton>}
+    </div>
+  </div>;
   if (logEntry) {
     const failed = item.state === "failed";
     const retryable = failed && !!item.result?.retryable;
@@ -398,14 +375,14 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
       {failure}
     </article>;
   }
-  if (row && sheet) return <SheetRowView item={item} done={done} result={result} expanded={expanded} onExpand={(open) => onExpand?.(open)}
-    sheet={sheet} disabled={disabled} followUpCount={followUps.length} failure={failure} resend={pending && !busy && !status ? () => void act() : null}
-    body={<div className="iac-row-expanded">{details}</div>} />;
-  return <article className="iac-card" data-compact={done && !showBody ? true : undefined} aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
-    {done ? result : null}
-    {showBody && <div className="iac-body">{details}</div>}
+  if (row && sheet) return <div className="iac-form-row" aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`} role="group">
+    {done ? result : field}
     {failure}
-  </article>;
+  </div>;
+  return <form className="iac-card iac-form" aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`} onSubmit={(event) => { event.preventDefault(); submit(); }}>
+    {done ? result : <>{field}{submitButton}</>}
+    {failure}
+  </form>;
 }
 
 // A Map, not an object literal, so agent-written labels such as "Constructor" cannot reach prototype keys.
