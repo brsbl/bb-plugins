@@ -220,7 +220,7 @@
 .iac-row-answer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; max-width: 60%; }
 .iac-sheet-row .iac-row-expanded { margin-top: 6px; padding: 0 0 6px; }
 .iac-sheet-row .iac-row-expanded > .iac-consequence { margin-top: 0; font-size: var(--text-xs, .75rem); }
-.iac-hints { margin: 8px 0 0; padding-left: 16px; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
+.iac-hints { margin: 10px 0 0; padding-left: 16px; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
 .iac-hints b { color: var(--foreground); font-weight: 500; }
 .iac-staged-action { font-size: var(--text-xs, .75rem); font-weight: 500; }
 
@@ -236,7 +236,8 @@
 /* The agent's recommendation: a small dot, with the word in the accessible name and tooltip. */
 .iac-segment[data-recommended]::after { content: ""; width: 5px; height: 5px; margin-left: 6px; border-radius: 50%; background: currentColor; opacity: .55; }
 .iac-tag-staged, .iac-tag-changed { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
-.iac-tag-staged { padding-right: 1px; border-color: var(--primary); color: var(--foreground); }
+/* Quiet text, not a pill: ten staged rows should still read as one calm list. */
+.iac-tag-staged { padding: 0; border: 0; color: var(--muted-foreground); }
 .iac-tag-changed { border-color: var(--warning, var(--border)); color: var(--warning-text, var(--foreground)); }
 .iac-tag .iac-clear { width: 16px; height: 16px; padding: 2px; border-radius: 999px; }
 .iac-tag .iac-clear svg { width: 10px; height: 10px; }
@@ -246,6 +247,8 @@
 @container (max-width: 520px) {
   .iac-sheet-row { padding: 8px 12px; }
   .iac-sheet-row .iac-row-line { flex-direction: column; align-items: stretch; gap: 6px; }
+  .iac-sheet-row .iac-row-line > .iac-row-summary { align-self: stretch; width: calc(100% + 8px); box-sizing: border-box; margin: -2px -4px; overflow: hidden; }
+  .iac-sheet-row .iac-row-line > .iac-row-answer { align-self: stretch; }
   .iac-row-answer { max-width: none; justify-content: flex-start; }
   .iac-segments { display: flex; flex: 1; }
   .iac-segment { flex: 1 1 auto; justify-content: center; min-height: 36px; }

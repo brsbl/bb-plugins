@@ -302,6 +302,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   // Context, follow-ups and the comment field read top to bottom before the answer.
   const discussion = <>
     <Evidence content={item.content} threadId={threadId} />
+    {choice && row && choice.options.some((option) => option.hint) && <ul className="iac-hints">{choice.options.filter((option) => option.hint).map((option) => <li key={option.id}><b>{option.label}</b> {option.hint}</li>)}</ul>}
     <FollowUps items={followUps} />
     {noteField}
   </>;
@@ -331,7 +332,6 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
           </span>
         </label>)}
       </div>}
-      {choice && row && choice.options.some((option) => option.hint) && <ul className="iac-hints">{choice.options.filter((option) => option.hint).map((option) => <li key={option.id}><b>{option.label}</b> {option.hint}</li>)}</ul>}
     </>}
     {!done && (!row || reply) && controls}
   </>;
