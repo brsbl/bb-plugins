@@ -18,6 +18,7 @@ export function buildLeverPlayground() {
     return `<div class="${side.toLowerCase()}"><label for="${key}">${side} ${quantity}<output id="${key}-value" for="${key}">${DEFAULTS[key]} ${unit}</output></label><input id="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${DEFAULTS[key]}" aria-describedby="${key}-value"></div>`;
   }).join('');
   const license = read('../LICENSE').replace(/--/g, '—');
+  const script = `(() => {\n${kitScript()}\nconst k = { ${names.join(', ')} };\n${inlineModule('./model.mjs')}\n${inlineModule('./art.mjs')}\n${read('./live.js')}\n})();`.replace(/<\/script/gi, '<\\/script');
   const html = `<!-- Anatomy drawing kit: https://github.com/wheresryan22/anatomy\n${license} -->
 <style>${k.ISO_CSS}\n${read('./styles.css')}</style>
 <section class="lever-lab" aria-label="Lever learning lab">
@@ -39,7 +40,7 @@ export function buildLeverPlayground() {
 <details><summary>Model &amp; assumptions</summary><p>A uniform 0.5 kg, 1 m beam rotates around its centre. Distances are measured along the beam. Each gravitational torque is m × 9.81 × d × cos(tilt), with d in metres. The trace numerically integrates Iθ″ = τleft − τright − 0.8θ′, with a fixed inertia for each chosen input and inelastic travel stops at ±12°. Hanging masses are treated as point masses; swinging and friction at the pivot are omitted. The drawing is illustrative. Positive tilt means the left end is lower. “Release from level” resets angle and velocity without changing inputs. Reduced motion jumps to the resting pose and omits the trace. Saved inputs restore a fresh release, not a recording of the motion.</p><p><a href="https://openstax.org/books/university-physics-volume-1/pages/12-1-conditions-for-static-equilibrium" target="_blank" rel="noreferrer">Physics reference: OpenStax, static equilibrium</a></p></details>
 <footer><a href="https://skills.wheresryan.sh/anatomy" target="_blank" rel="noreferrer">Drawing kit: Anatomy by Ryan</a><a href="https://x.com/thebuggeddev/status/2108720133422395590" target="_blank" rel="noreferrer">Learning-demo inspiration: The Bugged Dev</a></footer>
 </section>
-<script>(() => {\n${kitScript()}\nconst k = { ${names.join(', ')} };\n${inlineModule('./model.mjs')}\n${inlineModule('./art.mjs')}\n${read('./live.js')}\n})();</script>`;
+<script>${script}</script>`;
   return { title: 'Lever & fulcrum · Anatomy', width: 820, html };
 }
 

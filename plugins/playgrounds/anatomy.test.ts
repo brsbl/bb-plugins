@@ -39,6 +39,7 @@ describe("Anatomy lever lab", () => {
     const payload = htmlAnswerSchema.parse(buildLeverPlayground());
     const script = /<script>([\s\S]*)<\/script>/.exec(payload.html)?.[1];
     expect(script).toBeTruthy();
+    expect(payload.html.match(/<\/script>/gi)).toHaveLength(1);
     expect(() => new Script(script!)).not.toThrow();
     expect(payload.html).not.toMatch(/<script[^>]+src=|<link[^>]+href=/);
     expect(payload.html).toContain("Copyright (c) 2026 Ryan");

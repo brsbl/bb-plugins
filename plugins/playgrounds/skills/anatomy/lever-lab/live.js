@@ -7,7 +7,7 @@ let state = normalize(bridge.state);
 let motion = { angle: 0, velocity: 0 };
 let samples = [], elapsed = 0, last = 0, lastDraw = 0, frame = 0, visible = true;
 let selected = -1;
-const text = (id, value) => { root.querySelector('#' + id).textContent = value; };
+const text = (id, value) => { const node = root.querySelector('#' + id); if (node.textContent !== value) node.textContent = value; };
 const readout = () => ({ inputs: { ...state }, ...measure(state, motion.angle), tiltDegrees: motion.angle * 180 / Math.PI });
 
 function paint() {
