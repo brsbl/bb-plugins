@@ -329,3 +329,13 @@ Turn any thread into a coordinator that tracks your asks as items, starts sub-th
 [Source](plugins/coordinator-mode) · [README](plugins/coordinator-mode/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/coordinator-mode --yes`
+
+### Delegation
+
+Agent skills for handing a job to another bb thread and bringing back only what matters: launch and parent a worker, relay your decisions to it, collect its results, and report them briefly. Its defaults come from your own AGENTS.md, CLAUDE.md, skills, and memory, quoted in Settings, where you can override what they leave open.
+
+![Delegation's settings form, with values quoted from AGENTS.md, CLAUDE.md, and memory, and an ignored override flagged](plugins/delegation/docs/settings.png)
+
+[Source](plugins/delegation) · [README](plugins/delegation/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/delegation --yes`
