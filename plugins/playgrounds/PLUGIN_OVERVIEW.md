@@ -6,6 +6,7 @@ Answers you can play with: calculators, guides, previews. Agents put a playgroun
 - HTML playgrounds for custom layouts, illustrations, schematic maps, and photos, rendered in a sandboxed frame that cannot reach bb, your cookies, the conversation, or the network.
 - Inputs saved with the playground, so they follow you across devices and every open copy updates live.
 - An agent that can read your inputs, follow what you do, and drive the playground when you ask it to.
+- A private library: save any playground with its inputs, reopen it from the Playgrounds page, or @-mention it to bring it into a new conversation.
 
 Install Playgrounds, then ask for a calculator, a scenario comparison, or a walkthrough.
 

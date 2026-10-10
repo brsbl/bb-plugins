@@ -480,3 +480,108 @@ it("routes commands to a copy that offers the action, and prints the latest even
     await host.harness.lifecycle.dispose();
   }
 });
+
+it("keeps a personal library of saved playgrounds that can be reopened, reused in threads, and attached to messages", async () => {
+  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  try {
+    plugin(host.bb);
+    const { runCli, callRpc, emitThreadEvent } = host.harness.behavior;
+    const id = /id="([^"]+)"/.exec(
+      (
+        await runCli([
+          "publish",
+          "--thread",
+          "thr_test",
+          "--document",
+          JSON.stringify(bill),
+        ])
+      ).stdout!,
+    )![1];
+    await callRpc("setState", {
+      id,
+      threadId: "thr_test",
+      clientId: "client-one-123",
+      state: { people: 6 },
+    });
+    const saved = (await callRpc("save", {
+      id,
+      threadId: "thr_test",
+    })) as { savedId: string; threadId: string; title: string };
+    expect(saved.title).toBe(bill.title);
+    expect(
+      await callRpc("getState", { id, threadId: saved.threadId }),
+    ).toMatchObject({ state: { people: 6 } });
+
+    await callRpc("setState", {
+      id,
+      threadId: saved.threadId,
+      clientId: "client-one-123",
+      state: { people: 2 },
+    });
+    expect(
+      await callRpc("getState", { id, threadId: "thr_test" }),
+    ).toMatchObject({ state: { people: 6 } });
+
+    await callRpc("renameSaved", { savedId: saved.savedId, title: "Dinner" });
+    expect(JSON.parse((await runCli(["saved"])).stdout!)).toMatchObject([
+      { savedId: saved.savedId, id, title: "Dinner", kind: "document" },
+    ]);
+
+    await emitThreadEvent("thread.deleted", {
+      thread: makeThreadResponse({ id: "thr_test" }),
+    });
+    expect(
+      await callRpc("get", { id, threadId: saved.threadId }),
+    ).toMatchObject({ kind: "document", document: bill });
+
+    const reused = await runCli([
+      "publish",
+      "--thread",
+      "thr_new",
+      "--saved",
+      saved.savedId,
+    ]);
+    expect(reused.stdout).toContain(`::playground{id="${id}"}`);
+    expect(
+      await callRpc("getState", { id, threadId: "thr_new" }),
+    ).toMatchObject({ state: { people: 2 } });
+
+    const provider =
+      host.harness.inspection.registrations.mentionProviders.find(
+        (p) => p.id === "saved",
+      )!;
+    expect(
+      await provider.search({
+        trigger: "@",
+        query: "din",
+        projectId: null,
+        threadId: null,
+      }),
+    ).toEqual([
+      expect.objectContaining({ id: saved.savedId, title: "Dinner" }),
+    ]);
+    expect((await provider.resolve(saved.savedId)).context).toContain(
+      `bb playgrounds publish --saved ${saved.savedId}`,
+    );
+
+    const documents = () =>
+      (
+        host.bb.storage
+          .database()
+          .prepare("SELECT count(*) AS n FROM answer_documents")
+          .get() as { n: number }
+      ).n;
+    await callRpc("deleteSaved", { savedId: saved.savedId });
+    expect(JSON.parse((await runCli(["saved"])).stdout!)).toEqual([]);
+    expect(documents()).toBe(1);
+    await emitThreadEvent("thread.deleted", {
+      thread: makeThreadResponse({ id: "thr_new" }),
+    });
+    expect(documents()).toBe(0);
+    await expect(
+      Promise.resolve().then(() => provider.resolve(saved.savedId)),
+    ).rejects.toThrow("no longer exists");
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
