@@ -208,7 +208,6 @@
 .iac-sheet-title > :first-child { color: var(--foreground); font-weight: 600; }
 .iac-sheet-counts { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .iac-sheet-row { padding: 8px 16px; }
-.iac-sheet-row[data-staged] { background: var(--surface-raised, transparent); }
 .iac-sheet-row .iac-row-line { align-items: center; gap: 12px; }
 .iac-row-summary { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; gap: 1px; padding: 2px 4px; margin: -2px -4px; border: 0; border-radius: var(--radius-sm, .25rem); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .iac-row-summary:hover { background: var(--state-hover, var(--muted)); }
@@ -275,10 +274,10 @@
 .iac-note-submit:disabled { opacity: .45; cursor: default; }
 .iac-answer-bar > button { flex-shrink: 0; height: 32px; }
 .iac-attached { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; }
-.iac-card .iac-header + * { margin-top: 2px; }
+.iac-card .iac-header + .iac-consequence { margin-top: 2px; }
 
 /* The comment that went with an answer, as a small sticky note under the result. */
-.iac-result-note { display: inline-flex; max-width: 100%; align-items: flex-start; gap: 6px; margin-top: 6px; padding: 3px 8px; border-radius: var(--radius-sm, .25rem); background: var(--surface-attention, var(--muted)); color: var(--foreground); font-size: var(--text-xs, .75rem); white-space: pre-wrap; overflow-wrap: anywhere; }
+.iac-result-note { display: flex; width: fit-content; max-width: 100%; align-items: flex-start; gap: 6px; margin-top: 6px; padding: 3px 8px; border-radius: var(--radius-sm, .25rem); background: var(--surface-attention, var(--muted)); color: var(--foreground); font-size: var(--text-xs, .75rem); white-space: pre-wrap; overflow-wrap: anywhere; }
 .iac-result-note svg { width: 13px; height: 13px; margin-top: 2px; color: var(--muted-foreground); }
 @media (prefers-reduced-motion: no-preference) {
   .iac-result-line[data-accepted] .iac-result-note { animation: iac-note-dock 320ms cubic-bezier(.2, .8, .2, 1) both; }
@@ -289,7 +288,7 @@
 
 /* Focused sheet: each row is its question and its answer. */
 .iac-sheet .iac-row-question { display: inline; font-weight: 500; }
-.iac-row-mark { width: 12px; height: 12px; margin-left: 6px; color: var(--muted-foreground); vertical-align: -1px; }
+.iac-row-mark { display: inline-block; width: 12px; height: 12px; margin-left: 6px; color: var(--muted-foreground); vertical-align: -1px; }
 .iac-sheet-row[data-open] { background: var(--surface-raised, transparent); }
 .iac-sheet-row .iac-answer-bar { justify-content: flex-start; }
 .iac-quiet { color: var(--muted-foreground); }

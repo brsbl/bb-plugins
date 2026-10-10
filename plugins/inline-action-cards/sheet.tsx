@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useComposer, useComposerView, useRpc } from "@get-bb/plugin-sdk/app";
+import { useComposer, useComposerView, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, bulkLabel, title, type Action, type Item, type TableView } from "./model.js";
 import { ActionButton, PendingButton } from "./controls.js";
@@ -66,7 +66,13 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
     try { const next = await rpc.call("table", { id, threadId }); setTable(next); reconcile(next.items); setError(null); }
     catch (err) { setError(readableError(err)); }
   }, [rpc, id, threadId, reconcile]);
-  useEffect(() => { void load(); }, [load]);
+  // Folded rows are not mounted, so the sheet itself follows results; a failure moves back into the open list.
+  useEffect(() => {
+    void load();
+    const timer = setInterval(() => { void load(); }, 5000);
+    return () => clearInterval(timer);
+  }, [load]);
+  useRealtime("items", () => { void load(); });
   const updateItem = useCallback((next: Item, own = false) => {
     setTable((value) => {
       const previous = value?.items.find((item) => item.id === next.id);
