@@ -1,0 +1,123 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { definePluginApp, useRpc, type PluginMessageDirectiveProps, type PluginRpcClient } from "@get-bb/plugin-sdk/app";
+import type { rpcContract } from "./server.js";
+import { carouselIdSchema, type Carousel, type ImageRef } from "./model.js";
+import "./app.css";
+
+type Rpc = PluginRpcClient<typeof rpcContract>;
+const MAX_DOTS = 12;
+const imageUrls = new Map<string, Promise<string>>();
+
+function loadImage(rpc: Rpc, image: ImageRef) {
+  let url = imageUrls.get(image.sha256);
+  if (!url) {
+    url = rpc.call("image", { sha256: image.sha256 }).then(({ mimeType, data }) => {
+      const bytes = Uint8Array.from(atob(data), (char) => char.charCodeAt(0));
+      return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+    });
+    url.catch(() => imageUrls.delete(image.sha256));
+    imageUrls.set(image.sha256, url);
+  }
+  return url;
+}
+
+const slideImages = (carousel: Carousel, index: number): ImageRef[] => {
+  if (carousel.kind === "research") { const slide = carousel.slides[index]; return slide ? [slide.image] : []; }
+  const slide = carousel.slides[index];
+  return slide ? [slide.before, slide.after] : [];
+};
+
+function Shot({ rpc, image, alt }: { rpc: Rpc; image: ImageRef; alt: string }) {
+  const [state, setState] = useState<{ sha: string; url: string | null; failed: boolean }>({ sha: image.sha256, url: null, failed: false });
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setState({ sha: image.sha256, url: null, failed: false });
+    loadImage(rpc, image).then((url) => { if (live) setState({ sha: image.sha256, url, failed: false }); }, () => { if (live) setState({ sha: image.sha256, url: null, failed: true }); });
+    return () => { live = false; };
+  }, [rpc, image, attempt]);
+  const current = state.sha === image.sha256 ? state : { url: null, failed: false };
+  if (current.failed) return <div className="icx-frame icx-frame-empty" role="alert">Image unavailable<button type="button" className="icx-retry" onClick={() => setAttempt((value) => value + 1)}>Retry</button></div>;
+  if (!current.url) return <div className="icx-frame icx-frame-empty" aria-busy="true"><span className="icx-sr-only">Loading image</span></div>;
+  return <a className="icx-frame" href={current.url} target="_blank" rel="noreferrer" title="Open the full-size image">
+    <img src={current.url} alt={alt} draggable={false} />
+  </a>;
+}
+
+function Arrow({ direction, disabled, onClick }: { direction: "previous" | "next"; disabled: boolean; onClick: () => void }) {
+  return <button type="button" className="icx-arrow" aria-label={direction === "previous" ? "Previous slide" : "Next slide"} aria-disabled={disabled} onClick={() => { if (!disabled) onClick(); }}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={direction === "previous" ? "M15 5l-7 7 7 7" : "M9 5l7 7-7 7"} /></svg>
+  </button>;
+}
+
+function CarouselView({ carousel }: { carousel: Carousel }) {
+  const rpc = useRpc<typeof rpcContract>();
+  const [index, setIndex] = useState(0);
+  const caption = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  const count = carousel.slides.length;
+  const move = useCallback((delta: number) => setIndex((value) => Math.min(count - 1, Math.max(0, value + delta))), [count]);
+  const measure = useCallback(() => {
+    const box = caption.current;
+    setMore(!!box && box.scrollTop + box.clientHeight < box.scrollHeight - 2);
+  }, []);
+  useLayoutEffect(() => {
+    if (caption.current) caption.current.scrollTop = 0;
+    measure();
+  }, [index, measure]);
+  useEffect(() => {
+    for (const neighbor of [index - 1, index + 1]) for (const image of slideImages(carousel, neighbor)) void loadImage(rpc, image).catch(() => undefined);
+  }, [carousel, index, rpc]);
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    move(event.key === "ArrowLeft" ? -1 : 1);
+  };
+  const slide = carousel.slides[index]!;
+  return <section className="icx" aria-roledescription="carousel" aria-label={carousel.title ?? (carousel.kind === "research" ? "Research images" : "Before and after")} onKeyDown={onKeyDown}>
+    {carousel.title && <div className="icx-heading">{carousel.title}</div>}
+    <div className="icx-row">
+      <Arrow direction="previous" disabled={index === 0} onClick={() => move(-1)} />
+      <div className="icx-media" role="group" aria-roledescription="slide" aria-label={`${index + 1} of ${count}: ${slide.title}`}>
+        {carousel.kind === "research"
+          ? <Shot rpc={rpc} image={carousel.slides[index]!.image} alt={slide.title} />
+          : <div className="icx-pair">
+            <figure><figcaption className="icx-tag">Before</figcaption><Shot rpc={rpc} image={carousel.slides[index]!.before} alt={`Before: ${slide.title}`} /></figure>
+            <figure><figcaption className="icx-tag icx-tag-after">After</figcaption><Shot rpc={rpc} image={carousel.slides[index]!.after} alt={`After: ${slide.title}`} /></figure>
+          </div>}
+      </div>
+      <Arrow direction="next" disabled={index === count - 1} onClick={() => move(1)} />
+    </div>
+    <div ref={caption} className={more ? "icx-caption icx-caption-more" : "icx-caption"} tabIndex={0} aria-live="polite" onScroll={measure}>
+      <div className="icx-caption-title">{slide.title}</div>
+      {slide.description && <p className="icx-caption-text">{slide.description}</p>}
+      {carousel.kind === "research" && carousel.slides[index]!.source && <a className="icx-source" href={carousel.slides[index]!.source} target="_blank" rel="noreferrer">{new URL(carousel.slides[index]!.source!).host}<span aria-hidden="true"> ↗</span></a>}
+    </div>
+    <div className="icx-position">
+      <span className="icx-count">{index + 1} / {count}</span>
+      {count > 1 && count <= MAX_DOTS && <span className="icx-dots" aria-hidden="true">{carousel.slides.map((_, dot) => <i key={dot} className={dot === index ? "icx-dot-on" : undefined} />)}</span>}
+    </div>
+  </section>;
+}
+
+function CarouselDirective({ attributes }: PluginMessageDirectiveProps) {
+  const rpc = useRpc<typeof rpcContract>();
+  const id = carouselIdSchema.safeParse(attributes.id);
+  const [carousel, setCarousel] = useState<Carousel | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    if (!id.success) return;
+    setError(null);
+    try { setCarousel(await rpc.call("get", { id: id.data })); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "This carousel could not be loaded."); }
+  }, [rpc, id.success, id.data]);
+  useEffect(() => { void load(); }, [load]);
+  if (!id.success) return <div className="icx-note" role="alert">This carousel reference is invalid.</div>;
+  if (error) return <div className="icx-note" role="alert">{error}<button type="button" className="icx-retry" onClick={() => void load()}>Retry</button></div>;
+  if (!carousel) return <div className="icx-note" aria-busy="true">Loading carousel…</div>;
+  return <CarouselView carousel={carousel} />;
+}
+
+export default definePluginApp((app) => {
+  app.slots.messageDirective({ id: "image-carousel", component: CarouselDirective });
+});
