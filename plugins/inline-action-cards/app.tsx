@@ -1,36 +1,31 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
-import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type ExperimentalComposerSubmitOptions, type PluginComposerApi, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, actionMessage, bulkLabel, chooseLabel, idSchema, title, type Action, type Item, type TableView, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, CommentIcon, DraftIcon, EditIcon, ResendIcon, SendIcon, SkipIcon, UndoIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
+import { actionLabel, actionMessage, chooseLabel, idSchema, title, type Action, type FollowUp, type Item, type ActionLog } from "./model.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, CommentIcon, DraftIcon, EditIcon, ResendIcon, SkipIcon, UndoIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
 import { Consequence } from "./consequence.js";
+import { CommentField, Evidence, FollowUps } from "./evidence.js";
+import { DecisionSheet, SheetRowView, type SheetBinding } from "./sheet.js";
+import { readableError, submitDraft, submitting } from "./submit.js";
 import "./app.css";
 import "./compact.css";
 
-// Several cards may share one composer. A double click must never submit two drafts.
-const submitting = new Set<string>();
-const readableError = (error: unknown) => error instanceof Error ? error.message : "The card could not be updated. Try again.";
-// The host reports accepted submissions, including queued ones; older hosts only clear the draft.
-async function submitDraft(composer: PluginComposerApi, options: ExperimentalComposerSubmitOptions): Promise<boolean> {
-  const submittedText = composer.text;
-  let accepted = false;
-  const stop = composer.experimental_onSubmitted?.(() => { accepted = true; });
-  try { await composer.experimental_submit(options); } finally { stop?.(); }
-  return accepted || composer.text !== submittedText;
-}
-
-function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, onNote, logEntry }: {
+export function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, sheet, logEntry }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
-  initialItem?: Item; onItem?: (item: Item) => void; onNote?: (id: string, note: string) => void;
+  initialItem?: Item & { followUps?: FollowUp[] }; onItem?: (item: Item, own?: boolean) => void;
+  // A decision sheet row stages its answer and keeps its comment in the sheet.
+  sheet?: SheetBinding;
   logEntry?: { threadTitle: string; threadProjectId: string | null; showThread: boolean };
 }) {
   const navigate = useBbNavigate();
   const [noteOpen, setNoteOpen] = useState(false);
-  const [note, setNote] = useState("");
+  const [localNote, setLocalNote] = useState("");
+  const note = sheet ? sheet.note : localNote;
   const noteEditor = useRef<HTMLTextAreaElement>(null);
   const commentButton = useRef<HTMLButtonElement>(null);
-  const changeNote = (value: string) => { setNote(value); onNote?.(id, value); };
+  const changeNote = (value: string) => sheet ? sheet.setNote(value) : setLocalNote(value);
+  const [followUps, setFollowUps] = useState<FollowUp[]>(initialItem?.followUps ?? []);
   // Escape or clearing the field hands focus back to the Comment button.
   const refocusComment = useRef(false);
   const closeNote = (refocus = false) => { refocusComment.current = refocus; changeNote(""); setNoteOpen(false); };
@@ -69,11 +64,13 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const lock = useRef(false);
   const revealedAt = useRef(0);
   const alive = useRef(true);
-  const adopt = useCallback((next: Item) => {
+  const adopt = useCallback((next: Item & { followUps?: FollowUp[] }, own = false) => {
     const changedState = current.current?.state !== next.state;
-    current.current = next;
+    const { followUps: latest, ...plain } = next;
+    current.current = plain;
     if (alive.current) {
-      setItem(next); onItemRef.current?.(next);
+      setItem(plain); onItemRef.current?.(plain, own);
+      if (latest) setFollowUps(latest);
       if (changedState && (next.state === "succeeded" || next.state === "failed")) onExpandRef.current?.(false);
       if (changedState && (next.state === "succeeded" || next.state === "failed")) setError(null);
     }
@@ -122,7 +119,7 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
           if (!before) throw new Error("Reload this card before editing.");
           const value = text.current;
           const next = await rpc.call("save", { id, threadId, revision: before.revision, draft: value });
-          adopt(next);
+          adopt(next, true);
           dirty.current = text.current !== value;
         }
         if (alive.current) setError(null);
@@ -161,6 +158,8 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
     if (unseen(action)) { revealedAt.current = Date.now(); setOpen(true); setTimeout(() => reviewTarget.current?.focus()); return; }
     // The rest of the gesture that opened it (a double-click or a held Enter) must not send.
     if ((action === "send" || action === "save-draft") && Date.now() - revealedAt.current < 500) return;
+    // A sheet row stages its answer; the sheet sends every staged row together.
+    if (sheet && action && current.current?.state === "ready") { sheet.stage(action, choice); return; }
     lock.current = true; submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
     try {
       await flush();
@@ -239,39 +238,34 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = (open: boolean) => row ? onExpand?.(open) : setViewResult(open);
-  const openNote = () => { setNoteOpen(true); noteEditor.current?.focus(); if (row && reply) onExpand?.(true); };
-  const commentToggle = <IconButton ref={commentButton} label="Comment" aria-expanded={noteOpen} disabled={disabled} onClick={openNote}><CommentIcon /></IconButton>;
-  // Table rows keep only Comment beside their choices; Reply rows get the rest once open.
+  const openNote = () => { setNoteOpen(true); if (row) onExpand?.(true); setTimeout(() => noteEditor.current?.focus()); };
+  const commentToggle = <IconButton ref={commentButton} label="Comment" aria-expanded={noteOpen || (row && expanded)} disabled={disabled} onClick={openNote}><CommentIcon /></IconButton>;
   // A pending request offers Resend only once it is not already being sent.
   const utilities = <div className="iac-tools">
-    {pending && !busy ? <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton> : commentToggle}
-    {(!row || reply) && <>
-      <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
-    </>}
+    {pending && !busy && <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton>}
+    <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
     {reply && <IconButton label="Save to Gmail drafts" disabled={disabled} onClick={() => void act("save-draft")}><DraftIcon /></IconButton>}
   </div>;
-  const noteField = ready && noteOpen && <div className="iac-note-entry"><textarea className="iac-note-field" ref={noteEditor} aria-label="Comment" placeholder="Add a comment. It's sent with your choice, or on its own." value={note} autoFocus rows={1} maxLength={1000} disabled={busy}
-    onChange={(event) => { changeNote(event.target.value); if (!event.target.value) closeNote(true); }}
-    onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeNote(true); } }} />
-    {note.trim() && <IconButton label="Send comment" disabled={disabled} onClick={() => void comment()}><SendIcon /></IconButton>}
-  </div>;
+  // The comment sits with the card's content, not under its buttons; sheet rows show it whenever they are open.
+  const showNote = ready && (sheet ? expanded : noteOpen || !!note);
+  const noteField = showNote && <CommentField inputRef={noteEditor} value={note} disabled={disabled} busy={busy}
+    onChange={(value) => { changeNote(value); if (!value && !sheet) closeNote(true); }}
+    onClose={() => sheet ? onExpand?.(false) : closeNote(true)} onAsk={() => void comment()} />;
   // The primary button marks a comment that goes along with the choice.
-  const attached = ready && noteOpen && !!note.trim();
+  const attached = ready && !!note.trim();
   const withComment = (label: string) => <>{attached && <span className="iac-attached" aria-hidden="true"><CommentIcon /></span>}{label}{attached && <>{" "}<span className="iac-sr-only">with comment</span></>}</>;
   // A sent or finished attempt shows its own option; a ready card keeps the user's pick or the recommendation.
-  const selectedId = (!ready && item.attempt?.choice?.id) || picked || choice?.recommended;
+  const staged = sheet?.staged;
+  const selectedId = (!ready && item.attempt?.choice?.id) || (sheet ? staged?.action === "choose" ? staged.choice : undefined : picked || choice?.recommended);
   const selected = choice?.options.find((option) => option.id === selectedId);
   const primary: Action = reply ? "send" : choice ? "choose" : "yes";
   const primaryLabel = reply ? "Send" : choice ? selected ? chooseLabel(selected.label) : "Choose an option" : actionLabel(item, "yes");
-  const controls = <div className="iac-choice">
-    {noteField}
-    <div className="iac-actions iac-footer">
+  const controls = <div className="iac-actions iac-footer">
     {ready || pending ? <>
       {utilities}
       {!reply && !choice && <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>}
       <PendingButton variant="default" className={choice ? "iac-choose" : undefined} pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled || (!!choice && !selected)} onClick={() => void act(primary, selected?.id)}>{withComment(primaryLabel)}</PendingButton>
     </> : null}
-    </div>
   </div>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
@@ -298,18 +292,29 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
   const original = reply && <details className="iac-original"><summary><span>{displayName(reply.original.from)}{reply.original.date ? `, ${reply.original.date}` : ""}: “{reply.original.body.replace(/\s+/g, " ").slice(0, 160)}”</span></summary>
     <div className="iac-email">{reply.original.body}</div>
   </details>;
+  // Context, follow-ups and the comment field read top to bottom before the answer.
+  const discussion = <>
+    <Evidence content={item.content} threadId={threadId} />
+    <FollowUps items={followUps} />
+    {noteField}
+  </>;
   const details = <>
-    <div className="iac-header">
+    {!row && <div className="iac-header">
       {reply ? recipients : <span className="iac-question">{title(item)}</span>}
-    </div>
+      {ready && !noteOpen && !note && <span className="iac-header-tools">{commentToggle}</span>}
+    </div>}
+    {row && reply && recipients}
     {reply ? <>
       {original}
       <textarea ref={editor} aria-label="Draft" value={draft} readOnly={!ready || busy} spellCheck maxLength={40000} rows={1}
         onChange={(event) => { text.current = event.target.value; dirty.current = true; setDraft(event.target.value); }}
         onBlur={() => void flush().catch(() => {})} />
       {ready && !saveError && (saving || dirty.current) && <span className="iac-save" role="status">Saving…</span>}
-    </> : choice ? <>
-      <div role="radiogroup" aria-label={choice.question} className="iac-options">
+      {discussion}
+    </> : <>
+      {choice ? choice.consequence && <Consequence>{choice.consequence}</Consequence> : item.content.type === "decide" && <Consequence>{item.content.consequence}</Consequence>}
+      {discussion}
+      {choice && !row && <div role="radiogroup" aria-label={choice.question} className="iac-options">
         {choice.options.map((option) => <label key={option.id} className="iac-option">
           <input type="radio" name={`iac-${threadId}-${id}`} value={option.id} checked={selectedId === option.id} disabled={!ready || busy} onChange={() => setPicked(option.id)} />
           <span className="iac-option-text">
@@ -318,10 +323,10 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
             {option.hint && <span className="iac-option-hint" title={option.hint}>{option.hint}</span>}
           </span>
         </label>)}
-      </div>
-      {choice.consequence && <Consequence>{choice.consequence}</Consequence>}
-    </> : <Consequence>{item.content.type === "decide" && item.content.consequence}</Consequence>}
-    {!done && controls}
+      </div>}
+      {choice && row && choice.options.some((option) => option.hint) && <ul className="iac-hints">{choice.options.filter((option) => option.hint).map((option) => <li key={option.id}><b>{option.label}</b> {option.hint}</li>)}</ul>}
+    </>}
+    {!done && (!row || reply) && controls}
   </>;
   if (logEntry) {
     const failed = item.state === "failed";
@@ -406,14 +411,12 @@ function ActionCard({ id, threadId, row = false, expanded = false, onExpand, ini
       {failure}
     </article>;
   }
-  return <article className={row ? "iac-row" : "iac-card"} aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
-    {done ? result : row ? <div className="iac-row-line">
-      <div className="iac-row-description"><span>{reply ? `${displayName(reply.to[0]!)} · ${reply.subject}` : title(item)}</span>
-        {!reply && <Consequence>{item.content.type === "decide" && item.content.consequence}</Consequence>}
-      </div>
-      {reply ? <div className="iac-actions">{ready && !expanded && commentToggle}<ActionButton disabled={busy || loadError} aria-expanded={expanded} onClick={() => onExpand?.(!expanded)}>{expanded ? "Close" : "Review"} <span aria-hidden="true">{expanded ? "▴" : "▾"}</span></ActionButton></div> : controls}
-    </div> : null}
-    {showBody && <div className={row ? "iac-row-expanded" : "iac-body"}>{details}</div>}
+  if (row && sheet) return <SheetRowView item={item} done={done} result={result} expanded={expanded} onExpand={(open) => onExpand?.(open)}
+    sheet={sheet} disabled={disabled} commentToggle={ready ? commentToggle : null} followUpCount={followUps.length} failure={failure}
+    body={<div className="iac-row-expanded">{details}</div>} />;
+  return <article className="iac-card" aria-label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
+    {done ? result : null}
+    {showBody && <div className="iac-body">{details}</div>}
     {failure}
   </article>;
 }
@@ -432,57 +435,6 @@ function resultLabel(item: Item): string {
   return item.result?.message ?? "Completed";
 }
 
-function ActionTable({ id, threadId }: { id: string; threadId: string }) {
-  const rpc = useRpc<typeof rpcContract>();
-  const composer = useComposer();
-  const composerView = useComposerView();
-  const view = useRef(composerView); view.current = composerView;
-  const [table, setTable] = useState<TableView | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const notes = useRef<Record<string, string>>({});
-  const [open, setOpen] = useState<string | null>(null);
-  const lock = useRef(false);
-  const load = useCallback(async () => {
-    try { setTable(await rpc.call("table", { id, threadId })); setError(null); }
-    catch (err) { setError(readableError(err)); }
-  }, [rpc, id, threadId]);
-  useEffect(() => { void load(); }, [load]);
-  const updateItem = useCallback((next: Item) => setTable((value) => {
-    if (!value || value.items.find((item) => item.id === next.id)?.revision === next.revision) return value;
-    return { ...value, items: value.items.map((item) => item.id === next.id ? next : item) };
-  }), []);
-  const bulk = async () => {
-    if (!table || lock.current || submitting.has(threadId)) return;
-    lock.current = true; submitting.add(threadId); setBusy(true); setError(null);
-    try {
-      const checkComposer = () => {
-        if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this table in its original thread to respond.");
-        if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try again.");
-      };
-      checkComposer();
-      const items = await rpc.call("prepareTable", { id, threadId, items: table.items.filter((item) => item.state === "ready").map(({ id, revision }) => ({ id, revision, note: notes.current[id] ?? "" })) });
-      items.forEach(updateItem);
-      checkComposer();
-      composer.setText(`${actionLabel(items[0]!, "yes")} `);
-      items.forEach((item, index) => {
-        if (index) composer.updateText((value) => `${value}, `);
-        insertActionMention(composer, item);
-        appendActionNote(composer, item);
-      });
-      if (!await submitDraft(composer, { experimental_data: { tableId: id } })) throw new Error("The request was not submitted. Send the prepared composer message, or resend each pending row.");
-      (await Promise.all(items.map((item) => rpc.call("submitted", { id: item.id, threadId, attemptId: item.attempt!.id })))).forEach(updateItem);
-    } catch (err) { setError(readableError(err)); }
-    finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
-  };
-  if (!table) return <div className="iac-card" role="status">{error ?? "Loading actions…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
-  const label = bulkLabel(table.items);
-  return <section className="iac-table" aria-label={table.title}>
-    <div className="iac-table-header"><span>{table.title}</span>{label && <PendingButton pending={busy} pendingLabel={pendingLabel(table.items[0]!, "yes")} disabled={!table.items.some((item) => item.state === "ready")} onClick={() => void bulk()}>{label}</PendingButton>}</div>
-    {error && <div className="iac-error" role="alert">{error}</div>}
-    {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row expanded={open === item.id} onExpand={(expanded) => setOpen((value) => expanded ? item.id : value === item.id ? null : value)} onItem={updateItem} onNote={(id, value) => { notes.current[id] = value; }} />)}
-  </section>;
-}
 export function ActionDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const parsed = idSchema.safeParse(attributes.id);
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This card has an invalid item ID. Ask the agent to recreate its link.</div>;
@@ -491,7 +443,7 @@ export function ActionDirective({ attributes, message }: PluginMessageDirectiveP
 export function ActionsDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const parsed = idSchema.safeParse(attributes.id);
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This table has an invalid ID. Ask the agent to recreate its link.</div>;
-  return <div className="iac-container"><ActionTable key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} /></div>;
+  return <div className="iac-container"><DecisionSheet key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} /></div>;
 }
 const DONE_PREVIEW = 5;
 // The sidebar page lists every thread; a thread panel lists only its own thread.

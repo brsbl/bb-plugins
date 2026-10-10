@@ -5,7 +5,7 @@
   .iac-card, .iac-table { --iac-gap: 6px; line-height: 1.5; }
   .iac-card { padding: 10px 12px; }
   .iac-row { padding: 8px 12px; }
-  .iac-table-header { padding: 8px 12px 0; font-size: 11px; }
+  .iac-table-header { padding: 8px 12px 0; font-size: var(--text-xs, .75rem); }
   .iac-table-header + .iac-row, .iac-table > .iac-error + .iac-row { border-top: 0; }
   .iac-table > .iac-error { padding: 4px 12px 0; }
   .iac-row-line { flex-direction: column; align-items: stretch; gap: 4px; }

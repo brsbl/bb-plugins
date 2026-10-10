@@ -1,8 +1,8 @@
-.iac-card, .iac-table { --iac-gap: calc(var(--spacing, .25rem) * 2); margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius-lg, .75rem); background: var(--card); color: var(--foreground); font-size: 13px; line-height: 1.6; }
+.iac-card, .iac-table { --iac-gap: calc(var(--spacing, .25rem) * 2); margin: 12px 0; border: 1px solid var(--border); border-radius: var(--radius-lg, .75rem); background: var(--card); color: var(--foreground); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
 .iac-card { padding: 14px 16px; }
 .iac-header, .iac-result-line, .iac-row-line, .iac-table-header { display: flex; align-items: center; justify-content: space-between; gap: var(--iac-gap); }
 .iac-header { align-items: flex-start; }
-.iac-recipient-line { flex: 1; min-width: 0; padding-top: 4px; overflow-wrap: anywhere; font-size: 12px; }
+.iac-recipient-line { flex: 1; min-width: 0; padding-top: 4px; overflow-wrap: anywhere; font-size: var(--text-xs, .75rem); }
 .iac-muted, .iac-consequence, .iac-save, .iac-progress, .iac-result-line time { color: var(--muted-foreground); }
 .iac-question { padding-top: 4px; font-weight: 500; overflow-wrap: anywhere; }
 .iac-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
@@ -13,7 +13,7 @@
 .iac-attached { display: inline-flex; margin-right: 4px; vertical-align: -2px; }
 .iac-card .iac-attached svg, .iac-row .iac-attached svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .iac-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.iac-actions button { font-size: 12px; }
+.iac-actions button { font-size: var(--text-xs, .75rem); }
 .iac-progress { font-style: italic; }
 .iac-button-label { display: grid; }
 .iac-button-label > span { grid-area: 1 / 1; }
@@ -37,7 +37,7 @@
 @keyframes iac-progress-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
 .iac-icon { width: 28px; height: 28px; padding: 5px; color: var(--muted-foreground); }
 .iac-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.iac-original { margin: 8px 0 12px; min-width: 0; font-size: 12px; }
+.iac-original { margin: 8px 0 12px; min-width: 0; font-size: var(--text-xs, .75rem); }
 .iac-original summary { display: flex; align-items: baseline; gap: 6px; color: var(--muted-foreground); cursor: pointer; }
 .iac-original summary::before { content: "▸"; flex-shrink: 0; }
 .iac-original[open] summary::before { content: "▾"; }
@@ -47,19 +47,19 @@
 .iac-card textarea:not([readonly]):hover, .iac-row textarea:not([readonly]):hover { background: var(--state-hover, var(--muted)); }
 .iac-card textarea:not([readonly]):focus, .iac-row textarea:not([readonly]):focus { background: var(--state-hover, var(--muted)); box-shadow: 0 0 0 1px var(--border); }
 .iac-original summary:focus-visible { outline: 1px solid var(--ring); outline-offset: 3px; }
-.iac-save { display: block; text-align: right; font-size: 11px; }
+.iac-save { display: block; text-align: right; font-size: var(--text-xs, .75rem); }
 .iac-consequence { margin: 4px 0 0; overflow-wrap: anywhere; }
 .iac-error, .iac-failed { color: var(--destructive); }
-.iac-error { margin-top: 8px; font-size: 12px; }
+.iac-error { margin-top: 8px; font-size: var(--text-xs, .75rem); }
 .iac-result-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.iac-result-line time { font-size: 11px; white-space: nowrap; }
+.iac-result-line time { font-size: var(--text-xs, .75rem); white-space: nowrap; }
 .iac-result-line + .iac-body, .iac-result-line + .iac-row-expanded { margin-top: 12px; }
-.iac-table-header { padding: 10px 16px; color: var(--muted-foreground); font-size: 12px; }
+.iac-table-header { padding: 10px 16px; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
 .iac-table > .iac-error { padding: 0 16px 10px; }
 .iac-row { padding: 12px 16px; border-top: 1px solid var(--border); }
 .iac-row-line { align-items: center; }
 .iac-row-description { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.iac-row-description .iac-consequence { font-size: 12px; }
+.iac-row-description .iac-consequence { font-size: var(--text-xs, .75rem); }
 .iac-row-line > .iac-choice { margin-top: 0; min-width: 160px; }
 .iac-row .iac-footer > button:last-child { min-width: 64px; }
 .iac-row-expanded { margin-top: 12px; }
@@ -72,14 +72,14 @@
 .iac-option input { flex-shrink: 0; width: 14px; height: 14px; margin: 0; accent-color: var(--primary); }
 .iac-option-text { display: flex; flex: 1; min-width: 0; align-items: baseline; gap: 8px; }
 .iac-option-label { flex-shrink: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iac-option-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: 12px; }
-.iac-tag { flex-shrink: 0; padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: 11px; line-height: 16px; }
-.iac-options + .iac-consequence { margin-top: 8px; font-size: 12px; }
+.iac-option-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
+.iac-tag { flex-shrink: 0; padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); line-height: 16px; }
+.iac-options + .iac-consequence { margin-top: 8px; font-size: var(--text-xs, .75rem); }
 .iac-choose { min-width: 0; max-width: 100%; }
 .iac-choose .iac-button-label { min-width: 0; }
 .iac-choose .iac-button-label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iac-card:has(.iac-options) .iac-footer { min-width: 0; }
-.iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: 12px; box-shadow: var(--shadow-md); }
+.iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: var(--text-xs, .75rem); box-shadow: var(--shadow-md); }
 .iac-menu { min-width: 170px; padding: 4px; }
 .iac-menu-item { padding: 6px 8px; border-radius: var(--radius-sm, .25rem); cursor: pointer; outline: none; }
 .iac-menu-item[data-highlighted] { background: var(--state-hover, var(--muted)); }
@@ -98,26 +98,27 @@
 .iac-row-line:has(.iac-note-field) { flex-wrap: wrap; }
 .iac-row-line:has(.iac-note-field) > .iac-choice { flex-basis: 100%; }
 .iac-card .iac-note-field, .iac-row .iac-note-field { padding: 4px 0; max-height: 100px; overflow-y: auto; }
-.iac-result-note { margin-top: 2px; white-space: pre-wrap; font-size: 12px; overflow-wrap: anywhere; }
+.iac-result-note { margin-top: 2px; white-space: pre-wrap; font-size: var(--text-xs, .75rem); overflow-wrap: anywhere; }
 
 /* The comment field and its send button read as one control. */
 /* bb's text input treatment: quiet input border, 1px ring on keyboard or pointer focus. */
-.iac-note-entry { display: flex; align-items: flex-end; gap: 4px; margin-top: 8px; padding: 1px 1px 1px 7px; border: 1px solid var(--input); border-radius: var(--radius-md, .5rem); background: transparent; }
+/* Ask is centered on the field's single line and stays centered as it grows. */
+.iac-note-entry { display: flex; align-items: center; gap: 4px; margin-top: 10px; padding: 2px 2px 2px 8px; border: 1px solid var(--input); border-radius: var(--radius-md, .5rem); background: transparent; }
 .iac-note-entry:has(.iac-note-field:focus-visible) { box-shadow: 0 0 0 1px var(--ring); }
 :is(.iac-card, .iac-row) .iac-note-entry textarea:not([readonly]):is(:hover, :focus) { background: transparent; box-shadow: none; }
-.iac-note-entry .iac-icon { width: 24px; height: 24px; padding: 4px; }
+.iac-note-entry .iac-ask-button { flex-shrink: 0; align-self: center; height: 24px; }
 .iac-note-entry .iac-note-field { flex: 1; min-width: 0; }
 
-.iac-log { --iac-gap: 8px; --iac-log-button: 28px; container-type: inline-size; padding: 16px 24px 24px; color: var(--foreground); font-size: 13px; line-height: 1.5; }
+.iac-log { --iac-gap: 8px; --iac-log-button: 28px; container-type: inline-size; padding: 16px 24px 24px; color: var(--foreground); font-size: var(--text-sm, .8125rem); line-height: 1.5; }
 .iac-log-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding-bottom: 4px; }
-.iac-log h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; }
+.iac-log h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-sm, .8125rem); font-weight: 600; }
 .iac-log-count { color: var(--muted-foreground); font-weight: 400; font-variant-numeric: tabular-nums; }
 .iac-log-mark { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 12px; height: 12px; }
 .iac-log-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--attention, var(--primary)); }
 .iac-log-check { width: 12px; height: 12px; fill: none; stroke: var(--success, currentColor); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 @media (prefers-reduced-motion: no-preference) { .iac-log-dot { animation: iac-log-pulse 2.4s ease-in-out infinite; } }
 @keyframes iac-log-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-.iac-log-see-all { color: var(--muted-foreground); font-size: 12px; text-decoration: none; }
+.iac-log-see-all { color: var(--muted-foreground); font-size: var(--text-xs, .75rem); text-decoration: none; }
 .iac-log-see-all:hover { color: var(--foreground); text-decoration: underline; }
 .iac-log-see-all:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
 .iac-log-done { margin-top: 28px; }
@@ -129,8 +130,8 @@
 .iac-log-kind svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .iac-log-main { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
 .iac-log-title, .iac-log-meta, .iac-log-meta > *, .iac-log-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iac-log-title { font-size: 14px; font-weight: 600; }
-.iac-log-meta { display: flex; color: var(--muted-foreground); font-size: 12px; }
+.iac-log-title { font-size: var(--text-base, .9375rem); font-weight: 600; }
+.iac-log-meta { display: flex; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
 .iac-log-meta > * { flex-shrink: 1; }
 .iac-log-meta > :not(:first-child)::before { content: "·"; padding: 0 6px; color: var(--muted-foreground); }
 .iac-log-meta > time { flex-shrink: 0; }
@@ -151,15 +152,15 @@
 .iac-log-primary .iac-icon:hover:not(:disabled) { background: color-mix(in oklab, var(--foreground) 90%, transparent); color: var(--background); }
 .iac-log-actions .iac-icon[aria-busy="true"] svg { animation: iac-log-pulse 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .iac-log-actions .iac-icon[aria-busy="true"] svg { animation: none; } }
-.iac-log-status { box-sizing: border-box; width: 100%; padding-right: 2px; color: var(--muted-foreground); opacity: .75; font-size: 12px; font-style: italic; text-align: right; }
+.iac-log-status { box-sizing: border-box; width: 100%; padding-right: 2px; color: var(--muted-foreground); opacity: .75; font-size: var(--text-xs, .75rem); font-style: italic; text-align: right; }
 /* Done status needs no button, so it may use both columns. */
 .iac-log-quiet .iac-log-secondary { grid-column: 3 / 5; }
 .iac-log-quiet .iac-log-title, .iac-log-later .iac-log-title { color: var(--muted-foreground); }
 .iac-log-review [aria-expanded="true"] { background: var(--state-active, var(--muted)); color: var(--foreground); }
 .iac-log-draft, .iac-log-row > .iac-error { grid-column: 2 / -1; }
 .iac-log-draft { margin-top: 8px; }
-.iac-log-draft p { margin: 0 0 4px; font-size: 12px; overflow-wrap: anywhere; }
-.iac-log-options { margin: 0; padding-left: 18px; font-size: 12px; }
+.iac-log-draft p { margin: 0 0 4px; font-size: var(--text-xs, .75rem); overflow-wrap: anywhere; }
+.iac-log-options { margin: 0; padding-left: 18px; font-size: var(--text-xs, .75rem); }
 .iac-log-draft textarea { display: block; box-sizing: border-box; width: 100%; resize: none; font: inherit; line-height: 1.6; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 8px; }
 .iac-log-row > .iac-error { margin-top: 6px; }
 .iac-log-more { margin: 6px 0 0 20px; color: var(--muted-foreground); }
@@ -172,3 +173,82 @@
   .iac-log-meta > .iac-failed + ::before { content: none; }
 }
 @media (max-width: 480px) { .iac-log { padding: 12px 16px 20px; } }
+
+/* Header tools: Comment sits beside the question it belongs to. */
+.iac-header-tools { display: flex; flex-shrink: 0; margin: -2px -6px 0 0; }
+
+/* Evidence: agent-supplied Markdown and images. Long context stays bounded until opened. */
+.iac-evidence { display: grid; gap: 10px; margin-top: 10px; min-width: 0; }
+.iac-clip { position: relative; max-height: 220px; overflow: hidden; }
+.iac-clip[data-open] { max-height: none; }
+.iac-clip[data-clipped] { cursor: pointer; mask-image: linear-gradient(to bottom, #000 70%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent); }
+.iac-clip[data-clipped]:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-sm, .25rem); }
+.iac-context { font-size: var(--text-sm, .8125rem); line-height: 1.6; overflow-wrap: anywhere; }
+.iac-context > :first-child { margin-top: 0; }
+.iac-context > :last-child { margin-bottom: 0; }
+.iac-media { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.iac-media[data-count="1"] { grid-template-columns: minmax(0, 420px); }
+.iac-figure { display: grid; gap: 4px; min-width: 0; color: inherit; text-decoration: none; }
+.iac-figure img { display: block; width: 100%; max-height: 220px; object-fit: contain; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--surface-recessed, var(--muted)); }
+.iac-figure:hover img { border-color: var(--ring); }
+.iac-figure:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-md, .5rem); }
+.iac-caption { overflow: hidden; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); text-overflow: ellipsis; white-space: nowrap; }
+
+/* Follow-ups: the user's question, then the agent's answer on the card. */
+.iac-followups { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; font-size: var(--text-sm, .8125rem); }
+.iac-ask { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.iac-answer { margin: 2px 0 0; padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; }
+.iac-answer > :first-child { margin-top: 0; }
+.iac-answer > :last-child { margin-bottom: 0; }
+.iac-waiting { font-style: italic; }
+
+/* Decision sheet: every row answers inline; answers stage until one Send. */
+.iac-sheet .iac-table-header { gap: 12px; }
+.iac-sheet-title { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
+.iac-sheet-title > :first-child { color: var(--foreground); font-weight: 600; }
+.iac-sheet-counts { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.iac-sheet-row { padding: 8px 16px; }
+.iac-sheet-row[data-staged] { background: var(--surface-raised, transparent); }
+.iac-sheet-row .iac-row-line { align-items: center; gap: 12px; }
+.iac-row-summary { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; gap: 1px; padding: 2px 4px; margin: -2px -4px; border: 0; border-radius: var(--radius-sm, .25rem); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.iac-row-summary:hover { background: var(--state-hover, var(--muted)); }
+.iac-row-summary:focus-visible { outline: 1px solid var(--ring); outline-offset: 1px; }
+.iac-row-question { font-weight: 500; overflow-wrap: anywhere; }
+.iac-disclosure { display: inline-block; margin-left: 6px; color: var(--muted-foreground); font-size: var(--text-2xs, .625rem); vertical-align: 1px; }
+.iac-row-sub { max-width: 100%; overflow: hidden; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); text-overflow: ellipsis; white-space: nowrap; }
+.iac-row-summary[aria-expanded="true"] .iac-row-sub { display: none; }
+.iac-row-answer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; max-width: 60%; }
+.iac-sheet-row .iac-row-expanded { margin-top: 6px; padding: 0 0 6px; }
+.iac-sheet-row .iac-row-expanded > .iac-consequence { margin-top: 0; font-size: var(--text-xs, .75rem); }
+.iac-hints { margin: 8px 0 0; padding-left: 16px; color: var(--muted-foreground); font-size: var(--text-xs, .75rem); }
+.iac-hints b { color: var(--foreground); font-weight: 500; }
+.iac-staged-action { font-size: var(--text-xs, .75rem); font-weight: 500; }
+
+/* Segmented answers: real radios, so arrow keys move between options. */
+.iac-segments { display: inline-flex; flex-wrap: wrap; max-width: 100%; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, .5rem); overflow: hidden; }
+.iac-segment { position: relative; display: inline-flex; align-items: center; min-height: 26px; padding: 0 10px; font-size: var(--text-xs, .75rem); white-space: nowrap; cursor: pointer; user-select: none; }
+.iac-segment + .iac-segment { border-left: 1px solid var(--input, var(--border)); }
+.iac-segment input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+.iac-segment:hover:not(:has(input:disabled)) { background: var(--state-hover, var(--muted)); }
+.iac-segment:has(input:checked) { background: var(--primary); color: var(--primary-foreground); }
+.iac-segment:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: -2px; }
+.iac-segment:has(input:disabled) { cursor: default; opacity: .6; }
+/* The agent's recommendation: a small dot, with the word in the accessible name and tooltip. */
+.iac-segment[data-recommended]::after { content: ""; width: 5px; height: 5px; margin-left: 6px; border-radius: 50%; background: currentColor; opacity: .55; }
+.iac-tag-staged, .iac-tag-changed { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+.iac-tag-staged { padding-right: 1px; border-color: var(--primary); color: var(--foreground); }
+.iac-tag-changed { border-color: var(--warning, var(--border)); color: var(--warning-text, var(--foreground)); }
+.iac-tag .iac-clear { width: 16px; height: 16px; padding: 2px; border-radius: 999px; }
+.iac-tag .iac-clear svg { width: 10px; height: 10px; }
+.iac-sheet-footer { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 16px; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius-lg, .75rem) var(--radius-lg, .75rem); background: var(--card); font-size: var(--text-xs, .75rem); }
+.iac-sheet-footer > .iac-muted { margin-right: auto; }
+.iac-sheet > .iac-error { padding: 8px 16px; border-top: 1px solid var(--border); }
+@container (max-width: 520px) {
+  .iac-sheet-row { padding: 8px 12px; }
+  .iac-sheet-row .iac-row-line { flex-direction: column; align-items: stretch; gap: 6px; }
+  .iac-row-answer { max-width: none; justify-content: flex-start; }
+  .iac-segments { display: flex; flex: 1; }
+  .iac-segment { flex: 1 1 auto; justify-content: center; min-height: 36px; }
+  .iac-sheet-footer { padding: 8px 12px; }
+  .iac-sheet-footer > .iac-muted { flex-basis: 100%; }
+}

@@ -168,7 +168,7 @@ const choice = { type: "choice", question: "Which account setup?", recommended: 
   { id: "pool", label: "Pool" },
 ] };
 describe("choice cards", () => {
-  it("validates options and keeps choice cards out of tables", () => {
+  it("validates options and accepts choice cards in tables", () => {
     const { store } = setup();
     expect(() => store.create(ref.threadId, "c", { ...choice, options: choice.options.slice(0, 1) })).toThrow();
     expect(() => store.create(ref.threadId, "c", { ...choice, options: [...choice.options, ...choice.options.slice(0, 4)].map((option, index) => ({ ...option, id: `o${index}` })) })).toThrow();
@@ -176,7 +176,7 @@ describe("choice cards", () => {
     expect(() => store.create(ref.threadId, "c", { ...choice, recommended: "missing" })).toThrow("Recommend");
     expect(() => store.create(ref.threadId, "c", { ...choice, options: [{ id: "a", label: "Two\nlines" }, { id: "b", label: "B" }] })).toThrow();
     store.create(ref.threadId, "c", choice);
-    expect(() => store.createTable(ref.threadId, "t", { title: "Choices", ids: ["c"] })).toThrow("stand alone");
+    expect(store.createTable(ref.threadId, "t", { title: "Choices", ids: ["c"] })).toMatchObject({ ids: ["c"] });
   });
   it("claims and reports the chosen option once, and retries only the same option", () => {
     const { store } = setup();
@@ -268,4 +268,55 @@ it("validates short notes, retains retry conditions, and accepts previously pers
   store.create(ref.threadId, "bounded", reply);
   expect(() => store.prepare({ ...ref, id: "bounded", revision: 1, action: "send", note: "x".repeat(1001) })).toThrow();
   expect(store.get(ref.threadId, "bounded").state).toBe("ready");
+});
+
+describe("decision sheets", () => {
+  it("accepts optional context and images, and rejects relative or insecure image sources", () => {
+    const { store } = setup();
+    const decide = { type: "decide", question: "Merge #412?", consequence: "Squash-merge it.", recommended: "yes", context: "## Diff\n- `TTL` 30d → 7d", media: [{ src: "/tmp/shot.png", alt: "Screenshot" }, { src: "https://example.com/a.png", alt: "Chart", caption: "p95" }] };
+    expect(store.create(ref.threadId, "d", decide).content).toMatchObject({ context: decide.context, media: decide.media, recommended: "yes" });
+    expect(store.create(ref.threadId, "plain", { type: "decide", question: "Archive?", consequence: "Archive it." }).content).not.toHaveProperty("context");
+    for (const src of ["shot.png", "http://example.com/a.png", "javascript:alert(1)"]) expect(() => store.create(ref.threadId, "bad", { ...decide, media: [{ src, alt: "x" }] })).toThrow();
+    expect(() => store.create(ref.threadId, "bad", { ...decide, media: Array.from({ length: 5 }, () => decide.media[0]) })).toThrow();
+    expect(() => store.create(ref.threadId, "bad", { ...decide, recommended: "maybe" })).toThrow();
+  });
+  it("prepares a batch of mixed rows atomically, one attempt and note per row", () => {
+    const { store } = setup();
+    store.create(ref.threadId, "c", choice);
+    store.create(ref.threadId, "d", { type: "decide", question: "Archive?", consequence: "Archive it.", yesLabel: "Archive" });
+    store.create(ref.threadId, "r", reply);
+    store.create(ref.threadId, "outside", { type: "decide", question: "Other?", consequence: "Other." });
+    store.createTable(ref.threadId, "t", { title: "Triage", ids: ["c", "d", "r"] });
+    const batch = (items: unknown[]) => store.prepareBatch({ threadId: ref.threadId, id: "t", items } as never);
+    expect(() => batch([{ id: "outside", revision: 1, action: "yes" }])).toThrow("does not belong");
+    expect(() => batch([{ id: "c", revision: 1, action: "choose" }])).toThrow("Pick an option");
+    expect(() => batch([{ id: "d", revision: 1, action: "yes" }, { id: "c", revision: 1, action: "choose", choice: "missing" }])).toThrow();
+    expect(store.get(ref.threadId, "d").state).toBe("ready");
+    expect(() => batch([{ id: "d", revision: 2, action: "yes" }])).toThrow("changed");
+    const items = batch([
+      { id: "c", revision: 1, action: "choose", choice: "pool", note: "  only for now " },
+      { id: "d", revision: 1, action: "no" },
+      { id: "r", revision: 1, action: "send", note: "" },
+    ]);
+    expect(items.map((item) => [item.id, item.state, item.attempt?.action, item.attempt?.note])).toEqual([["c", "pending", "choose", "only for now"], ["d", "pending", "no", undefined], ["r", "pending", "send", undefined]]);
+    expect(items[0]!.attempt!.choice).toEqual({ id: "pool", label: "Pool" });
+    expect(actionMessage(items[0]!)).toBe("Use Pool ");
+    expect(new Set(items.map((item) => item.attempt!.id)).size).toBe(3);
+    expect(() => batch([{ id: "d", revision: items[1]!.revision, action: "yes" }])).toThrow("in progress");
+  });
+  it("answers a follow-up on its card and returns follow-ups with the card", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    await host.harness.behavior.runCli(["create", "d", "--thread", ref.threadId, "--item", JSON.stringify({ type: "decide", question: "Rotate the key?", consequence: "Rotate it." })]);
+    const { commentId } = await host.harness.behavior.callRpc("comment", { threadId: ref.threadId, id: "d", revision: 1, note: "Which CI secrets use it?" }) as { commentId: string };
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:d:comment_${commentId}`)).context);
+    expect(context).toMatchObject({ intent: "comment", commentId });
+    expect(context.instruction).toContain("bb action-cards answer");
+    expect(await host.harness.behavior.callRpc("get", { threadId: ref.threadId, id: "d" })).toMatchObject({ followUps: [{ commentId, note: "Which CI secrets use it?", answer: null }] });
+    const answered = await host.harness.behavior.runCli(["answer", "d", "--thread", ref.threadId, "--comment", commentId, "--message", "Three: **deploy**, **e2e**, and **nightly**."]);
+    expect(JSON.parse(answered.stdout!)).toMatchObject({ revision: 1, state: "ready", followUps: [{ commentId, answer: "Three: **deploy**, **e2e**, and **nightly**." }] });
+    const missing = await host.harness.behavior.runCli(["answer", "d", "--thread", ref.threadId, "--comment", "ea45f71a-c216-4da4-a226-65736f4eccfd", "--message", "No such follow-up"]).then((result) => result.exitCode, () => 1);
+    expect(missing).not.toBe(0);
+    const table = await host.harness.behavior.callRpc("table", { threadId: ref.threadId, id: "missing" }).catch((error: unknown) => error);
+    expect(table).toBeInstanceOf(Error);
+  });
 });
