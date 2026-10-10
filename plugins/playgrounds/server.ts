@@ -99,7 +99,7 @@ const sharesConversation = (thread: ThreadLink) =>
   thread.visibility === "hidden" &&
   thread.sourceThreadId !== null &&
   thread.lifecycleOwnerThreadId === thread.sourceThreadId;
-export function createStore(bb: BbPluginApi) {
+function createStore(bb: BbPluginApi) {
   const db = bb.storage.database();
   bb.storage.migrate(db, [
     "CREATE TABLE answer_documents (id TEXT PRIMARY KEY, document TEXT NOT NULL, kind TEXT NOT NULL)",
