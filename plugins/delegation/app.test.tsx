@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { DEFAULTS, type DelegationSettings } from "./settings.js";
+import { DEFAULTS, type DelegationSettings, type SettingsOverrides } from "./settings.js";
 
 afterEach(cleanup);
 
@@ -11,7 +11,8 @@ function render(initial: DelegationSettings = DEFAULTS) {
   return loadPluginApp(() => import("./app.js")).then((app) => renderSlot(app.settingsSections[0]!, {}, {
     rpc: {
       getSettings: () => current,
-      saveSettings: ({ values, reset }) => {
+      saveSettings: (input: unknown) => {
+        const { values, reset } = input as { values: SettingsOverrides; reset?: string[] };
         current = { ...current, ...values };
         for (const key of reset ?? []) (current as Record<string, unknown>)[key] = DEFAULTS[key as keyof DelegationSettings];
         return current;
