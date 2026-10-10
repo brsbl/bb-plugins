@@ -222,6 +222,8 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/m
 
 Answers you can play with: agents put calculators, charts, step-by-step guides, and visual previews right in their message, and changing an input updates them without another agent turn. Save any playground to your own library to reopen it later or bring it into a new conversation.
 
+![An HTML playground with a step-by-step repotting guide in a bb thread](plugins/playgrounds/docs/html-playground.png)
+
 ![An HTML playground saved to the library, with a saved playground in the composer's @ menu](plugins/playgrounds/docs/playground-in-thread.png)
 
 ![The Playgrounds library listing saved playgrounds](plugins/playgrounds/docs/library.png)

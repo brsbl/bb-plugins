@@ -43,6 +43,8 @@ from is deleted.
 
 ## Use
 
+![An HTML playground with a step-by-step repotting guide](docs/html-playground.png)
+
 Ask for a calculator, scenario comparison, or interactive explanation. The
 plugin gives agents a `playground` tool, a document guide, examples,
 and the `playgrounds` skill. Native documents can include number
