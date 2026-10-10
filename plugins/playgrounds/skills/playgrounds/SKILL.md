@@ -100,104 +100,6 @@ Write body markup with inline `<style>` and `<script>`. It renders in a
 sandboxed, opaque-origin frame inside a rounded bb card that sizes itself to
 the content; `width` (320–1200) caps the card width.
 
-The target look is a finished product card, not a web page: quiet, compact,
-black-on-white type, one accent, a large illustration or photo set, and calm
-motion. Most failures are small: gray headings, washed-out body text, bold
-weights, thick borders, icon-sized illustrations, or nothing moving. Follow the
-numbers below; they are measured from cards that read as high fidelity.
-
-### Anatomy
-
-1. **Header**: `.pg-title` (one short line, sentence case, no emoji), then
-   `.pg-subtitle` saying what to do ("Tap a swatch to repaint the room.").
-   A segmented control may sit top-right of the header.
-2. **Hero**: the main visual inside `.pg-stage` (or a photo row / map),
-   200–320px tall, full width. It is the largest thing in the card.
-3. **Controls** directly under the hero: `.pg-seg`, swatches, chips, tiles.
-4. **Detail**: `.pg-item-title`, a `.pg-meta` line, `.pg-h` headings with
-   `.pg-body` paragraphs, an optional tip in `.pg-stage` with `.pg-meta` text.
-5. **Footer**: progress (`.pg-dots` or a dashed bar) on the left, actions on
-   the right (`.pg-btn` Back, `.pg-btn-primary` Next →), or `.pg-link` text
-   buttons ("← Previous step", "Next step →").
-
-Put grouped detail in one `.pg-panel`. Never nest panels more than once.
-Publish a single column with `width` 440–540; go wider only for maps or
-side-by-side comparisons that need it.
-
-### Type and ink
-
-Use only these steps (Inter is bb's font; keep `var(--font)`):
-
-| Role                     | Size / line height           | Weight | Ink                       |
-| ------------------------ | ---------------------------- | ------ | ------------------------- |
-| Card title               | 20px / 1.2, tracking −0.02em | 500    | `--pg-ink`                |
-| Item title (step, place) | 15px / 1.3, tracking −0.01em | 500    | `--pg-ink`                |
-| Section heading          | 13px / 1.3                   | 500    | `--pg-ink`                |
-| Body                     | 12px / 1.45                  | 400    | `--pg-body`               |
-| Subtitle, meta, caption  | 11–12px / 1.4                | 400    | `--pg-meta`               |
-| Eyebrow, step counter    | 10.5px caps, tracking 0.04em | 500    | `--pg-meta` or the accent |
-| Buttons, pills, labels   | 11.5–12px                    | 500    | `--pg-ink`                |
-
-- Headings, labels and selected values are always `--pg-ink`, never gray.
-  Paragraphs are always `--pg-body`; only subtitles, captions, durations,
-  hex values and hints use `--pg-meta`. Do not invent other grays.
-- Never use weights above 600, all-caps headings, or text below 10.5px.
-- On a tinted surface, tint the text toward that hue instead of gray (dark
-  green text on a pale green tile).
-
-### Space, shape, color
-
-- Body padding stays 20–22px. Title→subtitle 3px; header→hero 16px; between
-  sections 16–20px; inside panels 14–16px; grid gaps 8–10px.
-- Radii: panels 16px, stage and photos 12px, tiles 10–12px, pills fully
-  round. Borders are 1px `--pg-hairline` or none; no drop shadows on content.
-- Surfaces: `--card` for the card, `--pg-stage` behind illustrations and tips.
-- One accent per card, used for the step counter, progress, and the active
-  element. Selected controls are solid `--pg-ink` with `--card` text.
-- Use fixed colors only for depicted things (paint, map water, plants).
-- Visual choices (colors, materials, photos, products) are large tiles: the
-  swatch or image fills the tile (~4:3, 10–12px radius) with the name in ink
-  and the code or price in meta underneath. Show selection with a 1.5px ink
-  ring and a small ✓, never an inverted fill. Solid ink fill is only for
-  text controls (`.pg-seg`, chips, primary buttons).
-
-### Illustrations, photos, maps
-
-- Draw the subject itself as a detailed inline SVG, not an icon: realistic
-  proportions, secondary parts present (spokes, tread, cables, knobs,
-  baseboards, folds), centered in the stage with ~10% margin.
-- Draw only what the playground is about. Keep scenes sparse (an empty room for
-  paint, the bike alone for assembly) so the part that changes dominates.
-- Flat vector style: no outlines except hairlines, no gradients except soft
-  lighting on large planes, 2–3 tones per material (base, shade, highlight).
-- Show state on the drawing: inactive parts light gray (#c9c9c9), the active
-  part near-black or the accent; numbered callouts as 18px circles (white with
-  hairline, filled `--pg-ink` when active). Caption simplifications under the
-  stage in `.pg-meta` ("Illustrative schematic, not to scale.").
-- Use real photos for real places and things: `.pg-photos` (three square
-  tiles) or a bento of one tall plus two stacked, 6–8px gaps, 12px radius.
-  Photos must come from `https://upload.wikimedia.org`; bb blocks other hosts.
-- Draw places as an inline SVG schematic map (pale land, sky-blue water, green
-  parks, white roads), with your own labels, white circular markers, and a
-  dashed ink route. Live map tiles are blocked.
-- For space or material under light (a room to repaint, a product to turn),
-  draw it in inline SVG or a `<canvas>` with your own code. Remote libraries
-  such as Three.js cannot load.
-
-### Motion
-
-- Stream the card in on load: title, then each section top to bottom,
-  opacity 0→1 and translateY 6px→0 over ~380ms with `--pg-ease`, staggered
-  40–60ms (`.pg-reveal` with `--i`). Grids and swatches pop in one by one.
-  The whole entrance finishes within about 1 s, and the hero is readable by
-  0.5 s. Never wait on photos, fonts or downloads before starting it; let late
-  images fade in where they land.
-- Every interaction visibly changes the hero: crossfade or slide content
-  (250–350ms), transition colors (500–600ms), morph or move drawn parts
-  (600–800ms), draw lines with `stroke-dashoffset`.
-- Respect `prefers-reduced-motion` (the kit shortens animations) and never use
-  motion as the only signal.
-
 ### Behavior
 
 - `window.playground.state` is the playground's shared state: the last value passed to
@@ -221,13 +123,6 @@ Use only these steps (Inter is bb's font; keep `var(--font)`):
   (`100vh`, `height: 100%` on `body`), or the frame keeps growing.
 - Web links and `window.playground.send()` work only right after the user clicks
   inside the playground; bb ignores them otherwise. Call them from click handlers.
-
-### Check before you publish
-
-If you can, write the HTML to a file, render it at 2× (Browser Automation)
-inside a 500px-wide white card, and check: headings black, body one gray,
-nothing below 10.5px, hero is the largest element, no overflow or clipped
-text, entrance plays, and one interaction changes the hero. Fix, then publish.
 
 ## Interactive diagrams
 
