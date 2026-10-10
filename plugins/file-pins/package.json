@@ -1,9 +1,10 @@
 {
   "name": "bb-plugin-file-pins",
-  "version": "0.1.0",
+  "version": "0.1.8",
   "description": "Keep local files and web links within reach in each bb thread.",
   "type": "module",
   "files": [
+    "assets",
     "dist",
     "docs",
     "README.md",
@@ -21,10 +22,13 @@
     "bbPluginSdk": ">=0.5.9"
   },
   "bb": {
-    "name": "Pins",
+    "name": "Pinned Files & Links",
     "description": "Pin local files and web links to a thread and open them from a persistent strip above the chat composer.",
     "branding": {
-      "icon": "Pin"
+      "icon": "./assets/file-pins.svg",
+      "logo": {
+        "light": "./assets/file-pins.svg"
+      }
     },
     "server": "./server.ts",
     "app": "./app.tsx",

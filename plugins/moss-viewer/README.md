@@ -14,7 +14,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-viewer
 
 ## Use
 
-Open a Moss note from bb the way you open any file: a file link, the file picker, `bb thread open`, or a pin from Pins. Moss notes are Markdown files under `~/Moss/Notes`, or Markdown that uses Moss blocks such as `:::tabs` or `moss-callout`. Other Markdown files keep bb's own preview.
+Open a Moss note from bb the way you open any file: a file link, the file picker, `bb thread open`, or a pin from Pinned Files & Links. Moss notes are Markdown files under `~/Moss/Notes`, or Markdown that uses Moss blocks such as `:::tabs` or `moss-callout`. Other Markdown files keep bb's own preview.
 
 Notes in `~/Moss/Notes` on a Mac open in Moss's own editor: type with Moss's shortcuts, slash menu and formatting, add images, and comment as you would in Moss. Edits save a moment after you stop typing, to the note's own files, written the way Moss writes them. The header stays quiet while edits save, and says **Saving…** only if a save takes more than a couple of seconds, or **Not saved** if one fails. If Moss changes the note while you have unsaved edits, the editor shows **Changed in Moss** so you can reload or keep your version, and bb never overwrites what Moss wrote. If Moss later replaces a save you made in bb, **Restore your last save from bb** brings it back.
 
@@ -22,7 +22,7 @@ Other Moss notes open read-only in the Moss viewer, with tabs, tables, callouts,
 
 Wiki links open the linked note in the same tab; Back returns to the previous note. **Open in Moss** opens the note in the Moss app on the Mac that holds it.
 
-**Share with Agent** (the up arrow) puts a pill for the note in the composer of the thread the panel belongs to, so you can add a message and send it. Select text first to share that passage too. When you send, the agent gets the note's path, the machine that holds it, its Moss link, and the selected text.
+**Share with Agent**, Moss's own button above the note, puts a pill for the note in the composer of the thread the panel belongs to, so you can add a message and send it. Select text first to share that passage too. When you send, the agent gets the note's path, the machine that holds it, its Moss link, and the selection: its Markdown, its lines in the file, and the headings above it. A selection over 20,000 characters is cut, and the agent is told to read the rest from the file.
 
 The note, its `layout.json`, its `assets/` folder, and the list of notes that wiki links resolve against are read on the machine that holds the file, so a bb server on another machine still shows notes from your Mac. Moss HTML blocks run live in sandboxed frames. A block can't reach bb, and its page policy keeps it from loading scripts, styles or images from the web.
 
@@ -36,6 +36,6 @@ npm run check --workspace=bb-plugin-moss-viewer
 bb plugin install "path:$PWD/plugins/moss-viewer" --yes
 ```
 
-The renderer is [`@moss-multi/viewer`](https://github.com/brsbl/moss-multi/tree/viewer-v1.0.0/packages/viewer), Moss's own editor in read-only mode, vendored under `vendor/moss-viewer/`. [`vendor/moss-viewer.provenance.json`](vendor/moss-viewer.provenance.json) records the GitHub Release it came from and how to update it. The server refuses to serve the bundle unless every file matches `viewer.json`.
+The renderer is [`@moss-multi/viewer`](https://github.com/brsbl/moss-multi/tree/viewer-v1.1.0/packages/viewer), Moss's own editor in read-only mode, vendored under `vendor/moss-viewer/`. [`vendor/moss-viewer.provenance.json`](vendor/moss-viewer.provenance.json) records the GitHub Release it came from and how to update it. The server refuses to serve the bundle unless every file matches `viewer.json`.
 
-The editor is [`@moss-multi/editor`](https://github.com/brsbl/moss-multi/releases/tag/editor-v0.1.0), vendored under `vendor/moss-editor/` with its contract types in `vendor/moss-editor.contract.d.ts`; [`vendor/moss-editor.provenance.json`](vendor/moss-editor.provenance.json) records the release. The server serves it only when every file matches `editor.json`. The Mac host saves through the editor's file bridge (`editor-host.ts`, `editor-write.ts`): each file is swapped in atomically and checked against what was read, so a save that races Moss never destroys Moss's bytes. The swap uses `renamex_np` through a long-lived `osascript -l JavaScript` helper (`mac-exchange.ts`); where that cannot run, notes stay read-only.
+The editor is [`@moss-multi/editor`](https://github.com/brsbl/moss-multi/releases/tag/editor-v0.2.0), vendored under `vendor/moss-editor/` with its contract types in `vendor/moss-editor.contract.d.ts`; [`vendor/moss-editor.provenance.json`](vendor/moss-editor.provenance.json) records the release. The server serves it only when every file matches `editor.json`. The Mac host saves through the editor's file bridge (`editor-host.ts`, `editor-write.ts`): each file is swapped in atomically and checked against what was read, so a save that races Moss never destroys Moss's bytes. The swap uses `renamex_np` through a long-lived `osascript -l JavaScript` helper (`mac-exchange.ts`); where that cannot run, notes stay read-only.
