@@ -18,9 +18,9 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 
 ## Choose the form
 
-- For a crafted isometric explainer or an interactive science lesson, load the
-  bundled `anatomy` skill. It adds Ryan's Anatomy drawing kit and a lever lab
-  with controls, equations, live measurements, and guided experiments. Publish
+- For a crafted isometric explainer or an interactive product-design lesson, load
+  the bundled `anatomy` skill. It adds Ryan's Anatomy drawing kit, a typography
+  printing press, and an interface motion rig with guided experiments. Publish
   the result as an ordinary HTML playground and use the same private library.
 
 - **Native document** for calculators, scenario comparisons, charts, and

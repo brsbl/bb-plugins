@@ -1,6 +1,6 @@
 ---
 name: anatomy
-description: Create illustrated learning playgrounds that explain a concept through a working physical object, using Anatomy by Ryan (@wheresryan22). Use when asked for Anatomy, an isometric explainer, or an interactive science lesson with controls, equations, measurements, and guided experiments.
+description: Create illustrated learning playgrounds that explain a concept through a working physical object, using Anatomy by Ryan (@wheresryan22). Use when asked for Anatomy, an isometric explainer, or an interactive product-design lesson with controls, measurements, and guided experiments.
 ---
 
 # Anatomy for Playgrounds
@@ -9,7 +9,7 @@ Create a playground the reader can learn by changing. **[Ryan (@wheresryan22)](h
 created [Anatomy](https://skills.wheresryan.sh/anatomy), its drawing kit, and the
 original examples. The teaching approach also draws inspiration from
 [The Bugged Dev's interactive lever demo](https://x.com/thebuggeddev/status/2108720133422395590).
-This bb integration and its lever example are independently authored.
+This bb integration and its product-design instruments are independently authored.
 
 ## Choose the explanation
 
@@ -41,17 +41,23 @@ idealized behavior, numerical simulation, and decorative easing. Cite reliable
 sources for the concept. Do not present animation as a physically accurate
 simulation unless its assumptions and equations support that claim.
 
-## Start with the lever lab
+## Start with a design instrument
 
-`lever-lab/` is the bb-specific example: an illustrated beam balance with
-mass and distance sliders, torque readouts, a tilt trace, and guided experiments.
-It uses Ryan's SVG kit, without external assets or runtime dependencies.
+Two bb-specific examples turn product-design decisions into working instruments:
 
-From this skill directory, generate the HTML playground payload into a new
+- **Typography printing press** (`typography-press/`): adjust type size, line
+  length, leading, and margins, then print a real text layout. Compare hierarchy
+  and wrapping without inventing a readability score.
+- **Interface motion rig** (`motion-rig/`): drag and release a spring-mounted
+  carriage, tune spring and damping, and interrupt an interface drawer in flight.
+  The rig and the interface share one motion model.
+
+From this skill directory, generate either HTML playground payload into a new
 file in the user's workspace (the path must not already exist):
 
 ```sh
-node lever-lab/build.mjs --out /absolute/workspace/lever.json
+node typography-press/build.mjs --out /absolute/workspace/typography.json
+node motion-rig/build.mjs --out /absolute/workspace/motion.json
 ```
 
 Publish its JSON through the `playground` tool's `html`, `title`, and `width`

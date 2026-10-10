@@ -57,10 +57,11 @@ bb playgrounds example stepper | bb playgrounds publish --playground-stdin
 Emit the returned `::playground{id="…"}` directive on its own line in
 an assistant message.
 
-For a working isometric explanation, ask **“Use Anatomy to explain levers and
-fulcrums interactively.”** The bundled `anatomy` skill includes a drawing kit,
-example sources, and a lever lab with sliders, equations, live measurements,
-and guided experiments. Each explanation is a normal playground you can save.
+For a working isometric explanation, ask **“Use Anatomy to explain typography
+or interface motion.”** The bundled `anatomy` skill includes Ryan’s drawing kit
+and two product-design instruments: a typography printing press that produces
+real text layouts, and a spring rig that drives an interruptible interface
+drawer. Each is a normal playground you can save.
 
 Inputs are saved with each playground on the bb server, so they follow you across
 devices and every open copy updates live. Inputs are context the agent can
@@ -120,7 +121,7 @@ The Anatomy skill and drawing kit were created by
 under his [MIT license](skills/anatomy/LICENSE) with
 [pinned source provenance](skills/anatomy/upstream.json).
 [The Bugged Dev's interactive lever demo](https://x.com/thebuggeddev/status/2108720133422395590)
-inspired the learning format. The bb integration and lever example are
+inspired the learning format. The bb integration and design instruments are
 independently authored; no media or code from that demo is bundled.
 
 ## Develop

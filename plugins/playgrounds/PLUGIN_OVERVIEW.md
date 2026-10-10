@@ -7,7 +7,7 @@ Answers you can play with: calculators, guides, previews. Agents put a playgroun
 - Inputs saved with the playground, so they follow you across devices and every open copy updates live.
 - An agent that can read your inputs, follow what you do, and drive the playground when you ask it to.
 - A private library: save any playground with its inputs, reopen it from the Playgrounds page, or @-mention it to bring it into a new conversation.
-- Anatomy explainers: working isometric illustrations with controls, equations, and guided experiments, including a lever lab you can save like any other playground.
+- Anatomy explainers: working isometric instruments for typography and interface motion, with controls and guided experiments. Print real text layouts or tune a spring-driven drawer, then save either playground.
 
 Install Playgrounds from Plugins, then ask for a calculator, a scenario comparison, or a walkthrough.
 
