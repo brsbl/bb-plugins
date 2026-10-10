@@ -11,10 +11,10 @@ passes only what matters back to the user. This skill covers the start.
 ## Read the settings first
 
 ```sh
-bb plugin config delegation --json
+bb delegation settings --json
 ```
 
-Use `values` from that output. Anything the user says in the current request
+Use the values it prints. Anything the user says in the current request
 overrides a setting. Don't restate the values to the user.
 
 ## Delegate or do it yourself
@@ -38,12 +38,12 @@ To move work already in progress to a new owner, use `handoff` instead.
 | Choice | Rule |
 | --- | --- |
 | Provider | The one the user names, else `provider`. |
-| Model | The one the user names. For QA, smoke tests, and other mechanical checks, `qaModel`; when it is `cheapest`, pick the cheapest generally available model in `bb provider models <provider> --json`. Otherwise `model`; when blank, follow spawn's normal tier. |
+| Model | The one the user names. For QA, smoke tests, and other mechanical checks, `qaModel`; when it is `cheapest`, pick the cheapest generally available model in `bb provider models <provider> --json`. Otherwise `model` with `--reasoning-level <reasoningLevel>`; when either is blank, follow spawn's normal tier and default. |
 | Machine | The one the user names, else `machine`. When blank, use the lead's machine unless spawn's capacity check offloads the job. |
 | Environment | `environment`: `worktree` → `--new-environment worktree`; `personal` → `--new-environment personal`; `lead` → `--environment "$BB_ENVIRONMENT_ID"`. Review or QA of another thread's change attaches to that thread's environment, as spawn describes. |
 | Parent | When `parentWorkers` is true, pass `--parent-thread "$BB_THREAD_ID"` so bb tells the lead when the worker finishes. Follow spawn's caveat for remote personal workspaces. |
 | Section | When `section` is set, pass `--section <id>`. When blank, use the lead's section from `bb thread show "$BB_THREAD_ID" --json` (`.thread.sectionId`), and omit the flag when that is null. |
-| Permissions and reasoning | spawn's defaults. |
+| Permissions | spawn's defaults. |
 | Title | A short, human-facing name for the job, such as "Fix timeline scroll arrow cursor". No bracketed prefixes or suffixes, model names, or roles. |
 
 ## Write a self-contained prompt

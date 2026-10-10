@@ -8,10 +8,10 @@ description: Wait for delegated bb workers without polling, read their final rep
 ## Read the settings first
 
 ```sh
-bb plugin config delegation --json
+bb delegation settings --json
 ```
 
-This skill uses `retryLimit` from `values`.
+This skill uses `retryLimit` from its output.
 
 ## Wait without polling
 

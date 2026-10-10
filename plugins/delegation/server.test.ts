@@ -2,7 +2,7 @@ import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
 import plugin from "./server";
-import { SETTINGS } from "./settings";
+import { DEFAULTS } from "./settings";
 import { archiveCascade, listAll, workerState, type ThreadRow } from "./threads";
 
 function row(overrides: Partial<ThreadRow> & { id: string }): ThreadRow {
@@ -43,12 +43,32 @@ function setup(rows: ThreadRow[]) {
 const signal = new AbortController().signal;
 
 describe("Delegation settings", () => {
-  it("registers every setting with brsbl's defaults", () => {
+  it("starts from brsbl's defaults and declares no generic settings form", async () => {
     const harness = setup([]);
-    expect(harness.inspection.registrations.settingsDescriptors).toEqual(SETTINGS);
-    expect(SETTINGS.provider.default).toBe("claude-code");
-    expect(SETTINGS.mayArchiveOrStop.default).toBe(false);
-    expect(SETTINGS.parentWorkers.default).toBe(true);
+    expect(harness.inspection.registrations.settingsDescriptors).toEqual({});
+    expect(await harness.behavior.callRpc("getSettings", {})).toEqual(DEFAULTS);
+    expect(JSON.parse((await harness.behavior.runCli(["settings", "--json"], { signal })).stdout)).toEqual(DEFAULTS);
+  });
+
+  it("saves from the form and the CLI, and resets to defaults", async () => {
+    const harness = setup([]);
+    await harness.behavior.callRpc("saveSettings", { values: { machine: "host_mac", retryLimit: 4 } });
+    expect((await harness.behavior.runCli(["set", "mayArchiveOrStop", "true"], { signal })).stdout).toBe("mayArchiveOrStop\ttrue");
+    const text = (await harness.behavior.runCli(["settings"], { signal })).stdout;
+    expect(text).toContain('machine\t"host_mac"\n');
+    expect(text).toContain('provider\t"claude-code"\t(default)');
+    await harness.behavior.runCli(["reset", "machine"], { signal });
+    expect(await harness.behavior.callRpc("getSettings", {})).toEqual({ ...DEFAULTS, retryLimit: 4, mayArchiveOrStop: true });
+    expect(harness.inspection.realtimeSignals.at(-1)?.channel).toBe("settings-changed");
+  });
+
+  it("rejects unknown settings and invalid values", async () => {
+    const harness = setup([]);
+    const run = (argv: string[]) => harness.behavior.runCli(argv, { signal }).catch((error: Error) => ({ exitCode: 1, stdout: "", stderr: error.message }));
+    expect((await run(["set", "colour", "red"])).stderr).toContain('Unknown setting "colour".');
+    expect((await run(["set", "retryLimit", "99"])).stderr).toContain('"99" isn\'t a valid retryLimit.');
+    expect((await run(["set", "environment", "cloud"])).exitCode).not.toBe(0);
+    await expect(harness.behavior.callRpc("saveSettings", { values: { colour: "red" } })).rejects.toThrow();
   });
 });
 
@@ -95,11 +115,11 @@ describe("archive cascade", () => {
       row({ id: "visible-fork", sourceThreadId: "lead" }),
       row({ id: "unrelated" }),
     ];
-    expect(archiveCascade("lead", rows).map((entry) => [entry.id, entry.reason, entry.via])).toEqual([
-      ["owned", "lifecycle", "lead"],
-      ["worker", "child", "lead"],
+    expect(archiveCascade("lead", rows).map((entry) => [entry.id, entry.reason, entry.via]).sort()).toEqual([
       ["fork", "hidden-fork", "lead"],
       ["grandchild", "child", "worker"],
+      ["owned", "lifecycle", "lead"],
+      ["worker", "child", "lead"],
     ]);
   });
 

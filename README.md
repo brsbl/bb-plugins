@@ -334,7 +334,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 Agent skills for handing a job to another bb thread and bringing back only what matters: launch and parent a worker, relay your decisions to it, collect its results, and report them briefly. Defaults such as provider, environment, report length, and whether agents may archive threads are set once in Settings.
 
-![Delegation's settings in bb, with defaults for workers, reports, relays, and archiving](plugins/delegation/docs/settings.png)
+![Delegation's settings form with provider, model, machine, and section pickers, switches, and number fields](plugins/delegation/docs/settings.png)
 
 [Source](plugins/delegation) · [README](plugins/delegation/README.md)
 

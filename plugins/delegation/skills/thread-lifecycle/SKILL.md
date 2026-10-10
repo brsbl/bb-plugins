@@ -8,10 +8,10 @@ description: Rules for archiving, stopping, deleting, unparenting, and moving de
 ## Read the settings first
 
 ```sh
-bb plugin config delegation --json
+bb delegation settings --json
 ```
 
-This skill uses `mayArchiveOrStop` from `values`.
+This skill uses `mayArchiveOrStop` from its output.
 
 ## Archive and stop only when asked
 

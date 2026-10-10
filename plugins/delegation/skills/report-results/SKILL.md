@@ -8,11 +8,11 @@ description: Turn delegated workers' results into a short report for the user, w
 ## Read the settings first
 
 ```sh
-bb plugin config delegation --json
+bb delegation settings --json
 ```
 
 This skill uses `reportStyle`, `reportMaxBullets`, `decisionsAsActionCards`,
-`evidenceInline`, and `workerReportLines` from `values`.
+`evidenceInline`, and `workerReportLines` from its output.
 
 ## When to report
 

@@ -11,10 +11,10 @@ thread one message that carries everything it needs.
 ## Read the settings first
 
 ```sh
-bb plugin config delegation --json
+bb delegation settings --json
 ```
 
-Use `relayBatching` from `values`: `batch` combines everything for one thread
+Use `relayBatching` from its output: `batch` combines everything for one thread
 into a single message; `each` sends each request as it arrives.
 
 ## Steps
