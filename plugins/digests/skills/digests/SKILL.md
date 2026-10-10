@@ -74,9 +74,10 @@ result, or `restore-failed`; stop opening more mail if restoration fails. The
 brief shows unresolved states even if the run is interrupted. On retry repair
 unresolved journal entries before collecting again.
 
-Restoring originally unread mail is the only explicit Gmail write allowed.
-Never send, reply, archive, delete, accept, label, create drafts, or change
-settings. Other sites remain read-only. Reading calls `digest_processed` with
+During collection, restoring originally unread mail is the only explicit Gmail
+write allowed. Never send, reply, archive, delete, accept, label, create drafts,
+or change settings. The one exception afterwards is an approved reply card (see
+Reply drafts). Other sites remain read-only. Reading calls `digest_processed` with
 stable Gmail message IDs before opening newsletters, excludes prior
 publications, and submits the IDs with `digest_publish`. Failed attempts never
 consume IDs. Ordinary inbox and money updates set `deduplicate:false` on published sources so previous coverage never substitutes for a requested fresh full read; newsletter/reading digests keep source deduplication on. Never invent full-body summaries when a body couldn't be read.
@@ -106,6 +107,31 @@ directive first on its own line.
 
 Use `digest_fail` for an honest failure with Retry or Reconnect. Do not
 present an empty or partial collection as a successful complete briefing.
+
+Tag email rows with `intent` when they need the user: `urgent` (security,
+failed payments, due today), `reply` (a person is waiting on them; people they
+know and Anthropic first) or `decide` (a quick yes/no). Leave the rest
+untagged. The card then shows Urgent, Reply and Decide groups and folds the rest
+into one FYI line, so the headline names who is waiting ("Maya is waiting on
+you"). Keep `items` for older consumers.
+
+## Reply drafts
+
+A Reply row's Draft reply button puts "Draft a reply to <Sender> · <Subject>"
+in the composer. When the user sends it, write the draft with the docs skill to
+`Email drafts/<YYYY-MM-DD> <Sender> - <Subject>.md` in the `personal` vault:
+frontmatter `to`, `subject` (Re: …), `source` (Gmail URL) and `status: draft`,
+one short quote of what they asked, then only the reply body in the user's
+voice. Emit its `::docs` directive so the user can edit it inline. Read the file
+before every revision so their edits survive.
+
+When they say it is ready, read it again and create an Inline Action Card "Send
+reply to <Sender>" with To, Subject and the exact body. Only an approved click
+authorizes the send: claim the attempt, open a desktop Browser Automation
+session on the Gmail connection's browser computer, reply to the source email
+from the configured account with exactly that body, confirm it in Sent, report
+on the card, set `status: sent`, and close the session. Never add recipients,
+CC, BCC or attachments. Stop and report if anything differs from the card.
 
 ## Publish from another thread
 
