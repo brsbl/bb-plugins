@@ -55,27 +55,26 @@ export function FollowUps({ items }: { items: FollowUp[] }) {
   </ol>;
 }
 
-// The answer bar: a one-line comment field, Ask, then the card's answer buttons.
-// With text typed, the field's own submit accepts the primary answer with that comment.
-export function AnswerBar({ value, onChange, onAsk, onSubmit, submitLabel, disabled, submitDisabled = false, busy, inputRef, children }: {
-  value: string; onChange: (value: string) => void; onAsk: () => void; onSubmit?: () => void; submitLabel?: string;
-  disabled: boolean; submitDisabled?: boolean; busy: boolean; inputRef: Ref<HTMLInputElement>; children?: ReactNode;
+// The answer bar: a one-line comment field, then the card's answer buttons.
+// Choosing an answer sends the typed comment with it; the field's own submit sends the comment alone as a follow-up.
+export function AnswerBar({ value, onChange, onSend, disabled, busy, inputRef, children }: {
+  value: string; onChange: (value: string) => void; onSend: () => void;
+  disabled: boolean; busy: boolean; inputRef: Ref<HTMLInputElement>; children?: ReactNode;
 }) {
   const typed = !!value.trim();
   return <div className="iac-answer-bar">
     <div className="iac-note-input" data-typed={typed || undefined}>
       <NoteIcon />
-      <input ref={inputRef} type="text" aria-label="Comment" placeholder="Add a comment" value={value} maxLength={1000} disabled={busy}
+      <input ref={inputRef} type="text" aria-label="Comment" placeholder="Add a comment or ask a question" value={value} maxLength={1000} disabled={busy}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape" && value) { event.preventDefault(); onChange(""); }
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && typed && onSubmit) { event.preventDefault(); onSubmit(); }
+          if (event.key === "Enter" && typed && !disabled) { event.preventDefault(); onSend(); }
         }} />
-      {onSubmit && typed && <button type="button" className="iac-note-submit" aria-label={submitLabel} title={submitLabel} disabled={disabled || submitDisabled} onClick={onSubmit}>
+      {typed && <button type="button" className="iac-note-submit" aria-label="Send comment" title="Send comment (nothing is decided)" disabled={disabled} onClick={onSend}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6M7 11l5-5 5 5" /></svg>
       </button>}
     </div>
-    <ActionButton className="iac-ask-button" variant="outline" disabled={disabled || !typed} onClick={onAsk}>Ask</ActionButton>
     {children}
   </div>;
 }

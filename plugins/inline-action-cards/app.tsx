@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { definePluginApp, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, actionMessage, chooseLabel, idSchema, title, type Action, type FollowUp, type Item, type ActionLog } from "./model.js";
-import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, DraftIcon, EditIcon, ResendIcon, SkipIcon, UndoIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
+import { ActionButton, PendingButton, IconButton, MoreMenu, MenuAction, DraftIcon, EditIcon, ResendIcon, UndoIcon, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
 import { Consequence } from "./consequence.js";
 import { AnswerBar, Evidence, FollowUps, NoteIcon } from "./evidence.js";
@@ -228,11 +228,10 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = (open: boolean) => row ? onExpand?.(open) : setViewResult(open);
-  // Card tools sit in the top-right corner; X dismisses the card (Skip).
-  const tools = (ready || pending) && <span className="iac-header-tools">
+  // Card tools sit in the top-right corner.
+  const tools = (ready || pending) && (reply || (pending && !busy)) && <span className="iac-header-tools">
     {pending && !busy && <IconButton label="Resend request" onClick={() => void act()}><ResendIcon /></IconButton>}
     {reply && <IconButton label="Save to Gmail drafts" disabled={disabled} onClick={() => void act("save-draft")}><DraftIcon /></IconButton>}
-    <IconButton label="Skip" disabled={disabled} onClick={() => void act("skip")}><SkipIcon /></IconButton>
   </span>;
   // The primary button marks a comment that goes along with the choice.
   const attached = ready && !!note.trim();
@@ -245,10 +244,9 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const primaryLabel = reply ? "Send" : choice ? selected ? chooseLabel(selected.label) : "Choose an option" : actionLabel(item, "yes");
   const primaryButton = <PendingButton variant="default" className={choice ? "iac-choose" : undefined} pending={sending === primary} pendingLabel={pendingLabel(item, primary)} disabled={disabled || (!!choice && !selected)} onClick={() => void act(primary, selected?.id)}>{withComment(primaryLabel)}</PendingButton>;
   const secondaryButton = !reply && !choice && <PendingButton pending={sending === "no"} pendingLabel={pendingLabel(item, "no")} disabled={disabled} onClick={() => void act("no")}>{actionLabel(item, "no")}</PendingButton>;
-  // One line: comment, Ask, then the answers. A sheet row's answer is staged in its header, so its bar keeps only the comment.
+  // One line: comment, then the answers. A sheet row's answer is staged in its header, so its bar keeps only the comment.
   const staging = !!sheet && !reply;
-  const answerBar = (ready || pending) && <AnswerBar inputRef={noteEditor} value={note} disabled={disabled} submitDisabled={!!choice && !selected} busy={busy} onChange={changeNote} onAsk={() => void comment()}
-    {...(staging ? {} : { onSubmit: () => void act(primary, selected?.id), submitLabel: `${primaryLabel} with comment` })}>
+  const answerBar = (ready || pending) && <AnswerBar inputRef={noteEditor} value={note} disabled={disabled} busy={busy} onChange={changeNote} onSend={() => void comment()}>
     {staging ? sheet!.staged && <ActionButton onClick={sheet!.clear}>Clear answer</ActionButton> : <>{secondaryButton}{primaryButton}</>}
   </AnswerBar>;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">

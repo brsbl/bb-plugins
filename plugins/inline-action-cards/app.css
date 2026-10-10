@@ -6,10 +6,7 @@
 .iac-muted, .iac-consequence, .iac-save, .iac-progress, .iac-result-line time { color: var(--muted-foreground); }
 .iac-question { padding-top: 4px; font-weight: 500; overflow-wrap: anywhere; }
 .iac-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--iac-gap); }
-.iac-footer { margin-top: 8px; }
 /* One action line: icon tools stay whole; labels wrap only when nothing else fits. */
-.iac-tools { display: flex; flex-shrink: 0; align-items: center; gap: var(--iac-gap); margin-right: auto; }
-.iac-footer > button { min-width: 0; height: auto; min-height: 28px; white-space: normal; }
 .iac-attached { display: inline-flex; margin-right: 4px; vertical-align: -2px; }
 .iac-card .iac-attached svg, .iac-row .iac-attached svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .iac-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -58,10 +55,6 @@
 .iac-table > .iac-error { padding: 0 16px 10px; }
 .iac-row { padding: 12px 16px; border-top: 1px solid var(--border); }
 .iac-row-line { align-items: center; }
-.iac-row-description { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.iac-row-description .iac-consequence { font-size: var(--text-xs, .75rem); }
-.iac-row-line > .iac-choice { margin-top: 0; min-width: 160px; }
-.iac-row .iac-footer > button:last-child { min-width: 64px; }
 .iac-row-expanded { margin-top: 12px; }
 .iac-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; margin: 8px -8px 0; }
 .iac-option { display: flex; min-width: 0; align-items: center; gap: 10px; min-height: 32px; padding: 4px 8px; border-radius: var(--radius-md, .5rem); cursor: pointer; }
@@ -78,7 +71,6 @@
 .iac-choose { min-width: 0; max-width: 100%; }
 .iac-choose .iac-button-label { min-width: 0; }
 .iac-choose .iac-button-label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iac-card:has(.iac-options) .iac-footer { min-width: 0; }
 .iac-menu, .iac-tooltip { z-index: 100; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: var(--popover); color: var(--popover-foreground); font-size: var(--text-xs, .75rem); box-shadow: var(--shadow-md); }
 .iac-menu { min-width: 170px; padding: 4px; }
 .iac-menu-item { padding: 6px 8px; border-radius: var(--radius-sm, .25rem); cursor: pointer; outline: none; }
@@ -88,26 +80,11 @@
   .iac-card, .iac-row { padding: 12px; }
   .iac-table-header { padding: 8px 12px; }
   .iac-row-line { flex-wrap: wrap; }
-  .iac-row-line > .iac-choice { margin-left: auto; }
   .iac-result-line { align-items: flex-start; flex-wrap: wrap; }
   .iac-result-copy { flex-basis: 160px; }
   .iac-result-line > .iac-actions { margin-left: auto; }
 }
 
-.iac-choice { min-width: 0; }
-.iac-row-line:has(.iac-note-field) { flex-wrap: wrap; }
-.iac-row-line:has(.iac-note-field) > .iac-choice { flex-basis: 100%; }
-.iac-card .iac-note-field, .iac-row .iac-note-field { padding: 4px 0; max-height: 100px; overflow-y: auto; }
-.iac-result-note { margin-top: 2px; white-space: pre-wrap; font-size: var(--text-xs, .75rem); overflow-wrap: anywhere; }
-
-/* The comment field and its send button read as one control. */
-/* bb's text input treatment: quiet input border, 1px ring on keyboard or pointer focus. */
-/* Ask is centered on the field's single line and stays centered as it grows. */
-.iac-note-entry { display: flex; align-items: center; gap: 4px; margin-top: 10px; padding: 2px 2px 2px 8px; border: 1px solid var(--input); border-radius: var(--radius-md, .5rem); background: transparent; }
-.iac-note-entry:has(.iac-note-field:focus-visible) { box-shadow: 0 0 0 1px var(--ring); }
-:is(.iac-card, .iac-row) .iac-note-entry textarea:not([readonly]):is(:hover, :focus) { background: transparent; box-shadow: none; }
-.iac-note-entry .iac-ask-button { flex-shrink: 0; align-self: center; height: 24px; }
-.iac-note-entry .iac-note-field { flex: 1; min-width: 0; }
 
 .iac-log { --iac-gap: 8px; --iac-log-button: 28px; container-type: inline-size; padding: 16px 24px 24px; color: var(--foreground); font-size: var(--text-sm, .8125rem); line-height: 1.5; }
 .iac-log-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding-bottom: 4px; }
@@ -255,7 +232,7 @@
   .iac-sheet-footer > .iac-muted { flex-basis: 100%; }
 }
 
-/* Revision 2: corner tools, one-line answer bar, sticky-note comment. */
+/* Corner tools, the one-line answer bar, and the sticky-note comment. */
 .iac-header { align-items: flex-start; }
 .iac-header-tools { display: flex; flex-shrink: 0; gap: 2px; margin: -4px -8px 0 auto; }
 .iac-answer-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
