@@ -25,7 +25,7 @@ vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
     } });
   } };
 });
-const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Escrow follow-up", subject: "Missing refund", to: ["escrow@example.com"], cc: [], bcc: [], original: { from: "Escrow", body: "Your refund is on its way." }, draft: "Original draft" } });
+const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Billing follow-up", subject: "Missing refund", to: ["billing@example.com"], cc: [], bcc: [], original: { from: "Billing", body: "Your refund is on its way." }, draft: "Original draft" } });
 afterEach(() => { cleanup(); submittedMessages.length = 0; localStorage.clear(); });
 // Radix tooltips measure their content; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
@@ -81,7 +81,7 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   fireEvent.click(send);
   await waitFor(() => expect(calls).toEqual(["save", "prepare", "submitted"]));
   expect(slot.inspection.composer.submits).toHaveLength(1);
-  expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Escrow follow-up" }]);
+  expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Billing follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
   await screen.findByText("Approved to send");
   expect(screen.queryByRole("textbox")).toBeNull();
@@ -100,7 +100,7 @@ it("replaces an obsolete local error when the agent reports success", async () =
   await screen.findByRole("alert");
   // Another client can complete the item while this view retains a local error.
   await reportSuccess();
-  await screen.findByText(/Sent to escrow@example.com/);
+  await screen.findByText(/Sent to billing@example.com/);
   expect(screen.queryByRole("alert")).toBeNull();
 });
 it("keeps an unsaved edit visible and offers recovery without submitting", async () => {
@@ -430,7 +430,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
     else fireEvent.keyDown(screen.getByRole("textbox", { name: "Comment" }), { key: "Enter" });
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
     expect(submittedMessages[0]).toContain(note);
-    expect(submittedMessages[0]).toMatch(type === "reply" ? /^Escrow follow-up / : /^Switch digests /);
+    expect(submittedMessages[0]).toMatch(type === "reply" ? /^Billing follow-up / : /^Switch digests /);
     const mention = slot.inspection.composer.mentions[0]!;
     host = await host.harness.lifecycle.reload(plugin);
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
@@ -522,7 +522,7 @@ it("Action log Send on a collapsed reply opens the email first and sends only on
   fireEvent.click(within(row).getByRole("button", { name: "Send" }));
   expect(calls).toHaveLength(0);
   expect((within(row).getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft");
-  expect(within(row).getByText(/To escrow@example.com · Missing refund/)).toBeTruthy();
+  expect(within(row).getByText(/To billing@example.com · Missing refund/)).toBeTruthy();
   expect(within(row).getByText("Cc ops@example.com")).toBeTruthy();
   expect(within(row).getByText(/Your refund is on its way/, { selector: "summary span" })).toBeTruthy();
   const send = within(row).getByRole("button", { name: "Send" });

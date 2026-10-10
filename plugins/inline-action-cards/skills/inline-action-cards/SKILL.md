@@ -19,7 +19,7 @@ Run from the owning thread (or add `--thread <id>`). `--item-stdin` avoids shell
 
 ```sh
 bb action-cards create esc-1 --item-stdin <<'JSON'
-{"type":"reply","summary":"Follow up on the missing escrow refund","subject":"Re: Refund check","to":["escrow@example.com"],"cc":[],"bcc":[],"original":{"from":"Escrow team <escrow@example.com>","date":"Jun 8","body":"We mailed your refund on June 8."},"draft":"Hello,\n\nCould you confirm the status of my refund check?\n\nThank you."}
+{"type":"reply","summary":"Follow up on the missing billing refund","subject":"Re: Refund check","to":["billing@example.com"],"cc":[],"bcc":[],"original":{"from":"Billing team <billing@example.com>","date":"Jun 8","body":"We mailed your refund on June 8."},"draft":"Hello,\n\nCould you confirm the status of my refund check?\n\nThank you."}
 JSON
 bb action-cards create receipts-1 --item-stdin <<'JSON'
 {"type":"decide","question":"File DigitalOcean under Receipts?","consequence":"Add the Receipts label to this invoice; it stays in your inbox."}
@@ -90,7 +90,7 @@ When a sheet message arrives, handle every reference in it: claim each attempt, 
 
 ## Handle a click
 
-A click submits readable text such as “Send escrow follow-up” with a named mention pill. Its user-hidden context contains `kind: inline-action-card`, `threadId`, `itemId`, `attemptId`, `action`, and `intent`, plus `note` when the user attached a comment. `approved-action` is approval for exactly that attempt. A bulk message contains one such reference per selected row. Read those IDs from context, never guess them from the label. Keep them in tool calls; do not repeat hidden IDs in user-facing replies. Legacy messages containing `[action:...] [attempt:...]` remain valid references to their existing attempts. The button submits through the existing composer pipeline (and can queue while the thread is busy). Do not ask the user to type another confirmation.
+A click submits readable text such as “Send billing follow-up” with a named mention pill. Its user-hidden context contains `kind: inline-action-card`, `threadId`, `itemId`, `attemptId`, `action`, and `intent`, plus `note` when the user attached a comment. `approved-action` is approval for exactly that attempt. A bulk message contains one such reference per selected row. Read those IDs from context, never guess them from the label. Keep them in tool calls; do not repeat hidden IDs in user-facing replies. Legacy messages containing `[action:...] [attempt:...]` remain valid references to their existing attempts. The button submits through the existing composer pipeline (and can queue while the thread is busy). Do not ask the user to type another confirmation.
 
 1. Claim the exact attempt before acting:
    `bb action-cards claim esc-1 --attempt <uuid>`
@@ -103,7 +103,7 @@ bb action-cards report esc-1 --attempt <uuid> --outcome succeeded --message 'Sen
 bb action-cards report receipts-1 --attempt <uuid> --outcome succeeded --message 'Added to Receipts'
 ```
 
-The card collapses to a result line and adds the local time. Use “Sent to Escrow team”, “Archived”, or “Filed under Receipts” as appropriate. The draft stays reachable through View. Do not promise Undo: this plugin has no reversible service action. Put useful result detail in the message when needed. Read persisted state any time with `bb action-cards get esc-1`.
+The card collapses to a result line and adds the local time. Use “Sent to Billing team”, “Archived”, or “Filed under Receipts” as appropriate. The draft stays reachable through View. Do not promise Undo: this plugin has no reversible service action. Put useful result detail in the message when needed. Read persisted state any time with `bb action-cards get esc-1`.
 
 A rejected claim is not approval to try again. It means the attempt is stale, already claimed, or finished. Read its state and reconcile the external service result; never repeat the side effect. The claim is durable across reloads. Retain the external service's receipt in the thread when available. This prevents duplicate execution from repeated clicks/messages but cannot make external APIs exactly-once.
 

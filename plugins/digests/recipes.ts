@@ -7,7 +7,7 @@ export const DIGEST_RECIPES: DigestRecipe[] = [
   {
     id: "unread-email", name: "Unread email", emoji: "📬", connectionIds: ["gmail"],
     schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" },
-    instructions: "Go through my unread email from the last day (the whole weekend on Mondays). Start with anything urgent: security alerts, failed payments, or anything due today. Then tell me who needs a reply, what they want, and how soon, putting people I know and anything from Anthropic first. Then list quick yes/no decisions. Sum up everything else in one line. Skip advisory and expert-network requests and recruiters (except Anthropic), and just count them. Emails addressed to Elizabeth are for my own accounts.",
+    instructions: "Go through my unread email from the last day (the whole weekend on Mondays). Start with anything urgent: security alerts, failed payments, or anything due today. Then tell me who needs a reply, what they want, and how soon, putting people I know first. Then list quick yes/no decisions. Sum up everything else in one line. Skip advisory and expert-network requests and recruiters, and just count them.",
   },
   {
     id: "money", name: "Money", emoji: "💰", connectionIds: ["gmail"],

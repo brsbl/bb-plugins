@@ -18,6 +18,23 @@ function runner(pr = rawPr()): GhRunner {
   };
 }
 describe("GitHub read boundary", () => {
+  it("reads qualified branch sources and native search stacks without requiring them in old snapshots", async () => {
+    const pr = { ...rawPr(), headRepository: { nameWithOwner: "fork/repo" }, stack: { entries: { pageInfo: { hasNextPage: false }, nodes: [{ position: 1, pullRequest: { url, title: "Fix retries", number: 42, state: "OPEN" } }] } } };
+    const run = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockResolvedValueOnce(JSON.stringify({ data: { viewer, search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [pr] } } })).mockResolvedValueOnce(JSON.stringify(account));
+    expect(await searchPullRequests({ scope: "authored" }, run)).toMatchObject({ ok: true, snapshots: [{ headRepository: "fork/repo", stack: { state: "available", items: [{ number: 42 }] } }] });
+    const query = run.mock.calls[1]![0].join(" ");
+    expect(query).toContain("headRepository { nameWithOwner }"); expect(query).toContain("stack { entries");
+    const { headRepository: _, ...legacy } = projectSnapshot(rawPr());
+    expect(snapshotSchema.parse(legacy).headRepository).toBeUndefined();
+    pr.stack.entries.pageInfo.hasNextPage = true;
+    expect(projectSnapshot(pr).stack.state).toBe("unavailable");
+  });
+  it("retries an unsupported search stack field without claiming a standalone PR", async () => {
+    const run = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockRejectedValueOnce(Object.assign(new Error("GraphQL"), { stderr: "Field 'stack' doesn't exist on type 'PullRequest'" })).mockResolvedValueOnce(JSON.stringify({ data: { viewer, search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [rawPr()] } } })).mockResolvedValueOnce(JSON.stringify(account));
+    expect(await searchPullRequests({ scope: "authored" }, run)).toMatchObject({ ok: true, snapshots: [{ stack: { state: "unavailable" } }] });
+    expect(run.mock.calls[2]![0].join(" ")).not.toContain("stack {");
+    expect(originMarkers("BB-Thread: [Owner](https://brsbl.getbb.app/projects/proj_a/threads/thr_owner)\nBB-Thread-ID: thr_owner")).toEqual(["thr_owner"]);
+  });
   it("keeps GitHub author avatars while accepting snapshots saved before avatars", async () => {
     const avatarUrl = "https://avatars.githubusercontent.com/u/42?s=40";
     const pr = { ...rawPr(), author: { login: "alice", avatarUrl } };
