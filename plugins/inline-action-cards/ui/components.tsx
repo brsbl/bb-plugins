@@ -55,20 +55,36 @@ export function OptionList({ name, label, options, value, recommended, disabled,
   </fieldset>;
 }
 
-/** A note that rides along with an answer: an "Add note" button that opens a textarea. */
+/** A note that rides along with an answer. "Add note" opens an editor with × (cancel) and Save note;
+ *  a saved note shows as a short preview you can click to edit or remove with ×. Submit sends whatever is in the note. */
 export function NoteField({ value, onChange, disabled, placeholder = "Add a note for the agent" }: { value: string; onChange: (value: string) => void; disabled?: boolean; placeholder?: string }) {
-  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const saved = useRef(value);
   const ref = useRef<HTMLTextAreaElement>(null);
-  const shown = open || !!value;
-  useLayoutEffect(() => { if (open) ref.current?.focus(); }, [open]);
-  if (!shown) return <button type="button" className="ac-note-toggle" disabled={disabled} onClick={() => setOpen(true)}><NoteIcon />Add note</button>;
-  return <textarea ref={ref} className="ac-textarea" aria-label="Note" placeholder={placeholder} value={value} rows={1} maxLength={1000} disabled={disabled}
-    onChange={(event) => onChange(event.target.value)}
-    onBlur={() => { if (!value.trim()) setOpen(false); }}
-    onKeyDown={(event) => {
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); }
-      else if (event.key === "Escape" && !value.trim()) { event.preventDefault(); onChange(""); setOpen(false); }
-    }} />;
+  useLayoutEffect(() => { const node = ref.current; if (editing && node) { node.focus(); node.setSelectionRange(node.value.length, node.value.length); } }, [editing]);
+  const edit = () => { saved.current = value; setEditing(true); };
+  const cancel = () => { onChange(saved.current); setEditing(false); };
+  const save = () => { onChange(value.trim()); setEditing(false); };
+  if (editing) return <div className="ac-note-editor">
+    <textarea ref={ref} className="ac-note-input" aria-label="Note" placeholder={placeholder} value={value} rows={2} maxLength={1000} disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save(); }
+        else if (event.key === "Escape") { event.preventDefault(); cancel(); }
+      }} />
+    <button type="button" className="ac-icon-button ac-note-cancel" aria-label="Cancel note" title="Cancel (Esc)" disabled={disabled} onClick={cancel}><XIcon /></button>
+    <div className="ac-note-actions"><Button type="button" size="sm" variant="outline" disabled={disabled} onClick={save}>Save note</Button></div>
+  </div>;
+  if (value.trim()) return <div className="ac-note-saved">
+    <NoteIcon />
+    <button type="button" className="ac-note-text" title="Edit note" disabled={disabled} onClick={edit}>{value}</button>
+    <button type="button" className="ac-icon-button" aria-label="Remove note" title="Remove note" disabled={disabled} onClick={() => onChange("")}><XIcon /></button>
+  </div>;
+  return <button type="button" className="ac-note-toggle" disabled={disabled} onClick={edit}><NoteIcon />Add note</button>;
+}
+
+function XIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>;
 }
 
 /** The last part of a decision: the note, then a row with "Add note" (until opened) and the form's one action. */
