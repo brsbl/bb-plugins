@@ -88,6 +88,12 @@ img, svg { display: block; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; } }
 `;
 
+// Playgrounds began as Interactive Answers, whose cards used --ia-* tokens and
+// .ia-* classes. Cards saved then still name them, so they get the same kit under
+// those names.
+const LEGACY_KIT = KIT.replaceAll("pg-", "ia-");
+const usesLegacyKit = (html: string) => /(?:--|\.|class=["'][^"']*\b)ia-/.test(html);
+
 function bridge(id: string, state: unknown, theme: WidgetTheme) {
   return String.raw`(() => {
   const SOURCE = ${JSON.stringify(WIDGET_MESSAGE_SOURCE)}, ID = ${JSON.stringify(id)};
@@ -122,6 +128,7 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
     emit(name, data) { try { post("event", { name: String(name), data: plain(data) }); } catch {} },
     send(label, data) { try { post("send", { label: String(label).slice(0, 80), data: plain(data) }); } catch {} },
   });
+  window.answer = window.playground;
   addEventListener("message", async (event) => {
     const message = event.data;
     if (event.source !== parent || !message || message.source !== SOURCE) return;
@@ -208,5 +215,5 @@ export function buildWidgetDocument({
   theme: WidgetTheme;
 }): string {
   const script = bridge(id, state, theme).replaceAll("</", "<\\/");
-  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}</style><script>${script}</script></head><body>${html}</body></html>`;
+  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body>${html}</body></html>`;
 }

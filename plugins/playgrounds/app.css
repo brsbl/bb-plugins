@@ -129,6 +129,8 @@
   border-radius: 6px;
 }
 .pg-number span {
+  flex-shrink: 0;
+  white-space: nowrap;
   padding-right: 9px;
   color: var(--muted-foreground);
 }
