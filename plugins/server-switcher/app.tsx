@@ -52,6 +52,7 @@ let cachedAccount: AccountServers | null = null;
 
 function useAccountServers(): {
   state: AccountState;
+  handles: string[] | null;
   reload: () => void;
 } {
   const sdk = useSdk();
@@ -100,7 +101,11 @@ function useAccountServers(): {
   }, [sdk, nonce, accountRevision]);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
-  return { state, reload };
+  const handles =
+    state.status === "ready"
+      ? state.data.servers.map((server) => server.handle)
+      : null;
+  return { state, handles, reload };
 }
 
 function useDesktopChoices(
@@ -267,7 +272,10 @@ function PanelBody({
 
   if (state.status === "loading") {
     return (
-      <div className="flex items-center gap-2.5 py-1.5 pl-1.75 pr-2.5" aria-busy="true">
+      <div
+        className="flex items-center gap-2.5 py-1.5 pl-1.75 pr-2.5"
+        aria-busy="true"
+      >
         <Skeleton className="size-7 rounded-full" />
         <div className="flex flex-1 flex-col gap-1">
           <Skeleton className="h-3 w-24" />
@@ -309,26 +317,23 @@ function PanelBody({
   const defaults = defaultRings(
     accountHandles ?? state.rows.filter((row) => row.account).map(ringKey),
   );
+  const ringProps = (row: ServerRow) => ({
+    ring: resolveRing(rings, ringKey(row), defaults.get(ringKey(row)) ?? null),
+    canReset: row.account && rings[ringKey(row)] !== undefined,
+    onRingChange: (ring: RingSetting | null) => save(ringKey(row), ring),
+  });
   const current = state.rows.find((row) => row.current) ?? null;
   const others = state.rows.filter((row) => !row.current);
   const showList = expanded || current === null;
   return (
     <div className="flex flex-col">
       {current === null ? null : (
-        <>
-          <CurrentServerCard
-            row={current}
-            ring={resolveRing(
-              rings,
-              ringKey(current),
-              defaults.get(ringKey(current)) ?? null,
-            )}
-            canReset={current.account && rings[ringKey(current)] !== undefined}
-            expanded={expanded}
-            onToggle={() => setExpanded(!expanded)}
-            onRingChange={(ring) => save(ringKey(current), ring)}
-          />
-        </>
+        <CurrentServerCard
+          row={current}
+          {...ringProps(current)}
+          expanded={expanded}
+          onToggle={() => setExpanded(!expanded)}
+        />
       )}
       {showList ? (
         <>
@@ -343,15 +348,9 @@ function PanelBody({
                 <ServerRowButton
                   key={row.id}
                   row={row}
-                  ring={resolveRing(
-                    rings,
-                    ringKey(row),
-                    defaults.get(ringKey(row)) ?? null,
-                  )}
-                  canReset={row.account && rings[ringKey(row)] !== undefined}
+                  {...ringProps(row)}
                   interactive={interactive}
                   onSelect={onSelect}
-                  onRingChange={(ring) => save(ringKey(row), ring)}
                 />
               ))}
             </ul>
@@ -399,11 +398,7 @@ function DesktopPanel({
         state={state}
         interactive
         onRetry={account.reload}
-        accountHandles={
-          account.state.status === "ready"
-            ? account.state.data.servers.map((server) => server.handle)
-            : null
-        }
+        accountHandles={account.handles}
         onSelect={(row) => {
           dismiss();
           api.selectServer(row.id);
@@ -417,7 +412,7 @@ function AccountPanel({
   dismiss,
   interactive,
 }: ExperimentalSidebarFooterDisclosureProps & { interactive: boolean }) {
-  const { state: account, reload } = useAccountServers();
+  const { state: account, handles, reload } = useAccountServers();
   const state: ListState =
     account.status === "ready"
       ? { status: "ready", rows: accountServerRows(account.data) }
@@ -428,11 +423,7 @@ function AccountPanel({
         state={state}
         interactive={interactive}
         onRetry={reload}
-        accountHandles={
-          account.status === "ready"
-            ? account.data.servers.map((server) => server.handle)
-            : null
-        }
+        accountHandles={handles}
         onSelect={(row) => {
           if (row.url === null) return;
           dismiss();

@@ -11,7 +11,7 @@ import {
 } from "./rings.js";
 
 describe("rings", () => {
-  it("parses one color or a two-stop gradient and normalizes case", () => {
+  it("parses one color or a two-stop gradient and rejects anything else", () => {
     expect(parseRingArgs(["#3B82F6"])).toEqual({ from: "#3b82f6", to: null });
     expect(parseRingArgs(["#ef4444", "#8b5cf6"])).toEqual({
       from: "#ef4444",
@@ -19,6 +19,11 @@ describe("rings", () => {
     });
     expect(ringBackground({ from: "#ef4444", to: "#8b5cf6" })).toBe(
       "linear-gradient(135deg, #ef4444, #8b5cf6)",
+    );
+    expect(() => parseRingArgs(["red"])).toThrow("hex");
+    expect(() => parseRingArgs([])).toThrow("one color");
+    expect(() => parseRingArgs(["#000000", "#111111", "#222222"])).toThrow(
+      "one color",
     );
   });
 
@@ -40,14 +45,6 @@ describe("rings", () => {
     expect(
       resolveRing({ brsbl: { from: "#000000", to: null } }, "brsbl", fallback),
     ).toEqual({ from: "#000000", to: null });
-  });
-
-  it("rejects non-hex colors and wrong stop counts", () => {
-    expect(() => parseRingArgs(["red"])).toThrow("hex");
-    expect(() => parseRingArgs([])).toThrow("one color");
-    expect(() => parseRingArgs(["#000000", "#111111", "#222222"])).toThrow(
-      "one color",
-    );
   });
 
   it("caps the number of saved rings", () => {

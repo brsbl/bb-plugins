@@ -104,7 +104,7 @@ function useAccountAvatar(): string | null {
   return useSyncExternalStore(subscribe, () => account.avatarUrl);
 }
 
-export function AvatarImage({ row }: { row: ServerRow | null }) {
+function AvatarImage({ row }: { row: ServerRow | null }) {
   const accountAvatar = useAccountAvatar();
   const [failed, setFailed] = useState<string | null>(null);
   const url = row === null || row.account ? accountAvatar : null;
@@ -172,7 +172,7 @@ export function useRings() {
   return { rings, save: ringStore.queue };
 }
 
-export function RingedAvatar({
+function RingedAvatar({
   row,
   ring,
   size,
