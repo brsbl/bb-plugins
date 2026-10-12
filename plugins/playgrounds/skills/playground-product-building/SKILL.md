@@ -55,7 +55,7 @@ All from the frame kit and `ui` (inlined by the builder):
   `.sub(text)`, `.value(text, tone)`, `.state('bad')`; call `tick(dt)` each
   frame.
 - `ui.chart(svg, spec)` — line, step, area and bar series; `marks` for
-  thresholds, `events` for "rolled back" style markers, `now` for the playhead.
+  reference lines (`tone: 'bad'` for a threshold), `events` for "rolled back" style markers, `now` for the playhead.
   Charts sit inside the figure, share an x axis, and never repeat a pattern
   that stands in for data.
 - `ui.loop(step)` plus `.pg-transport` (`.pg-icon-btn` play and replay with

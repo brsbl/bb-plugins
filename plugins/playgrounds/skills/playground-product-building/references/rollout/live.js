@@ -27,7 +27,7 @@ function paint() {
     x: { min: 0, max: run.hours, ticks: hourTicks, format: (v) => `${v} h` },
     y: { min: 0, max: Math.ceil(top), ticks: [0, Math.ceil(top)], format: (v) => `${v}%` },
     series: [{ points: measured.filter((p) => p[0] <= now) }],
-    marks: [{ y: run.threshold, label: `roll back ≥ ${ui.fmt(run.threshold, { digits: 1 })}%` }],
+    marks: [{ y: run.threshold, tone: 'bad', label: `roll back ≥ ${ui.fmt(run.threshold, { digits: 1 })}%` }],
     events: events.map((e) => ({ ...e, label: '' })), now,
   });
   const p = run.points[Math.min(run.points.length - 1, Math.floor(now))];

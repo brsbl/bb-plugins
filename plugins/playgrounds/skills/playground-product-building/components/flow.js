@@ -19,7 +19,7 @@ function flow(svg, spec) {
 
   const nodes = new Map();
   for (const n of spec.nodes) {
-    const w = n.w ?? 112, h = n.h ?? 64, x = n.x - w / 2, y = n.y - h / 2;
+    const w = n.w ?? 112, h = n.h ?? (n.meter || n.slots ? 64 : 46), x = n.x - w / 2, y = n.y - h / 2;
     const g = make('g', { class: 'pg-flow-node', transform: `translate(${x} ${y})` });
     g.append(make('rect', { class: 'card', width: w, height: h, rx: 9 }));
     const meterW = n.meter ? 10 : 0;
@@ -43,7 +43,7 @@ function flow(svg, spec) {
         slots.push(cell); g.append(cell);
       }
     }
-    const value = make('text', { class: 'value', x: w - 10, y: 19, 'text-anchor': 'end' });
+    const value = make('text', { class: 'value', x: w - 10, y: h - 9, 'text-anchor': 'end' });
     g.append(value);
     layers.nodes.append(g);
     nodes.set(n.id, { spec: n, g, x, y, w, h, meterFill, slots, sub, value, mh: h - 20 });

@@ -34,7 +34,7 @@ const ui = (() => {
   // chart(svg, spec) draws axes, gridlines, series, threshold marks, shaded bands and a "now" marker.
   // spec: { width, height, x: {min, max, ticks, format}, y: {min, max, ticks, format},
   //   series: [{ points: [[x, y]], kind: 'line'|'step'|'area'|'bars', tone, dashed }],
-  //   marks: [{ y, label }], bands: [{ x0, x1 }], events: [{ x, label, tone }], now }
+  //   marks: [{ y, label, tone: 'bad' for a threshold }], bands: [{ x0, x1 }], events: [{ x, label, tone }], now }
   function chart(svg, spec) {
     const W = spec.width ?? 480, H = spec.height ?? 160;
     const pad = { l: 34, r: 12, t: 10, b: 20, ...(spec.pad ?? {}) };
@@ -73,8 +73,8 @@ const ui = (() => {
       svg.append(el('path', { class: 'series', 'data-tone': tone, 'data-dashed': s.dashed, d }));
     }
     for (const mark of spec.marks ?? []) {
-      svg.append(el('line', { class: 'mark', x1: pad.l, x2: W - pad.r, y1: sy(mark.y), y2: sy(mark.y) }));
-      if (mark.label) svg.append(el('text', { class: 'mark-label', x: W - pad.r, y: sy(mark.y) - 4, 'text-anchor': 'end' }, mark.label));
+      svg.append(el('line', { class: 'mark', 'data-tone': mark.tone, x1: pad.l, x2: W - pad.r, y1: sy(mark.y), y2: sy(mark.y) }));
+      if (mark.label) svg.append(el('text', { class: 'mark-label', 'data-tone': mark.tone, x: W - pad.r, y: sy(mark.y) - 4, 'text-anchor': 'end' }, mark.label));
     }
     for (const ev of spec.events ?? []) {
       const x = sx(ev.x);
