@@ -55,7 +55,7 @@ export const CONTROLS_CSS = String.raw`
 .pg-stepper button:hover { background: var(--pg-stage); }
 .pg-stepper output { min-width: 3.5em; text-align: center; font-size: 11.5px; font-weight: 500; }
 .pg-picker { position: relative; display: grid; justify-items: center; gap: 4px; }
-.pg-picker > div { display: grid; grid-template-columns: repeat(var(--cols, 2), 24px); gap: 2px; padding: 2px; border-radius: 9px; box-shadow: var(--pg-edge); background: var(--card); }
+.pg-picker > [role=group] { display: grid; grid-template-columns: repeat(var(--cols, 2), 24px); gap: 2px; padding: 2px; border-radius: 9px; box-shadow: var(--pg-edge); background: var(--card); }
 .pg-picker button { display: grid; place-items: center; width: 24px; height: 18px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--pg-ink); }
 .pg-picker button[aria-pressed=true] { background: var(--pg-ink); color: var(--card); }
 .pg-picker > .pg-value { font-size: 9.5px; }
@@ -433,8 +433,9 @@ export const CONTROLS_RUNTIME = String.raw`
     const names = Object.keys(table);
     el.innerHTML = names.map(() => '<button type="button" class="pg-chip" aria-pressed="false"></button>').join("");
     [...el.children].forEach((b, i) => { b.textContent = names[i]; b.onclick = () => { for (const [k, v] of Object.entries(table[names[i]])) set(k, v); fire("preset", { name: names[i] }); }; });
-    const sync = () => [...el.children].forEach((b, i) => b.setAttribute("aria-pressed", String(Object.entries(table[names[i]]).every(([k, v]) => !(k in specs) || JSON.stringify(values[k]) === JSON.stringify(valid(specs[k], v))))));
-    on("change", sync); sync();
+    const matches = (preset) => { const known = Object.entries(preset).filter(([k]) => k in specs); return known.length > 0 && known.every(([k, v]) => JSON.stringify(values[k]) === JSON.stringify(valid(specs[k], v))); };
+    const sync = () => [...el.children].forEach((b, i) => b.setAttribute("aria-pressed", String(matches(table[names[i]]))));
+    on("change", sync); afterHydrate.push(sync);
   }
   function scope(el) {
     el.classList.add("pg-scope");
@@ -452,6 +453,7 @@ export const CONTROLS_RUNTIME = String.raw`
     el.__scope = { draw, attach(node) { analyser = node; buf = new Float32Array(node.fftSize); requestAnimationFrame(loop); }, readout(text) { const o = el.querySelector("output"); if (o) o.textContent = text; } };
     draw(null);
   }
+  const afterHydrate = [];
   function hydrate(root) {
     const binders = [];
     for (const el of root.querySelectorAll("[data-pg]")) {
@@ -472,6 +474,7 @@ export const CONTROLS_RUNTIME = String.raw`
       else if (kind === "record") { el.classList.add("pg-btn", "pg-record"); el.innerHTML = '<i class="pg-dot"></i><span>Record</span>'; el.setAttribute("aria-pressed", "false"); el.onclick = () => (recording ? stopTake() : startTake()); }
       else if (kind === "send") { el.classList.add("pg-btn"); if (!el.textContent.trim()) el.textContent = "Send to agent"; el.disabled = true; el.onclick = () => { if (lastTake) api.send(attr(el, "label", "Take") + " · " + lastTake.notes.length + " notes · " + lastTake.seconds.toFixed(1) + "s", lastTake); }; }
     }
+    for (const fn of afterHydrate.splice(0)) fn();
   }
   on("change", ({ name }) => { for (const el of document.querySelectorAll('[data-param="' + name + '"]')) el.__paint?.(); });
 
