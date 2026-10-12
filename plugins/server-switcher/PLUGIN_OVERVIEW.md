@@ -5,9 +5,10 @@ bb account with one click.
 
 ## What you get
 
-- **Current server, always visible.** A strip above the sidebar footer shows the
-  server's name, its `getbb.app` address, your GitHub avatar, and whether it is
-  online.
+- **Current server at a glance.** A strip above the sidebar footer, open by
+  default, shows the server's name, its `getbb.app` address, your GitHub
+  avatar, and whether it is online. Opening another plugin's footer panel takes
+  its place; click your avatar in the footer to bring it back.
 - **One-click switching.** Click the strip to list the other servers on your bb
   account. Offline servers are greyed out. In a browser the tab opens the
   server you pick; in the bb desktop app the switch goes through the app's own

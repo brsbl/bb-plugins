@@ -21,7 +21,7 @@ import {
   RING_PRESETS,
   RINGS_CHANNEL,
   ringBackground,
-  ringsSchema,
+  ringsSnapshotSchema,
   type Ring,
   type RingSetting,
   type Rings,
@@ -154,15 +154,14 @@ export function useRings() {
   useEffect(() => {
     if (ringsRequested && connection !== "connected") return;
     ringsRequested = true;
-    rpc
-      .call("listRings", null)
-      .then(ringStore.setServerRings)
+    ringStore
+      .load(() => rpc.call("listRings", null))
       .catch(() => {
         ringsRequested = false;
       });
   }, [rpc, connection]);
   useRealtime(RINGS_CHANNEL, (payload) => {
-    const parsed = ringsSchema.safeParse(payload);
+    const parsed = ringsSnapshotSchema.safeParse(payload);
     if (parsed.success) ringStore.setServerRings(parsed.data);
   });
   const rings = useSyncExternalStore(
@@ -331,6 +330,7 @@ export function RingPopover({
               }
               onClick={addStop}
               onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   addStop();

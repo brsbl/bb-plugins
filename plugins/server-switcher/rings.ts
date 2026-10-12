@@ -22,13 +22,18 @@ export const ringKeySchema = z.string().min(1).max(RING_KEY_MAX_LENGTH);
 export const ringsSchema = z.record(ringKeySchema, ringSettingSchema);
 export type Rings = z.infer<typeof ringsSchema>;
 
+export const ringsSnapshotSchema = z
+  .object({ revision: z.number().int().nonnegative(), rings: ringsSchema })
+  .strict();
+export type RingsSnapshot = z.infer<typeof ringsSnapshotSchema>;
+
 export const ringsContract = defineRpcContract({
-  listRings: { input: z.null(), output: ringsSchema },
+  listRings: { input: z.null(), output: ringsSnapshotSchema },
   setRing: {
     input: z
       .object({ key: ringKeySchema, ring: ringSettingSchema.nullable() })
       .strict(),
-    output: ringsSchema,
+    output: ringsSnapshotSchema,
   },
 });
 

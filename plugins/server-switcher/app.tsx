@@ -332,7 +332,10 @@ function PanelBody({
           row={current}
           {...ringProps(current)}
           expanded={expanded}
-          onToggle={() => setExpanded(!expanded)}
+          onToggle={() => {
+            if (!expanded) onRetry?.();
+            setExpanded(!expanded);
+          }}
         />
       )}
       {showList ? (

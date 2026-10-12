@@ -8,7 +8,9 @@ description: Explain the sidebar server switcher that lists the bb servers on th
 The Server switcher plugin shows the current bb server in a strip above the
 sidebar footer, with the signed-in account's GitHub avatar (the bb mark when
 there is none). The footer icon uses the same avatar. Clicking the strip lists
-the other servers on the bb account; offline servers are disabled.
+the other servers on the bb account; offline servers are disabled. The strip is
+open by default; another plugin's footer panel replaces it until the user
+clicks the avatar icon in the footer again.
 
 - In a browser or on a `https://<handle>.getbb.app` URL, choosing a server
   navigates the tab to that server's URL.

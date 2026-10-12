@@ -8,7 +8,16 @@ import {
   ringBackground,
   withRing,
   RINGS_MAX,
+  ringsSnapshotSchema,
 } from "./rings.js";
+
+async function listRings(harness: {
+  behavior: { callRpc(method: string, input: unknown): Promise<unknown> };
+}) {
+  return ringsSnapshotSchema.parse(
+    await harness.behavior.callRpc("listRings", null),
+  ).rings;
+}
 
 describe("rings", () => {
   it("parses one color or a two-stop gradient and rejects anything else", () => {
@@ -70,8 +79,33 @@ describe("rings", () => {
         brsbl: { from: "#22c55e", to: null },
       });
       await serverSwitcher(bb);
-      expect(await harness.behavior.callRpc("listRings", null)).toEqual({
+      expect(await listRings(harness)).toEqual({
         brsbl: { from: "#22c55e", to: null },
+      });
+    } finally {
+      await harness.lifecycle.dispose();
+    }
+  });
+
+  it("keeps both of two overlapping saves and bumps the revision for each", async () => {
+    const { harness, bb } = createFakePluginHost({
+      pluginId: "server-switcher",
+    });
+    try {
+      await serverSwitcher(bb);
+      await Promise.all([
+        harness.behavior.callRpc("setRing", {
+          key: "brsbl",
+          ring: { from: "#22c55e", to: null },
+        }),
+        harness.behavior.callRpc("setRing", { key: "bb-demo", ring: "none" }),
+        harness.behavior
+          .callRpc("setRing", { key: "", ring: "none" })
+          .catch(() => undefined),
+      ]);
+      expect(await harness.behavior.callRpc("listRings", null)).toEqual({
+        revision: 2,
+        rings: { brsbl: { from: "#22c55e", to: null }, "bb-demo": "none" },
       });
     } finally {
       await harness.lifecycle.dispose();
@@ -88,7 +122,7 @@ describe("rings", () => {
         key: "brsbl",
         ring: { from: "#22C55E", to: "#3b82f6" },
       });
-      expect(await harness.behavior.callRpc("listRings", null)).toEqual({
+      expect(await listRings(harness)).toEqual({
         brsbl: { from: "#22c55e", to: "#3b82f6" },
       });
       expect(harness.inspection.realtimeSignals.at(-1)).toMatchObject({
@@ -104,7 +138,7 @@ describe("rings", () => {
       ]);
       expect(bad.exitCode).toBe(1);
       await harness.behavior.runCli(["ring", "clear", "brsbl"]);
-      expect(await harness.behavior.callRpc("listRings", null)).toEqual({
+      expect(await listRings(harness)).toEqual({
         brsbl: "none",
       });
       const empty = await harness.behavior.runCli([
@@ -115,11 +149,11 @@ describe("rings", () => {
       ]);
       expect(empty.exitCode).toBe(1);
       expect(empty.stderr).toContain("Server names");
-      expect(await harness.behavior.callRpc("listRings", null)).toEqual({
+      expect(await listRings(harness)).toEqual({
         brsbl: "none",
       });
       await harness.behavior.runCli(["ring", "reset", "brsbl"]);
-      expect(await harness.behavior.callRpc("listRings", null)).toEqual({});
+      expect(await listRings(harness)).toEqual({});
     } finally {
       await harness.lifecycle.dispose();
     }

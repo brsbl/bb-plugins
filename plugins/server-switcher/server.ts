@@ -9,10 +9,12 @@ import {
   withRing,
   describeRing,
   type RingSetting,
+  type RingsSnapshot,
   type Rings,
 } from "./rings.js";
 
 const RINGS_KEY = "rings";
+const REVISION_KEY = "ringsRevision";
 
 export default function serverSwitcher(bb: BbPluginApi) {
   const read = async (): Promise<Rings> => {
@@ -25,22 +27,41 @@ export default function serverSwitcher(bb: BbPluginApi) {
     }
     return rings;
   };
-  const write = async (
+  const readRevision = async (): Promise<number> => {
+    const stored: unknown = await bb.storage.kv.get(REVISION_KEY);
+    return typeof stored === "number" && Number.isInteger(stored) && stored >= 0
+      ? stored
+      : 0;
+  };
+  const snapshot = async (): Promise<RingsSnapshot> => ({
+    revision: await readRevision(),
+    rings: await read(),
+  });
+  let pending: Promise<unknown> = Promise.resolve();
+  const write = (
     key: string,
     ring: RingSetting | null,
-  ): Promise<Rings> => {
-    if (!ringKeySchema.safeParse(key).success)
-      throw new Error(
-        `Server names must be 1 to ${RING_KEY_MAX_LENGTH} characters.`,
-      );
-    const next = withRing(await read(), key, ring);
-    await bb.storage.kv.set(RINGS_KEY, next);
-    bb.realtime.publish(RINGS_CHANNEL, next);
-    return next;
+  ): Promise<RingsSnapshot> => {
+    const run = pending.then(async () => {
+      if (!ringKeySchema.safeParse(key).success)
+        throw new Error(
+          `Server names must be 1 to ${RING_KEY_MAX_LENGTH} characters.`,
+        );
+      const next: RingsSnapshot = {
+        revision: (await readRevision()) + 1,
+        rings: withRing(await read(), key, ring),
+      };
+      await bb.storage.kv.set(RINGS_KEY, next.rings);
+      await bb.storage.kv.set(REVISION_KEY, next.revision);
+      bb.realtime.publish(RINGS_CHANNEL, next);
+      return next;
+    });
+    pending = run.catch(() => undefined);
+    return run;
   };
 
   bb.rpc.register(ringsContract, {
-    listRings: () => read(),
+    listRings: () => snapshot(),
     setRing: ({ key, ring }) => write(key, ring),
   });
 

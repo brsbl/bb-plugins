@@ -19,6 +19,8 @@ bundled connect plugin enabled.
 - The strip shows the current server's name, address, your GitHub avatar, and
   its colored ring. Click it to list the other servers on your account; offline
   servers are disabled.
+  The strip is open by default; opening another plugin's footer panel takes its
+  place, and clicking your avatar in the footer brings it back.
 - In a browser or on a `*.getbb.app` URL, choosing a server opens it in the same
   tab. In the desktop app, the list follows the app's server menu and switches
   through it. In the bb mobile app the list is read-only.
