@@ -16,7 +16,7 @@ Only show real captures. Never present mockups or placeholders as research or as
 
 Run `create` from the thread whose machine has the images: paths are read only from that thread's machine, and relative paths resolve against the current directory. The images are copied into the plugin, so the carousel keeps working after the files, worktree, or thread are cleaned up.
 
-The JSON must be a single line: `--carousel-stdin` accepts exactly one line. Use `\n` inside a description for a line break.
+For small carousels, pass the JSON on a single line with `--carousel-stdin`; it accepts one line of up to 16 KB. Use `\n` inside a description for a line break. For anything larger, write the JSON to a file and pass `--carousel-file <path>`. The file is read from the same machine as the images, and image paths in it still resolve against the current directory.
 
 ```sh
 bb image-carousel create --carousel-stdin <<'JSON'
@@ -30,9 +30,13 @@ bb image-carousel create --carousel-stdin <<'JSON'
 JSON
 ```
 
+```sh
+bb image-carousel create --carousel-file carousel.json
+```
+
 The command prints a directive such as `::image-carousel{id="ic_abc123def456"}`. Put that directive on its own line in your reply, outside any code fence. Emit the same directive again to reshow the carousel; don't create a duplicate.
 
-Limits: up to 30 slides; PNG, JPEG, GIF, or WebP; 8 MB per image. Titles are one line of up to 120 characters; descriptions can be up to 2000 characters, and long ones scroll inside the fixed-height text area.
+Limits: up to 30 slides; a carousel file of up to 1 MB; PNG, JPEG, GIF, or WebP; 8 MB per image. Titles are one line of up to 120 characters; descriptions can be up to 2000 characters, and long ones scroll inside the fixed-height text area.
 
 ## Manage
 

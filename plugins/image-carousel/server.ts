@@ -14,10 +14,12 @@ export const rpcContract = defineRpcContract({
 
 const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
-export type ImageFile = { bytes: Buffer; name: string };
-export type ReadImage = (request: { threadId: string; cwd?: string; path: string }) => Promise<ImageFile>;
+const MAX_CAROUSEL_FILE_BYTES = 1024 * 1024;
 
-export function createStore(bb: BbPluginApi, readImage: ReadImage) {
+export type ThreadFile = { bytes: Buffer; name: string };
+export type ReadThreadFile = (request: { threadId: string; cwd?: string; path: string; maxBytes: number }) => Promise<ThreadFile>;
+
+export function createStore(bb: BbPluginApi, readFile: ReadThreadFile) {
   const db = bb.storage.database();
   bb.storage.migrate(db, [
     "CREATE TABLE carousels (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, value TEXT NOT NULL, created_at TEXT NOT NULL)",
@@ -44,7 +46,7 @@ export function createStore(bb: BbPluginApi, readImage: ReadImage) {
       const load = async (file: string) => {
         const known = files.get(file);
         if (known) return known.ref;
-        const { bytes, name } = await readImage({ threadId, cwd, path: file });
+        const { bytes, name } = await readFile({ threadId, cwd, path: file, maxBytes: MAX_IMAGE_BYTES });
         if (bytes.length > MAX_IMAGE_BYTES) throw new Error(`${file} is larger than ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);
         const mimeType = sniffImageType(bytes);
         if (!mimeType) throw new Error(`${file} is not a PNG, JPEG, GIF, or WebP image.`);
@@ -93,23 +95,23 @@ async function sequential<T, R>(items: T[], map: (item: T) => Promise<R>): Promi
   return results;
 }
 
-export function readFromThreadHost(bb: BbPluginApi): ReadImage {
-  return async ({ threadId, cwd, path: file }) => {
+export function readFromThreadHost(bb: BbPluginApi): ReadThreadFile {
+  return async ({ threadId, cwd, path: file, maxBytes }) => {
     const thread = await bb.sdk.threads.get({ threadId, include: "environment" });
     const environment = "environment" in thread ? thread.environment ?? null : null;
-    if (!environment) throw new Error("This thread has no machine to read images from.");
+    if (!environment) throw new Error("This thread has no machine to read files from.");
     const root = cwd ?? environment.path;
     if (!path.isAbsolute(file) && !root) throw new Error(`Use an absolute path for ${file}; this thread has no workspace.`);
     const resolved = path.isAbsolute(file) ? file : path.resolve(root!, file);
     const result = await bb.sdk.files.read({ hostId: environment.hostId, path: resolved });
-    if (result.sizeBytes > MAX_IMAGE_BYTES) throw new Error(`${file} is larger than ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);
-    if (result.contentEncoding !== "base64") throw new Error(`${file} is not a PNG, JPEG, GIF, or WebP image.`);
-    return { bytes: Buffer.from(result.content, "base64"), name: path.basename(resolved) };
+    if (result.sizeBytes > maxBytes) throw new Error(`${file} is larger than ${maxBytes / 1024 / 1024} MB.`);
+    return { bytes: Buffer.from(result.content, result.contentEncoding === "base64" ? "base64" : "utf8"), name: path.basename(resolved) };
   };
 }
 
 export default function plugin(bb: BbPluginApi): void {
-  const store = createStore(bb, readFromThreadHost(bb));
+  const readFile = readFromThreadHost(bb);
+  const store = createStore(bb, readFile);
   bb.rpc.register(rpcContract, {
     get: ({ id }) => store.get(id),
     image: ({ sha256 }) => store.image(sha256),
@@ -121,10 +123,16 @@ export default function plugin(bb: BbPluginApi): void {
     commands: {
       create: cliCommand({
         summary: "Copy images from this thread's machine into a new carousel and print its directive",
-        options: { carousel: { type: "string", required: true, stdin: true, description: "Carousel JSON; use --carousel-stdin" } },
+        options: {
+          carousel: { type: "string", stdin: true, description: "Carousel JSON on one line; use --carousel-stdin" },
+          "carousel-file": { type: "string", placeholder: "PATH", description: "Carousel JSON file on this thread's machine, for carousels too large for stdin" },
+        },
+        constraints: [{ kind: "at-least-one", options: ["carousel", "carousel-file"] }, { kind: "at-most-one", options: ["carousel", "carousel-file"] }],
         async run({ options }, ctx) {
           if (!ctx.threadId) throw new Error("Run create from the bb thread whose machine has the images.");
-          const carousel = await store.create(ctx.threadId, JSON.parse(options.carousel), ctx.cwd);
+          const file = options["carousel-file"];
+          const json = file === undefined ? options.carousel! : (await readFile({ threadId: ctx.threadId, cwd: ctx.cwd, path: file, maxBytes: MAX_CAROUSEL_FILE_BYTES })).bytes.toString("utf8");
+          const carousel = await store.create(ctx.threadId, JSON.parse(json), ctx.cwd);
           return { exitCode: 0, stdout: `::image-carousel{id="${carousel.id}"}\n` };
         },
       }),

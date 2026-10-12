@@ -1,6 +1,6 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import plugin, { createStore, readFromThreadHost, type ImageFile } from "./server.js";
+import plugin, { createStore, readFromThreadHost, type ThreadFile } from "./server.js";
 import { MAX_IMAGE_BYTES } from "./model.js";
 
 const png = (tag: string) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(tag)]);
@@ -11,7 +11,7 @@ function setup(files: Record<string, Buffer>) {
   const host = createFakePluginHost({ pluginId: "image-carousel" });
   hosts.push(host);
   const reads: { cwd?: string; path: string }[] = [];
-  const store = createStore(host.bb, async ({ cwd, path }): Promise<ImageFile> => {
+  const store = createStore(host.bb, async ({ cwd, path }): Promise<ThreadFile> => {
     reads.push({ cwd, path });
     const bytes = files[path];
     if (!bytes) throw new Error(`missing ${path}`);
@@ -65,10 +65,13 @@ describe("image carousel store", () => {
 
 describe("image reads stay on the invoking thread's machine", () => {
   const pngBase64 = png("x").toString("base64");
+  const spec = JSON.stringify({ kind: "research", slides: [{ image: "a.png", title: "From a file" }] });
   function hostWith(environment: { hostId: string; path: string | null } | null) {
     const host = createFakePluginHost({ pluginId: "image-carousel", sdk: {
       threads: { get: () => ({ id: "thr_1", ...(environment ? { environment } : {}) }) },
-      files: { read: () => ({ content: pngBase64, contentEncoding: "base64", sizeBytes: 9, path: "/x", sha256: "0" }) },
+      files: { read: ({ path }: { path: string }) => path.endsWith(".json")
+        ? { content: spec, contentEncoding: "utf8", sizeBytes: spec.length, path, sha256: "0" }
+        : { content: pngBase64, contentEncoding: "base64", sizeBytes: 9, path, sha256: "0" } },
       system: { config: () => ({ primaryHostId: "host_primary" }) },
     } });
     hosts.push(host);
@@ -77,13 +80,13 @@ describe("image reads stay on the invoking thread's machine", () => {
 
   it("reads relative paths from the thread's own machine and directory", async () => {
     const host = hostWith({ hostId: "host_thread", path: "/work/tree" });
-    await readFromThreadHost(host.bb)({ threadId: "thr_1", path: "shots/a.png" });
+    await readFromThreadHost(host.bb)({ threadId: "thr_1", path: "shots/a.png", maxBytes: 1024 });
     expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([[{ hostId: "host_thread", path: "/work/tree/shots/a.png" }]]);
   });
 
   it("refuses to fall back to another machine when the thread has no environment", async () => {
     const host = hostWith(null);
-    await expect(readFromThreadHost(host.bb)({ threadId: "thr_1", cwd: "/elsewhere", path: "a.png" })).rejects.toThrow("no machine");
+    await expect(readFromThreadHost(host.bb)({ threadId: "thr_1", cwd: "/elsewhere", path: "a.png", maxBytes: 1024 })).rejects.toThrow("no machine");
     expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([]);
   });
 
@@ -94,5 +97,17 @@ describe("image reads stay on the invoking thread's machine", () => {
     expect((await host.harness.behavior.runCli(["create", "--carousel", carousel])).stderr).toContain("Run create from the bb thread");
     expect((await host.harness.behavior.runCli(["create", "--carousel", carousel, "--thread", "thr_other"], { threadId: "thr_1" })).exitCode).not.toBe(0);
     expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([]);
+  });
+
+  it("reads a carousel file from the thread's machine, then its images", async () => {
+    const host = hostWith({ hostId: "host_thread", path: "/work" });
+    plugin(host.bb);
+    const result = await host.harness.behavior.runCli(["create", "--carousel-file", "specs/carousel.json"], { threadId: "thr_1", cwd: "/work/sub" });
+    expect(result.stdout).toMatch(/^::image-carousel\{id="ic_[a-z0-9]{12}"\}/);
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([
+      [{ hostId: "host_thread", path: "/work/sub/specs/carousel.json" }],
+      [{ hostId: "host_thread", path: "/work/sub/a.png" }],
+    ]);
+    expect((await host.harness.behavior.runCli(["create", "--carousel", spec, "--carousel-file", "specs/carousel.json"], { threadId: "thr_1" })).exitCode).not.toBe(0);
   });
 });
