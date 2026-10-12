@@ -18,11 +18,12 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 
 ## Choose the form
 
-- **Native document** for calculators, scenario comparisons, charts, and
-  tables. Bounded arithmetic, no code, accessible by construction.
-- **HTML playground** when the playground needs its own layout or illustration: an
-  assembly guide with an exploded diagram, a map with places and photos, a
-  paint or product preview, folding or cooking steps, a visual plan.
+- **HTML playground with the component library** (see Components) for apps the
+  person will keep using with you: planners and calculators with several
+  inputs and an answer, simulations that run over time, design tools with a
+  live preview, games, instruments, and step-by-step guides or visual plans.
+- **Native document** only for a quick formula answer with a few inputs and no
+  follow-up work: bounded arithmetic, no code, accessible by construction.
 
 - Start with the user's question and choose useful inputs. Name units and
   assumptions. Use plain prose if interaction would not improve the answer.
