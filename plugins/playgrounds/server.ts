@@ -25,8 +25,32 @@ const savedSchema = z
     title: z.string(),
     kind: z.enum(["document", "html"]),
     savedAt: z.number().int(),
+    provenance: z
+      .object({
+        prompt: z.string(),
+        provider: z.string().nullable(),
+        durationMs: z.number().int().nullable(),
+        turnId: z.string().nullable(),
+      })
+      .strict()
+      .nullable(),
   })
   .strict();
+type Provenance = NonNullable<z.infer<typeof savedSchema>["provenance"]>;
+const timelineRows = z.object({
+  rows: z.array(
+    z
+      .object({
+        kind: z.string(),
+        role: z.string().optional(),
+        text: z.string().optional(),
+        turnId: z.string().nullable().optional(),
+        startedAt: z.number(),
+        completedAt: z.number().optional(),
+      })
+      .passthrough(),
+  ),
+});
 export type SavedPlayground = z.infer<typeof savedSchema>;
 const savedTitle = z.string().trim().min(1).max(160);
 const SAVED_PROVIDER = "saved";
@@ -110,6 +134,8 @@ function createStore(bb: BbPluginApi) {
     "CREATE INDEX answer_events_answer ON answer_events(answer_id, seq)",
     "CREATE INDEX answer_events_thread ON answer_events(thread_id)",
     "CREATE TABLE saved_playgrounds (id TEXT PRIMARY KEY, answer_id TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL, saved_at INTEGER NOT NULL)",
+    "ALTER TABLE answer_documents ADD COLUMN published_at INTEGER",
+    "ALTER TABLE saved_playgrounds ADD COLUMN provenance TEXT",
   ]);
   const owned = db.prepare("SELECT 1 FROM answers WHERE id = ? AND thread_id = ?");
   const exists = (threadId: string, id: string) =>
@@ -141,11 +167,9 @@ function createStore(bb: BbPluginApi) {
     const id = randomUUID();
     const thread = threadSchema.parse(threadId);
     db.transaction(() => {
-      db.prepare("INSERT INTO answer_documents (id, document, kind) VALUES (?, ?, ?)").run(
-        id,
-        content,
-        kind,
-      );
+      db.prepare(
+        "INSERT INTO answer_documents (id, document, kind, published_at) VALUES (?, ?, ?, ?)",
+      ).run(id, content, kind, Date.now());
       db.prepare("INSERT INTO answers (id, thread_id) VALUES (?, ?)").run(id, thread);
     })();
     return { id, directive: `::playground{id="${id}"}` };
@@ -173,9 +197,40 @@ function createStore(bb: BbPluginApi) {
           document: parseDocument(row.document),
         };
   };
+  // The prompt that made a playground: the last user message before it was published,
+  // and the turn that published it. Model and token counts are not in the plugin API.
+  const provenanceOf = async (threadId: string, id: string): Promise<Provenance | null> => {
+    const row = db.prepare("SELECT published_at FROM answer_documents WHERE id = ?").get(id) as
+      | { published_at: number | null }
+      | undefined;
+    if (!row?.published_at) return null;
+    const at = row.published_at;
+    const [timeline, thread] = await Promise.all([
+      Promise.resolve()
+        .then(() => bb.sdk.threads.timeline({ threadId }))
+        .then((value) => timelineRows.parse(value))
+        .catch(() => null),
+      Promise.resolve()
+        .then(() => bb.sdk.threads.get({ threadId }))
+        .then((value) => z.object({ providerId: z.string().nullable().optional() }).passthrough().parse(value))
+        .catch(() => null),
+    ]);
+    if (!timeline) return null;
+    const prompt = timeline.rows.filter((r) => r.kind === "conversation" && r.role === "user" && r.startedAt <= at).at(-1);
+    if (!prompt?.text) return null;
+    const turn = timeline.rows.find((r) => r.kind === "turn" && r.startedAt <= at && (r.completedAt ?? Infinity) >= at);
+    return {
+      prompt: prompt.text.slice(0, 2000),
+      provider: thread?.providerId ?? null,
+      durationMs: turn?.completedAt ? Math.round(turn.completedAt - turn.startedAt) : null,
+      turnId: turn?.turnId ?? null,
+    };
+  };
   const savedRow = (savedId: string): SavedPlayground => {
     const row = db
-      .prepare("SELECT id, answer_id, title, kind, saved_at FROM saved_playgrounds WHERE id = ?")
+      .prepare(
+        "SELECT id, answer_id, title, kind, saved_at, provenance FROM saved_playgrounds WHERE id = ?",
+      )
       .get(idSchema.parse(savedId)) as
       | {
           id: string;
@@ -183,6 +238,7 @@ function createStore(bb: BbPluginApi) {
           title: string;
           kind: "document" | "html";
           saved_at: number;
+          provenance: string | null;
         }
       | undefined;
     if (!row) throw new Error(SAVED_UNAVAILABLE);
@@ -193,6 +249,7 @@ function createStore(bb: BbPluginApi) {
       title: row.title,
       kind: row.kind,
       savedAt: row.saved_at,
+      provenance: row.provenance ? savedSchema.shape.provenance.parse(JSON.parse(row.provenance)) : null,
     };
   };
   const live = createLive(bb, db, (threadId, id) => {
@@ -213,16 +270,17 @@ function createStore(bb: BbPluginApi) {
     publishHtml(threadId: string, widget: HtmlAnswer) {
       return insert(threadId, "html", JSON.stringify(htmlAnswerSchema.parse(widget)));
     },
-    save(threadId: string, id: string, title?: string): SavedPlayground {
+    async save(threadId: string, id: string, title?: string): Promise<SavedPlayground> {
       const answer = get(threadId, id);
+      const provenance = await provenanceOf(threadId, id);
       const savedId = randomUUID();
       const name = (
         title ?? (answer.kind === "html" ? answer.widget.title : answer.document.title)
       ).slice(0, 160);
       db.transaction(() => {
         db.prepare(
-          "INSERT INTO saved_playgrounds (id, answer_id, title, kind, saved_at) VALUES (?, ?, ?, ?, ?)",
-        ).run(savedId, id, name, answer.kind, Date.now());
+          "INSERT INTO saved_playgrounds (id, answer_id, title, kind, saved_at, provenance) VALUES (?, ?, ?, ?, ?, ?)",
+        ).run(savedId, id, name, answer.kind, Date.now(), provenance ? JSON.stringify(provenance) : null);
         copyAnswers(threadId, savedScope(savedId), id);
       })();
       return savedRow(savedId);
@@ -497,7 +555,7 @@ export default function plugin(bb: BbPluginApi): void {
             );
             return {
               exitCode: 0,
-              stdout: `${JSON.stringify(store.save(threadId, positionals.id, options.title === undefined ? undefined : savedTitle.parse(options.title)), null, 2)}\n`,
+              stdout: `${JSON.stringify(await store.save(threadId, positionals.id, options.title === undefined ? undefined : savedTitle.parse(options.title)), null, 2)}\n`,
             };
           },
         }),
