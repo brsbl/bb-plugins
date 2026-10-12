@@ -4,12 +4,14 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import {
   ASSET_CHUNK_BYTES,
   NOTE_CHANGED_CHANNEL,
+  VIEWER_NOTE_CHANGED_CHANNEL,
   hostContract,
   hostSignals,
   rpcContract,
   type AssetRefusal,
   type HostNote,
   type NoteChanged,
+  type ViewerNoteChanged,
 } from "./contract.js";
 import { editorFrameDocument, findEditorDirectory, loadEditorBundle } from "./editor-bundle.js";
 import { editorSaves } from "./editor-saves.js";
@@ -63,6 +65,10 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
   // A note changed outside bb: tell open editors, which compare the version with their own.
   host.experimental_onSignal("editorNoteChanged", ({ hostId, payload }) => {
     bb.realtime.publish(NOTE_CHANGED_CHANNEL, { hostId, ...payload } satisfies NoteChanged);
+  });
+  // A note a viewer shows changed on disk: tell its panels to read it again.
+  host.experimental_onSignal("viewerNoteChanged", ({ hostId, payload }) => {
+    bb.realtime.publish(VIEWER_NOTE_CHANGED_CHANNEL, { hostId, ...payload } satisfies ViewerNoteChanged);
   });
   const saves = editorSaves(bb);
   const shares = sharedNotes(bb);
@@ -175,6 +181,8 @@ export default async function plugin(bb: BbPluginApi): Promise<void> {
     },
     notes: async ({ hostId }) => ({ notes: (await host.call("listNotes", {}, { hostId })).notes }),
     openInMoss: ({ hostId, path }) => host.call("openInMoss", { path }, { hostId }),
+    revealNote: ({ hostId, path }) => host.call("revealNote", { path }, { hostId }),
+    watchNote: ({ hostId, path }) => host.call("watchNote", { path }, { hostId }),
     shareNote: (note) => ({ id: shares.share(note) }),
     // The editor's file bridge: every call goes to the note's host.
     editorRead: ({ hostId, ...input }) => host.call("editorRead", input, { hostId }),

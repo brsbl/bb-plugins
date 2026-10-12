@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
-import { assetHref, safeExternalUrl } from "./viewer-frame.js";
+import { VIEWER_NOTE_CHANGED_CHANNEL } from "./contract.js";
+import { VIEWER_NOTE_CHANGED, asViewerNoteChanged, assetHref, safeExternalUrl } from "./viewer-frame.js";
 
 it("opens only web and mail links from a note", () => {
   expect(safeExternalUrl("https://x.com/brsabel/status/1")).toBe("https://x.com/brsabel/status/1");
@@ -18,4 +19,12 @@ it("routes note-local media through the note's host and leaves web media alone",
   expect(assetHref("/asset", "mac", "/n.md", "https://pbs.twimg.com/a.jpg")).toBe("https://pbs.twimg.com/a.jpg");
   expect(assetHref("/asset", "mac", "/n.md", "moss-asset://a.png")).toBeNull();
   expect(assetHref("/asset", "mac", "/n.md", "javascript:alert(1)")).toBeNull();
+});
+
+it("reads the viewer's change relay from the server's channel, and nothing else", () => {
+  expect(VIEWER_NOTE_CHANGED).toBe(VIEWER_NOTE_CHANGED_CHANNEL);
+  expect(asViewerNoteChanged({ hostId: "mac", path: "/n/Plan.md", version: "v2" })).toEqual({ hostId: "mac", path: "/n/Plan.md", version: "v2" });
+  for (const payload of [null, "x", { hostId: "mac", path: "/n/Plan.md" }, { hostId: 1, path: "/n/Plan.md", version: "v2" }]) {
+    expect(asViewerNoteChanged(payload)).toBeNull();
+  }
 });

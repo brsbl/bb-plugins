@@ -15,6 +15,9 @@ const execFileAsync = promisify(execFile);
 /** Bounds every git and gh call so a hung remote cannot wedge the caller. */
 const COMMAND_TIMEOUT_MS = 60_000;
 
+/** Bounds the dependency install and bundle rebuild a publication runs. */
+const BUILD_TIMEOUT_MS = 10 * 60_000;
+
 export interface CorpusSource {
   /** Git repository that publishes the rule corpus. */
   repositoryRoot: string;
@@ -279,6 +282,16 @@ async function publish(
   directory: string,
   signal?: AbortSignal,
 ): Promise<string | null> {
+  // A batch can take minutes to write, and the base branch keeps moving; replay
+  // it onto the branch as it is now so the pull request never starts behind.
+  const base = await fetchedCommit(source, source.baseBranch, signal);
+  try {
+    await git(directory, ["rebase", "--quiet", base], signal);
+  } catch (error) {
+    await git(directory, ["rebase", "--abort"], signal).catch(() => undefined);
+    throw error;
+  }
+  await rebuildCommittedBundles(source, directory, signal);
   const head = await git(directory, ["rev-parse", "--short", "HEAD"], signal);
   const branch = `doctrine/${head}`;
   await git(
@@ -319,6 +332,43 @@ async function publish(
       signal,
     ).catch(() => undefined);
     throw error;
+  }
+}
+
+/**
+ * Rebuilds the plugin's committed bundles and folds any change into the head
+ * commit. The app stylesheet is generated from every file in the plugin, rule
+ * Markdown included, so adding or removing a rule can change it, and CI
+ * rejects a committed bundle that no longer matches a fresh build. Installing
+ * from the checkout's own lockfile makes the output match CI rather than
+ * whatever the publishing repository last installed.
+ */
+async function rebuildCommittedBundles(
+  source: CorpusSource,
+  directory: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const dist = join(source.prefix, "dist");
+  if (!(await git(directory, ["ls-files", "--", dist], signal))) return;
+  const options = {
+    encoding: "utf8",
+    timeout: BUILD_TIMEOUT_MS,
+    maxBuffer: 16 * 1024 * 1024,
+    signal,
+  } as const;
+  await execFileAsync(
+    "npm",
+    // bb runs plugins with NODE_ENV=production, which would skip the build tools.
+    ["ci", "--include=dev", "--ignore-scripts", "--prefer-offline", "--no-audit", "--no-fund", "--loglevel=error"],
+    { ...options, cwd: directory },
+  );
+  await execFileAsync("npm", ["run", "build", "--silent"], {
+    ...options,
+    cwd: join(directory, source.prefix),
+  });
+  await git(directory, ["add", "--update", "--", dist], signal);
+  if (await git(directory, ["diff", "--cached", "--name-only"], signal)) {
+    await git(directory, ["commit", "--quiet", "--amend", "--no-edit"], signal);
   }
 }
 
@@ -522,6 +572,7 @@ export async function withdrawRuleFile(
       );
       await git(directory, ["rm", "--quiet", "--", path], signal);
       await git(directory, ["commit", "--quiet", "-m", message], signal);
+      await rebuildCommittedBundles(source, directory, signal);
       await git(
         directory,
         ["push", "--quiet", "origin", `HEAD:refs/heads/${publication.branch}`],

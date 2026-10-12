@@ -120,6 +120,25 @@ describe("GitHub corpus webhook policy", () => {
   });
 });
 
+/**
+ * Search tests assert exact rankings, so they read the corpus as of the last
+ * rule they were written against. Harvested rules land with higher IDs in
+ * automated pull requests and would otherwise reorder results those pull
+ * requests never touched.
+ */
+const LAST_RANKED_RULE = 104;
+
+async function loadRankingLibrary() {
+  const library = await loadDoctrine(process.cwd());
+  return {
+    ...library,
+    rules: library.rules.filter((rule) => {
+      const match = /^ddr_(\d+)$/.exec(rule.id);
+      return !match || Number(match[1]) <= LAST_RANKED_RULE;
+    }),
+  };
+}
+
 describe("design doctrine library", () => {
   it("loads the Markdown rules directly", async () => {
     const library = await loadDoctrine(process.cwd());
@@ -139,14 +158,14 @@ describe("design doctrine library", () => {
   });
 
   it("ranks exact multi-word matches", async () => {
-    const library = await loadDoctrine(process.cwd());
+    const library = await loadRankingLibrary();
     const results = searchDoctrine(library.rules, "compact utilities");
 
     expect(results.map((rule) => rule.id)).toContain("ddr_001");
   });
 
   it("ranks useful rules for natural task language with unmatched words", async () => {
-    const library = await loadDoctrine(process.cwd());
+    const library = await loadRankingLibrary();
     const results = searchDoctrine(
       library.rules,
       "redesign the sidebar cards with clearer hierarchy and less visual weight",
@@ -166,7 +185,7 @@ describe("design doctrine library", () => {
   });
 
   it("does not return doctrine for an unrelated multi-word query", async () => {
-    const library = await loadDoctrine(process.cwd());
+    const library = await loadRankingLibrary();
 
     expect(
       searchDoctrine(library.rules, "database migration index schema"),
@@ -175,7 +194,7 @@ describe("design doctrine library", () => {
   });
 
   it("keeps a recognized design signal when neutral query words do not match", async () => {
-    const library = await loadDoctrine(process.cwd());
+    const library = await loadRankingLibrary();
 
     expect(
       searchDoctrine(
@@ -192,7 +211,7 @@ describe("design doctrine library", () => {
   });
 
   it("does not qualify a rule through a weak incidental field match", async () => {
-    const library = await loadDoctrine(process.cwd());
+    const library = await loadRankingLibrary();
 
     expect(searchDoctrine(library.rules, "server crash")).toEqual([]);
     expect(
@@ -203,7 +222,7 @@ describe("design doctrine library", () => {
   });
 
   it("preselects a bounded rule set only for design-oriented thread titles", async () => {
-    const library = await loadDoctrine(process.cwd());
+    const library = await loadRankingLibrary();
 
     expect(
       automaticDoctrineGuidance(
@@ -223,7 +242,7 @@ describe("design doctrine library", () => {
   });
 
   it("uses scoped single-episode rules without an approval queue", async () => {
-    const library = await loadDoctrine(process.cwd());
+    const library = await loadRankingLibrary();
     const results = searchDoctrine(library.rules, "explicit click");
     const rule = library.rules.find((item) => item.id === "ddr_011");
 

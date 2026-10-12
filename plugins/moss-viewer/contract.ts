@@ -37,15 +37,19 @@ const uploadId = z.string().regex(/^[0-9a-f]{32}$/);
 /** Base64 of at most one ASSET_CHUNK_BYTES chunk. */
 const chunkData = z.string().max(Math.ceil(ASSET_CHUNK_BYTES / 3) * 4);
 
-/** Signals from a host to the server: a note an editor watches changed on disk, outside bb. */
+/** Signals from a host to the server: a note an editor or viewer watches changed on disk, outside bb. */
 export const hostSignals = {
   editorNoteChanged: { payload: z.object({ noteId, change: externalChange }) },
+  viewerNoteChanged: { payload: z.object({ path: filePath, version: z.string() }) },
 };
 
 /** The realtime channel that relays `editorNoteChanged` to open editors. */
 export const NOTE_CHANGED_CHANNEL = "editor-note-changed";
 export const noteChanged = z.object({ hostId: id, noteId, change: externalChange });
 export type NoteChanged = z.infer<typeof noteChanged>;
+/** The realtime channel that relays `viewerNoteChanged` to panels showing the note read-only. */
+export const VIEWER_NOTE_CHANGED_CHANNEL = "viewer-note-changed";
+export type ViewerNoteChanged = { hostId: string; path: string; version: string };
 
 const assetReadResult = z.discriminatedUnion("ok", [
   z.object({
@@ -132,6 +136,8 @@ const noteFile = z.discriminatedUnion("moss", [
     layout: z.unknown(),
     noteId: id.nullable(),
     modifiedMs: z.number(),
+    /** The note's version on disk as read, in `watchNote`'s terms; absent from hosts older than live reload. */
+    version: z.string().optional(),
     /** An adopted note in ~/Moss/Notes on a volume this host can edit; see editor-host.ts. */
     editable: z.boolean(),
   }),
@@ -166,6 +172,15 @@ export const hostContract = defineRpcContract({
     input: z.object({ path: filePath }).strict(),
     output: z.object({ opened: z.literal(true) }).strict(),
   },
+  revealNote: {
+    input: z.object({ path: filePath }).strict(),
+    output: z.object({ revealed: z.literal(true) }).strict(),
+  },
+  /** Watches a note the viewer shows, for VIEWER_WATCH_LEASE_MS; renew to keep it, and compare the version. */
+  watchNote: {
+    input: z.object({ path: filePath }).strict(),
+    output: z.object({ version: z.string() }).strict(),
+  },
   ...editorHostMethods,
 });
 
@@ -178,6 +193,8 @@ const readResult = z.discriminatedUnion("moss", [
     layout: z.unknown(),
     noteId: id.nullable(),
     modifiedMs: z.number(),
+    /** The note's version on disk as read, in `watchNote`'s terms. */
+    version: z.string().optional(),
     /** The viewer's frame document. */
     frameUrl: z.string(),
     /** The sandboxed page each of the note's HTML blocks runs in. */
@@ -217,7 +234,15 @@ export const rpcContract = defineRpcContract({
     input: z.object({ hostId: id, path: filePath }).strict(),
     output: z.object({ opened: z.literal(true) }).strict(),
   },
-  /** Keeps a note (and the selection) for the mention Moss's Share with Agent puts in the panel's thread's composer. */
+  revealNote: {
+    input: z.object({ hostId: id, path: filePath }).strict(),
+    output: z.object({ revealed: z.literal(true) }).strict(),
+  },
+  watchNote: {
+    input: z.object({ hostId: id, path: filePath }).strict(),
+    output: z.object({ version: z.string() }).strict(),
+  },
+  /** Keeps a note (and the selection) for the mention Send to agent puts in the panel's thread's composer. */
   shareNote: {
     input: z
       .object({

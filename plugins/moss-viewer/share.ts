@@ -1,4 +1,4 @@
-// Share with Agent's shared names, for the panel and the server alike.
+// Send to agent's shared names, for the panel and the server alike.
 import type { MossSelection } from "./vendor/moss-editor.contract.js";
 
 /** The mention provider Share with Agent's composer pills resolve through. */

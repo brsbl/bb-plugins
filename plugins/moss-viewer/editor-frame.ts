@@ -97,3 +97,71 @@ export async function closeEditor(handle: Moss.MossEditorHandle, keep: KeepEdits
     await handle.unmount({ discardUnsaved: true });
   }
 }
+
+/** How long after the last keystroke the editor counts as idle, and may take a change from disk. */
+export const TYPING_IDLE_MS = 1_500;
+
+export interface TypingGate {
+  /** The user typed, pasted or composed in the editor. */
+  input(): void;
+  /** Runs `apply` now, or holds it (replacing any held change) until the user pauses. */
+  offer(apply: () => void): void;
+  /** Runs any held change now, as when the editor loses focus. */
+  flush(): void;
+  dispose(): void;
+}
+
+/**
+ * Holds changes from disk while the user is mid-edit: the editor has focus and
+ * they typed in the last TYPING_IDLE_MS, or edits are still unsaved. The latest
+ * held change goes in once they pause or leave the editor. A change that lands
+ * on unsaved edits is the editor's to settle: it asks, and never overwrites them.
+ */
+export function createTypingGate({
+  focused,
+  unsaved,
+  now = () => Date.now(),
+  idleMs = TYPING_IDLE_MS,
+}: {
+  focused(): boolean;
+  unsaved(): boolean;
+  now?: () => number;
+  idleMs?: number;
+}): TypingGate {
+  let lastInput = Number.NEGATIVE_INFINITY;
+  let held: (() => void) | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const editing = () => focused() && (now() - lastInput < idleMs || unsaved());
+  const run = () => {
+    clearTimeout(timer);
+    timer = undefined;
+    const apply = held;
+    held = null;
+    apply?.();
+  };
+  const check = () => {
+    timer = undefined;
+    if (held === null) return;
+    if (editing()) timer = setTimeout(check, idleMs / 3);
+    else run();
+  };
+  return {
+    input() {
+      lastInput = now();
+    },
+    offer(apply) {
+      if (!editing()) {
+        apply();
+        return;
+      }
+      held = apply;
+      if (timer === undefined) timer = setTimeout(check, idleMs / 3);
+    },
+    flush: run,
+    dispose() {
+      clearTimeout(timer);
+      timer = undefined;
+      held = null;
+    },
+  };
+}

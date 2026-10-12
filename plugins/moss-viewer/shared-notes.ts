@@ -1,5 +1,5 @@
-// Share with Agent: Moss's own button in the viewer or editor puts a mention
-// of the note in the panel's thread's composer, and the mention resolves at
+// Send to agent: the note panel's header button puts a mention of the note
+// in the panel's thread's composer, and the mention resolves at
 // send time to the note's path on its host plus the selection: its markdown,
 // its lines in the file, and the headings over it.
 import { randomUUID } from "node:crypto";
@@ -92,7 +92,7 @@ export function registerShareProvider(bb: BbPluginApi, shares: ReturnType<typeof
   bb.ui.registerMentionProvider({
     id: SHARE_PROVIDER,
     label: "Moss notes",
-    // Pills come only from Moss's Share with Agent button in the panel.
+    // Pills come only from the panel's Send to agent button.
     search: () => [],
     async resolve(id) {
       const note = shares.get(id);
