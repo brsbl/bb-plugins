@@ -354,8 +354,8 @@ export function NeedsYouBanner() {
     if (waitingKey) readQuestions();
     return () => inFlight.current?.abort();
   }, [readQuestions, waitingKey]);
-  // bb writes the needs-attention notice just after it marks the report as waiting.
-  useVisibleInterval(readQuestions, QUESTION_REFRESH_MS, waitingKey !== "");
+  // bb writes the needs-attention notice just after it marks the report as waiting, so re-read until it's there.
+  useVisibleInterval(readQuestions, QUESTION_REFRESH_MS, waiting.some((thread) => !questions.has(thread.id)));
 
   if (!threadId || waiting.length === 0) return null;
   return (
