@@ -1,6 +1,9 @@
 import { lookup as dnsLookup } from "node:dns/promises";
+import type { IncomingMessage } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { isIP, type LookupFunction } from "node:net";
+import type { Transform } from "node:stream";
+import { createBrotliDecompress, createGunzip, createInflate, createInflateRaw } from "node:zlib";
 import { PNG } from "pngjs";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { iconUrl } from "./url.js";
@@ -54,75 +57,166 @@ export function publicLookup(): LookupFunction {
     // resolution between policy validation and connection (DNS rebinding).
     void dnsLookup(hostname, { all: true, verbatim: true }).then((answers) => {
       if (!answers.length || answers.some(({ address }) => !isPublicAddress(address))) {
-        callback(new Error("Website address is not public"), "", 4);
+        callback(new WebsiteResourceError("Website address is not public", "url"), "", 4);
         return;
       }
       const selected = answers.find(({ family }) => family === 4) ?? answers[0]!;
       if (options.all) callback(null, [selected]);
       else callback(null, selected.address, selected.family);
-    }, () => callback(new Error("Website address is unavailable"), "", 4));
+    }, (error: unknown) => callback(new WebsiteResourceError("Website address is unavailable", "network", { cause: error }), "", 4));
   };
 }
 
 type Resource = { url: URL; body: Buffer; contentType: string };
 type Budget = { redirects: number };
+type Reply = { status: number; location?: string; contentType: string; body: Buffer };
+
+export type WebsiteResourceErrorReason = "http" | "too-large" | "encoding" | "redirect" | "url" | "network";
+
+/** Why a public resource could not be read; still a plain `Error` for callers that only need the message. */
+export class WebsiteResourceError extends Error {
+  override readonly name = "WebsiteResourceError";
+  readonly reason: WebsiteResourceErrorReason;
+  /** HTTP status of the failing response, when there was one. */
+  readonly status?: number;
+  /** Epoch milliseconds from a bounded `Retry-After` header. */
+  readonly retryAt?: number;
+  constructor(message: string, reason: WebsiteResourceErrorReason, details: { status?: number; retryAt?: number; cause?: unknown } = {}) {
+    super(message, details.cause === undefined ? undefined : { cause: details.cause });
+    this.reason = reason;
+    if (details.status !== undefined) this.status = details.status;
+    if (details.retryAt !== undefined) this.retryAt = details.retryAt;
+  }
+}
+
+const REDIRECT_STATUSES = [301, 302, 303, 307, 308];
+const RETRY_AFTER_MAX_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_ACCEPT = "image/png,image/x-icon,text/html;q=0.5,*/*;q=0.1";
+const DEFAULT_USER_AGENT = "BB-URL-Pills/0.1";
+
+/** Delay seconds or an HTTP date, clamped to now..now+24h; anything else is ignored. */
+function retryAfter(value: string | string[] | undefined, now = Date.now()): number | undefined {
+  if (typeof value !== "string" || value.length > 64) return undefined;
+  const text = value.trim();
+  let delay: number;
+  if (/^\d{1,10}$/.test(text)) delay = Number(text) * 1000;
+  else if (/ GMT$/.test(text) && Number.isFinite(Date.parse(text))) delay = Date.parse(text) - now;
+  else return undefined;
+  return now + Math.min(RETRY_AFTER_MAX_MS, Math.max(0, delay));
+}
+
+function headerValue(value: string): string {
+  if (!/^[\x20-\x7e]{1,512}$/.test(value)) throw new Error("Invalid website resource header");
+  return value;
+}
+
+/** Servers label raw DEFLATE as `deflate` too, so pick the inflater from the first bytes. */
+function contentDecoder(encoding: string, first: Buffer): Transform {
+  if (encoding === "br") return createBrotliDecompress();
+  if (encoding === "deflate") {
+    const zlibHeader = first.length < 2 || ((first[0]! & 0x0f) === 8 && ((first[0]! << 8) | first[1]!) % 31 === 0);
+    return zlibHeader ? createInflate() : createInflateRaw();
+  }
+  return createGunzip();
+}
 
 /**
  * No ambient HTTP client, shared agent, proxy credentials, cookies or referrer.
  * `truncate` keeps the first bytes of an oversized page, where <head> icon links live, instead of failing.
+ * `decodeCompressed` accepts gzip, deflate and Brotli; both the wire and decoded bytes stay within `maxBytes`.
  */
-export async function readPublicResource(input: URL, signal: AbortSignal, budget: Budget, { truncate = false } = {}): Promise<Resource> {
+export async function readPublicResource(input: URL, signal: AbortSignal, budget: Budget, {
+  truncate = false, maxBytes = ICON_LIMITS.inputBytes, accept = DEFAULT_ACCEPT, userAgent = DEFAULT_USER_AGENT, decodeCompressed = false,
+}: { truncate?: boolean; maxBytes?: number; accept?: string; userAgent?: string; decodeCompressed?: boolean } = {}): Promise<Resource> {
+  if (!Number.isInteger(maxBytes) || maxBytes <= 0 || maxBytes > 2 * 1024 * 1024) throw new Error("Invalid website resource limit");
+  const headers = { Accept: headerValue(accept), "Accept-Encoding": decodeCompressed ? "gzip, deflate, br" : "identity", "User-Agent": headerValue(userAgent) };
   let url = publicUrl(input.href);
-  if (!url) throw new Error("Website URL is not public HTTPS");
+  if (!url) throw new WebsiteResourceError("Website URL is not public HTTPS", "url");
   while (true) {
     signal.throwIfAborted();
     const current = url;
-    const response = await new Promise<{ status: number; location?: string; contentType: string; body: Buffer }>((resolve, reject) => {
-      const request = httpsRequest(current, {
-        agent: false,
-        lookup: publicLookup(),
-        signal,
-        headers: { Accept: "image/png,image/x-icon,text/html;q=0.5,*/*;q=0.1", "Accept-Encoding": "identity", "User-Agent": "BB-URL-Pills/0.1" },
-      }, (reply) => {
-        const status = reply.statusCode ?? 0;
-        if ([301, 302, 303, 307, 308].includes(status)) {
-          reply.resume();
-          resolve({ status, location: reply.headers.location, contentType: "", body: Buffer.alloc(0) });
-          reply.destroy();
+    const response = await new Promise<Reply>((resolve, reject) => {
+      let reply: IncomingMessage | undefined;
+      let decoder: Transform | undefined;
+      let settled = false;
+      // Every exit releases the socket, response and decompressor together.
+      const settle = (error: unknown, result?: Reply) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", abort);
+        decoder?.destroy();
+        reply?.destroy();
+        if (result) resolve(result);
+        else { request.destroy(); reject(error); }
+      };
+      const abort = () => settle(signal.reason);
+      const failure = (message: string) => (error?: unknown) => settle(signal.aborted ? signal.reason :
+        error instanceof WebsiteResourceError ? error : new WebsiteResourceError(message, "network", { cause: error }));
+      const tooLarge = () => new WebsiteResourceError("Website resource is too large", "too-large");
+      const request = httpsRequest(current, { agent: false, lookup: publicLookup(), signal, headers }, (incoming) => {
+        reply = incoming;
+        const status = incoming.statusCode ?? 0;
+        if (REDIRECT_STATUSES.includes(status)) {
+          settle(null, { status, location: incoming.headers.location, contentType: "", body: Buffer.alloc(0) });
           return;
         }
-        if (status < 200 || status >= 300 ||
-          (reply.headers["content-encoding"] && reply.headers["content-encoding"] !== "identity") ||
-          (!truncate && Number(reply.headers["content-length"] ?? 0) > ICON_LIMITS.inputBytes)) {
-          reply.destroy();
-          reject(new Error("Website resource is unavailable"));
+        if (status < 200 || status >= 300) {
+          settle(new WebsiteResourceError("Website resource is unavailable", "http", { status, retryAt: retryAfter(incoming.headers["retry-after"]) }));
           return;
         }
-        const contentType = String(reply.headers["content-type"] ?? "");
+        const encoding = String(incoming.headers["content-encoding"] ?? "").trim().toLowerCase().replace(/^x-gzip$/, "gzip");
+        const compressed = encoding !== "" && encoding !== "identity";
+        if (compressed && !(decodeCompressed && ["gzip", "deflate", "br"].includes(encoding))) {
+          settle(new WebsiteResourceError("Website resource is unavailable", "encoding"));
+          return;
+        }
+        if (!truncate && Number(incoming.headers["content-length"] ?? 0) > maxBytes) { settle(tooLarge()); return; }
+        const contentType = String(incoming.headers["content-type"] ?? "");
         const chunks: Buffer[] = [];
-        let bytes = 0;
-        reply.on("data", (chunk: Buffer) => {
-          bytes += chunk.length;
-          if (bytes > ICON_LIMITS.inputBytes) {
-            if (!truncate) { request.destroy(new Error("Website resource is too large")); return; }
-            chunks.push(chunk.subarray(0, chunk.length - (bytes - ICON_LIMITS.inputBytes)));
-            resolve({ status, body: Buffer.concat(chunks), contentType });
-            reply.destroy();
+        let wire = 0;
+        let decoded = 0;
+        const finish = () => settle(null, { status, body: Buffer.concat(chunks), contentType });
+        const keep = (chunk: Buffer) => {
+          if (settled) return;
+          decoded += chunk.length;
+          if (decoded > maxBytes) {
+            if (!truncate) { settle(tooLarge()); return; }
+            chunks.push(chunk.subarray(0, chunk.length - (decoded - maxBytes)));
+            finish();
             return;
           }
           chunks.push(chunk);
+        };
+        incoming.on("data", (chunk: Buffer) => {
+          if (settled) return;
+          if (!compressed) { keep(chunk); return; }
+          wire += chunk.length;
+          // Stop reading compressed input at the budget; a truncated page keeps what has decoded so far.
+          if (wire > maxBytes) { if (truncate) finish(); else settle(tooLarge()); return; }
+          if (!decoder) {
+            decoder = contentDecoder(encoding, chunk);
+            decoder.on("data", keep);
+            decoder.on("end", finish);
+            decoder.on("error", (error) => settle(signal.aborted ? signal.reason : new WebsiteResourceError("Website resource encoding is invalid", "encoding", { cause: error })));
+          }
+          decoder.write(chunk);
         });
-        reply.on("end", () => resolve({ status, body: Buffer.concat(chunks), contentType }));
-        reply.on("error", reject);
-        reply.on("aborted", () => reject(new Error("Website resource was interrupted")));
+        incoming.on("end", () => { if (decoder) decoder.end(); else finish(); });
+        incoming.on("error", failure("Website resource was interrupted"));
+        incoming.on("aborted", failure("Website resource was interrupted"));
       });
-      request.on("error", reject);
+      request.on("error", failure("Website resource is unreachable"));
+      if (signal.aborted) abort();
+      else signal.addEventListener("abort", abort, { once: true });
       request.end();
     });
-    if (response.location !== undefined && [301, 302, 303, 307, 308].includes(response.status)) {
-      if (++budget.redirects > ICON_LIMITS.redirects) throw new Error("Too many website redirects");
-      url = publicUrl(new URL(response.location, current).href);
-      if (!url) throw new Error("Website redirect is not public HTTPS");
+    if (REDIRECT_STATUSES.includes(response.status)) {
+      if (response.location === undefined) throw new WebsiteResourceError("Website redirect has no location", "redirect", { status: response.status });
+      if (++budget.redirects > ICON_LIMITS.redirects) throw new WebsiteResourceError("Too many website redirects", "redirect", { status: response.status });
+      let next: URL | null = null;
+      try { next = publicUrl(new URL(response.location, current).href); } catch { /* Reported below. */ }
+      if (!next) throw new WebsiteResourceError("Website redirect is not public HTTPS", "redirect", { status: response.status });
+      url = next;
       continue;
     }
     return { url: current, body: response.body, contentType: response.contentType };
