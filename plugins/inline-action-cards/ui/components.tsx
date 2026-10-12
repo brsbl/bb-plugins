@@ -65,11 +65,12 @@ export function NoteField({ value, onChange, disabled, placeholder = "Add a note
   const edit = () => { saved.current = value; setEditing(true); };
   const cancel = () => { onChange(saved.current); setEditing(false); };
   const save = () => { onChange(value.trim()); setEditing(false); };
-  // Sent or cleared from outside (for example by Submit): close the empty editor.
-  useEffect(() => { if (editing && !value && document.activeElement !== ref.current) setEditing(false); }, [editing, value]);
+  // Cleared from outside (for example once Submit sends it), not by typing: close the empty editor.
+  const typed = useRef(value);
+  useEffect(() => { if (editing && !value && typed.current !== value) setEditing(false); typed.current = value; }, [editing, value]);
   if (editing) return <div className="ac-note-editor">
     <textarea ref={ref} className="ac-note-input" aria-label="Note" placeholder={placeholder} value={value} rows={2} maxLength={1000} disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => { typed.current = event.target.value; onChange(event.target.value); }}
       onKeyDown={(event) => {
         if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save(); }
         else if (event.key === "Escape") { event.preventDefault(); cancel(); }
