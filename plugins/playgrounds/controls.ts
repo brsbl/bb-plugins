@@ -1,6 +1,11 @@
 // The Playgrounds component kit, for apps a person uses together with the agent.
-// Layers: 0 tokens · 1 primitives and behaviors · 2 controls bound to named
-// parameters · 3 patterns (bank, keyboard, pads, steps, presets, transport).
+// Base library, for any app:
+//   0 tokens · 1 primitives and behaviors ·
+//   2 controls bound to named parameters (field, select, segmented, slider, dial,
+//     stepper, toggle, tabs, list, picker, board) and outputs (readouts, table,
+//     chart, meter, badge) ·
+//   3 patterns (form, banks, presets, toolbar, agent lane, conditional panels).
+// Optional sets on top: music (keyboard, pads, step sequencer, scope, record/send).
 // Whole apps are built from these in the skill's references, not here.
 //
 // Controls are declared in markup (`<div data-pg="dial" data-param="cutoff" …>`).
@@ -73,6 +78,78 @@ export const CONTROLS_CSS = String.raw`
 [data-pg="send"]:disabled { display: none; }
 .pg-record[aria-pressed=true] .pg-dot { animation: pg-blink 1s ease-in-out infinite alternate; }
 
+.pg-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 16px; }
+.pg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pg-toolbar > .pg-spacer { flex: 1; }
+.pg-field { position: relative; display: grid; gap: 5px; min-width: 0; font-size: 11px; line-height: 1.3; font-weight: 500; color: var(--pg-ink); }
+.pg-box { position: relative; display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border-radius: var(--pg-radius-control); background: var(--card); box-shadow: var(--pg-edge); }
+.pg-box:focus-within { outline: 2px solid var(--ring); outline-offset: 1px; }
+.pg-box input, .pg-box select { flex: 1; min-width: 0; height: 30px; padding: 0; border: 0; background: none; outline: none; font-size: 12.5px; font-weight: 400; color: var(--pg-ink); font-variant-numeric: tabular-nums; -webkit-appearance: none; appearance: none; }
+.pg-box select { padding-right: 14px; cursor: pointer; }
+.pg-box.pg-menu::after { content: ""; position: absolute; right: 11px; top: 50%; width: 5px; height: 5px; margin-top: -4px; border: solid var(--pg-meta); border-width: 0 1.4px 1.4px 0; transform: rotate(45deg); pointer-events: none; }
+.pg-unit { flex-shrink: 0; white-space: nowrap; font-size: 11px; font-weight: 400; color: var(--pg-meta); }
+.pg-field > small { font-size: 10.5px; font-weight: 400; color: var(--pg-meta); }
+.pg-slider { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; align-items: baseline; font-size: 11px; font-weight: 500; color: var(--pg-ink); }
+.pg-slider output { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-slider input { grid-column: 1 / -1; width: 100%; height: 18px; margin: 0; accent-color: var(--pg-c); }
+.pg-tabs { position: relative; display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 999px; box-shadow: var(--pg-edge); background: var(--card); width: max-content; max-width: 100%; }
+.pg-tabs button { padding: 5px 11px; border: 0; border-radius: 999px; background: transparent; font-size: 11.5px; color: var(--pg-meta); white-space: nowrap; }
+.pg-tabs button[aria-selected=true] { background: var(--pg-ink); color: var(--card); font-weight: 500; }
+.pg-list { position: relative; display: grid; gap: 4px; }
+.pg-list button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--pg-radius-control); background: var(--card); box-shadow: var(--pg-edge); text-align: left; font-size: 12px; color: var(--pg-ink); }
+.pg-list button small { font-size: 11px; color: var(--pg-meta); }
+.pg-list button[aria-pressed=true] { box-shadow: inset 0 0 0 1.5px var(--pg-ink); font-weight: 500; }
+.pg-readouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 0; }
+.pg-readouts > div { min-width: 0; padding: 10px 12px; border-radius: var(--pg-radius-group); background: var(--card); box-shadow: var(--pg-edge); }
+.pg-readouts dt { font-size: 10.5px; line-height: 1.3; color: var(--pg-meta); }
+.pg-readouts dd { margin: 3px 0 0; font-size: 18px; line-height: 1.2; font-weight: 500; letter-spacing: -.01em; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
+.pg-readouts dd small { display: block; margin-top: 2px; font-size: 10.5px; font-weight: 400; letter-spacing: 0; color: var(--pg-meta); }
+.pg-readouts > [data-answer] { background: var(--pg-stage); box-shadow: none; }
+.pg-readouts > [data-answer] dt { color: var(--pg-ink); font-weight: 500; }
+.pg-readouts > [data-answer] dd { font-size: 22px; }
+.pg-readouts > [data-tone=good] dd { color: var(--pg-good); }
+.pg-readouts > [data-tone=bad] dd { color: var(--pg-bad); }
+.pg-readouts > [data-tone=warn] dd { color: var(--pg-warn); }
+.pg-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--pg-hairline); background: var(--card); font-size: 10.5px; line-height: 1.4; font-weight: 500; white-space: nowrap; color: var(--pg-ink); }
+.pg-badge[data-tone]:not([data-tone=""]) { border-color: transparent; }
+.pg-badge[data-tone=good] { color: var(--pg-good); background: color-mix(in srgb, var(--pg-good) 12%, var(--card)); }
+.pg-badge[data-tone=bad] { color: var(--pg-bad); background: color-mix(in srgb, var(--pg-bad) 12%, var(--card)); }
+.pg-badge[data-tone=warn] { color: var(--pg-warn); background: color-mix(in srgb, var(--pg-warn) 14%, var(--card)); }
+.pg-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pg-table th { padding: 0 8px 6px; text-align: left; font-size: 10.5px; font-weight: 400; color: var(--pg-meta); }
+.pg-table td { padding: 7px 8px; border-top: 1px solid var(--pg-hairline); color: var(--pg-ink); }
+.pg-table th:first-child, .pg-table td:first-child { padding-left: 0; }
+.pg-table [data-num] { text-align: right; }
+.pg-table tr[aria-current] td { font-weight: 500; }
+.pg-chart { display: block; width: 100%; height: auto; overflow: visible; font-size: 10.5px; }
+.pg-chart text { fill: var(--pg-meta); font-variant-numeric: tabular-nums; }
+.pg-chart .grid { stroke: var(--pg-hairline); }
+.pg-chart .axis { stroke: color-mix(in srgb, var(--foreground) 22%, var(--card)); }
+.pg-chart .series { fill: none; stroke: var(--pg-ink); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.pg-chart .series[data-tone=accent] { stroke: var(--pg-accent); }
+.pg-chart .series[data-tone=meta] { stroke: var(--pg-meta); }
+.pg-chart .series[data-dashed] { stroke-dasharray: 4 3; }
+.pg-chart .area { fill: color-mix(in srgb, var(--pg-ink) 8%, transparent); }
+.pg-chart .bar { fill: var(--pg-ink); }
+.pg-chart .bar[data-tone=accent] { fill: var(--pg-accent); }
+.pg-chart .bar[data-tone=meta] { fill: color-mix(in srgb, var(--foreground) 22%, var(--card)); }
+.pg-chart .mark { stroke: var(--pg-bad); stroke-dasharray: 3 3; }
+.pg-chart .mark-label { fill: var(--pg-bad); font-weight: 500; }
+.pg-chart .now { stroke: var(--pg-ink); }
+.pg-chart .now-dot { fill: var(--pg-ink); stroke: var(--card); stroke-width: 2; }
+.pg-chart .label { fill: var(--pg-ink); font-weight: 500; }
+.pg-board { position: relative; display: grid; grid-template-columns: repeat(var(--pg-board-cols, 3), minmax(0, 1fr)); gap: 6px; padding: 8px; border-radius: 12px; background: var(--pg-board, var(--pg-stage)); }
+.pg-board button { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-width: 0; padding: 0; border: 0; border-radius: var(--pg-cell-radius, 8px); background: var(--pg-cell, var(--card)); box-shadow: inset 0 1px 2px color-mix(in srgb, var(--foreground) 18%, transparent); font-size: 18px; font-weight: 600; color: var(--pg-ink); cursor: pointer; }
+.pg-board[data-shape=round] { --pg-cell-radius: 50%; }
+.pg-board button > i { position: absolute; inset: 8%; border-radius: inherit; background: var(--piece); box-shadow: inset 0 -3px 0 color-mix(in srgb, #000 18%, transparent); animation: pg-drop .28s var(--pg-ease, ease-out) both; }
+.pg-board button > b { position: relative; }
+.pg-board button[data-last] { outline: 2px solid var(--pg-ink); outline-offset: -2px; }
+@keyframes pg-drop { from { transform: translateY(-40%); opacity: 0; } }
+.pg-agent { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 2px 9px; align-items: start; padding: 9px 12px; border-radius: var(--pg-radius-group); background: var(--card); box-shadow: var(--pg-edge); font-size: 12px; line-height: 1.45; color: var(--pg-body); }
+.pg-agent::before { content: ""; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, var(--card) 0 2.5px, transparent 3px), var(--pg-ink); }
+.pg-agent[data-fresh] { animation: pg-fresh .6s ease-out; }
+@keyframes pg-fresh { from { box-shadow: inset 0 0 0 1.5px var(--pg-ink); } }
+[data-show][hidden] { display: none !important; }
 .pg-bank { display: flex; justify-content: space-around; align-items: center; gap: 4px; }
 .pg-banks { display: grid; grid-template-columns: var(--cols, 1fr 1fr); gap: 10px; }
 .pg-banks + .pg-banks, .pg-surface > * + * { margin-top: 10px; }
@@ -175,6 +252,8 @@ export const CONTROLS_RUNTIME = String.raw`
   function valid(s, v) {
     if (s.options) return s.options.some((o) => o.value === v) ? v : s.default;
     if (s.type === "toggle") return Boolean(v);
+    if (s.type === "text") return String(v ?? "").slice(0, s.maxLength || 200);
+    if (s.type === "board") return Array.isArray(v) && v.length === s.rows && v.every((r) => Array.isArray(r) && r.length === s.cols) ? v.map((r) => r.map((c) => (typeof c === "string" ? c.slice(0, 12) : ""))) : s.default;
     if (s.type === "grid") return Array.isArray(v) && v.length === s.rows && v.every((r) => Array.isArray(r) && r.length === s.steps) ? v.map((r) => r.map(Boolean)) : s.default;
     const n = Number(v);
     if (!Number.isFinite(n)) return s.default;
@@ -185,6 +264,8 @@ export const CONTROLS_RUNTIME = String.raw`
     if (!/^[A-Za-z][\w-]*$/.test(name)) throw new Error("Parameter names are letters, digits, - and _: " + name);
     const s = { label: name, ...spec };
     if (s.type === "grid") s.default = s.default || Array.from({ length: s.rows }, () => Array(s.steps).fill(false));
+    else if (s.type === "board") s.default = Array.isArray(s.default) ? s.default : Array.from({ length: s.rows }, () => Array(s.cols).fill(""));
+    else if (s.type === "text") s.default = s.default === undefined ? "" : String(s.default);
     else if (s.type !== "toggle" && !s.options) { s.min = Number(s.min ?? 0); s.max = Number(s.max ?? 1); }
     if (s.default === undefined) s.default = s.options ? s.options[0].value : s.type === "toggle" ? false : s.min;
     specs[name] = s;
@@ -203,15 +284,23 @@ export const CONTROLS_RUNTIME = String.raw`
     if (JSON.stringify(next) === JSON.stringify(values[name])) return next;
     values[name] = next;
     fire("change", { name, value: next, from: from || "user" });
-    if (from === "agent") flag(name);
+    if (from === "agent") { flag(name); lane("Set " + s.label + " to " + (s.type === "board" || s.type === "grid" ? "a new layout" : format(next, s)) + "."); }
+    showWhen();
     if (from !== "remote") persist();
     record("change", { name, value: next, from });
     return next;
   }
+  // A card's own script runs as soon as the parser reaches it, before DOMContentLoaded.
+  // Reading or writing anything hydrates the controls parsed so far, so its first read
+  // already sees every control declared above it.
+  const ready = () => { if (document.body) hydrate(document); };
   const params = Object.freeze({
-    define, set: (name, value) => set(name, value, "user"),
-    get: (name) => values[name], all: () => ({ ...values }), spec: (name) => specs[name],
-    format: (name, v) => format(v === undefined ? values[name] : v, specs[name] || {}),
+    define: (name, spec) => { ready(); return define(name, spec); },
+    set: (name, value) => { ready(); return set(name, value, "user"); },
+    get: (name) => { ready(); return values[name]; },
+    all: () => { ready(); return { ...values }; },
+    spec: (name) => { ready(); return specs[name]; },
+    format: (name, v) => { ready(); return format(v === undefined ? values[name] : v, specs[name] || {}); },
     on: (fn) => on("change", fn),
   });
   function flag(name) {
@@ -277,6 +366,7 @@ export const CONTROLS_RUNTIME = String.raw`
       agentTimers.push(setTimeout(() => release(id, "agent"), Math.max(0, (Number(start) + Math.max(.05, Number(length) || .5)) * beat * 1000)));
     }
     const seconds = list.reduce((m, [, s, l]) => Math.max(m, (Number(s) + (Number(l) || .5)) * beat), 0);
+    lane("Played " + list.length + (list.length === 1 ? " note." : " notes."));
     const audible = audioReady();
     unheard = audible ? null : [list, bpm];
     if (!audible) for (const kb of document.querySelectorAll('[data-pg="keyboard"],[data-pg="pads"]')) kb.__gesture?.();
@@ -302,6 +392,82 @@ export const CONTROLS_RUNTIME = String.raw`
   }
   const ARC = (t) => { const a0 = -225 * Math.PI / 180, a = a0 + t * 270 * Math.PI / 180, r = 15, p = (g) => (19 + r * Math.cos(g)).toFixed(2) + " " + (19 + r * Math.sin(g)).toFixed(2); return "M " + p(a0) + " A " + r + " " + r + " 0 " + (t > 2 / 3 ? 1 : 0) + " 1 " + p(a); };
   const BUILD = {
+    field(el, name) {
+      const s = specs[name];
+      el.classList.add("pg-field");
+      el.innerHTML = '<span></span><span class="pg-box"><input><span class="pg-unit"></span></span>';
+      el.firstChild.textContent = s.label;
+      const input = el.querySelector("input"), unit = el.querySelector(".pg-unit");
+      input.setAttribute("aria-label", s.label);
+      if (s.type === "text") { input.type = "text"; if (el.dataset.placeholder) input.placeholder = el.dataset.placeholder; }
+      else { input.type = "number"; input.inputMode = "decimal"; input.min = String(s.min); input.max = String(s.max); input.step = String(s.step || "any"); }
+      const prefix = attr(el, "prefix", "");
+      if (prefix) { const p = document.createElement("span"); p.className = "pg-unit"; p.textContent = prefix; input.before(p); }
+      unit.textContent = s.type === "text" ? "" : s.unit || "";
+      if (!unit.textContent) unit.remove();
+      if (el.dataset.help) { const h = document.createElement("small"); h.textContent = el.dataset.help; el.append(h); }
+      input.addEventListener("change", () => set(name, s.type === "text" ? input.value : Number(input.value)));
+      input.addEventListener("input", () => { if (s.type === "text") return; const n = Number(input.value); if (input.value !== "" && Number.isFinite(n) && n >= s.min && n <= s.max) set(name, n); });
+      return () => { if (document.activeElement !== input) input.value = String(values[name]); };
+    },
+    select(el, name) {
+      const s = specs[name];
+      el.classList.add("pg-field");
+      el.innerHTML = '<span></span><span class="pg-box pg-menu"><select></select></span>';
+      el.firstChild.textContent = s.label;
+      const select = el.querySelector("select"); select.setAttribute("aria-label", s.label);
+      for (const o of s.options) { const opt = document.createElement("option"); opt.value = o.value; opt.textContent = o.label; select.append(opt); }
+      select.onchange = () => set(name, select.value);
+      return () => { select.value = values[name]; };
+    },
+    slider(el, name) {
+      const s = specs[name];
+      el.classList.add("pg-slider");
+      el.innerHTML = '<span></span><output></output><input type="range" min="0" max="1000" step="1">';
+      el.firstChild.textContent = s.label;
+      const input = el.querySelector("input"); input.setAttribute("aria-label", s.label);
+      input.addEventListener("input", () => set(name, denorm(s, Number(input.value) / 1000)));
+      return () => { input.value = String(Math.round(norm(s, values[name]) * 1000)); el.querySelector("output").textContent = format(values[name], s); };
+    },
+    tabs(el, name) {
+      const s = specs[name];
+      el.classList.add("pg-tabs"); el.setAttribute("role", "tablist"); el.setAttribute("aria-label", s.label);
+      el.innerHTML = s.options.map(() => '<button type="button" role="tab"></button>').join("");
+      [...el.children].forEach((b, i) => { b.textContent = s.options[i].label; b.onclick = () => set(name, s.options[i].value); });
+      el.addEventListener("keydown", (e) => { const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key]; if (!d) return; e.preventDefault(); const i = s.options.findIndex((o) => o.value === values[name]); const n = s.options[(i + d + s.options.length) % s.options.length]; set(name, n.value); el.querySelector('[aria-selected="true"]')?.focus(); });
+      return () => [...el.children].forEach((b, i) => { const on = s.options[i].value === values[name]; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
+    },
+    list(el, name) {
+      const s = specs[name];
+      el.classList.add("pg-list"); el.setAttribute("role", "group"); el.setAttribute("aria-label", s.label);
+      const notes = attr(el, "notes", "").split("|");
+      el.innerHTML = s.options.map(() => '<button type="button" aria-pressed="false"><span></span><small></small></button>').join("");
+      [...el.children].forEach((b, i) => { b.firstChild.textContent = s.options[i].label; b.lastChild.textContent = notes[i] || ""; b.onclick = () => set(name, s.options[i].value); });
+      return () => [...el.children].forEach((b, i) => b.setAttribute("aria-pressed", String(s.options[i].value === values[name])));
+    },
+    board(el, name) {
+      const s = specs[name];
+      el.classList.add("pg-board"); el.setAttribute("role", "grid"); el.setAttribute("aria-label", s.label);
+      el.style.setProperty("--pg-board-cols", String(s.cols));
+      const pieces = Object.fromEntries(attr(el, "pieces", "").split(",").filter(Boolean).map((p) => { const [key, color, label] = p.split(":"); return [key.trim(), { color: (color || "").trim(), label: (label || key).trim() }]; }));
+      el.innerHTML = Array.from({ length: s.rows * s.cols }, (_, i) => '<button type="button" data-r="' + Math.floor(i / s.cols) + '" data-c="' + (i % s.cols) + '"></button>').join("");
+      el.onclick = (e) => { const b = e.target.closest("button"); if (b) choose(name, +b.dataset.r, +b.dataset.c, "user"); };
+      let previous = null;
+      return () => {
+        const grid = values[name];
+        el.querySelectorAll("button").forEach((b) => {
+          const r = +b.dataset.r, c = +b.dataset.c, v = grid[r][c], p = pieces[v];
+          const key = v + "|" + (p ? p.color : "");
+          if (b.__key === key) return;
+          b.__key = key; b.innerHTML = "";
+          if (v && p && p.color) { const i = document.createElement("i"); i.style.setProperty("--piece", p.color); b.append(i); }
+          else if (v) { const t = document.createElement("b"); t.textContent = p ? p.label : v; b.append(t); }
+          b.setAttribute("aria-label", "Row " + (r + 1) + ", column " + (c + 1) + (v ? ", " + (p ? p.label : v) : ", empty"));
+        });
+        if (previous) for (let r = 0; r < s.rows; r++) for (let c = 0; c < s.cols; c++) if (previous[r][c] !== grid[r][c]) { el.querySelector("[data-last]")?.removeAttribute("data-last"); el.querySelector('[data-r="' + r + '"][data-c="' + c + '"]').setAttribute("data-last", ""); }
+        previous = grid.map((row) => row.slice());
+      };
+    },
     dial(el, name) {
       const s = specs[name];
       el.classList.add("pg-dial"); el.tabIndex = 0; el.setAttribute("role", "slider"); el.setAttribute("aria-label", s.label);
@@ -454,6 +620,104 @@ export const CONTROLS_RUNTIME = String.raw`
     el.__scope = { draw, attach(node) { analyser = node; buf = new Float32Array(node.fftSize); requestAnimationFrame(loop); }, readout(text) { const o = el.querySelector("output"); if (o) o.textContent = text; } };
     draw(null);
   }
+  // Outputs: values the app computes and shows. The agent reads them with read().
+  const outputs = {};
+  function readouts(el) {
+    if (el.tagName !== "DL") el.setAttribute("role", "list");
+    el.classList.add("pg-readouts");
+    for (const item of el.querySelectorAll("[data-readout]")) {
+      if (!item.querySelector("dt")) { const dt = document.createElement("dt"); dt.textContent = attr(item, "label", item.dataset.readout); item.prepend(dt); }
+      if (!item.querySelector("dd")) item.append(document.createElement("dd"));
+    }
+  }
+  function show(name, value, opts) {
+    const o = opts || {};
+    outputs[name] = { value, note: o.note || null, tone: o.tone || null };
+    for (const item of document.querySelectorAll('[data-readout="' + name + '"]')) {
+      const dd = item.querySelector("dd") || item.appendChild(document.createElement("dd"));
+      dd.textContent = typeof value === "number" ? format(value, { unit: attr(item, "unit", ""), step: num(item, "step", undefined) }) : String(value);
+      if (o.note) { const sm = document.createElement("small"); sm.textContent = o.note; dd.append(sm); }
+      if (o.tone) item.dataset.tone = o.tone; else delete item.dataset.tone;
+    }
+  }
+  function table(name, data) {
+    const el = document.querySelector('[data-pg="table"][data-name="' + name + '"]');
+    if (!el) return;
+    const t = document.createElement("table"); t.className = "pg-table";
+    const head = t.createTHead().insertRow();
+    for (const col of data.columns || []) { const th = document.createElement("th"); th.textContent = col.label || col; if (col.num) th.dataset.num = ""; head.append(th); }
+    const body = t.createTBody();
+    (data.rows || []).forEach((row, i) => {
+      const tr = body.insertRow(); if (data.current === i) tr.setAttribute("aria-current", "true");
+      row.forEach((cell, j) => { const td = tr.insertCell(); td.textContent = typeof cell === "number" ? format(cell, { unit: (data.columns[j] || {}).unit || "", step: (data.columns[j] || {}).step }) : String(cell ?? ""); if ((data.columns[j] || {}).num) td.dataset.num = ""; });
+    });
+    el.replaceChildren(t);
+    outputs[name] = { value: { columns: (data.columns || []).map((c) => c.label || c), rows: data.rows || [] } };
+  }
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const svgEl = (n, a, text) => { const e = document.createElementNS(SVGNS, n); for (const [k, v] of Object.entries(a || {})) if (v !== undefined && v !== false) e.setAttribute(k, String(v)); if (text !== undefined) e.textContent = text; return e; };
+  function niceTicks(min, max, count) {
+    const span = max - min; if (!(span > 0)) return [min];
+    const raw = span / count, p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 5, 10].map((m) => m * p).find((x) => span / x <= count) || p * 10;
+    const out = []; for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-9; v += step) out.push(Number(v.toFixed(10))); return out;
+  }
+  // chart(name, { x: { min, max, format }, y: { min, max, format }, series: [{ points, kind, tone, label, dashed }], marks: [{ y, label }], now })
+  function chart(name, spec) {
+    const el = document.querySelector('[data-pg="chart"][data-name="' + name + '"]');
+    if (!el) return;
+    const svg = el.tagName.toLowerCase() === "svg" ? el : el.querySelector("svg") || el.appendChild(svgEl("svg"));
+    const W = spec.width || 480, H = spec.height || 160, pad = { l: 40, r: 56, t: 10, b: 20 };
+    const all = (spec.series || []).flatMap((s) => s.points.map((p) => p[1])).filter(Number.isFinite);
+    const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...all), y1 = spec.y && spec.y.max !== undefined ? spec.y.max : Math.max(1, ...all);
+    const xs = (spec.series || []).flatMap((s) => s.points.map((p) => p[0]));
+    const x0 = spec.x && spec.x.min !== undefined ? spec.x.min : Math.min(...xs), x1 = spec.x && spec.x.max !== undefined ? spec.x.max : Math.max(...xs);
+    const yt = niceTicks(y0, y1, 3), yTop = Math.max(y1, yt.at(-1));
+    const sx = (v) => pad.l + (v - x0) / ((x1 - x0) || 1) * (W - pad.l - pad.r), sy = (v) => H - pad.b - (v - y0) / ((yTop - y0) || 1) * (H - pad.t - pad.b);
+    const fx = (spec.x && spec.x.format) || ((v) => format(v, {})), fy = (spec.y && spec.y.format) || ((v) => format(v, {}));
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.classList.add("pg-chart"); svg.replaceChildren();
+    for (const v of yt) { svg.append(svgEl("line", { class: v === y0 ? "axis" : "grid", x1: pad.l, x2: W - pad.r, y1: sy(v), y2: sy(v) })); svg.append(svgEl("text", { x: pad.l - 6, y: sy(v) + 3.5, "text-anchor": "end" }, fy(v))); }
+    const xt = niceTicks(x0, x1, 4);
+    xt.forEach((v, i) => svg.append(svgEl("text", { x: sx(v), y: H - 5, "text-anchor": i === 0 ? "start" : i === xt.length - 1 ? "end" : "middle" }, fx(v))));
+    const labels = [];
+    for (const s of spec.series || []) {
+      const pts = s.points.filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+      if (!pts.length) continue;
+      if (s.kind === "bars") { const w = Math.max(2, (W - pad.l - pad.r) / pts.length * .7); for (const [x, y] of pts) svg.append(svgEl("rect", { class: "bar", "data-tone": s.tone, x: sx(x) - w / 2, y: sy(Math.max(y, y0)), width: w, height: Math.max(0, sy(y0) - sy(y)), rx: 2 })); continue; }
+      let d = ""; pts.forEach(([x, y], i) => { d += i === 0 ? "M" + sx(x).toFixed(1) + " " + sy(y).toFixed(1) : s.kind === "step" ? "H" + sx(x).toFixed(1) + "V" + sy(y).toFixed(1) : "L" + sx(x).toFixed(1) + " " + sy(y).toFixed(1); });
+      if (s.kind === "area") svg.append(svgEl("path", { class: "area", d: d + "V" + sy(y0) + "H" + sx(pts[0][0]).toFixed(1) + "Z" }));
+      svg.append(svgEl("path", { class: "series", "data-tone": s.tone, "data-dashed": s.dashed, d }));
+      if (s.label) labels.push({ x: sx(pts.at(-1)[0]) + 5, y: sy(pts.at(-1)[1]) + 3.5, text: s.label, tone: s.tone });
+    }
+    labels.sort((a, b) => a.y - b.y); for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + 12);
+    for (const l of labels) svg.append(svgEl("text", { class: "label", x: Math.min(l.x, W - pad.r + 5), y: l.y }, l.text));
+    for (const m of spec.marks || []) { svg.append(svgEl("line", { class: "mark", x1: pad.l, x2: W - pad.r, y1: sy(m.y), y2: sy(m.y) })); if (m.label) svg.append(svgEl("text", { class: "mark-label", x: pad.l + 4, y: sy(m.y) - 4 }, m.label)); }
+    if (Number.isFinite(spec.now)) { const x = sx(spec.now); svg.append(svgEl("line", { class: "now", x1: x, x2: x, y1: pad.t, y2: H - pad.b })); }
+  }
+  // Boards: clicking a cell, or the agent's select action, both arrive as one "select" event.
+  function choose(name, r, c, from) {
+    const s = specs[name];
+    if (!s || s.type !== "board" || !(r >= 0 && r < s.rows && c >= 0 && c < s.cols)) throw new Error("No cell at row " + r + ", column " + c);
+    if (from === "agent") { flag(name); lane("Chose row " + (r + 1) + ", column " + (c + 1) + "."); }
+    fire("select", { name, row: r, col: c, value: values[name][r][c], from });
+    return { board: values[name] };
+  }
+  // The agent lane shows what the agent last did on this card.
+  let laneTimer = 0;
+  function lane(text) {
+    for (const el of document.querySelectorAll('[data-pg="agent"]')) {
+      el.textContent = String(text).slice(0, 240); el.removeAttribute("data-fresh"); void el.offsetWidth; el.setAttribute("data-fresh", "");
+    }
+  }
+  // Panels with data-show="param=value" (or "param!=value") appear only when it holds.
+  function showWhen() {
+    for (const el of document.querySelectorAll("[data-show]")) {
+      const m = /^([A-Za-z][\w-]*)(!?=)(.*)$/.exec(el.dataset.show);
+      if (!m) continue;
+      const hit = String(values[m[1]]) === m[3];
+      el.hidden = m[2] === "=" ? !hit : hit;
+    }
+  }
   const afterHydrate = [];
   function hydrate(root) {
     const binders = [];
@@ -462,8 +726,8 @@ export const CONTROLS_RUNTIME = String.raw`
       el.__pg = true;
       const kind = el.dataset.pg, name = el.dataset.param;
       if (BUILD[kind] && name) {
-        const extra = kind === "toggle" ? { type: "toggle" } : kind === "steps" ? { type: "grid", rows: attr(el, "rows", "").split(",").length, steps: num(el, "steps", 16) } : {};
-        if (kind === "picker" || kind === "segmented") { if (!optionsOf(el)) continue; }
+        const extra = kind === "toggle" ? { type: "toggle" } : kind === "steps" ? { type: "grid", rows: attr(el, "rows", "").split(",").length, steps: num(el, "steps", 16) } : kind === "board" ? { type: "board", rows: num(el, "rows", 3), cols: num(el, "cols", 3) } : kind === "field" && el.dataset.input === "text" ? { type: "text", default: el.dataset.value } : {};
+        if (["picker", "segmented", "select", "tabs", "list"].includes(kind)) { if (!optionsOf(el)) continue; }
         if (!specs[name]) define(name, specFrom(el, extra));
         const paint = BUILD[kind](el, name);
         el.__paint = paint; binders.push(paint); paint();
@@ -471,25 +735,34 @@ export const CONTROLS_RUNTIME = String.raw`
       else if (kind === "pads") pads(el);
       else if (kind === "presets") presets(el);
       else if (kind === "scope") scope(el);
+      else if (kind === "readouts") readouts(el);
+      else if (kind === "table") { el.classList.add("pg-table-wrap"); }
+      else if (kind === "chart") { el.classList.add("pg-chart"); }
+      else if (kind === "agent") { el.classList.add("pg-agent"); el.setAttribute("aria-live", "polite"); if (!el.textContent.trim()) el.textContent = attr(el, "empty", "Ask me to change anything here."); }
       else if (kind === "meter") { el.classList.add("pg-meter"); el.innerHTML = "<i></i>"; el.__set = (t) => el.style.setProperty("--v", (clamp(t, 0, 1) * 100) + "%"); }
       else if (kind === "record") { el.classList.add("pg-btn", "pg-record"); el.innerHTML = '<i class="pg-dot"></i><span>Record</span>'; el.setAttribute("aria-pressed", "false"); el.onclick = () => (recording ? stopTake() : startTake()); }
       else if (kind === "send") { el.classList.add("pg-btn"); if (!el.textContent.trim()) el.textContent = "Send to agent"; el.disabled = true; el.onclick = () => { if (lastTake) api.send(attr(el, "label", "Take") + " · " + lastTake.notes.length + " notes · " + lastTake.seconds.toFixed(1) + "s", lastTake); }; }
     }
     for (const fn of afterHydrate.splice(0)) fn();
+    showWhen();
   }
   on("change", ({ name }) => { for (const el of document.querySelectorAll('[data-param="' + name + '"]')) el.__paint?.(); });
 
   const autoActions = {
-    getParams: () => ({ values: { ...values }, specs: Object.fromEntries(Object.entries(specs).map(([k, s]) => [k, { label: s.label, unit: s.unit, min: s.min, max: s.max, options: s.options && s.options.map((o) => o.value), type: s.type }])) }),
+    read: () => ({ params: { ...values }, outputs: JSON.parse(JSON.stringify(outputs)) }),
+    select: (name, row, col) => choose(String(name), Number(row), Number(col), "agent"),
+    say: (text) => { lane(text); return { ok: true }; },
+    getParams: () => ({ values: { ...values }, outputs: JSON.parse(JSON.stringify(outputs)), specs: Object.fromEntries(Object.entries(specs).map(([k, s]) => [k, { label: s.label, unit: s.unit, min: s.min, max: s.max, options: s.options && s.options.map((o) => o.value), type: s.type, rows: s.rows, cols: s.cols }])) }),
     setParams: (next) => { const out = {}; for (const [k, v] of Object.entries(next && typeof next === "object" ? next : {})) if (specs[k]) out[k] = set(k, v, "agent"); return { set: out }; },
     play: (notes, bpm) => play(notes, bpm),
     take: () => lastTake,
   };
   api.params = params;
-  api.ui = Object.freeze({ icon, format: (v, spec) => format(v, spec || {}), dragValue, pressable, audio, audioReady, onAudio: (fn) => (audioReady() ? fn() : audioWaiters.add(fn)), on, press: (id) => press(id, "user"), release: (id) => release(id, "user"), play, scope: (el) => el.__scope, meter: (el) => el.__set, steps: (el) => el.__now, noteName, hydrate: () => hydrate(document), take: () => lastTake });
+  const readyFirst = (fn) => (...args) => { ready(); return fn(...args); };
+  api.ui = Object.freeze({ show: readyFirst(show), table: readyFirst(table), chart: readyFirst(chart), say: lane, icon, format: (v, spec) => format(v, spec || {}), dragValue, pressable, audio, audioReady, onAudio: (fn) => (audioReady() ? fn() : audioWaiters.add(fn)), on, press: (id) => press(id, "user"), release: (id) => release(id, "user"), play, scope: (el) => el.__scope, meter: (el) => el.__set, steps: (el) => el.__now, noteName, hydrate: () => hydrate(document), take: () => lastTake });
   const start = () => {
     hydrate(document);
-    if (Object.keys(specs).length || document.querySelector('[data-pg="keyboard"],[data-pg="pads"],[data-pg="record"]')) api.expose(autoActions);
+    if (Object.keys(specs).length || document.querySelector("[data-pg]")) api.expose(autoActions);
     syncRecorders();
   };
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", start); else start();

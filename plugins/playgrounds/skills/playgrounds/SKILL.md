@@ -121,54 +121,63 @@ the content; `width` (320–1200) caps the card width.
 
 ## Components
 
-HTML playgrounds get a component kit for apps the person uses with you:
-calculators, simulators, design tools, games and instruments. You both work the
-same controls, so you can read, change or play anything they can. Build from the
-highest layer that fits; drop down a layer only for something it lacks.
+HTML playgrounds get a component library for apps the person uses with you:
+calculators, planners, simulators, design tools, games and instruments. You both
+work the same controls, so you can read, change or play anything they can.
+Build from these before writing your own controls.
 
-- **0 Tokens:** `--pg-ink`, `--pg-body`, `--pg-meta`, `--pg-stage`,
-  `--pg-hairline`, `--pg-accent` (set it once per card, e.g.
-  `:root { --pg-accent: #ea6a1f }`), `--pg-good`/`--pg-bad`/`--pg-warn`.
-- **1 Primitives:** `.pg-surface` (the grey stage that holds groups),
-  `.pg-group` (a white card inside it), `.pg-label` (small caps label),
-  `.pg-value`, `.pg-chip`, `.pg-btn`, `.pg-icon-btn`, `.pg-dot`, and icons via
-  `playground.ui.icon("sine" | "triangle" | "sawtooth" | "square" | "noise" |
-  "play" | "stop" | "pause" | "send")`.
-- **2 Controls,** declared in markup and bound to a named parameter:
+**Base library (any app).** Controls are markup bound to a named parameter:
 
-  ```html
-  <div data-pg="dial" data-param="cutoff" data-label="Cutoff" data-min="60"
-       data-max="14000" data-scale="log" data-unit="Hz" data-value="1500"></div>
-  ```
+```html
+<label data-pg="field" data-param="income" data-label="Yearly income"
+       data-prefix="$" data-min="0" data-max="2000000" data-value="140000"></label>
+```
 
-  `data-pg` is `dial`, `fader`, `stepper`, `segmented` or `picker` (with
-  `data-options="a,b,c"` or `value:Label` pairs; picker draws icons for
-  option names it knows), `toggle`, `steps` (`data-rows="Kick,Snare"
-  data-steps="16"`), `meter`, `scope`, `record` and `send`. Units format
-  themselves: `Hz` (1.5k), `s` (3ms), `%` (for 0–1 values), `¢`, or any text.
-  Every parameter is saved in shared state, and the agent reads and sets them
-  with `bb playgrounds do <id> getParams` and `do <id> setParams --args
-  '[{"cutoff": 800}]'`. A control the agent moves shows an "Agent" tag.
-- **3 Patterns:** `.pg-bank` (a row of controls in a `.pg-group` with a
-  `.pg-label`), `.pg-banks` (groups side by side; set `--cols`), and
-  `data-pg="keyboard"` (`data-from="60" data-count="25"`, A–K keys, Z/X
-  octave), `data-pg="pads"` (`data-pads="Kick:a,Snare:s"`), `data-pg="presets"`
-  (a `<script type="application/json">` table of parameter sets), and
-  `.pg-transport` (record, send and hint in one row).
+| `data-pg` | Use for |
+| --- | --- |
+| `field` | A number with a unit or prefix; `data-input="text"` for text |
+| `select` | One choice from a long list (`data-options="30:30 years,15:15 years"`) |
+| `segmented`, `tabs` | One choice from a few; `tabs` switches panels |
+| `list` | One choice from rows with notes (`data-notes="a|b"`) |
+| `slider`, `dial`, `stepper` | A continuous value; `data-scale="log"`, units `%` (0–1), `Hz`, `s`, `px`, `¢` |
+| `toggle` | On or off |
+| `board` | A grid of cells for games, seats or calendars (`data-rows`, `data-cols`, `data-pieces="R:#e5484d:Red"`, `data-shape="round"`) |
+| `readouts` | Answer tiles: `<div data-readout="price" data-label="Home price" data-answer>` |
+| `table`, `chart` | `data-name="…"`, filled from script |
+| `agent` | A lane that shows what you last did on the card |
 
-In script, `playground.params` has `define(name, spec)` for values no control
-shows, `get`, `set`, `all` and `on(fn)`. `playground.ui` has `on("press" |
-"release" | "change" | "take", fn)`, `audio()` (the shared AudioContext; sound
-starts after the person clicks once in the card), `scope(el).attach(analyser)`,
-and `noteName(midi)`. Presses from the person and from the agent arrive as the
-same `press`/`release` events, so the agent plays an instrument with `do <id>
-play --args '[[[60,0,1],[64,1,1],[67,2,2]], 120]'` (`[note, startBeat,
-lengthBeats]` and a bpm). `record`/`send` controls capture what the person
-plays and changes, with timing, and attach it to their next message; `do <id>
-take` returns the last take.
+Layout classes: `.pg-form` (fields in a grid), `.pg-toolbar`, `.pg-surface`
+with `.pg-group` and `.pg-label` (grouped panels), `.pg-banks`, `.pg-badge`
+(`data-tone="good|warn|bad"`). `data-show="param=value"` shows an element only
+when a parameter has that value. Set `:root { --pg-accent: … }` once per card.
 
-For an instrument, start from `references/pocket-synth.html` (next to this
-skill): it is built only from these components plus its sound engine.
+In script, after the markup: `playground.params` (`get`, `set`, `all`,
+`define`, `on(fn)`), and `playground.ui.show(name, value, { note, tone })` for
+readouts, `ui.table(name, { columns, rows })`, `ui.chart(name, { x, y, series:
+[{ points, kind: "line|step|area|bars", label }], marks, now })`, and
+`ui.on("select", ({ name, row, col, from }) => …)` for boards. A cell the person
+taps and a cell you choose arrive as the same `select` event, so game rules live
+in one place.
+
+**Driving it.** Every card with these controls exposes the same actions:
+`bb playgrounds do <id> read` (parameters and every readout), `do <id>
+setParams --args '[{"rate": 6}]'`, `do <id> select --args '["board", 0, 3]'`,
+and `do <id> say --args '["I took column 4."]'` for the agent lane. Use these
+instead of writing your own actions; controls you move show an "Agent" tag.
+
+**Music set (optional).** `keyboard` (`data-from="60" data-count="25"`, A–K
+keys, Z/X octave), `pads` (`data-pads="Kick:a,Snare:s"`), `steps` (a
+sequencer), `picker` with wave icons, `scope`, `presets` (a JSON table of
+parameter sets), and `record`/`send` for takes. `ui.audio()` gives the shared
+AudioContext, which starts after the person's first click. Presses from the
+person and from you arrive as the same `press`/`release` events; play with
+`do <id> play --args '[[[60,0,1],[64,1,1]], 120]'` and read a take with
+`do <id> take`.
+
+**References** (next to this skill; copy the closest one):
+`references/home-budget.html` (calculator), `references/type-scale.html`
+(design tool), `references/connect-four.html` (game against you), and
+`references/pocket-synth.html` (instrument).
 
 ## Interactive diagrams
 
