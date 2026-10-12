@@ -126,6 +126,14 @@ it("keeps an unsaved edit visible and offers recovery without submitting", async
   expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Keep this edit");
   expect(calls).toEqual(["save"]);
   expect(slot.inspection.composer.submits).toHaveLength(0);
+  // Recovery buttons sit inside the card's form; clicking them must never submit the picked answer.
+  let submits = 0;
+  screen.getByRole("form").addEventListener("submit", () => { submits += 1; });
+  fireEvent.click(screen.getByRole("button", { name: "Retry save" }));
+  fireEvent.click(screen.getByRole("button", { name: "Load saved draft" }));
+  expect(submits).toBe(0);
+  await waitFor(() => expect(calls).not.toContain("prepare"));
+  expect(slot.inspection.composer.submits).toHaveLength(0);
 });
 
 it("stages a reviewed table reply and sends it only with the sheet", async () => {
