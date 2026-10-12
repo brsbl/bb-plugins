@@ -22,16 +22,34 @@ Report when a set of related workers is done, or when one needs a decision
 from the user. A worker that finishes while others still run doesn't need its
 own report unless it changes what the user should do now.
 
+## Who reports what
+
+With `reportTo` set to `lead`, workers put decisions in their reports and the
+lead raises them. Gather every pending decision from your reports into one set
+of cards in your own thread, then resolve any copies a worker posted in its
+thread (`bb action-cards resolve <id> --thread <worker>`) so the user answers
+each decision once, in one place.
+
+With `reportTo` set to `user`, workers report to the user directly and keep
+their own cards. Don't re-summarize their reports. Report only what crosses
+teams and the decisions that need you to coordinate.
+
 ## Shape
 
 With `reportStyle` set to `bullets`:
 
-1. One line with the outcome, following `comms`.
+1. Lead with the single next decision when there is one; otherwise one line
+   with the outcome, following `comms`.
 2. At most `reportMaxBullets` flat bullets, one per result, phrased as its
    effect. Link each worker as `@thread:<id>` and each PR as a Markdown link.
 3. Evidence, then decisions, last.
 
 With `prose`, write one short paragraph in the same order.
+
+Name a PR by what it does, with its number only as the link, such as "[the
+sidebar dots fix](https://github.com/…/pull/412)", never "PR #412". Batch
+updates into short executive briefs at natural milestones rather than one
+message per worker event.
 
 ## Show the evidence
 

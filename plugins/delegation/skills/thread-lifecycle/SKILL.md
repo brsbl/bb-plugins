@@ -17,12 +17,18 @@ This skill uses `mayArchiveOrStop` from its output.
 
 ## Finished workers
 
-When `mayArchiveOrStop` is true, the lead stops and archives a worker it
-started once the worker's results are handed back and integrated, and only if
-it owns nothing still needed: a running preview, unpushed or unmerged work, or
-a decision still waiting on the user. Stop its runtime with
-`bb thread stop <id>`, run the cascade check below, then archive it. Never
-archive a thread you didn't start, or your own, unless the user asks.
+`mayArchiveOrStop` covers only workers a lead spawned for one bounded job.
+It never covers a thread with a standing role: one named in an org chart, a
+report assigned to the lead, or any thread that has returned more than one
+report for ongoing work. Those stay until the user asks.
+
+When `mayArchiveOrStop` is true, the lead stops and archives a bounded worker
+it started once the worker's results are handed back and integrated, and only
+if it owns nothing still needed: a running preview, unpushed or unmerged work,
+or a decision still waiting on the user. Stop its runtime with
+`bb thread stop <id>`, run the cascade and evidence checks below, then archive
+it. Never archive a thread you didn't start, or your own, unless the user asks
+or it's the predecessor in a handoff below.
 
 When `mayArchiveOrStop` is false, archive, stop, or delete a thread only when
 the user asks for that thread. A finished worker stays idle where it is.
@@ -30,6 +36,21 @@ the user asks for that thread. A finished worker stays idle where it is.
 Either way, when a worker is causing harm right now, such as deleting data or
 pushing where it shouldn't, and a steering message hasn't stopped it, stop it
 with `bb thread stop <id>` and tell the user at once.
+
+## Hand off to a successor
+
+When the user moves a thread to a new owner, for example to switch its model
+or provider:
+
+1. Wait until the old thread is idle (`bb thread wait <id>`).
+2. Start the successor with `handoff`, in the same environment, told to read
+   the old thread's full history first.
+3. Move the old thread's children to the successor
+   (`bb thread update <child> --parent-thread <successor>`), and re-pin its
+   pinned files and links there.
+4. Confirm the successor has taken over: it replied, and its children list
+   matches.
+5. Run the cascade and evidence checks below, then archive the predecessor.
 
 ## Check what an archive takes with it
 
@@ -45,7 +66,12 @@ thread's environment. Before archiving:
    should survive.
 3. If the thread's environment hosts a running preview or unpushed work, say
    so in the same card.
-4. Archive only that thread, then confirm in one line.
+4. Check shown evidence. Archiving retires the environment, so screenshots or
+   videos already shown inline from its worktree stop rendering. Before
+   archiving, confirm each is in the PR (uploaded through `screenshots`) or
+   copy it somewhere that outlives the worktree. If neither is possible,
+   say so in the card.
+5. Archive only that thread, then confirm in one line.
 
 ## Unparent and move only on request
 

@@ -25,21 +25,39 @@ milliseconds).
 
 1. `~/.bb/AGENTS.md` and `~/.claude/CLAUDE.md`: the user's instruction files.
 2. Memory: `~/.claude/projects/*/memory/*.md` notes of type `feedback` about
-   workers, models, reports, or threads. A memory note can override a skill
-   when it says so, such as "override the spawn skill's Codex defaults".
+   workers, models, reports, threads, or spawning. A memory note can override
+   a skill when it says so, such as "override the spawn skill's Codex
+   defaults".
 3. Skills: `spawn`, `comms`, `inline-action-cards`, and `handoff` in
    `~/.bb/skills/` or the installed skill catalog.
 
+Memory is not one pool. Each project directory under `~/.claude/projects/`
+holds notes for that project; a note can also name its scope, such as "the
+Growth, Ops Tools, and Strategy & Fundraising orgs". Resolve memory notes in
+this order:
+
+1. A note scoped to the current project or org beats a general note on the
+   same setting. Find the current project's directory from the working
+   directory, with `/` replaced by `-`.
+2. Between two notes at the same scope, the newer one (`modified` in the
+   frontmatter, else the file's mtime) wins.
+3. A newer note that narrows an older one to one case, such as QA threads,
+   sets only the setting for that case.
+
 When two sources disagree, the higher one wins. Record the winner, and put the
-loser and why in `--note`. When a memory note is newer and explicitly narrows
-an instruction file for one case, such as QA threads, record it for the
-setting that covers that case.
+loser and why in `--note`.
+
+Decisions the user makes on an action card or relays through a lead are
+sources too, until they land in a memory note: quote their words and name the
+thread they came from, such as `--from 'brsbl via 🧰 Ops Tools (thr_…)'`.
 
 ## Map what you find to settings
 
 | Setting | Look for |
 | --- | --- |
-| `provider`, `model`, `reasoningLevel` | The default provider, model, and reasoning level for spawned workers |
+| `provider`, `model`, `reasoningLevel` | Provider, model, and reasoning for leaf workers, or for all workers when the sources don't split them by role |
+| `leadProvider`, `leadModel`, `leadReasoningLevel` | The tier for org leads |
+| `parentProvider`, `parentModel`, `parentReasoningLevel` | The tier for threads that have reports |
 | `avoidModels` | Models the user says never to spawn; record model IDs, comma-separated, from `bb provider models <provider> --json` |
 | `qaProvider`, `qaModel`, `qaReasoningLevel` | Models for QA, smoke tests, or test-only threads; `cheapest` when they ask for the cheapest |
 | `machine`, `environment`, `section` | Where workers run, worktree versus personal, sidebar filing |
@@ -50,6 +68,8 @@ setting that covers that case.
 | `relayBatching` | Rules about keeping cross-thread messages to a minimum |
 | `retryLimit` | Retry rules for failed worker turns |
 | `mayArchiveOrStop` | Whether finished workers are stopped and archived |
+| `spawnPolicy` | When a lead may spawn without asking: `ask` (never), `followthrough` (QA, review, CI repair, and checks on approved work), `approved` (anything inside approved scope), or `free` |
+| `reportTo` | Whether workers report to their lead or straight to the user |
 
 Record a setting only when a source actually addresses it. Leave the rest
 unrecorded so the user's override or the fallback applies. Don't infer a

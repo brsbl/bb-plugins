@@ -40,3 +40,6 @@
 .dl-text { width: 220px; padding: 0 8px; }
 .dl-input:disabled, .dl-switch:disabled { opacity: 0.6; cursor: not-allowed; }
 .dl-select:disabled { cursor: not-allowed; }
+.dl-tier { display: flex; gap: 6px; }
+.dl-tier .dl-select { width: 140px; }
+.dl-tier .dl-text { width: 150px; }

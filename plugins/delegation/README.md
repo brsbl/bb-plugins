@@ -16,11 +16,11 @@ Ask a thread to "launch an agent for this and parent it". The lead starts a work
 
 | Skill | Owns |
 | --- | --- |
-| `delegate` | Whether to spawn, the worker's self-contained prompt, and its provider, model, machine, environment, parent, section, and title |
+| `delegate` | Whether to spawn or propose, the worker's tier by role, and a self-contained prompt with its org, scope guardrails, and merge gate |
 | `relay` | Passing your decision or request to an existing thread in one batched message that quotes you |
 | `collect-results` | Waiting on workers without polling, reading their reports and artifacts, and retrying stalls and provider errors |
 | `report-results` | Short, batched reports with evidence inline and decisions as action cards |
-| `thread-lifecycle` | Archiving, stopping, unparenting, and section moves, following your instructions |
+| `thread-lifecycle` | Archiving, stopping, handoffs, unparenting, and section moves, following your instructions |
 | `delegation-defaults` | Reading your AGENTS.md, CLAUDE.md, skills, and memory into the settings, with quotes |
 
 The skills build on existing ones rather than repeating them: `spawn` for machine capacity and model tiers, `handoff` for transferring work in progress, `comms` for writing style, `inline-action-cards` for cards, `bb-thread-status-report` for every running thread, and `tidy` for post-merge cleanup.
@@ -37,7 +37,9 @@ Settings → Delegation shows every setting's value and where it came from, with
 
 | Setting | Fallback | What it controls |
 | --- | --- | --- |
-| `provider`, `model`, `reasoningLevel` | blank | Provider, model, and reasoning level for new workers; blank lets bb or spawn's normal tier decide. Changing the provider clears the model. |
+| `provider`, `model`, `reasoningLevel` | blank | Provider, model, and reasoning level for leaf workers (no reports of their own); blank lets spawn's normal tier decide. Changing the provider clears the model. |
+| `leadProvider`, `leadModel`, `leadReasoningLevel` | blank | The tier for org leads; blank uses the leaf values. |
+| `parentProvider`, `parentModel`, `parentReasoningLevel` | blank | The tier for threads that have reports; blank uses the leaf values. The delegate skill always passes the resolved provider, model, and reasoning explicitly. |
 | `avoidModels` | blank | Model IDs no worker should run, comma-separated. |
 | `qaProvider`, `qaModel`, `qaReasoningLevel` | blank | The same for QA and smoke-test threads; blank uses the worker values, and `cheapest` picks the cheapest model the provider lists. |
 | `machine` | blank | Machine for new workers; blank uses the lead's machine unless spawn's capacity check moves the job. |
@@ -51,7 +53,9 @@ Settings → Delegation shows every setting's value and where it came from, with
 | `evidenceInline` | on | Shows screenshots and videos in the report instead of describing them. |
 | `relayBatching` | `batch` | `batch` sends each thread one combined message; `each` sends requests as they come. |
 | `retryLimit` | `2` | Retries of a worker's failed turn, such as a provider 429, before it's reported as blocked (0–10). |
-| `mayArchiveOrStop` | off | On: a lead stops and archives the workers it started once their work is handed back. Off: only when you ask. |
+| `mayArchiveOrStop` | off | On: a lead stops and archives bounded workers it started once their work is handed back; standing reports are never archived. Off: only when you ask. |
+| `spawnPolicy` | `ask` | When a lead may spawn without asking: `ask` (never), `followthrough` (QA, review, CI repair, and checks on approved work), `approved` (anything inside approved scope), or `free`. Anything else becomes a proposal card. |
+| `reportTo` | `lead` | Whether workers report, and raise decisions, to their lead or to you directly. |
 
 ### Commands
 

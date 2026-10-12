@@ -138,6 +138,16 @@ const RELAYS: Option[] = [
   { value: "batch", label: "One message per thread" },
   { value: "each", label: "Each request as it comes" },
 ];
+const SPAWN_POLICIES: Option[] = [
+  { value: "ask", label: "Never: always ask first" },
+  { value: "followthrough", label: "Follow-through on approved work" },
+  { value: "approved", label: "Anything inside approved scope" },
+  { value: "free", label: "Whenever delegating helps" },
+];
+const REPORT_TO: Option[] = [
+  { value: "lead", label: "Their lead" },
+  { value: "user", label: "You directly" },
+];
 const REASONING: Option[] = [
   { value: "", label: "The model's default" },
   { value: "low", label: "Low" },
@@ -159,7 +169,7 @@ export function DelegationSettingsForm() {
   const [sections, setSections] = useState<Option[]>([]);
   const ids = {
     provider: useId(), qaProvider: useId(), reasoning: useId(), qaReasoning: useId(), avoid: useId(), machine: useId(),
-    environment: useId(), section: useId(), lines: useId(), bullets: useId(), style: useId(), relay: useId(), retries: useId(),
+    environment: useId(), section: useId(), lines: useId(), bullets: useId(), spawnPolicy: useId(), reportTo: useId(), style: useId(), relay: useId(), retries: useId(),
   };
 
   useEffect(() => {
@@ -224,6 +234,29 @@ export function DelegationSettingsForm() {
   const qaProvider = settings.qaProvider || settings.provider;
   const checked = state.checkedAt === null ? null : new Date(state.checkedAt).toLocaleString();
 
+  // A plain function, not a component, so its fields keep their state across renders.
+  function tierRow(tier: "lead" | "parent", label: string, description: string) {
+    const keys = { provider: `${tier}Provider`, model: `${tier}Model`, reasoning: `${tier}ReasoningLevel` } as const;
+    const value = settings!;
+    const provider = value[keys.provider];
+    const isLocked = locked(keys.provider) || locked(keys.model) || locked(keys.reasoning);
+    return (
+      <Row key={tier} label={label} origin={origin(keys.model, keys.provider, keys.reasoning)} description={description}
+        control={
+          <div className="dl-tier">
+            <Select label={`${label} provider`} value={provider} disabled={isLocked}
+              options={withCurrent([{ value: "", label: "Same as workers" }, ...providers], provider, "unavailable")}
+              onChange={(next) => save({ [keys.provider]: next } as SettingsOverrides)} />
+            <TextField label={`${label} model`} placeholder="Model ID" value={value[keys.model]} disabled={isLocked}
+              onSave={(next) => save({ [keys.model]: next } as SettingsOverrides)} />
+            <Select label={`${label} reasoning`} value={value[keys.reasoning]} disabled={isLocked}
+              options={withCurrent(REASONING, value[keys.reasoning], "custom")}
+              onChange={(next) => save({ [keys.reasoning]: next } as SettingsOverrides)} />
+          </div>
+        } />
+    );
+  }
+
   return (
     <div className="dl-settings">
       <p className="dl-description">
@@ -236,11 +269,11 @@ export function DelegationSettingsForm() {
       {error ? <p className="dl-error" role="alert">{error}</p> : null}
       <Group title="Workers">
         <Row label="Provider" htmlFor={ids.provider} origin={origin("provider")}
-          description="Runs new workers unless you name another provider in the request."
+          description="Runs leaf workers, the ones with no reports of their own, unless you name another provider."
           control={<Select id={ids.provider} label="Provider" value={settings.provider} options={providerOptions} disabled={locked("provider")}
             onChange={(provider) => save({ provider }, ["model", "reasoningLevel"])} />} />
         <Row label="Model" origin={origin("model")}
-          description="The model new workers use. Spawn's normal tier picks the provider's current everyday model."
+          description="The model leaf workers use. Spawn's normal tier picks the provider's current everyday model."
           control={<Select label="Model" value={settings.model || loadingModel === "model" ? "chosen" : "tier"} disabled={locked("model") || loadingModel === "model"}
             options={[{ value: "tier", label: "Spawn's normal tier" }, { value: "chosen", label: loadingModel === "model" ? "Loading models…" : "Choose a model" }]}
             onChange={(mode) => (mode === "tier" ? save({ model: "" }) : void chooseModel("model", settings.provider))} />}
@@ -258,9 +291,11 @@ export function DelegationSettingsForm() {
             </div>
           ) : null} />
         <Row label="Reasoning" htmlFor={ids.reasoning} origin={origin("reasoningLevel")}
-          description="Reasoning level for new workers."
+          description="Reasoning level for leaf workers."
           control={<Select id={ids.reasoning} label="Reasoning" value={settings.reasoningLevel} options={withCurrent(REASONING, settings.reasoningLevel, "custom")}
             disabled={locked("reasoningLevel")} onChange={(reasoningLevel) => save({ reasoningLevel })} />} />
+        {tierRow("lead", "Lead tier", "Provider, model, and reasoning for org leads.")}
+        {tierRow("parent", "Parent tier", "For threads with reports that aren't org leads. Spawn at this tier when a worker will get reports; a thread's provider can't change later.")}
         <Row label="Models to avoid" htmlFor={ids.avoid} origin={origin("avoidModels")}
           description="Model IDs no worker should run, separated by commas."
           control={<TextField id={ids.avoid} label="Models to avoid" placeholder="None" value={settings.avoidModels}
@@ -283,6 +318,17 @@ export function DelegationSettingsForm() {
           description="bb tells the lead when a parented worker finishes, fails, or needs input."
           control={<Switch aria-label="Parent workers to the lead" checked={settings.parentWorkers} disabled={locked("parentWorkers")}
             onCheckedChange={(parentWorkers) => save({ parentWorkers })} />} />
+      </Group>
+
+      <Group title="Spawning and reporting">
+        <Row label="Spawn without asking" htmlFor={ids.spawnPolicy} origin={origin("spawnPolicy")}
+          description="When a lead may start a worker on its own. Anything outside this becomes a proposal card first."
+          control={<Select id={ids.spawnPolicy} label="Spawn without asking" value={settings.spawnPolicy} options={SPAWN_POLICIES} disabled={locked("spawnPolicy")}
+            onChange={(spawnPolicy) => save({ spawnPolicy: spawnPolicy as DelegationSettings["spawnPolicy"] })} />} />
+        <Row label="Workers report to" htmlFor={ids.reportTo} origin={origin("reportTo")}
+          description="Where a worker's final report and its decisions go. With the lead, the lead gathers decisions into one card set in its own thread."
+          control={<Select id={ids.reportTo} label="Workers report to" value={settings.reportTo} options={REPORT_TO} disabled={locked("reportTo")}
+            onChange={(reportTo) => save({ reportTo: reportTo as DelegationSettings["reportTo"] })} />} />
       </Group>
 
       <Group title="QA and smoke tests">

@@ -10,9 +10,18 @@ import { z } from "zod";
 const count = (min: number, max: number) => z.number().int().min(min).max(max);
 
 export const settingsSchema = z.object({
+  /** Leaf workers: no reports of their own. */
   provider: z.string(),
   model: z.string(),
   reasoningLevel: z.string(),
+  /** Org leads. */
+  leadProvider: z.string(),
+  leadModel: z.string(),
+  leadReasoningLevel: z.string(),
+  /** Threads with reports that aren't org leads. */
+  parentProvider: z.string(),
+  parentModel: z.string(),
+  parentReasoningLevel: z.string(),
   qaProvider: z.string(),
   qaModel: z.string(),
   qaReasoningLevel: z.string(),
@@ -29,6 +38,10 @@ export const settingsSchema = z.object({
   relayBatching: z.enum(["batch", "each"]),
   retryLimit: count(0, 10),
   mayArchiveOrStop: z.boolean(),
+  /** When a lead may spawn without asking the user first. */
+  spawnPolicy: z.enum(["ask", "followthrough", "approved", "free"]),
+  /** Who a worker's final report and decisions go to. */
+  reportTo: z.enum(["lead", "user"]),
 }).strict();
 
 export type DelegationSettings = z.infer<typeof settingsSchema>;
@@ -40,6 +53,12 @@ export const FALLBACKS: DelegationSettings = {
   provider: "",
   model: "",
   reasoningLevel: "",
+  leadProvider: "",
+  leadModel: "",
+  leadReasoningLevel: "",
+  parentProvider: "",
+  parentModel: "",
+  parentReasoningLevel: "",
   qaProvider: "",
   qaModel: "",
   qaReasoningLevel: "",
@@ -56,6 +75,8 @@ export const FALLBACKS: DelegationSettings = {
   relayBatching: "batch",
   retryLimit: 2,
   mayArchiveOrStop: false,
+  spawnPolicy: "ask",
+  reportTo: "lead",
 };
 
 export const SETTING_KEYS = Object.keys(FALLBACKS) as SettingKey[];
