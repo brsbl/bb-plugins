@@ -25,3 +25,15 @@ it("keeps cards written for Interactive Answers working", () => {
   const current = buildWidgetDocument({ id: "b", html: '<div class="pg-seg"></div>', state: null, theme: fallbackTheme });
   expect(current).not.toContain(".ia-seg {");
 });
+
+it("ships the component kit inside the frame bridge", () => {
+  const doc = buildWidgetDocument({
+    id: "a",
+    html: '<div data-pg="dial" data-param="cutoff"></div>',
+    state: { params: { cutoff: 900 } },
+    theme: fallbackTheme,
+  });
+  expect(doc).toContain(".pg-dial {");
+  expect(doc).toContain("setParams");
+  expect(doc.indexOf("api.params = params")).toBeLessThan(doc.indexOf("window.playground = Object.freeze(api)"));
+});
