@@ -296,13 +296,13 @@ export function RingPopover({
             <RingedAvatar row={row} ring={ring} size="lg" />
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-xs font-medium">{row.name}</span>
-              <span className="text-2xs text-muted-foreground">
-                {ring === null
-                  ? "No ring"
-                  : ring.to === null
-                    ? "Click the bar to add a gradient"
-                    : "Click a stop to change it"}
-              </span>
+              {ring?.to === null || ring === null ? (
+                <span className="text-2xs text-muted-foreground">
+                  {ring === null
+                    ? "No ring"
+                    : "Click the bar to add a gradient"}
+                </span>
+              ) : null}
             </div>
             {canReset ? (
               <button
