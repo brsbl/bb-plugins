@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChannels, counterpartIds, incoming, messageBody, needsYouBody, outgoing, type ChannelInputs } from "./dispatch-model";
+import { buildChannels, counterpartIds, currentQuestions, incoming, messageBody, needsYouBody, outgoing, type ChannelInputs } from "./dispatch-model";
 
 const SELF = "thr_ops";
 
@@ -99,6 +99,19 @@ describe("channels", () => {
     }));
     expect(channels.find((channel) => channel.counterpartId === "thr_dispatch")!.messages.at(-1)).toMatchObject({ id: "b1:thr_dispatch", dir: "finished", text: "Stories are ready." });
     expect(channels.find((channel) => channel.counterpartId === "thr_moss")!.messages.at(-1)).toMatchObject({ dir: "failed", text: "" });
+  });
+
+  it("follows bb's live pending state once it's known, even when the notice is still the latest message", () => {
+    const answeredInReport = inputs({ pendingKnown: true });
+    expect(buildChannels(answeredInReport).find((channel) => channel.counterpartId === "thr_carousel")!.needsYou).toBe(false);
+    const stillWaiting = inputs({ pendingKnown: true, pending: new Set(["thr_carousel"]) });
+    expect(buildChannels(stillWaiting).find((channel) => channel.counterpartId === "thr_carousel")).toMatchObject({ needsYou: true, question: "Which file format should #418 accept?" });
+  });
+
+  it("shows a report's question only while its notice is the latest thing it sent", () => {
+    expect(currentQuestions(selfRows).get("thr_carousel")).toBe("Which file format should #418 accept?");
+    const later = row("c2", 12, { initiator: "system", systemMessageKind: "child-completed", systemMessageSubject: { kind: "thread", threadId: "thr_carousel" }, text: "Done." });
+    expect(currentQuestions([...selfRows, later]).has("thr_carousel")).toBe(false);
   });
 
   it("clears a needs-attention notice once something newer happens, unless bb still shows a pending interaction", () => {

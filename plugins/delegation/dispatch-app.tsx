@@ -7,26 +7,43 @@ import {
   useBbNavigate,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
-import { buildChannels, counterpartIds, incoming, type Channel, type ChannelMessage } from "./dispatch-model.js";
+import { buildChannels, counterpartIds, currentQuestions, type Channel, type ChannelMessage } from "./dispatch-model.js";
 
 export const DISPATCH_ACTION_ID = "dispatch";
 /** Timeline segments read per thread. Older history stays one "Load earlier" away. */
-const SEGMENTS = 30;
-/** No live event hook exists for other threads, so refresh on a bounded interval while visible. */
-const REFRESH_MS = 30_000;
+const SEGMENTS = 20;
+/** bb rejects reads above 100 segments. */
+const MAX_SEGMENTS = 100;
+/** Threads refetch when their sidebar state changes; this only catches anything that change missed. */
+const SAFETY_REFRESH_MS = 5 * 60_000;
+/** While a report waits, re-read its question until bb has written the notice. */
+const QUESTION_REFRESH_MS = 15_000;
 const MAX_COUNTERPARTS = 16;
+const MAX_CONCURRENT_READS = 4;
 
 type Sdk = ReturnType<typeof useSdk>;
+type SidebarThread = ReturnType<typeof useSidebarThreads>["threads"][number];
+interface Page { rows: unknown[]; complete: boolean }
 
-async function conversationPage(sdk: Sdk, threadId: string, segments: number, signal: AbortSignal): Promise<{ rows: unknown[]; complete: boolean }> {
-  const page = await sdk.threads.timeline({ threadId, segmentLimit: String(segments), signal });
+async function conversationPage(sdk: Sdk, threadId: string, segments: number, signal: AbortSignal): Promise<Page> {
+  const page = await sdk.threads.timeline({ threadId, segmentLimit: String(Math.min(segments, MAX_SEGMENTS)), signal });
   return {
     rows: (page.rows as unknown[]).filter((row) => (row as { kind?: string }).kind === "conversation"),
     complete: !(page.timelinePage as { hasOlderRows?: boolean } | undefined)?.hasOlderRows,
   };
 }
-async function conversationRows(sdk: Sdk, threadId: string, segments: number, signal: AbortSignal): Promise<unknown[]> {
-  return (await conversationPage(sdk, threadId, segments, signal)).rows;
+
+/** Run reads a few at a time so a large org doesn't fan out at once. */
+async function inBatches<T, R>(items: readonly T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await run(items[index]!);
+    }
+  }));
+  return results;
 }
 
 function lastSeenKey(threadId: string) {
@@ -45,7 +62,6 @@ function markSeen(threadId: string, counterpartId: string) {
   localStorage.setItem(lastSeenKey(threadId), JSON.stringify(Object.fromEntries(seen)));
 }
 
-/** The org around a thread, from bb's live sidebar state. */
 // bb keys a panel tab by its params, so "Open channel" reuses the one Dispatch tab and hands it the
 // channel here instead: a fresh panel reads the pending request, an open one hears the event.
 const OPEN_CHANNEL_EVENT = "dispatch:open-channel";
@@ -56,27 +72,50 @@ function requestChannel(threadId: string, counterpartId: string) {
   window.dispatchEvent(new CustomEvent(OPEN_CHANNEL_EVENT, { detail: { threadId, counterpartId } }));
 }
 
+/** Spawned reports only; bb's sidebar also links forks by parentThreadId. */
+function isReportOf(thread: SidebarThread, threadId: string) {
+  return thread.parentThreadId === threadId && thread.originKind === null && !thread.isArchived;
+}
+
+/** Changes whenever bb shows new activity on a thread, so its timeline is worth re-reading. */
+function activityStamp(thread: SidebarThread | undefined) {
+  if (!thread) return "";
+  return [thread.updatedAt, thread.latestAttentionAt, thread.status, thread.runtimeStatus, thread.hasPendingInteraction, JSON.stringify(thread.queuedWork)].join("|");
+}
+
+/** The org around a thread, from bb's live sidebar state. */
 function useOrg(threadId: string) {
   const sidebar = useSidebarThreads();
   return useMemo(() => {
     const self = sidebar.threads.find((thread) => thread.id === threadId);
-    const children = sidebar.threads.filter((thread) => thread.parentThreadId === threadId && !thread.isArchived);
+    const children = sidebar.threads.filter((thread) => isReportOf(thread, threadId));
     const titles = new Map(sidebar.threads.map((thread) => [thread.id, thread.displayTitle] as const));
     const pending = new Set(sidebar.threads.filter((thread) => thread.hasPendingInteraction).map((thread) => thread.id));
-    return { parentId: self?.parentThreadId ?? null, childIds: children.map((thread) => thread.id), titles, pending, ready: sidebar.status === "ready" };
+    const stamps = new Map(sidebar.threads.map((thread) => [thread.id, activityStamp(thread)] as const));
+    return {
+      parentId: self && self.originKind === null ? self.parentThreadId : null,
+      childIds: children.map((thread) => thread.id),
+      titles,
+      pending,
+      stamps,
+      ready: sidebar.status === "ready",
+    };
   }, [sidebar, threadId]);
 }
 
-function useVisibleInterval(callback: () => void, ms: number) {
+function useVisibleInterval(callback: () => void, ms: number, enabled = true) {
   const saved = useRef(callback);
   saved.current = callback;
   useEffect(() => {
+    if (!enabled) return;
     const tick = () => { if (document.visibilityState === "visible") saved.current(); };
     const timer = window.setInterval(tick, ms);
     document.addEventListener("visibilitychange", tick);
     return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
-  }, [ms]);
+  }, [ms, enabled]);
 }
+
+interface Cached { stamp: string; segments: number; page: Page }
 
 /** Channels for one thread: its own rows, plus each counterpart's rows sent by this thread. */
 export function useChannels(threadId: string) {
@@ -86,49 +125,75 @@ export function useChannels(threadId: string) {
   const [selfRows, setSelfRows] = useState<unknown[]>([]);
   const [counterpartRows, setCounterpartRows] = useState<Map<string, unknown[]>>(new Map());
   const [completeHistory, setCompleteHistory] = useState<Set<string>>(new Set());
+  const [selfComplete, setSelfComplete] = useState(false);
   const [lastSeen, setLastSeen] = useState(() => readLastSeen(threadId));
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const childKey = org.childIds.join(",");
+  const cache = useRef(new Map<string, Cached>());
+  const inFlight = useRef<AbortController | null>(null);
+  const orgRef = useRef(org);
+  orgRef.current = org;
 
-  const load = useCallback(async (signal: AbortSignal) => {
+  useEffect(() => {
+    cache.current = new Map();
+    setStatus("loading");
+  }, [threadId]);
+
+  /** Re-read only threads whose sidebar activity changed since their last read (or every thread when forced). */
+  const load = useCallback(async (force: boolean) => {
+    inFlight.current?.abort();
+    const controller = new AbortController();
+    inFlight.current = controller;
+    const { signal } = controller;
+    const current = orgRef.current;
+    const read = async (id: string): Promise<Page> => {
+      const stamp = current.stamps.get(id) ?? "";
+      const cached = cache.current.get(id);
+      if (!force && cached && cached.segments === segments && stamp !== "" && cached.stamp === stamp) return cached.page;
+      const page = await conversationPage(sdk, id, segments, signal);
+      if (!signal.aborted) cache.current.set(id, { stamp, segments, page });
+      return page;
+    };
     try {
-      const own = await conversationRows(sdk, threadId, segments, signal);
-      const ids = counterpartIds({ selfId: threadId, parentId: org.parentId, childIds: org.childIds, selfRows: own }).slice(0, MAX_COUNTERPARTS);
-      const pages = await Promise.all(ids.map(async (id) => {
-        try { return [id, await conversationPage(sdk, id, segments, signal)] as const; } catch { return [id, { rows: [] as unknown[], complete: false }] as const; }
-      }));
+      const own = await read(threadId);
+      const ids = counterpartIds({ selfId: threadId, parentId: current.parentId, childIds: current.childIds, selfRows: own.rows }).slice(0, MAX_COUNTERPARTS);
+      const pages = await inBatches(ids, MAX_CONCURRENT_READS, async (id) => {
+        try { return [id, await read(id)] as const; } catch { return [id, cache.current.get(id)?.page ?? { rows: [], complete: false }] as const; }
+      });
       if (signal.aborted) return;
-      setSelfRows(own);
+      setSelfRows(own.rows);
+      setSelfComplete(own.complete);
       setCounterpartRows(new Map(pages.map(([id, page]) => [id, page.rows])));
       setCompleteHistory(new Set(pages.filter(([, page]) => page.complete).map(([id]) => id)));
       setStatus("ready");
     } catch {
-      if (!signal.aborted) setStatus((current) => (current === "ready" ? current : "error"));
+      if (!signal.aborted) setStatus((value) => (value === "ready" ? value : "error"));
     }
-    // childKey stands in for org.childIds.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sdk, threadId, segments, org.parentId, childKey]);
+  }, [sdk, threadId, segments]);
 
-  const refresh = useCallback(() => {
-    const controller = new AbortController();
-    void load(controller.signal);
-    return controller;
-  }, [load]);
+  // Sidebar state is live, so a change to any thread in the org triggers a read of just that thread.
+  const stampKey = [threadId, ...(org.parentId ? [org.parentId] : []), ...org.childIds].map((id) => `${id}=${org.stamps.get(id) ?? ""}`).join(",");
   useEffect(() => {
-    const controller = refresh();
-    return () => controller.abort();
-  }, [refresh]);
-  useVisibleInterval(() => { refresh(); }, REFRESH_MS);
+    void load(false);
+  }, [load, stampKey]);
+  useEffect(() => () => inFlight.current?.abort(), []);
+  useVisibleInterval(() => { void load(true); }, SAFETY_REFRESH_MS);
 
   const channels = useMemo(
-    () => buildChannels({ selfId: threadId, parentId: org.parentId, childIds: org.childIds, titles: org.titles, pending: org.pending, lastSeen, selfRows, counterpartRows, completeHistory }),
+    () => buildChannels({ selfId: threadId, parentId: org.parentId, childIds: org.childIds, titles: org.titles, pending: org.pending, pendingKnown: org.ready, lastSeen, selfRows, counterpartRows, completeHistory }),
     [threadId, org, lastSeen, selfRows, counterpartRows, completeHistory],
   );
   const seen = useCallback((counterpartId: string) => {
     markSeen(threadId, counterpartId);
     setLastSeen(readLastSeen(threadId));
   }, [threadId]);
-  return { channels, status, seen, loadEarlier: () => setSegments((count) => count + SEGMENTS), refresh };
+  return {
+    channels,
+    status,
+    seen,
+    /** Whether older history exists for a channel and bb will still serve a larger window. */
+    canLoadEarlier: (counterpartId: string) => segments < MAX_SEGMENTS && !(selfComplete && completeHistory.has(counterpartId)),
+    loadEarlier: () => setSegments((count) => Math.min(count + SEGMENTS, MAX_SEGMENTS)),
+  };
 }
 
 // ── Panel ───────────────────────────────────────────────────────────────────
@@ -189,7 +254,7 @@ function MessageRow({ message, selfTitle, channel }: { message: ChannelMessage; 
 }
 
 export function DispatchPanel({ threadId, params }: { threadId: string; params: unknown }) {
-  const { channels, status, seen, loadEarlier } = useChannels(threadId);
+  const { channels, status, seen, canLoadEarlier, loadEarlier } = useChannels(threadId);
   const navigate = useBbNavigate();
   const requested = typeof params === "object" && params !== null ? (params as { counterpart?: unknown }).counterpart : undefined;
   const [active, setActive] = useState<string | null>(() => pendingChannel.get(threadId) ?? (typeof requested === "string" ? requested : null));
@@ -251,7 +316,9 @@ export function DispatchPanel({ threadId, params }: { threadId: string; params: 
               {current.messages.map((message) => <MessageRow key={message.id} message={message} selfTitle={selfTitle} channel={current} />)}
             </ol>
           )}
-          <button type="button" className="dp-link dp-earlier" onClick={loadEarlier}>Load earlier messages</button>
+          {canLoadEarlier(current.counterpartId) ? (
+            <button type="button" className="dp-link dp-earlier" onClick={loadEarlier}>Load earlier messages</button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -268,26 +335,27 @@ export function NeedsYouBanner() {
   const navigate = useBbNavigate();
   const [questions, setQuestions] = useState<Map<string, string>>(new Map());
   const waiting = useMemo(
-    () => (threadId ? sidebar.threads.filter((thread) => thread.parentThreadId === threadId && thread.hasPendingInteraction && !thread.isArchived) : []),
+    () => (threadId ? sidebar.threads.filter((thread) => isReportOf(thread, threadId) && thread.hasPendingInteraction) : []),
     [sidebar, threadId],
   );
   const waitingKey = waiting.map((thread) => thread.id).join(",");
 
-  useEffect(() => {
-    if (!threadId || waiting.length === 0) return;
+  const inFlight = useRef<AbortController | null>(null);
+  const readQuestions = useCallback(() => {
+    if (!threadId) return;
+    inFlight.current?.abort();
     const controller = new AbortController();
-    void conversationRows(sdk, threadId, 10, controller.signal).then((rows) => {
-      const latest = new Map<string, string>();
-      for (const [id, messages] of incoming(rows)) {
-        const notice = [...messages].reverse().find((message) => message.dir === "needs-you");
-        if (notice) latest.set(id, notice.text);
-      }
-      setQuestions(latest);
+    inFlight.current = controller;
+    void conversationPage(sdk, threadId, 10, controller.signal).then((page) => {
+      if (!controller.signal.aborted) setQuestions(currentQuestions(page.rows));
     }, () => undefined);
-    return () => controller.abort();
-    // waitingKey stands in for waiting.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sdk, threadId, waitingKey]);
+  }, [sdk, threadId]);
+  useEffect(() => {
+    if (waitingKey) readQuestions();
+    return () => inFlight.current?.abort();
+  }, [readQuestions, waitingKey]);
+  // bb writes the needs-attention notice just after it marks the report as waiting.
+  useVisibleInterval(readQuestions, QUESTION_REFRESH_MS, waitingKey !== "");
 
   if (!threadId || waiting.length === 0) return null;
   return (
@@ -318,7 +386,7 @@ export function NeedsYouBanner() {
 export function DispatchHeaderButton({ threadId }: { threadId: string }) {
   const navigate = useBbNavigate();
   const sidebar = useSidebarThreads();
-  const attention = sidebar.threads.some((thread) => thread.parentThreadId === threadId && thread.hasPendingInteraction && !thread.isArchived);
+  const attention = sidebar.threads.some((thread) => isReportOf(thread, threadId) && thread.hasPendingInteraction);
   return (
     <button
       type="button"

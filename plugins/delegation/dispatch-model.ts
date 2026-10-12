@@ -75,7 +75,7 @@ export function needsYouBody(text: string): string {
   const body = messageBody(text);
   const blocked = /Blocked on [^:\n]+:\s*([^\n]+)/u.exec(body);
   if (blocked) return blocked[1]!.trim();
-  return body.replace(/^@thread:\S+\s+needs help\.?\s*/u, "").split(/\n\s*\n/u)[0]!.trim();
+  return body.replace(/^@thread:\S+\s+needs help\.?[ \t]*/u, "").split(/\n\s*\n/u)[0]!.trim();
 }
 
 /** Messages and results other threads sent to this one, keyed by sender. */
@@ -105,6 +105,16 @@ export function incoming(rows: readonly unknown[]): Map<string, ChannelMessage[]
     }
   }
   return byThread;
+}
+
+/** What each report is waiting on now: its latest notice, when nothing arrived from it since. */
+export function currentQuestions(rows: readonly unknown[]): Map<string, string> {
+  const questions = new Map<string, string>();
+  for (const [id, messages] of incoming(rows)) {
+    const latest = messages.at(-1);
+    if (latest?.dir === "needs-you" && latest.text) questions.set(id, latest.text);
+  }
+  return questions;
 }
 
 /**
@@ -143,6 +153,8 @@ export interface ChannelInputs {
   titles: ReadonlyMap<string, string>;
   /** Threads currently waiting on a pending interaction. */
   pending: ReadonlySet<string>;
+  /** Whether `pending` is bb's live state. Until it is, a latest needs-attention notice stands in. */
+  pendingKnown?: boolean;
   /** When the user last opened each channel. */
   lastSeen: ReadonlyMap<string, number>;
   selfRows: readonly unknown[];
@@ -186,9 +198,9 @@ export function buildChannels(inputs: ChannelInputs): Channel[] {
     const latestAt = messages.at(-1)?.at ?? 0;
     const latestInbound = [...messages].reverse().find((message) => message.dir !== "out" && message.dir !== "brief");
     const lastNeedsYou = [...messages].reverse().find((message) => message.dir === "needs-you");
-    // A needs-attention notice is current until something newer arrives from or goes to that thread.
+    // bb's pending interaction is the live answer; a reply in the report's own thread clears it there.
     const noticeIsLatest = lastNeedsYou !== undefined && messages.at(-1) === lastNeedsYou;
-    const needsYou = inputs.pending.has(counterpartId) || noticeIsLatest;
+    const needsYou = inputs.pending.has(counterpartId) || (!inputs.pendingKnown && noticeIsLatest);
     return {
       counterpartId,
       title: inputs.titles.get(counterpartId) ?? counterpartId,
@@ -197,7 +209,7 @@ export function buildChannels(inputs: ChannelInputs): Channel[] {
       latestAt,
       unread: latestInbound !== undefined && latestInbound.at > (inputs.lastSeen.get(counterpartId) ?? 0),
       needsYou,
-      question: needsYou && lastNeedsYou ? lastNeedsYou.text : null,
+      question: needsYou && latestInbound?.dir === "needs-you" ? latestInbound.text : null,
     };
   });
 }
