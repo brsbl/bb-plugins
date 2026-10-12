@@ -329,3 +329,15 @@ Turn any thread into a coordinator that tracks your asks as items, starts sub-th
 [Source](plugins/coordinator-mode) · [README](plugins/coordinator-mode/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/coordinator-mode --yes`
+
+### Server Switcher
+
+See which bb server you are on and switch to any other server on your bb account from a strip above the sidebar footer. Each server shows your GitHub avatar inside its own colored ring, which you can change to any color or two-color gradient.
+
+![The current server in the sidebar strip, with the other servers on the account listed below it](plugins/server-switcher/docs/switcher.png)
+
+![The ring picker beside the sidebar, with a two-color gradient bar and preset swatches](plugins/server-switcher/docs/ring-popover.png)
+
+[Source](plugins/server-switcher) · [README](plugins/server-switcher/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/server-switcher --yes`
