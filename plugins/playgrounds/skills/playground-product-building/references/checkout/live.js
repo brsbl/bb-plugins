@@ -1,6 +1,8 @@
 const $ = (id) => document.getElementById(id);
 let state = normalize(window.playground.state ?? initial);
 const visited = new Set(['cart', 'details', 'review', 'processing']);
+const graph = states(document.getElementById('graph'), GRAPH);
+let last = ['processing', state.state];
 
 const SCREENS = {
   cart: () => `<h3>Your bag</h3><div class="line"><span>Everyday bag × 1</span><span>$48.00</span></div><div class="line"><span>Shipping</span><span>Free</span></div>`,
@@ -14,23 +16,26 @@ const SCREENS = {
 
 function paint() {
   visited.add(state.state);
-  const next = new Set(available(state.state).map((e) => EVENTS[e].to).filter(Boolean));
-  $('rail').innerHTML = STATES.map((s) => `<li${s.id === state.state ? ' aria-current="step"' : ''}${visited.has(s.id) && s.id !== state.state ? ' data-visited' : ''}${next.has(s.id) ? ' data-next' : ''}>${s.label}</li>`).join('');
+  graph.set({ current: state.state, visited: [...visited], last });
   const actions = available(state.state);
   $('screen').innerHTML = SCREENS[state.state]()
     + `<div class="actions">${actions.map((e, i) => `<button type="button" class="${i === 0 ? 'pg-btn-primary' : 'pg-btn'}" data-event="${e}">${EVENTS[e].label}</button>`).join('')}`
     + (state.state === 'confirmed' ? `<button type="button" class="pg-btn" data-reset>Start a new order</button>` : '') + `</div>`;
-  const charged = $('charged');
-  charged.dataset.tone = state.charges ? 'good' : '';
-  charged.textContent = state.charges ? 'Charged once' : 'Not charged';
+  $('answer').dataset.tone = state.charges ? 'good' : '';
+  $('charged').textContent = state.charges ? 'Once' : 'Not yet';
+  const tone = { confirmed: 'good', declined: 'bad', unknown: 'warn' }[state.state];
+  $('live').textContent = STATES.find((x) => x.id === state.state).label;
+  if (tone) $('live').dataset.tone = tone; else delete $('live').dataset.tone;
   $('key').textContent = state.key;
-  $('attempts').textContent = `${state.attempts} payment ${state.attempts === 1 ? 'attempt' : 'attempts'}`;
+  $('attempts').textContent = String(state.attempts);
+  $('clock').textContent = state.log.length ? state.log.at(-1)[0] : '';
   $('gateway').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.gateway === state.gateway)));
-  $('log').innerHTML = state.log.map(([t, text]) => `<li><time>${t}</time><span>${text.replace(/[<&]/g, (c) => (c === '<' ? '&lt;' : '&amp;'))}</span></li>`).join('');
 }
 
 function send(event) {
+  const from = state.state;
   state = step(state, event);
+  last = EVENTS[event].to === 'processing' || event === 'pay' || event === 'retry' ? ['processing', state.state] : [from, state.state];
   paint();
   window.playground.save(state);
   window.playground.emit('event', { event, state: state.state });
@@ -43,7 +48,7 @@ function gateway(outcome) {
 }
 function reset() {
   state = normalize({ ...initial, state: 'cart', attempts: 0, charges: 0, key: 'ord_1043-a', log: [['0:00', 'Checkout started']] });
-  visited.clear(); ['cart'].forEach((s) => visited.add(s));
+  visited.clear(); visited.add('cart'); last = null;
   paint(); window.playground.save(state);
   return read();
 }

@@ -31,6 +31,9 @@ export function check({ html, width }) {
   if (/iso-svg/.test(fig) && solids < 40) warnings.push(`The figure has ${solids} kit solids. Build the object from at least 40 purposeful parts: bases on feet, rails, bushings, screws, hooks, ticks.`);
   if (count(fig, /<text\b/gi) > 2) warnings.push(`${count(fig, /<text\b/gi)} <text> labels inside the figure. Keep words out of the drawing (one engraved label at most); name parts in a .pg-legend under it.`);
   if (/<button[^>]*(?:pg-btn-primary[^>]*\bdisabled\b|\bdisabled\b[^>]*pg-btn-primary)/i.test(html)) warnings.push('The primary button starts disabled. Open on a state where the main action already works.');
+  const knobs = count(html.replace(/<div[^>]*pg-transport[\s\S]*?<\/div>/gi, ''), /type\s*=\s*["']range["']/gi);
+  if (knobs > 3) warnings.push(`${knobs} sliders. Keep at most 3 visible knobs; offer the rest as scenario presets or mention them in your reply.`);
+  if (/<dl[^>]*pg-readouts/i.test(html) && !/data-answer/.test(html)) warnings.push('No answer readout: mark the readout that answers the question with data-answer (and data-tone), first in .pg-readouts.');
   if (/slider-thumb|range-thumb/i.test(html)) warnings.push('Custom slider styling: the kit styles input[type=range] with --pg-accent; set the accent instead.');
   if (!/playground\.save\s*\(/.test(html)) warnings.push('Nothing is saved: call window.playground.save after meaningful changes.');
   if (!/playground\.expose\s*\(/.test(html)) warnings.push('No actions exposed: expose the verbs a person would use so the agent can drive the playground.');

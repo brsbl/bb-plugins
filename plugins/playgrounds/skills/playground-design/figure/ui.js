@@ -18,7 +18,7 @@ const ui = (() => {
     const span = max - min;
     if (!(span > 0)) return [min];
     const raw = span / count, power = 10 ** Math.floor(Math.log10(raw));
-    const step = [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => span / s <= count) ?? power * 10;
+    const step = [1, 2, 5, 10].map((m) => m * power).find((s) => span / s <= count) ?? power * 10;
     const out = [];
     for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-9; v += step) out.push(Number(v.toFixed(10)));
     return out;
@@ -40,6 +40,8 @@ const ui = (() => {
     const pad = { l: 34, r: 12, t: 10, b: 20, ...(spec.pad ?? {}) };
     const fx = spec.x.format ?? ((v) => fmt(v)), fy = spec.y.format ?? ((v) => fmt(v));
     const sx = (v) => pad.l + (v - spec.x.min) / (spec.x.max - spec.x.min) * (W - pad.l - pad.r);
+    const top = Math.max(spec.y.max, ...(spec.series ?? []).flatMap((s) => s.points.map((p) => p[1])).filter(Number.isFinite));
+    if (top > spec.y.max) { const t = ticks(spec.y.min, top, 3); spec = { ...spec, y: { ...spec.y, max: t.at(-1) >= top ? t.at(-1) : top, ticks: spec.y.ticks ? [...spec.y.ticks.filter((v) => v < top), t.at(-1) >= top ? t.at(-1) : top] : undefined } }; }
     const sy = (v) => H - pad.b - (v - spec.y.min) / (spec.y.max - spec.y.min) * (H - pad.t - pad.b);
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.classList.add('pg-chart');
@@ -74,7 +76,8 @@ const ui = (() => {
     }
     for (const mark of spec.marks ?? []) {
       svg.append(el('line', { class: 'mark', 'data-tone': mark.tone, x1: pad.l, x2: W - pad.r, y1: sy(mark.y), y2: sy(mark.y) }));
-      if (mark.label) svg.append(el('text', { class: 'mark-label', 'data-tone': mark.tone, x: W - pad.r, y: sy(mark.y) - 4, 'text-anchor': 'end' }, mark.label));
+      const nearNow = Number.isFinite(spec.now) && sx(spec.now) > W - pad.r - 90;
+      if (mark.label) svg.append(el('text', { class: 'mark-label', 'data-tone': mark.tone, x: nearNow ? pad.l + 4 : W - pad.r, y: sy(mark.y) - 4, 'text-anchor': nearNow ? 'start' : 'end' }, mark.label));
     }
     for (const ev of spec.events ?? []) {
       const x = sx(ev.x);

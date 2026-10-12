@@ -85,6 +85,7 @@ function paintInputs() {
   const total = run.accepted + run.rejected;
   $('accepted').textContent = ui.fmt(run.accepted);
   $('rejected').innerHTML = `${ui.fmt(run.rejected)}<small>${ui.fmt(total ? run.rejected / total : 0, { percent: true, digits: 1 })} of traffic</small>`;
+  $('answer').dataset.tone = advice.capacity && state.capacity >= advice.capacity ? 'good' : advice.capacity ? 'warn' : 'bad';
   $('advice').innerHTML = advice.capacity
     ? `${advice.capacity} tokens<small>at ${state.refill} tokens/s</small>`
     : `Raise refill<small>demand averages ${ui.fmt(advice.average)}/s</small>`;

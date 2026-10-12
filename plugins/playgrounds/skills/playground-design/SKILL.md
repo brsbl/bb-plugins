@@ -96,8 +96,9 @@ Anatomy rules that apply to every hero:
 ## 3. The card
 
 Structure, top to bottom: `.pg-title` (one short line, sentence case) and a
-`.pg-subtitle` saying what to do; the hero in `figure.pg-fig`; the controls;
-an optional `dl.pg-readouts` row; at most one `<details>`.
+`.pg-subtitle` stating the task; the hero in `figure.pg-fig`; the transport if
+time moves; `dl.pg-readouts` with the answer first (`data-answer`,
+`data-tone`); the controls in `.pg-controls`; at most one `<details>`.
 
 **Budget** (bundled instruments keep their own layout).
 

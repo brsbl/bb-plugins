@@ -1,18 +1,10 @@
 <style>
-  .co { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 14px; padding: 4px 14px 2px; }
-  .rail { position: relative; display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-  .rail::before { content: ""; position: absolute; left: 5px; top: 10px; bottom: 10px; width: 1px; background: var(--pg-hairline); }
-  .rail li { position: relative; display: flex; align-items: center; gap: 9px; height: 26px; font-size: 11.5px; color: var(--pg-meta); }
-  .rail li::before { content: ""; z-index: 1; width: 11px; height: 11px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--foreground) 22%, var(--card)); background: var(--card); box-sizing: border-box; }
-  .rail li[data-visited]::before { background: color-mix(in srgb, var(--foreground) 22%, var(--card)); border-color: transparent; }
-  .rail li[aria-current]::before { background: var(--pg-ink); border-color: var(--pg-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pg-ink) 14%, transparent); }
-  .rail li[aria-current] { color: var(--pg-ink); font-weight: 500; }
-  .rail li[data-next] { color: var(--pg-body); }
   .screen h3 { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: -.01em; color: var(--pg-ink); }
   .screen p { margin: 4px 0 0; font-size: 12px; color: var(--pg-body); }
-  .line { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--pg-hairline); font-size: 12px; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-  .notice { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .line { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--pg-hairline); font-size: 12px; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .graph { padding: 2px 14px 10px; }
+  .shot { padding: 0 14px; }
 </style>
 
 <header class="pg-reveal" style="--i:0">
@@ -20,21 +12,23 @@
   <p class="pg-subtitle">The first payment was declined. Retry it, then make the gateway time out.</p>
 </header>
 
-<figure class="pg-fig pg-reveal" style="--i:1; margin-top:16px">
-  <figcaption class="pg-fig-head"><span>Fig. 1 &nbsp;Order 1042</span><span id="charged" class="pg-badge"></span></figcaption>
-  <div class="co">
-    <ol class="rail" id="rail" aria-label="Checkout states"></ol>
+<figure class="pg-fig pg-reveal" style="--i:1">
+  <figcaption class="pg-fig-head"><span><b>Fig. 1</b> Order 1042</span><span id="live" class="pg-badge"></span></figcaption>
+  <div class="graph"><svg id="graph" role="img" aria-label="Checkout states and transitions"></svg></div>
+  <div class="shot">
     <div class="pg-window">
       <div class="pg-window-bar"><strong>shop.example</strong><span>/ checkout</span></div>
       <div class="pg-window-body screen" id="screen" aria-live="polite"></div>
     </div>
   </div>
-  <div class="pg-fig-foot"><span>Payment key <span id="key"></span> · reused on retry</span><output id="attempts"></output></div>
+  <div class="pg-fig-foot"><span>Payment key <span id="key"></span> · reused on retry</span><output id="clock"></output></div>
 </figure>
 
-<div class="pg-row pg-reveal" style="--i:2; margin-top:14px">
-  <span>Gateway responds</span>
-  <div class="pg-seg" id="gateway" role="group" aria-label="Gateway response"></div>
-</div>
+<dl class="pg-readouts pg-reveal" style="--i:2">
+  <div data-answer id="answer"><dt>Customer charged</dt><dd id="charged"></dd></div>
+  <div><dt>Payment attempts</dt><dd id="attempts"></dd></div>
+</dl>
 
-<ol class="pg-log pg-reveal" id="log" style="--i:3; margin-top:14px" aria-label="Event log"></ol>
+<div class="pg-controls pg-reveal" style="--i:3">
+  <div class="pg-row"><span>Gateway responds</span><div class="pg-seg" id="gateway" role="group" aria-label="Gateway response"></div></div>
+</div>

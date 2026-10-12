@@ -2,6 +2,7 @@
 // requests travel the edges as dots, and rejected ones fall out of the card that
 // dropped them. Drive it from your model: send(), drop(), node(id).meter() etc.
 // spec: { width, height, nodes: [{ id, x, y, w, h, title, sub, meter, slots }], edges: [{ from, to, label }] }
+// slots: a number of cells, or { count, per } when each cell stands for `per` workers or connections.
 function flow(svg, spec) {
   const SVG = 'http://www.w3.org/2000/svg';
   const W = spec.width ?? 500, H = spec.height ?? 200;
@@ -36,8 +37,10 @@ function flow(svg, spec) {
       for (let i = 1; i < 4; i++) g.append(make('line', { class: 'meter-tick', x1: 10, x2: 10 + meterW, y1: 10 + mh * i / 4, y2: 10 + mh * i / 4 }));
     }
     const slots = [];
-    if (n.slots) {
-      const count = n.slots, size = Math.min(10, (w - tx - 10 - (count - 1) * 3) / count);
+    const slotCount = typeof n.slots === 'object' ? n.slots.count : n.slots;
+    const per = typeof n.slots === 'object' ? n.slots.per ?? 1 : 1;
+    if (slotCount) {
+      const count = slotCount, size = Math.min(10, (w - tx - 10 - (count - 1) * 3) / count);
       for (let i = 0; i < count; i++) {
         const cell = make('rect', { class: 'slot', x: tx + i * (size + 3), y: h - 10 - size, width: size, height: size, rx: 2 });
         slots.push(cell); g.append(cell);
@@ -46,7 +49,7 @@ function flow(svg, spec) {
     const value = make('text', { class: 'value', x: w - 10, y: h - 9, 'text-anchor': 'end' });
     g.append(value);
     layers.nodes.append(g);
-    nodes.set(n.id, { spec: n, g, x, y, w, h, meterFill, slots, sub, value, mh: h - 20 });
+    nodes.set(n.id, { spec: n, g, x, y, w, h, meterFill, slots, per, sub, value, mh: h - 20 });
   }
 
   const edges = spec.edges.map((e) => {
@@ -75,7 +78,8 @@ function flow(svg, spec) {
           n.meterFill.setAttribute('height', String(n.mh * v));
           n.meterFill.dataset.low = String(v < 0.15);
         },
-        slots(busy) { n.slots.forEach((cell, i) => cell.classList.toggle('busy', i < busy)); },
+        // busy is in real units (workers, connections); each cell covers `per` of them
+        slots(busy) { const cells = Math.ceil(busy / n.per - 1e-9); n.slots.forEach((cell, i) => cell.classList.toggle('busy', i < cells)); },
         sub(text) { n.sub.textContent = text; },
         value(text, tone) { n.value.textContent = text; if (tone) n.value.dataset.tone = tone; else delete n.value.dataset.tone; },
         state(tone) { if (tone) n.g.dataset.tone = tone; else delete n.g.dataset.tone; },
@@ -85,6 +89,8 @@ function flow(svg, spec) {
     send(from, to, { tone, duration = 0.7 } = {}) {
       const edge = edgeOf(from, to);
       if (!edge) return;
+      const gap = 12 / edge.length;
+      if (dots.some((d) => d.edge === edge && d.t < gap)) return;
       if (dots.length >= MAX_DOTS) dots.shift().el.remove();
       const el = make('circle', { class: 'dot', r: 3, 'data-tone': tone });
       layers.dots.append(el);

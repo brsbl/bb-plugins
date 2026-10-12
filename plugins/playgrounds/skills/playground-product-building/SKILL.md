@@ -20,7 +20,7 @@ skill picks the pattern and gives you a reference to copy.
 | The question is about… | Pattern | Copy |
 | --- | --- | --- |
 | Traffic through a system: rate limits, queues, load balancing, retries and backoff, circuit breakers, caches, autoscaling, connection pools | **Flow**: service cards joined by edges, sampled requests moving as dots, meters for tokens or queue depth, worker slots, rejected requests falling out; a time chart of the key quantity under it; a transport | `references/rate-limiter/` |
-| A lifecycle or workflow: checkout, sign-up, auth, jobs, orders, approvals | **Product surface**: the real screen for the current state inside `.pg-window`, a rail of states beside it, the valid events as the screen's own buttons, external outcomes (gateway, network) as a seg, an event log | `references/checkout/` |
+| A lifecycle or workflow: checkout, sign-up, auth, jobs, orders, approvals | **State graph + product surface**: the `states` graph with real branches and loops, the real screen for the current state in `.pg-window` under it, the valid events as the screen's own buttons, external outcomes (gateway, network) as a seg | `references/checkout/` |
 | A plan over time: rollouts, migrations, capacity, SLO burn, backfills | **Timeline**: stacked time charts sharing one x axis (exposure, error rate, load), threshold marks, an event marker where a gate fires, a transport scrubbing time, readouts with the verdict | `references/rollout/` |
 
 Mix patterns only when the question needs both (a queue sim whose output is a
@@ -49,15 +49,23 @@ move along them.
 All from the frame kit and `ui` (inlined by the builder):
 
 - `flow(svg, spec)` — `meta.components: ['product-building/flow']`. Nodes
-  `{ id, x, y, w, h, title, meter, slots }`, edges `{ from, to }`. Drive it
+  `{ id, x, y, w, h, title, meter, slots }` (`slots: { count: 8, per: 5 }` when
+  a cell stands for five workers; `.slots(busy)` takes real units), edges
+  `{ from, to }`. Drive it
   per step: `send(from, to)` one dot per N requests (say so in the figure
   foot), `drop(at)` for rejections, `node(id).meter(f)`, `.slots(n)`,
   `.sub(text)`, `.value(text, tone)`, `.state('bad')`; call `tick(dt)` each
   frame.
+- `states(svg, spec)` — `meta.components: ['product-building/states']`. The
+  state graph with its real branches and loops: nodes `{ id, label, x, y,
+  tone }`, edges `{ from, to, label, nudge }`; `set({ current, visited, last })`
+  highlights where you are, what can happen next and the transition just taken.
+  Put the product screen for the current state under it.
 - `ui.chart(svg, spec)` — line, step, area and bar series; `marks` for
   reference lines (`tone: 'bad'` for a threshold), `events` for "rolled back" style markers, `now` for the playhead.
-  Charts sit inside the figure, share an x axis, and never repeat a pattern
-  that stands in for data.
+  Charts sit inside the figure, share an x axis, use round ticks (put moments
+  in `events`, not in the ticks), and never repeat a pattern that stands in
+  for data.
 - `ui.loop(step)` plus `.pg-transport` (`.pg-icon-btn` play and replay with
   `ui.icons`, a range scrubber). It pauses offscreen; honor `ui.reduced` by
   opening on the answer frame without playing.
@@ -67,16 +75,32 @@ All from the frame kit and `ui` (inlined by the builder):
 
 ## 4. Card recipe
 
-Title and task subtitle → `figure.pg-fig` (Fig 1 + what it shows, live status
-badge; flow or screen; charts; foot with the sampling note and the clock) →
-transport → readouts (the answer first, then the two numbers that explain it)
-→ controls (`.pg-row` + `.pg-seg` for scenarios, `.pg-fields` sliders for the
-knobs). Width 540–560; about 700 px tall.
+Always this order (the references follow it):
 
-**First frame.** Open just before the interesting moment and play: two
-seconds before the burst, the payment already declined, the rollout at the
-stage where the gate fires. Never open on an idle system, an empty chart, or a
+1. Title and a subtitle that states the task, not a result.
+2. `figure.pg-fig`: head `<b>Fig. 1</b> what it shows` + a live status badge
+   whose tone matches the stateful node (never an input echo); the flow,
+   graph or screen; the charts; foot with the sampling note and the clock.
+3. `.pg-transport` when time moves.
+4. `dl.pg-readouts`: the answer first as `<div data-answer data-tone>` (good
+   when the current setup already meets the goal, warn or bad when not), then
+   at most two numbers that explain it.
+5. `.pg-controls`: `.pg-row` + `.pg-seg` for scenarios, then `.pg-fields` with
+   at most three sliders. More knobs become scenario presets.
+6. At most one `<details>` for the model and assumptions.
+
+Width 540–560; about 700 px tall.
+
+**First and last frame.** Open just before the interesting moment and play:
+two seconds before the burst, the payment already declined, the rollout three
+hours before the gate fires. When a run ends, settle back on the answer moment
+(the gate firing, the burst) instead of an idle final frame; reduced motion
+opens on that moment. Never open on an idle system, an empty chart, or a
 disabled main button.
+
+**Before you publish,** read your readouts against your subtitle: if the
+numbers contradict the lesson (jitter looking worse than no jitter), the model
+or the default is wrong — fix it, do not publish it.
 
 ## 5. Build and check
 

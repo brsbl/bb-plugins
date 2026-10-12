@@ -1,8 +1,29 @@
 // Checkout as a state machine with an idempotent payment. One pure model:
-// step(state, event) returns the next state; the card renders the real screen
-// for the current state and the rail of states beside it.
+// step(state, event) returns the next state; the card draws the state graph and
+// renders the real screen for the current state under it.
 
-export const meta = { title: 'Checkout state machine', width: 560 };
+export const meta = { title: 'Checkout state machine', width: 560, components: ['product-building/states'] };
+
+// Graph layout in viewBox units; edges are the real transitions, including loops.
+export const GRAPH = {
+  width: 500, height: 128,
+  nodes: [
+    { id: 'cart', label: 'Cart', x: 36, y: 28 },
+    { id: 'details', label: 'Details', x: 124, y: 28 },
+    { id: 'review', label: 'Review', x: 216, y: 28 },
+    { id: 'processing', label: 'Processing', x: 324, y: 28 },
+    { id: 'confirmed', label: 'Confirmed', x: 450, y: 28, tone: 'good' },
+    { id: 'declined', label: 'Declined', x: 252, y: 104, tone: 'bad' },
+    { id: 'unknown', label: 'Unknown', x: 404, y: 104, tone: 'warn' },
+  ],
+  edges: [
+    { from: 'cart', to: 'details' }, { from: 'details', to: 'review' }, { from: 'review', to: 'processing', label: 'pay' },
+    { from: 'processing', to: 'confirmed', label: 'approve' }, { from: 'processing', to: 'declined', label: 'decline' },
+    { from: 'processing', to: 'unknown', label: 'timeout', nudge: [8, -4] }, { from: 'declined', to: 'processing', label: 'retry', nudge: [-2, 10] },
+    { from: 'unknown', to: 'confirmed', label: 'found' }, { from: 'unknown', to: 'declined', label: 'none' },
+    { from: 'declined', to: 'details', label: 'edit' },
+  ],
+};
 
 export const STATES = [
   { id: 'cart', label: 'Cart' },

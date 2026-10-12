@@ -4,9 +4,10 @@ let state = normalize(window.playground.state);
 let run = simulate(state);
 let t = 0;
 
+// The answer moment: the hour the gate fires, or the hour the rollout reaches 100%.
+const answerAt = () => run.rolledBackAt ?? run.fullAt ?? run.hours;
 function openAt() {
-  if (ui.reduced.matches) return run.hours;
-  return run.rolledBackAt !== null ? Math.max(0, run.rolledBackAt - 3) : Math.max(0, run.hours - 8);
+  return ui.reduced.matches ? answerAt() : Math.max(0, answerAt() - 3);
 }
 
 function paint() {
@@ -37,14 +38,16 @@ function paint() {
   $('scrub').value = String(now);
   const v = verdict(run);
   $('verdict').dataset.tone = v.tone;
-  $('verdict').textContent = now >= run.hours ? v.label : 'Watching';
-  if (now < run.hours) delete $('verdict').dataset.tone;
+  const decided = now >= answerAt();
+  $('verdict').textContent = decided ? v.label : 'Watching';
+  if (!decided) delete $('verdict').dataset.tone;
+  $('answer').dataset.tone = v.tone;
 }
 
 function paintTotals() {
   const until = run.rolledBackAt ?? run.hours;
   const peak = Math.max(...run.points.filter((p) => p.h < until || run.rolledBackAt === null).map((p) => p.exposure));
-  $('peak').innerHTML = `${ui.fmt(USERS * peak / 100, { compact: true })}<small>${peak}% of users</small>`;
+  $('peak').innerHTML = run.release === 'regression' ? `${peak}% of users<small>${ui.fmt(USERS * peak / 100, { compact: true })} people</small>` : `None<small>healthy release</small>`;
   $('hurt').textContent = run.release === 'regression' ? ui.fmt(run.exposedUserHours, { compact: true }) : 'None';
   $('fired').innerHTML = run.rolledBackAt === null ? `Never<small>${run.release === 'healthy' ? 'no false alarms' : 'the bug shipped'}</small>` : `${run.rolledBackAt} h<small>${run.release === 'healthy' ? 'false alarm' : 'rolled back'}</small>`;
 }
@@ -60,8 +63,8 @@ function paintInputs() {
 
 const clock = ui.loop((dt) => {
   t = Math.min(run.hours, t + dt * HOURS_PER_SECOND);
+  if (t >= run.hours) { t = answerAt(); paint(); return false; }
   paint();
-  if (t >= run.hours) return false;
 }, { onChange: (playing) => { $('play').innerHTML = playing ? ui.icons.pause : ui.icons.play; $('play').setAttribute('aria-label', playing ? 'Pause' : 'Play'); } });
 
 function apply(next, save) {
