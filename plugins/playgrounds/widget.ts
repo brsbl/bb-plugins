@@ -97,7 +97,7 @@ img, svg { display: block; max-width: 100%; }
 .pg-fig-body { position: relative; padding: 0 14px; }
 .pg-fig-body > svg, .pg-fig-body > canvas { display: block; width: 100%; height: auto; }
 .pg-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 2px 0; font-size: 11px; line-height: 1.4; color: var(--pg-meta); }
-.pg-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 6px 12px; margin: 0; font-size: 12px; font-weight: 500; color: var(--pg-ink); }
+.pg-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 6px 12px; margin-inline: 0; margin-bottom: 0; font-size: 12px; font-weight: 500; color: var(--pg-ink); }
 .pg-field > output { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-field > input, .pg-field > select, .pg-field > .pg-input, .pg-field > small { grid-column: 1 / -1; }
 .pg-field > small { font-size: 11px; font-weight: 400; color: var(--pg-meta); }

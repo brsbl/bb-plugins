@@ -23,7 +23,7 @@ function flow(svg, spec) {
     const w = n.w ?? 112, h = n.h ?? (n.meter || n.slots ? 64 : 46), x = n.x - w / 2, y = n.y - h / 2;
     const g = make('g', { class: 'pg-flow-node', transform: `translate(${x} ${y})` });
     g.append(make('rect', { class: 'card', width: w, height: h, rx: 9 }));
-    const meterW = n.meter ? 10 : 0;
+    const meterW = n.meter ? Math.max(10, Math.round(w * 0.2)) : 0;
     const tx = 10 + (meterW ? meterW + 8 : 0);
     g.append(make('text', { class: 'title', x: tx, y: 19 }, n.title));
     const sub = make('text', { class: 'sub', x: tx, y: 33 }, n.sub ?? '');
