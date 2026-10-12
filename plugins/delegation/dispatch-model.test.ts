@@ -91,6 +91,16 @@ describe("channels", () => {
     expect(moss.messages).toEqual([]);
   });
 
+  it("splits a batched outcome notice per report and fills each from the report's last reply", () => {
+    const batch = row("b1", 30, { initiator: "system", systemMessageKind: "child-outcome-batch", systemMessageSubject: { kind: "thread-batch", count: 2, outcomes: [{ threadId: "thr_dispatch", status: "completed" }, { threadId: "thr_moss", status: "failed" }] }, text: "Child thread updates" });
+    const channels = buildChannels(inputs({
+      selfRows: [...selfRows, batch],
+      counterpartRows: new Map([["thr_dispatch", [{ id: "r1", kind: "conversation", role: "assistant", createdAt: 29, text: "Stories are ready." }, { id: "r2", kind: "conversation", role: "assistant", createdAt: 40, text: "Later reply" }]]]),
+    }));
+    expect(channels.find((channel) => channel.counterpartId === "thr_dispatch")!.messages.at(-1)).toMatchObject({ id: "b1:thr_dispatch", dir: "finished", text: "Stories are ready." });
+    expect(channels.find((channel) => channel.counterpartId === "thr_moss")!.messages.at(-1)).toMatchObject({ dir: "failed", text: "" });
+  });
+
   it("clears a needs-attention notice once something newer happens, unless bb still shows a pending interaction", () => {
     const answered = inputs({ counterpartRows: new Map([["thr_carousel", [row("r1", 20, { initiator: "agent", senderThreadId: SELF, text: "PNG and WebP." })]]]) });
     expect(buildChannels(answered).find((channel) => channel.counterpartId === "thr_carousel")!.needsYou).toBe(false);

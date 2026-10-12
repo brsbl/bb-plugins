@@ -10,7 +10,13 @@ export interface TimelineConversationRow {
   initiator?: "user" | "agent" | "system" | string | null;
   senderThreadId?: string | null;
   systemMessageKind?: string | null;
-  systemMessageSubject?: { kind: string; threadId?: string; threadName?: string } | null;
+  systemMessageSubject?: {
+    kind: string;
+    threadId?: string;
+    threadName?: string;
+    /** For "thread-batch": one outcome per report that finished in the same notice. */
+    outcomes?: readonly { threadId: string; status: string }[];
+  } | null;
   turnRequest?: { kind?: string; status?: string } | null;
 }
 
@@ -84,6 +90,12 @@ export function incoming(rows: readonly unknown[]): Map<string, ChannelMessage[]
     if (!isConversationRow(row) || row.role !== "user") continue;
     if (row.initiator === "agent" && row.senderThreadId) {
       add(row.senderThreadId, { id: row.id, dir: "in", at: row.createdAt, text: messageBody(row.text) });
+    } else if (row.initiator === "system" && row.systemMessageKind === "child-outcome-batch") {
+      // bb batches reports that finish together; the notice carries outcomes but no report text.
+      for (const outcome of row.systemMessageSubject?.outcomes ?? []) {
+        const dir: ChannelDirection = outcome.status === "failed" ? "failed" : outcome.status === "interrupted" ? "interrupted" : "finished";
+        add(outcome.threadId, { id: `${row.id}:${outcome.threadId}`, dir, at: row.createdAt, text: "" });
+      }
     } else if (row.initiator === "system" && row.systemMessageKind && row.systemMessageKind in CHILD_KINDS) {
       const subject = row.systemMessageSubject;
       if (subject?.kind === "thread" && subject.threadId) {
@@ -149,12 +161,23 @@ export function counterpartIds(inputs: Pick<ChannelInputs, "selfId" | "parentId"
   return [...ids];
 }
 
+/** A result notice without text takes the report's own last reply before it. */
+function fillResultText(message: ChannelMessage, counterpartRows: readonly unknown[]): ChannelMessage {
+  if (message.text || message.dir === "in" || message.dir === "out" || message.dir === "brief") return message;
+  const reply = counterpartRows
+    .filter(isConversationRow)
+    .filter((row) => row.role === "assistant" && row.createdAt <= message.at)
+    .at(-1);
+  return reply ? { ...message, text: reply.text.trim() } : message;
+}
+
 export function buildChannels(inputs: ChannelInputs): Channel[] {
   const fromOthers = incoming(inputs.selfRows);
   const order = counterpartIds(inputs);
   return order.map((counterpartId) => {
+    const theirRows = inputs.counterpartRows.get(counterpartId) ?? [];
     const messages = [
-      ...(fromOthers.get(counterpartId) ?? []),
+      ...(fromOthers.get(counterpartId) ?? []).map((message) => fillResultText(message, theirRows)),
       ...outgoing(inputs.counterpartRows.get(counterpartId) ?? [], inputs.selfId, {
         isReport: inputs.childIds.includes(counterpartId),
         historyComplete: inputs.completeHistory?.has(counterpartId) ?? false,
