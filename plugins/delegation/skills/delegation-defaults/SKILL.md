@@ -21,6 +21,16 @@ Refresh when `checkedAt` is null, or when any file below changed after it
 (`stat -f %m <file>` on macOS, `stat -c %Y <file>` on Linux; `checkedAt` is in
 milliseconds).
 
+## Find the memory notes
+
+Rebuild from the files every time; don't start from what's already recorded.
+List the candidate notes newest first, then read every one it prints:
+
+```sh
+rg -l -i '^description:.*(spawn|worker|model|tier|report to|reports|archiv|relay|delegat|sub-?thread|child thread|QA thread)' \
+  ~/.claude/projects/*/memory/*.md | xargs ls -t
+```
+
 ## Read these, highest precedence first
 
 1. `~/.bb/AGENTS.md` and `~/.claude/CLAUDE.md`: the user's instruction files.
