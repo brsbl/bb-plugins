@@ -9,7 +9,7 @@ export type CardSize = "month" | "week";
 export function ItemCardView({ item, size, picked = false, dragging = false, selected = false, overlay = false, cardRef, handle, onOpen, onToggle, onMenu, onKeyDown, onBlur }: {
   item: Item; size: CardSize; picked?: boolean; dragging?: boolean; selected?: boolean; overlay?: boolean;
   cardRef?: Ref<HTMLDivElement>; handle?: { attributes: DraggableAttributes; listeners: DraggableSyntheticListeners };
-  onOpen?: (item: Item) => void; onToggle?: (item: Item, posted: boolean) => void; onMenu?: (item: Item, anchor: HTMLElement) => void;
+  onOpen?: (item: Item, anchor: HTMLElement) => void; onToggle?: (item: Item, posted: boolean) => void; onMenu?: (item: Item, anchor: HTMLElement) => void;
   onKeyDown?: (item: Item, event: KeyboardEvent<HTMLDivElement>) => void; onBlur?: (item: Item) => void;
 }) {
   const subtitle = itemSubtitle(item);
@@ -32,7 +32,7 @@ export function ItemCardView({ item, size, picked = false, dragging = false, sel
     data-item-id={item.id}
     data-gated={isBlocked(item) ? "true" : "false"}
     className={className}
-    onClick={(event) => { if (!(event.target as HTMLElement).closest("input,button")) onOpen?.(item); }}
+    onClick={(event) => { if (!(event.target as HTMLElement).closest("input,button")) onOpen?.(item, event.currentTarget); }}
     onKeyDown={(event) => onKeyDown?.(item, event)}
     onBlur={(event) => { if (event.target === event.currentTarget) onBlur?.(item); }}
   >
