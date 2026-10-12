@@ -7,7 +7,7 @@
 
 ## How it works
 
-Click a pin to open it the way bb opens files and links. Right-click a file for **Open preview**, **Open externally**, **Copy file path** and **Copy file name**, then **Unpin** to move it to the ⋯ list or **Remove**, which offers **Undo**. Pin a file back from the ⋯ list while the strip has room. Missing files stay visible with a light red tint.
+Click a pin to open it the way bb opens files and links. Right-click a file for **Open preview**, **Open externally**, **Copy file path** and **Copy file name**, then **Unpin** to remove it with **Undo**. Hover or focus a pin for a preview card with the URL or path in its header. Web cards show a thumbnail or site icon, site name, title, and description. Pin a file back from the ⋯ list while the strip has room. Missing files stay visible with a light red tint.
 
 With Moss Viewer installed, a pinned Moss note opens in its panel, even when the note lives on another machine, and **Open in Moss** there opens it for editing.
 
@@ -15,4 +15,4 @@ Pins persist per thread across clients and restarts. Agents and scripts can also
 
 ## Privacy
 
-Files stay on their machine; pins store only the path, and no file contents are copied or sent to the agent. Link icons are looked up by the link's public HTTPS origin only, never its path or query. For a pinned GitHub pull request, the bb server sends its owner, repository and number to GitHub's public API, without credentials, to read its state; private repositories' PRs keep the site icon, except the thread's own PR, whose state comes from bb.
+Files stay on their machine; pins store only the path, and no file contents are copied or sent to the agent. Web previews fetch public HTTPS page metadata and bounded thumbnails on hover, without credentials; private-network links use a fallback. Link icons are looked up by the link's public HTTPS origin only, never its path or query. For a pinned GitHub pull request, the bb server sends its owner, repository and number to GitHub's public API, without credentials, to read its state; private repositories' PRs keep the site icon, except the thread's own PR, whose state comes from bb.
