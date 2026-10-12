@@ -40,8 +40,8 @@ const ui = (() => {
   //   marks: [{ y, label, tone: 'bad' for a threshold }], bands: [{ x0, x1 }], events: [{ x, label, tone }], now }
   function chart(svg, spec) {
     const W = spec.width ?? 480, H = spec.height ?? 160;
-    const labelled = (spec.series ?? []).some((s) => s.label);
-    const pad = { l: 34, r: labelled ? 64 : 12, t: spec.title ? 24 : 10, b: 20, ...(spec.pad ?? {}) };
+    // One right margin for every chart, so stacked panels line up and end labels fit.
+    const pad = { l: 34, r: 56, t: spec.title ? 24 : 10, b: 20, ...(spec.pad ?? {}) };
     const fx = spec.x.format ?? ((v) => fmt(v)), fy = spec.y.format ?? ((v) => fmt(v));
     const sx = (v) => pad.l + (v - spec.x.min) / (spec.x.max - spec.x.min) * (W - pad.l - pad.r);
     const top = Math.max(spec.y.max, ...(spec.series ?? []).flatMap((s) => s.points.map((p) => p[1])).filter(Number.isFinite));
@@ -61,6 +61,7 @@ const ui = (() => {
     }
     const xt = spec.x.ticks ?? ticks(spec.x.min, spec.x.max, 4);
     xt.forEach((v, i) => svg.append(el('text', { x: sx(v), y: H - 5, 'text-anchor': i === 0 ? 'start' : i === xt.length - 1 ? 'end' : 'middle' }, fx(v))));
+    const endLabels = [];
     for (const s of spec.series ?? []) {
       const pts = s.points.filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
       if (!pts.length) continue;
@@ -81,12 +82,20 @@ const ui = (() => {
         svg.append(el('path', { class: 'area', d: `${d}V${base}H${sx(pts[0][0]).toFixed(1)}Z` }));
       }
       svg.append(el('path', { class: 'series', 'data-tone': tone, 'data-dashed': s.dashed, d }));
-      if (s.label) { const [lx, ly] = pts.at(-1); svg.append(el('text', { class: 'series-label', 'data-tone': tone, x: sx(lx) + 5, y: sy(ly) + 3.5 }, s.label)); }
+      if (s.label) { const [lx, ly] = pts.at(-1); endLabels.push({ x: sx(lx) + 5, y: sy(ly) + 3.5, tone, text: s.label }); }
+    }
+    // Spread end labels apart so two lines ending together never print over each other.
+    endLabels.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < endLabels.length; i++) endLabels[i].y = Math.max(endLabels[i].y, endLabels[i - 1].y + 12);
+    const overflow = endLabels.length ? endLabels.at(-1).y - (H - pad.b + 3) : 0;
+    for (const label of endLabels) {
+      svg.append(el('text', { class: 'series-label', 'data-tone': label.tone, x: Math.min(label.x, W - pad.r + 5), y: label.y - Math.max(0, overflow) }, label.text));
     }
     for (const mark of spec.marks ?? []) {
       svg.append(el('line', { class: 'mark', 'data-tone': mark.tone, x1: pad.l, x2: W - pad.r, y1: sy(mark.y), y2: sy(mark.y) }));
       const nearNow = Number.isFinite(spec.now) && sx(spec.now) > W - pad.r - 90;
-      if (mark.label) svg.append(el('text', { class: 'mark-label', 'data-tone': mark.tone, x: nearNow ? pad.l + 4 : W - pad.r, y: sy(mark.y) - 4, 'text-anchor': nearNow ? 'start' : 'end' }, mark.label));
+      const above = sy(mark.y) - 4 > pad.t + 8;
+      if (mark.label) svg.append(el('text', { class: 'mark-label', 'data-tone': mark.tone, x: nearNow ? pad.l + 4 : W - pad.r, y: above ? sy(mark.y) - 4 : sy(mark.y) + 12, 'text-anchor': nearNow ? 'start' : 'end' }, mark.label));
     }
     for (const ev of spec.events ?? []) {
       const x = sx(ev.x);

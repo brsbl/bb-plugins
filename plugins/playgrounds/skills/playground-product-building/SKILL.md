@@ -47,6 +47,13 @@ move along them.
   TTL, trip threshold) with a button that applies it, or **a verdict on the
   current setting** ("Caught at 5%", "Loses 70 requests"). Never a state of
   the animation ("Closed"), never an echo of an input ("TTL 30 s").
+- For "show how X behaves" prompts, the answer is a comparative verdict from
+  the model ("Jitter cuts the retry peak 4×", "Breaker frees 70% of API
+  slots") and the readouts beside it show both sides of that comparison.
+- Use a node meter only for a bounded quantity (tokens / capacity, queue /
+  limit) and write that cap in the node's sub line. Empty nodes get a status
+  in their sub line instead ("Timing out", "Responding").
+- Every value names its window when it is not "now" ("· 30 s", "per min").
 - Nodes, charts and readouts read the same model fields. If a node says
   56 hits/s, no readout or input may imply 50 req/s in total.
 
