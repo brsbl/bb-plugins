@@ -191,10 +191,10 @@ function PinStrip({ threadId }: { threadId: string }) {
     if (!more.includes(pin.id)) return [{ label: "Unpin", disabled: busy, run: () => void remove(pin) }];
     const next = pinFile(pins, current, pin.id, metrics, { whole });
     return [{
-      label: "Pin", disabled: !next, hint: next ? undefined : "No room on the strip", run: () => {
+      label: "Show in strip", disabled: busy || !next, hint: next ? undefined : "No room on the strip", run: () => {
         if (next) { setMoreOpen(false); arrange(next); }
       },
-    }];
+    }, { label: "Unpin", disabled: busy, run: () => void remove(pin) }];
   }
   // bb's FileLink menu items that the public SDK can reproduce, then this plugin's actions.
   // "Open with" and "Open in" need core-only openers and local app targets, so they are left out.

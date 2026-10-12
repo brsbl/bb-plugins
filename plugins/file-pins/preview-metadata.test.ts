@@ -57,3 +57,27 @@ it("returns the first advertised JSON oEmbed endpoint, decoded", () => {
     <link rel="alternate" type="application/json+oembed" href="/second">
   </head>`)).toEqual({ images: [], oembed: "/oembed?url=a&format=json" });
 });
+
+it.each(["<meta ", "<!--", "<script>", "<title>", "attribute"])("bounds malformed full-size pages: %s", (kind) => {
+  const fragment = kind === "attribute" ? "<meta " + "a".repeat(2 * 1024 * 1024) + ">" : kind;
+  const html = fragment.repeat(Math.ceil(2 * 1024 * 1024 / fragment.length)).slice(0, 2 * 1024 * 1024);
+  const started = performance.now();
+  expect(pageMetadata(html)).toEqual({ title: "", description: "", site: "", image: null });
+  expect(metadataCandidates(html)).toEqual({ images: [], oembed: null });
+  // A generous CI ceiling catches quadratic rescans without requiring benchmark precision.
+  expect(performance.now() - started).toBeLessThan(1000);
+});
+
+it("finds metadata after large raw text while preserving Unicode offsets", () => {
+  const html = `<head><SCRIPT>${"İ<script><meta content='wrong'>".repeat(20000)}</SCRIPT>
+    <title>Right &amp; title</title><meta property="og:image" content="/right.png"></head>`;
+  expect(pageMetadata(html).title).toBe("Right & title");
+  expect(metadataCandidates(html).images).toEqual(["/right.png"]);
+});
+
+it("bounds oversized tags and title text and stops at a body without a closing head", () => {
+  expect(pageMetadata(`<title>${"x".repeat(20000)}</title>`).title).toBe("x".repeat(240));
+  expect(metadataCandidates(`<meta content="${"x".repeat(9000)}" property="og:image">`).images).toEqual([]);
+  expect(pageMetadata('<body><meta property="og:title" content="not head metadata">').title).toBe("");
+  expect(pageMetadata('<meta ignored boolean content="a > b" property="og:title">').title).toBe("a > b");
+});
