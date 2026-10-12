@@ -4,7 +4,7 @@ import { LIMITS, STAGE_LABELS, TRAY_LABELS, todayInCalendar, type Attachment, ty
 import type { GateInput, UpdateInput } from "../contract.js";
 import { isDate, isRejected, parsePullRequest, scheduledBefore, shortDate } from "../calendar-layout.js";
 import { readableError, useCalendarRpc, useDeferredDelete, useLiveReload, type When } from "./data.js";
-import { FormatSelect, MoveTo } from "./board.js";
+import { FormatSelect, MoveTo } from "./fields.js";
 import { Popover, usePopover } from "./popover.js";
 import { useToasts } from "./toasts.js";
 import { FilePicker } from "./file-picker.js";
@@ -39,15 +39,15 @@ export function useDraft(value: string) {
 
 /**
  * One item's detail: every field saves on change, with no Save button. Shown
- * beside the grid on the page and in the thread side panel from an inline calendar.
+ * in a popover when an item on the calendar is clicked.
  */
-export function ItemDetail({ itemId, onClose, onItem, onDelete }: {
-  itemId: string; onClose?: () => void; onItem?: (item: Item) => void; onDelete?: (item: Item) => void;
+export function ItemDetail({ itemId, initial, onClose, onItem, onDelete }: {
+  itemId: string; initial?: Item; onClose?: () => void; onItem?: (item: Item) => void; onDelete?: (item: Item) => void;
 }) {
   const rpc = useCalendarRpc();
   const navigate = useBbNavigate();
   const toasts = useToasts();
-  const [item, setItem] = useState<Item | null>(null);
+  const [item, setItem] = useState<Item | null>(initial && initial.id === itemId ? initial : null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<"open" | "hidden" | "deleted">("open");
@@ -60,7 +60,7 @@ export function ItemDetail({ itemId, onClose, onItem, onDelete }: {
       if (current === version.current) { setItem(next); setLoadError(null); }
     } catch (err) { if (current === version.current) setLoadError(readableError(err)); }
   }, [rpc, itemId]);
-  useEffect(() => { setItem(null); setLoadError(null); setError(null); setState("open"); void load(); }, [load]);
+  useEffect(() => { setItem((current) => current?.id === itemId ? current : null); setLoadError(null); setError(null); setState("open"); void load(); }, [load, itemId]);
   useLiveReload(() => void load());
 
   const adopt = useCallback((next: Item) => { setItem(next); onItemRef.current?.(next); }, []);
@@ -150,7 +150,7 @@ function DetailBody({ item, error, onDismissError, onClose, update, move, act, r
         onFocus={title.onFocus} onChange={(event) => title.setDraft(event.target.value)} onBlur={commitTitle}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
-          if (event.key === "Escape") title.reset();
+          if (event.key === "Escape" && title.draft !== item.title) { event.preventDefault(); title.reset(); }
         }} />
       <button type="button" className="cc-icon-button" aria-label="More" aria-haspopup="menu" aria-expanded={menu.open?.kind === "menu"} onClick={(event) => menu.toggle("menu", event.currentTarget)}>⋯</button>
       {onClose && <button type="button" className="cc-icon-button" aria-label="Close" onClick={onClose}>×</button>}
@@ -198,7 +198,7 @@ function DetailBody({ item, error, onDismissError, onClose, update, move, act, r
           </select>
           {item.date && <input type="date" className="cc-input" aria-label="Date" value={date.draft}
             onFocus={date.onFocus} onChange={(event) => date.setDraft(event.target.value)} onBlur={commitDate}
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") date.reset(); }} />}
+            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape" && date.draft !== (item.date ?? "")) { event.preventDefault(); date.reset(); } }} />}
           {item.days > 1 && <span className="cc-muted">{item.days} days</span>}
         </span>
       </div>

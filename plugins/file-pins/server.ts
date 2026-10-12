@@ -7,12 +7,15 @@ import { IconService, createIconCache } from "@brsbl/bb-website-icons";
 import { CHANGED, MAX_PINS, PIN_MENTION, hostContract, isUrlPin, moreSchema, pinsSchema, rpcContract, type FilePin, type Pin, type Reference, type UrlPin } from "./contract.js";
 import { fetchPrState, GitHubRateLimited, githubPullRequest, isFresh, prKey, PR_STATES, type PrState, type PullRequestRef } from "./pr-state.js";
 import { looksLikeUrl, parseWebUrl, urlPinName } from "./url-pin.js";
+import { LinkPreviews, type PreviewResult } from "./link-preview.js";
 
 // The shipped skill is the one source of the pinning instructions; the composer pill sends it to the agent.
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const SKILL_PATH = join(basename(MODULE_DIR) === "dist" ? dirname(MODULE_DIR) : MODULE_DIR, "skills", "file-pins", "SKILL.md");
 const PROACTIVE_PIN_INSTRUCTIONS =
   "Without being asked, pin the few links central to this thread's work with `bb file-pins pin <url> --title \"<title>\"`: the PR you open or drive, the issue or ticket being worked, the spec or design doc, and a dev site or dashboard you hand the user (local dev or story server, its shared URL, or a deployed preview). Remove a dev site's pin when you retire its server. Load the file-pins skill for the guardrails before pinning.";
+
+const previewOf = ({ preview, status, retryAt }: PreviewResult) => ({ preview, status, ...(retryAt ? { retryAt } : {}) });
 
 // A URL pin is its exact normalized URL; a file pin is its host and canonical path.
 function samePin(a: Pin, b: Pin): boolean {
@@ -24,6 +27,11 @@ export default function plugin(bb: BbPluginApi): void {
   const host = bb.hosts.experimental_client({ contract: hostContract });
   // Compact Links' resolver: only a pinned URL's public HTTPS origin is contacted, cached in this plugin's database.
   const icons = new IconService(createIconCache(bb));
+  // Diagnostics carry only the outcome, HTTP status and time, never the URL or response.
+  const previews = new LinkPreviews({
+    logger: ({ reason, status, elapsedMs }) => bb.log.debug(`Link preview ${reason}${status ? ` (HTTP ${status})` : ""} in ${elapsedMs}ms`),
+  });
+  bb.onDispose(() => previews.dispose());
   bb.onDispose(() => icons.setEnabled(false));
   const undos = new Map<string, { threadId: string; pin: Pin; index: number; more: boolean; expires: number }>();
   // One cached state per PR across threads. A stale state is answered at once and refreshed behind it;
@@ -216,6 +224,15 @@ export default function plugin(bb: BbPluginApi): void {
     icon: async ({ threadId, pinId }) => {
       const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
       return { dataUrl: pinned && isUrlPin(pinned) ? await icons.get(new URL(pinned.url).origin) : null };
+    },
+    preview: async ({ threadId, pinId }) => {
+      const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
+      return pinned && isUrlPin(pinned) ? previewOf(await previews.getResult(pinned.url)) : { preview: null };
+    },
+    refreshPreview: async ({ threadId, pinId }) => {
+      const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
+      if (!pinned || !isUrlPin(pinned)) throw new Error("This link is no longer pinned.");
+      return previewOf(await previews.getResult(pinned.url, true));
     },
     prState: async ({ threadId, pinId }) => {
       const pinned = (await list(threadId)).pins.find((pin) => pin.id === pinId);
