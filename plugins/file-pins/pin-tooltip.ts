@@ -1,5 +1,4 @@
 import { isUrlPin, type Reference } from "./contract.js";
-import { urlPinName } from "./url-pin.js";
 
 /** Longest value a tooltip shows in full; longer ones keep both ends, where paths and URLs differ. */
 export const TOOLTIP_MAX_CHARS = 240;
@@ -10,16 +9,15 @@ export function truncateMiddle(value: string, max = TOOLTIP_MAX_CHARS): string {
   return `${value.slice(0, head)}…${value.slice(value.length - (max - 1 - head))}`;
 }
 
-export type PinTooltip = { value: string; note?: string };
+export type PinTooltip = { address: string; title: string; note?: string };
 
-/** A pin's tooltip: a URL's title when one was set, else the URL, or a file's path with its machine when elsewhere. */
+/** Keep the destination visible even when the pin has a custom title. */
 export function pinTooltip(pin: Reference, threadHostId: string | null): PinTooltip {
   if (isUrlPin(pin)) {
-    const titled = pin.name !== urlPinName(pin.url);
-    return { value: truncateMiddle(titled ? pin.name : pin.url) };
+    return { address: truncateMiddle(pin.url), title: truncateMiddle(pin.name) };
   }
   const machine = pin.hostId !== threadHostId ? pin.hostName : undefined;
   const status = pin.status === "missing" ? "(missing)" : pin.status === "unavailable" ? "(unavailable)" : undefined;
   const note = [machine, status].filter(Boolean).join(" ");
-  return { value: truncateMiddle(pin.path), note: note || undefined };
+  return { address: truncateMiddle(pin.path), title: truncateMiddle(pin.name), note: note || undefined };
 }
