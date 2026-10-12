@@ -27,6 +27,8 @@ export function check({ html, width }) {
   if (/<select\b/i.test(html)) warnings.push('A native <select>: use .pg-seg or chips for up to six choices.');
   if (count(html, /type\s*=\s*["']number["']/gi) > 2) warnings.push('Several number boxes: use sliders (.pg-field + range) for continuous values; keep number boxes for exact figures the user knows.');
   const fig = html.match(/<figure[^>]*\bpg-fig\b[\s\S]*?<\/figure>/i)?.[0] ?? '';
+  const solids = count(fig, /class="iso-solid/g);
+  if (/iso-svg/.test(fig) && solids < 40) warnings.push(`The figure has ${solids} kit solids. Build the object from at least 40 purposeful parts: bases on feet, rails, bushings, screws, hooks, ticks.`);
   if (count(fig, /<text\b/gi) > 2) warnings.push(`${count(fig, /<text\b/gi)} <text> labels inside the figure. Keep words out of the drawing (one engraved label at most); name parts in a .pg-legend under it.`);
   if (/<button[^>]*(?:pg-btn-primary[^>]*\bdisabled\b|\bdisabled\b[^>]*pg-btn-primary)/i.test(html)) warnings.push('The primary button starts disabled. Open on a state where the main action already works.');
   if (/slider-thumb|range-thumb/i.test(html)) warnings.push('Custom slider styling: the kit styles input[type=range] with --pg-accent; set the accent instead.');

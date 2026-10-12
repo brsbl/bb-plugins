@@ -1,6 +1,5 @@
 .motion-lab{color:var(--pg-ink);font:12px/1.5 var(--font);max-width:820px;margin:auto}
 .motion-lab *{box-sizing:border-box}
-.motion-lab .eyebrow{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--pg-meta);margin:0 0 8px}
 .motion-lab h2{font-size:23px;line-height:1.17;letter-spacing:-.035em;font-weight:500;margin:0 0 8px}
 .motion-lab h3{font-size:12px;font-weight:600;line-height:1.4;margin:0 0 9px}
 .motion-lab p{margin:0;color:var(--pg-body)}

@@ -24,8 +24,9 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
   press, motion rig) or a new figure from Anatomy (Ryan's drawing kit) through
   its figure builder. Publish the result as an ordinary HTML playground.
 
-- **Native document** for calculators, scenario comparisons, charts, and
-  tables. Bounded arithmetic, no code, accessible by construction.
+- **Native document** only for a plain calculator or comparison with nothing
+  to show moving (a bill split, a loan payment). Plans, schedules, systems and
+  sizing questions are HTML playgrounds. Bounded arithmetic, no code, accessible by construction.
 - **HTML playground** when the idea needs a working object: a design
   instrument beside the product surface it changes, a system that runs, an
   object that demonstrates a concept, or a board, game or instrument the user

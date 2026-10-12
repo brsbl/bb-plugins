@@ -19,7 +19,6 @@ export async function createPayload() {
   const html = `<!-- Anatomy drawing kit: https://github.com/wheresryan22/anatomy\n${license} -->
 <style>${k.ISO_CSS}\n${read('./styles.css')}</style>
 <section class="motion-lab" aria-label="Interface motion rig">
-<p class="eyebrow">Anatomy / Product design / 02</p>
 <h2>Give an interface a little weight</h2>
 <p class="intro">Drag a spring-mounted drawer. Tune how it settles. The interface below follows the very same position, frame for frame.</p>
 <div class="rig-stage iso" data-theme="light">

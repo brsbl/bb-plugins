@@ -24,8 +24,9 @@ A row of labelled boxes, a lone chart, or a form with a result is not a hero.
 | **Learning** — how something works | The real object or a lab instrument that demonstrates it, with the governing equation in one line and two or three experiment chips | A lever → a beam on a knife-edge fulcrum with hanging masses and a balance pointer; an engine → a cutaway piston, crank and valves |
 | **Collaborative play and tooling** — things the user and the agent do together | The real object, crafted: a board, a pad deck, a corkboard. A visible `.pg-agent` area shows what the agent did or will do, and every move is an exposed action | Connect Four → a molded board on feet with discs that drop; a retro → a corkboard with seeded sample notes and an agent column for groups and actions |
 
-Native documents remain right for a plain calculator or comparison (a bill
-split, a loan). Everything above is an HTML playground.
+Native documents are only for a plain calculator with no moving parts (a bill
+split, a loan payment). Everything in this table — including plans, schedules
+and capacity sizing — is an HTML playground with a hero.
 
 ## 2. Draw the hero
 
@@ -33,7 +34,8 @@ Choose the first path that fits:
 
 1. **A bundled instrument.** For type size, line length, leading or margins,
    start from the typography press; for springs, damping or interface easing,
-   start from the motion rig. Generate it, then adjust copy or defaults:
+   start from the motion rig. Generate it, then adjust copy or defaults. Keep
+   the width the build sets; the instruments are laid out for it:
 
    ```sh
    node typography-press/build.mjs --out /absolute/workspace/typography.json
@@ -49,6 +51,12 @@ Choose the first path that fits:
    cp -R <this skill>/figure/starter /absolute/workspace/lever
    node <this skill>/figure/build.mjs /absolute/workspace/lever --out /absolute/workspace/lever.json
    ```
+
+   Any machine, mechanism, apparatus or crafted physical object goes through
+   this builder; never hand-draw one as flat SVG. Keep the starter's base,
+   feet, screws, ruler and label plate where they fit, and build the object
+   from at least 40 kit solids; the check counts them. Hang things from real
+   hooks and rods, seat parts on other parts, and fill 55–65% of the figure.
 
    The builder inlines the kit, frames the figure (Fig n and name on top, hint
    and live readout below), follows bb's theme, adds the credit and license, and
@@ -88,7 +96,7 @@ Structure, top to bottom: `.pg-title` (one short line, sentence case) and a
 `.pg-subtitle` saying what to do; the hero in `figure.pg-fig`; the controls;
 an optional `dl.pg-readouts` row; at most one `<details>`.
 
-**Budget.**
+**Budget** (bundled instruments keep their own layout).
 
 - About 700 CSS px tall at width 520. Publish `width` 440–560; wider only for
   a side-by-side or a map.
@@ -155,6 +163,10 @@ click for "Send to agent".
 - The figure builder runs the check. For hand-written HTML, save the payload
   JSON and run `node <this skill>/figure/check.mjs payload.json`. Fix every
   error and every warning you cannot justify.
+- Read your first frame as the user will see it. An empty tank, an empty
+  trace, a blank board row, or a readout of 0 means the card opens before the
+  idea starts: begin mid-run (tokens already flowing, the first comparison
+  made, an opening move played).
 - If Browser Automation is available, render the frame at 2× and look: no
   clipped or wrapped labels, the hero is the largest element, and one
   interaction changes it.

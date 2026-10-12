@@ -31,7 +31,7 @@ function paint(force = false) {
     readAt = elapsed;
     const percent = Math.round(motion.position * 100);
     text('position-value', percent + '%');
-    text('velocity-value', (motion.velocity > 0 ? '+' : '') + motion.velocity.toFixed(2) + '/s');
+    text('velocity-value', Math.abs(motion.velocity) < .005 ? '0/s' : (motion.velocity > 0 ? '+' : '') + motion.velocity.toFixed(2) + '/s');
     nodes['motion-drag'].setAttribute('aria-valuenow', String(Math.round(state.target * 100)));
     nodes['motion-drag'].setAttribute('aria-valuetext', 'Target ' + Math.round(state.target * 100) + ' percent. Drawer ' + percent + ' percent open.');
     const phase = dragging ? 'Held by you' : measure(state, motion).settled ? 'At rest' : motion.position < 0 || motion.position > 1 ? 'Overshooting' : 'In motion';
@@ -224,4 +224,5 @@ window.addEventListener('pagehide', () => {
   if (typeof offState === 'function') offState();
   if (typeof offTheme === 'function') offTheme();
 }, { once: true });
-apply(state, { save: false, restore: true });
+if (bridge.state) apply(state, { save: false, restore: true });
+else apply(state, { save: false, fromClosed: true });
