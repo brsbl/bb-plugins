@@ -55,7 +55,7 @@ export const CONTROLS_CSS = String.raw`
 .pg-stepper button:hover { background: var(--pg-stage); }
 .pg-stepper output { min-width: 3.5em; text-align: center; font-size: 11.5px; font-weight: 500; }
 .pg-picker { position: relative; display: grid; justify-items: center; gap: 4px; }
-.pg-picker > [role=group] { display: grid; grid-template-columns: repeat(var(--cols, 2), 24px); gap: 2px; padding: 2px; border-radius: 9px; box-shadow: var(--pg-edge); background: var(--card); }
+.pg-picker > [role=group] { display: grid; grid-template-columns: repeat(var(--pg-picker-cols, 2), 24px); gap: 2px; padding: 2px; border-radius: 9px; box-shadow: var(--pg-edge); background: var(--card); }
 .pg-picker button { display: grid; place-items: center; width: 24px; height: 18px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--pg-ink); }
 .pg-picker button[aria-pressed=true] { background: var(--pg-ink); color: var(--card); }
 .pg-picker > .pg-value { font-size: 9.5px; }
@@ -92,7 +92,7 @@ export const CONTROLS_CSS = String.raw`
 .pg-keyboard .pg-c span { color: #5f5b54; font-weight: 500; }
 .pg-keyboard > .pg-gesture { inset: 0; z-index: 2; display: grid; place-items: center; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--card) 72%, transparent); color: var(--pg-ink); font-size: 12px; font-weight: 500; }
 @media (pointer: coarse) { .pg-keyboard span.pg-key { display: none; } }
-.pg-pads { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 6px; }
+.pg-pads { display: grid; grid-template-columns: repeat(var(--pg-pad-cols, 4), minmax(0, 1fr)); gap: 6px; }
 .pg-steps { display: grid; grid-template-columns: 56px repeat(var(--steps, 16), minmax(0, 1fr)); gap: 3px; align-items: center; font-size: 10px; color: var(--pg-meta); }
 .pg-steps button { aspect-ratio: 1; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: var(--pg-hairline); }
 .pg-steps button:nth-of-type(4n+1) { background: color-mix(in srgb, var(--foreground) 14%, var(--card)); }
@@ -415,7 +415,7 @@ export const CONTROLS_RUNTIME = String.raw`
   function pads(el) {
     el.classList.add("pg-pads");
     const list = attr(el, "pads", "").split(",").map((p) => { const [label, key] = p.split(":"); return { id: label.trim(), key: (key || "").trim().toLowerCase() }; }).filter((p) => p.id);
-    el.style.setProperty("--cols", attr(el, "cols", String(Math.min(4, list.length))));
+    el.style.setProperty("--pg-pad-cols", attr(el, "cols", String(Math.min(4, list.length))));
     for (const p of list) {
       const b = document.createElement("button"); b.type = "button"; b.className = "pg-pad"; b.dataset.press = p.id;
       b.innerHTML = "<span></span><small></small>"; b.firstChild.textContent = p.id; b.lastChild.textContent = p.key.toUpperCase();
