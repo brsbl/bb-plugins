@@ -1,6 +1,6 @@
 // Action Cards components. Presentational only: they take values and callbacks and never call RPC.
 // Hierarchy, top to bottom: question → what happens → evidence → answer → note + submit → outcome.
-import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "../components/ui/button.js";
 import { cn } from "../lib/utils.js";
 import "./tokens.css";
@@ -65,6 +65,8 @@ export function NoteField({ value, onChange, disabled, placeholder = "Add a note
   const edit = () => { saved.current = value; setEditing(true); };
   const cancel = () => { onChange(saved.current); setEditing(false); };
   const save = () => { onChange(value.trim()); setEditing(false); };
+  // Sent or cleared from outside (for example by Submit): close the empty editor.
+  useEffect(() => { if (editing && !value && document.activeElement !== ref.current) setEditing(false); }, [editing, value]);
   if (editing) return <div className="ac-note-editor">
     <textarea ref={ref} className="ac-note-input" aria-label="Note" placeholder={placeholder} value={value} rows={2} maxLength={1000} disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
@@ -125,5 +127,5 @@ export function DecisionGroup({ title, progress, children, footer, onSubmit }: {
     <div className="ac-group-foot">{footer}</div>
   </DecisionCard>;
 }
-export function DecisionRow({ children }: { children: ReactNode }) { return <div className="ac-row" role="group">{children}</div>; }
+export function DecisionRow({ label, children }: { label: string; children: ReactNode }) { return <div className="ac-row" role="group" aria-label={label}>{children}</div>; }
 export { Button };

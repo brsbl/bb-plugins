@@ -10,7 +10,6 @@ import { DecisionSheet, type SheetBinding } from "./sheet.js";
 import { readableError, submitDraft, submitting } from "./submit.js";
 import "./app.css";
 import "./compact.css";
-import { Specimen } from "./ui/specimen.js";
 
 export function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, sheet, logEntry }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
@@ -25,8 +24,6 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const changeNote = (value: string) => sheet ? sheet.setNote(value) : setLocalNote(value);
   const clearNote = () => changeNote("");
   const [followUps, setFollowUps] = useState<FollowUp[]>(initialItem?.followUps ?? []);
-  // Set when this view watches a ready card leave with a comment: its result plays "sent with your comment".
-  const [accepted, setAccepted] = useState(false);
   const [viewResult, setViewResult] = useState(false);
   const onItemRef = useRef(onItem); onItemRef.current = onItem;
   const onExpandRef = useRef(onExpand); onExpandRef.current = onExpand;
@@ -54,13 +51,11 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const alive = useRef(true);
   const adopt = useCallback((next: Item & { followUps?: FollowUp[] }, own = false) => {
     const changedState = current.current?.state !== next.state;
-    const leftWithNote = current.current?.state === "ready" && next.state !== "ready" && !!next.attempt?.note;
     const { followUps: latest, ...plain } = next;
     current.current = plain;
     if (alive.current) {
       setItem(plain); onItemRef.current?.(plain, own);
       if (latest) setFollowUps(latest);
-      if (leftWithNote) setAccepted(true);
       if (changedState && (next.state === "succeeded" || next.state === "failed")) onExpandRef.current?.(false);
       if (changedState && (next.state === "succeeded" || next.state === "failed")) setError(null);
     }
@@ -271,7 +266,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   </div></div>;
   const time = status ? status.time : item.updatedAt;
   const chosen = item.attempt ? item.attempt.choice?.label ?? actionLabel(item, item.attempt.action) : null;
-  const where = stalled ? "Not sent: it didn't reach the agent." : item.state === "failed" ? item.result?.message ?? "Failed." : item.state === "succeeded" ? resultLabel(item) : status ? "Sent, waiting for the agent" : "";
+  const where = stalled ? "Not sent: it didn't reach the agent." : item.state === "failed" ? item.result?.message ?? "Failed." : item.state === "succeeded" ? resultLabel(item) : status ? "Sent. Waiting for the agent." : "";
   const tone = stalled ? "unsent" : item.state === "failed" ? "failed" : item.state === "succeeded" ? "done" : "sent";
   const result = <DecisionBody about={<div className="ac-question">{heading}</div>} answer={<Outcome tone={tone} answer={chosen ?? ""} note={item.attempt?.note} status={where} time={new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
       actions={(stalled || item.state === "failed" || deferred) ? <>
@@ -362,7 +357,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
       {failure}
     </article>;
   }
-  if (row && sheet) return <DecisionRow>
+  if (row && sheet) return <DecisionRow label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
     {done ? result : <>{field}<NoteField value={note} onChange={changeNote} disabled={!ready || busy} /></>}
     {failure}
   </DecisionRow>;
@@ -445,6 +440,5 @@ export default definePluginApp((app) => {
   app.experimental_icons.register({ name: "inline-action-cards/skip-forward", component: ({ className }) =>
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 4 11 8-11 8V4ZM19 4v16" /></svg> });
   app.slots.messageDirective({ id: "action", component: ActionDirective });
-  app.slots.messageDirective({ id: "action-specimen", component: () => <div className="iac-container"><Specimen /></div> });
   app.slots.messageDirective({ id: "actions", component: ActionsDirective });
 });

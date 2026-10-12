@@ -44,7 +44,7 @@ Any card (Reply, Decide, or Choice) accepts optional evidence so the user can de
 
 - `context`: Markdown, up to 20,000 characters, rendered like a chat message (headings, lists, code blocks, tables, links). Lead with what changes and the risk; long context is clipped until the user opens it.
 - `media`: up to 4 images, each `{"src","alt","caption"?}`. `src` is an `https://` URL or an **absolute path** to a `.png`, `.jpg`, `.gif`, `.webp`, `.avif` or `.svg` file on the thread's host (for example a screenshot you just captured). Relative paths, `http:`, and `data:` URLs are rejected.
-- Decide cards also accept `recommended: "yes" | "no"`; Choice cards keep `recommended: "<option id>"`. The form labels that option "(recommended)" but never preselects it.
+- Decide cards also accept `recommended: "yes" | "no"`; Choice cards keep `recommended: "<option id>"`. The form tags that option "Recommended" but never preselects it.
 
 ```sh
 bb action-cards create merge-412 --item-stdin <<'JSON'
@@ -58,7 +58,7 @@ Keep `question` and `consequence` short; they are what the user scans in a table
 
 ## Choose one option
 
-A choice card asks one question and lists 2–6 options as a compact single-select list. The user picks one and clicks “Use <option>”. Give each option a stable `id`, a short `label` (80 characters at most; aim for a few words), and an optional one-line `hint`; the card truncates long hints. Set `recommended` to an option id to mark it and preselect it; otherwise nothing is selected. Add `consequence` only when it applies to every option.
+A choice card asks one question and lists 2–6 options as a compact single-select list. The user picks one and presses Submit. Give each option a stable `id`, a short `label` (80 characters at most; aim for a few words), and an optional one-line `hint`; the card truncates long hints. Set `recommended` to an option id to tag it; nothing is ever preselected. Add `consequence` only when it applies to every option.
 
 ```sh
 bb action-cards create account-setup --item-stdin <<'JSON'
@@ -72,7 +72,7 @@ Explain tradeoffs in `context` or before the card rather than in hints. A click 
 
 Create the items first, then create a table that references those same IDs. Emit its returned `::actions{id="..."}` directive on its own line. Rows keep their order as results arrive. Order rows by importance and keep each `question` scannable.
 
-Every card renders as a plain form. Its question is the field label; `consequence` and `context` show in full as help text. The answer is a radio group (Decide shows your Yes/No labels, Choice shows its options, Reply shows Send / Save to Gmail drafts under the full draft), followed by an optional one-line **Note** field and a **Submit** button. A table is one form with one Submit at the end: it sends one message with a mention per answered row, each with its own attempt and note. Rows the user left unanswered send nothing, so don't assume an answer for them. Keep `consequence` short and put long detail in `context`; both show in full.
+Every card renders as a plain form. Its question comes first, then `consequence`; `context` shows as a preview that opens with Show more. The answer is a radio group (Decide shows your Yes/No labels, Choice shows its options, Reply shows Send / Save to Gmail drafts under the full draft), followed by **Add note** and a **Submit** button. A table is one form with one Submit at the end: it sends one message with a mention per answered row, each with its own attempt and note. Rows the user left unanswered send nothing, so don't assume an answer for them. Keep `consequence` short and put long detail in `context`.
 
 ```sh
 bb action-cards create news-1 --item-stdin <<'JSON'
@@ -121,7 +121,7 @@ The card shows Retry. A new click creates a new attempt, which must be claimed a
 
 ## Comments with a choice
 
-The **Note** field sits under the answer. When Submit carries an answer, the note goes after the mention pill and is included as `note` in hidden context.
+**Add note** opens the user's note under the answer; they can cancel it or save it before submitting. When Submit carries an answer, the note goes after the mention pill and is included as `note` in hidden context.
 
 ## Comment without choosing
 

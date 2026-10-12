@@ -58,13 +58,8 @@
 .ac-group-title { font-size: var(--ac-title); font-weight: 600; }
 .ac-row { display: grid; gap: var(--ac-gap); padding: var(--ac-pad); border-bottom: 1px solid var(--border); }
 .ac-group-foot { padding: calc(var(--ac-s) * 2.5) var(--ac-pad); }
-/* Specimen only */
-.ac-spec { display: grid; gap: 20px; }
-.ac-spec-frame { display: grid; gap: 8px; }
-.ac-spec-frame > .ac-card + .ac-card { margin-top: 4px; }
-.ac-spec-title { color: var(--muted-foreground); font-size: var(--text-xs, .75rem); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 /* Long unbroken text (URLs, paths) wraps instead of widening the card. */
-.ac-card, .ac-card > *, .ac-row > *, .ac-spec, .ac-spec-frame { min-width: 0; }
+.ac-card, .ac-card > *, .ac-row > * { min-width: 0; }
 .ac-context { overflow-wrap: anywhere; }
 .ac-row > .ac-note-toggle { justify-self: start; }
 /* Body: what the decision is about, then the answer, stacked like bb's question form. */

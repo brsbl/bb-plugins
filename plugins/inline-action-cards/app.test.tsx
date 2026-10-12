@@ -34,8 +34,15 @@ function answer(label: RegExp | string, within_: HTMLElement = document.body) {
   fireEvent.click(within(within_).getByRole("radio", { name: label }));
 }
 function submit(within_: HTMLElement = document.body) {
-  fireEvent.click(within(within_).getByRole("button", { name: "Submit" }));
+  fireEvent.click(within(within_).getByRole("button", { name: /^Submit( \d+ answers?)?$/ }));
 }
+// The note opens from "Add note"; Submit sends whatever is in it.
+function note(value: string, within_: HTMLElement = document.body) {
+  fireEvent.click(within(within_).getByRole("button", { name: "Add note" }));
+  fireEvent.change(within(within_).getByRole("textbox", { name: "Note" }), { target: { value } });
+}
+// After submitting, the card shows the chosen answer and its status.
+const chosen = (label: string) => screen.findByText(label, { selector: ".ac-outcome-answer" });
 async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>) {
   let item = initialItem;
   const calls: string[] = [];
@@ -88,7 +95,7 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Billing follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
   await screen.findByText(/Sent\. Waiting for the agent\./);
-  expect(screen.getByText(/You chose Send/)).toBeTruthy();
+  expect(await chosen("Send")).toBeTruthy();
   expect(screen.queryByRole("textbox")).toBeNull();
 });
 it("preserves an existing composer message", async () => {
@@ -173,7 +180,7 @@ it.each(["send", "yes", "no"] as const)("shows %s as submitting only while it is
   expect((pending as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByRole("radio", { name: label }).matches(":disabled")).toBe(true);
   release();
-  expect(await screen.findByText(new RegExp(`You chose ${label}$`))).toBeTruthy();
+  expect(await chosen(label)).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
   expect(screen.queryByRole("radio")).toBeNull();
 });
@@ -221,8 +228,8 @@ it("shows a card whose request never reached the agent as not sent, with Resend"
   const item: Item = { ...fixture(), revision: 3, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, note: "how do i test?" }, content: { type: "decide", question: "Merge PR #42?", consequence: "Squash-merge it.", yesLabel: "Merge" } };
   const { slot } = await setup("", false, item);
   expect((await screen.findByRole("status")).textContent).toContain("Not sent: it didn't reach the agent.");
-  expect(screen.getByText(/You chose Merge/)).toBeTruthy();
-  expect(screen.getByText("how do i test?")).toBeTruthy();
+  expect(await chosen("Merge")).toBeTruthy();
+  expect(screen.getByText("“how do i test?”")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Resend" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.mentions).toMatchObject([{ id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
@@ -349,7 +356,7 @@ it("submits the picked option from a choice card, marking but never preselecting
   let release!: () => void;
   const { slot, calls, get } = await setup("", false, { ...fixture(), id: "setup", content }, new Promise<void>((resolve) => { release = resolve; }));
   await screen.findByRole("group", { name: "Which account setup?" });
-  expect(screen.getByText("(recommended)").closest("label")?.textContent).toContain("UserMultiple");
+  expect(screen.getByText("Recommended").closest("label")?.textContent).toContain("UserMultiple");
   expect(screen.getAllByRole("radio").some((radio) => (radio as HTMLInputElement).checked)).toBe(false);
   expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
   answer(/^UserSingle/);
@@ -360,14 +367,14 @@ it("submits the picked option from a choice card, marking but never preselecting
   expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:setup:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Which account setup" }]);
   expect(screen.getByRole("button", { name: "Submitting…" }).getAttribute("aria-busy")).toBe("true");
   release();
-  expect(await screen.findByText(/You chose UserSingle/)).toBeTruthy();
+  expect(await chosen("UserSingle")).toBeTruthy();
   expect(calls).toEqual(["choose", "submitted"]);
 });
 it("sends the note along with the chosen option", async () => {
   const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "UserSingle" }, { id: "multi", label: "UserMultiple" }] };
   const { slot, get } = await setup("", false, { ...fixture(), id: "setup", content });
   answer(/^UserMultiple/);
-  fireEvent.change(await screen.findByRole("textbox", { name: "Note (optional)" }), { target: { value: "Keep the pool as backup" } });
+  note("Keep the pool as backup");
   submit();
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(get().attempt).toMatchObject({ action: "choose", note: "Keep the pool as backup" });
@@ -387,7 +394,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
   plugin(host.bb);
   const item = fixture();
   if (type === "decide") item.content = { type: "decide", question: "Switch digests?", consequence: "Switch the email digests", yesLabel: "Switch" };
-  const note = "but keep Money on the old automation";
+  const text = "but keep Money on the old automation";
   try {
     await host.harness.behavior.runCli(["create", item.id, "--thread", item.threadId, "--item", JSON.stringify(item.content)]);
     const app = await loadPluginApp(() => import("./app.js"));
@@ -401,23 +408,23 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
     });
     await screen.findByRole("radio", { name: type === "reply" ? "Send" : "Switch" });
     answer(type === "reply" ? "Send" : "Switch");
-    fireEvent.change(await screen.findByRole("textbox", { name: "Note (optional)" }), { target: { value: note } });
+    note(text);
     submit();
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-    expect(submittedMessages[0]).toContain(` — ${note}`);
+    expect(submittedMessages[0]).toContain(` — ${text}`);
     const mention = slot.inspection.composer.mentions[0]!;
     const resolved = await host.harness.registrations.mentionProviders[0]!.resolve(mention.id);
     const context = JSON.parse(resolved.context);
-    expect(context).toMatchObject({ note, intent: "approved-action" });
+    expect(context).toMatchObject({ note: text, intent: "approved-action" });
     const claimed = await host.harness.behavior.runCli(["claim", item.id, "--thread", item.threadId, "--attempt", context.attemptId]);
-    expect(JSON.parse(claimed.stdout!).attempt).toMatchObject({ note, claimed: true });
+    expect(JSON.parse(claimed.stdout!).attempt).toMatchObject({ note: text, claimed: true });
     host = await host.harness.lifecycle.reload(plugin);
     const saved = await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId]);
-    expect(JSON.parse(saved.stdout!).attempt.note).toBe(note);
+    expect(JSON.parse(saved.stdout!).attempt.note).toBe(text);
     await host.harness.behavior.runCli(["report", item.id, "--thread", item.threadId, "--attempt", context.attemptId, "--outcome", "succeeded", "--message", "Switched"]);
     await slot.behavior.emitRealtime("items", {});
     await screen.findByText("Switched");
-    expect(screen.getByText(note).className).toContain("iac-result-note");
+    expect(screen.getByText(`“${text}”`).className).toContain("ac-outcome-note");
     slot.lifecycle.unmount();
   } finally { await host.harness.lifecycle.dispose(); }
 });
@@ -446,23 +453,26 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
         comment: (input) => host.harness.behavior.callRpc("comment", input),
       },
     });
-    const note = "Can you keep Money on the old one?";
+    const text = "Can you keep Money on the old one?";
     // A note with no answer picked is sent on its own as a question.
-    fireEvent.change(await screen.findByRole("textbox", { name: "Note (optional)" }), { target: { value: note } });
+    await screen.findByRole("button", { name: "Add note" });
+    note(text);
     submit();
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-    expect(submittedMessages[0]).toContain(note);
+    expect(submittedMessages[0]).toContain(text);
     expect(submittedMessages[0]).toMatch(type === "reply" ? /^Billing follow-up / : /^Switch digests /);
     const mention = slot.inspection.composer.mentions[0]!;
     host = await host.harness.lifecycle.reload(plugin);
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
-    expect(context).toMatchObject({ intent: "comment", note, itemId: item.id });
+    expect(context).toMatchObject({ intent: "comment", note: text, itemId: item.id });
     expect(context).not.toHaveProperty("action");
     expect(context).not.toHaveProperty("attemptId");
     const saved = JSON.parse((await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId])).stdout!);
     expect(saved).toMatchObject({ state: "ready", attempt: null, revision: 1 });
     expect((screen.getByRole("radio", { name: type === "reply" ? "Send" : "Switch" }) as HTMLInputElement).disabled).toBe(false);
-    expect((screen.getByRole("textbox", { name: "Note (optional)" }) as HTMLInputElement).value).toBe("");
+    // The sent note is cleared and its editor closed.
+    expect(await screen.findByRole("button", { name: "Add note" })).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Note" })).toBeNull();
     slot.lifecycle.unmount();
   } finally { await host.harness.lifecycle.dispose(); }
 });
@@ -487,7 +497,7 @@ it("keeps each row's own note in one submitted form, and shows Reply rows in ful
     expect(screen.queryByRole("alert")).toBeNull();
     for (const [index, row] of rows.entries()) {
       answer("Switch", row);
-      fireEvent.change(within(row).getByRole("textbox", { name: "Note (optional)" }), { target: { value: `Condition ${index}` } });
+      note(`Condition ${index}`, row);
     }
     submit();
     await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
@@ -509,7 +519,7 @@ it("keeps each row's own note in one submitted form, and shows Reply rows in ful
   });
   await screen.findByRole("group", { name: /^Reply:/ });
   expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
-  expect(screen.getByRole("textbox", { name: "Note (optional)" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Add note" })).toBeTruthy();
   replySlot.lifecycle.unmount();
 });
 
