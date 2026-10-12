@@ -7,7 +7,8 @@
 .icx-row-pair .icx-arrow { top: calc(50% + 10px); }
 .icx-arrow:hover:not([aria-disabled="true"]) { background: var(--accent); }
 .icx-arrow:focus-visible, .icx-caption:focus-visible, .icx-frame:focus-visible, .icx-retry:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.icx-arrow[aria-disabled="true"] { color: var(--muted-foreground); cursor: default; }
+.icx-arrow[aria-disabled="true"] { cursor: default; }
+.icx-arrow[aria-disabled="true"] svg { opacity: .35; }
 .icx-arrow svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .icx-media { min-width: 0; }
 .icx-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--icx-gap); }
