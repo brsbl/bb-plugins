@@ -156,7 +156,7 @@ function CurrentServerCard({
     <div
       className={cn(
         "flex w-full min-w-0 items-center gap-2.5",
-        expanded ? "py-2 pl-2 pr-3" : "py-1.5 pl-2 pr-2.5",
+        expanded ? "py-2 pl-1.75 pr-3" : "py-1.5 pl-1.75 pr-2.5",
       )}
     >
       <RingPopover
@@ -215,7 +215,7 @@ function ServerRowButton({
   const disabled = !interactive || offline;
   return (
     <li className="flex flex-col">
-      <div className="flex min-w-0 items-center gap-2.5 rounded-md py-1 pl-1 pr-2 hover:bg-state-hover">
+      <div className="flex min-w-0 items-center gap-2.5 rounded-md py-1 pl-0.75 pr-2 hover:bg-state-hover">
         <RingPopover
           row={row}
           ring={ring}
@@ -267,7 +267,7 @@ function PanelBody({
 
   if (state.status === "loading") {
     return (
-      <div className="flex items-center gap-2.5 py-1.5 pl-2 pr-2.5" aria-busy="true">
+      <div className="flex items-center gap-2.5 py-1.5 pl-1.75 pr-2.5" aria-busy="true">
         <Skeleton className="size-7 rounded-full" />
         <div className="flex flex-1 flex-col gap-1">
           <Skeleton className="h-3 w-24" />
@@ -332,7 +332,7 @@ function PanelBody({
       )}
       {showList ? (
         <>
-          <div className="flex h-7 items-center gap-1 border-t border-sidebar-border pl-2 pr-3 pt-1">
+          <div className="flex h-7 items-center gap-1 border-t border-sidebar-border pl-1.75 pr-3 pt-1">
             <span className="text-2xs font-medium text-muted-foreground">
               {others.length === 0 ? "No other servers" : "Switch to"}
             </span>
