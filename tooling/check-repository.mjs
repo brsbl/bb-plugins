@@ -32,6 +32,7 @@ const pluginBbEngineOverrides = new Map([
   ["open-in-moss", ">=0.43.4"],
   ["playgrounds", ">=0.46.0"],
   ["pull-requests", ">=0.43.4"],
+  ["server-switcher", ">=0.46.0"],
   ["theme-preview", ">=0.38.0"],
   ["video-markup", ">=0.43.4"],
 ]);

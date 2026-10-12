@@ -32,6 +32,14 @@ export type FileReference = z.infer<typeof fileReferenceSchema>;
 export const referenceSchema = z.union([fileReferenceSchema, urlPinSchema]);
 export type Reference = z.infer<typeof referenceSchema>;
 
+export const PREVIEW_STATUSES = ["ready", "no-image", "blocked", "not-found", "timeout", "rate-limited", "unsupported", "invalid-image", "network", "busy"] as const;
+// `status` and `retryAt` were added beside `preview`; older apps ignore them and older servers omit them.
+const previewOutput = z.object({
+  preview: z.object({ title: z.string(), description: z.string(), site: z.string(), image: z.string().nullable() }).nullable(),
+  status: z.enum(PREVIEW_STATUSES).optional(),
+  retryAt: z.number().optional(),
+});
+
 export const hostContract = defineRpcContract({
   inspect: {
     input: z.object({ paths: z.array(filePath).max(MAX_PINS) }).strict(),
@@ -80,6 +88,15 @@ export const rpcContract = defineRpcContract({
   icon: {
     input: z.object({ threadId: id, pinId: id }).strict(),
     output: z.object({ dataUrl: z.string().max(128 * 1024).nullable() }),
+  },
+  preview: {
+    input: z.object({ threadId: id, pinId: id }).strict(),
+    output: previewOutput,
+  },
+  // Reloads a URL pin's own preview; like `preview`, it takes a pin, never an address to fetch.
+  refreshPreview: {
+    input: z.object({ threadId: id, pinId: id }).strict(),
+    output: previewOutput,
   },
   // A GitHub PR pin's state (open, draft, merged or closed), or null for other pins and PRs GitHub won't show without a login.
   prState: {

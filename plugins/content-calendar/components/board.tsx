@@ -3,12 +3,14 @@ import {
   DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection, useDraggable, useDroppable, useSensor, useSensors,
   type Announcements, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
-import { FORMATS, FORMAT_LABELS, NO_FORMAT_LABEL, TRAY_LABELS, todayInCalendar, weekdayIndex, type Format, type Item, type Tray } from "../model.js";
+import { FORMATS, TRAY_LABELS, todayInCalendar, weekdayIndex, type Format, type Item, type Tray } from "../model.js";
 import {
   WEEKDAY_SHORT, cellNumber, dayName, dropPlacement, gridWeeks, itemsByDay, keyboardStep, rangeDays, samePlace, whereLabel,
   type CalendarRange,
 } from "../calendar-layout.js";
 import { lastFormat, readableError, rememberFormat, type CalendarView, type When, type useCalendarData } from "./data.js";
+import { ItemDetail } from "./detail.js";
+import { FormatSelect, MoveTo } from "./fields.js";
 import { ItemCardView, type CardSize } from "./item-card.js";
 import { Popover, usePopover } from "./popover.js";
 
@@ -44,9 +46,8 @@ type Pop =
  * pointer drag, by keyboard (Space, arrows, Space, or Escape), or through
  * Move to… in each item's ⋯ menu.
  */
-export function CalendarBoard({ range, mode, data, view, selectedId = null, onOpen, jumpToken = 0, children }: {
-  range: CalendarRange; mode: "page" | "inline"; data: Data; view: CalendarView; selectedId?: string | null;
-  onOpen: (item: Item) => void;
+export function CalendarBoard({ range, mode, data, view, jumpToken = 0, children }: {
+  range: CalendarRange; mode: "page" | "inline"; data: Data; view: CalendarView;
   /** Changing this (the Today button) scrolls today's cell into view; it also runs once when the board mounts. */
   jumpToken?: number;
   children?: ReactNode;
@@ -77,6 +78,23 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
   const openPop = (state: Pop, anchor: HTMLElement) => { setPopState(state); pop.show(state.kind, anchor); };
   const closePop = () => { pop.close(); setPopState(null); };
 
+  const [editing, setEditing] = useState<{ id: string; anchor: HTMLElement } | null>(null);
+  const editingRef = useRef(editing); editingRef.current = editing;
+  const cardOf = (id: string) => root.current?.querySelector<HTMLElement>(`[data-item-id="${id}"]`) ?? null;
+  const openEditor = (item: Item, anchor: HTMLElement) => { closePop(); setEditing({ id: item.id, anchor }); };
+  const closeEditor = useCallback((refocus = false) => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest(".cc-editor")) active.blur();
+    const anchor = editingRef.current?.anchor;
+    if (refocus && anchor?.isConnected) anchor.focus({ preventScroll: true });
+    setEditing(null);
+  }, []);
+  useLayoutEffect(() => {
+    if (!editing || editing.anchor.isConnected) return;
+    const card = cardOf(editing.id);
+    if (card) setEditing({ id: editing.id, anchor: card });
+  });
+
   // Pointer drag.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [active, setActive] = useState<Item | null>(null);
@@ -87,7 +105,7 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
     if (value.startsWith("item:")) { const item = all.get(value.slice(5)); return item ? containerOf(item) : null; }
     return value.startsWith("day:") || value.startsWith("tray:") ? value as Container : null;
   };
-  const onDragStart = ({ active: start }: DragStartEvent) => { setActive(all.get(String(start.id)) ?? null); closePop(); };
+  const onDragStart = ({ active: start }: DragStartEvent) => { setActive(all.get(String(start.id)) ?? null); closePop(); closeEditor(); };
   const onDragOver = ({ over: target }: DragOverEvent) => setOver(resolve(target?.id));
   const onDragEnd = ({ active: start, over: target }: DragEndEvent) => {
     setActive(null); setOver(null);
@@ -165,7 +183,7 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
       reorder(item, event.key === "ArrowUp" ? "up" : "down");
       return;
     }
-    if (event.key === "Enter") { event.preventDefault(); onOpen(item); }
+    if (event.key === "Enter") { event.preventDefault(); openEditor(item, event.currentTarget); }
   };
   /** Moves an item one place up or down within its day or tray: Alt+arrows, or Move up/down in its menu. */
   const reorder = (item: Item, direction: "up" | "down") => {
@@ -193,8 +211,8 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
   });
 
   const highlighted = picked ? `day:${picked.target}` : over;
-  const card = (item: Item) => <DraggableItem key={item.id} item={item} size={size} picked={picked?.item.id === item.id} selected={selectedId === item.id}
-    onOpen={onOpen} onToggle={(target, posted) => void data.setPosted(target, posted)} onMenu={(target, anchor) => openPop({ kind: "menu", item: target }, anchor)}
+  const card = (item: Item) => <DraggableItem key={item.id} item={item} size={size} picked={picked?.item.id === item.id} selected={editing?.id === item.id}
+    onOpen={openEditor} onToggle={(target, posted) => void data.setPosted(target, posted)} onMenu={(target, anchor) => openPop({ kind: "menu", item: target }, anchor)}
     onKeyDown={onCardKey} onBlur={onCardBlur} />;
   const inlineWeek = mode === "inline" && range.view === "week";
   // bb renders its own dnd-kit contexts in other React roots, whose ids also start at 0; a unique id keeps
@@ -206,9 +224,9 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
     <DndContext id={dndId} sensors={sensors} collisionDetection={collisions} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}
       onDragCancel={() => { setActive(null); setOver(null); }}
       accessibility={{ announcements, screenReaderInstructions: { draggable: "To move this item, press Space to pick it up, use the arrow keys to move it a day or a week, then press Space to drop it or Escape to cancel. Alt+Up and Alt+Down reorder it within its day. Move to… in its menu also moves it." } }}>
-      <div className="cc-grid" aria-label="Calendar">
+      <div className={inlineWeek ? "cc-grid" : "cc-grid cc-grid-dow"} aria-label="Calendar">
         {!inlineWeek && WEEKDAY_SHORT.map((day) => <div key={day} className="cc-dow" aria-hidden="true">{day}</div>)}
-        {weeks.flat().map((date, index) => <DayCell key={date} date={date} label={inlineWeek ? `${WEEKDAY_SHORT[weekdayIndex(date)]} ${Number(date.slice(8))}` : cellNumber(date, index === 0)}
+        {weeks.flat().map((date, index) => <DayCell key={date} date={date} weekday={WEEKDAY_SHORT[weekdayIndex(date)]!} label={inlineWeek ? String(Number(date.slice(8))) : cellNumber(date, index === 0)}
           today={date === today} weekend={weekdayIndex(date) >= 5} outside={range.view === "month" && !date.startsWith(month)} highlighted={highlighted === `day:${date}`}
           onAdd={mode === "page" ? (anchor) => openPop({ kind: "add", when: { date } }, anchor) : undefined}>
           {(byDay.get(date) ?? []).map(card)}
@@ -231,7 +249,7 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
         await data.add({ title, format, when: popState.when });
       }} />}
       {popState.kind === "menu" && <div className="cc-menu">
-        <button type="button" role="menuitem" onClick={() => { onOpen(popState.item); closePop(); }}>Open</button>
+        <button type="button" role="menuitem" onClick={() => openEditor(popState.item, cardOf(popState.item.id) ?? pop.open!.anchor)}>Open</button>
         <button type="button" role="menuitem" onClick={() => setPopState({ kind: "move", item: popState.item })}>Move to…</button>
         {(() => {
           const list = listOf(containerOf(popState.item));
@@ -250,6 +268,10 @@ export function CalendarBoard({ range, mode, data, view, selectedId = null, onOp
         closePop();
       }} />}
     </Popover>}
+    {editing && <Popover kind="editor" anchor={editing.anchor} onClose={closeEditor} width={360} label={`Edit ${all.get(editing.id)?.title ?? "item"}`}>
+      <ItemDetail key={editing.id} itemId={editing.id} initial={all.get(editing.id)} onClose={() => closeEditor(true)} onItem={data.upsert}
+        onDelete={(item) => { closeEditor(); data.remove(item); }} />
+    </Popover>}
   </div>;
 }
 
@@ -260,15 +282,15 @@ function DraggableItem(props: Omit<Parameters<typeof ItemCardView>[0], "cardRef"
   return <ItemCardView {...props} cardRef={ref} dragging={isDragging} handle={{ attributes, listeners }} />;
 }
 
-function DayCell({ date, label, today, weekend, outside, highlighted, onAdd, children }: {
-  date: string; label: string; today: boolean; weekend: boolean; outside: boolean; highlighted: boolean;
+function DayCell({ date, weekday, label, today, weekend, outside, highlighted, onAdd, children }: {
+  date: string; weekday: string; label: string; today: boolean; weekend: boolean; outside: boolean; highlighted: boolean;
   onAdd?: (anchor: HTMLElement) => void; children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
   const className = ["cc-day", weekend ? "cc-weekend" : "", today ? "cc-is-today" : "", outside ? "cc-outside" : "", highlighted || isOver ? "cc-over" : ""].filter(Boolean).join(" ");
   return <div ref={setNodeRef} className={className} role="group" aria-label={dayName(date)} aria-current={today ? "date" : undefined} data-date={date}>
     <div className="cc-day-head">
-      <span className="cc-day-date"><span className={today ? "cc-today" : undefined}>{label}</span>{today && <span className="cc-today-label">Today</span>}</span>
+      <span className="cc-day-date"><span className="cc-day-wd">{weekday}</span><span className={today ? "cc-day-num cc-today" : "cc-day-num"}>{label}</span>{today && <span className="cc-today-label">Today</span>}</span>
       {onAdd && <button type="button" className="cc-add" aria-label={`Add item on ${dayName(date)}`} onClick={(event) => onAdd(event.currentTarget)}>+</button>}
     </div>
     <div className="cc-day-items">{children}</div>
@@ -282,13 +304,6 @@ function TrayBox({ tray, highlighted, onAdd, children }: { tray: Tray; highlight
       <button type="button" className="cc-text-button" aria-label={`Add item to ${TRAY_LABELS[tray]}`} onClick={(event) => onAdd(event.currentTarget)}>Add</button></h2>
     {children.length ? <div className="cc-tray-items">{children}</div> : <p className="cc-empty-line">Drop items here.</p>}
   </section>;
-}
-
-export function FormatSelect({ value, onChange, id, label = "Format" }: { value: Format | null; onChange: (value: Format | null) => void; id?: string; label?: string }) {
-  return <select id={id} aria-label={id ? undefined : label} className="cc-input" value={value ?? ""} onChange={(event) => onChange(event.target.value ? event.target.value as Format : null)}>
-    {FORMATS.map((format) => <option key={format} value={format}>{FORMAT_LABELS[format]}</option>)}
-    <option value="">{NO_FORMAT_LABEL}</option>
-  </select>;
 }
 
 /** Quick add: a title and a format (the last one used). Enter creates the item. */
@@ -311,21 +326,6 @@ function QuickAdd({ when, onCreate, onClose }: { when: When; onCreate: (title: s
       <button type="submit" className="cc-button cc-primary" disabled={!title.trim() || busy}>{busy ? "Adding…" : "Add"}</button>
     </div>
     {error && <p className="cc-error" role="alert">{error}</p>}
-  </form>;
-}
-
-/** Move to…: a date, Evergreen, or Later. The click-only alternative to dragging. */
-export function MoveTo({ item, onMove }: { item: Item; onMove: (when: When) => void }) {
-  const [date, setDate] = useState(item.date ?? todayInCalendar());
-  return <form className="cc-move" onSubmit={(event) => { event.preventDefault(); if (date) onMove({ date }); }}>
-    <label className="cc-muted" htmlFor={`cc-move-${item.id}`}>Move “{item.title}” to</label>
-    <div className="cc-row-actions">
-      <input id={`cc-move-${item.id}`} className="cc-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} autoFocus />
-      <button type="submit" className="cc-button cc-primary" disabled={!date || date === item.date}>Move</button>
-    </div>
-    <div className="cc-row-actions">
-      {(["evergreen", "later"] as const).map((tray) => <button key={tray} type="button" className="cc-button" disabled={item.tray === tray} onClick={() => onMove({ tray })}>{TRAY_LABELS[tray]}</button>)}
-    </div>
   </form>;
 }
 
