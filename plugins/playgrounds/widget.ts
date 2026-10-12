@@ -103,6 +103,7 @@ img, svg { display: block; max-width: 100%; }
 .pg-field > small { font-size: 11px; font-weight: 400; color: var(--pg-meta); }
 .pg-controls { display: grid; gap: 12px; }
 .pg-controls > .pg-fields { margin-top: 2px; }
+.pg-controls > .pg-seg { justify-self: start; }
 details { font-size: 11.5px; color: var(--pg-body); }
 details > summary { cursor: pointer; color: var(--pg-meta); font-size: 11.5px; list-style-position: inside; }
 details > summary:hover { color: var(--pg-ink); }
@@ -110,7 +111,7 @@ details[open] > summary { margin-bottom: 6px; }
 details p { margin: 0 0 6px; font-size: 11.5px; line-height: 1.5; }
 .pg-fig-head b { font-weight: 500; color: var(--pg-ink); }
 .pg-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 500; color: var(--pg-ink); }
-.pg-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 20px; }
+.pg-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px 18px; }
 input[type=range] { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 20px; margin: 0; background: transparent; cursor: pointer; }
 input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--pg-accent), var(--pg-accent)) 0 / var(--pg-fill, 50%) 100% no-repeat, var(--pg-hairline); }
 input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--pg-hairline); }
@@ -192,7 +193,14 @@ input[type=range]:focus-visible::-webkit-slider-thumb { outline: 2px solid var(-
 .pg-chart .event[data-tone=bad] { stroke: var(--pg-bad); }
 .pg-chart .event-label { font-weight: 500; fill: var(--pg-ink); }
 .pg-chart .event-label[data-tone=bad] { fill: var(--pg-bad); }
-.pg-chart .band { fill: color-mix(in srgb, var(--pg-bad) 7%, transparent); }
+.pg-chart .title { fill: var(--pg-ink); font-weight: 500; font-size: 11px; }
+.pg-chart .series-label { fill: var(--pg-ink); font-weight: 500; }
+.pg-chart .series-label[data-tone=meta] { fill: var(--pg-meta); stroke: none; }
+.pg-chart .series-label[data-tone=bad] { fill: var(--pg-bad); stroke: none; }
+.pg-chart .series-label[data-tone=good] { fill: var(--pg-good); stroke: none; }
+.pg-chart .band-label { fill: var(--pg-bad); font-weight: 500; }
+.pg-chart .band[data-tone=meta] { fill: color-mix(in srgb, var(--foreground) 6%, transparent); }
+.pg-chart .band { fill: color-mix(in srgb, var(--pg-bad) 10%, transparent); }
 output { font-variant-numeric: tabular-nums; }
 .pg-reveal { animation: pg-reveal .38s var(--pg-ease) both; animation-delay: calc(var(--i, 0) * 45ms); }
 @keyframes pg-reveal { from { opacity: 0; transform: translateY(6px); } }

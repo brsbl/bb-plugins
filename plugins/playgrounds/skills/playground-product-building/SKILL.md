@@ -42,7 +42,13 @@ move along them.
   and the answer says how big it must be; the release has a bug and the gate
   catches it late.
 - Answer the decision by searching the model (smallest capacity with zero
-  loss, earliest catch), not with a rule of thumb.
+  loss, earliest catch), not with a rule of thumb. The answer readout is
+  either **the value to choose** for a control (bucket size, worker count,
+  TTL, trip threshold) with a button that applies it, or **a verdict on the
+  current setting** ("Caught at 5%", "Loses 70 requests"). Never a state of
+  the animation ("Closed"), never an echo of an input ("TTL 30 s").
+- Nodes, charts and readouts read the same model fields. If a node says
+  56 hits/s, no readout or input may imply 50 req/s in total.
 
 ## 3. Components
 
@@ -61,12 +67,15 @@ All from the frame kit and `ui` (inlined by the builder):
   tone }`, edges `{ from, to, label, nudge }`; `set({ current, visited, last })`
   highlights where you are, what can happen next and the transition just taken.
   Put the product screen for the current state under it.
-- `ui.chart(svg, spec)` — line, step, area and bar series; `marks` for
+- `ui.chart(svg, spec)` — line, step, area and bar series with a `label` at
+  the end of each line (no separate legends); a `title` on every stacked
+  panel; `bands` with a `label` for spans such as an outage; `marks` for
   reference lines (`tone: 'bad'` for a threshold), `events` for "rolled back" style markers, `now` for the playhead.
   Charts sit inside the figure, share an x axis, use round ticks (put moments
   in `events`, not in the ticks), and never repeat a pattern that stands in
   for data.
-- `ui.loop(step)` plus `.pg-transport` (`.pg-icon-btn` play and replay with
+- `ui.loop(step, { onEnd })` plus `.pg-transport` (return `false` from step at
+  the end of the run and seek to the answer moment in `onEnd`) (`.pg-icon-btn` play and replay with
   `ui.icons`, a range scrubber). It pauses offscreen; honor `ui.reduced` by
   opening on the answer frame without playing.
 - `.pg-window` for product screens, `.pg-badge` for live status (one badge per

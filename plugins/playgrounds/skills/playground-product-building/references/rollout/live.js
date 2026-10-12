@@ -15,7 +15,7 @@ function paint() {
   const hourTicks = ui.ticks(0, run.hours, 4).map((v) => Math.round(v));
   const events = run.rolledBackAt !== null ? [{ x: run.rolledBackAt, label: 'rolled back', tone: 'bad' }] : [];
   ui.chart($('exposure'), {
-    width: 500, height: 86, pad: { l: 36, t: 8, b: 4 },
+    width: 500, height: 108, pad: { l: 36, b: 14 }, title: 'Users exposed',
     x: { min: 0, max: run.hours, ticks: [] },
     y: { min: 0, max: 100, ticks: [0, 50, 100], format: (v) => `${v}%` },
     series: [{ points: run.points.map((p) => [p.h, p.exposure]), kind: 'step', fill: true }],
@@ -24,7 +24,7 @@ function paint() {
   const measured = run.points.filter((p) => p.measured !== null).map((p) => [p.h, p.measured]);
   const top = Math.max(2.5, ...measured.map((p) => p[1])) ;
   ui.chart($('errors'), {
-    width: 500, height: 96, pad: { l: 36, t: 12 },
+    width: 500, height: 112, pad: { l: 36 }, title: 'Measured error rate',
     x: { min: 0, max: run.hours, ticks: hourTicks, format: (v) => `${v} h` },
     y: { min: 0, max: Math.ceil(top), ticks: [0, Math.ceil(top)], format: (v) => `${v}%` },
     series: [{ points: measured.filter((p) => p[0] <= now) }],
@@ -63,9 +63,9 @@ function paintInputs() {
 
 const clock = ui.loop((dt) => {
   t = Math.min(run.hours, t + dt * HOURS_PER_SECOND);
-  if (t >= run.hours) { t = answerAt(); paint(); return false; }
   paint();
-}, { onChange: (playing) => { $('play').innerHTML = playing ? ui.icons.pause : ui.icons.play; $('play').setAttribute('aria-label', playing ? 'Pause' : 'Play'); } });
+  if (t >= run.hours) return false;
+}, { onEnd: () => { t = answerAt(); paint(); }, onChange: (playing) => { $('play').innerHTML = playing ? ui.icons.pause : ui.icons.play; $('play').setAttribute('aria-label', playing ? 'Pause' : 'Play'); } });
 
 function apply(next, save) {
   state = normalize({ ...state, ...next });

@@ -25,10 +25,10 @@ function drawChart() {
   run.perSecond.forEach((s) => {
     if (!s.rejected) return;
     const last = bands.at(-1);
-    if (last && last.x1 === s.t) last.x1 = s.t + 1; else bands.push({ x0: s.t, x1: s.t + 1 });
+    if (last && last.x1 === s.t) last.x1 = s.t + 1; else bands.push({ x0: s.t, x1: s.t + 1, label: bands.length ? '' : 'lost' });
   });
   ui.chart($('chart'), {
-    width: 500, height: 96, pad: { l: 30, t: 12 },
+    width: 500, height: 108, pad: { l: 30 }, title: 'Tokens in the bucket',
     x: { min: 0, max: SECONDS, ticks: [0, 10, 20, 30], format: (v) => `${v} s` },
     y: { min: 0, max: run.capacity, ticks: [0, run.capacity], format: (v) => ui.fmt(v) },
     series: [{ points, fill: true }],

@@ -32,12 +32,16 @@ const ui = (() => {
   };
 
   // chart(svg, spec) draws axes, gridlines, series, threshold marks, shaded bands and a "now" marker.
-  // spec: { width, height, x: {min, max, ticks, format}, y: {min, max, ticks, format},
-  //   series: [{ points: [[x, y]], kind: 'line'|'step'|'area'|'bars', tone, dashed }],
+  // spec: { width, height, title, x: {min, max, ticks, format}, y: {min, max, ticks, format},
+  //   series: [{ points: [[x, y]], kind: 'line'|'step'|'area'|'bars', tone, dashed, label }],
+  //   label: name written at the end of the line, so two series never need a legend.
+  //   title: a short panel title above the plot (use it on every stacked panel).
+  //   bands: [{ x0, x1, label, tone }] shade a span such as an outage, and say what it is.
   //   marks: [{ y, label, tone: 'bad' for a threshold }], bands: [{ x0, x1 }], events: [{ x, label, tone }], now }
   function chart(svg, spec) {
     const W = spec.width ?? 480, H = spec.height ?? 160;
-    const pad = { l: 34, r: 12, t: 10, b: 20, ...(spec.pad ?? {}) };
+    const labelled = (spec.series ?? []).some((s) => s.label);
+    const pad = { l: 34, r: labelled ? 64 : 12, t: spec.title ? 24 : 10, b: 20, ...(spec.pad ?? {}) };
     const fx = spec.x.format ?? ((v) => fmt(v)), fy = spec.y.format ?? ((v) => fmt(v));
     const sx = (v) => pad.l + (v - spec.x.min) / (spec.x.max - spec.x.min) * (W - pad.l - pad.r);
     const top = Math.max(spec.y.max, ...(spec.series ?? []).flatMap((s) => s.points.map((p) => p[1])).filter(Number.isFinite));
@@ -46,7 +50,11 @@ const ui = (() => {
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.classList.add('pg-chart');
     svg.replaceChildren();
-    for (const band of spec.bands ?? []) svg.append(el('rect', { class: 'band', x: sx(band.x0), y: pad.t, width: Math.max(0, sx(band.x1) - sx(band.x0)), height: H - pad.t - pad.b }));
+    if (spec.title) svg.append(el('text', { class: 'title', x: 0, y: 11 }, spec.title));
+    for (const band of spec.bands ?? []) {
+      svg.append(el('rect', { class: 'band', 'data-tone': band.tone, x: sx(band.x0), y: pad.t, width: Math.max(0, sx(band.x1) - sx(band.x0)), height: H - pad.t - pad.b }));
+      if (band.label) svg.append(el('text', { class: 'band-label', x: sx(band.x0) + 4, y: pad.t + 10 }, band.label));
+    }
     for (const v of spec.y.ticks ?? ticks(spec.y.min, spec.y.max, 3)) {
       svg.append(el('line', { class: v === spec.y.min ? 'axis' : 'grid', x1: pad.l, x2: W - pad.r, y1: sy(v), y2: sy(v) }));
       svg.append(el('text', { x: pad.l - 6, y: sy(v) + 3.5, 'text-anchor': 'end' }, fy(v)));
@@ -73,6 +81,7 @@ const ui = (() => {
         svg.append(el('path', { class: 'area', d: `${d}V${base}H${sx(pts[0][0]).toFixed(1)}Z` }));
       }
       svg.append(el('path', { class: 'series', 'data-tone': tone, 'data-dashed': s.dashed, d }));
+      if (s.label) { const [lx, ly] = pts.at(-1); svg.append(el('text', { class: 'series-label', 'data-tone': tone, x: sx(lx) + 5, y: sy(ly) + 3.5 }, s.label)); }
     }
     for (const mark of spec.marks ?? []) {
       svg.append(el('line', { class: 'mark', 'data-tone': mark.tone, x1: pad.l, x2: W - pad.r, y1: sy(mark.y), y2: sy(mark.y) }));
@@ -101,14 +110,15 @@ const ui = (() => {
   }
 
   // loop(step) calls step(dt) every frame while playing; it pauses when the card is hidden or offscreen.
-  function loop(step, { onChange } = {}) {
+  // When step returns false the run is over: onEnd should seek back to the answer moment.
+  function loop(step, { onChange, onEnd } = {}) {
     let frame = 0, last = 0, playing = false, visible = true;
     const tick = (now) => {
       frame = 0;
       if (!playing || !visible || document.hidden) { last = 0; return; }
       const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60;
       last = now;
-      if (step(dt) === false) { api.pause(); return; }
+      if (step(dt) === false) { api.pause(); onEnd?.(); return; }
       frame = requestAnimationFrame(tick);
     };
     const kick = () => { if (playing && visible && !frame) frame = requestAnimationFrame(tick); };
