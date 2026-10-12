@@ -259,6 +259,11 @@ export async function checkRepository(repositoryRoot = defaultRoot, options = {}
           pluginSdk.pinned.sha256,
         `${slug}: pinned SDK archive hash mismatch`,
       );
+      assert(
+        `sha512-${createHash("sha512").update(pinnedArchive).digest("base64")}` ===
+          pluginSdk.integrity,
+        `${slug}: pinned SDK archive is not the npm-published ${pluginSdk.version} tarball`,
+      );
     } else if (manifest.devDependencies?.["@get-bb/plugin-sdk"] !== undefined) {
       // Plugins may vendor the SDK archive next to their sources so a
       // pinned-commit install is standalone; that copy must stay byte-equal
