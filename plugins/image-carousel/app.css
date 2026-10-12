@@ -1,5 +1,6 @@
 .icx { --icx-arrow: 32px; --icx-gap: 10px; --icx-caption: 84px; container-type: inline-size; margin: 12px 0; color: var(--foreground); outline: none; }
-.icx-heading { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.icx-heading, .icx-caption, .icx-position { margin-inline: calc(var(--icx-arrow) + var(--icx-gap)); }
+.icx-heading { margin-block: 0 8px; font-size: 13px; font-weight: 600; }
 .icx-row { display: grid; grid-template-columns: var(--icx-arrow) minmax(0, 1fr) var(--icx-arrow); gap: var(--icx-gap); align-items: center; }
 .icx-arrow { display: grid; place-items: center; width: var(--icx-arrow); height: var(--icx-arrow); padding: 0; border: 0; border-radius: 999px; background: var(--muted); color: var(--foreground); cursor: pointer; }
 .icx-arrow:hover:not([aria-disabled="true"]) { background: var(--accent); }
@@ -35,7 +36,7 @@
 .icx-viewer-close:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .icx-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @container (max-width: 560px) {
-  .icx-row { --icx-arrow: 28px; --icx-gap: 6px; }
+  .icx-heading, .icx-row, .icx-caption, .icx-position { --icx-arrow: 28px; --icx-gap: 6px; }
   .icx-pair { grid-template-columns: minmax(0, 1fr); }
   .icx-caption { --icx-caption: 104px; }
 }
