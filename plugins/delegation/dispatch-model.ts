@@ -107,16 +107,6 @@ export function incoming(rows: readonly unknown[]): Map<string, ChannelMessage[]
   return byThread;
 }
 
-/** What each report is waiting on now: its latest notice, when nothing arrived from it since. */
-export function currentQuestions(rows: readonly unknown[]): Map<string, string> {
-  const questions = new Map<string, string>();
-  for (const [id, messages] of incoming(rows)) {
-    const latest = messages.at(-1);
-    if (latest?.dir === "needs-you" && latest.text) questions.set(id, latest.text);
-  }
-  return questions;
-}
-
 /**
  * What this thread sent to a counterpart: rows in the counterpart's timeline sent by this thread.
  * For a report this thread started, its first prompt opens the channel as a "brief"; bb records a

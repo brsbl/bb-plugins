@@ -69,10 +69,6 @@
 .dp-link { border: 0; background: none; padding: 0; color: var(--foreground); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .dp-earlier { margin-top: 14px; color: var(--muted-foreground); font-size: 12px; }
 .dp-empty { margin: 0; padding: 16px; color: var(--muted-foreground); }
-.dp-banners { display: grid; gap: 6px; padding: 0 0 6px; }
-.dp-banner { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius-md, 6px); background: var(--background); padding: 6px 10px; font-size: 13px; }
-.dp-banner-name { flex: none; font-weight: 500; }
-.dp-banner-question { min-width: 0; flex: 1; overflow: hidden; color: var(--muted-foreground); text-overflow: ellipsis; white-space: nowrap; }
 .dp-button { flex: none; height: 26px; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, 6px); background: transparent; padding: 0 10px; color: var(--foreground); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
 .dp-button:hover, .dp-header-button:hover { background: var(--state-hover, var(--accent)); }
 .dp-header-button { display: inline-flex; height: 28px; align-items: center; gap: 6px; border: 0; border-radius: var(--radius-md, 6px); background: transparent; padding: 0 8px; color: var(--muted-foreground); font: inherit; font-size: 13px; cursor: pointer; }

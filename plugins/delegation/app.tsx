@@ -12,7 +12,7 @@ import {
   type DelegationSettings, type DelegationState, type SettingKey, type SettingsOverrides,
 } from "./settings.js";
 import { Switch } from "./components/ui/switch.js";
-import { DISPATCH_ACTION_ID, DispatchHeaderButton, DispatchPanel, NeedsYouBanner } from "./dispatch-app.js";
+import { DISPATCH_ACTION_ID, DispatchHeaderButton, DispatchPanel } from "./dispatch-app.js";
 import "./app.css";
 
 interface Option { value: string; label: string }
@@ -418,10 +418,5 @@ export default definePluginApp((app) => {
     id: "dispatch-open",
     title: "Dispatch",
     component: DispatchHeaderButton,
-  });
-  app.composer.customize({
-    id: "dispatch-needs-you",
-    scopes: ["thread"],
-    banners: [{ id: "needs-you", chrome: "bare", component: NeedsYouBanner }],
   });
 });

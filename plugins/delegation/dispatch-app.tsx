@@ -3,11 +3,10 @@ import {
   Markdown,
   experimental_Icon as Icon,
   experimental_useSidebarThreads as useSidebarThreads,
-  useBbContext,
   useBbNavigate,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
-import { buildChannels, counterpartIds, currentQuestions, type Channel, type ChannelMessage } from "./dispatch-model.js";
+import { buildChannels, counterpartIds, type Channel, type ChannelMessage } from "./dispatch-model.js";
 
 export const DISPATCH_ACTION_ID = "dispatch";
 /** Timeline segments read per thread. Older history stays one "Load earlier" away. */
@@ -16,8 +15,6 @@ const SEGMENTS = 20;
 const MAX_SEGMENTS = 100;
 /** Threads refetch when their sidebar state changes; this only catches anything that change missed. */
 const SAFETY_REFRESH_MS = 5 * 60_000;
-/** While a report waits, re-read its question until bb has written the notice. */
-const QUESTION_REFRESH_MS = 15_000;
 const MAX_COUNTERPARTS = 16;
 const MAX_CONCURRENT_READS = 4;
 
@@ -62,16 +59,6 @@ function markSeen(threadId: string, counterpartId: string) {
   localStorage.setItem(lastSeenKey(threadId), JSON.stringify(Object.fromEntries(seen)));
 }
 
-// bb keys a panel tab by its params, so "Open channel" reuses the one Dispatch tab and hands it the
-// channel here instead: a fresh panel reads the pending request, an open one hears the event.
-const OPEN_CHANNEL_EVENT = "dispatch:open-channel";
-const pendingChannel = new Map<string, string>();
-
-function requestChannel(threadId: string, counterpartId: string) {
-  pendingChannel.set(threadId, counterpartId);
-  window.dispatchEvent(new CustomEvent(OPEN_CHANNEL_EVENT, { detail: { threadId, counterpartId } }));
-}
-
 /** Spawned reports only; bb's sidebar also links forks by parentThreadId. */
 function isReportOf(thread: SidebarThread, threadId: string) {
   return thread.parentThreadId === threadId && thread.originKind === null && !thread.isArchived;
@@ -103,16 +90,15 @@ function useOrg(threadId: string) {
   }, [sidebar, threadId]);
 }
 
-function useVisibleInterval(callback: () => void, ms: number, enabled = true) {
+function useVisibleInterval(callback: () => void, ms: number) {
   const saved = useRef(callback);
   saved.current = callback;
   useEffect(() => {
-    if (!enabled) return;
     const tick = () => { if (document.visibilityState === "visible") saved.current(); };
     const timer = window.setInterval(tick, ms);
     document.addEventListener("visibilitychange", tick);
     return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
-  }, [ms, enabled]);
+  }, [ms]);
 }
 
 interface Cached { stamp: string; segments: number; page: Page }
@@ -257,22 +243,10 @@ export function DispatchPanel({ threadId, params }: { threadId: string; params: 
   const { channels, status, seen, canLoadEarlier, loadEarlier } = useChannels(threadId);
   const navigate = useBbNavigate();
   const requested = typeof params === "object" && params !== null ? (params as { counterpart?: unknown }).counterpart : undefined;
-  const [active, setActive] = useState<string | null>(() => pendingChannel.get(threadId) ?? (typeof requested === "string" ? requested : null));
+  const [active, setActive] = useState<string | null>(typeof requested === "string" ? requested : null);
   const sidebar = useSidebarThreads();
   const selfTitle = sidebar.threads.find((thread) => thread.id === threadId)?.displayTitle ?? "This thread";
   const current = channels.find((channel) => channel.counterpartId === active) ?? channels[0];
-
-  useEffect(() => {
-    pendingChannel.delete(threadId);
-    const onOpen = (event: Event) => {
-      const detail = (event as CustomEvent<{ threadId: string; counterpartId: string }>).detail;
-      if (detail.threadId !== threadId) return;
-      pendingChannel.delete(threadId);
-      setActive(detail.counterpartId);
-    };
-    window.addEventListener(OPEN_CHANNEL_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_CHANNEL_EVENT, onOpen);
-  }, [threadId]);
 
   useEffect(() => {
     if (current) seen(current.counterpartId);
@@ -321,62 +295,6 @@ export function DispatchPanel({ threadId, params }: { threadId: string; params: 
           ) : null}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-// ── Needs-you banner above the composer ─────────────────────────────────────
-
-/** One line per report waiting on the user, read from the live sidebar and this thread's own rows. */
-export function NeedsYouBanner() {
-  const { threadId } = useBbContext();
-  const sidebar = useSidebarThreads();
-  const sdk = useSdk();
-  const navigate = useBbNavigate();
-  const [questions, setQuestions] = useState<Map<string, string>>(new Map());
-  const waiting = useMemo(
-    () => (threadId ? sidebar.threads.filter((thread) => isReportOf(thread, threadId) && thread.hasPendingInteraction) : []),
-    [sidebar, threadId],
-  );
-  const waitingKey = waiting.map((thread) => thread.id).join(",");
-
-  const inFlight = useRef<AbortController | null>(null);
-  const readQuestions = useCallback(() => {
-    if (!threadId) return;
-    inFlight.current?.abort();
-    const controller = new AbortController();
-    inFlight.current = controller;
-    void conversationPage(sdk, threadId, 10, controller.signal).then((page) => {
-      if (!controller.signal.aborted) setQuestions(currentQuestions(page.rows));
-    }, () => undefined);
-  }, [sdk, threadId]);
-  useEffect(() => {
-    if (waitingKey) readQuestions();
-    return () => inFlight.current?.abort();
-  }, [readQuestions, waitingKey]);
-  // bb writes the needs-attention notice just after it marks the report as waiting, so re-read until it's there.
-  useVisibleInterval(readQuestions, QUESTION_REFRESH_MS, waiting.some((thread) => !questions.has(thread.id)));
-
-  if (!threadId || waiting.length === 0) return null;
-  return (
-    <div className="dp-banners">
-      {waiting.map((thread) => (
-        <div key={thread.id} className="dp-banner">
-          <span className="dp-dot dp-dot-attention" aria-hidden />
-          <span className="dp-banner-name">{thread.displayTitle}</span>
-          <span className="dp-banner-question">{(questions.get(thread.id) ?? "is waiting on you").split("\n")[0]}</span>
-          <button
-            type="button"
-            className="dp-button"
-            onClick={() => {
-              requestChannel(threadId, thread.id);
-              navigate.openThreadPanel({ actionId: DISPATCH_ACTION_ID, title: "Dispatch" });
-            }}
-          >
-            Open channel
-          </button>
-        </div>
-      ))}
     </div>
   );
 }
