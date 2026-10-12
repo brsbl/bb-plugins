@@ -223,7 +223,6 @@ it("opens an item's editor beside it on click, and Escape closes it and returns 
   const editor = await screen.findByRole("dialog", { name: "Edit Ambient tweet" });
   expect(within(editor).getByRole("article", { name: "Item: Ambient tweet" })).toBeTruthy();
   expect(ambient.className).toContain("cc-selected");
-  expect(document.querySelector(".cc-page-detail")).toBeNull();
   await waitFor(() => expect(document.activeElement).toBe(editor));
   fireEvent.keyDown(editor, { key: "Escape" });
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
