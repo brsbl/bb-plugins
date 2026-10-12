@@ -130,9 +130,11 @@ it("keeps an unsaved edit visible and offers recovery without submitting", async
   let submits = 0;
   screen.getByRole("form").addEventListener("submit", () => { submits += 1; });
   fireEvent.click(screen.getByRole("button", { name: "Retry save" }));
-  fireEvent.click(screen.getByRole("button", { name: "Load saved draft" }));
+  // Retrying clears the error until the save fails again and recovery controls return.
+  fireEvent.click(await screen.findByRole("button", { name: "Load saved draft" }));
   expect(submits).toBe(0);
-  await waitFor(() => expect(calls).not.toContain("prepare"));
+  await waitFor(() => expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft"));
+  expect(calls).toEqual(["save", "save"]);
   expect(slot.inspection.composer.submits).toHaveLength(0);
 });
 
