@@ -5,15 +5,15 @@ const file = { id: "f", hostId: "mac", hostName: "Studio", path: "/Users/me/docs
 const url = { id: "u", kind: "url" as const, url: "https://example.com/launch", name: "example.com/launch", createdAt: "2026-01-01T00:00:00.000Z" };
 
 it("shows a file's full path, naming its machine only when it isn't the thread's", () => {
-  expect(pinTooltip(file, "mac")).toEqual({ value: "/Users/me/docs/plan.md" });
-  expect(pinTooltip(file, "linux")).toEqual({ value: "/Users/me/docs/plan.md", note: "Studio" });
-  expect(pinTooltip({ ...file, status: "missing" }, "mac")).toEqual({ value: "/Users/me/docs/plan.md", note: "(missing)" });
+  expect(pinTooltip(file, "mac")).toEqual({ address: "/Users/me/docs/plan.md", title: "plan.md" });
+  expect(pinTooltip(file, "linux")).toEqual({ address: "/Users/me/docs/plan.md", title: "plan.md", note: "Studio" });
+  expect(pinTooltip({ ...file, status: "missing" }, "mac")).toEqual({ address: "/Users/me/docs/plan.md", title: "plan.md", note: "(missing)" });
   expect(pinTooltip({ ...file, status: "missing" }, "linux").note).toBe("Studio (missing)");
 });
 
-it("shows a URL's title when one was set, otherwise the full URL", () => {
-  expect(pinTooltip(url, "mac")).toEqual({ value: "https://example.com/launch" });
-  expect(pinTooltip({ ...url, name: "Launch checklist" }, "mac")).toEqual({ value: "Launch checklist" });
+it("keeps the URL visible alongside default and custom titles", () => {
+  expect(pinTooltip(url, "mac")).toEqual({ address: "https://example.com/launch", title: "example.com/launch" });
+  expect(pinTooltip({ ...url, name: "Launch checklist" }, "mac")).toEqual({ address: "https://example.com/launch", title: "Launch checklist" });
 });
 
 it("keeps both ends of very long values", () => {
