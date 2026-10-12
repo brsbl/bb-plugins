@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChannels, counterpartIds, incoming, messageBody, outgoing, type ChannelInputs } from "./dispatch-model";
+import { buildChannels, counterpartIds, incoming, messageBody, needsYouBody, outgoing, type ChannelInputs } from "./dispatch-model";
 
 const SELF = "thr_ops";
 
@@ -46,7 +46,21 @@ describe("message bodies", () => {
   });
 });
 
+describe("needs-you text", () => {
+  it("keeps only what the agent is waiting on, not core's guidance to the lead", () => {
+    expect(needsYouBody("[bb system]\n\n@thread:thr_x needs help. Blocked on user question: Which format?\n\nReview the blocker. If you can resolve it, reply.")).toBe("Which format?");
+    expect(needsYouBody("@thread:thr_x needs help.\n\nReview the blocker.")).toBe("");
+  });
+});
+
 describe("channels", () => {
+  it("opens a report's channel with the prompt it started with, only when its full history is loaded", () => {
+    const rows = [row("s1", 1, { initiator: "user", text: "Build the carousel." }), row("s2", 4, { initiator: "agent", senderThreadId: SELF, text: "Also add WebP." })];
+    expect(outgoing(rows, SELF, { isReport: true, historyComplete: true }).map((message) => `${message.dir}:${message.id}`)).toEqual(["brief:s1", "out:s2"]);
+    expect(outgoing(rows, SELF, { isReport: true, historyComplete: false }).map((message) => message.id)).toEqual(["s2"]);
+    expect(outgoing(rows, SELF, { isReport: false, historyComplete: true }).map((message) => message.id)).toEqual(["s2"]);
+  });
+
   it("keeps only agent messages and child notices, keyed by the other thread", () => {
     const byThread = incoming(selfRows);
     expect([...byThread.keys()].sort()).toEqual(["thr_carousel", "thr_dispatch", "thr_growth"]);

@@ -18,9 +18,15 @@ const MAX_COUNTERPARTS = 16;
 
 type Sdk = ReturnType<typeof useSdk>;
 
-async function conversationRows(sdk: Sdk, threadId: string, segments: number, signal: AbortSignal): Promise<unknown[]> {
+async function conversationPage(sdk: Sdk, threadId: string, segments: number, signal: AbortSignal): Promise<{ rows: unknown[]; complete: boolean }> {
   const page = await sdk.threads.timeline({ threadId, segmentLimit: String(segments), signal });
-  return (page.rows as unknown[]).filter((row) => (row as { kind?: string }).kind === "conversation");
+  return {
+    rows: (page.rows as unknown[]).filter((row) => (row as { kind?: string }).kind === "conversation"),
+    complete: !(page.timelinePage as { hasOlderRows?: boolean } | undefined)?.hasOlderRows,
+  };
+}
+async function conversationRows(sdk: Sdk, threadId: string, segments: number, signal: AbortSignal): Promise<unknown[]> {
+  return (await conversationPage(sdk, threadId, segments, signal)).rows;
 }
 
 function lastSeenKey(threadId: string) {
@@ -69,6 +75,7 @@ export function useChannels(threadId: string) {
   const [segments, setSegments] = useState(SEGMENTS);
   const [selfRows, setSelfRows] = useState<unknown[]>([]);
   const [counterpartRows, setCounterpartRows] = useState<Map<string, unknown[]>>(new Map());
+  const [completeHistory, setCompleteHistory] = useState<Set<string>>(new Set());
   const [lastSeen, setLastSeen] = useState(() => readLastSeen(threadId));
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const childKey = org.childIds.join(",");
@@ -77,12 +84,13 @@ export function useChannels(threadId: string) {
     try {
       const own = await conversationRows(sdk, threadId, segments, signal);
       const ids = counterpartIds({ selfId: threadId, parentId: org.parentId, childIds: org.childIds, selfRows: own }).slice(0, MAX_COUNTERPARTS);
-      const pairs = await Promise.all(ids.map(async (id) => {
-        try { return [id, await conversationRows(sdk, id, segments, signal)] as const; } catch { return [id, [] as unknown[]] as const; }
+      const pages = await Promise.all(ids.map(async (id) => {
+        try { return [id, await conversationPage(sdk, id, segments, signal)] as const; } catch { return [id, { rows: [] as unknown[], complete: false }] as const; }
       }));
       if (signal.aborted) return;
       setSelfRows(own);
-      setCounterpartRows(new Map(pairs));
+      setCounterpartRows(new Map(pages.map(([id, page]) => [id, page.rows])));
+      setCompleteHistory(new Set(pages.filter(([, page]) => page.complete).map(([id]) => id)));
       setStatus("ready");
     } catch {
       if (!signal.aborted) setStatus((current) => (current === "ready" ? current : "error"));
@@ -103,8 +111,8 @@ export function useChannels(threadId: string) {
   useVisibleInterval(() => { refresh(); }, REFRESH_MS);
 
   const channels = useMemo(
-    () => buildChannels({ selfId: threadId, parentId: org.parentId, childIds: org.childIds, titles: org.titles, pending: org.pending, lastSeen, selfRows, counterpartRows }),
-    [threadId, org, lastSeen, selfRows, counterpartRows],
+    () => buildChannels({ selfId: threadId, parentId: org.parentId, childIds: org.childIds, titles: org.titles, pending: org.pending, lastSeen, selfRows, counterpartRows, completeHistory }),
+    [threadId, org, lastSeen, selfRows, counterpartRows, completeHistory],
   );
   const seen = useCallback((counterpartId: string) => {
     markSeen(threadId, counterpartId);
@@ -122,6 +130,7 @@ function ActivityDot({ channel }: { channel: Channel }) {
 }
 
 const DIR_LABEL: Record<ChannelMessage["dir"], string> = {
+  brief: "started with",
   out: "Message from",
   in: "Message from",
   finished: "finished",
@@ -130,6 +139,7 @@ const DIR_LABEL: Record<ChannelMessage["dir"], string> = {
   "needs-you": "needs attention",
 };
 const DIR_ICON: Record<ChannelMessage["dir"], string> = {
+  brief: "MessageSquarePlus",
   out: "MessageSquare",
   in: "MessageSquare",
   finished: "CircleCheck",

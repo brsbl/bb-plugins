@@ -14,7 +14,7 @@ export interface TimelineConversationRow {
   turnRequest?: { kind?: string; status?: string } | null;
 }
 
-export type ChannelDirection = "out" | "in" | "finished" | "failed" | "interrupted" | "needs-you";
+export type ChannelDirection = "brief" | "out" | "in" | "finished" | "failed" | "interrupted" | "needs-you";
 
 export interface ChannelMessage {
   id: string;
@@ -60,6 +60,18 @@ export function messageBody(text: string): string {
     .trim();
 }
 
+/**
+ * A needs-attention notice is addressed to the lead ("@thread:x needs help.
+ * Blocked on user question: …", then guidance). Keep only what the agent is
+ * waiting on.
+ */
+export function needsYouBody(text: string): string {
+  const body = messageBody(text);
+  const blocked = /Blocked on [^:\n]+:\s*([^\n]+)/u.exec(body);
+  if (blocked) return blocked[1]!.trim();
+  return body.replace(/^@thread:\S+\s+needs help\.?\s*/u, "").split(/\n\s*\n/u)[0]!.trim();
+}
+
 /** Messages and results other threads sent to this one, keyed by sender. */
 export function incoming(rows: readonly unknown[]): Map<string, ChannelMessage[]> {
   const byThread = new Map<string, ChannelMessage[]>();
@@ -75,16 +87,27 @@ export function incoming(rows: readonly unknown[]): Map<string, ChannelMessage[]
     } else if (row.initiator === "system" && row.systemMessageKind && row.systemMessageKind in CHILD_KINDS) {
       const subject = row.systemMessageSubject;
       if (subject?.kind === "thread" && subject.threadId) {
-        add(subject.threadId, { id: row.id, dir: CHILD_KINDS[row.systemMessageKind]!, at: row.createdAt, text: messageBody(row.text) });
+        const dir = CHILD_KINDS[row.systemMessageKind]!;
+        add(subject.threadId, { id: row.id, dir, at: row.createdAt, text: dir === "needs-you" ? needsYouBody(row.text) : messageBody(row.text) });
       }
     }
   }
   return byThread;
 }
 
-/** What this thread sent to a counterpart: rows in the counterpart's timeline sent by this thread. */
-export function outgoing(counterpartRows: readonly unknown[], selfId: string): ChannelMessage[] {
+/**
+ * What this thread sent to a counterpart: rows in the counterpart's timeline sent by this thread.
+ * For a report this thread started, its first prompt opens the channel as a "brief"; bb records a
+ * spawn prompt without a sender, so it's labelled as the prompt the thread started with, not a message.
+ */
+export function outgoing(counterpartRows: readonly unknown[], selfId: string, opts: { isReport?: boolean; historyComplete?: boolean } = {}): ChannelMessage[] {
   const messages: ChannelMessage[] = [];
+  if (opts.isReport && opts.historyComplete) {
+    const first = counterpartRows.find(isConversationRow);
+    if (first && first.role === "user" && first.initiator === "user" && !first.senderThreadId) {
+      messages.push({ id: first.id, dir: "brief", at: first.createdAt, text: messageBody(first.text) });
+    }
+  }
   for (const row of counterpartRows) {
     if (!isConversationRow(row) || row.role !== "user" || row.senderThreadId !== selfId) continue;
     const status = row.turnRequest?.status;
@@ -112,6 +135,8 @@ export interface ChannelInputs {
   lastSeen: ReadonlyMap<string, number>;
   selfRows: readonly unknown[];
   counterpartRows: ReadonlyMap<string, readonly unknown[]>;
+  /** Counterparts whose full history is loaded, so their first row is their first prompt. */
+  completeHistory?: ReadonlySet<string>;
 }
 
 /** Peers worth a channel: anyone who wrote to this thread, plus its parent and reports. */
@@ -130,10 +155,13 @@ export function buildChannels(inputs: ChannelInputs): Channel[] {
   return order.map((counterpartId) => {
     const messages = [
       ...(fromOthers.get(counterpartId) ?? []),
-      ...outgoing(inputs.counterpartRows.get(counterpartId) ?? [], inputs.selfId),
+      ...outgoing(inputs.counterpartRows.get(counterpartId) ?? [], inputs.selfId, {
+        isReport: inputs.childIds.includes(counterpartId),
+        historyComplete: inputs.completeHistory?.has(counterpartId) ?? false,
+      }),
     ].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
     const latestAt = messages.at(-1)?.at ?? 0;
-    const latestInbound = [...messages].reverse().find((message) => message.dir !== "out");
+    const latestInbound = [...messages].reverse().find((message) => message.dir !== "out" && message.dir !== "brief");
     const lastNeedsYou = [...messages].reverse().find((message) => message.dir === "needs-you");
     // A needs-attention notice is current until something newer arrives from or goes to that thread.
     const noticeIsLatest = lastNeedsYou !== undefined && messages.at(-1) === lastNeedsYou;
