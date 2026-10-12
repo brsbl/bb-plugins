@@ -1,3 +1,5 @@
+import { CONTROLS_CSS, CONTROLS_RUNTIME } from "./controls.js";
+
 export const WIDGET_MESSAGE_SOURCE = "playground";
 export const THEME_TOKENS = [
   "background",
@@ -114,7 +116,7 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
   let state = "state" in init ? init.state : ${JSON.stringify(state ?? null)};
   let version = typeof init.version === "number" ? init.version : 0;
   const actions = new Map();
-  window.playground = Object.freeze({
+  const api = {
     id: ID,
     get state() { return state; },
     save(value) { try { state = plain(value); post("state", { state, base: version }); } catch {} },
@@ -127,7 +129,9 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
     },
     emit(name, data) { try { post("event", { name: String(name), data: plain(data) }); } catch {} },
     send(label, data) { try { post("send", { label: String(label).slice(0, 80), data: plain(data) }); } catch {} },
-  });
+  };
+${CONTROLS_RUNTIME}
+  window.playground = Object.freeze(api);
   window.answer = window.playground;
   addEventListener("message", async (event) => {
     const message = event.data;
@@ -215,5 +219,5 @@ export function buildWidgetDocument({
   theme: WidgetTheme;
 }): string {
   const script = bridge(id, state, theme).replaceAll("</", "<\\/");
-  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body>${html}</body></html>`;
+  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${CONTROLS_CSS}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body>${html}</body></html>`;
 }
