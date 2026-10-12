@@ -33,12 +33,14 @@ milliseconds).
 
 Memory is not one pool. Each project directory under `~/.claude/projects/`
 holds notes for that project; a note can also name its scope, such as "the
-Growth, Ops Tools, and Strategy & Fundraising orgs". Resolve memory notes in
-this order:
+Growth, Ops Tools, and Strategy & Fundraising orgs". Delegation settings apply
+to every thread on this bb, and the threads that delegate are the user's org
+leads and their reports, wherever this refresh runs. So read every project's
+notes, and resolve them in this order:
 
-1. A note scoped to the current project or org beats a general note on the
-   same setting. Find the current project's directory from the working
-   directory, with `/` replaced by `-`.
+1. A note scoped to the user's orgs, or to the project they delegate in, beats
+   a general note on the same setting. Record it and put its scope in
+   `--note`. Don't skip a note because this refresh runs in another project.
 2. Between two notes at the same scope, the newer one (`modified` in the
    frontmatter, else the file's mtime) wins.
 3. A newer note that narrows an older one to one case, such as QA threads,
