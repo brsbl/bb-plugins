@@ -1,0 +1,19 @@
+.pg-states { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font); }
+.pg-states .sm-node rect { fill: var(--card); stroke: color-mix(in srgb, var(--foreground) 16%, var(--card)); stroke-width: 1; transition: fill .25s, stroke .25s; }
+.pg-states .sm-node text { font-size: 11px; fill: var(--pg-meta); transition: fill .25s; }
+.pg-states .sm-node.visited text { fill: var(--pg-body); }
+.pg-states .sm-node.next rect { stroke: var(--pg-ink); stroke-dasharray: 3 2; }
+.pg-states .sm-node.next text { fill: var(--pg-ink); }
+.pg-states .sm-node.current rect { fill: var(--pg-ink); stroke: var(--pg-ink); }
+.pg-states .sm-node.current text { fill: var(--card); font-weight: 500; }
+.pg-states .sm-node[data-tone=bad].current rect { fill: var(--pg-bad); stroke: var(--pg-bad); }
+.pg-states .sm-node[data-tone=good].current rect { fill: var(--pg-good); stroke: var(--pg-good); }
+.pg-states .sm-node[data-tone=warn].current rect { fill: var(--pg-warn); stroke: var(--pg-warn); }
+.pg-states .sm-edge { fill: none; stroke: color-mix(in srgb, var(--foreground) 18%, var(--card)); stroke-width: 1.1; transition: stroke .25s; }
+.pg-states .sm-edge.open { stroke: color-mix(in srgb, var(--foreground) 45%, var(--card)); }
+.pg-states .sm-edge.live { stroke: var(--pg-ink); stroke-width: 1.6; }
+.pg-states .sm-arrow { fill: none; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+.pg-states .sm-arrow-rest { stroke: color-mix(in srgb, var(--foreground) 35%, var(--card)); }
+.pg-states .sm-arrow-live { stroke: var(--pg-ink); }
+.pg-states .sm-label { paint-order: stroke; stroke: var(--pg-stage); stroke-width: 3px; stroke-linejoin: round; font-size: 10px; fill: color-mix(in srgb, var(--foreground) 35%, var(--card)); }
+.pg-states .sm-label.open { fill: var(--pg-body); }

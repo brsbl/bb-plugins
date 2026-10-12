@@ -1,0 +1,22 @@
+.pg-flow { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font); }
+.pg-flow .card { fill: var(--card); stroke: color-mix(in srgb, var(--foreground) 14%, var(--card)); stroke-width: 1; }
+.pg-flow-node[data-tone=bad] .card { stroke: var(--pg-bad); }
+.pg-flow-node[data-tone=good] .card { stroke: var(--pg-good); }
+.pg-flow .title { font-size: 11.5px; font-weight: 500; fill: var(--pg-ink); }
+.pg-flow .sub { font-size: 10.5px; fill: var(--pg-meta); font-variant-numeric: tabular-nums; }
+.pg-flow .value { font-size: 10.5px; font-weight: 500; fill: var(--pg-ink); font-variant-numeric: tabular-nums; }
+.pg-flow .value[data-tone=bad] { fill: var(--pg-bad); }
+.pg-flow .value[data-tone=good] { fill: var(--pg-good); }
+.pg-flow .meter { fill: var(--pg-stage); stroke: var(--pg-hairline); }
+.pg-flow .meter-fill { fill: var(--pg-accent); transition: y .12s linear, height .12s linear; }
+.pg-flow .meter-fill[data-low=true] { fill: var(--pg-bad); }
+.pg-flow .meter-tick { stroke: var(--card); stroke-width: 1; }
+.pg-flow .slot { fill: var(--pg-stage); stroke: var(--pg-hairline); }
+.pg-flow .slot.busy { fill: var(--pg-ink); stroke: var(--pg-ink); }
+.pg-flow .edge { fill: none; stroke: color-mix(in srgb, var(--foreground) 20%, var(--card)); stroke-width: 1.2; }
+.pg-flow .arrow { fill: none; stroke: color-mix(in srgb, var(--foreground) 32%, var(--card)); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+.pg-flow .edge-label { font-size: 10.5px; fill: var(--pg-meta); }
+.pg-flow .dot { fill: var(--pg-ink); }
+.pg-flow .dot[data-tone=meta] { fill: var(--pg-meta); }
+.pg-flow .dot[data-tone=good] { fill: var(--pg-good); }
+.pg-flow .drop { fill: var(--pg-bad); }

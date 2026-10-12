@@ -1,6 +1,6 @@
 ---
 name: playgrounds
-description: "Compose playgrounds directly in a bb message: native calculators, charts, and comparisons, or custom HTML interfaces such as illustrated step-by-step guides, schematic maps, and visual previews. Use when exploring, comparing, or following along would help more than prose."
+description: "Compose playgrounds directly in a bb message: native calculators and comparisons, or HTML playgrounds built around a working object — design instruments, systems that run, objects that teach, and boards, games and instruments the user and agent share. Use for product design, product building, learning, and collaborative play when changing something would teach more than prose."
 ---
 
 # Playgrounds
@@ -18,11 +18,22 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 
 ## Choose the form
 
-- **Native document** for calculators, scenario comparisons, charts, and
-  tables. Bounded arithmetic, no code, accessible by construction.
-- **HTML playground** when the playground needs its own layout or illustration: an
-  assembly guide with an exploded diagram, a map with places and photos, a
-  paint or product preview, folding or cooking steps, a visual plan.
+- Before writing any HTML playground, load the `playground-design` skill. It
+  picks the hero for product design, product building, learning, and
+  collaborative play, and draws it with a bundled instrument (typography
+  press, motion rig) or a new figure from Anatomy (Ryan's drawing kit) through
+  its figure builder. Publish the result as an ordinary HTML playground.
+  For systems, APIs, workflows, rollouts and capacity questions, also load
+  `playground-product-building`: it picks the pattern and has references to
+  copy.
+
+- **Native document** only for a plain calculator or comparison with nothing
+  to show moving (a bill split, a loan payment). Plans, schedules, systems and
+  sizing questions are HTML playgrounds. Bounded arithmetic, no code, accessible by construction.
+- **HTML playground** when the idea needs a working object: a design
+  instrument beside the product surface it changes, a system that runs, an
+  object that demonstrates a concept, or a board, game or instrument the user
+  and you use together.
 
 - Start with the user's question and choose useful inputs. Name units and
   assumptions. Use plain prose if interaction would not improve the answer.
@@ -38,6 +49,11 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 - Keep charts small, label series, and make every series match its labels.
   Tables must have one cell per column. Numeric output formats accept
   `prefix`, `suffix`, and `decimals` (0–6). Chart data is also accessible as a table.
+- Format each number the way a person would write it, and keep precision
+  consistent within a list or table: money to cents, grams and millilitres as
+  whole numbers, counts (eggs, people, servings) as whole numbers in their own
+  unit rather than converted to weight. Never show trailing zeros such as
+  `25.00 g` or `2.0 eggs`.
 - Show sources and consequential assumptions in accompanying prose. Do not
   imply a scenario is a prediction or that sample values are live data.
 - Inputs update immediately and are saved with the playground, so they follow the
@@ -94,6 +110,8 @@ parameter) shows one in the current thread with its saved inputs. When the user
 Write body markup with inline `<style>` and `<script>`. It renders in a
 sandboxed, opaque-origin frame inside a rounded bb card that sizes itself to
 the content; `width` (320–1200) caps the card width.
+
+For how it should look, follow the `playground-design` skill.
 
 ### Behavior
 
