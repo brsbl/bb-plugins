@@ -163,7 +163,7 @@ describe("public resource transport", () => {
   });
 
   it("tears down the request, response and decoder when aborted mid-body", async () => {
-    for (const headers of [{}, { "content-encoding": "gzip" }]) {
+    for (const headers of [{}, { "content-encoding": "gzip" }] as Array<Record<string, string>>) {
       const controller = new AbortController();
       const requests = network([{ chunks: [gzipSync(Buffer.alloc(1024)).subarray(0, 20)], hang: true, headers }]);
       const work = read("https://example.com/", { decodeCompressed: true }, controller.signal);
