@@ -1,6 +1,6 @@
 ---
 name: relay
-description: Pass the user's decision, answer, or new request to an existing bb thread in one batched `bb thread tell`, quoting their words. Use when the user says "tell X", "let the worker know", "pass this on", answers a question a worker raised, or approves or rejects something another thread is waiting on. Starting new work belongs to delegate; answering an agent that messaged you is a direct reply.
+description: Pass the user's decision, answer, or new request to an existing bb thread, or to all of your reports, in one batched `bb thread tell` each, quoting their words. Use when the user or another lead says "tell X", "let the worker know", "pass this on", "pass this to your reports", or forwards a rule for your team, answers a question a worker raised, or approves or rejects something another thread is waiting on. Starting new work belongs to delegate; answering an agent that messaged you is a direct reply.
 ---
 
 # Relay

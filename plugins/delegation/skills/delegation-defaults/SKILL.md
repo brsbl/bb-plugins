@@ -70,7 +70,7 @@ thread they came from, such as `--from 'brsbl via 🧰 Ops Tools (thr_…)'`.
 | `provider`, `model`, `reasoningLevel` | Provider, model, and reasoning for leaf workers, or for all workers when the sources don't split them by role |
 | `leadProvider`, `leadModel`, `leadReasoningLevel` | The tier for org leads |
 | `parentProvider`, `parentModel`, `parentReasoningLevel` | The tier for threads that have reports |
-| `avoidModels` | Models the user says never to spawn; record model IDs, comma-separated, from `bb provider models <provider> --json` |
+| `avoidModels` | Models the user says never to spawn; record model IDs, comma-separated, from `bb provider models <provider> --json` (add `--machine <host>` from `bb status --json` if it fails) |
 | `qaProvider`, `qaModel`, `qaReasoningLevel` | Models for QA, smoke tests, or test-only threads; `cheapest` when they ask for the cheapest |
 | `machine`, `environment`, `section` | Where workers run, worktree versus personal, sidebar filing |
 | `parentWorkers` | Whether a coordinating thread parents its workers |

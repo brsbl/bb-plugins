@@ -55,7 +55,7 @@ Pick the worker's role first; it decides the tier.
 | Org lead | `leadProvider`, `leadModel`, `leadReasoningLevel` |
 | Parent: will have reports of its own | `parentProvider`, `parentModel`, `parentReasoningLevel` |
 | Leaf: one bounded job, no reports | `provider`, `model`, `reasoningLevel` |
-| QA or smoke test that only exercises the product | `qaProvider` (blank: the leaf provider), `qaModel` (blank: the leaf model; `cheapest`: the cheapest generally available model in `bb provider models <provider> --json`), `qaReasoningLevel` |
+| QA or smoke test that only exercises the product | `qaProvider` (blank: the leaf provider), `qaModel` (blank: the leaf model; `cheapest`: the cheapest generally available model in `bb provider models <provider> --json`; if that fails, add `--machine <host>` with this thread's host from `bb status --json`), `qaReasoningLevel` |
 
 A blank tier field falls back to the leaf value, then to spawn's normal tier.
 Always pass `--provider`, `--model`, and `--reasoning-level` explicitly, with
