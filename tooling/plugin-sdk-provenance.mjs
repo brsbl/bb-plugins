@@ -21,6 +21,13 @@ if (provenance.archive !== `get-bb-plugin-sdk-${packageVersion}.tgz`) {
 export const pluginSdkArchive = provenance.archive;
 export const pluginSdkVersion = packageVersion;
 
+// The SDK versions a plugin may pin, with their npm registry integrity. This
+// file is the trust root: a plugin's own provenance record cannot vouch for
+// itself, so a pin is only valid when it names a version listed here.
+export const allowedPluginSdkPins = JSON.parse(
+  await readFile(new URL("./vendor/plugin-sdk-pins.json", import.meta.url), "utf8"),
+);
+
 // A plugin that needs a newer SDK than the repository pin carries its own
 // archive and provenance under vendor/; every other plugin uses the shared pin.
 export async function pluginSdkFor(pluginDirectory) {
@@ -37,7 +44,14 @@ export async function pluginSdkFor(pluginDirectory) {
   if (version === undefined || record.archive !== `get-bb-plugin-sdk-${version}.tgz`) {
     throw new Error(`${pluginDirectory}: invalid vendor/sdk-provenance.json`);
   }
-  return { version, archive: record.archive, pinned: record };
+  const allowed = Object.hasOwn(allowedPluginSdkPins, version) ? allowedPluginSdkPins[version] : null;
+  if (allowed === null) {
+    throw new Error(`${pluginDirectory}: plugin SDK ${version} is not an allowed pin in tooling/vendor/plugin-sdk-pins.json`);
+  }
+  if (record.registryTarball !== allowed.registryTarball || record.registryIntegrity !== allowed.registryIntegrity) {
+    throw new Error(`${pluginDirectory}: vendor/sdk-provenance.json does not match the allowed ${version} pin`);
+  }
+  return { version, archive: record.archive, pinned: record, integrity: allowed.registryIntegrity };
 }
 
 function parseVersion(value) {
