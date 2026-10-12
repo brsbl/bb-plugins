@@ -265,7 +265,7 @@ export const CONTROLS_RUNTIME = String.raw`
     fire("release", { id, from: from || "user" });
     record("release", { id, from });
   }
-  let agentTimers = [];
+  let agentTimers = [], unheard = null;
   // play([[id, startBeat, lengthBeats], ...], bpm): the agent performs on the card's own controls.
   function play(notes, bpm) {
     const beat = 60 / clamp(Number(bpm) || 120, 30, 300);
@@ -278,6 +278,7 @@ export const CONTROLS_RUNTIME = String.raw`
     }
     const seconds = list.reduce((m, [, s, l]) => Math.max(m, (Number(s) + (Number(l) || .5)) * beat), 0);
     const audible = audioReady();
+    unheard = audible ? null : [list, bpm];
     if (!audible) for (const kb of document.querySelectorAll('[data-pg="keyboard"],[data-pg="pads"]')) kb.__gesture?.();
     return { notes: list.length, seconds: Number(seconds.toFixed(2)), audible };
   }
@@ -408,7 +409,7 @@ export const CONTROLS_RUNTIME = String.raw`
     el.__gesture = () => {
       if (audioReady() || el.querySelector(".pg-gesture")) return;
       const b = document.createElement("button"); b.type = "button"; b.className = "pg-gesture"; b.textContent = "Tap to hear the agent play";
-      b.onclick = () => { audio(); b.remove(); }; el.append(b);
+      b.onclick = () => { const ctx = audio(); b.remove(); const again = unheard; unheard = null; if (again && ctx) ctx.resume().then(() => play(again[0], again[1])).catch(() => {}); }; el.append(b);
       audioWaiters.add(() => b.remove());
     };
   }
