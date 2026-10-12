@@ -1,7 +1,7 @@
-// The Playgrounds component kit, in layers:
-// 0 tokens · 1 primitives and behaviors · 2 controls bound to named parameters ·
-// 3 patterns (bank, keyboard, pads, steps, presets, transport). Instruments are
-// built from these in the skill's references, not here.
+// The Playgrounds component kit, for apps a person uses together with the agent.
+// Layers: 0 tokens · 1 primitives and behaviors · 2 controls bound to named
+// parameters · 3 patterns (bank, keyboard, pads, steps, presets, transport).
+// Whole apps are built from these in the skill's references, not here.
 //
 // Controls are declared in markup (`<div data-pg="dial" data-param="cutoff" …>`).
 // Each parameter lives in shared state under `params`, is readable and settable by

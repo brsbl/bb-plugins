@@ -121,8 +121,10 @@ the content; `width` (320–1200) caps the card width.
 
 ## Components
 
-HTML playgrounds get a component kit in layers. Build from the highest layer
-that fits; drop down a layer only for something it lacks.
+HTML playgrounds get a component kit for apps the person uses with you:
+calculators, simulators, design tools, games and instruments. You both work the
+same controls, so you can read, change or play anything they can. Build from the
+highest layer that fits; drop down a layer only for something it lacks.
 
 - **0 Tokens:** `--pg-ink`, `--pg-body`, `--pg-meta`, `--pg-stage`,
   `--pg-hairline`, `--pg-accent` (set it once per card, e.g.
