@@ -187,6 +187,11 @@ export function DispatchPanel({ threadId, params }: { threadId: string; params: 
   const selfTitle = sidebar.threads.find((thread) => thread.id === threadId)?.displayTitle ?? "This thread";
   const current = channels.find((channel) => channel.counterpartId === active) ?? channels[0];
 
+  // "Open channel" reuses an already-open panel, so follow each new request.
+  useEffect(() => {
+    if (typeof requested === "string") setActive(requested);
+  }, [params, requested]);
+
   useEffect(() => {
     if (current) seen(current.counterpartId);
     // Mark seen when the shown channel or its latest message changes.
