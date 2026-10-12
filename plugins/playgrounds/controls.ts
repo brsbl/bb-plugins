@@ -197,7 +197,7 @@ export const CONTROLS_RUNTIME = String.raw`
     if (u === "%" && s.max <= 1) return Math.round(v * 100) + "%";
     if (u === "Hz") return v >= 1000 ? (v / 1000).toFixed(1) + "k" : v < 10 ? v.toFixed(1) + "Hz" : Math.round(v) + "Hz";
     if (u === "s") return v < 1 ? Math.round(v * 1000) + "ms" : v.toFixed(1) + "s";
-    const n = Number(v).toFixed(s.step ? decimals(s.step) : Math.abs(v) < 10 ? 1 : 0);
+    const n = Number(v).toFixed(s.step ? decimals(s.step) : Number.isInteger(Number(v)) ? 0 : Math.abs(v) < 10 ? 1 : 0);
     return u ? n + (/^[%¢°]/.test(u) ? "" : " ") + u : n;
   }
 
@@ -690,7 +690,8 @@ export const CONTROLS_RUNTIME = String.raw`
       if (s.label) labels.push({ x: sx(pts.at(-1)[0]) + 5, y: sy(pts.at(-1)[1]) + 3.5, text: s.label, tone: s.tone });
     }
     labels.sort((a, b) => a.y - b.y); for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + 12);
-    for (const l of labels) svg.append(svgEl("text", { class: "label", x: Math.min(l.x, W - pad.r + 5), y: l.y }, l.text));
+    // A label wider than the right margin sits above the line's end instead of past it.
+    for (const l of labels) { const wide = l.text.length * 6 > pad.r - 6; svg.append(svgEl("text", { class: "label", x: wide ? l.x - 8 : Math.min(l.x, W - pad.r + 5), y: wide ? l.y - 10 : l.y, "text-anchor": wide ? "end" : "start" }, l.text)); }
     for (const m of spec.marks || []) { svg.append(svgEl("line", { class: "mark", x1: pad.l, x2: W - pad.r, y1: sy(m.y), y2: sy(m.y) })); if (m.label) svg.append(svgEl("text", { class: "mark-label", x: pad.l + 4, y: sy(m.y) - 4 }, m.label)); }
     if (Number.isFinite(spec.now)) { const x = sx(spec.now); svg.append(svgEl("line", { class: "now", x1: x, x2: x, y1: pad.t, y2: H - pad.b })); }
   }
