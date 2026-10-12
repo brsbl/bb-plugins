@@ -68,6 +68,11 @@ These outputs come from the playground's scripts, so bb wraps them in
 follow. In a forked thread, these commands act on the fork's own copy of the
 playground. In a side chat, they act on the main thread's playground.
 
+Users can save playgrounds to a private library. `bb playgrounds saved` lists
+them; `bb playgrounds publish --saved <savedId>` (or the tool's `saved`
+parameter) shows one in the current thread with its saved inputs. When the user
+@-mentions a saved playground, publish it this way instead of rebuilding it.
+
 - Native documents expose `set` (one object of control values) and `reset`,
   and return the inputs plus every metric as displayed.
 - `do` runs in the copy the user touched most recently and fails when the
