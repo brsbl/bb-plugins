@@ -47,6 +47,7 @@ const KIT = String.raw`
   --pg-stage: color-mix(in srgb, var(--foreground) 4%, var(--card));
   --pg-hairline: color-mix(in srgb, var(--foreground) 9%, var(--card));
   --pg-radius: 16px; --pg-radius-stage: 12px; --pg-radius-photo: 12px;
+  --pg-accent: var(--foreground);
 }
 :root[data-scheme=dark] { color-scheme: dark; }
 *, *::before, *::after { box-sizing: border-box; }
@@ -54,6 +55,7 @@ html, body { margin: 0; background: transparent; }
 body { padding: 20px 22px 22px; font: 13px/1.45 var(--font); color: var(--foreground); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
+a { color: inherit; text-underline-offset: 2px; text-decoration-color: var(--pg-hairline); }
 :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 img, svg { display: block; max-width: 100%; }
 .pg-title { margin: 0; font-size: 20px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; color: var(--pg-ink); }
@@ -83,6 +85,30 @@ img, svg { display: block; max-width: 100%; }
 .pg-dots { display: flex; gap: 5px; }
 .pg-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--border); transition: background .3s; }
 .pg-dots i[aria-current=step] { background: var(--ring); }
+.pg-fig { margin: 0; border-radius: var(--pg-radius-stage); background: var(--pg-stage); overflow: hidden; }
+.pg-fig-head, .pg-fig-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 14px; font-size: 10.5px; line-height: 1.4; color: var(--pg-meta); }
+.pg-fig-foot { padding-top: 6px; }
+.pg-fig-foot output, .pg-fig-foot strong { color: var(--pg-ink); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-fig-body { position: relative; padding: 0 14px; }
+.pg-fig-body > svg, .pg-fig-body > canvas { display: block; width: 100%; height: auto; }
+.pg-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 2px 0; font-size: 11px; line-height: 1.4; color: var(--pg-meta); }
+.pg-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 6px 12px; margin: 0; font-size: 12px; font-weight: 500; color: var(--pg-ink); }
+.pg-field > output { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-field > input, .pg-field > select, .pg-field > .pg-input, .pg-field > small { grid-column: 1 / -1; }
+.pg-field > small { font-size: 11px; font-weight: 400; color: var(--pg-meta); }
+.pg-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 20px; }
+input[type=range] { display: block; width: 100%; height: 18px; margin: 0; accent-color: var(--pg-accent); }
+.pg-input { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid var(--pg-hairline); border-radius: 8px; background: var(--card); font-weight: 400; }
+.pg-input:focus-within { outline: 2px solid var(--ring); outline-offset: 1px; }
+.pg-input input { flex: 1; min-width: 0; border: 0; padding: 6px 0; background: none; outline: none; font-variant-numeric: tabular-nums; }
+.pg-input span { flex-shrink: 0; white-space: nowrap; font-size: 11px; color: var(--pg-meta); }
+.pg-readouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 12px; margin: 0; }
+.pg-readouts dt { font-size: 11px; line-height: 1.4; color: var(--pg-meta); }
+.pg-readouts dd { margin: 2px 0 0; font-size: 20px; line-height: 1.2; font-weight: 500; letter-spacing: -.01em; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
+.pg-readouts dd small { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; letter-spacing: 0; color: var(--pg-meta); }
+.pg-agent { padding: 12px 14px; border-radius: var(--pg-radius-stage); background: var(--pg-stage); }
+.pg-agent > .pg-eyebrow:first-child { display: block; margin-bottom: 6px; }
+output { font-variant-numeric: tabular-nums; }
 .pg-reveal { animation: pg-reveal .38s var(--pg-ease) both; animation-delay: calc(var(--i, 0) * 45ms); }
 @keyframes pg-reveal { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; } }

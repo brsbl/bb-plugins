@@ -91,6 +91,30 @@ describe("Anatomy design instruments", () => {
     }
   });
 
+  it("builds the starter figure into a framed, self-contained payload that passes the check", async () => {
+    const { buildFigure } = await import(new URL("figure/build.mjs", skill).href);
+    const { check } = await import(new URL("figure/check.mjs", skill).href);
+    const payload = htmlAnswerSchema.parse(await buildFigure(new URL("figure/starter/", skill).pathname));
+    const script = /<script>([\s\S]*)<\/script>/.exec(payload.html)?.[1];
+    expect(payload.html.match(/<\/script>/gi)).toHaveLength(1);
+    expect(() => new Script(script!)).not.toThrow();
+    expect(payload.html).toContain('class="pg-fig iso"');
+    expect(payload.html).toContain('id="carriage"');
+    expect(payload.html).toContain("Copyright (c) 2026 Ryan");
+    expect(check(payload)).toMatchObject({ errors: [], warnings: [] });
+  });
+
+  it("flags cards that bury or replace the hero", async () => {
+    const { check } = await import(new URL("figure/check.mjs", skill).href);
+    const prose = Array.from({ length: 90 }, () => "word").join(" ");
+    const result = check({
+      width: 712,
+      html: `<style>body{height:100%}</style><p>${prose}</p><select><option>a</option></select><button class="pg-btn-primary" disabled>Send</button><img src="https://example.com/a.png"><script>window.playground.save({})</script>`,
+    });
+    expect(result.errors).toHaveLength(2);
+    expect(result.warnings.join("\n")).toMatch(/pg-fig[\s\S]*\d+ words[\s\S]*<select>[\s\S]*disabled[\s\S]*expose[\s\S]*Width 712/);
+  });
+
   it("preserves every pinned upstream source and license byte", async () => {
     const provenance = JSON.parse(await readFile(new URL("upstream.json", skill), "utf8"));
     for (const [path, hash] of Object.entries(provenance.files)) {

@@ -711,10 +711,7 @@ function DocumentAnswerView({
         onKeyDownCapture={live.active}
       >
         <header>
-          <div>
-            <span className="pg-eyebrow">Explore</span>
-            <h3>{doc.title}</h3>
-          </div>
+          <h3>{doc.title}</h3>
           {doc.controls.length > 0 && (
             <button
               type="button"
