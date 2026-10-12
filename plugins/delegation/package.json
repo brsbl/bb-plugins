@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-delegation",
   "version": "0.1.0",
-  "description": "Skills for handing work to other bb threads and bringing back only what matters.",
+  "description": "Skills and a right-panel view for running a team of bb threads: delegate work, keep each agent-to-agent conversation in its own channel, and bring back only what matters.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -21,8 +21,8 @@
     "bbPluginSdk": "^0.5.9"
   },
   "bb": {
-    "name": "Delegation",
-    "description": "Skills for handing work to other bb threads and bringing back only what matters.",
+    "name": "Dispatch",
+    "description": "Skills and a right-panel view for running a team of bb threads: delegate work, keep each agent-to-agent conversation in its own channel, and bring back only what matters.",
     "branding": {
       "icon": "Workflow"
     },

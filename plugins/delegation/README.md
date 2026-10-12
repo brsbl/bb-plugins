@@ -1,8 +1,10 @@
-# Delegation
+# Dispatch
 
-Skills for handing work to other bb threads and bringing back only what matters.
+Skills and a right-panel view for running a team of bb threads: delegate work, keep each agent-to-agent conversation in its own channel, and bring back only what matters.
 
-![Delegation's settings form, with values quoted from AGENTS.md, CLAUDE.md, and memory, and an ignored override flagged](docs/settings.png)
+![Dispatch in a lead's right panel: one channel per agent, with the conversation in order](docs/channels.png)
+
+![Dispatch's settings form, with values quoted from AGENTS.md, CLAUDE.md, and memory, and an ignored override flagged](docs/settings.png)
 
 ## Install
 
@@ -11,6 +13,16 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/delegation 
 ```
 
 ## Use
+
+### Channels
+
+Open **Dispatch** from a thread's header or its right-panel launcher. Each agent the thread talks with gets a channel tab: its reports, its lead, and any peer lead that messaged it. A channel is the two-way conversation with that one agent, in order: messages this thread sent, messages it got back, and the agent's results. A grey dot marks new activity, and an orange dot marks an agent waiting on you. When a report needs you, a one-line notice sits above the composer with **Open channel**.
+
+Dispatch only reads what bb already stores. Sent messages come from the receiving thread's timeline, with their persisted delivery state (queued, not delivered, or steered). Channels refresh every 30 seconds while the window is visible, and **Load earlier messages** pages back. Agent messages still appear in the main timeline as bb shows them today.
+
+The plugin ID, the `bb delegation` CLI, the skill names, and the settings keys keep their original `delegation` names.
+
+### Skills
 
 Ask a thread to "launch an agent for this and parent it". The lead starts a worker, the worker does the job and replies once, and the lead passes on only what you need. Each job has one skill:
 
@@ -27,13 +39,13 @@ The skills build on existing ones rather than repeating them: `spawn` for machin
 
 ### Settings
 
-Delegation keeps no rules of its own. Each setting resolves in this order:
+Dispatch keeps no rules of its own. Each setting resolves in this order:
 
 1. **Your instructions.** The `delegation-defaults` skill reads `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, your memory notes, and your skills, then records what they say about each setting with the file and your exact words. These win.
-2. **Your override**, from Settings → Delegation or `bb delegation set`. It applies only where your instructions are silent; the form marks an override your instructions outrank as ignored.
+2. **Your override**, from Settings → Dispatch or `bb delegation set`. It applies only where your instructions are silent; the form marks an override your instructions outrank as ignored.
 3. **A fallback** that defers to bb or the spawn skill.
 
-Settings → Delegation shows every setting's value and where it came from, with provider, machine, and section dropdowns filled from your bb and bb's own model picker. Rows your instructions set are locked and quote them. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
+Settings → Dispatch shows every setting's value and where it came from, with provider, machine, and section dropdowns filled from your bb and bb's own model picker. Rows your instructions set are locked and quote them. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
 
 | Setting | Fallback | What it controls |
 | --- | --- | --- |

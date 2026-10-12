@@ -12,6 +12,7 @@ import {
   type DelegationSettings, type DelegationState, type SettingKey, type SettingsOverrides,
 } from "./settings.js";
 import { Switch } from "./components/ui/switch.js";
+import { DISPATCH_ACTION_ID, DispatchHeaderButton, DispatchPanel, NeedsYouBanner } from "./dispatch-app.js";
 import "./app.css";
 
 interface Option { value: string; label: string }
@@ -404,5 +405,23 @@ export default definePluginApp((app) => {
   app.slots.settingsSection({
     id: "delegation",
     component: DelegationSettingsForm,
+  });
+  // Dispatch: this thread's agent channels in the right panel, plugin-only.
+  app.slots.threadPanelAction({
+    id: DISPATCH_ACTION_ID,
+    title: "Dispatch",
+    icon: "Workflow",
+    layout: "flush",
+    component: DispatchPanel,
+  });
+  app.slots.experimental_threadHeaderAction({
+    id: "dispatch-open",
+    title: "Dispatch",
+    component: DispatchHeaderButton,
+  });
+  app.composer.customize({
+    id: "dispatch-needs-you",
+    scopes: ["thread"],
+    banners: [{ id: "needs-you", chrome: "bare", component: NeedsYouBanner }],
   });
 });
