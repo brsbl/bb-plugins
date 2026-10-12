@@ -1,6 +1,6 @@
 ---
 name: thread-lifecycle
-description: Rules for archiving, stopping, deleting, unparenting, and moving delegated bb threads, following the user's own instructions as recorded in the Delegation settings. Use before running `bb thread archive`, `stop`, or `delete`, or `bb thread update` with `--clear-parent-thread`, `--parent-thread`, or `--section`; when a worker finishes; or when the user asks to clean up, archive, stop, or reorganize workers. tidy owns post-merge cleanup once the user asks for it.
+description: Rules for archiving, stopping, deleting, unparenting, and moving delegated bb threads, following the user's own instructions as recorded in the Delegation settings. Use before running `bb thread archive`, `stop`, or `delete`, or `bb thread update` with `--clear-parent-thread`, `--parent-thread`, or `--section`; when a worker finishes or its final report has been read; or when the user asks to clean up, archive, stop, or reorganize workers. tidy owns post-merge cleanup once the user asks for it.
 ---
 
 # Thread lifecycle

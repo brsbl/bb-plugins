@@ -42,6 +42,9 @@ It lists the lead's workers, most urgent first, as `needs-input`, `error`,
    show what it says.
 4. Read `bb thread log <id>` only when the output is missing, contradicts
    itself, or the worker errored.
+5. In the same turn, report through `report-results`, then follow
+   `thread-lifecycle` for the finished worker: with `mayArchiveOrStop` on, it
+   stops and archives the worker once nothing it owns is still needed.
 
 ## Handle stalls and errors
 
