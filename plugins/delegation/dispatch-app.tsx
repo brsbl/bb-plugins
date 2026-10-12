@@ -46,6 +46,16 @@ function markSeen(threadId: string, counterpartId: string) {
 }
 
 /** The org around a thread, from bb's live sidebar state. */
+// bb keys a panel tab by its params, so "Open channel" reuses the one Dispatch tab and hands it the
+// channel here instead: a fresh panel reads the pending request, an open one hears the event.
+const OPEN_CHANNEL_EVENT = "dispatch:open-channel";
+const pendingChannel = new Map<string, string>();
+
+function requestChannel(threadId: string, counterpartId: string) {
+  pendingChannel.set(threadId, counterpartId);
+  window.dispatchEvent(new CustomEvent(OPEN_CHANNEL_EVENT, { detail: { threadId, counterpartId } }));
+}
+
 function useOrg(threadId: string) {
   const sidebar = useSidebarThreads();
   return useMemo(() => {
@@ -182,15 +192,22 @@ export function DispatchPanel({ threadId, params }: { threadId: string; params: 
   const { channels, status, seen, loadEarlier } = useChannels(threadId);
   const navigate = useBbNavigate();
   const requested = typeof params === "object" && params !== null ? (params as { counterpart?: unknown }).counterpart : undefined;
-  const [active, setActive] = useState<string | null>(typeof requested === "string" ? requested : null);
+  const [active, setActive] = useState<string | null>(() => pendingChannel.get(threadId) ?? (typeof requested === "string" ? requested : null));
   const sidebar = useSidebarThreads();
   const selfTitle = sidebar.threads.find((thread) => thread.id === threadId)?.displayTitle ?? "This thread";
   const current = channels.find((channel) => channel.counterpartId === active) ?? channels[0];
 
-  // "Open channel" reuses an already-open panel, so follow each new request.
   useEffect(() => {
-    if (typeof requested === "string") setActive(requested);
-  }, [params, requested]);
+    pendingChannel.delete(threadId);
+    const onOpen = (event: Event) => {
+      const detail = (event as CustomEvent<{ threadId: string; counterpartId: string }>).detail;
+      if (detail.threadId !== threadId) return;
+      pendingChannel.delete(threadId);
+      setActive(detail.counterpartId);
+    };
+    window.addEventListener(OPEN_CHANNEL_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CHANNEL_EVENT, onOpen);
+  }, [threadId]);
 
   useEffect(() => {
     if (current) seen(current.counterpartId);
@@ -283,7 +300,10 @@ export function NeedsYouBanner() {
           <button
             type="button"
             className="dp-button"
-            onClick={() => navigate.openThreadPanel({ actionId: DISPATCH_ACTION_ID, title: "Dispatch", params: { counterpart: thread.id } })}
+            onClick={() => {
+              requestChannel(threadId, thread.id);
+              navigate.openThreadPanel({ actionId: DISPATCH_ACTION_ID, title: "Dispatch" });
+            }}
           >
             Open channel
           </button>
