@@ -21,7 +21,10 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 - Before writing any HTML playground, load the `playground-design` skill: the
   card design rules, plus Anatomy (Ryan's drawing kit, a typography printing
   press, and an interface motion rig) for lessons that teach through a working
-  object. Publish the result as an ordinary HTML playground.
+  object. Publish the result as an ordinary HTML playground. For type size,
+  line length, leading, or margins, start from its typography press; for
+  springs, damping, or interface easing, start from its motion rig. Build a
+  new figure only when neither fits.
 
 - **Native document** for calculators, scenario comparisons, charts, and
   tables. Bounded arithmetic, no code, accessible by construction.
@@ -43,6 +46,11 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 - Keep charts small, label series, and make every series match its labels.
   Tables must have one cell per column. Numeric output formats accept
   `prefix`, `suffix`, and `decimals` (0–6). Chart data is also accessible as a table.
+- Format each number the way a person would write it, and keep precision
+  consistent within a list or table: money to cents, grams and millilitres as
+  whole numbers, counts (eggs, people, servings) as whole numbers in their own
+  unit rather than converted to weight. Never show trailing zeros such as
+  `25.00 g` or `2.0 eggs`.
 - Show sources and consequential assumptions in accompanying prose. Do not
   imply a scenario is a prediction or that sample values are live data.
 - Inputs update immediately and are saved with the playground, so they follow the

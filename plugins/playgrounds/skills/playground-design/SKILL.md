@@ -54,6 +54,9 @@ Use only these steps (Inter is bb's font; keep `var(--font)`):
   Paragraphs are always `--pg-body`; only subtitles, captions, durations,
   hex values and hints use `--pg-meta`. Do not invent other grays.
 - Never use weights above 600, all-caps headings, or text below 10.5px.
+- Short labels (control names, axis labels, button text) never wrap mid-word:
+  give them `white-space: nowrap` and room in the layout. Numbers in one list
+  share a precision; never show trailing zeros such as `25.00 g`.
 - On a tinted surface, tint the text toward that hue instead of gray (dark
   green text on a pale green tile).
 
@@ -84,7 +87,9 @@ Use only these steps (Inter is bb's font; keep `var(--font)`):
   lighting on large planes, 2–3 tones per material (base, shade, highlight).
 - Show state on the drawing: inactive parts light gray (#c9c9c9), the active
   part near-black or the accent; numbered callouts as 18px circles (white with
-  hairline, filled `--pg-ink` when active). Caption simplifications under the
+  hairline, filled `--pg-ink` when active). Keep every SVG label at least its
+  own width inside the viewBox; `text-anchor="start"` near the left edge and
+  `"end"` near the right. Caption simplifications under the
   stage in `.pg-meta` ("Illustrative schematic, not to scale.").
 - Use real photos for real places and things: `.pg-photos` (three square
   tiles) or a bento of one tall plus two stacked, 6–8px gaps, 12px radius.
@@ -115,7 +120,9 @@ Use only these steps (Inter is bb's font; keep `var(--font)`):
 If you can, write the HTML to a file, render it at 2× (Browser Automation)
 inside a 500px-wide white card, and check: headings black, body one gray,
 nothing below 10.5px, hero is the largest element, no overflow or clipped
-text, entrance plays, and one interaction changes the hero. Fix, then publish.
+text (including SVG labels at the stage edges), no label broken mid-word,
+numbers formatted consistently, entrance plays, and one interaction changes
+the hero. Fix, then publish.
 
 ## Teach with a working object
 
@@ -165,6 +172,10 @@ Two bb-specific examples turn product-design decisions into working instruments:
 - **Interface motion rig** (`motion-rig/`): drag and release a spring-mounted
   carriage, tune spring and damping, and interrupt an interface drawer in flight.
   The rig and the interface share one motion model.
+
+When the request is about either topic, start from that instrument instead of
+building a new figure: generate it, then adjust copy or defaults if the user
+asked for something specific.
 
 From this skill directory, generate either HTML playground payload into a new
 file in the user's workspace (the path must not already exist):
