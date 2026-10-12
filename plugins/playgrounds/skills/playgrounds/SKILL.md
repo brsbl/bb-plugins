@@ -23,6 +23,9 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
   collaborative play, and draws it with a bundled instrument (typography
   press, motion rig) or a new figure from Anatomy (Ryan's drawing kit) through
   its figure builder. Publish the result as an ordinary HTML playground.
+  For systems, APIs, workflows, rollouts and capacity questions, also load
+  `playground-product-building`: it picks the pattern and has references to
+  copy.
 
 - **Native document** only for a plain calculator or comparison with nothing
   to show moving (a bill split, a loan payment). Plans, schedules, systems and

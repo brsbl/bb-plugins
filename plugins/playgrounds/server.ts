@@ -405,7 +405,7 @@ export default function plugin(bb: BbPluginApi): void {
   });
   bb.agents.configure(() => ({
     tools: ["playground"],
-    skills: ["playgrounds", "playground-design"],
+    skills: ["playgrounds", "playground-design", "playground-product-building"],
   }));
   bb.cli.register(
     defineCli({

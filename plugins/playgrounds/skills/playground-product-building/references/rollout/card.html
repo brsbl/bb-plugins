@@ -1,0 +1,32 @@
+<header class="pg-reveal" style="--i:0">
+  <h2 class="pg-title">Stage the rollout</h2>
+  <p class="pg-subtitle">This release has a bug. Tune the stages and gate to catch it early.</p>
+</header>
+
+<figure class="pg-fig pg-reveal" style="--i:1; margin-top:16px">
+  <figcaption class="pg-fig-head"><span>Fig. 1 &nbsp;Exposure and measured errors</span><span id="verdict" class="pg-badge"></span></figcaption>
+  <div class="pg-fig-body">
+    <svg id="exposure" role="img" aria-label="Share of users exposed over time"></svg>
+    <svg id="errors" role="img" aria-label="Measured error rate over time against the rollback threshold"></svg>
+  </div>
+  <div class="pg-fig-foot"><span id="where"></span><output id="clock"></output></div>
+</figure>
+
+<div class="pg-transport pg-reveal" style="--i:2; margin-top:14px">
+  <button class="pg-icon-btn" data-primary id="play" aria-label="Play"></button>
+  <button class="pg-icon-btn" id="restart" aria-label="Replay from the start"></button>
+  <input id="scrub" type="range" min="0" step="1" value="0" aria-label="Hour">
+</div>
+
+<dl class="pg-readouts pg-reveal" style="--i:2; margin-top:16px">
+  <div><dt>Most users exposed</dt><dd id="peak"></dd></div>
+  <div><dt>User-hours with errors</dt><dd id="hurt"></dd></div>
+  <div><dt>Gate fired</dt><dd id="fired"></dd></div>
+</dl>
+
+<div class="pg-row pg-reveal" style="--i:3; margin-top:16px"><span>Release</span><div class="pg-seg" id="release" role="group" aria-label="Release"></div></div>
+<div class="pg-row pg-reveal" style="--i:3; margin-top:10px"><span>Stages</span><div class="pg-seg" id="plan" role="group" aria-label="Rollout stages"></div></div>
+<div class="pg-fields pg-reveal" style="--i:4; margin-top:16px">
+  <label class="pg-field">Bake per stage<output id="bake-out"></output><input id="bake" type="range" min="1" max="12" step="1"></label>
+  <label class="pg-field">Roll back at<output id="threshold-out"></output><input id="threshold" type="range" min="0.5" max="2.5" step="0.1"></label>
+</div>

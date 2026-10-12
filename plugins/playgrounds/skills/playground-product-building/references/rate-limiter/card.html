@@ -1,0 +1,34 @@
+<header class="pg-reveal" style="--i:0">
+  <h2 class="pg-title">Size the token bucket</h2>
+  <p class="pg-subtitle">Bursts hit every 10 seconds. Find the smallest bucket that loses nothing.</p>
+</header>
+
+<figure class="pg-fig pg-reveal" style="--i:1; margin-top:16px">
+  <figcaption class="pg-fig-head"><span>Fig. 1 &nbsp;Live traffic</span><span id="status" class="pg-badge"></span></figcaption>
+  <div class="pg-fig-body">
+    <svg id="flow" aria-label="Requests flow from clients through the token bucket to the API"></svg>
+    <svg id="chart" role="img" aria-label="Tokens in the bucket over 30 seconds"></svg>
+  </div>
+  <div class="pg-fig-foot"><span>Tokens left over 30 s · one dot ≈ 4 requests</span><output id="clock">0 s</output></div>
+</figure>
+
+<div class="pg-transport pg-reveal" style="--i:2; margin-top:12px">
+  <button class="pg-icon-btn" data-primary id="play" aria-label="Pause"></button>
+  <button class="pg-icon-btn" id="restart" aria-label="Replay from the start"></button>
+  <input id="scrub" type="range" min="0" max="30" step="0.1" value="0" aria-label="Time">
+</div>
+
+<div class="pg-fields pg-reveal" style="--i:3; margin-top:16px">
+  <label class="pg-field">Bucket size<output id="capacity-out"></output><input id="capacity" type="range" min="10" max="300" step="10"></label>
+  <label class="pg-field">Refill rate<output id="refill-out"></output><input id="refill" type="range" min="5" max="100" step="5"></label>
+</div>
+<div class="pg-row pg-reveal" style="--i:4; margin-top:14px">
+  <span>Traffic</span>
+  <div class="pg-seg" id="traffic" role="group" aria-label="Traffic pattern"></div>
+</div>
+
+<dl class="pg-readouts pg-reveal" style="--i:5; margin-top:18px">
+  <div><dt>Accepted · 30 s</dt><dd id="accepted"></dd></div>
+  <div><dt>Rejected</dt><dd id="rejected"></dd></div>
+  <div><dt>Loss-free from</dt><dd id="advice"></dd></div>
+</dl>

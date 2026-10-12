@@ -104,6 +104,43 @@ describe("Anatomy design instruments", () => {
     expect(check(payload)).toMatchObject({ errors: [], warnings: [] });
   });
 
+  for (const reference of ["rate-limiter", "checkout", "rollout"]) {
+    it(`builds the ${reference} product-building reference into a self-contained payload that passes the check`, async () => {
+      const { buildFigure } = await import(new URL("figure/build.mjs", skill).href);
+      const { check } = await import(new URL("figure/check.mjs", skill).href);
+      const dir = new URL(`../playground-product-building/references/${reference}/`, skill).pathname;
+      const payload = htmlAnswerSchema.parse(await buildFigure(dir));
+      const script = /<script>([\s\S]*)<\/script>/.exec(payload.html)?.[1];
+      expect(payload.html.match(/<\/script>/gi)).toHaveLength(1);
+      expect(() => new Script(script!)).not.toThrow();
+      expect(check(payload)).toMatchObject({ errors: [], warnings: [] });
+    });
+  }
+
+  it("answers the rate-limit and rollout questions from their models", async () => {
+    const limiter = await import(new URL("../playground-product-building/references/rate-limiter/figure.mjs", skill).href);
+    const advice = limiter.advise(limiter.initial);
+    expect(limiter.simulate(limiter.initial).rejected).toBeGreaterThan(0);
+    expect(limiter.simulate({ ...limiter.initial, capacity: advice.capacity }).rejected).toBe(0);
+    expect(limiter.simulate({ ...limiter.initial, capacity: advice.capacity - 10 }).rejected).toBeGreaterThan(0);
+    expect(limiter.advise({ ...limiter.initial, refill: 10 }).capacity).toBeNull();
+    const rollout = await import(new URL("../playground-product-building/references/rollout/figure.mjs", skill).href);
+    const caught = rollout.simulate(rollout.initial);
+    expect(caught.rolledBackAt).not.toBeNull();
+    expect(caught.points.at(-1).exposure).toBe(0);
+    expect(rollout.simulate({ ...rollout.initial, release: "healthy" }).rolledBackAt).toBeNull();
+  });
+
+  it("charges a checkout at most once across declines, retries and timeouts", async () => {
+    const checkout = await import(new URL("../playground-product-building/references/checkout/figure.mjs", skill).href);
+    let state = checkout.normalize(checkout.initial);
+    state = checkout.step({ ...state, gateway: "timeout" }, "retry");
+    expect(state.state).toBe("unknown");
+    state = checkout.step({ ...state, gateway: "approve" }, "reconcile");
+    expect(state).toMatchObject({ state: "confirmed", charges: 1 });
+    expect(() => checkout.step(state, "retry")).toThrow();
+  });
+
   it("flags cards that bury or replace the hero", async () => {
     const { check } = await import(new URL("figure/check.mjs", skill).href);
     const prose = Array.from({ length: 90 }, () => "word").join(" ");
