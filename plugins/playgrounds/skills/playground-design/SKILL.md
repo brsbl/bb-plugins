@@ -53,7 +53,10 @@ Choose the first path that fits:
    ```
 
    Any machine, mechanism, apparatus or crafted physical object goes through
-   this builder; never hand-draw one as flat SVG. Keep the starter's base,
+   this builder — including game boards, drum machines, synths, corkboards and
+   other things people play with; never hand-draw one as flat SVG. Make the
+   playable parts (holes, pads, keys, notes) `<g>` elements with ids, and wire
+   them as buttons from `live.js`. Keep the starter's base,
    feet, screws, ruler and label plate where they fit, and build the object
    from at least 40 kit solids; the check counts them. Hang things from real
    hooks and rods, seat parts on other parts, and fill 55–65% of the figure.
@@ -72,8 +75,8 @@ Choose the first path that fits:
    worth it. Read [ANATOMY.md](ANATOMY.md) "The one idea that matters" and
    "Craft rules", and open the closest example, before you invent the object.
 
-3. **A product surface or a data instrument** when the hero is a screen, a
-   board game, a chart over time, or a map: draw it as clean inline SVG or
+3. **A product surface or a data instrument** when the hero is a software
+   screen, a chart over time, or a map: draw it as clean inline SVG or
    HTML inside a `figure.pg-fig` frame, flat and precise like real UI, using
    the card tokens. Charts get labelled axes, threshold lines and a moving
    "now" marker, never a repeated pattern standing in for data.
@@ -107,7 +110,10 @@ an optional `dl.pg-readouts` row; at most one `<details>`.
 
 **First state.** The card opens already showing the idea: a posed problem (an
 unbalanced lever, a burst that overflows the bucket), seeded sample content
-(three example retro notes, a starter beat), or a short idle tour. Never an
+(three example retro notes, a starter beat), or a short idle tour. Run
+simulations to an interesting moment before the first paint (tokens partly
+drained mid-burst, the first comparison already made, the payment failed and
+ready to retry), so the figure is never empty and readouts are never all 0. Never an
 empty board or chart, and never a disabled primary button as the main action.
 
 **Controls.**
