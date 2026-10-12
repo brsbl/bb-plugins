@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ dns: vi.fn(), request: vi.fn() }));
 vi.mock("node:dns/promises", () => ({ lookup: mocks.dns }));
 vi.mock("node:https", () => ({ request: mocks.request }));
-import { declaredIcons, decodeIcon, ICON_LIMITS, IconService, isPublicAddress, publicLookup, publicOrigin, readPublicResource, resolveIcon } from "./index.js";
+import { randomBytes } from "node:crypto";
+import { brotliCompressSync, deflateRawSync, deflateSync, gzipSync } from "node:zlib";
+import { declaredIcons, decodeIcon, ICON_LIMITS, IconService, isPublicAddress, publicLookup, publicOrigin, readPublicResource, resolveIcon, WebsiteResourceError } from "./index.js";
 
 afterEach(() => { vi.useRealTimers(); vi.resetAllMocks(); });
 
@@ -17,22 +19,38 @@ function png(width = 2, height = 2): Buffer {
   return PNG.sync.write(image);
 }
 
-function network(replies: Array<{ status?: number; location?: string; type?: string; body?: Buffer; length?: string }>) {
-  const requests: Array<{ url: URL; options: RequestOptions }> = [];
+type Fixture = { status?: number; location?: string; type?: string; body?: Buffer; length?: string; headers?: Record<string, string>; chunks?: Buffer[]; hang?: boolean };
+
+function network(replies: Fixture[]) {
+  const requests: Array<{ url: URL; options: RequestOptions; reply?: PassThrough; destroyed: boolean }> = [];
   mocks.request.mockImplementation((url: URL, options: RequestOptions, respond: (reply: unknown) => void) => {
-    requests.push({ url, options });
-    const request = new EventEmitter() as EventEmitter & { end(): void; destroy(error: Error): void };
+    const record: (typeof requests)[number] = { url, options, destroyed: false };
+    requests.push(record);
+    const request = new EventEmitter() as EventEmitter & { end(): void; destroy(error?: Error): void };
+    request.destroy = (error) => { record.destroyed = true; record.reply?.destroy(); request.emit("error", error); };
     request.end = () => {
       const next = replies.shift();
       if (!next) { request.emit("error", new Error("No fixture response")); return; }
-      const reply = Object.assign(new PassThrough(), { statusCode: next.status ?? 200, headers: { location: next.location, "content-type": next.type ?? "image/png", "content-length": next.length } });
-      request.destroy = (error) => { reply.destroy(); request.emit("error", error); };
+      const reply = Object.assign(new PassThrough(), { statusCode: next.status ?? 200, headers: { location: next.location, "content-type": next.type ?? "image/png", "content-length": next.length, ...next.headers } });
+      record.reply = reply;
       respond(reply);
-      if (!reply.destroyed) reply.end(next.body ?? Buffer.alloc(0));
+      if (reply.destroyed) return;
+      for (const chunk of next.chunks ?? []) reply.write(chunk);
+      if (!next.hang) reply.end(next.body ?? Buffer.alloc(0));
     };
     return request;
   });
   return requests;
+}
+
+const read = (url: string, options?: Parameters<typeof readPublicResource>[3], signal = new AbortController().signal) =>
+  readPublicResource(new URL(url), signal, { redirects: 0 }, options);
+
+async function failure(work: Promise<unknown>): Promise<WebsiteResourceError> {
+  const error = await work.then(() => { throw new Error("Expected a failure"); }, (caught: unknown) => caught);
+  expect(error).toBeInstanceOf(WebsiteResourceError);
+  expect(error).toBeInstanceOf(Error);
+  return error as WebsiteResourceError;
 }
 
 describe("public origin and connection policy", () => {
@@ -60,6 +78,7 @@ describe("public origin and connection policy", () => {
     mocks.dns.mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }, { address: "10.1.1.1", family: 4 }]);
     const result = await run() as unknown[];
     expect(result[0]).toBeInstanceOf(Error);
+    expect((result[0] as WebsiteResourceError).reason).toBe("url");
     expect(isPublicAddress("2606:4700:4700::1111")).toBe(true);
     expect(isPublicAddress("8.8.8.8")).toBe(true);
   });
@@ -82,6 +101,8 @@ describe("public origin and connection policy", () => {
     await expect(readPublicResource(new URL("https://example.com/favicon.ico"), new AbortController().signal, { redirects: 0 })).rejects.toThrow();
     network([{ body: Buffer.alloc(ICON_LIMITS.inputBytes + 1) }]);
     await expect(readPublicResource(new URL("https://example.com/favicon.ico"), new AbortController().signal, { redirects: 0 })).rejects.toThrow("large");
+    network([{ length: String(ICON_LIMITS.inputBytes + 1) }]);
+    expect((await failure(read("https://example.com/favicon.ico"))).reason).toBe("too-large");
   });
 
   it("allows a larger bounded preview image without changing the default icon budget", async () => {
@@ -91,6 +112,122 @@ describe("public origin and connection policy", () => {
     expect(resource.body.length).toBe(body.length);
     network([{ body: Buffer.alloc(2 * 1024 * 1024 + 1) }]);
     await expect(readPublicResource(new URL("https://example.com/cover.png"), new AbortController().signal, { redirects: 0 }, { maxBytes: 2 * 1024 * 1024 })).rejects.toThrow("large");
+  });
+});
+
+describe("public resource transport", () => {
+  it("keeps the shipped favicon request and identity-only response contract by default", async () => {
+    const requests = network([{ body: png() }, { body: gzipSync(png()), headers: { "content-encoding": "gzip" } }]);
+    const resource = await read("https://example.com/favicon.ico");
+    expect(Object.keys(resource).sort()).toEqual(["body", "contentType", "url"]);
+    expect(requests[0]!.options.headers).toEqual({ Accept: "image/png,image/x-icon,text/html;q=0.5,*/*;q=0.1", "Accept-Encoding": "identity", "User-Agent": "BB-URL-Pills/0.1" });
+    const error = await failure(read("https://example.com/favicon.ico"));
+    expect([error.reason, error.message]).toEqual(["encoding", "Website resource is unavailable"]);
+    await expect(read("https://example.com/", { userAgent: "bad\r\nCookie: x" })).rejects.toThrow("header");
+    expect((await failure(read("https://127.0.0.1/"))).reason).toBe("url");
+  });
+
+  it("decodes gzip, zlib and raw deflate, and Brotli only when the caller opts in", async () => {
+    const page = Buffer.from(`<html><head><title>${"Preview ".repeat(500)}</title></head></html>`);
+    const requests = network([
+      { body: gzipSync(page), headers: { "content-encoding": "gzip" } },
+      { body: gzipSync(page), headers: { "content-encoding": "x-gzip" } },
+      { body: deflateSync(page), headers: { "content-encoding": "deflate" } },
+      { body: deflateRawSync(page), headers: { "content-encoding": "deflate" } },
+      { body: brotliCompressSync(page), headers: { "content-encoding": "br" } },
+      { body: page, headers: { "content-encoding": "identity" } },
+    ]);
+    const options = { decodeCompressed: true, accept: "text/html,application/xhtml+xml;q=0.9", userAgent: "BB-Link-Preview/1.0" };
+    for (let index = 0; index < 6; index++) expect((await read("https://example.com/", options)).body.equals(page)).toBe(true);
+    expect(requests[0]!.options.headers).toEqual({ Accept: options.accept, "Accept-Encoding": "gzip, deflate, br", "User-Agent": "BB-Link-Preview/1.0" });
+    network([{ body: page, headers: { "content-encoding": "zstd" } }, { body: Buffer.from("not gzip at all"), headers: { "content-encoding": "gzip" } }, { body: gzipSync(page).subarray(0, 40), headers: { "content-encoding": "gzip" } }]);
+    for (let index = 0; index < 3; index++) expect((await failure(read("https://example.com/", options))).reason).toBe("encoding");
+  });
+
+  it("bounds decoded and wire bytes of compressed responses and truncates only when asked", async () => {
+    const maxBytes = 64 * 1024;
+    const bomb = gzipSync(Buffer.alloc(8 * 1024 * 1024, "a"));
+    expect(bomb.length).toBeLessThan(maxBytes);
+    network([{ body: bomb, headers: { "content-encoding": "gzip" } }]);
+    expect((await failure(read("https://example.com/", { decodeCompressed: true, maxBytes }))).reason).toBe("too-large");
+    network([{ body: bomb, headers: { "content-encoding": "gzip" } }]);
+    const truncated = await read("https://example.com/", { decodeCompressed: true, maxBytes, truncate: true });
+    expect(truncated.body.equals(Buffer.alloc(maxBytes, "a"))).toBe(true);
+    const noise = gzipSync(randomBytes(maxBytes * 2));
+    network([{ body: noise, headers: { "content-encoding": "gzip" }, length: String(noise.length) }]);
+    expect((await failure(read("https://example.com/", { decodeCompressed: true, maxBytes }))).reason).toBe("too-large");
+    const requests = network([{ chunks: [noise.subarray(0, maxBytes / 2), noise.subarray(maxBytes / 2, maxBytes + 1)], hang: true, headers: { "content-encoding": "gzip" } }]);
+    const partial = await read("https://example.com/", { decodeCompressed: true, maxBytes, truncate: true });
+    expect(partial.body.length).toBeLessThanOrEqual(maxBytes);
+    expect(requests[0]!.reply!.destroyed).toBe(true);
+  });
+
+  it("tears down the request, response and decoder when aborted mid-body", async () => {
+    for (const headers of [{}, { "content-encoding": "gzip" }]) {
+      const controller = new AbortController();
+      const requests = network([{ chunks: [gzipSync(Buffer.alloc(1024)).subarray(0, 20)], hang: true, headers }]);
+      const work = read("https://example.com/", { decodeCompressed: true }, controller.signal);
+      await new Promise((resolve) => setImmediate(resolve));
+      controller.abort();
+      await expect(work).rejects.toHaveProperty("name", "AbortError");
+      expect(requests[0]!.destroyed).toBe(true);
+      expect(requests[0]!.reply!.destroyed).toBe(true);
+    }
+  });
+
+  it("reports HTTP status and a bounded Retry-After", async () => {
+    const before = Date.now();
+    network([
+      { status: 404 },
+      { status: 429, headers: { "retry-after": "120" } },
+      { status: 503, headers: { "retry-after": new Date(before + 60_000).toUTCString() } },
+      { status: 429, headers: { "retry-after": "999999999" } },
+      { status: 503, headers: { "retry-after": "Mon, 01 Jan 1990 00:00:00 GMT" } },
+      { status: 429, headers: { "retry-after": "soon" } },
+    ]);
+    const errors: WebsiteResourceError[] = [];
+    for (let index = 0; index < 6; index++) errors.push(await failure(read("https://example.com/")));
+    const after = Date.now();
+    expect(errors.map(({ reason, status, message }) => [reason, status, message])).toEqual(
+      [404, 429, 503, 429, 503, 429].map((status) => ["http", status, "Website resource is unavailable"]));
+    expect(errors[0]!.retryAt).toBeUndefined();
+    expect(errors[1]!.retryAt).toBeGreaterThanOrEqual(before + 120_000);
+    expect(errors[1]!.retryAt).toBeLessThanOrEqual(after + 120_000);
+    expect(errors[2]!.retryAt).toBeGreaterThanOrEqual(before + 59_000);
+    expect(errors[2]!.retryAt).toBeLessThanOrEqual(after + 60_000);
+    expect(errors[3]!.retryAt).toBeLessThanOrEqual(after + 24 * 60 * 60 * 1000);
+    expect(errors[4]!.retryAt).toBeGreaterThanOrEqual(before);
+    expect(errors[4]!.retryAt).toBeLessThanOrEqual(after);
+    expect(errors[5]!.retryAt).toBeUndefined();
+  });
+
+  it("classifies redirect failures and keeps the two-redirect budget across hops", async () => {
+    const cases: Array<[Fixture[], string]> = [
+      [Array.from({ length: 3 }, () => ({ status: 302, location: "/again" })), "Too many website redirects"],
+      [[{ status: 301, location: "http://example.com/" }], "Website redirect is not public HTTPS"],
+      [[{ status: 308, location: "https://user:pw@example.com/" }], "Website redirect is not public HTTPS"],
+      [[{ status: 302, location: "https://[bad" }], "Website redirect is not public HTTPS"],
+      [[{ status: 307 }], "Website redirect has no location"],
+    ];
+    for (const [replies, message] of cases) {
+      network(replies);
+      const error = await failure(read("https://example.com/"));
+      expect([error.reason, error.message]).toEqual(["redirect", message]);
+    }
+    const requests = network([{ status: 302, location: "/one" }, { status: 303, location: "https://cdn.example.com/two" }, { body: png() }]);
+    expect((await read("https://example.com/")).url.href).toBe("https://cdn.example.com/two");
+    expect(requests.every(({ options }) => options.agent === false && typeof options.lookup === "function" && !("Referer" in options.headers!) && !("Authorization" in options.headers!))).toBe(true);
+  });
+
+  it("classifies connection failures as network errors", async () => {
+    mocks.request.mockImplementation(() => {
+      const request = new EventEmitter() as EventEmitter & { end(): void; destroy(): void };
+      request.destroy = vi.fn();
+      request.end = () => { request.emit("error", new Error("ECONNRESET")); };
+      return request;
+    });
+    const error = await failure(read("https://example.com/"));
+    expect([error.reason, error.message, (error.cause as Error).message]).toEqual(["network", "Website resource is unreachable", "ECONNRESET"]);
   });
 });
 
