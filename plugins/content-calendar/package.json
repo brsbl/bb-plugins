@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-content-calendar",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Plan content on a month or week calendar stored in Google Calendar.",
   "type": "module",
   "license": "UNLICENSED",
