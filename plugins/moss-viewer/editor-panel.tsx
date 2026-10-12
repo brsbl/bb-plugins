@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { experimental_Icon as Icon } from "@get-bb/plugin-sdk/app";
 import type { MossNoteEntry, ReadResult } from "./contract";
 import type { EditorBridge } from "./editor-bridge";
-import { SLOW_SAVE_MS, closeEditor, frameEditor, parkFrame, statusLabel } from "./editor-frame";
+import { SLOW_SAVE_MS, closeEditor, createTypingGate, frameEditor, parkFrame, statusLabel } from "./editor-frame";
 import { cn } from "./lib/utils";
 import type * as Moss from "./vendor/moss-editor.contract.js";
 import { frameSource, routeFrameLinks, setFrameTheme, type MossViewerTarget } from "./viewer-frame";
@@ -62,6 +62,7 @@ export function MossEditorFrame(props: EditorFrameProps) {
     frameRef.current = frame;
     let handle: Moss.MossEditorHandle | null = null;
     let stopLinks: () => void = () => undefined;
+    let stopTyping: () => void = () => undefined;
 
     const mount = () => {
       const editor = frameEditor(frame);
@@ -74,8 +75,25 @@ export function MossEditorFrame(props: EditorFrameProps) {
       stopLinks = routeFrameLinks(frame, (url) => latest.current.openUrl(url));
       const bridge = latest.current.bridge;
       // The panel learns the version on disk from the editor's own reads.
+      // A change from disk waits while the user is typing, then goes in when they pause or leave.
+      const doc = frame.contentDocument!;
+      const view = frame.contentWindow!;
+      const typing = createTypingGate({
+        focused: () => doc.hasFocus(),
+        unsaved: () => handle?.status === "dirty" || handle?.status === "saving",
+      });
+      const onInput = () => typing.input();
+      const onBlur = () => typing.flush();
+      for (const type of ["keydown", "beforeinput", "compositionstart", "paste"]) doc.addEventListener(type, onInput, true);
+      view.addEventListener("blur", onBlur);
+      stopTyping = () => {
+        for (const type of ["keydown", "beforeinput", "compositionstart", "paste"]) doc.removeEventListener(type, onInput, true);
+        view.removeEventListener("blur", onBlur);
+        typing.dispose();
+      };
       const reading: Moss.MossEditorBridge = {
         ...bridge,
+        watch: (noteId, listener) => bridge.watch(noteId, (change) => typing.offer(() => listener(change))),
         read: async (noteId) => {
           const result = await bridge.read(noteId);
           if (result.kind === "note") latest.current.onVersion(result.version);
@@ -147,6 +165,7 @@ export function MossEditorFrame(props: EditorFrameProps) {
     return () => {
       frame.removeEventListener("load", mount);
       stopLinks();
+      stopTyping();
       frameRef.current = null;
       handleRef.current = null;
       latest.current.onSelectionSource(null);
@@ -198,13 +217,13 @@ export function EditorStatus({ status }: { status: Moss.MossEditorStatus | null 
       role="status"
       aria-live="polite"
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 text-xs leading-5 max-md:pointer-coarse:text-sm",
+        "inline-flex shrink-0 items-center gap-1.5 text-sm leading-6",
         shown?.attention ? "font-medium text-foreground" : "text-muted-foreground",
       )}
     >
       {shown ? (
         <>
-          <Icon name={shown.icon} fallback="MoreHorizontal" aria-hidden className="size-3 max-md:pointer-coarse:size-4" />
+          <Icon name={shown.icon} fallback="MoreHorizontal" aria-hidden className="size-3.5 max-md:pointer-coarse:size-4" />
           {shown.label}
         </>
       ) : null}
