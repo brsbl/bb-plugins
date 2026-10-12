@@ -89,7 +89,7 @@ function CarouselView({ carousel }: { carousel: Carousel }) {
   const slide = carousel.slides[index]!;
   return <section className="icx" aria-roledescription="carousel" aria-label={carousel.title ?? (carousel.kind === "research" ? "Research images" : "Before and after")} onKeyDown={onKeyDown}>
     {carousel.title && <div className="icx-heading">{carousel.title}</div>}
-    <div className="icx-row">
+    <div className={carousel.kind === "before-after" ? "icx-row icx-row-pair" : "icx-row"}>
       <Arrow direction="previous" disabled={index === 0} onClick={() => move(-1)} />
       <div className="icx-media" role="group" aria-roledescription="slide" aria-label={`${index + 1} of ${count}: ${slide.title}`}>
         {carousel.kind === "research"

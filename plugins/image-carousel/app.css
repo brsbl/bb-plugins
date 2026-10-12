@@ -1,16 +1,18 @@
 .icx { --icx-arrow: 32px; --icx-gap: 10px; --icx-caption: 84px; container-type: inline-size; margin: 12px 0; color: var(--foreground); outline: none; }
-.icx-heading, .icx-caption, .icx-position { margin-inline: calc(var(--icx-arrow) + var(--icx-gap)); }
 .icx-heading { margin-block: 0 8px; font-size: 13px; font-weight: 600; }
-.icx-row { display: grid; grid-template-columns: var(--icx-arrow) minmax(0, 1fr) var(--icx-arrow); gap: var(--icx-gap); align-items: center; }
-.icx-arrow { display: grid; place-items: center; width: var(--icx-arrow); height: var(--icx-arrow); padding: 0; border: 0; border-radius: 999px; background: var(--muted); color: var(--foreground); cursor: pointer; }
+.icx-row { position: relative; }
+.icx-arrow { position: absolute; top: 50%; z-index: 1; transform: translateY(-50%); display: grid; place-items: center; width: var(--icx-arrow); height: var(--icx-arrow); padding: 0; border: 1px solid color-mix(in oklab, var(--foreground) 25%, transparent); border-radius: 999px; background: var(--background); color: var(--foreground); box-shadow: 0 1px 4px color-mix(in oklab, var(--foreground) 20%, transparent); cursor: pointer; }
+.icx-arrow:first-child { left: 0; }
+.icx-arrow:last-child { right: 0; }
+.icx-row-pair .icx-arrow { top: calc(50% + 10px); }
 .icx-arrow:hover:not([aria-disabled="true"]) { background: var(--accent); }
 .icx-arrow:focus-visible, .icx-caption:focus-visible, .icx-frame:focus-visible, .icx-retry:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.icx-arrow[aria-disabled="true"] { opacity: .35; cursor: default; }
+.icx-arrow[aria-disabled="true"] { color: var(--muted-foreground); cursor: default; }
 .icx-arrow svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .icx-media { min-width: 0; }
 .icx-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--icx-gap); }
 .icx-pair figure { min-width: 0; margin: 0; }
-.icx-tag { margin-bottom: 4px; color: var(--muted-foreground); font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.icx-tag { margin-bottom: 4px; color: var(--muted-foreground); font-size: 11px; font-weight: 600; line-height: 16px; letter-spacing: .02em; text-transform: uppercase; }
 .icx-tag-after { color: var(--primary); }
 .icx-frame { display: block; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 8px; background: var(--muted); }
 .icx-frame-button { width: 100%; padding: 0; border: 0; cursor: zoom-in; }
@@ -38,5 +40,6 @@
 @container (max-width: 560px) {
   .icx-heading, .icx-row, .icx-caption, .icx-position { --icx-arrow: 28px; --icx-gap: 6px; }
   .icx-pair { grid-template-columns: minmax(0, 1fr); }
+  .icx-row-pair .icx-arrow { top: calc(20px + 100cqw * 10 / 16 / 2); }
   .icx-caption { --icx-caption: 104px; }
 }
