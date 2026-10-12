@@ -5,7 +5,7 @@ description: Show screenshots in a bb thread as an inline carousel. Use for desi
 
 # Image Carousel
 
-A carousel shows one slide at a time with arrows over the left and right image edges. The heading, image, caption, and centered position controls share the full chat-column width. Each slide has the image on top and a title, description, and optional source link below it.
+A carousel shows one slide at a time with arrows outside the image in the side margins. In narrow panes or layouts without spare side margins, the arrows sit beside the centered counter below the caption instead. The heading, image, caption, and centered position controls share the full chat-column width. Each slide has the image on top and a title, description, and optional source link below it.
 
 - **research**: one image per slide. Use it to compare how other products handle a design problem. Give each slide the product or pattern as its title, say what it does well or badly, and link to where the screenshot came from.
 - **before-after**: two images per slide, shown side by side and labeled Before and After. Use one slide per visible change. The title names the change; the description says what changed and why. Capture both images at the same size, crop, and state so the change is the only difference.

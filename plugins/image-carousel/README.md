@@ -1,6 +1,6 @@
 # Image Carousel
 
-Show screenshots inline in a bb thread as a carousel, one slide at a time, with arrows over the image edges and the description below.
+Show screenshots inline in a bb thread as a carousel, one slide at a time, with arrows in the image’s side margins and the description below.
 
 ![A before/after carousel in a bb thread](docs/screenshot.png)
 
@@ -17,7 +17,7 @@ Agents create a carousel with `bb image-carousel create` and put the `::image-ca
 - **research**: one image per slide with a title, description, and source link. For comparing how other products handle a design problem.
 - **before-after**: Before and After shown side by side, with one shared title and description, advancing a pair at a time. For reviewing UI changes without a long screenshot table.
 
-The heading, images, caption, and centered "2 / 5" position use the full chat-column width. The arrows overlay the left and right image edges. The text area has a fixed height and longer descriptions scroll inside it, so nothing moves as you change slides. Every image sits in the same 16:10 frame. Click an image to view it full size. Arrow keys work when the carousel has focus. In narrow panels, After stacks below Before and both arrows overlay the Before image.
+The heading, images, caption, and centered "2 / 5" position use the full chat-column width. The arrows sit outside the image in the left and right chat margins. In narrow panes or layouts without spare side margins, they move beside the centered counter below the caption, leaving the images full width. The text area has a fixed height and longer descriptions scroll inside it, so nothing moves as you change slides. Every image sits in the same 16:10 frame. Click an image to view it full size. Arrow keys work when the carousel has focus. In narrow panels, After stacks below Before and navigation stays beside the counter.
 
 Images are read from the thread's machine and copied into the plugin's own database when the carousel is created. A carousel keeps working after its source files, worktree, or thread are cleaned up, and in forks of the thread. `bb image-carousel remove <id>` deletes it, along with any image copies no other carousel uses.
 
