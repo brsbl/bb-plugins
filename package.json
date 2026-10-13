@@ -1,0 +1,33 @@
+{
+  "name": "bb-plugin-delegation",
+  "version": "0.1.0",
+  "description": "Skills and a right-panel view for running a team of bb threads: delegate work, keep each agent-to-agent conversation in its own channel, and bring back only what matters.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "skills",
+    "assets"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Agent Channels",
+    "description": "Skills and a right-panel view for running a team of bb threads: delegate work, keep each agent-to-agent conversation in its own channel, and bring back only what matters.",
+    "branding": {
+      "icon": "./assets/agent-channels.svg",
+      "experimental_icons": {
+        "agent-channels": "./assets/agent-channels.svg"
+      }
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [
+      "skills"
+    ],
+    "app": "./dist/install-app.mjs"
+  }
+}
