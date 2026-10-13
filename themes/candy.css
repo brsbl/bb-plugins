@@ -1,0 +1,39 @@
+/* Mesh Candy — generated from a mesh gradient (seed 47).
+   Only the anchors, accent, and semantics are set; bb derives the rest. */
+:root, .light {
+  --canvas: #f9f6f9;
+  --ink: #2e182f;
+  --primary: #ae3429;
+  --primary-foreground: #f9f6f9;
+  --muted-foreground: color-mix(in oklch, var(--ink) 70%, var(--canvas));
+  --subtle-foreground: color-mix(in oklch, var(--ink) 58%, var(--canvas));
+  --readback-foreground: color-mix(in oklch, var(--ink) 64%, var(--canvas));
+  --timeline-accent: #ae3429;
+  --file-accent: var(--timeline-accent);
+  --destructive: #b3261e;
+  --destructive-text: #8c1d18;
+  --warning: #b06000;
+  --warning-text: #8a4b00;
+  --attention: #dd493c;
+  --success: #2e7d32;
+  --diff-added: #2e7d32;
+  --diff-removed: #b3261e;
+  --pr-merged: #b99c46;
+}
+.dark {
+  --canvas: #221523;
+  --ink: #e9e1ea;
+  --primary: #e0837b;
+  --primary-foreground: #221523;
+  --timeline-accent: #e0837b;
+  --file-accent: var(--timeline-accent);
+  --destructive: #f2b8b5;
+  --destructive-text: #f2b8b5;
+  --warning: #ffb77c;
+  --warning-text: #ffb77c;
+  --attention: #e77e74;
+  --success: #7bc47f;
+  --diff-added: #7bc47f;
+  --diff-removed: #f2b8b5;
+  --pr-merged: #d9c68c;
+}
