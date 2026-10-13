@@ -32,12 +32,15 @@ describe("CRM persisted CLI and RPC", () => {
     await fixture(ok);
     await ok("update", "track", "customer", "--stage", "Shared channel", "--next", "Book the usage call");
     await ok("update", "track", "investor", "--person", "alex", "--stage", "Conversation");
-    await harness.lifecycle.reload(plugin);
-    const { items } = await ok("list", "--type", "tracks", "--company", "acme");
+    const { harness: reloaded } = await harness.lifecycle.reload(plugin);
+    cleanups.push(() => reloaded.lifecycle.dispose());
+    const listed = await reloaded.behavior.runCli(["list", "--type", "tracks", "--company", "acme", "--json"]);
+    expect(listed.exitCode, listed.stderr).toBe(0);
+    const { items } = JSON.parse(listed.stdout!);
     expect(items).toHaveLength(2);
     expect(items.find((t: any) => t.id === "customer")).toMatchObject({ stage: "Shared channel", nextStep: "Book the usage call", owner: "Sam Demo", date: "2026-10-20", personId: "alex" });
     expect(items.find((t: any) => t.id === "investor")).toMatchObject({ stage: "Conversation", nextStep: "", personId: "alex" });
-    const view: any = await harness.behavior.callRpc("view", { query: "", limit: 50, offset: 0 });
+    const view: any = await reloaded.behavior.callRpc("view", { query: "", limit: 50, offset: 0 });
     expect(view.groups.find((g: any) => g.subjectId === "drew")).toMatchObject({ subjectType: "person", tracks: [expect.objectContaining({ id: "angel", personId: "drew" })] });
     expect(view.groups.find((g: any) => g.subjectId === "orbit").tracks).toEqual([]);
   });

@@ -32,7 +32,7 @@ function TrackRow({ track, people }: { track: Track; people: Person[] }) {
     <div className="crm-meta"><time dateTime={track.date ?? undefined}>{dayText(track.date)}</time><span aria-hidden="true">·</span><span>{track.owner ? "Owner: " + track.owner : "No owner assigned"}</span></div>
   </article>;
 }
-function History({ group, revision }: { group: Group; revision: number }) {
+function History({ group, revision }: { group: Group; revision: string }) {
   const rpc = useRpc<typeof contract>();
   const [offset, setOffset] = useState(0);
   const [retry, setRetry] = useState(0);
@@ -59,7 +59,7 @@ function History({ group, revision }: { group: Group; revision: number }) {
       </>}
   </section>;
 }
-function CompanyGroup({ group, revision }: { group: Group; revision: number }) {
+function CompanyGroup({ group, revision }: { group: Group; revision: string }) {
   const [expanded, setExpanded] = useState(false);
   const historyId = useId();
   const unassigned = group.people.filter(person => !group.tracks.some(track => track.personId === person.id));
@@ -107,12 +107,12 @@ export function CrmPage() {
         <h2>{query || kind ? "No conversations found" : "Your conversations go here"}</h2>
         {query || kind ? <Button size="sm" variant="ghost" onClick={() => { setQuery(""); setKind(undefined); setOffset(0); }}>Clear filters</Button> : <p>Ask your agent to add a company or a person to CRM.</p>}
       </div>
-      : <>{data.groups.map(group => <CompanyGroup key={group.subjectType + group.subjectId} group={group} revision={revision} />)}
+      : <>{data.groups.map(group => <CompanyGroup key={group.subjectType + group.subjectId} group={group} revision={revision + ":" + connection} />)}
         {(offset > 0 || data.nextOffset !== null) && <div className="crm-pages"><Button size="sm" variant="outline" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</Button><span>{offset + 1}–{offset + data.groups.length} of {data.total}</span><Button size="sm" variant="outline" disabled={data.nextOffset === null} onClick={() => setOffset(data.nextOffset!)}>Next</Button></div>}
       </>}
   </main></div>;
 }
 export default definePluginApp(app => {
-  app.slots.navPanel({ id: "crm", path: "/crm", title: "CRM", icon: "UserRound", component: CrmPage });
+  app.slots.navPanel({ id: "crm", path: "crm", title: "CRM", icon: "UserRound", component: CrmPage });
 });
 
