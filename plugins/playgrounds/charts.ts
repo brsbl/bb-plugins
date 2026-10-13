@@ -150,7 +150,7 @@ export const CHART_RUNTIME = String.raw`
     const pad = { l: 0, r: 10, t: xMarks.some((m) => m.label) || (spec.bands || []).some((b) => b.label) ? 22 : 12, b: 24 };
     const count = clamp(Math.round((H - pad.t - pad.b) / 36), 2, 5);
     let yt = niceTicks(y0, y1, count);
-    if (fixedMax && yt.at(-1) !== y1) yt = [y0, Number(((y0 + y1) / 2).toFixed(6)), y1];
+    if (fixedMax && yt.at(-1) !== y1) { const step = yt.length > 1 ? yt[1] - yt[0] : y1 - y0; yt = yt.filter((v) => v <= y1 - step * .4).concat(y1); }
     else if (yt.length > 1 && yt.at(-1) < y1) yt.push(Number((yt.at(-1) + yt[1] - yt[0]).toFixed(10)));
     y1 = Math.max(y1, yt.at(-1));
     const unit = (spec.y && spec.y.unit) || "";
