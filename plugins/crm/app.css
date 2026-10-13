@@ -24,7 +24,7 @@
 .crm-table tbody:last-child tr:last-child > * { border-bottom: none; }
 .crm-name-col { min-width: 138px; }
 .crm-rank-col { width: 54px; min-width: 54px; }
-.crm-criterion { width: 76px; min-width: 76px; text-align: center; }
+.crm-criterion { width: 96px; min-width: 96px; text-align: center; overflow-wrap: normal !important; }
 .crm-why-col { width: 18%; min-width: 150px; }
 .crm-ask-col { width: 21%; min-width: 174px; }
 .crm-milestone { min-width: 125px; max-width: 150px; }
