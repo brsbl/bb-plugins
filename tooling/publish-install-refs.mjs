@@ -113,7 +113,7 @@ export function releaseManifest(sourceManifest) {
   // bb recompiles frontend entries for direct git installs. Point the
   // release-only manifest at a self-contained wrapper around the prebuilt app
   // so installation never depends on development node_modules. The wrapper
-  // also carries plugin-authored CSS through that second build.
+  // also carries the complete built CSS through that second build.
   if (manifest.bb?.app) manifest.bb.app = releaseAppEntry;
   for (const field of productionDependencyFields) {
     delete manifest[field];
@@ -199,24 +199,19 @@ async function createReleaseTree(plugin, sourceCommit) {
     }
 
     if (sourceManifest.bb?.app) {
-      const authoredCss = await readFile(resolve(pluginDirectory, "app.css"), "utf8").catch(
-        (error) => {
-          if (error?.code === "ENOENT") return null;
-          throw error;
-        },
-      );
+      // Imported styles and generated utilities are already collected here.
+      // Reading the source app.css loses styles imported by other components.
+      const builtCss = await readFile(resolve(pluginDirectory, "dist/app.css"), "utf8");
       const wrapper = [
         'export { default } from "./app.js";',
         'export * from "./app.js";',
+        'import "./install-app.css";',
       ];
-      if (authoredCss !== null) {
-        wrapper.push('import "./install-app.css";');
-        addBlob(
-          indexPath,
-          releaseAppCss,
-          `[data-bb-plugin-release-style="${plugin.pluginId}"] { --bb-plugin-release-style: 1; }\n${authoredCss}`,
-        );
-      }
+      addBlob(
+        indexPath,
+        releaseAppCss,
+        `[data-bb-plugin-release-style="${plugin.pluginId}"] { --bb-plugin-release-style: 1; }\n${builtCss}`,
+      );
       addBlob(indexPath, releaseAppEntry.replace(/^\.\//, ""), `${wrapper.join("\n")}\n`);
     }
 
@@ -467,7 +462,12 @@ async function verifyReleaseCommit(plugin, releaseCommit, subdirectory = "") {
     // Direct git installs rebuild both declared entries. The release wrappers
     // are self-contained, so this mirrors the host path without development
     // node_modules.
-    const hasAuthoredCss = await stat(resolve(checkout, releaseAppCss))
+    // Keep the source build as the release-CSS baseline: installation overwrites
+    // dist/app.css with a re-optimized bundle that also contains our marker.
+    const sourceAppCss = manifest.bb?.app
+      ? await readFile(resolve(checkout, "dist/app.css"), "utf8")
+      : undefined;
+    const hasReleaseCss = await stat(resolve(checkout, releaseAppCss))
       .then((details) => details.isFile())
       .catch((error) => {
         if (error?.code === "ENOENT") return false;
@@ -483,10 +483,10 @@ async function verifyReleaseCommit(plugin, releaseCommit, subdirectory = "") {
     if (bannerDeclarations?.length !== 1) {
       throw new Error(`${plugin.installRef}: install build duplicated the server banner`);
     }
-    if (hasAuthoredCss) {
+    if (hasReleaseCss) {
       const rebuiltCss = await readFile(resolve(checkout, "dist/app.css"), "utf8");
       if (!rebuiltCss.includes("bb-plugin-release-style")) {
-        throw new Error(`${plugin.installRef}: install build dropped plugin-authored CSS`);
+        throw new Error(`${plugin.installRef}: install build dropped release CSS`);
       }
     }
     run(
@@ -507,6 +507,7 @@ async function verifyReleaseCommit(plugin, releaseCommit, subdirectory = "") {
     await validatePluginArtifacts(checkout, {
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
+      sourceAppCss,
     });
   } finally {
     await rm(checkoutRoot, { recursive: true, force: true });
@@ -543,6 +544,7 @@ export async function publishInstallRefs(options = {}) {
       : null;
     if (currentCommit && currentTree === candidateTree) {
       await verifyReleaseCommit(plugin, currentCommit);
+      git(["update-ref", `refs/heads/${plugin.installRef}`, currentCommit]);
       console.log(`${plugin.installRef} ${currentCommit} unchanged and verified`);
       continue;
     }

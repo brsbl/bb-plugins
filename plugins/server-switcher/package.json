@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-server-switcher",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shows the bb server you are on and switches between the servers on your bb account from the sidebar.",
   "type": "module",
   "license": "UNLICENSED",
