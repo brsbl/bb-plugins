@@ -89,9 +89,10 @@ async function command(window: JSDOM["window"], action: string, args: unknown[])
   return results.find((result) => result.cmdId === cmdId);
 }
 
-it("returns to text after a scrub number is typed in", () => {
+it("returns to text after a scrub number is typed in", async () => {
   const { dom } = frame('<p><span data-pg="scrub" data-param="income" data-min="0" data-max="500000" data-step="1000" data-value="140000" data-prefix="$"></span></p>');
   const { window } = dom;
+  if (window.document.readyState !== "complete") await new Promise((resolve) => window.addEventListener("load", resolve));
   const scrub = window.document.querySelector(".pg-scrub") as HTMLElement;
   scrub.dispatchEvent(new window.MouseEvent("pointerdown", { bubbles: true, button: 0 }));
   scrub.dispatchEvent(new window.MouseEvent("pointerup", { bubbles: true, button: 0 }));
