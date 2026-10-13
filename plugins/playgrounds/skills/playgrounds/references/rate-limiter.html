@@ -11,10 +11,16 @@
 <div class="pg-surface pg-reveal" style="--i:2">
   <div data-pg="system" data-name="traffic" data-label="Clients send requests through the token bucket to the API" data-nodes="clients:Clients,bucket:Token bucket:meter,api:API" data-edges="clients>bucket,bucket>api"></div>
   <svg data-pg="chart" data-name="tokens" role="img" aria-label="Tokens in the bucket over 30 seconds"></svg>
+  <div data-pg="run" data-name="sim" data-duration="30"></div>
 </div>
-<div data-pg="run" data-name="sim" data-duration="30" class="pg-reveal" style="--i:3"></div>
-<div data-pg="answer" data-name="verdict" class="pg-reveal" style="--i:4"></div>
-<div data-pg="agent" class="pg-reveal" style="--i:5"></div>
+<div class="pg-result pg-reveal" style="--i:3">
+  <div data-pg="answer" data-name="verdict"></div>
+  <dl class="pg-stats"><div><dt>Loss-free bucket</dt><dd id="best"></dd></div><div><dt>Average demand</dt><dd id="demand"></dd></div></dl>
+</div>
+<div class="pg-foot pg-reveal" style="--i:4">
+  <details><summary>How the model works</summary><p>Every 50 ms the bucket refills, requests arrive, and each one takes a token or is rejected. Steady traffic is 20 requests a second; bursts land all at once. The smallest bucket is found by replaying the same 30 seconds at each size.</p></details>
+  <div data-pg="agent"></div>
+</div>
 
 <script>
 (() => {
@@ -51,8 +57,10 @@
   }
   function verdict() {
     const v = P.all(), best = smallest(v);
-    if (!run.rejected) ui.answer("verdict", { label: "Verdict", value: "Nothing dropped", tone: "good", detail: best && best < v.capacity ? best + " tokens would also be enough." : "This is the smallest bucket that keeps up." });
-    else ui.answer("verdict", { label: "Verdict", value: run.rejected + " requests dropped", tone: "bad", detail: best ? "A " + best + "-token bucket drops none at this refill rate." : "Raise the refill rate: no bucket keeps up with this traffic." });
+    if (!run.rejected) ui.answer("verdict", { label: "In 30 seconds", value: "Nothing dropped", tone: "good", detail: best && best < v.capacity ? best + " tokens would be enough." : "The smallest bucket that keeps up." });
+    else ui.answer("verdict", { label: "In 30 seconds", value: run.rejected + " dropped", tone: "bad", detail: best ? "Raise the bucket to " + best + " tokens." : "Raise the refill rate." });
+    document.getElementById("best").textContent = best ? best + " tokens" : "None";
+    document.getElementById("demand").textContent = Math.round(BASE + v.burst / v.every) + "/s";
   }
   const sim = ui.run("sim", {
     tick(dt, t) {

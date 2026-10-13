@@ -37,9 +37,26 @@ export const SETS_CSS = String.raw`
 .pg-system .arrow { fill: none; stroke: color-mix(in srgb, var(--foreground) 32%, var(--card)); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
 .pg-system .dot { fill: var(--pg-ink); }
 .pg-system .drop { fill: var(--pg-bad); }
-.pg-run { display: flex; align-items: center; gap: 8px; }
-.pg-run input[type=range] { flex: 1; min-width: 0; height: 18px; margin: 0; accent-color: var(--pg-ink); }
-.pg-run output { min-width: 4.5em; text-align: right; font-size: 11px; font-weight: 500; color: var(--pg-meta); font-variant-numeric: tabular-nums; }
+/* The run bar shares the chart's columns, so the scrubber starts at 0 and ends at the last tick. */
+.pg-run { display: grid; grid-template-columns: var(--pg-plot-l, 40px) minmax(0, 1fr) var(--pg-plot-r, 56px); align-items: center; }
+.pg-run > button { justify-self: start; width: 28px; height: 28px; }
+.pg-run input[type=range] { width: 100%; height: 18px; margin: 0; accent-color: var(--pg-ink); }
+.pg-run output { padding-left: 6px; font-size: 11px; font-weight: 500; color: var(--pg-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Result: the answer beside what explains it (a breakdown, or a few stats). */
+.pg-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); column-gap: 24px; row-gap: 14px; align-items: start; }
+.pg-result.pg-surface { padding: 16px; }
+.pg-result > * { margin-top: 0 !important; }
+.pg-result > .pg-breakdown { padding-top: 3px; }
+.pg-result > .pg-notes, .pg-result > p { grid-column: 1 / -1; margin: 0; font-size: 12px; line-height: 1.45; color: var(--pg-meta); }
+.pg-result:has(> .pg-stats) { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.pg-stats { display: grid; gap: 8px; margin: 0; text-align: right; }
+.pg-stats dt { font-size: 11px; font-weight: 500; color: var(--pg-meta); }
+.pg-stats dd { margin: 1px 0 0; font-size: 15px; font-weight: 500; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
+@container (max-width: 420px) {
+  .pg-result, .pg-result:has(> .pg-stats) { grid-template-columns: 1fr; }
+  .pg-stats { grid-template-columns: 1fr 1fr; text-align: left; }
+}
+.pg-sentence { max-width: 62ch; }
 `;
 
 // Runs inside the bridge, after controls.ts's runtime, sharing its scope.
@@ -171,12 +188,12 @@ export const SETS_RUNTIME = String.raw`
   function runBar(el) {
     el.classList.add("pg-run");
     const name = attr(el, "name", "run"), duration = num(el, "duration", 30), unit = attr(el, "unit", "s");
-    el.innerHTML = '<button type="button" class="pg-icon-btn" data-primary></button><button type="button" class="pg-icon-btn"></button><input type="range" min="0" step="0.01"><output></output>';
-    const [play, replay, scrub, out] = el.children;
-    play.setAttribute("aria-label", "Play"); replay.setAttribute("aria-label", "Replay from the start"); replay.innerHTML = '<svg class="pg-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.8.8.8 0 1 1 1.5.5A4 4 0 1 0 8 4h-1l1.2 1.2-1.1 1.1L4.9 4.1 7.1 1.9l1.1 1.1L7.4 3H8Z"/></svg>';
+    el.innerHTML = '<button type="button" class="pg-icon-btn" data-primary></button><input type="range" min="0" step="0.01"><output></output>';
+    const [play, scrub, out] = el.children;
+    const REPLAY = '<svg class="pg-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.8.8.8 0 1 1 1.5.5A4 4 0 1 0 8 4h-1l1.2 1.2-1.1 1.1L4.9 4.1 7.1 1.9l1.1 1.1L7.4 3H8Z"/></svg>';
     scrub.max = String(duration); scrub.setAttribute("aria-label", "Time");
     const r = { t: 0, playing: false, frame: 0, last: 0, visible: true, handlers: null, duration };
-    const paint = () => { scrub.value = String(r.t); out.textContent = format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; play.innerHTML = icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", r.playing ? "Pause" : "Play"); };
+    const paint = () => { scrub.value = String(r.t); out.textContent = format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; const ended = !r.playing && r.t >= r.duration; play.innerHTML = ended ? REPLAY : icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", ended ? "Replay" : r.playing ? "Pause" : "Play"); };
     const tick = (now) => {
       r.frame = 0;
       if (!r.playing || !r.visible || document.hidden) { r.last = 0; return; }
@@ -198,7 +215,6 @@ export const SETS_RUNTIME = String.raw`
       length(seconds) { r.duration = Math.max(1, Number(seconds) || r.duration); scrub.max = String(r.duration); paint(); },
     };
     play.onclick = () => (r.playing ? r.api.pause() : r.api.play());
-    replay.onclick = () => { r.api.seek(0); r.api.play(); };
     scrub.addEventListener("input", () => { r.api.pause(); r.api.seek(Number(scrub.value)); });
     runs[name] = r; paint();
   }

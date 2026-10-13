@@ -199,6 +199,21 @@ that says what happened and what setting fixes it. Put every knob in the
 sentence: no slider row and no readout row in addition, and at most one
 `<details>` for the model.
 
+**Layout.** Every set card has three parts, in this order:
+
+1. **Head:** `.pg-title`, then the `.pg-sentence`.
+2. **Body, one grey surface:**
+   - Calculator: `<div class="pg-surface pg-result">` with the `answer` and its
+     `breakdown` side by side.
+   - Simulation: `<div class="pg-surface">` with the `system`, the `chart` and
+     the `run` bar inside it (the run bar lines up with the chart's time axis).
+     Then a `<div class="pg-result">` with the verdict `answer` and a
+     `<dl class="pg-stats">` of at most two numbers.
+3. **Foot:** `<div class="pg-foot">` with one `<details>` (the model and
+   assumptions) and the `agent` lane.
+
+Copy this structure from the references; don't add rows between the parts.
+
 **Composition.** Leave spacing, colors and type to the kit: no inline margins,
 no font sizes, and no colors except `--pg-accent` when the subject has one
 (paint, a brand). One hero per card (the `answer`, or the instrument); every

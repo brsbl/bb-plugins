@@ -83,7 +83,14 @@ export const CONTROLS_CSS = String.raw`
 :where(body:has([data-pg]) .pg-title + .pg-subtitle) { margin-top: 4px; }
 :where(body:has([data-pg]) :is(.pg-title, .pg-subtitle) + .pg-sentence) { margin-top: 12px; }
 :where(body:has([data-pg]) .pg-surface + [data-pg=run]) { margin-top: 8px; }
-:where(body:has([data-pg]) > :is(details, [data-pg=agent])) { margin-top: 20px; }
+:where(body:has([data-pg])) { container-type: inline-size; }
+:where(body:has([data-pg]) > :is(details, [data-pg=agent], .pg-foot)) { margin-top: 20px; }
+/* Footer row: a disclosure on the left, the agent's last move on the right. */
+.pg-foot { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 12px; padding-top: 2px; border-top: 1px solid var(--pg-hairline); }
+.pg-foot > details { border-top: 0; }
+.pg-foot > details[open] { grid-column: 1 / -1; }
+.pg-foot > .pg-agent { justify-self: end; padding: 10px 0; background: none; text-align: right; }
+.pg-foot > .pg-agent:only-child { grid-column: 1 / -1; justify-self: start; text-align: left; }
 :where(body:has([data-pg]) > details + details) { margin-top: 0; }
 :where(body:has([data-pg]) details) { border-top: 1px solid var(--pg-hairline); }
 :where(body:has([data-pg]) summary) { display: flex; align-items: center; gap: 6px; padding: 10px 0; list-style: none; font-size: 12.5px; font-weight: 500; color: var(--pg-body); cursor: pointer; }
@@ -684,6 +691,9 @@ export const CONTROLS_RUNTIME = String.raw`
     const svg = el.tagName.toLowerCase() === "svg" ? el : el.querySelector("svg") || el.appendChild(svgEl("svg"));
     // Use the rendered width, so 11px labels render at 11px whatever the card's width.
     const W = Math.round(svg.getBoundingClientRect().width) || spec.width || 480, H = spec.height || 140, pad = { l: 40, r: 56, t: 10, b: 20 };
+    // A run bar on the same surface lines its scrubber up with this plot.
+    const host = svg.closest(".pg-surface");
+    if (host) { host.style.setProperty("--pg-plot-l", pad.l + "px"); host.style.setProperty("--pg-plot-r", pad.r + "px"); }
     const all = (spec.series || []).flatMap((s) => s.points.map((p) => p[1])).filter(Number.isFinite);
     const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...all), y1 = spec.y && spec.y.max !== undefined ? spec.y.max : Math.max(1, ...all);
     const xs = (spec.series || []).flatMap((s) => s.points.map((p) => p[0]));

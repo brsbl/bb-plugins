@@ -9,9 +9,14 @@
   <span data-pg="scrub" data-param="term" data-label="Term" data-unit="years" data-min="10" data-max="30" data-step="5" data-value="30"></span>.
 </p>
 
-<div data-pg="answer" data-name="price" class="pg-reveal" style="--i:2"></div>
-<div data-pg="breakdown" data-name="monthly" class="pg-reveal" style="--i:3"></div>
-<div data-pg="agent" class="pg-reveal" style="--i:4"></div>
+<div class="pg-surface pg-result pg-reveal" style="--i:2">
+  <div data-pg="answer" data-name="price"></div>
+  <div data-pg="breakdown" data-name="monthly"></div>
+</div>
+<div class="pg-foot pg-reveal" style="--i:3">
+  <details><summary>How this is calculated</summary><p>Housing gets 28% of gross income, less any other debt above 8% (so all debt stays under 36%). Property tax and insurance are 1.2% of the price a year; mortgage insurance is 0.6% of the loan a year below 20% down.</p></details>
+  <div data-pg="agent"></div>
+</div>
 
 <script>
 (() => {
@@ -25,7 +30,7 @@
     const pmiRate = v.down < 0.2 ? 0.006 / 12 : 0;
     const price = budget / ((1 - v.down) * (perLoan + pmiRate) + 0.012 / 12);
     const loan = price * (1 - v.down);
-    ui.answer("price", { label: "You can afford about", value: usd(Math.round(price / 1000) * 1000), detail: usd(price * v.down) + " down · " + usd(budget) + " a month, 28% of your income" });
+    ui.answer("price", { label: "You can afford about", value: usd(Math.round(price / 1000) * 1000), detail: usd(price * v.down) + " down · " + usd(budget) + " a month" });
     ui.breakdown("monthly", [
       { label: "Principal and interest", value: loan * perLoan, display: usd(loan * perLoan) },
       { label: "Property tax and insurance", value: price * 0.012 / 12, display: usd(price * 0.012 / 12) },
