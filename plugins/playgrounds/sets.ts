@@ -52,7 +52,7 @@ export const SETS_CSS = String.raw`
 }
 .pg-sentence { max-width: 62ch; }
 /* Game set: whose turn it is, and a new-game button, above the board. */
-.pg-turn { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; font-weight: 500; color: var(--pg-ink); }
+.pg-turn { max-width: 420px; display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; font-weight: 500; color: var(--pg-ink); }
 .pg-turn > i { width: 10px; height: 10px; border-radius: 50%; background: var(--piece, var(--pg-meta)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 15%, transparent); }
 .pg-turn[data-turn=me] > i { animation: pg-blink .9s ease-in-out infinite alternate; }
 .pg-turn > small { font-size: 12px; font-weight: 400; color: var(--pg-meta); }

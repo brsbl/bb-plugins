@@ -226,6 +226,40 @@ that says what happened and what setting fixes it. Put every knob in the
 sentence: no slider row and no readout row in addition, and at most one
 `<details>` for the model.
 
+**Game set.** For turn-based games you play with the person (Connect Four,
+tic-tac-toe, checkers, Battleship): a `turn` row, one `board`, and the rules
+in `ui.game`:
+
+```html
+<div data-pg="turn"></div>
+<div data-pg="board" data-param="board" data-rows="6" data-cols="7" data-pieces="R:#e5484d:Red,Y:#f5c518:Yellow"></div>
+<script>
+playground.ui.game({ you: "R", me: "Y", move(board, col, who) { …; return board or null }, winner(board) { return "R" | "Y" | "draw" | null } });
+</script>
+```
+
+Optional: `first`, `fromCell(row, col)` (which move a tap means; default: the
+column), `say(move)` ("column 4"), `start()` (the opening board). The turn row
+shows whose turn it is and a New game button. Their taps and your moves take
+one path. Play with `do <id> move --args '[3]'`; start over with
+`do <id> newGame`.
+
+Don't ask them to tell you when they've moved. After publishing (or after your
+move), wait on the card for theirs, in one command with a 10-minute timeout:
+
+```sh
+id=<playground id>; last=<last seq you handled, 0 at the start>
+for _ in $(seq 24); do
+  out=$(bb playgrounds watch "$id" --since "$last" --wait 25s)
+  n=$(printf '%s\n' "$out" | grep -o '"seq":[0-9]*' | tail -1 | cut -d: -f2); [ -n "$n" ] && last=$n
+  printf '%s\n' "$out" | grep '"name":"move"' && break
+done; echo "last=$last"
+```
+
+When a move arrives, answer with `do <id> move`, keep the reply to a line, and
+wait again. Stop when the game ends, or after 10 quiet minutes; then say in
+chat that they can tell you to keep playing.
+
 **Layout.** Every set card has three parts, in this order:
 
 1. **Head:** `.pg-title`, then the `.pg-sentence`.
@@ -259,7 +293,8 @@ person and from you arrive as the same `press`/`release` events; play with
 **References** (next to this skill; copy the closest one):
 `references/home-budget.html` (calculator set), `references/rate-limiter.html`
 (simulation set), `references/type-scale.html`
-(design tool), `references/connect-four.html` (game against you), and
+(design tool), `references/connect-four.html` and
+`references/tic-tac-toe.html` (game set), and
 `references/pocket-synth.html` (instrument).
 
 ## Interactive diagrams
