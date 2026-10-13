@@ -235,6 +235,13 @@ try {
     generated.directory,
     description,
   );
+  const appManifestPath = resolve(generated.directory, "package.json");
+  const appManifest = JSON.parse(await readFile(appManifestPath, "utf8"));
+  appManifest.bb.app = "./app.mjs";
+  await writeFile(appManifestPath, `${JSON.stringify(appManifest, null, 2)}\n`);
+  await writeFile(resolve(generated.directory, "app.mjs"), 'import "./app.css";\nimport "./nested.css";\nexport default function plugin() {}\n');
+  await writeFile(resolve(generated.directory, "app.css"), ".fixture-root { color: red; }\n");
+  await writeFile(resolve(generated.directory, "nested.css"), ".fixture-nested { color: blue; }\n");
 
   // vitest 4.x pins optional peers on its own companions; once those
   // companions published 5.x, npm 10.9 crashes in arborist's #loadPeerSet
@@ -283,6 +290,7 @@ try {
   const releaseEntryPath = resolve(generated.directory, "dist/install-app.mjs");
   const releaseCssPath = resolve(generated.directory, "dist/install-app.css");
   const builtCss = await readFile(resolve(generated.directory, "dist/app.css"), "utf8");
+  assert.ok(builtCss.includes(".fixture-nested"), "the built app must include imported CSS");
   const marker = '[data-bb-plugin-release-style="scaffold-smoke"] { --bb-plugin-release-style: 1; }\n';
   await writeFile(releaseEntryPath, 'export { default } from "./app.js";\nimport "./install-app.css";\n');
   await writeFile(releaseCssPath, marker + builtCss);
