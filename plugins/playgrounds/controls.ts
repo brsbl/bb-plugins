@@ -245,7 +245,11 @@ export const CONTROLS_RUNTIME = String.raw`
     return audioCtx;
   }
   const audioReady = () => Boolean(audioCtx && audioCtx.state === "running");
-  addEventListener("pointerdown", () => { const ctx = audio(); if (ctx) ctx.resume().then(() => { for (const fn of audioWaiters) fn(); audioWaiters.clear(); }).catch(() => {}); }, true);
+  // Only cards that make sound get an AudioContext; a tap on any other card leaves audio alone.
+  addEventListener("pointerdown", () => {
+    if (!audioCtx && !audioWaiters.size && !document.querySelector('[data-pg="keyboard"],[data-pg="pads"]')) return;
+    const ctx = audio(); if (ctx) ctx.resume().then(() => { for (const fn of audioWaiters) fn(); audioWaiters.clear(); }).catch(() => {});
+  }, true);
 
   // Events: press, release, change, take.
   const handlers = new Map();
@@ -748,7 +752,8 @@ export const CONTROLS_RUNTIME = String.raw`
   api.ui = Object.freeze({ ...SET_UI, show: readyFirst(show), table: readyFirst(table), chart: readyFirst(chart), say: lane, icon, format: (v, spec) => format(v, spec || {}), dragValue, pressable, audio, audioReady, onAudio: (fn) => (audioReady() ? fn() : audioWaiters.add(fn)), on, press: (id) => press(id, "user"), release: (id) => release(id, "user"), play, scope: (el) => el.__scope, meter: (el) => el.__set, steps: (el) => el.__now, noteName, hydrate: () => hydrate(document), take: () => lastTake });
   const start = () => {
     hydrate(document);
-    if (Object.keys(specs).length || document.querySelector("[data-pg]")) api.expose(autoActions);
+    // A card's own actions win over the kit's built-in ones with the same name.
+    if (Object.keys(specs).length || document.querySelector("[data-pg]")) api.expose(Object.fromEntries(Object.entries(autoActions).filter(([name]) => !actions.has(name))));
     syncRecorders();
   };
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", start); else start();
