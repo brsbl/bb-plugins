@@ -51,6 +51,14 @@ export const SETS_CSS = String.raw`
   .pg-stats { grid-template-columns: 1fr 1fr; text-align: left; }
 }
 .pg-sentence { max-width: 62ch; }
+/* Game set: whose turn it is, and a new-game button, above the board. */
+.pg-turn { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; font-weight: 500; color: var(--pg-ink); }
+.pg-turn > i { width: 10px; height: 10px; border-radius: 50%; background: var(--piece, var(--pg-meta)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 15%, transparent); }
+.pg-turn[data-turn=me] > i { animation: pg-blink .9s ease-in-out infinite alternate; }
+.pg-turn > small { font-size: 12px; font-weight: 400; color: var(--pg-meta); }
+.pg-turn > button { margin-left: auto; }
+.pg-turn > .pg-tone { width: 16px; height: 16px; animation: none; box-shadow: none; }
+:where(.pg-turn + [data-pg=board]) { max-width: 420px; margin-top: 10px; }
 `;
 
 // Runs inside the bridge, after controls.ts's runtime, sharing its scope.
@@ -174,9 +182,76 @@ export const SETS_RUNTIME = String.raw`
     return r.api;
   }
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  Object.assign(SET_KINDS, { run: runBar });
-  Object.assign(SET_UI, { answer: readyFirst(answer), breakdown: readyFirst(breakdown), run });
+  // Game set: ui.game({ board, you, me, first, move(board, move, who), winner(board), fromCell(row, col), say(move) }).
+  // A tap on the board and the agent's move action take one path. Each of your moves is
+  // emitted as a "move" event, so the agent waiting on watch answers without a chat message.
+  let theGame = null;
+  function paintTurn() {
+    const g = theGame; if (!g) return;
+    const turn = values.turn, w = g.winner(values[g.board]);
+    const piece = (who) => { const el = document.querySelector('[data-pg="board"][data-param="' + g.board + '"]'); const hit = attr(el || document.body, "pieces", "").split(",").map((x) => x.split(":")).find((x) => x[0].trim() === who); return hit ? (hit[1] || "").trim() : ""; };
+    for (const el of document.querySelectorAll('[data-pg="turn"]')) {
+      el.dataset.turn = turn === g.you ? "you" : turn === g.me ? "me" : "done";
+      const dot = document.createElement("i");
+      const text = document.createElement("span"), note = document.createElement("small");
+      if (turn === "done") {
+        const tone = w === g.you ? "good" : w === g.me ? "bad" : "";
+        text.textContent = w === g.you ? "You win" : w === g.me ? "I win" : "Draw";
+        if (tone) { dot.className = "pg-tone"; dot.dataset.tone = tone; dot.textContent = tone === "good" ? "\u2713" : "\u00d7"; } else dot.style.setProperty("--piece", "var(--pg-meta)");
+      } else {
+        dot.style.setProperty("--piece", piece(turn) || "var(--pg-meta)");
+        text.textContent = turn === g.you ? "Your turn" : "My turn";
+        note.textContent = turn === g.me ? "thinking" : g.last ? "I played " + g.last : "";
+      }
+      const again = document.createElement("button"); again.type = "button"; again.className = "pg-btn"; again.textContent = "New game"; again.onclick = () => newGame("user");
+      el.replaceChildren(...[dot, text, note.textContent ? note : null, again].filter(Boolean));
+      el.setAttribute("aria-live", "polite");
+    }
+    outputs.game = { value: { turn, winner: w || null, last: g.last || null } };
+  }
+  function newGame(from) {
+    const g = theGame;
+    set(g.board, g.start(), from === "agent" ? "remote" : "user"); set("turn", g.first, "remote"); g.last = null; persist(); paintTurn();
+    if (from === "user") api.emit("new-game", { turn: g.first });
+    else lane("Started a new game.");
+    return { turn: values.turn };
+  }
+  function playMove(m, who) {
+    const g = theGame;
+    if (!g) throw new Error("No game on this card");
+    if (values.turn === "done") throw new Error("The game is over; start a new one");
+    if (values.turn !== who) throw new Error(who === g.me ? "It's the player's turn" : "It's not your turn");
+    const next = g.move(JSON.parse(JSON.stringify(values[g.board])), m, who);
+    if (!next) throw new Error("That move isn't allowed");
+    const w = g.winner(next), said = g.say(m);
+    set(g.board, next, "remote");
+    set("turn", w ? "done" : who === g.you ? g.me : g.you, "remote");
+    persist();
+    if (who === g.me) { g.last = said; lane("Played " + said + "."); }
+    paintTurn();
+    if (who === g.you) api.emit("move", { move: m, said, turn: values.turn, winner: w || null });
+    return { played: said, turn: values.turn, winner: w || null };
+  }
+  function game(spec) {
+    ready();
+    const g = theGame = { board: "board", you: "you", me: "me", say: (m) => (typeof m === "number" ? "column " + (m + 1) : String(m)), fromCell: (r, c) => c, winner: () => null, ...spec };
+    if (!specs[g.board]) throw new Error("No board parameter " + g.board);
+    g.first = g.first || g.you;
+    g.start = g.start || (() => specs[g.board].default);
+    define("turn", { label: "Turn", options: [{ value: g.you }, { value: g.me }, { value: "done" }], default: g.first });
+    on("select", ({ name, row, col, from }) => {
+      if (name !== g.board) return;
+      try { playMove(g.fromCell(row, col), from === "agent" ? g.me : g.you); } catch (e) { if (from === "agent") throw e; }
+    });
+    on("change", ({ name }) => { if (name === "turn") paintTurn(); });
+    paintTurn();
+    return { play: (m) => playMove(m, g.you), newGame: () => newGame("user") };
+  }
+  Object.assign(SET_KINDS, { run: runBar, turn: (el) => el.classList.add("pg-turn") });
+  Object.assign(SET_UI, { answer: readyFirst(answer), breakdown: readyFirst(breakdown), run, game });
   Object.assign(SET_ACTIONS, {
+    move: (m) => playMove(m, theGame ? theGame.me : null),
+    newGame: () => newGame("agent"),
     seek: (name, t) => { const r = runs[String(name)]; if (!r) throw new Error("No run bar " + name); r.api.pause(); r.api.seek(t); lane("Moved to " + format(Number(t), { step: .1 }) + "."); return { t: r.t }; },
     run: (name, on) => { const r = runs[String(name)]; if (!r) throw new Error("No run bar " + name); if (on === false) r.api.pause(); else r.api.play(); return { playing: r.playing }; },
   });
