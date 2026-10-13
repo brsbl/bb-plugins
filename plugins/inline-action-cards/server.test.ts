@@ -168,7 +168,7 @@ const choice = { type: "choice", question: "Which account setup?", recommended: 
   { id: "pool", label: "Pool" },
 ] };
 describe("choice cards", () => {
-  it("validates options and keeps choice cards out of tables", () => {
+  it("validates options and accepts choice cards in tables", () => {
     const { store } = setup();
     expect(() => store.create(ref.threadId, "c", { ...choice, options: choice.options.slice(0, 1) })).toThrow();
     expect(() => store.create(ref.threadId, "c", { ...choice, options: [...choice.options, ...choice.options.slice(0, 4)].map((option, index) => ({ ...option, id: `o${index}` })) })).toThrow();
@@ -176,7 +176,7 @@ describe("choice cards", () => {
     expect(() => store.create(ref.threadId, "c", { ...choice, recommended: "missing" })).toThrow("Recommend");
     expect(() => store.create(ref.threadId, "c", { ...choice, options: [{ id: "a", label: "Two\nlines" }, { id: "b", label: "B" }] })).toThrow();
     store.create(ref.threadId, "c", choice);
-    expect(() => store.createTable(ref.threadId, "t", { title: "Choices", ids: ["c"] })).toThrow("stand alone");
+    expect(store.createTable(ref.threadId, "t", { title: "Choices", ids: ["c"] })).toMatchObject({ ids: ["c"] });
   });
   it("claims and reports the chosen option once, and retries only the same option", () => {
     const { store } = setup();
@@ -268,4 +268,92 @@ it("validates short notes, retains retry conditions, and accepts previously pers
   store.create(ref.threadId, "bounded", reply);
   expect(() => store.prepare({ ...ref, id: "bounded", revision: 1, action: "send", note: "x".repeat(1001) })).toThrow();
   expect(store.get(ref.threadId, "bounded").state).toBe("ready");
+});
+
+describe("decision sheets", () => {
+  it("accepts optional context and images, and rejects relative or insecure image sources", () => {
+    const { store } = setup();
+    const decide = { type: "decide", question: "Merge #412?", consequence: "Squash-merge it.", recommended: "yes", context: "## Diff\n- `TTL` 30d → 7d", media: [{ src: "/tmp/shot.png", alt: "Screenshot" }, { src: "https://example.com/a.png", alt: "Chart", caption: "p95" }] };
+    expect(store.create(ref.threadId, "d", decide).content).toMatchObject({ context: decide.context, media: decide.media, recommended: "yes" });
+    expect(store.create(ref.threadId, "plain", { type: "decide", question: "Archive?", consequence: "Archive it." }).content).not.toHaveProperty("context");
+    for (const src of ["shot.png", "http://example.com/a.png", "javascript:alert(1)", "/Users/me/.ssh/id_ed25519", "/etc/passwd"]) expect(() => store.create(ref.threadId, "bad", { ...decide, media: [{ src, alt: "x" }] })).toThrow();
+    expect(() => store.create(ref.threadId, "bad", { ...decide, media: Array.from({ length: 5 }, () => decide.media[0]) })).toThrow();
+    expect(() => store.create(ref.threadId, "bad", { ...decide, recommended: "maybe" })).toThrow();
+  });
+  it("prepares a batch of mixed rows atomically, one attempt and note per row", () => {
+    const { store } = setup();
+    store.create(ref.threadId, "c", choice);
+    store.create(ref.threadId, "d", { type: "decide", question: "Archive?", consequence: "Archive it.", yesLabel: "Archive" });
+    store.create(ref.threadId, "r", reply);
+    store.create(ref.threadId, "outside", { type: "decide", question: "Other?", consequence: "Other." });
+    store.createTable(ref.threadId, "t", { title: "Triage", ids: ["c", "d", "r"] });
+    const batch = (items: unknown[]) => store.prepareBatch({ threadId: ref.threadId, id: "t", items } as never);
+    expect(() => batch([{ id: "outside", revision: 1, action: "yes" }])).toThrow("does not belong");
+    expect(() => batch([{ id: "c", revision: 1, action: "choose" }])).toThrow("Pick an option");
+    expect(() => batch([{ id: "d", revision: 1, action: "yes" }, { id: "c", revision: 1, action: "choose", choice: "missing" }])).toThrow();
+    expect(store.get(ref.threadId, "d").state).toBe("ready");
+    expect(() => batch([{ id: "d", revision: 2, action: "yes" }])).toThrow("changed");
+    const items = batch([
+      { id: "c", revision: 1, action: "choose", choice: "pool", note: "  only for now " },
+      { id: "d", revision: 1, action: "no" },
+      { id: "r", revision: 1, action: "send", note: "" },
+    ]);
+    expect(items.map((item) => [item.id, item.state, item.attempt?.action, item.attempt?.note])).toEqual([["c", "pending", "choose", "only for now"], ["d", "pending", "no", undefined], ["r", "pending", "send", undefined]]);
+    expect(items[0]!.attempt!.choice).toEqual({ id: "pool", label: "Pool" });
+    expect(actionMessage(items[0]!)).toBe("Use Pool ");
+    expect(new Set(items.map((item) => item.attempt!.id)).size).toBe(3);
+    expect(() => batch([{ id: "d", revision: items[1]!.revision, action: "yes" }])).toThrow("in progress");
+  });
+  it("answers a follow-up on its card and returns follow-ups with the card", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    await host.harness.behavior.runCli(["create", "d", "--thread", ref.threadId, "--item", JSON.stringify({ type: "decide", question: "Rotate the key?", consequence: "Rotate it." })]);
+    const { commentId } = await host.harness.behavior.callRpc("comment", { threadId: ref.threadId, id: "d", revision: 1, note: "Which CI secrets use it?" }) as { commentId: string };
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:d:comment_${commentId}`)).context);
+    expect(context).toMatchObject({ intent: "comment", commentId });
+    expect(context.instruction).toContain("bb action-cards answer");
+    // One rule: a comment never approves the card's own action, and a card it makes moot is resolved.
+    expect(context.instruction).toContain("never approves the card's own action");
+    expect(context.instruction).toContain("bb action-cards resolve");
+    expect(context.instruction).not.toMatch(/Do not execute an action/);
+    expect(await host.harness.behavior.callRpc("get", { threadId: ref.threadId, id: "d" })).toMatchObject({ followUps: [{ commentId, note: "Which CI secrets use it?", answer: null }] });
+    const answered = await host.harness.behavior.runCli(["answer", "d", "--thread", ref.threadId, "--comment", commentId, "--message", "Three: **deploy**, **e2e**, and **nightly**."]);
+    expect(JSON.parse(answered.stdout!)).toMatchObject({ revision: 1, state: "ready", followUps: [{ commentId, answer: "Three: **deploy**, **e2e**, and **nightly**." }] });
+    const missing = await host.harness.behavior.runCli(["answer", "d", "--thread", ref.threadId, "--comment", "ea45f71a-c216-4da4-a226-65736f4eccfd", "--message", "No such follow-up"]).then((result) => result.exitCode, () => 1);
+    expect(missing).not.toBe(0);
+    const table = await host.harness.behavior.callRpc("table", { threadId: ref.threadId, id: "missing" }).catch((error: unknown) => error);
+    expect(table).toBeInstanceOf(Error);
+  });
+});
+
+describe("settling and undelivered requests", () => {
+  it("resolves an unanswered card after a comment, and only an unanswered one", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const decide = { type: "decide", question: "Merge PR #42?", consequence: "Squash-merge it.", yesLabel: "Merge" };
+    await host.harness.behavior.runCli(["create", "pr-42", "--thread", ref.threadId, "--item", JSON.stringify(decide)]);
+    const resolved = JSON.parse((await host.harness.behavior.runCli(["resolve", "pr-42", "--thread", ref.threadId, "--message", "Closed the PR"])).stdout!);
+    expect(resolved).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Closed the PR", retryable: false } });
+    const again = await host.harness.behavior.runCli(["resolve", "pr-42", "--thread", ref.threadId, "--message", "Twice"]).then((result) => result.exitCode, () => 1);
+    expect(again).not.toBe(0);
+  });
+  it("marks a sent but never claimed request as not sent once its thread is idle", () => {
+    const { store, bb } = setup();
+    for (const id of ["stuck", "fresh", "claimed"]) store.create(ref.threadId, id, { type: "decide", question: `${id}?`, consequence: "Do it." });
+    const stuck = store.prepare({ ...ref, id: "stuck", revision: 1, action: "yes", note: "how do i test?" });
+    store.submitted({ ...ref, id: "stuck", attemptId: stuck.attempt!.id });
+    const aged = store.get(ref.threadId, "stuck");
+    aged.attempt!.sentAt = new Date(Date.now() - 60_000).toISOString();
+    bb.storage.database().prepare("UPDATE action_items SET value = ? WHERE thread_id = ? AND item_id = ?").run(JSON.stringify(aged), ref.threadId, "stuck");
+    const fresh = store.prepare({ ...ref, id: "fresh", revision: 1, action: "yes" });
+    store.submitted({ ...ref, id: "fresh", attemptId: fresh.attempt!.id });
+    const claimed = store.prepare({ ...ref, id: "claimed", revision: 1, action: "yes" });
+    store.claim(ref.threadId, "claimed", claimed.attempt!.id);
+    store.undelivered(ref.threadId);
+    expect(store.get(ref.threadId, "stuck")).toMatchObject({ state: "pending", attempt: { id: stuck.attempt!.id, note: "how do i test?", claimed: false } });
+    expect(store.get(ref.threadId, "stuck").attempt).not.toHaveProperty("sentAt");
+    // A just-sent request may still be starting a turn; a claimed one is the agent's.
+    expect(store.get(ref.threadId, "fresh").attempt!.sentAt).toBeTruthy();
+    expect(store.get(ref.threadId, "claimed").attempt!.sentAt).toBeTruthy();
+    // Resend keeps the same attempt, so a late duplicate cannot be claimed twice.
+    expect(store.claim(ref.threadId, "stuck", stuck.attempt!.id).attempt!.claimed).toBe(true);
+  });
 });
