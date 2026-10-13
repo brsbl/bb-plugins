@@ -122,6 +122,10 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 Keep customer and investor conversations together, grouped by company. Track people, stages, next steps and interaction history, with a CLI for agents to keep the pipeline current.
 
+![Customer and investor tracks grouped by company, with an independent angel](https://github.com/user-attachments/assets/367dfb32-de13-4992-ba0a-0c894e1d2bc2)
+
+![Messages and calls in a company's interaction history](https://github.com/user-attachments/assets/88f25252-f5e6-45c3-9ed1-0579e1ca8964)
+
 [Source](plugins/crm) · [README](plugins/crm/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/crm --yes`

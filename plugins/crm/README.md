@@ -2,6 +2,8 @@
 
 Keep customer and investor conversations, people, and next steps together.
 
+![Customer and investor tracks grouped by company, with an independent angel](https://github.com/user-attachments/assets/367dfb32-de13-4992-ba0a-0c894e1d2bc2)
+
 ## Install
 
 ```bash
