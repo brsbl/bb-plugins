@@ -31,8 +31,11 @@ export const SETS_CSS = String.raw`
 .pg-run input[type=range] { flex: 1; min-width: 0; height: 18px; margin: 0; accent-color: var(--pg-ink); }
 .pg-run[data-chart] input[type=range] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .pg-run output { font-size: 12px; font-weight: 500; color: var(--pg-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pg-run output small { margin-left: 3px; font-size: 11px; font-weight: 400; color: var(--pg-meta); }
-.pg-run[data-chart] > .pg-hint { margin-left: auto; font-size: 11px; color: var(--pg-meta); }
+.pg-run[data-chart] { gap: 8px; }
+.pg-run[data-chart] > button { width: 26px; height: 26px; }
+.pg-run[data-chart] output { font-weight: 400; color: var(--pg-body); }
+.pg-chart-head { display: flex; align-items: center; gap: 12px; min-height: 26px; }
+.pg-chart-head > .pg-chart-legend { margin-left: auto; justify-content: flex-end; }
 /* Result: the answer beside what explains it (a breakdown, or a few stats). */
 .pg-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); column-gap: 24px; row-gap: 14px; align-items: start; }
 .pg-result.pg-surface { padding: 16px; }
@@ -123,12 +126,12 @@ export const SETS_RUNTIME = String.raw`
     el.classList.add("pg-run");
     const name = attr(el, "name", "run"), duration = num(el, "duration", 30), unit = attr(el, "unit", "s");
     const target = attr(el, "chart", "");
-    el.innerHTML = '<button type="button" class="pg-icon-btn" data-primary></button><input type="range" min="0" step="0.01"><output></output>' + (target ? '<span class="pg-hint">Drag the chart to scrub</span>' : "");
+    el.innerHTML = (target ? '<button type="button" class="pg-icon-btn">' : '<button type="button" class="pg-icon-btn" data-primary>') + '</button><input type="range" min="0" step="0.01"><output></output>';
     const [play, scrub, out] = el.children;
     const REPLAY = '<svg class="pg-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.8.8.8 0 1 1 1.5.5A4 4 0 1 0 8 4h-1l1.2 1.2-1.1 1.1L4.9 4.1 7.1 1.9l1.1 1.1L7.4 3H8Z"/></svg>';
     scrub.max = String(duration); scrub.setAttribute("aria-label", "Time");
     const r = { t: 0, playing: false, frame: 0, last: 0, visible: true, handlers: null, duration };
-    const paint = () => { scrub.value = String(r.t); out.textContent = format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; const of = document.createElement("small"); of.textContent = "of " + format(r.duration, {}) + " " + unit; out.append(of); const ended = !r.playing && r.t >= r.duration; play.innerHTML = ended ? REPLAY : icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", ended ? "Replay" : r.playing ? "Pause" : "Play"); };
+    const paint = () => { scrub.value = String(r.t); out.textContent = format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; const ended = !r.playing && r.t >= r.duration; play.innerHTML = ended ? REPLAY : icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", ended ? "Replay" : r.playing ? "Pause" : "Play"); };
     const tick = (now) => {
       r.frame = 0;
       if (!r.playing || !r.visible || document.hidden) { r.last = 0; return; }
@@ -155,6 +158,7 @@ export const SETS_RUNTIME = String.raw`
       const fig = document.querySelector('[data-pg="chart"][data-name="' + target + '"]'), c = fig && fig.__chart;
       if (!c) return;
       fig.dataset.seek = "";
+      const head = document.createElement("div"); head.className = "pg-chart-head"; fig.insertBefore(head, c.legend); head.append(el, c.legend);
       const at = (e) => { if (!c.ix) return; r.api.pause(); r.api.seek(c.ix(e.clientX - c.svg.getBoundingClientRect().left)); };
       c.svg.addEventListener("pointerdown", (e) => { c.svg.setPointerCapture(e.pointerId); at(e); });
       c.svg.addEventListener("pointermove", (e) => { if (c.svg.hasPointerCapture(e.pointerId)) at(e); });
