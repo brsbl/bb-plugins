@@ -108,6 +108,8 @@ export function useChannels(threadId: string) {
   const sdk = useSdk();
   const org = useOrg(threadId);
   const [segments, setSegments] = useState(SEGMENTS);
+  /** The window the last finished read used; behind `segments` while an older page loads. */
+  const [loadedSegments, setLoadedSegments] = useState(SEGMENTS);
   const [selfRows, setSelfRows] = useState<unknown[]>([]);
   const [counterpartRows, setCounterpartRows] = useState<Map<string, unknown[]>>(new Map());
   const [completeHistory, setCompleteHistory] = useState<Set<string>>(new Set());
@@ -148,11 +150,15 @@ export function useChannels(threadId: string) {
       if (signal.aborted) return;
       setSelfRows(own.rows);
       setSelfComplete(own.complete);
+      setLoadedSegments(segments);
       setCounterpartRows(new Map(pages.map(([id, page]) => [id, page.rows])));
       setCompleteHistory(new Set(pages.filter(([, page]) => page.complete).map(([id]) => id)));
       setStatus("ready");
     } catch {
-      if (!signal.aborted) setStatus((value) => (value === "ready" ? value : "error"));
+      if (!signal.aborted) {
+        setStatus((value) => (value === "ready" ? value : "error"));
+        setLoadedSegments(segments);
+      }
     }
   }, [sdk, threadId, segments]);
 
@@ -168,6 +174,7 @@ export function useChannels(threadId: string) {
     () => buildChannels({ selfId: threadId, parentId: org.parentId, childIds: org.childIds, titles: org.titles, pending: org.pending, pendingKnown: org.ready, lastSeen, selfRows, counterpartRows, completeHistory }),
     [threadId, org, lastSeen, selfRows, counterpartRows, completeHistory],
   );
+  const loadEarlier = useCallback(() => setSegments((count) => Math.min(count + SEGMENTS, MAX_SEGMENTS)), []);
   const seen = useCallback((counterpartId: string) => {
     markSeen(threadId, counterpartId);
     setLastSeen(readLastSeen(threadId));
@@ -178,7 +185,8 @@ export function useChannels(threadId: string) {
     seen,
     /** Whether older history exists for a channel and bb will still serve a larger window. */
     canLoadEarlier: (counterpartId: string) => segments < MAX_SEGMENTS && !(selfComplete && completeHistory.has(counterpartId)),
-    loadEarlier: () => setSegments((count) => Math.min(count + SEGMENTS, MAX_SEGMENTS)),
+    loadingEarlier: loadedSegments !== segments,
+    loadEarlier,
   };
 }
 
@@ -215,45 +223,53 @@ function MessageRow({ message }: { message: ChannelMessage }) {
   );
 }
 
-/** Keeps the newest message in view, and asks for older history when scrolled to the top, like a thread does. */
-function useTimelineScroll(key: string | undefined, latestAt: number | undefined, count: number, onReachTop: (() => void) | null) {
+/**
+ * Keeps the newest message in view and reads older history from the top, like a thread does. A channel too short
+ * to scroll keeps reading older pages until it fills or its history is complete.
+ */
+function useTimelineScroll(key: string | undefined, latestAt: number | undefined, count: number, canLoad: boolean, loading: boolean, loadEarlier: () => void) {
   const ref = useRef<HTMLDivElement | null>(null);
   const pinned = useRef(true);
+  /** Distance from the bottom to keep while an older page loads. */
   const restore = useRef<number | null>(null);
-  useEffect(() => {
-    pinned.current = true;
-  }, [key]);
+  const shownKey = useRef(key);
+  const requestOlder = useCallback((el: HTMLDivElement) => {
+    restore.current = el.scrollHeight - el.scrollTop;
+    loadEarlier();
+  }, [loadEarlier]);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (shownKey.current !== key) {
+      shownKey.current = key;
+      pinned.current = true;
+      restore.current = null;
+    }
     if (restore.current !== null) {
+      if (loading) return;
       el.scrollTop = el.scrollHeight - restore.current;
       restore.current = null;
     } else if (pinned.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [key, latestAt, count]);
+    if (canLoad && !loading && el.scrollHeight <= el.clientHeight) requestOlder(el);
+  }, [key, latestAt, count, canLoad, loading, requestOlder]);
   const onScroll = useCallback(() => {
     const el = ref.current;
     if (!el) return;
     pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-    if (el.scrollTop < 48 && onReachTop && restore.current === null) {
-      restore.current = el.scrollHeight - el.scrollTop;
-      onReachTop();
-      // If the older page adds no messages, allow the next attempt.
-      window.setTimeout(() => { restore.current = null; }, 3000);
-    }
-  }, [onReachTop]);
+    if (el.scrollTop < 48 && canLoad && !loading && restore.current === null) requestOlder(el);
+  }, [canLoad, loading, requestOlder]);
   return { ref, onScroll };
 }
 
 export function DispatchPanel({ threadId, params }: { threadId: string; params: unknown }) {
-  const { channels, status, seen, canLoadEarlier, loadEarlier } = useChannels(threadId);
+  const { channels, status, seen, canLoadEarlier, loadingEarlier, loadEarlier } = useChannels(threadId);
   const requested = typeof params === "object" && params !== null ? (params as { counterpart?: unknown }).counterpart : undefined;
   const [active, setActive] = useState<string | null>(typeof requested === "string" ? requested : null);
   const current = channels.find((channel) => channel.counterpartId === active) ?? channels[0];
   const scroll = useTimelineScroll(current?.counterpartId, current?.latestAt, current?.messages.length ?? 0,
-    current && canLoadEarlier(current.counterpartId) ? loadEarlier : null);
+    current ? canLoadEarlier(current.counterpartId) : false, loadingEarlier, loadEarlier);
 
   useEffect(() => {
     if (current) seen(current.counterpartId);
