@@ -462,6 +462,11 @@ async function verifyReleaseCommit(plugin, releaseCommit, subdirectory = "") {
     // Direct git installs rebuild both declared entries. The release wrappers
     // are self-contained, so this mirrors the host path without development
     // node_modules.
+    // Keep the source build as the release-CSS baseline: installation overwrites
+    // dist/app.css with a re-optimized bundle that also contains our marker.
+    const sourceAppCss = manifest.bb?.app
+      ? await readFile(resolve(checkout, "dist/app.css"), "utf8")
+      : undefined;
     const hasReleaseCss = await stat(resolve(checkout, releaseAppCss))
       .then((details) => details.isFile())
       .catch((error) => {
@@ -502,6 +507,7 @@ async function verifyReleaseCommit(plugin, releaseCommit, subdirectory = "") {
     await validatePluginArtifacts(checkout, {
       expectedId: plugin.pluginId,
       expectedName: plugin.name,
+      sourceAppCss,
     });
   } finally {
     await rm(checkoutRoot, { recursive: true, force: true });

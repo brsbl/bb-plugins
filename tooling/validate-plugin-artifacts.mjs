@@ -251,7 +251,7 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
     if (normalizePackagePath(manifest.bb.app) === "dist/install-app.mjs") {
       const [entry, builtCss, releaseCss] = await Promise.all([
         readFile(resolve(directory, "dist/install-app.mjs"), "utf8"),
-        readFile(resolve(directory, "dist/app.css"), "utf8"),
+        options.sourceAppCss ?? readFile(resolve(directory, "dist/app.css"), "utf8"),
         readFile(resolve(directory, "dist/install-app.css"), "utf8"),
       ]);
       if (!/import\s+["']\.\/install-app\.css["']/u.test(entry)) {
