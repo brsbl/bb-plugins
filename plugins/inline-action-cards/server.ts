@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionLabel, actionMessage, mentionId, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type FollowUp, type Item } from "./model.js";
+import { actionIcons, actionLabel, actionMessage, mentionId, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type FollowUp, type Item } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
+const dispatchEntry = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("action"), id: idSchema, attemptId: z.string().uuid() }).strict(),
+  z.object({ kind: z.literal("comment"), id: idSchema, commentId: z.string().uuid() }).strict(),
+]);
 // Older sheets persisted itemIds; normalize only on read, keeping current writes and RPCs on ids.
 const persistedTableSchema = z.union([
   tableSchema,
@@ -23,6 +27,7 @@ export const rpcContract = defineRpcContract({
   table: { input: ref, output: tableViewSchema },
   prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive(), note: noteSchema.optional() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
   submitted: { input: ref.extend({ attemptId: z.string().uuid() }), output: itemSchema },
+  dispatch: { input: z.object({ threadId: idSchema, entries: z.array(dispatchEntry).min(1).max(20) }).strict(), output: z.array(itemSchema) },
   // A decision sheet sends every staged row in one message: each row gets its own attempt.
   prepareBatch: { input: ref.extend({ items: z.array(z.object({
     id: idSchema, revision: z.number().int().positive(), action: z.enum(["send", "save-draft", "yes", "no", "skip", "choose"]),
@@ -224,11 +229,11 @@ export function createStore(bb: BbPluginApi) {
       return change(threadId, id, null, (item) => {
         if (item.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.claimed) throw new Error("This attempt is stale or already claimed. Read its status and reconcile the external result; do not act again.");
         item.attempt.claimed = true;
-        // A claim proves the request was sent, even if the composer's acknowledgement was lost.
+        // A claim proves the request was sent, even if the send acknowledgement was lost.
         item.attempt.sentAt ??= new Date().toISOString();
       });
     },
-    // The composer accepted the request (sent now, or queued behind a busy agent).
+    // The host accepted the request (sent now, or queued behind a busy agent).
     submitted(input: z.infer<typeof rpcContract.submitted.input>) {
       const item = get(input.threadId, input.id);
       if (item.state !== "pending" || item.attempt?.id !== input.attemptId || item.attempt.claimed || item.attempt.sentAt) return item;
@@ -273,6 +278,30 @@ export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
     log: ({ threadId }) => store.log(threadId),
+    async dispatch({ threadId, entries }) {
+      if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
+      // Resolve every durable reference before sending anything. Never accept arbitrary message text from the client.
+      const rows = entries.map((entry) => {
+        const item = store.get(threadId, entry.id);
+        if (entry.kind === "action" && ((item.state !== "pending" && !(item.state === "failed" && !item.result?.retryable)) || item.attempt?.id !== entry.attemptId)) throw new Error("This action changed. Use the latest card.");
+        const label = title(item).replace(/[?\s]+$/, "");
+        const prefix = entry.kind === "action" ? actionMessage(item) : "";
+        const note = entry.kind === "action" ? item.attempt?.note : store.getComment(threadId, item.id, entry.commentId);
+        const reference = entry.kind === "action" ? mentionId(item) : `${threadId}:${item.id}:comment_${entry.commentId}`;
+        return { item, entry, label, prefix, reference, icon: entry.kind === "action" ? actionIcons[item.attempt!.action] : "MessageSquare", suffix: note ? `${entry.kind === "action" ? " — " : " "}${note}` : "" };
+      });
+      let text = "";
+      const mentions = rows.map(({ label, prefix, reference, suffix, icon }, index) => {
+        text += `${index ? "\n" : ""}${prefix}`;
+        const start = text.length;
+        text += label + suffix;
+        return { start, end: start + label.length, resource: { kind: "plugin" as const, pluginId: "inline-action-cards", itemId: `action:${reference}`, label, icon } };
+      });
+      // This API owns queueing and dispatch; the user's composer, attachments and queued drafts are never edited.
+      await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", text, mentions }] });
+      return rows.map(({ item, entry }) => entry.kind === "action"
+        ? store.submitted({ threadId, id: item.id, attemptId: entry.attemptId }) : item);
+    },
     async decideFromLog(input) {
       const item = input.action ? store.prepare({ ...input, action: input.action }) : store.get(input.threadId, input.id);
       if (!input.action && (item.revision !== input.revision || item.state !== "pending")) throw new Error("This card changed. Reload the log before resending.");
@@ -304,7 +333,7 @@ export default function plugin(bb: BbPluginApi): void {
     try { store.cancelled(entry); } catch (err) { bb.log.warn(`Could not reopen an action card after its queued request was deleted: ${err instanceof Error ? err.message : String(err)}`); }
   });
   bb.ui.registerMentionProvider({
-    id: "action", label: "Action Cards", search: () => [],
+    id: "action", label: "Inline Decisions", search: () => [],
     resolve(value) {
       const [thread, id, attempt, extra] = value.split(":");
       if (extra || !attempt) throw new Error("This action reference is incomplete. Use the card again.");
@@ -337,7 +366,7 @@ export default function plugin(bb: BbPluginApi): void {
     name: "action-cards", summary: "Create inline cards, read saved drafts, and report action results",
     commands: {
       log: cliCommand({
-        summary: "Read the Action log: waiting cards and results across threads",
+        summary: "Read the Decision log: waiting cards and results across threads",
         options: { thread: { type: "string", description: "Filter to this thread ID; defaults to all threads" }, json: { type: "boolean", description: "Print structured JSON" } },
         async run({ options }) {
           const log = await store.log(options.thread === undefined ? undefined : idSchema.parse(options.thread));

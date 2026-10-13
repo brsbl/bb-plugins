@@ -48,6 +48,9 @@ export const contentSchema = z.discriminatedUnion("type", [
 ]);
 export const actionSchema = z.enum(["send", "save-draft", "yes", "no", "later", "skip", "choose"]);
 export type Action = z.infer<typeof actionSchema>;
+export const actionIcons: Record<Action, string> = {
+  send: "Sent", "save-draft": "FileText", yes: "Check", no: "X", later: "Clock", skip: "inline-action-cards/skip-forward", choose: "Check",
+};
 export const labels: Record<Action, string> = {
   send: "Send", "save-draft": "Save to Gmail drafts", yes: "Yes", no: "No", later: "Later", skip: "Skip", choose: "Use",
 };

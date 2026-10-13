@@ -36,6 +36,7 @@ function server(kind: "document" | "html" = "document") {
     title: string;
     kind: "document";
     savedAt: number;
+    provenance: null;
   }[] = [];
   const calls: { method: string; input: Record<string, unknown> }[] = [];
   const log =
@@ -80,6 +81,7 @@ function server(kind: "document" | "html" = "document") {
           title: bill.title,
           kind: "document" as const,
           savedAt: 1_700_000_000_000,
+          provenance: null,
         };
         library.push(saved);
         return saved;

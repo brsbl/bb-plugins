@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
-import { definePluginApp, Markdown, useBbNavigate, useComposer, useComposerView, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, Markdown, useBbNavigate, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, actionMessage, idSchema, title, type Action, type FollowUp, type Item, type ActionLog } from "./model.js";
+import { actionLabel, idSchema, title, type Action, type FollowUp, type Item, type ActionLog } from "./model.js";
 import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
-import { appendActionNote, insertActionMention, insertCommentMention, pendingLabel, sentStatus } from "./presentation.js";
+import { pendingLabel, sentStatus } from "./presentation.js";
 import { FollowUps, Media } from "./evidence.js";
 import { Button, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, DecisionRow, NoteField, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { DecisionSheet, type SheetBinding } from "./sheet.js";
-import { readableError, submitDraft, submitting } from "./submit.js";
+import { readableError, submitting } from "./submit.js";
 import "./app.css";
 import "./compact.css";
 
@@ -28,17 +28,14 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const onItemRef = useRef(onItem); onItemRef.current = onItem;
   const onExpandRef = useRef(onExpand); onExpandRef.current = onExpand;
   const rpc = useRpc<typeof rpcContract>();
-  const composer = useComposer();
-  const composerView = useComposerView();
-  const view = useRef(composerView);
-  view.current = composerView;
   const [item, setItem] = useState<Item | null>(initialItem ?? null);
   const current = useRef<Item | null>(initialItem ?? null);
   const [draft, setDraft] = useState(initialItem?.content.type === "reply" ? initialItem.content.draft : "");
   const text = useRef(draft);
   const dirty = useRef(false);
   const [saving, setSaving] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [localBusy, setBusy] = useState(false);
+  const busy = localBusy || !!sheet?.busy;
   const [sending, setSending] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
@@ -127,14 +124,8 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   useEffect(() => () => { void flush().catch(() => {}); }, [flush]);
 
   const sendMessage = async (next: Item) => {
-    // Check again after asynchronous saves; the user may have started typing.
-    if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to respond.");
-    if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try the card again.");
-    composer.setText(actionMessage(next));
-    insertActionMention(composer, next);
-    appendActionNote(composer, next);
-    if (!await submitDraft(composer, { experimental_data: { itemId: id } })) throw new Error("The request was not submitted. Send the prepared composer message or clear it and retry from the card.");
-    adopt(await rpc.call("submitted", { id, threadId, attemptId: next.attempt!.id }));
+    const [sent] = await rpc.call("dispatch", { threadId, entries: [{ kind: "action", id, attemptId: next.attempt!.id }] });
+    adopt(sent!);
   };
 
   const act = async (action?: Action, choice?: string) => {
@@ -155,9 +146,6 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
         adopt(updated);
         return;
       }
-      // Preserve composer contents before reserving an action, too.
-      if (composer.text.trim() || view.current.draft.attachmentCount) throw new Error("Send or clear your current composer message first, then try the card again.");
-      if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to respond.");
       if (action) {
         next = action === "choose" && choice
           ? await rpc.call("choose", { id, threadId, revision: next.revision, choice, ...(next.state === "ready" ? { note } : {}) })
@@ -176,17 +164,8 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
       await flush();
       const next = current.current;
       if (!next) return;
-      if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this card in its original thread to comment.");
-      if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try again.");
       const saved = await rpc.call("comment", { id, threadId, revision: next.revision, note });
-      // Do not overwrite text entered while the comment was being saved.
-      if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try again.");
-      composer.setText("");
-      insertCommentMention(composer, saved.item, saved.commentId);
-      composer.updateText((value) => `${value} ${saved.note}`);
-      const submittedText = composer.text;
-      await composer.experimental_submit({ experimental_data: { itemId: id } });
-      if (composer.text === submittedText) throw new Error("The comment was not submitted. Send the prepared composer message.");
+      await rpc.call("dispatch", { threadId, entries: [{ kind: "comment", id, commentId: saved.commentId }] });
       clearNote();
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
@@ -415,7 +394,7 @@ export function ActionLogView({ threadId }: { threadId?: string }) {
   useRealtime("items", () => void load());
   const row = (item: ActionLog["waiting"][number]) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item}
     logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId, showThread: !threadId }} onItem={() => void load()} />;
-  return <section className="iac-log" aria-label="Action log">
+  return <section className="iac-log" aria-label="Decision log">
     <section className="iac-log-group" aria-label="Waiting on you">
       <header className="iac-log-heading">
         <h2><span className="iac-log-mark" aria-hidden="true"><span className="iac-log-dot" /></span>Waiting on you{log && <span className="iac-log-count">{log.waiting.length}</span>}</h2>
@@ -434,8 +413,8 @@ export function ActionLogView({ threadId }: { threadId?: string }) {
   </section>;
 }
 export default definePluginApp((app) => {
-  app.slots.navPanel({ id: "log", path: "log", title: "Action log", icon: "inline-action-cards/action-log", component: () => <ActionLogView /> });
-  app.slots.threadPanelAction({ id: "log", title: "Action log", icon: "inline-action-cards/action-log", component: ({ threadId }) => <ActionLogView threadId={threadId} /> });
+  app.slots.navPanel({ id: "log", path: "log", title: "Decision log", icon: "inline-action-cards/action-log", component: () => <ActionLogView /> });
+  app.slots.threadPanelAction({ id: "log", title: "Decision log", icon: "inline-action-cards/action-log", component: ({ threadId }) => <ActionLogView threadId={threadId} /> });
   // Skip-forward has no built-in host glyph; publish it through the SDK registry.
   app.experimental_icons.register({ name: "inline-action-cards/skip-forward", component: ({ className }) =>
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 4 11 8-11 8V4ZM19 4v16" /></svg> });

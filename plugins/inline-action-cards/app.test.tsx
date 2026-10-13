@@ -4,29 +4,29 @@ import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, expect, it, vi } from "vitest";
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import plugin from "./server.js";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Item } from "./model.js";
-const submittedMessages = vi.hoisted(() => [] as string[]);
-vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
-  const sdk = await importOriginal<typeof import("@get-bb/plugin-sdk/app")>();
-  return { ...sdk, useComposer: () => {
-    const composer = sdk.useComposer();
-    let message = composer.text;
-    return new Proxy(composer, { get(target, key) {
-      if (key === "experimental_submit") return async (options: Parameters<typeof composer.experimental_submit>[0]) => {
-        submittedMessages.push(message);
-        const result = await composer.experimental_submit(options);
-        message = "";
-        return result;
-      };
-      if (key === "text") return message;
-      if (key === "setText") return (value: string) => { message = value; composer.setText(value); };
-      if (key === "updateText") return (update: (value: string) => string) => composer.updateText((value) => { message = update(value); return message; });
-      return Reflect.get(target, key);
-    } });
-  } };
-});
+const submittedMessages: string[] = [];
+const submittedMentions: { provider: string; id: string; label: string }[] = [];
+function recordSend(request: Parameters<BbPluginApi["sdk"]["threads"]["send"]>[0]) {
+  const parts = request.input.filter((part) => part.type === "text");
+  submittedMessages.push(parts.map((part) => part.text).join("\n"));
+  for (const part of parts) for (const { resource } of part.mentions ?? []) {
+    if (resource.kind === "plugin") submittedMentions.push({ provider: "action", id: resource.itemId.slice("action:".length), label: resource.label });
+  }
+  return { ok: true as const, delivery: "sent" as const };
+}
+function recordingHost() { return createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: recordSend } } }); }
+// Keep the UI fixtures small, but run their dispatch through the real server handler.
+async function dispatchFixture(items: Item[]): Promise<Item[]> {
+  const host = recordingHost(); plugin(host.bb);
+  try {
+    for (const item of items) host.bb.storage.database().prepare("INSERT INTO action_items VALUES (?, ?, ?)").run(item.threadId, item.id, JSON.stringify(item));
+    return await host.harness.behavior.callRpc("dispatch", { threadId: items[0]!.threadId, entries: items.map((item) => ({ kind: "action", id: item.id, attemptId: item.attempt!.id })) }) as Item[];
+  } finally { await host.harness.lifecycle.dispose(); }
+}
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Billing follow-up", subject: "Missing refund", to: ["billing@example.com"], cc: [], bcc: [], original: { from: "Billing", body: "Your refund is on its way." }, draft: "Original draft" } });
-afterEach(() => { cleanup(); submittedMessages.length = 0; localStorage.clear(); });
+afterEach(() => { cleanup(); submittedMessages.length = 0; submittedMentions.length = 0; localStorage.clear(); });
 // Radix tooltips measure their content; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 // Answer a form field the way a person does: pick the radio, then press Submit.
@@ -43,7 +43,7 @@ function note(value: string, within_: HTMLElement = document.body) {
 }
 // After submitting, the card shows the chosen answer and its status.
 const chosen = (label: string) => screen.findByText(label, { selector: ".ac-outcome-answer" });
-async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>) {
+async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>, dispatchFailure = false) {
   let item = initialItem;
   const calls: string[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
@@ -69,11 +69,13 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         calls.push("prepare"); expect(input.revision).toBe(item.revision);
         item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false, note: input.note } }; return item;
       },
-      submitted: async () => {
+      dispatch: async () => {
+        if (dispatchFailure) throw new Error("Host disconnected");
+        const sent = await dispatchFixture([item]);
         await beforeSubmitted;
         calls.push("submitted");
-        item = { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } };
-        return item;
+        item = sent[0]!;
+        return sent;
       },
     },
   });
@@ -91,8 +93,8 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   fireEvent.click(button);
   fireEvent.click(button);
   await waitFor(() => expect(calls).toEqual(["save", "prepare", "submitted"]));
-  expect(slot.inspection.composer.submits).toHaveLength(1);
-  expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Billing follow-up" }]);
+  expect(submittedMessages).toHaveLength(1);
+  expect(submittedMentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Billing follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
   await screen.findByText(/Sent\. Waiting for the agent\./);
   expect(await chosen("Send")).toBeTruthy();
@@ -102,13 +104,13 @@ it("preserves an existing composer message", async () => {
   const { slot, calls } = await setup("Please also check another message");
   answer("Send");
   submit();
-  await screen.findByRole("alert");
+  await waitFor(() => expect(calls).toEqual(["prepare", "submitted"]));
   expect(slot.inspection.composer.text).toBe("Please also check another message");
   expect(slot.inspection.composer.submits).toHaveLength(0);
-  expect(calls).toEqual([]);
+  expect(submittedMessages).toHaveLength(1);
 });
 it("replaces an obsolete local error when the agent reports success", async () => {
-  const { reportSuccess } = await setup("Another composer message");
+  const { reportSuccess } = await setup("", false, fixture(), undefined, true);
   answer("Send");
   submit();
   await screen.findByRole("alert");
@@ -125,7 +127,7 @@ it("keeps an unsaved edit visible and offers recovery without submitting", async
   await screen.findByRole("button", { name: "Retry save" });
   expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Keep this edit");
   expect(calls).toEqual(["save"]);
-  expect(slot.inspection.composer.submits).toHaveLength(0);
+  expect(submittedMessages).toHaveLength(0);
   // Recovery buttons sit inside the card's form; clicking them must never submit the picked answer.
   let submits = 0;
   screen.getByRole("form").addEventListener("submit", () => { submits += 1; });
@@ -135,7 +137,7 @@ it("keeps an unsaved edit visible and offers recovery without submitting", async
   expect(submits).toBe(0);
   await waitFor(() => expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft"));
   expect(calls).toEqual(["save", "save"]);
-  expect(slot.inspection.composer.submits).toHaveLength(0);
+  expect(submittedMessages).toHaveLength(0);
 });
 
 it("stages a reviewed table reply and sends it only with the sheet", async () => {
@@ -156,10 +158,11 @@ it("stages a reviewed table reply and sends it only with the sheet", async () =>
         });
         return items.filter((item) => input.items.some((entry) => entry.id === item.id));
       },
-      submitted: (raw) => {
-        const id = (raw as { id: string }).id;
-        items = items.map((item): Item => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item);
-        return items.find((item) => item.id === id);
+      dispatch: async (raw) => {
+        const ids = (raw as { entries: { id: string }[] }).entries.map((entry) => entry.id);
+        const sent = await dispatchFixture(items.filter((item) => ids.includes(item.id)));
+        items = items.map((item) => sent.find((next) => next.id === item.id) ?? item);
+        return sent;
       },
     },
   });
@@ -167,9 +170,9 @@ it("stages a reviewed table reply and sends it only with the sheet", async () =>
   // A form shows every draft; nothing hides behind Review.
   expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(2);
   answer("Send", rows[1]!);
-  expect(slot.inspection.composer.submits).toHaveLength(0);
+  expect(submittedMessages).toHaveLength(0);
   submit();
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(calls).toEqual([expect.objectContaining({ items: [expect.objectContaining({ id: "esc-2", action: "send" })] })]);
   await screen.findByText(/Sent\. Waiting for the agent\./);
 });
@@ -183,7 +186,7 @@ it.each(["send", "yes", "no"] as const)("shows %s as submitting only while it is
   answer(label);
   const button = screen.getByRole("button", { name: "Submit" });
   fireEvent.click(button);
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
   const pending = screen.getByRole("button", { name: "Submitting…" });
   expect(pending).toBe(button);
   expect(pending.getAttribute("aria-busy")).toBe("true");
@@ -213,10 +216,11 @@ it("answers several rows as one form and sends every answer in one message", asy
         });
         return items.filter((item) => input.items.some((entry) => entry.id === item.id));
       },
-      submitted: (raw) => {
-        const id = (raw as { id: string }).id;
-        items = items.map((item): Item => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item);
-        return items.find((item) => item.id === id);
+      dispatch: async (raw) => {
+        const ids = (raw as { entries: { id: string }[] }).entries.map((entry) => entry.id);
+        const sent = await dispatchFixture(items.filter((item) => ids.includes(item.id)));
+        items = items.map((item) => sent.find((next) => next.id === item.id) ?? item);
+        return sent;
       },
     },
   });
@@ -224,12 +228,12 @@ it("answers several rows as one form and sends every answer in one message", asy
   expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
   answer("Switch", rows[0]!);
   answer("Keep", rows[1]!);
-  expect(slot.inspection.composer.submits).toHaveLength(0);
+  expect(submittedMessages).toHaveLength(0);
   submit();
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(calls).toEqual([{ id: "digests", threadId: "thr_test", items: [expect.objectContaining({ id: "one", action: "yes" }), expect.objectContaining({ id: "two", action: "no" })] }]);
   expect(submittedMessages[0]!.split("\n")).toHaveLength(2);
-  expect(slot.inspection.composer.mentions).toHaveLength(2);
+  expect(submittedMentions).toHaveLength(2);
   await waitFor(() => expect(screen.getAllByText(/Sent\. Waiting for the agent\./)).toHaveLength(2));
   expect(within(rows[2]!).getByRole("radio", { name: "Switch" })).toBeTruthy();
 });
@@ -241,8 +245,8 @@ it("shows a card whose request never reached the agent as not sent, with Resend"
   expect(await chosen("Merge")).toBeTruthy();
   expect(screen.getByText("“how do i test?”")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Resend" }));
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-  expect(slot.inspection.composer.mentions).toMatchObject([{ id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
+  expect(submittedMentions).toMatchObject([{ id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
 });
 
 it("keeps a prepared but unsent row in place with Resend", async () => {
@@ -256,16 +260,17 @@ it("keeps a prepared but unsent row in place with Resend", async () => {
     rpc: {
       table: () => ({ id: "digests", threadId: "thr_test", title: "Digests", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
       get: (raw) => ({ ...items.find((item) => item.id === (raw as { id: string }).id)!, followUps: [] }),
-      submitted: (raw) => {
-        const id = (raw as { id: string }).id;
-        items = items.map((item): Item => item.id === id ? { ...item, revision: item.revision + 1, attempt: { ...item.attempt!, sentAt: "2026-10-01T19:09:00Z" } } : item);
-        return items.find((item) => item.id === id);
+      dispatch: async (raw) => {
+        const ids = (raw as { entries: { id: string }[] }).entries.map((entry) => entry.id);
+        const sent = await dispatchFixture(items.filter((item) => ids.includes(item.id)));
+        items = items.map((item) => sent.find((next) => next.id === item.id) ?? item);
+        return sent;
       },
     },
   });
   fireEvent.click(await screen.findByRole("button", { name: "Resend" }));
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
-  expect(slot.inspection.composer.mentions).toMatchObject([{ id: "thr_test:one:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
+  expect(submittedMentions).toMatchObject([{ id: "thr_test:one:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
   expect(await screen.findByText(/Sent\. Waiting for the agent\./)).toBeTruthy();
 });
 
@@ -294,7 +299,7 @@ it("drops an answer when the agent changes its row, and keeps answers across a r
   localStorage.clear();
 });
 
-it("Action log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
+it("Decision log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
   let item = { ...fixture(), threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
@@ -313,7 +318,7 @@ it("Action log refresh updates the reviewed draft while preserving unsaved local
   expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Unsaved local edit");
 });
 
-it("Action log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
+it("Decision log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
   const entry = { threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
   const attempt = { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true } as const;
   const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
@@ -322,11 +327,11 @@ it("Action log keeps failures and Later cards waiting, orders row controls with 
   const oddLabel = { ...fixture(), id: "odd-1", content: { type: "decide", question: "Build it?", consequence: "Runs the build.", yesLabel: "Constructor run", noLabel: "toString" }, ...entry } as const;
   const done = Array.from({ length: 6 }, (_, index) => ({ ...fixture(), id: `sent-${index}`, revision: 3, state: "succeeded", attempt, result: { message: "Sent", retryable: false }, ...entry } as const));
   const app = await loadPluginApp(() => import("./app.js"));
-  expect([app.navPanels[0]!.title, app.threadPanelActions[0]!.title]).toEqual(["Action log", "Action log"]);
+  expect([app.navPanels[0]!.title, app.threadPanelActions[0]!.title]).toEqual(["Decision log", "Decision log"]);
   expect([app.navPanels[0]!.icon, app.threadPanelActions[0]!.icon]).toEqual(["inline-action-cards/action-log", "inline-action-cards/action-log"]);
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision, oddLabel], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
-  const [ready, failure, deferred, decide] = within(waiting).getAllByRole("article");
+  const [ready, failure, deferred, decide] = await within(waiting).findAllByRole("article");
   expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Keep open", "Merge"]);
   // Labels that collide with Object.prototype keys fall back to the role icon instead of crashing the log.
   expect(within(waiting).getByRole("button", { name: "Constructor run" })).toBeTruthy();
@@ -347,7 +352,7 @@ it("Action log keeps failures and Later cards waiting, orders row controls with 
   expect(within(doneGroup).getAllByRole("article")).toHaveLength(6);
 });
 
-it("thread panel Action log lists only its thread, drops thread names, and links to the full page", async () => {
+it("thread panel Decision log lists only its thread, drops thread names, and links to the full page", async () => {
   const calls: unknown[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.threadPanelActions[0]!, { threadId: "thr_test", params: null }, { rpc: { log: (input) => { calls.push(input); return { waiting: [{ ...fixture(), threadTitle: "Refund follow-up", threadProjectId: null }], done: [] }; } } });
@@ -371,10 +376,10 @@ it("submits the picked option from a choice card, marking but never preselecting
   expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
   answer(/^UserSingle/);
   submit();
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(calls).toEqual(["choose"]);
   expect(get().attempt).toMatchObject({ action: "choose", choice: { id: "single", label: "UserSingle" } });
-  expect(slot.inspection.composer.mentions).toMatchObject([{ provider: "action", id: "thr_test:setup:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Which account setup" }]);
+  expect(submittedMentions).toMatchObject([{ provider: "action", id: "thr_test:setup:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Which account setup" }]);
   expect(screen.getByRole("button", { name: "Submitting…" }).getAttribute("aria-busy")).toBe("true");
   release();
   expect(await chosen("UserSingle")).toBeTruthy();
@@ -386,9 +391,48 @@ it("sends the note along with the chosen option", async () => {
   answer(/^UserMultiple/);
   note("Keep the pool as backup");
   submit();
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(get().attempt).toMatchObject({ action: "choose", note: "Keep the pool as backup" });
   expect(submittedMessages[0]).toContain(" — Keep the pool as backup");
+});
+it("saves a note with Enter without submitting the answer, and Escape restores the saved text", async () => {
+  const { slot, get } = await setup();
+  answer("Send");
+  note("  Keep a copy  ");
+  const input = screen.getByRole("textbox", { name: "Note" }) as HTMLTextAreaElement;
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(input.value).toBe("Keep a copy");
+  expect(input.readOnly).toBe(true);
+  expect(submittedMessages).toHaveLength(0);
+  expect(get().attempt).toBeNull();
+  fireEvent.click(input);
+  fireEvent.change(input, { target: { value: "Discard this edit" } });
+  fireEvent.keyDown(input, { key: "Escape" });
+  expect(input.value).toBe("Keep a copy");
+  expect(input.readOnly).toBe(true);
+  submit();
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
+  expect(get().attempt?.note).toBe("Keep a copy");
+});
+it("keeps IME Enter in the note editor and makes its icon actions local to the note", async () => {
+  const { slot, get } = await setup();
+  answer("Send");
+  note("Keep a copy");
+  const input = screen.getByRole("textbox", { name: "Note" }) as HTMLTextAreaElement;
+  fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+  expect(input.readOnly).toBe(false);
+  const save = screen.getByRole("button", { name: "Save note" });
+  expect(save.getAttribute("type")).toBe("button");
+  fireEvent.click(save);
+  expect(input.readOnly).toBe(true);
+  fireEvent.click(input);
+  fireEvent.change(input, { target: { value: "Discard this edit" } });
+  const cancel = screen.getByRole("button", { name: "Cancel note" });
+  expect(cancel.getAttribute("type")).toBe("button");
+  fireEvent.click(cancel);
+  expect(input.value).toBe("Keep a copy");
+  expect(submittedMessages).toHaveLength(0);
+  expect(get().attempt).toBeNull();
 });
 it("keeps Submit disabled until an option is picked or a note is written", async () => {
   const content = { type: "choice" as const, question: "Pick a plan", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] };
@@ -400,7 +444,7 @@ it("keeps Submit disabled until an option is picked or a note is written", async
 });
 
 it.each(["reply", "decide"] as const)("round-trips a %s note through click, message context, CLI claim, reload and result", async (type) => {
-  let host = createFakePluginHost({ pluginId: "inline-action-cards" });
+  let host = recordingHost();
   plugin(host.bb);
   const item = fixture();
   if (type === "decide") item.content = { type: "decide", question: "Switch digests?", consequence: "Switch the email digests", yesLabel: "Switch" };
@@ -413,16 +457,16 @@ it.each(["reply", "decide"] as const)("round-trips a %s note through click, mess
       rpc: {
         get: (input) => host.harness.behavior.callRpc("get", input),
         prepare: (input) => host.harness.behavior.callRpc("prepare", input),
-        submitted: (input) => host.harness.behavior.callRpc("submitted", input),
+        dispatch: (input) => host.harness.behavior.callRpc("dispatch", input),
       },
     });
     await screen.findByRole("radio", { name: type === "reply" ? "Send" : "Switch" });
     answer(type === "reply" ? "Send" : "Switch");
     note(text);
     submit();
-    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+    await waitFor(() => expect(submittedMessages).toHaveLength(1));
     expect(submittedMessages[0]).toContain(` — ${text}`);
-    const mention = slot.inspection.composer.mentions[0]!;
+    const mention = submittedMentions[0]!;
     const resolved = await host.harness.registrations.mentionProviders[0]!.resolve(mention.id);
     const context = JSON.parse(resolved.context);
     expect(context).toMatchObject({ note: text, intent: "approved-action" });
@@ -443,13 +487,13 @@ it("sends an answer without a note as plain approval", async () => {
   const { slot, get } = await setup();
   answer("Send");
   submit();
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(get().attempt?.note).toBe("");
   expect(submittedMessages[0]).not.toContain(" — ");
 });
 
 it.each(["reply", "decide"] as const)("round-trips a %s comment without reserving an attempt or disabling choices", async (type) => {
-  let host = createFakePluginHost({ pluginId: "inline-action-cards" });
+  let host = recordingHost();
   plugin(host.bb);
   const item = fixture();
   if (type === "decide") item.content = { type: "decide", question: "Switch digests?", consequence: "Switch the email digests", yesLabel: "Switch" };
@@ -461,6 +505,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
       rpc: {
         get: (input) => host.harness.behavior.callRpc("get", input),
         comment: (input) => host.harness.behavior.callRpc("comment", input),
+        dispatch: (input) => host.harness.behavior.callRpc("dispatch", input),
       },
     });
     const text = "Can you keep Money on the old one?";
@@ -468,10 +513,10 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
     await screen.findByRole("button", { name: "Add note" });
     note(text);
     submit();
-    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+    await waitFor(() => expect(submittedMessages).toHaveLength(1));
     expect(submittedMessages[0]).toContain(text);
     expect(submittedMessages[0]).toMatch(type === "reply" ? /^Billing follow-up / : /^Switch digests /);
-    const mention = slot.inspection.composer.mentions[0]!;
+    const mention = submittedMentions[0]!;
     host = await host.harness.lifecycle.reload(plugin);
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
     expect(context).toMatchObject({ intent: "comment", note: text, itemId: item.id });
@@ -488,7 +533,7 @@ it.each(["reply", "decide"] as const)("round-trips a %s comment without reservin
 });
 
 it("keeps each row's own note in one submitted form, and shows Reply rows in full", async () => {
-  const host = createFakePluginHost({ pluginId: "inline-action-cards" });
+  const host = recordingHost();
   plugin(host.bb);
   try {
     for (const id of ["one", "two"]) await host.harness.behavior.runCli(["create", id, "--thread", "thr_test", "--item", JSON.stringify({ type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", actionKey: "switch" })]);
@@ -500,7 +545,7 @@ it("keeps each row's own note in one submitted form, and shows Reply rows in ful
         table: (input) => host.harness.behavior.callRpc("table", input),
         get: (input) => host.harness.behavior.callRpc("get", input),
         prepareBatch: (input) => host.harness.behavior.callRpc("prepareBatch", input),
-        submitted: (input) => host.harness.behavior.callRpc("submitted", input),
+        dispatch: (input) => host.harness.behavior.callRpc("dispatch", input),
       },
     });
     const rows = await screen.findAllByRole("group", { name: /^Decision:/ });
@@ -510,10 +555,10 @@ it("keeps each row's own note in one submitted form, and shows Reply rows in ful
       note(`Condition ${index}`, row);
     }
     submit();
-    await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+    await waitFor(() => expect(submittedMessages).toHaveLength(1));
     expect(submittedMessages[0]).toContain(" — Condition 0");
     expect(submittedMessages[0]).toContain(" — Condition 1");
-    for (const [index, mention] of slot.inspection.composer.mentions.entries()) {
+    for (const [index, mention] of submittedMentions.entries()) {
       const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
       const claimed = JSON.parse((await host.harness.behavior.runCli(["claim", context.itemId, "--thread", "thr_test", "--attempt", context.attemptId])).stdout!);
       expect(claimed.attempt.note).toBe(`Condition ${index}`);
@@ -533,7 +578,7 @@ it("keeps each row's own note in one submitted form, and shows Reply rows in ful
   replySlot.lifecycle.unmount();
 });
 
-it("Action log offers a choice card Choose, Skip and Review, never Yes or No", async () => {
+it("Decision log offers a choice card Choose, Skip and Review, never Yes or No", async () => {
   const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] } as const;
   const item = { ...fixture(), id: "setup", content, threadTitle: "Accounts", threadProjectId: "proj_cards" } as const;
   const app = await loadPluginApp(() => import("./app.js"));
@@ -546,7 +591,7 @@ it("Action log offers a choice card Choose, Skip and Review, never Yes or No", a
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread" }));
 });
 
-it("Action log Send on a collapsed reply opens the email first and sends only once it is visible", async () => {
+it("Decision log Send on a collapsed reply opens the email first and sends only once it is visible", async () => {
   const item = { ...fixture(), content: { ...fixture().content, cc: ["ops@example.com"] }, threadTitle: "Refund follow-up", threadProjectId: "proj_cards" } as const;
   const calls: unknown[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
@@ -583,12 +628,12 @@ it("retries a failed table reply from its confirmation", async () => {
       table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: [failed.id], items: [failed] }),
       get: () => failed,
       prepare: () => { calls.push("prepare"); return { ...failed, revision: 4, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false } }; },
-      submitted: () => ({ ...failed, revision: 5, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false, sentAt: "2026-10-01T19:09:00Z" } }),
+      dispatch: () => dispatchFixture([{ ...failed, revision: 4, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false } }]),
     },
   });
   expect(await screen.findByText("Reconnect Gmail")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(calls).toEqual(["prepare"]);
 });
 it("never offers a bulk action, and Submit waits for an answer", async () => {

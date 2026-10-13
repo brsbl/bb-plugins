@@ -18,11 +18,12 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 
 ## Choose the form
 
-- **Native document** for calculators, scenario comparisons, charts, and
-  tables. Bounded arithmetic, no code, accessible by construction.
-- **HTML playground** when the playground needs its own layout or illustration: an
-  assembly guide with an exploded diagram, a map with places and photos, a
-  paint or product preview, folding or cooking steps, a visual plan.
+- **HTML playground with the component library** (see Components) for apps the
+  person will keep using with you: planners and calculators with several
+  inputs and an answer, simulations that run over time, design tools with a
+  live preview, games, instruments, and step-by-step guides or visual plans.
+- **Native document** only for a quick formula answer with a few inputs and no
+  follow-up work: bounded arithmetic, no code, accessible by construction.
 
 - Start with the user's question and choose useful inputs. Name units and
   assumptions. Use plain prose if interaction would not improve the answer.
@@ -73,6 +74,13 @@ them; `bb playgrounds publish --saved <savedId>` (or the tool's `saved`
 parameter) shows one in the current thread with its saved inputs. When the user
 @-mentions a saved playground, publish it this way instead of rebuilding it.
 
+- **Follow-ups change the card.** When they ask about something the card
+  shows (a step, a stop, a color, a plant, a setting), change the card with
+  `do <id> setParams` or one of its actions, then answer in a line or two.
+  Don't only answer in chat. Publish a second card only when the card's data
+  has to change (a different stop on the route, a new plant), and carry
+  over what they had selected. Keep what they'd ask about
+  (the current step, the selected item) in parameters so you can set it.
 - Native documents expose `set` (one object of control values) and `reset`,
   and return the inputs plus every metric as displayed.
 - `do` runs in the copy the user touched most recently and fails when the
@@ -118,6 +126,242 @@ the content; `width` (320–1200) caps the card width.
   (`100vh`, `height: 100%` on `body`), or the frame keeps growing.
 - Web links and `window.playground.send()` work only right after the user clicks
   inside the playground; bb ignores them otherwise. Call them from click handlers.
+
+## Components
+
+HTML playgrounds get a component library for apps the person uses with you:
+calculators, planners, simulators, design tools, games and instruments. You both
+work the same controls, so you can read, change or play anything they can.
+Build from these before writing your own controls.
+
+**Base library (any app).** Controls are markup bound to a named parameter:
+
+```html
+<label data-pg="field" data-param="income" data-label="Yearly income"
+       data-prefix="$" data-min="0" data-max="2000000" data-value="140000"></label>
+```
+
+| `data-pg` | Use for |
+| --- | --- |
+| `field` | A number with a unit or prefix; `data-input="text"` for text |
+| `select` | One choice from a long list (`data-options="30:30 years,15:15 years"`) |
+| `segmented`, `tabs` | One choice from a few; `tabs` switches panels |
+| `list` | One choice from rows with notes (`data-notes="a|b"`) |
+| `slider`, `dial`, `stepper` | A continuous value; `data-scale="log"`, units `%` (0–1), `Hz`, `s`, `px`, `¢` |
+| `toggle` | On or off |
+| `board` | A grid of cells for games, seats or calendars (`data-rows`, `data-cols`, `data-pieces="R:#e5484d:Red"`, `data-shape="round"`) |
+| `readouts` | Answer tiles: `<div data-readout="price" data-label="Home price" data-answer>` |
+| `table` | `data-name="…"`, filled from script |
+| `chart` | `<figure data-pg="chart" data-name="…" data-label="…">`, filled from script |
+| `agent` | A lane that shows what you last did on the card |
+
+Layout classes: `.pg-form` (fields in a grid), `.pg-toolbar`, `.pg-surface`
+with `.pg-group` and `.pg-label` (grouped panels), `.pg-banks`, `.pg-badge`
+(`data-tone="good|warn|bad"`). `data-show="param=value"` shows an element only
+when a parameter has that value. Set `:root { --pg-accent: … }` once per card.
+
+In script, after the markup: `playground.params` (`get`, `set`, `all`,
+`define`, `on(fn)`), and `playground.ui.show(name, value, { note, tone })` for
+readouts, `ui.table(name, { columns, rows })`, `ui.chart(name, spec)` (below), and
+`ui.on("select", ({ name, row, col, from }) => …)` for boards. A cell the person
+taps and a cell you choose arrive as the same `select` event, so game rules live
+in one place.
+
+**Driving it.** Every card with these controls exposes the same actions:
+`bb playgrounds do <id> read` (parameters and every readout), `do <id>
+setParams --args '[{"rate": 6}]'`, `do <id> select --args '["board", 0, 3]'`,
+`do <id> say --args '["I took column 4."]'` for the agent lane, and `do <id>
+point --args '["load", 6]'` to show a chart's values at an x. Use these
+instead of writing your own actions; controls you move show an "Agent" tag.
+
+**Charts.** One chart answers one question. Spec:
+
+```js
+ui.chart("load", {
+  kind: "line",                      // line | area | step | bars (per series too)
+  height: 180,
+  x: { format: (x) => "Wk " + x, label: "Week" },
+  y: { min: 0, unit: "ms" },         // or format: (v) => …
+  series: [{ label: "Europe", points: [[1, 1420], [2, 1390]] }, …],
+  marks: [{ y: 1500, label: "Budget" }, { x: 6, label: "CDN change" }],
+  bands: [{ x0: 6, x1: 12, label: "Rollout" }],  // a shaded span
+  now: 4,                            // a "now" line for simulations
+});
+```
+
+Bars take category x values (`[["Mon", 42], …]`). The component picks the
+colors (one series uses the accent; more use a fixed palette in a fixed
+order), sizes the plot from the card's width, puts the unit on the top tick
+only, adds a legend for two or more series (`labels: "end"` also names lines
+at their ends), a hover and
+keyboard tooltip listing every series, and a table for screen readers. Don't
+color text in series colors, don't use two y scales (make two charts), and
+keep it to seven series.
+
+**Calculator set.** For "how much / how many / which" questions, write the
+inputs as a sentence with draggable numbers, give one answer, and show
+where it comes from:
+
+```html
+<p class="pg-sentence">I earn <span data-pg="scrub" data-param="income"
+  data-prefix="$" data-min="30000" data-max="500000" data-step="1000"
+  data-value="140000"></span> a year …</p>
+<div data-pg="answer" data-name="price"></div>
+<div data-pg="breakdown" data-name="monthly"></div>
+```
+
+`ui.answer(name, { label, value, detail, tone })` (a `tone` of `good`,
+`warn` or `bad` adds a small status icon; the value stays in ink, and the
+detail says why) and `ui.breakdown(name,
+[{ label, value, display }])`. Keep it to the sentence, the answer and one
+breakdown or chart; no tables of every scenario.
+
+**Simulation set.** For systems that run over time (rate limits, queues,
+caches, retries, rollouts): a sentence of the knobs, one chart that draws the
+run as it plays, and a verdict. No diagram; the chart is the simulation:
+
+```html
+<div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
+<figure data-pg="chart" data-name="tokens" data-label="Tokens in the bucket"></figure>
+```
+
+`ui.run(name, { tick(dt, t), seek(t), end() })` plays it and pauses
+offscreen; the run bar sits above its chart, and dragging on the chart scrubs.
+In `tick` and `seek`, redraw the chart with the points up to `t`, and mark
+what went wrong as `events: { label: "Dropped", points: [[x, y, count]] }`. The verdict is an `answer`
+that says what happened and what setting fixes it. Put every knob in the
+sentence: no slider row and no readout row in addition, and at most one
+`<details>` for the model.
+
+**Game set.** For turn-based games you play with the person (Connect Four,
+tic-tac-toe, checkers, Battleship): a `turn` row, one `board`, and the rules
+in `ui.game`:
+
+```html
+<div data-pg="turn"></div>
+<div data-pg="board" data-param="board" data-rows="6" data-cols="7" data-pieces="R:#e5484d:Red,Y:#f5c518:Yellow"></div>
+<script>
+playground.ui.game({ you: "R", me: "Y", move(board, col, who) { …; return board or null }, winner(board) { return "R" | "Y" | "draw" | null } });
+</script>
+```
+
+Optional: `first`, `fromCell(row, col)` (which move a tap means; default: the
+column), `say(move, all)` (a short phrase the turn row puts after "I played":
+"column 4", "B5, hit"), `start(all)` (the opening board, and any other
+boards; it runs when the game first loads and on New game), `again(move, all, who)` (true when the same player goes
+again). The turn row shows whose turn it is and a New game button. Their taps
+and your moves take one path. Play with `do <id> move --args '[3]'`; start
+over with `do <id> newGame`.
+
+Games with a setup step or more than one board (Battleship: your fleet and
+my waters) use the same set. Pass `setup: true` (and `setupText`,
+`startLabel`) and the turn row shows a Start button until they're ready;
+place pieces on the other boards with your own `ui.on("select")` handler
+while `playground.params.get("turn") === "setup"`. `move`, `winner`, `say`
+and `start` also receive `all`, every parameter by name, so a move can mark a
+hit on one board and read another; change `all` in place. Taps count as moves
+only on `board`. Keep your own pieces out of the markup and out of
+parameters the person can see, and don't read theirs to choose your moves.
+
+Don't ask them to tell you when they've moved. After publishing (or after your
+move), wait on the card for theirs, in one command with a 10-minute timeout:
+
+```sh
+id=<playground id>; last=<last seq you handled, 0 at the start>
+for _ in $(seq 24); do
+  out=$(bb playgrounds watch "$id" --since "$last" --wait 25s)
+  n=$(printf '%s\n' "$out" | grep -o '"seq":[0-9]*' | tail -1 | cut -d: -f2); [ -n "$n" ] && last=$n
+  printf '%s\n' "$out" | grep '"name":"move"' && break
+done; echo "last=$last"
+```
+
+When a move arrives, answer with `do <id> move`, keep the reply to a line, and
+wait again. Stop when the game ends, or after 10 quiet minutes; then say in
+chat that they can tell you to keep playing.
+
+**Guide set.** For how-to guides (assembling, repairing, folding, cooking):
+one step at a time, each with its own drawing.
+
+```html
+<div data-pg="guide" data-param="step" class="pg-surface">
+  <section data-step="1"><svg>…</svg><h3>Heat the water</h3><p>…</p></section>
+  <section data-step="2">…</section>
+</div>
+```
+
+The kit adds "Step 2 of 8", a progress bar and Back/Next, and shows one
+section at a time. The step is a parameter: jump with
+`do <id> setParams --args '[{"step": 5}]'`, for example when they say
+they're stuck on a step. Drawings carry the guide:
+
+- Draw the specific thing they have (a kid's bike: small frame, coaster
+  brake, training wheels), not a generic icon, as inline SVG.
+- Draw the whole thing once, as one SVG function, and reuse it in every
+  step. Each step changes only what that step touches: those parts in the
+  accent color, everything else grey (see `pour-over.html`). No separate
+  icons per step (a box, a book, a wrench); a person should always see where
+  on the thing they are.
+- For anything that changes shape (folding, assembling), draw the result of
+  that step, so no two steps show the same picture. Mark folds and creases
+  with dashed lines and motion with an arrow.
+
+**Photos.** Whenever the answer is about real places, plants, foods or
+products (a garden plan, a day trip, a recipe), open with two or three real
+photos: `<div data-pg="photos"><img src="…" alt="…">…</div>` lays them out
+(one tall, two stacked) and drops any that fail. Find them on Wikimedia
+Commons, use the `upload.wikimedia.org` host (swap it in for
+`thumb.wikimedia.org`; thumbnails come in fixed sizes such as 960px), check
+each link returns 200 with `curl -sI` before publishing, and credit them in
+the details.
+
+**Places and routes.** Map tiles are blocked, so draw the area as a
+schematic SVG: water and parks as shapes, numbered stops joined by the
+route, labels for landmarks. Beside it, a list of stops; selecting one shows
+its photos and details. Keep the selected stop in a parameter.
+
+**Previews.** For "how would X look" (paint, furniture, outfits), draw the
+actual scene with real furniture and light, and let a segmented control
+switch the options. Keep choices they might ask about (floor, light) as
+parameters too, so a follow-up like "with a walnut floor" changes the card.
+
+**Layout.** Every set card has three parts, in this order:
+
+1. **Head:** `.pg-title`, then the `.pg-sentence`.
+2. **Body, one grey surface:**
+   - Calculator: `<div class="pg-surface pg-result">` with the `answer` and its
+     `breakdown` side by side.
+   - Simulation: `<div class="pg-surface">` with the `run` bar, then its
+     `chart`.
+     Then a `<div class="pg-result">` with the verdict `answer` and a
+     `<dl class="pg-stats">` of at most two numbers.
+3. **Foot:** `<div class="pg-foot">` with one `<details>` (the model and
+   assumptions) and the `agent` lane.
+
+Copy this structure from the references; don't add rows between the parts.
+
+**Composition.** Leave spacing, colors and type to the kit: no inline margins,
+no font sizes, and no colors except `--pg-accent` when the subject has one
+(paint, a brand). One hero per card (the `answer`, or the instrument); every
+other number is quieter. Grey stage only behind the thing being shown. The agent moves time with
+`do <id> seek --args '["sim", 12]'`.
+
+**Music set (optional).** `keyboard` (`data-from="60" data-count="25"`, A–K
+keys, Z/X octave), `pads` (`data-pads="Kick:a,Snare:s"`), `steps` (a
+sequencer), `picker` with wave icons, `scope`, `presets` (a JSON table of
+parameter sets), and `record`/`send` for takes. `ui.audio()` gives the shared
+AudioContext, which starts after the person's first click. Presses from the
+person and from you arrive as the same `press`/`release` events; play with
+`do <id> play --args '[[[60,0,1],[64,1,1]], 120]'` and read a take with
+`do <id> take`.
+
+**References** (next to this skill; copy the closest one):
+`references/home-budget.html` (calculator set), `references/rate-limiter.html`
+(simulation set), `references/type-scale.html`
+(design tool), `references/connect-four.html` and
+`references/tic-tac-toe.html` and `references/battleship.html` (game set; Battleship
+shows a setup step, two boards and hidden pieces), and
+`references/pocket-synth.html` (instrument), and `references/pour-over.html`
+(guide set with photos).
 
 ## Interactive diagrams
 

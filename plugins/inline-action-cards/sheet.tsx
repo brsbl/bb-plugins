@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useComposer, useComposerView, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import { useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionMessage, type Action, type Item, type TableView } from "./model.js";
+import type { Action, Item, TableView } from "./model.js";
 import { ActionButton } from "./controls.js";
 import { DecisionGroup, SubmitRow } from "./ui/components.js";
-import { appendActionNote, insertActionMention, insertCommentMention } from "./presentation.js";
-import { readableError, submitDraft, submitting } from "./submit.js";
+import { readableError, submitting } from "./submit.js";
 import { ActionCard } from "./app.js";
 
 // A staged answer is local until Send; it records the revision the user answered.
 export type Stage = { action: Action; choice?: string; revision: number };
 export type SheetBinding = {
-  staged: Stage | null; changed: boolean; note: string;
+  staged: Stage | null; changed: boolean; note: string; busy: boolean;
   stage: (action: Action, choice?: string) => void; clear: () => void; setNote: (note: string) => void;
 };
 type Saved = { stages: Record<string, Stage>; notes: Record<string, string>; changed: string[] };
@@ -27,9 +26,6 @@ function restore(key: string): Saved {
 
 export function DecisionSheet({ id, threadId }: { id: string; threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
-  const composer = useComposer();
-  const composerView = useComposerView();
-  const view = useRef(composerView); view.current = composerView;
   const key = `iac-sheet:${threadId}:${id}`;
   const [table, setTable] = useState<TableView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,11 +102,6 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
     if (!rows.length && !questions.length) return;
     lock.current = true; submitting.add(threadId); setBusy(true); setError(null);
     try {
-      const checkComposer = () => {
-        if (composer.scope.kind !== "thread" || composer.scope.threadId !== threadId) throw new Error("Open this table in its original thread to respond.");
-        if (composer.text.trim() || view.current.draft.attachmentCount || view.current.run.isSubmitting) throw new Error("Send or clear your current composer message first, then try again.");
-      };
-      checkComposer();
       const items = !rows.length ? [] : await rpc.call("prepareBatch", { id, threadId, items: rows.map((item) => {
         const stage = saved.stages[item.id]!;
         return { id: item.id, revision: item.revision, action: stage.action as "yes", ...(stage.choice ? { choice: stage.choice } : {}), note: (saved.notes[item.id] ?? "").trim() };
@@ -118,25 +109,16 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
       items.forEach((item) => updateItem(item));
       // Each comment now lives on its attempt; the staged copies are done.
       const asked = await Promise.all(questions.map((item) => rpc.call("comment", { id: item.id, threadId, revision: item.revision, note: (saved.notes[item.id] ?? "").trim() })));
+      const sent = await rpc.call("dispatch", { threadId, entries: [
+        ...items.map((item) => ({ kind: "action" as const, id: item.id, attemptId: item.attempt!.id })),
+        ...asked.map((entry) => ({ kind: "comment" as const, id: entry.item.id, commentId: entry.commentId })),
+      ] });
+      sent.forEach((item) => updateItem(item));
       setSaved((value) => {
         const stages = { ...value.stages }, notes = { ...value.notes };
         for (const item of [...items, ...asked.map((entry) => entry.item)]) { delete stages[item.id]; delete notes[item.id]; }
         return { ...value, stages, notes };
       });
-      checkComposer();
-      composer.setText("");
-      items.forEach((item, index) => {
-        composer.updateText((value) => `${value}${index ? "\n" : ""}${actionMessage(item)}`);
-        insertActionMention(composer, item);
-        appendActionNote(composer, item);
-      });
-      asked.forEach((entry, index) => {
-        if (items.length || index) composer.updateText((value) => `${value}\n`);
-        insertCommentMention(composer, entry.item, entry.commentId);
-        composer.updateText((value) => `${value} ${entry.note}`);
-      });
-      if (!await submitDraft(composer, { experimental_data: { tableId: id } })) throw new Error("The request was not submitted. Send the prepared composer message, or resend each pending row.");
-      (await Promise.all(items.map((item) => rpc.call("submitted", { id: item.id, threadId, attemptId: item.attempt!.id })))).forEach((item) => updateItem(item));
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
   };
@@ -151,7 +133,7 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
     footer={ready.length > 0 ? <SubmitRow canSubmit={count > 0} pending={busy} submitLabel={count ? `Submit ${count} ${count === 1 ? "answer" : "answers"}` : "Submit"} /> : null}>
     {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row onItem={updateItem}
       sheet={{
-        staged: saved.stages[item.id] ?? null, changed: saved.changed.includes(item.id), note: saved.notes[item.id] ?? "",
+        busy, staged: saved.stages[item.id] ?? null, changed: saved.changed.includes(item.id), note: saved.notes[item.id] ?? "",
         stage: (action, choice) => stageRow(item, action, choice), clear: () => clearRow(item.id), setNote: (note) => setNote(item.id, note),
       }} />)}
     {error && <div className="iac-error" role="alert">{error}</div>}
