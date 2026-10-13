@@ -410,3 +410,18 @@ it("rejects a stale batch before sending and does not mark a failed send as acce
   await expect(host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: ref.id, attemptId: item.attempt!.id }] })).rejects.toThrow("Host disconnected");
   expect(store.get(ref.threadId, ref.id).attempt!.sentAt).toBeUndefined();
 });
+
+it("checks an uncertain outcome without creating or authorizing another attempt", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => ({ ok: true, delivery: "sent" }) } } }); hosts.push(host); plugin(host.bb);
+  const store = createStore(host.bb); store.create(ref.threadId, ref.id, reply);
+  const pending = store.prepare({ ...ref, revision: 1, action: "send" });
+  const attemptId = pending.attempt!.id;
+  store.claim(ref.threadId, ref.id, attemptId);
+  const failed = store.report(ref.threadId, ref.id, attemptId, "failed", "Delivery is uncertain", false);
+  const sent = await host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: ref.id, attemptId }] });
+  expect(sent).toEqual([failed]);
+  expect(host.harness.sdk.callsTo("threads.send")[0]![0]).toMatchObject({ input: [{ text: "Check outcome for Billing follow-up" }] });
+  const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:${ref.id}:${attemptId}`)).context);
+  expect(context).toMatchObject({ intent: "check-outcome", attemptId });
+  expect(() => store.claim(ref.threadId, ref.id, attemptId)).toThrow("already claimed");
+});

@@ -34,7 +34,8 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const text = useRef(draft);
   const dirty = useRef(false);
   const [saving, setSaving] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [localBusy, setBusy] = useState(false);
+  const busy = localBusy || !!sheet?.busy;
   const [sending, setSending] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);

@@ -10,7 +10,7 @@ import { ActionCard } from "./app.js";
 // A staged answer is local until Send; it records the revision the user answered.
 export type Stage = { action: Action; choice?: string; revision: number };
 export type SheetBinding = {
-  staged: Stage | null; changed: boolean; note: string;
+  staged: Stage | null; changed: boolean; note: string; busy: boolean;
   stage: (action: Action, choice?: string) => void; clear: () => void; setNote: (note: string) => void;
 };
 type Saved = { stages: Record<string, Stage>; notes: Record<string, string>; changed: string[] };
@@ -133,7 +133,7 @@ export function DecisionSheet({ id, threadId }: { id: string; threadId: string }
     footer={ready.length > 0 ? <SubmitRow canSubmit={count > 0} pending={busy} submitLabel={count ? `Submit ${count} ${count === 1 ? "answer" : "answers"}` : "Submit"} /> : null}>
     {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} initialItem={item} row onItem={updateItem}
       sheet={{
-        staged: saved.stages[item.id] ?? null, changed: saved.changed.includes(item.id), note: saved.notes[item.id] ?? "",
+        busy, staged: saved.stages[item.id] ?? null, changed: saved.changed.includes(item.id), note: saved.notes[item.id] ?? "",
         stage: (action, choice) => stageRow(item, action, choice), clear: () => clearRow(item.id), setNote: (note) => setNote(item.id, note),
       }} />)}
     {error && <div className="iac-error" role="alert">{error}</div>}

@@ -283,7 +283,7 @@ export default function plugin(bb: BbPluginApi): void {
       // Resolve every durable reference before sending anything. Never accept arbitrary message text from the client.
       const rows = entries.map((entry) => {
         const item = store.get(threadId, entry.id);
-        if (entry.kind === "action" && (item.state !== "pending" || item.attempt?.id !== entry.attemptId)) throw new Error("This action changed. Use the latest card.");
+        if (entry.kind === "action" && ((item.state !== "pending" && !(item.state === "failed" && !item.result?.retryable)) || item.attempt?.id !== entry.attemptId)) throw new Error("This action changed. Use the latest card.");
         const label = title(item).replace(/[?\s]+$/, "");
         const prefix = entry.kind === "action" ? actionMessage(item) : "";
         const note = entry.kind === "action" ? item.attempt?.note : store.getComment(threadId, item.id, entry.commentId);

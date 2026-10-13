@@ -43,7 +43,7 @@ function note(value: string, within_: HTMLElement = document.body) {
 }
 // After submitting, the card shows the chosen answer and its status.
 const chosen = (label: string) => screen.findByText(label, { selector: ".ac-outcome-answer" });
-async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>) {
+async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>, dispatchFailure = false) {
   let item = initialItem;
   const calls: string[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
@@ -70,6 +70,7 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
         item = { ...item, revision: item.revision + 1, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: input.action, claimed: false, note: input.note } }; return item;
       },
       dispatch: async () => {
+        if (dispatchFailure) throw new Error("Host disconnected");
         const sent = await dispatchFixture([item]);
         await beforeSubmitted;
         calls.push("submitted");
@@ -109,8 +110,7 @@ it("preserves an existing composer message", async () => {
   expect(submittedMessages).toHaveLength(1);
 });
 it("replaces an obsolete local error when the agent reports success", async () => {
-  const { reportSuccess } = await setup("", true);
-  fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "Unsaved edit" } });
+  const { reportSuccess } = await setup("", false, fixture(), undefined, true);
   answer("Send");
   submit();
   await screen.findByRole("alert");
