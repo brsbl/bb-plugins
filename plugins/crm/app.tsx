@@ -65,7 +65,7 @@ function CompanyGroup({ group, revision }: { group: Group; revision: string }) {
   const unassigned = group.people.filter(person => !group.tracks.some(track => track.personId === person.id));
   return <section className="crm-group" aria-label={group.name}>
     <div className="crm-group-head">
-      <h2 className="crm-group-name"><Icon name={group.subjectType === "company" ? "Home" : "UserRound"} className="size-4 text-muted-foreground shrink-0" />{group.name}{group.subjectType === "person" && <span className="crm-independent">Independent</span>}</h2>
+      <h2 className="crm-group-name"><Icon name={group.subjectType === "company" ? "ToolCase" : "UserRound"} className="size-4 text-muted-foreground shrink-0" />{group.name}{group.subjectType === "person" && <span className="crm-independent">Independent</span>}</h2>
       <Button size="sm" variant="ghost" className="crm-history-button" aria-label={"History for " + group.name} aria-expanded={expanded} aria-controls={expanded ? historyId : undefined} onClick={() => setExpanded(value => !value)}><Icon name={expanded ? "ChevronDown" : "ChevronRight"} className="size-3.5" />History<span>{group.historyCount}</span></Button>
     </div>
     {group.tracks.map(track => <TrackRow key={track.id} track={track} people={group.people} />)}
