@@ -368,11 +368,13 @@ See which bb server you are on and switch to any other server on your bb account
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/server-switcher --yes`
 
-### Delegation
+### Dispatch
 
-Agent skills for handing a job to another bb thread and bringing back only what matters: launch and parent a worker, relay your decisions to it, collect its results, and report them briefly. Its defaults come from your own AGENTS.md, CLAUDE.md, skills, and memory, quoted in Settings, where you can override what they leave open.
+Run a team of bb threads from one lead: skills to delegate work, relay your decisions, collect results, and report back briefly, plus a right-panel view that gives each agent-to-agent conversation its own channel and flags reports waiting on you. Its defaults come from your own AGENTS.md, CLAUDE.md, skills, and memory, quoted in Settings.
 
-![Delegation's settings: one table of models by role, with when a lead creates each role](plugins/delegation/docs/settings.png)
+![A lead's Dispatch panel, with one channel per agent and the conversation in order](plugins/delegation/docs/channels.png)
+
+![Dispatch's settings: one table of models by role, with when a lead creates each role](plugins/delegation/docs/settings.png)
 
 [Source](plugins/delegation) · [README](plugins/delegation/README.md)
 
