@@ -90,6 +90,7 @@ export const CONTROLS_CSS = String.raw`
 .pg-foot > details { border-top: 0; }
 .pg-foot > details[open] { grid-column: 1 / -1; }
 .pg-foot > .pg-agent { justify-self: end; padding: 10px 0; background: none; text-align: right; }
+.pg-foot > .pg-agent { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .pg-foot > .pg-agent:only-child { grid-column: 1 / -1; justify-self: start; text-align: left; }
 :where(body:has([data-pg]) > details + details) { margin-top: 0; }
 :where(body:has([data-pg]) details) { border-top: 1px solid var(--pg-hairline); }
@@ -686,7 +687,7 @@ export const CONTROLS_RUNTIME = String.raw`
   let laneTimer = 0;
   function paintLane() {
     for (const el of document.querySelectorAll('[data-pg="agent"]')) {
-      el.textContent = laneText || attr(el, "empty", "Ask me to change anything here."); el.removeAttribute("data-fresh"); void el.offsetWidth; el.setAttribute("data-fresh", "");
+      el.textContent = laneText || attr(el, "empty", "Ask me to change anything here."); el.title = laneText || ""; el.removeAttribute("data-fresh"); void el.offsetWidth; el.setAttribute("data-fresh", "");
     }
   }
   function lane(text) { laneText = String(text).slice(0, 240); paintLane(); persist(); }
