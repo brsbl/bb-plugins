@@ -118,6 +118,18 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
 
+### CRM
+
+Prioritize customer companies by potential impact and investors by the value they add. Two heatmap tables keep scores, customer milestones, investor ranks and next steps readable, with manual priority overrides, parked investors and a CLI for agents.
+
+![Customer companies grouped by impact tier, with scores and milestones](https://github.com/user-attachments/assets/6b8f75ec-24cc-4bf2-9e04-6a92fe466d92)
+
+![Investors ranked by value, with criterion scores, rationale and asks](https://github.com/user-attachments/assets/f9b444b4-b1d7-42cf-8a3b-abea0b2c7cf9)
+
+[Source](plugins/crm) · [README](plugins/crm/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/crm --yes`
+
 ### Image Carousel
 
 Shows screenshots inline as a carousel: design research with one product per slide, or Before and After side by side with one shared description. It replaces long runs of images and screenshot tables in agent replies.
