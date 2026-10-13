@@ -4,7 +4,7 @@ Skills and a right-panel view for running a team of bb threads: delegate work, k
 
 ![Dispatch in a lead's right panel: one channel per agent, with the conversation in order](docs/channels.png)
 
-![Dispatch's settings form, with values quoted from AGENTS.md, CLAUDE.md, and memory, and an ignored override flagged](docs/settings.png)
+![Dispatch's settings: one table of models by role, with when a lead creates each role](docs/settings.png)
 
 ## Install
 
@@ -42,10 +42,10 @@ The skills build on existing ones rather than repeating them: `spawn` for machin
 Dispatch keeps no rules of its own. Each setting resolves in this order:
 
 1. **Your instructions.** The `delegation-defaults` skill reads `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, your memory notes, and your skills, then records what they say about each setting with the file and your exact words. These win.
-2. **Your override**, from Settings → Dispatch or `bb delegation set`. It applies only where your instructions are silent; the form marks an override your instructions outrank as ignored.
+2. **Your override**, from Settings → Dispatch or `bb delegation set`. It applies only where your instructions are silent.
 3. **A fallback** that defers to bb or the spawn skill.
 
-Settings → Dispatch shows every setting's value and where it came from, with provider, machine, and section dropdowns filled from your bb and bb's own model picker. Rows your instructions set are locked and quote them. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
+Settings → Dispatch is one table: a row each for Lead, Parent, Worker, and QA, with when a lead creates that role and its provider, model, and reasoning. Values your instructions set are locked, with the source on hover; an override they outrank is flagged so you can remove it. Every other setting below is read and set with `bb delegation`. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
 
 | Setting | Fallback | What it controls |
 | --- | --- | --- |

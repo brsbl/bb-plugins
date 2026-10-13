@@ -364,7 +364,7 @@ Run a team of bb threads from one lead: skills to delegate work, relay your deci
 
 ![A lead's Dispatch panel, with one channel per agent and the conversation in order](plugins/delegation/docs/channels.png)
 
-![Dispatch's settings form, with values quoted from AGENTS.md, CLAUDE.md, and memory, and an ignored override flagged](plugins/delegation/docs/settings.png)
+![Dispatch's settings: one table of models by role, with when a lead creates each role](plugins/delegation/docs/settings.png)
 
 [Source](plugins/delegation) · [README](plugins/delegation/README.md)
 
