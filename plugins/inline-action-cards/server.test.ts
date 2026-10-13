@@ -1,4 +1,4 @@
-import { createFakePluginHost, makeQueueEntry } from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeQueueEntry, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import plugin, { createStore } from "./server.js";
 import { actionMessage, type Item } from "./model.js";
@@ -8,6 +8,39 @@ const reply = { type: "reply", summary: "Billing follow-up", subject: "Missing r
 const hosts: ReturnType<typeof createFakePluginHost>[] = [];
 function setup() { const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); return { ...host, store: createStore(host.bb) }; }
 afterEach(async () => { for (const host of hosts.splice(0)) await host.harness.lifecycle.dispose(); });
+
+it.each([reply, { type: "decide", question: "File invoice?", consequence: "Add Receipts label" },
+  { type: "choice", question: "Which folder?", options: [{ id: "a", label: "Receipts" }, { id: "b", label: "Reading" }] },
+])("warns about missing context without changing successful create output ($type)", async (content) => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  const create = (id: string, item: unknown) => host.harness.behavior.runCli(["create", id, "--thread", ref.threadId, "--item", JSON.stringify(item)]);
+  const bare = await create("bare", content);
+  expect(bare).toMatchObject({ exitCode: 0, stdout: '::action{id="bare"}\n' });
+  expect(bare.stderr).toContain("Warning: this card has no context");
+  expect(createStore(host.bb).get(ref.threadId, "bare").content.type).toBe(content.type);
+  const brief = await create("brief", { ...content, context: "A complete decision brief." });
+  expect(brief).toMatchObject({ exitCode: 0, stdout: '::action{id="brief"}\n' });
+  expect(brief.stderr ?? "").toBe("");
+});
+
+it("attributes single and sheet cards to their source without rewriting saved records, and tolerates missing threads", async () => {
+  let title = "Workflow Inbox";
+  let available = true;
+  const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: {
+    get: ({ threadId }) => { if (!available) throw new Error("Gone"); return makeThreadResponse({ id: threadId, title, projectId: "proj_test" }); },
+  } } }); hosts.push(host); plugin(host.bb);
+  const store = createStore(host.bb);
+  store.create(ref.threadId, ref.id, reply);
+  store.createTable(ref.threadId, "sheet", { title: "Inbox", ids: [ref.id] });
+  const bytes = () => host.bb.storage.database().prepare("SELECT value FROM action_items").all();
+  const before = bytes();
+  expect(await host.harness.behavior.callRpc("get", ref)).toMatchObject({ threadTitle: title, threadProjectId: "proj_test" });
+  title = "Renamed thread";
+  expect(await host.harness.behavior.callRpc("table", { ...ref, id: "sheet" })).toMatchObject({ items: [{ threadTitle: title, threadProjectId: "proj_test" }] });
+  available = false;
+  expect(await host.harness.behavior.callRpc("get", ref)).toMatchObject({ id: ref.id, threadTitle: "Unavailable thread", threadProjectId: null });
+  expect(bytes()).toEqual(before);
+});
 
 describe("durable inline actions", () => {
   it("claims the latest saved draft once and refuses stale writes, clicks, and reports", () => {

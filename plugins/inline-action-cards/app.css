@@ -100,6 +100,7 @@
 .iac-log-review [aria-expanded="true"] { background: var(--state-active, var(--muted)); color: var(--foreground); }
 .iac-log-draft, .iac-log-row > .iac-error { grid-column: 2 / -1; }
 .iac-log-draft { margin-top: 8px; }
+.iac-log-brief { grid-column: 2 / -1; min-width: 0; margin-top: 8px; }
 .iac-log-draft p { margin: 0 0 4px; font-size: var(--text-xs, .75rem); overflow-wrap: anywhere; }
 .iac-log-options { margin: 0; padding-left: 18px; font-size: var(--text-xs, .75rem); }
 .iac-log-draft textarea { display: block; box-sizing: border-box; width: 100%; resize: none; font: inherit; line-height: 1.6; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 8px; }
@@ -107,8 +108,7 @@
 .iac-log-more { margin: 6px 0 0 20px; color: var(--muted-foreground); }
 /* Narrow pages and thread panels move actions below the text instead of squeezing the title. */
 @container (max-width: 440px) {
-  .iac-log-actions { grid-column: 2 / -1; grid-row: 3; justify-content: end; margin-top: 8px; }
-  .iac-log-draft { grid-row: 2; }
+  .iac-log-actions { grid-column: 2 / -1; justify-content: end; margin-top: 8px; }
   .iac-log-meta:has(> .iac-failed) { flex-wrap: wrap; }
   .iac-log-meta > .iac-failed { flex-basis: 100%; }
   .iac-log-meta > .iac-failed + ::before { content: none; }

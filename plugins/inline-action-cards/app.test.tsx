@@ -85,6 +85,27 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
     await slot.behavior.emitRealtime("items", {});
   } };
 }
+it("shows the brief without a disclosure and links to the owning thread", async () => {
+  const item = { ...fixture(), threadTitle: "Workflow Inbox", threadProjectId: "proj_origin", content: { ...fixture().content, context: "What this is: the Inbox plan.\n\nNext: I keep the draft open if declined." } };
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, { rpc: { get: () => item } });
+  await screen.findByText(/Next: I keep the draft open/);
+  expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  const link = screen.getByRole("link", { name: "Workflow Inbox" });
+  expect(link.getAttribute("href")).toBe("/projects/proj_origin/threads/thr_test");
+  fireEvent.click(link);
+  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread", threadId: "thr_test" }));
+});
+
+it("shows a waiting card's brief in the Decision log before Review is opened", async () => {
+  const item = { ...fixture(), threadTitle: "Workflow Inbox", threadProjectId: null, content: { ...fixture().content, context: "Why now: the planning lead needs your direction." } };
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
+  await screen.findByText(/Why now: the planning lead/);
+  expect(screen.getByRole("button", { name: "Review" }).getAttribute("aria-expanded")).toBe("false");
+  expect(screen.getByText("Workflow Inbox")).toBeTruthy();
+});
+
 it("flushes an immediate edit before submitting Send exactly once", async () => {
   const { slot, calls, get } = await setup();
   fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "My latest edit" } });

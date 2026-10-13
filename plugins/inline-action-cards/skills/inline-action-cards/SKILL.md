@@ -5,7 +5,7 @@ description: Use whenever you need a user decision or approval in any thread, in
 
 # Inline Decisions
 
-Whenever you need the user's decision or approval, create an action card instead of asking in prose. This applies in any thread: merge or ship a prepared PR, send an email, apply a proposed change, switch a setting, or choose between two options. Explain the proposed action and tradeoffs before the card so the user can approve a concrete result. Existing authorization still applies; do not add a new approval step to work the user already authorized.
+Whenever you need the user's decision or approval, create an action card instead of asking in prose. This applies in any thread: merge or ship a prepared PR, send an email, apply a proposed change, switch a setting, or choose between two options. Put the proposed action and tradeoffs in the card itself so someone switching from another thread can decide without reading earlier messages. Existing authorization still applies; do not add a new approval step to work the user already authorized.
 
 Use a single card for one important item. When the user picks one of several options, use one choice card, never a table of yes/no rows. When you need three or more decisions at once, put them all in **one table** (a decision sheet, up to 20 rows of any type) instead of several cards or messages: the user answers every row, then sends all answers together. Create the item first, then emit the returned `::action{id="..."}` directive on its own line, outside code fences. Cards appear only inside assistant messages. IDs are unique within the owning thread; never reuse one for another email or decision. Use concise, task-specific IDs.
 
@@ -19,10 +19,10 @@ Run from the owning thread (or add `--thread <id>`). `--item-stdin` avoids shell
 
 ```sh
 bb action-cards create esc-1 --item-stdin <<'JSON'
-{"type":"reply","summary":"Follow up on the missing billing refund","subject":"Re: Refund check","to":["billing@example.com"],"cc":[],"bcc":[],"original":{"from":"Billing team <billing@example.com>","date":"Jun 8","body":"We mailed your refund on June 8."},"draft":"Hello,\n\nCould you confirm the status of my refund check?\n\nThank you."}
+{"type":"reply","summary":"Follow up on the missing billing refund","subject":"Re: Refund check","to":["billing@example.com"],"cc":[],"bcc":[],"original":{"from":"Billing team <billing@example.com>","date":"Jun 8","body":"We mailed your refund on June 8."},"draft":"Hello,\n\nCould you confirm the status of my refund check?\n\nThank you.","context":"**What this is:** a follow-up to Billing about your missing refund.\n\n**Why now:** Billing says it mailed the check, but you have not received it.\n\n**Options:** Send asks for an update now; Save to Gmail drafts keeps it for later editing.\n\n**Recommendation:** Send, to find out where the check is.\n\n**Next:** Send → I send the text shown here and report the result. Save → I save it in Gmail without sending."}
 JSON
 bb action-cards create receipts-1 --item-stdin <<'JSON'
-{"type":"decide","question":"File DigitalOcean under Receipts?","consequence":"Add the Receipts label to this invoice; it stays in your inbox."}
+{"type":"decide","question":"File DigitalOcean under Receipts?","consequence":"Add the Receipts label to this invoice; it stays in your inbox.","context":"**What this is:** filing your DigitalOcean invoice under Receipts.\n\n**Why now:** it came up during inbox review.\n\n**Options:** Yes adds the label; No leaves it alone. Both keep it in the inbox.\n\n**Recommendation:** Yes, so it is easier to find.\n\n**Next:** Yes → I add the label and report it here. No → I record that it was left alone."}
 JSON
 ```
 
@@ -32,7 +32,7 @@ To approve or decline one proposed action, use Decide. A No click declines the p
 
 ```sh
 bb action-cards create merge-pr --item-stdin <<'JSON'
-{"type":"decide","question":"Merge the reviewed PR?","consequence":"Squash-merge PR #123 into main at the reviewed head.","yesLabel":"Merge","noLabel":"Keep open"}
+{"type":"decide","question":"Merge the reviewed PR?","consequence":"Squash-merge PR #123 into main at the reviewed head.","yesLabel":"Merge","noLabel":"Keep open","context":"**What this is:** the Workflow Inbox fix that preserves your message draft when submitting a decision.\n\n**Why now:** the reviewed build is ready for your merge decision. Include the actual verified CI, review and QA evidence here.\n\n**Options:** Merge releases it; Keep open leaves the current release installed.\n\n**Recommendation:** Merge once the stated gates are verified, because this removes a draft-loss bug.\n\n**Next:** Merge → I merge the exact reviewed head, watch release CI and check the release. Keep open → I leave the PR open."}
 JSON
 ```
 
@@ -40,21 +40,56 @@ Replace example identifiers with the actual target and include the exact reviewe
 
 ## Give the decision its context
 
-Any card (Reply, Decide, or Choice) accepts optional evidence so the user can decide without leaving the card:
+**Every card needs a `context` brief**, including Reply cards and each row in a decision sheet. Assume the user just switched from another thread. A PR number, “as discussed,” a recommendation tag, a link, or prose above the card is not enough. When bringing another agent's decision to a lead, name that agent or org in the brief and preserve its concrete proposal.
 
-- `context`: Markdown, up to 20,000 characters, rendered like a chat message (headings, lists, code blocks, tables, links). Lead with what changes and the risk; long context is clipped until the user opens it.
-- `media`: up to 4 images, each `{"src","alt","caption"?}`. `src` is an `https://` URL or an **absolute path** to a `.png`, `.jpg`, `.gif`, `.webp`, `.avif` or `.svg` file on the thread's host (for example a screenshot you just captured). Relative paths, `http:`, and `data:` URLs are rejected.
-- Decide cards also accept `recommended: "yes" | "no"`; Choice cards keep `recommended: "<option id>"`. The form tags that option "Recommended" but never preselects it.
+Write these five parts at the top of `context`, usually one short sentence each:
 
-```sh
-bb action-cards create merge-412 --item-stdin <<'JSON'
-{"type":"decide","question":"Merge PR #412 — shorten sessions to 7 days?","consequence":"Squash-merge #412 into main at 3f2a1c9.","yesLabel":"Merge","noLabel":"Keep open","recommended":"yes",
- "context":"Sessions expire after **7 days** instead of 30.\n\n```diff\n- SESSION_TTL = days(30)\n+ SESSION_TTL = days(7)\n```\n\n| Check | Result |\n| --- | --- |\n| CI | ✅ 214 passed |",
- "media":[{"src":"/Users/me/project/.shots/login.png","alt":"Sign-in screen after the change","caption":"Sign-in after expiry"}]}
-JSON
-```
+1. **What this is:** name the project or plugin and describe the proposal in plain words.
+2. **Why it's on you now:** name who asked, what triggered this, or what is waiting for the answer.
+3. **Options and what each does:** explain every offered answer, including declining or keeping the current state. Name the material tradeoff or risk.
+4. **Recommendation and why:** state the preferred answer and its reason. If there is no clear preference, say why.
+5. **What happens next:** say what the agent will do after **each** answer. Declining an action never authorizes a different side effect.
 
-Keep `question` and `consequence` short; they are what the user scans in a table. Put detail in `context`, not in the question.
+Keep `question` and `consequence` short; the brief carries the explanation. Aim for about 100–150 words, less for a simple decision. Put supporting evidence and exact revision links after the brief. The entire context stays visible: don't paste a whole report when a short explanation and a link suffice. If the user must approve exact text, include that text.
+
+`context` is Markdown (up to 20,000 characters), rendered like a chat message, with lists, code, tables and links. The CLI warns on stderr when it is absent, but still creates the card for compatibility. That is a warning to improve your next card, not permission to omit the brief. Do not recreate an existing card just to silence the warning.
+
+Examples adapted from real cards; details below are illustrative:
+
+**Bad:** “Approve the Ops Tools goals draft?” No brief. The user had to ask “what is this”.
+
+**Good:** question “Use this direction for Ops Tools?”; consequence “Set the direction for the tooling plan.”
+
+> **What this is:** Ops Tools' plan for the internal bb plugins that help the agent teams work together.
+>
+> **Why it's on you now:** the planning lead asked each team for its goals; this team's draft needs your direction.
+>
+> **Options:** Use it prioritizes complete workflows and fewer manual handoffs. Not yet keeps the draft open for revision.
+>
+> **Recommendation:** Use it, because it addresses coordination across teams instead of one plugin.
+>
+> **What happens next:** Use it → I finish the draft for review. Not yet → I revise it using your note before bringing it back.
+
+**Bad:** “Merge #123?” with context “CI green, review and QA passed.” This names checks but never says what the product change does.
+
+**Good:** question “Merge the Workflow Inbox fix?”; consequence “Merge the reviewed head into main.”
+
+> **What this is:** Workflow Inbox will keep your unfinished message while you submit a decision.
+>
+> **Why it's on you now:** you approved the preview; CI, review and QA passed on the exact head linked below.
+>
+> **Options:** Merge releases the fix. Keep open leaves the current release installed.
+>
+> **Recommendation:** Merge, because decisions no longer discard a draft.
+>
+> **What happens next:** Merge → I merge that head, watch release CI, then install and check it. Keep open → I leave the PR open for your feedback.
+
+Replace illustrative claims with verified facts and include the exact head when approval depends on a revision. Never claim a gate passed just because an example says so.
+
+Optional evidence:
+
+- `media`: up to 4 images, each `{"src","alt","caption"?}`. `src` is an `https://` URL or an **absolute path** to a `.png`, `.jpg`, `.gif`, `.webp`, `.avif` or `.svg` file on the thread's host. Relative paths, `http:`, and `data:` URLs are rejected.
+- Decide cards accept `recommended: "yes" | "no"`; Choice cards accept `recommended: "<option id>"`. This tags the option without preselecting it; still explain why in the brief.
 
 ## Choose one option
 
@@ -62,21 +97,21 @@ A choice card asks one question and lists 2–6 options as a compact single-sele
 
 ```sh
 bb action-cards create account-setup --item-stdin <<'JSON'
-{"type":"choice","question":"Which account setup should bb use?","recommended":"multi","options":[{"id":"single","label":"UserSingle","hint":"One account for every thread"},{"id":"multi","label":"UserMultiple","hint":"Pick an account per thread"},{"id":"pool","label":"Pool","hint":"Rotate accounts by quota"}]}
+{"type":"choice","question":"Which account setup should bb use?","recommended":"multi","options":[{"id":"single","label":"UserSingle","hint":"One account for every thread"},{"id":"multi","label":"UserMultiple","hint":"Pick an account per thread"},{"id":"pool","label":"Pool","hint":"Rotate accounts by quota"}],"context":"**What this is:** bb’s account setup for new threads.\n\n**Why now:** you asked to choose which account new threads use.\n\n**Options:** UserSingle shares one account; UserMultiple lets you choose per thread; Pool rotates accounts by quota.\n\n**Recommendation:** UserMultiple, for explicit control without quota rotation.\n\n**Next:** I apply the chosen mode to new threads and report it; existing threads keep their setup."}
 JSON
 ```
 
-Explain tradeoffs in `context` or before the card rather than in hints. A click carries `action: "choose"` and `choice: {"id","label"}` in its hidden context; act on that option only. Claim and report like Decide, for example `--message 'UserMultiple chosen'`. Comments work as on other cards. Choice cards can also be rows in a table.
+Explain tradeoffs in the card’s `context` brief rather than relying on hints or messages above it. A click carries `action: "choose"` and `choice: {"id","label"}` in its hidden context; act on that option only. Claim and report like Decide, for example `--message 'UserMultiple chosen'`. Comments work as on other cards. Choice cards can also be rows in a table.
 
 ## Group many decisions in a table (decision sheet)
 
 Create the items first, then create a table that references those same IDs. Emit its returned `::actions{id="..."}` directive on its own line. Rows keep their order as results arrive. Order rows by importance and keep each `question` scannable.
 
-Every card renders as a plain form. Its question comes first, then `consequence`; `context` shows as a preview that opens with Show more. The answer is a radio group (Decide shows your Yes/No labels, Choice shows its options, Reply shows Send / Save to Gmail drafts under the full draft), followed by **Add note** and a **Submit** button. A table is one form with one Submit at the end: it sends one message with a mention per answered row, each with its own attempt and note. Rows the user left unanswered send nothing, so don't assume an answer for them. Keep `consequence` short and put long detail in `context`.
+Every card renders as a plain form. It names the source thread, then shows the question, `consequence`, and the full `context` brief. The answer is a radio group (Decide shows your Yes/No labels, Choice shows its options, Reply shows Send / Save to Gmail drafts under the full draft), followed by **Add note** and a **Submit** button. A table is one form with one Submit at the end: it sends one message with a mention per answered row, each with its own attempt and note. Rows the user left unanswered send nothing, so don't assume an answer for them. Keep `consequence` short and put long detail in `context`.
 
 ```sh
 bb action-cards create news-1 --item-stdin <<'JSON'
-{"type":"decide","question":"DigitalOcean · September newsletter","consequence":"Archive this newsletter from the inbox.","yesLabel":"Archive","noLabel":"Keep","actionKey":"archive-email"}
+{"type":"decide","question":"DigitalOcean · September newsletter","consequence":"Archive this newsletter from the inbox.","yesLabel":"Archive","noLabel":"Keep","actionKey":"archive-email","context":"**What this is:** the DigitalOcean newsletter from September.\n\n**Why now:** it came up during inbox review and has no pending task.\n\n**Options:** Archive removes it from the inbox but keeps it searchable; Keep leaves it there.\n\n**Recommendation:** Archive, to clear the finished reading.\n\n**Next:** Archive → I archive this message and report it. Keep → I leave it in the inbox."}
 JSON
 # Create news-2 and news-3 for the other messages, then:
 bb action-cards create-table newsletters --table-stdin <<'JSON'
@@ -90,7 +125,7 @@ When a sheet message arrives, handle every reference in it: claim each attempt, 
 
 ## Handle a click
 
-A click submits readable text such as “Send billing follow-up” with a named mention pill. Its user-hidden context contains `kind: inline-action-card`, `threadId`, `itemId`, `attemptId`, `action`, and `intent`, plus `note` when the user attached a comment. `approved-action` is approval for exactly that attempt. A bulk message contains one such reference per selected row. Read those IDs from context, never guess them from the label. Keep them in tool calls; do not repeat hidden IDs in user-facing replies. Legacy messages containing `[action:...] [attempt:...]` remain valid references to their existing attempts. The button submits through the existing composer pipeline (and can queue while the thread is busy). Do not ask the user to type another confirmation.
+A click submits readable text such as “Send billing follow-up” with a named mention pill. Its user-hidden context contains `kind: inline-action-card`, `threadId`, `itemId`, `attemptId`, `action`, and `intent`, plus `note` when the user attached a comment. `approved-action` is approval for exactly that attempt. A bulk message contains one such reference per selected row. Read those IDs from context, never guess them from the label. Keep them in tool calls; do not repeat hidden IDs in user-facing replies. Legacy messages containing `[action:...] [attempt:...]` remain valid references to their existing attempts. The button submits its own message without changing the composer draft, and can queue while the thread is busy. Do not ask the user to type another confirmation.
 
 1. Claim the exact attempt before acting:
    `bb action-cards claim esc-1 --attempt <uuid>`
