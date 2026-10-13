@@ -122,9 +122,9 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 Prioritize customer companies by potential impact and investors by the value they add. Two heatmap tables keep scores, customer milestones, investor ranks and next steps readable, with manual priority overrides and a CLI for agents.
 
-![Customer and investor tracks grouped by company, with an independent angel](https://github.com/user-attachments/assets/c730cdcb-8e12-464b-9d29-65e521a20367)
+![Customer companies grouped by impact tier, with scores and milestones](https://github.com/user-attachments/assets/6b8f75ec-24cc-4bf2-9e04-6a92fe466d92)
 
-![Messages and calls in a company's interaction history](https://github.com/user-attachments/assets/528419e6-3217-4c3d-aab0-9084694b68ff)
+![Investors ranked by value, with criterion scores, rationale and asks](https://github.com/user-attachments/assets/f9b444b4-b1d7-42cf-8a3b-abea0b2c7cf9)
 
 [Source](plugins/crm) · [README](plugins/crm/README.md)
 

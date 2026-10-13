@@ -2,7 +2,7 @@
 
 Keep customer and investor conversations, people, and next steps together.
 
-![Customer and investor tracks grouped by company, with an independent angel](https://github.com/user-attachments/assets/c730cdcb-8e12-464b-9d29-65e521a20367)
+![Customer companies grouped by impact tier, with scores and milestones](https://github.com/user-attachments/assets/6b8f75ec-24cc-4bf2-9e04-6a92fe466d92)
 
 ## Install
 

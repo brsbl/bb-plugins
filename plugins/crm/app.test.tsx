@@ -17,9 +17,9 @@ it("shows independent heatmaps with numeric scores, milestones, and preserved in
   }});
   expect(await slot.findByText("M3 · Team")).toBeDefined();
   expect(screen.getByLabelText("Champion strength: 5 of 5").textContent).toBe("5");
-  fireEvent.click(screen.getByRole("button", { name: "Customers", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Customers" }));
   expect(screen.queryByText("Loading pipeline…")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Investors", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Investors" }));
   expect(await screen.findByText("An introduction")).toBeDefined();
   expect(screen.queryByText("M3 · Team")).toBeNull(); expect(screen.queryByText("Conversation")).toBeNull();
   expect(screen.getByLabelText("Introductions: 5 of 5").textContent).toBe("5");
@@ -40,12 +40,12 @@ it("keeps a failed manual rank editable, retries, and can restore score ordering
     setRank: () => { if (++calls === 1) throw new Error("Offline"); return { ...investor, rankOverride: 1 }; },
     autoRank: () => investor,
   }});
-  await screen.findByText("Your customer companies go here"); fireEvent.click(screen.getByRole("button", { name: "Investors", exact: true }));
+  await screen.findByText("Your customer companies go here"); fireEvent.click(screen.getByRole("button", { name: "Investors" }));
   fireEvent.click(await screen.findByRole("button", { name: "Change rank for Alex Example" }));
   fireEvent.change(screen.getByLabelText("Why it belongs here"), { target: { value: "Demo judgment" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
   expect(await screen.findByRole("alert")).toBeDefined(); expect(screen.getByLabelText("Why it belongs here").getAttribute("value")).toBe("Demo judgment");
-  fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Edit priority" })).toBeNull());
   expect(slot.inspection.rpcCalls.filter(c => c.method === "setRank").at(-1)?.input).toEqual({ id: "investor", rank: 1, why: "Demo judgment" });
   fireEvent.click(screen.getByRole("button", { name: "Change rank for Alex Example" }));
