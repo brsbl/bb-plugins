@@ -1,0 +1,12 @@
+{
+  "sdkMajor": 0,
+  "sdkVersion": "0.5.9",
+  "artifactFormatVersion": 1,
+  "pluginId": "pull-requests",
+  "pluginVersion": "0.1.0",
+  "builtWith": {
+    "bbVersion": "0.43.4",
+    "pluginSdkVersion": "0.5.9"
+  },
+  "artifactDigest": "3e390b62b2cabb9b003c3431b5895d1bc055b73c63b2dcdac0963f4da7f1e693"
+}

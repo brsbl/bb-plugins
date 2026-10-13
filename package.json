@@ -1,0 +1,26 @@
+{
+  "name": "bb-plugin-pull-requests",
+  "version": "0.1.0",
+  "description": "See your GitHub pull requests and continue related work in bb.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.43.4",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Pull Requests",
+    "description": "See your GitHub pull requests and continue related work in bb.",
+    "branding": {
+      "icon": "GitPullRequest"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [],
+    "app": "./dist/install-app.mjs",
+    "host": "./dist/install-host.mjs"
+  }
+}
