@@ -235,6 +235,13 @@ try {
     generated.directory,
     description,
   );
+  const appManifestPath = resolve(generated.directory, "package.json");
+  const appManifest = JSON.parse(await readFile(appManifestPath, "utf8"));
+  appManifest.bb.app = "./app.mjs";
+  await writeFile(appManifestPath, `${JSON.stringify(appManifest, null, 2)}\n`);
+  await writeFile(resolve(generated.directory, "app.mjs"), 'import "./app.css";\nimport "./nested.css";\nexport default function plugin() {}\n');
+  await writeFile(resolve(generated.directory, "app.css"), ".fixture-root { color: red; }\n");
+  await writeFile(resolve(generated.directory, "nested.css"), ".fixture-nested { color: blue; }\n");
 
   // vitest 4.x pins optional peers on its own companions; once those
   // companions published 5.x, npm 10.9 crashes in arborist's #loadPeerSet
@@ -274,6 +281,29 @@ try {
     /server bundle has unmanaged runtime import "zod"/,
   );
   await writeFile(serverBundlePath, serverBundle);
+
+  const sourceManifestPath = resolve(generated.directory, "package.json");
+  const sourceManifestRaw = await readFile(sourceManifestPath, "utf8");
+  const sourceManifest = JSON.parse(sourceManifestRaw);
+  sourceManifest.bb.app = "./dist/install-app.mjs";
+  await writeFile(sourceManifestPath, JSON.stringify(sourceManifest));
+  const releaseEntryPath = resolve(generated.directory, "dist/install-app.mjs");
+  const releaseCssPath = resolve(generated.directory, "dist/install-app.css");
+  const builtCss = await readFile(resolve(generated.directory, "dist/app.css"), "utf8");
+  assert.ok(builtCss.includes(".fixture-nested"), "the built app must include imported CSS");
+  const marker = '[data-bb-plugin-release-style="scaffold-smoke"] { --bb-plugin-release-style: 1; }\n';
+  await writeFile(releaseEntryPath, 'export { default } from "./app.js";\nimport "./install-app.css";\n');
+  await writeFile(releaseCssPath, marker + builtCss);
+  await validatePluginArtifacts(generated.directory);
+  // The old publisher copied just app.css, dropping the rest of the bundle.
+  await writeFile(releaseCssPath, marker + await readFile(resolve(generated.directory, "app.css"), "utf8"));
+  await assert.rejects(validatePluginArtifacts(generated.directory), /release CSS differs from the complete built app CSS/);
+  await writeFile(releaseCssPath, marker + builtCss);
+  await writeFile(releaseEntryPath, 'export { default } from "./app.js";\n');
+  await assert.rejects(validatePluginArtifacts(generated.directory), /release app entry does not import its CSS/);
+  await writeFile(sourceManifestPath, sourceManifestRaw);
+  await rm(releaseEntryPath);
+  await rm(releaseCssPath);
 
   await rm(resolve(fixtureRoot, "node_modules"), {
     recursive: true,
