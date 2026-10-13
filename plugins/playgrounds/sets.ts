@@ -12,12 +12,12 @@ export const SETS_CSS = String.raw`
 .pg-scrub[data-agent]::after { top: -12px; }
 .pg-answer { display: grid; gap: 2px; }
 .pg-answer > .pg-label { margin: 0; }
-.pg-answer > strong { font-size: 34px; line-height: 1.1; font-weight: 600; letter-spacing: -.025em; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
+.pg-answer > strong { display: flex; align-items: center; gap: 8px; font-size: 28px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; color: var(--pg-ink); font-variant-numeric: proportional-nums; }
 .pg-answer > span { font-size: 12.5px; line-height: 1.45; color: var(--pg-body); }
 .pg-answer > .pg-label + strong { margin-top: 2px; }
-.pg-answer[data-long] > strong { font-size: 24px; letter-spacing: -.015em; }
-.pg-answer[data-tone=bad] > strong { color: var(--pg-bad); }
-.pg-answer[data-tone=warn] > strong { color: var(--pg-warn); }
+.pg-answer[data-long] > strong { font-size: 22px; letter-spacing: -.01em; }
+.pg-tone { display: inline-grid; place-items: center; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--t); color: var(--card); font-size: 11px; font-style: normal; font-weight: 700; letter-spacing: 0; line-height: 1; }
+.pg-tone[data-tone=good] { --t: var(--pg-good); } .pg-tone[data-tone=warn] { --t: var(--pg-warn); } .pg-tone[data-tone=bad] { --t: var(--pg-bad); }
 .pg-breakdown { display: grid; gap: 10px; }
 .pg-breakdown > .pg-bar { display: flex; height: 12px; gap: 2px; overflow: hidden; border-radius: 6px; background: var(--pg-hairline); }
 .pg-breakdown > .pg-bar > i { min-width: 2px; background: var(--seg); transition: flex-grow .35s var(--pg-ease, ease); }
@@ -89,13 +89,16 @@ export const SETS_RUNTIME = String.raw`
       el.setAttribute("aria-valuetext", el.textContent);
     };
   };
+  const TONES = { good: "\u2713", warn: "!", bad: "\u00d7" };
   function answer(name, a) {
     const o = a || {};
     outputs[name] = { value: o.value, label: o.label || null, detail: o.detail || null, tone: o.tone || null };
     for (const el of document.querySelectorAll('[data-pg="answer"][data-name="' + name + '"]')) {
       el.classList.add("pg-answer"); el.setAttribute("aria-live", "polite");
       const label = document.createElement("p"); label.className = "pg-label"; label.textContent = o.label || attr(el, "label", "");
-      const value = document.createElement("strong"); value.textContent = String(o.value ?? "");
+      const value = document.createElement("strong");
+      if (TONES[o.tone]) { const t = document.createElement("i"); t.className = "pg-tone"; t.dataset.tone = o.tone; t.setAttribute("aria-hidden", "true"); t.textContent = TONES[o.tone]; value.append(t); }
+      value.append(String(o.value ?? ""));
       const detail = document.createElement("span"); detail.textContent = o.detail || "";
       el.replaceChildren(...[label.textContent ? label : null, value, o.detail ? detail : null].filter(Boolean));
       if (o.tone) el.dataset.tone = o.tone; else delete el.dataset.tone;

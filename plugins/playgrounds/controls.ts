@@ -140,24 +140,6 @@ export const CONTROLS_CSS = String.raw`
 .pg-table th:first-child, .pg-table td:first-child { padding-left: 0; }
 .pg-table [data-num] { text-align: right; }
 .pg-table tr[aria-current] td { font-weight: 500; }
-.pg-chart { display: block; width: 100%; height: auto; max-height: 180px; overflow: visible; font-size: 11px; }
-.pg-chart text { fill: var(--pg-meta); font-variant-numeric: tabular-nums; }
-.pg-chart .grid { stroke: var(--pg-hairline); }
-.pg-chart .axis { stroke: color-mix(in srgb, var(--foreground) 22%, var(--card)); }
-.pg-chart .series { fill: none; stroke: var(--pg-accent); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
-.pg-chart .series[data-tone=accent] { stroke: var(--pg-accent); }
-.pg-chart .series[data-tone=meta] { stroke: var(--pg-meta); }
-.pg-chart .series[data-dashed] { stroke-dasharray: 4 3; }
-.pg-chart .area { fill: color-mix(in srgb, var(--pg-accent) 10%, transparent); }
-.pg-chart .series[data-tone=ink] { stroke: var(--pg-ink); }
-.pg-chart .bar { fill: var(--pg-ink); }
-.pg-chart .bar[data-tone=accent] { fill: var(--pg-accent); }
-.pg-chart .bar[data-tone=meta] { fill: color-mix(in srgb, var(--foreground) 22%, var(--card)); }
-.pg-chart .mark { stroke: var(--pg-bad); stroke-dasharray: 3 3; }
-.pg-chart .mark-label { fill: var(--pg-bad); font-weight: 500; }
-.pg-chart .now { stroke: var(--pg-ink); }
-.pg-chart .now-dot { fill: var(--pg-ink); stroke: var(--card); stroke-width: 2; }
-.pg-chart .label { fill: var(--pg-ink); font-weight: 500; }
 .pg-board { position: relative; display: grid; grid-template-columns: repeat(var(--pg-board-cols, 3), minmax(0, 1fr)); gap: 6px; padding: 8px; border-radius: 12px; background: var(--pg-board, var(--pg-stage)); }
 .pg-board button { position: relative; display: grid; place-items: center; aspect-ratio: 1; min-width: 0; padding: 0; border: 0; border-radius: var(--pg-cell-radius, 8px); background: var(--pg-cell, var(--card)); box-shadow: inset 0 1px 2px color-mix(in srgb, var(--foreground) 18%, transparent); font-size: 18px; font-weight: 600; color: var(--pg-ink); cursor: pointer; }
 .pg-board[data-shape=round] { --pg-cell-radius: 50%; }
@@ -684,44 +666,6 @@ export const CONTROLS_RUNTIME = String.raw`
     const step = [1, 2, 5, 10].map((m) => m * p).find((x) => span / x <= count) || p * 10;
     const out = []; for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-9; v += step) out.push(Number(v.toFixed(10))); return out;
   }
-  // chart(name, { x: { min, max, format }, y: { min, max, format }, series: [{ points, kind, tone, label, dashed }], marks: [{ y, label }], now })
-  function chart(name, spec) {
-    const el = document.querySelector('[data-pg="chart"][data-name="' + name + '"]');
-    if (!el) return;
-    const svg = el.tagName.toLowerCase() === "svg" ? el : el.querySelector("svg") || el.appendChild(svgEl("svg"));
-    // Use the rendered width, so 11px labels render at 11px whatever the card's width.
-    const W = Math.round(svg.getBoundingClientRect().width) || spec.width || 480, H = spec.height || 140, pad = { l: 40, r: 56, t: 10, b: 20 };
-    // A run bar on the same surface lines its scrubber up with this plot.
-    const host = svg.closest(".pg-surface");
-    if (host) { host.style.setProperty("--pg-plot-l", pad.l + "px"); host.style.setProperty("--pg-plot-r", pad.r + "px"); }
-    const all = (spec.series || []).flatMap((s) => s.points.map((p) => p[1])).filter(Number.isFinite);
-    const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...all), y1 = spec.y && spec.y.max !== undefined ? spec.y.max : Math.max(1, ...all);
-    const xs = (spec.series || []).flatMap((s) => s.points.map((p) => p[0]));
-    const x0 = spec.x && spec.x.min !== undefined ? spec.x.min : Math.min(...xs), x1 = spec.x && spec.x.max !== undefined ? spec.x.max : Math.max(...xs);
-    const yt = niceTicks(y0, y1, 3), yTop = Math.max(y1, yt.at(-1));
-    if (yt.at(-1) < yTop - (yTop - y0) * .15) yt.push(yTop);
-    const sx = (v) => pad.l + (v - x0) / ((x1 - x0) || 1) * (W - pad.l - pad.r), sy = (v) => H - pad.b - (v - y0) / ((yTop - y0) || 1) * (H - pad.t - pad.b);
-    const fx = (spec.x && spec.x.format) || ((v) => format(v, {})), fy = (spec.y && spec.y.format) || ((v) => format(v, {}));
-    svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.classList.add("pg-chart"); svg.replaceChildren();
-    for (const v of yt) { svg.append(svgEl("line", { class: v === y0 ? "axis" : "grid", x1: pad.l, x2: W - pad.r, y1: sy(v), y2: sy(v) })); svg.append(svgEl("text", { x: pad.l - 6, y: sy(v) + 3.5, "text-anchor": "end" }, fy(v))); }
-    const xt = niceTicks(x0, x1, 4);
-    xt.forEach((v, i) => svg.append(svgEl("text", { x: sx(v), y: H - 5, "text-anchor": i === 0 ? "start" : i === xt.length - 1 ? "end" : "middle" }, fx(v))));
-    const labels = [];
-    for (const s of spec.series || []) {
-      const pts = s.points.filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
-      if (!pts.length) continue;
-      if (s.kind === "bars") { const w = Math.max(2, (W - pad.l - pad.r) / pts.length * .7); for (const [x, y] of pts) svg.append(svgEl("rect", { class: "bar", "data-tone": s.tone, x: sx(x) - w / 2, y: sy(Math.max(y, y0)), width: w, height: Math.max(0, sy(y0) - sy(y)), rx: 2 })); continue; }
-      let d = ""; pts.forEach(([x, y], i) => { d += i === 0 ? "M" + sx(x).toFixed(1) + " " + sy(y).toFixed(1) : s.kind === "step" ? "H" + sx(x).toFixed(1) + "V" + sy(y).toFixed(1) : "L" + sx(x).toFixed(1) + " " + sy(y).toFixed(1); });
-      if (s.kind === "area") svg.append(svgEl("path", { class: "area", d: d + "V" + sy(y0) + "H" + sx(pts[0][0]).toFixed(1) + "Z" }));
-      svg.append(svgEl("path", { class: "series", "data-tone": s.tone, "data-dashed": s.dashed, d }));
-      if (s.label) labels.push({ x: sx(pts.at(-1)[0]) + 5, y: sy(pts.at(-1)[1]) + 3.5, text: s.label, tone: s.tone });
-    }
-    labels.sort((a, b) => a.y - b.y); for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + 12);
-    // A label wider than the right margin sits above the line's end instead of past it.
-    for (const l of labels) { const wide = l.text.length * 6 > pad.r - 6; svg.append(svgEl("text", { class: "label", x: wide ? l.x - 8 : Math.min(l.x, W - pad.r + 5), y: wide ? l.y - 10 : l.y, "text-anchor": wide ? "end" : "start" }, l.text)); }
-    for (const m of spec.marks || []) { svg.append(svgEl("line", { class: "mark", x1: pad.l, x2: W - pad.r, y1: sy(m.y), y2: sy(m.y) })); if (m.label) svg.append(svgEl("text", { class: "mark-label", x: pad.l + 4, y: sy(m.y) - 4 }, m.label)); }
-    if (Number.isFinite(spec.now)) { const x = sx(spec.now); svg.append(svgEl("line", { class: "now", x1: x, x2: x, y1: pad.t, y2: H - pad.b })); }
-  }
   // Boards: clicking a cell, or the agent's select action, both arrive as one "select" event.
   function choose(name, r, c, from) {
     const s = specs[name];
@@ -767,7 +711,7 @@ export const CONTROLS_RUNTIME = String.raw`
       else if (SET_KINDS[kind]) SET_KINDS[kind](el);
       else if (kind === "readouts") readouts(el);
       else if (kind === "table") { el.classList.add("pg-table-wrap"); }
-      else if (kind === "chart") { el.classList.add("pg-chart"); }
+      else if (kind === "chart") chartHost(el);
       else if (kind === "agent") { el.classList.add("pg-agent"); el.setAttribute("aria-live", "polite"); if (!el.textContent.trim()) el.textContent = attr(el, "empty", "Ask me to change anything here."); }
       else if (kind === "meter") { el.classList.add("pg-meter"); el.innerHTML = "<i></i>"; el.__set = (t) => el.style.setProperty("--v", (clamp(t, 0, 1) * 100) + "%"); }
       else if (kind === "record") { el.classList.add("pg-btn", "pg-record"); el.innerHTML = '<i class="pg-dot"></i><span>Record</span>'; el.setAttribute("aria-pressed", "false"); el.onclick = () => (recording ? stopTake() : startTake()); }
