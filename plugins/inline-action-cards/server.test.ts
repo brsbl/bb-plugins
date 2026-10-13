@@ -377,3 +377,36 @@ describe("settling and undelivered requests", () => {
     expect(store.claim(ref.threadId, "stuck", stuck.attempt!.id).attempt!.claimed).toBe(true);
   });
 });
+
+it("dispatches durable answers and comments in one message with their original mention contracts", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => ({ ok: true, delivery: "queued" }) } } }); hosts.push(host); plugin(host.bb);
+  const store = createStore(host.bb);
+  store.create(ref.threadId, "answer", { type: "decide", question: "Publish 📝?", consequence: "Publish the notes", yesLabel: "Publish" });
+  store.create(ref.threadId, "question", reply);
+  const action = store.prepare({ threadId: ref.threadId, id: "answer", revision: 1, action: "yes", note: "Keep the draft" });
+  const comment = store.comment({ threadId: ref.threadId, id: "question", revision: 1, note: "When will this be sent?" });
+  const sent = await host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [
+    { kind: "action", id: action.id, attemptId: action.attempt!.id }, { kind: "comment", id: comment.item.id, commentId: comment.commentId },
+  ] }) as Item[];
+  expect(sent[0]!.attempt!.sentAt).toBeTruthy();
+  expect(sent[1]!.attempt).toBeNull();
+  const request = host.harness.sdk.callsTo("threads.send")[0]![0] as { mode: string; input: { text: string; mentions: { start: number; end: number; resource: { itemId: string; label: string; icon: string } }[] }[] };
+  expect(request.mode).toBe("queue-if-active");
+  const message = request.input[0]!;
+  expect(message.text).toBe("Publish Publish 📝 — Keep the draft\nBilling follow-up When will this be sent?");
+  for (const mention of message.mentions) expect(message.text.slice(mention.start, mention.end)).toBe(mention.resource.label);
+  expect(message.mentions.map((mention) => mention.resource.icon)).toEqual(["Check", "MessageSquare"]);
+  const contexts = await Promise.all(message.mentions.map((mention) => host.harness.registrations.mentionProviders[0]!.resolve(mention.resource.itemId.slice("action:".length))));
+  expect(JSON.parse(contexts[0]!.context)).toMatchObject({ intent: "approved-action", note: "Keep the draft", attemptId: action.attempt!.id });
+  expect(JSON.parse(contexts[1]!.context)).toMatchObject({ intent: "comment", note: "When will this be sent?", commentId: comment.commentId });
+});
+
+it("rejects a stale batch before sending and does not mark a failed send as accepted", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => { throw new Error("Host disconnected"); } } } }); hosts.push(host); plugin(host.bb);
+  const store = createStore(host.bb);store.create(ref.threadId, ref.id, reply);
+  const item = store.prepare({ ...ref, revision: 1, action: "send" });
+  await expect(host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: ref.id, attemptId: "ea45f71a-c216-4da4-a226-65736f4eccfd" }] })).rejects.toThrow("changed");
+  expect(host.harness.sdk.callsTo("threads.send")).toHaveLength(0);
+  await expect(host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: ref.id, attemptId: item.attempt!.id }] })).rejects.toThrow("Host disconnected");
+  expect(store.get(ref.threadId, ref.id).attempt!.sentAt).toBeUndefined();
+});
