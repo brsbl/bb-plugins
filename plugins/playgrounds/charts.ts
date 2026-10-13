@@ -134,15 +134,15 @@ export const CHART_RUNTIME = String.raw`
     const ys = c.series.flatMap((s) => s.points.map((p) => p[1]));
     const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...ys);
     let y1 = spec.y && spec.y.max !== undefined ? spec.y.max : Math.max(1, ...ys);
-    const yt = niceTicks(y0, y1, 3); if (yt.length > 1 && yt.at(-1) < y1 && !(spec.y && spec.y.max !== undefined)) yt.push(Number((yt.at(-1) + yt[1] - yt[0]).toFixed(10))); y1 = Math.max(y1, yt.at(-1));
+    const yt = niceTicks(y0, y1, 4); if (yt.length > 1 && yt.at(-1) < y1 && !(spec.y && spec.y.max !== undefined)) yt.push(Number((yt.at(-1) + yt[1] - yt[0]).toFixed(10))); y1 = Math.max(y1, yt.at(-1));
     const unit = (spec.y && spec.y.unit) || "";
     c.fy = (spec.y && spec.y.format) || ((v) => (unit === "$" ? "$" + compact(v) : compact(v) + (unit ? (/^[%/]/.test(unit) ? "" : " ") + unit : "")));
     c.fx = (spec.x && spec.x.format) || ((v) => (typeof v === "number" ? plainNum(v) : String(v)));
     const labelW = Math.max(28, ...yt.map((v) => c.fy(v).length * 6.2 + 8));
     const lines = c.series.filter((s) => s.kind !== "bars");
     const endLabels = lines.length >= 1 && lines.length <= 4 && (lines.length > 1 || attr(c.host, "label-end", "") === "true");
-    const pad = { l: labelW, r: endLabels ? 64 : 10, t: 10, b: 22 };
     const host = svg.closest(".pg-surface");
+    const pad = { l: labelW, r: endLabels ? 64 : host && host.querySelector('[data-pg="run"]') ? 48 : 10, t: 10, b: 22 };
     if (host) { host.style.setProperty("--pg-plot-l", pad.l + "px"); host.style.setProperty("--pg-plot-r", pad.r + "px"); }
     const band = categorical ? (W - pad.l - pad.r) / Math.max(1, xs.length) : 0;
     const x0 = categorical ? 0 : spec.x && spec.x.min !== undefined ? spec.x.min : xs[0], x1 = categorical ? 0 : spec.x && spec.x.max !== undefined ? spec.x.max : xs.at(-1);

@@ -144,7 +144,8 @@ Build from these before writing your own controls.
 | `toggle` | On or off |
 | `board` | A grid of cells for games, seats or calendars (`data-rows`, `data-cols`, `data-pieces="R:#e5484d:Red"`, `data-shape="round"`) |
 | `readouts` | Answer tiles: `<div data-readout="price" data-label="Home price" data-answer>` |
-| `table`, `chart` | `data-name="…"`, filled from script |
+| `table` | `data-name="…"`, filled from script |
+| `chart` | `<figure data-pg="chart" data-name="…" data-label="…">`, filled from script |
 | `agent` | A lane that shows what you last did on the card |
 
 Layout classes: `.pg-form` (fields in a grid), `.pg-toolbar`, `.pg-surface`
@@ -154,8 +155,7 @@ when a parameter has that value. Set `:root { --pg-accent: … }` once per card.
 
 In script, after the markup: `playground.params` (`get`, `set`, `all`,
 `define`, `on(fn)`), and `playground.ui.show(name, value, { note, tone })` for
-readouts, `ui.table(name, { columns, rows })`, `ui.chart(name, { x, y, series:
-[{ points, kind: "line|step|area|bars", label }], marks, now })`, and
+readouts, `ui.table(name, { columns, rows })`, `ui.chart(name, spec)` (below), and
 `ui.on("select", ({ name, row, col, from }) => …)` for boards. A cell the person
 taps and a cell you choose arrive as the same `select` event, so game rules live
 in one place.
@@ -163,11 +163,34 @@ in one place.
 **Driving it.** Every card with these controls exposes the same actions:
 `bb playgrounds do <id> read` (parameters and every readout), `do <id>
 setParams --args '[{"rate": 6}]'`, `do <id> select --args '["board", 0, 3]'`,
-and `do <id> say --args '["I took column 4."]'` for the agent lane. Use these
+`do <id> say --args '["I took column 4."]'` for the agent lane, and `do <id>
+point --args '["load", 6]'` to show a chart's values at an x. Use these
 instead of writing your own actions; controls you move show an "Agent" tag.
 
+**Charts.** One chart answers one question. Spec:
+
+```js
+ui.chart("load", {
+  kind: "line",                      // line | area | step | bars (per series too)
+  height: 180,
+  x: { format: (x) => "Wk " + x, label: "Week" },
+  y: { min: 0, unit: "ms" },         // or format: (v) => …
+  series: [{ label: "Europe", points: [[1, 1420], [2, 1390]] }, …],
+  marks: [{ y: 1500, label: "Budget 1.5s" }],   // thresholds
+  bands: [{ x0: 6, x1: 12 }],        // a shaded span
+  now: 4,                            // a "now" line for simulations
+});
+```
+
+Bars take category x values (`[["Mon", 42], …]`). The component picks the
+colors (one series uses the accent; more use a fixed palette in a fixed
+order), adds a legend and end labels for two or more series, a hover and
+keyboard tooltip listing every series, and a table for screen readers. Don't
+color text in series colors, don't use two y scales (make two charts), and
+keep it to seven series.
+
 **Calculator set.** For "how much / how many / which" questions, write the
-inputs as a sentence with draggable numbers, give one big answer, and show
+inputs as a sentence with draggable numbers, give one answer, and show
 where it comes from:
 
 ```html
@@ -178,7 +201,9 @@ where it comes from:
 <div data-pg="breakdown" data-name="monthly"></div>
 ```
 
-`ui.answer(name, { label, value, detail, tone })` and `ui.breakdown(name,
+`ui.answer(name, { label, value, detail, tone })` (a `tone` of `good`,
+`warn` or `bad` adds a small status icon; the value stays in ink, and the
+detail says why) and `ui.breakdown(name,
 [{ label, value, display }])`. Keep it to the sentence, the answer and one
 breakdown or chart; no tables of every scenario.
 

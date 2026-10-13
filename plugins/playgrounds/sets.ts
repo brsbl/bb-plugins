@@ -12,11 +12,11 @@ export const SETS_CSS = String.raw`
 .pg-scrub[data-agent]::after { top: -12px; }
 .pg-answer { display: grid; gap: 2px; }
 .pg-answer > .pg-label { margin: 0; }
-.pg-answer > strong { display: flex; align-items: center; gap: 8px; font-size: 28px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; color: var(--pg-ink); font-variant-numeric: proportional-nums; }
+.pg-answer > strong { display: flex; align-items: center; gap: 8px; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -.015em; color: var(--pg-ink); font-variant-numeric: proportional-nums; }
 .pg-answer > span { font-size: 12.5px; line-height: 1.45; color: var(--pg-body); }
 .pg-answer > .pg-label + strong { margin-top: 2px; }
-.pg-answer[data-long] > strong { font-size: 22px; letter-spacing: -.01em; }
-.pg-tone { display: inline-grid; place-items: center; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--t); color: var(--card); font-size: 11px; font-style: normal; font-weight: 700; letter-spacing: 0; line-height: 1; }
+.pg-answer[data-long] > strong { font-size: 20px; letter-spacing: -.01em; }
+.pg-tone { display: inline-grid; place-items: center; flex-shrink: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--t); color: var(--card); font-size: 10px; font-style: normal; font-weight: 700; letter-spacing: 0; line-height: 1; }
 .pg-tone[data-tone=good] { --t: var(--pg-good); } .pg-tone[data-tone=warn] { --t: var(--pg-warn); } .pg-tone[data-tone=bad] { --t: var(--pg-bad); }
 .pg-breakdown { display: grid; gap: 10px; }
 .pg-breakdown > .pg-bar { display: flex; height: 12px; gap: 2px; overflow: hidden; border-radius: 6px; background: var(--pg-hairline); }
