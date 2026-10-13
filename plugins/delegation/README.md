@@ -16,9 +16,9 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/delegation 
 
 ### Channels
 
-Open **Dispatch** from a thread's header or its right-panel launcher. Each agent the thread talks with gets a channel tab: its reports, its lead, and any peer lead that messaged it. A channel is the two-way conversation with that one agent, in order: messages this thread sent, messages it got back, and the agent's results. A grey dot marks new activity, and an orange dot marks an agent waiting on you.
+Open **Dispatch** from a thread's header or its right-panel launcher. Each agent the thread talks with gets a channel tab: its reports, its lead, and any peer lead that messaged it. Each channel reads like a thread timeline between the two agents: this thread's messages sit where yours do in a normal thread, and the other agent's messages and results are its replies. A grey dot marks new activity, and an orange dot marks an agent waiting on you.
 
-Dispatch only reads what bb already stores. Sent messages come from the receiving thread's timeline, with their persisted delivery state (queued, not delivered, or steered). Channels refresh every 30 seconds while the window is visible, and **Load earlier messages** pages back. Agent messages still appear in the main timeline as bb shows them today.
+Dispatch only reads what bb already stores. Sent messages come from the receiving thread's timeline, with their persisted delivery state (queued, not delivered, or steered). A channel re-reads a thread only when bb shows new activity on it, and scrolling to the top reads older history. Agent messages still appear in the main timeline as bb shows them today.
 
 The plugin ID, the `bb delegation` CLI, the skill names, and the settings keys keep their original `delegation` names.
 
