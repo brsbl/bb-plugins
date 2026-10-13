@@ -15,6 +15,7 @@ export const SETS_CSS = String.raw`
 .pg-answer > strong { font-size: 34px; line-height: 1.1; font-weight: 600; letter-spacing: -.025em; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
 .pg-answer > span { font-size: 12.5px; line-height: 1.45; color: var(--pg-body); }
 .pg-answer > .pg-label + strong { margin-top: 2px; }
+.pg-answer[data-long] > strong { font-size: 24px; letter-spacing: -.015em; }
 .pg-answer[data-tone=bad] > strong { color: var(--pg-bad); }
 .pg-answer[data-tone=warn] > strong { color: var(--pg-warn); }
 .pg-breakdown { display: grid; gap: 10px; }
@@ -98,6 +99,7 @@ export const SETS_RUNTIME = String.raw`
       const detail = document.createElement("span"); detail.textContent = o.detail || "";
       el.replaceChildren(...[label.textContent ? label : null, value, o.detail ? detail : null].filter(Boolean));
       if (o.tone) el.dataset.tone = o.tone; else delete el.dataset.tone;
+      if (String(o.value ?? "").length > 14) el.dataset.long = ""; else delete el.dataset.long;
     }
   }
   const SEGMENTS = ["var(--pg-accent)", "color-mix(in srgb, var(--pg-accent) 62%, var(--card))", "color-mix(in srgb, var(--pg-accent) 36%, var(--card))", "color-mix(in srgb, var(--foreground) 35%, var(--card))", "color-mix(in srgb, var(--foreground) 18%, var(--card))"];
@@ -160,7 +162,13 @@ export const SETS_RUNTIME = String.raw`
         if (!n) throw new Error("No node " + id);
         return {
           meter(f) { if (!n.fill) return; const v = clamp(f, 0, 1); n.fill.setAttribute("y", String(10 + n.mh * (1 - v))); n.fill.setAttribute("height", String(n.mh * v)); n.fill.dataset.low = String(v < .15); },
-          sub(text) { n.sub.textContent = text; },
+          // Shorten text that would run past the card's edge.
+          sub(text) {
+            n.sub.textContent = text;
+            const room = n.w - Number(n.sub.getAttribute("x")) - 10;
+            let t = String(text);
+            while (t.length > 1 && n.sub.getComputedTextLength && n.sub.getComputedTextLength() > room) { t = t.slice(0, -1); n.sub.textContent = t.trimEnd() + "…"; }
+          },
           state(tone) { if (tone) n.g.dataset.tone = tone; else delete n.g.dataset.tone; },
         };
       },
