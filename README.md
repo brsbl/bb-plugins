@@ -118,6 +118,14 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
 
+### CRM
+
+Keep customer and investor conversations together, grouped by company. Track people, stages, next steps and interaction history, with a CLI for agents to keep the pipeline current.
+
+[Source](plugins/crm) · [README](plugins/crm/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/crm --yes`
+
 ### Image Carousel
 
 Shows screenshots inline as a carousel: design research with one product per slide, or Before and After side by side with one shared description. It replaces long runs of images and screenshot tables in agent replies.
