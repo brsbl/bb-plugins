@@ -12,3 +12,5 @@ plugins/.scaffold-smoke-*
 toolchain-*/
 
 .action-cards-dev/
+
+.gmail-dev/
