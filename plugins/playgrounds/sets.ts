@@ -139,10 +139,10 @@ export const SETS_RUNTIME = String.raw`
     svg.replaceChildren(layers.edges, layers.dots, layers.nodes, layers.drops);
     const nodes = new Map();
     defs.forEach((d, i) => {
-      const w = Math.min(gap - 40, d.meter ? 150 : 112), h = d.meter ? 96 : 48, x = 10 + gap * i + (gap - w) / 2, y = (H - h) / 2;
+      const w = Math.min(gap - 28, d.meter ? 150 : 112), h = d.meter ? 96 : 48, x = 10 + gap * i + (gap - w) / 2, y = (H - h) / 2;
       const g = svgEl("g", { transform: "translate(" + x + " " + y + ")" });
       g.append(svgEl("rect", { class: "card", width: w, height: h, rx: 10 }));
-      const mw = d.meter ? Math.round(w * .2) : 0, tx = 12 + (mw ? mw + 10 : 0);
+      const mw = d.meter ? 12 : 0, tx = 12 + (mw ? mw + 10 : 0);
       g.append(svgEl("text", { class: "title", x: tx, y: 21 }, d.title));
       const sub = svgEl("text", { class: "sub", x: tx, y: 36 }, ""); g.append(sub);
       let fill = null;

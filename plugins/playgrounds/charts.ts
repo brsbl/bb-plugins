@@ -143,7 +143,7 @@ export const CHART_RUNTIME = String.raw`
     const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...ys);
     let y1 = fixedMax ? spec.y.max : Math.max(1, ...ys) * 1.06;
     const xMarks = (spec.marks || []).filter((m) => m.x !== undefined), yMarks = (spec.marks || []).filter((m) => m.y !== undefined);
-    const pad = { l: 0, r: 10, t: xMarks.some((m) => m.label) || (spec.bands || []).some((b) => b.label) ? 22 : 8, b: 24 };
+    const pad = { l: 0, r: 10, t: xMarks.some((m) => m.label) || (spec.bands || []).some((b) => b.label) ? 22 : 12, b: 24 };
     const count = clamp(Math.round((H - pad.t - pad.b) / 36), 2, 5);
     let yt = niceTicks(y0, y1, count);
     if (fixedMax && yt.at(-1) !== y1) yt = [y0, Number(((y0 + y1) / 2).toFixed(6)), y1];
