@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-video-markup",
+  "version": "0.1.0",
+  "description": "Review product films in bb with frame notes and version history.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "docs",
+    "skills",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.43.4",
+    "bbPluginSdk": "^0.4.8"
+  },
+  "bb": {
+    "name": "Video Markup",
+    "description": "Review product films in bb with frame notes and version history.",
+    "branding": {
+      "icon": "Play"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [
+      "skills"
+    ],
+    "app": "./dist/install-app.mjs",
+    "host": "./dist/install-host.mjs"
+  }
+}

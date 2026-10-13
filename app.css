@@ -1,0 +1,86 @@
+.video-markup {
+  --video-markup-accent: var(--timeline-accent);
+  container-type: inline-size;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  min-width: 0;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.video-markup button,.video-markup input[type=range],.video-markup label[for] { cursor: pointer; }
+.video-markup button:disabled { cursor: default; }
+.video-markup-header { padding: 12px 16px; border-bottom-width: 1px; display: grid; gap: 8px; }
+.video-markup-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.video-markup-actions,.video-markup-brand { display: flex; align-items: center; gap: 8px; }
+.video-markup-brand { font-weight: 500; }
+.video-markup-brand svg { flex-shrink: 0; }
+.video-markup-demo { display: flex; align-items: center; font-size: var(--text-base); font-weight: 500; min-width: 0; border: 0; padding: 0; margin: 0; height: 32px; overflow-wrap: anywhere; }
+.video-markup-version { flex: none; white-space: nowrap; }
+.video-markup-demo > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-markup-review { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.video-markup-stage { position: relative; width: 100%; margin-inline: auto; overflow: hidden; border-radius: calc(var(--radius) - 2px); }
+.video-markup-stage video,.video-markup-stage img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.video-markup-shapes,.video-markup-draw { position: absolute; inset: 0; width: 100%; height: 100%; }
+.video-markup-shapes { pointer-events: none; stroke-linecap: round; stroke-linejoin: round; }
+/* Two thin theme-derived edges keep the accent legible on light and dark footage. */
+.video-markup-shape-outer { color: var(--background); stroke: currentColor; stroke-width: 9px; }
+.video-markup-shape-inner { color: var(--foreground); stroke: currentColor; stroke-width: 7px; }
+.video-markup-shape-accent { color: var(--video-markup-accent); stroke: currentColor; stroke-width: 4px; }
+.video-markup-arrowhead { fill: currentColor; }
+.video-markup-shape-label { fill: var(--background); stroke: var(--video-markup-accent); stroke-width: 2.5px; }
+.video-markup-shape-number { fill: var(--video-markup-accent); font-size: var(--text-xs); font-weight: 600; font-variant-numeric: tabular-nums; }
+.video-markup-draw { touch-action: none; cursor: crosshair; }
+.video-markup-draw-tools { justify-content: flex-start; gap: 2px; }
+.video-markup-transport { display: flex; align-items: center; gap: 2px; padding-top: 6px; }
+.video-markup-time { flex: 1; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.video-markup-seek { display: block; width: 100%; margin: 6px 0; min-height: 24px; accent-color: var(--video-markup-accent); }
+/* Fullscreen floats over the frame so it stays out of the note controls. */
+.video-markup-fullscreen { position: absolute; z-index: 2; display: flex; gap: 2px; padding: 2px; border-radius: var(--radius); background: color-mix(in oklab,var(--background) 82%,transparent); backdrop-filter: blur(8px); box-shadow: 0 1px 3px color-mix(in oklab,var(--foreground) 16%,transparent); }
+.video-markup-fullscreen { right: 8px; bottom: 8px; opacity: 0; transition: opacity 150ms ease; }
+.video-markup-stage:hover .video-markup-fullscreen,.video-markup-fullscreen:focus-within { opacity: 1; }
+.video-markup-overlay-button { width: 32px; height: 32px; }
+.video-markup-player:focus-visible,.video-markup-moment:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: calc(var(--radius) - 2px); }
+.video-markup-note-editor { border-top-width: 1px; padding: 10px 0; display: grid; gap: 10px; }
+.video-markup-textarea { resize: vertical; min-height: 84px; width: 100%; border-width: 1px; border-radius: var(--radius); padding: 10px; font-family: inherit; font-size: var(--text-sm); }
+.video-markup-textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.video-markup-check { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); min-height: 28px; }
+.video-markup-notes { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.video-markup-notes-heading,.video-markup-selection { flex-wrap: wrap; }
+.video-markup-filter { width: auto; max-width: 100%; height: 28px; gap: 8px; padding: 4px 6px; border-color: transparent; font-size: var(--text-xs); color: var(--muted-foreground); }
+.video-markup-filter:hover,.video-markup-status:hover { background: var(--state-hover); color: var(--foreground); }
+.video-markup-selection { padding-bottom: 4px; }
+.video-markup-note { border-top-width: 1px; padding: 12px 0; display: grid; grid-template-columns: 16px minmax(0,1fr); gap: 10px; }
+.video-markup-note-checkbox { margin-top: 5px; }
+.video-markup-note-content { display: grid; gap: 8px; min-width: 0; }
+.video-markup-note-heading,.video-markup-note-footer { flex-wrap: wrap; }
+.video-markup-note-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-sm); line-height: 1.6; }
+.video-markup-moment { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 2px 0; color: var(--muted-foreground); font-variant-numeric: tabular-nums; font-size: var(--text-xs); text-align: left; }
+.video-markup-moment:hover { color: var(--foreground); }
+.video-markup-moment:disabled { opacity: .5; }
+.video-markup-note-number { display: inline-flex; justify-content: center; align-items: center; flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 50%; color: var(--video-markup-accent); background: color-mix(in oklab,var(--video-markup-accent) 12%,var(--background)); font-size: var(--text-xs); font-weight: 500; font-variant-numeric: tabular-nums; }
+.video-markup-status { width: auto; height: 26px; gap: 6px; padding: 2px 6px; border-color: transparent; border-radius: var(--radius); font-size: var(--text-xs); font-weight: 400; background: var(--secondary); }
+.video-markup-status-label { display: inline-flex; align-items: center; gap: 6px; }
+.video-markup-status-dot { display: inline-block; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--foreground); }
+.video-markup-status-dot[data-status=fixed] { background: var(--success); }
+.video-markup-status-dot[data-status="still wrong"] { background: var(--warning); }
+.video-markup-status-dot[data-status=regressed] { background: var(--destructive); }
+.video-markup-note-footer { gap: 4px 8px; }
+.video-markup-note-footer > span { min-width: 0; overflow-wrap: anywhere; }
+.video-markup-note-footer > button { margin-left: auto; height: 28px; padding: 0 6px; color: var(--muted-foreground); }
+.video-markup-still { border-width: 1px; border-radius: var(--radius); padding: 8px; display: grid; gap: 8px; }
+.video-markup-notice { padding: 12px 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.video-markup-inline { height: auto; margin: 12px 0; border-width: 1px; border-radius: var(--radius); overflow: hidden; }
+.video-markup-inline-header { padding: 10px 12px; border-bottom-width: 1px; }
+.video-markup-inline>.video-markup-player { padding: 10px; }
+.video-markup>.video-markup-notice { padding: 12px 16px; }
+@container (max-width:380px) {
+  .video-markup-header,.video-markup-review { padding: 12px; }
+  .video-markup-time span { display: none; }
+}
+@media(pointer:coarse) {
+  .video-markup button:not([role=checkbox]) { min-height: 40px; }
+  .video-markup-textarea { font-size: var(--text-base); }
+  .video-markup-fullscreen { opacity: 1; }
+}
