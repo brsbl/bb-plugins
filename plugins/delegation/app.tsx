@@ -221,17 +221,17 @@ export default definePluginApp((app) => {
     id: "delegation",
     component: DelegationSettingsForm,
   });
-  // Dispatch: this thread's agent channels in the right panel, plugin-only.
+  // Agent Channels: this thread's conversations with other agents, in the right panel.
   app.slots.threadPanelAction({
     id: DISPATCH_ACTION_ID,
-    title: "Dispatch",
-    icon: "Workflow",
+    title: "Agent Channels",
+    icon: "delegation/agent-channels",
     layout: "flush",
     component: DispatchPanel,
   });
   app.slots.experimental_threadHeaderAction({
     id: "dispatch-open",
-    title: "Dispatch",
+    title: "Agent Channels",
     component: DispatchHeaderButton,
   });
 });

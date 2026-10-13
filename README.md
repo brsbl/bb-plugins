@@ -368,13 +368,13 @@ See which bb server you are on and switch to any other server on your bb account
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/server-switcher --yes`
 
-### Dispatch
+### Agent Channels
 
 Run a team of bb threads from one lead: skills to delegate work, relay your decisions, collect results, and report back briefly, plus a right-panel view that gives each agent-to-agent conversation its own channel and flags reports waiting on you. Its defaults come from your own AGENTS.md, CLAUDE.md, skills, and memory, quoted in Settings.
 
-![A lead's Dispatch panel, with one channel per agent and the conversation in order](plugins/delegation/docs/channels.png)
+![A lead's Agent Channels panel, with one channel per agent and the conversation in order](plugins/delegation/docs/channels.png)
 
-![Dispatch's settings: one table of models by role, with when a lead creates each role](plugins/delegation/docs/settings.png)
+![Agent Channels' settings: one table of models by role, with when a lead creates each role](plugins/delegation/docs/settings.png)
 
 [Source](plugins/delegation) · [README](plugins/delegation/README.md)
 
