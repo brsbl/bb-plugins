@@ -173,6 +173,8 @@ function fillResultText(message: ChannelMessage, counterpartRows: readonly unkno
   return reply ? { ...message, text: reply.text.trim() } : message;
 }
 
+const isInbound = (message: ChannelMessage) => message.dir !== "out" && message.dir !== "brief";
+
 export function buildChannels(inputs: ChannelInputs): Channel[] {
   const fromOthers = incoming(inputs.selfRows);
   const order = counterpartIds(inputs);
@@ -184,7 +186,13 @@ export function buildChannels(inputs: ChannelInputs): Channel[] {
         isReport: inputs.childIds.includes(counterpartId),
         historyComplete: inputs.completeHistory?.has(counterpartId) ?? false,
       }),
-    ].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
+    ].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id))
+      // A report that tells its lead its result and then finishes with the same reply would show it twice; keep
+      // the later one, which carries the result (and a Failed or Interrupted note).
+      .filter((message, index, all) => {
+        const next = all[index + 1];
+        return !(next && message.text && isInbound(message) && isInbound(next) && next.text === message.text);
+      });
     const latestAt = messages.at(-1)?.at ?? 0;
     const latestInbound = [...messages].reverse().find((message) => message.dir !== "out" && message.dir !== "brief");
     const lastNeedsYou = [...messages].reverse().find((message) => message.dir === "needs-you");

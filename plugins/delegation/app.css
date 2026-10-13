@@ -50,14 +50,36 @@
 .dp-tab-active { background: var(--state-active, var(--accent)); color: var(--foreground); }
 .dp-dot { display: inline-block; flex: none; width: 6px; height: 6px; border-radius: 999px; background: var(--muted-foreground); }
 .dp-dot-attention { background: var(--attention, var(--warning, var(--foreground))); }
-.dp-channel { min-height: 0; flex: 1; overflow-y: auto; padding: 16px 16px 24px; }
 /* The channel mirrors bb's thread timeline: this thread's messages sit where the user's do, the counterpart replies. */
-.dp-messages { display: flex; flex-direction: column; gap: 24px; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.625; }
+.dp-channel-frame { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; background: var(--background); }
+.dp-channel { min-height: 0; flex: 1; overflow-y: auto; padding: 16px 16px 24px; }
+/* bb's reading column: 728px, centered; rows sit 8px apart below each one's 20px action row. */
+.dp-messages { display: flex; width: 100%; max-width: 728px; flex-direction: column; gap: 8px; margin: 0 auto; padding: 0; list-style: none; font-size: 13px; line-height: 1.625; }
 .dp-sent { display: flex; flex-direction: column; align-items: flex-end; width: fit-content; max-width: 70%; margin-left: auto; }
 .dp-bubble { max-width: 100%; border: 1px solid var(--border-seam, var(--border)); border-radius: 12px; background: var(--surface-recessed, var(--muted)); padding: 10px 16px; overflow-wrap: anywhere; }
+.dp-collapsible { overflow-wrap: anywhere; }
+.dp-collapsed { max-height: 15lh; overflow: hidden; }
+.dp-collapsible[data-fade] { mask-image: linear-gradient(to bottom, black calc(100% - 2.5rem), transparent); -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 2.5rem), transparent); }
+.dp-toggle-row { display: flex; justify-content: flex-end; margin-top: 4px; }
+.dp-toggle { border: 0; background: none; padding: 0; color: var(--muted-foreground); font: inherit; font-size: 12px; font-weight: 500; line-height: 1.33; cursor: pointer; }
+.dp-toggle:hover { color: var(--foreground); }
+.dp-request { margin: 0 0 4px; color: var(--muted-foreground); font-size: 12px; }
+.dp-muted-text { margin: 0; color: var(--muted-foreground); }
 .dp-reply { padding: 0 8px; overflow-wrap: anywhere; }
 .dp-note { margin: 4px 0 0; color: var(--muted-foreground); font-size: 12px; }
 .dp-reply-failed .dp-note { color: var(--destructive-text, var(--destructive, var(--foreground))); }
+.dp-actions { position: relative; display: flex; width: 100%; height: 20px; align-items: center; gap: 8px; }
+.dp-actions-end { justify-content: flex-end; padding-right: 13px; }
+.dp-actions-start { margin-left: -4px; }
+.dp-action { display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; border: 0; background: none; padding: 0; color: var(--muted-foreground); cursor: pointer; opacity: 0; transition: opacity 150ms; }
+.dp-action:hover { color: var(--foreground); }
+.dp-sent:hover .dp-action, .dp-reply:hover .dp-action, .dp-sent:focus-within .dp-action, .dp-reply:focus-within .dp-action { opacity: 1; }
+@media (hover: none) { .dp-action { opacity: 1; } }
+.dp-action-icon { width: 14px; height: 14px; }
+.dp-latest { position: absolute; bottom: 48px; left: 50%; z-index: 2; display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 999px; background: var(--background); color: var(--foreground); cursor: pointer; opacity: 0; pointer-events: none; transform: translate(-50%, 8px); transition: opacity 200ms, transform 200ms, background-color 200ms; visibility: hidden; }
+.dp-latest-visible { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); visibility: visible; }
+.dp-latest:hover { background: var(--accent); }
+.dp-latest-icon { width: 16px; height: 16px; }
 .dp-empty { margin: 0; padding: 16px; color: var(--muted-foreground); }
 /* Matches bb's icon-only header buttons: 28px square, 16px icon, subtle until hovered. */
 .dp-header-button { position: relative; display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-md, 6px); background: transparent; padding: 0; color: color-mix(in oklab, var(--subtle-foreground, var(--muted-foreground)) 75%, transparent); cursor: pointer; transition: color 150ms, background-color 150ms; }
@@ -68,4 +90,4 @@
   .dp-header-button { width: 36px; height: 36px; }
   .dp-header-icon { width: 20px; height: 20px; }
 }
-.dp-tab:focus-visible, .dp-header-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.dp-tab:focus-visible, .dp-header-button:focus-visible, .dp-toggle:focus-visible, .dp-action:focus-visible, .dp-latest:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }

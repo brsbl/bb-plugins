@@ -204,13 +204,89 @@ const REPLY_NOTE: Partial<Record<ChannelMessage["dir"], string>> = {
   interrupted: "Interrupted",
 };
 
+/** bb collapses long sent messages to 15 lines and renders at most this many characters until expanded. */
+const COLLAPSED_CHAR_CAP = 4096;
+
+/** bb keeps single line breaks in what the user sent; the SDK Markdown doesn't, so make them hard breaks outside code. */
+function preserveSoftBreaks(text: string): string {
+  return text.split(/(```[\s\S]*?```)/u).map((part, index) => (index % 2 === 1 ? part : part.replace(/([^\n])\n(?!\n)/gu, "$1  \n"))).join("");
+}
+
+function collapsedPreview(text: string): string {
+  if (text.length <= COLLAPSED_CHAR_CAP) return text;
+  const cut = text.slice(0, COLLAPSED_CHAR_CAP);
+  const end = cut.lastIndexOf(" ");
+  const preview = end > COLLAPSED_CHAR_CAP / 2 ? cut.slice(0, end) : cut;
+  // Close a code fence the cut left open, so the rest doesn't render as code.
+  return (preview.match(/```/gu)?.length ?? 0) % 2 === 1 ? `${preview}\n\`\`\`` : preview;
+}
+
+/** A sent message's body, collapsed like bb's: 15 lines with a fade and Show more. */
+function CollapsibleText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const capped = !expanded && text.length > COLLAPSED_CHAR_CAP;
+  const shown = capped ? collapsedPreview(text) : text;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || expanded) return;
+    const measure = () => setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [expanded, shown]);
+  const toggle = expanded || capped || overflowing;
+  return (
+    <>
+      <div ref={ref} className={expanded ? "dp-collapsible" : "dp-collapsible dp-collapsed"} data-fade={!expanded && toggle ? "" : undefined}>
+        <Markdown content={preserveSoftBreaks(shown)} />
+      </div>
+      {toggle ? (
+        <div className="dp-toggle-row">
+          <button type="button" className="dp-toggle" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** The 20px row bb reserves under every message; its actions show on hover. */
+function MessageActions({ text, align }: { text: string; align: "start" | "end" }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className={`dp-actions dp-actions-${align}`}>
+      {text ? (
+        <button
+          type="button"
+          className="dp-action"
+          aria-label="Copy message"
+          title="Copy message"
+          onClick={() => {
+            void navigator.clipboard.writeText(text).then(() => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1500);
+            }, () => undefined);
+          }}
+        >
+          <Icon name={copied ? "Check" : "Copy"} className="dp-action-icon" aria-hidden />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function MessageRow({ message }: { message: ChannelMessage }) {
   if (message.dir === "brief" || message.dir === "out") {
     const delivery = message.status === "rejected" ? "Not delivered" : message.status === "pending" ? "Queued" : message.steer ? "Steered into its running turn" : null;
     return (
       <li className="dp-sent">
-        <div className="dp-bubble"><Markdown content={message.text || "_(no text)_"} /></div>
-        {delivery ? <p className="dp-note">{delivery}</p> : null}
+        {delivery ? <p className="dp-request">{delivery}</p> : null}
+        <div className="dp-bubble">{message.text ? <CollapsibleText text={message.text} /> : <p className="dp-muted-text">No text</p>}</div>
+        <MessageActions text={message.text} align="end" />
       </li>
     );
   }
@@ -219,6 +295,7 @@ function MessageRow({ message }: { message: ChannelMessage }) {
     <li className={`dp-reply${message.dir === "failed" ? " dp-reply-failed" : ""}`}>
       {message.text ? <Markdown content={message.text} /> : null}
       {note ? <p className="dp-note">{note}</p> : null}
+      <MessageActions text={message.text} align="start" />
     </li>
   );
 }
@@ -230,6 +307,7 @@ function MessageRow({ message }: { message: ChannelMessage }) {
 function useTimelineScroll(key: string | undefined, latestAt: number | undefined, count: number, canLoad: boolean, loading: boolean, loadEarlier: () => void) {
   const ref = useRef<HTMLDivElement | null>(null);
   const pinned = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
   /** Distance from the bottom to keep while an older page loads. */
   const restore = useRef<number | null>(null);
   const shownKey = useRef(key);
@@ -258,9 +336,16 @@ function useTimelineScroll(key: string | undefined, latestAt: number | undefined
     const el = ref.current;
     if (!el) return;
     pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    setAtBottom(pinned.current);
     if (el.scrollTop < 48 && canLoad && !loading && restore.current === null) requestOlder(el);
   }, [canLoad, loading, requestOlder]);
-  return { ref, onScroll };
+  const scrollToLatest = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    pinned.current = true;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, []);
+  return { ref, onScroll, atBottom, scrollToLatest };
 }
 
 export function DispatchPanel({ threadId, params }: { threadId: string; params: unknown }) {
@@ -299,14 +384,25 @@ export function DispatchPanel({ threadId, params }: { threadId: string; params: 
         ))}
       </div>
       {current ? (
-        <div className="dp-channel" role="tabpanel" aria-label={current.title} ref={scroll.ref} onScroll={scroll.onScroll}>
-          {current.messages.length === 0 ? (
-            <p className="dp-empty">No messages yet.</p>
-          ) : (
-            <ol className="dp-messages">
-              {current.messages.map((message) => <MessageRow key={message.id} message={message} />)}
-            </ol>
-          )}
+        <div className="dp-channel-frame">
+          <div className="dp-channel" role="tabpanel" aria-label={current.title} ref={scroll.ref} onScroll={scroll.onScroll}>
+            {current.messages.length === 0 ? (
+              <p className="dp-empty">No messages yet.</p>
+            ) : (
+              <ol className="dp-messages">
+                {current.messages.map((message) => <MessageRow key={message.id} message={message} />)}
+              </ol>
+            )}
+          </div>
+          <button
+            type="button"
+            className={scroll.atBottom ? "dp-latest" : "dp-latest dp-latest-visible"}
+            aria-label="Scroll to latest event"
+            tabIndex={scroll.atBottom ? -1 : 0}
+            onClick={scroll.scrollToLatest}
+          >
+            <Icon name="ArrowDown" className="dp-latest-icon" aria-hidden />
+          </button>
         </div>
       ) : null}
     </div>

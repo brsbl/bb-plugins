@@ -91,6 +91,13 @@ describe("channels", () => {
     expect(moss.messages).toEqual([]);
   });
 
+  it("shows a reply once when a report tells its lead and then finishes with the same text", () => {
+    const told = row("t9", 20, { initiator: "agent", senderThreadId: "thr_dispatch", text: "[bb message from thread:thr_dispatch]\n\nAll gates pass." });
+    const done = row("d9", 21, { initiator: "system", systemMessageKind: "child-completed", systemMessageSubject: { kind: "thread", threadId: "thr_dispatch" }, text: "[bb system]\n\n@thread:thr_dispatch completed:\n\nAll gates pass." });
+    const dispatch = buildChannels(inputs({ selfRows: [...selfRows, told, done] })).find((channel) => channel.counterpartId === "thr_dispatch")!;
+    expect(dispatch.messages.filter((message) => message.text === "All gates pass.").map((message) => `${message.dir}:${message.id}`)).toEqual(["finished:d9"]);
+  });
+
   it("splits a batched outcome notice per report and fills each from the report's last reply", () => {
     const batch = row("b1", 30, { initiator: "system", systemMessageKind: "child-outcome-batch", systemMessageSubject: { kind: "thread-batch", count: 2, outcomes: [{ threadId: "thr_dispatch", status: "completed" }, { threadId: "thr_moss", status: "failed" }] }, text: "Child thread updates" });
     const channels = buildChannels(inputs({
