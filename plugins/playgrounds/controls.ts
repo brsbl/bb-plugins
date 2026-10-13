@@ -683,8 +683,12 @@ export const CONTROLS_RUNTIME = String.raw`
   function choose(name, r, c, from) {
     const s = specs[name];
     if (!s || s.type !== "board" || !(r >= 0 && r < s.rows && c >= 0 && c < s.cols)) throw new Error("No cell at row " + r + ", column " + c);
-    if (from === "agent") { flag(name); lane("Chose row " + (r + 1) + ", column " + (c + 1) + "."); }
-    fire("select", { name, row: r, col: c, value: values[name][r][c], from });
+    const detail = { name, row: r, col: c, value: values[name][r][c], from };
+    if (from !== "agent") { fire("select", detail); return { board: values[name] }; }
+    // The agent's select runs the handlers directly, so a rule that rejects the move reaches the action result.
+    const before = laneText;
+    flag(name); lane("Chose row " + (r + 1) + ", column " + (c + 1) + ".");
+    try { for (const fn of [...(handlers.get("select") || [])]) fn(detail); } catch (error) { laneText = before; paintLane(); persist(); throw error; }
     return { board: values[name] };
   }
   // The agent lane shows what the agent last did on this card.

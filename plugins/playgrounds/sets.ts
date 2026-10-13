@@ -102,7 +102,8 @@ export const SETS_RUNTIME = String.raw`
       if (!was || moved) return;
       const input = document.createElement("input"); input.type = "number"; input.value = String(values[name]); input.step = String(s.step || "any");
       el.replaceChildren(input); input.focus(); input.select();
-      const done = (commit) => { if (commit && input.value !== "") set(name, Number(input.value)); el.__paint(); el.focus(); };
+      let closed = false;
+      const done = (commit) => { if (closed) return; closed = true; const typed = input.value; input.remove(); if (commit && typed !== "") set(name, Number(typed)); el.__paint(); el.focus(); };
       input.addEventListener("keydown", (e) => { if (e.key === "Enter") done(true); if (e.key === "Escape") done(false); });
       input.addEventListener("blur", () => done(true), { once: true });
     });
@@ -286,7 +287,8 @@ export const SETS_RUNTIME = String.raw`
     define("turn", { label: "Turn", options: [{ value: g.you }, { value: g.me }, { value: "done" }, { value: "setup" }], default: g.setup ? "setup" : g.first });
     if (fresh) { const all = allValues(); all[g.board] = g.start(all); applyAll(all, "remote"); persist(); }
     on("select", ({ name, row, col, from }) => {
-      if (name !== g.board || values.turn === "setup") return;
+      if (name !== g.board) return;
+      if (values.turn === "setup") { if (from === "agent") throw new Error("The game hasn't started yet"); return; }
       try { playMove(g.fromCell(row, col), from === "agent" ? g.me : g.you); } catch (e) { if (from === "agent") throw e; }
     });
     on("change", ({ name }) => { if (name === "turn") paintTurn(); });
