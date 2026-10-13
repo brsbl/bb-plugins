@@ -1,0 +1,28 @@
+{
+  "name": "bb-plugin-crm",
+  "version": "0.1.0",
+  "description": "Keep customer and investor conversations, people, and next steps together.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md",
+    "skills"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": ">=0.5.9"
+  },
+  "bb": {
+    "name": "CRM",
+    "description": "Keep customer and investor conversations, people, and next steps together.",
+    "branding": {
+      "icon": "UserRound"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [
+      "skills"
+    ],
+    "app": "./dist/install-app.mjs"
+  }
+}
