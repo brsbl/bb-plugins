@@ -154,6 +154,7 @@ export const CONTROLS_CSS = String.raw`
 [data-show][hidden] { display: none !important; }
 .pg-bank { display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; gap: 10px 8px; }
 .pg-banks { display: grid; grid-template-columns: var(--cols, 1fr 1fr); gap: 10px; }
+.pg-banks > :only-child { grid-column: 1 / -1; }
 .pg-banks + .pg-banks, .pg-surface > * + * { margin-top: 10px; }
 @media (max-width: 460px) { .pg-banks { grid-template-columns: 1fr; } }
 .pg-presets { display: flex; flex-wrap: wrap; gap: 6px; }
