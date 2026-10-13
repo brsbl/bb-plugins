@@ -390,6 +390,45 @@ it("sends the note along with the chosen option", async () => {
   expect(get().attempt).toMatchObject({ action: "choose", note: "Keep the pool as backup" });
   expect(submittedMessages[0]).toContain(" — Keep the pool as backup");
 });
+it("saves a note with Enter without submitting the answer, and Escape restores the saved text", async () => {
+  const { slot, get } = await setup();
+  answer("Send");
+  note("  Keep a copy  ");
+  const input = screen.getByRole("textbox", { name: "Note" }) as HTMLTextAreaElement;
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(input.value).toBe("Keep a copy");
+  expect(input.readOnly).toBe(true);
+  expect(slot.inspection.composer.submits).toHaveLength(0);
+  expect(get().attempt).toBeNull();
+  fireEvent.click(input);
+  fireEvent.change(input, { target: { value: "Discard this edit" } });
+  fireEvent.keyDown(input, { key: "Escape" });
+  expect(input.value).toBe("Keep a copy");
+  expect(input.readOnly).toBe(true);
+  submit();
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(get().attempt?.note).toBe("Keep a copy");
+});
+it("keeps IME Enter in the note editor and makes its icon actions local to the note", async () => {
+  const { slot, get } = await setup();
+  answer("Send");
+  note("Keep a copy");
+  const input = screen.getByRole("textbox", { name: "Note" }) as HTMLTextAreaElement;
+  fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+  expect(input.readOnly).toBe(false);
+  const save = screen.getByRole("button", { name: "Save note" });
+  expect(save.getAttribute("type")).toBe("button");
+  fireEvent.click(save);
+  expect(input.readOnly).toBe(true);
+  fireEvent.click(input);
+  fireEvent.change(input, { target: { value: "Discard this edit" } });
+  const cancel = screen.getByRole("button", { name: "Cancel note" });
+  expect(cancel.getAttribute("type")).toBe("button");
+  fireEvent.click(cancel);
+  expect(input.value).toBe("Keep a copy");
+  expect(slot.inspection.composer.submits).toHaveLength(0);
+  expect(get().attempt).toBeNull();
+});
 it("keeps Submit disabled until an option is picked or a note is written", async () => {
   const content = { type: "choice" as const, question: "Pick a plan", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] };
   await setup("", false, { ...fixture(), id: "plan", content });
