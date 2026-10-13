@@ -112,6 +112,8 @@ export const stateSchema = z.object({
   explain: z.record(z.string(), resolvedSchema),
   /** When an agent last read the user's instructions into sources; null if never. */
   checkedAt: z.number().nullable(),
+  /** The machine whose files those sources were read from; only it can refresh them. */
+  host: z.string().nullable().optional(),
 });
 export type DelegationState = z.infer<typeof stateSchema>;
 
@@ -135,21 +137,22 @@ export function readOverrides(stored: unknown): SettingsOverrides {
 }
 
 /** Sources whose value is valid for their setting, keyed by setting. */
-export function readSources(stored: unknown): { values: Partial<Record<SettingKey, SettingSource>>; checkedAt: number | null } {
-  if (!isRecord(stored)) return { values: {}, checkedAt: null };
+export function readSources(stored: unknown): { values: Partial<Record<SettingKey, SettingSource>>; checkedAt: number | null; host: string | null } {
+  if (!isRecord(stored)) return { values: {}, checkedAt: null, host: null };
   const checkedAt = typeof stored.checkedAt === "number" ? stored.checkedAt : null;
+  const host = typeof stored.host === "string" && stored.host ? stored.host : null;
   const values: Partial<Record<SettingKey, SettingSource>> = {};
   const raw = isRecord(stored.values) ? stored.values : {};
   for (const key of SETTING_KEYS) {
     const entry = sourceSchema.safeParse(raw[key]);
     if (entry.success && settingsSchema.shape[key].safeParse(entry.data.value).success) values[key] = entry.data;
   }
-  return { values, checkedAt };
+  return { values, checkedAt, host };
 }
 
 export function resolve(storedOverrides: unknown, storedSources: unknown): DelegationState {
   const overrides = readOverrides(storedOverrides);
-  const { values: sources, checkedAt } = readSources(storedSources);
+  const { values: sources, checkedAt, host } = readSources(storedSources);
   const settings = { ...FALLBACKS } as Record<SettingKey, SettingValue>;
   const explain: Record<string, Resolved> = {};
   for (const key of SETTING_KEYS) {
@@ -169,7 +172,7 @@ export function resolve(storedOverrides: unknown, storedSources: unknown): Deleg
       explain[key] = { value: FALLBACKS[key], origin: "fallback" };
     }
   }
-  return { settings: settings as DelegationSettings, explain, checkedAt };
+  return { settings: settings as DelegationSettings, explain, checkedAt, host };
 }
 
 /** Coerce a CLI string to the setting's type, then validate it. */

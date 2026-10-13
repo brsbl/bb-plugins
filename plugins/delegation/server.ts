@@ -40,14 +40,15 @@ export default function plugin(bb: BbPluginApi): void {
       await bb.storage.kv.set(OVERRIDES_KEY, next);
     });
   }
-  function recordSource(key: SettingKey | null, entry: unknown): Promise<DelegationState> {
+  /** `host` is the machine whose files were read; sources from one machine's files mustn't be rebuilt from another's. */
+  function recordSource(key: SettingKey | null, entry: unknown, host?: string): Promise<DelegationState> {
     return serialize(async () => {
       const stored = await raw(SOURCES_KEY);
       const values: Record<string, unknown> = isRecord(stored.values) ? { ...stored.values } : {};
       if (key === null) for (const name of Object.keys(values)) delete values[name];
       else if (entry === undefined) delete values[key];
       else values[key] = entry;
-      await bb.storage.kv.set(SOURCES_KEY, { ...stored, values, checkedAt: Date.now() });
+      await bb.storage.kv.set(SOURCES_KEY, { ...stored, values, checkedAt: Date.now(), ...(host ? { host } : {}) });
     });
   }
 
@@ -60,6 +61,7 @@ export default function plugin(bb: BbPluginApi): void {
     thread: { type: "string", description: "Lead thread; defaults to the current thread" },
     json: { type: "boolean", description: "Emit JSON" },
   } as const;
+  const hostOption = { type: "string", description: "The machine whose instruction files were read (thread.environment.hostId in bb status --json)" } as const;
   function target(explicit: string | undefined, current: string | undefined) {
     const value = explicit ?? current;
     if (!value) throw new PluginCliError("A thread is required.", { code: "thread_required", hint: "Pass --thread <thread-id>." });
@@ -128,10 +130,10 @@ export default function plugin(bb: BbPluginApi): void {
         async run(input) {
           const current = await state();
           const entries = SETTING_KEYS.filter((key) => current.explain[key]!.origin === "source");
-          if (input.options.json) return { exitCode: 0, stdout: JSON.stringify({ checkedAt: current.checkedAt, sources: Object.fromEntries(entries.map((key) => [key, current.explain[key]])) }) };
+          if (input.options.json) return { exitCode: 0, stdout: JSON.stringify({ checkedAt: current.checkedAt, host: current.host ?? null, sources: Object.fromEntries(entries.map((key) => [key, current.explain[key]])) }) };
           if (current.checkedAt === null) return { exitCode: 0, stdout: "No sources recorded yet. Use the delegation-defaults skill." };
           const lines = entries.map((key) => { const entry = current.explain[key]!; return `${key}\t${JSON.stringify(entry.value)}\t${entry.source}\t"${entry.quote}"`; });
-          return { exitCode: 0, stdout: [`Checked ${new Date(current.checkedAt).toISOString()}`, ...lines].join("\n") };
+          return { exitCode: 0, stdout: [`Checked ${new Date(current.checkedAt).toISOString()}${current.host ? ` on ${current.host}` : ""}`, ...lines].join("\n") };
         },
       }),
       record: cliCommand({
@@ -145,6 +147,7 @@ export default function plugin(bb: BbPluginApi): void {
           from: { type: "string", description: "Where the rule lives, such as ~/.bb/AGENTS.md or skill:spawn (required)" },
           quote: { type: "string", description: "The user's exact words (required)" },
           note: { type: "string", description: "Which other source disagrees, and why this one wins" },
+          host: hostOption,
         },
         async run(input) {
           const key = settingKey(input.positionals.key);
@@ -154,17 +157,17 @@ export default function plugin(bb: BbPluginApi): void {
           if (!entry.success || !settingsSchema.shape[key].safeParse(value).success) {
             throw new PluginCliError("A source needs --from and --quote.", { code: "invalid_source", hint: "Quote the user's words exactly, from the file named in --from." });
           }
-          const next = await recordSource(key, entry.data);
+          const next = await recordSource(key, entry.data, input.options.host);
           return { exitCode: 0, stdout: input.options.json ? JSON.stringify(next.explain[key]) : `${key}\t${JSON.stringify(next.settings[key])}\tfrom ${entry.data.source}` };
         },
       }),
       forget: cliCommand({
         summary: "Remove one recorded source, or every one with --all",
         positionals: [{ name: "key", required: false, description: "Setting name" }],
-        options: { all: { type: "boolean", description: "Remove every recorded source" } },
+        options: { all: { type: "boolean", description: "Remove every recorded source" }, host: hostOption },
         async run(input) {
           if (!input.options.all && !input.positionals.key) throw new PluginCliError("Name a setting or pass --all.", { code: "key_required" });
-          const next = await recordSource(input.options.all ? null : settingKey(input.positionals.key!), undefined);
+          const next = await recordSource(input.options.all ? null : settingKey(input.positionals.key!), undefined, input.options.host);
           return { exitCode: 0, stdout: input.options.all ? "Forgot every source." : `${input.positionals.key}\t${JSON.stringify(next.settings[input.positionals.key as SettingKey])}\t${next.explain[input.positionals.key!]!.origin}` };
         },
       }),
