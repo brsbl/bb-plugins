@@ -306,7 +306,8 @@ person and from you arrive as the same `press`/`release` events; play with
 `references/home-budget.html` (calculator set), `references/rate-limiter.html`
 (simulation set), `references/type-scale.html`
 (design tool), `references/connect-four.html` and
-`references/tic-tac-toe.html` (game set), and
+`references/tic-tac-toe.html` and `references/battleship.html` (game set; Battleship
+shows a setup step, two boards and hidden pieces), and
 `references/pocket-synth.html` (instrument).
 
 ## Interactive diagrams
