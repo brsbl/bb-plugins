@@ -239,8 +239,9 @@ playground.ui.game({ you: "R", me: "Y", move(board, col, who) { …; return boar
 ```
 
 Optional: `first`, `fromCell(row, col)` (which move a tap means; default: the
-column), `say(move, all)` ("column 4", or "B5, hit"), `start(all)` (the
-opening board), `again(move, all, who)` (true when the same player goes
+column), `say(move, all)` (a short phrase the turn row puts after "I played":
+"column 4", "B5, hit"), `start(all)` (the opening board, and any other
+boards; it runs when the game first loads and on New game), `again(move, all, who)` (true when the same player goes
 again). The turn row shows whose turn it is and a New game button. Their taps
 and your moves take one path. Play with `do <id> move --args '[3]'`; start
 over with `do <id> newGame`.

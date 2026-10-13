@@ -55,7 +55,9 @@ export const SETS_CSS = String.raw`
 .pg-turn { max-width: 420px; display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; font-weight: 500; color: var(--pg-ink); }
 .pg-turn > i { width: 10px; height: 10px; border-radius: 50%; background: var(--piece, var(--pg-meta)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 15%, transparent); }
 .pg-turn[data-turn=me] > i { animation: pg-blink .9s ease-in-out infinite alternate; }
-.pg-turn > small { font-size: 12px; font-weight: 400; color: var(--pg-meta); }
+.pg-turn > span { flex-shrink: 0; white-space: nowrap; }
+.pg-turn > small { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; color: var(--pg-meta); }
+.pg-turn > button { flex-shrink: 0; white-space: nowrap; }
 .pg-turn > button { margin-left: auto; }
 .pg-turn > button + button { margin-left: 0; }
 .pg-turn > .pg-tone { width: 16px; height: 16px; animation: none; box-shadow: none; }
@@ -258,7 +260,9 @@ export const SETS_RUNTIME = String.raw`
     if (!specs[g.board]) throw new Error("No board parameter " + g.board);
     g.first = g.first || g.you;
     g.start = g.start || (() => specs[g.board].default);
+    const fresh = !("turn" in restored);
     define("turn", { label: "Turn", options: [{ value: g.you }, { value: g.me }, { value: "done" }, { value: "setup" }], default: g.setup ? "setup" : g.first });
+    if (fresh) { const all = allValues(); all[g.board] = g.start(all); applyAll(all, "remote"); persist(); }
     on("select", ({ name, row, col, from }) => {
       if (name !== g.board || values.turn === "setup") return;
       try { playMove(g.fromCell(row, col), from === "agent" ? g.me : g.you); } catch (e) { if (from === "agent") throw e; }
