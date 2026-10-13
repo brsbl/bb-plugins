@@ -94,6 +94,26 @@ it("bulk approval atomically reserves only the displayed ready rows of a matchin
   expect(store.get(ref.threadId, "reply").state).toBe("ready");
 });
 
+it.each(["prepareTable", "prepareBatch"] as const)("reads persisted itemIds sheets after reload and supports %s without rewriting them", async (method) => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  const store = createStore(host.bb);
+  const content = { type: "decide", question: "Archive newsletter?", consequence: "Archive from inbox", yesLabel: "Archive", actionKey: "archive-email" };
+  ["a", "b", "outside"].forEach((id) => store.create(ref.threadId, id, content));
+  const legacy = JSON.stringify({ threadId: ref.threadId, id: "legacy", title: "Newsletters", itemIds: ["b", "a"] });
+  host.bb.storage.database().prepare("INSERT INTO action_tables VALUES (?, ?, ?)").run(ref.threadId, "legacy", legacy);
+  const reloaded = await host.harness.lifecycle.reload(plugin);
+  hosts[hosts.indexOf(host)] = reloaded;
+  const sheet = { threadId: ref.threadId, id: "legacy" };
+  expect(await reloaded.harness.behavior.callRpc("table", sheet)).toMatchObject({
+    ...sheet, title: "Newsletters", ids: ["b", "a"], items: [{ id: "b" }, { id: "a" }],
+  });
+  await expect(reloaded.harness.behavior.callRpc("table", { ...sheet, threadId: "thr_other" })).rejects.toThrow("unavailable");
+  await expect(reloaded.harness.behavior.callRpc(method, { ...sheet, items: [{ id: "outside", revision: 1, ...(method === "prepareBatch" ? { action: "yes" } : {}) }] })).rejects.toThrow();
+  const pending = await reloaded.harness.behavior.callRpc(method, { ...sheet, items: ["b", "a"].map((id) => ({ id, revision: 1, ...(method === "prepareBatch" ? { action: "yes" } : {}) })) });
+  expect(pending).toMatchObject([{ id: "b", state: "pending" }, { id: "a", state: "pending" }]);
+  expect(reloaded.bb.storage.database().prepare("SELECT value FROM action_tables WHERE thread_id = ? AND table_id = ?").get(ref.threadId, "legacy")).toEqual({ value: legacy });
+});
+
 it("lists every card once, keeps pending, failed and Later cards waiting with Later last, and sorts newest first", async () => {
   const { store } = setup();
   store.create("thr_one", "same-id", reply);
