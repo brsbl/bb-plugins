@@ -5,6 +5,12 @@ import { actionLabel, actionMessage, mentionId, title, logSchema, actionSchema, 
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
+// Older sheets persisted itemIds; normalize only on read, keeping current writes and RPCs on ids.
+const persistedTableSchema = z.union([
+  tableSchema,
+  tableSchema.omit({ ids: true }).extend({ itemIds: tableContentSchema.shape.ids })
+    .transform(({ itemIds, ...value }) => ({ ...value, ids: itemIds })),
+]);
 export const rpcContract = defineRpcContract({
   log: { input: z.object({ threadId: idSchema.optional() }).strict(), output: logSchema },
   decideFromLog: { input: versioned.extend({ action: actionSchema.optional() }), output: itemSchema },
@@ -66,7 +72,7 @@ export function createStore(bb: BbPluginApi) {
   const table = (threadId: string, id: string) => {
     const row = readTable.get(threadId, id) as { value: string } | undefined;
     if (!row) throw new Error("This table is unavailable. Ask the agent to recreate it.");
-    const value = tableSchema.parse(JSON.parse(row.value));
+    const value = persistedTableSchema.parse(JSON.parse(row.value));
     return { ...value, items: value.ids.map((itemId) => get(threadId, itemId)) };
   };
   const prepare = (item: Item, action: z.infer<typeof actionSchema>, note?: string) => {
@@ -139,7 +145,7 @@ export function createStore(bb: BbPluginApi) {
     },
     prepareBatch(input: z.infer<typeof rpcContract.prepareBatch.input>) {
       const next = db.transaction(() => {
-        const group = tableSchema.parse(JSON.parse((readTable.get(input.threadId, input.id) as { value: string } | undefined)?.value ?? "null"));
+        const group = persistedTableSchema.parse(JSON.parse((readTable.get(input.threadId, input.id) as { value: string } | undefined)?.value ?? "null"));
         if (new Set(input.items.map((entry) => entry.id)).size !== input.items.length) throw new Error("Each row can be sent once.");
         return input.items.map((entry) => {
           if (!group.ids.includes(entry.id)) throw new Error("That row does not belong to this table.");
