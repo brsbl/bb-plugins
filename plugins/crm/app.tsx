@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { definePluginApp, experimental_Icon as Icon, useRpc, useRealtime, useRealtimeConnectionState } from "@get-bb/plugin-sdk/app";
 import type { contract } from "./contract.js";
-import { CHANGED } from "./contract.js";
+import { CHANGED } from "./signals.js";
 import type { Group, Interaction, Person, Track } from "./model.js";
 import { Button } from "./components/ui/button.js";
 import { Input } from "./components/ui/input.js";

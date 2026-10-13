@@ -1,5 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { CHANGED, contract } from "./contract.js";
+import { contract } from "./contract.js";
+import { CHANGED } from "./signals.js";
 import { createCli } from "./cli.js";
 import { createStore, MIGRATIONS } from "./store.js";
 
