@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Markdown,
   experimental_Icon as Icon,
@@ -9,7 +9,7 @@ import {
 import { buildChannels, counterpartIds, type Channel, type ChannelMessage } from "./dispatch-model.js";
 
 export const DISPATCH_ACTION_ID = "dispatch";
-/** Timeline segments read per thread. Older history stays one "Load earlier" away. */
+/** Timeline segments read per thread. Scrolling to the top of a channel reads older ones. */
 const SEGMENTS = 20;
 /** bb rejects reads above 100 segments. */
 const MAX_SEGMENTS = 100;
@@ -108,6 +108,8 @@ export function useChannels(threadId: string) {
   const sdk = useSdk();
   const org = useOrg(threadId);
   const [segments, setSegments] = useState(SEGMENTS);
+  /** The window the last finished read used; behind `segments` while an older page loads. */
+  const [loadedSegments, setLoadedSegments] = useState(SEGMENTS);
   const [selfRows, setSelfRows] = useState<unknown[]>([]);
   const [counterpartRows, setCounterpartRows] = useState<Map<string, unknown[]>>(new Map());
   const [completeHistory, setCompleteHistory] = useState<Set<string>>(new Set());
@@ -148,11 +150,15 @@ export function useChannels(threadId: string) {
       if (signal.aborted) return;
       setSelfRows(own.rows);
       setSelfComplete(own.complete);
+      setLoadedSegments(segments);
       setCounterpartRows(new Map(pages.map(([id, page]) => [id, page.rows])));
       setCompleteHistory(new Set(pages.filter(([, page]) => page.complete).map(([id]) => id)));
       setStatus("ready");
     } catch {
-      if (!signal.aborted) setStatus((value) => (value === "ready" ? value : "error"));
+      if (!signal.aborted) {
+        setStatus((value) => (value === "ready" ? value : "error"));
+        setLoadedSegments(segments);
+      }
     }
   }, [sdk, threadId, segments]);
 
@@ -168,6 +174,7 @@ export function useChannels(threadId: string) {
     () => buildChannels({ selfId: threadId, parentId: org.parentId, childIds: org.childIds, titles: org.titles, pending: org.pending, pendingKnown: org.ready, lastSeen, selfRows, counterpartRows, completeHistory }),
     [threadId, org, lastSeen, selfRows, counterpartRows, completeHistory],
   );
+  const loadEarlier = useCallback(() => setSegments((count) => Math.min(count + SEGMENTS, MAX_SEGMENTS)), []);
   const seen = useCallback((counterpartId: string) => {
     markSeen(threadId, counterpartId);
     setLastSeen(readLastSeen(threadId));
@@ -178,7 +185,8 @@ export function useChannels(threadId: string) {
     seen,
     /** Whether older history exists for a channel and bb will still serve a larger window. */
     canLoadEarlier: (counterpartId: string) => segments < MAX_SEGMENTS && !(selfComplete && completeHistory.has(counterpartId)),
-    loadEarlier: () => setSegments((count) => Math.min(count + SEGMENTS, MAX_SEGMENTS)),
+    loadingEarlier: loadedSegments !== segments,
+    loadEarlier,
   };
 }
 
@@ -190,63 +198,78 @@ function ActivityDot({ channel }: { channel: Channel }) {
   return null;
 }
 
-const DIR_LABEL: Record<ChannelMessage["dir"], string> = {
-  brief: "started with",
-  out: "Message from",
-  in: "Message from",
-  finished: "finished",
-  failed: "failed",
-  interrupted: "was interrupted",
-  "needs-you": "needs attention",
-};
-const DIR_ICON: Record<ChannelMessage["dir"], string> = {
-  brief: "MessageSquarePlus",
-  out: "MessageSquare",
-  in: "MessageSquare",
-  finished: "CircleCheck",
-  failed: "AlertCircle",
-  interrupted: "Square",
-  "needs-you": "AlertTriangle",
+/** Reads like a thread timeline between two agents: this thread speaks as the sender, the counterpart replies. */
+const REPLY_NOTE: Partial<Record<ChannelMessage["dir"], string>> = {
+  failed: "Failed",
+  interrupted: "Interrupted",
 };
 
-function MessageRow({ message, selfTitle, channel }: { message: ChannelMessage; selfTitle: string; channel: Channel }) {
-  const sender = message.dir === "out" ? selfTitle : channel.title;
-  const isMessage = message.dir === "out" || message.dir === "in";
+function MessageRow({ message }: { message: ChannelMessage }) {
+  if (message.dir === "brief" || message.dir === "out") {
+    const delivery = message.status === "rejected" ? "Not delivered" : message.status === "pending" ? "Queued" : message.steer ? "Steered into its running turn" : null;
+    return (
+      <li className="dp-sent">
+        <div className="dp-bubble"><Markdown content={message.text || "_(no text)_"} /></div>
+        {delivery ? <p className="dp-note">{delivery}</p> : null}
+      </li>
+    );
+  }
+  const note = REPLY_NOTE[message.dir];
   return (
-    <li className={`dp-message dp-message-${message.dir}`}>
-      <div className="dp-message-title">
-        <Icon name={DIR_ICON[message.dir]} fallback="MessageSquare" className="dp-message-icon" aria-hidden />
-        {isMessage ? (
-          <>
-            <span className="dp-muted">Message from</span>
-            <span className="dp-pill">{sender}</span>
-          </>
-        ) : (
-          <>
-            <span className="dp-pill">{channel.title}</span>
-            <span className="dp-muted">{DIR_LABEL[message.dir]}</span>
-          </>
-        )}
-        <span className="dp-time">{new Date(message.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
-      </div>
-      <div className="dp-message-body"><Markdown content={message.text || "_(no text)_"} /></div>
-      {message.dir === "out" && (message.steer || message.status === "pending" || message.status === "rejected") ? (
-        <p className="dp-delivery">
-          {message.status === "rejected" ? "Not delivered" : message.status === "pending" ? "Queued" : "Steered into its running turn"}
-        </p>
-      ) : null}
+    <li className={`dp-reply${message.dir === "failed" ? " dp-reply-failed" : ""}`}>
+      {message.text ? <Markdown content={message.text} /> : null}
+      {note ? <p className="dp-note">{note}</p> : null}
     </li>
   );
 }
 
+/**
+ * Keeps the newest message in view and reads older history from the top, like a thread does. A channel too short
+ * to scroll keeps reading older pages until it fills or its history is complete.
+ */
+function useTimelineScroll(key: string | undefined, latestAt: number | undefined, count: number, canLoad: boolean, loading: boolean, loadEarlier: () => void) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const pinned = useRef(true);
+  /** Distance from the bottom to keep while an older page loads. */
+  const restore = useRef<number | null>(null);
+  const shownKey = useRef(key);
+  const requestOlder = useCallback((el: HTMLDivElement) => {
+    restore.current = el.scrollHeight - el.scrollTop;
+    loadEarlier();
+  }, [loadEarlier]);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (shownKey.current !== key) {
+      shownKey.current = key;
+      pinned.current = true;
+      restore.current = null;
+    }
+    if (restore.current !== null) {
+      if (loading) return;
+      el.scrollTop = el.scrollHeight - restore.current;
+      restore.current = null;
+    } else if (pinned.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+    if (canLoad && !loading && el.scrollHeight <= el.clientHeight) requestOlder(el);
+  }, [key, latestAt, count, canLoad, loading, requestOlder]);
+  const onScroll = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    if (el.scrollTop < 48 && canLoad && !loading && restore.current === null) requestOlder(el);
+  }, [canLoad, loading, requestOlder]);
+  return { ref, onScroll };
+}
+
 export function DispatchPanel({ threadId, params }: { threadId: string; params: unknown }) {
-  const { channels, status, seen, canLoadEarlier, loadEarlier } = useChannels(threadId);
-  const navigate = useBbNavigate();
+  const { channels, status, seen, canLoadEarlier, loadingEarlier, loadEarlier } = useChannels(threadId);
   const requested = typeof params === "object" && params !== null ? (params as { counterpart?: unknown }).counterpart : undefined;
   const [active, setActive] = useState<string | null>(typeof requested === "string" ? requested : null);
-  const sidebar = useSidebarThreads();
-  const selfTitle = sidebar.threads.find((thread) => thread.id === threadId)?.displayTitle ?? "This thread";
   const current = channels.find((channel) => channel.counterpartId === active) ?? channels[0];
+  const scroll = useTimelineScroll(current?.counterpartId, current?.latestAt, current?.messages.length ?? 0,
+    current ? canLoadEarlier(current.counterpartId) : false, loadingEarlier, loadEarlier);
 
   useEffect(() => {
     if (current) seen(current.counterpartId);
@@ -276,23 +299,14 @@ export function DispatchPanel({ threadId, params }: { threadId: string; params: 
         ))}
       </div>
       {current ? (
-        <div className="dp-channel" role="tabpanel">
-          <div className="dp-channel-head">
-            <span className="dp-channel-title">{selfTitle} ↔ {current.title}</span>
-            <span className="dp-muted">· {current.relation === "report" ? "your report" : current.relation === "parent" ? "your lead" : "peer"}</span>
-            <span className="dp-spacer" />
-            <button type="button" className="dp-link" onClick={() => navigate.toThread(current.counterpartId)}>Open {current.title}</button>
-          </div>
+        <div className="dp-channel" role="tabpanel" aria-label={current.title} ref={scroll.ref} onScroll={scroll.onScroll}>
           {current.messages.length === 0 ? (
-            <p className="dp-empty">No messages in the loaded history.</p>
+            <p className="dp-empty">No messages yet.</p>
           ) : (
             <ol className="dp-messages">
-              {current.messages.map((message) => <MessageRow key={message.id} message={message} selfTitle={selfTitle} channel={current} />)}
+              {current.messages.map((message) => <MessageRow key={message.id} message={message} />)}
             </ol>
           )}
-          {canLoadEarlier(current.counterpartId) ? (
-            <button type="button" className="dp-link dp-earlier" onClick={loadEarlier}>Load earlier messages</button>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -309,12 +323,12 @@ export function DispatchHeaderButton({ threadId }: { threadId: string }) {
     <button
       type="button"
       className="dp-header-button"
-      aria-label="Open Dispatch"
-      title="Dispatch: this thread's agent channels"
-      onClick={() => navigate.openThreadPanel({ actionId: DISPATCH_ACTION_ID, title: "Dispatch" })}
+      aria-label="Open Agent Channels"
+      title="Agent Channels: this thread's conversations with other agents"
+      onClick={() => navigate.openThreadPanel({ actionId: DISPATCH_ACTION_ID, title: "Agent Channels" })}
     >
-      <Icon name="Workflow" className="dp-message-icon" aria-hidden />
-      Dispatch
+      <Icon name="delegation/agent-channels" className="dp-header-icon" aria-hidden />
+      Agent Channels
       {attention ? <span className="dp-dot dp-dot-attention" aria-label="A report needs you" /> : null}
     </button>
   );
