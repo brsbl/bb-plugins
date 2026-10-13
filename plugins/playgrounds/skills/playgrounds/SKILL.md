@@ -239,10 +239,21 @@ playground.ui.game({ you: "R", me: "Y", move(board, col, who) { …; return boar
 ```
 
 Optional: `first`, `fromCell(row, col)` (which move a tap means; default: the
-column), `say(move)` ("column 4"), `start()` (the opening board). The turn row
-shows whose turn it is and a New game button. Their taps and your moves take
-one path. Play with `do <id> move --args '[3]'`; start over with
-`do <id> newGame`.
+column), `say(move, all)` ("column 4", or "B5, hit"), `start(all)` (the
+opening board), `again(move, all, who)` (true when the same player goes
+again). The turn row shows whose turn it is and a New game button. Their taps
+and your moves take one path. Play with `do <id> move --args '[3]'`; start
+over with `do <id> newGame`.
+
+Games with a setup step or more than one board (Battleship: your fleet and
+my waters) use the same set. Pass `setup: true` (and `setupText`,
+`startLabel`) and the turn row shows a Start button until they're ready;
+place pieces on the other boards with your own `ui.on("select")` handler
+while `playground.params.get("turn") === "setup"`. `move`, `winner`, `say`
+and `start` also receive `all`, every parameter by name, so a move can mark a
+hit on one board and read another; change `all` in place. Taps count as moves
+only on `board`. Keep your own pieces out of the markup and out of
+parameters the person can see, and don't read theirs to choose your moves.
 
 Don't ask them to tell you when they've moved. After publishing (or after your
 move), wait on the card for theirs, in one command with a 10-minute timeout:

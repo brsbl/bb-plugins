@@ -279,8 +279,9 @@ export const CONTROLS_RUNTIME = String.raw`
   let saveTimer = 0;
   const rawSave = api.save;
   const current = () => (api.state && typeof api.state === "object" && !Array.isArray(api.state) ? api.state : {});
-  const persist = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => rawSave({ ...current(), params: { ...values } }), 150); };
-  api.save = (value) => rawSave(value && typeof value === "object" && !Array.isArray(value) && Object.keys(specs).length && !("params" in value) ? { ...value, params: { ...values } } : value);
+  let laneText = state && typeof state === "object" && typeof state.lane === "string" ? state.lane : "";
+  const persist = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => rawSave({ ...current(), params: { ...values }, lane: laneText }), 150); };
+  api.save = (value) => rawSave(value && typeof value === "object" && !Array.isArray(value) && Object.keys(specs).length && !("params" in value) ? { ...value, params: { ...values }, lane: laneText } : value);
   function set(name, value, from) {
     const s = specs[name];
     if (!s) return undefined;
@@ -314,6 +315,7 @@ export const CONTROLS_RUNTIME = String.raw`
     }
   }
   stateListeners.add((next) => {
+    if (next && typeof next === "object" && typeof next.lane === "string" && next.lane !== laneText) { laneText = next.lane; paintLane(); }
     const incoming = next && typeof next === "object" && next.params;
     if (!incoming) return;
     for (const name in specs) if (name in incoming) set(name, incoming[name], "remote");
@@ -676,11 +678,12 @@ export const CONTROLS_RUNTIME = String.raw`
   }
   // The agent lane shows what the agent last did on this card.
   let laneTimer = 0;
-  function lane(text) {
+  function paintLane() {
     for (const el of document.querySelectorAll('[data-pg="agent"]')) {
-      el.textContent = String(text).slice(0, 240); el.removeAttribute("data-fresh"); void el.offsetWidth; el.setAttribute("data-fresh", "");
+      el.textContent = laneText || attr(el, "empty", "Ask me to change anything here."); el.removeAttribute("data-fresh"); void el.offsetWidth; el.setAttribute("data-fresh", "");
     }
   }
+  function lane(text) { laneText = String(text).slice(0, 240); paintLane(); persist(); }
   // Panels with data-show="param=value" (or "param!=value") appear only when it holds.
   function showWhen() {
     for (const el of document.querySelectorAll("[data-show]")) {
@@ -712,7 +715,7 @@ export const CONTROLS_RUNTIME = String.raw`
       else if (kind === "readouts") readouts(el);
       else if (kind === "table") { el.classList.add("pg-table-wrap"); }
       else if (kind === "chart") chartHost(el);
-      else if (kind === "agent") { el.classList.add("pg-agent"); el.setAttribute("aria-live", "polite"); if (!el.textContent.trim()) el.textContent = attr(el, "empty", "Ask me to change anything here."); }
+      else if (kind === "agent") { el.classList.add("pg-agent"); el.setAttribute("aria-live", "polite"); if (laneText) el.textContent = laneText; else if (!el.textContent.trim()) el.textContent = attr(el, "empty", "Ask me to change anything here."); }
       else if (kind === "meter") { el.classList.add("pg-meter"); el.innerHTML = "<i></i>"; el.__set = (t) => el.style.setProperty("--v", (clamp(t, 0, 1) * 100) + "%"); }
       else if (kind === "record") { el.classList.add("pg-btn", "pg-record"); el.innerHTML = '<i class="pg-dot"></i><span>Record</span>'; el.setAttribute("aria-pressed", "false"); el.onclick = () => (recording ? stopTake() : startTake()); }
       else if (kind === "send") { el.classList.add("pg-btn"); if (!el.textContent.trim()) el.textContent = "Send to agent"; el.disabled = true; el.onclick = () => { if (lastTake) api.send(attr(el, "label", "Take") + " · " + lastTake.notes.length + " notes · " + lastTake.seconds.toFixed(1) + "s", lastTake); }; }
