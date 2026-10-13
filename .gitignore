@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.tgz
+__pycache__/
+*.pyc
+maintenance/.runtime/
+maintenance/*.lock
+maintenance/state.json
+.coverage/
