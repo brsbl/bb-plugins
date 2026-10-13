@@ -90,7 +90,7 @@ export const CONTROLS_CSS = String.raw`
 .pg-foot > details { border-top: 0; }
 .pg-foot > details[open] { grid-column: 1 / -1; }
 .pg-foot > .pg-agent { justify-self: end; padding: 10px 0; background: none; text-align: right; }
-.pg-foot > .pg-agent { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.pg-foot > .pg-agent { max-height: calc(2.9em + 16px); overflow: hidden; }
 .pg-foot > .pg-agent:only-child { grid-column: 1 / -1; justify-self: start; text-align: left; }
 :where(body:has([data-pg]) > details + details) { margin-top: 0; }
 :where(body:has([data-pg]) details) { border-top: 1px solid var(--pg-hairline); }
