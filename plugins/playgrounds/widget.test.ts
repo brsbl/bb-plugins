@@ -78,9 +78,9 @@ it("doesn't start audio when someone taps a card without sound", () => {
 
 async function command(window: JSDOM["window"], action: string, args: unknown[]) {
   if (window.document.readyState !== "complete") await new Promise((resolve) => window.addEventListener("load", resolve));
-  const results: { cmdId?: string; ok?: boolean; value?: unknown; error?: string }[] = [];
-  window.addEventListener("message", (event) => {
-    const data = (event as MessageEvent).data as { type?: string } | null;
+  const results: { type?: string; cmdId?: string; ok?: boolean; value?: unknown; error?: string }[] = [];
+  window.addEventListener("message", (event: Event) => {
+    const data = (event as MessageEvent).data as (typeof results)[number] | null;
     if (data?.type === "result") results.push(data);
   });
   const cmdId = "c" + Math.random();
@@ -123,7 +123,7 @@ it("lets a card's own actions win over the kit's built-in actions", async () => 
   const { window } = dom;
   if (window.document.readyState !== "complete") await new Promise((resolve) => window.addEventListener("load", resolve));
   const results: unknown[] = [];
-  window.addEventListener("message", (event) => {
+  window.addEventListener("message", (event: Event) => {
     const data = (event as MessageEvent).data as { type?: string } | null;
     if (data?.type === "result") results.push(data);
   });
