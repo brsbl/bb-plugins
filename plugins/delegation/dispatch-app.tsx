@@ -323,12 +323,12 @@ export function DispatchHeaderButton({ threadId }: { threadId: string }) {
     <button
       type="button"
       className="dp-header-button"
-      aria-label="Open Dispatch"
-      title="Dispatch: this thread's agent channels"
-      onClick={() => navigate.openThreadPanel({ actionId: DISPATCH_ACTION_ID, title: "Dispatch" })}
+      aria-label="Open Agent Channels"
+      title="Agent Channels: this thread's conversations with other agents"
+      onClick={() => navigate.openThreadPanel({ actionId: DISPATCH_ACTION_ID, title: "Agent Channels" })}
     >
-      <Icon name="Workflow" className="dp-header-icon" aria-hidden />
-      Dispatch
+      <Icon name="delegation/agent-channels" className="dp-header-icon" aria-hidden />
+      Agent Channels
       {attention ? <span className="dp-dot dp-dot-attention" aria-label="A report needs you" /> : null}
     </button>
   );
