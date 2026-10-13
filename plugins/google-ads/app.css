@@ -1,0 +1,19 @@
+.ga-page { max-width: 760px; padding: 44px 32px; margin: 0 auto; color: var(--foreground); font-size: 14px; line-height: 1.6; }
+.ga-page h1 { font-size: 28px; line-height: 1.2; font-weight: 600; margin: 12px 0; letter-spacing: -.02em; }
+.ga-page h2 { font-size: 17px; font-weight: 600; margin: 0 0 10px; }
+.ga-eyebrow { color: var(--muted-foreground); font-size: 11px; font-weight: 600; letter-spacing: .09em; }
+.ga-intro { color: var(--muted-foreground); font-size: 16px; max-width: 620px; }
+.ga-section { border-top: 1px solid var(--border); padding: 24px 0; margin-top: 24px; }
+.ga-muted { color: var(--muted-foreground); }
+.ga-page button { background: var(--primary); color: var(--primary-foreground); border: 1px solid transparent; border-radius: 6px; padding: 8px 12px; cursor: pointer; font: inherit; }
+.ga-page button:disabled { opacity: .5; cursor: default; }
+.ga-page .ga-secondary { background: var(--background); color: var(--foreground); border-color: var(--border); }
+.ga-page .ga-link { background: transparent; color: var(--muted-foreground); padding: 8px 0; display: block; font-size: 12px; }
+.ga-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ga-page input { display: block; box-sizing: border-box; width: 100%; margin: 8px 0 12px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); }
+.ga-page a { color: var(--primary); text-decoration: underline; }
+.ga-page code { display: block; border: 1px solid var(--border); padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+.ga-checklist { padding-left: 18px; }
+.ga-checklist li { margin: 8px 0; }
+.ga-error { color: var(--destructive); }
+@media (max-width: 600px) { .ga-page { padding: 24px 18px; } .ga-page h1 { font-size: 24px; } }

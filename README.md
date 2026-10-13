@@ -130,6 +130,14 @@ Prioritize customer companies by potential impact and investors by the value the
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/crm --yes`
 
+### Google Ads
+
+Read campaign performance, search terms and ad copy, then prepare a decision for a manual change in Google Ads.
+
+[Source](plugins/google-ads) · [README](plugins/google-ads/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/google-ads --yes`
+
 ### Image Carousel
 
 Shows screenshots inline as a carousel: design research with one product per slide, or Before and After side by side with one shared description. It replaces long runs of images and screenshot tables in agent replies.
