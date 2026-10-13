@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import type { Action, Item, TableView } from "./model.js";
@@ -24,10 +24,11 @@ function restore(key: string): Saved {
 }
 
 
-export function DecisionSheet({ id, threadId }: { id: string; threadId: string }) {
+export function DecisionSheet({ id, threadId, onLoaded }: { id: string; threadId: string; onLoaded?: () => void }) {
   const rpc = useRpc<typeof rpcContract>();
   const key = `iac-sheet:${threadId}:${id}`;
   const [table, setTable] = useState<TableView | null>(null);
+  useLayoutEffect(() => { if (table) onLoaded?.(); }, [table, onLoaded]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Saved>(() => restore(key));

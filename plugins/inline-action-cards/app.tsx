@@ -8,12 +8,14 @@ import { FollowUps, Media } from "./evidence.js";
 import { Button, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, DecisionRow, NoteField, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { DecisionSheet, type SheetBinding } from "./sheet.js";
 import { readableError, submitting } from "./submit.js";
+import { ReloadFrame } from "./reload-frame.js";
 import "./app.css";
 import "./compact.css";
 
-export function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, sheet, logEntry }: {
+export function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, sheet, logEntry, onLoaded }: {
   id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
   initialItem?: Item & { followUps?: FollowUp[] }; onItem?: (item: Item, own?: boolean) => void;
+  onLoaded?: () => void;
   // A decision sheet row stages its answer and keeps its comment in the sheet.
   sheet?: SheetBinding;
   logEntry?: { threadTitle: string; threadProjectId: string | null; showThread: boolean };
@@ -29,6 +31,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const onExpandRef = useRef(onExpand); onExpandRef.current = onExpand;
   const rpc = useRpc<typeof rpcContract>();
   const [item, setItem] = useState<Item | null>(initialItem ?? null);
+  useLayoutEffect(() => { if (item) onLoaded?.(); }, [item, onLoaded]);
   const current = useRef<Item | null>(initialItem ?? null);
   const [draft, setDraft] = useState(initialItem?.content.type === "reply" ? initialItem.content.draft : "");
   const text = useRef(draft);
@@ -363,12 +366,14 @@ function resultLabel(item: Item): string {
 export function ActionDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const parsed = idSchema.safeParse(attributes.id);
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This card has an invalid item ID. Ask the agent to recreate its link.</div>;
-  return <div className="iac-container"><ActionCard key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} /></div>;
+  const key = JSON.stringify(["action", message.threadId, parsed.data]);
+  return <ReloadFrame key={key} cacheKey={key}>{(onLoaded) => <ActionCard id={parsed.data} threadId={message.threadId} onLoaded={onLoaded} />}</ReloadFrame>;
 }
 export function ActionsDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const parsed = idSchema.safeParse(attributes.id);
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This table has an invalid ID. Ask the agent to recreate its link.</div>;
-  return <div className="iac-container"><DecisionSheet key={`${message.threadId}:${parsed.data}`} id={parsed.data} threadId={message.threadId} /></div>;
+  const key = JSON.stringify(["actions", message.threadId, parsed.data]);
+  return <ReloadFrame key={key} cacheKey={key}>{(onLoaded) => <DecisionSheet id={parsed.data} threadId={message.threadId} onLoaded={onLoaded} />}</ReloadFrame>;
 }
 const DONE_PREVIEW = 5;
 // The sidebar page lists every thread; a thread panel lists only its own thread.
