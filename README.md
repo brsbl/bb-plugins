@@ -118,6 +118,16 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
 
+### Image Carousel
+
+Shows screenshots inline as a carousel: design research with one product per slide, or Before and After side by side with one shared description. It replaces long runs of images and screenshot tables in agent replies.
+
+![A before/after carousel in a bb thread](plugins/image-carousel/docs/screenshot.png)
+
+[Source](plugins/image-carousel) · [README](plugins/image-carousel/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/image-carousel --yes`
+
 ### Inline Action Cards
 
 Edit email replies and approve decisions inside agent messages. Review one item or a group in a table, and track waiting choices and results across threads in the Action log.
@@ -217,6 +227,22 @@ Reads and edits Moss notes in a bb panel the way Moss does: tabs, tables, wiki l
 [Source](plugins/moss-viewer) · [README](plugins/moss-viewer/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/moss-viewer --yes`
+
+### Playgrounds
+
+Answers you can play with: agents put calculators, charts, step-by-step guides, and visual previews right in their message, and changing an input updates them without another agent turn. Save any playground to your own library to reopen it later or bring it into a new conversation.
+
+![An HTML playground with a step-by-step repotting guide in a bb thread](plugins/playgrounds/docs/html-playground.png)
+
+![An HTML playground saved to the library, with a saved playground in the composer's @ menu](plugins/playgrounds/docs/playground-in-thread.png)
+
+![The Playgrounds library listing saved playgrounds](plugins/playgrounds/docs/library.png)
+
+![A saved calculator open in the library with its saved inputs](plugins/playgrounds/docs/saved-playground.png)
+
+[Source](plugins/playgrounds) · [README](plugins/playgrounds/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/playgrounds --yes`
 
 ### Saved Places
 
