@@ -77,8 +77,9 @@ parameter) shows one in the current thread with its saved inputs. When the user
 - **Follow-ups change the card.** When they ask about something the card
   shows (a step, a stop, a color, a plant, a setting), change the card with
   `do <id> setParams` or one of its actions, then answer in a line or two.
-  Don't only answer in chat, and don't publish a second card unless the
-  structure has to change (say why when you do). Keep what they'd ask about
+  Don't only answer in chat. Publish a second card only when the card's data
+  has to change (a different stop on the route, a new plant), and carry
+  over what they had selected. Keep what they'd ask about
   (the current step, the selected item) in parameters so you can set it.
 - Native documents expose `set` (one object of control values) and `reset`,
   and return the inputs plus every metric as displayed.
@@ -295,14 +296,18 @@ they're stuck on a step. Drawings carry the guide:
 
 - Draw the specific thing they have (a kid's bike: small frame, coaster
   brake, training wheels), not a generic icon, as inline SVG.
-- In each step's drawing, put the parts that step touches in the accent
-  color and keep everything else grey, so the step reads at a glance.
+- Draw the whole thing once, as one SVG function, and reuse it in every
+  step. Each step changes only what that step touches: those parts in the
+  accent color, everything else grey (see `pour-over.html`). No separate
+  icons per step (a box, a book, a wrench); a person should always see where
+  on the thing they are.
 - For anything that changes shape (folding, assembling), draw the result of
   that step, so no two steps show the same picture. Mark folds and creases
   with dashed lines and motion with an arrow.
 
-**Photos.** For real places, plants, foods and products, show two or three
-real photos: `<div data-pg="photos"><img src="…" alt="…">…</div>` lays them out
+**Photos.** Whenever the answer is about real places, plants, foods or
+products (a garden plan, a day trip, a recipe), open with two or three real
+photos: `<div data-pg="photos"><img src="…" alt="…">…</div>` lays them out
 (one tall, two stacked) and drops any that fail. Find them on Wikimedia
 Commons, use the `upload.wikimedia.org` host (swap it in for
 `thumb.wikimedia.org`; thumbnails come in fixed sizes such as 960px), check
