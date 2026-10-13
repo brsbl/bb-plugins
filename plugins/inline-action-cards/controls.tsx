@@ -4,8 +4,9 @@ import * as Tooltip from "@radix-ui/react-tooltip";
 import { Button, type ButtonProps } from "./components/ui/button.js";
 import { cn } from "./lib/utils.js";
 
+// Never a form submit by default: cards and tables are forms, and a recovery click must not send an answer.
 export function ActionButton({ className, ...props }: ButtonProps & { ref?: Ref<HTMLButtonElement> }) {
-  return <Button size="sm" variant="ghost" {...props} className={cn("h-7 px-2", className)} />;
+  return <Button size="sm" variant="ghost" type="button" {...props} className={cn("h-7 px-2", className)} />;
 }
 export function PendingButton({ children, pending, pendingLabel, ...props }: ButtonProps & { pending: boolean; pendingLabel: string }) {
   return <ActionButton {...props} disabled={props.disabled || pending} aria-busy={pending || undefined}>
