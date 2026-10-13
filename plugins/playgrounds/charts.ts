@@ -40,8 +40,8 @@ export const CHART_CSS = String.raw`
 .pg-chart-legend i[data-fill] { width: 10px; height: 10px; border-radius: 2px; }
 .pg-tip { position: absolute; z-index: 2; top: 0; left: 0; min-width: 120px; padding: 7px 10px; border-radius: 8px; background: var(--card); box-shadow: 0 0 0 1px var(--pg-hairline), 0 4px 16px -4px color-mix(in srgb, var(--foreground) 22%, transparent); font-size: 11px; line-height: 1.4; color: var(--pg-meta); pointer-events: none; opacity: 0; transition: opacity .12s; }
 .pg-chart[data-hover] .pg-tip { opacity: 1; }
-.pg-chart[data-hover] .pg-tip { display: grid; }
-.pg-tip { grid-template-columns: 12px auto minmax(0, 1fr); align-items: center; gap: 2px 6px; }
+
+.pg-tip { display: grid; grid-template-columns: 12px auto minmax(0, 1fr); align-items: center; gap: 2px 6px; }
 .pg-tip > div { display: contents; }
 .pg-tip > div > i { width: 12px; height: 2px; border-radius: 1px; background: var(--k); }
 .pg-tip > div > b { font-size: 12px; font-weight: 600; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
