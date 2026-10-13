@@ -21,6 +21,11 @@ Agents keep the pipeline current through `bb crm add`, `update`, `list` and
 `log`. Every command supports `--json`. See the [CRM skill](skills/crm/SKILL.md)
 for command examples, stage names, stable import IDs and pagination.
 
+Customer milestones are **Champion identified → M1 · Relationship → M2 · Value →
+M3 · Team → M4 · Team usage + expansion**. Upgrading the first CRM build migrates
+retired customer stages in place without changing contacts, next steps or
+history. Unknown stored stages stay readable; investor stages are unchanged.
+
 Records stay in CRM's private plugin database on the machine running the bb
 server. There is no external sync or message sending. The MVP uses the CLI for
 editing and does not include deleting records.

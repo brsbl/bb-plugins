@@ -12,7 +12,7 @@ const page = {
 } as const;
 const trackFields = {
   person: optional("Contact's person ID"),
-  stage: optional("Stage name; customer: " + CUSTOMER_STAGES.join(", ") + "; investor: " + INVESTOR_STAGES.join(", ")),
+  stage: optional("Exact stage name; customer milestones: " + CUSTOMER_STAGES.join(" → ") + "; investor: " + INVESTOR_STAGES.join(" → ")),
   next: { ...optional("Next step, up to 1000 characters; empty text clears it"), aliases: ["next-step"], stdin: true },
   owner: optional("Responsible person or thread label, up to 200 characters; empty text clears it"),
   date: optional("Next step date, YYYY-MM-DD"),

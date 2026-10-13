@@ -12,6 +12,15 @@ export const MIGRATIONS = [
   "CREATE TABLE crm_interactions (id TEXT PRIMARY KEY, companyId TEXT REFERENCES crm_companies(id), personId TEXT REFERENCES crm_people(id), kind TEXT NOT NULL, date TEXT NOT NULL, note TEXT NOT NULL, track TEXT, createdAt TEXT NOT NULL, CHECK(companyId IS NOT NULL OR personId IS NOT NULL))",
   "CREATE INDEX crm_interactions_company ON crm_interactions(companyId, date DESC, createdAt DESC, id)",
   "CREATE INDEX crm_interactions_person ON crm_interactions(personId, date DESC, createdAt DESC, id)",
+  // Upgrade the stages stored by 6d03e16 without rewriting any other track fields.
+  `UPDATE crm_tracks SET stage = CASE stage
+    WHEN 'Champion engaged' THEN 'M1 · Relationship'
+    WHEN 'Shared channel' THEN 'M1 · Relationship'
+    WHEN 'Usage deep-dive' THEN 'M2 · Value'
+    WHEN 'Expanding' THEN 'M4 · Team usage + expansion'
+    WHEN 'Case study' THEN 'M4 · Team usage + expansion'
+    ELSE stage END
+    WHERE kind = 'customer' AND stage IN ('Champion engaged', 'Shared channel', 'Usage deep-dive', 'Expanding', 'Case study')`,
 ];
 const addCompanySchema = companySchema.partial({ id: true });
 const addPersonSchema = personSchema.partial({ id: true });

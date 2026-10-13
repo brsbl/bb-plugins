@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CUSTOMER_STAGES = ["Champion identified", "Champion engaged", "Shared channel", "Usage deep-dive", "Expanding", "Case study"] as const;
+export const CUSTOMER_STAGES = ["Champion identified", "M1 · Relationship", "M2 · Value", "M3 · Team", "M4 · Team usage + expansion"] as const;
 export const INVESTOR_STAGES = ["Identified", "Intro requested", "Intro made", "Conversation", "Committed"] as const;
 export const kindSchema = z.enum(["customer", "investor"]);
 export const idSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/, "Use an ID of 1–80 letters, numbers, underscores or hyphens");

@@ -23,9 +23,9 @@ All commands support `--json`; errors return a nonzero exit code and
 ```sh
 bb crm add company "Acme Example" --id acme --json
 bb crm add person "Alex Example" --id alex --company acme --role "Engineering lead" --json
-bb crm add track --company acme --kind customer --person alex --stage "Champion engaged" --next "Start a shared channel" --owner "Sam Demo" --date 2026-10-20 --json
+bb crm add track --company acme --kind customer --person alex --stage "M1 · Relationship" --next "Start a shared channel" --owner "Sam Demo" --date 2026-10-20 --json
 bb crm list --type tracks --company acme --json
-bb crm update track TRACK_ID --stage "Shared channel" --next "Book a usage call" --json
+bb crm update track TRACK_ID --stage "M2 · Value" --next "Book a usage call" --json
 bb crm log --person alex --kind call --date 2026-10-12 --note "Fictional team wants to try it together." --track customer --json
 ```
 
@@ -37,11 +37,19 @@ For an independent angel, omit `--company` when adding the person, then use
 `add track --person PERSON_ID --kind investor`. Independent people have investor
 tracks only. Dates are calendar dates in YYYY-MM-DD form.
 
-Customer stages: Champion identified → Champion engaged → Shared channel →
-Usage deep-dive → Expanding → Case study.
+Customer milestones, in order: Champion identified → M1 · Relationship →
+M2 · Value → M3 · Team → M4 · Team usage + expansion.
+Capture monetization signal at M3 in the next step or interaction notes.
 
 Investor stages: Identified → Intro requested → Intro made → Conversation →
 Committed.
+
+Use the full stage label in `--stage`. On upgrade, Shared channel and Champion
+engaged become M1 · Relationship; Usage deep-dive becomes M2 · Value; Expanding
+and Case study become M4 · Team usage + expansion. Champion identified,
+investor stages and unknown stored values are preserved. Retired labels are no
+longer accepted for new writes; unknown stored labels remain visible in list
+and the view, and can be changed to a current stage with update.
 
 `update company ID --name …` renames a company.
 `update person ID --name … --role … --company …` changes a person.

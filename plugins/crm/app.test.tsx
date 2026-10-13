@@ -6,12 +6,13 @@ afterEach(cleanup);
 it("shows the two tracks together, expands history, filters and clears a search", async () => {
   const app = await loadPluginApp(() => import("./app"));
   const person = { id: "alex", name: "Alex Example", role: "Founder", companyId: "acme" };
-  const tracks = ["customer", "investor"].map(kind => ({ id: kind, subjectType: "company", subjectId: "acme", kind, personId: "alex", stage: kind === "customer" ? "Champion engaged" : "Conversation", nextStep: kind === "customer" ? "Schedule the demo" : "Send the update", owner: "Sam Demo", date: null }));
+  const tracks = ["customer", "investor"].map(kind => ({ id: kind, subjectType: "company", subjectId: "acme", kind, personId: "alex", stage: kind === "customer" ? "M4 · Team usage + expansion" : "Conversation", nextStep: kind === "customer" ? "Schedule the demo" : "Send the update", owner: "Sam Demo", date: null }));
   const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
     view: (input: any) => ({ groups: input.query ? [] : [{ subjectType: "company", subjectId: "acme", name: "Acme Example", people: [person], tracks: tracks.filter(t => !input.kind || t.kind === input.kind), historyCount: 1 }], total: input.query ? 0 : 1, nextOffset: null }),
     history: () => ({ items: [{ id: "event", companyId: "acme", personId: "alex", kind: "call", date: "2026-10-11", note: "<script>Fictional call note</script>", track: null, createdAt: "2026-10-11T00:00:00Z" }], people: [person], nextOffset: null }),
   }});
   expect(await slot.findByText("Schedule the demo")).toBeDefined();
+  expect(screen.getByText("M4 · Team usage + expansion")).toBeDefined();
   expect(screen.getAllByText("Alex Example")).toHaveLength(2);
   fireEvent.click(screen.getByRole("button", { name: "History for Acme Example" }));
   expect(await screen.findByText("<script>Fictional call note</script>")).toBeDefined();

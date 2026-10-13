@@ -1,11 +1,15 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import plugin from "./server.js";
+import { MIGRATIONS } from "./store.js";
+import type { Track } from "./model.js";
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup(); });
-function setup() {
+function setup(before?: (bb: BbPluginApi) => void) {
   const { bb, harness } = createFakePluginHost({ pluginId: "crm" });
+  before?.(bb);
   plugin(bb);
   cleanups.push(() => harness.lifecycle.dispose());
   const cli = (...argv: string[]) => harness.behavior.runCli([...argv, "--json"]);
@@ -27,10 +31,62 @@ async function fixture(ok: (...args: string[]) => Promise<any>) {
   await ok("add", "track", "--id", "angel", "--person", "drew", "--kind", "investor");
 }
 describe("CRM persisted CLI and RPC", () => {
+  it("upgrades the 6d03e16 database without losing tracks, unknown stages or related records, and reloads idempotently", async () => {
+    const stages = [
+      ["Champion identified", "Champion identified"],
+      ["Champion engaged", "M1 · Relationship"],
+      ["Shared channel", "M1 · Relationship"],
+      ["Usage deep-dive", "M2 · Value"],
+      ["Expanding", "M4 · Team usage + expansion"],
+      ["Case study", "M4 · Team usage + expansion"],
+      ["Future demo milestone", "Future demo milestone"],
+    ];
+    let before: Track[] = [];
+    const { harness, ok } = setup(bb => {
+      const db = bb.storage.database();
+      // The immutable seven-statement schema shipped in installed build 6d03e16.
+      bb.storage.migrate(db, MIGRATIONS.slice(0, 7));
+      stages.forEach(([stage], i) => {
+        db.prepare("INSERT INTO crm_companies VALUES (?, ?)").run("company" + i, "Migration Example " + i);
+        db.prepare("INSERT INTO crm_people VALUES (?, ?, ?, ?)").run("person" + i, "Demo Person " + i, "Champion", "company" + i);
+        db.prepare("INSERT INTO crm_tracks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run("track" + i, "company", "company" + i, "customer", "person" + i, stage, "Keep this next step " + i, "Sam Demo", "2026-10-20");
+      });
+      db.prepare("INSERT INTO crm_tracks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run("investor", "company", "company0", "investor", "person0", "Conversation", "Keep investor step", "Taylor Example", null);
+      db.prepare("INSERT INTO crm_interactions VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run("event", "company0", "person0", "call", "2026-10-12", "Preserve this fictional note", "customer", "2026-10-12T00:00:00Z");
+      before = db.prepare("SELECT * FROM crm_tracks ORDER BY id").all() as Track[];
+    });
+    const expected = before.map(track => ({ ...track, stage: track.kind === "customer" ? stages.find(([old]) => old === track.stage)![1] : track.stage }));
+    expect((await ok("list", "--type", "tracks")).items).toEqual(expected);
+    const view: any = await harness.behavior.callRpc("view", { query: "", limit: 50, offset: 0 });
+    expect(view.groups.flatMap((group: any) => group.tracks).sort((a: Track, b: Track) => a.id.localeCompare(b.id))).toEqual(expected);
+    expect((await ok("list", "--type", "people")).items).toHaveLength(7);
+    expect((await ok("list", "--type", "companies")).items).toHaveLength(7);
+    expect((await ok("list", "--type", "interactions")).items).toEqual([expect.objectContaining({ id: "event", companyId: "company0", personId: "person0", note: "Preserve this fictional note" })]);
+    const { harness: reloaded } = await harness.lifecycle.reload(plugin);
+    cleanups.push(() => reloaded.lifecycle.dispose());
+    const result = await reloaded.behavior.runCli(["list", "--type", "tracks", "--json"]);
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout!).items).toEqual(expected);
+  });
+  it("accepts every new customer milestone, documents their order and rejects retired labels without mutation", async () => {
+    const { harness, ok, cli } = setup();
+    await fixture(ok);
+    const stages = ["Champion identified", "M1 · Relationship", "M2 · Value", "M3 · Team", "M4 · Team usage + expansion"];
+    const help = await harness.behavior.runCli(["update", "track", "--help"]);
+    expect(help.exitCode, help.stderr).toBe(0);
+    expect(help.stdout?.replace(/\s+/g, " ")).toContain(stages.join(" → "));
+    for (const stage of stages) expect(await ok("update", "track", "customer", "--stage", stage)).toMatchObject({ stage });
+    const before = await ok("list", "--type", "tracks");
+    for (const stage of ["Champion engaged", "Shared channel", "Usage deep-dive", "Expanding", "Case study", "M1", "Future demo milestone"]) {
+      expect((await cli("update", "track", "customer", "--stage", stage)).exitCode).not.toBe(0);
+    }
+    expect((await cli("update", "track", "investor", "--stage", "M3 · Team")).exitCode).not.toBe(0);
+    expect(await ok("list", "--type", "tracks")).toEqual(before);
+  });
   it("keeps company tracks independent, supports a shared contact and standalone angels, and survives reload", async () => {
     const { harness, ok } = setup();
     await fixture(ok);
-    await ok("update", "track", "customer", "--stage", "Shared channel", "--next", "Book the usage call");
+    await ok("update", "track", "customer", "--stage", "M1 · Relationship", "--next", "Book the usage call");
     await ok("update", "track", "investor", "--person", "alex", "--stage", "Conversation");
     const { harness: reloaded } = await harness.lifecycle.reload(plugin);
     cleanups.push(() => reloaded.lifecycle.dispose());
@@ -38,7 +94,7 @@ describe("CRM persisted CLI and RPC", () => {
     expect(listed.exitCode, listed.stderr).toBe(0);
     const { items } = JSON.parse(listed.stdout!);
     expect(items).toHaveLength(2);
-    expect(items.find((t: any) => t.id === "customer")).toMatchObject({ stage: "Shared channel", nextStep: "Book the usage call", owner: "Sam Demo", date: "2026-10-20", personId: "alex" });
+    expect(items.find((t: any) => t.id === "customer")).toMatchObject({ stage: "M1 · Relationship", nextStep: "Book the usage call", owner: "Sam Demo", date: "2026-10-20", personId: "alex" });
     expect(items.find((t: any) => t.id === "investor")).toMatchObject({ stage: "Conversation", nextStep: "", personId: "alex" });
     const view: any = await reloaded.behavior.callRpc("view", { query: "", limit: 50, offset: 0 });
     expect(view.groups.find((g: any) => g.subjectId === "drew")).toMatchObject({ subjectType: "person", tracks: [expect.objectContaining({ id: "angel", personId: "drew" })] });
