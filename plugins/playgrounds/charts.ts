@@ -140,7 +140,6 @@ export const CHART_RUNTIME = String.raw`
     const xs = []; for (const s of c.series) for (const [x] of s.points) if (!xs.includes(x)) xs.push(x);
     if (!categorical) xs.sort((a, b) => a - b);
     c.xs = xs;
-    const host = svg.closest(".pg-surface");
     const W = Math.round(svg.getBoundingClientRect().width) || 480;
     const H = Math.max(spec.height || num(c.host, "height", 0) || Math.round(clamp(W / 2.4, 160, 260)), Math.round(W / 3.4));
     const ys = c.series.flatMap((s) => s.points.map((p) => p[1]));
@@ -165,8 +164,6 @@ export const CHART_RUNTIME = String.raw`
     const lines = c.series.filter((s) => s.kind !== "bars");
     const endLabels = spec.labels === "end" && lines.length >= 1 && lines.length <= 4;
     if (endLabels) pad.r = 12 + Math.max(...lines.map((s) => s.label.length * 6.4));
-    else if (host && host.querySelector('[data-pg="run"]')) pad.r = 48;
-    if (host) { host.style.setProperty("--pg-plot-l", pad.l + "px"); host.style.setProperty("--pg-plot-r", pad.r + "px"); }
     const band = categorical ? (W - pad.l - pad.r) / Math.max(1, xs.length) : 0;
     const x0 = categorical ? 0 : spec.x && spec.x.min !== undefined ? spec.x.min : xs[0], x1 = categorical ? 0 : spec.x && spec.x.max !== undefined ? spec.x.max : xs.at(-1);
     c.sx = categorical ? (v) => pad.l + band * (xs.indexOf(v) + .5) : (v) => pad.l + (v - x0) / ((x1 - x0) || 1) * (W - pad.l - pad.r);
