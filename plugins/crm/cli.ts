@@ -68,6 +68,16 @@ export function createCli(store: Store, priorities: Priorities, changed: () => v
         summary: "Restore the tier derived from the company's scores", positionals: idPosition, options: { json },
         run: ({ options, positionals }) => run(() => priorities.autoTier(positionals.id), options.json),
       }),
+      park: cliCommand({
+        summary: "Hide an investor from ranking; preserve scores, history and customer visibility", positionals: idPosition,
+        options: { reason: optional("Optional parking reason, up to 2000 characters"), json },
+        run: ({ options, positionals }) => run(() => priorities.setParked({ id: positionals.id, parked: true, reason: options.reason }), options.json),
+      }),
+      unpark: cliCommand({
+        summary: "Return an investor to score order without restoring its old manual rank", positionals: idPosition,
+        options: { reason: optional("Optional return reason, up to 2000 characters"), json },
+        run: ({ options, positionals }) => run(() => priorities.setParked({ id: positionals.id, parked: false, reason: options.reason }), options.json),
+      }),
       "rank set": cliCommand({
         summary: "Pin an investor at rank 1…N with a reason; other unpinned people still follow totals", positionals: idPosition,
         options: { rank: { type: "integer", min: 1, max: 1_000_000, required: true, description: "Position in the full investor list" }, why: { type: "string", required: true, description: "Why this person ranks here" }, json },
@@ -128,12 +138,14 @@ export function createCli(store: Store, priorities: Priorities, changed: () => v
         summary: "List records; follow nextOffset until null to read every page",
         options: {
           type: { type: "enum", values: ["companies", "people", "tracks", "interactions", "customers", "investors"], default: "tracks", description: "Record type (default tracks)" },
+          status: { type: "enum", values: ["active", "parked", "all"], default: "active", description: "Investor visibility (default active); other record types ignore active" },
           company: optional("Filter by company ID"), person: optional("Filter people, tracks or interactions by person ID"), ...page, json,
         },
         run: ({ options }) => run(() => {
+          if (options.type !== "investors" && options.status !== "active") throw new CrmError("--status parked/all requires --type investors.");
           if (options.type === "customers" || options.type === "investors") {
             if (options.company || options.person) throw new CrmError("For priority lists, use pagination; --company/--person filter the original record types.");
-            return priorities[options.type]({ limit: options.limit, offset: options.offset });
+            return options.type === "investors" ? priorities.investors({ limit: options.limit, offset: options.offset, status: options.status }) : priorities.customers({ limit: options.limit, offset: options.offset });
           }
           return store.list({ ...options, type: options.type });
         }, options.json, false),

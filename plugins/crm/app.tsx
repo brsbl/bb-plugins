@@ -8,7 +8,7 @@ import { Input } from "./components/ui/input.js";
 import "./app.css";
 
 type CustomerPage = { items: CustomerRow[]; total: number; nextOffset: number | null };
-type InvestorPage = { items: InvestorRow[]; total: number; rankCount: number; nextOffset: number | null };
+type InvestorPage = { items: InvestorRow[]; total: number; rankCount: number; parkedCount: number; nextOffset: number | null };
 type HistoryPage = { items: Interaction[]; people: Person[]; nextOffset: number | null };
 const label = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 export function dayText(value: string | null): string {
@@ -58,6 +58,7 @@ export function CrmPage() {
   const rpc = useRpc<typeof contract>();
   const connection = useRealtimeConnectionState();
   const [kind, setKind] = useState<"customers" | "investors">("customers");
+  const [showParked, setShowParked] = useState(false);
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [revision, setRevision] = useState(0);
@@ -74,10 +75,10 @@ export function CrmPage() {
     let active = true;
     setError(false);
     const input = { query, limit: 50, offset };
-    const request = kind === "customers" ? rpc.call("customers", input) : rpc.call("investors", input);
+    const request = kind === "customers" ? rpc.call("customers", input) : rpc.call("investors", { ...input, status: showParked ? "all" : "active" });
     request.then(value => { if (active) setData(value); }, () => { if (active) setError(true); });
     return () => { active = false; };
-  }, [rpc, query, kind, offset, revision, connection]);
+  }, [rpc, query, kind, offset, revision, connection, showParked]);
   const startEdit = (row: CustomerRow | InvestorRow) => {
     setEditing(row); setPosition("rank" in row ? row.rank : row.tier); setWhy(row.why); setSaveError("");
   };
@@ -112,10 +113,11 @@ export function CrmPage() {
     </div>
     <div className="crm-description"><div><h2>{kind === "customers" ? "Impact & milestones" : "Investor value"}</h2><p>{kind === "customers" ? "Tier sets priority. Milestone shows progress." : "One ranked list of people, ordered by the value they add."}</p></div><div className="crm-legend" aria-label="Each criterion scored from 0 to 5; darker shading means a higher score"><span>0</span>{[0,1,2,3,4,5].map(value => <span aria-hidden="true" key={value} className="crm-score" data-score={value} />)}<span>5</span><span>per criterion</span></div></div>
     <p className="crm-rules">{kind === "customers" ? "Total /20: Tier 1 ≥15 · Tier 2 ≥8 · Tier 3 <8 or unscored. Select a tier to override." : "Totals set the order. Select a rank to move someone by hand; Manual marks a fixed position."} <span>— Not scored</span></p>
+    {kind === "investors" && data && "parkedCount" in data && (data.parkedCount > 0 || showParked) && <Button className="crm-parked-toggle" size="sm" variant="ghost" aria-pressed={showParked} disabled={saving} onClick={() => { setShowParked(value => !value); setOffset(0); setData(null); setHistory(null); setEditing(null); }}>{showParked ? "Hide" : "Show"} parked ({data.parkedCount})</Button>}
     {priorityEditor}
     {error ? <div role="alert" className="crm-empty"><p>Pipeline couldn’t load.</p><Button variant="outline" size="sm" onClick={() => setRevision(value => value + 1)}>Try again</Button></div>
       : !data ? <p className="crm-empty" role="status">Loading pipeline…</p>
-      : !data.items.length ? <div className="crm-empty" role="status"><h2>{query ? "No matches" : kind === "customers" ? "Your customer companies go here" : "Your investor ranking goes here"}</h2>{query ? <Button size="sm" variant="ghost" onClick={() => { setQuery(""); setOffset(0); }}>Clear search</Button> : <p>Ask your agent to add {kind === "customers" ? "a company" : "an investor"} to CRM.</p>}</div>
+      : !data.items.length ? <div className="crm-empty" role="status"><h2>{query ? "No matches" : kind === "customers" ? "Your customer companies go here" : "parkedCount" in data && data.parkedCount > 0 ? "All investors are parked" : "Your investor ranking goes here"}</h2>{query ? <Button size="sm" variant="ghost" onClick={() => { setQuery(""); setOffset(0); }}>Clear search</Button> : kind === "investors" && "parkedCount" in data && data.parkedCount > 0 ? <p>Select Show parked to see their scores and history.</p> : <p>Ask your agent to add {kind === "customers" ? "a company" : "an investor"} to CRM.</p>}</div>
       : <div className="crm-table-scroll" tabIndex={0} role="region" aria-label={kind === "customers" ? "Customer impact heatmap, scroll horizontally for all columns" : "Investor value heatmap, scroll horizontally for all columns"}>
         <table className="crm-table" data-kind={kind}><caption className="crm-sr-only">{kind === "customers" ? "Companies grouped by impact tier, with independent milestones" : "Investors ordered by rank, with value scores and asks"}</caption>
           <thead><tr>{kind === "investors" && <th scope="col" className="crm-rank-col">#</th>}<th scope="col" className="crm-name-col">{kind === "customers" ? "Company / champion" : "Name"}</th><th scope="col">{kind === "customers" ? "Milestone" : "Company"}</th>{criteria.map(([key, name]) => <th scope="col" className="crm-criterion" key={key}>{name}</th>)}<th scope="col">Total</th><th scope="col" className="crm-why-col">Why it ranks here</th><th scope="col" className="crm-ask-col">{kind === "customers" ? "Next step" : "The ask"}</th><th scope="col"><span className="crm-sr-only">History</span></th></tr></thead>
@@ -126,7 +128,7 @@ export function CrmPage() {
               {history === row.company.id && <tr><td colSpan={10}><History subject={{ subjectType: "company", subjectId: row.company.id }} subjectName={row.company.name} revision={revision + ":" + connection} /></td></tr>}
             </Fragment>)}</tbody>;
           }) : <tbody>{(data as InvestorPage).items.map(row => <Fragment key={row.track.id}>
-            <tr className="crm-data-row"><td><Button size="sm" variant="ghost" className="crm-rank-button" disabled={saving} aria-label={"Change rank for " + (row.person?.name ?? row.company?.name ?? "unassigned investor")} onClick={() => startEdit(row)}>#{row.rank}</Button>{row.rankOverride !== null && <span className="crm-manual">Manual</span>}</td><th scope="row"><strong>{row.person?.name ?? "No contact assigned"}</strong><span className="crm-secondary">{row.person?.role}</span></th><td>{row.company?.name ?? <span className="crm-muted">Independent</span>}</td>{INVESTOR_CRITERIA.map(([key,name]) => <Score key={key} value={row.scores[key]} criterion={name} />)}<Total value={row.total} scores={row.scores} /><td>{row.why || <span className="crm-muted">No rationale yet</span>}</td><td><NextStep track={row.track} /></td><td>{historyButton(row.track.id, row.person?.name ?? row.company?.name ?? "unassigned investor")}</td></tr>
+            <tr className="crm-data-row"><td>{row.parked ? <span className="crm-parked">Parked</span> : <><Button size="sm" variant="ghost" className="crm-rank-button" disabled={saving} aria-label={"Change rank for " + (row.person?.name ?? row.company?.name ?? "unassigned investor")} onClick={() => startEdit(row)}>#{row.rank}</Button>{row.rankOverride !== null && <span className="crm-manual">Manual</span>}</>}</td><th scope="row"><strong>{row.person?.name ?? "No contact assigned"}</strong><span className="crm-secondary">{row.person?.role}</span>{row.parked && row.statusReason && <span className="crm-secondary">{row.statusReason}</span>}</th><td>{row.company?.name ?? <span className="crm-muted">Independent</span>}</td>{INVESTOR_CRITERIA.map(([key,name]) => <Score key={key} value={row.scores[key]} criterion={name} />)}<Total value={row.total} scores={row.scores} /><td>{row.why || <span className="crm-muted">No rationale yet</span>}</td><td><NextStep track={row.track} /></td><td>{historyButton(row.track.id, row.person?.name ?? row.company?.name ?? "unassigned investor")}</td></tr>
             {history === row.track.id && <tr><td colSpan={11}><History subject={{ subjectType: row.track.subjectType, subjectId: row.track.subjectId }} subjectName={row.person?.name ?? row.company?.name ?? "Investor"} legacyStage={row.legacyStage} revision={revision + ":" + connection} /></td></tr>}
           </Fragment>)}</tbody>}
         </table>

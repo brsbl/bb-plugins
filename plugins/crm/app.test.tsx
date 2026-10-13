@@ -7,12 +7,12 @@ const person = { id: "alex", name: "Alex Example", role: "Founder", companyId: "
 const company = { id: "acme", name: "Acme Example" };
 const track = { id: "customer", subjectType: "company", subjectId: "acme", kind: "customer", personId: "alex", stage: "M3 · Team", nextStep: "Schedule the demo", owner: "Sam Demo", date: null };
 const customer = { company, person, track, scores: { championStrength: 5, roomToGrow: 4, caseStudyValue: 5, activePeople: 2 }, total: 16, tier: 1, tierOverride: null, why: "Fictional expansion potential" };
-const investor = { company, person, track: { ...track, id: "investor", kind: "investor", stage: "Conversation", nextStep: "An introduction" }, scores: { companyScale: 4, socialProof: 3, introductions: 5, coMarketing: 2 }, total: 14, rank: 1, rankOverride: null, why: "Fictional introductions", legacyStage: "Conversation" };
+const investor = { company, person, track: { ...track, id: "investor", kind: "investor", stage: "Conversation", nextStep: "An introduction" }, scores: { companyScale: 4, socialProof: 3, introductions: 5, coMarketing: 2 }, total: 14, rank: 1, rankOverride: null, why: "Fictional introductions", legacyStage: "Conversation", parked: false, statusReason: "" };
 it("shows independent heatmaps with numeric scores, milestones, and preserved investor history", async () => {
   const app = await loadPluginApp(() => import("./app"));
   const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
     customers: () => ({ items: [customer], total: 1, nextOffset: null }),
-    investors: (input: any) => ({ items: input.query ? [] : [investor], total: input.query ? 0 : 1, rankCount: 1, nextOffset: null }),
+    investors: (input: any) => ({ items: input.query ? [] : [investor], total: input.query ? 0 : 1, rankCount: 1, parkedCount: 0, nextOffset: null }),
     history: () => ({ items: [{ id: "note", companyId: "acme", personId: "alex", kind: "call", date: "2026-10-12", note: "<script>Fictional note</script>", track: "investor", createdAt: "now" }], people: [person], nextOffset: null }),
   }});
   expect(await slot.findByText("M3 · Team")).toBeDefined();
@@ -36,7 +36,7 @@ it("keeps a failed manual rank editable, retries, and can restore score ordering
   let calls = 0;
   const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
     customers: () => ({ items: [], total: 0, nextOffset: null }),
-    investors: () => ({ items: [investor], total: 1, rankCount: 1, nextOffset: null }),
+    investors: () => ({ items: [investor], total: 1, rankCount: 1, parkedCount: 0, nextOffset: null }),
     setRank: () => { if (++calls === 1) throw new Error("Offline"); return { ...investor, rankOverride: 1 }; },
     autoRank: () => investor,
   }});
@@ -56,4 +56,30 @@ it("offers retry after a failed read", async () => {
   const app = await loadPluginApp(() => import("./app")); let calls = 0;
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { customers: () => { if (++calls === 1) throw new Error("unavailable"); return { items: [], total: 0, nextOffset: null }; } } });
   expect(await screen.findByText("Pipeline couldn’t load.")).toBeDefined(); fireEvent.click(screen.getByRole("button", { name: "Try again" })); expect(await screen.findByText("Your customer companies go here")).toBeDefined();
+});
+it("hides parked investors by default and reveals their scores and history without hiding the customer", async () => {
+  const app = await loadPluginApp(() => import("./app"));
+  const parked = { ...investor, parked: true, rank: 0, statusReason: "Outside the fictional top ten" };
+  const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
+    customers: () => ({ items: [customer], total: 1, nextOffset: null }),
+    investors: (input: any) => ({ items: input.status === "all" ? [parked] : [], total: input.status === "all" ? 1 : 0, rankCount: 0, parkedCount: 1, nextOffset: null }),
+    history: () => ({ items: [], people: [person], nextOffset: null }),
+  }});
+  await screen.findByText("M3 · Team");
+  fireEvent.click(screen.getByRole("button", { name: "Investors" }));
+  expect(await screen.findByText("All investors are parked")).toBeDefined();
+  expect(screen.queryByText("Alex Example")).toBeNull();
+  const toggle = screen.getByRole("button", { name: "Show parked (1)" });
+  expect(toggle.getAttribute("aria-pressed")).toBe("false"); fireEvent.click(toggle);
+  expect(await screen.findByText("Alex Example")).toBeDefined();
+  expect(screen.getByText("Parked")).toBeDefined(); expect(screen.getByText("Outside the fictional top ten")).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Change rank for Alex Example" })).toBeNull(); expect(screen.queryByText("#0")).toBeNull();
+  expect(screen.getByLabelText("Company scale: 4 of 5").textContent).toBe("4");
+  fireEvent.click(screen.getByRole("button", { name: "History for Alex Example" }));
+  expect(await screen.findByText("Conversation")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Hide parked (1)" }));
+  expect(await screen.findByText("All investors are parked")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Customers" }));
+  expect(await screen.findByText("M3 · Team")).toBeDefined(); expect(screen.getByText("Alex Example")).toBeDefined();
+  expect(slot.inspection.rpcCalls.filter(c => c.method === "investors").map(c => (c.input as any).status)).toEqual(["active","all","active"]);
 });

@@ -32,6 +32,8 @@ export const MIGRATIONS = [
     FROM crm_tracks t LEFT JOIN crm_companies c ON t.subjectType='company' AND c.id=t.subjectId
     LEFT JOIN crm_people p ON t.personId=p.id WHERE t.kind='investor'`,
   "CREATE TRIGGER crm_investor_priority AFTER INSERT ON crm_tracks WHEN NEW.kind='investor' BEGIN INSERT INTO crm_investor_scores (trackId, sequence, legacyStage) VALUES (NEW.id, (SELECT COALESCE(MAX(sequence),0)+1 FROM crm_investor_scores), NEW.stage); END",
+  "ALTER TABLE crm_investor_scores ADD COLUMN parked INTEGER NOT NULL DEFAULT 0 CHECK(parked IN (0,1))",
+  "ALTER TABLE crm_investor_scores ADD COLUMN statusReason TEXT NOT NULL DEFAULT ''",
 ];
 const addCompanySchema = companySchema.partial({ id: true });
 const addPersonSchema = personSchema.partial({ id: true });

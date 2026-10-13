@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { CrmError, type Db } from "./store.js";
-import { customerScoresSchema, investorScoresSchema, priorityInputSchema, rankInputSchema, tierInputSchema, whySchema, type Company, type Person, type Track, type CustomerRow, type InvestorRow, type CustomerScores, type InvestorScores } from "./model.js";
+import { customerScoresSchema, investorScoresSchema, priorityInputSchema, investorInputSchema, parkingInputSchema, rankInputSchema, tierInputSchema, whySchema, type Company, type Person, type Track, type CustomerRow, type InvestorRow, type CustomerScores, type InvestorScores } from "./model.js";
 
 const total = (scores: Record<string, number | null>) => Object.values(scores).every(v => v === null) ? null : Object.values(scores).reduce<number>((sum, v) => sum + (v ?? 0), 0);
 const customerPatch = customerScoresSchema.partial().extend({ why: whySchema.optional() }).strict();
 const investorPatch = investorScoresSchema.partial().extend({ why: whySchema.optional() }).strict();
 const customerEmpty: CustomerScores = { championStrength: null, roomToGrow: null, caseStudyValue: null, activePeople: null };
 const investorEmpty: InvestorScores = { companyScale: null, socialProof: null, introductions: null, coMarketing: null };
-type InvestorScoreRecord = InvestorScores & { trackId: string; sequence: number; rankOverride: number | null; why: string; legacyStage: string };
+type InvestorScoreRecord = InvestorScores & { trackId: string; sequence: number; rankOverride: number | null; why: string; legacyStage: string; parked: number; statusReason: string };
 type CustomerScoreRecord = CustomerScores & { companyId: string; tierOverride: number | null; why: string };
 
 export function createPriorities(db: Db) {
@@ -23,14 +23,16 @@ export function createPriorities(db: Db) {
       const { companyScale, socialProof, introductions, coMarketing } = saved;
       const values = { companyScale, socialProof, introductions, coMarketing };
       const person = track.personId ? people.get(track.personId) ?? null : null;
-      return { track, person, company: companies.get(track.subjectType === "company" ? track.subjectId : person?.companyId ?? "") ?? null, scores: values, total: total(values), rank: 0, rankOverride: saved.rankOverride, why: saved.why, legacyStage: saved.legacyStage };
+      return { track, person, company: companies.get(track.subjectType === "company" ? track.subjectId : person?.companyId ?? "") ?? null, scores: values, total: total(values), rank: 0, rankOverride: saved.rankOverride, why: saved.why, legacyStage: saved.legacyStage, parked: saved.parked === 1, statusReason: saved.statusReason };
     }).sort((a, b) => (b.total ?? -1) - (a.total ?? -1) || scores.get(a.track.id)!.sequence - scores.get(b.track.id)!.sequence || a.track.id.localeCompare(b.track.id));
     // Manual entries occupy explicit slots; all other people still follow their totals.
-    const ordered = rows.filter(row => row.rankOverride === null);
-    for (const row of rows.filter(row => row.rankOverride !== null).sort((a, b) => a.rankOverride! - b.rankOverride! || a.track.id.localeCompare(b.track.id))) {
+    const active = rows.filter(row => !row.parked);
+    const ordered = active.filter(row => row.rankOverride === null);
+    for (const row of active.filter(row => row.rankOverride !== null).sort((a, b) => a.rankOverride! - b.rankOverride! || a.track.id.localeCompare(b.track.id))) {
       ordered.splice(Math.min(row.rankOverride! - 1, ordered.length), 0, row);
     }
-    return ordered.map((row, index) => ({ ...row, rank: index + 1 }));
+    // Parked entries have no rank; zero preserves the integer wire contract.
+    return [...ordered.map((row, index) => ({ ...row, rank: index + 1 })), ...rows.filter(row => row.parked)];
   };
   const customers = (): CustomerRow[] => {
     const { companies, people } = lookup();
@@ -53,6 +55,12 @@ export function createPriorities(db: Db) {
     // Keys are parsed by the strict schemas above, never taken directly from callers.
     db.prepare(`UPDATE ${table} SET ${keys.map(key => `${key}=@${key}`).join(",")} WHERE ${key}=@id`).run({ ...changes, id });
   };
+  const requireActiveInvestor = (id: string) => {
+    const row = investors().find(row => row.track.id === id);
+    if (!row) throw new CrmError("Investor entry not found.", "not_found");
+    if (row.parked) throw new CrmError("Unpark this investor before changing its rank.");
+    return row;
+  };
   return {
     customers(input: z.input<typeof priorityInputSchema>) {
       const { query, limit, offset } = priorityInputSchema.parse(input);
@@ -60,12 +68,31 @@ export function createPriorities(db: Db) {
       const all = customers().filter(row => (row.company.name + " " + (row.person?.name ?? "")).toLowerCase().includes(needle));
       return { items: all.slice(offset, offset + limit), total: all.length, nextOffset: offset + limit < all.length ? offset + limit : null };
     },
-    investors(input: z.input<typeof priorityInputSchema>) {
-      const { query, limit, offset } = priorityInputSchema.parse(input);
+    investors(input: z.input<typeof investorInputSchema>) {
+      const { query, limit, offset, status } = investorInputSchema.parse(input);
       const all = investors();
       const needle = query.trim().toLowerCase();
-      const filtered = all.filter(row => ((row.person?.name ?? "No contact assigned") + " " + (row.company?.name ?? "")).toLowerCase().includes(needle));
-      return { items: filtered.slice(offset, offset + limit), total: filtered.length, rankCount: all.length, nextOffset: offset + limit < filtered.length ? offset + limit : null };
+      const filtered = all.filter(row => (status === "all" || row.parked === (status === "parked")) && ((row.person?.name ?? "No contact assigned") + " " + (row.company?.name ?? "")).toLowerCase().includes(needle));
+      return { items: filtered.slice(offset, offset + limit), total: filtered.length, rankCount: all.filter(row => !row.parked).length, parkedCount: all.filter(row => row.parked).length, nextOffset: offset + limit < filtered.length ? offset + limit : null };
+    },
+    setParked(input: z.input<typeof parkingInputSchema>) {
+      return db.transaction(() => {
+        const { id, parked, reason } = parkingInputSchema.parse(input);
+        const all = investors();
+        const entry = all.find(row => row.track.id === id);
+        if (!entry) throw new CrmError("Investor entry not found.", "not_found");
+        if (entry.parked !== parked) {
+          if (parked) {
+            // Removing an entry keeps the remaining manual positions in the same order.
+            all.filter(row => !row.parked && row.track.id !== id).forEach((row, index) => {
+              if (row.rankOverride !== null) update("crm_investor_scores", "trackId", row.track.id, { rankOverride: index + 1 });
+            });
+          }
+          update("crm_investor_scores", "trackId", id, { parked: parked ? 1 : 0, rankOverride: null });
+        }
+        if (reason !== undefined) update("crm_investor_scores", "trackId", id, { statusReason: reason });
+        return investors().find(row => row.track.id === id)!;
+      })();
     },
     scoreCustomer(id: string, input: unknown, clear = false) {
       const patch = customerPatch.parse(input);
@@ -93,7 +120,8 @@ export function createPriorities(db: Db) {
     setRank(input: z.input<typeof rankInputSchema>) {
       return db.transaction(() => {
         const { id, rank, why } = rankInputSchema.parse(input);
-        const ordered = investors();
+        requireActiveInvestor(id);
+        const ordered = investors().filter(row => !row.parked);
         const index = ordered.findIndex(row => row.track.id === id);
         if (index < 0) throw new CrmError("Investor entry not found.", "not_found");
         if (rank > ordered.length) throw new CrmError("Rank must be between 1 and " + ordered.length + ".");
@@ -107,12 +135,12 @@ export function createPriorities(db: Db) {
     },
     moveRank(id: string, direction: "up" | "down", why: string): InvestorRow {
       return db.transaction(() => {
-        const row = investors().find(row => row.track.id === id);
-        if (!row) throw new CrmError("Investor entry not found.", "not_found");
+        const row = requireActiveInvestor(id);
         return this.setRank({ id, rank: row.rank + (direction === "up" ? -1 : 1), why });
       })();
     },
     autoRank(id: string) {
+      requireActiveInvestor(id);
       update("crm_investor_scores", "trackId", id, { rankOverride: null });
       return investors().find(row => row.track.id === id)!;
     },

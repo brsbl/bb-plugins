@@ -80,3 +80,6 @@
   .crm-table[data-kind="investors"] .crm-data-row > th[scope="row"], .crm-table[data-kind="investors"] thead .crm-name-col { left: 54px; }
   .crm-table[data-kind="investors"] .crm-data-row > td:first-child, .crm-table[data-kind="investors"] thead th:first-child { position: sticky; left: 0; background: var(--background); z-index: 2; }
 }
+
+.crm-parked { font-size: 11px; white-space: nowrap; color: var(--muted-foreground); }
+.crm-parked-toggle { margin-bottom: 12px; }

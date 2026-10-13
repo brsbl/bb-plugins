@@ -77,13 +77,41 @@ Use `rank set` in top-to-bottom order to import an existing judgment-based
 ranking. Use `rank auto` on entries that should follow scores again. The view
 lets brsbl select a rank or tier, provide a reason, Save, or restore score order.
 
+## Park an investor
+
+Parking hides an entry from the ranking and heatmap by default. It preserves
+scores, rationale, asks, notes and the person; customer visibility is unchanged.
+Use the entry's `track.id`, not the person's ID. The view's **Show parked (N)**
+toggle reveals parked entries and their history.
+
+```sh
+bb crm park alex-investor --reason "Outside the fictional top ten" --json
+bb crm list --type investors --status parked --json
+bb crm list --type investors --status all --json
+bb crm unpark alex-investor --reason "Fictional conversation resumed" --json
+```
+
+`--reason` is optional, up to 2000 characters; omitting it keeps the last
+status reason. Parking clears that entry's manual rank. Unparking returns it
+to score order among unpinned entries; other manual positions remain in force.
+Repeated park/unpark requests are safe. Scoring a parked entry keeps it parked;
+unpark before using rank commands. `statusReason` is separate from score `why`.
+
+Investor lists default to `--status active`. Active ranks run from 1 to N;
+parked rows have `parked:true` and `rank:0` (unranked), and follow active rows in
+`--status all`. `rankCount` counts all active entries and `parkedCount` counts
+all parked entries, independent of pagination or search. Original people,
+tracks and interaction lists always retain parked investors' records.
+
 ## Migration and compatibility
 
 Upgrade retains all companies, people, track IDs, contacts, asks, owners,
 dates and notes. Existing investor tracks become ranked entries in their
 previous CRM display order until scores or CLI rank operations establish an
 order. Previous investor stages, including unknown values, are preserved in
-History. No real scores or reasons are inferred during migration.
+History. No real scores or reasons are inferred during migration. Upgrading from
+4a05713 leaves every existing investor active and preserves its scores and
+manual position; parking is always an explicit action.
 
 Existing `add track --kind investor`, `update track`, `list --type tracks` and
 `view` RPC remain available for existing agents. Investor `--stage` is legacy

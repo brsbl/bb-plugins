@@ -25,7 +25,9 @@ examples, scoring rules, stable import IDs and pagination.
 Each criterion is 0–5, equally weighted. Customer totals out of 20 produce
 Tier 1 (15+), Tier 2 (8+) or Tier 3; unscored companies start in Tier 3. Investor
 ranks follow totals with stable ties and optional manual positions. Neither
-track changes the other.
+track changes the other. Park investors with `bb crm park ID` to hide them
+without losing their scores or history; `unpark ID` returns them to score order.
+The view includes a **Show parked (N)** toggle.
 
 Customer milestones remain **Champion identified → M1 · Relationship → M2 ·
 Value → M3 · Team → M4 · Team usage + expansion**. Upgrades preserve every track,
