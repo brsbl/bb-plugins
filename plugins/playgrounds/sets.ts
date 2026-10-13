@@ -62,6 +62,27 @@ export const SETS_CSS = String.raw`
 .pg-turn > button { margin-left: auto; }
 .pg-turn > button + button { margin-left: 0; }
 .pg-turn > .pg-tone { width: 16px; height: 16px; animation: none; box-shadow: none; }
+/* Guide set: one step at a time, with progress and Back/Next. */
+.pg-guide { display: grid; gap: 14px; }
+.pg-guide-head { display: grid; gap: 8px; }
+.pg-guide-head > p { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--pg-accent); }
+.pg-guide-bar { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 4px; }
+.pg-guide-bar > i { height: 4px; border-radius: 2px; background: var(--pg-hairline); }
+.pg-guide-bar > i[data-on] { background: var(--pg-accent); }
+.pg-guide > section[data-step] { display: grid; gap: 10px; }
+.pg-guide > section[data-step][hidden] { display: none; }
+.pg-guide > section > :is(h3, h4) { margin: 0; font-size: 15px; font-weight: 600; color: var(--pg-ink); }
+.pg-guide > section > p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--pg-body); }
+.pg-guide > section > :is(svg, figure, .pg-figure) { display: block; width: 100%; height: auto; margin: 0; border-radius: var(--pg-radius-group); background: var(--pg-stage); }
+.pg-guide-nav { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--pg-hairline); }
+.pg-guide-nav > span { margin-right: auto; font-size: 12px; color: var(--pg-meta); font-variant-numeric: tabular-nums; }
+.pg-guide-nav > button[data-primary] { background: var(--pg-ink); border-color: var(--pg-ink); color: var(--card); }
+/* Photos: one tall photo beside two stacked ones (or one or two). Broken links disappear. */
+.pg-photos { display: grid; grid-template-columns: 3fr 2fr; grid-template-rows: 1fr 1fr; gap: 4px; height: 240px; margin: 0; border-radius: var(--pg-radius-panel); overflow: hidden; }
+.pg-photos > img { width: 100%; height: 100%; min-height: 0; object-fit: cover; display: block; background: var(--pg-stage); }
+.pg-photos > img:first-child { grid-row: span 2; }
+.pg-photos:has(> img:only-child) { grid-template-columns: 1fr; }
+.pg-photos:has(> img:nth-child(2):last-child) > img { grid-row: span 2; }
 :where(.pg-turn + [data-pg=board]) { max-width: 420px; margin-top: 10px; }
 `;
 
@@ -273,7 +294,48 @@ export const SETS_RUNTIME = String.raw`
     return { play: (m) => playMove(m, g.you), newGame: () => newGame("user"), start: () => startGame("user") };
   }
 
-  Object.assign(SET_KINDS, { run: runBar, turn: (el) => el.classList.add("pg-turn") });
+  // Guide set: <div data-pg="guide" data-param="step"> with <section data-step> children.
+  // The step is a parameter, so you jump with setParams({ step: 5 }).
+  function guide(el) {
+    const name = el.dataset.param || "step", steps = [...el.querySelectorAll(":scope > [data-step]")];
+    if (!steps.length) return;
+    el.classList.add("pg-guide");
+    if (!specs[name]) define(name, { label: attr(el, "label", "Step"), min: 1, max: steps.length, step: 1, default: 1 });
+    const head = document.createElement("div"); head.className = "pg-guide-head";
+    const count = document.createElement("p"), bar = document.createElement("div"); bar.className = "pg-guide-bar"; bar.style.setProperty("--n", String(steps.length));
+    bar.innerHTML = steps.map(() => "<i></i>").join(""); head.append(count, bar); el.prepend(head);
+    const nav = document.createElement("div"); nav.className = "pg-guide-nav";
+    const where = document.createElement("span");
+    const back = document.createElement("button"); back.type = "button"; back.className = "pg-btn"; back.textContent = "Back";
+    const next = document.createElement("button"); next.type = "button"; next.className = "pg-btn"; next.dataset.primary = "";
+    nav.append(where, back, next); el.append(nav);
+    back.onclick = () => set(name, values[name] - 1, "user");
+    next.onclick = () => set(name, Math.min(steps.length, values[name] + 1), "user");
+    const paint = () => {
+      const at = clamp(Math.round(values[name]), 1, steps.length);
+      steps.forEach((sec, i) => { sec.hidden = i + 1 !== at; });
+      count.textContent = attr(el, "label", "Step") + " " + at + " of " + steps.length;
+      [...bar.children].forEach((b, i) => { if (i < at) b.dataset.on = ""; else delete b.dataset.on; });
+      where.textContent = at + " / " + steps.length;
+      back.disabled = at === 1; next.disabled = at === steps.length;
+      next.textContent = at === steps.length ? "Done" : "Next";
+      el.dataset.param = name;
+    };
+    el.__paint = paint; paint();
+    on("change", (e) => { if (e.name === name) paint(); });
+  }
+  function photos(el) {
+    el.classList.add("pg-photos");
+    for (const img of el.querySelectorAll("img")) {
+      img.loading = "lazy"; img.decoding = "async";
+      img.addEventListener("error", () => { if (img.dataset.retry === "") { img.dataset.retry = "done"; return; } img.remove(); if (!el.querySelector("img")) el.hidden = true; });
+    }
+  }
+  addEventListener("error", (e) => {
+    const img = e.target;
+    if (img && img.tagName === "IMG" && /^https:\/\/thumb\.wikimedia\.org\//.test(img.src)) { img.dataset.retry = ""; img.src = img.src.replace("https://thumb.wikimedia.org/", "https://upload.wikimedia.org/"); }
+  }, true);
+  Object.assign(SET_KINDS, { run: runBar, turn: (el) => el.classList.add("pg-turn"), guide, photos });
   Object.assign(SET_UI, { answer: readyFirst(answer), breakdown: readyFirst(breakdown), run, game });
   Object.assign(SET_ACTIONS, {
     move: (m) => playMove(m, theGame ? theGame.me : null),

@@ -74,6 +74,12 @@ them; `bb playgrounds publish --saved <savedId>` (or the tool's `saved`
 parameter) shows one in the current thread with its saved inputs. When the user
 @-mentions a saved playground, publish it this way instead of rebuilding it.
 
+- **Follow-ups change the card.** When they ask about something the card
+  shows (a step, a stop, a color, a plant, a setting), change the card with
+  `do <id> setParams` or one of its actions, then answer in a line or two.
+  Don't only answer in chat, and don't publish a second card unless the
+  structure has to change (say why when you do). Keep what they'd ask about
+  (the current step, the selected item) in parameters so you can set it.
 - Native documents expose `set` (one object of control values) and `reset`,
   and return the inputs plus every metric as displayed.
 - `do` runs in the copy the user touched most recently and fails when the
@@ -272,6 +278,47 @@ When a move arrives, answer with `do <id> move`, keep the reply to a line, and
 wait again. Stop when the game ends, or after 10 quiet minutes; then say in
 chat that they can tell you to keep playing.
 
+**Guide set.** For how-to guides (assembling, repairing, folding, cooking):
+one step at a time, each with its own drawing.
+
+```html
+<div data-pg="guide" data-param="step" class="pg-surface">
+  <section data-step="1"><svg>…</svg><h3>Heat the water</h3><p>…</p></section>
+  <section data-step="2">…</section>
+</div>
+```
+
+The kit adds "Step 2 of 8", a progress bar and Back/Next, and shows one
+section at a time. The step is a parameter: jump with
+`do <id> setParams --args '[{"step": 5}]'`, for example when they say
+they're stuck on a step. Drawings carry the guide:
+
+- Draw the specific thing they have (a kid's bike: small frame, coaster
+  brake, training wheels), not a generic icon, as inline SVG.
+- In each step's drawing, put the parts that step touches in the accent
+  color and keep everything else grey, so the step reads at a glance.
+- For anything that changes shape (folding, assembling), draw the result of
+  that step, so no two steps show the same picture. Mark folds and creases
+  with dashed lines and motion with an arrow.
+
+**Photos.** For real places, plants, foods and products, show two or three
+real photos: `<div data-pg="photos"><img src="…" alt="…">…</div>` lays them out
+(one tall, two stacked) and drops any that fail. Find them on Wikimedia
+Commons, use the `upload.wikimedia.org` host (swap it in for
+`thumb.wikimedia.org`; thumbnails come in fixed sizes such as 960px), check
+each link returns 200 with `curl -sI` before publishing, and credit them in
+the details.
+
+**Places and routes.** Map tiles are blocked, so draw the area as a
+schematic SVG: water and parks as shapes, numbered stops joined by the
+route, labels for landmarks. Beside it, a list of stops; selecting one shows
+its photos and details. Keep the selected stop in a parameter.
+
+**Previews.** For "how would X look" (paint, furniture, outfits), draw the
+actual scene with real furniture and light, and let a segmented control
+switch the options. Keep choices they might ask about (floor, light) as
+parameters too, so a follow-up like "with a walnut floor" changes the card.
+
 **Layout.** Every set card has three parts, in this order:
 
 1. **Head:** `.pg-title`, then the `.pg-sentence`.
@@ -308,7 +355,8 @@ person and from you arrive as the same `press`/`release` events; play with
 (design tool), `references/connect-four.html` and
 `references/tic-tac-toe.html` and `references/battleship.html` (game set; Battleship
 shows a setup step, two boards and hidden pieces), and
-`references/pocket-synth.html` (instrument).
+`references/pocket-synth.html` (instrument), and `references/pour-over.html`
+(guide set with photos).
 
 ## Interactive diagrams
 

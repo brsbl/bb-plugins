@@ -71,7 +71,8 @@ img, svg { display: block; max-width: 100%; }
 .pg-stage { border-radius: var(--pg-radius-stage); background: var(--pg-stage); overflow: hidden; }
 .pg-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .pg-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--pg-radius-photo); }
-.pg-seg { display: inline-flex; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--pg-hairline); background: var(--card); }
+.pg-seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: 18px; border: 1px solid var(--pg-hairline); background: var(--card); }
+.pg-form > .pg-seg { grid-column: 1 / -1; justify-self: start; }
 .pg-seg button, .pg-chip { white-space: nowrap; border: 1px solid transparent; background: transparent; border-radius: 999px; padding: 5px 11px; font-size: 11.5px; line-height: 1.2; color: var(--muted-foreground); transition: background .2s, color .2s; }
 .pg-chip { border-color: var(--pg-hairline); }
 .pg-seg button[aria-pressed=true], .pg-chip[aria-pressed=true] { background: var(--foreground); color: var(--background); border-color: var(--foreground); font-weight: 500; }
