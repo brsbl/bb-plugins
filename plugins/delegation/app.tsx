@@ -39,7 +39,13 @@ function TextField({ value, onSave, label, placeholder, disabled }: {
   value: string; onSave: (value: string) => void; label: string; placeholder: string; disabled?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  // Follow a new saved value during render, not in an effect: an effect runs after mount and can wipe what
+  // the user already typed.
+  const [shown, setShown] = useState(value);
+  if (shown !== value) {
+    setShown(value);
+    setDraft(value);
+  }
   return (
     <input className="dl-input" aria-label={label} value={draft} placeholder={placeholder} disabled={disabled}
       onChange={(event) => setDraft(event.target.value)} onBlur={() => { if (draft.trim() !== value) onSave(draft.trim()); }}
