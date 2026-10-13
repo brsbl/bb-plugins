@@ -40,7 +40,7 @@ export const CONTROLS_CSS = String.raw`
 [data-pg][data-agent] { --pg-c: var(--pg-accent); }
 [data-pg][data-agent]::after { content: "Agent"; position: absolute; top: -6px; left: 50%; transform: translateX(-50%); padding: 0 5px; border-radius: 999px; background: var(--pg-ink); color: var(--card); font-size: 8.5px; line-height: 13px; font-weight: 500; letter-spacing: .02em; pointer-events: none; }
 
-.pg-dial { position: relative; display: grid; justify-items: center; gap: 2px; width: 46px; outline: none; touch-action: none; cursor: ns-resize; user-select: none; -webkit-user-select: none; }
+.pg-dial { position: relative; display: grid; justify-items: center; gap: 2px; min-width: 46px; outline: none; touch-action: none; cursor: ns-resize; user-select: none; -webkit-user-select: none; }
 .pg-dial svg { width: 38px; height: 38px; overflow: visible; transition: transform var(--pg-fast); }
 .pg-dial.pg-grab svg { transform: scale(1.06); }
 .pg-dial .pg-track { fill: none; stroke: var(--pg-hairline); stroke-width: 3.2; stroke-linecap: round; }
@@ -152,7 +152,7 @@ export const CONTROLS_CSS = String.raw`
 .pg-agent[data-fresh] { animation: pg-fresh .6s ease-out; }
 @keyframes pg-fresh { from { box-shadow: inset 0 0 0 1.5px var(--pg-ink); } }
 [data-show][hidden] { display: none !important; }
-.pg-bank { display: flex; justify-content: space-around; align-items: center; gap: 4px; }
+.pg-bank { display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; gap: 10px 8px; }
 .pg-banks { display: grid; grid-template-columns: var(--cols, 1fr 1fr); gap: 10px; }
 .pg-banks + .pg-banks, .pg-surface > * + * { margin-top: 10px; }
 @media (max-width: 460px) { .pg-banks { grid-template-columns: 1fr; } }
