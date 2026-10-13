@@ -16,7 +16,8 @@ export const CHART_CSS = String.raw`
   --pg-series-1: #3987e5; --pg-series-2: #d95926; --pg-series-3: #199e70; --pg-series-4: #c98500;
   --pg-series-5: #d55181; --pg-series-6: #008300; --pg-series-7: #9085e9;
 }
-.pg-chart { position: relative; display: grid; gap: 8px; margin: 0; min-width: 0; }
+.pg-surface:has(> .pg-chart) { padding: 16px; }
+.pg-chart { position: relative; display: grid; gap: 12px; margin: 0; min-width: 0; }
 .pg-chart > svg { display: block; width: 100%; height: auto; overflow: visible; font-size: 11px; outline: none; touch-action: pan-y; }
 .pg-chart > svg:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 4px; }
 .pg-chart text { fill: var(--pg-meta); font-variant-numeric: tabular-nums; }
@@ -27,7 +28,7 @@ export const CHART_CSS = String.raw`
 .pg-chart .end { fill: var(--pg-ink); font-weight: 500; }
 .pg-chart .mark { stroke: var(--pg-meta); stroke-width: 1; stroke-dasharray: 3 3; }
 .pg-chart .mark-label { fill: var(--pg-body); font-weight: 500; }
-.pg-chart .band { fill: color-mix(in srgb, var(--foreground) 5%, transparent); }
+.pg-chart .band { fill: color-mix(in srgb, var(--foreground) 3.5%, transparent); }
 .pg-chart .now { stroke: var(--pg-ink); stroke-width: 1; }
 .pg-chart .cross { stroke: color-mix(in srgb, var(--foreground) 35%, var(--card)); stroke-width: 1; opacity: 0; }
 .pg-chart .dot { stroke: var(--card); stroke-width: 2; opacity: 0; }
@@ -99,6 +100,7 @@ export const CHART_RUNTIME = String.raw`
     c.cross.setAttribute("x1", px); c.cross.setAttribute("x2", px);
     c.tip.replaceChildren();
     const head = document.createElement("p"); head.textContent = c.fx(x); c.tip.append(head);
+    const rows = [];
     c.series.forEach((s, si) => {
       const v = s.byX.get(x);
       const dot = c.dots[si];
@@ -107,18 +109,19 @@ export const CHART_RUNTIME = String.raw`
       const row = document.createElement("div"); row.style.setProperty("--k", s.color);
       const key = document.createElement("i"); const val = document.createElement("b"); val.textContent = c.fv(v);
       const name = document.createElement("span"); name.textContent = s.label;
-      row.append(key, val, name); c.tip.append(row);
+      row.append(key, val, name); rows.push([v, row]);
     });
+    rows.sort((a, b) => b[0] - a[0]).forEach(([, row]) => c.tip.append(row));
     c.svg.querySelectorAll("[data-hot]").forEach((b) => b.removeAttribute("data-hot"));
     c.svg.querySelectorAll('.bar[data-i="' + i + '"]').forEach((b) => b.setAttribute("data-hot", ""));
     c.host.dataset.hover = "";
     const box = c.svg.getBoundingClientRect(), hostBox = c.host.getBoundingClientRect(), tw = c.tip.offsetWidth;
-    const left = box.left - hostBox.left + px + 12 + tw > hostBox.width ? box.left - hostBox.left + px - 12 - tw : box.left - hostBox.left + px + 12;
-    c.tip.style.transform = "translate(" + Math.max(0, left) + "px, " + (box.top - hostBox.top + 4) + "px)";
+    const at = box.left - hostBox.left + px, flip = px > box.width / 2 || at + 14 + tw > hostBox.width;
+    c.tip.style.transform = "translate(" + Math.max(0, flip ? at - 14 - tw : at + 14) + "px, " + (box.top - hostBox.top) + "px)";
   }
   // chart(name, { kind: "line|area|step|bars", height, x: { min, max, format, label }, y: { min, max, format, unit },
-  //   series: [{ label, points: [[x, y], …], kind, color }], marks: [{ y, label }], bands: [{ x0, x1, label }], now })
-  // x may be numbers or category strings (for bars). Two or more series get a legend.
+  //   series: [{ label, points: [[x, y], …], kind, color }], marks: [{ y, label } | { x, label }], bands: [{ x0, x1, label }], now, labels: "end" })
+  // x may be numbers or category strings (for bars). Two or more series get a legend; labels: "end" also names lines at their ends.
   function chart(name, spec) {
     const el = document.querySelector('[data-pg="chart"][data-name="' + name + '"]');
     if (!el) throw new Error("No chart named " + name);
@@ -132,30 +135,42 @@ export const CHART_RUNTIME = String.raw`
     const xs = []; for (const s of c.series) for (const [x] of s.points) if (!xs.includes(x)) xs.push(x);
     if (!categorical) xs.sort((a, b) => a - b);
     c.xs = xs;
-    const W = Math.round(svg.getBoundingClientRect().width) || 480, H = spec.height || num(c.host, "height", 160);
-    const ys = c.series.flatMap((s) => s.points.map((p) => p[1]));
-    const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...ys);
-    let y1 = spec.y && spec.y.max !== undefined ? spec.y.max : Math.max(1, ...ys);
-    const yt = niceTicks(y0, y1, H < 150 ? 3 : 4); if (yt.length > 1 && yt.at(-1) < y1 && !(spec.y && spec.y.max !== undefined)) yt.push(Number((yt.at(-1) + yt[1] - yt[0]).toFixed(10))); y1 = Math.max(y1, yt.at(-1));
-    const unit = (spec.y && spec.y.unit) || "";
-    c.fy = (spec.y && spec.y.format) || ((v) => (unit === "$" ? "$" + compact(v) : compact(v) + (unit ? (/^[%/]/.test(unit) ? "" : " ") + unit : "")));
-    c.fv = (spec.y && spec.y.format) || ((v) => (unit === "$" ? "$" + Number(v).toLocaleString("en-US") : Number(v).toLocaleString("en-US") + (unit ? (/^[%/]/.test(unit) ? "" : " ") + unit : "")));
-    c.fx = (spec.x && spec.x.format) || ((v) => (typeof v === "number" ? plainNum(v) : String(v)));
-    const labelW = Math.max(28, ...yt.map((v) => c.fy(v).length * 6.2 + 8));
-    const lines = c.series.filter((s) => s.kind !== "bars");
-    const endLabels = lines.length >= 1 && lines.length <= 4 && (lines.length > 1 || attr(c.host, "label-end", "") === "true");
     const host = svg.closest(".pg-surface");
-    const pad = { l: labelW, r: endLabels ? 64 : host && host.querySelector('[data-pg="run"]') ? 48 : 10, t: 10, b: 22 };
+    const W = Math.round(svg.getBoundingClientRect().width) || 480;
+    const H = Math.max(spec.height || num(c.host, "height", 0) || Math.round(clamp(W / 2.4, 160, 260)), Math.round(W / 3.4));
+    const ys = c.series.flatMap((s) => s.points.map((p) => p[1]));
+    const fixedMax = spec.y && spec.y.max !== undefined;
+    const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...ys);
+    let y1 = fixedMax ? spec.y.max : Math.max(1, ...ys) * 1.06;
+    const xMarks = (spec.marks || []).filter((m) => m.x !== undefined), yMarks = (spec.marks || []).filter((m) => m.y !== undefined);
+    const pad = { l: 0, r: 10, t: xMarks.some((m) => m.label) || (spec.bands || []).some((b) => b.label) ? 22 : 8, b: 24 };
+    const count = clamp(Math.round((H - pad.t - pad.b) / 36), 2, 5);
+    let yt = niceTicks(y0, y1, count);
+    if (fixedMax && yt.at(-1) !== y1) yt = [y0, Number(((y0 + y1) / 2).toFixed(6)), y1];
+    else if (yt.length > 1 && yt.at(-1) < y1) yt.push(Number((yt.at(-1) + yt[1] - yt[0]).toFixed(10)));
+    y1 = Math.max(y1, yt.at(-1));
+    const unit = (spec.y && spec.y.unit) || "";
+    const withUnit = (text) => (!unit || unit === "$" ? text : text + (/^[%/]/.test(unit) ? "" : " ") + unit);
+    const money = (text) => (unit === "$" ? "$" + text : text);
+    c.fy = (spec.y && spec.y.format) || ((v) => money(compact(v)));
+    c.fv = (spec.y && spec.y.format) || ((v) => withUnit(money(Number(v).toLocaleString("en-US"))));
+    c.fx = (spec.x && spec.x.format) || ((v) => (typeof v === "number" ? plainNum(v) : String(v)));
+    const tickText = (v) => (v === yt.at(-1) && !(spec.y && spec.y.format) ? withUnit(c.fy(v)) : c.fy(v));
+    pad.l = Math.max(36, ...yt.map((v) => tickText(v).length * 6.2 + 10));
+    const lines = c.series.filter((s) => s.kind !== "bars");
+    const endLabels = spec.labels === "end" && lines.length >= 1 && lines.length <= 4;
+    if (endLabels) pad.r = 12 + Math.max(...lines.map((s) => s.label.length * 6.4));
+    else if (host && host.querySelector('[data-pg="run"]')) pad.r = 48;
     if (host) { host.style.setProperty("--pg-plot-l", pad.l + "px"); host.style.setProperty("--pg-plot-r", pad.r + "px"); }
     const band = categorical ? (W - pad.l - pad.r) / Math.max(1, xs.length) : 0;
     const x0 = categorical ? 0 : spec.x && spec.x.min !== undefined ? spec.x.min : xs[0], x1 = categorical ? 0 : spec.x && spec.x.max !== undefined ? spec.x.max : xs.at(-1);
     c.sx = categorical ? (v) => pad.l + band * (xs.indexOf(v) + .5) : (v) => pad.l + (v - x0) / ((x1 - x0) || 1) * (W - pad.l - pad.r);
     c.sy = (v) => H - pad.b - (v - y0) / ((y1 - y0) || 1) * (H - pad.t - pad.b);
     svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.replaceChildren();
-    for (const b of spec.bands || []) svg.append(svgEl("rect", { class: "band", x: c.sx(b.x0), y: pad.t, width: Math.max(0, c.sx(b.x1) - c.sx(b.x0)), height: H - pad.t - pad.b }));
-    for (const v of yt) { svg.append(svgEl("line", { class: v === y0 ? "axis" : "grid", x1: pad.l, x2: W - pad.r, y1: c.sy(v), y2: c.sy(v) })); svg.append(svgEl("text", { x: pad.l - 8, y: c.sy(v) + 3.5, "text-anchor": "end" }, c.fy(v))); }
-    const xticks = categorical ? xs.filter((_, i) => xs.length <= 8 || i % Math.ceil(xs.length / 8) === 0) : [x0, ...niceTicks(x0, x1, 4).filter((v) => c.sx(v) - c.sx(x0) > 36 && c.sx(x1) - c.sx(v) > 36), x1];
-    xticks.forEach((v, i) => svg.append(svgEl("text", { x: c.sx(v), y: H - 6, "text-anchor": categorical ? "middle" : i === 0 ? "start" : i === xticks.length - 1 ? "end" : "middle" }, c.fx(v))));
+    for (const b of spec.bands || []) { svg.append(svgEl("rect", { class: "band", x: c.sx(b.x0), y: pad.t, width: Math.max(0, c.sx(b.x1) - c.sx(b.x0)), height: H - pad.t - pad.b })); if (b.label) svg.append(svgEl("text", { class: "mark-label", x: c.sx(b.x0) + 4, y: pad.t - 8 }, b.label)); }
+    for (const v of yt) { svg.append(svgEl("line", { class: v === y0 ? "axis" : "grid", x1: pad.l, x2: W - pad.r, y1: c.sy(v), y2: c.sy(v) })); svg.append(svgEl("text", { x: pad.l - 10, y: c.sy(v) + 3.5, "text-anchor": "end" }, tickText(v))); }
+    const xticks = categorical ? xs.filter((_, i) => xs.length <= 8 || i % Math.ceil(xs.length / 8) === 0) : niceTicks(x0, x1, Math.max(2, Math.floor((W - pad.l - pad.r) / 64))).filter((v) => v >= x0 && v <= x1);
+    xticks.forEach((v) => svg.append(svgEl("text", { x: c.sx(v), y: H - 6, "text-anchor": categorical ? "middle" : v === x0 ? "start" : v === x1 ? "end" : "middle" }, c.fx(v))));
     const bars = c.series.filter((s) => s.kind === "bars");
     bars.forEach((s, bi) => {
       const slot = Math.min(24, (categorical ? band : (W - pad.l - pad.r) / Math.max(1, s.points.length)) * .7 / bars.length);
@@ -172,7 +187,8 @@ export const CHART_RUNTIME = String.raw`
       if (s.kind === "area" || s.kind === "step") svg.append(svgEl("path", { class: "wash", fill: s.color, d: d + "V" + c.sy(Math.max(y0, 0)) + "H" + c.sx(pts[0][0]).toFixed(1) + "Z" }));
       svg.append(svgEl("path", { class: "line", stroke: s.color, d }));
     }
-    for (const m of spec.marks || []) { svg.append(svgEl("line", { class: "mark", x1: pad.l, x2: W - pad.r, y1: c.sy(m.y), y2: c.sy(m.y) })); if (m.label) svg.append(svgEl("text", { class: "mark-label", x: pad.l + 4, y: c.sy(m.y) - 5 }, m.label)); }
+    for (const m of yMarks) { svg.append(svgEl("line", { class: "mark", x1: pad.l, x2: W - pad.r, y1: c.sy(m.y), y2: c.sy(m.y) })); if (m.label) svg.append(svgEl("text", { class: "mark-label", x: pad.l + 4, y: c.sy(m.y) - 5 }, m.label)); }
+    for (const m of xMarks) { const x = c.sx(m.x); svg.append(svgEl("line", { class: "mark", x1: x, x2: x, y1: pad.t - 4, y2: H - pad.b })); if (m.label) svg.append(svgEl("text", { class: "mark-label", x, y: pad.t - 8, "text-anchor": x > W - pad.r - 60 ? "end" : x < pad.l + 60 ? "start" : "middle" }, m.label)); }
     if (endLabels) {
       const ends = lines.map((s) => { const p = s.points.at(-1); return p ? { y: c.sy(p[1]) + 3.5, x: c.sx(p[0]) + 6, text: s.label } : null; }).filter(Boolean).sort((a, b) => a.y - b.y);
       for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 13);

@@ -176,15 +176,17 @@ ui.chart("load", {
   x: { format: (x) => "Wk " + x, label: "Week" },
   y: { min: 0, unit: "ms" },         // or format: (v) => …
   series: [{ label: "Europe", points: [[1, 1420], [2, 1390]] }, …],
-  marks: [{ y: 1500, label: "Budget 1.5s" }],   // thresholds
-  bands: [{ x0: 6, x1: 12 }],        // a shaded span
+  marks: [{ y: 1500, label: "Budget" }, { x: 6, label: "CDN change" }],
+  bands: [{ x0: 6, x1: 12, label: "Rollout" }],  // a shaded span
   now: 4,                            // a "now" line for simulations
 });
 ```
 
 Bars take category x values (`[["Mon", 42], …]`). The component picks the
 colors (one series uses the accent; more use a fixed palette in a fixed
-order), adds a legend and end labels for two or more series, a hover and
+order), sizes the plot from the card's width, puts the unit on the top tick
+only, adds a legend for two or more series (`labels: "end"` also names lines
+at their ends), a hover and
 keyboard tooltip listing every series, and a table for screen readers. Don't
 color text in series colors, don't use two y scales (make two charts), and
 keep it to seven series.

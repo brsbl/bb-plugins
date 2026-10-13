@@ -46,7 +46,7 @@
   let run = simulate(P.all()), done = 0;
   const sys = ui.system("traffic"), tally = { sent: 0, ok: 0, lost: 0 };
   function chart(t) {
-    ui.chart("tokens", { height: 110, x: { min: 0, max: SECONDS, format: (x) => x + " s" }, y: { min: 0, max: P.get("capacity") }, series: [{ points: run.steps.filter((_, i) => i % 4 === 0).map((s) => [s.t, s.tokens]), kind: "area", label: "Tokens" }], now: t });
+    ui.chart("tokens", { height: 110, x: { min: 0, max: SECONDS, format: (x) => x + " s" }, y: { min: 0, max: P.get("capacity"), unit: "tokens" }, series: [{ points: run.steps.filter((_, i) => i % 4 === 0).map((s) => [s.t, s.tokens]), kind: "area", label: "Tokens" }], now: t });
   }
   function frame(t) {
     const s = run.steps[Math.min(run.steps.length - 1, Math.floor(t / DT))];
