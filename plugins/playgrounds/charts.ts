@@ -34,6 +34,7 @@ export const CHART_CSS = String.raw`
 .pg-chart .bar:hover, .pg-chart .bar[data-hot] { filter: brightness(1.12); }
 .pg-chart[data-hover] .cross, .pg-chart[data-hover] .dot { opacity: 1; }
 .pg-chart-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; font-size: 11px; color: var(--pg-body); }
+.pg-chart-legend[hidden] { display: none; }
 .pg-chart-legend li { display: inline-flex; align-items: center; gap: 6px; }
 .pg-chart-legend i { width: 14px; height: 2px; border-radius: 1px; background: var(--k); }
 .pg-chart-legend i[data-fill] { width: 10px; height: 10px; border-radius: 2px; }
@@ -43,7 +44,7 @@ export const CHART_CSS = String.raw`
 .pg-tip > div > i { width: 12px; height: 2px; border-radius: 1px; background: var(--k); }
 .pg-tip > div > b { font-size: 12px; font-weight: 600; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
 .pg-tip > p { margin: 0 0 3px; font-weight: 500; color: var(--pg-body); }
-.pg-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.pg-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 `;
 
 // Runs inside the bridge at controls.ts's /*SETS*/ slot, sharing its scope.
@@ -66,7 +67,7 @@ export const CHART_RUNTIME = String.raw`
     if (!svg.getAttribute("aria-label")) svg.setAttribute("aria-label", attr(host, "label", attr(host, "name", "Chart")));
     const legend = document.createElement("ul"); legend.className = "pg-chart-legend"; legend.hidden = true; host.prepend(legend);
     const tip = document.createElement("div"); tip.className = "pg-tip"; tip.setAttribute("aria-hidden", "true"); host.append(tip);
-    const table = document.createElement("table"); table.className = "pg-sr"; host.append(table);
+    const sr = document.createElement("div"); sr.className = "pg-sr"; const table = sr.appendChild(document.createElement("table")); host.append(sr);
     const c = { host, svg, legend, tip, table, spec: null, xs: [], hover: -1 };
     host.__chart = c;
     const pick = (clientX) => {
@@ -133,7 +134,7 @@ export const CHART_RUNTIME = String.raw`
     const ys = c.series.flatMap((s) => s.points.map((p) => p[1]));
     const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...ys);
     let y1 = spec.y && spec.y.max !== undefined ? spec.y.max : Math.max(1, ...ys);
-    const yt = niceTicks(y0, y1, 3); y1 = Math.max(y1, yt.at(-1));
+    const yt = niceTicks(y0, y1, 3); if (yt.length > 1 && yt.at(-1) < y1 && !(spec.y && spec.y.max !== undefined)) yt.push(Number((yt.at(-1) + yt[1] - yt[0]).toFixed(10))); y1 = Math.max(y1, yt.at(-1));
     const unit = (spec.y && spec.y.unit) || "";
     c.fy = (spec.y && spec.y.format) || ((v) => (unit === "$" ? "$" + compact(v) : compact(v) + (unit ? (/^[%/]/.test(unit) ? "" : " ") + unit : "")));
     c.fx = (spec.x && spec.x.format) || ((v) => (typeof v === "number" ? plainNum(v) : String(v)));
@@ -150,7 +151,7 @@ export const CHART_RUNTIME = String.raw`
     svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.replaceChildren();
     for (const b of spec.bands || []) svg.append(svgEl("rect", { class: "band", x: c.sx(b.x0), y: pad.t, width: Math.max(0, c.sx(b.x1) - c.sx(b.x0)), height: H - pad.t - pad.b }));
     for (const v of yt) { svg.append(svgEl("line", { class: v === y0 ? "axis" : "grid", x1: pad.l, x2: W - pad.r, y1: c.sy(v), y2: c.sy(v) })); svg.append(svgEl("text", { x: pad.l - 8, y: c.sy(v) + 3.5, "text-anchor": "end" }, c.fy(v))); }
-    const xticks = categorical ? xs.filter((_, i) => xs.length <= 8 || i % Math.ceil(xs.length / 8) === 0) : niceTicks(x0, x1, 4);
+    const xticks = categorical ? xs.filter((_, i) => xs.length <= 8 || i % Math.ceil(xs.length / 8) === 0) : [x0, ...niceTicks(x0, x1, 4).filter((v) => c.sx(v) - c.sx(x0) > 36 && c.sx(x1) - c.sx(v) > 36), x1];
     xticks.forEach((v, i) => svg.append(svgEl("text", { x: c.sx(v), y: H - 6, "text-anchor": categorical ? "middle" : i === 0 ? "start" : i === xticks.length - 1 ? "end" : "middle" }, c.fx(v))));
     const bars = c.series.filter((s) => s.kind === "bars");
     bars.forEach((s, bi) => {
@@ -171,8 +172,10 @@ export const CHART_RUNTIME = String.raw`
     for (const m of spec.marks || []) { svg.append(svgEl("line", { class: "mark", x1: pad.l, x2: W - pad.r, y1: c.sy(m.y), y2: c.sy(m.y) })); if (m.label) svg.append(svgEl("text", { class: "mark-label", x: pad.l + 4, y: c.sy(m.y) - 5 }, m.label)); }
     if (endLabels) {
       const ends = lines.map((s) => { const p = s.points.at(-1); return p ? { y: c.sy(p[1]) + 3.5, x: c.sx(p[0]) + 6, text: s.label } : null; }).filter(Boolean).sort((a, b) => a.y - b.y);
-      const collide = ends.some((e, i) => i > 0 && e.y - ends[i - 1].y < 12);
-      if (!collide) for (const e of ends) svg.append(svgEl("text", { class: "end", x: e.x, y: e.y }, e.text));
+      for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 13);
+      const over = ends.length ? ends.at(-1).y - (H - pad.b) : 0;
+      if (over > 0) for (const e of ends) e.y -= over;
+      if (!ends.length || ends[0].y >= pad.t) for (const e of ends) svg.append(svgEl("text", { class: "end", x: e.x, y: e.y }, e.text));
     }
     if (Number.isFinite(spec.now) || (categorical && spec.now !== undefined)) { const x = c.sx(spec.now); svg.append(svgEl("line", { class: "now", x1: x, x2: x, y1: pad.t, y2: H - pad.b })); }
     c.cross = svgEl("line", { class: "cross", y1: pad.t, y2: H - pad.b }); svg.append(c.cross);
