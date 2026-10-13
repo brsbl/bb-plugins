@@ -295,7 +295,7 @@ function TouchNoteActions({
   };
   const copyPath = () => {
     void navigator.clipboard.writeText(path).then(
-      () => toast.success("File path copied"),
+      () => toast.success("File path copied", { position: "bottom-center", duration: COPIED_MS }),
       () => toast.error("Failed to copy file path"),
     );
   };
