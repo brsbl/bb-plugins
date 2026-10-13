@@ -120,7 +120,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 ### CRM
 
-Keep customer and investor conversations together, grouped by company. Track people, stages, next steps and interaction history, with a CLI for agents to keep the pipeline current.
+Prioritize customer companies by potential impact and investors by the value they add. Two heatmap tables keep scores, customer milestones, investor ranks and next steps readable, with manual priority overrides and a CLI for agents.
 
 ![Customer and investor tracks grouped by company, with an independent angel](https://github.com/user-attachments/assets/c730cdcb-8e12-464b-9d29-65e521a20367)
 

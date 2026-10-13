@@ -3,7 +3,7 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { CUSTOMER_STAGES, INVESTOR_STAGES, companySchema, personSchema, trackSchema, interactionSchema, subjectSchema, viewInputSchema, historyInputSchema, pageSchema, type Company, type Person, type Track, type Interaction, type Subject, type Group } from "./model.js";
 
-type Db = ReturnType<BbPluginApi["storage"]["database"]>;
+export type Db = ReturnType<BbPluginApi["storage"]["database"]>;
 export const MIGRATIONS = [
   "CREATE TABLE crm_companies (id TEXT PRIMARY KEY, name TEXT NOT NULL)",
   "CREATE TABLE crm_people (id TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL, companyId TEXT REFERENCES crm_companies(id))",
@@ -21,6 +21,17 @@ export const MIGRATIONS = [
     WHEN 'Case study' THEN 'M4 · Team usage + expansion'
     ELSE stage END
     WHERE kind = 'customer' AND stage IN ('Champion engaged', 'Shared channel', 'Usage deep-dive', 'Expanding', 'Case study')`,
+  // Priority is independent of milestone progress. Never rewrite existing tracks or notes.
+  "CREATE TABLE crm_customer_scores (companyId TEXT PRIMARY KEY REFERENCES crm_companies(id), championStrength INTEGER CHECK(championStrength BETWEEN 0 AND 5), roomToGrow INTEGER CHECK(roomToGrow BETWEEN 0 AND 5), caseStudyValue INTEGER CHECK(caseStudyValue BETWEEN 0 AND 5), activePeople INTEGER CHECK(activePeople BETWEEN 0 AND 5), tierOverride INTEGER CHECK(tierOverride IN (1,2,3)), why TEXT NOT NULL DEFAULT '')",
+  "INSERT INTO crm_customer_scores (companyId) SELECT id FROM crm_companies",
+  "CREATE TRIGGER crm_company_priority AFTER INSERT ON crm_companies BEGIN INSERT INTO crm_customer_scores (companyId) VALUES (NEW.id); END",
+  "CREATE TABLE crm_investor_scores (trackId TEXT PRIMARY KEY REFERENCES crm_tracks(id), companyScale INTEGER CHECK(companyScale BETWEEN 0 AND 5), socialProof INTEGER CHECK(socialProof BETWEEN 0 AND 5), introductions INTEGER CHECK(introductions BETWEEN 0 AND 5), coMarketing INTEGER CHECK(coMarketing BETWEEN 0 AND 5), rankOverride INTEGER CHECK(rankOverride > 0), sequence INTEGER NOT NULL, why TEXT NOT NULL DEFAULT '', legacyStage TEXT NOT NULL)",
+  // Equal, unscored entries retain the previous CRM display order on upgrade.
+  `INSERT INTO crm_investor_scores (trackId, sequence, legacyStage)
+    SELECT t.id, ROW_NUMBER() OVER (ORDER BY lower(COALESCE(c.name,p.name)), t.id), t.stage
+    FROM crm_tracks t LEFT JOIN crm_companies c ON t.subjectType='company' AND c.id=t.subjectId
+    LEFT JOIN crm_people p ON t.personId=p.id WHERE t.kind='investor'`,
+  "CREATE TRIGGER crm_investor_priority AFTER INSERT ON crm_tracks WHEN NEW.kind='investor' BEGIN INSERT INTO crm_investor_scores (trackId, sequence, legacyStage) VALUES (NEW.id, (SELECT COALESCE(MAX(sequence),0)+1 FROM crm_investor_scores), NEW.stage); END",
 ];
 const addCompanySchema = companySchema.partial({ id: true });
 const addPersonSchema = personSchema.partial({ id: true });
@@ -52,17 +63,20 @@ export function createStore(db: Db) {
     db.prepare(`INSERT INTO ${table} (${keys.join(",")}) VALUES (${keys.map(key => "@" + key).join(",")})`).run(row);
     return row;
   };
-  const validateTrack = (value: Track) => {
+  const validateTrack = (value: Track, validateStage = true) => {
     subject(value);
     const stages: readonly string[] = value.kind === "customer" ? CUSTOMER_STAGES : INVESTOR_STAGES;
-    if (!stages.includes(value.stage)) throw new CrmError(`Invalid ${value.kind} stage. Use: ${stages.join(" → ")}.`);
+    if (validateStage && !(value.kind === "investor" && value.stage === "") && !stages.includes(value.stage)) throw new CrmError(`Invalid ${value.kind} stage. Use: ${stages.join(" → ")}.`);
     if (value.subjectType === "person") {
       const target = person(value.subjectId);
-      if (target.companyId !== null || value.kind !== "investor" || value.personId !== target.id) {
-        throw new CrmError("A standalone investor track must belong to an independent person and use that person as its contact.");
+      if (value.kind !== "investor" || value.personId !== target.id) {
+        throw new CrmError("A person investor entry must use that person as its contact.");
       }
     } else if (value.personId && person(value.personId).companyId !== value.subjectId) {
       throw new CrmError("The track contact must belong to this company.");
+    }
+    if (value.kind === "investor" && value.personId && db.prepare("SELECT id FROM crm_tracks WHERE kind='investor' AND personId=? AND id<>? LIMIT 1").get(value.personId, value.id)) {
+      throw new CrmError("This person already has an investor entry. Update its existing ID.", "already_exists");
     }
   };
   return {
@@ -87,8 +101,8 @@ export function createStore(db: Db) {
         const before = person(id);
         const row = personSchema.parse({ ...before, ...changes });
         if (row.companyId) company(row.companyId);
-        if (row.companyId !== before.companyId && db.prepare("SELECT id FROM crm_tracks WHERE personId = ? LIMIT 1").get(id)) {
-          throw new CrmError("Clear this person's company-track assignments before changing their company. An independent investor with a track must remain independent.");
+        if (row.companyId !== before.companyId && db.prepare("SELECT id FROM crm_tracks WHERE subjectType = 'company' AND personId = ? LIMIT 1").get(id)) {
+          throw new CrmError("Clear this person's company-track assignments before changing their company.");
         }
         db.prepare("UPDATE crm_people SET name = @name, role = @role, companyId = @companyId WHERE id = @id").run(row);
         return row;
@@ -108,7 +122,7 @@ export function createStore(db: Db) {
       return db.transaction(() => {
         const changes = trackSchema.omit({ id: true, subjectType: true, subjectId: true, kind: true }).partial().strict().parse(patch);
         const row = trackSchema.parse({ ...track(id), ...changes });
-        validateTrack(row);
+        validateTrack(row, changes.stage !== undefined);
         db.prepare("UPDATE crm_tracks SET personId = @personId, stage = @stage, nextStep = @nextStep, owner = @owner, date = @date WHERE id = @id").run(row);
         return row;
       })();

@@ -1,6 +1,7 @@
 import { cliCommand, defineCli, PluginCliError } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { CUSTOMER_STAGES, INVESTOR_STAGES } from "./model.js";
+import type { Priorities } from "./priorities.js";
 import { CrmError, type Store } from "./store.js";
 
 const json = { type: "boolean", description: "Emit machine-readable JSON" } as const;
@@ -12,18 +13,19 @@ const page = {
 } as const;
 const trackFields = {
   person: optional("Contact's person ID"),
-  stage: optional("Exact stage name; customer milestones: " + CUSTOMER_STAGES.join(" → ") + "; investor: " + INVESTOR_STAGES.join(" → ")),
+  stage: optional("Customer milestone: " + CUSTOMER_STAGES.join(" → ") + "; legacy investor metadata only: " + INVESTOR_STAGES.join(" → ")),
   next: { ...optional("Next step, up to 1000 characters; empty text clears it"), aliases: ["next-step"], stdin: true },
   owner: optional("Responsible person or thread label, up to 200 characters; empty text clears it"),
   date: optional("Next step date, YYYY-MM-DD"),
 };
+const scoreOption = (criterion: string) => ({ type: "integer", min: 0, max: 5, description: criterion + " score (0–5; omitted fields are preserved)" }) as const;
 const defined = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined));
 function nonempty(patch: Record<string, unknown>) {
   if (!Object.keys(patch).length) throw new CrmError("Supply at least one field to update.");
   return patch;
 }
 
-export function createCli(store: Store, changed: () => void) {
+export function createCli(store: Store, priorities: Priorities, changed: () => void) {
   const run = (operation: () => unknown, asJson: boolean, write = true) => {
     try {
       const result = operation();
@@ -38,6 +40,48 @@ export function createCli(store: Store, changed: () => void) {
   return defineCli({
     name: "crm", summary: "Manage private customer and investor conversations",
     commands: {
+      "add investor": cliCommand({
+        summary: "Add a person to the independent investor ranking (company contacts or angels)",
+        positionals: [{ name: "person", required: true, description: "Existing person ID" }],
+        options: { id: optional("Optional stable entry ID"), ask: { ...optional("The ask, up to 1000 characters"), stdin: true }, owner: trackFields.owner, date: trackFields.date, json },
+        run: ({ options, positionals }) => run(() => store.addTrack({ ...defined({ id: options.id }), subjectType: "person", subjectId: positionals.person, personId: positionals.person, kind: "investor", stage: "", nextStep: options.ask ?? "", owner: options.owner ?? "", date: options.date ?? null }), options.json),
+      }),
+      "score customer": cliCommand({
+        summary: "Score company impact, 0–5 each. Total 15–20 = Tier 1, 8–14 = Tier 2, 0–7/unscored = Tier 3",
+        positionals: [{ name: "id", required: true, description: "Company ID" }],
+        options: { "champion-strength": scoreOption("Champion strength"), "room-to-grow": scoreOption("Room to grow"), "case-study-value": scoreOption("Case-study value"), "active-people": scoreOption("Active people"), why: optional("Why this company has this priority, up to 2000 characters"), "clear-scores": { type: "boolean", description: "Clear all four scores before applying supplied scores" }, json },
+        run: ({ options, positionals }) => run(() => priorities.scoreCustomer(positionals.id, defined({ championStrength: options["champion-strength"], roomToGrow: options["room-to-grow"], caseStudyValue: options["case-study-value"], activePeople: options["active-people"], why: options.why }), options["clear-scores"]), options.json),
+      }),
+      "score investor": cliCommand({
+        summary: "Score investor value, 0–5 each; unpinned entries rank by the total",
+        positionals: idPosition,
+        options: { "company-scale": scoreOption("Company scale"), "social-proof": scoreOption("Social proof"), introductions: scoreOption("Introductions"), "co-marketing": scoreOption("Co-marketing"), why: optional("Why this person ranks here, up to 2000 characters"), "clear-scores": { type: "boolean", description: "Clear all four scores before applying supplied scores" }, json },
+        run: ({ options, positionals }) => run(() => priorities.scoreInvestor(positionals.id, defined({ companyScale: options["company-scale"], socialProof: options["social-proof"], introductions: options.introductions, coMarketing: options["co-marketing"], why: options.why }), options["clear-scores"]), options.json),
+      }),
+      "tier set": cliCommand({
+        summary: "Override a company's impact tier with a reason; milestone is unchanged",
+        positionals: [{ name: "id", required: true, description: "Company ID" }],
+        options: { tier: { type: "integer", min: 1, max: 3, required: true, description: "Tier 1, 2 or 3" }, why: { type: "string", required: true, description: "Reason for the override" }, json },
+        run: ({ options, positionals }) => run(() => priorities.setTier({ id: positionals.id, tier: options.tier, why: options.why }), options.json),
+      }),
+      "tier auto": cliCommand({
+        summary: "Restore the tier derived from the company's scores", positionals: idPosition, options: { json },
+        run: ({ options, positionals }) => run(() => priorities.autoTier(positionals.id), options.json),
+      }),
+      "rank set": cliCommand({
+        summary: "Pin an investor at rank 1…N with a reason; other unpinned people still follow totals", positionals: idPosition,
+        options: { rank: { type: "integer", min: 1, max: 1_000_000, required: true, description: "Position in the full investor list" }, why: { type: "string", required: true, description: "Why this person ranks here" }, json },
+        run: ({ options, positionals }) => run(() => priorities.setRank({ id: positionals.id, rank: options.rank, why: options.why }), options.json),
+      }),
+      "rank move": cliCommand({
+        summary: "Move an investor up or down one place in the current full ranking", positionals: idPosition,
+        options: { direction: { type: "enum", values: ["up", "down"], required: true, description: "Move direction" }, why: { type: "string", required: true, description: "Why the rank is changing" }, json },
+        run: ({ options, positionals }) => run(() => priorities.moveRank(positionals.id, options.direction, options.why), options.json),
+      }),
+      "rank auto": cliCommand({
+        summary: "Remove an investor's manual rank override and follow their score again", positionals: idPosition, options: { json },
+        run: ({ options, positionals }) => run(() => priorities.autoRank(positionals.id), options.json),
+      }),
       "add company": cliCommand({
         summary: "Add a company",
         positionals: [{ name: "name", required: true, description: "Company name (up to 200 characters)" }],
@@ -83,10 +127,16 @@ export function createCli(store: Store, changed: () => void) {
       list: cliCommand({
         summary: "List records; follow nextOffset until null to read every page",
         options: {
-          type: { type: "enum", values: ["companies", "people", "tracks", "interactions"], default: "tracks", description: "Record type (default tracks)" },
+          type: { type: "enum", values: ["companies", "people", "tracks", "interactions", "customers", "investors"], default: "tracks", description: "Record type (default tracks)" },
           company: optional("Filter by company ID"), person: optional("Filter people, tracks or interactions by person ID"), ...page, json,
         },
-        run: ({ options }) => run(() => store.list(options), options.json, false),
+        run: ({ options }) => run(() => {
+          if (options.type === "customers" || options.type === "investors") {
+            if (options.company || options.person) throw new CrmError("For priority lists, use pagination; --company/--person filter the original record types.");
+            return priorities[options.type]({ limit: options.limit, offset: options.offset });
+          }
+          return store.list({ ...options, type: options.type });
+        }, options.json, false),
       }),
       log: cliCommand({
         summary: "Record a message, call or introduction without sending anything",

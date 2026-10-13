@@ -106,7 +106,6 @@ describe("CRM persisted CLI and RPC", () => {
     for (const argv of [
       ["add", "person", "Missing Example", "--company", "missing"],
       ["add", "track", "--company", "orbit", "--person", "alex", "--kind", "customer"],
-      ["add", "track", "--person", "alex", "--kind", "investor"],
       ["add", "track", "--person", "drew", "--kind", "customer"],
       ["add", "track", "--company", "acme", "--kind", "customer"],
       ["update", "track", "customer", "--stage", "Committed"],
@@ -114,7 +113,6 @@ describe("CRM persisted CLI and RPC", () => {
       ["update", "track", "customer", "--next", "x".repeat(1001)],
       ["update", "track", "customer", "--persno", "blair"],
       ["update", "person", "alex", "--company", "orbit"],
-      ["update", "person", "drew", "--company", "orbit"],
       ["update", "track", "angel", "--clear-person"],
       ["add", "company", "Duplicate Example", "--id", "acme"],
       ["update", "track", "customer"],

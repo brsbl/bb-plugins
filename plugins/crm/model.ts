@@ -35,3 +35,20 @@ export const pageSchema = z.object({ limit: z.number().int().min(1).max(100).def
 export const viewInputSchema = pageSchema.extend({ query: z.string().max(200).default(""), kind: kindSchema.optional() }).strict();
 export const historyInputSchema = subjectSchema.extend({ offset: z.number().int().min(0).max(1_000_000).default(0) }).strict();
 
+
+export const scoreSchema = z.number().int().min(0).max(5).nullable();
+export const customerScoresSchema = z.object({ championStrength: scoreSchema, roomToGrow: scoreSchema, caseStudyValue: scoreSchema, activePeople: scoreSchema }).strict();
+export const investorScoresSchema = z.object({ companyScale: scoreSchema, socialProof: scoreSchema, introductions: scoreSchema, coMarketing: scoreSchema }).strict();
+export const whySchema = z.string().trim().max(2000);
+export const tierSchema = z.number().int().min(1).max(3);
+export const rankInputSchema = z.object({ id: idSchema, rank: z.number().int().min(1).max(1_000_000), why: whySchema.min(1) }).strict();
+export const tierInputSchema = z.object({ id: idSchema, tier: tierSchema.nullable(), why: whySchema }).strict();
+export const priorityInputSchema = pageSchema.extend({ query: z.string().max(200).default("") }).strict();
+export const customerRowSchema = z.object({ company: companySchema, person: personSchema.nullable(), track: trackSchema.nullable(), scores: customerScoresSchema, total: z.number().int().nullable(), tier: tierSchema, tierOverride: tierSchema.nullable(), why: whySchema }).strict();
+export const investorRowSchema = z.object({ track: trackSchema, person: personSchema.nullable(), company: companySchema.nullable(), scores: investorScoresSchema, total: z.number().int().nullable(), rank: z.number().int(), rankOverride: z.number().int().nullable(), why: whySchema, legacyStage: z.string() }).strict();
+export type CustomerRow = z.infer<typeof customerRowSchema>;
+export type InvestorRow = z.infer<typeof investorRowSchema>;
+export type CustomerScores = z.infer<typeof customerScoresSchema>;
+export type InvestorScores = z.infer<typeof investorScoresSchema>;
+export const CUSTOMER_CRITERIA = [["championStrength", "Champion strength"], ["roomToGrow", "Room to grow"], ["caseStudyValue", "Case-study value"], ["activePeople", "Active people"]] as const;
+export const INVESTOR_CRITERIA = [["companyScale", "Company scale"], ["socialProof", "Social proof"], ["introductions", "Introductions"], ["coMarketing", "Co-marketing"]] as const;
