@@ -71,6 +71,17 @@ describe("Delegation settings", () => {
     expect(harness.inspection.realtimeSignals.at(-1)?.channel).toBe("settings-changed");
   });
 
+  it("records which machine's files the sources came from", async () => {
+    const harness = setup([]);
+    expect(JSON.parse((await harness.behavior.runCli(["sources", "--json"], { signal })).stdout).host).toBeNull();
+    await harness.behavior.runCli(["forget", "--all", "--host", "host_mac"], { signal });
+    await harness.behavior.runCli(["record", "workerReportLines", "3", "--from", "~/.claude/CLAUDE.md", "--quote", "three lines or fewer", "--host", "host_mac"], { signal });
+    await harness.behavior.runCli(["record", "retryLimit", "2", "--from", "~/.bb/AGENTS.md", "--quote", "retry twice"], { signal });
+    const sources = JSON.parse((await harness.behavior.runCli(["sources", "--json"], { signal })).stdout);
+    expect(sources).toMatchObject({ host: "host_mac", sources: { workerReportLines: { value: 3 }, retryLimit: { value: 2 } } });
+    expect((await harness.behavior.runCli(["sources"], { signal })).stdout).toMatch(/^Checked .* on host_mac/u);
+  });
+
   it("requires a file and a quote for every source", async () => {
     const harness = setup([]);
     expect((await run(harness, ["record", "workerReportLines", "3", "--from", "~/.claude/CLAUDE.md"])).stderr).toContain("A source needs --from and --quote.");

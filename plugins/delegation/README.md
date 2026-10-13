@@ -64,13 +64,13 @@ bb delegation settings [--json] [--explain]
 bb delegation set <key> <value>
 bb delegation reset <key>
 bb delegation sources [--json]
-bb delegation record <key> <value> --from <file> --quote <words> [--note <text>]
-bb delegation forget <key> | --all
+bb delegation record <key> <value> --from <file> --quote <words> [--note <text>] [--host <host id>]
+bb delegation forget <key> | --all [--host <host id>]
 bb delegation children [--thread <lead-id>] [--json]
 bb delegation cascade [--thread <id>] [--json]
 ```
 
-`settings` prints the effective values and where each comes from; `set` and `reset` change your override. `sources`, `record`, and `forget` manage the values read from your instructions. `children` lists a lead's workers, most urgent first: `needs-input`, `error`, `host-offline`, `retry-queued`, `working`, or `idle`. `cascade` lists every thread that `bb thread archive` would also archive: children, threads it is the lifecycle owner of, and hidden forks, recursively. Both default to the current thread.
+`settings` prints the effective values and where each comes from; `set` and `reset` change your override. `sources`, `record`, and `forget` manage the values read from your instructions; `--host` records which machine's files they came from, and only that machine refreshes them. `children` lists a lead's workers, most urgent first: `needs-input`, `error`, `host-offline`, `retry-queued`, `working`, or `idle`. `cascade` lists every thread that `bb thread archive` would also archive: children, threads it is the lifecycle owner of, and hidden forks, recursively. Both default to the current thread.
 
 ## Develop
 

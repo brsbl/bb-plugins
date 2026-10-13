@@ -21,6 +21,13 @@ Refresh when `checkedAt` is null, or when any file below changed after it
 (`stat -f %m <file>` on macOS, `stat -c %Y <file>` on Linux; `checkedAt` is in
 milliseconds).
 
+Refresh only on the machine `host` names. This machine is
+`thread.environment.hostId` in `bb status --json`. Every machine reads the same
+recorded sources, but the files live on one: rebuilding on a machine without
+the user's memory notes would erase what those notes set. If `host` is another
+machine, use the recorded values as they are, unless the user asks you to read
+this machine's files instead.
+
 ## Find the memory notes
 
 Rebuild from the files every time; don't start from what's already recorded.
@@ -89,11 +96,13 @@ number that no source states.
 
 ## Record
 
-Start clean, then record each value with the user's exact words:
+Start clean, then record each value with the user's exact words. Pass this
+machine's host id with every command so other machines know where the files
+were read:
 
 ```sh
-bb delegation forget --all
-bb delegation record workerReportLines 3 \
+bb delegation forget --all --host <host id>
+bb delegation record workerReportLines 3 --host <host id> \
   --from '~/.claude/CLAUDE.md' \
   --quote 'Report once, when done or blocked, in three lines or fewer'
 ```

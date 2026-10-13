@@ -11,7 +11,7 @@ description: Turn delegated workers' results into a short report for the user, w
 bb delegation settings --json
 ```
 
-The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them.
+The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from.
 
 This skill uses `reportStyle`, `reportMaxBullets`, `decisionsAsActionCards`,
 `evidenceInline`, and `workerReportLines` from its output.
