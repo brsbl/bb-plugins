@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
@@ -15,6 +16,26 @@ import {
 } from "./model.js";
 import { bill, savings, stepper } from "./examples.js";
 import { buildWidgetDocument, fallbackTheme, FRAME_HEADERS, FRAME_PATH } from "./widget.js";
+
+// A file on the thread's machine: one-line JSON {title, html, width?}, or a whole HTML
+// page such as an Anatomy figure, titled from its <title>.
+export function playgroundFromFile(name: string, text: string): unknown {
+  if (!/^\s*</.test(text)) return JSON.parse(text);
+  const title = /<title[^>]*>([^<]*)<\/title>/i.exec(text)?.[1]?.trim() || path.basename(name).replace(/\.html?$/i, "");
+  return { title, html: text, ...(/class="iso"/.test(text) ? { width: 720 } : {}) };
+}
+
+async function readThreadFile(bb: BbPluginApi, threadId: string, cwd: string | undefined, file: string) {
+  const thread = await bb.sdk.threads.get({ threadId, include: "environment" });
+  const environment = "environment" in thread ? thread.environment ?? null : null;
+  if (!environment) throw new Error("This thread has no machine to read files from.");
+  const root = cwd ?? environment.path;
+  if (!path.isAbsolute(file) && !root) throw new Error(`Use an absolute path for ${file}; this thread has no workspace.`);
+  const resolved = path.isAbsolute(file) ? file : path.resolve(root!, file);
+  const result = await bb.sdk.files.read({ hostId: environment.hostId, path: resolved });
+  if ((result.sizeBytes ?? 0) > MAX_HTML_LENGTH * 2) throw new Error(`${file} is too large for a playground.`);
+  return Buffer.from(result.content, result.contentEncoding === "base64" ? "base64" : "utf8").toString("utf8");
+}
 import { createLive, liveRpc } from "./live.js";
 
 const savedSchema = z
@@ -512,6 +533,12 @@ export default function plugin(bb: BbPluginApi): void {
               description:
                 "HTML playground as one-line JSON {title, html, width?}; use --playground-stdin",
             },
+            "playground-file": {
+              type: "string",
+              placeholder: "PATH",
+              description:
+                "HTML playground in a file on this thread's machine: one-line JSON {title, html, width?}, or a whole .html page such as an Anatomy figure",
+            },
             saved: {
               type: "string",
               description:
@@ -522,8 +549,16 @@ export default function plugin(bb: BbPluginApi): void {
               description: "Thread ID; defaults to the current thread",
             },
           },
-          run: ({ options }, ctx) => {
+          run: async ({ options }, ctx) => {
             const threadId = threadSchema.parse(options.thread ?? ctx.threadId);
+            const file = options["playground-file"];
+            if (file !== undefined) {
+              const text = await readThreadFile(bb, threadId, ctx.cwd, file);
+              return {
+                exitCode: 0,
+                stdout: `${store.publishHtml(threadId, htmlAnswerSchema.parse(playgroundFromFile(file, text))).directive}\n`,
+              };
+            }
             if (options.saved !== undefined)
               return {
                 exitCode: 0,
@@ -535,7 +570,7 @@ export default function plugin(bb: BbPluginApi): void {
                 stdout: `${store.publishHtml(threadId, htmlAnswerSchema.parse(JSON.parse(options.playground))).directive}\n`,
               };
             if (options.document === undefined)
-              throw new Error("Pass --document-stdin, --playground-stdin, or --saved.");
+              throw new Error("Pass --document-stdin, --playground-stdin, --playground-file, or --saved.");
             return {
               exitCode: 0,
               stdout: `${store.publish(threadId, options.document).directive}\n`,

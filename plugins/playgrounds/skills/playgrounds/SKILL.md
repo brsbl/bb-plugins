@@ -363,6 +363,32 @@ shows a setup step, two boards and hidden pieces), and
 `references/pocket-synth.html` (instrument), and `references/pour-over.html`
 (guide set with photos).
 
+## Anatomy figures
+
+[Anatomy](https://skills.wheresryan.sh/anatomy), by Ryan
+([@wheresryan22](https://github.com/wheresryan22)), draws a technical idea as a
+working isometric machine. When someone asks for an Anatomy figure, or for "how
+X works" as a machine they can operate, and the `anatomy` skill is installed,
+build the figure with it the framework-free way (a `build.mjs` that writes one
+standalone HTML page), then show that page as a playground:
+
+```sh
+bb playgrounds publish --playground-file /absolute/path/figure.html
+```
+
+`--playground-file` reads the page from this thread's machine, so a large
+figure never passes through your context. The card keeps the page's styles and
+scripts, follows bb's light or dark theme, and fits the page to the card. Credit
+Ryan and Anatomy in your reply. If the skill isn't installed, say so and offer
+`npx skills add wheresryan22/anatomy`; don't install it yourself.
+
+The card exposes two actions on the figure: `read` returns the live readout
+and the stage's slider value, and `key` presses a key on the figure the way the
+keyboard does (`do <id> key --args '["ArrowRight", 3]'`). For a figure you
+build for a card, also put the model's inputs in playground parameters
+(`playground.params.define`, then redraw on change), so `setParams` sets them
+exactly and `read` returns them.
+
 ## Interactive diagrams
 
 A `diagram` has a title, an accessible description, a width/height viewBox,

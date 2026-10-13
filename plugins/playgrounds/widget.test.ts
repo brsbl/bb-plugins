@@ -1,7 +1,7 @@
 import { JSDOM } from "jsdom";
 import { expect, it } from "vitest";
 import { SETS_CSS } from "./sets.js";
-import { WIDGET_MESSAGE_SOURCE, buildWidgetDocument, fallbackTheme } from "./widget.js";
+import { WIDGET_MESSAGE_SOURCE, buildWidgetDocument, fallbackTheme, pageParts } from "./widget.js";
 
 it("keeps stored state and theme values from closing the bridge script", () => {
   const doc = buildWidgetDocument({
@@ -135,4 +135,15 @@ it("lets a card's own actions win over the kit's built-in actions", async () => 
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(results).toContainEqual(expect.objectContaining({ cmdId: "c1", ok: true, value: "picked Ferry" }));
   window.close();
+});
+
+it("keeps a whole page's styles, scripts and body theme when it's shown as a card", () => {
+  const page = '<!doctype html><html><head><title>Dial</title><meta charset="utf-8"><style>.iso{color:red}</style></head><body class="iso" data-theme="dark" onload="x()"><main class="iso-page">gauge</main><script type="module">go()</script></body></html>';
+  const { markup, bodyAttributes } = pageParts(page);
+  expect(bodyAttributes).toBe(' class="iso" data-theme="dark"');
+  expect(markup).toBe('<style>.iso{color:red}</style><main class="iso-page">gauge</main><script type="module">go()</script>');
+  expect(pageParts("<p>Body</p>")).toEqual({ markup: "<p>Body</p>", bodyAttributes: "" });
+  const doc = buildWidgetDocument({ id: "a", html: page, state: null, theme: fallbackTheme });
+  expect(doc).toContain('<body class="iso" data-theme="dark"><style>.iso{color:red}</style>');
+  expect(doc).not.toContain("onload");
 });

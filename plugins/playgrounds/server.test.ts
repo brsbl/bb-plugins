@@ -1,6 +1,6 @@
 import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { expect, it } from "vitest";
-import plugin from "./server.js";
+import plugin, { playgroundFromFile } from "./server.js";
 import { bill, stepper } from "./examples.js";
 
 const unwrap = (stdout: string | undefined) => {
@@ -520,4 +520,11 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
   } finally {
     await host.harness.lifecycle.dispose();
   }
+});
+
+it("reads a playground file as JSON, or as a whole HTML page titled from its <title>", () => {
+  expect(playgroundFromFile("/w/card.json", '{"title":"Card","html":"<p>x</p>"}')).toEqual({ title: "Card", html: "<p>x</p>" });
+  const page = '<!doctype html><html><head><title> Dial indicator </title></head><body class="iso" data-theme="dark"></body></html>';
+  expect(playgroundFromFile("/w/dial.html", page)).toEqual({ title: "Dial indicator", html: page, width: 720 });
+  expect(playgroundFromFile("/w/plain.html", "<p>no title</p>")).toEqual({ title: "plain", html: "<p>no title</p>" });
 });

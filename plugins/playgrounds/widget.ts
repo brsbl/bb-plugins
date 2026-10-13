@@ -210,6 +210,18 @@ export const FRAME_HEADERS = {
   "cache-control": "private, max-age=3600",
 };
 
+// A whole page (an Anatomy figure, say) keeps its head styles and scripts and its
+// body's class and data-* attributes, so it renders in the card as it does alone.
+export function pageParts(html: string): { markup: string; bodyAttributes: string } {
+  if (!/^\s*(<!doctype|<html[\s>])/i.test(html)) return { markup: html, bodyAttributes: "" };
+  const head = /<head[^>]*>([\s\S]*?)<\/head>/i.exec(html)?.[1] ?? "";
+  const body = /<body([^>]*)>([\s\S]*)<\/body>/i.exec(html);
+  const bodyAttributes = [...(body?.[1] ?? "").matchAll(/\s(class|data-[\w-]+)="([^"<>]*)"/g)]
+    .map(([, name, value]) => ` ${name}="${value}"`)
+    .join("");
+  return { markup: head.replace(/<title[\s\S]*?<\/title>|<meta[^>]*>/gi, "") + (body ? body[2] : ""), bodyAttributes };
+}
+
 export function buildWidgetDocument({
   id,
   html,
@@ -222,5 +234,6 @@ export function buildWidgetDocument({
   theme: WidgetTheme;
 }): string {
   const script = bridge(id, state, theme).replaceAll("</", "<\\/");
-  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${CONTROLS_CSS}${CHART_CSS}${SETS_CSS}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body>${html}</body></html>`;
+  const { markup, bodyAttributes } = pageParts(html);
+  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${CONTROLS_CSS}${CHART_CSS}${SETS_CSS}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body${bodyAttributes}>${markup}</body></html>`;
 }
