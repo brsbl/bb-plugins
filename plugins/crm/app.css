@@ -18,13 +18,14 @@
 .crm-table-scroll:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .crm-table { width: 100%; min-width: 1090px; border-collapse: collapse; table-layout: auto; font-size: var(--text-xs); line-height: 1.5; text-align: left; }
 .crm-table th, .crm-table td { padding: 12px 10px; vertical-align: top; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
-.crm-table thead th { font-weight: 500; color: var(--muted-foreground); background: var(--muted); vertical-align: middle; }
+.crm-table thead th { font-weight: 500; color: var(--muted-foreground); background: var(--muted); vertical-align: middle; overflow-wrap: normal; }
 .crm-table tbody th { font-weight: normal; }
 .crm-table strong { font-weight: 600; }
 .crm-table tbody:last-child tr:last-child > * { border-bottom: none; }
 .crm-name-col { min-width: 138px; }
 .crm-rank-col { width: 54px; min-width: 54px; }
-.crm-criterion { width: 96px; min-width: 96px; text-align: center; overflow-wrap: normal !important; }
+.crm-criterion { width: 96px; min-width: 96px; text-align: center; }
+.crm-table[data-kind="investors"] tr > :nth-child(3) { min-width: 112px; }
 .crm-why-col { width: 18%; min-width: 150px; }
 .crm-ask-col { width: 21%; min-width: 174px; }
 .crm-milestone { min-width: 125px; max-width: 150px; }
