@@ -169,12 +169,21 @@ function PinStrip({ threadId }: { threadId: string }) {
       const right = row.scrollLeft < row.scrollWidth - row.clientWidth - 1;
       setEdges((previous) => previous.left === left && previous.right === right ? previous : { left, right });
     };
+    // Some platforms leave Shift-wheel on the vertical axis. Trackpad deltaX stays native.
+    const wheel = (event: WheelEvent) => {
+      if (!event.shiftKey || event.ctrlKey || event.deltaX !== 0 || event.deltaY === 0) return;
+      const unit = event.deltaMode === 1 ? row.clientHeight : event.deltaMode === 2 ? row.clientWidth : 1;
+      const before = row.scrollLeft;
+      row.scrollLeft += event.deltaY * unit;
+      if (row.scrollLeft !== before) event.preventDefault();
+    };
     check();
     row.addEventListener("scroll", check, { passive: true });
+    row.addEventListener("wheel", wheel, { passive: false });
     const observer = new ResizeObserver(check);
     observer.observe(row);
     for (const child of Array.from(row.children)) observer.observe(child);
-    return () => { row.removeEventListener("scroll", check); observer.disconnect(); };
+    return () => { row.removeEventListener("scroll", check); row.removeEventListener("wheel", wheel); observer.disconnect(); };
   }, [compact, metrics, pins, more]);
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
