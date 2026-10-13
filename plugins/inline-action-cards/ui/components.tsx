@@ -55,35 +55,44 @@ export function OptionList({ name, label, options, value, recommended, disabled,
   </fieldset>;
 }
 
-/** A note that rides along with an answer. "Add note" opens an editor with × (cancel) and Save note;
- *  a saved note shows as a short preview you can click to edit or remove with ×. Submit sends whatever is in the note. */
+/** A note stays in one inline field. Saving keeps it with the answer; only Submit sends it. */
 export function NoteField({ value, onChange, disabled, placeholder = "Add a note for the agent" }: { value: string; onChange: (value: string) => void; disabled?: boolean; placeholder?: string }) {
   const [editing, setEditing] = useState(false);
   const saved = useRef(value);
   const ref = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => { const node = ref.current; if (editing && node) { node.focus(); node.setSelectionRange(node.value.length, node.value.length); } }, [editing]);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (editing && node) { node.focus(); node.setSelectionRange(node.value.length, node.value.length); }
+    else if (wasEditing.current) (node ?? toggleRef.current)?.focus();
+    wasEditing.current = editing;
+  }, [editing]);
   const edit = () => { saved.current = value; setEditing(true); };
   const cancel = () => { onChange(saved.current); setEditing(false); };
   const save = () => { onChange(value.trim()); setEditing(false); };
   // Cleared from outside (for example once Submit sends it), not by typing: close the empty editor.
   const typed = useRef(value);
   useEffect(() => { if (editing && !value && typed.current !== value) setEditing(false); typed.current = value; }, [editing, value]);
-  if (editing) return <div className="ac-note-editor">
-    <textarea ref={ref} className="ac-note-input" aria-label="Note" placeholder={placeholder} value={value} rows={2} maxLength={1000} disabled={disabled}
+  if (editing || value.trim()) return <div className="ac-note-field">
+    <textarea ref={ref} className="ac-note-input" aria-label="Note" title={editing ? undefined : "Edit note"} placeholder={placeholder} value={value} rows={1} maxLength={1000} disabled={disabled} readOnly={!editing}
+      onClick={() => { if (!editing) edit(); }}
       onChange={(event) => { typed.current = event.target.value; onChange(event.target.value); }}
       onKeyDown={(event) => {
-        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save(); }
-        else if (event.key === "Escape") { event.preventDefault(); cancel(); }
+        if (event.nativeEvent.isComposing) return;
+        if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); if (editing) save(); else edit(); }
+        else if (event.key === "Escape" && editing) { event.preventDefault(); event.stopPropagation(); cancel(); }
       }} />
-    <button type="button" className="ac-icon-button ac-note-cancel" aria-label="Cancel note" title="Cancel (Esc)" disabled={disabled} onClick={cancel}><XIcon /></button>
-    <div className="ac-note-actions"><Button type="button" size="sm" variant="outline" disabled={disabled} onClick={save}>Save note</Button></div>
+    {editing && <div className="ac-note-actions">
+      <button type="button" className="ac-icon-button" aria-label="Save note" title="Save note (Enter)" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={save}><CheckIcon /></button>
+      <button type="button" className="ac-icon-button" aria-label="Cancel note" title="Cancel note (Esc)" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={cancel}><XIcon /></button>
+    </div>}
   </div>;
-  if (value.trim()) return <div className="ac-note-saved">
-    <NoteIcon />
-    <button type="button" className="ac-note-text" title="Edit note" disabled={disabled} onClick={edit}>{value}</button>
-    <button type="button" className="ac-icon-button" aria-label="Remove note" title="Remove note" disabled={disabled} onClick={() => onChange("")}><XIcon /></button>
-  </div>;
-  return <button type="button" className="ac-note-toggle" disabled={disabled} onClick={edit}><NoteIcon />Add note</button>;
+  return <button ref={toggleRef} type="button" className="ac-note-toggle" disabled={disabled} onClick={edit}><NoteIcon />Add note</button>;
+}
+
+function CheckIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>;
 }
 
 function XIcon() {

@@ -1,9 +1,5 @@
 import type { PluginComposerApi } from "@get-bb/plugin-sdk/app";
-import { actionLabel, mentionId, title, type Action, type Item } from "./model.js";
-
-const actionIcons: Record<Action, string> = {
-  send: "Sent", "save-draft": "FileText", yes: "Check", no: "X", later: "Clock", skip: "inline-action-cards/skip-forward", choose: "Check",
-};
+import { actionIcons, actionLabel, mentionId, title, type Item } from "./model.js";
 
 // SDK 0.6.16's published replace(updater) supports mention icons. Keep the
 // repository's 0.5.9 SDK/build pin and old hosts working; only narrow the fields
