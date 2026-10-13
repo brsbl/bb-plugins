@@ -128,9 +128,9 @@ Shows screenshots inline as a carousel: design research with one product per sli
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/image-carousel --yes`
 
-### Inline Action Cards
+### Inline Decisions
 
-Edit email replies and approve decisions inside agent messages. Review one item or a group in a table, and track waiting choices and results across threads in the Action log.
+Edit email replies and approve decisions inside agent messages. Review one item or a group in a table, and track waiting choices and results across threads in the Decision log.
 
 ![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
 

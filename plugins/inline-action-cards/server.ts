@@ -333,7 +333,7 @@ export default function plugin(bb: BbPluginApi): void {
     try { store.cancelled(entry); } catch (err) { bb.log.warn(`Could not reopen an action card after its queued request was deleted: ${err instanceof Error ? err.message : String(err)}`); }
   });
   bb.ui.registerMentionProvider({
-    id: "action", label: "Action Cards", search: () => [],
+    id: "action", label: "Inline Decisions", search: () => [],
     resolve(value) {
       const [thread, id, attempt, extra] = value.split(":");
       if (extra || !attempt) throw new Error("This action reference is incomplete. Use the card again.");
@@ -366,7 +366,7 @@ export default function plugin(bb: BbPluginApi): void {
     name: "action-cards", summary: "Create inline cards, read saved drafts, and report action results",
     commands: {
       log: cliCommand({
-        summary: "Read the Action log: waiting cards and results across threads",
+        summary: "Read the Decision log: waiting cards and results across threads",
         options: { thread: { type: "string", description: "Filter to this thread ID; defaults to all threads" }, json: { type: "boolean", description: "Print structured JSON" } },
         async run({ options }) {
           const log = await store.log(options.thread === undefined ? undefined : idSchema.parse(options.thread));

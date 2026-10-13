@@ -122,7 +122,7 @@ the publishing thread.
 
 ## Proposed actions
 
-If Inline Action Cards is installed, follow its installed skill to create
+If Inline Decisions is installed, follow its installed skill to create
 cards after the summary. Otherwise describe proposals as plain text. Except for restoring unread state as specified above, only a
 user click producing an approved-action reference authorizes a write. Claim
 that exact card and attempt before acting, then report the outcome. Creating
