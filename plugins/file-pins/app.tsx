@@ -156,7 +156,26 @@ function PinStrip({ threadId }: { threadId: string }) {
   function linkTarget(pin: FileReference) {
     return previewTarget(pin, threadHostId) ?? { kind: "host" as const, hostId: pin.hostId, path: pin.path };
   }
-  const layout = layoutPins(pins, more, metrics, { whole });
+  // Use bb's compact breakpoint. Wide strips keep every pinned item at its natural width.
+  const layoutMetrics = compact ? metrics : null;
+  const layout = layoutPins(pins, more, layoutMetrics, { whole });
+  const scrollRow = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  useLayoutEffect(() => {
+    const row = scrollRow.current;
+    if (compact || !row) return;
+    const check = () => {
+      const left = row.scrollLeft > 1;
+      const right = row.scrollLeft < row.scrollWidth - row.clientWidth - 1;
+      setEdges((previous) => previous.left === left && previous.right === right ? previous : { left, right });
+    };
+    check();
+    row.addEventListener("scroll", check, { passive: true });
+    const observer = new ResizeObserver(check);
+    observer.observe(row);
+    for (const child of Array.from(row.children)) observer.observe(child);
+    return () => { row.removeEventListener("scroll", check); observer.disconnect(); };
+  }, [compact, metrics, pins, more]);
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
     // Apply locally first; saves run in order and
@@ -189,7 +208,7 @@ function PinStrip({ threadId }: { threadId: string }) {
   // Overflowed pins can move back to the strip; Unpin always removes with Undo.
   function actions(pin: Reference): PinAction[] {
     if (!more.includes(pin.id)) return [{ label: "Unpin", disabled: busy, run: () => void remove(pin) }];
-    const next = pinFile(pins, current, pin.id, metrics, { whole });
+    const next = pinFile(pins, current, pin.id, layoutMetrics, { whole });
     return [{
       label: "Show in strip", disabled: busy || !next, hint: next ? undefined : "No room on the strip", run: () => {
         if (next) { setMoreOpen(false); arrange(next); }
@@ -280,7 +299,12 @@ function PinStrip({ threadId }: { threadId: string }) {
     {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
     {fade && <span aria-hidden="true" data-overflow-fade="above" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
     {pins.length > 0 && <section aria-label="Pinned files and links" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
-      <div className="flex min-w-0 items-center gap-1">
+      <div ref={scrollRow}
+        className={cn("flex min-w-0 items-center gap-1", !compact && "-m-0.5 overflow-x-auto p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:scroll-mx-4")}
+        style={compact ? undefined : { maskImage: `linear-gradient(to right, ${edges.left ? "transparent, black 16px" : "black"}, ${edges.right ? "black calc(100% - 16px), transparent" : "black"})` }}
+        onFocusCapture={(event) => {
+          if (!compact) event.target.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }}>
         {layout.strip.map((pin) => stripPin(pin))}
         {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
           <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "pin" : "pins"}`} title="More pins" className={cn(moreClass, "cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
