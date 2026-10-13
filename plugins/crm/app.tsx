@@ -19,7 +19,7 @@ export function dayText(value: string | null): string {
   const formatted = parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(parsed.getFullYear() !== now.getFullYear() ? { year: "numeric" as const } : {}) });
   return (value === today ? "Today · " : value < today ? "Overdue · " : "") + formatted;
 }
-function History({ subject, name, legacyStage, revision }: { subject: Subject; name: string; legacyStage?: string; revision: string }) {
+function History({ subject, subjectName, legacyStage, revision }: { subject: Subject; subjectName: string; legacyStage?: string; revision: string }) {
   const rpc = useRpc<typeof contract>();
   const [offset, setOffset] = useState(0);
   const [retry, setRetry] = useState(0);
@@ -31,7 +31,7 @@ function History({ subject, name, legacyStage, revision }: { subject: Subject; n
     rpc.call("history", { ...subject, offset }).then(value => { if (active) setResult(value); }, () => { if (active) setError(true); });
     return () => { active = false; };
   }, [rpc, subject.subjectType, subject.subjectId, offset, revision, retry]);
-  return <section className="crm-history" aria-label={name + " interaction history"}>
+  return <section className="crm-history" aria-label={subjectName + " interaction history"}>
     {legacyStage && <p className="crm-legacy">Previous investor stage: <strong>{legacyStage}</strong></p>}
     {error ? <div role="alert"><p>History couldn’t load.</p><Button size="sm" variant="ghost" onClick={() => setRetry(v => v + 1)}>Try again</Button></div>
       : !result ? <p role="status">Loading history…</p>
@@ -102,7 +102,7 @@ export function CrmPage() {
       {saveError && <p role="alert">{saveError}</p>}
     </form>
   </div>;
-  const historyButton = (id: string, name: string) => <Button size="sm" variant="ghost" aria-label={"History for " + name} aria-expanded={history === id} onClick={() => setHistory(history === id ? null : id)}><Icon name={history === id ? "ChevronDown" : "History"} className="size-4" /></Button>;
+  const historyButton = (id: string, name: string) => <Button size="sm" variant="ghost" aria-label={"History for " + name} aria-expanded={history === id} onClick={() => setHistory(history === id ? null : id)}><Icon name={history === id ? "ChevronDown" : "Clock"} className="size-4" /></Button>;
   const criteria = kind === "customers" ? CUSTOMER_CRITERIA : INVESTOR_CRITERIA;
   return <div className="crm-root"><main className="crm-wrap">
     <h1 className="crm-title">CRM</h1>
@@ -123,11 +123,11 @@ export function CrmPage() {
             const rows = (data as CustomerPage).items.filter(row => row.tier === tier);
             return !!rows.length && <tbody key={tier} aria-label={"Tier " + tier}><tr className="crm-tier-heading"><th colSpan={10} scope="colgroup">Tier {tier}</th></tr>{rows.map(row => <Fragment key={row.company.id}>
               <tr className="crm-data-row"><th scope="row"><strong>{row.company.name}</strong><span className="crm-secondary">{row.person?.name ?? "No champion assigned"}</span><Button size="sm" variant="ghost" className="crm-tier-button" onClick={() => startEdit(row)} disabled={saving} aria-label={"Change tier for " + row.company.name}>Tier {row.tier}{row.tierOverride !== null && " · Manual"}</Button></th><td className="crm-milestone">{row.track?.stage || "Not started"}</td>{CUSTOMER_CRITERIA.map(([key,name]) => <Score key={key} value={row.scores[key]} criterion={name} />)}<Total value={row.total} scores={row.scores} /><td>{row.why || <span className="crm-muted">No rationale yet</span>}</td><td><NextStep track={row.track} /></td><td>{historyButton(row.company.id, row.company.name)}</td></tr>
-              {history === row.company.id && <tr><td colSpan={10}><History subject={{ subjectType: "company", subjectId: row.company.id }} name={row.company.name} revision={revision + ":" + connection} /></td></tr>}
+              {history === row.company.id && <tr><td colSpan={10}><History subject={{ subjectType: "company", subjectId: row.company.id }} subjectName={row.company.name} revision={revision + ":" + connection} /></td></tr>}
             </Fragment>)}</tbody>;
           }) : <tbody>{(data as InvestorPage).items.map(row => <Fragment key={row.track.id}>
             <tr className="crm-data-row"><td><Button size="sm" variant="ghost" className="crm-rank-button" disabled={saving} aria-label={"Change rank for " + (row.person?.name ?? row.company?.name ?? "unassigned investor")} onClick={() => startEdit(row)}>#{row.rank}</Button>{row.rankOverride !== null && <span className="crm-manual">Manual</span>}</td><th scope="row"><strong>{row.person?.name ?? "No contact assigned"}</strong><span className="crm-secondary">{row.person?.role}</span></th><td>{row.company?.name ?? <span className="crm-muted">Independent</span>}</td>{INVESTOR_CRITERIA.map(([key,name]) => <Score key={key} value={row.scores[key]} criterion={name} />)}<Total value={row.total} scores={row.scores} /><td>{row.why || <span className="crm-muted">No rationale yet</span>}</td><td><NextStep track={row.track} /></td><td>{historyButton(row.track.id, row.person?.name ?? row.company?.name ?? "unassigned investor")}</td></tr>
-            {history === row.track.id && <tr><td colSpan={11}><History subject={{ subjectType: row.track.subjectType, subjectId: row.track.subjectId }} name={row.person?.name ?? row.company?.name ?? "Investor"} legacyStage={row.legacyStage} revision={revision + ":" + connection} /></td></tr>}
+            {history === row.track.id && <tr><td colSpan={11}><History subject={{ subjectType: row.track.subjectType, subjectId: row.track.subjectId }} subjectName={row.person?.name ?? row.company?.name ?? "Investor"} legacyStage={row.legacyStage} revision={revision + ":" + connection} /></td></tr>}
           </Fragment>)}</tbody>}
         </table>
       </div>}
