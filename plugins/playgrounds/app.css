@@ -485,3 +485,13 @@
   font-size: 12px;
   color: var(--muted-foreground);
 }
+
+.pg-library-prompt {
+  display: -webkit-box;
+  margin: -4px 0 14px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
