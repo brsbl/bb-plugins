@@ -29,7 +29,9 @@ export const CHART_CSS = String.raw`
 .pg-chart .mark { stroke: var(--pg-meta); stroke-width: 1; stroke-dasharray: 3 3; }
 .pg-chart .mark-label { fill: var(--pg-body); font-weight: 500; }
 .pg-chart .band { fill: color-mix(in srgb, var(--foreground) 3.5%, transparent); }
-.pg-chart .now { stroke: var(--pg-ink); stroke-width: 1; }
+.pg-chart .now { stroke: var(--pg-ink); stroke-width: 1.5; }
+.pg-chart .event { fill: var(--pg-bad); stroke: var(--card); stroke-width: 1.5; }
+.pg-chart[data-seek] svg { cursor: ew-resize; }
 .pg-chart .cross { stroke: color-mix(in srgb, var(--foreground) 35%, var(--card)); stroke-width: 1; opacity: 0; }
 .pg-chart .dot { stroke: var(--card); stroke-width: 2; opacity: 0; }
 .pg-chart .bar:hover, .pg-chart .bar[data-hot] { filter: brightness(1.12); }
@@ -39,6 +41,7 @@ export const CHART_CSS = String.raw`
 .pg-chart-legend li { display: inline-flex; align-items: center; gap: 6px; }
 .pg-chart-legend i { width: 14px; height: 2px; border-radius: 1px; background: var(--k); }
 .pg-chart-legend i[data-fill] { width: 10px; height: 10px; border-radius: 2px; }
+.pg-chart-legend i[data-event] { width: 8px; height: 8px; border-radius: 50%; }
 .pg-tip { position: absolute; z-index: 2; top: 0; left: 0; min-width: 120px; padding: 7px 10px; border-radius: 8px; background: var(--card); box-shadow: 0 0 0 1px var(--pg-hairline), 0 4px 16px -4px color-mix(in srgb, var(--foreground) 22%, transparent); font-size: 11px; line-height: 1.4; color: var(--pg-meta); pointer-events: none; opacity: 0; transition: opacity .12s; }
 .pg-chart[data-hover] .pg-tip { opacity: 1; }
 
@@ -112,6 +115,7 @@ export const CHART_RUNTIME = String.raw`
       row.append(key, val, name); rows.push([v, row]);
     });
     rows.sort((a, b) => b[0] - a[0]).forEach(([, row]) => c.tip.append(row));
+    if (c.events && c.events.has(x)) { const row = document.createElement("div"); row.style.setProperty("--k", "var(--pg-bad)"); const key = document.createElement("i"); const val = document.createElement("b"); val.textContent = plainNum(c.events.get(x)); const nm = document.createElement("span"); nm.textContent = c.eventLabel; row.append(key, val, nm); c.tip.append(row); }
     c.svg.querySelectorAll("[data-hot]").forEach((b) => b.removeAttribute("data-hot"));
     c.svg.querySelectorAll('.bar[data-i="' + i + '"]').forEach((b) => b.setAttribute("data-hot", ""));
     c.host.dataset.hover = "";
@@ -120,7 +124,8 @@ export const CHART_RUNTIME = String.raw`
     c.tip.style.transform = "translate(" + Math.max(0, flip ? at - 14 - tw : at + 14) + "px, " + (box.top - hostBox.top) + "px)";
   }
   // chart(name, { kind: "line|area|step|bars", height, x: { min, max, format, label }, y: { min, max, format, unit },
-  //   series: [{ label, points: [[x, y], …], kind, color }], marks: [{ y, label } | { x, label }], bands: [{ x0, x1, label }], now, labels: "end" })
+  //   series: [{ label, points: [[x, y], …], kind, color }], marks: [{ y, label } | { x, label }], bands: [{ x0, x1, label }], now, labels: "end",
+  //   events: { label, points: [[x, y, count], …] } })
   // x may be numbers or category strings (for bars). Two or more series get a legend; labels: "end" also names lines at their ends.
   function chart(name, spec) {
     const el = document.querySelector('[data-pg="chart"][data-name="' + name + '"]');
@@ -165,6 +170,7 @@ export const CHART_RUNTIME = String.raw`
     const band = categorical ? (W - pad.l - pad.r) / Math.max(1, xs.length) : 0;
     const x0 = categorical ? 0 : spec.x && spec.x.min !== undefined ? spec.x.min : xs[0], x1 = categorical ? 0 : spec.x && spec.x.max !== undefined ? spec.x.max : xs.at(-1);
     c.sx = categorical ? (v) => pad.l + band * (xs.indexOf(v) + .5) : (v) => pad.l + (v - x0) / ((x1 - x0) || 1) * (W - pad.l - pad.r);
+    c.ix = categorical ? null : (px) => clamp(x0 + (px - pad.l) / ((W - pad.l - pad.r) || 1) * (x1 - x0), Math.min(x0, x1), Math.max(x0, x1));
     c.sy = (v) => H - pad.b - (v - y0) / ((y1 - y0) || 1) * (H - pad.t - pad.b);
     svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.replaceChildren();
     for (const b of spec.bands || []) { svg.append(svgEl("rect", { class: "band", x: c.sx(b.x0), y: pad.t, width: Math.max(0, c.sx(b.x1) - c.sx(b.x0)), height: H - pad.t - pad.b })); if (b.label) svg.append(svgEl("text", { class: "mark-label", x: c.sx(b.x0) + 4, y: pad.t - 8 }, b.label)); }
@@ -196,11 +202,16 @@ export const CHART_RUNTIME = String.raw`
       if (over > 0) for (const e of ends) e.y -= over;
       if (!ends.length || ends[0].y >= pad.t) for (const e of ends) svg.append(svgEl("text", { class: "end", x: e.x, y: e.y }, e.text));
     }
+    const ev = spec.events && Array.isArray(spec.events.points) ? spec.events : null;
+    c.events = new Map();
+    if (ev) for (const [x, y, n] of ev.points.slice(0, 400)) { c.events.set(x, (c.events.get(x) || 0) + (Number(n) || 1)); svg.append(svgEl("circle", { class: "event", cx: c.sx(x), cy: c.sy(Number(y) || y0), r: 3.5 })); }
+    c.eventLabel = ev ? String(ev.label || "Events") : "";
     if (Number.isFinite(spec.now) || (categorical && spec.now !== undefined)) { const x = c.sx(spec.now); svg.append(svgEl("line", { class: "now", x1: x, x2: x, y1: pad.t, y2: H - pad.b })); }
     c.cross = svgEl("line", { class: "cross", y1: pad.t, y2: H - pad.b }); svg.append(c.cross);
     c.dots = c.series.map((s) => (s.kind === "bars" ? null : svg.appendChild(svgEl("circle", { class: "dot", r: 4, fill: s.color }))));
-    c.legend.replaceChildren(); c.legend.hidden = c.series.length < 2;
+    c.legend.replaceChildren(); c.legend.hidden = c.series.length + (ev ? 1 : 0) < 2;
     for (const s of c.series) { const li = document.createElement("li"); const k = document.createElement("i"); k.style.setProperty("--k", s.color); if (s.kind !== "line") k.dataset.fill = ""; const t = document.createElement("span"); t.textContent = s.label; li.append(k, t); c.legend.append(li); }
+    if (ev) { const li = document.createElement("li"); const k = document.createElement("i"); k.style.setProperty("--k", "var(--pg-bad)"); k.dataset.event = ""; const t = document.createElement("span"); t.textContent = c.eventLabel; li.append(k, t); c.legend.append(li); }
     c.table.replaceChildren();
     const head = c.table.createTHead().insertRow(); const hx = document.createElement("th"); hx.textContent = (spec.x && spec.x.label) || "x"; head.append(hx);
     for (const s of c.series) { const th = document.createElement("th"); th.textContent = s.label; head.append(th); }

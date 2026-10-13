@@ -210,18 +210,18 @@ detail says why) and `ui.breakdown(name,
 breakdown or chart; no tables of every scenario.
 
 **Simulation set.** For systems that run over time (rate limits, queues,
-caches, retries, rollouts): a sentence of the knobs, a system diagram, a run
-bar, one chart with a "now" marker, and a verdict:
+caches, retries, rollouts): a sentence of the knobs, one chart that draws the
+run as it plays, and a verdict. No diagram; the chart is the simulation:
 
 ```html
-<div data-pg="system" data-name="traffic" data-nodes="clients:Clients,bucket:Token bucket:meter,api:API"
-     data-edges="clients>bucket,bucket>api"></div>
-<div data-pg="run" data-name="sim" data-duration="30"></div>
+<div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
+<figure data-pg="chart" data-name="tokens" data-label="Tokens in the bucket"></figure>
 ```
 
-`ui.system(name)` returns `send(from, to)`, `drop(at)`, `node(id).meter(f) /
-.sub(text) / .state("bad")` and `tick(dt)`; `ui.run(name, { tick(dt, t),
-seek(t), end() })` plays it and pauses offscreen. The verdict is an `answer`
+`ui.run(name, { tick(dt, t), seek(t), end() })` plays it and pauses
+offscreen; the run bar sits above its chart, and dragging on the chart scrubs.
+In `tick` and `seek`, redraw the chart with the points up to `t`, and mark
+what went wrong as `events: { label: "Dropped", points: [[x, y, count]] }`. The verdict is an `answer`
 that says what happened and what setting fixes it. Put every knob in the
 sentence: no slider row and no readout row in addition, and at most one
 `<details>` for the model.
@@ -232,8 +232,8 @@ sentence: no slider row and no readout row in addition, and at most one
 2. **Body, one grey surface:**
    - Calculator: `<div class="pg-surface pg-result">` with the `answer` and its
      `breakdown` side by side.
-   - Simulation: `<div class="pg-surface">` with the `system`, the `chart` and
-     the `run` bar inside it (the run bar lines up with the chart's time axis).
+   - Simulation: `<div class="pg-surface">` with the `run` bar, then its
+     `chart`.
      Then a `<div class="pg-result">` with the verdict `answer` and a
      `<dl class="pg-stats">` of at most two numbers.
 3. **Foot:** `<div class="pg-foot">` with one `<details>` (the model and

@@ -1,4 +1,4 @@
-<!-- Rate limiter: built from the simulation set (system, run bar, chart, answer). -->
+<!-- Rate limiter: built from the simulation set (run bar, chart, answer). -->
 <h2 class="pg-title pg-reveal">How big should the bucket be?</h2>
 
 <p class="pg-sentence pg-reveal" style="--i:1">
@@ -9,9 +9,8 @@
 </p>
 
 <div class="pg-surface pg-reveal" style="--i:2">
-  <div data-pg="system" data-name="traffic" data-label="Clients send requests through the token bucket to the API" data-nodes="clients:Clients,bucket:Token bucket:meter,api:API" data-edges="clients>bucket,bucket>api"></div>
-  <svg data-pg="chart" data-name="tokens" role="img" aria-label="Tokens in the bucket over 30 seconds"></svg>
-  <div data-pg="run" data-name="sim" data-duration="30"></div>
+  <div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
+  <figure data-pg="chart" data-name="tokens" data-label="Tokens in the bucket over 30 seconds"></figure>
 </div>
 <div class="pg-result pg-reveal" style="--i:3">
   <div data-pg="answer" data-name="verdict"></div>
@@ -43,17 +42,14 @@
     for (let c = 10; c <= 300; c += 10) if (!simulate({ ...v, capacity: c }).rejected) return c;
     return null;
   }
-  let run = simulate(P.all()), done = 0;
-  const sys = ui.system("traffic"), tally = { sent: 0, ok: 0, lost: 0 };
+  let run = simulate(P.all());
+  const EVERY = 4;
   function chart(t) {
-    ui.chart("tokens", { height: 110, x: { min: 0, max: SECONDS, format: (x) => x + " s" }, y: { min: 0, max: P.get("capacity"), unit: "tokens" }, series: [{ points: run.steps.filter((_, i) => i % 4 === 0).map((s) => [s.t, s.tokens]), kind: "area", label: "Tokens" }], now: t });
-  }
-  function frame(t) {
-    const s = run.steps[Math.min(run.steps.length - 1, Math.floor(t / DT))];
-    sys.node("bucket").meter(s.tokens / P.get("capacity"));
-    sys.node("bucket").sub(Math.round(s.tokens) + " / " + P.get("capacity") + " tokens");
-    sys.node("bucket").state(run.steps.slice(Math.max(0, Math.floor(t / DT) - 10), Math.floor(t / DT) + 1).some((x) => x.lost) ? "bad" : null);
-    chart(t);
+    const shown = run.steps.filter((s) => s.t <= t + 1e-9);
+    const points = shown.filter((_, i) => i % EVERY === 0).map((s) => [Number(s.t.toFixed(2)), Math.round(s.tokens)]);
+    const drops = [];
+    shown.forEach((s, i) => { if (s.lost) { const at = shown[i - (i % EVERY)]; drops.push([Number(at.t.toFixed(2)), 0, s.lost]); } });
+    ui.chart("tokens", { kind: "area", x: { min: 0, max: SECONDS, format: (x) => x + " s", label: "Time" }, y: { min: 0, max: P.get("capacity"), unit: "tokens" }, series: [{ label: "Tokens", points }], events: { label: "Dropped", points: drops } });
   }
   function verdict() {
     const v = P.all(), best = smallest(v);
@@ -64,19 +60,11 @@
   }
   const sim = ui.run("sim", {
     tick(dt, t) {
-      for (const target = Math.floor(t / DT); done < target && done < run.steps.length; done++) {
-        const s = run.steps[done];
-        tally.sent += s.arrivals; tally.ok += s.ok; tally.lost += s.lost;
-        for (; tally.sent >= 4; tally.sent -= 4) sys.send("clients", "bucket", .5);
-        for (; tally.ok >= 4; tally.ok -= 4) sys.send("bucket", "api", .5);
-        for (; tally.lost >= 4; tally.lost -= 4) sys.drop("bucket");
-      }
-      sys.tick(dt); frame(t);
+      chart(t);
     },
-    seek(t) { done = Math.floor(t / DT); sys.clear(); frame(t); },
-    end() { done = 0; },
+    seek(t) { chart(t); },
   });
-  P.on(() => { run = simulate(P.all()); done = Math.floor(sim.t / DT); sys.clear(); frame(sim.t); verdict(); });
-  sim.seek(8); verdict();
+  P.on(() => { run = simulate(P.all()); chart(sim.t); verdict(); });
+  sim.seek(12); verdict();
 })();
 </script>

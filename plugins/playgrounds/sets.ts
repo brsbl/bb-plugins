@@ -1,7 +1,7 @@
 // Higher-level component sets, composed from the base library in controls.ts.
 // Calculator set: scrubbable numbers inside a sentence, one answer, a breakdown bar.
-// Simulation set: a live system diagram, a run bar (play, pause, scrub), and the
-// base chart with a "now" marker. The music set lives in controls.ts.
+// Simulation set: a run bar (play, pause, scrub) driving the base chart, which
+// shows the run with a "now" marker and its events. The music set lives in controls.ts.
 
 export const SETS_CSS = String.raw`
 .pg-sentence { margin-bottom: 0; font-size: 15px; line-height: 1.7; color: var(--pg-body); text-wrap: pretty; }
@@ -25,24 +25,14 @@ export const SETS_CSS = String.raw`
 .pg-breakdown li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12px; color: var(--pg-body); }
 .pg-breakdown li::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--seg); }
 .pg-breakdown li > b { font-weight: 500; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
-.pg-system { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font); }
-.pg-system .card { fill: var(--card); stroke: color-mix(in srgb, var(--foreground) 14%, var(--card)); stroke-width: 1; }
-.pg-system g[data-tone=bad] .card { stroke: var(--pg-bad); stroke-width: 1.5; }
-.pg-system g[data-tone=good] .card { stroke: var(--pg-good); }
-.pg-system .title { font-size: 11.5px; font-weight: 500; fill: var(--pg-ink); }
-.pg-system .sub { font-size: 10.5px; fill: var(--pg-meta); font-variant-numeric: tabular-nums; }
-.pg-system .meter { fill: var(--pg-stage); stroke: var(--pg-hairline); }
-.pg-system .meter-fill { fill: var(--pg-accent); transition: y .12s linear, height .12s linear; }
-.pg-system .meter-fill[data-low=true] { fill: var(--pg-bad); }
-.pg-system .edge { fill: none; stroke: color-mix(in srgb, var(--foreground) 20%, var(--card)); stroke-width: 1.2; }
-.pg-system .arrow { fill: none; stroke: color-mix(in srgb, var(--foreground) 32%, var(--card)); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
-.pg-system .dot { fill: var(--pg-ink); }
-.pg-system .drop { fill: var(--pg-bad); }
-/* The run bar shares the chart's columns, so the scrubber starts at 0 and ends at the last tick. */
-.pg-run { display: grid; grid-template-columns: var(--pg-plot-l, 40px) minmax(0, 1fr) var(--pg-plot-r, 56px); align-items: center; }
-.pg-run > button { justify-self: start; width: 28px; height: 28px; }
-.pg-run input[type=range] { width: 100%; height: 18px; margin: 0; accent-color: var(--pg-ink); }
-.pg-run output { padding-left: 6px; font-size: 11px; font-weight: 500; color: var(--pg-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The run bar: play and the time. On its own it has a scrubber; tied to a chart (data-chart), you scrub by dragging on the chart. */
+.pg-run { display: flex; align-items: center; gap: 10px; }
+.pg-run > button { flex-shrink: 0; width: 28px; height: 28px; }
+.pg-run input[type=range] { flex: 1; min-width: 0; height: 18px; margin: 0; accent-color: var(--pg-ink); }
+.pg-run[data-chart] input[type=range] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.pg-run output { font-size: 12px; font-weight: 500; color: var(--pg-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pg-run output small { margin-left: 3px; font-size: 11px; font-weight: 400; color: var(--pg-meta); }
+.pg-run[data-chart] > .pg-hint { margin-left: auto; font-size: 11px; color: var(--pg-meta); }
 /* Result: the answer beside what explains it (a breakdown, or a few stats). */
 .pg-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); column-gap: 24px; row-gap: 14px; align-items: start; }
 .pg-result.pg-surface { padding: 16px; }
@@ -126,85 +116,19 @@ export const SETS_RUNTIME = String.raw`
     }
   }
 
-  // Simulation set: a system diagram. Nodes and edges come from markup:
-  // data-nodes="clients:Clients,bucket:Token bucket:meter,api:API" data-edges="clients>bucket,bucket>api".
-  function system(el) {
-    el.classList.add("pg-system");
-    const svg = el.tagName.toLowerCase() === "svg" ? el : el.appendChild(svgEl("svg"));
-    svg.classList.add("pg-system"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", attr(el, "label", "System"));
-    const defs = attr(el, "nodes", "").split(",").filter(Boolean).map((n) => { const [id, title, kind] = n.split(":"); return { id: id.trim(), title: (title || id).trim(), meter: (kind || "").trim() === "meter" }; });
-    const W = Math.round(svg.getBoundingClientRect().width) || 500, H = defs.some((d) => d.meter) ? 120 : 84, gap = (W - 20) / defs.length;
-    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-    const layers = { edges: svgEl("g"), dots: svgEl("g"), nodes: svgEl("g"), drops: svgEl("g") };
-    svg.replaceChildren(layers.edges, layers.dots, layers.nodes, layers.drops);
-    const nodes = new Map();
-    defs.forEach((d, i) => {
-      const w = Math.min(gap - 28, d.meter ? 150 : 112), h = d.meter ? 96 : 48, x = 10 + gap * i + (gap - w) / 2, y = (H - h) / 2;
-      const g = svgEl("g", { transform: "translate(" + x + " " + y + ")" });
-      g.append(svgEl("rect", { class: "card", width: w, height: h, rx: 10 }));
-      const mw = d.meter ? 12 : 0, tx = 12 + (mw ? mw + 10 : 0);
-      g.append(svgEl("text", { class: "title", x: tx, y: 21 }, d.title));
-      const sub = svgEl("text", { class: "sub", x: tx, y: 36 }, ""); g.append(sub);
-      let fill = null;
-      if (d.meter) { g.append(svgEl("rect", { class: "meter", x: 12, y: 10, width: mw, height: h - 20, rx: 4 })); fill = svgEl("rect", { class: "meter-fill", x: 12, y: h - 10, width: mw, height: 0, rx: 4 }); g.append(fill); }
-      layers.nodes.append(g);
-      nodes.set(d.id, { g, x, y, w, h, sub, fill, mh: h - 20 });
-    });
-    const edges = attr(el, "edges", "").split(",").filter(Boolean).map((e) => {
-      const [from, to] = e.split(">").map((s) => s.trim()), a = nodes.get(from), b = nodes.get(to);
-      if (!a || !b) return null;
-      const x1 = a.x + a.w, y1 = a.y + a.h / 2, x2 = b.x, y2 = b.y + b.h / 2;
-      const path = svgEl("path", { class: "edge", d: "M" + x1 + " " + y1 + "L" + x2 + " " + y2 }); layers.edges.append(path);
-      layers.edges.append(svgEl("path", { class: "arrow", d: "M" + (x2 - 5) + " " + (y2 - 3.5) + "L" + x2 + " " + y2 + "L" + (x2 - 5) + " " + (y2 + 3.5) }));
-      return { from, to, path, length: path.getTotalLength() };
-    }).filter(Boolean);
-    const dots = [], drops = [];
-    el.__system = {
-      node(id) {
-        const n = nodes.get(id);
-        if (!n) throw new Error("No node " + id);
-        return {
-          meter(f) { if (!n.fill) return; const v = clamp(f, 0, 1); n.fill.setAttribute("y", String(10 + n.mh * (1 - v))); n.fill.setAttribute("height", String(n.mh * v)); n.fill.dataset.low = String(v < .15); },
-          // Shorten text that would run past the card's edge.
-          sub(text) {
-            n.sub.textContent = text;
-            const room = n.w - Number(n.sub.getAttribute("x")) - 10;
-            let t = String(text);
-            while (t.length > 1 && n.sub.getComputedTextLength && n.sub.getComputedTextLength() > room) { t = t.slice(0, -1); n.sub.textContent = t.trimEnd() + "…"; }
-          },
-          state(tone) { if (tone) n.g.dataset.tone = tone; else delete n.g.dataset.tone; },
-        };
-      },
-      send(from, to, duration) {
-        const edge = edges.find((e) => e.from === from && e.to === to); if (!edge) return;
-        if (dots.some((d) => d.edge === edge && d.t < 12 / edge.length)) return;
-        if (dots.length > 80) dots.shift().el.remove();
-        const dot = svgEl("circle", { class: "dot", r: 3 }); layers.dots.append(dot); dots.push({ edge, el: dot, t: 0, duration: duration || .6 });
-      },
-      drop(at) {
-        const n = nodes.get(at); if (!n) return;
-        const dot = svgEl("circle", { class: "drop", r: 3 }); layers.drops.append(dot);
-        drops.push({ el: dot, x: n.x + n.w / 2 + (Math.random() - .5) * n.w * .5, y: n.y + n.h, t: 0 });
-        if (drops.length > 40) drops.shift().el.remove();
-      },
-      tick(dt) {
-        for (let i = dots.length - 1; i >= 0; i--) { const d = dots[i]; d.t += dt / d.duration; if (d.t >= 1) { d.el.remove(); dots.splice(i, 1); continue; } const p = d.edge.path.getPointAtLength(d.edge.length * d.t); d.el.setAttribute("cx", p.x.toFixed(1)); d.el.setAttribute("cy", p.y.toFixed(1)); }
-        for (let i = drops.length - 1; i >= 0; i--) { const d = drops[i]; d.t += dt / .9; if (d.t >= 1) { d.el.remove(); drops.splice(i, 1); continue; } d.el.setAttribute("cx", d.x.toFixed(1)); d.el.setAttribute("cy", (d.y + 6 + d.t * 18).toFixed(1)); d.el.setAttribute("opacity", (1 - d.t).toFixed(2)); }
-      },
-      clear() { for (const d of dots.concat(drops)) d.el.remove(); dots.length = 0; drops.length = 0; },
-    };
-  }
   // A run bar: play, pause, replay and scrub time. ui.run(name, { tick(dt, t), seek(t) }).
+  // With data-chart="<chart name>" it sits above that chart and dragging on the chart scrubs.
   const runs = {};
   function runBar(el) {
     el.classList.add("pg-run");
     const name = attr(el, "name", "run"), duration = num(el, "duration", 30), unit = attr(el, "unit", "s");
-    el.innerHTML = '<button type="button" class="pg-icon-btn" data-primary></button><input type="range" min="0" step="0.01"><output></output>';
+    const target = attr(el, "chart", "");
+    el.innerHTML = '<button type="button" class="pg-icon-btn" data-primary></button><input type="range" min="0" step="0.01"><output></output>' + (target ? '<span class="pg-hint">Drag the chart to scrub</span>' : "");
     const [play, scrub, out] = el.children;
     const REPLAY = '<svg class="pg-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.8.8.8 0 1 1 1.5.5A4 4 0 1 0 8 4h-1l1.2 1.2-1.1 1.1L4.9 4.1 7.1 1.9l1.1 1.1L7.4 3H8Z"/></svg>';
     scrub.max = String(duration); scrub.setAttribute("aria-label", "Time");
     const r = { t: 0, playing: false, frame: 0, last: 0, visible: true, handlers: null, duration };
-    const paint = () => { scrub.value = String(r.t); out.textContent = format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; const ended = !r.playing && r.t >= r.duration; play.innerHTML = ended ? REPLAY : icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", ended ? "Replay" : r.playing ? "Pause" : "Play"); };
+    const paint = () => { scrub.value = String(r.t); out.textContent = format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; const of = document.createElement("small"); of.textContent = "of " + format(r.duration, {}) + " " + unit; out.append(of); const ended = !r.playing && r.t >= r.duration; play.innerHTML = ended ? REPLAY : icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", ended ? "Replay" : r.playing ? "Pause" : "Play"); };
     const tick = (now) => {
       r.frame = 0;
       if (!r.playing || !r.visible || document.hidden) { r.last = 0; return; }
@@ -227,6 +151,14 @@ export const SETS_RUNTIME = String.raw`
     };
     play.onclick = () => (r.playing ? r.api.pause() : r.api.play());
     scrub.addEventListener("input", () => { r.api.pause(); r.api.seek(Number(scrub.value)); });
+    if (target) afterHydrate.push(() => {
+      const fig = document.querySelector('[data-pg="chart"][data-name="' + target + '"]'), c = fig && fig.__chart;
+      if (!c) return;
+      fig.dataset.seek = "";
+      const at = (e) => { if (!c.ix) return; r.api.pause(); r.api.seek(c.ix(e.clientX - c.svg.getBoundingClientRect().left)); };
+      c.svg.addEventListener("pointerdown", (e) => { c.svg.setPointerCapture(e.pointerId); at(e); });
+      c.svg.addEventListener("pointermove", (e) => { if (c.svg.hasPointerCapture(e.pointerId)) at(e); });
+    });
     runs[name] = r; paint();
   }
   function run(name, handlers) {
@@ -238,8 +170,8 @@ export const SETS_RUNTIME = String.raw`
     return r.api;
   }
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  Object.assign(SET_KINDS, { system, run: runBar });
-  Object.assign(SET_UI, { answer: readyFirst(answer), breakdown: readyFirst(breakdown), system: (name) => { ready(); const el = document.querySelector('[data-pg="system"][data-name="' + name + '"]'); return el && el.__system; }, run });
+  Object.assign(SET_KINDS, { run: runBar });
+  Object.assign(SET_UI, { answer: readyFirst(answer), breakdown: readyFirst(breakdown), run });
   Object.assign(SET_ACTIONS, {
     seek: (name, t) => { const r = runs[String(name)]; if (!r) throw new Error("No run bar " + name); r.api.pause(); r.api.seek(t); lane("Moved to " + format(Number(t), { step: .1 }) + "."); return { t: r.t }; },
     run: (name, on) => { const r = runs[String(name)]; if (!r) throw new Error("No run bar " + name); if (on === false) r.api.pause(); else r.api.play(); return { playing: r.playing }; },
