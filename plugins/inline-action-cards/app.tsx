@@ -394,7 +394,7 @@ export function ActionLogView({ threadId }: { threadId?: string }) {
   useRealtime("items", () => void load());
   const row = (item: ActionLog["waiting"][number]) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item}
     logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId, showThread: !threadId }} onItem={() => void load()} />;
-  return <section className="iac-log" aria-label="Action log">
+  return <section className="iac-log" aria-label="Decision log">
     <section className="iac-log-group" aria-label="Waiting on you">
       <header className="iac-log-heading">
         <h2><span className="iac-log-mark" aria-hidden="true"><span className="iac-log-dot" /></span>Waiting on you{log && <span className="iac-log-count">{log.waiting.length}</span>}</h2>
@@ -413,8 +413,8 @@ export function ActionLogView({ threadId }: { threadId?: string }) {
   </section>;
 }
 export default definePluginApp((app) => {
-  app.slots.navPanel({ id: "log", path: "log", title: "Action log", icon: "inline-action-cards/action-log", component: () => <ActionLogView /> });
-  app.slots.threadPanelAction({ id: "log", title: "Action log", icon: "inline-action-cards/action-log", component: ({ threadId }) => <ActionLogView threadId={threadId} /> });
+  app.slots.navPanel({ id: "log", path: "log", title: "Decision log", icon: "inline-action-cards/action-log", component: () => <ActionLogView /> });
+  app.slots.threadPanelAction({ id: "log", title: "Decision log", icon: "inline-action-cards/action-log", component: ({ threadId }) => <ActionLogView threadId={threadId} /> });
   // Skip-forward has no built-in host glyph; publish it through the SDK registry.
   app.experimental_icons.register({ name: "inline-action-cards/skip-forward", component: ({ className }) =>
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 4 11 8-11 8V4ZM19 4v16" /></svg> });

@@ -299,7 +299,7 @@ it("drops an answer when the agent changes its row, and keeps answers across a r
   localStorage.clear();
 });
 
-it("Action log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
+it("Decision log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
   let item = { ...fixture(), threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
@@ -318,7 +318,7 @@ it("Action log refresh updates the reviewed draft while preserving unsaved local
   expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Unsaved local edit");
 });
 
-it("Action log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
+it("Decision log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
   const entry = { threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
   const attempt = { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true } as const;
   const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
@@ -327,11 +327,11 @@ it("Action log keeps failures and Later cards waiting, orders row controls with 
   const oddLabel = { ...fixture(), id: "odd-1", content: { type: "decide", question: "Build it?", consequence: "Runs the build.", yesLabel: "Constructor run", noLabel: "toString" }, ...entry } as const;
   const done = Array.from({ length: 6 }, (_, index) => ({ ...fixture(), id: `sent-${index}`, revision: 3, state: "succeeded", attempt, result: { message: "Sent", retryable: false }, ...entry } as const));
   const app = await loadPluginApp(() => import("./app.js"));
-  expect([app.navPanels[0]!.title, app.threadPanelActions[0]!.title]).toEqual(["Action log", "Action log"]);
+  expect([app.navPanels[0]!.title, app.threadPanelActions[0]!.title]).toEqual(["Decision log", "Decision log"]);
   expect([app.navPanels[0]!.icon, app.threadPanelActions[0]!.icon]).toEqual(["inline-action-cards/action-log", "inline-action-cards/action-log"]);
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision, oddLabel], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
-  const [ready, failure, deferred, decide] = within(waiting).getAllByRole("article");
+  const [ready, failure, deferred, decide] = await within(waiting).findAllByRole("article");
   expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Keep open", "Merge"]);
   // Labels that collide with Object.prototype keys fall back to the role icon instead of crashing the log.
   expect(within(waiting).getByRole("button", { name: "Constructor run" })).toBeTruthy();
@@ -352,7 +352,7 @@ it("Action log keeps failures and Later cards waiting, orders row controls with 
   expect(within(doneGroup).getAllByRole("article")).toHaveLength(6);
 });
 
-it("thread panel Action log lists only its thread, drops thread names, and links to the full page", async () => {
+it("thread panel Decision log lists only its thread, drops thread names, and links to the full page", async () => {
   const calls: unknown[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.threadPanelActions[0]!, { threadId: "thr_test", params: null }, { rpc: { log: (input) => { calls.push(input); return { waiting: [{ ...fixture(), threadTitle: "Refund follow-up", threadProjectId: null }], done: [] }; } } });
@@ -578,7 +578,7 @@ it("keeps each row's own note in one submitted form, and shows Reply rows in ful
   replySlot.lifecycle.unmount();
 });
 
-it("Action log offers a choice card Choose, Skip and Review, never Yes or No", async () => {
+it("Decision log offers a choice card Choose, Skip and Review, never Yes or No", async () => {
   const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] } as const;
   const item = { ...fixture(), id: "setup", content, threadTitle: "Accounts", threadProjectId: "proj_cards" } as const;
   const app = await loadPluginApp(() => import("./app.js"));
@@ -591,7 +591,7 @@ it("Action log offers a choice card Choose, Skip and Review, never Yes or No", a
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread" }));
 });
 
-it("Action log Send on a collapsed reply opens the email first and sends only once it is visible", async () => {
+it("Decision log Send on a collapsed reply opens the email first and sends only once it is visible", async () => {
   const item = { ...fixture(), content: { ...fixture().content, cc: ["ops@example.com"] }, threadTitle: "Refund follow-up", threadProjectId: "proj_cards" } as const;
   const calls: unknown[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
