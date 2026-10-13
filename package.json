@@ -1,0 +1,26 @@
+{
+  "name": "bb-plugin-emoji-picker",
+  "version": "0.1.0",
+  "description": "Type : in a composer to pick and insert an emoji.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": "^0.5.9"
+  },
+  "bb": {
+    "name": "Emoji Picker",
+    "description": "Type : in a composer to pick and insert an emoji.",
+    "branding": {
+      "icon": "./assets/emoji-picker.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "app": "./dist/install-app.mjs",
+    "skills": []
+  }
+}
