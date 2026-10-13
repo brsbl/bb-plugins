@@ -1,8 +1,7 @@
 <!-- Home budget: built from the calculator set (scrub sentence, answer, breakdown). -->
-<style>:root { --pg-accent: #2f6fed; }</style>
 <h2 class="pg-title pg-reveal">How much home can you afford?</h2>
 
-<p class="pg-sentence pg-reveal" style="--i:1; margin-top:14px">
+<p class="pg-sentence pg-reveal" style="--i:1">
   I earn <span data-pg="scrub" data-param="income" data-label="Yearly income" data-prefix="$" data-min="30000" data-max="500000" data-step="1000" data-value="140000"></span> a year,
   pay <span data-pg="scrub" data-param="debts" data-label="Monthly debts" data-prefix="$" data-min="0" data-max="5000" data-step="50" data-value="400"></span> a month on other debts,
   and can put <span data-pg="scrub" data-param="down" data-label="Down payment" data-unit="%" data-min="0.03" data-max="0.5" data-step="0.01" data-value="0.2"></span> down
@@ -10,9 +9,9 @@
   <span data-pg="scrub" data-param="term" data-label="Term" data-unit="years" data-min="10" data-max="30" data-step="5" data-value="30"></span>.
 </p>
 
-<div data-pg="answer" data-name="price" class="pg-reveal" style="--i:2; margin-top:18px"></div>
-<div data-pg="breakdown" data-name="monthly" class="pg-reveal" style="--i:3; margin-top:16px"></div>
-<div data-pg="agent" class="pg-reveal" style="--i:4; margin-top:16px"></div>
+<div data-pg="answer" data-name="price" class="pg-reveal" style="--i:2"></div>
+<div data-pg="breakdown" data-name="monthly" class="pg-reveal" style="--i:3"></div>
+<div data-pg="agent" class="pg-reveal" style="--i:4"></div>
 
 <script>
 (() => {

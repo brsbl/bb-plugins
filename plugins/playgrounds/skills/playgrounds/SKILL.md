@@ -195,7 +195,14 @@ bar, one chart with a "now" marker, and a verdict:
 `ui.system(name)` returns `send(from, to)`, `drop(at)`, `node(id).meter(f) /
 .sub(text) / .state("bad")` and `tick(dt)`; `ui.run(name, { tick(dt, t),
 seek(t), end() })` plays it and pauses offscreen. The verdict is an `answer`
-that says what happened and what setting fixes it. The agent moves time with
+that says what happened and what setting fixes it. Put every knob in the
+sentence: no slider row and no readout row in addition, and at most one
+`<details>` for the model.
+
+**Composition.** Leave spacing, colors and type to the kit: no inline margins,
+no font sizes, and no colors except `--pg-accent` when the subject has one
+(paint, a brand). One hero per card (the `answer`, or the instrument); every
+other number is quieter. Grey stage only behind the thing being shown. The agent moves time with
 `do <id> seek --args '["sim", 12]'`.
 
 **Music set (optional).** `keyboard` (`data-from="60" data-count="25"`, A–K

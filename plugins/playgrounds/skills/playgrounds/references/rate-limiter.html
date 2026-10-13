@@ -1,21 +1,20 @@
 <!-- Rate limiter: built from the simulation set (system, run bar, chart, answer). -->
-<style>:root { --pg-accent: #2f6fed; }</style>
 <h2 class="pg-title pg-reveal">How big should the bucket be?</h2>
 
-<p class="pg-sentence pg-reveal" style="--i:1; margin-top:12px">
+<p class="pg-sentence pg-reveal" style="--i:1">
   Every <span data-pg="scrub" data-param="every" data-label="Burst interval" data-unit="s" data-min="2" data-max="15" data-step="1" data-value="10"></span>,
   <span data-pg="scrub" data-param="burst" data-label="Burst size" data-min="0" data-max="300" data-step="10" data-value="120"></span> requests arrive at once.
   The bucket holds <span data-pg="scrub" data-param="capacity" data-label="Bucket size" data-min="10" data-max="300" data-step="10" data-value="80"></span> tokens
   and refills <span data-pg="scrub" data-param="refill" data-label="Refill rate" data-unit="/s" data-min="5" data-max="100" data-step="5" data-value="35"></span>.
 </p>
 
-<div class="pg-surface pg-reveal" style="--i:2; margin-top:14px">
+<div class="pg-surface pg-reveal" style="--i:2">
   <div data-pg="system" data-name="traffic" data-label="Clients send requests through the token bucket to the API" data-nodes="clients:Clients,bucket:Token bucket:meter,api:API" data-edges="clients>bucket,bucket>api"></div>
   <svg data-pg="chart" data-name="tokens" role="img" aria-label="Tokens in the bucket over 30 seconds"></svg>
 </div>
-<div data-pg="run" data-name="sim" data-duration="30" class="pg-reveal" style="--i:3; margin-top:10px"></div>
-<div data-pg="answer" data-name="verdict" class="pg-reveal" style="--i:4; margin-top:16px"></div>
-<div data-pg="agent" class="pg-reveal" style="--i:5; margin-top:14px"></div>
+<div data-pg="run" data-name="sim" data-duration="30" class="pg-reveal" style="--i:3"></div>
+<div data-pg="answer" data-name="verdict" class="pg-reveal" style="--i:4"></div>
+<div data-pg="agent" class="pg-reveal" style="--i:5"></div>
 
 <script>
 (() => {

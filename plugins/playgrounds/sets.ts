@@ -4,7 +4,7 @@
 // base chart with a "now" marker. The music set lives in controls.ts.
 
 export const SETS_CSS = String.raw`
-.pg-sentence { margin: 0; font-size: 15px; line-height: 1.75; color: var(--pg-body); text-wrap: pretty; }
+.pg-sentence { margin-bottom: 0; font-size: 15px; line-height: 1.7; color: var(--pg-body); text-wrap: pretty; }
 .pg-scrub { position: relative; display: inline-block; padding: 0 2px; border-radius: 4px; color: var(--pg-accent-ink, var(--pg-ink)); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; background: color-mix(in srgb, var(--pg-accent) 10%, transparent); box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--pg-accent) 55%, transparent); transition: background .15s; }
 .pg-scrub:hover, .pg-scrub.pg-grab { background: color-mix(in srgb, var(--pg-accent) 18%, transparent); }
 .pg-scrub:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
@@ -13,8 +13,8 @@ export const SETS_CSS = String.raw`
 .pg-answer { display: grid; gap: 2px; }
 .pg-answer > .pg-label { margin: 0; }
 .pg-answer > strong { font-size: 34px; line-height: 1.1; font-weight: 600; letter-spacing: -.025em; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
-.pg-answer > span { font-size: 12.5px; line-height: 1.5; color: var(--pg-body); }
-.pg-answer[data-tone=good] > strong { color: var(--pg-good); }
+.pg-answer > span { font-size: 12.5px; line-height: 1.45; color: var(--pg-body); }
+.pg-answer > .pg-label + strong { margin-top: 2px; }
 .pg-answer[data-tone=bad] > strong { color: var(--pg-bad); }
 .pg-answer[data-tone=warn] > strong { color: var(--pg-warn); }
 .pg-breakdown { display: grid; gap: 10px; }
@@ -39,7 +39,7 @@ export const SETS_CSS = String.raw`
 .pg-system .drop { fill: var(--pg-bad); }
 .pg-run { display: flex; align-items: center; gap: 8px; }
 .pg-run input[type=range] { flex: 1; min-width: 0; height: 18px; margin: 0; accent-color: var(--pg-ink); }
-.pg-run output { min-width: 4.5em; text-align: right; font-size: 11px; color: var(--pg-meta); font-variant-numeric: tabular-nums; }
+.pg-run output { min-width: 4.5em; text-align: right; font-size: 11px; font-weight: 500; color: var(--pg-meta); font-variant-numeric: tabular-nums; }
 `;
 
 // Runs inside the bridge, after controls.ts's runtime, sharing its scope.
@@ -111,7 +111,7 @@ export const SETS_RUNTIME = String.raw`
     const svg = el.tagName.toLowerCase() === "svg" ? el : el.appendChild(svgEl("svg"));
     svg.classList.add("pg-system"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", attr(el, "label", "System"));
     const defs = attr(el, "nodes", "").split(",").filter(Boolean).map((n) => { const [id, title, kind] = n.split(":"); return { id: id.trim(), title: (title || id).trim(), meter: (kind || "").trim() === "meter" }; });
-    const W = 500, H = defs.some((d) => d.meter) ? 120 : 84, gap = (W - 20) / defs.length;
+    const W = Math.round(svg.getBoundingClientRect().width) || 500, H = defs.some((d) => d.meter) ? 120 : 84, gap = (W - 20) / defs.length;
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     const layers = { edges: svgEl("g"), dots: svgEl("g"), nodes: svgEl("g"), drops: svgEl("g") };
     svg.replaceChildren(layers.edges, layers.dots, layers.nodes, layers.drops);
