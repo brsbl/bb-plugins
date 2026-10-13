@@ -196,9 +196,11 @@ export const CONTROLS_RUNTIME = String.raw`
     const u = s.unit || "";
     if (u === "%" && s.max <= 1) return Math.round(v * 100) + "%";
     if (u === "Hz") return v >= 1000 ? (v / 1000).toFixed(1) + "k" : v < 10 ? v.toFixed(1) + "Hz" : Math.round(v) + "Hz";
-    if (u === "s") return v < 1 ? Math.round(v * 1000) + "ms" : v.toFixed(1) + "s";
-    const n = Number(v).toFixed(s.step ? decimals(s.step) : Number.isInteger(Number(v)) ? 0 : Math.abs(v) < 10 ? 1 : 0);
-    return u ? n + (/^[%¢°]/.test(u) ? "" : " ") + u : n;
+    // Thousands separators, and no trailing zeros: 140,000 · 6.5% · 1.2s.
+    const plain = (x, most) => Number(x).toLocaleString("en-US", { maximumFractionDigits: most, minimumFractionDigits: 0 });
+    if (u === "s") return v < 1 ? Math.round(v * 1000) + "ms" : plain(v, 1) + "s";
+    const n = plain(v, s.step ? decimals(s.step) : Number.isInteger(Number(v)) ? 0 : Math.abs(v) < 10 ? 1 : 0);
+    return u ? n + (/^[%¢°/]/.test(u) ? "" : " ") + u : n;
   }
 
   // Layer 1 behaviors.
@@ -673,6 +675,7 @@ export const CONTROLS_RUNTIME = String.raw`
     const xs = (spec.series || []).flatMap((s) => s.points.map((p) => p[0]));
     const x0 = spec.x && spec.x.min !== undefined ? spec.x.min : Math.min(...xs), x1 = spec.x && spec.x.max !== undefined ? spec.x.max : Math.max(...xs);
     const yt = niceTicks(y0, y1, 3), yTop = Math.max(y1, yt.at(-1));
+    if (yt.at(-1) < yTop - (yTop - y0) * .15) yt.push(yTop);
     const sx = (v) => pad.l + (v - x0) / ((x1 - x0) || 1) * (W - pad.l - pad.r), sy = (v) => H - pad.b - (v - y0) / ((yTop - y0) || 1) * (H - pad.t - pad.b);
     const fx = (spec.x && spec.x.format) || ((v) => format(v, {})), fy = (spec.y && spec.y.format) || ((v) => format(v, {}));
     svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.classList.add("pg-chart"); svg.replaceChildren();
@@ -719,6 +722,7 @@ export const CONTROLS_RUNTIME = String.raw`
       el.hidden = m[2] === "=" ? !hit : hit;
     }
   }
+  const SET_KINDS = {}, SET_UI = {}, SET_ACTIONS = {};
   const afterHydrate = [];
   function hydrate(root) {
     const binders = [];
@@ -736,6 +740,7 @@ export const CONTROLS_RUNTIME = String.raw`
       else if (kind === "pads") pads(el);
       else if (kind === "presets") presets(el);
       else if (kind === "scope") scope(el);
+      else if (SET_KINDS[kind]) SET_KINDS[kind](el);
       else if (kind === "readouts") readouts(el);
       else if (kind === "table") { el.classList.add("pg-table-wrap"); }
       else if (kind === "chart") { el.classList.add("pg-chart"); }
@@ -749,7 +754,10 @@ export const CONTROLS_RUNTIME = String.raw`
   }
   on("change", ({ name }) => { for (const el of document.querySelectorAll('[data-param="' + name + '"]')) el.__paint?.(); });
 
+  const readyFirst = (fn) => (...args) => { ready(); return fn(...args); };
+/*SETS*/
   const autoActions = {
+    ...SET_ACTIONS,
     read: () => ({ params: { ...values }, outputs: JSON.parse(JSON.stringify(outputs)) }),
     select: (name, row, col) => choose(String(name), Number(row), Number(col), "agent"),
     say: (text) => { lane(text); return { ok: true }; },
@@ -759,8 +767,7 @@ export const CONTROLS_RUNTIME = String.raw`
     take: () => lastTake,
   };
   api.params = params;
-  const readyFirst = (fn) => (...args) => { ready(); return fn(...args); };
-  api.ui = Object.freeze({ show: readyFirst(show), table: readyFirst(table), chart: readyFirst(chart), say: lane, icon, format: (v, spec) => format(v, spec || {}), dragValue, pressable, audio, audioReady, onAudio: (fn) => (audioReady() ? fn() : audioWaiters.add(fn)), on, press: (id) => press(id, "user"), release: (id) => release(id, "user"), play, scope: (el) => el.__scope, meter: (el) => el.__set, steps: (el) => el.__now, noteName, hydrate: () => hydrate(document), take: () => lastTake });
+  api.ui = Object.freeze({ ...SET_UI, show: readyFirst(show), table: readyFirst(table), chart: readyFirst(chart), say: lane, icon, format: (v, spec) => format(v, spec || {}), dragValue, pressable, audio, audioReady, onAudio: (fn) => (audioReady() ? fn() : audioWaiters.add(fn)), on, press: (id) => press(id, "user"), release: (id) => release(id, "user"), play, scope: (el) => el.__scope, meter: (el) => el.__set, steps: (el) => el.__now, noteName, hydrate: () => hydrate(document), take: () => lastTake });
   const start = () => {
     hydrate(document);
     if (Object.keys(specs).length || document.querySelector("[data-pg]")) api.expose(autoActions);

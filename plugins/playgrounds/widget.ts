@@ -1,4 +1,5 @@
 import { CONTROLS_CSS, CONTROLS_RUNTIME } from "./controls.js";
+import { SETS_CSS, SETS_RUNTIME } from "./sets.js";
 
 export const WIDGET_MESSAGE_SOURCE = "playground";
 export const THEME_TOKENS = [
@@ -130,7 +131,7 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
     emit(name, data) { try { post("event", { name: String(name), data: plain(data) }); } catch {} },
     send(label, data) { try { post("send", { label: String(label).slice(0, 80), data: plain(data) }); } catch {} },
   };
-${CONTROLS_RUNTIME}
+${CONTROLS_RUNTIME.replace("/*SETS*/", SETS_RUNTIME)}
   window.playground = Object.freeze(api);
   window.answer = window.playground;
   addEventListener("message", async (event) => {
@@ -219,5 +220,5 @@ export function buildWidgetDocument({
   theme: WidgetTheme;
 }): string {
   const script = bridge(id, state, theme).replaceAll("</", "<\\/");
-  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${CONTROLS_CSS}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body>${html}</body></html>`;
+  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${CONTROLS_CSS}${SETS_CSS}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body>${html}</body></html>`;
 }

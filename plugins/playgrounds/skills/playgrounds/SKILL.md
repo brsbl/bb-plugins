@@ -166,6 +166,38 @@ setParams --args '[{"rate": 6}]'`, `do <id> select --args '["board", 0, 3]'`,
 and `do <id> say --args '["I took column 4."]'` for the agent lane. Use these
 instead of writing your own actions; controls you move show an "Agent" tag.
 
+**Calculator set.** For "how much / how many / which" questions, write the
+inputs as a sentence with draggable numbers, give one big answer, and show
+where it comes from:
+
+```html
+<p class="pg-sentence">I earn <span data-pg="scrub" data-param="income"
+  data-prefix="$" data-min="30000" data-max="500000" data-step="1000"
+  data-value="140000"></span> a year …</p>
+<div data-pg="answer" data-name="price"></div>
+<div data-pg="breakdown" data-name="monthly"></div>
+```
+
+`ui.answer(name, { label, value, detail, tone })` and `ui.breakdown(name,
+[{ label, value, display }])`. Keep it to the sentence, the answer and one
+breakdown or chart; no tables of every scenario.
+
+**Simulation set.** For systems that run over time (rate limits, queues,
+caches, retries, rollouts): a sentence of the knobs, a system diagram, a run
+bar, one chart with a "now" marker, and a verdict:
+
+```html
+<div data-pg="system" data-name="traffic" data-nodes="clients:Clients,bucket:Token bucket:meter,api:API"
+     data-edges="clients>bucket,bucket>api"></div>
+<div data-pg="run" data-name="sim" data-duration="30"></div>
+```
+
+`ui.system(name)` returns `send(from, to)`, `drop(at)`, `node(id).meter(f) /
+.sub(text) / .state("bad")` and `tick(dt)`; `ui.run(name, { tick(dt, t),
+seek(t), end() })` plays it and pauses offscreen. The verdict is an `answer`
+that says what happened and what setting fixes it. The agent moves time with
+`do <id> seek --args '["sim", 12]'`.
+
 **Music set (optional).** `keyboard` (`data-from="60" data-count="25"`, A–K
 keys, Z/X octave), `pads` (`data-pads="Kick:a,Snare:s"`), `steps` (a
 sequencer), `picker` with wave icons, `scope`, `presets` (a JSON table of
@@ -176,7 +208,8 @@ person and from you arrive as the same `press`/`release` events; play with
 `do <id> take`.
 
 **References** (next to this skill; copy the closest one):
-`references/home-budget.html` (calculator), `references/type-scale.html`
+`references/home-budget.html` (calculator set), `references/rate-limiter.html`
+(simulation set), `references/type-scale.html`
 (design tool), `references/connect-four.html` (game against you), and
 `references/pocket-synth.html` (instrument).
 
