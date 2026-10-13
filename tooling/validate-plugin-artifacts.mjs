@@ -248,6 +248,20 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
       id,
       buildBbVersion,
     );
+    if (normalizePackagePath(manifest.bb.app) === "dist/install-app.mjs") {
+      const [entry, builtCss, releaseCss] = await Promise.all([
+        readFile(resolve(directory, "dist/install-app.mjs"), "utf8"),
+        options.sourceAppCss ?? readFile(resolve(directory, "dist/app.css"), "utf8"),
+        readFile(resolve(directory, "dist/install-app.css"), "utf8"),
+      ]);
+      if (!/import\s+["']\.\/install-app\.css["']/u.test(entry)) {
+        throw new Error(`${directory}: release app entry does not import its CSS`);
+      }
+      const marker = `[data-bb-plugin-release-style="${id}"] { --bb-plugin-release-style: 1; }\n`;
+      if (releaseCss !== marker + builtCss) {
+        throw new Error(`${directory}: release CSS differs from the complete built app CSS`);
+      }
+    }
   }
 
   if (manifest.bb.host) {
@@ -265,6 +279,10 @@ export async function validatePluginArtifacts(pluginDirectory, options = {}) {
   if (manifest.bb.app) {
     for (const path of ["dist/app.js", "dist/app.css", "dist/app.meta.json"]) {
       requirePacked(files, path, directory);
+    }
+    if (normalizePackagePath(manifest.bb.app) === "dist/install-app.mjs") {
+      requirePacked(files, "dist/install-app.mjs", directory);
+      requirePacked(files, "dist/install-app.css", directory);
     }
   }
   for (const path of Object.values(manifest.bb.branding?.logo ?? {})) {
