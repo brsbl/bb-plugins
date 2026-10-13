@@ -21,8 +21,6 @@ function render(initial: SettingsOverrides = {}, sources: Record<string, Setting
     },
     sdk: {
       providers: { list: async () => [{ id: "claude-code", displayName: "Claude Code", available: true }, { id: "codex", displayName: "Codex", available: true }] as never },
-      hosts: { list: async () => [{ id: "host_mac", name: "MacBook", status: "connected", lifecycle: { phase: "active" } }, { id: "host_old", name: "Old Air", status: "disconnected", lifecycle: { phase: "active" } }] as never },
-      threadSections: { list: async () => [{ id: "sec_content", name: "Content", createdAt: 1, updatedAt: 1 }] },
     },
   }));
 }
@@ -30,60 +28,64 @@ function render(initial: SettingsOverrides = {}, sources: Record<string, Setting
 const saves = (slot: Awaited<ReturnType<typeof render>>) =>
   slot.inspection.rpcCalls.filter((call) => call.method === "saveSettings").map((call) => call.input);
 
+const MODEL_TIERS = { source: "~/.claude/projects/x/memory/model-tiers.md", quote: "Leaf workers run on Codex GPT-6-Astra, extra-high reasoning." };
+
 describe("Delegation settings form", () => {
   it("registers one settings section", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     expect(app.settingsSections.map((section) => section.id)).toEqual(["delegation"]);
   });
 
-  it("fills its dropdowns from bb and saves each change as an override", async () => {
+  it("is one table: a row per role with when to create it, provider, model, and reasoning", async () => {
     const slot = await render();
-    const machine = await slot.findByRole("combobox", { name: "Machine" }) as HTMLSelectElement;
-    await waitFor(() => expect([...machine.options].map((option) => option.textContent)).toEqual(["The lead's machine", "MacBook", "Old Air (offline)"]));
-    const section = slot.getByRole("combobox", { name: "Section" }) as HTMLSelectElement;
-    await waitFor(() => expect([...section.options].map((option) => option.textContent)).toEqual(["The lead's section", "Content"]));
-
-    fireEvent.change(machine, { target: { value: "host_old" } });
-    fireEvent.click(slot.getByRole("switch", { name: "Archive and stop finished workers" }));
-    const retries = slot.getByRole("spinbutton", { name: "Automatic retries" });
-    fireEvent.change(retries, { target: { value: "4" } });
-    fireEvent.blur(retries);
-
-    await waitFor(() => expect(saves(slot)).toEqual([
-      { values: { machine: "host_old" } },
-      { values: { mayArchiveOrStop: true } },
-      { values: { retryLimit: 4 } },
-    ]));
-    expect(await slot.findAllByText("Your override.")).toHaveLength(3);
+    await slot.findByRole("table");
+    expect(slot.getAllByRole("rowheader").map((cell) => cell.textContent?.trim())).toEqual(["Lead", "Parent", "Worker", "QA"]);
+    expect(slot.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Role", "When to create", "Provider", "Model", "Reasoning"]);
+    expect(slot.getByText("Only when you ask")).toBeDefined();
+    expect(slot.getByText("When a worker will have its own reports")).toBeDefined();
+    expect(slot.getByText("QA and smoke checks on approved work")).toBeDefined();
+    expect(slot.queryByRole("combobox", { name: "Machine" })).toBeNull();
+    expect(slot.queryByRole("switch")).toBeNull();
   });
 
-  it("locks a setting your instructions set, quotes them, and flags an ignored override", async () => {
-    const slot = await render({ mayArchiveOrStop: false }, {
-      mayArchiveOrStop: { value: true, source: "~/.bb/AGENTS.md", quote: "stop its runtime and archive the worker" },
+  it("shows the model your instructions set, locked, with the source on hover", async () => {
+    const slot = await render({}, {
+      provider: { value: "codex", ...MODEL_TIERS },
+      model: { value: "gpt-6-astra", ...MODEL_TIERS },
+      reasoningLevel: { value: "xhigh", ...MODEL_TIERS },
     });
-    const toggle = await slot.findByRole("switch", { name: "Archive and stop finished workers" });
-    expect(toggle.getAttribute("aria-checked")).toBe("true");
-    expect((toggle as HTMLButtonElement).disabled).toBe(true);
-    expect(slot.getByText("From ~/.bb/AGENTS.md")).toBeDefined();
-    expect(slot.getByText(/Your override \(off\) is ignored/)).toBeDefined();
-    fireEvent.click(slot.getByRole("button", { name: "Remove override" }));
-    await waitFor(() => expect(saves(slot)).toEqual([{ values: {}, reset: ["mayArchiveOrStop"] }]));
+    const model = await slot.findByRole("textbox", { name: "Worker model" }) as HTMLInputElement;
+    expect(model.value).toBe("gpt-6-astra");
+    expect(model.disabled).toBe(true);
+    expect((slot.getByRole("combobox", { name: "Worker reasoning" }) as HTMLSelectElement).value).toBe("xhigh");
+    expect(slot.getByRole("img", { name: "Set by your instructions" }).getAttribute("title")).toContain("Leaf workers run on Codex GPT-6-Astra");
   });
 
-  it("clears the chosen model when the provider changes", async () => {
-    const slot = await render({ provider: "claude-code", model: "claude-opus-5-5" });
-    const provider = await slot.findByRole("combobox", { name: "Provider" });
+  it("saves a change as an override and resets it from the row", async () => {
+    const slot = await render();
+    const lead = await slot.findByRole("textbox", { name: "Lead model" });
+    fireEvent.change(lead, { target: { value: "claude-opus-5-5" } });
+    fireEvent.blur(lead);
+    fireEvent.change(slot.getByRole("combobox", { name: "When to create workers" }), { target: { value: "ask" } });
+    await waitFor(() => expect(saves(slot)).toEqual([{ values: { leadModel: "claude-opus-5-5" } }, { values: { spawnPolicy: "ask" } }]));
+    fireEvent.click((await slot.findAllByRole("button", { name: "Reset your override" }))[0]!);
+    await waitFor(() => expect(saves(slot).at(-1)).toEqual({ values: {}, reset: ["leadModel"] }));
+  });
+
+  it("flags an override your instructions ignore, and removes it", async () => {
+    const slot = await render({ spawnPolicy: "free" }, { spawnPolicy: { value: "followthrough", source: "~/.bb/AGENTS.md", quote: "Spawn unasked only for follow-through." } });
+    const policy = await slot.findByRole("combobox", { name: "When to create workers" }) as HTMLSelectElement;
+    expect(policy.value).toBe("followthrough");
+    expect(policy.disabled).toBe(true);
+    fireEvent.click(slot.getByRole("button", { name: "Remove ignored override" }));
+    await waitFor(() => expect(saves(slot)).toEqual([{ values: {}, reset: ["spawnPolicy"] }]));
+  });
+
+  it("clears a role's model when its provider changes", async () => {
+    const slot = await render({ parentProvider: "claude-code", parentModel: "claude-opus-5-5" });
+    const provider = await slot.findByRole("combobox", { name: "Parent provider" });
     await waitFor(() => expect((provider as HTMLSelectElement).options).toHaveLength(3));
     fireEvent.change(provider, { target: { value: "codex" } });
-    await waitFor(() => expect(saves(slot).at(-1)).toEqual({ values: { provider: "codex" }, reset: ["model", "reasoningLevel"] }));
-  });
-
-  it("rejects an out-of-range number without saving", async () => {
-    const slot = await render();
-    const lines = await slot.findByRole("spinbutton", { name: "Worker report length" }) as HTMLInputElement;
-    fireEvent.change(lines, { target: { value: "0" } });
-    fireEvent.blur(lines);
-    expect(lines.value).toBe("3");
-    expect(saves(slot)).toEqual([]);
+    await waitFor(() => expect(saves(slot).at(-1)).toEqual({ values: { parentProvider: "codex" }, reset: ["parentModel"] }));
   });
 });

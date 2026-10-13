@@ -2,7 +2,7 @@
 
 Skills for handing work to other bb threads and bringing back only what matters.
 
-![Delegation's settings form, with values quoted from AGENTS.md, CLAUDE.md, and memory, and an ignored override flagged](docs/settings.png)
+![Delegation's settings: one table of models by role, with when a lead creates each role](docs/settings.png)
 
 ## Install
 
@@ -30,10 +30,10 @@ The skills build on existing ones rather than repeating them: `spawn` for machin
 Delegation keeps no rules of its own. Each setting resolves in this order:
 
 1. **Your instructions.** The `delegation-defaults` skill reads `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, your memory notes, and your skills, then records what they say about each setting with the file and your exact words. These win.
-2. **Your override**, from Settings → Delegation or `bb delegation set`. It applies only where your instructions are silent; the form marks an override your instructions outrank as ignored.
+2. **Your override**, from Settings → Delegation or `bb delegation set`. It applies only where your instructions are silent.
 3. **A fallback** that defers to bb or the spawn skill.
 
-Settings → Delegation shows every setting's value and where it came from, with provider, machine, and section dropdowns filled from your bb and bb's own model picker. Rows your instructions set are locked and quote them. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
+Settings → Delegation is one table: a row each for Lead, Parent, Worker, and QA, with when a lead creates that role and its provider, model, and reasoning. Values your instructions set are locked, with the source on hover; an override they outrank is flagged so you can remove it. Every other setting below is read and set with `bb delegation`. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
 
 | Setting | Fallback | What it controls |
 | --- | --- | --- |

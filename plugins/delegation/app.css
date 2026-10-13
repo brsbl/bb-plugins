@@ -1,45 +1,43 @@
-/* Mirrors bb's generic plugin settings form: recessed panels of label, description, and control rows. */
-.dl-settings { display: grid; gap: 20px; color: var(--foreground); font-family: var(--font-sans); font-size: 13px; line-height: 1.45; }
-.dl-group { display: grid; gap: 8px; }
-.dl-group-title { margin: 0; font-size: 13px; font-weight: 500; color: var(--muted-foreground); }
-.dl-panel { display: grid; gap: 16px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg, 10px); background: var(--surface-recessed, color-mix(in oklab, var(--muted) 40%, transparent)); }
-.dl-row { display: grid; gap: 8px; min-width: 0; }
-.dl-row-main { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; min-width: 0; }
-.dl-row-text { display: grid; gap: 2px; min-width: 0; }
-.dl-label { font-size: 14px; font-weight: 500; line-height: 1.4; }
+/* One recessed table, matching bb's plugin settings panels: a row per role, a column per choice. */
+.dl-settings { display: grid; gap: 14px; color: var(--foreground); font-family: var(--font-sans); font-size: 13px; line-height: 1.45; }
 .dl-description { margin: 0; color: var(--muted-foreground); font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
-.dl-control { display: flex; flex: none; justify-content: flex-end; }
-.dl-below { display: flex; justify-content: flex-end; }
-.dl-select,
-.dl-input { min-width: 0; height: 30px; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, 6px); background: var(--background); color: var(--foreground); color-scheme: light dark; font: inherit; font-size: 13px; }
-.dl-select { width: 220px; padding: 0 8px; cursor: pointer; }
-.dl-number { width: 80px; padding: 0 8px; text-align: right; }
-.dl-error { margin: 0; color: var(--destructive-text, var(--destructive, var(--foreground))); font-size: 12px; }
-.dl-switch { display: inline-flex; flex: none; align-items: center; width: 28px; height: 16px; margin-top: 2px; padding: 1px; border: 1px solid var(--input, var(--border)); border-radius: 999px; background: var(--muted); cursor: pointer; transition: background-color 150ms; }
-.dl-switch > span { display: block; width: 12px; height: 12px; border-radius: 50%; background: var(--foreground); pointer-events: none; transition: transform 150ms; }
-.dl-switch[data-state="checked"] { background: var(--foreground); border-color: transparent; }
-.dl-switch[data-state="checked"] > span { background: var(--background); transform: translateX(12px); }
-.dl-switch:focus-visible,
-.dl-select:focus-visible,
-.dl-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-@media (max-width: 560px) {
-  .dl-row-main { flex-direction: column; gap: 8px; }
-  .dl-control, .dl-below { justify-content: flex-start; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .dl-switch, .dl-switch > span { transition: none; }
-}
 .dl-description code { font-family: var(--font-mono); font-size: 12px; }
-.dl-select:disabled { opacity: 0.6; cursor: progress; }
-.dl-origin { display: grid; gap: 2px; margin-top: 4px; }
-.dl-origin-line { margin: 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
-.dl-origin-tag { color: var(--foreground); font-weight: 500; }
-.dl-origin-warn { color: var(--warning-text, var(--foreground)); }
-.dl-link { padding: 0; border: 0; background: none; color: var(--foreground); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-.dl-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-.dl-text { width: 220px; padding: 0 8px; }
-.dl-input:disabled, .dl-switch:disabled { opacity: 0.6; cursor: not-allowed; }
-.dl-select:disabled { cursor: not-allowed; }
-.dl-tier { display: flex; gap: 6px; }
-.dl-tier .dl-select { width: 140px; }
-.dl-tier .dl-text { width: 150px; }
+.dl-error { margin: 0; color: var(--destructive-text, var(--destructive, var(--foreground))); font-size: 12px; }
+
+.dl-roles { width: 100%; border: 1px solid var(--border); border-radius: var(--radius-lg, 10px); border-collapse: separate; border-spacing: 0; background: var(--surface-recessed, color-mix(in oklab, var(--muted) 40%, transparent)); }
+.dl-roles th, .dl-roles td { padding: 10px 8px; text-align: left; vertical-align: top; }
+.dl-roles thead th { padding-block: 8px 2px; color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
+.dl-roles tbody tr + tr > * { border-top: 1px solid var(--border); }
+.dl-roles tr > :first-child { padding-left: 12px; }
+.dl-roles tr > :last-child { padding-right: 12px; }
+.dl-roles tbody th { min-width: 84px; padding-top: 15px; font-weight: 400; white-space: nowrap; }
+.dl-role { font-size: 14px; font-weight: 500; }
+.dl-when { width: 30%; padding-top: 15px; color: var(--muted-foreground); }
+.dl-roles td:not(.dl-when) { width: 1%; }
+
+.dl-select,
+.dl-input { width: 100%; min-width: 120px; height: 30px; border: 1px solid var(--input, var(--border)); border-radius: var(--radius-md, 6px); background: var(--background); color: var(--foreground); color-scheme: light dark; font: inherit; font-size: 13px; }
+.dl-select { min-width: 150px; padding: 0 6px; cursor: pointer; }
+.dl-input { min-width: 140px; padding: 0 8px; }
+.dl-when .dl-select { min-width: 190px; }
+.dl-roles td:last-child .dl-select { min-width: 110px; }
+/* Set by your instructions: shown flat so editable cells stand out. */
+.dl-select:disabled, .dl-input:disabled { border-color: transparent; background: transparent; opacity: 1; cursor: default; }
+.dl-select:disabled { appearance: none; }
+.dl-select:focus-visible, .dl-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+
+.dl-note { margin: 4px 0 0; color: var(--muted-foreground); font-size: 12px; }
+.dl-hint { display: inline-flex; gap: 4px; vertical-align: -1px; color: var(--muted-foreground); }
+.dl-hint-icon { display: inline-flex; width: 13px; height: 13px; cursor: help; }
+.dl-hint-icon svg { width: 13px; height: 13px; }
+.dl-hint-button { padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+.dl-hint-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; border-radius: 2px; }
+.dl-hint-warn { color: var(--warning-text, var(--foreground)); }
+
+@media (max-width: 720px) {
+  .dl-roles thead { display: none; }
+  .dl-roles tbody tr { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; padding: 10px 12px; }
+  .dl-roles tbody tr + tr { border-top: 1px solid var(--border); }
+  .dl-roles tbody tr > * { padding: 0; border: 0 !important; }
+  .dl-roles tbody th, .dl-when { grid-column: 1 / -1; width: auto; }
+}
