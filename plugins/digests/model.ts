@@ -144,6 +144,8 @@ const emailRow = z.object({
   subject: z.string().trim().min(1).max(180).optional(),
   receivedAt: timestamp.max(8_640_000_000_000_000).optional(),
   kind: z.enum(["receipt", "bill", "event", "newsletter", "shipping"]).optional(),
+  // Optional triage group; rows without one collapse into FYI.
+  intent: z.enum(["urgent", "reply", "decide"]).optional(),
 }).strict();
 
 /** Optional so existing Markdown publishers and stored issues remain valid. */

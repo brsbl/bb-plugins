@@ -56,6 +56,7 @@ describe("digest contracts", () => {
       const runtime = collectionInstructions(definition);
       expect(runtime).toContain(recipe.instructions);
       expect(runtime).toContain("Never send, reply, archive");
+      expect(runtime).toContain("This approved reply is the only Gmail send allowed.");
       expect(runtime).toContain("digest_processed");
       expect(runtime).toContain("No source is recorded as processed until publication succeeds");
       expect(runtime).toContain("read their full bodies");
@@ -93,6 +94,8 @@ describe("digest contracts", () => {
     const payload = (item: unknown) => ({ headline: "All caught up", details: "One receipt.", brief: { heading: "Needs you", items: [], all: { label: "All unread", items: [item] } } });
     expect(PublishInputSchema.safeParse(payload(row)).success).toBe(true);
     expect(PublishInputSchema.parse(payload({ ...row, receivedAt: 1791000000000, kind: "receipt" })).brief?.all?.items[0]).toMatchObject({ receivedAt: 1791000000000, kind: "receipt" });
+    expect(PublishInputSchema.parse(payload({ ...row, intent: "reply" })).brief?.all?.items[0]?.intent).toBe("reply");
+    expect(() => PublishInputSchema.parse(payload({ ...row, intent: "later" }))).toThrow();
     expect(PublishInputSchema.safeParse(payload({ ...row, receivedAt: -1 })).success).toBe(false);
     expect(PublishInputSchema.safeParse(payload({ ...row, kind: "urgent" })).success).toBe(false);
   });

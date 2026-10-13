@@ -284,36 +284,69 @@ describe("Digests app", () => {
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: "https://example.test/reply" });
   });
 
-  it("opens one email section at a time from counts and preserves source links", async () => {
+  it("shows every email as a visible row with Open and Ask, without count links or a duplicate tail", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
-    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
-      summaryLinks: [{ label: "4 unread emails", section: "all" }, { label: "2 routine", section: "tail" }],
-      heading: "Needs you", items: [], later: [], laterLabel: "Later",
-      all: { label: "All unread (4)", items: [{ title: "Meeting", text: "Confirm Thursday.", url: "https://example.test/meeting" }] },
-      tail: { label: "Routine (2)", details: "Old Markdown fallback.", items: [
-        { title: "Amex · Autopay processed", text: "Payment complete.", url: "https://example.test/amex" },
-        { title: "Newsletter · This week", text: "Product news.", url: "https://example.test/news" },
-      ] },
-    } }) } });
-    fireEvent.click(await slot.findByRole("link", { name: "2 need nothing from you" }));
-    expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(true);
-    expect(document.activeElement).toBe(slot.container.querySelector("details[id$='-tail'] > summary"));
-    fireEvent.click(slot.getByRole("link", { name: /Amex · Autopay processed/ }));
-    fireEvent.click(slot.getByRole("link", { name: "4 unread emails" }));
-    expect(slot.inspection.navigateCalls).toEqual([
-      { method: "openUrl", url: "https://example.test/amex" },
-    ]);
-    expect(slot.getByText("All unread").closest("details")?.open).toBe(true);
-    expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(false);
-    expect(document.activeElement).toBe(slot.getByText("All unread").closest("summary"));
-    expect(slot.queryByText("Old Markdown fallback.")).toBeNull();
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
+      composer: { scope: { kind: "thread", threadId: "thr_issue" } },
+      rpc: { getIssue: () => ({ ...readyIssue, brief: {
+        summaryLinks: [{ label: "2 unread emails", section: "all" }, { label: "1 no action needed", section: "tail" }],
+        heading: "Needs you", items: [], later: [], laterLabel: "Later",
+        all: { label: "All unread", items: [
+          { title: "Ada · Meeting", sender: "Ada", subject: "Meeting", text: "Confirm Thursday.", url: "https://example.test/meeting", receivedAt: 1791043200000 },
+          { title: "Amex · Autopay processed", text: "Payment complete.", url: "https://example.test/amex" },
+        ] },
+        tail: { label: "No action needed", details: "Old Markdown fallback.", items: [
+          { title: "Amex · Autopay processed", text: "Payment complete.", url: "https://example.test/amex" },
+        ] },
+      } }) },
+    });
+    const list = await slot.findByRole("list", { name: "All unread" });
+    expect(list.querySelectorAll("li")).toHaveLength(2);
+    expect(slot.getByText("Confirm Thursday.")).toBeDefined();
+    expect(slot.queryByRole("link", { name: /unread emails/ })).toBeNull();
+    expect(slot.container.querySelector(".digest-lede")).toBeNull();
+    expect(slot.container.querySelector("details")).toBeNull();
+    expect(slot.container.querySelectorAll("time")).toHaveLength(1);
+    fireEvent.click(slot.getByRole("button", { name: "Open Amex · Autopay processed" }));
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "openUrl", url: "https://example.test/amex" }]);
+    fireEvent.click(slot.getByRole("button", { name: "Ask about Ada · Meeting" }));
+    expect(slot.inspection.composer.text).toBe("About Ada · Meeting: ");
+    expect(slot.inspection.rpcCalls.filter((call) => call.method !== "getIssue")).toHaveLength(0);
   });
 
-  it("keeps repeat senders flat and preserves every source link and semantic accent", async () => {
+  it("groups tagged emails into Reply and Decide, folds the rest into FYI, and drafts replies in the composer", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
+      composer: { scope: { kind: "thread", threadId: "thr_issue" } },
+      rpc: { getIssue: () => ({ ...readyIssue, headline: "Maya is waiting on you", brief: {
+        heading: "Do next", items: [{ title: "Reply to Maya", text: "Dinner.", action: { label: "Review reply", url: "https://example.test/maya" } }],
+        later: [], laterLabel: "Later",
+        all: { label: "All unread", items: [
+          { title: "Maya Chen · Dinner Saturday?", sender: "Maya Chen", subject: "Dinner Saturday?", text: "Asks if 7pm works.", url: "https://example.test/maya", intent: "reply" },
+          { title: "Alumni Office · Career week", sender: "Alumni Office", subject: "Career week", text: "Mentor for 2 hours?", url: "https://example.test/alumni", intent: "decide" },
+          { title: "Chase · Statement", sender: "Chase", subject: "Statement", text: "$412.18 due Oct 28.", url: "https://example.test/chase" },
+        ] },
+      } }) },
+    });
+    expect(await slot.findByRole("list", { name: "Reply" })).toBeDefined();
+    expect(slot.getByRole("list", { name: "Decide" }).querySelectorAll("li")).toHaveLength(1);
+    expect(slot.queryByRole("button", { name: "Review reply" })).toBeNull();
+    const fyi = slot.getByRole("button", { name: /FYI/ });
+    expect(fyi.getAttribute("aria-expanded")).toBe("false");
+    expect(fyi.textContent).toContain("Chase");
+    expect(slot.queryByRole("list", { name: "FYI" })).toBeNull();
+    fireEvent.click(fyi);
+    expect(slot.getByRole("list", { name: "FYI" }).querySelectorAll("li")).toHaveLength(1);
+    expect(slot.queryByRole("button", { name: "Draft a reply to Alumni Office · Career week" })).toBeNull();
+    fireEvent.click(slot.getByRole("button", { name: "Draft a reply to Maya Chen · Dinner Saturday?" }));
+    expect(slot.inspection.composer.text).toBe("Draft a reply to Maya Chen · Dinner Saturday?");
+    expect(slot.inspection.rpcCalls.filter((call) => call.method !== "getIssue")).toHaveLength(0);
+  });
+
+  it("keeps repeat senders flat in a collapsed tail when no full list exists", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const rows = ["Robinhood", "Figma", "robinhood", "Robinhood", "Figma"].map((sender, index) => ({
-      title: `${sender} · Notice ${index}`, text: index === 2 ? "September statement is ready." : `Detail ${index}`, url: `https://example.test/mail/${index}`,
-      ...(index === 0 ? { kind: "receipt", receivedAt: 1791043200000 } : {}),
+      title: `${sender} · Notice ${index}`, text: `Detail ${index}`, url: `https://example.test/mail/${index}`,
     }));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
       heading: "Needs you", items: [
@@ -325,19 +358,10 @@ describe("Digests app", () => {
     expect(slot.getByRole("button", { name: "Review alert" }).closest("li")?.dataset.tone).toBe("danger");
     const summary = slot.container.querySelector("details[id$='-tail'] > summary")!;
     expect(summary.querySelector(".digest-count")?.textContent).toBe("5");
-    expect(summary.textContent).not.toContain("(5)");
-    expect(summary.querySelector(".digest-chevron")).not.toBeNull();
     fireEvent.click(summary);
-    expect(slot.container.querySelectorAll("details details")).toHaveLength(0);
-    expect(slot.getAllByRole("row")).toHaveLength(rows.length + 1);
-    expect(slot.getByText("Receipt")).toBeDefined();
-    expect(slot.getByText("Statement")).toBeDefined();
-    expect(slot.getByText("Account")).toBeDefined();
-    expect(slot.container.querySelectorAll(".digest-email-kind")).toHaveLength(3);
-    expect(slot.container.querySelectorAll("time")).toHaveLength(1);
-    expect(slot.container.querySelector("time")?.dateTime).toBe(new Date(1791043200000).toISOString());
+    expect(slot.container.querySelectorAll(".digest-email-row")).toHaveLength(rows.length);
     for (let index = 0; index < rows.length; index++) {
-      fireEvent.click(slot.getByRole("link", { name: new RegExp(`Notice ${index}`) }));
+      fireEvent.click(slot.getByRole("button", { name: `Open ${rows[index]!.title}` }));
       expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: rows[index]!.url });
     }
   });
@@ -347,7 +371,7 @@ describe("Digests app", () => {
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue,
       emailReads: [{ messageId: "mail1", title: "Payment receipt", url: "https://example.test/mail1", wasUnread: true, afterReading: "keep-unread", status: "opening" }],
     }) } });
-    expect((await slot.findByRole("alert")).textContent).toContain("Couldn’t confirm 1 email is unread again");
+    expect((await slot.findByRole("alert")).textContent).toContain("1 email may now show as read");
     expect(slot.getByRole("link", { name: "Payment receipt" }).getAttribute("href")).toBe("https://example.test/mail1");
   });
 
