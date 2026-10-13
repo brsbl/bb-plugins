@@ -647,3 +647,34 @@ it("never offers a bulk action, and Submit waits for an answer", async () => {
   expect(screen.queryByRole("button", { name: /all$/ })).toBeNull();
   expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+it.each(["action", "actions"])("reserves the last %s height across virtualized reloads", async (directive) => {
+  const item = { ...fixture(), id: `height-${directive}` };
+  const app = await loadPluginApp(() => import("./app.js"));
+  const target = app.messageDirectives[directive === "action" ? 0 : 1]!;
+  const props = { attributes: { id: item.id }, source: "", message: { id: "height-message", threadId: item.threadId, turnId: null, projectId: null }, openWorkspaceFile: null };
+  const table = { id: item.id, threadId: item.threadId, title: "Reload fixture", ids: [item.id], items: [{ ...item, followUps: [] }] };
+  let width = 350;
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    return this.classList.contains("iac-container") ? { width, height: 650, x: 0, y: 0, top: 0, left: 0, right: width, bottom: 650, toJSON() {} } : original.call(this);
+  });
+  try {
+    let slot = renderSlot(target, props, { rpc: { get: () => item, table: () => table } });
+    await screen.findByRole("form");
+    slot.lifecycle.unmount();
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    slot = renderSlot(target, props, { rpc: { get: async () => { await pending; return item; }, table: async () => { await pending; return table; } } });
+    expect(screen.getByRole("status").closest<HTMLElement>(".iac-container")!.style.minHeight).toBe("650px");
+    finish();
+    await screen.findByRole("form");
+    await waitFor(() => expect(document.querySelector<HTMLElement>(".iac-container")!.style.minHeight).toBe(""));
+    slot.lifecycle.unmount();
+    // A desktop measurement must not reserve the wrong space after resizing to mobile.
+    width = 280;
+    slot = renderSlot(target, props, { rpc: { get: () => new Promise(() => {}), table: () => new Promise(() => {}) } });
+    expect(screen.getByRole("status").closest<HTMLElement>(".iac-container")!.style.minHeight).toBe("");
+    slot.lifecycle.unmount();
+  } finally { bounds.mockRestore(); }
+});
