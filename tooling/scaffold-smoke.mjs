@@ -275,6 +275,28 @@ try {
   );
   await writeFile(serverBundlePath, serverBundle);
 
+  const sourceManifestPath = resolve(generated.directory, "package.json");
+  const sourceManifestRaw = await readFile(sourceManifestPath, "utf8");
+  const sourceManifest = JSON.parse(sourceManifestRaw);
+  sourceManifest.bb.app = "./dist/install-app.mjs";
+  await writeFile(sourceManifestPath, JSON.stringify(sourceManifest));
+  const releaseEntryPath = resolve(generated.directory, "dist/install-app.mjs");
+  const releaseCssPath = resolve(generated.directory, "dist/install-app.css");
+  const builtCss = await readFile(resolve(generated.directory, "dist/app.css"), "utf8");
+  const marker = '[data-bb-plugin-release-style="scaffold-smoke"] { --bb-plugin-release-style: 1; }\n';
+  await writeFile(releaseEntryPath, 'export { default } from "./app.js";\nimport "./install-app.css";\n');
+  await writeFile(releaseCssPath, marker + builtCss);
+  await validatePluginArtifacts(generated.directory);
+  // The old publisher copied just app.css, dropping the rest of the bundle.
+  await writeFile(releaseCssPath, marker + await readFile(resolve(generated.directory, "app.css"), "utf8"));
+  await assert.rejects(validatePluginArtifacts(generated.directory), /release CSS differs from the complete built app CSS/);
+  await writeFile(releaseCssPath, marker + builtCss);
+  await writeFile(releaseEntryPath, 'export { default } from "./app.js";\n');
+  await assert.rejects(validatePluginArtifacts(generated.directory), /release app entry does not import its CSS/);
+  await writeFile(sourceManifestPath, sourceManifestRaw);
+  await rm(releaseEntryPath);
+  await rm(releaseCssPath);
+
   await rm(resolve(fixtureRoot, "node_modules"), {
     recursive: true,
     force: true,
