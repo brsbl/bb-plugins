@@ -103,7 +103,7 @@ export const CHART_RUNTIME = String.raw`
       if (dot) { dot.style.display = v === undefined ? "none" : ""; if (v !== undefined) { dot.setAttribute("cx", px); dot.setAttribute("cy", c.sy(v)); } }
       if (v === undefined) return;
       const row = document.createElement("div"); row.style.setProperty("--k", s.color);
-      const key = document.createElement("i"); const val = document.createElement("b"); val.textContent = c.fy(v);
+      const key = document.createElement("i"); const val = document.createElement("b"); val.textContent = c.fv(v);
       const name = document.createElement("span"); name.textContent = s.label;
       row.append(key, val, name); c.tip.append(row);
     });
@@ -134,9 +134,10 @@ export const CHART_RUNTIME = String.raw`
     const ys = c.series.flatMap((s) => s.points.map((p) => p[1]));
     const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...ys);
     let y1 = spec.y && spec.y.max !== undefined ? spec.y.max : Math.max(1, ...ys);
-    const yt = niceTicks(y0, y1, 4); if (yt.length > 1 && yt.at(-1) < y1 && !(spec.y && spec.y.max !== undefined)) yt.push(Number((yt.at(-1) + yt[1] - yt[0]).toFixed(10))); y1 = Math.max(y1, yt.at(-1));
+    const yt = niceTicks(y0, y1, H < 150 ? 3 : 4); if (yt.length > 1 && yt.at(-1) < y1 && !(spec.y && spec.y.max !== undefined)) yt.push(Number((yt.at(-1) + yt[1] - yt[0]).toFixed(10))); y1 = Math.max(y1, yt.at(-1));
     const unit = (spec.y && spec.y.unit) || "";
     c.fy = (spec.y && spec.y.format) || ((v) => (unit === "$" ? "$" + compact(v) : compact(v) + (unit ? (/^[%/]/.test(unit) ? "" : " ") + unit : "")));
+    c.fv = (spec.y && spec.y.format) || ((v) => (unit === "$" ? "$" + Number(v).toLocaleString("en-US") : Number(v).toLocaleString("en-US") + (unit ? (/^[%/]/.test(unit) ? "" : " ") + unit : "")));
     c.fx = (spec.x && spec.x.format) || ((v) => (typeof v === "number" ? plainNum(v) : String(v)));
     const labelW = Math.max(28, ...yt.map((v) => c.fy(v).length * 6.2 + 8));
     const lines = c.series.filter((s) => s.kind !== "bars");
@@ -186,7 +187,7 @@ export const CHART_RUNTIME = String.raw`
     const head = c.table.createTHead().insertRow(); const hx = document.createElement("th"); hx.textContent = (spec.x && spec.x.label) || "x"; head.append(hx);
     for (const s of c.series) { const th = document.createElement("th"); th.textContent = s.label; head.append(th); }
     const tb = c.table.createTBody();
-    for (const x of xs.slice(0, 200)) { const tr = tb.insertRow(); tr.insertCell().textContent = c.fx(x); for (const s of c.series) tr.insertCell().textContent = s.byX.has(x) ? c.fy(s.byX.get(x)) : ""; }
+    for (const x of xs.slice(0, 200)) { const tr = tb.insertRow(); tr.insertCell().textContent = c.fx(x); for (const s of c.series) tr.insertCell().textContent = s.byX.has(x) ? c.fv(s.byX.get(x)) : ""; }
     c.spec = spec;
     outputs[name] = { value: { series: c.series.map((s) => ({ label: s.label, points: s.points.slice(0, 200) })) } };
     if (c.hover >= 0 && c.hover < xs.length) showAt(c, c.hover);
