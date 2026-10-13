@@ -59,7 +59,13 @@
 .dp-note { margin: 4px 0 0; color: var(--muted-foreground); font-size: 12px; }
 .dp-reply-failed .dp-note { color: var(--destructive-text, var(--destructive, var(--foreground))); }
 .dp-empty { margin: 0; padding: 16px; color: var(--muted-foreground); }
-.dp-header-icon { width: 14px; height: 14px; flex: none; color: var(--muted-foreground); }
-.dp-header-button:hover { background: var(--state-hover, var(--accent)); }
-.dp-header-button { display: inline-flex; height: 28px; align-items: center; gap: 6px; border: 0; border-radius: var(--radius-md, 6px); background: transparent; padding: 0 8px; color: var(--muted-foreground); font: inherit; font-size: 13px; cursor: pointer; }
+/* Matches bb's icon-only header buttons: 28px square, 16px icon, subtle until hovered. */
+.dp-header-button { position: relative; display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-md, 6px); background: transparent; padding: 0; color: color-mix(in oklab, var(--subtle-foreground, var(--muted-foreground)) 75%, transparent); cursor: pointer; transition: color 150ms, background-color 150ms; }
+.dp-header-button:hover { background: var(--state-hover, var(--accent)); color: var(--muted-foreground); transition-duration: 0ms; }
+.dp-header-icon { width: 16px; height: 16px; flex: none; pointer-events: none; }
+.dp-header-dot { position: absolute; top: 5px; right: 5px; }
+@media (max-width: 767px) and (pointer: coarse) {
+  .dp-header-button { width: 36px; height: 36px; }
+  .dp-header-icon { width: 20px; height: 20px; }
+}
 .dp-tab:focus-visible, .dp-header-button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
