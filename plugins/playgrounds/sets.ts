@@ -78,7 +78,7 @@ export const SETS_CSS = String.raw`
 .pg-guide-nav > span { margin-right: auto; font-size: 12px; color: var(--pg-meta); font-variant-numeric: tabular-nums; }
 .pg-guide-nav > button[data-primary] { background: var(--pg-ink); border-color: var(--pg-ink); color: var(--card); }
 /* Photos: one tall photo beside two stacked ones (or one or two). Broken links disappear. */
-.pg-photos { display: grid; grid-template-columns: 3fr 2fr; grid-template-rows: 1fr 1fr; gap: 4px; height: 240px; margin: 0; border-radius: var(--pg-radius-panel); overflow: hidden; }
+.pg-photos { display: grid; grid-template-columns: 3fr 2fr; grid-template-rows: 1fr 1fr; gap: 4px; height: 240px; border-radius: var(--pg-radius-panel); overflow: hidden; }
 .pg-photos > img { width: 100%; height: 100%; min-height: 0; object-fit: cover; display: block; background: var(--pg-stage); }
 .pg-photos > img:first-child { grid-row: span 2; }
 .pg-photos:has(> img:only-child) { grid-template-columns: 1fr; }
