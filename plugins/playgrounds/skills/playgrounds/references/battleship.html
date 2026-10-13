@@ -1,5 +1,5 @@
 <!-- Battleship: the game set with a setup step and two boards. Taps on "My waters"
-     are your shots; my ships stay in the card's saved state, never in the markup. -->
+     are your shots; my ships live in a parameter no board shows. -->
 <h2 class="pg-title pg-reveal">Battleship</h2>
 <p class="pg-subtitle pg-reveal">Four ships each on an 8 × 8 sea. Shuffle your fleet, start, then fire at my waters.</p>
 
@@ -32,8 +32,7 @@
     }
     return g;
   }
-  const saved = () => (window.playground.state && window.playground.state.mine) || null;
-  function hideMine(grid) { const { params, lane, ...rest } = window.playground.state || {}; window.playground.save({ ...rest, mine: grid }); }
+  P.define("mine", { type: "board", rows: N, cols: N });
   const cell = (m) => {
     if (typeof m === "number") return [Math.floor(m / N), m % N];
     const k = /^([A-H])([1-8])$/i.exec(String(m).trim());
@@ -45,13 +44,13 @@
   const game = ui.game({
     you: "you", me: "me", setup: true, setupText: "Place your fleet", startLabel: "Start battle",
     fromCell: (r, c) => r * N + c,
-    start(all) { all.fleet = place(); hideMine(place()); return empty(); },
+    start(all) { all.fleet = place(); all.mine = place(); return empty(); },
     move(board, m, who, all) {
       const [r, c] = cell(m);
       if (r < 0 || r >= N || c < 0 || c >= N) return null;
       if (who === "you") {
         if (board[r][c]) return null;
-        board[r][c] = (saved() || [])[r]?.[c] === "S" ? "H" : "M";
+        board[r][c] = all.mine[r][c] === "S" ? "H" : "M";
         return board;
       }
       const v = all.fleet[r][c];
@@ -69,7 +68,6 @@
       return null;
     },
   });
-  if (!saved()) hideMine(place());
   document.getElementById("shuffle").onclick = () => P.set("fleet", place());
 })();
 </script>
