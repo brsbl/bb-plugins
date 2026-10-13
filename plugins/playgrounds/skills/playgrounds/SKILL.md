@@ -376,8 +376,8 @@ standalone HTML page), then show that page as a playground:
 bb playgrounds publish --playground-file /absolute/path/figure.html
 ```
 
-`--playground-file` reads the page from this thread's machine, so a large
-figure never passes through your context. The card keeps the page's styles and
+`--playground-file` reads the page from this thread's workspace (write it
+there, not to `/tmp`), so a large figure never passes through your context. The card keeps the page's styles and
 scripts, follows bb's light or dark theme, and fits the page to the card. Credit
 Ryan and Anatomy in your reply. If the skill isn't installed, say so and offer
 `npx skills add wheresryan22/anatomy`; don't install it yourself.

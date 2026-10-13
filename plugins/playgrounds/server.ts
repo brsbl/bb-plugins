@@ -25,14 +25,14 @@ export function playgroundFromFile(name: string, text: string): unknown {
   return { title, html: text, ...(/class="iso"/.test(text) ? { width: 720 } : {}) };
 }
 
+// Reads only from the calling thread's own workspace on its own machine; the host
+// daemon refuses files over its size limit before reading them.
 async function readThreadFile(bb: BbPluginApi, threadId: string, cwd: string | undefined, file: string) {
   const thread = await bb.sdk.threads.get({ threadId, include: "environment" });
   const environment = "environment" in thread ? thread.environment ?? null : null;
-  if (!environment) throw new Error("This thread has no machine to read files from.");
-  const root = cwd ?? environment.path;
-  if (!path.isAbsolute(file) && !root) throw new Error(`Use an absolute path for ${file}; this thread has no workspace.`);
-  const resolved = path.isAbsolute(file) ? file : path.resolve(root!, file);
-  const result = await bb.sdk.files.read({ hostId: environment.hostId, path: resolved });
+  if (!environment?.path) throw new Error("This thread has no workspace to read files from.");
+  const resolved = path.resolve(cwd ?? environment.path, file);
+  const result = await bb.sdk.files.read({ hostId: environment.hostId, path: resolved, rootPath: environment.path });
   if ((result.sizeBytes ?? 0) > MAX_HTML_LENGTH * 2) throw new Error(`${file} is too large for a playground.`);
   return Buffer.from(result.content, result.contentEncoding === "base64" ? "base64" : "utf8").toString("utf8");
 }
@@ -553,7 +553,8 @@ export default function plugin(bb: BbPluginApi): void {
             const threadId = threadSchema.parse(options.thread ?? ctx.threadId);
             const file = options["playground-file"];
             if (file !== undefined) {
-              const text = await readThreadFile(bb, threadId, ctx.cwd, file);
+              if (!ctx.threadId) throw new Error("Run --playground-file from the bb thread whose workspace has the file.");
+              const text = await readThreadFile(bb, ctx.threadId, ctx.cwd, file);
               return {
                 exitCode: 0,
                 stdout: `${store.publishHtml(threadId, htmlAnswerSchema.parse(playgroundFromFile(file, text))).directive}\n`,
