@@ -87,7 +87,7 @@ export function CrmPage() {
   useEffect(() => {
     let active = true;
     setError(false);
-    rpc.call("view", { query, kind, limit: 50, offset }).then(value => {
+    rpc.call("view", { query, ...(kind ? { kind } : {}), limit: 50, offset }).then(value => {
       if (active) setData(value);
     }, () => { if (active) setError(true); });
     return () => { active = false; };
