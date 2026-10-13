@@ -58,6 +58,7 @@ export const SETS_CSS = String.raw`
 .pg-turn > span { flex-shrink: 0; white-space: nowrap; }
 .pg-turn > small { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; color: var(--pg-meta); }
 .pg-turn > button { flex-shrink: 0; white-space: nowrap; }
+.pg-turn > .pg-btn[data-primary] { background: var(--pg-ink); border-color: var(--pg-ink); color: var(--card); }
 .pg-turn > button { margin-left: auto; }
 .pg-turn > button + button { margin-left: 0; }
 .pg-turn > .pg-tone { width: 16px; height: 16px; animation: none; box-shadow: none; }

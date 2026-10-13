@@ -471,7 +471,10 @@ export const CONTROLS_RUNTIME = String.raw`
           else if (v) { const t = document.createElement("b"); t.textContent = p ? p.label : v; b.append(t); }
           b.setAttribute("aria-label", "Row " + (r + 1) + ", column " + (c + 1) + (v ? ", " + (p ? p.label : v) : ", empty"));
         });
-        if (previous) for (let r = 0; r < s.rows; r++) for (let c = 0; c < s.cols; c++) if (previous[r][c] !== grid[r][c]) { el.querySelector("[data-last]")?.removeAttribute("data-last"); el.querySelector('[data-r="' + r + '"][data-c="' + c + '"]').setAttribute("data-last", ""); }
+        const changed = [];
+        if (previous) for (let r = 0; r < s.rows; r++) for (let c = 0; c < s.cols; c++) if (previous[r][c] !== grid[r][c]) changed.push([r, c]);
+        if (changed.length) el.querySelector("[data-last]")?.removeAttribute("data-last");
+        if (changed.length === 1) el.querySelector('[data-r="' + changed[0][0] + '"][data-c="' + changed[0][1] + '"]').setAttribute("data-last", "");
         previous = grid.map((row) => row.slice());
       };
     },
