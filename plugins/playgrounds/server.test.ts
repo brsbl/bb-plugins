@@ -416,7 +416,20 @@ it("routes commands to a copy that offers the action, and prints the latest even
 });
 
 it("keeps a personal library of saved playgrounds that can be reopened, reused in threads, and attached to messages", async () => {
-  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  const host = createFakePluginHost({
+    pluginId: "playgrounds",
+    sdk: {
+      threads: {
+        get: (async () => ({ providerId: "codex" })) as never,
+        timeline: (async () => ({
+          rows: [
+            { kind: "conversation", role: "user", text: "Use Playgrounds to split the bill", turnId: null, startedAt: 1 },
+            { kind: "turn", turnId: "t1", startedAt: 2, completedAt: 9_999_999_999_999 },
+          ],
+        })) as never,
+      },
+    },
+  });
   try {
     plugin(host.bb);
     const { runCli, callRpc, emitThreadEvent } = host.harness.behavior;
@@ -433,8 +446,9 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
     const saved = (await callRpc("save", {
       id,
       threadId: "thr_test",
-    })) as { savedId: string; threadId: string; title: string };
+    })) as { savedId: string; threadId: string; title: string; provenance: unknown };
     expect(saved.title).toBe(bill.title);
+    expect(saved.provenance).toMatchObject({ prompt: "Use Playgrounds to split the bill", provider: "codex", turnId: "t1" });
     expect(await callRpc("getState", { id, threadId: saved.threadId })).toMatchObject({
       state: { people: 6 },
     });

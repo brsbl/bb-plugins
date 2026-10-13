@@ -1024,6 +1024,9 @@ function SavedPlaygroundPage({
           </button>
         </div>
       </header>
+      {saved.provenance && (
+        <p className="pg-library-prompt">Made from “{saved.provenance.prompt}”</p>
+      )}
       <PlaygroundLoader id={saved.id} threadId={saved.threadId} />
     </div>
   );
