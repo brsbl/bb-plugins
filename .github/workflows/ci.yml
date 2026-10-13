@@ -160,7 +160,26 @@ jobs:
       - run: npm run build
       - run: npm run artifacts
       - run: node tooling/publish-install-refs.mjs
-      - run: git bundle create install-refs.bundle --branches='plugin/*'
+      - name: Verify a fresh checkout with every install ref unchanged
+        run: |
+          git for-each-ref --format='%(objectname) %(refname)' refs/heads/plugin/ |
+          while read -r commit ref; do
+            git update-ref "refs/remotes/origin/${ref#refs/heads/}" "$commit"
+            git update-ref -d "$ref"
+          done
+          node tooling/publish-install-refs.mjs
+      - name: Export the complete verified install inventory
+        run: |
+          git bundle create install-refs.bundle --branches='plugin/*'
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { execFileSync } from "node:child_process";
+          import { readPluginWorkspaces } from "./tooling/plugin-workspaces.mjs";
+          const refs = execFileSync("git", ["bundle", "list-heads", "install-refs.bundle"], { encoding: "utf8" })
+            .trim().split("\n").map((line) => line.split(" ")[1]).sort();
+          const expected = (await readPluginWorkspaces()).map((plugin) => `refs/heads/${plugin.installRef}`).sort();
+          assert.deepEqual(refs, expected, "install bundle must include every plugin, including unchanged releases");
+          NODE
       - uses: actions/upload-artifact@v4
         with:
           name: install-refs-${{ github.sha }}

@@ -544,6 +544,7 @@ export async function publishInstallRefs(options = {}) {
       : null;
     if (currentCommit && currentTree === candidateTree) {
       await verifyReleaseCommit(plugin, currentCommit);
+      git(["update-ref", `refs/heads/${plugin.installRef}`, currentCommit]);
       console.log(`${plugin.installRef} ${currentCommit} unchanged and verified`);
       continue;
     }
