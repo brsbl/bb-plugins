@@ -41,9 +41,8 @@ describe("Delegation settings form", () => {
     await slot.findByRole("table");
     expect(slot.getAllByRole("rowheader").map((cell) => cell.textContent?.trim())).toEqual(["Lead", "Parent", "Worker", "QA"]);
     expect(slot.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Role", "When to create", "Provider", "Model", "Reasoning"]);
-    expect(slot.getByText("Only when you ask")).toBeDefined();
-    expect(slot.getByText("When a worker will have its own reports")).toBeDefined();
-    expect(slot.getByText("QA and smoke checks on approved work")).toBeDefined();
+    const when = Object.fromEntries(slot.getAllByRole("rowheader").map((cell) => [cell.querySelector(".dl-role")!.textContent, cell.closest("tr")!.querySelector(".dl-when")!.textContent]));
+    expect(when).toMatchObject({ Lead: "Only when you ask", Parent: "When a worker will have its own reports", QA: "QA and smoke checks on approved work" });
     expect(slot.queryByRole("combobox", { name: "Machine" })).toBeNull();
     expect(slot.queryByRole("switch")).toBeNull();
   });
