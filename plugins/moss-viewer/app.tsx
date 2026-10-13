@@ -23,7 +23,7 @@ import {
 import { EDITOR_NOTE_CHANGED, asNoteChanged, createEditorBridge, fromFrame, type EditorBridge, type EditorBridgeOptions } from "./editor-bridge";
 import { EditorStatus, MossEditorFrame, type EditorNote } from "./editor-panel";
 import type * as Moss from "./vendor/moss-editor.contract.js";
-import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "./components/ui/coarse-pointer-sizing";
+import { COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS, COARSE_POINTER_TEXT_SM_CLASS } from "./components/ui/coarse-pointer-sizing";
 import { cn, formatHomePathForDisplay } from "./lib/utils";
 import {
   assetHref,
@@ -77,10 +77,9 @@ interface Kept {
   draft: Moss.MossDraft | null;
 }
 
-// bb's header icon button (28px, 16px glyph), the size its roomier panel and thread headers use.
 const HEADER_ICON_BUTTON_CLASS = cn(
   "inline-flex shrink-0 cursor-pointer items-center justify-center text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50",
-  COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
+  COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
 );
 /** Below this header width bb's file header folds its actions into a menu. */
 const NARROW_HEADER_PX = 560;
@@ -221,7 +220,7 @@ function HeaderButton({
 function NoteIcon() {
   return (
     <span className="flex size-4 shrink-0 items-center justify-center text-subtle-foreground max-md:pointer-coarse:size-5">
-      <Icon name="File" fallback="FileText" aria-hidden className="size-full" />
+      <Icon name="File" fallback="FileText" aria-hidden className="size-3.5 max-md:pointer-coarse:size-5" />
     </span>
   );
 }
@@ -249,7 +248,10 @@ function NotePath({ path }: { path: string }) {
             type="button"
             aria-label="Copy file path"
             onClick={copyPath}
-            className="min-w-0 cursor-pointer rounded-sm text-left font-mono text-sm font-medium leading-6 text-file-accent underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className={cn(
+              "min-w-0 cursor-pointer rounded-sm text-left font-normal text-file-accent underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              COARSE_POINTER_TEXT_SM_CLASS,
+            )}
           >
             <span dir="rtl" className="block w-min max-w-full truncate">
               {`\u200e${formatHomePathForDisplay(path)}`}
@@ -301,15 +303,15 @@ function NoteHeader({
     <TooltipProvider delayDuration={300}>
       <div
         ref={ref}
-        className="flex h-12 shrink-0 items-center gap-4 bg-surface-raised px-5 max-md:pointer-coarse:h-14 max-md:pointer-coarse:px-4"
+        className="flex h-[var(--bb-app-chrome-row-height,3rem)] shrink-0 items-center gap-2 bg-surface-raised-solid px-[var(--bb-panel-chrome-padding,1rem)] max-md:pointer-coarse:px-2"
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {canGoBack ? <HeaderButton icon="ChevronLeft" label="Back" onClick={onBack} /> : null}
           <NoteIcon />
           <NotePath path={path} />
           {status}
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {narrow
             ? null
             : actions.map((action) => (
