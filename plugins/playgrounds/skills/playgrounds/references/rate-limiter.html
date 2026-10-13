@@ -1,0 +1,70 @@
+<!-- Rate limiter: built from the simulation set (run bar, chart, answer). -->
+<h2 class="pg-title pg-reveal">How big should the bucket be?</h2>
+
+<p class="pg-sentence pg-reveal" style="--i:1">
+  Every <span data-pg="scrub" data-param="every" data-label="Burst interval" data-unit="s" data-min="2" data-max="15" data-step="1" data-value="10"></span>,
+  <span data-pg="scrub" data-param="burst" data-label="Burst size" data-min="0" data-max="300" data-step="10" data-value="120"></span> requests arrive at once.
+  The bucket holds <span data-pg="scrub" data-param="capacity" data-label="Bucket size" data-min="10" data-max="300" data-step="10" data-value="80"></span> tokens
+  and refills <span data-pg="scrub" data-param="refill" data-label="Refill rate" data-unit="/s" data-min="5" data-max="100" data-step="5" data-value="35"></span>.
+</p>
+
+<div class="pg-surface pg-reveal" style="--i:2">
+  <div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
+  <figure data-pg="chart" data-name="tokens" data-label="Tokens in the bucket over 30 seconds"></figure>
+</div>
+<div class="pg-result pg-reveal" style="--i:3">
+  <div data-pg="answer" data-name="verdict"></div>
+  <dl class="pg-stats"><div><dt>Loss-free bucket</dt><dd id="best"></dd></div><div><dt>Average demand</dt><dd id="demand"></dd></div></dl>
+</div>
+<div class="pg-foot pg-reveal" style="--i:4">
+  <details><summary>How the model works</summary><p>Every 50 ms the bucket refills, requests arrive, and each one takes a token or is rejected. Steady traffic is 20 requests a second; bursts land all at once. The smallest bucket is found by replaying the same 30 seconds at each size.</p></details>
+  <div data-pg="agent"></div>
+</div>
+
+<script>
+(() => {
+  const { params: P, ui } = window.playground;
+  const DT = 0.05, SECONDS = 30, BASE = 20;
+  function simulate(v) {
+    let tokens = v.capacity, carry = 0, rejected = 0;
+    const steps = [];
+    for (let i = 0; i < SECONDS / DT; i++) {
+      const t = i * DT;
+      tokens = Math.min(v.capacity, tokens + v.refill * DT);
+      carry += BASE * DT + (t > 0 && Math.abs((t % v.every)) < DT / 2 ? v.burst : 0);
+      const arrivals = Math.floor(carry); carry -= arrivals;
+      const ok = Math.min(arrivals, Math.floor(tokens)); tokens -= ok; rejected += arrivals - ok;
+      steps.push({ t, tokens, arrivals, ok, lost: arrivals - ok });
+    }
+    return { steps, rejected };
+  }
+  function smallest(v) {
+    for (let c = 10; c <= 300; c += 10) if (!simulate({ ...v, capacity: c }).rejected) return c;
+    return null;
+  }
+  let run = simulate(P.all());
+  const EVERY = 4;
+  function chart(t) {
+    const shown = run.steps.filter((s) => s.t <= t + 1e-9);
+    const points = shown.filter((_, i) => i % EVERY === 0).map((s) => [Number(s.t.toFixed(2)), Math.round(s.tokens)]);
+    const drops = [];
+    shown.forEach((s, i) => { if (s.lost) { const at = shown[i - (i % EVERY)]; drops.push([Number(at.t.toFixed(2)), 0, s.lost]); } });
+    ui.chart("tokens", { kind: "area", x: { min: 0, max: SECONDS, format: (x) => x + " s", label: "Time" }, y: { min: 0, max: P.get("capacity"), unit: "tokens" }, series: [{ label: "Tokens", points }], events: { label: "Dropped", points: drops } });
+  }
+  function verdict() {
+    const v = P.all(), best = smallest(v);
+    if (!run.rejected) ui.answer("verdict", { label: "In 30 seconds", value: "Nothing dropped", tone: "good", detail: best && best < v.capacity ? best + " tokens would be enough." : "The smallest bucket that keeps up." });
+    else ui.answer("verdict", { label: "In 30 seconds", value: run.rejected + " dropped", tone: "bad", detail: best ? "Raise the bucket to " + best + " tokens." : "Raise the refill rate." });
+    document.getElementById("best").textContent = best ? best + " tokens" : "None";
+    document.getElementById("demand").textContent = Math.round(BASE + v.burst / v.every) + "/s";
+  }
+  const sim = ui.run("sim", {
+    tick(dt, t) {
+      chart(t);
+    },
+    seek(t) { chart(t); },
+  });
+  P.on(() => { run = simulate(P.all()); chart(sim.t); verdict(); });
+  sim.seek(12); verdict();
+})();
+</script>

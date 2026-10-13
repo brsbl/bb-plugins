@@ -1,3 +1,7 @@
+import { CONTROLS_CSS, CONTROLS_RUNTIME } from "./controls.js";
+import { CHART_CSS, CHART_RUNTIME } from "./charts.js";
+import { SETS_CSS, SETS_RUNTIME } from "./sets.js";
+
 export const WIDGET_MESSAGE_SOURCE = "playground";
 export const THEME_TOKENS = [
   "background",
@@ -67,7 +71,8 @@ img, svg { display: block; max-width: 100%; }
 .pg-stage { border-radius: var(--pg-radius-stage); background: var(--pg-stage); overflow: hidden; }
 .pg-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .pg-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--pg-radius-photo); }
-.pg-seg { display: inline-flex; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--pg-hairline); background: var(--card); }
+.pg-seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: 18px; border: 1px solid var(--pg-hairline); background: var(--card); }
+.pg-form > .pg-seg { grid-column: 1 / -1; justify-self: start; }
 .pg-seg button, .pg-chip { white-space: nowrap; border: 1px solid transparent; background: transparent; border-radius: 999px; padding: 5px 11px; font-size: 11.5px; line-height: 1.2; color: var(--muted-foreground); transition: background .2s, color .2s; }
 .pg-chip { border-color: var(--pg-hairline); }
 .pg-seg button[aria-pressed=true], .pg-chip[aria-pressed=true] { background: var(--foreground); color: var(--background); border-color: var(--foreground); font-weight: 500; }
@@ -114,7 +119,7 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
   let state = "state" in init ? init.state : ${JSON.stringify(state ?? null)};
   let version = typeof init.version === "number" ? init.version : 0;
   const actions = new Map();
-  window.playground = Object.freeze({
+  const api = {
     id: ID,
     get state() { return state; },
     save(value) { try { state = plain(value); post("state", { state, base: version }); } catch {} },
@@ -127,7 +132,9 @@ function bridge(id: string, state: unknown, theme: WidgetTheme) {
     },
     emit(name, data) { try { post("event", { name: String(name), data: plain(data) }); } catch {} },
     send(label, data) { try { post("send", { label: String(label).slice(0, 80), data: plain(data) }); } catch {} },
-  });
+  };
+${CONTROLS_RUNTIME.replace("/*SETS*/", CHART_RUNTIME + SETS_RUNTIME)}
+  window.playground = Object.freeze(api);
   window.answer = window.playground;
   addEventListener("message", async (event) => {
     const message = event.data;
@@ -215,5 +222,5 @@ export function buildWidgetDocument({
   theme: WidgetTheme;
 }): string {
   const script = bridge(id, state, theme).replaceAll("</", "<\\/");
-  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body>${html}</body></html>`;
+  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${CONTROLS_CSS}${CHART_CSS}${SETS_CSS}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body>${html}</body></html>`;
 }
