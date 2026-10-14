@@ -28,7 +28,7 @@ function setup() {
 }
 describe("Gmail approval and transport", () => {
   it("uses only public SDK imports", async () => {
-    const result = await experimental_scanPublicSdkOnly(fileURLToPath(new URL(".", import.meta.url)), { allow: ["react"] });
+    const result = await experimental_scanPublicSdkOnly(fileURLToPath(new URL(".", import.meta.url)), { allow: [/^react$/] });
     expect(result.violations).toEqual([]); expect(result.privateDependencies).toEqual([]);
   });
   it("sends the latest claimed content once, including Bcc; a reload cannot repeat it", async () => {
