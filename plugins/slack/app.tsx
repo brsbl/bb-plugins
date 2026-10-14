@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { definePluginApp, useRpc, type PluginPendingInteractionProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract, Status } from "./contract.js";
+import manifest from "./slack-app-manifest.json";
 import "./app.css";
+const slackAppUrl = `https://api.slack.com/apps?new_app=1&manifest_json=${encodeURIComponent(JSON.stringify(manifest))}`;
 
 function TokenForm({ save, cancel }: { save: (token: string) => Promise<unknown>; cancel?: () => void }) {
   const [token, setToken] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
@@ -14,7 +16,7 @@ function TokenForm({ save, cancel }: { save: (token: string) => Promise<unknown>
     <label htmlFor="slack-user-token">User OAuth Token</label>
     <input id="slack-user-token" type="password" autoComplete="off" spellCheck={false} placeholder="xoxp-…" value={token} onChange={event => setToken(event.target.value)} disabled={busy} required />
     <p className="slack-hint">Stored in Slack’s secret settings. The token never appears in chat or reaches your agent.</p>
-    <details><summary>Get a token</summary><p>Create and install a Slack app in your workspace using the <a href="https://github.com/brsbl/bb-plugins/blob/main/plugins/slack/slack-app-manifest.json" target="_blank" rel="noreferrer">supplied app manifest</a>. Copy its User OAuth Token from OAuth &amp; Permissions. Your workspace may require an admin to approve the app.</p></details>
+    <details><summary>Get a token</summary><p>Create and install a Slack app in your workspace using the <a href={slackAppUrl} target="_blank" rel="noreferrer">preconfigured app setup</a>. Copy its User OAuth Token from OAuth &amp; Permissions. Your workspace may require an admin to approve the app.</p></details>
     {error && <p role="alert">{error}</p>}
     <div className="slack-actions">{cancel && <button type="button" onClick={cancel} disabled={busy}>Cancel</button>}<button type="submit" disabled={busy || !token.trim()}>{busy ? "Connecting…" : "Connect Slack"}</button></div>
   </form>;

@@ -15,7 +15,8 @@
       "node",
       "vitest/globals"
     ],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "resolveJsonModule": true
   },
   "include": [
     "*.ts",

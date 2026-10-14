@@ -9,7 +9,7 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/inline-acti
 bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/slack --yes
 ```
 
-Requires Inline Decisions 0.2.3 or newer for Slack Reply cards. The generated install refs carry the built bundles and work on either bb server without a host-specific path.
+Requires the Slack-compatible Inline Decisions release with the `service: "slack"` Reply field and `create`, `claim`, and `report` RPCs. Reads and Connect work independently. The generated install refs carry the built bundles and work on either bb server without a host-specific path.
 
 ## Use
 
