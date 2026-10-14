@@ -89,6 +89,7 @@ export const tableViewSchema = tableSchema.extend({ items: z.array(itemViewSchem
 export type TableView = z.infer<typeof tableViewSchema>;
 
 export function actionLabel(item: Item, action: Action): string {
+  if (item.content.type === "reply" && item.content.service === "slack" && action === "send") return "Send to Slack";
   if (item.content.type === "decide") {
     if (action === "yes") return item.content.yesLabel ?? "Yes";
     if (action === "no") return item.content.noLabel ?? "No";

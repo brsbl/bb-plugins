@@ -299,7 +299,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
         : <>{reply && reply.service !== "slack" && <MenuAction onSelect={() => void act("save-draft")}>{unseen("save-draft") ? "Review and save to Gmail drafts" : "Save to Gmail drafts"}</MenuAction>}<MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
         <MenuAction onSelect={openThread}>Open thread</MenuAction></>;
       secondary = reply ? commentButton : choice ? null : decideButton("no");
-      primary = reply ? button(unseen("send") ? "Review and send" : "Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined, reviewTarget)
+      primary = reply ? button(unseen("send") ? (reply.service === "slack" ? "Review and send to Slack" : "Review and send") : actionLabel(item, "send"), "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined, reviewTarget)
         : choice ? chooseButton : decideButton("yes");
     }
     return <article className={quiet ? "iac-log-row iac-log-quiet" : later ? "iac-log-row iac-log-later" : "iac-log-row"} aria-label={`${kind}: ${heading}`}>
@@ -323,6 +323,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
         {primary && <span className="iac-log-primary">{primary}</span>}
       </div>
       {viewResult && <div className="iac-log-draft">
+        {reply?.service === "slack" && context && <ContextBlock><Markdown content={context} /></ContextBlock>}
         {reply ? <>
           {recipients}
           {original}
