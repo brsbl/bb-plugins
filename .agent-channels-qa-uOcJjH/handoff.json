@@ -1,0 +1,175 @@
+{
+  "result": "FAIL: seven confirmed rendering differences",
+  "coreCommit": "59a1fcc29f4fa470e6aa4fc6067853096da6abbe",
+  "pluginInstallRef": "git:https://github.com/brsbl/bb-plugins.git@plugin/delegation",
+  "pluginCommit": "4bba814531ac8621c3a43c62773b04510d27c9ec",
+  "pluginVersion": "0.1.0",
+  "browser": "Chrome for Testing 154.0.8037.92",
+  "scale": 2,
+  "viewports": {
+    "normal": "1440 x 1000",
+    "equalWidthTimeline": "879 x 1000 (559 px timeline)",
+    "equalWidthChannel": "1440 x 1000 (559 px panel)",
+    "expanded": "1440 x 1000 (1120 px surface)"
+  },
+  "preview": {
+    "url": "http://localhost:13941/projects/proj_channelsqa/threads/thr_qalead",
+    "serverUrl": "http://127.0.0.1:21941",
+    "terminal": "term_smcckf42sg",
+    "host": "host_37m3sgpq59",
+    "environment": "env_xbcu45tjye",
+    "checkout": "/Users/brsbl/Code/bb",
+    "dataDir": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/data",
+    "log": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/dev.log",
+    "command": "env -u BB_THREAD_ID -u BB_PROJECT_ID -u BB_ENVIRONMENT_ID BB_DATA_DIR=/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/data BB_SERVER_PORT=21941 BB_HOST_DAEMON_PORT=29941 BB_DEV_APP_PORT=13941 BB_SERVER_URL=http://127.0.0.1:21941 BB_DEV_APP_HOST=127.0.0.1 BB_TELEMETRY=false NODE_ENV=development pnpm exec turbo run dev --filter=@bb/app --filter=@bb/server --filter=@bb/host-daemon --concurrency=4 --ui=stream",
+    "launcherDeviation": "scripts/bb-dev-app absent; installed ~/.local/bin/bb-dev-app stops other sessions and launches desktop. Ran current repository web dev tasks directly with fresh data."
+  },
+  "verification": {
+    "equalText": "Reference user/assistant messages and projected channel out/in share fixture source strings; routing metadata differs intentionally.",
+    "themes": "System light to dark to light; screenshots both themes",
+    "history": "31 paired turns; both surfaces reach Update 01 via scroll; normal timeline paginates/windowed; channel rendered all 62 after loading.",
+    "waiting": "API rollout needs-you dot and question present",
+    "peer": "Platform lead channel present",
+    "reload": "Hard reload of both reference and channel surfaces succeeded",
+    "audio": "HTML media play muted by page initialization; no audio/sound plugin installed; no media in fixtures",
+    "sourceChanges": "None; bb git status clean; plugin CSS and dispatch-app.tsx match published source byte-for-byte."
+  },
+  "pairs": [
+    {
+      "name": "Long message",
+      "timeline": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/timeline-long-bubble-v2.png",
+        "width": 738,
+        "height": 716
+      },
+      "channel": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/channel-long-light.png",
+        "width": 738,
+        "height": 1566
+      }
+    },
+    {
+      "name": "Expanded width",
+      "timeline": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/timeline-expanded-light-close.png",
+        "width": 2240,
+        "height": 800
+      },
+      "channel": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/channel-expanded-light-close.png",
+        "width": 2240,
+        "height": 800
+      }
+    },
+    {
+      "name": "Soft line breaks",
+      "timeline": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/timeline-handoff-light-v2.png",
+        "width": 1054,
+        "height": 228
+      },
+      "channel": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/channel-handoff-light-v2.png",
+        "width": 1054,
+        "height": 188
+      }
+    },
+    {
+      "name": "Dark surface",
+      "timeline": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/timeline-equal-dark-top.png",
+        "width": 1118,
+        "height": 1400
+      },
+      "channel": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/channel-equal-dark-top.png",
+        "width": 1118,
+        "height": 1400
+      }
+    },
+    {
+      "name": "Spacing and actions",
+      "timeline": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/timeline-spacing-actions-light.png",
+        "width": 1118,
+        "height": 420
+      },
+      "channel": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/channel-spacing-actions-light-v2.png",
+        "width": 1118,
+        "height": 420
+      }
+    },
+    {
+      "name": "Scroll navigation",
+      "timeline": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/timeline-history-light-close.png",
+        "width": 1118,
+        "height": 1500
+      },
+      "channel": {
+        "path": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/channel-history-light-close.png",
+        "width": 1118,
+        "height": 1500
+      }
+    }
+  ],
+  "measurements": {
+    "light": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/styles-light.json",
+    "dark": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_4jdu7fnpka-1/bb-plugins/.agent-channels-qa-uOcJjH/styles-dark.json"
+  },
+  "matched": "At 559px pane width: 527px message column; 368.890625px long bubble; 70% max-width; 12px radius; 1px border; 10px 16px padding; Inter Variable/Inter/sans-serif; 13px body, 21.125px line height. Standard headings, paragraphs, nested lists, code syntax, tables, emphasis and links had identical computed styles.",
+  "browserSessionClosed": true,
+  "defects": [
+    {
+      "id": 1,
+      "difference": "Long outgoing messages never collapse",
+      "timeline": "15lh = 316.875px content cap, fade + Show more; bubble 358.875px high",
+      "channel": "No height cap or toggle; identical text bubble 783.125px high",
+      "source": "plugins/delegation/dispatch-app.tsx:212 vs bb ConversationMessageContent.tsx:267"
+    },
+    {
+      "id": 2,
+      "difference": "Expanded reading column stretches",
+      "timeline": "1120px surface, 728px content, 509.594px bubble",
+      "channel": "1120px surface, 1088px content, 761.594px bubble",
+      "source": "plugins/delegation/app.css:53-56; no centered maximum"
+    },
+    {
+      "id": 3,
+      "difference": "Surface/backdrop changes bubble and code appearance",
+      "timeline": "light oklch(1 0 0); dark oklch(0.195 0 0)",
+      "channel": "light oklch(0.985064 0 0); dark oklch(0.221445 0 0)",
+      "source": "bb ThreadSecondaryPanel.tsx:896 bg-sidebar; plugin transparent .dp-panel"
+    },
+    {
+      "id": 4,
+      "difference": "Soft line breaks in outgoing text disappear",
+      "timeline": "Two br elements; handoff bubble 268.016 x 114.5px",
+      "channel": "Zero br elements; handoff bubble 368.891 x 93.375px",
+      "source": "bb ConversationMessageContent.tsx:245 preserveSoftBreaks; SDK Markdown has no prop for this"
+    },
+    {
+      "id": 5,
+      "difference": "Message spacing is 4px tighter at each boundary",
+      "timeline": "20px reserved action bar + 8px row gap = 28px",
+      "channel": "24px flex gap, no action bar",
+      "source": "plugins/delegation/app.css:55 vs ThreadTimelineRows.tsx:628 and MessageActionBar"
+    },
+    {
+      "id": 6,
+      "difference": "Message hover actions absent",
+      "timeline": "Assistant hover shows Copy, Reply in side chat, Message actions; user also Edit",
+      "channel": "No row controls",
+      "source": "plugins/delegation/dispatch-app.tsx:207 vs bb MessageActionBar"
+    },
+    {
+      "id": 7,
+      "difference": "No jump-to-latest when scrolled up",
+      "timeline": "32x32px Scroll to latest event button",
+      "channel": "No button; scrolling manually required",
+      "source": "plugins/delegation/dispatch-app.tsx:230 vs ThreadTimelineScrollToBottomButton.tsx:4"
+    }
+  ],
+  "sdkVerdict": "ThreadChat is exported and uses host timeline, but accepts only a threadId, not arbitrary merged rows or role mapping. It cannot reproduce a channel assembled across threads. Markdown is already reused. Exact shared message components require an additive SDK surface backed by core ConversationMessageContent (not private imports)."
+}
