@@ -1,4 +1,5 @@
-import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
+import { readdirSync } from "node:fs";
+import { createFakePluginHost, makePluginAgentConfigurationContext, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { expect, it } from "vitest";
 import plugin, { playgroundFromFile } from "./server.js";
 import { bill, stepper } from "./examples.js";
@@ -517,6 +518,18 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
     await expect(Promise.resolve().then(() => provider.resolve(saved.savedId))).rejects.toThrow(
       "no longer exists",
     );
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it("gives agents every skill the plugin ships", async () => {
+  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  try {
+    plugin(host.bb);
+    const configured = await host.harness.resolveAgentConfiguration(makePluginAgentConfigurationContext());
+    expect(configured.skills).toEqual(expect.arrayContaining(readdirSync(new URL("./skills", import.meta.url))));
+    expect(configured.tools.map((tool) => tool.name)).toContain("playground");
   } finally {
     await host.harness.lifecycle.dispose();
   }

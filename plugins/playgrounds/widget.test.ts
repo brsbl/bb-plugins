@@ -144,6 +144,26 @@ it("keeps a whole page's styles, scripts and body theme when it's shown as a car
   expect(markup).toBe('<style>.iso{color:red}</style><main class="iso-page">gauge</main><script type="module">go()</script>');
   expect(pageParts("<p>Body</p>")).toEqual({ markup: "<p>Body</p>", bodyAttributes: "" });
   const doc = buildWidgetDocument({ id: "a", html: page, state: null, theme: fallbackTheme });
-  expect(doc).toContain('<body class="iso" data-theme="dark"><style>.iso{color:red}</style>');
+  expect(doc).toContain('<body class="iso" data-theme="dark"><script>');
+  expect(doc).toContain('</script><style>.iso{color:red}</style>');
   expect(doc).not.toContain("onload");
+});
+
+it("passes a whole page without a complete body through unchanged, quickly", () => {
+  for (const page of ["<!doctype html><title>x</title><p>hi</p>", '<!doctype html><body class="x"><p>hi']) {
+    expect(pageParts(page)).toEqual({ markup: page, bodyAttributes: "" });
+  }
+  const started = performance.now();
+  pageParts("<!doctype html>" + "<head".repeat(200_000));
+  pageParts("<!doctype html><body>" + "<body".repeat(200_000));
+  expect(performance.now() - started).toBeLessThan(1_000);
+});
+
+it("gives an Anatomy page bb's theme before its own scripts read it", async () => {
+  const { dom } = frame(
+    '<!doctype html><html><head></head><body class="iso" data-theme="dark"><main class="iso-page"></main>' +
+      "<script>window.seen = document.body.dataset.theme</script></body></html>",
+  );
+  expect((dom.window as unknown as { seen?: string }).seen).toBe(fallbackTheme.scheme);
+  dom.window.close();
 });

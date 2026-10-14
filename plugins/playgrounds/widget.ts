@@ -212,15 +212,29 @@ export const FRAME_HEADERS = {
 
 // A whole page (an Anatomy figure, say) keeps its head styles and scripts and its
 // body's class and data-* attributes, so it renders in the card as it does alone.
+// A page without a complete body is passed through as before. Offsets are found
+// with linear scans so a crafted page can't make the frame route backtrack.
 export function pageParts(html: string): { markup: string; bodyAttributes: string } {
-  if (!/^\s*(<!doctype|<html[\s>])/i.test(html)) return { markup: html, bodyAttributes: "" };
-  const head = /<head[^>]*>([\s\S]*?)<\/head>/i.exec(html)?.[1] ?? "";
-  const body = /<body([^>]*)>([\s\S]*)<\/body>/i.exec(html);
-  const bodyAttributes = [...(body?.[1] ?? "").matchAll(/\s(class|data-[\w-]+)="([^"<>]*)"/g)]
+  const whole = { markup: html, bodyAttributes: "" };
+  if (!/^\s*(<!doctype|<html[\s>])/i.test(html)) return whole;
+  const lower = html.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+  const bodyOpen = /<body[\s>]/.exec(lower)?.index ?? -1;
+  const bodyStart = bodyOpen < 0 ? -1 : lower.indexOf(">", bodyOpen) + 1;
+  const bodyEnd = lower.lastIndexOf("</body>");
+  if (bodyStart <= 0 || bodyEnd < bodyStart) return whole;
+  const headOpen = /<head[\s>]/.exec(lower.slice(0, bodyOpen))?.index ?? -1;
+  const headStart = headOpen < 0 ? -1 : lower.indexOf(">", headOpen) + 1;
+  const headEnd = headStart <= 0 ? -1 : lower.indexOf("</head>", headStart);
+  const head = headEnd >= 0 && headEnd <= bodyOpen ? html.slice(headStart, headEnd) : "";
+  const bodyAttributes = [...html.slice(bodyOpen + 5, bodyStart - 1).matchAll(/\s(class|data-[\w-]+)="([^"<>]*)"/g)]
     .map(([, name, value]) => ` ${name}="${value}"`)
     .join("");
-  return { markup: head.replace(/<title[\s\S]*?<\/title>|<meta[^>]*>/gi, "") + (body ? body[2] : ""), bodyAttributes };
+  return { markup: head.replace(/<title[\s\S]*?<\/title>|<meta[^>]*>/gi, "") + html.slice(bodyStart, bodyEnd), bodyAttributes };
 }
+
+// An Anatomy page's own scripts read its theme once as they load, before the kit
+// starts, so the body takes bb's scheme before any of them run.
+const FIGURE_THEME = '<script>if (document.body.matches(".iso[data-theme]")) document.body.dataset.theme = document.documentElement.dataset.scheme;</script>';
 
 export function buildWidgetDocument({
   id,
@@ -235,5 +249,5 @@ export function buildWidgetDocument({
 }): string {
   const script = bridge(id, state, theme).replaceAll("</", "<\\/");
   const { markup, bodyAttributes } = pageParts(html);
-  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${CONTROLS_CSS}${CHART_CSS}${SETS_CSS}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body${bodyAttributes}>${markup}</body></html>`;
+  return `<!doctype html><html data-scheme="${theme.scheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${KIT}${CONTROLS_CSS}${CHART_CSS}${SETS_CSS}${usesLegacyKit(html) ? LEGACY_KIT : ""}</style><script>${script}</script></head><body${bodyAttributes}>${bodyAttributes ? FIGURE_THEME : ""}${markup}</body></html>`;
 }
