@@ -1,0 +1,61 @@
+{
+  "type": "Ladle design mockups; not product verification",
+  "thread": "thr_td96vbrcdf",
+  "ownerThread": "thr_hvp9f88gmv",
+  "environment": "env_uyknusc7ja",
+  "host": "host_37m3sgpq59",
+  "viewportCSS": [
+    1440,
+    1080
+  ],
+  "deviceScaleFactor": 2,
+  "captures": {
+    "after-dark-final.png": [
+      2880,
+      2160
+    ],
+    "after-light-final.png": [
+      2880,
+      2160
+    ],
+    "before-dark-final.png": [
+      2880,
+      2160
+    ],
+    "before-light-final.png": [
+      2880,
+      2160
+    ],
+    "dispatch-dark-final.png": [
+      2880,
+      2160
+    ],
+    "dispatch-light-final.png": [
+      2880,
+      2160
+    ],
+    "thread-tab-dark-final.png": [
+      2880,
+      2160
+    ],
+    "thread-tab-light-final.png": [
+      2880,
+      2160
+    ]
+  },
+  "themeSource": "/Users/brsbl/Code/bb/apps/app/src/components/ui/theme.css",
+  "bbSourceRevision": "59a1fcc29f4fa470e6aa4fc6067853096da6abbe",
+  "browser": "HeadlessChrome/154.0.0.0 via Browser Automation",
+  "checks": [
+    "expand event",
+    "team and thread filters",
+    "explicit reply link",
+    "jump to thread Dispatch tab",
+    "needs-attention controls",
+    "light and dark capture",
+    "no page errors during capture"
+  ],
+  "scope": "Mockups only. Reported before pattern is reconstructed with illustrative fixtures. No product source, PR, commits, or merges.",
+  "runtime": "Browser ce7f4e1b-c370-419e-9e62-aa4559ad9805 and terminal term_4fynbhpf8h closed. No desktop app launched.",
+  "retention": "Keep captures at these paths for the lifetime of the thread. Preserve the mockup directory before retiring the environment."
+}

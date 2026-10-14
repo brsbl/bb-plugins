@@ -1,0 +1,1 @@
+export default { viteConfig: "./vite.config.mjs", stories: ["./*.stories.tsx"], host: "0.0.0.0", addons: { control: { enabled:false }, theme: {enabled:false}, width:{enabled:false} } };
