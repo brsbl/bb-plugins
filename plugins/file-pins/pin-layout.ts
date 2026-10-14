@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
 
 // One stored order plus the files that are not pinned. The strip shows pinned
-// files in order at their natural width, as many as fit beside ⋯, which is always there and lists every pin.
+// files in order at their natural width, as many as fit beside ⋯, which is always there; its list holds the rest.
 // When they don't all fit, the longest labels truncate first, down to the minimum.
 export const PIN_MIN_WIDTH_CLASS = "w-24";
 // A pin this close to the longest pins' share keeps its full label; the longer pins absorb the difference.
