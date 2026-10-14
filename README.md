@@ -384,6 +384,14 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/s
 
 Read Slack channels and search messages as your connected user. Draft replies in editable approval cards and send only after you choose Send to Slack.
 
+![Masked Slack setup form](https://github.com/user-attachments/assets/cee1fa29-2009-46fd-ba3b-ee0dea04df62)
+
+![Connected fake Slack identity](https://github.com/user-attachments/assets/12ea8f6f-1e56-4dde-907e-bd50fbc64272)
+
+![After: Reply offers Send to Slack](https://github.com/user-attachments/assets/24fedb13-ca39-4716-8fd4-9378fe33961c)
+
+![Approved reply recorded as sent](https://github.com/user-attachments/assets/5fc0cc19-c897-4179-a1b5-57b7c16aed84)
+
 [Source](plugins/slack) · [README](plugins/slack/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/slack --yes`
