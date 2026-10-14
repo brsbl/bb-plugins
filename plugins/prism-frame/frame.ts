@@ -3,7 +3,7 @@ import { createRenderer } from "./renderer.js";
 
 export interface Options { pills: boolean; speed: number; strength: number }
 const FRAME = '.group\\/sidebar-wrapper';
-const SURFACES = `${FRAME}, [data-testid="app-nav-rail"], [data-testid="app-window-title-bar"]`;
+const SURFACES = `${FRAME}[data-framed], [data-testid="app-nav-rail"], [data-testid="app-window-title-bar"]`;
 const gradient = (colors: Derived["palette"]) => `linear-gradient(120deg, ${colors.map(css).join(", ")})`;
 
 export function mountFrame(options: Options) {
@@ -25,7 +25,7 @@ export function mountFrame(options: Options) {
   const stop = () => { cancelAnimationFrame(raf); raf = 0; last = 0; };
   const draw = (now: number) => {
     raf = 0;
-    if (disposed || document.hidden) { last = 0; return; }
+    if (disposed || document.hidden || ![...surfaces.values()].some(surface => surface.renderer)) { last = 0; return; }
     if (!last || now - last >= 1000 / 30) {
       if (last && !reduced.matches) elapsed += Math.min(0.1, (now - last) / 1000) * options.speed;
       last = now;
@@ -43,7 +43,7 @@ export function mountFrame(options: Options) {
   const resize = new ResizeObserver(schedule);
   const attach = () => {
     for (const [target, surface] of surfaces) {
-      if (!target.isConnected || !surface.layer.isConnected) {
+      if (!target.isConnected || !surface.layer.isConnected || !target.matches(SURFACES)) {
         surface.dispose();
         surfaces.delete(target);
       }
@@ -116,6 +116,11 @@ export function mountFrame(options: Options) {
         position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; overflow: hidden;
         background: ${gradient(theme.palette)};
       }
+      ${FRAME} > [data-prism-frame-layer] {
+        box-sizing: border-box; padding: inherit;
+        mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        mask-composite: exclude;
+      }
       [data-prism-frame-canvas] { display: block; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
       ${pillStyles}
     `;
@@ -131,12 +136,12 @@ export function mountFrame(options: Options) {
   colorsObserver.observe(document.body,{ attributes:true, attributeFilter:["class","style"] });
   colorsObserver.observe(document.head,{ childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:["href","media","disabled"] });
   const layoutObserver = new MutationObserver(records => {
-    if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node =>
+    if (records.some(record => record.type === "attributes" || [...record.addedNodes, ...record.removedNodes].some(node =>
       node instanceof Element && (node.matches(SURFACES) || node.querySelector(SURFACES) || node.hasAttribute("data-prism-frame-layer"))
     ))) refresh();
   });
   const root = document.getElementById("root") ?? document.body;
-  layoutObserver.observe(root,{ childList:true, subtree:true });
+  layoutObserver.observe(root,{ childList:true, subtree:true, attributes:true, attributeFilter:["data-framed"] });
   document.addEventListener("visibilitychange",schedule);
   document.head.addEventListener("load",refresh,true);
   window.addEventListener("resize",schedule);
