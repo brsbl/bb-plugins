@@ -19,10 +19,10 @@ Run from the owning thread (or add `--thread <id>`). `--item-stdin` avoids shell
 
 ```sh
 bb action-cards create esc-1 --item-stdin <<'JSON'
-{"type":"reply","summary":"Follow up on the missing billing refund","subject":"Re: Refund check","to":["billing@example.com"],"cc":[],"bcc":[],"original":{"from":"Billing team <billing@example.com>","date":"Jun 8","body":"We mailed your refund on June 8."},"draft":"Hello,\n\nCould you confirm the status of my refund check?\n\nThank you.","context":"**What this is:** a follow-up to Billing about your missing refund.\n\n**Why now:** Billing says it mailed the check, but you have not received it.\n\n**Options:** Send asks for an update now; Save to Gmail drafts keeps it for later editing.\n\n**Recommendation:** Send, to find out where the check is.\n\n**Next:** Send → I send the text shown here and report the result. Save → I save it in Gmail without sending."}
+{"type":"reply","summary":"Follow up on the missing billing refund","subject":"Re: Refund check","to":["billing@example.com"],"cc":[],"bcc":[],"original":{"from":"Billing team <billing@example.com>","date":"Jun 8","body":"We mailed your refund on June 8."},"draft":"Hello,\n\nCould you confirm the status of my refund check?\n\nThank you.","context":"- **What:** a follow-up to Billing about your missing refund check.\n- **Why now:** Billing says it mailed the check; you haven't received it.\n- **Options:** ask for an update now, or keep it as a Gmail draft.\n- **Recommendation:** send, to find out where the check is.\n- **Next:** I send this exact text or save it to Gmail, then report here."}
 JSON
 bb action-cards create receipts-1 --item-stdin <<'JSON'
-{"type":"decide","question":"File DigitalOcean under Receipts?","consequence":"Add the Receipts label to this invoice; it stays in your inbox.","context":"**What this is:** filing your DigitalOcean invoice under Receipts.\n\n**Why now:** it came up during inbox review.\n\n**Options:** Yes adds the label; No leaves it alone. Both keep it in the inbox.\n\n**Recommendation:** Yes, so it is easier to find.\n\n**Next:** Yes → I add the label and report it here. No → I record that it was left alone."}
+{"type":"decide","question":"File DigitalOcean under Receipts?","consequence":"Add the Receipts label to this invoice; it stays in your inbox.","context":"- **What:** your DigitalOcean invoice, still in the inbox.\n- **Why now:** it came up during inbox review.\n- **Options:** label it for easier lookup, or leave it untouched.\n- **Recommendation:** label it, so it's easy to find later.\n- **Next:** I apply the label or leave it, then report here."}
 JSON
 ```
 
@@ -32,7 +32,7 @@ To approve or decline one proposed action, use Decide. A No click declines the p
 
 ```sh
 bb action-cards create merge-pr --item-stdin <<'JSON'
-{"type":"decide","question":"Merge the reviewed PR?","consequence":"Squash-merge PR #123 into main at the reviewed head.","yesLabel":"Merge","noLabel":"Keep open","context":"**What this is:** the Workflow Inbox fix that preserves your message draft when submitting a decision.\n\n**Why now:** the reviewed build is ready for your merge decision. Include the actual verified CI, review and QA evidence here.\n\n**Options:** Merge releases it; Keep open leaves the current release installed.\n\n**Recommendation:** Merge once the stated gates are verified, because this removes a draft-loss bug.\n\n**Next:** Merge → I merge the exact reviewed head, watch release CI and check the release. Keep open → I leave the PR open."}
+{"type":"decide","question":"Merge the reviewed PR?","consequence":"Squash-merge PR #123 into main at the reviewed head.","yesLabel":"Merge","noLabel":"Keep open","context":"- **What:** Workflow Inbox fix that keeps your draft when you submit a decision.\n- **Why now:** the reviewed head is ready; [CI, review and QA](https://example.com/checks) passed.\n- **Options:** release the fix, or keep the current release installed.\n- **Recommendation:** merge; it removes a draft-loss bug.\n- **Next:** I merge that head and watch release CI, or leave the PR open."}
 JSON
 ```
 
@@ -42,7 +42,7 @@ Replace example identifiers with the actual target and include the exact reviewe
 
 **Every card needs a `context` brief**, including Reply cards and each row in a decision sheet. Assume the user just switched from another thread. A PR number, “as discussed,” a recommendation tag, a link, or prose above the card is not enough. When bringing another agent's decision to a lead, name that agent or org in the brief and preserve its concrete proposal.
 
-Write these five parts at the top of `context`, usually one short sentence each:
+Write the brief as **five short lines**, a Markdown list with one item per part. Each line is a fragment of about 15 words or fewer, so the whole brief is about 50–80 words:
 
 1. **What this is:** name the project or plugin and describe the proposal in plain words.
 2. **Why it's on you now:** name who asked, what triggered this, or what is waiting for the answer.
@@ -50,7 +50,7 @@ Write these five parts at the top of `context`, usually one short sentence each:
 4. **Recommendation and why:** state the preferred answer and its reason. If there is no clear preference, say why.
 5. **What happens next:** say what the agent will do after **each** answer. Declining an action never authorizes a different side effect.
 
-Keep `question` and `consequence` short; the brief carries the explanation. Aim for about 100–150 words, less for a simple decision. Put supporting evidence and exact revision links after the brief. The entire context stays visible: don't paste a whole report when a short explanation and a link suffice. If the user must approve exact text, include that text.
+Keep `question` and `consequence` short, and don't restate them, the option labels or hints in the brief. Don't paste reports, logs, tables, diffs or check lists; link them instead. The only exception is exact text the user must approve. If the brief doesn't fit in five short lines, the decision is too big: split it into smaller decisions, or link a note that holds the detail.
 
 `context` is Markdown (up to 20,000 characters), rendered like a chat message, with lists, code, tables and links. The CLI warns on stderr when it is absent, but still creates the card for compatibility. That is a warning to improve your next card, not permission to omit the brief. Do not recreate an existing card just to silence the warning.
 
@@ -60,29 +60,21 @@ Examples adapted from real cards; details below are illustrative:
 
 **Good:** question “Use this direction for Ops Tools?”; consequence “Set the direction for the tooling plan.”
 
-> **What this is:** Ops Tools' plan for the internal bb plugins that help the agent teams work together.
->
-> **Why it's on you now:** the planning lead asked each team for its goals; this team's draft needs your direction.
->
-> **Options:** Use it prioritizes complete workflows and fewer manual handoffs. Not yet keeps the draft open for revision.
->
-> **Recommendation:** Use it, because it addresses coordination across teams instead of one plugin.
->
-> **What happens next:** Use it → I finish the draft for review. Not yet → I revise it using your note before bringing it back.
+> - **What:** Ops Tools' goals for the internal plugins agent teams share.
+> - **Why now:** the planning lead needs each team's direction before finalizing.
+> - **Options:** whole workflows first, or hold the [draft](https://example.com/draft) for revision.
+> - **Recommendation:** use it; it fixes cross-team handoffs, not one plugin.
+> - **Next:** I finish the draft for review, or revise it from your note.
 
 **Bad:** “Merge #123?” with context “CI green, review and QA passed.” This names checks but never says what the product change does.
 
 **Good:** question “Merge the Workflow Inbox fix?”; consequence “Merge the reviewed head into main.”
 
-> **What this is:** Workflow Inbox will keep your unfinished message while you submit a decision.
->
-> **Why it's on you now:** you approved the preview; CI, review and QA passed on the exact head linked below.
->
-> **Options:** Merge releases the fix. Keep open leaves the current release installed.
->
-> **Recommendation:** Merge, because decisions no longer discard a draft.
->
-> **What happens next:** Merge → I merge that head, watch release CI, then install and check it. Keep open → I leave the PR open for your feedback.
+> - **What:** Workflow Inbox keeps your unfinished message when you submit a decision.
+> - **Why now:** you approved the preview; checks passed on [this head](https://example.com/head).
+> - **Options:** release the fix now, or keep the current release installed.
+> - **Recommendation:** merge; decisions stop discarding drafts.
+> - **Next:** I merge, watch release CI and install it; or leave the PR open.
 
 Replace illustrative claims with verified facts and include the exact head when approval depends on a revision. Never claim a gate passed just because an example says so.
 
@@ -97,7 +89,7 @@ A choice card asks one question and lists 2–6 options as a compact single-sele
 
 ```sh
 bb action-cards create account-setup --item-stdin <<'JSON'
-{"type":"choice","question":"Which account setup should bb use?","recommended":"multi","options":[{"id":"single","label":"UserSingle","hint":"One account for every thread"},{"id":"multi","label":"UserMultiple","hint":"Pick an account per thread"},{"id":"pool","label":"Pool","hint":"Rotate accounts by quota"}],"context":"**What this is:** bb’s account setup for new threads.\n\n**Why now:** you asked to choose which account new threads use.\n\n**Options:** UserSingle shares one account; UserMultiple lets you choose per thread; Pool rotates accounts by quota.\n\n**Recommendation:** UserMultiple, for explicit control without quota rotation.\n\n**Next:** I apply the chosen mode to new threads and report it; existing threads keep their setup."}
+{"type":"choice","question":"Which account setup should bb use?","recommended":"multi","options":[{"id":"single","label":"UserSingle","hint":"One account for every thread"},{"id":"multi","label":"UserMultiple","hint":"Pick an account per thread"},{"id":"pool","label":"Pool","hint":"Rotate accounts by quota"}],"context":"- **What:** which account new bb threads run on.\n- **Why now:** you asked to pick a default for new threads.\n- **Options:** simplest setup, per-thread control, or automatic quota rotation.\n- **Recommendation:** UserMultiple, for explicit control without quota rotation.\n- **Next:** I apply your pick to new threads; existing threads keep theirs."}
 JSON
 ```
 
@@ -111,7 +103,7 @@ Every card renders as a plain form. It names the source thread, then shows the q
 
 ```sh
 bb action-cards create news-1 --item-stdin <<'JSON'
-{"type":"decide","question":"DigitalOcean · September newsletter","consequence":"Archive this newsletter from the inbox.","yesLabel":"Archive","noLabel":"Keep","actionKey":"archive-email","context":"**What this is:** the DigitalOcean newsletter from September.\n\n**Why now:** it came up during inbox review and has no pending task.\n\n**Options:** Archive removes it from the inbox but keeps it searchable; Keep leaves it there.\n\n**Recommendation:** Archive, to clear the finished reading.\n\n**Next:** Archive → I archive this message and report it. Keep → I leave it in the inbox."}
+{"type":"decide","question":"DigitalOcean · September newsletter","consequence":"Archive this newsletter from the inbox.","yesLabel":"Archive","noLabel":"Keep","actionKey":"archive-email","context":"- **What:** DigitalOcean's September newsletter, with no pending task.\n- **Why now:** it came up during inbox review.\n- **Options:** clear it from the inbox (still searchable), or leave it.\n- **Recommendation:** archive; it's finished reading.\n- **Next:** I archive it or leave it, then report here."}
 JSON
 # Create news-2 and news-3 for the other messages, then:
 bb action-cards create-table newsletters --table-stdin <<'JSON'
