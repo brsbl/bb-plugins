@@ -44,3 +44,5 @@ npm run check --workspace=bb-plugin-inline-action-cards
 ```
 
 Run checks in remote CI. For local interaction verification, install the plugin only into an isolated source dev app. The Decision log page lists waiting and done cards across threads.
+
+Other plugins can create a card with `bb.sdk.plugins.callRpc({ pluginId: "inline-action-cards", method: "create", input: { threadId, id, content }, outputSchema })`. This uses the same validation and duplicate-ID protection as the CLI. Creating a card never submits or approves it.

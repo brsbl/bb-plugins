@@ -134,6 +134,10 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 Read campaign performance, search terms and ad copy, then prepare a decision for a manual change in Google Ads.
 
+![Google Ads connection and weekly read](https://github.com/user-attachments/assets/89911ba8-af00-4ab2-8338-b01df7f1ab3c)
+
+![Google Ads connected for read-only reports](https://github.com/user-attachments/assets/990f62f7-ad5b-4f7a-8fc7-580c7c1c6a31)
+
 [Source](plugins/google-ads) · [README](plugins/google-ads/README.md)
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/google-ads --yes`

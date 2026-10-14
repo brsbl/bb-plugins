@@ -67,7 +67,7 @@ export default function plugin(bb: BbPluginApi): void {
       await settings.experimental_set({ refreshToken });
       return status();
     },
-    async disconnect() { pending = undefined; client.clear(); await settings.experimental_set({ refreshToken: null }); return status(); },
+    async disconnect() { connectionRevision++; pending = undefined; client.clear(); await settings.experimental_set({ refreshToken: null }); return status(); },
   });
   const listCommands = Object.fromEntries(Object.entries(inventories).filter(([name]) => name !== "accounts").map(([name, query]) => [name, cliCommand({
     summary: name === "ads" ? "List ads with RSA headlines, descriptions, pinning and final URLs" : `List ${name}`,
@@ -80,7 +80,7 @@ export default function plugin(bb: BbPluginApi): void {
   bb.cli.register(defineCli({ name: "google-ads", summary: "Read Google Ads and prepare manual decisions; never change an account", commands: {
     ...listCommands,
     status: cliCommand({ summary: "Show connection readiness without secrets", options: { json }, run: () => guard(status) }),
-    connect: cliCommand({ summary: "Open the secure Google sign-in page in bb", options: { json }, run: () => guard(async () => ({ ...(await status()), path: "/plugins/google-ads", next: "Open Google Ads in bb. Save credentials through secret settings or bb's secrets flow, then Connect Google Ads. Paste the returned address only in that form, never in chat." })) }),
+    connect: cliCommand({ summary: "Open the secure Google sign-in page in bb", options: { json }, run: () => guard(async () => ({ ...(await status()), path: "/plugins/google-ads/google-ads", next: "Open Google Ads in bb. Save credentials through secret settings or bb's secrets flow, then Connect Google Ads. Paste the returned address only in that form, never in chat." })) }),
     configure: cliCommand({ summary: "Import credentials from a secrets-flow dotenv file on the invoking host", options: {
       json, "env-file": { type: "string", required: true, description: "Absolute path written by bb secret request" },
       machine: { type: "string", description: "Host ID (required outside a thread)" },
