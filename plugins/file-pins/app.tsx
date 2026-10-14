@@ -213,9 +213,8 @@ function PinStrip({ threadId }: { threadId: string }) {
     for (const child of Array.from(row.children)) observer.observe(child);
     return () => { row.removeEventListener("scroll", check); row.removeEventListener("wheel", wheel); observer.disconnect(); };
   }, [compact, metrics, pins, more]);
-  // On desktop the strip scrolls, so ⋯ is always there and lists every pin; compact strips list only what didn't fit.
-  const listed = compact ? layout.more : [...layout.strip, ...layout.more];
-  const moreLabel = compact ? `${listed.length} more ${listed.length === 1 ? "pin" : "pins"}` : `All pins, ${listed.length}`;
+  // ⋯ is always there and lists every pin: the strip's in order, then the ones that didn't fit or aren't pinned.
+  const listed = [...layout.strip, ...layout.more];
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
     // Apply locally first; saves run in order and
@@ -350,10 +349,10 @@ function PinStrip({ threadId }: { threadId: string }) {
         {layout.strip.map((pin) => stripPin(pin))}
       </div>
       {/* ⋯ sits outside the scrolling row, flush with the composer's right edge, so pins scroll under its fade and it never moves. */}
-      {listed.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-        <PopoverTrigger asChild><button type="button" aria-label={moreLabel} title={compact ? "More pins" : "All pins"} className={cn(moreClass, "-mr-1 cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
-        <PopoverContent aria-label={compact ? "More pins" : "All pins"} className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}><div className="max-h-64 overflow-y-auto">{listed.map((pin) => listRow(pin))}</div></PopoverContent>
-      </Popover>}
+      <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+        <PopoverTrigger asChild><button type="button" aria-label={`All pins, ${listed.length}`} title="All pins" className={cn(moreClass, "-mr-1 cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
+        <PopoverContent aria-label="All pins" className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}><div className="max-h-64 overflow-y-auto">{listed.map((pin) => listRow(pin))}</div></PopoverContent>
+      </Popover>
     </section>}
     {/* Mirrors the strip row with every pin at its natural width, plus ⋯ and the minimum pin, to measure what fits. */}
     <div ref={measureRow} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">

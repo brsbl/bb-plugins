@@ -4,7 +4,7 @@ import { layoutPins, pinFile, unpinFile, type PinMetrics } from "./pin-layout.js
 const order = ["a", "b", "c", "d", "e"];
 const pins = order.map((id) => ({ id }));
 const ids = (items: Array<{ id: string }>) => items.map((pin) => pin.id);
-// A strip `width` px wide with a 4px gap, a 28px ⋯ button and a 96px minimum pin.
+// A strip `width` px wide with a 4px gap, a 28px ⋯ button (always shown) and a 96px minimum pin.
 const metrics = (width: number, widths: Record<string, number>): PinMetrics => ({ width, gap: 4, more: 28, min: 96, pins: widths });
 const even = (width: number) => metrics(width, Object.fromEntries(order.map((id) => [id, 100])));
 
@@ -14,21 +14,21 @@ it("shows one short pin, or one long pin with room, at its full width", () => {
 });
 
 it("truncates the longest pins first and leaves shorter ones whole", () => {
-  // 600 - 2 gaps = 592; the 80px pin keeps its width and the two long ones share 512.
+  // 600 - 2 gaps - ⋯ and its gap = 560; the 80px pin keeps its width and the two long ones share 480.
   const layout = layoutPins(pins.slice(0, 3), [], metrics(600, { a: 80, b: 400, c: 300 }));
-  expect([ids(layout.strip), layout.caps]).toEqual([["a", "b", "c"], { b: 256, c: 256 }]);
+  expect([ids(layout.strip), layout.caps]).toEqual([["a", "b", "c"], { b: 240, c: 240 }]);
   // Only the longest pin truncates when that alone makes room.
-  expect(layoutPins(pins.slice(0, 3), [], metrics(600, { a: 80, b: 400, c: 150 })).caps).toEqual({ b: 362 });
+  expect(layoutPins(pins.slice(0, 3), [], metrics(600, { a: 80, b: 400, c: 150 })).caps).toEqual({ b: 330 });
   // A label just over the share (105.5 vs 105) stays whole; the two long pins give up the difference.
-  expect(layoutPins(pins.slice(0, 3), [], metrics(323, { a: 300, b: 300, c: 105.5 })).caps).toEqual({ a: 104.75, b: 104.75 });
+  expect(layoutPins(pins.slice(0, 3), [], metrics(355, { a: 300, b: 300, c: 105.5 })).caps).toEqual({ a: 104.75, b: 104.75 });
 });
 
 it("moves pins into ⋯ only once every shown pin is at the minimum", () => {
-  // Five 100px pins need 516px; at 510 each truncates slightly rather than overflowing.
-  const tight = layoutPins(pins, [], even(510));
-  expect([ids(tight.strip), tight.more, tight.caps]).toEqual([order, [], Object.fromEntries(order.map((id) => [id, 98.8]))]);
-  // At 490 five minimum pins (496) no longer fit, so the last goes to ⋯, which takes its own room.
-  const crowded = layoutPins(pins, [], even(490));
+  // Five 100px pins need 548px beside ⋯; at 540 each truncates slightly rather than overflowing.
+  const tight = layoutPins(pins, [], even(540));
+  expect([ids(tight.strip), tight.more, tight.caps]).toEqual([order, [], Object.fromEntries(order.map((id) => [id, 98.4]))]);
+  // At 510 five minimum pins (480 in 462px) no longer fit, so the last goes to ⋯.
+  const crowded = layoutPins(pins, [], even(510));
   expect([ids(crowded.strip), ids(crowded.more)]).toEqual([["a", "b", "c", "d"], ["e"]]);
 });
 
@@ -40,7 +40,7 @@ it("keeps labels whole on touch while they fit, then fills the rest of the row w
   // Two long links in a 350px phone strip: the first keeps its whole label; 66px is too little for the second, so it waits in ⋯.
   const phone = layoutPins(pins.slice(0, 2), [], metrics(350, { a: 280, b: 260 }), { whole: true });
   expect([ids(phone.strip), ids(phone.more), phone.caps]).toEqual([["a"], ["b"], {}]);
-  // Both fit whole when there is room, with no ⋯.
+  // Both fit whole beside ⋯ when there is room.
   expect(layoutPins(pins.slice(0, 2), [], metrics(350, { a: 150, b: 150 }), { whole: true })).toEqual({ strip: [{ id: "a" }, { id: "b" }], more: [], caps: {} });
   // A lone pin wider than the row still shows, truncated beside ⋯.
   const lone = layoutPins(pins.slice(0, 2), [], metrics(350, { a: 500, b: 100 }), { whole: true });
