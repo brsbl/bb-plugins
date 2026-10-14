@@ -524,11 +524,12 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
 });
 
 it("gives agents every skill the plugin ships", async () => {
-  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  const shipped = readdirSync(new URL("./skills", import.meta.url));
+  const host = createFakePluginHost({ pluginId: "playgrounds", agentSkillIds: shipped });
   try {
     plugin(host.bb);
     const configured = await host.harness.resolveAgentConfiguration(makePluginAgentConfigurationContext());
-    expect(configured.skills).toEqual(expect.arrayContaining(readdirSync(new URL("./skills", import.meta.url))));
+    expect([...configured.skills].sort()).toEqual([...shipped].sort());
     expect(configured.tools.map((tool) => tool.name)).toContain("playground");
   } finally {
     await host.harness.lifecycle.dispose();
