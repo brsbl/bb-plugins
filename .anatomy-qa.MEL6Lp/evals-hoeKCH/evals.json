@@ -1,0 +1,335 @@
+{
+  "format": "playgrounds-behavior-eval-results/v1",
+  "date": "2026-10-10",
+  "scope": "Behavioral evaluation of existing examples and private-library workflows; not a fresh-agent generation benchmark.",
+  "revision": "8465e6879db74cbc01c554b8e0a244a1fce44cbf",
+  "prs": [
+    405,
+    413
+  ],
+  "sourceHistory": [
+    "thr_2c4dqgaqx4",
+    "thr_x6wkp5kcx3"
+  ],
+  "ci": {
+    "url": "https://github.com/brsbl/bb-plugins/actions/runs/38078818544",
+    "artifact": "bb-plugin-playgrounds",
+    "artifactId": 11679910656,
+    "conclusion": "success",
+    "testsPassed": 24,
+    "anatomyTestsPassed": 8
+  },
+  "capture": {
+    "driver": "BB Browser Automation",
+    "backend": "local headless Chrome for Testing",
+    "session": "328a8631-5140-44d6-8b19-e99578f71ffe",
+    "closed": true,
+    "deviceScaleFactor": 2,
+    "desktopViewports": [
+      {
+        "width": 1280,
+        "height": 1800
+      },
+      {
+        "width": 1280,
+        "height": 1200
+      }
+    ],
+    "mobileViewport": {
+      "width": 390,
+      "height": 844
+    },
+    "screenshotDirectory": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_x6wkp5kcx3-1/bb-plugins/.anatomy-qa.MEL6Lp/evals-hoeKCH"
+  },
+  "preview": {
+    "url": "http://localhost:17529/plugins/playgrounds/library",
+    "server": "http://127.0.0.1:25529",
+    "terminal": "term_dwgy3ihcbs",
+    "host": "host_37m3sgpq59",
+    "environment": "env_4c38sk6scg",
+    "launchCommand": "pnpm dev",
+    "coreWorktree": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_x6wkp5kcx3-1/bb",
+    "pluginPath": "/Users/brsbl/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_x6wkp5kcx3-1/bb-plugins/.anatomy-qa.MEL6Lp/evals-hoeKCH/plugins/playgrounds",
+    "connectUrl": "https://bersabel-s-macbook-air--17529.getbb.app",
+    "note": "Existing persistent preview retained. Installed exact remote CI artifact and source snapshot without changing either active branch. Snapshot must remain while preview uses it."
+  },
+  "summary": {
+    "cases": 8,
+    "passed": 6,
+    "failed": 2,
+    "issues": 3
+  },
+  "cases": [
+    {
+      "id": "typography-causality",
+      "prompt": "Show how type size, line length, leading, and margins change an interface's typography.",
+      "basis": "Your request for a product-design instrument closer to Anatomy.",
+      "steps": [
+        "Open the typography press.",
+        "Choose Reading view.",
+        "Use the keyboard to set line length to 26 ch.",
+        "Compare the new type bed with the last printed proof."
+      ],
+      "expected": [
+        "Real text wrapping changes with the controls.",
+        "Leading equals type size multiplied by the leading value.",
+        "The last proof is unchanged until Print."
+      ],
+      "result": "pass",
+      "observed": {
+        "baselineBodyLines": 4,
+        "draftBodyLines": 7,
+        "fontSize": 18,
+        "measureCh": 26,
+        "leading": 1.65,
+        "computedLineHeightPx": 29.7,
+        "printedFontSizeBeforePrint": 16
+      },
+      "screenshots": [
+        "01-typography-draft.png"
+      ]
+    },
+    {
+      "id": "print-and-restore",
+      "prompt": "Print this composition, then keep my draft and last proof when I return.",
+      "basis": "Persistent interactive lessons inside the private Playgrounds library.",
+      "steps": [
+        "Print the 18 px / 26 ch composition and wait for the complete cycle.",
+        "Reload and verify the printed proof.",
+        "Change size to 19 px and immediately reload.",
+        "Repeat the edit, wait 700 ms, then reload without printing."
+      ],
+      "expected": [
+        "Printing commits the draft and completes its cycle.",
+        "Both printed and unprinted state survive returning.",
+        "All status labels agree with the restored state."
+      ],
+      "result": "fail",
+      "observed": {
+        "printCompleted": true,
+        "printedProofRestored": true,
+        "immediateReload": {
+          "beforeFontSize": 19,
+          "afterFontSize": 18
+        },
+        "after700ms": {
+          "draftFontSize": 19,
+          "printedFontSize": 18,
+          "stageLabel": "Press ready · type and proof match",
+          "draftLabel": "Type is set. Print to see this composition."
+        }
+      },
+      "issues": [
+        "A reload before the save debounce completes loses the latest edit.",
+        "Initial restoration of a dirty draft shows a false matching-proof status."
+      ],
+      "screenshots": [
+        "02-typography-printed.png",
+        "03-restored-draft-status.png"
+      ]
+    },
+    {
+      "id": "spring-presets",
+      "prompt": "Let me feel the difference between gentle and bouncy interface motion.",
+      "basis": "Your selected interface motion rig example.",
+      "steps": [
+        "Run Gentle and observe a full cycle.",
+        "Run Bouncy and observe a full cycle.",
+        "Read the live drawer transform over time and compare the trace."
+      ],
+      "expected": [
+        "Gentle settles without overshoot.",
+        "Bouncy passes the target then settles.",
+        "The drawing, interface drawer, and readouts agree."
+      ],
+      "result": "pass",
+      "observed": {
+        "gentlePeakPosition": 1,
+        "gentleFinalPosition": 1,
+        "bouncyPeakPosition": 1.31671,
+        "bouncyFinalPosition": 1,
+        "bouncyDisplayedIdealOvershootPercent": 32.4
+      },
+      "screenshots": [
+        "04-motion-gentle.png",
+        "05-motion-bouncy.png"
+      ]
+    },
+    {
+      "id": "motion-interruption",
+      "prompt": "Close the drawer while it is opening, then drag it yourself.",
+      "basis": "A product-design lesson about responsive, interruptible motion.",
+      "steps": [
+        "Start Bouncy, then click Close during the opening.",
+        "Observe position continuity and continued momentum.",
+        "Drag the carriage halfway and release.",
+        "Use Home and End on the focused rig."
+      ],
+      "expected": [
+        "Changing destination does not teleport the drawer or discard its momentum.",
+        "Rig and interface move together when dragged.",
+        "Keyboard controls change the target."
+      ],
+      "result": "pass",
+      "observed": {
+        "positionBeforeClose": 0.76038,
+        "positionImmediatelyAfterClose": 0.76038,
+        "velocityReadoutBeforeClose": "+7.36/s",
+        "peakAfterClose": 0.91763,
+        "minimumAfterClose": -0.29341,
+        "finalPosition": 0,
+        "dragHeldPositionPercent": 50,
+        "draggedInterfaceTransform": "translateX(49.997%)",
+        "keyboardHomeTargetPercent": 0,
+        "keyboardEndTargetPercent": 100
+      },
+      "screenshots": [
+        "06-motion-interrupted.png"
+      ]
+    },
+    {
+      "id": "agent-steering",
+      "prompt": "Set spring stiffness to 1000, damping to -4, and the target halfway open.",
+      "basis": "Playgrounds exposed actions let an agent demonstrate the same instrument the user controls.",
+      "steps": [
+        "Call the open rig's set action through the plugin CLI.",
+        "Read the returned state and rendered controls.",
+        "Call the Gentle preset through the same action interface."
+      ],
+      "expected": [
+        "Out-of-range input is normalized.",
+        "Agent state matches visible controls.",
+        "Named presets use the same runtime as clicks."
+      ],
+      "result": "pass",
+      "observed": {
+        "requested": {
+          "stiffness": 1000,
+          "damping": -4,
+          "target": 0.5
+        },
+        "applied": {
+          "stiffness": 400,
+          "damping": 1,
+          "target": 0.5
+        },
+        "gentleApplied": {
+          "stiffness": 90,
+          "damping": 20,
+          "target": 1
+        }
+      },
+      "screenshots": [
+        "07-agent-clamped-inputs.png"
+      ]
+    },
+    {
+      "id": "private-library-reuse",
+      "prompt": "Save this for myself, rename it, and bring it back with my saved inputs.",
+      "basis": "Your explicit decision to have a private library with independent reused copies.",
+      "steps": [
+        "Save the existing six-person calculator to a new library item.",
+        "Set the saved copy to eight people.",
+        "Rename it in the UI, navigate to the library, and reopen it.",
+        "Publish the saved item into a thread without that playground.",
+        "Change that thread's copy to four people and verify the saved item remains eight.",
+        "Publish the saved item back into the original six-person thread."
+      ],
+      "expected": [
+        "Saved inputs and title survive reopening.",
+        "New thread copies are independent.",
+        "Reusing a saved item shows its saved inputs, including in the original thread."
+      ],
+      "result": "fail",
+      "observed": {
+        "savedPeople": 8,
+        "savedPerPerson": 18,
+        "totalWithTip": 144,
+        "reopenedTitle": "Eval · saved for eight",
+        "newThreadInitialPeople": 8,
+        "newThreadAfterEditPeople": 4,
+        "savedPeopleAfterThreadEdit": 8,
+        "originalThreadAfterReusePeople": 6,
+        "originalThreadPerPerson": 24
+      },
+      "issues": [
+        "Publishing a saved playground into a thread that already owns the same playground ID leaves the thread's old inputs in place."
+      ],
+      "screenshots": [
+        "12-saved-renamed-eight.png",
+        "13-reuse-original-six.png"
+      ]
+    },
+    {
+      "id": "mobile-keyboard-reduced-motion",
+      "prompt": "Let me use both design instruments on a narrow screen and with reduced motion.",
+      "basis": "The instruments are embedded in bb and should remain usable across its supported layouts.",
+      "steps": [
+        "Use 390 x 844 CSS px and System dark theme.",
+        "Exercise keyboard controls.",
+        "Print a 64 ch wide proof and verify only the proof bench scrolls horizontally.",
+        "Exercise reduced-motion Close then Open on the served motion frame.",
+        "Print a Compact card with reduced motion."
+      ],
+      "expected": [
+        "The page fits horizontally.",
+        "Keyboard interaction works.",
+        "Reduced motion reaches the requested resting state without animation or trace."
+      ],
+      "result": "pass",
+      "observed": {
+        "outerViewportWidth": 390,
+        "outerDocumentWidth": 390,
+        "frameViewportWidth": 340,
+        "frameDocumentWidth": 340,
+        "wideProofBenchWidth": 294,
+        "wideProofScrollWidth": 842,
+        "reducedMotionClosePercent": 0,
+        "reducedMotionOpenPercent": 100,
+        "reducedMotionTrace": "",
+        "reducedPrintBusy": false,
+        "reducedPrintCarriageTransform": null
+      },
+      "methodNote": "Reduced-motion emulation was applied to the actual served frame URL in a second page in the same Browser Automation session because parent-page emulation does not propagate to this opaque OOPIF. The frame's own UI was exercised. No mocked bridge or code substitution.",
+      "screenshots": [
+        "08-mobile-motion-dark.png",
+        "10-mobile-press-dark.png",
+        "09-reduced-motion.png"
+      ]
+    },
+    {
+      "id": "creator-credit-and-self-contained-artifact",
+      "prompt": "Make this an Anatomy-based playground and credit the creator.",
+      "basis": "Your original request to credit Ryan and combine the interactive-learning inspiration.",
+      "steps": [
+        "Inspect the visible creator footer in both instruments.",
+        "Verify its links and the inline MIT notice.",
+        "Inspect the actual frame sandbox and resource entries."
+      ],
+      "expected": [
+        "Ryan's drawing kit is visibly credited.",
+        "The Bugged Dev is credited for inspiration.",
+        "Ryan's MIT notice remains in the distributed HTML.",
+        "The figure runs using inline resources in the existing frame sandbox."
+      ],
+      "result": "pass",
+      "observed": {
+        "ryanUrl": "https://skills.wheresryan.sh/anatomy",
+        "inspirationUrl": "https://x.com/thebuggeddev/status/2108720133422395590?s=20",
+        "inlineCopyright": "Copyright (c) 2026 Ryan",
+        "frameSandbox": "allow-scripts",
+        "motionExternalResourceEntries": []
+      },
+      "screenshots": [
+        "14-creator-credit.png",
+        "01-typography-draft.png"
+      ]
+    }
+  ],
+  "fixtureAftercare": {
+    "typography": "Restored default 16/44/1.55/24 draft and proof.",
+    "motion": "Restored Bouncy 140/8 target 1.",
+    "savedEvalCopy": "5aba33d9-17a6-4127-82fc-9aaddb0a025b remains for reproducing the eight-person reuse case.",
+    "sourceFixture": "thr_wetddizgku now also contains an independent four-person copy of the calculator."
+  }
+}
