@@ -59,7 +59,7 @@ export function derive(theme: Theme, strength: number) {
   const highlight = surfaceMix(base, theme.ink, 0.12);
   const [canvasL, ca, cb] = lab(theme.canvas);
   const shadow = rgb([Math.max(0.03, canvasL * 0.35), ca * 0.35, cb * 0.35]);
-  return { base, palette, normal, selected, text, icon, border, selectedBorder, highlight, shadow };
+  return { palette, normal, selected, text, icon, border, selectedBorder, highlight, shadow };
 }
 export type Derived = ReturnType<typeof derive>;
 export const css = (c: Color) => `rgb(${c.map(v => (clamp(v) * 255).toFixed(2)).join(" ")})`;

@@ -19,7 +19,6 @@ test('light and dark pill text stays readable through normal and selected gradie
 });
 
 test('the frame preserves distinct theme surfaces and does not invent color in neutral themes',()=>{
-  for(const theme of themes) assert.deepEqual(derive(theme,.78).base,theme.sidebar);
   assert.notDeepEqual(derive(themes[0],.78).palette,derive(themes[1],.78).palette);
   const neutral=Object.fromEntries(Object.entries(themes[0]).map(([key,color])=>[key,Array(3).fill(color[0])]));
   for(const color of derive(neutral,1).palette) assert.ok(Math.max(...color)-Math.min(...color)<.001);

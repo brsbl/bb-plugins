@@ -14,7 +14,6 @@ export function mountFrame(options: Options) {
   let theme = derive(reader.read(), options.strength);
   const surfaces = new Map<HTMLElement, {
     layer: HTMLDivElement;
-    canvas: HTMLCanvasElement;
     renderer: ReturnType<typeof createRenderer>;
     dispose: () => void;
   }>();
@@ -59,7 +58,7 @@ export function mountFrame(options: Options) {
       canvas.dataset.prismFrameCanvas = "";
       canvas.setAttribute("aria-hidden", "true");
       layer.append(canvas);
-      const surface = { layer, canvas, renderer: createRenderer(canvas), dispose: () => {
+      const surface = { layer, renderer: createRenderer(canvas), dispose: () => {
         resize.unobserve(target);
         canvas.removeEventListener("webglcontextlost", lost);
         canvas.removeEventListener("webglcontextrestored", restored);
