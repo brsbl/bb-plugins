@@ -14,7 +14,8 @@ import { PinPopover as Popover, PinPopoverContent as PopoverContent, PinPopoverT
 import { layoutPins, pinFile, PIN_MIN_WIDTH_CLASS, useMeasurePins, type Arrangement } from "./pin-layout.js";
 import { previewTarget } from "./open-target.js";
 import { pinTooltip } from "./pin-tooltip.js";
-import { LinkPreviewCard } from "./link-preview-card.js";
+import { LinkPreviewCard, PREVIEW_HOLD_MS, preparePreview } from "./link-preview-card.js";
+import { pinLabel } from "./pin-label.js";
 import { previewClient, previewKey, refreshNotice } from "./preview-client.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { prStateLabel, showsPrState, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
@@ -41,6 +42,33 @@ function plainClick(event: MouseEvent<HTMLAnchorElement>) {
 }
 function PinIcon({ threadId, pin }: { threadId: string; pin: Reference }) {
   return isUrlPin(pin) ? <UrlPinIcon threadId={threadId} pin={pin} /> : <ReferenceIcon path={pin.path} muted={pin.status === "missing"} />;
+}
+
+const tipClass = "w-72 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg";
+const tipAddressClass = "border-b bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground break-all";
+
+/**
+ * A link's preview card, opened whole: hovering or focusing the pin starts loading its preview while the tooltip
+ * delay runs, and the card opens once the preview and its image are ready, or after PREVIEW_HOLD_MS with what it has.
+ */
+function HeldTooltip({ prepare, trigger, address, card }: { prepare: () => Promise<void>; trigger: ReactElement; address: string; card: ReactElement }) {
+  const [open, setOpen] = useState(false);
+  const request = useRef(0);
+  useEffect(() => () => { request.current++; }, []);
+  function onOpenChange(next: boolean) {
+    const ticket = ++request.current;
+    if (!next) { setOpen(false); return; }
+    const show = () => { if (request.current === ticket) setOpen(true); };
+    const timer = setTimeout(show, PREVIEW_HOLD_MS);
+    void prepare().then(() => { clearTimeout(timer); show(); });
+  }
+  return <Tooltip open={open} onOpenChange={onOpenChange}>
+    <TooltipTrigger asChild onPointerEnter={() => void prepare()} onFocus={() => void prepare()}>{trigger}</TooltipTrigger>
+    <TooltipContent side="top" sideOffset={6} className={tipClass}>
+      <div className={tipAddressClass}>{address}</div>
+      {card}
+    </TooltipContent>
+  </Tooltip>;
 }
 
 // True while the strip is the composer stack's top row, so a fade above it covers only timeline text, never another banner.
@@ -185,6 +213,9 @@ function PinStrip({ threadId }: { threadId: string }) {
     for (const child of Array.from(row.children)) observer.observe(child);
     return () => { row.removeEventListener("scroll", check); row.removeEventListener("wheel", wheel); observer.disconnect(); };
   }, [compact, metrics, pins, more]);
+  // On desktop the strip scrolls, so ⋯ is always there and lists every pin; compact strips list only what didn't fit.
+  const listed = compact ? layout.more : [...layout.strip, ...layout.more];
+  const moreLabel = compact ? `${listed.length} more ${listed.length === 1 ? "pin" : "pins"}` : `All pins, ${listed.length}`;
   const current: Arrangement = { order: pins.map((pin) => pin.id), more };
   function arrange(next: Arrangement) {
     // Apply locally first; saves run in order and
@@ -200,17 +231,19 @@ function PinStrip({ threadId }: { threadId: string }) {
   // A small, hoverable preview card for both pointer and keyboard users.
   function withTooltip(pin: Reference, trigger: ReactElement) {
     const tip = pinTooltip(pin, threadHostId);
+    if (isUrlPin(pin)) return <HeldTooltip key={pin.id} prepare={() => preparePreview(previewKey(threadId, pin.id, pin.url), () => rpc.call("preview", { threadId, pinId: pin.id }))}
+      trigger={trigger} address={tip.address} card={<LinkPreviewCard threadId={threadId} pin={pin} />} />;
     return <Tooltip>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-      <TooltipContent side="top" sideOffset={6} className="w-72 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg">
-        <div className="border-b bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground break-all">{tip.address}</div>
-        {isUrlPin(pin) ? <LinkPreviewCard threadId={threadId} pin={pin} /> : <div className="flex items-start gap-2 px-3 py-2.5">
+      <TooltipContent side="top" sideOffset={6} className={tipClass}>
+        <div className={tipAddressClass}>{tip.address}</div>
+        <div className="flex items-start gap-2 px-3 py-2.5">
           <span className="mt-0.5 shrink-0"><PinIcon threadId={threadId} pin={pin} /></span>
           <div className="min-w-0">
             <div className="font-medium leading-5 break-words">{tip.title}</div>
             {tip.note && <div className="mt-0.5 text-xs text-muted-foreground">{tip.note}</div>}
           </div>
-        </div>}
+        </div>
       </TooltipContent>
     </Tooltip>;
   }
@@ -270,19 +303,19 @@ function PinStrip({ threadId }: { threadId: string }) {
     const cap = layout.caps[pin.id];
     const style = cap === undefined ? undefined : { maxWidth: cap };
     const link = isUrlPin(pin) ? <UrlLink href={pin.url} style={style} aria-label={openLabel(pin)} className={cn(pinClass, "cursor-pointer")}>
-      <PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pin.name}</span>
+      <PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pinLabel(pin)}</span>
     </UrlLink> : pin.status === "missing" ? <span className="relative inline-flex min-w-0" style={style}>
       <span aria-label={`${pin.name} (missing)`} className={cn(pinClass, "cursor-default pr-4 text-destructive/55 hover:text-destructive/55")}>
-        <ReferenceIcon path={pin.path} muted /><span className="truncate">{pin.name}</span><span className="sr-only"> (missing)</span>
+        <ReferenceIcon path={pin.path} muted /><span className="truncate">{pinLabel(pin)}</span><span className="sr-only"> (missing)</span>
       </span>
       <button type="button" disabled={busy} aria-label={`Unpin missing ${pin.name}`} onClick={() => void remove(pin)}
         className="absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded-sm text-xs leading-none text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">×</button>
     </span> : <FileLink target={linkTarget(pin)} onClick={(event) => open(pin, event)} style={style}
-      aria-label={openLabel(pin)} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "[&>*]:opacity-60")}><PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pin.name}</span></FileLink>;
+      aria-label={openLabel(pin)} className={cn(pinClass, pin.status === "available" ? "cursor-pointer" : "[&>*]:opacity-60")}><PinIcon threadId={threadId} pin={pin} /><span className="truncate group-hover:underline">{pinLabel(pin)}</span></FileLink>;
     return <ContextMenu key={pin.id}>{withTooltip(pin, <ContextMenuTrigger asChild>{link}</ContextMenuTrigger>)}{contextMenu(pin)}</ContextMenu>;
   }
   function listRow(pin: Reference) {
-    const name = <><PinIcon threadId={threadId} pin={pin} /><span className="truncate">{pin.name}</span></>;
+    const name = <><PinIcon threadId={threadId} pin={pin} /><span className="truncate">{pinLabel(pin)}</span></>;
     // Right-click opens the row's ⋯ menu, anchored beside the row, in place of FileLink's own menu.
     const onContextMenu = (event: MouseEvent) => { event.preventDefault(); setRowMenu(pin.id); };
     const link = isUrlPin(pin)
@@ -307,25 +340,26 @@ function PinStrip({ threadId }: { threadId: string }) {
   return <TooltipProvider delayDuration={300}><div ref={root} className="relative min-w-0">
     {/* bb's composer fade, repeated above the flat strip so text scrolling under it doesn't end in a hard edge. */}
     {fade && <span aria-hidden="true" data-overflow-fade="above" className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-b from-transparent to-background" />}
-    {pins.length > 0 && <section aria-label="Pinned files and links" className="min-w-0 overflow-hidden rounded-lg px-1 py-1">
+    {pins.length > 0 && <section aria-label="Pinned files and links" className="flex min-w-0 items-center gap-1 overflow-hidden rounded-lg px-1 py-1">
       <div ref={scrollRow}
-        className={cn("flex min-w-0 items-center gap-1", !compact && "-m-0.5 overflow-x-auto p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:scroll-mx-4")}
+        className={cn("flex min-w-0 flex-1 items-center gap-1", !compact && "-m-0.5 overflow-x-auto p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:scroll-mx-4")}
         style={compact ? undefined : { maskImage: `linear-gradient(to right, ${edges.left ? "transparent, black 16px" : "black"}, ${edges.right ? "black calc(100% - 16px), transparent" : "black"})` }}
         onFocusCapture={(event) => {
           if (!compact) event.target.scrollIntoView({ block: "nearest", inline: "nearest" });
         }}>
         {layout.strip.map((pin) => stripPin(pin))}
-        {layout.more.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-          <PopoverTrigger asChild><button type="button" aria-label={`${layout.more.length} more ${layout.more.length === 1 ? "pin" : "pins"}`} title="More pins" className={cn(moreClass, "cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
-          <PopoverContent aria-label="More pins" className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}><div className="max-h-64 overflow-y-auto">{layout.more.map((pin) => listRow(pin))}</div></PopoverContent>
-        </Popover>}
       </div>
+      {/* ⋯ sits outside the scrolling row, flush with the composer's right edge, so pins scroll under its fade and it never moves. */}
+      {listed.length > 0 && <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+        <PopoverTrigger asChild><button type="button" aria-label={moreLabel} title={compact ? "More pins" : "All pins"} className={cn(moreClass, "-mr-1 cursor-pointer")}><Icon name="MoreHorizontal" className="size-4" /></button></PopoverTrigger>
+        <PopoverContent aria-label={compact ? "More pins" : "All pins"} className={cn("p-1", compact ? "w-[calc(100vw-2rem)]" : "w-56")}><div className="max-h-64 overflow-y-auto">{listed.map((pin) => listRow(pin))}</div></PopoverContent>
+      </Popover>}
     </section>}
     {/* Mirrors the strip row with every pin at its natural width, plus ⋯ and the minimum pin, to measure what fits. */}
     <div ref={measureRow} aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 flex h-0 items-center gap-1 overflow-hidden px-1">
       {pins.map((pin) => <span key={pin.id} data-pin-id={pin.id} className={cn(pinClass, "shrink-0", !isUrlPin(pin) && pin.status === "missing" && "pr-4")}>
         {isUrlPin(pin) && showsPrState(pin.url) ? <span className="flex shrink-0 gap-0.5"><span className="size-3.5" /><span className="size-3.5" /></span> : <span className="size-3.5 shrink-0" />}
-        <span className="truncate">{pin.name}</span>
+        <span className="truncate">{pinLabel(pin)}</span>
       </span>)}
       <span data-measure="more" className={moreClass}><Icon name="MoreHorizontal" className="size-4" /></span>
       <span data-measure="min" className={cn(PIN_MIN_WIDTH_CLASS, "shrink-0")} />

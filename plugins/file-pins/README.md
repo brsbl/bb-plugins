@@ -30,7 +30,11 @@ URLs are never pinned, superseded links are replaced rather than piling up, and 
 removed when its server is retired. A short always-on instruction points every thread at the skill's rule.
 
 Pinned files read as quiet raised chips above the composer. On desktop, the strip scrolls horizontally
-with a trackpad or Shift-wheel; edge fades indicate more pins, and keyboard focus brings a pin into view.
+with a trackpad or Shift-wheel under a fixed **⋯** at its right edge, which lists every pin; edge fades
+indicate more pins, and keyboard focus brings a pin into view. Long labels shorten by one rule set in
+[`pin-label.ts`](pin-label.ts): file names lose their middle and keep the extension, titles lose their end at
+a word, and addresses drop path segments before the host. Hover cards open once the preview and its image
+have loaded (prefetched as the pointer arrives), or after 800 ms with what has arrived.
 Each chip is as wide as its label. In narrow windows, labels truncate only when the strip runs out of
 room, and pinned files that still don't fit lead the **⋯** list. On touch screens, which have no hover to
 show a full label, pins keep their whole labels while they fit, the next pin fills what is left of the
