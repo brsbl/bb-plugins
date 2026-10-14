@@ -11,6 +11,7 @@ describe("classifySelector", () => {
     expect(classifySelector(":root, .light")).toBe("shared");
     expect(classifySelector(":root")).toBe("shared");
     expect(classifySelector(":root:not(.dark)")).toBe("light");
+    expect(classifySelector(":root:not(.dark), .light:not(.dark)")).toBe("light");
     expect(classifySelector(".dark")).toBe("dark");
     expect(classifySelector(".dark .fixed.bg-sidebar")).toBeNull();
     expect(classifySelector("code:not(pre code)")).toBeNull();
@@ -34,6 +35,16 @@ describe("parseThemeSwatches", () => {
     expect(dark?.primary).toBe("#ffffff");
     // the element-scoped override describes one surface, not the palette
     expect(dark?.sidebar).toBe("#0a0a0a");
+  });
+
+  it("keeps light-only overrides out of the dark swatch", () => {
+    const parsed = parseThemeSwatches(`
+      :root, .light { --canvas: #eeeeee; }
+      .dark { --canvas: #222222; }
+      :root:not(.dark), .light:not(.dark) { --canvas: #fefefe; }
+    `);
+    expect(parsed.light?.canvas).toBe("#fefefe");
+    expect(parsed.dark?.canvas).toBe("#222222");
   });
 
   it("falls back across token candidates and overlays the base palette", () => {
@@ -286,6 +297,36 @@ describe("createCatalogLoader", () => {
     expect(setCalls).toEqual(["theme-b"]);
     await rm(directory, { recursive: true, force: true });
   });
+
+  it("reapplies the active theme and increments the revision after an external write", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "theme-preview-revision-"));
+    const themeDirectory = join(directory, "theme-a");
+    const filePath = join(themeDirectory, "theme.css");
+    await mkdir(themeDirectory);
+    await writeFile(filePath, ":root { --canvas: #ffffff; }");
+    const setCalls: string[] = [];
+    const bb = {
+      sdk: {
+        theme: {
+          catalog: async () => ({ active: { themeId: "theme-a" }, custom: ["theme-a"], dir: directory }),
+          set: async (themeId: string) => { setCalls.push(themeId); },
+        },
+        plugins: { list: async () => ({ plugins: [] }) },
+      },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    try {
+      const loader = createCatalogLoader(bb);
+      expect((await loader.catalog()).revision).toBe(0);
+
+      await writeFile(filePath, ":root { --canvas: #dddddd; }\n/* external and longer */");
+      expect((await loader.catalog()).revision).toBe(1);
+      expect(setCalls).toEqual(["theme-a"]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("theme watcher", () => {
@@ -323,6 +364,25 @@ describe("theme watcher", () => {
 
     await expect(running).resolves.toBeUndefined();
     expect(catalogSignal).toBe(controller.signal);
+  });
+});
+
+describe("RPC registration", () => {
+  it("exposes only catalog loading and theme selection", async () => {
+    let handlerNames: string[] = [];
+    const bb = {
+      background: { service() {} },
+      rpc: {
+        register(_contract: unknown, handlers: object) {
+          handlerNames = Object.keys(handlers).sort();
+        },
+      },
+      log: { info() {}, warn() {} },
+    } as unknown as BbPluginApi;
+
+    await plugin(bb);
+
+    expect(handlerNames).toEqual(["setTheme", "themeCatalog"]);
   });
 });
 

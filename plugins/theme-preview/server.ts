@@ -30,8 +30,7 @@ const catalogSchema = z
   .object({
     activeThemeId: z.string().nullable(),
     themes: z.array(themeSchema),
-    /** Bumps whenever the active theme's CSS changes on disk. */
-    revision: z.number(),
+    revision: z.number().int().nonnegative(),
   })
   .strict();
 
@@ -71,7 +70,7 @@ export function classifySelector(selector: string): "shared" | "light" | "dark" 
   for (const part of parts) {
     if (/\s/.test(part.replace(/:not\([^)]*\)/g, ""))) return null; // descendant selector
     if (part === ":root") sawShared = true;
-    else if (part === ".light" || part === ":root:not(.dark)" || part === "html:not(.dark)") sawLight = true;
+    else if (part === ".light" || part === ".light:not(.dark)" || part === ":root:not(.dark)" || part === "html:not(.dark)") sawLight = true;
     else if (part === ".dark" || part === ":root.dark" || part === "html.dark") sawDark = true;
     else return null;
   }
@@ -511,8 +510,8 @@ export function createCatalogLoader(bb: BbPluginApi) {
             )) as { active?: { themeId?: unknown } };
             const currentThemeId = typeof current.active?.themeId === "string" ? current.active.themeId : null;
             if (selectionGeneration === selectionAtStart && currentThemeId === built.activeThemeId) {
-              revision += 1;
               await warnIfSlow(`theme re-apply (${built.activeThemeId})`, () => bb.sdk.theme.set(built.activeThemeId!));
+              revision += 1;
               bb.log.info(`theme-preview: ${built.activeThemeId} changed on disk — re-applied (rev ${revision})`);
             }
           }
@@ -537,27 +536,31 @@ export function createCatalogLoader(bb: BbPluginApi) {
     return promise;
   };
 
+  const setTheme = async (themeId: string) => {
+    selectionGeneration += 1;
+    const generation = selectionGeneration;
+    // Theme application is global and not cancellable. Preserve click order
+    // so a slower earlier apply cannot land after the user's newer choice.
+    const apply = selectionQueue.then(async () => {
+      await warnIfSlow(`theme apply (${themeId})`, () => bb.sdk.theme.set(themeId));
+    });
+    selectionQueue = apply.catch(() => undefined);
+    await apply;
+
+    // The picker already has the enriched catalog it selected from. Confirm
+    // the global mutation from that snapshot so a slow CSS/plugin scan cannot
+    // make a successful selection look stuck. The next watcher signal or poll
+    // refreshes enrichment independently.
+    const base = latestCatalog ?? await catalog();
+    const selected = { ...base, activeThemeId: themeId };
+    if (selectionGeneration === generation) latestCatalog = selected;
+    return selected;
+  };
+
   return {
     catalog,
-    async setTheme(themeId: string) {
-      selectionGeneration += 1;
-      const generation = selectionGeneration;
-      // Theme application is global and not cancellable. Preserve click order
-      // so a slower earlier apply cannot land after the user's newer choice.
-      const apply = selectionQueue.then(async () => {
-        await warnIfSlow(`theme apply (${themeId})`, () => bb.sdk.theme.set(themeId));
-      });
-      selectionQueue = apply.catch(() => undefined);
-      await apply;
-
-      // The picker already has the enriched catalog it selected from. Confirm
-      // the global mutation from that snapshot so a slow CSS/plugin scan cannot
-      // make a successful selection look stuck. The next watcher signal or poll
-      // refreshes enrichment independently.
-      const base = latestCatalog ?? await catalog();
-      const selected = { ...base, activeThemeId: themeId };
-      if (selectionGeneration === generation) latestCatalog = selected;
-      return selected;
+    setTheme(themeId: string) {
+      return setTheme(themeId);
     },
   };
 }
