@@ -31,15 +31,18 @@ export async function tokenRequest(fetchFn: typeof fetch, endpoints: Endpoints, 
 }
 export function createGoogle(options: { fetch: typeof fetch; credentials(): Promise<Credentials>; endpoints?: Endpoints; now?: () => number }) {
   const endpoints = options.endpoints ?? GOOGLE, now = options.now ?? Date.now;
+  let generation = 0;
   let cached: { value: string; expires: number } | null = null;
   let refreshing: Promise<string> | null = null;
   const access = async () => {
     if (cached && cached.expires > now() + 60_000) return cached.value;
     if (refreshing) return refreshing;
     refreshing = (async () => {
+      const started = generation;
       const c = await options.credentials();
       if (!c.clientId || !c.clientSecret || !c.refreshToken) throw new GmailError("reconnect", "Connect Gmail in the Gmail page first.");
       const t = await tokenRequest(options.fetch, endpoints, { grant_type: "refresh_token", client_id: c.clientId, client_secret: c.clientSecret, refresh_token: c.refreshToken });
+      if (generation !== started) throw new GmailError("reconnect", "Gmail connection changed. Try again after connecting.");
       cached = { value: t.access_token, expires: now() + (t.expires_in ?? 3600) * 1000 };
       return cached.value;
     })();
@@ -48,7 +51,9 @@ export function createGoogle(options: { fetch: typeof fetch; credentials(): Prom
   const request = async <T>(method: string, path: string, body?: unknown, query?: Record<string, string>, retry = false): Promise<T> => {
     const url = new URL(`${endpoints.api}${path}`);
     for (const [key, value] of Object.entries(query ?? {})) url.searchParams.set(key, value);
+    const started = generation;
     const token = await access();
+    if (generation !== started) throw new GmailError("reconnect", "Gmail connection changed. Try again after connecting.");
     let response: Response;
     try { response = await options.fetch(url, { method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(20_000), redirect: "error" }); }
     catch { throw new GmailError("unavailable", method === "GET" ? "Gmail is unreachable." : "Gmail's response was lost. Check the outcome before trying again.", method !== "GET"); }
@@ -57,13 +62,13 @@ export function createGoogle(options: { fetch: typeof fetch; credentials(): Prom
       if (method === "GET" && !retry) return request(method, path, body, query, true);
       throw new GmailError("reconnect", "Gmail access expired. Connect Gmail again.");
     }
-    if (!response.ok) throw new GmailError(`http_${response.status}`, `Gmail returned ${response.status}.`, method !== "GET" && response.status >= 500);
+    if (!response.ok) throw new GmailError(`http_${response.status}`, `Gmail returned ${response.status}.`, method !== "GET" && (response.status >= 500 || response.status === 408));
     const result = await response.json().catch(() => null);
     if (result === null) throw new GmailError("unavailable", "Gmail's response was incomplete. Check the outcome before trying again.", method !== "GET");
     return result as T;
   };
   return {
-    clear: () => { cached = null; },
+    clear: () => { generation++; cached = null; },
     search: (q: string, max: number, pageToken?: string) => request<{ messages?: { id: string; threadId: string }[]; nextPageToken?: string; resultSizeEstimate?: number }>("GET", "/messages", undefined, { q, maxResults: String(max), ...(pageToken ? { pageToken } : {}) }),
     message: (id: string) => request<GmailMessage>("GET", `/messages/${encodeURIComponent(id)}`, undefined, { format: "full" }),
     thread: (id: string) => request<{ id: string; messages?: GmailMessage[] }>("GET", `/threads/${encodeURIComponent(id)}`, undefined, { format: "full" }),

@@ -2,6 +2,8 @@
 
 Search and read email, prepare drafts, and send the exact reply approved in an Inline Decisions card.
 
+![Gmail account connection setup](https://github.com/user-attachments/assets/76f73387-bd20-431c-a6f3-76394517a3b2)
+
 ## Install
 
 ```sh

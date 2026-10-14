@@ -1,4 +1,4 @@
-.gmail-page { color: var(--foreground); max-width: 760px; padding: 32px 24px; margin: 0 auto; font-size: 14px; line-height: 1.6; }
+.gmail-page { width: 100%; min-height: 0; overflow: auto; color: var(--foreground); max-width: 760px; padding: 32px 24px; margin: 0 auto; font-size: 14px; line-height: 1.6; }
 .gmail-page h1 { font-size: 24px; font-weight: 600; margin: 0 0 8px; }
 .gmail-page h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
 .gmail-muted { color: var(--muted-foreground); }

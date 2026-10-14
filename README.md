@@ -48,6 +48,16 @@ Brings incoming comments and mentions from GitHub pull requests and issues you a
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/github-notifications --yes`
 
+### Gmail
+
+Search and read email, prepare drafts, and send replies approved in Inline Decisions.
+
+![Gmail account connection setup](https://github.com/user-attachments/assets/76f73387-bd20-431c-a6f3-76394517a3b2)
+
+[Source](plugins/gmail) · [README](plugins/gmail/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/gmail --yes`
+
 ### Prompt Improver
 
 Rewrites a rough bb composer draft into a clearer, context-complete prompt for review before you send it. The rewrite can be cancelled or undone without leaving the composer.
