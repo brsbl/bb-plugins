@@ -1,7 +1,7 @@
 {
   "name": "bb-plugin-desktop-canvas-prototype",
   "version": "0.1.0",
-  "description": "Prototype spatial desktop for bb threads and folders.",
+  "description": "Desktop's folders and windows on a zoomable canvas for bb threads.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
@@ -20,7 +20,7 @@
   },
   "bb": {
     "name": "Canvas Desktop",
-    "description": "Prototype spatial desktop for bb threads and folders.",
+    "description": "Desktop's folders and windows on a zoomable canvas for bb threads.",
     "branding": {
       "icon": "AppWindow"
     },
@@ -39,6 +39,8 @@
   "private": true,
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.5.0",
