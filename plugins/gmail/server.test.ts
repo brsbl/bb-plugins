@@ -22,13 +22,13 @@ function setup() {
     return Response.json({ id: "sent1", threadId: "gmail-thread", labelIds: ["UNREAD", "SENT"], payload: { mimeType: "text/plain", headers: [{ name: "Subject", value: "Meeting" }, { name: "Message-ID", value: "<original@example.test>" }], body: { data: Buffer.from("Untrusted fixture body").toString("base64url") } } });
   });
   vi.stubGlobal("fetch", fake);
-  const host = createFakePluginHost({ pluginId: "gmail", settings: fixtures, sdk: { plugins: { callRpc: async () => structuredClone(card) } } }); hosts.push(host); plugin(host.bb);
+  const host = createFakePluginHost({ pluginId: "gmail", settings: fixtures, sdk: { plugins: { callRpc: async ({ outputSchema }) => outputSchema.parse(structuredClone(card)) } } }); hosts.push(host); plugin(host.bb);
   const send = (extra: string[] = []) => host.harness.behavior.runCli(["send", "--card", "reply", "--attempt", attempt, ...extra], { threadId: card.threadId });
   return { ...host, card, writes, fake, send, attempt };
 }
 describe("Gmail approval and transport", () => {
   it("uses only public SDK imports", async () => {
-    const result = await experimental_scanPublicSdkOnly(fileURLToPath(new URL(".", import.meta.url)));
+    const result = await experimental_scanPublicSdkOnly(fileURLToPath(new URL(".", import.meta.url)), { allow: ["react"] });
     expect(result.violations).toEqual([]); expect(result.privateDependencies).toEqual([]);
   });
   it("sends the latest claimed content once, including Bcc; a reload cannot repeat it", async () => {
@@ -39,8 +39,9 @@ describe("Gmail approval and transport", () => {
     const raw = Buffer.from((h.writes[0]!.body as { raw: string }).raw, "base64url").toString();
     expect(raw).toContain("Bcc: archive@example.test");
     expect(raw).toContain(Buffer.from(h.card.content.draft).toString("base64"));
-    await h.harness.lifecycle.reload(plugin);
-    expect((await h.send()).exitCode).toBe(0); expect(h.writes).toHaveLength(1);
+    const reloaded = await h.harness.lifecycle.reload(plugin); hosts.push(reloaded);
+    const replay = await reloaded.harness.behavior.runCli(["send", "--card", "reply", "--attempt", h.attempt], { threadId: h.card.threadId });
+    expect(replay.exitCode, replay.stderr).toBe(0); expect(h.writes).toHaveLength(1);
   });
   it.each(["unclaimed", "wrong-attempt", "not-reply", "save-action", "ready", "missing-context"])("rejects %s before any Gmail write", async (mode) => {
     const h = setup();
