@@ -1,0 +1,13 @@
+{
+  "display_information": {
+    "name": "Slack for bb",
+    "description": "Read channels and approve agent-drafted replies in bb",
+    "background_color": "#1e293b"
+  },
+  "oauth_config": {
+    "scopes": {
+      "user": ["channels:read", "channels:history", "groups:read", "groups:history", "search:read", "chat:write"]
+    }
+  },
+  "settings": { "org_deploy_enabled": false, "socket_mode_enabled": false, "token_rotation_enabled": false }
+}

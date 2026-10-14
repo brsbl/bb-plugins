@@ -425,3 +425,15 @@ it("checks an uncertain outcome without creating or authorizing another attempt"
   expect(context).toMatchObject({ intent: "check-outcome", attemptId });
   expect(() => store.claim(ref.threadId, ref.id, attemptId)).toThrow("already claimed");
 });
+
+it("supports Slack Reply creation, claim, and report RPCs without changing email cards", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  await host.harness.behavior.callRpc("create", { ...ref, content: { ...reply, service: "slack" } });
+  await expect(host.harness.behavior.callRpc("prepare", { ...ref, revision: 1, action: "save-draft" })).rejects.toThrow("does not belong");
+  const pending = await host.harness.behavior.callRpc("prepare", { ...ref, revision: 1, action: "send" }) as Item;
+  await host.harness.behavior.callRpc("claim", { ...ref, attemptId: pending.attempt!.id });
+  const done = await host.harness.behavior.callRpc("report", { ...ref, attemptId: pending.attempt!.id, outcome: "succeeded", message: "Sent to Slack", retryable: false });
+  expect(done).toMatchObject({ state: "succeeded", content: { service: "slack" } });
+  await host.harness.behavior.callRpc("create", { ...ref, id: "email", content: reply });
+  await expect(host.harness.behavior.callRpc("prepare", { ...ref, id: "email", revision: 1, action: "save-draft" })).resolves.toMatchObject({ state: "pending" });
+});

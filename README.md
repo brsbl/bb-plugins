@@ -380,6 +380,14 @@ See which bb server you are on and switch to any other server on your bb account
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/server-switcher --yes`
 
+### Slack
+
+Read Slack channels and search messages as your connected user. Draft replies in editable approval cards and send only after you choose Send to Slack.
+
+[Source](plugins/slack) · [README](plugins/slack/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/slack --yes`
+
 ### Agent Channels
 
 Run a team of bb threads from one lead: skills to delegate work, relay your decisions, collect results, and report back briefly, plus a right-panel view that gives each agent-to-agent conversation its own channel and flags reports waiting on you. Its defaults come from your own AGENTS.md, CLAUDE.md, skills, and memory, quoted in Settings.

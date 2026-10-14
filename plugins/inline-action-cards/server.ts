@@ -16,6 +16,9 @@ const persistedTableSchema = z.union([
     .transform(({ itemIds, ...value }) => ({ ...value, ids: itemIds })),
 ]);
 export const rpcContract = defineRpcContract({
+  create: { input: ref.extend({ content: contentSchema }), output: itemSchema },
+  claim: { input: ref.extend({ attemptId: z.string().uuid() }), output: itemSchema },
+  report: { input: ref.extend({ attemptId: z.string().uuid(), outcome: z.enum(["succeeded", "failed"]), message: z.string().trim().min(1).max(500), retryable: z.boolean() }), output: itemSchema },
   log: { input: z.object({ threadId: idSchema.optional() }).strict(), output: logSchema },
   decideFromLog: { input: versioned.extend({ action: actionSchema.optional() }), output: itemSchema },
   get: { input: ref, output: itemViewSchema },
@@ -277,6 +280,9 @@ function attemptRefs(pluginId: string, entry: QueueEntry) {
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
+    create: ({ threadId, id, content }) => store.create(threadId, id, content),
+    claim: ({ threadId, id, attemptId }) => store.claim(threadId, id, attemptId),
+    report: ({ threadId, id, attemptId, outcome, message, retryable }) => store.report(threadId, id, attemptId, outcome, message, retryable),
     log: ({ threadId }) => store.log(threadId),
     async dispatch({ threadId, entries }) {
       if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");

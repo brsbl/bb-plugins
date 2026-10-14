@@ -44,3 +44,5 @@ npm run check --workspace=bb-plugin-inline-action-cards
 ```
 
 Run checks in remote CI. For local interaction verification, install the plugin only into an isolated source dev app. The Decision log page lists waiting and done cards across threads.
+
+Slack Reply cards use `service: "slack"`, show Send to Slack, and omit Gmail draft actions. The additive `create`, `claim`, and `report` RPCs let the Slack plugin use the same durable approval attempts as the CLI; existing email cards keep their actions.

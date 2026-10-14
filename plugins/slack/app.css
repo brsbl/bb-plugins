@@ -1,0 +1,12 @@
+.slack-connect { color: var(--foreground); max-width: 520px; display: flex; flex-direction: column; gap: 12px; padding: 20px; font-size: 14px; line-height: 1.5; }
+.slack-connect h2 { font-size: 18px; font-weight: 600; margin: 0; }
+.slack-connect p { margin: 0; }
+.slack-connect label { font-weight: 500; }
+.slack-connect input { border: 1px solid var(--border); background: var(--background); color: inherit; border-radius: 6px; padding: 8px 10px; width: 100%; }
+.slack-connect button { border: 1px solid var(--border); border-radius: 6px; background: var(--secondary); color: inherit; padding: 7px 12px; cursor: pointer; width: fit-content; }
+.slack-connect button:disabled { opacity: .5; cursor: default; }
+.slack-connect input:focus-visible, .slack-connect button:focus-visible, .slack-connect summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.slack-connect a { text-decoration: underline; }
+.slack-connect summary { cursor: pointer; }
+.slack-hint { color: var(--muted-foreground); font-size: 12px; }
+.slack-actions { display: flex; gap: 8px; }

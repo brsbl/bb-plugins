@@ -17,6 +17,8 @@ const evidence = { context: contextSchema.optional(), media: z.array(mediaSchema
 export const contentSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("reply"),
+    // Omitted on existing email cards. Slack replies have no Gmail draft action.
+    service: z.literal("slack").optional(),
     summary: line,
     to: z.array(address).min(1).max(30),
     cc: z.array(address).max(30).default([]),
@@ -111,7 +113,7 @@ export function mentionId(item: Item, changes = false): string {
 }
 
 export function assertAction(item: Item, action: Action) {
-  const allowed: Action[] = item.content.type === "reply" ? ["send", "save-draft", "later", "skip"]
+  const allowed: Action[] = item.content.type === "reply" ? (item.content.service === "slack" ? ["send", "later", "skip"] : ["send", "save-draft", "later", "skip"])
     : item.content.type === "choice" ? ["choose", "later", "skip"] : ["yes", "no", "later", "skip"];
   if (!allowed.includes(action)) throw new Error("That action does not belong to this card.");
   if ((action === "send" || action === "save-draft") && item.content.type === "reply" && !item.content.draft.trim()) {

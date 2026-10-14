@@ -213,7 +213,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   // The proposal: Action Cards design-system components (ui/), fed by this card's state.
   const staged = sheet?.staged;
   const value = sheet ? staged ? staged.action === "choose" ? staged.choice ?? null : staged.action : null : picked;
-  const formOptions: Option[] = reply ? [{ id: "send", label: "Send" }, { id: "save-draft", label: "Save to Gmail drafts" }]
+  const formOptions: Option[] = reply ? (reply.service === "slack" ? [{ id: "send", label: "Send to Slack" }] : [{ id: "send", label: "Send" }, { id: "save-draft", label: "Save to Gmail drafts" }])
     : choice ? choice.options : [{ id: "yes", label: actionLabel(item, "yes") }, { id: "no", label: actionLabel(item, "no") }];
   const suggested = choice ? choice.recommended : item.content.type === "decide" ? item.content.recommended : undefined;
   const pickOption = (optionId: string) => { if (sheet) { if (choice) sheet.stage("choose", optionId); else sheet.stage(optionId as Action); } else setPicked(optionId); };
@@ -296,7 +296,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
       primary = choice ? chooseButton : retryable ? button(unseen(item.attempt!.action) ? "Review and retry" : "Retry", "retry", () => void act(item.attempt!.action), "default", busy, undefined, reviewTarget) : button("Open thread", "open", openThread, "default", false);
     } else {
       menu = <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
-        : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>{unseen("save-draft") ? "Review and save to Gmail drafts" : "Save to Gmail drafts"}</MenuAction>}<MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
+        : <>{reply && reply.service !== "slack" && <MenuAction onSelect={() => void act("save-draft")}>{unseen("save-draft") ? "Review and save to Gmail drafts" : "Save to Gmail drafts"}</MenuAction>}<MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
         <MenuAction onSelect={openThread}>Open thread</MenuAction></>;
       secondary = reply ? commentButton : choice ? null : decideButton("no");
       primary = reply ? button(unseen("send") ? "Review and send" : "Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined, reviewTarget)
