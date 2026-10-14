@@ -183,6 +183,10 @@ export function createStore(bb: BbPluginApi) {
         if (item.state !== "ready" && !(item.state === "failed" && item.result?.retryable)) {
           throw new Error("Only an unanswered card or a retryable failure can be resolved. Reconcile and report an in-progress or uncertain attempt first.");
         }
+        // A settled legacy Later/Skip attempt would read as deferred and keep offering Resume.
+        if (item.state === "failed" && ["later", "skip"].includes(item.attempt?.action ?? "")) {
+          throw new Error("A failed Later or Skip card can't be resolved. Ask the user to choose again on the card.");
+        }
         item.state = "succeeded";
         item.result = { message, retryable: false };
       });

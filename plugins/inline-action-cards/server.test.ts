@@ -413,6 +413,19 @@ describe("settling and undelivered requests", () => {
     expect(() => store.resolve(ref.threadId, ref.id, "Superseded")).toThrow();
     expect(store.get(ref.threadId, ref.id).state).toBe("failed");
   });
+  it("does not resolve a failed legacy Later or Skip attempt, which would read as deferred", () => {
+    const { store } = setup();
+    for (const action of ["later", "skip"] as const) {
+      const id = `deferred-${action}`;
+      store.create(ref.threadId, id, { type: "decide", question: `${action}?`, consequence: "Do it." });
+      // Later is legacy-only: the RPC no longer offers it, but stored attempts still carry it.
+      const attempt = store.prepare({ ...ref, id, revision: 1, action } as Parameters<typeof store.prepare>[0]).attempt!;
+      store.claim(ref.threadId, id, attempt.id);
+      store.report(ref.threadId, id, attempt.id, "failed", "Not recorded", true);
+      expect(() => store.resolve(ref.threadId, id, "Superseded")).toThrow();
+      expect(store.get(ref.threadId, id)).toMatchObject({ state: "failed", attempt: { id: attempt.id, action } });
+    }
+  });
   it("marks a sent but never claimed request as not sent once its thread is idle", () => {
     const { store, bb } = setup();
     for (const id of ["stuck", "fresh", "claimed"]) store.create(ref.threadId, id, { type: "decide", question: `${id}?`, consequence: "Do it." });
