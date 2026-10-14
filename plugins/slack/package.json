@@ -24,7 +24,7 @@
     "name": "Slack",
     "description": "Read Slack channels and draft replies for approval before sending.",
     "branding": {
-      "icon": "Hash"
+      "icon": "MessageSquare"
     },
     "server": "./server.ts",
     "skills": [
