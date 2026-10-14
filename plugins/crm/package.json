@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-crm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Keep customer and investor conversations, people, and next steps together.",
   "type": "module",
   "license": "UNLICENSED",

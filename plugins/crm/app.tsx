@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { definePluginApp, experimental_Icon as Icon, useRpc, useRealtime, useRealtimeConnectionState } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, experimental_Icon as Icon, useBbNavigate, useRpc, useRealtime, useRealtimeConnectionState, type PluginMessageDirectiveProps, type PluginNavPanelProps } from "@get-bb/plugin-sdk/app";
 import type { contract } from "./contract.js";
 import { CHANGED } from "./signals.js";
 import { CUSTOMER_CRITERIA, INVESTOR_CRITERIA, type CustomerRow, type InvestorRow, type Interaction, type Person, type Subject } from "./model.js";
@@ -10,6 +10,8 @@ import "./app.css";
 type CustomerPage = { items: CustomerRow[]; total: number; nextOffset: number | null };
 type InvestorPage = { items: InvestorRow[]; total: number; rankCount: number; parkedCount: number; nextOffset: number | null };
 type HistoryPage = { items: Interaction[]; people: Person[]; nextOffset: number | null };
+type Kind = "customers" | "investors";
+const KINDS: readonly Kind[] = ["customers", "investors"];
 const label = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 export function dayText(value: string | null): string {
   if (!value) return "No date set";
@@ -54,10 +56,13 @@ function Total({ value, scores }: { value: number | null; scores: Record<string,
 function NextStep({ track }: { track: CustomerRow["track"] }) {
   return <>{track?.nextStep || <span className="crm-muted">No next step set</span>}{track && <div className="crm-meta">{track.owner && <span>{track.owner} · </span>}<time dateTime={track.date ?? undefined}>{dayText(track.date)}</time></div>}</>;
 }
-export function CrmPage() {
+/** The pipeline view. Inline, it sits in a chat message: no title or search, a shorter page, and a link to the full panel. */
+export function CrmView({ initialKind = "customers", inline = false }: { initialKind?: Kind; inline?: boolean }) {
   const rpc = useRpc<typeof contract>();
+  const navigate = useBbNavigate();
   const connection = useRealtimeConnectionState();
-  const [kind, setKind] = useState<"customers" | "investors">("customers");
+  const pageSize = inline ? 10 : 50;
+  const [kind, setKind] = useState<Kind>(initialKind);
   const [showParked, setShowParked] = useState(false);
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -74,11 +79,11 @@ export function CrmPage() {
   useEffect(() => {
     let active = true;
     setError(false);
-    const input = { query, limit: 50, offset };
+    const input = { query, limit: pageSize, offset };
     const request = kind === "customers" ? rpc.call("customers", input) : rpc.call("investors", { ...input, status: showParked ? "all" : "active" });
     request.then(value => { if (active) setData(value); }, () => { if (active) setError(true); });
     return () => { active = false; };
-  }, [rpc, query, kind, offset, revision, connection, showParked]);
+  }, [rpc, query, kind, offset, revision, connection, showParked, pageSize]);
   const startEdit = (row: CustomerRow | InvestorRow) => {
     setEditing(row); setPosition("rank" in row ? row.rank : row.tier); setWhy(row.why); setSaveError("");
   };
@@ -105,11 +110,13 @@ export function CrmPage() {
   </div>;
   const historyButton = (id: string, name: string) => <Button size="sm" variant="ghost" aria-label={"History for " + name} aria-expanded={history === id} onClick={() => setHistory(history === id ? null : id)}><Icon name={history === id ? "ChevronDown" : "Clock"} className="size-4" /></Button>;
   const criteria = kind === "customers" ? CUSTOMER_CRITERIA : INVESTOR_CRITERIA;
-  return <div className="crm-root"><main className="crm-wrap">
-    <h1 className="crm-title">CRM</h1>
+  const Wrap = inline ? "section" : "main";
+  return <div className={inline ? "crm-root crm-inline" : "crm-root"}><Wrap className="crm-wrap" aria-label={inline ? "CRM " + kind : undefined}>
+    {!inline && <h1 className="crm-title">CRM</h1>}
     <div className="crm-toolbar">
       <div className="crm-filters" role="group" aria-label="Pipeline"><Button size="sm" variant="ghost" aria-pressed={kind === "customers"} disabled={saving} onClick={() => { if (kind === "customers") return; setKind("customers"); setData(null); setOffset(0); setHistory(null); setEditing(null); }}>Customers</Button><Button size="sm" variant="ghost" aria-pressed={kind === "investors"} disabled={saving} onClick={() => { if (kind === "investors") return; setKind("investors"); setData(null); setOffset(0); setHistory(null); setEditing(null); }}>Investors</Button></div>
-      <div className="crm-search"><Icon name="Search" className="size-4" /><Input aria-label="Search people or companies" placeholder="Search people or companies" value={query} maxLength={200} disabled={saving} onChange={event => { setData(null); setQuery(event.target.value); setOffset(0); setEditing(null); }} /></div>
+      {inline ? <Button size="sm" variant="outline" onClick={() => navigate.toPluginPanel("crm", { subPath: kind })}>Open CRM</Button>
+        : <div className="crm-search"><Icon name="Search" className="size-4" /><Input aria-label="Search people or companies" placeholder="Search people or companies" value={query} maxLength={200} disabled={saving} onChange={event => { setData(null); setQuery(event.target.value); setOffset(0); setEditing(null); }} /></div>}
     </div>
     <div className="crm-description"><div><h2>{kind === "customers" ? "Impact & milestones" : "Investor value"}</h2><p>{kind === "customers" ? "Tier sets priority. Milestone shows progress." : "One ranked list of people, ordered by the value they add."}</p></div><div className="crm-legend" aria-label="Each criterion scored from 0 to 5; darker shading means a higher score"><span>0</span>{[0,1,2,3,4,5].map(value => <span aria-hidden="true" key={value} className="crm-score" data-score={value} />)}<span>5</span><span>per criterion</span></div></div>
     <p className="crm-rules">{kind === "customers" ? "Total /20: Tier 1 ≥15 · Tier 2 ≥8 · Tier 3 <8 or unscored. Select a tier to override." : "Totals set the order. Select a rank to move someone by hand; Manual marks a fixed position."} <span>— Not scored</span></p>
@@ -133,7 +140,19 @@ export function CrmPage() {
           </Fragment>)}</tbody>}
         </table>
       </div>}
-    {data && (offset > 0 || data.nextOffset !== null) && <div className="crm-pages"><Button size="sm" variant="outline" disabled={offset === 0 || saving} onClick={() => { setOffset(Math.max(0, offset - 50)); setEditing(null); }}>Previous</Button><span>{Math.min(offset + 1, data.total)}–{Math.min(offset + data.items.length, data.total)} of {data.total}</span><Button size="sm" variant="outline" disabled={data.nextOffset === null || saving} onClick={() => { setOffset(data.nextOffset!); setEditing(null); }}>Next</Button></div>}
-  </main></div>;
+    {data && (offset > 0 || data.nextOffset !== null) && <div className="crm-pages"><Button size="sm" variant="outline" disabled={offset === 0 || saving} onClick={() => { setOffset(Math.max(0, offset - pageSize)); setEditing(null); }}>Previous</Button><span>{Math.min(offset + 1, data.total)}–{Math.min(offset + data.items.length, data.total)} of {data.total}</span><Button size="sm" variant="outline" disabled={data.nextOffset === null || saving} onClick={() => { setOffset(data.nextOffset!); setEditing(null); }}>Next</Button></div>}
+  </Wrap></div>;
 }
-export default definePluginApp(app => { app.slots.navPanel({ id: "crm", path: "crm", title: "CRM", icon: "UserRound", component: CrmPage }); });
+export function CrmPage({ subPath }: PluginNavPanelProps) {
+  return <CrmView key={subPath} initialKind={subPath === "investors" ? "investors" : "customers"} />;
+}
+/** `::crm{view="customers"}` or `::crm{view="investors"}` — the live pipeline inside an agent message. */
+export function CrmDirective({ attributes }: PluginMessageDirectiveProps) {
+  const view = attributes.view ?? "customers";
+  if (!KINDS.includes(view as Kind)) return <div className="crm-root crm-inline crm-invalid" role="alert">CRM: unknown view “{view}”. Use customers or investors.</div>;
+  return <CrmView inline initialKind={view as Kind} />;
+}
+export default definePluginApp(app => {
+  app.slots.navPanel({ id: "crm", path: "crm", title: "CRM", icon: "UserRound", component: CrmPage });
+  app.slots.messageDirective({ id: "crm", component: CrmDirective });
+});

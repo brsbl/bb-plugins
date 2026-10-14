@@ -150,6 +150,14 @@ export function createCli(store: Store, priorities: Priorities, changed: () => v
           return store.list({ ...options, type: options.type });
         }, options.json, false),
       }),
+      view: cliCommand({
+        summary: "Print the inline-CRM directive to paste once, on its own line, in chat",
+        options: { type: { type: "enum", values: ["customers", "investors"], default: "customers", description: "Customer pipeline (tiers and milestones) or investor ranking (default customers)" }, json },
+        run: ({ options }) => {
+          const directive = `::crm{view="${options.type}"}`;
+          return { exitCode: 0, stdout: options.json ? JSON.stringify({ view: options.type, directive }) : `${directive}\nPaste the line above once, on its own line, in your reply. It shows the live CRM.` };
+        },
+      }),
       log: cliCommand({
         summary: "Record a message, call or introduction without sending anything",
         options: {

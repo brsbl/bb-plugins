@@ -165,5 +165,12 @@ describe("CRM persisted CLI and RPC", () => {
     expect(harness.inspection.logEntries).toHaveLength(0);
     expect((await harness.behavior.runCli(["add", "track", "--help"])).exitCode).toBe(0);
   });
+  it("prints the inline directive for each pipeline", async () => {
+    const { harness, ok } = setup();
+    expect(await ok("view")).toEqual({ view: "customers", directive: '::crm{view="customers"}' });
+    expect(await ok("view", "--type", "investors")).toEqual({ view: "investors", directive: '::crm{view="investors"}' });
+    expect((await harness.behavior.runCli(["view"])).stdout).toContain("Paste the line above once");
+    expect((await harness.behavior.runCli(["view", "--type", "deals"])).exitCode).not.toBe(0);
+  });
 });
 

@@ -83,3 +83,30 @@ it("hides parked investors by default and reveals their scores and history witho
   expect(await screen.findByText("M3 · Team")).toBeDefined(); expect(screen.getByText("Alex Example")).toBeDefined();
   expect(slot.inspection.rpcCalls.filter(c => c.method === "investors").map(c => (c.input as any).status)).toEqual(["active","all","active"]);
 });
+it("renders the investor ranking inline from the directive with its rank controls and a link to the panel", async () => {
+  const app = await loadPluginApp(() => import("./app"));
+  const props = { source: '::crm{view="investors"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null };
+  const slot = renderSlot(app.messageDirectives[0]!, { ...props, attributes: { view: "investors" } }, { rpc: {
+    investors: () => ({ items: [investor], total: 1, rankCount: 1, parkedCount: 0, nextOffset: null }),
+    setRank: () => ({ ...investor, rankOverride: 1 }),
+  }});
+  expect(await screen.findByText("An introduction")).toBeDefined();
+  expect(screen.getByRole("region", { name: "CRM investors" })).toBeDefined();
+  expect(screen.queryByRole("heading", { name: "CRM" })).toBeNull(); expect(screen.queryByRole("textbox", { name: "Search people or companies" })).toBeNull();
+  expect(slot.inspection.rpcCalls[0]).toEqual({ method: "investors", input: { query: "", limit: 10, offset: 0, status: "active" } });
+  fireEvent.click(screen.getByRole("button", { name: "Change rank for Alex Example" }));
+  fireEvent.change(screen.getByLabelText("Why it belongs here"), { target: { value: "Demo judgment" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(slot.inspection.rpcCalls.some(c => c.method === "setRank")).toBe(true));
+  fireEvent.click(screen.getByRole("button", { name: "Open CRM" }));
+  expect(slot.inspection.navigateCalls).toContainEqual({ method: "toPluginPanel", path: "crm", options: { subPath: "investors" } });
+  cleanup();
+  renderSlot(app.messageDirectives[0]!, { ...props, attributes: { view: "deals" } }, { rpc: {} });
+  expect(screen.getByRole("alert").textContent).toContain("unknown view “deals”");
+});
+it("opens the panel on the pipeline named in its path", async () => {
+  const app = await loadPluginApp(() => import("./app"));
+  const slot = renderSlot(app.navPanels[0]!, { subPath: "investors" }, { rpc: { investors: () => ({ items: [investor], total: 1, rankCount: 1, parkedCount: 0, nextOffset: null }) } });
+  expect(await screen.findByText("An introduction")).toBeDefined();
+  expect(slot.inspection.rpcCalls.map(c => c.method)).toEqual(["investors"]);
+});

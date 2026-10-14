@@ -29,6 +29,9 @@ track changes the other. Park investors with `bb crm park ID` to hide them
 without losing their scores or history; `unpark ID` returns them to score order.
 The view includes a **Show parked (N)** toggle.
 
+Agents show either pipeline inline in chat with `bb crm view --type customers|investors`,
+which prints a `::crm{view="…"}` directive that renders the live view.
+
 Customer milestones remain **Champion identified → M1 · Relationship → M2 ·
 Value → M3 · Team → M4 · Team usage + expansion**. Upgrades preserve every track,
 person and note, and retain old investor stages in History. Existing CLI record

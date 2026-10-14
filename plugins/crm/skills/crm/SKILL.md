@@ -14,6 +14,20 @@ Records stay in this plugin's private SQLite database on the bb server's
 machine. Never copy real records into a repository, tests, screenshots, public
 issues or PRs. Logging an interaction does not send a message.
 
+## Show it inline
+
+When brsbl asks to see the pipeline, and right after you report on or change
+CRM data, print the directive and paste it once, on its own line, in your reply:
+
+```sh
+bb crm view --type customers   # tiers and milestones heatmap (default)
+bb crm view --type investors   # investor value ranking
+```
+
+`::crm{view="customers"}` renders the live view in chat, including the tier and
+rank override controls and an **Open CRM** button for the full panel. Describe
+what changed in words; never paste CRM tables, rows or scores into a reply.
+
 ## Add and update
 
 List existing records first. Use stable import IDs; duplicate IDs fail without
