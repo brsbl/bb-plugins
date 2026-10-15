@@ -53,6 +53,7 @@
         { label: "Rejected", points: perSecond(run.rejected), color: "var(--pg-bad)" },
       ],
       marks: [{ y: v.refill, label: "Refill rate " + v.refill + "/s" }],
+      focus: "Rejected",
     });
     const b = (text) => { const el = document.createElement("b"); el.textContent = text; return el; };
     const head = run.lost

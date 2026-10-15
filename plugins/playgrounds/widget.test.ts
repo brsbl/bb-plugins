@@ -199,7 +199,7 @@ it("stacks bar series on request and keeps side-by-side bars by default", () => 
   expect(stacked.bars.map((b) => b.i)).toEqual(["0", "0", "1"]);
   const [served, rejected] = stacked.bars;
   expect(rejected!.left).toBe(served!.left);
-  expect(rejected!.base).toBeCloseTo(served!.top - 2);
+  expect(rejected!.base).toBeCloseTo(served!.top - 1);
   expect(stacked.top).toBeGreaterThanOrEqual(5);
   const grouped = chartIn(dom.window, "grouped");
   expect(grouped.bars).toHaveLength(4);
@@ -227,6 +227,8 @@ it("draws the rate-limiter reference at once and recomputes it from its controls
   const before = chartIn(dom.window, "traffic");
   expect(before.bars.filter((b) => b.fill === "var(--pg-bad)")).toHaveLength(2);
   expect(document.querySelector('[data-name="traffic"] .mark-label')!.textContent).toBe("Refill rate 35/s");
+  expect(Array.from(document.querySelectorAll('[data-name="traffic"] text.peak')).map((t) => t.textContent)).toEqual(["41 rejected", "41 rejected"]);
+  expect((document.querySelector('[data-name="traffic"] .pg-chart-legend') as HTMLElement).hidden).toBe(true);
   (dom.window as unknown as { playground: { params: { set(name: string, value: number): void } } }).playground.params.set("capacity", 130);
   expect(result()).toBe("Over 30 seconds, all 840 requests were served; this is the smallest bucket that does.");
   expect(chartIn(dom.window, "traffic").bars.filter((b) => b.fill === "var(--pg-bad)")).toHaveLength(0);
@@ -239,6 +241,7 @@ function chartParts(window: JSDOM["window"], name: string) {
     legend: fig.querySelector(".pg-chart-legend") as HTMLElement,
     lines: Array.from(fig.querySelectorAll("path.line")).map((line) => ({ stroke: line.getAttribute("stroke"), muted: line.classList.contains("muted") })),
     ends: Array.from(fig.querySelectorAll("text.end")).map((text) => text.textContent),
+    peaks: Array.from(fig.querySelectorAll("text.peak")).map((text) => text.textContent),
     bars: Array.from(fig.querySelectorAll("path.bar")).map((bar) => bar.getAttribute("fill")),
   };
 }
@@ -265,19 +268,53 @@ it("names up to four lines at their ends instead of a legend, and falls back to 
 it("keeps the focused series in color and mutes the rest, or one category's bars", () => {
   const { dom } = frame(
     '<figure data-pg="chart" data-name="regions"></figure><figure data-pg="chart" data-name="days"></figure>' +
-      '<script>window.playground.ui.chart("regions", { focus: "Europe", series: [{ label: "Asia", points: [[0, 1], [1, 2]] }, { label: "Europe", points: [[0, 3], [1, 9]] }, { label: "US", points: [[0, 2], [1, 3]] }] });' +
+      '<script>window.playground.ui.chart("regions", { focus: "Europe", series: [{ label: "Asia", points: [[0, 1], [1, 2]] }, { label: "Europe", points: [[0, 3], [1, 9]] }, { label: "US", points: [[0, 2], [1, 5]] }] });' +
       'window.playground.ui.chart("days", { kind: "bars", focus: "Thu", y: { unit: "$" }, series: [{ label: "Spend", points: [["Wed", 140], ["Thu", 260], ["Fri", 110]] }] })</script>',
   );
   const regions = chartParts(dom.window, "regions");
   expect(regions.lines).toEqual([
-    { stroke: "var(--pg-mark-muted)", muted: true },
-    { stroke: "var(--pg-mark-muted)", muted: true },
-    { stroke: "var(--pg-accent)", muted: false },
+    { stroke: "var(--pg-chart-context)", muted: true },
+    { stroke: "var(--pg-chart-context)", muted: true },
+    { stroke: "var(--pg-series-1)", muted: false },
   ]);
   expect(regions.ends).toContain("Europe 9");
   const days = chartParts(dom.window, "days");
-  expect(days.bars).toEqual(["var(--pg-mark-muted)", "var(--pg-accent)", "var(--pg-mark-muted)"]);
-  expect(days.ends).toEqual(["$260"]);
+  const context = "color-mix(in oklch, var(--pg-series-1) 38%, var(--card))";
+  expect(days.bars).toEqual([context, "var(--pg-series-1)", context]);
+  expect(days.peaks).toEqual(["$260"]);
+  dom.window.close();
+});
+
+it("labels a focused bar series' peaks in place instead of a legend, and tints the rest", () => {
+  const series = '[{ label: "Served", points: [["a", 3], ["b", 1], ["c", 2]] }, { label: "Rejected", points: [["a", 2], ["b", 0], ["c", 2]], color: "var(--pg-bad)" }]';
+  const { dom } = frame(
+    '<figure data-pg="chart" data-name="focused"></figure><figure data-pg="chart" data-name="keyed"></figure>' +
+      `<script>window.playground.ui.chart("focused", { kind: "bars", stack: true, focus: "Rejected", series: ${series} });` +
+      `window.playground.ui.chart("keyed", { kind: "bars", stack: true, focus: "Rejected", labels: "legend", series: ${series} })</script>`,
+  );
+  const focused = chartParts(dom.window, "focused");
+  expect(focused.peaks).toEqual(["2 rejected", "2 rejected"]);
+  expect(focused.legend.hidden).toBe(true);
+  expect(new Set(focused.bars)).toEqual(new Set(["color-mix(in oklch, var(--pg-series-1) 38%, var(--card))", "var(--pg-bad)"]));
+  const keyed = chartParts(dom.window, "keyed");
+  expect(keyed.legend.hidden).toBe(false);
+  expect(Array.from(keyed.legend.children).map((li) => li.textContent)).toEqual(["Served", "Rejected"]);
+  dom.window.close();
+});
+
+it("labels a reference line at its end and moves the label off the data there", () => {
+  const { dom } = frame(
+    '<figure data-pg="chart" data-name="clear"></figure><figure data-pg="chart" data-name="crowded"></figure>' +
+      '<script>window.playground.ui.chart("clear", { series: [{ label: "Load", points: [[0, 10], [1, 20], [2, 10], [3, 12]] }], marks: [{ y: 50, label: "Limit" }] });' +
+      'window.playground.ui.chart("crowded", { series: [{ label: "Load", points: [[0, 10], [1, 10], [2, 10], [3, 52]] }], marks: [{ y: 50, label: "Limit" }] })</script>',
+  );
+  for (const [name, below] of [["clear", false], ["crowded", true]] as const) {
+    const fig = dom.window.document.querySelector(`[data-name="${name}"]`)!;
+    const line = fig.querySelector("line.mark")!, label = fig.querySelector(".mark-label")!;
+    expect(label.getAttribute("text-anchor")).toBe("end");
+    expect(label.getAttribute("x")).toBe(line.getAttribute("x2"));
+    expect(Number(label.getAttribute("y")) > Number(line.getAttribute("y1"))).toBe(below);
+  }
   dom.window.close();
 });
 

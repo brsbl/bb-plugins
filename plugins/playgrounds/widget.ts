@@ -53,9 +53,16 @@ const KIT = String.raw`
   --pg-rule: color-mix(in oklch, var(--foreground) 24%, var(--card));
   --pg-mark-muted: color-mix(in oklch, var(--foreground) 50%, var(--card));
   --pg-hover: color-mix(in oklab, var(--foreground) 6%, transparent);
-  --pg-series-1: #2a78d6; --pg-series-2: #eb6834; --pg-series-3: #1baf7a; --pg-series-4: #eda100;
-  --pg-series-5: #e87ba4; --pg-series-6: #008300; --pg-series-7: #6250d6;
-  --pg-accent: var(--pg-series-1);
+  --pg-series-1: #6094ab; --pg-series-2: #d6af8a; --pg-series-3: #568865; --pg-series-4: #b8b1db;
+  --pg-series-5: #5d8476; --pg-series-6: #cdb759; --pg-series-7: #ae6257;
+  --pg-accent: #2a78d6;
+  --pg-chart-grid: color-mix(in oklch, var(--pg-series-2) 30%, var(--pg-hairline));
+  --pg-chart-axis: color-mix(in oklch, var(--pg-series-2) 30%, var(--pg-rule));
+  --pg-chart-mark: color-mix(in oklch, var(--foreground) 45%, var(--card));
+  --pg-chart-tick: color-mix(in oklch, var(--foreground) 56%, var(--card));
+  --pg-chart-context: color-mix(in oklch, var(--pg-mark-muted) 55%, var(--card));
+  --pg-chart-bad: #c15f4d;
+  --pg-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --pg-good: oklch(0.54 0.13 150); --pg-warn: oklch(0.54 0.13 60); --pg-bad: oklch(0.55 0.19 27);
   --pg-text-hero: 28px; --pg-text-title: 18px; --pg-text-sentence: 15px; --pg-text-body: 13px; --pg-text-label: 12px; --pg-text-meta: 12px; --pg-text-axis: 11px;
   --pg-space-1: 4px; --pg-space-2: 8px; --pg-space-3: 12px; --pg-space-4: 16px; --pg-space-5: 24px;
@@ -64,8 +71,10 @@ const KIT = String.raw`
 }
 :root[data-scheme=dark] {
   color-scheme: dark;
-  --pg-series-1: #3987e5; --pg-series-2: #d95926; --pg-series-3: #199e70; --pg-series-4: #c98500;
-  --pg-series-5: #d55181; --pg-series-6: #008300; --pg-series-7: #9085e9;
+  --pg-series-1: #94b0bc; --pg-series-2: #a17f5b; --pg-series-3: #b1cf9d; --pg-series-4: #8a80a2;
+  --pg-series-5: #a8cdc3; --pg-series-6: #a5893e; --pg-series-7: #e9ad9c;
+  --pg-accent: #3987e5;
+  --pg-chart-bad: #df816e;
   --pg-good: oklch(0.72 0.14 155); --pg-warn: oklch(0.76 0.14 70); --pg-bad: oklch(0.68 0.17 25);
 }
 *, *::before, *::after { box-sizing: border-box; }

@@ -210,7 +210,7 @@ ui.chart("load", {
   marks: [{ y: 1500, label: "Budget" }, { x: 6, label: "CDN change" }],
   bands: [{ x0: 6, x1: 12, label: "Rollout" }],  // a shaded span
   now: 4,                            // a "now" line
-  focus: "Europe",                   // the one series that matters (or one bar's x)
+  focus: "Europe",                   // the series the sentence is about (or one bar's x)
   labels: "auto",                    // "end" | "legend"; auto names up to 4 lines at their ends
 });
 ```
@@ -253,7 +253,7 @@ sentence with the key numbers:
 
 On every parameter change, rerun the model and redraw: real units on both
 axes, the failure in `var(--pg-bad)` (rejected requests stacked on served
-ones), at most one labeled reference line (`marks: [{ y: refill, label:
+ones, with `focus: "Rejected"`), at most one labeled reference line (`marks: [{ y: refill, label:
 "Refill rate 35/s" }]`), and a second chart only if it's a different standard
 form you can't do without. The sentence says what happened and what fixes it, with the key numbers in `<b>`:
 "Over 30 seconds, **82 of 840** requests were rejected; a bucket of **130
@@ -381,23 +381,27 @@ depicted, like a board or a drawing, gets its own colors).
   inside it; `--pg-hairline` dividers.
 - **Color roles:** `--pg-ink` headings and values, `--pg-body` text,
   `--pg-meta` captions and axes (all AA in both themes). `--pg-accent` (blue)
-  marks what you can move and a single series; override it once only when the
+  marks what you can move; override it once only when the
   subject has its own color (coffee, a synth). Selection is ink: pressed
   segments, tabs and primary buttons. `--pg-good`, `--pg-warn` and `--pg-bad`
   only when color means good or bad, always with a word or an icon.
-  `--pg-series-1…7` only for separate series, in order. `--pg-mark-muted` for
+  `--pg-series-1…7` (a muted, paper-like palette) only for chart series, in
+  order; a single series takes the first. `--pg-mark-muted` for
   context. Every color difference must mean something, and text never wears a
   series color.
 - **Controls:** each has a visible label and shows its value with a unit;
   targets are at least 24 px; every drag also works by click or keyboard.
-- **Charts:** solid hairline grid, a baseline but no y-axis line, the unit on
-  the top tick, compact ticks (1K, $2M) and at most one decimal below 10. Up to
-  four lines are named at their ends with their last value; otherwise two or
-  more series get a legend. To make one series the point, pass `focus` with
-  its label: it keeps the accent (or its own color) and the rest turn grey; for
-  a single-series bar chart, `focus` with an x highlights and labels that bar.
-  Failures stack in `var(--pg-bad)`. At most one dashed reference line
-  (`marks`). Bars stay thin with 2 px gaps.
+- **Charts:** the component draws them calm: dashed hairline grid, three or
+  four y ticks with the unit on the top one, a baseline but no y-axis line,
+  thin bars with rounded tops, and smooth 2 px lines. Label marks in place
+  rather than in a legend: up to four lines are named at their ends with their
+  last value; otherwise two or more series get a legend. Put `focus` on the
+  series your sentence is about: it stays at full strength and the rest become
+  context (lines grey, bars a tint of their color); a focused bar series has
+  its peaks labeled in place ("41 rejected") and needs no legend. For a
+  single-series bar chart, `focus` with an x highlights and labels that bar.
+  Failures stack in `var(--pg-bad)`. At most one reference line (`marks`),
+  labeled at its end.
 - **Motion:** `.pg-reveal` with `--i` staggers the entrance; hovers take
   0.12–0.2 s; everything stops under reduced motion.
 
