@@ -194,18 +194,23 @@ setParams --args '[{"rate": 6}]'`, `do <id> select --args '["board", 0, 3]'`,
 point --args '["load", 6]'` to show a chart's values at an x. Use these
 instead of writing your own actions; controls you move show an "Agent" tag.
 
-**Charts.** One chart answers one question. Spec:
+**Charts.** One chart answers one question, in a standard form only: line,
+bar, stacked bar, area, scatter, a single big number, or a table. Label axes
+with units, prefer direct labels to legends, and invent no visual encodings,
+in charts or simulations; only Anatomy figures (how a system works) draw
+custom diagrams. Spec:
 
 ```js
 ui.chart("load", {
   kind: "line",                      // line | area | step | bars (per series too)
+  stack: false,                      // true stacks the bar series
   height: 180,
   x: { format: (x) => "Wk " + x, label: "Week" },
   y: { min: 0, unit: "ms" },         // or format: (v) => …
   series: [{ label: "Europe", points: [[1, 1420], [2, 1390]] }, …],
   marks: [{ y: 1500, label: "Budget" }, { x: 6, label: "CDN change" }],
   bands: [{ x0: 6, x1: 12, label: "Rollout" }],  // a shaded span
-  now: 4,                            // a "now" line for simulations
+  now: 4,                            // a "now" line
 });
 ```
 
@@ -237,22 +242,26 @@ detail says why) and `ui.breakdown(name,
 breakdown or chart; no tables of every scenario.
 
 **Simulation set.** For a tradeoff that plays out over time (a rate limit's
-burst against its steady rate, a backlog against worker count): a sentence of
-the knobs, one chart that draws the run as it plays, and a verdict; no diagram.
-To show how the system itself works, build an Anatomy figure instead:
+burst against its steady rate, a backlog against worker count): a one-line
+title question, one standard chart of the whole run drawn at once (no
+playback), one row of labeled controls that redraw it instantly, and one plain
+sentence with the key numbers:
 
 ```html
-<div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
-<figure data-pg="chart" data-name="tokens" data-label="Tokens in the bucket"></figure>
+<h2 class="pg-title">How big should the bucket be?</h2>
+<div class="pg-surface"><figure data-pg="chart" data-name="traffic" data-kind="bars"></figure></div>
+<div class="pg-form"><div data-pg="slider" data-param="capacity" data-label="Bucket size" data-unit="tokens" …></div> …</div>
+<p class="pg-sentence" id="result"></p>
 ```
 
-`ui.run(name, { tick(dt, t), seek(t), end() })` plays it and pauses
-offscreen; the run bar sits above its chart, and dragging on the chart scrubs.
-In `tick` and `seek`, redraw the chart with the points up to `t`, and mark
-what went wrong as `events: { label: "Dropped", points: [[x, y, count]] }`. The verdict is an `answer`
-that says what happened and what setting fixes it. Put every knob in the
-sentence: no slider row and no readout row in addition, and at most one
-`<details>` for the model.
+On every parameter change, rerun the model and redraw: real units on both
+axes, the failure in `var(--pg-bad)` (rejected requests stacked on served
+ones), at most one labeled reference line (`marks: [{ y: refill, label:
+"Refill rate 35/s" }]`), and a second chart only if it's a different standard
+form you can't do without. The sentence says what happened and what fixes it:
+"Over 30 seconds, 82 of 840 requests were rejected; a bucket of 130 tokens
+would serve them all." No controls inside sentences, no animated or custom
+diagrams, no verdict tiles or side stats.
 
 **Game set.** For turn-based games you play with the person (Connect Four,
 tic-tac-toe, checkers, Battleship): a `turn` row, one `board`, and the rules
@@ -347,14 +356,12 @@ parameters too, so a follow-up like "with a walnut floor" changes the card.
 
 **Layout.** Every set card has three parts, in this order:
 
-1. **Head:** `.pg-title`, then the `.pg-sentence`.
+1. **Head:** `.pg-title`, then (calculator) the `.pg-sentence`.
 2. **Body, one grey surface:**
    - Calculator: `<div class="pg-surface pg-result">` with the `answer` and its
      `breakdown` side by side.
-   - Simulation: `<div class="pg-surface">` with the `run` bar, then its
-     `chart`.
-     Then a `<div class="pg-result">` with the verdict `answer` and a
-     `<dl class="pg-stats">` of at most two numbers.
+   - Simulation: `<div class="pg-surface">` with its `chart`, then a
+     `.pg-form` row of controls and the result sentence.
 3. **Foot:** `<div class="pg-foot">` with one `<details>` (the model and
    assumptions) and the `agent` lane.
 
@@ -363,8 +370,7 @@ Copy this structure from the references; don't add rows between the parts.
 **Composition.** Leave spacing, colors and type to the kit: no inline margins,
 no font sizes, and no colors except `--pg-accent` when the subject has one
 (paint, a brand). One hero per card (the `answer`, or the instrument); every
-other number is quieter. Grey stage only behind the thing being shown. The agent moves time with
-`do <id> seek --args '["sim", 12]'`.
+other number is quieter. Grey stage only behind the thing being shown.
 
 **Music set (optional).** `keyboard` (`data-from="60" data-count="25"`, A–K
 keys, Z/X octave), `pads` (`data-pads="Kick:a,Snare:s"`), `steps` (a

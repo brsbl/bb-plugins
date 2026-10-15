@@ -1,5 +1,6 @@
 // The chart component. Declared in markup as <figure data-pg="chart" data-name="…">
-// and filled with playground.ui.chart(name, spec). Line, area, step and bar series;
+// and filled with playground.ui.chart(name, spec). Line, area, step and bar series
+// (bars side by side, or stacked with stack: true);
 // a fixed categorical palette (validated for color vision deficiency, light and
 // dark); a legend for two or more series with direct end labels when they fit;
 // a crosshair tooltip that lists every series at the hovered x, also on keyboard
@@ -124,7 +125,7 @@ export const CHART_RUNTIME = String.raw`
     c.tip.style.transform = "translate(" + Math.max(0, flip ? at - 14 - tw : at + 14) + "px, " + (box.top - hostBox.top) + "px)";
   }
   // chart(name, { kind: "line|area|step|bars", height, x: { min, max, format, label }, y: { min, max, format, unit },
-  //   series: [{ label, points: [[x, y], …], kind, color }], marks: [{ y, label } | { x, label }], bands: [{ x0, x1, label }], now, labels: "end",
+  //   series: [{ label, points: [[x, y], …], kind, color }], stack, marks: [{ y, label } | { x, label }], bands: [{ x0, x1, label }], now, labels: "end",
   //   events: { label, points: [[x, y, count], …] } })
   // x may be numbers or category strings (for bars). Two or more series get a legend; labels: "end" also names lines at their ends.
   function chart(name, spec) {
@@ -142,11 +143,15 @@ export const CHART_RUNTIME = String.raw`
     c.xs = xs;
     const W = Math.round(svg.getBoundingClientRect().width) || 480;
     const H = Math.max(spec.height || num(c.host, "height", 0) || Math.round(clamp(W / 2.4, 160, 260)), Math.round(W / 3.4));
-    const ys = c.series.flatMap((s) => s.points.map((p) => p[1]));
+    const bars = c.series.filter((s) => s.kind === "bars");
+    const stacked = spec.stack === true && bars.length > 1;
+    const totals = new Map();
+    if (stacked) for (const s of bars) for (const [x, v] of s.points) totals.set(x, (totals.get(x) || 0) + Math.max(0, v));
+    const xMarks = (spec.marks || []).filter((m) => m.x !== undefined), yMarks = (spec.marks || []).filter((m) => Number.isFinite(Number(m.y)));
+    const ys = (stacked ? c.series.filter((s) => s.kind !== "bars") : c.series).flatMap((s) => s.points.map((p) => p[1])).concat([...totals.values()], yMarks.map((m) => Number(m.y)));
     const fixedMax = spec.y && spec.y.max !== undefined;
     const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...ys);
     let y1 = fixedMax ? spec.y.max : Math.max(1, ...ys) * 1.06;
-    const xMarks = (spec.marks || []).filter((m) => m.x !== undefined), yMarks = (spec.marks || []).filter((m) => m.y !== undefined);
     const pad = { l: 0, r: 10, t: xMarks.some((m) => m.label) || (spec.bands || []).some((b) => b.label) ? 22 : 12, b: 24 };
     const count = clamp(Math.round((H - pad.t - pad.b) / 36), 2, 5);
     let yt = niceTicks(y0, y1, count);
@@ -174,13 +179,24 @@ export const CHART_RUNTIME = String.raw`
     for (const v of yt) { svg.append(svgEl("line", { class: v === y0 ? "axis" : "grid", x1: pad.l, x2: W - pad.r, y1: c.sy(v), y2: c.sy(v) })); svg.append(svgEl("text", { x: pad.l - 10, y: c.sy(v) + 3.5, "text-anchor": "end" }, tickText(v))); }
     const xticks = categorical ? xs.filter((_, i) => xs.length <= 8 || i % Math.ceil(xs.length / 8) === 0) : niceTicks(x0, x1, Math.max(2, Math.floor((W - pad.l - pad.r) / 64))).filter((v) => v >= x0 && v <= x1);
     xticks.forEach((v) => svg.append(svgEl("text", { x: c.sx(v), y: H - 6, "text-anchor": categorical ? "middle" : v === x0 ? "start" : v === x1 ? "end" : "middle" }, c.fx(v))));
-    const bars = c.series.filter((s) => s.kind === "bars");
-    bars.forEach((s, bi) => {
+    const bar = (s, x, left, right, top, base, r) => svg.append(svgEl("path", { class: "bar", "data-i": xs.indexOf(x), fill: s.color, d: "M" + left + " " + base + "V" + (top + r) + "Q" + left + " " + top + " " + (left + r) + " " + top + "H" + (right - r) + "Q" + right + " " + top + " " + right + " " + (top + r) + "V" + base + "Z" }));
+    if (stacked) {
+      const slot = Math.min(24, (categorical ? band : (W - pad.l - pad.r) / Math.max(1, xs.length)) * .7);
+      for (const x of xs) {
+        const parts = bars.map((s) => [s, Math.max(0, s.byX.get(x) || 0)]).filter((p) => p[1] > 0);
+        let sum = 0;
+        parts.forEach(([s, v], k) => {
+          const base = c.sy(Math.max(y0, sum)) - (k ? 2 : 0), top = c.sy(Math.max(y0, sum + v)), h = base - top;
+          sum += v;
+          if (h <= 0) return;
+          bar(s, x, c.sx(x) - slot / 2, c.sx(x) + slot / 2, top, base, k === parts.length - 1 ? Math.min(4, h, slot / 2) : 0);
+        });
+      }
+    } else bars.forEach((s, bi) => {
       const slot = Math.min(24, (categorical ? band : (W - pad.l - pad.r) / Math.max(1, s.points.length)) * .7 / bars.length);
       s.points.forEach(([x, v]) => {
         const cx = c.sx(x) + (bi - (bars.length - 1) / 2) * (slot + 2), top = c.sy(Math.max(v, y0)), base = c.sy(Math.max(y0, 0)), h = Math.max(0, base - top), r = Math.min(4, h, slot / 2);
-        const left = cx - slot / 2, right = cx + slot / 2;
-        svg.append(svgEl("path", { class: "bar", "data-i": xs.indexOf(x), fill: s.color, d: "M" + left + " " + base + "V" + (top + r) + "Q" + left + " " + top + " " + (left + r) + " " + top + "H" + (right - r) + "Q" + right + " " + top + " " + right + " " + (top + r) + "V" + base + "Z" }));
+        bar(s, x, cx - slot / 2, cx + slot / 2, top, base, r);
       });
     });
     for (const s of lines) {

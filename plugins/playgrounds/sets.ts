@@ -1,7 +1,7 @@
 // Higher-level component sets, composed from the base library in controls.ts.
 // Calculator set: scrubbable numbers inside a sentence, one answer, a breakdown bar.
-// Simulation set: a run bar (play, pause, scrub) driving the base chart, which
-// shows the run with a "now" marker and its events. The music set lives in controls.ts.
+// An optional run bar (play, pause, scrub) driving the base chart, which shows
+// the run with a "now" marker and its events. The music set lives in controls.ts.
 
 export const SETS_CSS = String.raw`
 .pg-sentence { margin-bottom: 0; font-size: 15px; line-height: 1.7; color: var(--pg-body); text-wrap: pretty; }

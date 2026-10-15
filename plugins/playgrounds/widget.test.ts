@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 import { expect, it } from "vitest";
 import { SETS_CSS } from "./sets.js";
+import { kitProblems } from "./validate.js";
 import { WIDGET_MESSAGE_SOURCE, buildWidgetDocument, fallbackTheme, pageParts } from "./widget.js";
 
 it("keeps stored state and theme values from closing the bridge script", () => {
@@ -172,5 +174,61 @@ it("gives an Anatomy page bb's theme before its own scripts read it", async () =
       "<script>window.seen = document.body.dataset.theme</script></body></html>",
   );
   expect((dom.window as unknown as { seen?: string }).seen).toBe(fallbackTheme.scheme);
+  dom.window.close();
+});
+
+function chartIn(window: JSDOM["window"], name: string) {
+  const svg = window.document.querySelector(`[data-name="${name}"] svg`)!;
+  const bars = [...svg.querySelectorAll("path.bar")].map((bar) => {
+    const [, left, base] = /^M([\d.-]+) ([\d.-]+)V/.exec(bar.getAttribute("d")!)!;
+    const top = Math.min(...[...bar.getAttribute("d")!.matchAll(/[ QH]([\d.-]+) ([\d.-]+)/g)].map((m) => Number(m[2])), Number(base));
+    return { i: bar.getAttribute("data-i"), fill: bar.getAttribute("fill"), left: Number(left), base: Number(base), top };
+  });
+  const ticks = [...svg.querySelectorAll('text[text-anchor="end"]')].map((t) => Number.parseFloat(t.textContent!)).filter(Number.isFinite);
+  return { bars, top: Math.max(...ticks) };
+}
+
+it("stacks bar series on request and keeps side-by-side bars by default", () => {
+  const series = '[{ label: "Served", points: [["a", 3], ["b", 1]] }, { label: "Rejected", points: [["a", 2], ["b", 0]] }]';
+  const { dom } = frame(
+    '<figure data-pg="chart" data-name="stacked"></figure><figure data-pg="chart" data-name="grouped"></figure>' +
+      `<script>window.playground.ui.chart("stacked", { kind: "bars", stack: true, series: ${series} });` +
+      `window.playground.ui.chart("grouped", { kind: "bars", series: ${series} })</script>`,
+  );
+  const stacked = chartIn(dom.window, "stacked");
+  expect(stacked.bars.map((b) => b.i)).toEqual(["0", "0", "1"]);
+  const [served, rejected] = stacked.bars;
+  expect(rejected!.left).toBe(served!.left);
+  expect(rejected!.base).toBeCloseTo(served!.top - 2);
+  expect(stacked.top).toBeGreaterThanOrEqual(5);
+  const grouped = chartIn(dom.window, "grouped");
+  expect(grouped.bars).toHaveLength(4);
+  expect(grouped.bars[0]!.left).not.toBe(grouped.bars[2]!.left);
+  expect(grouped.top).toBeLessThan(5);
+  dom.window.close();
+});
+
+it("extends the y axis to a reference line above every value", () => {
+  const { dom } = frame(
+    '<figure data-pg="chart" data-name="load"></figure>' +
+      '<script>window.playground.ui.chart("load", { series: [{ label: "Load", points: [[0, 4], [1, 10]] }], marks: [{ y: 50, label: "Capacity" }] })</script>',
+  );
+  expect(chartIn(dom.window, "load").top).toBeGreaterThanOrEqual(50);
+  dom.window.close();
+});
+
+it("draws the rate-limiter reference at once and recomputes it from its controls", () => {
+  const html = readFileSync(new URL("./skills/playgrounds/references/rate-limiter.html", import.meta.url), "utf8");
+  expect(kitProblems(html)).toEqual([]);
+  const { dom } = frame(html);
+  const { document } = dom.window;
+  const result = () => document.getElementById("result")!.textContent;
+  expect(result()).toBe("Over 30 seconds, 82 of 840 requests were rejected; a bucket of 130 tokens would serve them all.");
+  const before = chartIn(dom.window, "traffic");
+  expect(before.bars.filter((b) => b.fill === "var(--pg-bad)")).toHaveLength(2);
+  expect(document.querySelector('[data-name="traffic"] .mark-label')!.textContent).toBe("Refill rate 35/s");
+  (dom.window as unknown as { playground: { params: { set(name: string, value: number): void } } }).playground.params.set("capacity", 130);
+  expect(result()).toBe("Over 30 seconds, all 840 requests were served; this is the smallest bucket that does.");
+  expect(chartIn(dom.window, "traffic").bars.filter((b) => b.fill === "var(--pg-bad)")).toHaveLength(0);
   dom.window.close();
 });
