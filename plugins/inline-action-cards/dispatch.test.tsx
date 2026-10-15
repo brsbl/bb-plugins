@@ -24,7 +24,6 @@ it.each(["decide", "choice", "reply"] as const)("submits a %s from Waiting on yo
     const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, {
       composer: { scope: { kind: "thread", threadId: "thr_test" }, text: draft }, rpc,
     });
-    fireEvent.click(await screen.findByRole("button", { name: /^Waiting on you/ }));
     const label = kind === "reply" ? "Send" : kind === "choice" ? "Short" : "Publish";
     fireEvent.click(await screen.findByRole("radio", { name: label }));
     const form = screen.getByRole("form");

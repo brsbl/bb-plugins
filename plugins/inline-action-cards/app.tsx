@@ -9,6 +9,7 @@ import { Button, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, Optio
 import { readableError, submitting } from "./submit.js";
 import { ReloadFrame } from "./reload-frame.js";
 import { openWaiting, WaitingBanner } from "./drawer.js";
+import { markWaitingThreads } from "./sidebar-status.js";
 import "./app.css";
 import "./compact.css";
 
@@ -191,6 +192,14 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, [draft, showBody]);
+  // Like bb's own question form: number keys pick an option and Enter submits, unless the user is typing elsewhere.
+  const keys = useRef<(event: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    if (surface !== "drawer") return;
+    const onKey = (event: KeyboardEvent) => keys.current(event);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [surface]);
   if (!item) return <div className="iac-card" role="status">{error ?? "Loading card…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
@@ -210,6 +219,14 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const submit = () => {
     if (ask) { if (note.trim()) void act("answer"); }
     else if (value) void act(choice ? "choose" : value as Action, choice ? value : undefined);
+  };
+  keys.current = (event) => {
+    if (!ready || busy || ask || reply || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("input:not([type=radio]), textarea, select, [contenteditable]:not([contenteditable=false])")) return;
+    const digit = Number(event.key);
+    if (Number.isInteger(digit) && digit >= 1 && digit <= formOptions.length) { event.preventDefault(); setPicked(formOptions[digit - 1]!.id); }
+    else if (event.key === "Enter" && value && !target?.closest("button, a")) { event.preventDefault(); submit(); }
   };
   const fieldId = `iac-${threadId}-${id}`;
   const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
@@ -239,7 +256,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     answer={ask
       ? <textarea className="ac-textarea" aria-label="Your answer" placeholder="Your answer" value={note} readOnly={!ready || busy} rows={2} maxLength={1000} onChange={(event) => changeNote(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} />
-      : <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={setPicked} />} />;
+      : <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={setPicked} shortcuts={drawer} />} />;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
@@ -343,12 +360,12 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const label = `${reply ? "Reply" : choice ? "Choice" : ask ? "Ask" : "Decision"}: ${title(item)}`;
   if (surface === "timeline" && ready) return <button type="button" className="iac-waiting-line" aria-label={`In Waiting on you: ${heading}`} onClick={() => openWaiting(threadId, id)}>
     <Icon name="CircleQuestion" className="iac-waiting-icon" aria-hidden />
+    <span className="iac-waiting-where">Waiting for answer</span>
     <span className="iac-waiting-question">{heading}</span>
-    <span className="iac-waiting-where">In Waiting on you</span>
   </button>;
   return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit}>
     {!drawer && origin}
-    {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></>}
+    {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} submitLabel={drawer ? "Submit answer" : undefined} /></>}
     {failure}
   </DecisionCard>;
 }
@@ -445,4 +462,5 @@ export default definePluginApp((app) => {
   app.slots.messageDirective({ id: "action", component: ActionDirective });
   app.slots.messageDirective({ id: "actions", component: ActionsDirective });
   app.composer.customize({ id: "waiting", scopes: ["thread"], banners: [{ id: "waiting", chrome: "bare", component: WaitingBanner }] });
+  app.contentScripts.register({ id: "waiting-threads", mount: markWaitingThreads });
 });

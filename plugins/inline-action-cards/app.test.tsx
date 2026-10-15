@@ -41,7 +41,8 @@ const directiveProps = (id: string, threadId = "thr_test") => ({ attributes: { i
 const inThread = { composer: { scope: { kind: "thread" as const, threadId: "thr_test" } } };
 // Open Waiting on you and the given item, the way a person does; a single item opens straight to its answer.
 async function openItem(question: RegExp | string) {
-  fireEvent.click(await screen.findByRole("button", { name: /^Waiting on you/ }));
+  const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+  if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
   const row = screen.queryByRole("button", { name: typeof question === "string" ? `Answer: ${question}` : question });
   if (row) fireEvent.click(row);
   return screen.findByRole("form");
@@ -423,11 +424,12 @@ it("lists this thread's items urgent first with age, steps through them, and hid
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => waiting, get: (raw) => waiting.find((item) => item.id === (raw as { id: string }).id)! } });
   const header = await screen.findByRole("button", { name: /^Waiting on you/ });
-  // Collapsed by default: one line with the top question and a count.
-  expect(header.getAttribute("aria-expanded")).toBe("false");
+  // Open by default, like bb's own question; collapsed, it is one line with the top question and a count.
+  expect(header.getAttribute("aria-expanded")).toBe("true");
+  fireEvent.click(header);
   expect(header.textContent).toBe("Waiting on you· Urgent · Ship it?3");
   fireEvent.click(header);
-  const rows = within(screen.getByRole("list")).getAllByRole("button");
+  const rows = within(await screen.findByRole("list")).getAllByRole("button");
   expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Answer: Ship it?", "Answer: Archive it?", "Answer: Rename it?"]);
   expect(rows[0]!.textContent).not.toContain("Thread urgent");
   expect(rows[1]!.textContent).toContain("3d");
@@ -453,7 +455,6 @@ it("marks a question asked again with the earlier answer, steps with up and down
   const app = await loadPluginApp(() => import("./app.js"));
   renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => waiting, get: (raw) => waiting.find((item) => item.id === (raw as { id: string }).id)! } });
   const header = await screen.findByRole("button", { name: /^Waiting on you/ });
-  fireEvent.click(header);
   expect(header.textContent).toContain("· 2");
   const row = screen.getByRole("button", { name: "Answer: Which headline?" });
   expect(row.textContent).toContain("Asked again · you said “Run your agents like a team”");
@@ -462,6 +463,14 @@ it("marks a question asked again with the earlier answer, steps with up and down
   expect(screen.getByText("1 of 2")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   expect(await screen.findByText("2 of 2")).toBeTruthy();
+  // Number keys pick an option, as in bb's question form, but never while the user types elsewhere.
+  expect(screen.getByText("2", { selector: "kbd" })).toBeTruthy();
+  const composer = document.body.appendChild(document.createElement("textarea"));
+  fireEvent.keyDown(composer, { key: "1" });
+  expect((screen.getByRole("radio", { name: /^Yes/ }) as HTMLInputElement).checked).toBe(false);
+  fireEvent.keyDown(window, { key: "1" });
+  expect((screen.getByRole("radio", { name: /^Yes/ }) as HTMLInputElement).checked).toBe(true);
+  composer.remove();
   fireEvent.keyDown(screen.getByRole("form"), { key: "Escape" });
   await waitFor(() => expect(header.getAttribute("aria-expanded")).toBe("false"));
 });

@@ -34,18 +34,19 @@ export function ContextBlock({ children }: { children: ReactNode }) {
 }
 
 /** bb's question-form option row, with a real radio underneath for keyboard and screen readers. */
-export function OptionList({ name, label, options, value, recommended, disabled, onChange }: {
-  name: string; label: string; options: Option[]; value: string | null; recommended?: string | null; disabled?: boolean; onChange: (id: string) => void;
+export function OptionList({ name, label, options, value, recommended, disabled, onChange, shortcuts }: {
+  name: string; label: string; options: Option[]; value: string | null; recommended?: string | null; disabled?: boolean; onChange: (id: string) => void; shortcuts?: boolean;
 }) {
   return <fieldset className="ac-options" disabled={disabled}>
     <legend className="ac-sr">{label}</legend>
-    {options.map((option) => <label key={option.id} className="ac-option" data-destructive={option.destructive || undefined}>
+    {options.map((option, index) => <label key={option.id} className="ac-option" data-destructive={option.destructive || undefined}>
       <input type="radio" name={name} value={option.id} checked={value === option.id} onChange={() => onChange(option.id)} />
       <span className="ac-glyph" aria-hidden="true" />
       <span className="ac-option-text">
         <span className="ac-option-label">{option.label}{recommended === option.id && <span className="ac-tag">Recommended</span>}</span>
         {option.hint && <span className="ac-option-hint">{option.hint}</span>}
       </span>
+      {shortcuts && index < 9 && <kbd className="ac-option-key" aria-hidden="true">{index + 1}</kbd>}
     </label>)}
   </fieldset>;
 }

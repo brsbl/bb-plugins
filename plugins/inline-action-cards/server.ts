@@ -19,6 +19,8 @@ export const rpcContract = defineRpcContract({
   log: { input: z.object({ threadId: idSchema.optional() }).strict(), output: logSchema },
   // What one thread is still waiting on the user for, for the drawer above its prompt box.
   waiting: { input: z.object({ threadId: idSchema }).strict(), output: waitingSchema },
+  // Threads with anything waiting on the user, for the sidebar's question glyph.
+  waitingThreads: { input: z.object({}).strict(), output: z.array(idSchema) },
   decideFromLog: { input: versioned.extend({ action: actionSchema.optional() }), output: itemSchema },
   get: { input: ref, output: itemViewSchema },
   save: { input: versioned.extend({ draft: draftSchema }), output: itemSchema },
@@ -118,6 +120,11 @@ export function createStore(bb: BbPluginApi) {
       });
       return (await withSources(open)).sort((a, b) => rank(a.content.priority) - rank(b.content.priority)
         || a.updatedAt.localeCompare(b.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
+    },
+    waitingThreads() {
+      return (db.prepare(`SELECT DISTINCT thread_id AS threadId FROM action_items WHERE json_extract(value, '$.state') = 'ready'
+        OR (json_extract(value, '$.state') = 'pending' AND json_extract(value, '$.attempt.claimed') = 0 AND json_extract(value, '$.attempt.sentAt') IS NULL)`).all() as { threadId: string }[])
+        .map((row) => row.threadId);
     },
     // A newer version of the same question in the same thread replaces the older unanswered ones.
     supersede(threadId: string, id: string) {
@@ -343,6 +350,7 @@ export default function plugin(bb: BbPluginApi): void {
   bb.rpc.register(rpcContract, {
     log: ({ threadId }) => store.log(threadId),
     waiting: ({ threadId }) => store.waiting(threadId),
+    waitingThreads: () => store.waitingThreads(),
     async dispatch({ threadId, entries }) {
       if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
       // Resolve every durable reference before sending anything. Never accept arbitrary message text from the client.

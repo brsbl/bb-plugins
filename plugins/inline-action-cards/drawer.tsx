@@ -58,7 +58,7 @@ function Row({ item, now, onOpen }: { item: WaitingItem; now: number; onOpen: ()
 function Answer({ item, now, onAnswered }: { item: WaitingItem; now: number; onAnswered: (item: Item) => void }) {
   return <div className="max-h-[60vh] overflow-y-auto overscroll-contain px-3 pb-2 pt-2">
     <div className="min-w-0 px-0.5">
-      <p className="break-words text-xs text-foreground">{questionOf(item)}</p>
+      <p className="break-words text-xs font-medium text-foreground">{questionOf(item)}</p>
       <Meta item={item} now={now} />
     </div>
     <div className="mt-1.5">
@@ -80,6 +80,8 @@ function sentLabel(item: Item): string {
   return attempt.choice?.label ?? actionLabel(item, attempt.action);
 }
 
+const collapsedThreads = new Set<string>();
+
 export function WaitingBanner() {
   const { scope } = useComposer();
   return scope.kind === "thread" ? <ThreadWaiting key={scope.threadId} threadId={scope.threadId} /> : null;
@@ -89,7 +91,9 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const [items, setItems] = useState<WaitingItem[]>([]);
-  const [expanded, setExpanded] = useState(false);
+  // Open by default, like bb's own question; collapsing holds for this thread until the page reloads.
+  const [expanded, setExpandedState] = useState(() => !collapsedThreads.has(threadId));
+  const setExpanded = (next: boolean) => { setExpandedState(next); if (next) collapsedThreads.delete(threadId); else collapsedThreads.add(threadId); };
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
