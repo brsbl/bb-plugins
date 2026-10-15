@@ -8,7 +8,7 @@ call.
 Inspired by OpenAI's [Intelligent UI](https://openai.com/index/gpt-6-for-everyone/) in ChatGPT.
 Playgrounds shows figures made with [Anatomy](https://skills.wheresryan.sh/anatomy) by
 [Ryan (@wheresryan22)](https://github.com/wheresryan22) as cards you and the agent can operate.
-It ships an adapted copy of Anatomy (MIT) as the `anatomy` skill, so there's nothing
+It ships an adapted copy of Anatomy (MIT) as the `how-it-works` skill, so there's nothing
 else to install.
 
 ## Install

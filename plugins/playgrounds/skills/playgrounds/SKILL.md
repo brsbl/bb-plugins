@@ -367,7 +367,7 @@ shows a setup step, two boards and hidden pieces), and
 
 [Anatomy](https://skills.wheresryan.sh/anatomy), by Ryan
 ([@wheresryan22](https://github.com/wheresryan22)), draws a technical idea as a
-working isometric machine. Playgrounds ships a copy as the `anatomy` skill.
+working isometric machine. Playgrounds ships a copy as the `how-it-works` skill.
 When someone asks for an Anatomy figure, or for "how X works" as a machine they
 can operate, build the figure with it the framework-free way (a `build.mjs` that writes one
 standalone HTML page), then show that page as a playground:
