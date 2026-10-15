@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-image-carousel",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "Show research screenshots and before/after pairs inline as a carousel.",
   "type": "module",
   "license": "UNLICENSED",
@@ -46,9 +46,14 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "@radix-ui/react-dialog": "^1.1.19"
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@radix-ui/react-slot": "^1.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.4.0"
   }
 }
