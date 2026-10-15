@@ -59,7 +59,7 @@
 .ac-row { display: grid; gap: var(--ac-gap); padding: var(--ac-pad); border-bottom: 1px solid var(--border); }
 .ac-group-foot { padding: calc(var(--ac-s) * 2.5) var(--ac-pad); }
 /* Long unbroken text (URLs, paths) wraps instead of widening the card. */
-.ac-card, .ac-card > *, .ac-row > * { min-width: 0; }
+.ac-card, .ac-card > *, .ac-row > *, .ac-about > *, .ac-answer > * { min-width: 0; }
 .ac-context { overflow-wrap: anywhere; }
 .ac-row > .ac-note-toggle { justify-self: start; }
 /* Body: what the decision is about, then the answer, stacked like bb's question form. */

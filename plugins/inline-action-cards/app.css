@@ -126,8 +126,12 @@
 
 /* Follow-ups: the user's question, then the agent's answer on the card. */
 .iac-followups { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; font-size: var(--text-sm, .8125rem); }
+.iac-followups > li { min-width: 0; }
 .iac-ask { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
-.iac-answer { margin: 2px 0 0; padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; }
+/* Bound host Markdown's table breakout here so its table wrapper scrolls inside the answer. */
+.iac-answer { margin: 2px 0 0; padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; overflow-x: auto; }
+/* Keep columns readable; long cell content uses the host's horizontal table scroller. */
+.iac-answer table { overflow-wrap: normal; }
 .iac-answer > :first-child { margin-top: 0; }
 .iac-answer > :last-child { margin-bottom: 0; }
 .iac-waiting { font-style: italic; }
