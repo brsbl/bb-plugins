@@ -1106,11 +1106,14 @@ export default async function plugin(bb: BbPluginApi) {
    * remembered: caching a failure would disable the corpus for the lifetime of
    * the process after one offline fetch.
    */
-  async function resolveSource(): Promise<CorpusSource | null> {
-    if (corpusSource) return corpusSource;
-    const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
+  async function resolveSource(root = DEFAULT_DOCTRINE_PATH): Promise<CorpusSource | null> {
+    if (root === DEFAULT_DOCTRINE_PATH && corpusSource) return corpusSource;
+    const repositoryRoot = await resolveRepositoryRoot(root);
     if (!repositoryRoot) return null;
-    githubRepository = await resolveGitHubRepository(repositoryRoot);
+    const repository = await resolveGitHubRepository(repositoryRoot);
+    if (root === DEFAULT_DOCTRINE_PATH) githubRepository = repository;
+    // A configured local maintenance checkout keeps its existing commit-only path.
+    if (root !== DEFAULT_DOCTRINE_PATH && !repository) return null;
     const dataDirectory = pluginDataDirectory(bb.storage.database().name);
     const readPath = join(dataDirectory, CORPUS_DIRECTORY);
     // bb owns the data directory; anything materialized inside the repository
@@ -1118,14 +1121,15 @@ export default async function plugin(bb: BbPluginApi) {
     if (!isAbsolute(readPath) || !relative(repositoryRoot, readPath).startsWith("..")) {
       return null;
     }
-    corpusSource = {
+    const source = {
       repositoryRoot,
       baseBranch: await resolveBaseBranch(repositoryRoot),
-      prefix: relative(repositoryRoot, DEFAULT_DOCTRINE_PATH),
+      prefix: relative(repositoryRoot, root),
       readPath,
       workPath: dataDirectory,
     };
-    return corpusSource;
+    if (root === DEFAULT_DOCTRINE_PATH) corpusSource = source;
+    return source;
   }
 
   async function doctrineRoot(): Promise<string> {
@@ -1143,6 +1147,10 @@ export default async function plugin(bb: BbPluginApi) {
    */
   async function openRulePublication(direct?: { originThreadId: string; title: string }): Promise<Publication | null> {
     const configured = expandPath((await settings.get()).doctrinePath);
+    if (direct) {
+      const source = await resolveSource(configured);
+      if (source) return openPublication(source, undefined, direct);
+    }
     if (configured !== DEFAULT_DOCTRINE_PATH) {
       await ensureNotPublishedBranch(configured);
       return { root: configured, finish: async () => null };
@@ -1265,9 +1273,7 @@ export default async function plugin(bb: BbPluginApi) {
    * copy, and rule-watch drains again.
    */
   async function publicationInFlight(): Promise<boolean> {
-    const configured = expandPath((await settings.get()).doctrinePath);
-    if (configured !== DEFAULT_DOCTRINE_PATH) return false;
-    const source = await resolveSource();
+    const source = await publicationSource();
     if (!source) return false;
     const open = await readOpenPublications(source);
     publicationCache = {
@@ -1301,12 +1307,10 @@ export default async function plugin(bb: BbPluginApi) {
     }
     if (publicationLookup) return publicationLookup;
     const request = (async () => {
-      const configured = expandPath((await settings.get()).doctrinePath);
-      if (configured !== DEFAULT_DOCTRINE_PATH) return null;
       const signal = AbortSignal.timeout(PUBLICATION_LOOKUP_TIMEOUT_MS);
       const value = await withDeadline(
         (async () => {
-          const source = await resolveSource();
+          const source = await publicationSource();
           if (!source) return null;
           const [open] = await readOpenPublications(source, signal);
           return open ? { url: open.url } : null;
@@ -1410,8 +1414,8 @@ export default async function plugin(bb: BbPluginApi) {
 
   async function publicationSource(): Promise<CorpusSource | null> {
     const configured = expandPath((await settings.get()).doctrinePath);
-    if (configured !== DEFAULT_DOCTRINE_PATH) return null;
-    return resolveSource();
+    if (configured !== DEFAULT_DOCTRINE_PATH && !harvest.hasDirectSubmissions()) return null;
+    return resolveSource(configured);
   }
 
   /**

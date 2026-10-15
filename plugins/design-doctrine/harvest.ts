@@ -1255,6 +1255,9 @@ export function createHarvest(dependencies: HarvestDependencies) {
   return {
     enqueue,
     addRule,
+    hasDirectSubmissions(): boolean {
+      return Boolean(db().prepare(`SELECT 1 FROM direct_rule_evidence LIMIT 1`).get());
+    },
     cancel(threadId: string): void {
       const databaseHandle = db();
       const purge = databaseHandle.transaction(() => {

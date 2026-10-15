@@ -225,6 +225,7 @@ describe("Design Doctrine plugin contract", () => {
 
     await expect(plugin(bb)).resolves.toBeUndefined();
     expect(harness.inspection.registrations.rpcMethods).toEqual([
+      "experimental_addRule",
       "getLibrary",
       "getHarvestActivity",
       "cancelProposal",
@@ -291,6 +292,7 @@ describe("Design Doctrine plugin contract", () => {
     await expect(plugin(bb)).resolves.toBeUndefined();
     await vi.waitFor(() => expect(registrationsAtInventoryStart).not.toBeNull());
     expect(registrationsAtInventoryStart?.rpcMethods).toEqual([
+      "experimental_addRule",
       "getLibrary",
       "getHarvestActivity",
       "cancelProposal",

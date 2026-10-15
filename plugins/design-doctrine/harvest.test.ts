@@ -30,6 +30,7 @@ import {
   ruleRelativePath,
   type HarvestProposal,
 } from "./harvest";
+import * as corpus from "./corpus";
 import plugin from "./server";
 import { loadDoctrine } from "./server";
 
@@ -1480,6 +1481,30 @@ describe("direct rule recording", () => {
     expect(markdown).not.toContain("thr_direct");
     expect(markdown).not.toContain(directInput().evidence.quote);
     await harness.lifecycle.dispose();
+  });
+
+  it("publishes from a configured GitHub repository without changing its setting", async () => {
+    const root = await makeDoctrineRoot();
+    const script: AgentScript = { propose: () => [], review: () => ({ approve: true, reason: "Direct design feedback supports this scope" }), reviewerPrompts: [], harvesterPrompts: [] };
+    const { harness } = await startPlugin(root, script);
+    const github = vi.spyOn(corpus, "resolveGitHubRepository").mockResolvedValue("owner/rules");
+    const data = vi.spyOn(corpus, "pluginDataDirectory").mockReturnValue(join(tmpdir(), "private-doctrine-data"));
+    const open = vi.spyOn(corpus, "readOpenPublications").mockResolvedValue([]);
+    const publication = vi.spyOn(corpus, "openPublication").mockResolvedValue({ root, finish: async () => null });
+    try {
+      await harness.behavior.callRpc("experimental_addRule", directInput());
+      await settle(harness);
+      expect(publication).toHaveBeenCalledWith(
+        expect.objectContaining({ repositoryRoot: root, prefix: "" }), undefined,
+        { originThreadId: "thr_origin", title: directInput().title },
+      );
+      expect(open).toHaveBeenCalled();
+      const status = await harness.behavior.runCli(["status", "--json"]);
+      expect(JSON.parse(status.stdout!).root).toBe(root);
+    } finally {
+      await harness.lifecycle.dispose();
+      github.mockRestore(); data.mockRestore(); open.mockRestore(); publication.mockRestore();
+    }
   });
 
   it.each([
