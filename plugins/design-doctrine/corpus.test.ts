@@ -7,6 +7,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -277,9 +278,19 @@ describe("doctrine corpus", () => {
       publicationSource = { ...source, baseBranch: "doctrine/parent" };
     }
     const publication = await openPublication(publicationSource, undefined, {
-      originThreadId: "thr_origin", title: "Plain actions before submenus", parents,
+      originThreadId: "thr_origin", title: "Plain actions before submenus", parents, trustedBranch: "main",
     });
-    if (stacked) expect(await exists(join(publication.root, "rules/interaction/ddr_005.md"))).toBe(true);
+    if (stacked) {
+      expect(await exists(join(publication.root, "rules/interaction/ddr_005.md"))).toBe(true);
+      // A parent moving after validation cannot inject executable content into
+      // the build or replace the catalog the reviewer actually inspected.
+      await git(repository, "checkout", "doctrine/parent");
+      await writeFile(join(repository, "package.json"), '{"scripts":{"build":"exit 1"}}');
+      await git(repository, "add", "package.json");
+      await git(repository, "commit", "-m", "parent moved after review");
+      await git(repository, "push", "origin", "doctrine/parent");
+      await git(repository, "checkout", "main");
+    }
     await commitRule(join(publication.root, "..", ".."), "ddr_002.md");
     const bin = join(workspace, "bin");
     const log = join(workspace, "gh-log");
@@ -301,10 +312,29 @@ describe("doctrine corpus", () => {
     expect(calls).not.toContain("--auto");
     expect(calls).not.toContain("--squash");
     if (stacked) {
+      const branches = (await git(join(workspace, "origin.git"), "for-each-ref", "--format=%(refname:short)", "refs/heads/doctrine/")).split("\n");
+      const published = branches.find((branch) => branch !== "doctrine/parent")!;
+      expect(await git(join(workspace, "origin.git"), "ls-tree", published, "package.json")).toBe("");
       expect(calls).toContain("--base\ndoctrine/parent\n");
       expect(calls).toContain("stack\nlink\nhttps://github.com/example/rules/pull/42\nhttps://github.com/example/rules/pull/1");
       expect(await git(repository, "rev-parse", "origin/main")).not.toBe(await git(repository, "rev-parse", "origin/doctrine/parent"));
     }
+  });
+
+  it.each(["package.json", "rule-symlink"])("rejects untrusted pending content before opening a build checkout: %s", async (content) => {
+    await git(repository, "checkout", "-b", "doctrine/unsafe");
+    if (content === "package.json") {
+      await writeFile(join(repository, "package.json"), '{"scripts":{"build":"exit 1"}}');
+    } else {
+      await symlink("../../../package.json", join(repository, PREFIX, "rules/interaction/unsafe.md"));
+    }
+    await git(repository, "add", "-A");
+    await git(repository, "commit", "-m", "unapproved build changes");
+    await git(repository, "push", "origin", "doctrine/unsafe");
+    await expect(openPublication({ ...source, baseBranch: "doctrine/unsafe" }, undefined, {
+      originThreadId: "thr_origin", title: "Rule", parents: ["parent"], trustedBranch: "main",
+    })).rejects.toThrow("executable or non-rule content");
+    expect(await git(repository, "worktree", "list")).not.toContain("publish-");
   });
 
   it("selects the whole pending chain as a direct rule's reviewed base", () => {
@@ -405,6 +435,31 @@ esac
       expect(await git(origin, "rev-parse", "main")).toBe(main);
       expect(await git(origin, "rev-parse", "doctrine/other")).toBe(other);
       expect(await git(repository, "worktree", "list")).not.toContain("cancel-");
+    });
+
+    it.each(["ancestor", "leaf"])("withdraws the owning layer and inherited copies (%s)", async (target) => {
+      await git(repository, "checkout", "-b", "doctrine/child", "origin/doctrine/other");
+      await commitRule(repository, "ddr_005.md");
+      await git(repository, "push", "origin", "doctrine/child");
+      await git(repository, "checkout", "main");
+      const rows = JSON.parse(process.env.FAKE_GH_LIST!);
+      rows.unshift({ ...rows[0], url: "https://github.com/example/doctrine/pull/child", headRefName: "doctrine/child", baseRefName: "doctrine/other" });
+      process.env.FAKE_GH_LIST = JSON.stringify(rows);
+      const ancestor = target === "ancestor";
+      const name = ancestor ? "ddr_004.md" : "ddr_005.md";
+      const result = await withdrawRuleFile(source, `rules/interaction/${name}`, name, "cancel rule");
+      expect(result).toEqual({ kind: "withdrawn", url: `https://github.com/example/doctrine/pull/${ancestor ? "other" : "child"}`, remainingRules: 0 });
+      expect(await branchRules("doctrine/other")).toEqual(ancestor ? ["ddr_001.md"] : ["ddr_001.md", "ddr_004.md"]);
+      expect(await branchRules("doctrine/child")).toEqual(ancestor ? ["ddr_001.md", "ddr_005.md"] : ["ddr_001.md", "ddr_004.md"]);
+      if (result.kind !== "withdrawn") throw new Error("Expected withdrawal");
+      await closePublication(source, result.url, "Nothing left");
+      const calls = await readFile(log, "utf8");
+      if (ancestor) {
+        expect(calls).toContain("pr edit https://github.com/example/doctrine/pull/child --base main");
+        expect(calls.indexOf("pr edit")).toBeLessThan(calls.indexOf("pr close"));
+      } else {
+        expect(calls).not.toContain("pr edit");
+      }
     });
 
     it("changes nothing for a published, merged, or unpublished rule", async () => {

@@ -1152,7 +1152,7 @@ export default async function plugin(bb: BbPluginApi) {
       const source = await resolveSource(configured);
       if (source) {
         const base = directPublicationBase(source, await readOpenPublications(source));
-        return openPublication(base.source, undefined, { ...direct, parents: base.parents });
+        return openPublication(base.source, undefined, { ...direct, parents: base.parents, trustedBranch: source.baseBranch });
       }
     }
     if (configured !== DEFAULT_DOCTRINE_PATH) {

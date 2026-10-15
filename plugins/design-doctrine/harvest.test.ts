@@ -1503,7 +1503,7 @@ describe("direct rule recording", () => {
       if (stacked) expect(script.reviewerPrompts[0]).toContain("ddr_002");
       expect(publication).toHaveBeenCalledWith(
         expect.objectContaining({ repositoryRoot: root, prefix: "", baseBranch: stacked ? parent.branch : "main" }), undefined,
-        { originThreadId: "thr_origin", title: directInput().title, parents: stacked ? [parent.url] : [] },
+        { originThreadId: "thr_origin", title: directInput().title, parents: stacked ? [parent.url] : [], trustedBranch: "main" },
       );
       expect(open).toHaveBeenCalled();
       const status = await harness.behavior.runCli(["status", "--json"]);

@@ -249,14 +249,19 @@ export interface Publication {
 export async function openPublication(
   source: CorpusSource,
   signal?: AbortSignal,
-  direct?: { originThreadId: string; title: string; parents?: string[] },
+  direct?: { originThreadId: string; title: string; parents?: string[]; trustedBranch?: string },
 ): Promise<Publication> {
   const { repositoryRoot, baseBranch, prefix, workPath } = source;
-  await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
+  const base = await fetchedCommit(source, baseBranch, signal);
+  if (direct?.parents?.length) {
+    if (!direct.trustedBranch) throw new Error("Stacked publication requires a trusted branch");
+    const trusted = await fetchedCommit(source, direct.trustedBranch, signal);
+    await assertRuleOnlyChanges(source, trusted, base, signal);
+  }
   const directory = await mkdtemp(join(workPath, "publish-"));
   await git(
     repositoryRoot,
-    ["worktree", "add", "--detach", "--quiet", directory, `origin/${baseBranch}`],
+    ["worktree", "add", "--detach", "--quiet", directory, base],
     signal,
   );
 
@@ -265,7 +270,7 @@ export async function openPublication(
     async finish(committed) {
       try {
         if (!committed) return null;
-        return await publish(source, directory, signal, direct);
+        return await publish(source, directory, signal, direct, direct?.parents?.length ? base : undefined);
       } finally {
         await git(
           repositoryRoot,
@@ -282,11 +287,12 @@ async function publish(
   source: CorpusSource,
   directory: string,
   signal?: AbortSignal,
-  direct?: { originThreadId: string; title: string; parents?: string[] },
+  direct?: { originThreadId: string; title: string; parents?: string[]; trustedBranch?: string },
+  pinnedBase?: string,
 ): Promise<string | null> {
   // A batch can take minutes to write, and the base branch keeps moving; replay
   // it onto the branch as it is now so the pull request never starts behind.
-  const base = await fetchedCommit(source, source.baseBranch, signal);
+  const base = pinnedBase ?? await fetchedCommit(source, source.baseBranch, signal);
   try {
     await git(directory, ["rebase", "--quiet", base], signal);
   } catch (error) {
@@ -517,6 +523,30 @@ async function fetchedCommit(
   return git(source.repositoryRoot, ["rev-parse", "--verify", `${ref}^{commit}`], signal);
 }
 
+/** Never execute build scripts from an unapproved publication. Pin the checked
+ * commit and allow only ordinary rule Markdown and its generated stylesheet. */
+async function assertRuleOnlyChanges(
+  source: CorpusSource,
+  trusted: string,
+  head: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const changes = await git(source.repositoryRoot, [
+    "diff", "--raw", "--no-abbrev", "--no-renames", "-z", `${trusted}...${head}`,
+  ], signal);
+  const fields = changes.split("\0");
+  for (let index = 0; index + 1 < fields.length; index += 2) {
+    const [oldMode, newMode] = fields[index].slice(1).split(" ");
+    const path = fields[index + 1];
+    const rules = `${source.prefix ? `${source.prefix}/` : ""}rules/`;
+    const css = `${source.prefix ? `${source.prefix}/` : ""}dist/app.css`;
+    if (![oldMode, newMode].every((mode) => mode === "100644" || mode === "000000") ||
+      !(path === css || (path.startsWith(rules) && path.endsWith(".md")))) {
+      throw new Error(`Pending doctrine PR changes executable or non-rule content: ${path}`);
+    }
+  }
+}
+
 /** Rule files a commit adds relative to where it forked from `base`. */
 async function addedRuleFiles(
   source: CorpusSource,
@@ -590,44 +620,64 @@ export async function withdrawRuleFile(
   // identify this proposal's rule; its title must match too.
   if (await ruleFileTitled(source, base, path, title, signal)) return { kind: "published" };
 
-  for (const publication of await readOpenPublications(source, signal)) {
+  const publications = await readOpenPublications(source, signal);
+  const heads = new Map<string, string>([[baseBranch, base]]);
+  async function headOf(branch: string): Promise<string> {
+    const known = heads.get(branch);
+    if (known) return known;
+    const head = await fetchedCommit(source, branch, signal);
+    heads.set(branch, head);
+    return head;
+  }
+  for (const publication of publications) {
     if (!PUBLICATION_BRANCH_PATTERN.test(publication.branch)) continue;
-    const head = await fetchedCommit(source, publication.branch, signal);
-    if (!(await addedRuleFiles(source, base, head, signal)).includes(path)) continue;
+    const head = await headOf(publication.branch);
+    const parent = await headOf(publication.baseBranch ?? baseBranch);
+    if (!(await addedRuleFiles(source, parent, head, signal)).includes(path)) continue;
     if (!(await ruleFileTitled(source, head, path, title, signal))) continue;
     const state = await pullRequestState(source, publication.url, signal);
     if (state === "MERGED") return { kind: "published" };
     if (state !== "OPEN") return { kind: "unpublished" };
 
-    const directory = await mkdtemp(join(workPath, "cancel-"));
-    try {
-      await git(
-        repositoryRoot,
-        ["worktree", "add", "--detach", "--quiet", directory, head],
-        signal,
-      );
-      await git(directory, ["rm", "--quiet", "--", path], signal);
-      await git(directory, ["commit", "--quiet", "-m", message], signal);
-      await rebuildCommittedBundles(source, directory, signal);
-      await git(
-        directory,
-        ["push", "--quiet", "origin", `HEAD:refs/heads/${publication.branch}`],
-        signal,
-      );
-      const withdrawn = await git(directory, ["rev-parse", "HEAD"], signal);
-      return {
-        kind: "withdrawn",
-        url: publication.url,
-        remainingRules: (await addedRuleFiles(source, base, withdrawn, signal)).length,
-      };
-    } finally {
-      await git(
-        repositoryRoot,
-        ["worktree", "remove", "--force", directory],
-        signal,
-      ).catch(() => undefined);
-      await rm(directory, { recursive: true, force: true });
+    // Remove inherited copies before their owner. A failed push leaves the owner
+    // pending so retry can finish; no descendant can later restore the rule.
+    const affected = [publication];
+    const seen = new Set([publication.branch]);
+    for (let index = 0; index < affected.length; index++) {
+      for (const child of publications.filter((pr) => pr.baseBranch === affected[index].branch)) {
+        if (seen.has(child.branch)) throw new Error("Invalid doctrine publication chain");
+        seen.add(child.branch);
+        affected.push(child);
+      }
     }
+    // Validate every immutable head before running any checkout's build tools.
+    for (const item of affected) {
+      await assertRuleOnlyChanges(source, base, await headOf(item.branch), signal);
+      await execFileAsync("gh", ["pr", "merge", item.url, "--disable-auto"], {
+        cwd: repositoryRoot, encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal,
+      });
+    }
+    let remainingRules = 0;
+    for (const item of affected.reverse()) {
+      const itemHead = await headOf(item.branch);
+      if (!(await ruleFileTitled(source, itemHead, path, title, signal))) continue;
+      const directory = await mkdtemp(join(workPath, "cancel-"));
+      try {
+        await git(repositoryRoot, ["worktree", "add", "--detach", "--quiet", directory, itemHead], signal);
+        await git(directory, ["rm", "--quiet", "--", path], signal);
+        await git(directory, ["commit", "--quiet", "-m", message], signal);
+        await rebuildCommittedBundles(source, directory, signal);
+        await git(directory, ["push", "--quiet", "origin", `HEAD:refs/heads/${item.branch}`], signal);
+        if (item === publication) {
+          const withdrawn = await git(directory, ["rev-parse", "HEAD"], signal);
+          remainingRules = (await addedRuleFiles(source, parent, withdrawn, signal)).length;
+        }
+      } finally {
+        await git(repositoryRoot, ["worktree", "remove", "--force", directory], signal).catch(() => undefined);
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
+    return { kind: "withdrawn", url: publication.url, remainingRules };
   }
   return { kind: "unpublished" };
 }
@@ -639,6 +689,15 @@ export async function closePublication(
   comment: string,
   signal?: AbortSignal,
 ): Promise<void> {
+  const open = await readOpenPublications(source, signal);
+  const closing = open.find((pr) => pr.url === url);
+  if (closing) {
+    for (const child of open.filter((pr) => pr.baseBranch === closing.branch)) {
+      await execFileAsync("gh", ["pr", "edit", child.url, "--base", closing.baseBranch ?? source.baseBranch], {
+        cwd: source.repositoryRoot, encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal,
+      });
+    }
+  }
   await execFileAsync(
     "gh",
     ["pr", "close", url, "--delete-branch", "--comment", comment],
