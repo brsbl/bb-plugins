@@ -71,7 +71,7 @@ function Answer({ item, index, total, now, onStep, onAnswered }: {
         <Meta item={item} now={now} />
       </div>
       <div className="-mr-1.5 flex shrink-0 items-center text-xs">
-        <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-normal text-muted-foreground" title="Open the thread" onClick={() => navigate.toThread(item.threadId)}>
+        <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-normal text-muted-foreground" onClick={() => navigate.toThread(item.threadId)}>
           Open thread<Icon name="ArrowUpRight" className="size-3.5" aria-hidden />
         </Button>
         {total > 1 && <>
