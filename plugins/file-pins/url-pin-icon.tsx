@@ -8,6 +8,8 @@ import { isLocalUrl } from "./url-pin.js";
 // One lookup per origin per page; the server caches origins across clients and restarts.
 // Misses are not remembered here, so a pin mounted later asks again.
 const favicons = new Map<string, Promise<string | null>>();
+// Icons already answered, so a card or row that mounts later paints its icon in its first frame.
+const faviconAnswers = new Map<string, string>();
 const SAFE_ICON = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
 
 // One request per PR per minute on this page, shared by the strip and the ⋯ list. Answers are kept for the page,
@@ -97,8 +99,9 @@ export function UrlPinIcon({ threadId, pin }: { threadId: string; pin: UrlPin })
   const local = isLocalUrl(pin.url);
   // Ask only for icons the server would fetch: a public HTTPS site with no port.
   const origin = iconUrl(pin.url)?.origin ?? null;
-  const [icon, setIcon] = useState<string | null>(null);
+  const [icon, setIcon] = useState<string | null>(() => origin === null ? null : faviconAnswers.get(origin) ?? null);
   useEffect(() => {
+    setIcon(origin === null ? null : faviconAnswers.get(origin) ?? null);
     if (origin === null) return;
     let current = true;
     let request = favicons.get(origin);
@@ -106,10 +109,13 @@ export function UrlPinIcon({ threadId, pin }: { threadId: string; pin: UrlPin })
       request = rpc.call("icon", { threadId, pinId: pin.id }).then(({ dataUrl }) => dataUrl && SAFE_ICON.test(dataUrl) ? dataUrl : null, () => null);
       favicons.set(origin, request);
       const pending = request;
-      void pending.then((value) => { if (value === null && favicons.get(origin) === pending) favicons.delete(origin); });
+      void pending.then((value) => {
+        if (value !== null) faviconAnswers.set(origin, value);
+        else if (favicons.get(origin) === pending) favicons.delete(origin);
+      });
     }
     void request.then((value) => { if (current) setIcon(value); });
-    return () => { current = false; setIcon(null); };
+    return () => { current = false; };
   }, [rpc, threadId, pin.id, origin]);
   const site = local
     ? <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="size-3.5 shrink-0">

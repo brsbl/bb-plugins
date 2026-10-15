@@ -264,7 +264,7 @@ export type AnswerDocument = z.infer<typeof documentSchema>;
 export type Control = AnswerDocument["controls"][number];
 export type Block = AnswerDocument["blocks"][number];
 export type Values = Record<string, number | string>;
-export const MAX_HTML_LENGTH = 400_000;
+export const MAX_HTML_LENGTH = 2_000_000;
 export const htmlAnswerSchema = z
   .object({
     title: label,
