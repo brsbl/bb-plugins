@@ -100,6 +100,7 @@
 .iac-log-review [aria-expanded="true"] { background: var(--state-active, var(--muted)); color: var(--foreground); }
 .iac-log-draft, .iac-log-row > .iac-error { grid-column: 2 / -1; }
 .iac-log-draft { margin-top: 8px; }
+.iac-log-brief { grid-column: 2 / -1; min-width: 0; margin-top: 8px; }
 .iac-log-draft p { margin: 0 0 4px; font-size: var(--text-xs, .75rem); overflow-wrap: anywhere; }
 .iac-log-options { margin: 0; padding-left: 18px; font-size: var(--text-xs, .75rem); }
 .iac-log-draft textarea { display: block; box-sizing: border-box; width: 100%; resize: none; font: inherit; line-height: 1.6; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 8px; }
@@ -107,8 +108,7 @@
 .iac-log-more { margin: 6px 0 0 20px; color: var(--muted-foreground); }
 /* Narrow pages and thread panels move actions below the text instead of squeezing the title. */
 @container (max-width: 440px) {
-  .iac-log-actions { grid-column: 2 / -1; grid-row: 3; justify-content: end; margin-top: 8px; }
-  .iac-log-draft { grid-row: 2; }
+  .iac-log-actions { grid-column: 2 / -1; justify-content: end; margin-top: 8px; }
   .iac-log-meta:has(> .iac-failed) { flex-wrap: wrap; }
   .iac-log-meta > .iac-failed { flex-basis: 100%; }
   .iac-log-meta > .iac-failed + ::before { content: none; }
@@ -126,8 +126,12 @@
 
 /* Follow-ups: the user's question, then the agent's answer on the card. */
 .iac-followups { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; font-size: var(--text-sm, .8125rem); }
+.iac-followups > li { min-width: 0; }
 .iac-ask { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
-.iac-answer { margin: 2px 0 0; padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; }
+/* Bound host Markdown's table breakout here so its table wrapper scrolls inside the answer. */
+.iac-answer { margin: 2px 0 0; padding-left: 10px; border-left: 2px solid var(--border); overflow-wrap: anywhere; overflow-x: auto; }
+/* Keep columns readable; long cell content uses the host's horizontal table scroller. */
+.iac-answer table { overflow-wrap: normal; }
 .iac-answer > :first-child { margin-top: 0; }
 .iac-answer > :last-child { margin-bottom: 0; }
 .iac-waiting { font-style: italic; }

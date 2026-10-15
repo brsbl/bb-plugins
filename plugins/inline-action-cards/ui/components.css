@@ -9,13 +9,14 @@
 .ac-consequence { margin: 0; color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.45; overflow-wrap: anywhere; }
 /* Context */
 .ac-context { padding: calc(var(--ac-s) * 2) calc(var(--ac-s) * 2.5); border-radius: var(--ac-radius-control); background: var(--surface-raised, var(--muted)); color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.5; }
-.ac-context-body { max-height: var(--ac-context-max); overflow: hidden; }
-.ac-context[data-long]:not([data-open]) .ac-context-body { mask-image: linear-gradient(to bottom, #000 65%, transparent); -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent); }
-.ac-context[data-open] .ac-context-body { max-height: none; }
+.ac-context-body { min-width: 0; overflow-x: auto; }
 .ac-context-body > :first-child { margin-top: 0; } .ac-context-body > :last-child { margin-bottom: 0; }
 .ac-context-body p { margin: 0 0 calc(var(--ac-s) * 1.5); }
 .ac-context-body strong, .ac-context-body b { color: var(--foreground); font-weight: 500; }
-.ac-context .ac-link { margin-top: calc(var(--ac-s) * 1); }
+.ac-source { color: var(--muted-foreground); font-size: var(--ac-meta); overflow-wrap: anywhere; }
+.ac-source a { color: inherit; text-decoration: none; }
+.ac-source a:hover { color: var(--foreground); text-decoration: underline; }
+.ac-source a:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
 /* Options: bb question-form rows */
 .ac-options { display: grid; gap: calc(var(--ac-s) * 1); min-width: 0; margin: 0; padding: 0; border: 0; }
 .ac-option { position: relative; display: flex; align-items: flex-start; gap: calc(var(--ac-s) * 2); padding: calc(var(--ac-s) * 1) 0; cursor: pointer; }
@@ -59,7 +60,7 @@
 .ac-row { display: grid; gap: var(--ac-gap); padding: var(--ac-pad); border-bottom: 1px solid var(--border); }
 .ac-group-foot { padding: calc(var(--ac-s) * 2.5) var(--ac-pad); }
 /* Long unbroken text (URLs, paths) wraps instead of widening the card. */
-.ac-card, .ac-card > *, .ac-row > * { min-width: 0; }
+.ac-card, .ac-card > *, .ac-row > *, .ac-about > *, .ac-answer > * { min-width: 0; }
 .ac-context { overflow-wrap: anywhere; }
 .ac-row > .ac-note-toggle { justify-self: start; }
 /* Body: what the decision is about, then the answer, stacked like bb's question form. */

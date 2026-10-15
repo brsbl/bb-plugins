@@ -81,7 +81,11 @@ export const tableSchema = tableContentSchema.extend({ id: idSchema, threadId: i
 export const answerSchema = z.string().trim().min(1).max(8000);
 export const followUpSchema = z.object({ commentId: z.string().uuid(), note: noteSchema, answer: answerSchema.nullable() }).strict();
 export type FollowUp = z.infer<typeof followUpSchema>;
-export const itemViewSchema = itemSchema.extend({ followUps: z.array(followUpSchema) });
+export const itemViewSchema = itemSchema.extend({
+  followUps: z.array(followUpSchema),
+  // Read-time attribution, never written into the saved card. Optional for older clients/servers.
+  threadTitle: z.string().optional(), threadProjectId: z.string().nullable().optional(),
+});
 export type ItemView = z.infer<typeof itemViewSchema>;
 export const tableViewSchema = tableSchema.extend({ items: z.array(itemViewSchema) });
 export type TableView = z.infer<typeof tableViewSchema>;

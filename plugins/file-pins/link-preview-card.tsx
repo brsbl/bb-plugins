@@ -1,11 +1,26 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import type { UrlPin, rpcContract } from "./contract.js";
-import { previewClient, previewKey, previewProblem } from "./preview-client.js";
+import { previewClient, previewKey, previewProblem, type PreviewAnswer } from "./preview-client.js";
 import { UrlPinIcon } from "./url-pin-icon.js";
 import { urlPinName } from "./url-pin.js";
 
 const SAFE_IMAGE = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
+/** How long a hovered link's card waits for its preview before opening with what it has. */
+export const PREVIEW_HOLD_MS = 800;
+const decoded = new Set<string>();
+
+/** Loads a link's preview and decodes its image, so its card opens with everything painted. Never rejects. */
+export async function preparePreview(key: string, call: () => Promise<PreviewAnswer>): Promise<void> {
+  await previewClient.load(key, call);
+  const image = previewClient.state(key).answer?.preview?.image;
+  if (!image || !SAFE_IMAGE.test(image) || decoded.has(image) || typeof Image === "undefined") return;
+  const element = new Image();
+  element.src = image;
+  try { await element.decode(); decoded.add(image); } catch { /* The card's own <img> reports a broken image. */ }
+  // Remember only recent images; the cache below holds the data itself.
+  if (decoded.size > 40) decoded.delete(decoded.values().next().value!);
+}
 
 // Moss EmbedPillHoverCard's media band and compact metadata
 // panel. Keep this plugin's URL header, and use BB's opaque themed surfaces.

@@ -1,4 +1,4 @@
-import { createFakePluginHost, makeQueueEntry } from "@get-bb/plugin-sdk/testing";
+import { createFakePluginHost, makeQueueEntry, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import plugin, { createStore } from "./server.js";
 import { actionMessage, type Item } from "./model.js";
@@ -8,6 +8,39 @@ const reply = { type: "reply", summary: "Billing follow-up", subject: "Missing r
 const hosts: ReturnType<typeof createFakePluginHost>[] = [];
 function setup() { const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); return { ...host, store: createStore(host.bb) }; }
 afterEach(async () => { for (const host of hosts.splice(0)) await host.harness.lifecycle.dispose(); });
+
+it.each([reply, { type: "decide", question: "File invoice?", consequence: "Add Receipts label" },
+  { type: "choice", question: "Which folder?", options: [{ id: "a", label: "Receipts" }, { id: "b", label: "Reading" }] },
+])("warns about missing context without changing successful create output ($type)", async (content) => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  const create = (id: string, item: unknown) => host.harness.behavior.runCli(["create", id, "--thread", ref.threadId, "--item", JSON.stringify(item)]);
+  const bare = await create("bare", content);
+  expect(bare).toMatchObject({ exitCode: 0, stdout: '::action{id="bare"}\n' });
+  expect(bare.stderr).toContain("Warning: this card has no context");
+  expect(createStore(host.bb).get(ref.threadId, "bare").content.type).toBe(content.type);
+  const brief = await create("brief", { ...content, context: "A complete decision brief." });
+  expect(brief).toMatchObject({ exitCode: 0, stdout: '::action{id="brief"}\n' });
+  expect(brief.stderr ?? "").toBe("");
+});
+
+it("attributes single and sheet cards to their source without rewriting saved records, and tolerates missing threads", async () => {
+  let title = "Workflow Inbox";
+  let available = true;
+  const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: {
+    get: ({ threadId }) => { if (!available) throw new Error("Gone"); return makeThreadResponse({ id: threadId, title, projectId: "proj_test" }); },
+  } } }); hosts.push(host); plugin(host.bb);
+  const store = createStore(host.bb);
+  store.create(ref.threadId, ref.id, reply);
+  store.createTable(ref.threadId, "sheet", { title: "Inbox", ids: [ref.id] });
+  const bytes = () => host.bb.storage.database().prepare("SELECT value FROM action_items").all();
+  const before = bytes();
+  expect(await host.harness.behavior.callRpc("get", ref)).toMatchObject({ threadTitle: title, threadProjectId: "proj_test" });
+  title = "Renamed thread";
+  expect(await host.harness.behavior.callRpc("table", { ...ref, id: "sheet" })).toMatchObject({ items: [{ threadTitle: title, threadProjectId: "proj_test" }] });
+  available = false;
+  expect(await host.harness.behavior.callRpc("get", ref)).toMatchObject({ id: ref.id, threadTitle: "Unavailable thread", threadProjectId: null });
+  expect(bytes()).toEqual(before);
+});
 
 describe("durable inline actions", () => {
   it("claims the latest saved draft once and refuses stale writes, clicks, and reports", () => {
@@ -354,6 +387,44 @@ describe("settling and undelivered requests", () => {
     expect(resolved).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Closed the PR", retryable: false } });
     const again = await host.harness.behavior.runCli(["resolve", "pr-42", "--thread", ref.threadId, "--message", "Twice"]).then((result) => result.exitCode, () => 1);
     expect(again).not.toBe(0);
+  });
+  it("settles a persisted retryable failure as superseded and removes it from waiting without dispatching", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const store = createStore(host.bb);
+    store.create(ref.threadId, ref.id, { type: "decide", question: "Merge the older head?", consequence: "Merge only the reviewed head." });
+    const pending = store.prepare({ ...ref, revision: 1, action: "yes" });
+    store.claim(ref.threadId, ref.id, pending.attempt!.id);
+    const failed = store.report(ref.threadId, ref.id, pending.attempt!.id, "failed", "Head moved; nothing merged", true);
+    const reloaded = await host.harness.lifecycle.reload(plugin); hosts[hosts.indexOf(host)] = reloaded;
+    const result = await reloaded.harness.behavior.runCli(["resolve", ref.id, "--thread", ref.threadId, "--message", "Superseded by the newer merge decision"]);
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout!)).toMatchObject({ state: "succeeded", attempt: failed.attempt, result: { message: "Superseded by the newer merge decision", retryable: false } });
+    expect(await reloaded.harness.behavior.callRpc("log", {})).toMatchObject({ waiting: [], done: [{ id: ref.id }] });
+    expect(reloaded.harness.inspection.sdk.callsTo("threads.send")).toHaveLength(0);
+    const late = await reloaded.harness.behavior.runCli(["report", ref.id, "--thread", ref.threadId, "--attempt", pending.attempt!.id, "--outcome", "failed", "--message", "Late failure", "--retryable"]);
+    expect(late.exitCode).not.toBe(0);
+  });
+  it("does not close a pending or unknown-outcome attempt as superseded", () => {
+    const { store } = setup(); store.create(ref.threadId, ref.id, reply);
+    const pending = store.prepare({ ...ref, revision: 1, action: "send" });
+    expect(() => store.resolve(ref.threadId, ref.id, "Superseded")).toThrow();
+    store.claim(ref.threadId, ref.id, pending.attempt!.id);
+    store.report(ref.threadId, ref.id, pending.attempt!.id, "failed", "Delivery unknown", false);
+    expect(() => store.resolve(ref.threadId, ref.id, "Superseded")).toThrow();
+    expect(store.get(ref.threadId, ref.id).state).toBe("failed");
+  });
+  it("does not resolve a failed legacy Later or Skip attempt, which would read as deferred", () => {
+    const { store } = setup();
+    for (const action of ["later", "skip"] as const) {
+      const id = `deferred-${action}`;
+      store.create(ref.threadId, id, { type: "decide", question: `${action}?`, consequence: "Do it." });
+      // Later is legacy-only: the RPC no longer offers it, but stored attempts still carry it.
+      const attempt = store.prepare({ ...ref, id, revision: 1, action } as Parameters<typeof store.prepare>[0]).attempt!;
+      store.claim(ref.threadId, id, attempt.id);
+      store.report(ref.threadId, id, attempt.id, "failed", "Not recorded", true);
+      expect(() => store.resolve(ref.threadId, id, "Superseded")).toThrow();
+      expect(store.get(ref.threadId, id)).toMatchObject({ state: "failed", attempt: { id: attempt.id, action } });
+    }
   });
   it("marks a sent but never claimed request as not sent once its thread is idle", () => {
     const { store, bb } = setup();
