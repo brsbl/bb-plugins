@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionIcons, actionLabel, actionMessage, mentionId, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type FollowUp, type Item } from "./model.js";
+import { actionIcons, actionLabel, actionMessage, mentionId, readItem, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type FollowUp, type Item } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
@@ -58,7 +58,9 @@ export function createStore(bb: BbPluginApi) {
   const get = (threadId: string, id: string): Item => {
     const row = read.get(threadId, id) as { value: string } | undefined;
     if (!row) throw new Error("This card is unavailable. Ask the agent to recreate it with the same item ID.");
-    return itemSchema.parse(JSON.parse(row.value));
+    const item = readItem(row.value);
+    if (!item) throw new Error("This card needs a newer version of Inline Decisions.");
+    return item;
   };
   const persist = (item: Item) => {
     const next = itemSchema.parse(item);
@@ -85,7 +87,12 @@ export function createStore(bb: BbPluginApi) {
     const row = readTable.get(threadId, id) as { value: string } | undefined;
     if (!row) throw new Error("This table is unavailable. Ask the agent to recreate it.");
     const value = persistedTableSchema.parse(JSON.parse(row.value));
-    return { ...value, items: value.ids.map((itemId) => get(threadId, itemId)) };
+    const items = value.ids.flatMap((itemId) => {
+      const row = read.get(threadId, itemId) as { value: string } | undefined;
+      const item = row && readItem(row.value);
+      return item ? [item] : row ? [] : [get(threadId, itemId)];
+    });
+    return { ...value, items };
   };
   const prepare = (item: Item, action: z.infer<typeof actionSchema>, note?: string) => {
     if (item.state !== "ready" && !(item.state === "failed" && item.result?.retryable)) throw new Error("This card already has an action in progress or has finished.");
@@ -103,7 +110,7 @@ export function createStore(bb: BbPluginApi) {
       const rows = (threadId
         ? db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId)
         : db.prepare("SELECT value FROM action_items").all()) as { value: string }[];
-      const items = rows.map((row) => itemSchema.parse(JSON.parse(row.value)));
+      const items = rows.flatMap((row) => readItem(row.value) ?? []);
       const titles = new Map<string, { title: string; projectId: string | null }>(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => {
         try { const thread = await bb.sdk.threads.get({ threadId: id }); return [id, { title: thread.title ?? "Untitled thread", projectId: thread.projectId }] as const; }
         catch { return [id, { title: "Unavailable thread", projectId: null }] as const; }
@@ -197,7 +204,8 @@ export function createStore(bb: BbPluginApi) {
       const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
       const cutoff = Date.now() - 5000;
       for (const row of rows) {
-        const item = itemSchema.parse(JSON.parse(row.value));
+        const item = readItem(row.value);
+        if (!item) continue;
         const sentAt = item.attempt?.sentAt;
         if (item.state !== "pending" || !sentAt || item.attempt!.claimed || Date.parse(sentAt) > cutoff) continue;
         change(threadId, item.id, null, (next) => { if (next.attempt && !next.attempt.claimed) delete next.attempt.sentAt; });
