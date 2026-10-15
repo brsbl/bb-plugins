@@ -184,7 +184,7 @@ it("reads around items a newer build saved: drops unknown fields and skips unkno
   const row = (id: string, content: object, extra: object = {}) => host.bb.storage.database().prepare("INSERT INTO action_items VALUES (?, ?, ?)")
     .run(ref.threadId, id, JSON.stringify({ id, threadId: ref.threadId, revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-15T10:00:00Z", content, ...extra }));
   row("merge", { type: "decide", question: "Merge it?", consequence: "Squash-merge.", priority: "urgent" }, { seenAt: "2026-10-15T10:01:00Z" });
-  row("channel", { type: "ask", question: "Which channel?", priority: "urgent" });
+  row("channel", { type: "poll", question: "Which channel?", priority: "urgent" });
   const log = await host.harness.behavior.callRpc("log", {}) as { waiting: Item[] };
   expect(log.waiting.map((item) => item.id)).toEqual(["merge"]);
   expect(log.waiting[0]!.content).toEqual({ type: "decide", question: "Merge it?", consequence: "Squash-merge." });
@@ -205,7 +205,7 @@ it("keeps a newer build's fields through every rewrite, and never acts on an unk
   put("moot", { type: "decide", question: "Still needed?", consequence: "Keep it.", priority: "urgent" });
   put("lost", { type: "decide", question: "Ship it?", consequence: "Ship.", priority: "urgent" }, { state: "pending", revision: 2,
     attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, sentAt: "2026-01-01T00:00:00.000Z", channel: "later-build" } });
-  put("channel", { type: "ask", question: "Which channel?", priority: "urgent" });
+  put("channel", { type: "poll", question: "Which channel?", priority: "urgent" });
   const askBefore = raw("channel");
   const store = createStore(host.bb);
   store.save({ ...ref, id: "draft", revision: 1, draft: "Revised" });
