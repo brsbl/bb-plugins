@@ -563,4 +563,8 @@ it("reads a playground file as JSON, or as a whole HTML page titled from its <ti
   const page = '<!doctype html><html><head><title> Dial indicator </title></head><body class="iso" data-theme="dark"></body></html>';
   expect(playgroundFromFile("/w/dial.html", page)).toEqual({ title: "Dial indicator", html: page, width: 720 });
   expect(playgroundFromFile("/w/plain.html", "<p>no title</p>")).toEqual({ title: "plain", html: "<p>no title</p>" });
+  const started = performance.now();
+  expect(playgroundFromFile("/w/odd.html", "<" + "<title".repeat(200_000))).toMatchObject({ title: "odd" });
+  expect(performance.now() - started).toBeLessThan(1_000);
+  expect(() => playgroundFromFile("/w/huge.html", "<p>" + "x".repeat(2_000_001))).toThrow("longer than a playground allows");
 });

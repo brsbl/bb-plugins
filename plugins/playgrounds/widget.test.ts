@@ -165,6 +165,9 @@ it("passes a whole page without a complete body through unchanged, quickly", () 
   const started = performance.now();
   pageParts("<!doctype html>" + "<head".repeat(200_000));
   pageParts("<!doctype html><body>" + "<body".repeat(200_000));
+  const head = (tag: string) => `<!doctype html><html><head>${tag.repeat(200_000)}</head><body><p>x</p></body></html>`;
+  expect(pageParts(head("<title")).markup).toContain("<p>x</p>");
+  expect(pageParts(head("<meta")).markup).toContain("<p>x</p>");
   expect(performance.now() - started).toBeLessThan(1_000);
 });
 
