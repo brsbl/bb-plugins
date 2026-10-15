@@ -40,6 +40,7 @@ it("publishes immutable answers, confines reads to their thread, and survives re
     ).rejects.toThrow("unavailable");
     const guide = await host.harness.behavior.runCli(["guide"]);
     expect(JSON.parse(guide.stdout!).examples.bill.title).toBe(bill.title);
+    expect(JSON.parse(guide.stdout!).html[0]).toMatch(/^Choose the form first\. How a system.*anatomy skill/);
     const html = await host.harness.behavior.runCli([
       "publish",
       "--thread",
