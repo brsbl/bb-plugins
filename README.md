@@ -60,6 +60,18 @@ Rewrites a rough bb composer draft into a clearer, context-complete prompt for r
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/improve-prompt --yes`
 
+### Prism Frame
+
+Adds a moving, theme-derived sheen to the app frame, navigation rail, and outer title bar, with matching glass mention pills and distinct selected states. Includes motion, intensity, and independent pill controls.
+
+![Prism Frame in light mode with normal and selected mention pills](https://github.com/user-attachments/assets/b9ac396f-a79e-49f5-9fd6-44b512067efb)
+
+![Prism Frame in dark mode with normal and selected mention pills](https://github.com/user-attachments/assets/961e1f3f-9831-412e-b344-0e1354a3509d)
+
+[Source](plugins/prism-frame) · [README](plugins/prism-frame/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/prism-frame --yes`
+
 ### Pull Requests
 
 See your GitHub pull requests and review requests, inspect checks and changes, and continue related work in bb. Thread links are optional and survive branch changes.
@@ -118,6 +130,18 @@ Shows how full each thread's context window is as a Katamari Damacy-style ball i
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/context-katamari --yes`
 
+### CRM
+
+Prioritize customer companies by potential impact and investors by the value they add. Two heatmap tables keep scores, customer milestones, investor ranks and next steps readable, with manual priority overrides, parked investors and a CLI for agents.
+
+![Customer companies grouped by impact tier, with scores and milestones](https://github.com/user-attachments/assets/6b8f75ec-24cc-4bf2-9e04-6a92fe466d92)
+
+![Investors ranked by value, with criterion scores, rationale and asks](https://github.com/user-attachments/assets/f9b444b4-b1d7-42cf-8a3b-abea0b2c7cf9)
+
+[Source](plugins/crm) · [README](plugins/crm/README.md)
+
+Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/crm --yes`
+
 ### Image Carousel
 
 Shows screenshots inline as a carousel: design research with one product per slide, or Before and After side by side with one shared description. It replaces long runs of images and screenshot tables in agent replies.
@@ -128,9 +152,9 @@ Shows screenshots inline as a carousel: design research with one product per sli
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/image-carousel --yes`
 
-### Inline Action Cards
+### Inline Decisions
 
-Edit email replies and approve decisions inside agent messages. Review one item or a group in a table, and track waiting choices and results across threads in the Action log.
+Edit email replies and approve decisions inside agent messages. Review one item or a group in a table, and track waiting choices and results across threads in the Decision log.
 
 ![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
 
@@ -368,13 +392,13 @@ See which bb server you are on and switch to any other server on your bb account
 
 Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/server-switcher --yes`
 
-### Dispatch
+### Agent Channels
 
 Run a team of bb threads from one lead: skills to delegate work, relay your decisions, collect results, and report back briefly, plus a right-panel view that gives each agent-to-agent conversation its own channel and flags reports waiting on you. Its defaults come from your own AGENTS.md, CLAUDE.md, skills, and memory, quoted in Settings.
 
-![A lead's Dispatch panel, with one channel per agent and the conversation in order](plugins/delegation/docs/channels.png)
+![A lead's Agent Channels panel, with one channel per agent and the conversation in order](plugins/delegation/docs/channels.png)
 
-![Dispatch's settings: one table of models by role, with when a lead creates each role](plugins/delegation/docs/settings.png)
+![Agent Channels' settings: one table of models by role, with when a lead creates each role](plugins/delegation/docs/settings.png)
 
 [Source](plugins/delegation) · [README](plugins/delegation/README.md)
 

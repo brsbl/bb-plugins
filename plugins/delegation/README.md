@@ -1,10 +1,10 @@
-# Dispatch
+# Agent Channels
 
 Skills and a right-panel view for running a team of bb threads: delegate work, keep each agent-to-agent conversation in its own channel, and bring back only what matters.
 
-![Dispatch in a lead's right panel: one channel per agent, with the conversation in order](docs/channels.png)
+![Agent Channels in a lead's right panel: one channel per agent, with the conversation in order](docs/channels.png)
 
-![Dispatch's settings: one table of models by role, with when a lead creates each role](docs/settings.png)
+![Agent Channels' settings: one table of models by role, with when a lead creates each role](docs/settings.png)
 
 ## Install
 
@@ -16,9 +16,9 @@ bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/delegation 
 
 ### Channels
 
-Open **Dispatch** from a thread's header or its right-panel launcher. Each agent the thread talks with gets a channel tab: its reports, its lead, and any peer lead that messaged it. A channel is the two-way conversation with that one agent, in order: messages this thread sent, messages it got back, and the agent's results. A grey dot marks new activity, and an orange dot marks an agent waiting on you.
+Open **Agent Channels** from a thread's header or its right-panel launcher. Each agent the thread talks with gets a channel tab: its reports, its lead, and any peer lead that messaged it. Each channel reads like a thread timeline between the two agents: this thread's messages sit where yours do in a normal thread, and the other agent's messages and results are its replies. A grey dot marks new activity, and an orange dot marks an agent waiting on you.
 
-Dispatch only reads what bb already stores. Sent messages come from the receiving thread's timeline, with their persisted delivery state (queued, not delivered, or steered). Channels refresh every 30 seconds while the window is visible, and **Load earlier messages** pages back. Agent messages still appear in the main timeline as bb shows them today.
+Agent Channels only reads what bb already stores. Sent messages come from the receiving thread's timeline, with their persisted delivery state (queued, not delivered, or steered). A channel re-reads a thread only when bb shows new activity on it, and scrolling to the top reads older history. Agent messages still appear in the main timeline as bb shows them today.
 
 The plugin ID, the `bb delegation` CLI, the skill names, and the settings keys keep their original `delegation` names.
 
@@ -39,13 +39,13 @@ The skills build on existing ones rather than repeating them: `spawn` for machin
 
 ### Settings
 
-Dispatch keeps no rules of its own. Each setting resolves in this order:
+Agent Channels keeps no rules of its own. Each setting resolves in this order:
 
 1. **Your instructions.** The `delegation-defaults` skill reads `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, your memory notes, and your skills, then records what they say about each setting with the file and your exact words. These win.
-2. **Your override**, from Settings → Dispatch or `bb delegation set`. It applies only where your instructions are silent.
+2. **Your override**, from Settings → Agent Channels or `bb delegation set`. It applies only where your instructions are silent.
 3. **A fallback** that defers to bb or the spawn skill.
 
-Settings → Dispatch is one table: a row each for Lead, Parent, Worker, and QA, with when a lead creates that role and its provider, model, and reasoning. Values your instructions set are locked, with the source on hover; an override they outrank is flagged so you can remove it. Every other setting below is read and set with `bb delegation`. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
+Settings → Agent Channels is one table: a row each for Lead, Parent, Worker, and QA, with when a lead creates that role and its provider, model, and reasoning. Values your instructions set are locked, with the source on hover; an override they outrank is flagged so you can remove it. Every other setting below is read and set with `bb delegation`. Agents read the effective values with `bb delegation settings --json`. Ask any thread to "refresh the delegation defaults" after you change your instructions.
 
 | Setting | Fallback | What it controls |
 | --- | --- | --- |

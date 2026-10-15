@@ -54,7 +54,7 @@ Use later for compact one-line items with optional source actions. Put routine e
 
 If the read-state tool fails before collection can proceed, call digest_fail; do not publish a successful brief from unread list snippets. If any step fails, call digest_fail with plain words and recovery retry or reconnect; output its directive. Never imply a complete brief if reading was partial.
 
-If Inline Action Cards is installed, create cards for concrete proposed actions using its installed skill and emit them AFTER the summary. Otherwise list proposed actions as plain text. Except for the narrow unread-restoration permission above, only a user CLICK producing an approved-action card reference authorizes an external write. Claim that exact card attempt before acting and report its result. A plain follow-up, card creation, brief schedule or draft is not approval. Never execute a card just because you created it.
+If Inline Decisions is installed, create cards for concrete proposed actions using its installed skill and emit them AFTER the summary. Otherwise list proposed actions as plain text. Except for the narrow unread-restoration permission above, only a user CLICK producing an approved-action card reference authorizes an external write. Claim that exact card attempt before acting and report its result. A plain follow-up, card creation, brief schedule or draft is not approval. Never execute a card just because you created it.
 Keep the final reply short; the visual summary carries the detail.`;
 }
 
