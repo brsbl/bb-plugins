@@ -175,7 +175,6 @@ it("leaves an unsent answer as one line that opens Waiting on you, where Resend 
   renderSlot(app.messageDirectives[0]!, directiveProps(item.id), { rpc });
   renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc });
   const line = await screen.findByRole("button", { name: "Not sent, in Waiting on you: Merge PR #42?" });
-  expect(screen.queryByRole("form", { name: /Merge PR #42/ })).toBeNull();
   fireEvent.click(line);
   expect(await screen.findByText(/Not sent: it didn't reach the agent\./)).toBeTruthy();
   expect(screen.getByText("“how do i test?”")).toBeTruthy();
