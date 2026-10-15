@@ -228,7 +228,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       const option = formOptions[digit - 1]!.id;
       setPicked(option);
       // Focus follows the pick, so Enter submits it rather than activating whatever had focus.
-      [...document.getElementsByName(fieldId)].find((input) => input instanceof HTMLInputElement && input.value === option)?.focus();
+      Array.from(document.getElementsByName(fieldId)).find((input) => input instanceof HTMLInputElement && input.value === option)?.focus();
     }
     else if (event.key === "Enter" && value && !target?.closest("button, a")) { event.preventDefault(); submit(); }
   };
