@@ -195,7 +195,7 @@ point --args '["load", 6]'` to show a chart's values at an x. Use these
 instead of writing your own actions; controls you move show an "Agent" tag.
 
 **Charts.** One chart answers one question, in a standard form only: line,
-bar, stacked bar, area, scatter, a single big number, or a table. Invent no
+bar, stacked bar, area, a single big number, or a table. Invent no
 visual encodings, in charts or simulations; only Anatomy figures (how a system
 works) draw custom diagrams. Spec:
 

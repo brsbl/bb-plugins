@@ -229,8 +229,9 @@ export const CHART_RUNTIME = String.raw`
     for (const b of spec.bands || []) { svg.append(svgEl("rect", { class: "band", x: c.sx(b.x0), y: pad.t, width: Math.max(0, c.sx(b.x1) - c.sx(b.x0)), height: H - pad.t - pad.b })); if (b.label) svg.append(svgEl("text", { class: "mark-label", x: c.sx(b.x0) + 4, y: pad.t - 8 }, b.label)); }
     for (const v of yt) { svg.append(svgEl("line", { class: v === y0 ? "axis" : "grid", x1: pad.l, x2: W - pad.r, y1: c.sy(v), y2: c.sy(v) })); svg.append(svgEl("text", { class: "tick", x: pad.l - 10, y: c.sy(v) + 3.5, "text-anchor": "end" }, tickText(v))); }
     const xlabel = (v) => measure(c.fx(v), "tick");
+    const every = categorical ? Math.max(1, Math.ceil((Math.max(...xs.map(xlabel)) + 14) / (band || 1))) : 1;
     const xticks = categorical
-      ? xs.filter((_, i) => i % Math.max(1, Math.ceil((Math.max(...xs.map(xlabel)) + 14) / (band || 1))) === 0)
+      ? xs.filter((_, i) => i % every === 0)
       : niceTicks(x0, x1, Math.max(2, Math.floor(plotW / Math.max(72, xlabel(x1) + 28)))).filter((v) => v >= x0 && v <= x1);
     xticks.forEach((v) => svg.append(svgEl("text", { class: "tick", x: c.sx(v), y: H - 5, "text-anchor": categorical ? "middle" : v === x0 ? "start" : v === x1 ? "end" : "middle" }, c.fx(v))));
     const bar = (s, x, left, right, top, base, r) => svg.append(svgEl("path", { class: "bar", "data-i": xs.indexOf(x), fill: focusX !== undefined && x !== focusX ? tint(s.color, 38) : s.color, d: "M" + left + " " + base + "V" + (top + r) + "Q" + left + " " + top + " " + (left + r) + " " + top + "H" + (right - r) + "Q" + right + " " + top + " " + right + " " + (top + r) + "V" + base + "Z" }));
