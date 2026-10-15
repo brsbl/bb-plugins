@@ -26,15 +26,10 @@ export function DecisionBody({ about, answer }: { about: ReactNode; answer: Reac
   return <div className="ac-body"><div className="ac-about">{about}</div><div className="ac-answer">{answer}</div></div>;
 }
 
-/** Evidence sits in a recessed block below the question; a long one previews and opens in place. */
+/** The brief stays visible in full so the decision never depends on opening clipped evidence. */
 export function ContextBlock({ children }: { children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [long, setLong] = useState(false);
-  useLayoutEffect(() => { const node = ref.current; if (node && !open) setLong(node.scrollHeight > node.clientHeight + 1); }, [open, children]);
-  return <div className="ac-context" data-open={open || undefined} data-long={long || undefined}>
-    <div className="ac-context-body" ref={ref}>{children}</div>
-    {long && !open && <button type="button" className="ac-link" onClick={() => setOpen(true)}>Show more</button>}
+  return <div className="ac-context">
+    <div className="ac-context-body">{children}</div>
   </div>;
 }
 

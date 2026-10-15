@@ -85,6 +85,27 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
     await slot.behavior.emitRealtime("items", {});
   } };
 }
+it("shows the brief without a disclosure and links to the owning thread", async () => {
+  const item = { ...fixture(), threadTitle: "Workflow Inbox", threadProjectId: "proj_origin", content: { ...fixture().content, context: "What this is: the Inbox plan.\n\nNext: I keep the draft open if declined." } };
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, { rpc: { get: () => item } });
+  await screen.findByText(/Next: I keep the draft open/);
+  expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  const link = screen.getByRole("link", { name: "Workflow Inbox" });
+  expect(link.getAttribute("href")).toBe("/projects/proj_origin/threads/thr_test");
+  fireEvent.click(link);
+  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread", threadId: "thr_test" }));
+});
+
+it("shows a waiting card's brief in the Decision log before Review is opened", async () => {
+  const item = { ...fixture(), threadTitle: "Workflow Inbox", threadProjectId: null, content: { ...fixture().content, context: "Why now: the planning lead needs your direction." } };
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
+  await screen.findByText(/Why now: the planning lead/);
+  expect(screen.getByRole("button", { name: "Review" }).getAttribute("aria-expanded")).toBe("false");
+  expect(screen.getByText("Workflow Inbox")).toBeTruthy();
+});
+
 it("flushes an immediate edit before submitting Send exactly once", async () => {
   const { slot, calls, get } = await setup();
   fireEvent.change(screen.getByRole("textbox", { name: "Draft" }), { target: { value: "My latest edit" } });
@@ -646,4 +667,35 @@ it("never offers a bulk action, and Submit waits for an answer", async () => {
   expect(await screen.findAllByRole("group", { name: /^Reply:/ })).toHaveLength(2);
   expect(screen.queryByRole("button", { name: /all$/ })).toBeNull();
   expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it.each(["action", "actions"])("reserves the last %s height across virtualized reloads", async (directive) => {
+  const item = { ...fixture(), id: `height-${directive}` };
+  const app = await loadPluginApp(() => import("./app.js"));
+  const target = app.messageDirectives[directive === "action" ? 0 : 1]!;
+  const props = { attributes: { id: item.id }, source: "", message: { id: "height-message", threadId: item.threadId, turnId: null, projectId: null }, openWorkspaceFile: null };
+  const table = { id: item.id, threadId: item.threadId, title: "Reload fixture", ids: [item.id], items: [{ ...item, followUps: [] }] };
+  let width = 350;
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    return this.classList.contains("iac-container") ? { width, height: 650, x: 0, y: 0, top: 0, left: 0, right: width, bottom: 650, toJSON() {} } : original.call(this);
+  });
+  try {
+    let slot = renderSlot(target, props, { rpc: { get: () => item, table: () => table } });
+    await screen.findByRole("form");
+    slot.lifecycle.unmount();
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    slot = renderSlot(target, props, { rpc: { get: async () => { await pending; return item; }, table: async () => { await pending; return table; } } });
+    expect(screen.getByRole("status").closest<HTMLElement>(".iac-container")!.style.minHeight).toBe("650px");
+    finish();
+    await screen.findByRole("form");
+    await waitFor(() => expect(document.querySelector<HTMLElement>(".iac-container")!.style.minHeight).toBe(""));
+    slot.lifecycle.unmount();
+    // A desktop measurement must not reserve the wrong space after resizing to mobile.
+    width = 280;
+    slot = renderSlot(target, props, { rpc: { get: () => new Promise(() => {}), table: () => new Promise(() => {}) } });
+    expect(screen.getByRole("status").closest<HTMLElement>(".iac-container")!.style.minHeight).toBe("");
+    slot.lifecycle.unmount();
+  } finally { bounds.mockRestore(); }
 });
