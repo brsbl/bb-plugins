@@ -57,8 +57,11 @@ function Row({ item, now, onOpen }: { item: WaitingItem; now: number; onOpen: ()
 function Answer({ item, now, onAnswered }: { item: WaitingItem; now: number; onAnswered: (item: Item) => void }) {
   return <div className="max-h-[60vh] overflow-y-auto overscroll-contain px-3 pb-2 pt-2 max-sm:max-h-[calc(33dvh-2.5rem)]">
     <div className="min-w-0 px-0.5">
-      <p className="break-words text-xs font-medium text-foreground">{questionOf(item)}</p>
-      <Meta item={item} now={now} />
+      <p className="break-words text-xs font-medium text-foreground">
+        {item.content.priority === "urgent" && <span className="font-normal text-destructive-text sm:hidden">Urgent · </span>}{questionOf(item)}
+      </p>
+      {/* A phone keeps the answer in view: urgency moves into the question and the age line goes, unless it says the question was asked again. */}
+      <div className={cn(!item.earlier && "max-sm:hidden")}><Meta item={item} now={now} /></div>
     </div>
     <div className="mt-1.5">
       <ActionCard key={keyOf(item)} id={item.id} threadId={item.threadId} surface="drawer" initialItem={item}

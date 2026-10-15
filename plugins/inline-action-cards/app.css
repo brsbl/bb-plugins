@@ -161,15 +161,19 @@
 .ac-drawer .ac-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(var(--spacing, .25rem) * 1.5); }
 .ac-drawer .ac-context, .ac-drawer .ac-context * { font-size: var(--text-xs, .75rem); }
 .ac-drawer .ac-context { padding: 0; background: transparent; color: var(--muted-foreground); }
-/* On a phone the brief shows its first point in two lines; More reads the rest. */
+/* On a phone the brief shows its first point on one line, with More beside it, above the options. */
 @media (max-width: 639px) {
+  .ac-clamp:not([data-open]) { display: flex; align-items: baseline; gap: calc(var(--spacing, .25rem) * 2); }
+  .ac-clamp:not([data-open]) .ac-context-body { flex: 1; }
   .ac-clamp:not([data-open]) .ac-context-body > :not(:first-child), .ac-clamp:not([data-open]) .ac-context-body li:not(:first-child) { display: none; }
-  .ac-clamp:not([data-open]) .ac-context-body > :first-child { display: -webkit-box; margin: 0; padding: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; list-style: none; }
-  /* The answer comes first on a phone; the brief and evidence follow it. */
+  .ac-clamp:not([data-open]) .ac-context-body > :first-child { display: -webkit-box; margin: 0; padding: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; list-style: none; }
+  .ac-clamp:not([data-open]) .ac-link { flex-shrink: 0; margin-top: 0; }
+  .ac-drawer:has(.ac-clamp:not([data-open])) .ac-consequence { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+  /* Question, what it does and the brief, then the answer; images and follow-ups after it. */
   .ac-drawer .ac-body, .ac-drawer .ac-about, .ac-drawer .ac-answer { display: contents; }
   .ac-drawer .ac-options, .ac-drawer .ac-answer > .ac-textarea { order: 1; }
   .ac-drawer .ac-submit { order: 2; }
-  .ac-drawer .ac-about > :not(.ac-consequence) { order: 3; }
+  .ac-drawer .ac-about > :not(.ac-consequence):not(.ac-clamp) { order: 3; }
 }
 .ac-clamp .ac-link { margin-top: 2px; font-size: var(--text-xs, .75rem); }
 /* Options match bb's question form: full-width rows with hover and selected fills, and their number key. */

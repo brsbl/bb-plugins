@@ -33,7 +33,7 @@ export function ContextBlock({ children }: { children: ReactNode }) {
   </div>;
 }
 
-/** The brief on a narrow screen: two lines, with More to read the rest, so the answer stays in view. */
+/** The brief on a narrow screen: one line, with More to read the rest, so the answer stays in view. */
 export function ClampedContext({ children }: { children: ReactNode }) {
   const body = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -41,9 +41,10 @@ export function ClampedContext({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     const node = body.current;
     if (!node) return;
-    // Clipped when the two-line clamp cuts the first point or hides the rest; wide screens show it all.
+    // Clipped when the clamp cuts the consequence or the first point, or hides the rest; wide screens show it all.
     const measure = () => setClipped(window.matchMedia?.("(max-width: 639px)").matches === true
-      && (Array.from(node.querySelectorAll<HTMLElement>("*")).some((child) => child.scrollHeight > child.clientHeight + 1 || getComputedStyle(child).display === "none")));
+      && [node.closest(".ac-card")?.querySelector<HTMLElement>(".ac-consequence"), ...Array.from(node.querySelectorAll<HTMLElement>("*"))]
+        .some((child) => !!child && (child.scrollHeight > child.clientHeight + 1 || getComputedStyle(child).display === "none")));
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(node);
@@ -51,7 +52,7 @@ export function ClampedContext({ children }: { children: ReactNode }) {
   }, [open]);
   return <div className="ac-context ac-clamp" data-open={open || undefined}>
     <div ref={body} className="ac-context-body">{children}</div>
-    {(clipped || open) && <button type="button" className="ac-link" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Less" : "More"}</button>}
+    {(clipped || open) && <button type="button" className="ac-link" aria-expanded={open} aria-label={open ? "Show less of the brief" : "Show the full brief"} onClick={() => setOpen(!open)}>{open ? "Less" : "More"}</button>}
   </div>;
 }
 
