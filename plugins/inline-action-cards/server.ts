@@ -176,11 +176,17 @@ export function createStore(bb: BbPluginApi) {
       bb.realtime.publish("items", { threadId: input.threadId });
       return next;
     },
-    // An agent acted on a comment instead of a click (for example it closed the PR the card asked about).
-    // Settling the card records that result; nothing was approved, so there is no attempt.
+    // Settle a moot question or a known-safe failure without authorizing another attempt.
+    // Retain a failed attempt as history; pending or uncertain outcomes still need reconciliation.
     resolve(threadId: string, id: string, message: string) {
       return change(threadId, id, null, (item) => {
-        if (item.state !== "ready") throw new Error("Only an unanswered card can be resolved. Report the claimed attempt instead.");
+        if (item.state !== "ready" && !(item.state === "failed" && item.result?.retryable)) {
+          throw new Error("Only an unanswered card or a retryable failure can be resolved. Reconcile and report an in-progress or uncertain attempt first.");
+        }
+        // A settled legacy Later/Skip attempt would read as deferred and keep offering Resume.
+        if (item.state === "failed" && ["later", "skip"].includes(item.attempt?.action ?? "")) {
+          throw new Error("A failed Later or Skip card can't be resolved. Ask the user to choose again on the card.");
+        }
         item.state = "succeeded";
         item.result = { message, retryable: false };
       });
@@ -413,7 +419,7 @@ export default function plugin(bb: BbPluginApi): void {
         run: ({ options, positionals }, ctx) => output(store.view(scope(ctx, options.thread), idSchema.parse(positionals.id))),
       }),
       resolve: cliCommand({
-        summary: "Settle a card you acted on from a comment, without a click", positionals: itemPosition,
+        summary: "Settle an unanswered or superseded retryable card without approving another action", positionals: itemPosition,
         options: { thread: threadOption, message: { type: "string", required: true, description: "Short result shown on the card, for example 'Closed the PR'" } },
         run: ({ options, positionals }, ctx) => output(store.resolve(scope(ctx, options.thread), idSchema.parse(positionals.id), z.string().trim().min(1).max(500).parse(options.message))),
       }),

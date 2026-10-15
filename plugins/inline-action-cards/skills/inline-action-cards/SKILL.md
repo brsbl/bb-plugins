@@ -174,7 +174,7 @@ When what you did makes the card moot, settle it so it stops waiting. For exampl
 bb action-cards resolve pr-412 --message 'Closed the PR'
 ```
 
-`resolve` only works on an unanswered card and records no approval; a clicked card is reported through its claimed attempt instead.
+`resolve` works on an unanswered card or a retryable failure that is now superseded. For example, use `bb action-cards resolve old-merge --message 'Superseded by the current merge decision'` after an old merge safely failed. It records no new approval, retains the failed attempt for history, and removes the card from waiting. Never use it to hide an in-progress or unknown outcome: reconcile and report that claimed attempt first.
 
 The answer renders as Markdown under the question on the card; `bb action-cards get` returns the card's `followUps`. Keep your chat reply to one short line (or none), and do not re-emit the table. If the follow-up asks for a change, read the latest item and revise the **same** Reply draft using its revision. Decide question/consequence updates are not supported; explain the requested change instead of creating a replacement card.
 
