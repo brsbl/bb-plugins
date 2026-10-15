@@ -179,12 +179,12 @@ it("gives an Anatomy page bb's theme before its own scripts read it", async () =
 
 function chartIn(window: JSDOM["window"], name: string) {
   const svg = window.document.querySelector(`[data-name="${name}"] svg`)!;
-  const bars = [...svg.querySelectorAll("path.bar")].map((bar) => {
+  const bars = Array.from(svg.querySelectorAll("path.bar")).map((bar) => {
     const [, left, base] = /^M([\d.-]+) ([\d.-]+)V/.exec(bar.getAttribute("d")!)!;
     const top = Math.min(...[...bar.getAttribute("d")!.matchAll(/[ QH]([\d.-]+) ([\d.-]+)/g)].map((m) => Number(m[2])), Number(base));
     return { i: bar.getAttribute("data-i"), fill: bar.getAttribute("fill"), left: Number(left), base: Number(base), top };
   });
-  const ticks = [...svg.querySelectorAll('text[text-anchor="end"]')].map((t) => Number.parseFloat(t.textContent!)).filter(Number.isFinite);
+  const ticks = Array.from(svg.querySelectorAll('text[text-anchor="end"]')).map((t) => Number.parseFloat(t.textContent!)).filter(Number.isFinite);
   return { bars, top: Math.max(...ticks) };
 }
 
