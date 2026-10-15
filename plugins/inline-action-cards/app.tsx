@@ -365,7 +365,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   </button>;
   return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit}>
     {!drawer && origin}
-    {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} submitLabel={drawer ? "Submit answer" : undefined} /></>}
+    {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></>}
     {failure}
   </DecisionCard>;
 }
