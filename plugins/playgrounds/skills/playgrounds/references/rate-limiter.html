@@ -1,21 +1,21 @@
-<!-- Rate limiter: built from the simulation set (flow, run bar with a compact timeline, one control row, outcome). -->
+<!-- Rate limiter: built from the simulation set (run bar, chart, answer). -->
 <h2 class="pg-title pg-reveal">How big should the bucket be?</h2>
 
-<div class="pg-surface pg-reveal" style="--i:1">
-  <div data-pg="flow" data-name="limiter" data-label="Requests passing through the token bucket"></div>
+<p class="pg-sentence pg-reveal" style="--i:1">
+  Every <span data-pg="scrub" data-param="every" data-label="Burst interval" data-unit="s" data-min="2" data-max="15" data-step="1" data-value="10"></span>,
+  <span data-pg="scrub" data-param="burst" data-label="Burst size" data-min="0" data-max="300" data-step="10" data-value="120"></span> requests arrive at once.
+  The bucket holds <span data-pg="scrub" data-param="capacity" data-label="Bucket size" data-min="10" data-max="300" data-step="10" data-value="80"></span> tokens
+  and refills <span data-pg="scrub" data-param="refill" data-label="Refill rate" data-unit="/s" data-min="5" data-max="100" data-step="5" data-value="35"></span>.
+</p>
+
+<div class="pg-surface pg-reveal" style="--i:2">
   <div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
   <figure data-pg="chart" data-name="tokens" data-label="Tokens in the bucket over 30 seconds"></figure>
 </div>
-
-<div class="pg-form pg-reveal" style="--i:2">
-  <div data-pg="slider" data-param="every" data-label="Burst every" data-unit="s" data-min="2" data-max="15" data-step="1" data-value="10"></div>
-  <div data-pg="slider" data-param="burst" data-label="Burst size" data-min="0" data-max="300" data-step="10" data-value="120"></div>
-  <div data-pg="slider" data-param="capacity" data-label="Bucket size" data-unit="tokens" data-min="10" data-max="300" data-step="10" data-value="80"></div>
-  <div data-pg="slider" data-param="refill" data-label="Refill rate" data-unit="/s" data-min="5" data-max="100" data-step="5" data-value="35"></div>
+<div class="pg-result pg-reveal" style="--i:3">
+  <div data-pg="answer" data-name="verdict"></div>
+  <dl class="pg-stats"><div><dt>Loss-free bucket</dt><dd id="best"></dd></div><div><dt>Average demand</dt><dd id="demand"></dd></div></dl>
 </div>
-
-<p data-pg="outcome" data-name="result" class="pg-reveal" style="--i:3"></p>
-
 <div class="pg-foot pg-reveal" style="--i:4">
   <details><summary>How the model works</summary><p>Every 50 ms the bucket refills, requests arrive, and each one takes a token or is rejected. Steady traffic is 20 requests a second; bursts land all at once. The smallest bucket is found by replaying the same 30 seconds at each size.</p></details>
   <div data-pg="agent"></div>
@@ -26,69 +26,45 @@
   const { params: P, ui } = window.playground;
   const DT = 0.05, SECONDS = 30, BASE = 20;
   function simulate(v) {
-    let tokens = v.capacity, carry = 0, arrived = 0, served = 0, rejected = 0;
+    let tokens = v.capacity, carry = 0, rejected = 0;
     const steps = [];
     for (let i = 0; i < SECONDS / DT; i++) {
       const t = i * DT;
       tokens = Math.min(v.capacity, tokens + v.refill * DT);
-      carry += BASE * DT + (t > 0 && Math.abs(t % v.every) < DT / 2 ? v.burst : 0);
+      carry += BASE * DT + (t > 0 && Math.abs((t % v.every)) < DT / 2 ? v.burst : 0);
       const arrivals = Math.floor(carry); carry -= arrivals;
-      const ok = Math.min(arrivals, Math.floor(tokens)); tokens -= ok;
-      arrived += arrivals; served += ok; rejected += arrivals - ok;
-      steps.push({ t, tokens, ok, lost: arrivals - ok, arrived, served, rejected });
+      const ok = Math.min(arrivals, Math.floor(tokens)); tokens -= ok; rejected += arrivals - ok;
+      steps.push({ t, tokens, arrivals, ok, lost: arrivals - ok });
     }
-    return { steps, arrived, rejected };
+    return { steps, rejected };
   }
   function smallest(v) {
     for (let c = 10; c <= 300; c += 10) if (!simulate({ ...v, capacity: c }).rejected) return c;
     return null;
   }
-
-  const flow = ui.flow("limiter", {
-    stations: [
-      { id: "in", label: "Requests", kind: "source" },
-      { id: "bucket", label: "Tokens", kind: "queue" },
-      { id: "api", label: "Served", kind: "sink" },
-      { id: "drop", label: "Rejected", kind: "drop" },
-    ],
-    links: [["in", "bucket"], ["bucket", "api"], ["bucket", "drop", "no token"]],
-  });
-
-  let run = simulate(P.all()), shown = -1;
-  const at = (t) => Math.min(run.steps.length - 1, Math.max(0, Math.floor(t / DT)));
-  function paint(t) {
-    const s = run.steps[at(t)];
-    flow.count("in", s.arrived);
-    flow.count("bucket", Math.floor(s.tokens), { max: P.get("capacity") });
-    flow.status("bucket", s.tokens < 1 ? "busy" : null);
-    flow.count("api", s.served);
-    flow.count("drop", s.rejected);
-    const points = run.steps.filter((x, i) => i % 4 === 0 && x.t <= t + 1e-9).map((x) => [Number(x.t.toFixed(1)), Math.round(x.tokens)]);
-    ui.chart("tokens", { kind: "area", compact: true, x: { min: 0, max: SECONDS, format: (x) => x + " s", label: "Second" }, y: { min: 0, max: P.get("capacity"), unit: "tokens" }, series: [{ label: "Tokens", points }] });
+  let run = simulate(P.all());
+  const EVERY = 4;
+  function chart(t) {
+    const shown = run.steps.filter((s) => s.t <= t + 1e-9);
+    const points = shown.filter((_, i) => i % EVERY === 0).map((s) => [Number(s.t.toFixed(2)), Math.round(s.tokens)]);
+    const drops = [];
+    shown.forEach((s, i) => { if (s.lost) { const at = shown[i - (i % EVERY)]; drops.push([Number(at.t.toFixed(2)), 0, s.lost]); } });
+    ui.chart("tokens", { kind: "area", x: { min: 0, max: SECONDS, format: (x) => x + " s", label: "Time" }, y: { min: 0, max: P.get("capacity"), unit: "tokens" }, series: [{ label: "Tokens", points }], events: { label: "Dropped", points: drops } });
   }
-  function result() {
-    const v = P.all(), best = smallest(v), total = run.arrived.toLocaleString("en-US");
-    if (run.rejected) ui.outcome("result", "Over 30 seconds, **" + run.rejected.toLocaleString("en-US") + " of " + total + " requests were rejected**; " + (best ? "a bucket of **" + best + " tokens** would serve them all." : "even 300 tokens can't absorb these bursts, so raise the refill rate."), { tone: "bad" });
-    else ui.outcome("result", "All **" + total + " requests** got through in 30 seconds" + (best < v.capacity ? ", and a bucket of **" + best + " tokens** would be enough." : ", and this is the smallest bucket that keeps up."), { tone: "good" });
+  function verdict() {
+    const v = P.all(), best = smallest(v);
+    if (!run.rejected) ui.answer("verdict", { label: "In 30 seconds", value: "Nothing dropped", tone: "good", detail: best && best < v.capacity ? best + " tokens would be enough." : "The smallest bucket that keeps up." });
+    else ui.answer("verdict", { label: "In 30 seconds", value: run.rejected + " dropped", tone: "bad", detail: best ? "Raise the bucket to " + best + " tokens." : "Raise the refill rate." });
+    document.getElementById("best").textContent = best ? best + " tokens" : "None";
+    document.getElementById("demand").textContent = Math.round(BASE + v.burst / v.every) + "/s";
   }
-
   const sim = ui.run("sim", {
-    format: (t) => "second " + Math.floor(t),
     tick(dt, t) {
-      const to = at(t);
-      if (to < shown) { flow.clear(); shown = to; }
-      for (let i = shown + 1; i <= to; i++) {
-        const s = run.steps[i];
-        for (let k = 0; k < s.ok; k++) flow.send("in", "bucket", "api");
-        for (let k = 0; k < s.lost; k++) flow.send("in", "bucket", "drop", { tone: "bad" });
-      }
-      shown = to; paint(t);
+      chart(t);
     },
-    seek(t) { flow.clear(); shown = at(t); paint(t); },
+    seek(t) { chart(t); },
   });
-  P.on(() => { run = simulate(P.all()); sim.seek(sim.t); result(); });
-  if (!sim.playing) sim.seek(SECONDS);
-  else paint(0);
-  result();
+  P.on(() => { run = simulate(P.all()); chart(sim.t); verdict(); });
+  sim.seek(12); verdict();
 })();
 </script>
