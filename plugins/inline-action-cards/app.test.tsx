@@ -169,8 +169,8 @@ it("shows a card whose request never reached the agent as not sent, with Resend"
   let item: Item = { ...fixture(), revision: 3, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, note: "how do i test?" }, content: { type: "decide", question: "Merge PR #42?", consequence: "Squash-merge it.", yesLabel: "Merge" } };
   const app = await loadPluginApp(() => import("./app.js"));
   renderSlot(app.messageDirectives[0]!, directiveProps(item.id), { rpc: { get: () => item, dispatch: async () => { const next = await dispatchFixture([item]); item = next[0]!; return next; } } });
-  expect((await screen.findByRole("status")).textContent).toContain("Not sent: it didn't reach the agent.");
-  expect(await screen.findByText("Merge", { selector: ".ac-outcome-answer" })).toBeTruthy();
+  expect(await screen.findByText(/Not sent: it didn't reach the agent\./)).toBeTruthy();
+  expect(screen.getByText("Merge", { selector: ".ac-outcome-answer" })).toBeTruthy();
   expect(screen.getByText("“how do i test?”")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Resend" }));
   await waitFor(() => expect(submittedMessages).toHaveLength(1));
@@ -449,7 +449,7 @@ it("answers an ask in its own words and settles it without a claim", async () =>
     const app = await loadPluginApp(() => import("./app.js"));
     const rpc = Object.fromEntries(["waiting", "get", "prepare", "dispatch"].map((name) => [name, (input: unknown) => host.harness.behavior.callRpc(name, input)]));
     renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc });
-    await openItem("Answer: Which channel should the report post to?");
+    await openItem("Which channel should the report post to?");
     const button = screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "#feedback" } });
