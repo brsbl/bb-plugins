@@ -84,7 +84,7 @@ it("swipes through research images without treating vertical scrolling or image 
   expect(within(dialog).getByRole("link").getAttribute("href")).toBe("https://example.com/coast");
   const stage = dialog.querySelector(".icx-viewer-stage")!;
   const swipe = (x: number, y: number) => {
-    fireEvent.touchStart(stage, { touches: [{ clientX: 200, clientY: 200 }] });
+    fireEvent.touchStart(stage, { touches: [{ clientX: 200, clientY: 200 }], changedTouches: [{ clientX: 200, clientY: 200 }] });
     fireEvent.touchEnd(stage, { changedTouches: [{ clientX: x, clientY: y }] });
   };
   swipe(100, 205);
