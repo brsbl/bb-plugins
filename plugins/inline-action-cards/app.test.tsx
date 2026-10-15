@@ -36,8 +36,6 @@ function answer(label: RegExp | string, within_: HTMLElement = document.body) {
 function submit(within_: HTMLElement = document.body) {
   fireEvent.click(within(within_).getByRole("button", { name: /^Submit( \d+ answers?)?$/ }));
 }
-// After submitting, the drawer drops the item and says what was sent where.
-const sent = (label: string) => screen.findByText(`Sent “${label}” to Billing`);
 const source = { threadTitle: "Billing", threadProjectId: null };
 const directiveProps = (id: string, threadId = "thr_test") => ({ attributes: { id }, source: `::action{id="${id}"}`, message: { id: "msg_1", threadId, turnId: null, projectId: null }, openWorkspaceFile: null });
 // Open Waiting on you and the given item, the way a person does.
@@ -122,8 +120,8 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   expect(submittedMessages).toHaveLength(1);
   expect(submittedMentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Billing follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
-  expect(await sent("Send")).toBeTruthy();
-  expect(screen.queryByRole("form")).toBeNull();
+  // The last item answered, nothing waits and the drawer is gone.
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull());
 });
 it("preserves an existing composer message", async () => {
   const { slot, calls } = await setup("Please also check another message");
@@ -285,7 +283,7 @@ it("submits the picked option from a choice card, marking but never preselecting
   expect(submittedMentions).toMatchObject([{ provider: "action", id: "thr_test:setup:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Which account setup" }]);
   expect(screen.getByRole("button", { name: "Submitting…" }).getAttribute("aria-busy")).toBe("true");
   release();
-  expect(await sent("UserSingle")).toBeTruthy();
+  await waitFor(() => expect(screen.queryByRole("form")).toBeNull());
   expect(calls).toEqual(["choose", "submitted"]);
 });
 it("keeps Submit disabled until an option is picked", async () => {
@@ -469,7 +467,7 @@ it("answers an ask in its own words and settles it without a claim", async () =>
     fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "#feedback" } });
     submit();
     await waitFor(() => expect(submittedMessages).toEqual(["Answer Which channel should the report post to — #feedback"]));
-    expect(await screen.findByText(/Sent “#feedback” to/)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull());
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);
     expect(context).toMatchObject({ intent: "answer", answer: "#feedback" });
     expect(JSON.parse((await host.harness.behavior.runCli(["get", "channel", "--thread", "thr_test"])).stdout!)).toMatchObject({ state: "succeeded", result: { message: "Answered" } });

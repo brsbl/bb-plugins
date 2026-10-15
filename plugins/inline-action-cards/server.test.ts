@@ -18,7 +18,8 @@ it.each([reply, { type: "decide", question: "File invoice?", consequence: "Add R
   expect(bare).toMatchObject({ exitCode: 0, stdout: '::action{id="bare"}\n' });
   expect(bare.stderr).toContain("Warning: this card has no context");
   expect(createStore(host.bb).get(ref.threadId, "bare").content.type).toBe(content.type);
-  const brief = await create("brief", { ...content, context: "A complete decision brief." });
+  // A separate thread, so the identical question doesn't supersede the first card.
+  const brief = await host.harness.behavior.runCli(["create", "brief", "--thread", "thr_brief", "--item", JSON.stringify({ ...content, context: "A complete decision brief." })]);
   expect(brief).toMatchObject({ exitCode: 0, stdout: '::action{id="brief"}\n' });
   expect(brief.stderr ?? "").toBe("");
 });
@@ -275,7 +276,7 @@ it("settles a sent request and reopens it if its queued message is deleted", asy
   const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
   const { callRpc, emitThreadEvent, runCli } = host.harness.behavior;
   const decide = { type: "decide", question: "Merge PR?", consequence: "Squash into main", yesLabel: "Merge" };
-  for (const id of ["now", "gone"]) await runCli(["create", id, "--thread", ref.threadId, "--item", JSON.stringify(decide)]);
+  for (const id of ["now", "gone"]) await runCli(["create", id, "--thread", ref.threadId, "--item", JSON.stringify({ ...decide, question: `Merge PR ${id}?` })]);
   const get = async (id: string) => await callRpc("get", { threadId: ref.threadId, id }) as Item;
   const prepare = async (id: string) => (await callRpc("prepare", { threadId: ref.threadId, id, revision: 1, action: "yes" }) as Item).attempt!.id;
   const entry = (id: string, attemptId: string) => makeQueueEntry({ threadId: ref.threadId, content: [{ type: "text", text: "Merge Merge PR", mentions: [{ start: 6, end: 14, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${ref.threadId}:${id}:${attemptId}`, label: "Merge PR" } }] }] });

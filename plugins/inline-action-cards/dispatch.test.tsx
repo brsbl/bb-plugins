@@ -11,7 +11,7 @@ const contents = {
   choice: { type: "choice", question: "Which format?", options: [{ id: "short", label: "Short" }, { id: "long", label: "Long" }] },
   reply: { type: "reply", summary: "Reply to the editor", to: ["editor@example.invalid"], cc: [], bcc: [], subject: "Notes", original: { from: "editor@example.invalid", body: "Ready?" }, draft: "Ready for review." },
 } as const;
-afterEach(cleanup);
+afterEach(() => { cleanup(); localStorage.clear(); });
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 
 it.each(["decide", "choice", "reply"] as const)("submits a %s from Waiting on you while preserving the composer draft", async (kind) => {
