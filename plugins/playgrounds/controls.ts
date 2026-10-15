@@ -53,16 +53,17 @@ export const CONTROLS_CSS = String.raw`
 
 .pg-fader, .pg-slider { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; font-size: var(--pg-text-label); line-height: 1.3; font-weight: 500; color: var(--pg-ink); }
 :is(.pg-slider, .pg-fader) output { font-weight: 400; color: var(--pg-body); font-variant-numeric: tabular-nums; white-space: nowrap; }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range] { grid-column: 1 / -1; width: 100%; height: 24px; margin: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--pg-c) var(--pg-fill, 0%), var(--pg-rule) var(--pg-fill, 0%)); }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--pg-rule); }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--pg-c); }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border: 0; border-radius: 50%; background: var(--card); box-shadow: inset 0 0 0 2px var(--pg-c), 0 1px 3px color-mix(in oklab, var(--foreground) 22%, transparent); transition: transform var(--pg-fast); }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--card); box-shadow: inset 0 0 0 2px var(--pg-c), 0 1px 3px color-mix(in oklab, var(--foreground) 22%, transparent); }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range]:active::-webkit-slider-thumb { transform: scale(1.12); }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range]:focus-visible { outline: none; }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: inset 0 0 0 2px var(--pg-c), 0 0 0 2px var(--card), 0 0 0 4px var(--ring); }
-:is(.pg-slider, .pg-fader, .pg-run) input[type=range]:focus-visible::-moz-range-thumb { box-shadow: inset 0 0 0 2px var(--pg-c), 0 0 0 2px var(--card), 0 0 0 4px var(--ring); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range] { --pg-track: var(--pg-chart-grid); --pg-track-fill: var(--pg-chart-mark); --pg-thumb-edge: 0 0 0 2px var(--card), 0 1px 2px 2px color-mix(in oklab, var(--foreground) 14%, transparent); grid-column: 1 / -1; width: 100%; height: 24px; margin: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--pg-track-fill) var(--pg-fill, 0%), var(--pg-track) var(--pg-fill, 0%)); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-moz-range-track { height: 3px; border-radius: 2px; background: var(--pg-track); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--pg-track-fill); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border: 0; border-radius: 50%; background: var(--pg-ink); box-shadow: var(--pg-thumb-edge); transition: transform var(--pg-fast), box-shadow var(--pg-fast); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border: 0; border-radius: 50%; background: var(--pg-ink); box-shadow: var(--pg-thumb-edge); transition: transform var(--pg-fast), box-shadow var(--pg-fast); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.15); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]:hover::-moz-range-thumb { transform: scale(1.15); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]:active::-webkit-slider-thumb { transform: scale(1.25); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]:active::-moz-range-thumb { transform: scale(1.25); }
+:is(.pg-slider, .pg-fader, .pg-run) input[type=range]:focus-visible { outline: none; --pg-thumb-edge: 0 0 0 2px var(--card), 0 0 0 4px var(--ring); }
 .pg-stepper { position: relative; display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; box-shadow: var(--pg-edge-control); background: var(--card); }
 .pg-stepper button { width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: var(--pg-ink); }
 .pg-stepper button:hover { background: var(--pg-hover); }
@@ -167,7 +168,7 @@ export const CONTROLS_CSS = String.raw`
 .pg-board button[data-last] { outline: 2px solid var(--pg-ink); outline-offset: -2px; }
 @keyframes pg-drop { from { transform: translateY(-40%); opacity: 0; } }
 .pg-agent { display: grid; grid-template-columns: 6px minmax(0, 1fr); gap: 2px 10px; align-items: start; padding: 8px 12px; border-radius: var(--pg-radius-group); background: var(--pg-stage); font-size: var(--pg-text-meta); line-height: 1.45; color: var(--pg-meta); }
-.pg-agent::before { content: ""; width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--pg-accent); }
+.pg-agent::before { content: ""; width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--pg-chart-mark); }
 .pg-agent[data-fresh] { animation: pg-fresh .6s ease-out; }
 @keyframes pg-fresh { from { box-shadow: inset 0 0 0 1.5px var(--pg-ink); } }
 [data-show][hidden] { display: none !important; }

@@ -381,8 +381,8 @@ depicted, like a board or a drawing, gets its own colors).
   inside it; `--pg-hairline` dividers.
 - **Color roles:** `--pg-ink` headings and values, `--pg-body` text,
   `--pg-meta` captions and axes (all AA in both themes). `--pg-accent` (blue)
-  marks what you can move; override it once only when the
-  subject has its own color (coffee, a synth). Selection is ink: pressed
+  is for a subject with its own color (coffee, a synth): override it once.
+  Controls are ink: sliders, sentence numbers (a soft tinted chip), pressed
   segments, tabs and primary buttons. `--pg-good`, `--pg-warn` and `--pg-bad`
   only when color means good or bad, always with a word or an icon.
   `--pg-series-1…7` (a muted, paper-like palette) only for chart series, in

@@ -6,8 +6,8 @@
 export const SETS_CSS = String.raw`
 .pg-sentence { margin-bottom: 0; max-width: 62ch; font-size: var(--pg-text-sentence); line-height: 1.6; color: var(--pg-body); text-wrap: pretty; }
 .pg-sentence :is(b, strong) { font-weight: 600; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
-.pg-scrub { position: relative; display: inline-block; padding: 0 3px; border-radius: 5px; color: var(--pg-accent-ink, var(--pg-ink)); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; background: color-mix(in oklab, var(--pg-accent) 10%, transparent); box-shadow: inset 0 -2px 0 var(--pg-accent); transition: background var(--pg-base); }
-.pg-scrub:hover, .pg-scrub.pg-grab { background: color-mix(in oklab, var(--pg-accent) 18%, transparent); }
+.pg-scrub { --pg-chip: color-mix(in oklab, var(--pg-series-2) 22%, transparent); position: relative; display: inline-block; padding: 1px 6px; border-radius: 6px; line-height: 1.45; color: var(--pg-ink); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: ew-resize; touch-action: none; user-select: none; -webkit-user-select: none; background: var(--pg-chip); transition: background var(--pg-fast); }
+.pg-scrub:hover, .pg-scrub.pg-grab, .pg-scrub:focus-visible { --pg-chip: color-mix(in oklab, var(--pg-series-2) 38%, transparent); }
 .pg-scrub:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .pg-scrub input { width: 6ch; padding: 0; border: 0; background: none; outline: none; font: inherit; color: inherit; text-align: center; }
 .pg-scrub[data-agent]::after { top: -12px; }
@@ -28,7 +28,7 @@ export const SETS_CSS = String.raw`
 .pg-breakdown li::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--seg); }
 .pg-breakdown li > b { font-weight: 500; color: var(--pg-ink); font-variant-numeric: tabular-nums; }
 /* The run bar: play and the time. On its own it has a scrubber; tied to a chart (data-chart), you scrub by dragging on the chart. */
-.pg-run { --pg-c: var(--pg-ink); display: flex; align-items: center; gap: 10px; }
+.pg-run { display: flex; align-items: center; gap: 10px; }
 .pg-run > button { flex-shrink: 0; width: 28px; height: 28px; }
 .pg-run input[type=range] { flex: 1; min-width: 0; }
 .pg-run[data-chart] input[type=range] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -68,7 +68,7 @@ export const SETS_CSS = String.raw`
 .pg-guide-head > p { margin: 0; font-size: var(--pg-text-label); font-weight: 500; color: var(--pg-meta); font-variant-numeric: tabular-nums; }
 .pg-guide-bar { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 4px; }
 .pg-guide-bar > i { height: 4px; border-radius: 2px; background: var(--pg-hairline); }
-.pg-guide-bar > i[data-on] { background: var(--pg-accent); }
+.pg-guide-bar > i[data-on] { background: var(--pg-ink); }
 .pg-guide > section[data-step] { display: grid; gap: 8px; }
 .pg-guide > section[data-step][hidden] { display: none; }
 .pg-guide > section > :is(h3, h4) { margin: 4px 0 0; font-size: 15px; line-height: 1.3; font-weight: 600; color: var(--pg-ink); }

@@ -55,7 +55,7 @@ const KIT = String.raw`
   --pg-hover: color-mix(in oklab, var(--foreground) 6%, transparent);
   --pg-series-1: #6094ab; --pg-series-2: #d6af8a; --pg-series-3: #568865; --pg-series-4: #b8b1db;
   --pg-series-5: #5d8476; --pg-series-6: #cdb759; --pg-series-7: #ae6257;
-  --pg-accent: #2a78d6;
+  --pg-kit-accent: #2a78d6; --pg-accent: var(--pg-kit-accent);
   --pg-chart-grid: color-mix(in oklch, var(--pg-series-2) 30%, var(--pg-hairline));
   --pg-chart-axis: color-mix(in oklch, var(--pg-series-2) 30%, var(--pg-rule));
   --pg-chart-mark: color-mix(in oklch, var(--foreground) 45%, var(--card));
@@ -73,7 +73,7 @@ const KIT = String.raw`
   color-scheme: dark;
   --pg-series-1: #94b0bc; --pg-series-2: #a17f5b; --pg-series-3: #b1cf9d; --pg-series-4: #8a80a2;
   --pg-series-5: #a8cdc3; --pg-series-6: #a5893e; --pg-series-7: #e9ad9c;
-  --pg-accent: #3987e5;
+  --pg-kit-accent: #3987e5;
   --pg-chart-bad: #df816e;
   --pg-good: oklch(0.72 0.14 155); --pg-warn: oklch(0.76 0.14 70); --pg-bad: oklch(0.68 0.17 25);
 }
