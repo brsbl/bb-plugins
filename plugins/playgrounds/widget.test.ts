@@ -69,6 +69,13 @@ it("keeps the shipped .pg-photos row layout for cards that don't use the photos 
   expect(doc).toContain(".pg-photos { display: grid; grid-template-columns: repeat(3, 1fr);");
 });
 
+it("keeps buttons and segments whole at narrow widths, and scrolls wide tables", () => {
+  const doc = buildWidgetDocument({ id: "a", html: '<div data-pg="table" data-name="t"></div>', state: null, theme: fallbackTheme });
+  expect(doc).toMatch(/\.pg-btn, \.pg-btn-primary \{[^}]*white-space: nowrap/);
+  expect(doc).toMatch(/\.pg-seg \{[^}]*flex-wrap: wrap/);
+  expect(doc).toContain("[data-pg=table] { max-width: 100%; overflow-x: auto; }");
+});
+
 it("doesn't start audio when someone taps a card without sound", () => {
   const { dom, audioContexts } = frame('<label data-pg="field" data-param="income" data-label="Income"></label>');
   dom.window.document.body.dispatchEvent(new dom.window.Event("pointerdown", { bubbles: true }));

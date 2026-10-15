@@ -29,10 +29,14 @@ The test rig is the quality bar for the drawing itself. The Raptor is the bar fo
 
 ## In bb
 
-- **Work on a copy.** Builds write their pages next to the script, so first copy
-  this skill's folder (the one holding this `SKILL.md`) into the thread's
-  workspace, for example `cp -R <skill folder> ./anatomy`. Build and edit there,
-  never in the original.
+- **Work on a copy in the thread's workspace.** Builds write their pages next to
+  the script, so first copy this skill's folder (the one holding this
+  `SKILL.md`) into the thread's primary workspace, its checkout or working
+  directory, not thread storage or `/tmp`: `--playground-file` only reads files
+  inside that workspace. Keep the copy out of commits with a dot-directory that
+  git ignores locally:
+  `cp -R <skill folder> .anatomy && echo .anatomy/ >> "$(git rev-parse --git-path info/exclude)"`.
+  Build and edit there, never in the original.
 - **Build before you open an example.** The examples ship as sources only. Run
   `node examples/<name>/build.mjs` in your copy to get its page.
 - **Show the figure as a playground.** Use the framework-free way (a `build.mjs`

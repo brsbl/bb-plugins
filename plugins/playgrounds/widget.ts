@@ -74,9 +74,10 @@ img, svg { display: block; max-width: 100%; }
 .pg-seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: 18px; border: 1px solid var(--pg-hairline); background: var(--card); }
 .pg-form > .pg-seg { grid-column: 1 / -1; justify-self: start; }
 .pg-seg button, .pg-chip { white-space: nowrap; border: 1px solid transparent; background: transparent; border-radius: 999px; padding: 5px 11px; font-size: 11.5px; line-height: 1.2; color: var(--muted-foreground); transition: background .2s, color .2s; }
+.pg-seg button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .pg-chip { border-color: var(--pg-hairline); }
 .pg-seg button[aria-pressed=true], .pg-chip[aria-pressed=true] { background: var(--foreground); color: var(--background); border-color: var(--foreground); font-weight: 500; }
-.pg-btn, .pg-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--pg-hairline); background: var(--card); font-size: 12px; font-weight: 500; color: var(--pg-ink); transition: opacity .2s, background .2s; }
+.pg-btn, .pg-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--pg-hairline); background: var(--card); font-size: 12px; font-weight: 500; color: var(--pg-ink); transition: opacity .2s, background .2s; white-space: nowrap; }
 .pg-btn:hover { background: var(--muted); }
 .pg-btn-primary { background: var(--foreground); border-color: var(--foreground); color: var(--background); }
 .pg-btn-primary:hover { background: var(--foreground); opacity: .88; }

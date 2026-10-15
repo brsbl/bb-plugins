@@ -110,12 +110,14 @@ export const CONTROLS_CSS = String.raw`
 .pg-box select { padding-right: 14px; cursor: pointer; }
 .pg-box.pg-menu::after { content: ""; position: absolute; right: 11px; top: 50%; width: 5px; height: 5px; margin-top: -4px; border: solid var(--pg-meta); border-width: 0 1.4px 1.4px 0; transform: rotate(45deg); pointer-events: none; }
 .pg-unit { flex-shrink: 0; white-space: nowrap; font-size: 11px; font-weight: 400; color: var(--pg-meta); }
+/* The body lets words break anywhere; control labels wrap between words instead. */
+:is(.pg-field, .pg-slider, .pg-fader) > span:first-child { overflow-wrap: break-word; }
 .pg-field > small { font-size: 10.5px; font-weight: 400; color: var(--pg-meta); }
 .pg-slider { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; align-items: baseline; font-size: 11px; font-weight: 500; color: var(--pg-ink); }
 .pg-slider output { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pg-slider input { grid-column: 1 / -1; width: 100%; height: 18px; margin: 0; accent-color: var(--pg-c); }
 .pg-tabs { position: relative; display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 999px; box-shadow: var(--pg-edge); background: var(--card); width: max-content; max-width: 100%; }
-.pg-tabs button { padding: 5px 11px; border: 0; border-radius: 999px; background: transparent; font-size: 11.5px; color: var(--pg-meta); white-space: nowrap; }
+.pg-tabs button { padding: 5px 11px; border: 0; border-radius: 999px; background: transparent; font-size: 11.5px; color: var(--pg-meta); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .pg-tabs button[aria-selected=true] { background: var(--pg-ink); color: var(--card); font-weight: 500; }
 .pg-list { position: relative; display: grid; gap: 4px; }
 .pg-list button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--pg-radius-control); background: var(--card); box-shadow: var(--pg-edge); text-align: left; font-size: 12px; color: var(--pg-ink); }
@@ -135,6 +137,9 @@ export const CONTROLS_CSS = String.raw`
 .pg-badge[data-tone=good] { color: var(--pg-good); background: color-mix(in srgb, var(--pg-good) 12%, var(--card)); }
 .pg-badge[data-tone=bad] { color: var(--pg-bad); background: color-mix(in srgb, var(--pg-bad) 12%, var(--card)); }
 .pg-badge[data-tone=warn] { color: var(--pg-warn); background: color-mix(in srgb, var(--pg-warn) 14%, var(--card)); }
+[data-pg=table] { max-width: 100%; overflow-x: auto; }
+.pg-table :is(th, td) { overflow-wrap: normal; }
+.pg-table [data-num] { white-space: nowrap; }
 .pg-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .pg-table th { padding: 0 8px 6px; text-align: left; font-size: 10.5px; font-weight: 400; color: var(--pg-meta); }
 .pg-table td { padding: 7px 8px; border-top: 1px solid var(--pg-hairline); color: var(--pg-ink); }

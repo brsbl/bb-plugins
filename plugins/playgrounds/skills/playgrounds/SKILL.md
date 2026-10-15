@@ -1,6 +1,6 @@
 ---
 name: playgrounds
-description: "Compose playgrounds directly in a bb message: native calculators, charts, and comparisons, or custom HTML interfaces such as illustrated step-by-step guides, schematic maps, and visual previews. Use when exploring, comparing, or following along would help more than prose."
+description: "Answer with something the person can operate, inline in a bb message: Anatomy figures (working machines, via the bundled anatomy skill), calculators, charts, clickable mock-ups, live design previews, motion previews, simulations and step-by-step guides. Use it even when nobody says playground: explaining how a system, protocol, pipeline or mechanism works (to them or their team), \"show me\", \"let me play with / adjust\", comparing options or settings, mocking up a screen or flow, picking design values, or seeing a tradeoff play out over time."
 ---
 
 # Playgrounds
@@ -18,15 +18,36 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 
 ## Choose the form
 
-- **HTML playground with the component library** (see Components) for apps the
-  person will keep using with you: planners and calculators with several
-  inputs and an answer, simulations that run over time, design tools with a
-  live preview, games, instruments, and step-by-step guides or visual plans.
-- **Native document** only for a quick formula answer with a few inputs and no
-  follow-up work: bounded arithmetic, no code, accessible by construction.
+Build something they can operate whenever it explains better than prose, even if
+they never say "playground". Answer in prose only when one sentence would do.
 
-- Start with the user's question and choose useful inputs. Name units and
-  assumptions. Use plain prose if interaction would not improve the answer.
+| They ask about | Build |
+| --- | --- |
+| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | An Anatomy figure: load the bundled `anatomy` skill and build its machine, with the model's inputs as playground parameters (see Anatomy figures) |
+| Numbers, pricing, "how much / which", a decision | Calculator set |
+| Funnels, time series, distributions | A chart, with the inputs that drive it |
+| A screen or flow | A clickable mock-up of it |
+| Type, spacing, color, design tokens | A live preview (`references/type-scale.html`) |
+| Motion or feel (springs, easing, drag) | A motion preview they can operate |
+| A tradeoff that plays out over time (a backlog against worker count, an on-call rotation) | Simulation set |
+
+Build these as HTML playgrounds with the component library (see Components). Use
+a **native document** only for a quick formula answer with a few inputs and no
+follow-up work: bounded arithmetic, no code, accessible by construction.
+
+## Before you reply
+
+- Quote numbers from the card's live values (`bb playgrounds state <id>`, or
+  `do <id> read`), not from your own arithmetic. If they disagree, fix the card.
+- Answer a follow-up by changing the existing card (`do <id> setParams`, `set`
+  on a native document, or one of its actions) when its controls can express
+  it. Republish only when the structure must change, and carry over their inputs.
+  If `do` finds no open copy, read `state <id>` and set it back with new
+  `params` (`--set`) instead.
+- End with a one-line takeaway they can act on. Label every number's unit.
+
+## Native documents
+
 - Native controls: `number`, `range`, and `select`. Supply valid bounds,
   a positive step, and a default on that step. Numeric expressions can refer
   to numeric controls and earlier calculations, never select controls.
@@ -45,7 +66,7 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
   user across devices and you can read them. They are context, not approvals
   to take action.
 - Playgrounds render after publication, not progressively during generation.
-  Published documents are immutable; publish a fresh playground for a revision.
+  A card's markup is fixed once published; its inputs and state are not.
   Old playgrounds retain their original content. Do not reuse another thread's ID.
 
 Use action cards for approvals or actions that need to reach an agent.
@@ -74,13 +95,8 @@ them; `bb playgrounds publish --saved <savedId>` (or the tool's `saved`
 parameter) shows one in the current thread with its saved inputs. When the user
 @-mentions a saved playground, publish it this way instead of rebuilding it.
 
-- **Follow-ups change the card.** When they ask about something the card
-  shows (a step, a stop, a color, a plant, a setting), change the card with
-  `do <id> setParams` or one of its actions, then answer in a line or two.
-  Don't only answer in chat. Publish a second card only when the card's data
-  has to change (a different stop on the route, a new plant), and carry
-  over what they had selected. Keep what they'd ask about
-  (the current step, the selected item) in parameters so you can set it.
+- Keep what they'd ask about (the current step, the selected item, a stop on
+  the route) in parameters, so a follow-up can set it.
 - Native documents expose `set` (one object of control values) and `reset`,
   and return the inputs plus every metric as displayed.
 - `do` runs in the copy the user touched most recently and fails when the
@@ -155,6 +171,10 @@ Build from these before writing your own controls.
 | `chart` | `<figure data-pg="chart" data-name="…" data-label="…">`, filled from script |
 | `agent` | A lane that shows what you last did on the card |
 
+Units go in `data-unit`. `data-options` entries are `value:Label`, and labels
+can't contain commas or colons. Publishing rejects markup the kit would
+misread (unknown `data-*` attributes, bad options or numbers) with every fix listed.
+
 Layout classes: `.pg-form` (fields in a grid), `.pg-toolbar`, `.pg-surface`
 with `.pg-group` and `.pg-label` (grouped panels), `.pg-banks`, `.pg-badge`
 (`data-tone="good|warn|bad"`). `data-show="param=value"` shows an element only
@@ -216,9 +236,10 @@ detail says why) and `ui.breakdown(name,
 [{ label, value, display }])`. Keep it to the sentence, the answer and one
 breakdown or chart; no tables of every scenario.
 
-**Simulation set.** For systems that run over time (rate limits, queues,
-caches, retries, rollouts): a sentence of the knobs, one chart that draws the
-run as it plays, and a verdict. No diagram; the chart is the simulation:
+**Simulation set.** For a tradeoff that plays out over time (a rate limit's
+burst against its steady rate, a backlog against worker count): a sentence of
+the knobs, one chart that draws the run as it plays, and a verdict; no diagram.
+To show how the system itself works, build an Anatomy figure instead:
 
 ```html
 <div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
@@ -368,16 +389,16 @@ shows a setup step, two boards and hidden pieces), and
 [Anatomy](https://skills.wheresryan.sh/anatomy), by Ryan
 ([@wheresryan22](https://github.com/wheresryan22)), draws a technical idea as a
 working isometric machine. Playgrounds ships a copy as the `anatomy` skill.
-When someone asks for an Anatomy figure, or for "how X works" as a machine they
-can operate, build the figure with it the framework-free way (a `build.mjs` that writes one
-standalone HTML page), then show that page as a playground:
+Whenever someone asks how a system, mechanism, protocol or pipeline works, load
+the `anatomy` skill and build the figure the framework-free way (a `build.mjs`
+that writes one standalone HTML page), then show that page as a playground:
 
 ```sh
 bb playgrounds publish --playground-file /absolute/path/figure.html
 ```
 
-`--playground-file` reads the page from this thread's workspace (write it
-there, not to `/tmp`), so a large figure never passes through your context. The card keeps the page's styles and
+`--playground-file` reads only from this thread's workspace (its checkout; the
+`anatomy` skill's "In bb" says where to copy it), so a large figure never passes through your context. The card keeps the page's styles and
 scripts, follows bb's light or dark theme, and fits the page to the card. Credit
 Ryan and Anatomy in your reply.
 

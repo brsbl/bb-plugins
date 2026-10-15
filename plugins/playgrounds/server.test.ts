@@ -536,6 +536,27 @@ it("gives agents every skill the plugin ships", async () => {
   }
 });
 
+it("refuses to publish kit markup the kit would silently get wrong, from the tool and the CLI", async () => {
+  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  try {
+    plugin(host.bb);
+    const html =
+      '<p class="pg-sentence">We have <span data-pg="scrub" data-param="users" data-suffix="k" data-min="10" data-max="5000" data-value="1000"></span> users.</p>\n' +
+      '<div data-pg="segmented" data-param="prog" data-options="linear:Linear,tshirt:Stepped 1,2,4" data-value="tshirt"></div>';
+    await expect(
+      host.harness.behavior.callAgentTool("playground", { action: "publish", title: "Rollout", html }, { threadId: "thr_test" }),
+    ).rejects.toThrow(/2 problems[\s\S]*use data-unit="k"[\s\S]*extra options \("2", "4"\)/);
+    const cli = await host.harness.behavior.runCli(["publish", "--thread", "thr_test", "--playground", JSON.stringify({ title: "Rollout", html })]);
+    expect(cli.exitCode).toBe(1);
+    expect(cli.stderr).toContain('use data-unit="k"');
+    const fixed = html.replace('data-suffix="k"', 'data-unit="k"').replace("Stepped 1,2,4", "Stepped 1–4");
+    const ok = await host.harness.behavior.callAgentTool("playground", { action: "publish", title: "Rollout", html: fixed }, { threadId: "thr_test" });
+    expect(String(ok)).toContain("::playground{id=");
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
 it("reads a playground file as JSON, or as a whole HTML page titled from its <title>", () => {
   expect(playgroundFromFile("/w/card.json", '{"title":"Card","html":"<p>x</p>"}')).toEqual({ title: "Card", html: "<p>x</p>" });
   const page = '<!doctype html><html><head><title> Dial indicator </title></head><body class="iso" data-theme="dark"></body></html>';
