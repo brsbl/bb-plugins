@@ -1,0 +1,65 @@
+.icx { --icx-arrow: 32px; --icx-gap: 10px; --icx-caption: 84px; container-type: inline-size; display: grid; grid-template-columns: minmax(0, 1fr); margin: 12px 0; color: var(--foreground); outline: none; }
+.icx-heading { grid-area: 1 / 1; margin-block: 0 8px; font-size: 13px; font-weight: 600; }
+.icx-row { display: contents; }
+.icx-arrow { grid-area: 4 / 1; align-self: center; z-index: 1; margin-top: 8px; display: grid; place-items: center; width: var(--icx-arrow); height: var(--icx-arrow); padding: 0; border: 1px solid color-mix(in oklab, var(--foreground) 25%, transparent); border-radius: 999px; background: var(--background); color: var(--foreground); box-shadow: 0 1px 4px color-mix(in oklab, var(--foreground) 20%, transparent); cursor: pointer; }
+.icx-arrow:first-child { justify-self: start; }
+.icx-arrow:last-child { justify-self: end; }
+.icx-arrow:hover:not([aria-disabled="true"]) { background: var(--accent); }
+.icx-arrow:focus-visible, .icx-caption:focus-visible, .icx-frame:focus-visible, .icx-retry:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.icx-arrow[aria-disabled="true"] { cursor: default; }
+.icx-arrow[aria-disabled="true"] svg { opacity: .35; }
+.icx-arrow svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icx-media { grid-area: 2 / 1; min-width: 0; }
+.icx-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--icx-gap); }
+.icx-pair figure { min-width: 0; margin: 0; }
+.icx-tag { margin-bottom: 4px; color: var(--muted-foreground); font-size: 11px; font-weight: 600; line-height: 16px; letter-spacing: .02em; text-transform: uppercase; }
+.icx-tag-after { color: var(--primary); }
+.icx-frame { display: block; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 8px; background: var(--muted); }
+.icx-frame-button { width: 100%; padding: 0; border: 0; cursor: zoom-in; }
+.icx-frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.icx-frame-empty { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted-foreground); font-size: 12px; }
+.icx-caption { grid-area: 3 / 1; height: var(--icx-caption); margin-top: 12px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; font-size: 13px; line-height: 1.5; }
+.icx-caption-more { mask-image: linear-gradient(#000 70%, transparent); }
+.icx-caption-title { font-weight: 600; overflow-wrap: anywhere; }
+.icx-caption-text { margin: 2px 0 0; color: var(--muted-foreground); white-space: pre-line; overflow-wrap: anywhere; }
+.icx-source { display: inline-block; margin-top: 2px; color: var(--primary); font-size: 12px; text-decoration: none; }
+.icx-source:hover { text-decoration: underline; }
+.icx-position { grid-area: 4 / 1; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 8px; }
+.icx-count { color: var(--muted-foreground); font-size: 12px; font-variant-numeric: tabular-nums; }
+.icx-dots { display: flex; gap: 5px; }
+.icx-dots i { width: 6px; height: 6px; border-radius: 999px; background: var(--border); }
+.icx-dots i.icx-dot-on { background: var(--foreground); }
+.icx-note { display: flex; align-items: center; gap: 8px; margin: 12px 0; color: var(--muted-foreground); font-size: 13px; }
+.icx-retry { padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--foreground); font-size: 12px; cursor: pointer; }
+.icx-viewer-overlay { position: fixed; inset: 0; z-index: 1000; background: color-mix(in oklab, var(--background) 70%, transparent); backdrop-filter: blur(6px); }
+.icx-viewer { position: fixed; inset: 24px; z-index: 1001; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 12px; padding: 40px 32px 12px; color: var(--foreground); outline: none; }
+.icx-viewer-stage { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; touch-action: pan-y pinch-zoom; }
+.icx-viewer-stage > img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 12px 40px color-mix(in oklab, var(--foreground) 20%, transparent); }
+.icx-viewer-stage > .icx-frame { width: 100%; height: 100%; aspect-ratio: auto; }
+.icx-viewer-details { justify-self: center; width: min(100%, 720px); max-height: 20vh; overflow-y: auto; overscroll-behavior: contain; font-size: 14px; line-height: 1.5; }
+.icx-viewer-details h2 { margin: 0; font-size: inherit; }
+.icx-viewer-position { display: flex; align-items: center; justify-content: center; gap: 24px; }
+.icx-viewer-position .icx-count { min-width: 50px; text-align: center; }
+.icx-viewer-position button, .icx-viewer-close { width: 44px; height: 44px; border-radius: 999px; background: var(--background); }
+.icx-viewer-close { position: absolute; top: 0; right: 0; }
+.icx-viewer svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icx-viewer-position [aria-disabled="true"] { opacity: .35; cursor: default; }
+@media (max-width: 560px) {
+  .icx-viewer { inset: 12px; padding: max(48px, env(safe-area-inset-top)) 0 max(0px, env(safe-area-inset-bottom)); gap: 12px; }
+  .icx-viewer-details { max-height: 24vh; }
+}
+.icx-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@container (max-width: 560px) {
+  .icx-heading, .icx-row, .icx-caption, .icx-position { --icx-arrow: 28px; --icx-gap: 6px; }
+  .icx-pair { grid-template-columns: minmax(0, 1fr); }
+  .icx-caption { --icx-caption: 104px; }
+}
+@container page (min-width: 816px) {
+  @container (min-width: 561px) and (max-width: 712px) {
+    .icx-row { display: block; grid-area: 2 / 1; position: relative; }
+    .icx-arrow { position: absolute; top: 50%; transform: translateY(-50%); margin-top: 0; }
+    .icx-arrow:first-child { right: calc(100% + var(--icx-gap)); }
+    .icx-arrow:last-child { left: calc(100% + var(--icx-gap)); }
+    .icx-row-pair .icx-arrow { top: calc(50% + 10px); }
+  }
+}

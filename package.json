@@ -1,0 +1,30 @@
+{
+  "name": "bb-plugin-image-carousel",
+  "version": "0.1.1",
+  "description": "Show research screenshots and before/after pairs inline as a carousel.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "assets",
+    "dist",
+    "docs",
+    "README.md",
+    "skills"
+  ],
+  "engines": {
+    "bb": ">=0.0.34",
+    "bbPluginSdk": ">=0.5.9"
+  },
+  "bb": {
+    "name": "Image Carousel",
+    "description": "Show research screenshots and before/after pairs inline as a carousel.",
+    "branding": {
+      "icon": "./assets/carousel.svg"
+    },
+    "server": "./dist/install-server.mjs",
+    "skills": [
+      "skills"
+    ],
+    "app": "./dist/install-app.mjs"
+  }
+}
