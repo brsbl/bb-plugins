@@ -83,6 +83,9 @@ export const SETS_CSS = String.raw`
 [data-pg=photos] > img:first-child { grid-row: span 2; }
 [data-pg=photos]:has(> img:only-child) { grid-template-columns: 1fr; }
 [data-pg=photos]:has(> img:nth-child(2):last-child) > img { grid-row: span 2; }
+/* Anatomy figures (skills.wheresryan.sh/anatomy) sit in the card instead of on their own page. */
+body.iso { background: transparent; }
+body.iso .iso-page { width: 100%; margin: 0 auto; }
 :where(.pg-turn + [data-pg=board]) { max-width: 420px; margin-top: 10px; }
 `;
 

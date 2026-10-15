@@ -754,10 +754,33 @@ export const CONTROLS_RUNTIME = String.raw`
   };
   api.params = params;
   api.ui = Object.freeze({ ...SET_UI, show: readyFirst(show), table: readyFirst(table), chart: readyFirst(chart), say: lane, icon, format: (v, spec) => format(v, spec || {}), dragValue, pressable, audio, audioReady, onAudio: (fn) => (audioReady() ? fn() : audioWaiters.add(fn)), on, press: (id) => press(id, "user"), release: (id) => release(id, "user"), play, scope: (el) => el.__scope, meter: (el) => el.__set, steps: (el) => el.__now, noteName, hydrate: () => hydrate(document), take: () => lastTake });
+  // Anatomy figures: follow bb's theme, and let the agent read the live readout and
+  // step the figure the way its keyboard controls do.
+  function figure() {
+    const sync = () => { for (const el of document.querySelectorAll(".iso[data-theme]")) el.dataset.theme = theme.scheme; };
+    sync(); listeners.add(sync);
+    const stage = document.querySelector(".iso-stage");
+    if (!stage) return;
+    const read = () => ({
+      label: stage.getAttribute("aria-label"),
+      readout: (document.querySelector("[data-readout]")?.textContent || "").trim() || null,
+      value: stage.hasAttribute("aria-valuenow") ? Number(stage.getAttribute("aria-valuenow")) : null,
+      min: stage.hasAttribute("aria-valuemin") ? Number(stage.getAttribute("aria-valuemin")) : null,
+      max: stage.hasAttribute("aria-valuemax") ? Number(stage.getAttribute("aria-valuemax")) : null,
+    });
+    const key = async (name, times) => {
+      const n = clamp(Math.round(Number(times) || 1), 1, 50);
+      for (let i = 0; i < n; i++) stage.dispatchEvent(new KeyboardEvent("keydown", { key: String(name), bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return read();
+    };
+    api.expose(Object.fromEntries(Object.entries({ read, key }).filter(([name]) => !actions.has(name))));
+  }
   const start = () => {
     hydrate(document);
     // A card's own actions win over the kit's built-in ones with the same name.
     if (Object.keys(specs).length || document.querySelector("[data-pg]")) api.expose(Object.fromEntries(Object.entries(autoActions).filter(([name]) => !actions.has(name))));
+    figure();
     syncRecorders();
   };
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", start); else start();

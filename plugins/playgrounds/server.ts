@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
@@ -15,6 +16,35 @@ import {
 } from "./model.js";
 import { bill, savings, stepper } from "./examples.js";
 import { buildWidgetDocument, fallbackTheme, FRAME_HEADERS, FRAME_PATH } from "./widget.js";
+
+function pageTitle(text: string): string {
+  const lower = text.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+  const open = lower.indexOf("<title");
+  const start = open < 0 ? -1 : lower.indexOf(">", open) + 1;
+  const end = start <= 0 ? -1 : lower.indexOf("</title>", start);
+  return end < 0 ? "" : text.slice(start, end).trim();
+}
+
+// A file on the thread's machine: one-line JSON {title, html, width?}, or a whole HTML
+// page such as an Anatomy figure, titled from its <title>.
+export function playgroundFromFile(name: string, text: string): unknown {
+  if (!/^\s*</.test(text)) return JSON.parse(text);
+  if (text.length > MAX_HTML_LENGTH) throw new Error(`${path.basename(name)} is longer than a playground allows (${MAX_HTML_LENGTH} characters).`);
+  const title = pageTitle(text) || path.basename(name).replace(/\.html?$/i, "");
+  return { title, html: text, ...(/class="iso"/.test(text) ? { width: 720 } : {}) };
+}
+
+// Reads only from the calling thread's own workspace on its own machine; the host
+// daemon refuses files over its size limit before reading them.
+async function readThreadFile(bb: BbPluginApi, threadId: string, cwd: string | undefined, file: string) {
+  const thread = await bb.sdk.threads.get({ threadId, include: "environment" });
+  const environment = "environment" in thread ? thread.environment ?? null : null;
+  if (!environment?.path) throw new Error("This thread has no workspace to read files from.");
+  const resolved = path.resolve(cwd ?? environment.path, file);
+  const result = await bb.sdk.files.read({ hostId: environment.hostId, path: resolved, rootPath: environment.path });
+  if ((result.sizeBytes ?? 0) > MAX_HTML_LENGTH * 2) throw new Error(`${file} is too large for a playground.`);
+  return Buffer.from(result.content, result.contentEncoding === "base64" ? "base64" : "utf8").toString("utf8");
+}
 import { createLive, liveRpc } from "./live.js";
 
 const savedSchema = z
@@ -98,6 +128,7 @@ const HTML_GUIDE = [
   "Kit classes: .pg-title, .pg-subtitle, .pg-eyebrow, .pg-h, .pg-item-title, .pg-body, .pg-meta, .pg-panel, .pg-stage, .pg-photos, .pg-seg (buttons with aria-pressed), .pg-chip, .pg-btn, .pg-btn-primary, .pg-link, .pg-check (label > input + text + small), .pg-dots (i[aria-current=step]), .pg-reveal (entrance; set --i to stagger).",
   "Bridge: window.playground.state is the playground's shared state (or null): the last value passed to window.playground.save(value) on any device, or set by the agent. Call save after each meaningful change; bb stores it and every open copy receives it. window.playground.onState(callback) runs when the state changes elsewhere; apply it without saving again. window.playground.theme and window.playground.onTheme(callback) report theme changes. http(s) links open in bb only after a click inside the answer; call window.playground.send from a click too.",
   "Agent control: window.playground.expose({ name: (...args) => result }) lists actions the agent can run with `bb playgrounds do <id> <name> --args '[...]'`; return a short JSON-serializable result (a Promise is fine) and drive the same code path a click would. window.playground.emit(name, data) records something the user did for `bb playgrounds watch`. window.playground.send(label, data), called from a click, attaches data to the user's next message as a pill, so they choose when you see it: use it for things like a recorded take or a finished attempt. Expose the handful of verbs a person would use (play, select, set), not internals.",
+  "Anatomy figures: when you build a figure with the how-it-works skill (Anatomy, skills.wheresryan.sh/anatomy), write its standalone page into this thread's workspace and publish it with `bb playgrounds publish --playground-file <path>`; the card keeps its styles and theme, and the agent can `read` it and press `key`s on it. Put the model's inputs in playground parameters so `setParams` works, and credit Ryan (@wheresryan22) and Anatomy in your reply.",
   "Network: the frame has no network access. Scripts, styles, and fonts must be inline; bb supplies Inter. Images load only from data: and blob: URLs and https://upload.wikimedia.org (credit photos in your prose); every other request, including remote scripts, fetch, and map tiles, is blocked. Draw maps and 3D views as inline SVG or canvas. The frame has no access to bb, cookies, or the conversation; share what the agent should see through save and emit only. Respect prefers-reduced-motion and keep controls keyboard accessible.",
 ].join("\n");
 function guide() {
@@ -463,7 +494,7 @@ export default function plugin(bb: BbPluginApi): void {
   });
   bb.agents.configure(() => ({
     tools: ["playground"],
-    skills: ["playgrounds"],
+    skills: ["playgrounds", "how-it-works"],
   }));
   bb.cli.register(
     defineCli({
@@ -512,6 +543,12 @@ export default function plugin(bb: BbPluginApi): void {
               description:
                 "HTML playground as one-line JSON {title, html, width?}; use --playground-stdin",
             },
+            "playground-file": {
+              type: "string",
+              placeholder: "PATH",
+              description:
+                "HTML playground in a file on this thread's machine: one-line JSON {title, html, width?}, or a whole .html page such as an Anatomy figure",
+            },
             saved: {
               type: "string",
               description:
@@ -522,8 +559,17 @@ export default function plugin(bb: BbPluginApi): void {
               description: "Thread ID; defaults to the current thread",
             },
           },
-          run: ({ options }, ctx) => {
+          run: async ({ options }, ctx) => {
             const threadId = threadSchema.parse(options.thread ?? ctx.threadId);
+            const file = options["playground-file"];
+            if (file !== undefined) {
+              if (!ctx.threadId) throw new Error("Run --playground-file from the bb thread whose workspace has the file.");
+              const text = await readThreadFile(bb, ctx.threadId, ctx.cwd, file);
+              return {
+                exitCode: 0,
+                stdout: `${store.publishHtml(threadId, htmlAnswerSchema.parse(playgroundFromFile(file, text))).directive}\n`,
+              };
+            }
             if (options.saved !== undefined)
               return {
                 exitCode: 0,
@@ -535,7 +581,7 @@ export default function plugin(bb: BbPluginApi): void {
                 stdout: `${store.publishHtml(threadId, htmlAnswerSchema.parse(JSON.parse(options.playground))).directive}\n`,
               };
             if (options.document === undefined)
-              throw new Error("Pass --document-stdin, --playground-stdin, or --saved.");
+              throw new Error("Pass --document-stdin, --playground-stdin, --playground-file, or --saved.");
             return {
               exitCode: 0,
               stdout: `${store.publish(threadId, options.document).directive}\n`,

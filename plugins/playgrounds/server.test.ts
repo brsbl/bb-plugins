@@ -1,6 +1,7 @@
-import { createFakePluginHost, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
+import { readdirSync } from "node:fs";
+import { createFakePluginHost, makePluginAgentConfigurationContext, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { expect, it } from "vitest";
-import plugin from "./server.js";
+import plugin, { playgroundFromFile } from "./server.js";
 import { bill, stepper } from "./examples.js";
 
 const unwrap = (stdout: string | undefined) => {
@@ -520,4 +521,28 @@ it("keeps a personal library of saved playgrounds that can be reopened, reused i
   } finally {
     await host.harness.lifecycle.dispose();
   }
+});
+
+it("gives agents every skill the plugin ships", async () => {
+  const shipped = readdirSync(new URL("./skills", import.meta.url));
+  const host = createFakePluginHost({ pluginId: "playgrounds", agentSkillIds: shipped });
+  try {
+    plugin(host.bb);
+    const configured = await host.harness.resolveAgentConfiguration(makePluginAgentConfigurationContext());
+    expect([...configured.skills].sort()).toEqual([...shipped].sort());
+    expect(configured.tools.map((tool) => tool.name)).toContain("playground");
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it("reads a playground file as JSON, or as a whole HTML page titled from its <title>", () => {
+  expect(playgroundFromFile("/w/card.json", '{"title":"Card","html":"<p>x</p>"}')).toEqual({ title: "Card", html: "<p>x</p>" });
+  const page = '<!doctype html><html><head><title> Dial indicator </title></head><body class="iso" data-theme="dark"></body></html>';
+  expect(playgroundFromFile("/w/dial.html", page)).toEqual({ title: "Dial indicator", html: page, width: 720 });
+  expect(playgroundFromFile("/w/plain.html", "<p>no title</p>")).toEqual({ title: "plain", html: "<p>no title</p>" });
+  const started = performance.now();
+  expect(playgroundFromFile("/w/odd.html", "<" + "<title".repeat(200_000))).toMatchObject({ title: "odd" });
+  expect(performance.now() - started).toBeLessThan(1_000);
+  expect(() => playgroundFromFile("/w/huge.html", "<p>" + "x".repeat(2_000_001))).toThrow("longer than a playground allows");
 });
