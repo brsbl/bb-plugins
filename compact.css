@@ -1,0 +1,12 @@
+/* Narrow containers (phones, slim thread panels): tighter loading and error cards. */
+.iac-container { container-type: inline-size; margin: 12px 0; }
+.iac-container > .iac-card { margin: 0; }
+@container (max-width: 520px) {
+  .iac-card { --iac-gap: 6px; line-height: 1.5; }
+  .iac-card { padding: 10px 12px; }
+  .iac-recipient-line { padding-top: 2px; }
+  .iac-consequence { margin-top: 2px; }
+  .iac-consequence:not([data-open]) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  .iac-consequence[role="button"] { cursor: pointer; border-radius: var(--radius-sm, .25rem); }
+  .iac-consequence[role="button"]:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
+}
