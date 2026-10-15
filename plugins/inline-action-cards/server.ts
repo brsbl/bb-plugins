@@ -100,7 +100,7 @@ export function createStore(bb: BbPluginApi) {
     item.attempt = { id: randomUUID(), action, claimed: false, ...(attemptNote ? { note: attemptNote } : {}) };
     item.result = null;
   };
-  const withSources = async (items: Item[]) => {
+  const withSources = async <T extends Item>(items: T[]) => {
     const sources = new Map(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => [id, await threadSource(bb, id)] as const)));
     return items.map((item) => ({ ...item, ...sources.get(item.threadId)! }));
   };
@@ -110,7 +110,13 @@ export function createStore(bb: BbPluginApi) {
     // One thread's open items, one per question: urgent first, then oldest; low priority last.
     async waiting(threadId: string) {
       const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
-      return (await withSources(distinctOpen(rows.map((row) => itemSchema.parse(JSON.parse(row.value)))))).sort((a, b) => rank(a.content.priority) - rank(b.content.priority)
+      const items = rows.map((row) => itemSchema.parse(JSON.parse(row.value)));
+      const open = distinctOpen(items).map((item) => {
+        const earlier = items.filter((other) => !isOpen(other) && other.attempt && other.updatedAt < item.updatedAt && sameQuestion(other, item))
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+        return earlier ? { ...item, earlier: answeredLabel(earlier) } : item;
+      });
+      return (await withSources(open)).sort((a, b) => rank(a.content.priority) - rank(b.content.priority)
         || a.updatedAt.localeCompare(b.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
     },
     // A newer version of the same question in the same thread replaces the older unanswered ones.
@@ -312,6 +318,7 @@ const isOpen = (item: Item) => item.state === "ready" || (item.state === "pendin
 const questionKey = (item: Item) => title(item).toLowerCase().replace(/\s+/g, " ").replace(/[\s?.!]+$/, "").trim();
 const idBase = (id: string) => id.replace(/-v\d+$/i, "");
 const sameQuestion = (a: Item, b: Item) => a.threadId === b.threadId && (questionKey(a) === questionKey(b) || idBase(a.id) === idBase(b.id));
+const answeredLabel = (item: Item) => item.attempt!.action === "answer" ? item.attempt!.note ?? "an answer" : item.attempt!.choice?.label ?? actionLabel(item, item.attempt!.action);
 // Newest first, keeping only the newest item for each question.
 function distinctOpen(items: Item[]): Item[] {
   const kept: Item[] = [];

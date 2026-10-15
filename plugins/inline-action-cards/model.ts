@@ -139,6 +139,8 @@ export function actionMessage(item: Item): string {
 
 const logEntrySchema = itemSchema.extend({ threadTitle: z.string(), threadProjectId: z.string().nullable() });
 export const logSchema = z.object({ waiting: z.array(logEntrySchema), done: z.array(logEntrySchema) });
-export const waitingSchema = z.array(logEntrySchema);
-export type WaitingItem = z.infer<typeof logEntrySchema>;
+// earlier: what the user already answered to an earlier version of the same question in this thread.
+const waitingItemSchema = logEntrySchema.extend({ earlier: z.string().optional() });
+export const waitingSchema = z.array(waitingItemSchema);
+export type WaitingItem = z.infer<typeof waitingItemSchema>;
 export type ActionLog = z.infer<typeof logSchema>;

@@ -526,6 +526,14 @@ describe("Waiting on you", () => {
     insert(host, { threadId: "thr_other", id: "plan", question: "Approve the plan?", minutesAgo: 45 });
     expect((await host.harness.behavior.callRpc("waiting", { threadId: "thr_growth" }) as Item[]).map((item) => item.id)).toEqual(["old", "plan-v2", "budget-again"]);
   });
+  it("tells the drawer what the user answered to an earlier version of a question", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    insert(host, { threadId: "thr_growth", id: "headline", question: "Which headline?", minutesAgo: 30, state: "succeeded", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "answer", claimed: true, note: "Org framing" }, result: { message: "Answered", retryable: false } });
+    insert(host, { threadId: "thr_growth", id: "headline-v2", question: "Which headline?", minutesAgo: 1 });
+    insert(host, { threadId: "thr_growth", id: "budget", question: "Raise the budget?", minutesAgo: 5 });
+    const waiting = await host.harness.behavior.callRpc("waiting", { threadId: "thr_growth" }) as (Item & { earlier?: string })[];
+    expect(waiting.map((item) => [item.id, item.earlier])).toEqual([["budget", undefined], ["headline-v2", "Org framing"]]);
+  });
   it("supersedes older versions of a question in the same thread on create", async () => {
     const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
     const create = (thread: string, id: string, question: string) => host.harness.behavior.runCli(["create", id, "--thread", thread, "--item", JSON.stringify({ type: "decide", question, consequence: "Do it.", context: "Brief." })]);

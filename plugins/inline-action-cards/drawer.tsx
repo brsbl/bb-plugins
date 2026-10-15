@@ -34,6 +34,7 @@ function questionOf(item: Item): string {
 function Meta({ item, now }: { item: WaitingItem; now: number }) {
   return <div className="mt-0.5 flex min-w-0 items-center gap-1 text-2xs text-subtle-foreground">
     {item.content.priority === "urgent" && <><span className="shrink-0 text-destructive-text">Urgent</span><span aria-hidden>·</span></>}
+    {item.earlier && <><span className="min-w-0 truncate" title={`You answered an earlier version: ${item.earlier}`}>Asked again · you said “{item.earlier}”</span><span aria-hidden>·</span></>}
     <time className="shrink-0 tabular-nums" dateTime={item.updatedAt}>{age(item.updatedAt, now)}</time>
   </div>;
 }
@@ -135,7 +136,15 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
     pendingFocus.current = null;
     target?.focus();
   }, [expanded]);
-  if (!items.length) return null;
+  if (!items.length && !notice) return null;
+  // The last answer stays visible as a confirmation until the notice times out.
+  if (!items.length) return <section aria-label="Waiting on you"
+    className="relative z-10 -mb-5 flex min-h-0 flex-col overflow-hidden rounded-xl rounded-b-none border border-b-0 border-border bg-surface-raised-solid pb-3 shadow-lift">
+    <p role="status" className={cn(HEADER_CLASS, "cursor-default hover:bg-transparent")}>
+      <Icon name="Check" className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      <span className="min-w-0 truncate text-muted-foreground">{notice}</span>
+    </p>
+  </section>;
   // A single item opens straight to its answer; with several, the list comes first.
   const single = items.length === 1;
   const openIndex = single ? 0 : items.findIndex((item) => keyOf(item) === openKey);
@@ -152,15 +161,17 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
   };
   const step = (offset: 1 | -1) => setOpenKey(keyOf(items[(openIndex + offset + items.length) % items.length]!));
   return <section aria-label="Waiting on you"
+    onKeyDown={(event) => { if (event.key === "Escape" && expanded) { event.stopPropagation(); pendingFocus.current = "trigger"; setExpanded(false); setOpenKey(null); } }}
     className="relative z-10 -mb-5 flex min-h-0 flex-col overflow-hidden rounded-xl rounded-b-none border border-b-0 border-border bg-surface-raised-solid pb-3 shadow-lift">
     <header className={cn("flex shrink-0 items-center", expanded && "border-b border-border/35")}>
       <button ref={triggerRef} type="button" aria-expanded={expanded} aria-controls={listId}
         onClick={back ? () => setOpenKey(null) : toggle} className={HEADER_CLASS}>
         {back && <Icon name="ChevronLeft" className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
         <Icon name="CircleQuestion" className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="shrink-0 font-normal text-muted-foreground">Waiting on you</span>
+        <span className={cn("shrink-0 font-normal text-muted-foreground", !expanded && "max-sm:sr-only")}>Waiting on you</span>
+        {expanded && !single && <span className="shrink-0 tabular-nums text-subtle-foreground">· {items.length}</span>}
         {!expanded && <span className="min-w-0 truncate">
-          <span aria-hidden className="text-subtle-foreground">· </span>
+          <span aria-hidden className="text-subtle-foreground max-sm:hidden">· </span>
           {top.content.priority === "urgent" && <span className="text-destructive-text">Urgent · </span>}{questionOf(top)}
         </span>}
         {!expanded && !single && <span className="ml-auto mr-px flex w-6 shrink-0 justify-center">
@@ -169,9 +180,9 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
       </button>
       {expanded && (back
         ? <div className="flex shrink-0 items-center pr-2 text-xs">
-          <button type="button" aria-label="Previous" onClick={() => step(-1)} className={STEP_CLASS}><Icon name="ChevronLeft" className="size-3.5" aria-hidden /></button>
+          <button type="button" aria-label="Previous" onClick={() => step(-1)} className={STEP_CLASS}><Icon name="ChevronUp" className="size-3.5" aria-hidden /></button>
           <span className="whitespace-nowrap tabular-nums text-subtle-foreground">{openIndex + 1} of {items.length}</span>
-          <button type="button" aria-label="Next" onClick={() => step(1)} className={STEP_CLASS}><Icon name="ChevronRight" className="size-3.5" aria-hidden /></button>
+          <button type="button" aria-label="Next" onClick={() => step(1)} className={STEP_CLASS}><Icon name="ChevronDown" className="size-3.5" aria-hidden /></button>
         </div>
         : <button type="button" onClick={() => navigate.toPluginPanel("log")}
           className="mr-1.5 shrink-0 rounded-md px-1.5 py-1 text-2xs text-subtle-foreground hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:outline-none">

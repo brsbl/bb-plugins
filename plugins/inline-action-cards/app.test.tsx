@@ -123,8 +123,9 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   expect(submittedMessages).toHaveLength(1);
   expect(submittedMentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Billing follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
-  // The last item answered, nothing waits and the drawer is gone.
-  await waitFor(() => expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull());
+  // The last item answered: nothing waits, and the drawer confirms the answer instead of vanishing.
+  expect((await screen.findByRole("status")).textContent).toBe("Sent “Send”");
+  expect(screen.queryByRole("form")).toBeNull();
 });
 it("preserves an existing composer message", async () => {
   const { slot, calls } = await setup("Please also check another message");
@@ -443,6 +444,28 @@ it("lists this thread's items urgent first with age, steps through them, and hid
   await waitFor(() => expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull());
 });
 
+it("marks a question asked again with the earlier answer, steps with up and down, and collapses on Escape", async () => {
+  const at = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const waiting = [
+    { ...fixture(), id: "headline-v2", updatedAt: at(1), earlier: "Run your agents like a team", content: { type: "decide" as const, question: "Which headline?", consequence: "Use it." }, ...source },
+    { ...fixture(), id: "budget", updatedAt: at(5), content: { type: "decide" as const, question: "Raise the budget?", consequence: "Do it." }, ...source },
+  ];
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => waiting, get: (raw) => waiting.find((item) => item.id === (raw as { id: string }).id)! } });
+  const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+  fireEvent.click(header);
+  expect(header.textContent).toContain("· 2");
+  const row = screen.getByRole("button", { name: "Answer: Which headline?" });
+  expect(row.textContent).toContain("Asked again · you said “Run your agents like a team”");
+  fireEvent.click(row);
+  expect(within(await screen.findByRole("form")).queryByText("1 of 2")).toBeNull();
+  expect(screen.getByText("1 of 2")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(await screen.findByText("2 of 2")).toBeTruthy();
+  fireEvent.keyDown(screen.getByRole("form"), { key: "Escape" });
+  await waitFor(() => expect(header.getAttribute("aria-expanded")).toBe("false"));
+});
+
 it("asks only for the current thread's items and stays away outside a thread", async () => {
   const calls: unknown[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
@@ -466,10 +489,13 @@ it("answers an ask in its own words and settles it without a claim", async () =>
     await openItem("Which channel should the report post to?");
     const button = screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "#feedback" } });
-    submit();
+    const field = screen.getByRole("textbox", { name: "Your answer" });
+    fireEvent.change(field, { target: { value: "#feedback" } });
+    fireEvent.keyDown(field, { key: "Enter", shiftKey: true });
+    expect(submittedMessages).toEqual([]);
+    fireEvent.keyDown(field, { key: "Enter" });
     await waitFor(() => expect(submittedMessages).toEqual(["Answer Which channel should the report post to — #feedback"]));
-    await waitFor(() => expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull());
+    expect((await screen.findByRole("status")).textContent).toBe("Sent “#feedback”");
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);
     expect(context).toMatchObject({ intent: "answer", answer: "#feedback" });
     expect(JSON.parse((await host.harness.behavior.runCli(["get", "channel", "--thread", "thr_test"])).stdout!)).toMatchObject({ state: "succeeded", result: { message: "Answered" } });

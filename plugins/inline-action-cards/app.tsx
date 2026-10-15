@@ -237,7 +237,8 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       <FollowUps items={followUps} />
     </>}
     answer={ask
-      ? <textarea className="ac-textarea" aria-label="Your answer" placeholder="Your answer" value={note} readOnly={!ready || busy} rows={2} maxLength={1000} onChange={(event) => changeNote(event.target.value)} />
+      ? <textarea className="ac-textarea" aria-label="Your answer" placeholder="Your answer" value={note} readOnly={!ready || busy} rows={2} maxLength={1000} onChange={(event) => changeNote(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} />
       : <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={setPicked} />} />;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
