@@ -36,6 +36,13 @@ export const rpcContract = defineRpcContract({
 });
 type QueueEntry = PluginThreadEventPayloads["message.cancelled"]["entry"];
 
+async function threadSource(bb: BbPluginApi, threadId: string) {
+  try {
+    const thread = await bb.sdk.threads.get({ threadId });
+    return { threadTitle: thread.title ?? "Untitled thread", threadProjectId: thread.projectId };
+  } catch { return { threadTitle: "Unavailable thread", threadProjectId: null }; }
+}
+
 export function createStore(bb: BbPluginApi) {
   const db = bb.storage.database();
   bb.storage.migrate(db, [
@@ -169,11 +176,17 @@ export function createStore(bb: BbPluginApi) {
       bb.realtime.publish("items", { threadId: input.threadId });
       return next;
     },
-    // An agent acted on a comment instead of a click (for example it closed the PR the card asked about).
-    // Settling the card records that result; nothing was approved, so there is no attempt.
+    // Settle a moot question or a known-safe failure without authorizing another attempt.
+    // Retain a failed attempt as history; pending or uncertain outcomes still need reconciliation.
     resolve(threadId: string, id: string, message: string) {
       return change(threadId, id, null, (item) => {
-        if (item.state !== "ready") throw new Error("Only an unanswered card can be resolved. Report the claimed attempt instead.");
+        if (item.state !== "ready" && !(item.state === "failed" && item.result?.retryable)) {
+          throw new Error("Only an unanswered card or a retryable failure can be resolved. Reconcile and report an in-progress or uncertain attempt first.");
+        }
+        // A settled legacy Later/Skip attempt would read as deferred and keep offering Resume.
+        if (item.state === "failed" && ["later", "skip"].includes(item.attempt?.action ?? "")) {
+          throw new Error("A failed Later or Skip card can't be resolved. Ask the user to choose again on the card.");
+        }
         item.state = "succeeded";
         item.result = { message, retryable: false };
       });
@@ -314,9 +327,13 @@ export default function plugin(bb: BbPluginApi): void {
       // Record the send like an inline card does, so the card settles in its thread.
       return store.submitted({ threadId: item.threadId, id: item.id, attemptId: item.attempt!.id });
     },
-    get: ({ threadId, id }) => store.view(threadId, id),
+    get: async ({ threadId, id }) => ({ ...store.view(threadId, id), ...await threadSource(bb, threadId) }),
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
-    table: ({ threadId, id }) => store.table(threadId, id), prepareTable: store.prepareTable, submitted: store.submitted, prepareBatch: store.prepareBatch,
+    table: async ({ threadId, id }) => {
+      const table = store.table(threadId, id);
+      const source = await threadSource(bb, threadId);
+      return { ...table, items: table.items.map((item) => ({ ...item, ...source })) };
+    }, prepareTable: store.prepareTable, submitted: store.submitted, prepareBatch: store.prepareBatch,
   });
   // The idle payload can lag a queued message that is already starting, so settle first and re-read the thread.
   bb.events.on("thread.idle", ({ thread }) => {
@@ -391,8 +408,9 @@ export default function plugin(bb: BbPluginApi): void {
         options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply, Decide, or Choice JSON; use --item-stdin" } },
         run({ options, positionals }, ctx) {
           const id = idSchema.parse(positionals.id);
-          store.create(scope(ctx, options.thread), id, JSON.parse(options.item));
-          return { exitCode: 0, stdout: `::action{id="${id}"}\n` };
+          const item = store.create(scope(ctx, options.thread), id, JSON.parse(options.item));
+          return { exitCode: 0, stdout: `::action{id="${id}"}\n`,
+            ...(!item.content.context ? { stderr: "Warning: this card has no context. Include a short brief: what this is, why it needs the user's decision now, options, recommendation and why, and what happens after each answer. See the inline-action-cards skill.\n" } : {}) };
         },
       }),
       get: cliCommand({
@@ -401,7 +419,7 @@ export default function plugin(bb: BbPluginApi): void {
         run: ({ options, positionals }, ctx) => output(store.view(scope(ctx, options.thread), idSchema.parse(positionals.id))),
       }),
       resolve: cliCommand({
-        summary: "Settle a card you acted on from a comment, without a click", positionals: itemPosition,
+        summary: "Settle an unanswered or superseded retryable card without approving another action", positionals: itemPosition,
         options: { thread: threadOption, message: { type: "string", required: true, description: "Short result shown on the card, for example 'Closed the PR'" } },
         run: ({ options, positionals }, ctx) => output(store.resolve(scope(ctx, options.thread), idSchema.parse(positionals.id), z.string().trim().min(1).max(500).parse(options.message))),
       }),
