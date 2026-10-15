@@ -31,11 +31,23 @@
 .icx-dots i.icx-dot-on { background: var(--foreground); }
 .icx-note { display: flex; align-items: center; gap: 8px; margin: 12px 0; color: var(--muted-foreground); font-size: 13px; }
 .icx-retry { padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--foreground); font-size: 12px; cursor: pointer; }
-.icx-viewer { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px; background: color-mix(in oklab, var(--background) 30%, transparent); backdrop-filter: blur(6px); cursor: zoom-out; }
-.icx-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 12px 40px color-mix(in oklab, var(--foreground) 25%, transparent); }
-.icx-viewer-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 999px; background: var(--muted); color: var(--foreground); cursor: pointer; }
-.icx-viewer-close svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.icx-viewer-close:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.icx-viewer-overlay { position: fixed; inset: 0; z-index: 1000; background: color-mix(in oklab, var(--background) 70%, transparent); backdrop-filter: blur(6px); }
+.icx-viewer { position: fixed; inset: 24px; z-index: 1001; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 12px; padding: 40px 32px 12px; color: var(--foreground); outline: none; }
+.icx-viewer-stage { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; touch-action: pan-y pinch-zoom; }
+.icx-viewer-stage > img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 12px 40px color-mix(in oklab, var(--foreground) 20%, transparent); }
+.icx-viewer-stage > .icx-frame { width: 100%; height: 100%; aspect-ratio: auto; }
+.icx-viewer-details { justify-self: center; width: min(100%, 720px); max-height: 20vh; overflow-y: auto; overscroll-behavior: contain; font-size: 14px; line-height: 1.5; }
+.icx-viewer-details h2 { margin: 0; font-size: inherit; }
+.icx-viewer-position { display: flex; align-items: center; justify-content: center; gap: 24px; }
+.icx-viewer-position .icx-count { min-width: 50px; text-align: center; }
+.icx-viewer-position button, .icx-viewer-close { width: 44px; height: 44px; border-radius: 999px; background: var(--background); }
+.icx-viewer-close { position: absolute; top: 0; right: 0; }
+.icx-viewer svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icx-viewer-position [aria-disabled="true"] { opacity: .35; cursor: default; }
+@media (max-width: 560px) {
+  .icx-viewer { inset: 12px; padding: max(48px, env(safe-area-inset-top)) 0 max(0px, env(safe-area-inset-bottom)); gap: 12px; }
+  .icx-viewer-details { max-height: 24vh; }
+}
 .icx-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @container (max-width: 560px) {
   .icx-heading, .icx-row, .icx-caption, .icx-position { --icx-arrow: 28px; --icx-gap: 6px; }

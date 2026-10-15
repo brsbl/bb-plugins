@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { afterEach, beforeAll, expect, it } from "vitest";
 import type { Carousel } from "./model.js";
@@ -57,7 +57,6 @@ it("keeps the image set, captions, and keyboard navigation in the expanded viewe
   await setup(pairs);
   fireEvent.click(await screen.findByRole("button", { name: "View full size: After: Search" }));
   const dialog = screen.getByRole("dialog");
-  const { within } = await import("@testing-library/react");
   expect(within(dialog).getByText("2 of 4")).toBeTruthy();
   expect(within(dialog).getByText("Type to find a workspace.")).toBeTruthy();
   fireEvent.click(within(dialog).getByRole("button", { name: "Next image" }));
@@ -71,4 +70,34 @@ it("keeps the image set, captions, and keyboard navigation in the expanded viewe
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.getByText("2 / 2")).toBeTruthy();
+});
+
+
+it("swipes through research images without treating vertical scrolling or image clicks as dismissal", async () => {
+  await setup({ id: "ic_abcdefabcdef", threadId: "thr_1", kind: "research", createdAt: "2026-10-10T00:00:00Z", slides: [
+    { title: "Coast", image: image("f"), source: "https://example.com/coast" },
+    { title: "Forest", image: image("a"), description: "Green trees." },
+    { title: "Desert", image: image("b") },
+  ] });
+  fireEvent.click(await screen.findByRole("button", { name: "View full size: Coast" }));
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByRole("link").getAttribute("href")).toBe("https://example.com/coast");
+  const stage = dialog.querySelector(".icx-viewer-stage")!;
+  const swipe = (x: number, y: number) => {
+    fireEvent.touchStart(stage, { touches: [{ clientX: 200, clientY: 200 }] });
+    fireEvent.touchEnd(stage, { changedTouches: [{ clientX: x, clientY: y }] });
+  };
+  swipe(100, 205);
+  expect(await within(dialog).findByAltText("Forest")).toBeTruthy();
+  expect(within(dialog).getByText("2 of 3")).toBeTruthy();
+  swipe(195, 100);
+  expect(within(dialog).getByText("2 of 3")).toBeTruthy();
+  fireEvent.click(within(dialog).getByAltText("Forest"));
+  expect(screen.getByRole("dialog")).toBeTruthy();
+  swipe(300, 200);
+  expect(await within(dialog).findByAltText("Coast")).toBeTruthy();
+  expect(within(dialog).getByText("1 of 3")).toBeTruthy();
+  fireEvent.click(stage);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "View full size: Coast" })));
 });
