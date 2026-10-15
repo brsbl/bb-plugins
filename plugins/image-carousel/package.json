@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-image-carousel",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Show research screenshots and before/after pairs inline as a carousel.",
   "type": "module",
   "license": "UNLICENSED",

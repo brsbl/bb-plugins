@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { afterEach, beforeAll, expect, it } from "vitest";
+import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import type { Carousel } from "./model.js";
 
 beforeAll(() => { URL.createObjectURL ??= () => "blob:image"; });
@@ -57,11 +57,11 @@ it("keeps the image set, captions, and keyboard navigation in the expanded viewe
   await setup(pairs);
   fireEvent.click(await screen.findByRole("button", { name: "View full size: After: Search" }));
   const dialog = screen.getByRole("dialog");
-  expect(within(dialog).getByText("2 of 4")).toBeTruthy();
+  expect(within(dialog).getByText("2 / 4")).toBeTruthy();
   expect(within(dialog).getByText("Type to find a workspace.")).toBeTruthy();
   fireEvent.click(within(dialog).getByRole("button", { name: "Next image" }));
   expect(await within(dialog).findByAltText("Before: Icons")).toBeTruthy();
-  expect(within(dialog).getByText("3 of 4")).toBeTruthy();
+  expect(within(dialog).getByText("3 / 4")).toBeTruthy();
   fireEvent.keyDown(dialog, { key: "ArrowRight" });
   expect(await within(dialog).findByAltText("After: Icons")).toBeTruthy();
   expect(within(dialog).getByRole("button", { name: "Next image" }).getAttribute("aria-disabled")).toBe("true");
@@ -89,15 +89,41 @@ it("swipes through research images without treating vertical scrolling or image 
   };
   swipe(100, 205);
   expect(await within(dialog).findByAltText("Forest")).toBeTruthy();
-  expect(within(dialog).getByText("2 of 3")).toBeTruthy();
+  expect(within(dialog).getByText("2 / 3")).toBeTruthy();
   swipe(195, 100);
-  expect(within(dialog).getByText("2 of 3")).toBeTruthy();
+  expect(within(dialog).getByText("2 / 3")).toBeTruthy();
   fireEvent.click(within(dialog).getByAltText("Forest"));
   expect(screen.getByRole("dialog")).toBeTruthy();
   swipe(300, 200);
   expect(await within(dialog).findByAltText("Coast")).toBeTruthy();
-  expect(within(dialog).getByText("1 of 3")).toBeTruthy();
+  expect(within(dialog).getByText("1 / 3")).toBeTruthy();
   fireEvent.click(stage);
   expect(screen.queryByRole("dialog")).toBeNull();
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "View full size: Coast" })));
+});
+
+
+it("keeps title and source available while expanding long descriptions and resets expansion on navigation", async () => {
+  const scroll = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(400);
+  const client = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(40);
+  try {
+    await setup({ id: "ic_abcdefabcdef", threadId: "thr_1", kind: "research", createdAt: "2026-10-10T00:00:00Z", slides: [
+      { title: "Detailed study", description: "A long description. ".repeat(30), image: image("a"), source: "https://example.com/study" },
+      { title: "Next study", description: "Another detailed description. ".repeat(30), image: image("b"), source: "https://example.com/next" },
+    ] });
+    expect(screen.getByText("1 / 2")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "View full size: Detailed study" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("1 / 2")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Show more" }));
+    expect(within(dialog).getByRole("region", { name: "Full description" })).toBeTruthy();
+    expect(within(dialog).getByRole("heading", { name: "Detailed study" })).toBeTruthy();
+    expect(within(dialog).getByRole("link").getAttribute("href")).toBe("https://example.com/study");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Show less" }));
+    expect(within(dialog).queryByRole("region", { name: "Full description" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Show more" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next image" }));
+    expect(within(dialog).queryByRole("region", { name: "Full description" })).toBeNull();
+    expect(within(dialog).getByRole("link").getAttribute("href")).toBe("https://example.com/next");
+  } finally { scroll.mockRestore(); client.mockRestore(); }
 });

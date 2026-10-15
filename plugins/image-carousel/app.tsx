@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "./components/ui/button.js";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "./components/ui/dialog.js";
 import { definePluginApp, useRpc, type PluginMessageDirectiveProps, type PluginRpcClient } from "@get-bb/plugin-sdk/app";
@@ -39,6 +39,31 @@ function Shot({ rpc, image, alt, onOpen }: { rpc: Rpc; image: ImageRef; alt: str
     <img src={state.url} alt={alt} draggable={false} />
   </button>;
 }
+
+function Description({ text }: { text: string }) {
+  const summary = useRef<HTMLParagraphElement>(null);
+  const [clipped, setClipped] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const id = useId();
+  useLayoutEffect(() => {
+    const element = summary.current;
+    if (!element) return;
+    const measure = () => setClipped(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => observer?.disconnect();
+  }, [text]);
+  return <div className="icx-description">
+    <p ref={summary} className="icx-caption-text icx-description-summary">{text}</p>
+    {clipped && <button type="button" className="icx-description-toggle" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded((value) => !value)}>{expanded ? "Show less" : "Show more"}</button>}
+    {expanded && <div id={id} role="region" aria-label="Full description" tabIndex={0} className="icx-description-expanded">
+      <p className="icx-caption-text">{text}</p>
+    </div>}
+  </div>;
+}
+
+const position = (index: number, count: number) => `${index + 1} / ${count}`;
 
 type ViewerImage = { image: ImageRef; title: string; description?: string; source?: string; slideIndex: number };
 
@@ -81,14 +106,14 @@ function Viewer({ rpc, images, index, onMove, onClose, restoreFocus }: {
       </div>
       <div className="icx-viewer-details" aria-live="polite">
         <DialogTitle className="icx-caption-title">{current.title}</DialogTitle>
-        {current.description && <p className="icx-caption-text">{current.description}</p>}
         {current.source && <a className="icx-source" href={current.source} target="_blank" rel="noreferrer">{new URL(current.source).host}<span aria-hidden="true"> ↗</span></a>}
+        {current.description && <Description key={index} text={current.description} />}
       </div>
       <div className="icx-viewer-position">
         <Button type="button" variant="ghost" size="icon" aria-label="Previous image" aria-disabled={index === 0} onClick={() => move(-1)}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
         </Button>
-        <span className="icx-count" aria-live="polite">{index + 1} of {images.length}</span>
+        <span className="icx-count" aria-live="polite">{position(index, images.length)}</span>
         <Button type="button" variant="ghost" size="icon" aria-label="Next image" aria-disabled={index === images.length - 1} onClick={() => move(1)}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
         </Button>
@@ -120,18 +145,8 @@ function CarouselView({ carousel }: { carousel: Carousel }) {
     setViewerIndex(position);
     setIndex(images[position]!.slideIndex);
   };
-  const caption = useRef<HTMLDivElement>(null);
-  const [more, setMore] = useState(false);
   const count = carousel.slides.length;
   const move = useCallback((delta: number) => setIndex((value) => Math.min(count - 1, Math.max(0, value + delta))), [count]);
-  const measure = useCallback(() => {
-    const box = caption.current;
-    setMore(!!box && box.scrollTop + box.clientHeight < box.scrollHeight - 2);
-  }, []);
-  useLayoutEffect(() => {
-    if (caption.current) caption.current.scrollTop = 0;
-    measure();
-  }, [index, measure]);
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
@@ -152,13 +167,13 @@ function CarouselView({ carousel }: { carousel: Carousel }) {
       </div>
       <Arrow direction="next" disabled={index === count - 1} onClick={() => move(1)} />
     </div>
-    <div ref={caption} className={more ? "icx-caption icx-caption-more" : "icx-caption"} tabIndex={0} aria-live="polite" onScroll={measure}>
+    <div className="icx-caption" aria-live="polite">
       <div className="icx-caption-title">{slide.title}</div>
-      {slide.description && <p className="icx-caption-text">{slide.description}</p>}
       {carousel.kind === "research" && carousel.slides[index]!.source && <a className="icx-source" href={carousel.slides[index]!.source} target="_blank" rel="noreferrer">{new URL(carousel.slides[index]!.source!).host}<span aria-hidden="true"> ↗</span></a>}
+      {slide.description && <Description key={index} text={slide.description} />}
     </div>
     <div className="icx-position">
-      <span className="icx-count">{index + 1} / {count}</span>
+      <span className="icx-count">{position(index, count)}</span>
       {count > 1 && count <= MAX_DOTS && <span className="icx-dots" aria-hidden="true">{carousel.slides.map((_, dot) => <i key={dot} className={dot === index ? "icx-dot-on" : undefined} />)}</span>}
     </div>
     {viewerIndex !== null && <Viewer rpc={rpc} images={images} index={viewerIndex} onMove={openViewer}
