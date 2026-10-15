@@ -18,7 +18,7 @@ export function openWaiting(threadId: string, id: string) {
 }
 
 const HEADER_CLASS = "group/disclosure flex min-h-8 w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-none px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-state-hover focus-visible:bg-state-hover focus-visible:outline-none";
-const COLLAPSE_CLASS = "-mb-3 flex min-h-7.5 w-full cursor-pointer items-center justify-center rounded-none pb-3 text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground";
+const COLLAPSE_CLASS = "-mb-3 flex min-h-7.5 w-full cursor-pointer items-center justify-center rounded-none pb-3 text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:text-foreground focus-visible:outline-none";
 const STEP_CLASS = "flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground hover:bg-state-hover hover:text-foreground";
 
 function age(updatedAt: string, now: number): string {
@@ -64,7 +64,7 @@ function Answer({ item, index, total, now, onStep, onAnswered }: {
   item: WaitingItem; index: number; total: number; now: number; onStep: (offset: 1 | -1) => void; onAnswered: (item: Item) => void;
 }) {
   const navigate = useBbNavigate();
-  return <div className="px-3 pb-2 pt-2">
+  return <div className="max-h-[60vh] overflow-y-auto overscroll-contain px-3 pb-2 pt-2">
     <div className="flex min-w-0 items-start justify-between gap-2">
       <div className="min-w-0 flex-1 px-0.5">
         <p className="break-words text-xs text-foreground">{questionOf(item)}</p>

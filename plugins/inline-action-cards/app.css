@@ -159,5 +159,6 @@
 /* In the drawer the card sits inside bb's prompt-stack chrome: no second border, one column. */
 .ac-card.ac-drawer { padding: 0; border: 0; background: transparent; }
 .ac-drawer .ac-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(var(--spacing, .25rem) * 1.5); }
-.ac-drawer .ac-context { font-size: var(--text-xs, .75rem); color: var(--muted-foreground); }
+.ac-drawer .ac-context, .ac-drawer .ac-context * { font-size: var(--text-xs, .75rem); }
+.ac-drawer .ac-context { color: var(--muted-foreground); }
 .ac-drawer .ac-submit { justify-content: flex-end; }
