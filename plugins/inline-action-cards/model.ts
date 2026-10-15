@@ -76,22 +76,48 @@ export const itemSchema = z.object({
   updatedAt: z.string(),
 }).strict();
 export type Item = z.infer<typeof itemSchema>;
-// A newer build may have saved item types or fields this build doesn't know. Unknown fields are dropped on
-// read; an item that still doesn't parse (for example an unknown type) reads as null, so it can't break the rest.
+// A newer build may have saved item types or fields this build doesn't know. Unknown fields are set aside on
+// read and put back on write (storedItem), so a rollback never loses them; an item that still doesn't parse
+// (for example an unknown type) reads as null, so it can't break the rest and can't be acted on.
+type UnknownField = { path: PropertyKey[]; key: string; value: unknown };
+// The attempt and result an item was read with: their unknown fields go back only while they are unchanged.
+type ReadState = { fields: UnknownField[]; attempt: string | null; result: string };
+const unknownFields = new WeakMap<Item, ReadState>();
+const at = (value: unknown, path: PropertyKey[]) => path.reduce<unknown>((node, key) => node && typeof node === "object" ? (node as Record<PropertyKey, unknown>)[key] : undefined, value);
 export function readItem(raw: string): Item | null {
   const value: unknown = JSON.parse(raw);
+  const removed: UnknownField[] = [];
   for (let pass = 0; pass < 4; pass++) {
     const parsed = itemSchema.safeParse(value);
-    if (parsed.success) return parsed.data;
+    if (parsed.success) {
+      if (removed.length) unknownFields.set(parsed.data, { fields: removed, attempt: parsed.data.attempt?.id ?? null, result: JSON.stringify(parsed.data.result) });
+      return parsed.data;
+    }
     const issues = parsed.error.issues;
     if (!issues.every((issue) => issue.code === "unrecognized_keys")) return null;
     for (const issue of issues) {
-      const target = issue.path.reduce<unknown>((at, key) => at && typeof at === "object" ? (at as Record<PropertyKey, unknown>)[key] : undefined, value);
+      const target = at(value, issue.path);
       if (!target || typeof target !== "object") return null;
-      for (const key of issue.keys) delete (target as Record<string, unknown>)[key];
+      for (const key of issue.keys) {
+        removed.push({ path: issue.path, key, value: (target as Record<string, unknown>)[key] });
+        delete (target as Record<string, unknown>)[key];
+      }
     }
   }
   return null;
+}
+/** What to store for `next`, a validated copy of `source`: the fields `source` was read with that this build doesn't know go back in place. */
+export function storedItem(source: Item, next: Item): unknown {
+  const read = unknownFields.get(source);
+  if (!read) return next;
+  const stored: unknown = structuredClone(next);
+  const kept = (path: PropertyKey[]) => path[0] === "attempt" ? read.attempt !== null && next.attempt?.id === read.attempt
+    : path[0] === "result" ? JSON.stringify(next.result) === read.result : true;
+  for (const { path, key, value } of read.fields.filter((field) => kept(field.path))) {
+    const target = at(stored, path);
+    if (target && typeof target === "object" && !(key in target)) (target as Record<string, unknown>)[key] = value;
+  }
+  return stored;
 }
 export type Content = z.infer<typeof contentSchema>;
 export const tableContentSchema = z.object({
