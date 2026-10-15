@@ -52,3 +52,23 @@ it("shows a research slide with its source host", async () => {
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+
+it("keeps the image set, captions, and keyboard navigation in the expanded viewer", async () => {
+  await setup(pairs);
+  fireEvent.click(await screen.findByRole("button", { name: "View full size: After: Search" }));
+  const dialog = screen.getByRole("dialog");
+  const { within } = await import("@testing-library/react");
+  expect(within(dialog).getByText("2 of 4")).toBeTruthy();
+  expect(within(dialog).getByText("Type to find a workspace.")).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Next image" }));
+  expect(await within(dialog).findByAltText("Before: Icons")).toBeTruthy();
+  expect(within(dialog).getByText("3 of 4")).toBeTruthy();
+  fireEvent.keyDown(dialog, { key: "ArrowRight" });
+  expect(await within(dialog).findByAltText("After: Icons")).toBeTruthy();
+  expect(within(dialog).getByRole("button", { name: "Next image" }).getAttribute("aria-disabled")).toBe("true");
+  fireEvent.keyDown(dialog, { key: "ArrowLeft" });
+  expect(await within(dialog).findByAltText("Before: Icons")).toBeTruthy();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByText("2 / 2")).toBeTruthy();
+});
