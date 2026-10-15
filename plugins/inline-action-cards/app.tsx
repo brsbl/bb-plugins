@@ -26,7 +26,6 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   logEntry?: { threadTitle: string; threadProjectId: string | null; showThread: boolean };
 }) {
   const navigate = useBbNavigate();
-  const [source, setSource] = useState({ threadTitle: initialItem?.threadTitle, threadProjectId: initialItem?.threadProjectId });
   // An ask's written answer, sent as its attempt note.
   const [note, changeNote] = useState("");
   const clearNote = () => changeNote("");
@@ -54,12 +53,11 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const alive = useRef(true);
   const adopt = useCallback((next: CardItem, own = false) => {
     const changedState = current.current?.state !== next.state;
-    const { followUps: latest, threadTitle, threadProjectId, ...plain } = next;
+    const { followUps: latest, threadTitle: _title, threadProjectId: _project, ...plain } = next;
     current.current = plain;
     if (alive.current) {
       setItem(plain); onItemRef.current?.(plain, own);
       if (latest) setFollowUps(latest);
-      if (threadTitle !== undefined) setSource({ threadTitle, threadProjectId });
       if (changedState && (next.state === "succeeded" || next.state === "failed")) setError(null);
     }
   }, []);
@@ -225,7 +223,13 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("input:not([type=radio]), textarea, select, [contenteditable]:not([contenteditable=false])")) return;
     const digit = Number(event.key);
-    if (Number.isInteger(digit) && digit >= 1 && digit <= formOptions.length) { event.preventDefault(); setPicked(formOptions[digit - 1]!.id); }
+    if (Number.isInteger(digit) && digit >= 1 && digit <= formOptions.length) {
+      event.preventDefault();
+      const option = formOptions[digit - 1]!.id;
+      setPicked(option);
+      // Focus follows the pick, so Enter submits it rather than activating whatever had focus.
+      document.querySelector<HTMLInputElement>(`input[name="${CSS.escape(fieldId)}"][value="${CSS.escape(option)}"]`)?.focus();
+    }
     else if (event.key === "Enter" && value && !target?.closest("button, a")) { event.preventDefault(); submit(); }
   };
   const fieldId = `iac-${threadId}-${id}`;
@@ -233,11 +237,6 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const consequence = choice ? choice.consequence : item.content.type === "decide" ? item.content.consequence : null;
   const { context, media } = item.content;
   const brief = context && <ContextBlock><Markdown content={context} /></ContextBlock>;
-  const origin = <div className="ac-source">From <a
-    href={source.threadProjectId ? `/projects/${encodeURIComponent(source.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined}
-    role="link" tabIndex={0} onClick={(event) => { event.preventDefault(); navigate.toThread(threadId); }}
-    onKeyDown={(event) => { if (!source.threadProjectId && event.key === "Enter") navigate.toThread(threadId); }}
-  >{source.threadTitle ?? "Source thread"}</a></div>;
   const field = <DecisionBody
     about={<>
       {drawer ? consequence && <p className="ac-consequence">{consequence}</p> : <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />}
@@ -364,7 +363,6 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     <span className="iac-waiting-question">{heading}</span>
   </button>;
   return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit}>
-    {!drawer && origin}
     {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></>}
     {failure}
   </DecisionCard>;

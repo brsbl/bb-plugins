@@ -17,7 +17,6 @@ export function openWaiting(threadId: string, id: string) {
 }
 
 const HEADER_CLASS = "group/disclosure flex min-h-8 w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-none px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-state-hover focus-visible:bg-state-hover focus-visible:outline-none";
-const COLLAPSE_CLASS = "-mb-3 flex min-h-7.5 w-full cursor-pointer items-center justify-center rounded-none pb-3 text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:text-foreground focus-visible:outline-none";
 const STEP_CLASS = "flex size-6 shrink-0 items-center justify-center rounded-md text-subtle-foreground hover:bg-state-hover hover:text-foreground";
 
 function age(updatedAt: string, now: number): string {
@@ -32,7 +31,7 @@ function questionOf(item: Item): string {
 }
 
 function Meta({ item, now }: { item: WaitingItem; now: number }) {
-  return <div className="mt-0.5 flex min-w-0 items-center gap-1 text-2xs text-subtle-foreground">
+  return <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-subtle-foreground">
     {item.content.priority === "urgent" && <><span className="shrink-0 text-destructive-text">Urgent</span><span aria-hidden>·</span></>}
     {item.earlier && <><span className="min-w-0 truncate" title={`You answered an earlier version: ${item.earlier}`}>Asked again · you said “{item.earlier}”</span><span aria-hidden>·</span></>}
     <time className="shrink-0 tabular-nums" dateTime={item.updatedAt}>{age(item.updatedAt, now)}</time>
@@ -173,13 +172,14 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
         {back && <Icon name="ChevronLeft" className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
         <Icon name="CircleQuestion" className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
         <span className={cn("shrink-0 font-normal text-muted-foreground", !expanded && "max-sm:sr-only")}>Waiting on you</span>
-        {expanded && !single && <span className="shrink-0 tabular-nums text-subtle-foreground">· {items.length}</span>}
+        {expanded && !single && !back && <span className="shrink-0 tabular-nums text-subtle-foreground">· {items.length}</span>}
         {!expanded && <span className="min-w-0 truncate">
           <span aria-hidden className="text-subtle-foreground max-sm:hidden">· </span>
           {top.content.priority === "urgent" && <span className="text-destructive-text">Urgent · </span>}{questionOf(top)}
         </span>}
-        {!expanded && !single && <span className="ml-auto mr-px flex w-6 shrink-0 justify-center">
-          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-surface-recessed px-1 text-2xs leading-none tabular-nums text-subtle-foreground">{items.length}</span>
+        {!expanded && <span className="ml-auto mr-px flex shrink-0 items-center gap-1.5">
+          {!single && <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-surface-recessed px-1 text-2xs leading-none tabular-nums text-subtle-foreground">{items.length}</span>}
+          <Icon name="ChevronDown" className="size-3.5 text-muted-foreground" aria-hidden />
         </span>}
       </button>
       {expanded && (back
@@ -189,22 +189,22 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
           <button type="button" aria-label="Next" onClick={() => step(1)} className={STEP_CLASS}><Icon name="ChevronDown" className="size-3.5" aria-hidden /></button>
         </div>
         : <button type="button" onClick={() => navigate.toPluginPanel("log")}
-          className="mr-1.5 shrink-0 rounded-md px-1.5 py-1 text-2xs text-subtle-foreground hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:outline-none">
+          className="shrink-0 rounded-md px-1.5 py-1 text-xs text-subtle-foreground hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:outline-none">
           Decision log
         </button>)}
+      {expanded && <button ref={collapseRef} type="button" aria-expanded="true" aria-controls={listId} aria-label="Collapse waiting on you"
+        onClick={() => { pendingFocus.current = "trigger"; setExpanded(false); setOpenKey(null); }} className={cn(STEP_CLASS, "mr-2")}>
+        <Icon name="ChevronUp" className="size-3.5" aria-hidden />
+      </button>}
     </header>
-    <div id={listId} hidden={!expanded} className="min-h-0">
-      {notice && !open && <p role="status" className="flex items-center gap-1.5 border-b border-border/35 px-3 py-1.5 text-2xs text-subtle-foreground">
+    <div id={listId} hidden={!expanded} className="min-h-0 pb-2">
+      {notice && !open && <p role="status" className="flex items-center gap-1.5 border-b border-border/35 px-3 py-1.5 text-xs text-subtle-foreground">
         <Icon name="Check" className="size-3 shrink-0" aria-hidden /><span className="min-w-0 truncate">{notice}</span>
       </p>}
       {open ? <Answer item={open} now={now} onAnswered={onAnswered} />
         : <ul className="max-h-80 overflow-y-auto overscroll-contain pt-1">
           {items.map((item) => <Row key={keyOf(item)} item={item} now={now} onOpen={() => setOpenKey(keyOf(item))} />)}
         </ul>}
-      {(single || !open) && <button ref={collapseRef} type="button" aria-expanded="true" aria-controls={listId} aria-label="Collapse waiting on you"
-        onClick={() => { pendingFocus.current = "trigger"; setExpanded(false); setOpenKey(null); }} className={COLLAPSE_CLASS}>
-        <Icon name="ChevronUp" className="size-3.5" aria-hidden />
-      </button>}
     </div>
   </section>;
 }

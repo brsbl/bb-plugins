@@ -470,6 +470,8 @@ it("marks a question asked again with the earlier answer, steps with up and down
   expect((screen.getByRole("radio", { name: /^Yes/ }) as HTMLInputElement).checked).toBe(false);
   fireEvent.keyDown(window, { key: "1" });
   expect((screen.getByRole("radio", { name: /^Yes/ }) as HTMLInputElement).checked).toBe(true);
+  // Focus follows the pick, so Enter submits it rather than a focused header control.
+  expect(document.activeElement).toBe(screen.getByRole("radio", { name: /^Yes/ }));
   composer.remove();
   fireEvent.keyDown(screen.getByRole("form"), { key: "Escape" });
   await waitFor(() => expect(header.getAttribute("aria-expanded")).toBe("false"));
