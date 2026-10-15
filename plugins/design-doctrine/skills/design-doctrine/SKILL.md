@@ -48,7 +48,11 @@ promise that review passed. Check `bb doctrine harvest status --thread <source-i
 and `bb doctrine harvest activity --json` for its verdict and publication. A
 repeat submission returns the existing proposal. Another distinct rule from the
 same thread is allowed. Direct rule PRs use the shared validated publisher and
-wait for explicit merge approval; the command never merges them.
+wait for explicit merge approval; the command never merges them. If earlier
+rule PRs are open, a direct submission is published above their linear chain
+and registered with GitHub's native stack. Review and ID allocation include the
+pending rules, so duplicates, conflicts, and ID collisions remain checked.
+Ambiguous parallel publication branches must be resolved before adding a layer.
 
 ## Maintain from bb feedback
 

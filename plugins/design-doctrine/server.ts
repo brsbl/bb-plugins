@@ -14,6 +14,7 @@ import {
   type OpenPublication,
   type Publication,
   closePublication,
+  directPublicationBase,
   materializeRules,
   openPublication,
   pluginDataDirectory,
@@ -1149,7 +1150,10 @@ export default async function plugin(bb: BbPluginApi) {
     const configured = expandPath((await settings.get()).doctrinePath);
     if (direct) {
       const source = await resolveSource(configured);
-      if (source) return openPublication(source, undefined, direct);
+      if (source) {
+        const base = directPublicationBase(source, await readOpenPublications(source));
+        return openPublication(base.source, undefined, { ...direct, parents: base.parents });
+      }
     }
     if (configured !== DEFAULT_DOCTRINE_PATH) {
       await ensureNotPublishedBranch(configured);
@@ -1272,7 +1276,7 @@ export default async function plugin(bb: BbPluginApi) {
    * and could never merge. Harvests wait instead; the merge changes the read
    * copy, and rule-watch drains again.
    */
-  async function publicationInFlight(): Promise<boolean> {
+  async function publicationInFlight(direct = false): Promise<boolean> {
     const source = await publicationSource();
     if (!source) return false;
     const open = await readOpenPublications(source);
@@ -1280,6 +1284,12 @@ export default async function plugin(bb: BbPluginApi) {
       at: Date.now(),
       value: open[0] ? { url: open[0].url } : null,
     };
+    // A direct rule reviews the pending chain and allocates its next unused ID.
+    // Archive harvests retain their existing one-publication-at-a-time behavior.
+    if (direct) {
+      directPublicationBase(source, open);
+      return false;
+    }
     // Strict branch protection blocks auto-merge on a branch that fell behind
     // main, and nothing else updates it. Every drain retries, by which time
     // GitHub has recomputed the merge state.
@@ -1509,7 +1519,7 @@ export default async function plugin(bb: BbPluginApi) {
         const next = harvest
           .pendingThreads()
           .find((thread) => !attempted.has(thread.threadId));
-        if (!next || (await publicationInFlight())) return false;
+        if (!next || (await publicationInFlight(harvest.hasPendingDirectRule(next.threadId)))) return false;
         attempted.add(next.threadId);
         await harvest.harvestThread(next.threadId, next.projectId);
         return true;

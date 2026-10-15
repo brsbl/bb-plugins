@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type CorpusSource,
   closePublication,
+  directPublicationBase,
   githubRepositoryFromRemote,
   materializeRules,
   openPublication,
@@ -265,10 +266,20 @@ describe("doctrine corpus", () => {
     expect(await git(origin, "log", "-1", "--format=%s", branch)).toBe("add ddr_002.md");
   });
 
-  it("publishes direct rules with provenance and leaves merge approval pending", async () => {
-    const publication = await openPublication(source, undefined, {
-      originThreadId: "thr_origin", title: "Plain actions before submenus",
+  it.each([false, true])("publishes direct rules with provenance and pending approval (stacked: %s)", async (stacked) => {
+    const parents = stacked ? ["https://github.com/example/rules/pull/42"] : [];
+    let publicationSource = source;
+    if (stacked) {
+      await git(repository, "checkout", "-b", "doctrine/parent");
+      await commitRule(repository, "ddr_005.md");
+      await git(repository, "push", "origin", "doctrine/parent");
+      await git(repository, "checkout", "main");
+      publicationSource = { ...source, baseBranch: "doctrine/parent" };
+    }
+    const publication = await openPublication(publicationSource, undefined, {
+      originThreadId: "thr_origin", title: "Plain actions before submenus", parents,
     });
+    if (stacked) expect(await exists(join(publication.root, "rules/interaction/ddr_005.md"))).toBe(true);
     await commitRule(join(publication.root, "..", ".."), "ddr_002.md");
     const bin = join(workspace, "bin");
     const log = join(workspace, "gh-log");
@@ -289,6 +300,21 @@ describe("doctrine corpus", () => {
     expect(calls).toContain("BB-Thread-ID: thr_origin");
     expect(calls).not.toContain("--auto");
     expect(calls).not.toContain("--squash");
+    if (stacked) {
+      expect(calls).toContain("--base\ndoctrine/parent\n");
+      expect(calls).toContain("stack\nlink\nhttps://github.com/example/rules/pull/42\nhttps://github.com/example/rules/pull/1");
+      expect(await git(repository, "rev-parse", "origin/main")).not.toBe(await git(repository, "rev-parse", "origin/doctrine/parent"));
+    }
+  });
+
+  it("selects the whole pending chain as a direct rule's reviewed base", () => {
+    const parent = { url: "parent", branch: "doctrine/parent", baseBranch: "main", ageHours: 1, mergeStateStatus: "CLEAN" };
+    const child = { ...parent, url: "child", branch: "doctrine/child", baseBranch: parent.branch };
+    expect(directPublicationBase(source, [child, parent])).toEqual({
+      source: { ...source, baseBranch: child.branch }, parents: [parent.url, child.url],
+    });
+    expect(() => directPublicationBase(source, [parent, { ...child, baseBranch: "main" }])).toThrow("do not form one chain");
+    expect(() => directPublicationBase(source, [{ ...child, baseBranch: "missing" }])).toThrow("do not form one chain");
   });
 
   describe("withdrawing a rule from its open pull request", () => {

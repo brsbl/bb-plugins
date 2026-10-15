@@ -525,7 +525,11 @@ export function createHarvest(dependencies: HarvestDependencies) {
       .prepare(
         `SELECT thread_id, project_id FROM harvest_threads
          WHERE processed_at IS NULL
-         ORDER BY queued_at, thread_id`,
+         ORDER BY EXISTS (
+           SELECT 1 FROM direct_rule_evidence d JOIN harvest_proposals p ON p.id = d.proposal_id
+           WHERE p.thread_id = harvest_threads.thread_id
+             AND (p.verdict IS NULL OR (p.verdict = 'approved' AND p.written_path IS NULL))
+         ) DESC, queued_at, thread_id`,
       )
       .all()
       .map((row) => {
@@ -1255,6 +1259,12 @@ export function createHarvest(dependencies: HarvestDependencies) {
   return {
     enqueue,
     addRule,
+    hasPendingDirectRule(threadId: string): boolean {
+      return Boolean(db().prepare(`SELECT 1 FROM direct_rule_evidence d
+        JOIN harvest_proposals p ON p.id = d.proposal_id
+        WHERE p.thread_id = ? AND (p.verdict IS NULL OR (p.verdict = 'approved' AND p.written_path IS NULL))
+        LIMIT 1`).get(threadId));
+    },
     hasDirectSubmissions(): boolean {
       return Boolean(db().prepare(`SELECT 1 FROM direct_rule_evidence LIMIT 1`).get());
     },

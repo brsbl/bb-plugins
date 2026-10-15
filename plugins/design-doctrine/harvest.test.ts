@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   allocateRuleId,
+  createHarvest,
   directRuleInputSchema,
   harvestProposalSchema,
   harvestVerdictSchema,
@@ -1483,20 +1484,26 @@ describe("direct rule recording", () => {
     await harness.lifecycle.dispose();
   });
 
-  it("publishes from a configured GitHub repository without changing its setting", async () => {
+  it.each([false, true])("publishes from a configured GitHub repository (pending parent: %s)", async (stacked) => {
     const root = await makeDoctrineRoot();
     const script: AgentScript = { propose: () => [], review: () => ({ approve: true, reason: "Direct design feedback supports this scope" }), reviewerPrompts: [], harvesterPrompts: [] };
     const { harness } = await startPlugin(root, script);
     const github = vi.spyOn(corpus, "resolveGitHubRepository").mockResolvedValue("owner/rules");
     const data = vi.spyOn(corpus, "pluginDataDirectory").mockReturnValue(join(tmpdir(), "private-doctrine-data"));
-    const open = vi.spyOn(corpus, "readOpenPublications").mockResolvedValue([]);
+    const parent = { url: "https://github.com/owner/rules/pull/42", branch: "doctrine/parent", baseBranch: "main", ageHours: 1, mergeStateStatus: "CLEAN" };
+    if (stacked) {
+      await commitRule(root, makeProposal({ title: "Pending typography guidance", evidence: ["Requested a distinct typography correction."] }), "ddr_002");
+    }
+    const open = vi.spyOn(corpus, "readOpenPublications").mockResolvedValue(stacked ? [parent] : []);
     const publication = vi.spyOn(corpus, "openPublication").mockResolvedValue({ root, finish: async () => null });
     try {
       await harness.behavior.callRpc("experimental_addRule", directInput());
-      await settle(harness);
+      const proposals = await settle(harness);
+      expect(proposals[0].written_path).toBe(stacked ? "rules/visual/ddr_003.md" : "rules/visual/ddr_002.md");
+      if (stacked) expect(script.reviewerPrompts[0]).toContain("ddr_002");
       expect(publication).toHaveBeenCalledWith(
-        expect.objectContaining({ repositoryRoot: root, prefix: "" }), undefined,
-        { originThreadId: "thr_origin", title: directInput().title },
+        expect.objectContaining({ repositoryRoot: root, prefix: "", baseBranch: stacked ? parent.branch : "main" }), undefined,
+        { originThreadId: "thr_origin", title: directInput().title, parents: stacked ? [parent.url] : [] },
       );
       expect(open).toHaveBeenCalled();
       const status = await harness.behavior.runCli(["status", "--json"]);
@@ -1505,6 +1512,20 @@ describe("direct rule recording", () => {
       await harness.lifecycle.dispose();
       github.mockRestore(); data.mockRestore(); open.mockRestore(); publication.mockRestore();
     }
+  });
+
+  it("prioritizes direct recording over archives waiting on an open publication", async () => {
+    const { bb, harness } = createFakePluginHost({ pluginId: "design-doctrine" });
+    const harvest = createHarvest({
+      bb, openPublication: async () => null, listRuleIds: async () => [],
+      describeExistingRules: async () => "", validateRules: async () => {}, runAgent: async () => {},
+    });
+    harvest.enqueue({ id: "thr_older", projectId: "proj_test", title: "Older feedback", visibility: "visible" });
+    harvest.addRule(directRuleInputSchema.parse(directInput()), "proj_test");
+    expect(harvest.pendingThreads().map((t) => t.threadId)).toEqual(["thr_direct", "thr_older"]);
+    expect(harvest.hasPendingDirectRule("thr_direct")).toBe(true);
+    expect(harvest.hasPendingDirectRule("thr_older")).toBe(false);
+    await harness.lifecycle.dispose();
   });
 
   it.each([

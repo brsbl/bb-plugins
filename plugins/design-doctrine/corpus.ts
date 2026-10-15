@@ -249,7 +249,7 @@ export interface Publication {
 export async function openPublication(
   source: CorpusSource,
   signal?: AbortSignal,
-  direct?: { originThreadId: string; title: string },
+  direct?: { originThreadId: string; title: string; parents?: string[] },
 ): Promise<Publication> {
   const { repositoryRoot, baseBranch, prefix, workPath } = source;
   await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
@@ -282,7 +282,7 @@ async function publish(
   source: CorpusSource,
   directory: string,
   signal?: AbortSignal,
-  direct?: { originThreadId: string; title: string },
+  direct?: { originThreadId: string; title: string; parents?: string[] },
 ): Promise<string | null> {
   // A batch can take minutes to write, and the base branch keeps moving; replay
   // it onto the branch as it is now so the pull request never starts behind.
@@ -301,6 +301,7 @@ async function publish(
     ["push", "--quiet", "origin", `HEAD:refs/heads/${branch}`],
     signal,
   );
+  let createdUrl: string | null = null;
   try {
     const created = await execFileAsync(
       "gh",
@@ -320,17 +321,23 @@ async function publish(
       ],
       { cwd: directory, encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal },
     );
+    createdUrl = created.stdout.trim().split("\n").filter(Boolean).pop() ?? branch;
+    if (direct?.parents?.length) {
+      await execFileAsync("gh", ["stack", "link", ...direct.parents, createdUrl], {
+        cwd: directory, encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal,
+      });
+    }
     if (!direct) await execFileAsync("gh", ["pr", "merge", branch, "--auto", "--squash"], {
       cwd: directory,
       encoding: "utf8",
       timeout: COMMAND_TIMEOUT_MS,
       signal,
     });
-    return created.stdout.trim().split("\n").filter(Boolean).pop() ?? branch;
+    return createdUrl;
   } catch (error) {
-    // Leave no branch behind that nothing is going to merge; the batch stays
-    // unwritten in the plugin's database and a later drain retries it whole.
-    await git(
+    // Keep a created PR intact if stack registration needs repair; deleting its
+    // branch would discard a reviewable rule after it was already published.
+    if (!createdUrl) await git(
       directory,
       ["push", "--quiet", "--delete", "origin", branch],
       signal,
@@ -379,6 +386,7 @@ async function rebuildCommittedBundles(
 export interface OpenPublication {
   url: string;
   branch: string;
+  baseBranch?: string;
   mergeStateStatus: string;
   ageHours: number;
 }
@@ -405,7 +413,7 @@ export async function readOpenPublications(
       "--limit",
       "200",
       "--json",
-      "url,headRefName,mergeStateStatus,createdAt,isCrossRepository",
+      "url,headRefName,baseRefName,mergeStateStatus,createdAt,isCrossRepository",
     ],
     {
       cwd: source.repositoryRoot,
@@ -417,6 +425,7 @@ export async function readOpenPublications(
   const rows = JSON.parse(result.stdout) as Array<{
     url: string;
     headRefName: string;
+    baseRefName?: string;
     mergeStateStatus: string;
     createdAt: string;
     isCrossRepository: boolean;
@@ -426,9 +435,32 @@ export async function readOpenPublications(
     .map((row) => ({
       url: row.url,
       branch: row.headRefName,
+      baseBranch: row.baseRefName ?? source.baseBranch,
       mergeStateStatus: row.mergeStateStatus,
       ageHours: (Date.now() - Date.parse(row.createdAt)) / (60 * 60 * 1_000),
     }));
+}
+
+/** Include pending rules in review and ID allocation without merging their PRs. */
+export function directPublicationBase(
+  source: CorpusSource,
+  open: readonly OpenPublication[],
+): { source: CorpusSource; parents: string[] } {
+  let baseBranch = source.baseBranch;
+  const remaining = new Set(open);
+  const parents: string[] = [];
+  while (remaining.size) {
+    const children = [...remaining].filter((pr) => (pr.baseBranch ?? source.baseBranch) === baseBranch);
+    if (children.length !== 1) {
+      throw new Error("Open doctrine PRs do not form one chain; resolve their branches before publishing another rule");
+    }
+    const parent = children[0];
+    if (parent.branch === source.baseBranch) throw new Error("Invalid doctrine publication chain");
+    remaining.delete(parent);
+    parents.push(parent.url);
+    baseBranch = parent.branch;
+  }
+  return { source: { ...source, baseBranch }, parents };
 }
 
 /**
