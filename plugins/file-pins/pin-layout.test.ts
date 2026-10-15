@@ -32,12 +32,15 @@ it("moves pins into ⋯ only once every shown pin is at the minimum", () => {
   expect([ids(crowded.strip), ids(crowded.more)]).toEqual([["a", "b", "c", "d"], ["e"]]);
 });
 
-it("keeps labels whole on touch while they fit, then fills the rest of the row with the next pin", () => {
-  // 155 + 4 + 170 overflows the 314px left beside ⋯, so the second pin shortens into the 159px that remain.
-  const filled = layoutPins(pins.slice(0, 3), [], metrics(350, { a: 155, b: 170, c: 150 }), { whole: true });
-  expect([ids(filled.strip), ids(filled.more), filled.caps]).toEqual([["a", "b"], ["c"], { b: 159 }]);
+it("keeps labels whole on touch, moving a pin that doesn't fit whole into ⋯", () => {
+  // 155 + 4 + 170 overflows the 314px left beside ⋯, so the second pin waits in ⋯ rather than shortening.
+  const next = layoutPins(pins.slice(0, 3), [], metrics(350, { a: 155, b: 170, c: 150 }), { whole: true });
+  expect([ids(next.strip), ids(next.more), next.caps]).toEqual([["a"], ["b", "c"], {}]);
+  // A short "Example" pin, then a long URL whose whole label (260px) doesn't fit in the 314px beside ⋯ with it.
+  const url = layoutPins(pins.slice(0, 2), [], metrics(350, { a: 90, b: 260 }), { whole: true });
+  expect([ids(url.strip), ids(url.more), url.caps]).toEqual([["a"], ["b"], {}]);
 
-  // Two long links in a 350px phone strip: the first keeps its whole label; 66px is too little for the second, so it waits in ⋯.
+  // Two long links in a 350px phone strip: the first keeps its whole label and the second waits in ⋯.
   const phone = layoutPins(pins.slice(0, 2), [], metrics(350, { a: 280, b: 260 }), { whole: true });
   expect([ids(phone.strip), ids(phone.more), phone.caps]).toEqual([["a"], ["b"], {}]);
   // Both fit whole beside ⋯ when there is room.

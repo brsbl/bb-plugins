@@ -37,8 +37,8 @@ a word, and addresses drop path segments before the host. Hover cards open once 
 have loaded (prefetched as the pointer arrives), or after 800 ms with what has arrived.
 Each chip is as wide as its label. In narrow windows, labels truncate only when the strip runs out of
 room beside **⋯**, and pinned files that still don't fit wait there. On touch screens, which have no hover to
-show a full label, pins keep their whole labels while they fit, the next pin fills what is left of the
-row (shortened), and the rest go to **⋯**. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a preview card with its URL or path in a subtle header. Web links use Moss’s rich-card layout: a thumbnail or site-icon fallback, site name, title, and description. Files show their title, availability, and machine when needed.
+show a full label, pins keep their whole labels while they fit, and a pin that doesn't fit whole goes
+to **⋯** with the rest. Files that aren't pinned sit in the **⋯** list. File icons mark code, documents and images in the theme's file color. Hover or focus a pin for a preview card with its URL or path in a subtle header. Web links use Moss’s rich-card layout: a thumbnail or site-icon fallback, site name, title, and description. Files show their title, availability, and machine when needed.
 Right-click a strip file for **Open preview**, **Open externally**, **Copy file path** and
 **Copy file name**, then **Unpin**. Compact menus use the same actions in the **⋯** list;
 Previously hidden items offer **Pin** instead of **Unpin**, while the strip has room. **Unpin** removes the
