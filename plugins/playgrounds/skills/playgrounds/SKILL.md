@@ -165,7 +165,7 @@ Build from these before writing your own controls.
 | `list` | One choice from rows with notes (`data-notes="a|b"`) |
 | `slider`, `dial`, `stepper` | A continuous value; `data-scale="log"`, units `%` (0–1), `Hz`, `s`, `px`, `¢` |
 | `toggle` | On or off |
-| `board` | A grid of cells for games, seats or calendars (`data-rows`, `data-cols`, `data-pieces="R:#e5484d:Red"`, `data-shape="round"`) |
+| `board` | A grid of cells for games, seats or calendars (`data-rows`, `data-cols`, `data-pieces="R:#e5484d:Red"`, `data-shape="round"`; a fourth field, `H:var(--pg-bad):Hit:×`, draws a mark on the piece so pieces never differ by color alone) |
 | `readouts` | Answer tiles: `<div data-readout="price" data-label="Home price" data-answer>` |
 | `table` | `data-name="…"`, filled from script |
 | `chart` | `<figure data-pg="chart" data-name="…" data-label="…">`, filled from script |
@@ -178,7 +178,7 @@ misread (unknown `data-*` attributes, bad options or numbers) with every fix lis
 Layout classes: `.pg-form` (fields in a grid), `.pg-toolbar`, `.pg-surface`
 with `.pg-group` and `.pg-label` (grouped panels), `.pg-banks`, `.pg-badge`
 (`data-tone="good|warn|bad"`). `data-show="param=value"` shows an element only
-when a parameter has that value. Set `:root { --pg-accent: … }` once per card.
+when a parameter has that value. Style everything with the visual language below.
 
 In script, after the markup: `playground.params` (`get`, `set`, `all`,
 `define`, `on(fn)`), and `playground.ui.show(name, value, { note, tone })` for
@@ -195,10 +195,9 @@ point --args '["load", 6]'` to show a chart's values at an x. Use these
 instead of writing your own actions; controls you move show an "Agent" tag.
 
 **Charts.** One chart answers one question, in a standard form only: line,
-bar, stacked bar, area, scatter, a single big number, or a table. Label axes
-with units, prefer direct labels to legends, and invent no visual encodings,
-in charts or simulations; only Anatomy figures (how a system works) draw
-custom diagrams. Spec:
+bar, stacked bar, area, scatter, a single big number, or a table. Invent no
+visual encodings, in charts or simulations; only Anatomy figures (how a system
+works) draw custom diagrams. Spec:
 
 ```js
 ui.chart("load", {
@@ -211,17 +210,15 @@ ui.chart("load", {
   marks: [{ y: 1500, label: "Budget" }, { x: 6, label: "CDN change" }],
   bands: [{ x0: 6, x1: 12, label: "Rollout" }],  // a shaded span
   now: 4,                            // a "now" line
+  focus: "Europe",                   // the one series that matters (or one bar's x)
+  labels: "auto",                    // "end" | "legend"; auto names up to 4 lines at their ends
 });
 ```
 
 Bars take category x values (`[["Mon", 42], …]`). The component picks the
-colors (one series uses the accent; more use a fixed palette in a fixed
-order), sizes the plot from the card's width, puts the unit on the top tick
-only, adds a legend for two or more series (`labels: "end"` also names lines
-at their ends), a hover and
-keyboard tooltip listing every series, and a table for screen readers. Don't
-color text in series colors, don't use two y scales (make two charts), and
-keep it to seven series.
+colors, sizes the plot from the card's width, adds a hover and keyboard
+tooltip listing every series and a table for screen readers. Don't use two y
+scales (make two charts), and keep it to seven series.
 
 **Calculator set.** For "how much / how many / which" questions, write the
 inputs as a sentence with draggable numbers, give one answer, and show
@@ -249,7 +246,7 @@ sentence with the key numbers:
 
 ```html
 <h2 class="pg-title">How big should the bucket be?</h2>
-<div class="pg-surface"><figure data-pg="chart" data-name="traffic" data-kind="bars"></figure></div>
+<figure data-pg="chart" data-name="traffic" data-kind="bars"></figure>
 <div class="pg-form"><div data-pg="slider" data-param="capacity" data-label="Bucket size" data-unit="tokens" …></div> …</div>
 <p class="pg-sentence" id="result"></p>
 ```
@@ -258,9 +255,9 @@ On every parameter change, rerun the model and redraw: real units on both
 axes, the failure in `var(--pg-bad)` (rejected requests stacked on served
 ones), at most one labeled reference line (`marks: [{ y: refill, label:
 "Refill rate 35/s" }]`), and a second chart only if it's a different standard
-form you can't do without. The sentence says what happened and what fixes it:
-"Over 30 seconds, 82 of 840 requests were rejected; a bucket of 130 tokens
-would serve them all." No controls inside sentences, no animated or custom
+form you can't do without. The sentence says what happened and what fixes it, with the key numbers in `<b>`:
+"Over 30 seconds, **82 of 840** requests were rejected; a bucket of **130
+tokens** would serve them all." No controls inside sentences, no animated or custom
 diagrams, no verdict tiles or side stats.
 
 **Game set.** For turn-based games you play with the person (Connect Four,
@@ -354,23 +351,55 @@ actual scene with real furniture and light, and let a segmented control
 switch the options. Keep choices they might ask about (floor, light) as
 parameters too, so a follow-up like "with a walnut floor" changes the card.
 
-**Layout.** Every set card has three parts, in this order:
+### Visual language
 
-1. **Head:** `.pg-title`, then (calculator) the `.pg-sentence`.
-2. **Body, one grey surface:**
-   - Calculator: `<div class="pg-surface pg-result">` with the `answer` and its
-     `breakdown` side by side.
-   - Simulation: `<div class="pg-surface">` with its `chart`, then a
-     `.pg-form` row of controls and the result sentence.
-3. **Foot:** `<div class="pg-foot">` with one `<details>` (the model and
-   assumptions) and the `agent` lane.
+Every card shares one look, built into the kit: use its classes and tokens and
+write no font sizes, margins, radii or colors of your own (only the thing being
+depicted, like a board or a drawing, gets its own colors).
 
-Copy this structure from the references; don't add rows between the parts.
+| Role | Use | Spec |
+| --- | --- | --- |
+| Title | `.pg-title` | 18 px / 600, ink: the question the card answers |
+| Subtitle | `.pg-subtitle` | 13 px, body: one line of context, optional |
+| Result | `.pg-sentence` | 15 px / 1.6, body; key numbers in `<b>` (ink, 600) |
+| Body | `.pg-body` | 13 px / 1.5 |
+| Label | `.pg-label`, control names | 12 px / 500, sentence case; meta for section labels |
+| Hero number | `answer` | 28 px / 600; one per card, everything else quieter |
+| Value | readouts, control values, tables | 12–16 px, tabular figures |
+| Meta | `.pg-meta`, axis ticks | 12 px (axes 11 px), meta |
 
-**Composition.** Leave spacing, colors and type to the kit: no inline margins,
-no font sizes, and no colors except `--pg-accent` when the subject has one
-(paint, a brand). One hero per card (the `answer`, or the instrument); every
-other number is quieter. Grey stage only behind the thing being shown.
+- **Structure:** title question → main visual → one `.pg-form` row of labeled
+  controls → one `.pg-sentence` result → `.pg-foot` (one `<details>` with the
+  model, plus the `agent` lane). The calculator puts its controls in the
+  sentence and its answer and `breakdown` in one `.pg-surface.pg-result`. Copy
+  the references; add no rows, verdict tiles or side stats.
+- **Spacing and shape:** `--pg-space-1…5` is 4, 8, 12, 16, 24 px; the kit
+  spaces blocks 16 px apart. Radii: surfaces 14 px (`--pg-radius`), groups
+  10, controls 8, pills round.
+- **Surfaces:** the card; one grey `.pg-surface` behind the thing being shown
+  (never behind a chart, which sits on the card); white `.pg-group` panels
+  inside it; `--pg-hairline` dividers.
+- **Color roles:** `--pg-ink` headings and values, `--pg-body` text,
+  `--pg-meta` captions and axes (all AA in both themes). `--pg-accent` (blue)
+  marks what you can move and a single series; override it once only when the
+  subject has its own color (coffee, a synth). Selection is ink: pressed
+  segments, tabs and primary buttons. `--pg-good`, `--pg-warn` and `--pg-bad`
+  only when color means good or bad, always with a word or an icon.
+  `--pg-series-1…7` only for separate series, in order. `--pg-mark-muted` for
+  context. Every color difference must mean something, and text never wears a
+  series color.
+- **Controls:** each has a visible label and shows its value with a unit;
+  targets are at least 24 px; every drag also works by click or keyboard.
+- **Charts:** solid hairline grid, a baseline but no y-axis line, the unit on
+  the top tick, compact ticks (1K, $2M) and at most one decimal below 10. Up to
+  four lines are named at their ends with their last value; otherwise two or
+  more series get a legend. To make one series the point, pass `focus` with
+  its label: it keeps the accent (or its own color) and the rest turn grey; for
+  a single-series bar chart, `focus` with an x highlights and labels that bar.
+  Failures stack in `var(--pg-bad)`. At most one dashed reference line
+  (`marks`). Bars stay thin with 2 px gaps.
+- **Motion:** `.pg-reveal` with `--i` staggers the entrance; hovers take
+  0.12–0.2 s; everything stops under reduced motion.
 
 **Music set (optional).** `keyboard` (`data-from="60" data-count="25"`, A–K
 keys, Z/X octave), `pads` (`data-pads="Kick:a,Snare:s"`), `steps` (a

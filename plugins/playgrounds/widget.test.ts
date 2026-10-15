@@ -232,3 +232,62 @@ it("draws the rate-limiter reference at once and recomputes it from its controls
   expect(chartIn(dom.window, "traffic").bars.filter((b) => b.fill === "var(--pg-bad)")).toHaveLength(0);
   dom.window.close();
 });
+
+function chartParts(window: JSDOM["window"], name: string) {
+  const fig = window.document.querySelector(`[data-name="${name}"]`)!;
+  return {
+    legend: fig.querySelector(".pg-chart-legend") as HTMLElement,
+    lines: Array.from(fig.querySelectorAll("path.line")).map((line) => ({ stroke: line.getAttribute("stroke"), muted: line.classList.contains("muted") })),
+    ends: Array.from(fig.querySelectorAll("text.end")).map((text) => text.textContent),
+    bars: Array.from(fig.querySelectorAll("path.bar")).map((bar) => bar.getAttribute("fill")),
+  };
+}
+
+it("names up to four lines at their ends instead of a legend, and falls back to the legend past that", () => {
+  const lines = (n: number) => JSON.stringify(Array.from({ length: n }, (_, k) => ({ label: "S" + k, points: [[0, 10 * k], [1, 10 * k + 40]] })));
+  const { dom } = frame(
+    '<figure data-pg="chart" data-name="few"></figure><figure data-pg="chart" data-name="many"></figure><figure data-pg="chart" data-name="legend"></figure>' +
+      `<script>window.playground.ui.chart("few", { y: { unit: "ms" }, series: ${lines(3)} });` +
+      `window.playground.ui.chart("many", { series: ${lines(5)} });` +
+      `window.playground.ui.chart("legend", { labels: "legend", series: ${lines(2)} })</script>`,
+  );
+  const few = chartParts(dom.window, "few");
+  expect(few.legend.hidden).toBe(true);
+  expect(few.ends).toEqual(["S2 60 ms", "S1 50 ms", "S0 40 ms"]);
+  const many = chartParts(dom.window, "many");
+  expect(many.legend.hidden).toBe(false);
+  expect(many.legend.children).toHaveLength(5);
+  expect(many.ends).toEqual([]);
+  expect(chartParts(dom.window, "legend").ends).toEqual([]);
+  dom.window.close();
+});
+
+it("keeps the focused series in color and mutes the rest, or one category's bars", () => {
+  const { dom } = frame(
+    '<figure data-pg="chart" data-name="regions"></figure><figure data-pg="chart" data-name="days"></figure>' +
+      '<script>window.playground.ui.chart("regions", { focus: "Europe", series: [{ label: "Asia", points: [[0, 1], [1, 2]] }, { label: "Europe", points: [[0, 3], [1, 9]] }, { label: "US", points: [[0, 2], [1, 3]] }] });' +
+      'window.playground.ui.chart("days", { kind: "bars", focus: "Thu", y: { unit: "$" }, series: [{ label: "Spend", points: [["Wed", 140], ["Thu", 260], ["Fri", 110]] }] })</script>',
+  );
+  const regions = chartParts(dom.window, "regions");
+  expect(regions.lines).toEqual([
+    { stroke: "var(--pg-mark-muted)", muted: true },
+    { stroke: "var(--pg-mark-muted)", muted: true },
+    { stroke: "var(--pg-accent)", muted: false },
+  ]);
+  expect(regions.ends).toContain("Europe 9");
+  const days = chartParts(dom.window, "days");
+  expect(days.bars).toEqual(["var(--pg-mark-muted)", "var(--pg-accent)", "var(--pg-mark-muted)"]);
+  expect(days.ends).toEqual(["$260"]);
+  dom.window.close();
+});
+
+it("draws a piece's mark on top of its color so pieces don't differ by color alone", () => {
+  const { dom } = frame(
+    '<div data-pg="board" data-param="b" data-rows="1" data-cols="3" data-pieces="X:var(--pg-bad):Hit:×,O:var(--pg-mark-muted):Miss:•,S:var(--pg-accent):Ship"></div>' +
+      '<script>window.playground.params.set("b", [["X", "O", "S"]])</script>',
+  );
+  const cells = Array.from(dom.window.document.querySelectorAll(".pg-board button"));
+  expect(cells.map((cell) => cell.querySelector("b")?.textContent ?? null)).toEqual(["×", "•", null]);
+  expect(cells.map((cell) => cell.getAttribute("aria-label"))).toEqual(["Row 1, column 1, Hit", "Row 1, column 2, Miss", "Row 1, column 3, Ship"]);
+  dom.window.close();
+});

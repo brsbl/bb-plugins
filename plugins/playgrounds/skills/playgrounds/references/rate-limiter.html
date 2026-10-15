@@ -1,9 +1,7 @@
 <!-- Rate limiter: built from the simulation set (title, one chart, one control row, one result sentence). -->
 <h2 class="pg-title pg-reveal">How big should the bucket be?</h2>
 
-<div class="pg-surface pg-reveal" style="--i:1">
-  <figure data-pg="chart" data-name="traffic" data-kind="bars" data-label="Requests served and rejected each second over 30 seconds"></figure>
-</div>
+<figure data-pg="chart" data-name="traffic" data-kind="bars" data-label="Requests served and rejected each second over 30 seconds" class="pg-reveal" style="--i:1"></figure>
 
 <div class="pg-form pg-reveal" style="--i:2">
   <div data-pg="slider" data-param="burst" data-label="Burst size" data-unit="requests" data-min="0" data-max="300" data-step="10" data-value="120"></div>
@@ -56,13 +54,14 @@
       ],
       marks: [{ y: v.refill, label: "Refill rate " + v.refill + "/s" }],
     });
+    const b = (text) => { const el = document.createElement("b"); el.textContent = text; return el; };
     const head = run.lost
-      ? "Over 30 seconds, " + n(run.lost) + " of " + n(run.total) + " requests were rejected; "
-      : "Over 30 seconds, all " + n(run.total) + " requests were served; ";
+      ? ["Over 30 seconds, ", b(n(run.lost) + " of " + n(run.total)), " requests were rejected; "]
+      : ["Over 30 seconds, all ", b(n(run.total)), " requests were served; "];
     const fix = run.lost
-      ? best === null ? "no bucket up to 300 tokens serves them all, so raise the refill rate." : "a bucket of " + best + " tokens would serve them all."
-      : best < v.capacity ? "a bucket of " + best + " tokens would be enough." : "this is the smallest bucket that does.";
-    document.getElementById("result").textContent = head + fix;
+      ? best === null ? ["no bucket up to 300 tokens serves them all, so raise the refill rate."] : ["a bucket of ", b(best + " tokens"), " would serve them all."]
+      : best < v.capacity ? ["a bucket of ", b(best + " tokens"), " would be enough."] : ["this is the smallest bucket that does."];
+    document.getElementById("result").replaceChildren(...head, ...fix);
   }
   P.on(update);
   update();
