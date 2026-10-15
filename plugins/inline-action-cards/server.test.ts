@@ -498,23 +498,54 @@ it("checks an uncertain outcome without creating or authorizing another attempt"
 });
 
 describe("Waiting on you", () => {
-  it("lists open items across threads, urgent first then oldest and low last, including answers that never reached the agent", async () => {
+  const insert = (host: ReturnType<typeof createFakePluginHost>, item: Partial<Item> & { id: string; threadId: string; question: string; minutesAgo: number; priority?: "urgent" | "low" }) => {
+    const { question, minutesAgo, priority, ...rest } = item;
+    const value: Item = { revision: 1, state: "ready", attempt: null, result: null, ...rest, updatedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+      content: { type: "decide", question, consequence: "Do it.", ...(priority ? { priority } : {}) } };
+    host.bb.storage.database().prepare("INSERT INTO action_items VALUES (?, ?, ?)").run(value.threadId, value.id, JSON.stringify(value));
+  };
+  it("lists open items urgent first then oldest, low last, including answers that never reached the agent", async () => {
     const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
-    const store = createStore(host.bb);
-    const decide = (question: string, priority?: "urgent" | "low") => ({ type: "decide", question, consequence: "Do it.", ...(priority ? { priority } : {}) });
-    store.create("thr_a", "low", decide("Low?", "low"));
-    store.create("thr_a", "first", decide("First?"));
-    store.create("thr_b", "second", decide("Second?"));
-    store.create("thr_b", "urgent", decide("Urgent?", "urgent"));
-    store.create("thr_b", "unsent", decide("Unsent?"));
-    store.prepare({ threadId: "thr_b", id: "unsent", revision: 1, action: "yes" });
-    store.create("thr_b", "sent", decide("Sent?"));
-    const sent = store.prepare({ threadId: "thr_b", id: "sent", revision: 1, action: "yes" });
-    store.submitted({ threadId: "thr_b", id: "sent", attemptId: sent.attempt!.id });
-    store.create("thr_b", "done", decide("Done?"));
-    store.resolve("thr_b", "done", "Moot");
+    insert(host, { threadId: "thr_a", id: "low", question: "Low?", minutesAgo: 90, priority: "low" });
+    insert(host, { threadId: "thr_a", id: "first", question: "First?", minutesAgo: 60 });
+    insert(host, { threadId: "thr_b", id: "urgent", question: "Urgent?", minutesAgo: 5, priority: "urgent" });
+    insert(host, { threadId: "thr_c", id: "unsent", question: "Unsent?", minutesAgo: 30, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false } });
+    insert(host, { threadId: "thr_c", id: "sent", question: "Sent?", minutesAgo: 20, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "yes", claimed: false, sentAt: new Date().toISOString() } });
+    insert(host, { threadId: "thr_d", id: "done", question: "Done?", minutesAgo: 10, state: "succeeded", result: { message: "Moot", retryable: false } });
+    expect((await host.harness.behavior.callRpc("waiting", {}) as Item[]).map((item) => item.id)).toEqual(["urgent", "first", "unsent", "low"]);
+  });
+  it("keeps one item per question, at most two per thread, and moves week-old items to the log as stale", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    insert(host, { threadId: "thr_growth", id: "plan", question: "Approve the plan?", minutesAgo: 50 });
+    insert(host, { threadId: "thr_growth", id: "plan-v2", question: "Approve the revised plan?", minutesAgo: 40 });
+    insert(host, { threadId: "thr_growth", id: "budget", question: "Raise the budget?", minutesAgo: 30 });
+    insert(host, { threadId: "thr_growth", id: "budget-again", question: "raise the budget", minutesAgo: 20 });
+    insert(host, { threadId: "thr_growth", id: "copy", question: "Use this copy?", minutesAgo: 10 });
+    insert(host, { threadId: "thr_other", id: "plan", question: "Approve the plan?", minutesAgo: 45 });
+    insert(host, { threadId: "thr_other", id: "old", question: "Still want this?", minutesAgo: 8 * 24 * 60 });
     const waiting = await host.harness.behavior.callRpc("waiting", {}) as Item[];
-    expect(waiting.map((item) => item.id)).toEqual(["urgent", "first", "second", "unsent", "low"]);
+    // Newest per question, newest two per thread; the same question in another thread is its own item.
+    expect(waiting.map((item) => `${item.threadId}:${item.id}`)).toEqual(["thr_other:plan", "thr_growth:budget-again", "thr_growth:copy"]);
+    const log = await host.harness.behavior.callRpc("log", {}) as { waiting: (Item & { stale?: boolean })[] };
+    expect(log.waiting).toHaveLength(7);
+    expect(log.waiting.find((item) => item.id === "old")?.stale).toBe(true);
+    expect(log.waiting.find((item) => item.id === "copy")?.stale).toBeUndefined();
+  });
+  it("supersedes older versions of a question in the same thread on create, and warns past two open items", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const create = (thread: string, id: string, question: string) => host.harness.behavior.runCli(["create", id, "--thread", thread, "--item", JSON.stringify({ type: "decide", question, consequence: "Do it.", context: "Brief." })]);
+    await create("thr_growth", "plan", "Approve the plan?");
+    await create("thr_other", "plan", "Approve the plan?");
+    const second = await create("thr_growth", "plan-v2", "Approve the revised plan?");
+    expect(second.stderr).toContain("Marked as superseded by plan-v2: plan");
+    const store = createStore(host.bb);
+    expect(store.get("thr_growth", "plan")).toMatchObject({ state: "succeeded", result: { message: "Superseded by plan-v2" } });
+    // Never across threads.
+    expect(store.get("thr_other", "plan").state).toBe("ready");
+    await create("thr_growth", "budget", "Raise the budget?");
+    const fourth = await host.harness.behavior.runCli(["ask", "copy", "Use this copy?", "--thread", "thr_growth"]);
+    expect(fourth.stderr).toContain("this thread has 3 open items");
+    expect(fourth.stderr).toContain("one decision at a time");
   });
   it("adds an ask from the CLI, requires a written answer, and settles it when the answer is sent", async () => {
     const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => ({ ok: true, delivery: "queued" }) } } }); hosts.push(host); plugin(host.bb);

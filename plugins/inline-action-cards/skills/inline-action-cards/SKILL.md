@@ -21,6 +21,8 @@ Use a single card for that one decision. When the user picks one of several opti
 
 Every unanswered card and ask appears in **Waiting on you**, a drawer above the prompt box in every thread. It lists items from all threads, urgent first and then oldest. The user answers there; the answer is sent to the item's own thread. In the timeline, an unanswered card is one line that opens it in the drawer, and an answered card shows its result line. You still emit the directive so the thread records the decision and its result.
 
+The drawer stays short. It shows at most 2 open items per thread (the newest), and an item with no activity for 7 days leaves it and is marked stale in the Decision log. Creating an item whose question matches an open one in the same thread, or whose ID adds a `-v2`/`-v3` style suffix to it, marks the older one superseded; the CLI says which. Revise by creating the new version, never by adding a second copy, and keep to one decision at a time: the CLI warns when your thread has more than 2 open items.
+
 Mark something urgent only when work is blocked on it now: add `"priority":"urgent"` to the item JSON (or `"low"` for anything that can wait).
 
 ## Ask a plain question

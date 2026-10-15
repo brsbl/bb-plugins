@@ -137,7 +137,8 @@ export function actionMessage(item: Item): string {
   return item.state === "failed" && !item.result?.retryable ? "Check outcome for " : `${actionLabel(item, item.attempt.action)} `;
 }
 
-const logEntrySchema = itemSchema.extend({ threadTitle: z.string(), threadProjectId: z.string().nullable() });
+// stale: still unanswered after a week without activity; it leaves Waiting on you but stays in the log.
+const logEntrySchema = itemSchema.extend({ threadTitle: z.string(), threadProjectId: z.string().nullable(), stale: z.boolean().optional() });
 export const logSchema = z.object({ waiting: z.array(logEntrySchema), done: z.array(logEntrySchema) });
 export const waitingSchema = z.array(logEntrySchema);
 export type WaitingItem = z.infer<typeof logEntrySchema>;

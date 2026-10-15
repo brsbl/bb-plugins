@@ -9,6 +9,15 @@ import { Button } from "./components/ui/button.js";
 import { cn } from "./lib/utils.js";
 
 const OPEN_EVENT = "inline-action-cards:open-waiting";
+const EXPANDED_KEY = "inline-action-cards:waiting-expanded";
+// Expanded, the drawer lists this many rows; the rest are one click away in the Decision log.
+export const VISIBLE_ROWS = 5;
+function rememberedExpanded(): boolean {
+  try { return localStorage.getItem(EXPANDED_KEY) === "1"; } catch { return false; }
+}
+function rememberExpanded(expanded: boolean) {
+  try { localStorage.setItem(EXPANDED_KEY, expanded ? "1" : "0"); } catch { /* Private browsing can refuse storage. */ }
+}
 type Target = { threadId: string; id: string };
 const keyOf = (item: Target) => `${item.threadId}:${item.id}`;
 
@@ -103,7 +112,9 @@ function sentLabel(item: Item): string {
 export function WaitingBanner() {
   const rpc = useRpc<typeof rpcContract>();
   const [items, setItems] = useState<WaitingItem[]>([]);
-  const [expanded, setExpanded] = useState(false);
+  const navigate = useBbNavigate();
+  const [expanded, setExpandedState] = useState(rememberedExpanded);
+  const setExpanded = (next: boolean) => { setExpandedState(next); rememberExpanded(next); };
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -149,10 +160,9 @@ export function WaitingBanner() {
     pendingFocus.current = null;
     target?.focus();
   }, [expanded]);
-  if (!items.length && !notice) return null;
+  if (!items.length) return null;
   const openIndex = items.findIndex((item) => keyOf(item) === openKey);
   const open = openIndex >= 0 ? items[openIndex]! : null;
-  const top = items[0];
   const toggle = () => { pendingFocus.current = expanded ? null : "collapse"; setExpanded(!expanded); setOpenKey(null); };
   const onAnswered = (item: Item) => {
     answered.current.add(keyOf(item));
@@ -170,15 +180,7 @@ export function WaitingBanner() {
         className={cn(HEADER_CLASS, expanded && "border-b border-border/35")}>
         {open && <Icon name="ChevronLeft" className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
         <Icon name="CircleQuestion" className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="shrink-0 font-normal">Waiting on you</span>
-        {!expanded && (top
-          ? <span className="min-w-0 truncate text-2xs text-subtle-foreground">
-            {top.content.priority === "urgent" && <span className="text-destructive-text">Urgent · </span>}{questionOf(top)}
-          </span>
-          : notice && <span className="min-w-0 truncate text-2xs text-subtle-foreground">{notice}</span>)}
-        <span className="ml-auto mr-px flex w-6 shrink-0 justify-center px-0">
-          <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-surface-recessed px-1 text-2xs leading-none tabular-nums text-subtle-foreground">{items.length}</span>
-        </span>
+        <span className="min-w-0 truncate font-normal text-muted-foreground">Waiting on you · <span className="tabular-nums">{items.length}</span></span>
       </button>
     </header>
     <div id={listId} hidden={!expanded} className="min-h-0">
@@ -189,8 +191,12 @@ export function WaitingBanner() {
             <Icon name="Check" className="size-3 shrink-0" aria-hidden /><span className="min-w-0 truncate">{notice}</span>
           </p>}
           <ul className="max-h-80 overflow-y-auto overscroll-contain pt-1">
-            {items.map((item) => <Row key={keyOf(item)} item={item} now={now} onOpen={() => setOpenKey(keyOf(item))} />)}
+            {items.slice(0, VISIBLE_ROWS).map((item) => <Row key={keyOf(item)} item={item} now={now} onOpen={() => setOpenKey(keyOf(item))} />)}
           </ul>
+          {items.length > VISIBLE_ROWS && <button type="button" onClick={() => navigate.toPluginPanel("log")}
+            className="w-full px-3 py-1.5 text-left text-2xs text-subtle-foreground hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:outline-none">
+            +{items.length - VISIBLE_ROWS} more in the Decision log
+          </button>}
           <button ref={collapseRef} type="button" aria-expanded="true" aria-controls={listId} aria-label="Collapse waiting on you"
             onClick={() => { pendingFocus.current = "trigger"; setExpanded(false); setOpenKey(null); }} className={COLLAPSE_CLASS}>
             <Icon name="ChevronUp" className="size-3.5" aria-hidden />

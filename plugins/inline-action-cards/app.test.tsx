@@ -421,9 +421,11 @@ it("lists items urgent first with thread and age, steps through them, and hides 
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { rpc: { waiting: () => waiting, get: (raw) => waiting.find((item) => item.id === (raw as { id: string }).id)! } });
   const header = await screen.findByRole("button", { name: /^Waiting on you/ });
-  expect(header.textContent).toContain("Urgent · Ship it?");
-  expect(header.textContent).toContain("3");
+  // Collapsed by default: one quiet line with a count and no item text.
+  expect(header.getAttribute("aria-expanded")).toBe("false");
+  expect(header.textContent).toBe("Waiting on you · 3");
   fireEvent.click(header);
+  expect(localStorage.getItem("inline-action-cards:waiting-expanded")).toBe("1");
   const rows = within(screen.getByRole("list")).getAllByRole("button");
   expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Answer: Ship it?", "Answer: Archive it?", "Answer: Rename it?"]);
   expect(rows[0]!.textContent).toContain("Thread urgent");
@@ -439,6 +441,18 @@ it("lists items urgent first with thread and age, steps through them, and hides 
   waiting = [];
   await slot.behavior.emitRealtime("items", {});
   await waitFor(() => expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull());
+});
+
+it("shows at most five rows and sends the rest to the Decision log", async () => {
+  const waiting = Array.from({ length: 7 }, (_, index) => ({ ...fixture(), id: `item-${index}`, threadId: `thr_${index}`, content: { type: "decide" as const, question: `Question ${index}?`, consequence: "Do it." }, ...source }));
+  localStorage.setItem("inline-action-cards:waiting-expanded", "1");
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { rpc: { waiting: () => waiting, get: () => waiting[0]! } });
+  // The remembered choice opens it expanded.
+  expect((await screen.findByRole("button", { name: /^Waiting on you/ })).getAttribute("aria-expanded")).toBe("true");
+  expect(within(screen.getByRole("list")).getAllByRole("button")).toHaveLength(5);
+  fireEvent.click(screen.getByRole("button", { name: "+2 more in the Decision log" }));
+  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
 });
 
 it("answers an ask in its own words and settles it without a claim", async () => {
