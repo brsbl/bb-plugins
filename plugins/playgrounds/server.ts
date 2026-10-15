@@ -17,11 +17,20 @@ import {
 import { bill, savings, stepper } from "./examples.js";
 import { buildWidgetDocument, fallbackTheme, FRAME_HEADERS, FRAME_PATH } from "./widget.js";
 
+function pageTitle(text: string): string {
+  const lower = text.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+  const open = lower.indexOf("<title");
+  const start = open < 0 ? -1 : lower.indexOf(">", open) + 1;
+  const end = start <= 0 ? -1 : lower.indexOf("</title>", start);
+  return end < 0 ? "" : text.slice(start, end).trim();
+}
+
 // A file on the thread's machine: one-line JSON {title, html, width?}, or a whole HTML
 // page such as an Anatomy figure, titled from its <title>.
 export function playgroundFromFile(name: string, text: string): unknown {
   if (!/^\s*</.test(text)) return JSON.parse(text);
-  const title = /<title[^>]*>([^<]*)<\/title>/i.exec(text)?.[1]?.trim() || path.basename(name).replace(/\.html?$/i, "");
+  if (text.length > MAX_HTML_LENGTH) throw new Error(`${path.basename(name)} is longer than a playground allows (${MAX_HTML_LENGTH} characters).`);
+  const title = pageTitle(text) || path.basename(name).replace(/\.html?$/i, "");
   return { title, html: text, ...(/class="iso"/.test(text) ? { width: 720 } : {}) };
 }
 

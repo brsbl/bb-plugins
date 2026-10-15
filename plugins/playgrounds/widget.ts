@@ -229,7 +229,26 @@ export function pageParts(html: string): { markup: string; bodyAttributes: strin
   const bodyAttributes = [...html.slice(bodyOpen + 5, bodyStart - 1).matchAll(/\s(class|data-[\w-]+)="([^"<>]*)"/g)]
     .map(([, name, value]) => ` ${name}="${value}"`)
     .join("");
-  return { markup: head.replace(/<title[\s\S]*?<\/title>|<meta[^>]*>/gi, "") + html.slice(bodyStart, bodyEnd), bodyAttributes };
+  return { markup: withoutTitleAndMeta(head) + html.slice(bodyStart, bodyEnd), bodyAttributes };
+}
+
+// The card has its own title and viewport, so a page's <title> and <meta> tags are
+// dropped; an unclosed one keeps the rest of the head as it is.
+function withoutTitleAndMeta(head: string): string {
+  const lower = head.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+  let kept = "", at = 0, title = lower.indexOf("<title"), meta = lower.indexOf("<meta");
+  for (;;) {
+    if (title >= 0 && title < at) title = lower.indexOf("<title", at);
+    if (meta >= 0 && meta < at) meta = lower.indexOf("<meta", at);
+    const isTitle = title >= 0 && (meta < 0 || title < meta);
+    const start = isTitle ? title : meta;
+    if (start < 0) break;
+    const end = isTitle ? lower.indexOf("</title>", start) : lower.indexOf(">", start);
+    if (end < 0) break;
+    kept += head.slice(at, start);
+    at = end + (isTitle ? "</title>".length : 1);
+  }
+  return kept + head.slice(at);
 }
 
 // An Anatomy page's own scripts read its theme once as they load, before the kit
