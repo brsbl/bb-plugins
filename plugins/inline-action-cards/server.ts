@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionIcons, actionLabel, actionMessage, mentionId, readItem, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type FollowUp, type Item } from "./model.js";
+import { actionIcons, actionLabel, actionMessage, mentionId, readItem, storedItem, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type FollowUp, type Item } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
@@ -64,7 +64,7 @@ export function createStore(bb: BbPluginApi) {
   };
   const persist = (item: Item) => {
     const next = itemSchema.parse(item);
-    write.run(next.threadId, next.id, JSON.stringify(next));
+    write.run(next.threadId, next.id, JSON.stringify(storedItem(item, next)));
     return next;
   };
   const change = (threadId: string, id: string, revision: number | null, update: (item: Item) => void) => {
