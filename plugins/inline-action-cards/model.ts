@@ -76,6 +76,23 @@ export const itemSchema = z.object({
   updatedAt: z.string(),
 }).strict();
 export type Item = z.infer<typeof itemSchema>;
+// A newer build may have saved item types or fields this build doesn't know. Unknown fields are dropped on
+// read; an item that still doesn't parse (for example an unknown type) reads as null, so it can't break the rest.
+export function readItem(raw: string): Item | null {
+  const value: unknown = JSON.parse(raw);
+  for (let pass = 0; pass < 4; pass++) {
+    const parsed = itemSchema.safeParse(value);
+    if (parsed.success) return parsed.data;
+    const issues = parsed.error.issues;
+    if (!issues.every((issue) => issue.code === "unrecognized_keys")) return null;
+    for (const issue of issues) {
+      const target = issue.path.reduce<unknown>((at, key) => at && typeof at === "object" ? (at as Record<PropertyKey, unknown>)[key] : undefined, value);
+      if (!target || typeof target !== "object") return null;
+      for (const key of issue.keys) delete (target as Record<string, unknown>)[key];
+    }
+  }
+  return null;
+}
 export type Content = z.infer<typeof contentSchema>;
 export const tableContentSchema = z.object({
   title: line,
