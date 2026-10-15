@@ -184,9 +184,9 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
       </button>
       {expanded && (back
         ? <div className="flex shrink-0 items-center pr-2 text-xs">
-          <button type="button" aria-label="Previous" onClick={() => step(-1)} className={STEP_CLASS}><Icon name="ChevronUp" className="size-3.5" aria-hidden /></button>
+          <button type="button" aria-label="Previous" onClick={() => step(-1)} className={STEP_CLASS}><Icon name="ChevronLeft" className="size-3.5" aria-hidden /></button>
           <span className="whitespace-nowrap tabular-nums text-subtle-foreground">{openIndex + 1} of {items.length}</span>
-          <button type="button" aria-label="Next" onClick={() => step(1)} className={STEP_CLASS}><Icon name="ChevronDown" className="size-3.5" aria-hidden /></button>
+          <button type="button" aria-label="Next" onClick={() => step(1)} className={STEP_CLASS}><Icon name="ChevronRight" className="size-3.5" aria-hidden /></button>
         </div>
         : <button type="button" onClick={() => navigate.toPluginPanel("log")}
           className="shrink-0 rounded-md px-1.5 py-1 text-xs text-subtle-foreground hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:outline-none">

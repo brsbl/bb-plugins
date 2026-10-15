@@ -446,7 +446,7 @@ it("lists this thread's items urgent first with age, steps through them, and hid
   await waitFor(() => expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull());
 });
 
-it("marks a question asked again with the earlier answer, steps with up and down, and collapses on Escape", async () => {
+it("marks a question asked again with the earlier answer, steps through items, and collapses on Escape", async () => {
   const at = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
   const waiting = [
     { ...fixture(), id: "headline-v2", updatedAt: at(1), earlier: "Run your agents like a team", content: { type: "decide" as const, question: "Which headline?", consequence: "Use it." }, ...source },
