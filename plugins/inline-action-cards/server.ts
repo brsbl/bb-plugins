@@ -134,13 +134,18 @@ export function createStore(bb: BbPluginApi) {
         .map((row) => row.threadId);
     },
     // A newer version of the same question in the same thread replaces the older unanswered ones.
-    supersede(threadId: string, id: string) {
+    // Also replaces the item named by --replaces, and reports open items that ask much the same thing.
+    supersede(threadId: string, id: string, replaces?: string) {
       const latest = get(threadId, id);
       const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
-      const older = rows.flatMap((row) => readItem(row.value) ?? [])
-        .filter((item) => item.id !== id && item.state === "ready" && sameQuestion(item, latest));
+      const open = rows.flatMap((row) => readItem(row.value) ?? []).filter((item) => item.id !== id && item.state === "ready");
+      const older = open.filter((item) => item.id === replaces || sameQuestion(item, latest));
       for (const item of older) change(threadId, item.id, null, (next) => { next.state = "succeeded"; next.result = { message: `Superseded by ${id}`, retryable: false }; });
-      return older.map((item) => item.id);
+      return { superseded: older.map((item) => item.id), overlapping: open.filter((item) => !older.includes(item) && overlaps(item, latest)) };
+    },
+    // An item --replaces may name: unanswered, in the same thread.
+    assertReplaceable(threadId: string, id: string) {
+      if (get(threadId, id).state !== "ready") throw new Error(`${id} is already answered or settled; only an unanswered item can be replaced.`);
     },
     async log(threadId?: string) {
       const rows = (threadId
@@ -332,6 +337,16 @@ const rank = (priority: Priority | undefined) => priority === "urgent" ? 0 : pri
 const isOpen = (item: Item) => item.state === "ready" || (item.state === "pending" && !item.attempt?.claimed && !item.attempt?.sentAt);
 const questionKey = (item: Item) => title(item).toLowerCase().replace(/\s+/g, " ").replace(/[\s?.!]+$/, "").trim();
 const idBase = (id: string) => id.replace(/-v\d+$/i, "");
+// Questions that share most of their meaningful words, such as "OK to spend $300 on the Reddit ad test?"
+// and "Approve $500 for the Reddit ad test?", ask the user the same thing twice.
+const STOP_WORDS = new Set("the and for you your our are can should could would will does what which when how who why with from this that into about any ok okay".split(" "));
+const words = (item: Item) => new Set(title(item).toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+  .filter((word) => word.length > 1 && !STOP_WORDS.has(word) && !/^\d+$/.test(word)).map((word) => word.replace(/s$/, "")));
+const overlaps = (a: Item, b: Item) => {
+  const left = words(a), right = words(b);
+  const shared = [...left].filter((word) => right.has(word)).length;
+  return shared >= 2 && shared / Math.min(left.size, right.size) >= 0.6;
+};
 const sameQuestion = (a: Item, b: Item) => a.threadId === b.threadId && (questionKey(a) === questionKey(b) || idBase(a.id) === idBase(b.id));
 const answeredLabel = (item: Item) => item.attempt!.action === "answer" ? item.attempt!.note ?? "an answer" : item.attempt!.choice?.label ?? actionLabel(item, item.attempt!.action);
 // Newest first, keeping only the newest item for each question.
@@ -454,10 +469,12 @@ export default function plugin(bb: BbPluginApi): void {
   const scope = (ctx: PluginCliContext, thread?: string) => idSchema.parse(thread ?? ctx.threadId);
   const output = (item: Item | z.infer<typeof itemViewSchema>) => ({ exitCode: 0, stdout: `${JSON.stringify(item, null, 2)}\n` });
   // Settle older versions of the same question.
-  const afterCreate = (item: Item) => {
-    const superseded = store.supersede(item.threadId, item.id);
-    return superseded.length ? `Marked as superseded by ${item.id}: ${superseded.join(", ")}.\n` : "";
+  const afterCreate = (item: Item, replaces?: string) => {
+    const { superseded, overlapping } = store.supersede(item.threadId, item.id, replaces);
+    return (superseded.length ? `Marked as superseded by ${item.id}: ${superseded.join(", ")}.\n` : "")
+      + (overlapping.length ? `Warning: this overlaps ${overlapping.map((other) => `${other.id} (“${title(other)}”)`).join(", ")}, still waiting on the user. Don't stack questions: resolve the old one with bb action-cards resolve <id> --message '…', or create the new one with --replaces <id>.\n` : "");
   };
+  const replacesOption = { type: "string", description: "ID of an unanswered item in this thread that this one replaces; it is marked superseded" } as const;
   bb.cli.register(defineCli({
     name: "action-cards", summary: "Create inline cards, read saved drafts, and report action results",
     commands: {
@@ -488,21 +505,26 @@ export default function plugin(bb: BbPluginApi): void {
         options: {
           thread: threadOption, urgent: { type: "boolean", description: "List it first in Waiting on you" },
           context: { type: "string", description: "Optional short brief in Markdown" },
+          replaces: replacesOption,
         },
         run({ options, positionals }, ctx) {
           const id = idSchema.parse(positionals.id);
+          const replaces = options.replaces === undefined ? undefined : idSchema.parse(options.replaces);
+          if (replaces) store.assertReplaceable(scope(ctx, options.thread), replaces);
           const item = store.create(scope(ctx, options.thread), id, { type: "ask", question: positionals.question, ...(options.urgent ? { priority: "urgent" } : {}), ...(options.context ? { context: options.context } : {}) });
-          const notes = afterCreate(item);
+          const notes = afterCreate(item, replaces);
           return { ...output(item), ...(notes ? { stderr: notes } : {}) };
         },
       }),
       create: cliCommand({
         summary: "Create one card; prints its directive", positionals: itemPosition,
-        options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply, Decide, Choice, or Ask JSON, with optional priority; use --item-stdin" } },
+        options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply, Decide, Choice, or Ask JSON, with optional priority; use --item-stdin" }, replaces: replacesOption },
         run({ options, positionals }, ctx) {
           const id = idSchema.parse(positionals.id);
+          const replaces = options.replaces === undefined ? undefined : idSchema.parse(options.replaces);
+          if (replaces) store.assertReplaceable(scope(ctx, options.thread), replaces);
           const item = store.create(scope(ctx, options.thread), id, JSON.parse(options.item));
-          const notes = (!item.content.context ? "Warning: this card has no context. Include a short brief: what this is, why it needs the user's decision now, options, recommendation and why, and what happens after each answer. See the inline-action-cards skill.\n" : "") + afterCreate(item);
+          const notes = (!item.content.context ? "Warning: this card has no context. Include a short brief: what this is, why it needs the user's decision now, options, recommendation and why, and what happens after each answer. See the inline-action-cards skill.\n" : "") + afterCreate(item, replaces);
           return { exitCode: 0, stdout: `::action{id="${id}"}\n`, ...(notes ? { stderr: notes } : {}) };
         },
       }),

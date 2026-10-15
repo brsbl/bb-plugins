@@ -595,6 +595,24 @@ describe("Waiting on you", () => {
     // Never across threads.
     expect(store.get("thr_other", "plan").state).toBe("ready");
   });
+  it("warns about an open question that overlaps a new one, and replaces it on request", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const ask = (...args: string[]) => host.harness.behavior.runCli(["ask", ...args, "--thread", "thr_growth"]);
+    await ask("budget-300", "OK to spend $300 on the Reddit ad test?");
+    await ask("launch-day", "Which day should the launch post go out?");
+    const stacked = await ask("budget-500", "Approve $500 for the Reddit ad test?");
+    expect(stacked.stderr).toContain("Warning: this overlaps budget-300");
+    expect(stacked.stderr).not.toContain("launch-day");
+    const store = createStore(host.bb);
+    expect(store.get("thr_growth", "budget-300").state).toBe("ready");
+    const replaced = await ask("budget-final", "Approve $450 for the Reddit ad test this week?", "--replaces", "budget-300");
+    expect(replaced.stderr).toContain("Marked as superseded by budget-final: budget-300");
+    expect(store.get("thr_growth", "budget-300")).toMatchObject({ state: "succeeded", result: { message: "Superseded by budget-final" } });
+    expect(store.get("thr_growth", "launch-day").state).toBe("ready");
+    await host.harness.behavior.runCli(["resolve", "launch-day", "--thread", "thr_growth", "--message", "Answered in chat"]);
+    expect((await ask("launch-again", "Launch on Friday instead?", "--replaces", "launch-day")).exitCode).not.toBe(0);
+    expect(() => store.get("thr_growth", "launch-again")).toThrow();
+  });
   it("adds an ask from the CLI, requires a written answer, and settles it when the answer is sent", async () => {
     const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => ({ ok: true, delivery: "queued" }) } } }); hosts.push(host); plugin(host.bb);
     const created = await host.harness.behavior.runCli(["ask", "channel", "Which channel?", "--thread", ref.threadId, "--urgent", "--context", "The weekly report needs a home."]);

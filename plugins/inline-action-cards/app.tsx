@@ -5,7 +5,7 @@ import { actionLabel, idSchema, title, type Action, type FollowUp, type Item, ty
 import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { pendingLabel, sentStatus } from "./presentation.js";
 import { FollowUps, Media } from "./evidence.js";
-import { Button, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
+import { Button, ClampedContext, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { readableError, submitting } from "./submit.js";
 import { ReloadFrame } from "./reload-frame.js";
 import { openWaiting, WaitingBanner } from "./drawer.js";
@@ -240,7 +240,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const field = <DecisionBody
     about={<>
       {drawer ? consequence && <p className="ac-consequence">{consequence}</p> : <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />}
-      {brief}
+      {drawer ? context && <ClampedContext><Markdown content={context} /></ClampedContext> : brief}
       {reply && <>
         {recipients}
         {original}

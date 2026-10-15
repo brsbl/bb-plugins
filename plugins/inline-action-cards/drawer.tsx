@@ -55,7 +55,7 @@ function Row({ item, now, onOpen }: { item: WaitingItem; now: number; onOpen: ()
 }
 
 function Answer({ item, now, onAnswered }: { item: WaitingItem; now: number; onAnswered: (item: Item) => void }) {
-  return <div className="max-h-[60vh] overflow-y-auto overscroll-contain px-3 pb-2 pt-2">
+  return <div className="max-h-[60vh] overflow-y-auto overscroll-contain px-3 pb-2 pt-2 max-sm:max-h-[calc(33dvh-2.5rem)]">
     <div className="min-w-0 px-0.5">
       <p className="break-words text-xs font-medium text-foreground">{questionOf(item)}</p>
       <Meta item={item} now={now} />
@@ -202,7 +202,7 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
         <Icon name="Check" className="size-3 shrink-0" aria-hidden /><span className="min-w-0 truncate">{notice}</span>
       </p>}
       {open ? <Answer item={open} now={now} onAnswered={onAnswered} />
-        : <ul className="max-h-80 overflow-y-auto overscroll-contain pt-1">
+        : <ul className="max-h-80 overflow-y-auto overscroll-contain pt-1 max-sm:max-h-[calc(33dvh-2.5rem)]">
           {items.map((item) => <Row key={keyOf(item)} item={item} now={now} onOpen={() => setOpenKey(keyOf(item))} />)}
         </ul>}
     </div>

@@ -14,7 +14,7 @@ The install branch is published after the source PR merges. For a source checkou
 
 ## Use
 
-Ask an agent to use the **inline-action-cards** skill. What a thread needs from you collects in **Waiting on you**, a drawer above that thread's prompt box: its decision cards from `bb action-cards create`, and its plain questions from `bb action-cards ask <id> "…" [--urgent]`. Collapsed, it shows the top question; it lists the thread's items urgent first and then oldest, and disappears when nothing is waiting. The Decision log is the cross-thread view.
+Ask an agent to use the **inline-action-cards** skill. What a thread needs from you collects in **Waiting on you**, a drawer above that thread's prompt box: its decision cards from `bb action-cards create`, and its plain questions from `bb action-cards ask <id> "…" [--urgent] [--replaces <id>]`. Collapsed, it shows the top question; it lists the thread's items urgent first and then oldest, and disappears when nothing is waiting. The Decision log is the cross-thread view.
 
 Click a row to answer it in place: the question, its brief, the options and Submit, or a written answer for a plain question. Submit sends your answer to that item's thread; if the agent is busy, it waits in the thread's queue. Use ‹ › to step through items, or Open thread for the full conversation. An item leaves the list once answered, or when the agent settles it with `bb action-cards resolve`.
 

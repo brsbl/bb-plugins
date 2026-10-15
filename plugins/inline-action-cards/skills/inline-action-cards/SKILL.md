@@ -21,7 +21,7 @@ Use a single card for that one decision. When the user picks one of several opti
 
 Every unanswered card and ask appears in **Waiting on you**, a drawer above the prompt box of the thread that owns it. It lists only that thread's items, urgent first and then oldest, and is absent when the thread has none. The user answers there. In the timeline, an unanswered card is one line that opens it in the drawer, and an answered card shows its result line. You still emit the directive so the thread records the decision and its result.
 
-Creating an item whose question matches an open one in the same thread, or whose ID adds a `-v2`/`-v3` style suffix to it, marks the older one superseded; the CLI says which. Revise by creating the new version, never by adding a second copy, and keep to one decision at a time.
+Creating an item whose question matches an open one in the same thread, or whose ID adds a `-v2`/`-v3` style suffix to it, marks the older one superseded; the CLI says which. Revise by creating the new version, never by adding a second copy, and keep to one decision at a time. Before you add an item, check what is already waiting in your thread (`bb action-cards log --thread <id>`). If the new question changes or replaces an open one (a new amount, a new head, a narrower ask), pass `--replaces <old-id>` to `create` or `ask` so the old one is marked superseded; if the old one no longer matters, resolve it. The CLI warns when a new item overlaps an open one; act on that warning instead of leaving both waiting.
 
 Mark something urgent only when work is blocked on it now: add `"priority":"urgent"` to the item JSON (or `"low"` for anything that can wait).
 
