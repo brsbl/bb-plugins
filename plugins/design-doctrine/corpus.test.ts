@@ -265,6 +265,32 @@ describe("doctrine corpus", () => {
     expect(await git(origin, "log", "-1", "--format=%s", branch)).toBe("add ddr_002.md");
   });
 
+  it("publishes direct rules with provenance and leaves merge approval pending", async () => {
+    const publication = await openPublication(source, undefined, {
+      originThreadId: "thr_origin", title: "Plain actions before submenus",
+    });
+    await commitRule(join(publication.root, "..", ".."), "ddr_002.md");
+    const bin = join(workspace, "bin");
+    const log = join(workspace, "gh-log");
+    await mkdir(bin);
+    await writeFile(join(bin, "gh"), '#!/bin/sh\nprintf "%s\\n" "$@" >> "$DIRECT_GH_LOG"\nprintf "https://github.com/example/rules/pull/1\\n"\n');
+    await chmod(join(bin, "gh"), 0o755);
+    const savedPath = process.env.PATH;
+    process.env.PATH = `${bin}:${savedPath ?? ""}`;
+    process.env.DIRECT_GH_LOG = log;
+    try {
+      expect(await publication.finish(true)).toBe("https://github.com/example/rules/pull/1");
+    } finally {
+      process.env.PATH = savedPath;
+      delete process.env.DIRECT_GH_LOG;
+    }
+    const calls = await readFile(log, "utf8");
+    expect(calls).toContain("doctrine: Plain actions before submenus");
+    expect(calls).toContain("BB-Thread-ID: thr_origin");
+    expect(calls).not.toContain("--auto");
+    expect(calls).not.toContain("--squash");
+  });
+
   describe("withdrawing a rule from its open pull request", () => {
     const FAKE_GH = `#!/bin/sh
 echo "$*" >> "$FAKE_GH_LOG"

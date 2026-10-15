@@ -33,6 +33,7 @@ import {
 } from "./history.js";
 import {
   createHarvest,
+  directRuleInputSchema,
   harvestProposalSchema,
   harvestVerdictSchema,
 } from "./harvest.js";
@@ -344,7 +345,15 @@ async function readWebhookBody(request: Request): Promise<Uint8Array> {
   return body;
 }
 
+const addRuleOutputSchema = z.object({
+  proposalId: z.number().int(),
+  threadId: z.string(),
+  verdict: z.string().nullable(),
+  reason: z.string().nullable(),
+});
+
 export const rpcContract = defineRpcContract({
+  experimental_addRule: { input: directRuleInputSchema, output: addRuleOutputSchema },
   getLibrary: { input: z.null(), output: librarySchema },
   getHarvestActivity: {
     input: harvestActivityInputSchema,
@@ -1132,7 +1141,7 @@ export default async function plugin(bb: BbPluginApi) {
    * legitimate to commit, and the harvest declines rather than writing rules
    * into the directory the plugin was installed from.
    */
-  async function openRulePublication(): Promise<Publication | null> {
+  async function openRulePublication(direct?: { originThreadId: string; title: string }): Promise<Publication | null> {
     const configured = expandPath((await settings.get()).doctrinePath);
     if (configured !== DEFAULT_DOCTRINE_PATH) {
       await ensureNotPublishedBranch(configured);
@@ -1140,7 +1149,7 @@ export default async function plugin(bb: BbPluginApi) {
     }
     const source = await resolveSource();
     if (!source) return null;
-    return openPublication(source);
+    return openPublication(source, undefined, direct);
   }
 
   function invalidate(): void {
@@ -1385,6 +1394,20 @@ export default async function plugin(bb: BbPluginApi) {
     return run;
   }
 
+  async function addRule(input: z.infer<typeof directRuleInputSchema>) {
+    const parsed = directRuleInputSchema.parse(input);
+    const stored = await betweenHarvests(async () => {
+      const sourceThreadId = parsed.evidence.thread.slice("@thread:".length).split("#")[0];
+      const thread = await bb.sdk.threads.get({ threadId: sourceThreadId });
+      return harvest.addRule(parsed, thread.projectId ?? PERSONAL_PROJECT_ID);
+    });
+    drainHarvest();
+    return addRuleOutputSchema.parse({
+      proposalId: stored.id, threadId: stored.threadId,
+      verdict: stored.verdict, reason: stored.reason,
+    });
+  }
+
   async function publicationSource(): Promise<CorpusSource | null> {
     const configured = expandPath((await settings.get()).doctrinePath);
     if (configured !== DEFAULT_DOCTRINE_PATH) return null;
@@ -1606,6 +1629,7 @@ export default async function plugin(bb: BbPluginApi) {
     { auth: "none" },
   );
   bb.rpc.register(rpcContract, {
+    experimental_addRule: addRule,
     getLibrary: currentLibrary,
     getHarvestActivity: harvestActivity,
     cancelProposal,
@@ -1627,6 +1651,15 @@ export default async function plugin(bb: BbPluginApi) {
       );
     },
   });
+  bb.agents.registerTool({
+    name: "design_doctrine_add",
+    description: "Record a directly stated design rule with its exact user quote and source thread for shared doctrine review and a rule PR.",
+    instructions: "Record durable design rules as soon as the user states them. Supply anonymous evidence.summary and the exact private evidence.quote. Review rejects duplicates, conflicts, and unsupported quotes. Publication awaits merge approval.",
+    parameters: directRuleInputSchema.omit({ originThreadId: true }),
+    async execute(input, context) {
+      return JSON.stringify(await addRule({ ...input, originThreadId: context.threadId }));
+    },
+  });
   try {
     await currentLibrary();
   } catch (error) {
@@ -1638,7 +1671,7 @@ export default async function plugin(bb: BbPluginApi) {
       thread.title,
     );
     return {
-      tools: ["design_doctrine_search"],
+      tools: ["design_doctrine_search", "design_doctrine_add"],
       skills: ["design-doctrine"],
       ...(instructions ? { instructions } : {}),
     };
@@ -1647,6 +1680,7 @@ export default async function plugin(bb: BbPluginApi) {
     name: "doctrine",
     summary: "Browse and search product-design rules",
     commands: [
+      { name: "add", summary: "Record a directly stated design rule for review and publication", usage: "bb doctrine add --json '<rule with evidence: {thread, quote, summary}>'" },
       { name: "status", summary: "Show rule and Git status", usage: "bb doctrine status [--json]" },
       { name: "search", summary: "Search current rules", usage: "bb doctrine search <query> [--all] [--json]" },
       { name: "show", summary: "Show one rule", usage: "bb doctrine show <rule-id> [--json]" },
@@ -1658,6 +1692,16 @@ export default async function plugin(bb: BbPluginApi) {
       try {
         const command = argv[0] ?? "status";
         const json = argv.includes("--json");
+        if (command === "add") {
+          if (argv.length !== 3 || argv[1] !== "--json") {
+            throw new Error("Usage: bb doctrine add --json '<rule with evidence: {thread, quote, summary}>'");
+          }
+          const input = JSON.parse(requiredOption(argv, "--json"));
+          const result = await addRule(directRuleInputSchema.parse({
+            ...input, originThreadId: context.threadId ?? input.originThreadId,
+          }));
+          return { exitCode: 0, stdout: `${JSON.stringify(result)}\n` };
+        }
         if (command === "history") {
           const action = argv[1];
           if (action === "scan") {
@@ -1886,7 +1930,7 @@ export default async function plugin(bb: BbPluginApi) {
           if (!rule) return { exitCode: 1, stderr: `Rule not found: ${argv[1] ?? ""}\n` };
           return { exitCode: 0, stdout: json ? `${JSON.stringify(rule, null, 2)}\n` : `${formatRule(rule)}\n` };
         }
-        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show|history|harvest|validate>\n" };
+        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show|add|history|harvest|validate>\n" };
       } catch (error) {
         return { exitCode: 1, stderr: `${error instanceof Error ? error.message : String(error)}\n` };
       }

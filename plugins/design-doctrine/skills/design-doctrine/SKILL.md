@@ -9,6 +9,47 @@ Rules learned from the user's design feedback. Use them as a judgment layer on
 normal design work — they don't replace product requirements, accessibility,
 platform conventions, or what the user just told you.
 
+## Record a rule now
+
+When the user states a durable design rule, record it right away with
+`bb doctrine add` or `design_doctrine_add`. Do not wait for archival or hand-write
+rule files. A one-off task constraint is not a durable rule.
+
+```bash
+bb doctrine add --json '<rule JSON>'
+```
+
+Use the harvest rule fields: `title`, `statement`, `kind`, `strength`, `domain`,
+`products`, `activities`, `artifacts`, `surfaces`, `why`, `prefer`, `avoid`,
+`use_when`, `not_when`, `exceptions`, and `checks`. For direct recording,
+`evidence` is an object, not the harvest's list:
+
+```json
+{
+  "thread": "@thread:thr_source",
+  "quote": "The exact words the user said.",
+  "summary": "A short anonymous description of that design feedback."
+}
+```
+
+The CLI and agent tool supply the originating thread. Outside a thread, include
+`originThreadId` in the JSON. The typed plugin RPC/SDK surface is
+`experimental_addRule` in the exported `rpcContract`, with the same fields and
+an explicit `originThreadId`.
+
+The exact quote and source link stay in private plugin storage. The independent
+harvest reviewer verifies the quote against a user message and checks the same
+existing-rule catalog for duplicates and conflicts. Only the anonymous summary
+is published. Missing quotes fail validation; unsupported quotes fail review.
+A single source thread still caps strength at `default` and confidence at `low`.
+
+The command returns a durable proposal ID immediately after queueing, not a
+promise that review passed. Check `bb doctrine harvest status --thread <source-id>`
+and `bb doctrine harvest activity --json` for its verdict and publication. A
+repeat submission returns the existing proposal. Another distinct rule from the
+same thread is allowed. Direct rule PRs use the shared validated publisher and
+wait for explicit merge approval; the command never merges them.
+
 ## Maintain from bb feedback
 
 When the user asks to learn, maintain, or update doctrine from thread history,

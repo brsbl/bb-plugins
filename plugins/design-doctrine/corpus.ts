@@ -249,6 +249,7 @@ export interface Publication {
 export async function openPublication(
   source: CorpusSource,
   signal?: AbortSignal,
+  direct?: { originThreadId: string; title: string },
 ): Promise<Publication> {
   const { repositoryRoot, baseBranch, prefix, workPath } = source;
   await git(repositoryRoot, ["fetch", "--quiet", "origin", baseBranch], signal);
@@ -264,7 +265,7 @@ export async function openPublication(
     async finish(committed) {
       try {
         if (!committed) return null;
-        return await publish(source, directory, signal);
+        return await publish(source, directory, signal, direct);
       } finally {
         await git(
           repositoryRoot,
@@ -281,6 +282,7 @@ async function publish(
   source: CorpusSource,
   directory: string,
   signal?: AbortSignal,
+  direct?: { originThreadId: string; title: string },
 ): Promise<string | null> {
   // A batch can take minutes to write, and the base branch keeps moving; replay
   // it onto the branch as it is now so the pull request never starts behind.
@@ -310,13 +312,15 @@ async function publish(
         "--base",
         source.baseBranch,
         "--title",
-        "doctrine: publish harvested rules",
+        direct ? `doctrine: ${direct.title}` : "doctrine: publish harvested rules",
         "--body",
-        "Rules harvested from bb thread feedback by the Design Doctrine plugin.\n\nMerges itself once the repository's required checks pass.",
+        direct
+          ? `Records a directly stated design rule after the shared doctrine review and validation.\n\nAwaiting merge approval.\n\nBB-Thread-ID: ${direct.originThreadId}`
+          : "Rules harvested from bb thread feedback by the Design Doctrine plugin.\n\nMerges itself once the repository's required checks pass.",
       ],
       { cwd: directory, encoding: "utf8", timeout: COMMAND_TIMEOUT_MS, signal },
     );
-    await execFileAsync("gh", ["pr", "merge", branch, "--auto", "--squash"], {
+    if (!direct) await execFileAsync("gh", ["pr", "merge", branch, "--auto", "--squash"], {
       cwd: directory,
       encoding: "utf8",
       timeout: COMMAND_TIMEOUT_MS,
