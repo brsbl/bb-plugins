@@ -75,9 +75,9 @@ it("keeps the image set, captions, and keyboard navigation in the expanded viewe
 
 it("swipes through research images without treating vertical scrolling or image clicks as dismissal", async () => {
   await setup({ id: "ic_abcdefabcdef", threadId: "thr_1", kind: "research", createdAt: "2026-10-10T00:00:00Z", slides: [
-    { title: "Coast", image: image("f"), source: "https://example.com/coast" },
+    { title: "Coast", description: "", image: image("f"), source: "https://example.com/coast" },
     { title: "Forest", image: image("a"), description: "Green trees." },
-    { title: "Desert", image: image("b") },
+    { title: "Desert", description: "", image: image("b") },
   ] });
   fireEvent.click(await screen.findByRole("button", { name: "View full size: Coast" }));
   const dialog = screen.getByRole("dialog");
