@@ -38,10 +38,12 @@ function submit(within_: HTMLElement = document.body) {
 }
 const source = { threadTitle: "Billing", threadProjectId: null };
 const directiveProps = (id: string, threadId = "thr_test") => ({ attributes: { id }, source: `::action{id="${id}"}`, message: { id: "msg_1", threadId, turnId: null, projectId: null }, openWorkspaceFile: null });
-// Open Waiting on you and the given item, the way a person does.
+const inThread = { composer: { scope: { kind: "thread" as const, threadId: "thr_test" } } };
+// Open Waiting on you and the given item, the way a person does; a single item opens straight to its answer.
 async function openItem(question: RegExp | string) {
   fireEvent.click(await screen.findByRole("button", { name: /^Waiting on you/ }));
-  fireEvent.click(await screen.findByRole("button", { name: typeof question === "string" ? `Answer: ${question}` : question }));
+  const row = screen.queryByRole("button", { name: typeof question === "string" ? `Answer: ${question}` : question });
+  if (row) fireEvent.click(row);
   return screen.findByRole("form");
 }
 async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>, dispatchFailure = false) {
@@ -87,17 +89,18 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
     await slot.behavior.emitRealtime("items", {});
   } };
 }
-it("shows the brief in Waiting on you and opens the owning thread", async () => {
+it("shows the brief in Waiting on you without naming the thread, and keeps the Decision log one click away", async () => {
   const item = { ...fixture(), threadTitle: "Workflow Inbox", threadProjectId: "proj_origin", content: { ...fixture().content, context: "What this is: the Inbox plan.\n\nNext: I keep the draft open if declined." } };
   const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { rpc: { waiting: () => [item], get: () => item } });
+  const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
   await openItem(/^Answer: /);
   await screen.findByText(/Next: I keep the draft open/);
   expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Add note" })).toBeNull();
-  expect(screen.getByText("Workflow Inbox")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: /Open thread/ }));
-  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread", threadId: "thr_test" }));
+  expect(screen.queryByText("Workflow Inbox")).toBeNull();
+  expect(screen.queryByRole("button", { name: /Open thread/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Decision log" }));
+  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
 });
 
 it("shows a waiting card's brief in the Decision log before Review is opened", async () => {
@@ -405,28 +408,27 @@ it("shows a past table's unanswered rows as lines into Waiting on you, never as 
 it("opens an unanswered card from its timeline line in Waiting on you", async () => {
   const item = fixture();
   const app = await loadPluginApp(() => import("./app.js"));
-  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { rpc: { waiting: () => [{ ...item, ...source }], get: () => item } });
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [{ ...item, ...source }], get: () => item } });
   renderSlot(app.messageDirectives[0]!, directiveProps(item.id), { rpc: { get: () => item } });
   fireEvent.click(await screen.findByRole("button", { name: "In Waiting on you: Reply to billing@example.com: Missing refund" }));
   expect(await screen.findByRole("form")).toBeTruthy();
   expect(screen.getByRole("button", { name: /^Waiting on you/ }).getAttribute("aria-expanded")).toBe("true");
 });
 
-it("lists items urgent first with thread and age, steps through them, and hides when nothing waits", async () => {
+it("lists this thread's items urgent first with age, steps through them, and hides when nothing waits", async () => {
   const at = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
   const decide = (id: string, question: string, minutes: number, priority?: "urgent" | "low") => ({ ...fixture(), id, updatedAt: at(minutes), content: { type: "decide" as const, question, consequence: "Do it.", ...(priority ? { priority } : {}) }, threadTitle: `Thread ${id}`, threadProjectId: null });
   let waiting = [decide("urgent", "Ship it?", 5, "urgent"), decide("old", "Archive it?", 3 * 24 * 60), decide("new", "Rename it?", 90)];
   const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { rpc: { waiting: () => waiting, get: (raw) => waiting.find((item) => item.id === (raw as { id: string }).id)! } });
+  const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => waiting, get: (raw) => waiting.find((item) => item.id === (raw as { id: string }).id)! } });
   const header = await screen.findByRole("button", { name: /^Waiting on you/ });
-  // Collapsed by default: one quiet line with a count and no item text.
+  // Collapsed by default: one line with the top question and a count.
   expect(header.getAttribute("aria-expanded")).toBe("false");
-  expect(header.textContent).toBe("Waiting on you · 3");
+  expect(header.textContent).toBe("Waiting on you· Urgent · Ship it?3");
   fireEvent.click(header);
-  expect(localStorage.getItem("inline-action-cards:waiting-expanded")).toBe("1");
   const rows = within(screen.getByRole("list")).getAllByRole("button");
   expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Answer: Ship it?", "Answer: Archive it?", "Answer: Rename it?"]);
-  expect(rows[0]!.textContent).toContain("Thread urgent");
+  expect(rows[0]!.textContent).not.toContain("Thread urgent");
   expect(rows[1]!.textContent).toContain("3d");
   fireEvent.click(rows[0]!);
   expect(await screen.findByText("1 of 3")).toBeTruthy();
@@ -441,16 +443,16 @@ it("lists items urgent first with thread and age, steps through them, and hides 
   await waitFor(() => expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull());
 });
 
-it("shows at most five rows and sends the rest to the Decision log", async () => {
-  const waiting = Array.from({ length: 7 }, (_, index) => ({ ...fixture(), id: `item-${index}`, threadId: `thr_${index}`, content: { type: "decide" as const, question: `Question ${index}?`, consequence: "Do it." }, ...source }));
-  localStorage.setItem("inline-action-cards:waiting-expanded", "1");
+it("asks only for the current thread's items and stays away outside a thread", async () => {
+  const calls: unknown[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { rpc: { waiting: () => waiting, get: () => waiting[0]! } });
-  // The remembered choice opens it expanded.
-  expect((await screen.findByRole("button", { name: /^Waiting on you/ })).getAttribute("aria-expanded")).toBe("true");
-  expect(within(screen.getByRole("list")).getAllByRole("button")).toHaveLength(5);
-  fireEvent.click(screen.getByRole("button", { name: "+2 more in the Decision log" }));
-  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "thread", threadId: "thr_other" } }, rpc: { waiting: (input) => { calls.push(input); return []; } } });
+  await waitFor(() => expect(calls).toContainEqual({ threadId: "thr_other" }));
+  expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull();
+  cleanup();
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "new-thread", projectId: null } }, rpc: { waiting: (input) => { calls.push(input); return []; } } });
+  expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull();
+  expect(calls.every((input) => (input as { threadId: string }).threadId === "thr_other")).toBe(true);
 });
 
 it("answers an ask in its own words and settles it without a claim", async () => {

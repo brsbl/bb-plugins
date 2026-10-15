@@ -17,8 +17,8 @@ const persistedTableSchema = z.union([
 ]);
 export const rpcContract = defineRpcContract({
   log: { input: z.object({ threadId: idSchema.optional() }).strict(), output: logSchema },
-  // Everything still waiting on the user across threads, for the drawer above the prompt box.
-  waiting: { input: z.object({}).strict(), output: waitingSchema },
+  // What one thread is still waiting on the user for, for the drawer above its prompt box.
+  waiting: { input: z.object({ threadId: idSchema }).strict(), output: waitingSchema },
   decideFromLog: { input: versioned.extend({ action: actionSchema.optional() }), output: itemSchema },
   get: { input: ref, output: itemViewSchema },
   save: { input: versioned.extend({ draft: draftSchema }), output: itemSchema },
@@ -107,17 +107,11 @@ export function createStore(bb: BbPluginApi) {
   return {
     get,
     view: (threadId: string, id: string) => view(get(threadId, id)),
-    // Urgent first, then oldest; low priority last.
-    async waiting() {
-      const rows = db.prepare("SELECT value FROM action_items").all() as { value: string }[];
-      const shown = drawerItems(rows.map((row) => itemSchema.parse(JSON.parse(row.value))), Date.now());
-      return (await withSources(shown)).sort((a, b) => rank(a.content.priority) - rank(b.content.priority)
-        || a.updatedAt.localeCompare(b.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
-    },
-    // Open items in one thread that Waiting on you would list before its per-thread cap.
-    openInThread(threadId: string) {
+    // One thread's open items, one per question: urgent first, then oldest; low priority last.
+    async waiting(threadId: string) {
       const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
-      return distinctOpen(rows.map((row) => itemSchema.parse(JSON.parse(row.value))), Date.now()).length;
+      return (await withSources(distinctOpen(rows.map((row) => itemSchema.parse(JSON.parse(row.value)))))).sort((a, b) => rank(a.content.priority) - rank(b.content.priority)
+        || a.updatedAt.localeCompare(b.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
     },
     // A newer version of the same question in the same thread replaces the older unanswered ones.
     supersede(threadId: string, id: string) {
@@ -132,9 +126,7 @@ export function createStore(bb: BbPluginApi) {
       const rows = (threadId
         ? db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId)
         : db.prepare("SELECT value FROM action_items").all()) as { value: string }[];
-      const now = Date.now();
       const sorted = (await withSources(rows.map((row) => itemSchema.parse(JSON.parse(row.value)))))
-        .map((item) => isStale(item, now) ? { ...item, stale: true } : item)
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
       // Failures need a retry and Later cards need a Resume, so both stay in Waiting on you; Later sorts last.
       const later = (item: Item) => item.state === "succeeded" && item.attempt?.action === "later";
@@ -315,30 +307,18 @@ export function createStore(bb: BbPluginApi) {
 
 const rank = (priority: Priority | undefined) => priority === "urgent" ? 0 : priority === "low" ? 2 : 1;
 
-// Waiting on you stays short: one item per question, at most PER_THREAD per thread, nothing older than a week.
-export const PER_THREAD = 2;
-const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 // Unanswered, or answered but never delivered to the agent (it needs Resend).
 const isOpen = (item: Item) => item.state === "ready" || (item.state === "pending" && !item.attempt?.claimed && !item.attempt?.sentAt);
-const isStale = (item: Item, now: number) => isOpen(item) && now - Date.parse(item.updatedAt) > STALE_MS;
 const questionKey = (item: Item) => title(item).toLowerCase().replace(/\s+/g, " ").replace(/[\s?.!]+$/, "").trim();
 const idBase = (id: string) => id.replace(/-v\d+$/i, "");
 const sameQuestion = (a: Item, b: Item) => a.threadId === b.threadId && (questionKey(a) === questionKey(b) || idBase(a.id) === idBase(b.id));
 // Newest first, keeping only the newest item for each question.
-function distinctOpen(items: Item[], now: number): Item[] {
+function distinctOpen(items: Item[]): Item[] {
   const kept: Item[] = [];
-  for (const item of items.filter((candidate) => isOpen(candidate) && !isStale(candidate, now)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+  for (const item of items.filter(isOpen).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
     if (!kept.some((other) => sameQuestion(other, item))) kept.push(item);
   }
   return kept;
-}
-function drawerItems(items: Item[], now: number): Item[] {
-  const perThread = new Map<string, number>();
-  return distinctOpen(items, now).filter((item) => {
-    const count = perThread.get(item.threadId) ?? 0;
-    perThread.set(item.threadId, count + 1);
-    return count < PER_THREAD;
-  });
 }
 
 // Card requests carry an action mention whose id is threadId:itemId:attemptId.
@@ -355,7 +335,7 @@ export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
     log: ({ threadId }) => store.log(threadId),
-    waiting: () => store.waiting(),
+    waiting: ({ threadId }) => store.waiting(threadId),
     async dispatch({ threadId, entries }) {
       if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
       // Resolve every durable reference before sending anything. Never accept arbitrary message text from the client.
@@ -450,12 +430,10 @@ export default function plugin(bb: BbPluginApi): void {
   const askPositions = [...itemPosition, { name: "question", required: true, description: "One-line question the user answers in their own words" }] as const;
   const scope = (ctx: PluginCliContext, thread?: string) => idSchema.parse(thread ?? ctx.threadId);
   const output = (item: Item | z.infer<typeof itemViewSchema>) => ({ exitCode: 0, stdout: `${JSON.stringify(item, null, 2)}\n` });
-  // Settle older versions of the same question, then warn when this thread is over its share of Waiting on you.
+  // Settle older versions of the same question.
   const afterCreate = (item: Item) => {
     const superseded = store.supersede(item.threadId, item.id);
-    const open = store.openInThread(item.threadId);
-    return (superseded.length ? `Marked as superseded by ${item.id}: ${superseded.join(", ")}.\n` : "")
-      + (open > PER_THREAD ? `Warning: this thread has ${open} open items for the user; Waiting on you shows only its newest ${PER_THREAD}. Bring one decision at a time: resolve answered or moot items before adding more.\n` : "");
+    return superseded.length ? `Marked as superseded by ${item.id}: ${superseded.join(", ")}.\n` : "";
   };
   bb.cli.register(defineCli({
     name: "action-cards", summary: "Create inline cards, read saved drafts, and report action results",

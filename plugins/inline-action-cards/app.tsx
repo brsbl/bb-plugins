@@ -22,7 +22,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   id: string; threadId: string; surface?: Surface;
   initialItem?: CardItem; onItem?: (item: Item, own?: boolean) => void;
   onLoaded?: () => void;
-  logEntry?: { threadTitle: string; threadProjectId: string | null; showThread: boolean; stale?: boolean };
+  logEntry?: { threadTitle: string; threadProjectId: string | null; showThread: boolean };
 }) {
   const navigate = useBbNavigate();
   const [source, setSource] = useState({ threadTitle: initialItem?.threadTitle, threadProjectId: initialItem?.threadProjectId });
@@ -309,7 +309,6 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
         <span className="iac-log-title" title={heading}>{heading}</span>
         <span className="iac-log-meta">
           {later && <span>Later</span>}
-          {logEntry.stale && <span title="No activity for a week; no longer listed in Waiting on you">Stale</span>}
           {failed && <span className="iac-failed" title={item.result?.message}><span role="img" aria-label="Failed">⚠</span> {item.result?.message}</span>}
           {logEntry.showThread && <a className="iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); openThread(); }}>{logEntry.threadTitle}</a>}
           <time dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
@@ -417,7 +416,7 @@ export function ActionLogView({ threadId }: { threadId?: string }) {
   }, [load]);
   useRealtime("items", () => void load());
   const row = (item: ActionLog["waiting"][number]) => <ActionCard key={`${item.threadId}:${item.id}`} id={item.id} threadId={item.threadId} initialItem={item}
-    logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId, showThread: !threadId, stale: item.stale }} onItem={() => void load()} />;
+    logEntry={{ threadTitle: item.threadTitle, threadProjectId: item.threadProjectId, showThread: !threadId }} onItem={() => void load()} />;
   return <section className="iac-log" aria-label="Decision log">
     <section className="iac-log-group" aria-label="Waiting on you">
       <header className="iac-log-heading">

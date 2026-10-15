@@ -25,7 +25,6 @@ it.each(["decide", "choice", "reply"] as const)("submits a %s from Waiting on yo
       composer: { scope: { kind: "thread", threadId: "thr_test" }, text: draft }, rpc,
     });
     fireEvent.click(await screen.findByRole("button", { name: /^Waiting on you/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /^Answer: / }));
     const label = kind === "reply" ? "Send" : kind === "choice" ? "Short" : "Publish";
     fireEvent.click(await screen.findByRole("radio", { name: label }));
     const form = screen.getByRole("form");
