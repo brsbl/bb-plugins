@@ -1,6 +1,6 @@
 ---
 name: playgrounds
-description: "Compose playgrounds directly in a bb message: native calculators, charts, and comparisons, or custom HTML interfaces such as illustrated step-by-step guides, schematic maps, and visual previews. Use when exploring, comparing, or following along would help more than prose."
+description: "Answer with something the person can operate, inline in a bb message: Anatomy figures (working machines, via the bundled how-it-works skill), calculators, charts, clickable mock-ups, live design previews, motion previews, simulations and step-by-step guides. Use it even when nobody says playground: explaining how a system, protocol, pipeline or mechanism works (to them or their team), \"show me\", \"let me play with / adjust\", comparing options or settings, mocking up a screen or flow, picking design values, or seeing a tradeoff play out over time."
 ---
 
 # Playgrounds
@@ -18,15 +18,36 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
 
 ## Choose the form
 
-- **HTML playground with the component library** (see Components) for apps the
-  person will keep using with you: planners and calculators with several
-  inputs and an answer, simulations that run over time, design tools with a
-  live preview, games, instruments, and step-by-step guides or visual plans.
-- **Native document** only for a quick formula answer with a few inputs and no
-  follow-up work: bounded arithmetic, no code, accessible by construction.
+Build something they can operate whenever it explains better than prose, even if
+they never say "playground". Answer in prose only when one sentence would do.
 
-- Start with the user's question and choose useful inputs. Name units and
-  assumptions. Use plain prose if interaction would not improve the answer.
+| They ask about | Build |
+| --- | --- |
+| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | An Anatomy figure: load the bundled `how-it-works` skill and build its machine, with the model's inputs as playground parameters (see Anatomy figures) |
+| Numbers, pricing, "how much / which", a decision | Calculator set |
+| Funnels, time series, distributions | A chart, with the inputs that drive it |
+| A screen or flow | A clickable mock-up of it |
+| Type, spacing, color, design tokens | A live preview (`references/type-scale.html`) |
+| Motion or feel (springs, easing, drag) | A motion preview they can operate |
+| A tradeoff that plays out over time (a backlog against worker count, an on-call rotation) | Simulation set |
+
+Build these as HTML playgrounds with the component library (see Components). Use
+a **native document** only for a quick formula answer with a few inputs and no
+follow-up work: bounded arithmetic, no code, accessible by construction.
+
+## Before you reply
+
+- Quote numbers from the card's live values (`bb playgrounds state <id>`, or
+  `do <id> read`), not from your own arithmetic. If they disagree, fix the card.
+- Answer a follow-up by changing the existing card (`do <id> setParams`, `set`
+  on a native document, or one of its actions) when its controls can express
+  it. Republish only when the structure must change, and carry over their inputs.
+  If `do` finds no open copy, read `state <id>` and set it back with new
+  `params` (`--set`) instead.
+- End with a one-line takeaway they can act on. Label every number's unit.
+
+## Native documents
+
 - Native controls: `number`, `range`, and `select`. Supply valid bounds,
   a positive step, and a default on that step. Numeric expressions can refer
   to numeric controls and earlier calculations, never select controls.
@@ -45,7 +66,7 @@ at 16 KiB; pass larger HTML playgrounds as `--playground '<json>'`.
   user across devices and you can read them. They are context, not approvals
   to take action.
 - Playgrounds render after publication, not progressively during generation.
-  Published documents are immutable; publish a fresh playground for a revision.
+  A card's markup is fixed once published; its inputs and state are not.
   Old playgrounds retain their original content. Do not reuse another thread's ID.
 
 Use action cards for approvals or actions that need to reach an agent.
@@ -74,13 +95,8 @@ them; `bb playgrounds publish --saved <savedId>` (or the tool's `saved`
 parameter) shows one in the current thread with its saved inputs. When the user
 @-mentions a saved playground, publish it this way instead of rebuilding it.
 
-- **Follow-ups change the card.** When they ask about something the card
-  shows (a step, a stop, a color, a plant, a setting), change the card with
-  `do <id> setParams` or one of its actions, then answer in a line or two.
-  Don't only answer in chat. Publish a second card only when the card's data
-  has to change (a different stop on the route, a new plant), and carry
-  over what they had selected. Keep what they'd ask about
-  (the current step, the selected item) in parameters so you can set it.
+- Keep what they'd ask about (the current step, the selected item, a stop on
+  the route) in parameters, so a follow-up can set it.
 - Native documents expose `set` (one object of control values) and `reset`,
   and return the inputs plus every metric as displayed.
 - `do` runs in the copy the user touched most recently and fails when the
@@ -149,16 +165,20 @@ Build from these before writing your own controls.
 | `list` | One choice from rows with notes (`data-notes="a|b"`) |
 | `slider`, `dial`, `stepper` | A continuous value; `data-scale="log"`, units `%` (0–1), `Hz`, `s`, `px`, `¢` |
 | `toggle` | On or off |
-| `board` | A grid of cells for games, seats or calendars (`data-rows`, `data-cols`, `data-pieces="R:#e5484d:Red"`, `data-shape="round"`) |
+| `board` | A grid of cells for games, seats or calendars (`data-rows`, `data-cols`, `data-pieces="R:#e5484d:Red"`, `data-shape="round"`; a fourth field, `H:var(--pg-bad):Hit:×`, draws a mark on the piece so pieces never differ by color alone) |
 | `readouts` | Answer tiles: `<div data-readout="price" data-label="Home price" data-answer>` |
 | `table` | `data-name="…"`, filled from script |
 | `chart` | `<figure data-pg="chart" data-name="…" data-label="…">`, filled from script |
 | `agent` | A lane that shows what you last did on the card |
 
+Units go in `data-unit`. `data-options` entries are `value:Label`, and labels
+can't contain commas or colons. Publishing rejects markup the kit would
+misread (unknown `data-*` attributes, bad options or numbers) with every fix listed.
+
 Layout classes: `.pg-form` (fields in a grid), `.pg-toolbar`, `.pg-surface`
 with `.pg-group` and `.pg-label` (grouped panels), `.pg-banks`, `.pg-badge`
 (`data-tone="good|warn|bad"`). `data-show="param=value"` shows an element only
-when a parameter has that value. Set `:root { --pg-accent: … }` once per card.
+when a parameter has that value. Style everything with the visual language below.
 
 In script, after the markup: `playground.params` (`get`, `set`, `all`,
 `define`, `on(fn)`), and `playground.ui.show(name, value, { note, tone })` for
@@ -174,29 +194,31 @@ setParams --args '[{"rate": 6}]'`, `do <id> select --args '["board", 0, 3]'`,
 point --args '["load", 6]'` to show a chart's values at an x. Use these
 instead of writing your own actions; controls you move show an "Agent" tag.
 
-**Charts.** One chart answers one question. Spec:
+**Charts.** One chart answers one question, in a standard form only: line,
+bar, stacked bar, area, a single big number, or a table. Invent no
+visual encodings, in charts or simulations; only Anatomy figures (how a system
+works) draw custom diagrams. Spec:
 
 ```js
 ui.chart("load", {
   kind: "line",                      // line | area | step | bars (per series too)
+  stack: false,                      // true stacks the bar series
   height: 180,
   x: { format: (x) => "Wk " + x, label: "Week" },
   y: { min: 0, unit: "ms" },         // or format: (v) => …
   series: [{ label: "Europe", points: [[1, 1420], [2, 1390]] }, …],
   marks: [{ y: 1500, label: "Budget" }, { x: 6, label: "CDN change" }],
   bands: [{ x0: 6, x1: 12, label: "Rollout" }],  // a shaded span
-  now: 4,                            // a "now" line for simulations
+  now: 4,                            // a "now" line
+  focus: "Europe",                   // the series the sentence is about (or one bar's x)
+  labels: "auto",                    // "end" | "legend"; auto names up to 4 lines at their ends
 });
 ```
 
 Bars take category x values (`[["Mon", 42], …]`). The component picks the
-colors (one series uses the accent; more use a fixed palette in a fixed
-order), sizes the plot from the card's width, puts the unit on the top tick
-only, adds a legend for two or more series (`labels: "end"` also names lines
-at their ends), a hover and
-keyboard tooltip listing every series, and a table for screen readers. Don't
-color text in series colors, don't use two y scales (make two charts), and
-keep it to seven series.
+colors, sizes the plot from the card's width, adds a hover and keyboard
+tooltip listing every series and a table for screen readers. Don't use two y
+scales (make two charts), and keep it to seven series.
 
 **Calculator set.** For "how much / how many / which" questions, write the
 inputs as a sentence with draggable numbers, give one answer, and show
@@ -216,22 +238,27 @@ detail says why) and `ui.breakdown(name,
 [{ label, value, display }])`. Keep it to the sentence, the answer and one
 breakdown or chart; no tables of every scenario.
 
-**Simulation set.** For systems that run over time (rate limits, queues,
-caches, retries, rollouts): a sentence of the knobs, one chart that draws the
-run as it plays, and a verdict. No diagram; the chart is the simulation:
+**Simulation set.** For a tradeoff that plays out over time (a rate limit's
+burst against its steady rate, a backlog against worker count): a one-line
+title question, one standard chart of the whole run drawn at once (no
+playback), one row of labeled controls that redraw it instantly, and one plain
+sentence with the key numbers:
 
 ```html
-<div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
-<figure data-pg="chart" data-name="tokens" data-label="Tokens in the bucket"></figure>
+<h2 class="pg-title">How big should the bucket be?</h2>
+<figure data-pg="chart" data-name="traffic" data-kind="bars"></figure>
+<div class="pg-form"><div data-pg="slider" data-param="capacity" data-label="Bucket size" data-unit="tokens" …></div> …</div>
+<p class="pg-sentence" id="result"></p>
 ```
 
-`ui.run(name, { tick(dt, t), seek(t), end() })` plays it and pauses
-offscreen; the run bar sits above its chart, and dragging on the chart scrubs.
-In `tick` and `seek`, redraw the chart with the points up to `t`, and mark
-what went wrong as `events: { label: "Dropped", points: [[x, y, count]] }`. The verdict is an `answer`
-that says what happened and what setting fixes it. Put every knob in the
-sentence: no slider row and no readout row in addition, and at most one
-`<details>` for the model.
+On every parameter change, rerun the model and redraw: real units on both
+axes, the failure in `var(--pg-bad)` (rejected requests stacked on served
+ones, with `focus: "Rejected"`), at most one labeled reference line (`marks: [{ y: refill, label:
+"Refill rate 35/s" }]`), and a second chart only if it's a different standard
+form you can't do without. The sentence says what happened and what fixes it, with the key numbers in `<b>`:
+"Over 30 seconds, **82 of 840** requests were rejected; a bucket of **130
+tokens** would serve them all." No controls inside sentences, no animated or custom
+diagrams, no verdict tiles or side stats.
 
 **Game set.** For turn-based games you play with the person (Connect Four,
 tic-tac-toe, checkers, Battleship): a `turn` row, one `board`, and the rules
@@ -324,26 +351,59 @@ actual scene with real furniture and light, and let a segmented control
 switch the options. Keep choices they might ask about (floor, light) as
 parameters too, so a follow-up like "with a walnut floor" changes the card.
 
-**Layout.** Every set card has three parts, in this order:
+### Visual language
 
-1. **Head:** `.pg-title`, then the `.pg-sentence`.
-2. **Body, one grey surface:**
-   - Calculator: `<div class="pg-surface pg-result">` with the `answer` and its
-     `breakdown` side by side.
-   - Simulation: `<div class="pg-surface">` with the `run` bar, then its
-     `chart`.
-     Then a `<div class="pg-result">` with the verdict `answer` and a
-     `<dl class="pg-stats">` of at most two numbers.
-3. **Foot:** `<div class="pg-foot">` with one `<details>` (the model and
-   assumptions) and the `agent` lane.
+Every card shares one look, built into the kit: use its classes and tokens and
+write no font sizes, margins, radii or colors of your own (only the thing being
+depicted, like a board or a drawing, gets its own colors).
 
-Copy this structure from the references; don't add rows between the parts.
+| Role | Use | Spec |
+| --- | --- | --- |
+| Title | `.pg-title` | 18 px / 600, ink: the question the card answers |
+| Subtitle | `.pg-subtitle` | 13 px, body: one line of context, optional |
+| Result | `.pg-sentence` | 15 px / 1.6, body; key numbers in `<b>` (ink, 600) |
+| Body | `.pg-body` | 13 px / 1.5 |
+| Label | `.pg-label`, control names | 12 px / 500, sentence case; meta for section labels |
+| Hero number | `answer` | 28 px / 600; one per card, everything else quieter |
+| Value | readouts, control values, tables | 12–16 px, tabular figures |
+| Meta | `.pg-meta`, axis ticks | 12 px (axes 11 px), meta |
 
-**Composition.** Leave spacing, colors and type to the kit: no inline margins,
-no font sizes, and no colors except `--pg-accent` when the subject has one
-(paint, a brand). One hero per card (the `answer`, or the instrument); every
-other number is quieter. Grey stage only behind the thing being shown. The agent moves time with
-`do <id> seek --args '["sim", 12]'`.
+- **Structure:** title question → main visual → one `.pg-form` row of labeled
+  controls → one `.pg-sentence` result → `.pg-foot` (one `<details>` with the
+  model, plus the `agent` lane). The calculator puts its controls in the
+  sentence and its answer and `breakdown` in one `.pg-surface.pg-result`. Copy
+  the references; add no rows, verdict tiles or side stats.
+- **Spacing and shape:** `--pg-space-1…5` is 4, 8, 12, 16, 24 px; the kit
+  spaces blocks 16 px apart. Radii: surfaces 14 px (`--pg-radius`), groups
+  10, controls 8, pills round.
+- **Surfaces:** the card; one grey `.pg-surface` behind the thing being shown
+  (never behind a chart, which sits on the card); white `.pg-group` panels
+  inside it; `--pg-hairline` dividers.
+- **Color roles:** `--pg-ink` headings and values, `--pg-body` text,
+  `--pg-meta` captions and axes (all AA in both themes). `--pg-accent` (blue)
+  is for a subject with its own color (coffee, a synth): override it once.
+  Controls are ink: sliders, sentence numbers (a soft tinted chip), pressed
+  segments, tabs and primary buttons. `--pg-good`, `--pg-warn` and `--pg-bad`
+  only when color means good or bad, always with a word or an icon.
+  `--pg-series-1…7` (a muted, paper-like palette) only for chart series, in
+  order; a single series takes the first. `--pg-mark-muted` for
+  context. Every color difference must mean something, and text never wears a
+  series color.
+- **Controls:** each has a visible label and shows its value with a unit;
+  targets are at least 24 px; every drag also works by click or keyboard.
+- **Charts:** the component draws them calm: dashed hairline grid, three or
+  four y ticks with the unit on the top one, a baseline but no y-axis line,
+  thin bars with rounded tops, and smooth 2 px lines. Label marks in place
+  rather than in a legend: up to four lines are named at their ends with their
+  last value; otherwise two or more series get a legend. Put `focus` on the
+  series your sentence is about: it stays at full strength and the rest become
+  context (lines grey, bars a tint of their color); a focused bar series has
+  its peaks labeled in place ("41 rejected") and needs no legend. For a
+  single-series bar chart, `focus` with an x highlights and labels that bar.
+  Failures stack in `var(--pg-bad)`. At most one reference line (`marks`),
+  labeled at its end.
+- **Motion:** `.pg-reveal` with `--i` staggers the entrance; hovers take
+  0.12–0.2 s; everything stops under reduced motion.
 
 **Music set (optional).** `keyboard` (`data-from="60" data-count="25"`, A–K
 keys, Z/X octave), `pads` (`data-pads="Kick:a,Snare:s"`), `steps` (a
@@ -368,16 +428,16 @@ shows a setup step, two boards and hidden pieces), and
 [Anatomy](https://skills.wheresryan.sh/anatomy), by Ryan
 ([@wheresryan22](https://github.com/wheresryan22)), draws a technical idea as a
 working isometric machine. Playgrounds ships a copy as the `how-it-works` skill.
-When someone asks for an Anatomy figure, or for "how X works" as a machine they
-can operate, build the figure with it the framework-free way (a `build.mjs` that writes one
-standalone HTML page), then show that page as a playground:
+Whenever someone asks how a system, mechanism, protocol or pipeline works, load
+the `how-it-works` skill and build the figure the framework-free way (a `build.mjs`
+that writes one standalone HTML page), then show that page as a playground:
 
 ```sh
 bb playgrounds publish --playground-file /absolute/path/figure.html
 ```
 
-`--playground-file` reads the page from this thread's workspace (write it
-there, not to `/tmp`), so a large figure never passes through your context. The card keeps the page's styles and
+`--playground-file` reads only from this thread's workspace (its checkout; the
+`how-it-works` skill's "In bb" says where to copy it), so a large figure never passes through your context. The card keeps the page's styles and
 scripts, follows bb's light or dark theme, and fits the page to the card. Credit
 Ryan and Anatomy in your reply.
 

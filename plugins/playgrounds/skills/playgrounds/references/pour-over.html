@@ -3,11 +3,12 @@
      is in the accent color and everything else stays grey. -->
 <style>
   :root { --pg-accent: #b5651d; }
-  .gear { --g: color-mix(in srgb, var(--foreground) 28%, var(--card)); --soft: color-mix(in srgb, var(--foreground) 8%, var(--card)); }
+  .gear { --g: var(--pg-mark-muted); --soft: var(--pg-stage); }
   .gear * { fill: var(--soft); stroke: var(--g); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-  .gear .on, .gear .on * { stroke: var(--pg-accent); fill: color-mix(in srgb, var(--pg-accent) 18%, var(--card)); }
+  .gear .on, .gear .on * { stroke: var(--pg-accent); fill: color-mix(in oklab, var(--pg-accent) 16%, var(--card)); }
   .gear .flow { fill: none; stroke: var(--pg-accent); stroke-width: 3; stroke-dasharray: 4 5; }
-  .gear .note { fill: var(--pg-meta); stroke: none; font-size: 12px; }
+  .gear .note { fill: var(--pg-meta); stroke: none; font-size: 11px; }
+  @container (max-width: 460px) { .gear .note { font-size: 16px; } }
 </style>
 <h2 class="pg-title pg-reveal">Pour-over coffee</h2>
 <p class="pg-subtitle pg-reveal">One cup, about four minutes. 20 g coffee to 320 g water.</p>
@@ -40,7 +41,7 @@
     <p>Pour about 40 g of water in a spiral to wet every ground, then wait 30 seconds while it bubbles.</p>
   </section>
   <section data-step="5">
-    <svg class="gear" viewBox="0 0 460 200" role="img" aria-label="Cup highlighted: finish the pour"><g><path d="M64 156 Q58 100 88 88 H132 Q162 100 156 156 Z"/><path d="M98 88 Q110 74 122 88"/><path d="M156 108 Q184 116 164 146" fill="none"/><path d="M66 132 Q34 124 38 86 Q40 70 54 64" fill="none"/></g><g><path d="M286 70 H366 L348 114 H304 Z"/><path d="M306 78 L316 108 M326 78 V108 M346 78 L336 108" fill="none"/><path d="M298 114 H354 V121 H298 Z"/></g><g><path d="M294 80 H358 L352 96 H300 Z"/></g><g class="on"><path d="M296 124 H356 V172 Q356 182 346 182 H306 Q296 182 296 172 Z"/><path d="M356 136 Q378 140 356 164" fill="none"/></g><path class="flow" d="M54 64 Q190 8 322 76"/><path class="flow" d="M326 122 V140"/><text class="note" x="372" y="190">320 g by 3:30</text></svg>
+    <svg class="gear" viewBox="0 0 460 200" role="img" aria-label="Cup highlighted: finish the pour"><g><path d="M64 156 Q58 100 88 88 H132 Q162 100 156 156 Z"/><path d="M98 88 Q110 74 122 88"/><path d="M156 108 Q184 116 164 146" fill="none"/><path d="M66 132 Q34 124 38 86 Q40 70 54 64" fill="none"/></g><g><path d="M286 70 H366 L348 114 H304 Z"/><path d="M306 78 L316 108 M326 78 V108 M346 78 L336 108" fill="none"/><path d="M298 114 H354 V121 H298 Z"/></g><g><path d="M294 80 H358 L352 96 H300 Z"/></g><g class="on"><path d="M296 124 H356 V172 Q356 182 346 182 H306 Q296 182 296 172 Z"/><path d="M356 136 Q378 140 356 164" fill="none"/></g><path class="flow" d="M54 64 Q190 8 322 76"/><path class="flow" d="M326 122 V140"/><text class="note" x="452" y="194" text-anchor="end">320 g by 3:30</text></svg>
     <h3>Finish the pour</h3>
     <p>Pour slowly in circles up to 320 g total, keeping the water level steady. It should finish dripping by about 3:30.</p>
   </section>

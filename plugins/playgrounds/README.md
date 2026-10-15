@@ -65,6 +65,11 @@ bb playgrounds example stepper | bb playgrounds publish --playground-stdin
 Emit the returned `::playground{id="…"}` directive on its own line in
 an assistant message.
 
+Publishing an HTML playground checks its component markup (`data-pg`
+elements) and refuses anything the kit would silently misread, such as an
+unknown `data-*` attribute, an option label containing a comma, or a value
+outside its range, with one error that lists every problem and its fix.
+
 Inputs are saved with each playground on the bb server, so they follow you across
 devices and every open copy updates live. Inputs are context the agent can
 read, never approvals. Published playgrounds are immutable; a revised playground gets
