@@ -65,7 +65,7 @@ function Answer({ item, now, onAnswered }: { item: WaitingItem; now: number; onA
     </div>
     <div className="mt-1.5">
       <ActionCard key={keyOf(item)} id={item.id} threadId={item.threadId} surface="drawer" initialItem={item}
-        onItem={(next) => { if (delivered(next)) onAnswered(next); }} />
+        onItem={(next) => { if (next.revision > item.revision && delivered(next)) onAnswered(next); }} />
     </div>
   </div>;
 }

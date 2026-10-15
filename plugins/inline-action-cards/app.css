@@ -151,6 +151,8 @@
 .iac-waiting-line { display: flex; align-items: center; gap: calc(var(--spacing, .25rem) * 1.5); max-width: 100%; margin: 4px 0; padding: 2px 0; border: 0; border-radius: var(--radius-sm, .25rem); background: transparent; color: var(--muted-foreground); font: inherit; font-size: var(--text-sm, .875rem); text-align: left; cursor: pointer; }
 .iac-waiting-line:hover, .iac-waiting-line:focus-visible { color: var(--foreground); outline: none; }
 .iac-waiting-line:focus-visible { box-shadow: 0 0 0 1px var(--ring); }
+.iac-result-line { cursor: default; }
+.iac-result-line:hover { color: var(--muted-foreground); }
 .iac-waiting-icon { width: 14px; height: 14px; flex-shrink: 0; }
 .iac-waiting-question { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iac-waiting-where { flex-shrink: 0; }

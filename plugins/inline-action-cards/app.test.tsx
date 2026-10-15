@@ -168,41 +168,38 @@ it("keeps an unsaved edit visible and offers recovery without submitting", async
   expect(submittedMessages).toHaveLength(0);
 });
 
-it("shows a card whose request never reached the agent as not sent, with Resend", async () => {
+it("leaves an unsent answer as one line that opens Waiting on you, where Resend sends it", async () => {
   let item: Item = { ...fixture(), revision: 3, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, note: "how do i test?" }, content: { type: "decide", question: "Merge PR #42?", consequence: "Squash-merge it.", yesLabel: "Merge" } };
   const app = await loadPluginApp(() => import("./app.js"));
-  renderSlot(app.messageDirectives[0]!, directiveProps(item.id), { rpc: { get: () => item, dispatch: async () => { const next = await dispatchFixture([item]); item = next[0]!; return next; } } });
+  const rpc = { waiting: () => item.attempt?.sentAt ? [] : [{ ...item, ...source }], get: () => item, dispatch: async () => { const next = await dispatchFixture([item]); item = next[0]!; return next; } };
+  renderSlot(app.messageDirectives[0]!, directiveProps(item.id), { rpc });
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc });
+  const line = await screen.findByRole("button", { name: "Not sent, in Waiting on you: Merge PR #42?" });
+  expect(screen.queryByRole("form", { name: /Merge PR #42/ })).toBeNull();
+  fireEvent.click(line);
   expect(await screen.findByText(/Not sent: it didn't reach the agent\./)).toBeTruthy();
-  expect(screen.getByText("Merge", { selector: ".ac-outcome-answer" })).toBeTruthy();
   expect(screen.getByText("“how do i test?”")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Resend" }));
   await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(submittedMentions).toMatchObject([{ id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
 });
 
-it("keeps a prepared but unsent row in place with Resend", async () => {
-  let items: Item[] = [
+it("shows answered and pending table rows as plain lines, never as cards", async () => {
+  const items: Item[] = [
     { ...fixture(), id: "one", revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false }, content: { type: "decide", question: "Switch one?", consequence: "Keep schedules", yesLabel: "Switch" } },
-    { ...fixture(), id: "two", content: { type: "decide", question: "Switch two?", consequence: "Keep schedules", yesLabel: "Switch" } },
+    { ...fixture(), id: "two", revision: 3, state: "succeeded", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "no", claimed: true }, result: { message: "Kept", retryable: false }, content: { type: "decide", question: "Switch two?", consequence: "Keep schedules", yesLabel: "Switch", noLabel: "Keep" } },
   ];
   const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
-    composer: { scope: { kind: "thread", threadId: "thr_test" } },
+  renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
     rpc: {
       table: () => ({ id: "digests", threadId: "thr_test", title: "Digests", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
       get: (raw) => ({ ...items.find((item) => item.id === (raw as { id: string }).id)!, followUps: [] }),
-      dispatch: async (raw) => {
-        const ids = (raw as { entries: { id: string }[] }).entries.map((entry) => entry.id);
-        const sent = await dispatchFixture(items.filter((item) => ids.includes(item.id)));
-        items = items.map((item) => sent.find((next) => next.id === item.id) ?? item);
-        return sent;
-      },
     },
   });
-  fireEvent.click(await screen.findByRole("button", { name: "Resend" }));
-  await waitFor(() => expect(submittedMessages).toHaveLength(1));
-  expect(submittedMentions).toMatchObject([{ id: "thr_test:one:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
-  expect(await screen.findByText(/Sent\. Waiting for the agent\./)).toBeTruthy();
+  expect(await screen.findByRole("button", { name: "Not sent, in Waiting on you: Switch one?" })).toBeTruthy();
+  expect(await screen.findByText("Decision: Keep")).toBeTruthy();
+  expect(screen.queryByRole("form")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Resend" })).toBeNull();
 });
 
 it("Decision log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
@@ -377,19 +374,19 @@ it("Decision log Send on a collapsed reply opens the email first and sends only 
   now.mockRestore();
 });
 
-it("retries a failed table reply from its confirmation", async () => {
+it("lists a failed reply in Waiting on you, where Retry sends it again", async () => {
   const failed: Item = { ...fixture(), revision: 3, state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true }, result: { message: "Reconnect Gmail", retryable: true } };
   const calls: string[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "replies" }, source: '::actions{id="replies"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
-    composer: { scope: { kind: "thread", threadId: "thr_test" } },
-    rpc: {
-      table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: [failed.id], items: [failed] }),
-      get: () => failed,
-      prepare: () => { calls.push("prepare"); return { ...failed, revision: 4, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false } }; },
-      dispatch: () => dispatchFixture([{ ...failed, revision: 4, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false } }]),
-    },
-  });
+  const rpc = {
+    waiting: () => calls.length ? [] : [{ ...failed, ...source }],
+    get: () => failed,
+    prepare: () => { calls.push("prepare"); return { ...failed, revision: 4, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false } }; },
+    dispatch: () => dispatchFixture([{ ...failed, revision: 4, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "send", claimed: false } }]),
+  };
+  renderSlot(app.messageDirectives[0]!, directiveProps(failed.id), { rpc });
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc });
+  fireEvent.click(await screen.findByRole("button", { name: "Failed, in Waiting on you: Reply to billing@example.com: Missing refund" }));
   expect(await screen.findByText("Reconnect Gmail")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   await waitFor(() => expect(submittedMessages).toHaveLength(1));

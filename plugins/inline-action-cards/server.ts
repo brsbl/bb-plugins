@@ -129,7 +129,7 @@ export function createStore(bb: BbPluginApi) {
         || a.updatedAt.localeCompare(b.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
     },
     waitingThreads() {
-      return (db.prepare(`SELECT DISTINCT thread_id AS threadId FROM action_items WHERE json_extract(value, '$.state') = 'ready'
+      return (db.prepare(`SELECT DISTINCT thread_id AS threadId FROM action_items WHERE json_extract(value, '$.state') IN ('ready', 'failed')
         OR (json_extract(value, '$.state') = 'pending' AND json_extract(value, '$.attempt.claimed') = 0 AND json_extract(value, '$.attempt.sentAt') IS NULL)`).all() as { threadId: string }[])
         .map((row) => row.threadId);
     },
@@ -333,8 +333,8 @@ export function createStore(bb: BbPluginApi) {
 
 const rank = (priority: Priority | undefined) => priority === "urgent" ? 0 : priority === "low" ? 2 : 1;
 
-// Unanswered, or answered but never delivered to the agent (it needs Resend).
-const isOpen = (item: Item) => item.state === "ready" || (item.state === "pending" && !item.attempt?.claimed && !item.attempt?.sentAt);
+// Unanswered, answered but never delivered to the agent (it needs Resend), or failed (it needs Retry or a check).
+const isOpen = (item: Item) => item.state === "ready" || item.state === "failed" || (item.state === "pending" && !item.attempt?.claimed && !item.attempt?.sentAt);
 const questionKey = (item: Item) => title(item).toLowerCase().replace(/\s+/g, " ").replace(/[\s?.!]+$/, "").trim();
 const idBase = (id: string) => id.replace(/-v\d+$/i, "");
 // Questions that share most of their meaningful words, such as "OK to spend $300 on the Reddit ad test?"

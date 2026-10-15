@@ -362,6 +362,20 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     <span className="iac-waiting-where">Waiting for answer</span>
     <span className="iac-waiting-question">{heading}</span>
   </button>;
+  // The timeline keeps one plain line per answered card; anything that still needs the user opens Waiting on you.
+  if (surface === "timeline") {
+    const needsUser = stalled || item.state === "failed";
+    const outcome = stalled ? "Not sent" : item.state === "failed" ? "Failed" : chosen ?? "Answered";
+    const kind = reply ? "Reply" : ask ? "Answer" : "Decision";
+    const line = <>
+      <Icon name={needsUser ? "CircleQuestion" : "Check"} className="iac-waiting-icon" aria-hidden />
+      <span className="iac-waiting-where">{kind}: {outcome}</span>
+      <span className="iac-waiting-question">{heading}</span>
+    </>;
+    return needsUser
+      ? <button type="button" className="iac-waiting-line" aria-label={`${outcome}, in Waiting on you: ${heading}`} onClick={() => openWaiting(threadId, id)}>{line}</button>
+      : <div className="iac-waiting-line iac-result-line">{line}</div>;
+  }
   return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit}>
     {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></>}
     {failure}
