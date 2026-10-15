@@ -1,6 +1,6 @@
 ---
 name: playgrounds
-description: "Answer with something the person can operate, inline in a bb message: Anatomy figures (working machines, via the bundled anatomy skill), calculators, charts, clickable mock-ups, live design previews, motion previews, simulations and step-by-step guides. Use it even when nobody says playground: explaining how a system, protocol, pipeline or mechanism works (to them or their team), \"show me\", \"let me play with / adjust\", comparing options or settings, mocking up a screen or flow, picking design values, or seeing a tradeoff play out over time."
+description: "Answer with something the person can operate, inline in a bb message: Anatomy figures (working machines, via the bundled how-it-works skill), calculators, charts, clickable mock-ups, live design previews, motion previews, simulations and step-by-step guides. Use it even when nobody says playground: explaining how a system, protocol, pipeline or mechanism works (to them or their team), \"show me\", \"let me play with / adjust\", comparing options or settings, mocking up a screen or flow, picking design values, or seeing a tradeoff play out over time."
 ---
 
 # Playgrounds
@@ -23,7 +23,7 @@ they never say "playground". Answer in prose only when one sentence would do.
 
 | They ask about | Build |
 | --- | --- |
-| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | An Anatomy figure: load the bundled `anatomy` skill and build its machine, with the model's inputs as playground parameters (see Anatomy figures) |
+| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | An Anatomy figure: load the bundled `how-it-works` skill and build its machine, with the model's inputs as playground parameters (see Anatomy figures) |
 | Numbers, pricing, "how much / which", a decision | Calculator set |
 | Funnels, time series, distributions | A chart, with the inputs that drive it |
 | A screen or flow | A clickable mock-up of it |
@@ -388,9 +388,9 @@ shows a setup step, two boards and hidden pieces), and
 
 [Anatomy](https://skills.wheresryan.sh/anatomy), by Ryan
 ([@wheresryan22](https://github.com/wheresryan22)), draws a technical idea as a
-working isometric machine. Playgrounds ships a copy as the `anatomy` skill.
+working isometric machine. Playgrounds ships a copy as the `how-it-works` skill.
 Whenever someone asks how a system, mechanism, protocol or pipeline works, load
-the `anatomy` skill and build the figure the framework-free way (a `build.mjs`
+the `how-it-works` skill and build the figure the framework-free way (a `build.mjs`
 that writes one standalone HTML page), then show that page as a playground:
 
 ```sh
@@ -398,7 +398,7 @@ bb playgrounds publish --playground-file /absolute/path/figure.html
 ```
 
 `--playground-file` reads only from this thread's workspace (its checkout; the
-`anatomy` skill's "In bb" says where to copy it), so a large figure never passes through your context. The card keeps the page's styles and
+`how-it-works` skill's "In bb" says where to copy it), so a large figure never passes through your context. The card keeps the page's styles and
 scripts, follows bb's light or dark theme, and fits the page to the card. Credit
 Ryan and Anatomy in your reply.
 

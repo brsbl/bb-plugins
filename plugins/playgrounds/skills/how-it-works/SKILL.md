@@ -1,6 +1,6 @@
 ---
-name: anatomy
-description: Build crafted, highly detailed, interactive isometric SVG figures that explain a technical idea as a real physical object (a test rig, a dial gauge, a cabinet of drawers, a plotter, a lock), with many small precise solid parts, four-tone shading, correct painter's order, a framed card with title, hint and live readout, and calm eased motion. Use this whenever someone wants an isometric illustration, an explanatory diagram or figure for docs, a blog post, a landing page or an article, a "Linear-style" or "premium" technical drawing, an interactive explainer, or an SVG that shows how a system, algorithm or component works, even if they never say "isometric". Works framework-free (TypeScript/JS that writes SVG and HTML) and in React/Next.js, and can add realistic WebGL shaders (fire, exhaust, water, caustics, lamp light) that live inside the drawing in the same isometric perspective.
+name: how-it-works
+description: "Explain how a system, mechanism, protocol, pipeline or piece of architecture works by building a working figure of it the person can operate in bb: the parts drawn as a real machine, moved by one model, with inputs they can change. Use whenever someone asks how something works, wants it explained to them or their team, or wants to see what happens when part of it fails or is under load, even if they never ask for a figure. Publish the figure with Playgrounds. Based on Anatomy by Ryan (@wheresryan22)."
 ---
 
 # Anatomy
@@ -8,9 +8,29 @@ description: Build crafted, highly detailed, interactive isometric SVG figures t
 Anatomy is by Ryan ([@wheresryan22](https://github.com/wheresryan22)), MIT
 licensed (see `LICENSE`): [skills.wheresryan.sh/anatomy](https://skills.wheresryan.sh/anatomy).
 This copy ships with the bb Playgrounds plugin, adapted from upstream commit
-`dbf697a527bbf7d358668e1557cb1e35ff725d46`. The only changes are this note, the "In bb"
+`dbf697a527bbf7d358668e1557cb1e35ff725d46`. The only changes are the name and description, this note, the "In bb"
 section below and the removal of the prebuilt example pages, which each
 example's `build.mjs` writes again. Credit Ryan and Anatomy whenever you show a figure.
+
+## In bb
+
+- **Work on a copy in the thread's workspace.** Builds write their pages next to
+  the script, so first copy this skill's folder (the one holding this
+  `SKILL.md`) into the thread's primary workspace, its checkout or working
+  directory, not thread storage or `/tmp`: `--playground-file` only reads files
+  inside that workspace. Keep the copy out of commits with a dot-directory that
+  git ignores locally:
+  `cp -R <skill folder> .how-it-works && echo .how-it-works/ >> "$(git rev-parse --git-path info/exclude)"`.
+  Build and edit there, never in the original.
+- **Build before you open an example.** The examples ship as sources only. Run
+  `node examples/<name>/build.mjs` in your copy to get its page.
+- **Show the figure as a playground.** Use the framework-free way (a `build.mjs`
+  that writes one standalone HTML page), then publish it from the workspace:
+  `bb playgrounds publish --playground-file /absolute/path/figure.html`. Read the
+  `playgrounds` skill's "Anatomy figures" section for the card's `read` and `key`
+  actions and for binding the model's inputs to playground parameters.
+
+## What it makes
 
 This skill makes figures like a small instrument on a bench: a heavy base on feet, rails with tick rulers, a carriage on bushings, knurled knobs, coil springs, a dial gauge whose needle moves, screws as tiny dots. The reader understands the idea because they recognise the machine. Every number the figure shows comes from the same model that moves its parts.
 
@@ -26,24 +46,6 @@ Eight complete examples ship with the skill. Open the closest one before you sta
 - `examples/turning-dial/` is the optional 3D mode: a combination dial that turns in true 3D with a small robot hand on it. It has about 90 live parts in metal materials, a second turn group, a hinge, a three-hinge finger that lifts and a pod that breaks off as a free body. A WebGL LED, its light pool and sparks follow the moving parts. `stress.mjs` beside it is a dense hand of about 380 parts in a cluttered workshop, used to measure performance.
 
 The test rig is the quality bar for the drawing itself. The Raptor is the bar for shader work: a WebGL effect has to reach its standard of world-space, no-pop, seamless rendering.
-
-## In bb
-
-- **Work on a copy in the thread's workspace.** Builds write their pages next to
-  the script, so first copy this skill's folder (the one holding this
-  `SKILL.md`) into the thread's primary workspace, its checkout or working
-  directory, not thread storage or `/tmp`: `--playground-file` only reads files
-  inside that workspace. Keep the copy out of commits with a dot-directory that
-  git ignores locally:
-  `cp -R <skill folder> .anatomy && echo .anatomy/ >> "$(git rev-parse --git-path info/exclude)"`.
-  Build and edit there, never in the original.
-- **Build before you open an example.** The examples ship as sources only. Run
-  `node examples/<name>/build.mjs` in your copy to get its page.
-- **Show the figure as a playground.** Use the framework-free way (a `build.mjs`
-  that writes one standalone HTML page), then publish it from the workspace:
-  `bb playgrounds publish --playground-file /absolute/path/figure.html`. Read the
-  `playgrounds` skill's "Anatomy figures" section for the card's `read` and `key`
-  actions and for binding the model's inputs to playground parameters.
 
 ## The one idea that matters
 
