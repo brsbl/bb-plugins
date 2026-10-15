@@ -205,7 +205,8 @@ ui.chart("load", {
   series: [{ label: "Europe", points: [[1, 1420], [2, 1390]] }, …],
   marks: [{ y: 1500, label: "Budget" }, { x: 6, label: "CDN change" }],
   bands: [{ x0: 6, x1: 12, label: "Rollout" }],  // a shaded span
-  now: 4,                            // a "now" line for simulations
+  now: 4,                            // a "now" line
+  compact: true,                     // a short timeline (simulations)
 });
 ```
 
@@ -237,22 +238,76 @@ detail says why) and `ui.breakdown(name,
 breakdown or chart; no tables of every scenario.
 
 **Simulation set.** For a tradeoff that plays out over time (a rate limit's
-burst against its steady rate, a backlog against worker count): a sentence of
-the knobs, one chart that draws the run as it plays, and a verdict; no diagram.
-To show how the system itself works, build an Anatomy figure instead:
+burst against its steady rate, a backlog against worker count): show the
+system running. Five parts, in this order:
+
+1. A one-line `.pg-title` that asks the question. No sentence under it.
+2. The **flow**: the stations items pass through, with the items travelling
+   between them.
+3. A small **timeline**: the run bar and a `compact` chart of the one quantity
+   that changes over time.
+4. **One control row**: a `.pg-form` of labeled `slider`, `field` or `select`
+   controls. Wrap a `stepper` or `segmented` in
+   `<div class="pg-field"><span>Workers</span>…</div>` so it has a label.
+5. **One outcome sentence.**
 
 ```html
-<div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
-<figure data-pg="chart" data-name="tokens" data-label="Tokens in the bucket"></figure>
+<h2 class="pg-title">How big should the bucket be?</h2>
+<div class="pg-surface">
+  <div data-pg="flow" data-name="limiter" data-label="Requests through the bucket"></div>
+  <div data-pg="run" data-name="sim" data-duration="30" data-chart="tokens"></div>
+  <figure data-pg="chart" data-name="tokens" data-label="Tokens in the bucket"></figure>
+</div>
+<div class="pg-form"><div data-pg="slider" data-param="capacity" data-label="Bucket size" …></div> …</div>
+<p data-pg="outcome" data-name="result"></p>
 ```
 
-`ui.run(name, { tick(dt, t), seek(t), end() })` plays it and pauses
-offscreen; the run bar sits above its chart, and dragging on the chart scrubs.
-In `tick` and `seek`, redraw the chart with the points up to `t`, and mark
-what went wrong as `events: { label: "Dropped", points: [[x, y, count]] }`. The verdict is an `answer`
-that says what happened and what setting fixes it. Put every knob in the
-sentence: no slider row and no readout row in addition, and at most one
-`<details>` for the model.
+```js
+const flow = ui.flow("limiter", {
+  stations: [
+    { id: "in", label: "Requests", kind: "source" },
+    { id: "bucket", label: "Tokens", kind: "queue" },
+    { id: "api", label: "Served", kind: "sink" },
+    { id: "drop", label: "Rejected", kind: "drop" },
+  ],
+  links: [["in", "bucket"], ["bucket", "api"], ["bucket", "drop", "no token"]],
+});
+flow.send("in", "bucket", "drop", { tone: "bad" }); // one item travels the route; the last hop takes the tone
+flow.count("bucket", 42, { max: 80 });              // waiting items (a queue shows them, +N past what fits); max draws a meter
+flow.status("api", "down");                          // up | busy | down
+flow.clear();                                        // drop items in flight and reset counts
+```
+
+Kinds: `source` (where items come from), `queue` (where they wait),
+`worker` (what handles them), `sink` (a good outcome) and `drop` (a bad one:
+rejected, failed, given up). Stations go left to right in the order you list
+them, and stack on a narrow card; a `drop` sits below (or beside) the station
+that feeds it, and a link back to an earlier station (a retry) is drawn as a
+loop. Labels are one or two words; a `count` is the number that matters at
+that station (a `text` option shows something else, such as "20/s"). Send one
+item per thing that happens: the flow spaces a steady stream, draws a burst as
+a cluster, skips what doesn't fit, and moves nothing when the person prefers
+reduced motion (counts still update). `read` returns every station's count
+and status.
+
+`ui.run(name, { tick(dt, t), seek(t), end(), format(t) })` plays it and pauses
+offscreen. Time is in the model's own units: set `data-duration` in those
+units and `data-speed` to how many play per second, and have `format` name the
+time the way the model does ("minute 42", "day 3"), never wall-clock seconds.
+In `tick`, send the items that moved since the last tick and update the
+counts; in `seek`, `clear()` the flow and set the counts at `t`. Redraw the
+timeline with `compact: true` and the points up to `t`: one series (queue
+depth, tokens left), no event dots.
+
+`ui.outcome(name, text)` writes the result as one plain sentence: what
+happened over the whole run and the setting that changes it ("Over 30
+seconds, **82 of 840 requests were rejected**; a bucket of **130 tokens**
+would serve them all."). `**…**` marks the numbers that matter.
+
+Don't put a simulation's controls inside a sentence (no `scrub` numbers in
+prose), and don't add a verdict `answer` tile, side stats (`.pg-stats`), a
+readout row or a second chart. To explain how a system works rather than tune
+it, build an Anatomy figure instead.
 
 **Game set.** For turn-based games you play with the person (Connect Four,
 tic-tac-toe, checkers, Battleship): a `turn` row, one `board`, and the rules
@@ -347,14 +402,13 @@ parameters too, so a follow-up like "with a walnut floor" changes the card.
 
 **Layout.** Every set card has three parts, in this order:
 
-1. **Head:** `.pg-title`, then the `.pg-sentence`.
+1. **Head:** `.pg-title`, then (calculator only) the `.pg-sentence`.
 2. **Body, one grey surface:**
    - Calculator: `<div class="pg-surface pg-result">` with the `answer` and its
      `breakdown` side by side.
-   - Simulation: `<div class="pg-surface">` with the `run` bar, then its
-     `chart`.
-     Then a `<div class="pg-result">` with the verdict `answer` and a
-     `<dl class="pg-stats">` of at most two numbers.
+   - Simulation: `<div class="pg-surface">` with the `flow`, the `run` bar
+     and its `compact` chart. Then the `.pg-form` control row and the
+     `outcome` sentence.
 3. **Foot:** `<div class="pg-foot">` with one `<details>` (the model and
    assumptions) and the `agent` lane.
 
@@ -362,7 +416,7 @@ Copy this structure from the references; don't add rows between the parts.
 
 **Composition.** Leave spacing, colors and type to the kit: no inline margins,
 no font sizes, and no colors except `--pg-accent` when the subject has one
-(paint, a brand). One hero per card (the `answer`, or the instrument); every
+(paint, a brand). One hero per card (the `answer`, the flow, or the instrument); every
 other number is quieter. Grey stage only behind the thing being shown. The agent moves time with
 `do <id> seek --args '["sim", 12]'`.
 

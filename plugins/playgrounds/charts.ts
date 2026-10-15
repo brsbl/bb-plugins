@@ -123,9 +123,10 @@ export const CHART_RUNTIME = String.raw`
     const at = box.left - hostBox.left + px, flip = px > box.width / 2 || at + 14 + tw > hostBox.width;
     c.tip.style.transform = "translate(" + Math.max(0, flip ? at - 14 - tw : at + 14) + "px, " + (box.top - hostBox.top) + "px)";
   }
-  // chart(name, { kind: "line|area|step|bars", height, x: { min, max, format, label }, y: { min, max, format, unit },
+  // chart(name, { kind: "line|area|step|bars", height, compact, x: { min, max, format, label }, y: { min, max, format, unit },
   //   series: [{ label, points: [[x, y], …], kind, color }], marks: [{ y, label } | { x, label }], bands: [{ x0, x1, label }], now, labels: "end",
   //   events: { label, points: [[x, y, count], …] } })
+  // compact: true is a short timeline under a flow (96 px tall, ticks at the bottom and top only).
   // x may be numbers or category strings (for bars). Two or more series get a legend; labels: "end" also names lines at their ends.
   function chart(name, spec) {
     const el = document.querySelector('[data-pg="chart"][data-name="' + name + '"]');
@@ -141,16 +142,19 @@ export const CHART_RUNTIME = String.raw`
     if (!categorical) xs.sort((a, b) => a - b);
     c.xs = xs;
     const W = Math.round(svg.getBoundingClientRect().width) || 480;
-    const H = Math.max(spec.height || num(c.host, "height", 0) || Math.round(clamp(W / 2.4, 160, 260)), Math.round(W / 3.4));
+    const short = spec.compact === true;
+    if (short) c.host.dataset.compact = ""; else delete c.host.dataset.compact;
+    const H = short ? Math.max(64, spec.height || num(c.host, "height", 0) || 96) : Math.max(spec.height || num(c.host, "height", 0) || Math.round(clamp(W / 2.4, 160, 260)), Math.round(W / 3.4));
     const ys = c.series.flatMap((s) => s.points.map((p) => p[1]));
     const fixedMax = spec.y && spec.y.max !== undefined;
     const y0 = spec.y && spec.y.min !== undefined ? spec.y.min : Math.min(0, ...ys);
     let y1 = fixedMax ? spec.y.max : Math.max(1, ...ys) * 1.06;
     const xMarks = (spec.marks || []).filter((m) => m.x !== undefined), yMarks = (spec.marks || []).filter((m) => m.y !== undefined);
-    const pad = { l: 0, r: 10, t: xMarks.some((m) => m.label) || (spec.bands || []).some((b) => b.label) ? 22 : 12, b: 24 };
+    const pad = { l: 0, r: 10, t: xMarks.some((m) => m.label) || (spec.bands || []).some((b) => b.label) ? 22 : short ? 8 : 12, b: short ? 20 : 24 };
     const count = clamp(Math.round((H - pad.t - pad.b) / 36), 2, 5);
     let yt = niceTicks(y0, y1, count);
-    if (fixedMax && yt.at(-1) !== y1) { const step = yt.length > 1 ? yt[1] - yt[0] : y1 - y0; yt = yt.filter((v) => v <= y1 - step * .4).concat(y1); }
+    if (short) yt = [y0, fixedMax ? y1 : yt.at(-1) < y1 ? Number((yt.at(-1) + (yt[1] - yt[0] || y1 - y0)).toFixed(10)) : yt.at(-1)];
+    else if (fixedMax && yt.at(-1) !== y1) { const step = yt.length > 1 ? yt[1] - yt[0] : y1 - y0; yt = yt.filter((v) => v <= y1 - step * .4).concat(y1); }
     else if (yt.length > 1 && yt.at(-1) < y1) yt.push(Number((yt.at(-1) + yt[1] - yt[0]).toFixed(10)));
     y1 = Math.max(y1, yt.at(-1));
     const unit = (spec.y && spec.y.unit) || "";

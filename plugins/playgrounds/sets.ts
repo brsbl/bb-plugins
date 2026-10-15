@@ -1,7 +1,8 @@
 // Higher-level component sets, composed from the base library in controls.ts.
 // Calculator set: scrubbable numbers inside a sentence, one answer, a breakdown bar.
-// Simulation set: a run bar (play, pause, scrub) driving the base chart, which
-// shows the run with a "now" marker and its events. The music set lives in controls.ts.
+// Simulation set: a flow that shows the items moving through the system, a run bar
+// (play, pause, scrub) driving a compact timeline chart, and one outcome sentence.
+// The music set lives in controls.ts.
 
 export const SETS_CSS = String.raw`
 .pg-sentence { margin-bottom: 0; font-size: 15px; line-height: 1.7; color: var(--pg-body); text-wrap: pretty; }
@@ -51,6 +52,49 @@ export const SETS_CSS = String.raw`
   .pg-stats { grid-template-columns: 1fr 1fr; text-align: left; }
 }
 .pg-sentence { max-width: 62ch; }
+/* Simulation set: the flow (stations left to right, items travelling the links) and the outcome sentence. */
+.pg-flow { position: relative; min-width: 0; }
+.pg-flow > svg { display: block; width: 100%; height: auto; overflow: visible; font-size: 11.5px; }
+.pg-flow .link { fill: none; stroke: color-mix(in srgb, var(--foreground) 20%, var(--card)); stroke-width: 1.5; stroke-linecap: round; }
+.pg-flow .link[data-drop] { stroke-dasharray: 3 4; }
+.pg-flow .head { fill: color-mix(in srgb, var(--foreground) 20%, var(--card)); }
+.pg-flow .link-label { fill: var(--pg-meta); font-size: 10.5px; }
+.pg-flow .shell { fill: var(--card); stroke: color-mix(in srgb, var(--foreground) 11%, var(--card)); }
+.pg-flow [data-kind=drop] .shell { fill: color-mix(in srgb, var(--pg-bad) 7%, var(--card)); stroke: color-mix(in srgb, var(--pg-bad) 30%, var(--card)); }
+.pg-flow [data-kind=sink] .shell { fill: color-mix(in srgb, var(--pg-good) 6%, var(--card)); stroke: color-mix(in srgb, var(--pg-good) 28%, var(--card)); }
+.pg-flow [data-status=down] .shell { fill: var(--card); stroke: var(--pg-bad); stroke-dasharray: 4 3; }
+.pg-flow [data-status=down] :is(.label, .value, .n, .wait):not([data-state]) { opacity: .45; }
+.pg-flow [data-status=up] .value[data-state] { fill: var(--pg-good); }
+.pg-flow [data-status=busy] .value[data-state] { fill: var(--pg-warn); }
+.pg-flow [data-status=down] .value[data-state] { fill: var(--pg-bad); }
+.pg-flow .label { fill: var(--pg-body); font-weight: 500; }
+.pg-flow .value { fill: var(--pg-ink); font-size: 16px; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.pg-flow .n { fill: var(--pg-meta); font-variant-numeric: tabular-nums; }
+.pg-flow .wait { fill: var(--pg-accent); }
+.pg-flow .more { fill: var(--pg-meta); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.pg-flow .track { fill: var(--pg-hairline); }
+.pg-flow .fill { fill: var(--pg-accent); }
+.pg-flow .badge { stroke: var(--card); stroke-width: 2; }
+.pg-flow [data-status=up] .badge { fill: var(--pg-good); }
+.pg-flow [data-status=busy] .badge { fill: var(--pg-warn); }
+.pg-flow [data-status=down] .badge { fill: var(--pg-bad); }
+.pg-flow .item { fill: var(--pg-accent); }
+.pg-flow .item[data-tone=good] { fill: var(--pg-good); }
+.pg-flow .item[data-tone=bad] { fill: var(--pg-bad); }
+.pg-flow .item[data-tone=warn] { fill: var(--pg-warn); }
+:where(body:has([data-pg]) > .pg-outcome) { margin-top: 22px; }
+.pg-outcome { margin-bottom: 0; max-width: 62ch; font-size: 14px; line-height: 1.5; color: var(--pg-body); text-wrap: pretty; }
+.pg-form > .pg-field > :is(.pg-stepper, .pg-seg) { justify-self: start; }
+.pg-outcome b { font-weight: 600; color: var(--pg-ink); }
+.pg-surface:has(> .pg-flow) { display: grid; gap: 14px; padding: 16px; }
+.pg-surface > .pg-flow + .pg-chart { padding-top: 12px; border-top: 1px solid var(--pg-hairline); }
+.pg-chart[data-compact] { gap: 6px; }
+.pg-chart[data-compact] .pg-chart-head { min-height: 22px; }
+.pg-chart[data-compact] .pg-run { gap: 6px; }
+.pg-chart[data-compact] .pg-run > button { width: 22px; height: 22px; }
+.pg-chart[data-compact] .pg-run > button .pg-glyph { width: 10px; height: 10px; }
+.pg-chart[data-compact] .pg-run output { font-size: 11.5px; color: var(--pg-meta); }
+.pg-chart[data-compact] > svg { font-size: 10.5px; }
 /* Game set: whose turn it is, and a new-game button, above the board. */
 .pg-turn { max-width: 420px; display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; font-weight: 500; color: var(--pg-ink); }
 .pg-turn > i { width: 10px; height: 10px; border-radius: 50%; background: var(--piece, var(--pg-meta)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 15%, transparent); }
@@ -156,7 +200,8 @@ export const SETS_RUNTIME = String.raw`
     }
   }
 
-  // A run bar: play, pause, replay and scrub time. ui.run(name, { tick(dt, t), seek(t) }).
+  // A run bar: play, pause, replay and scrub time. ui.run(name, { tick(dt, t), seek(t), end(), format(t) }),
+  // where format turns t into the model's own time ("minute 42") for the readout.
   // With data-chart="<chart name>" it sits above that chart and dragging on the chart scrubs.
   const runs = {};
   function runBar(el) {
@@ -168,7 +213,7 @@ export const SETS_RUNTIME = String.raw`
     const REPLAY = '<svg class="pg-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.8.8.8 0 1 1 1.5.5A4 4 0 1 0 8 4h-1l1.2 1.2-1.1 1.1L4.9 4.1 7.1 1.9l1.1 1.1L7.4 3H8Z"/></svg>';
     scrub.max = String(duration); scrub.setAttribute("aria-label", "Time");
     const r = { t: 0, playing: false, frame: 0, last: 0, visible: true, handlers: null, duration };
-    const paint = () => { scrub.value = String(r.t); out.textContent = format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; const ended = !r.playing && r.t >= r.duration; play.innerHTML = ended ? REPLAY : icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", ended ? "Replay" : r.playing ? "Pause" : "Play"); };
+    const paint = () => { scrub.value = String(r.t); out.textContent = r.handlers && typeof r.handlers.format === "function" ? String(r.handlers.format(r.t)) : format(Number(r.t.toFixed(1)), { step: .1 }) + " " + unit; scrub.setAttribute("aria-valuetext", out.textContent); const ended = !r.playing && r.t >= r.duration; play.innerHTML = ended ? REPLAY : icon(r.playing ? "pause" : "play"); play.setAttribute("aria-label", ended ? "Replay" : r.playing ? "Pause" : "Play"); };
     const tick = (now) => {
       r.frame = 0;
       if (!r.playing || !r.visible || document.hidden) { r.last = 0; return; }
@@ -200,17 +245,220 @@ export const SETS_RUNTIME = String.raw`
       c.svg.addEventListener("pointerdown", (e) => { c.svg.setPointerCapture(e.pointerId); at(e); });
       c.svg.addEventListener("pointermove", (e) => { if (c.svg.hasPointerCapture(e.pointerId)) at(e); });
     });
-    runs[name] = r; paint();
+    runs[name] = r; r.paint = paint; paint();
   }
   function run(name, handlers) {
     ready();
     const r = runs[name];
     if (!r) throw new Error("No run bar named " + name);
     r.handlers = handlers || {};
+    r.paint();
     if (attr(document.querySelector('[data-pg="run"][data-name="' + name + '"]'), "autoplay", "true") !== "false" && !reduced) r.api.play();
     return r.api;
   }
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Simulation set: the flow. ui.flow(name, { stations: [{ id, label, kind }], links: [[from, to, label]] })
+  // draws the system (kinds: source, queue, worker, sink, drop) left to right, or stacked when the card is
+  // narrow, and returns send (an item travels a link), count, status and clear. read() includes it.
+  const FLOW_KINDS = ["source", "queue", "worker", "sink", "drop"];
+  const FLOW_MAX_DOTS = 60, FLOW_SPACING = 100, FLOW_BACKLOG = 420, FLOW_CLUSTER = 8;
+  const flowDots = new Set();
+  let flowFrame = 0, flowBatch = 0, flowBatchQueued = false;
+  const bez = (p, k) => { const u = 1 - k; return [0, 1].map((i) => u * u * u * p[0][i] + 3 * u * u * k * p[1][i] + 3 * u * k * k * p[2][i] + k * k * k * p[3][i]); };
+  const ease = (k) => (k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+  function flowTick(now) {
+    flowFrame = 0;
+    for (const d of flowDots) {
+      if (now < d.start) continue;
+      let k = (now - d.start) / d.hop.dur;
+      if (k >= 1 && d.i < d.hops.length - 1) { d.i++; d.hop = d.hops[d.i]; d.start = now; k = 0; if (d.i === d.hops.length - 1 && d.tone) d.el.dataset.tone = d.tone; }
+      if (k >= 1) { d.el.remove(); flowDots.delete(d); d.flow.dots--; continue; }
+      const p = bez(d.hop.path, ease(k)), off = d.off * Math.sin(Math.PI * k);
+      d.el.setAttribute("cx", (p[0] + d.hop.nx * off).toFixed(1)); d.el.setAttribute("cy", (p[1] + d.hop.ny * off).toFixed(1)); d.el.removeAttribute("visibility");
+    }
+    if (flowDots.size) flowFrame = requestAnimationFrame(flowTick);
+  }
+  function dropDots(f) { for (const d of flowDots) if (d.flow === f) { d.el.remove(); flowDots.delete(d); } f.dots = 0; for (const l of f.links.values()) l.next = 0; f.groups = {}; }
+  function flowHost(el) {
+    if (el.__flow) return el.__flow;
+    el.classList.add("pg-flow");
+    const svg = svgEl("svg", { role: "img", "aria-label": attr(el, "label", attr(el, "name", "Flow")) });
+    const sr = document.createElement("ul"); sr.className = "pg-sr";
+    el.replaceChildren(svg, sr);
+    const f = { el, svg, sr, name: attr(el, "name", "flow"), stations: [], at: {}, links: new Map(), groups: {}, dots: 0, visible: true, width: 0 };
+    el.__flow = f;
+    new IntersectionObserver((entries) => { f.visible = entries[entries.length - 1].isIntersecting; if (!f.visible) dropDots(f); }).observe(el);
+    new ResizeObserver(() => { const w = Math.round(el.getBoundingClientRect().width); if (f.stations.length && w && Math.abs(w - f.width) > 1) layoutFlow(f); }).observe(el);
+    return f;
+  }
+  function layoutFlow(f) {
+    dropDots(f);
+    const W = Math.round(f.el.getBoundingClientRect().width) || 480; f.width = W;
+    const main = f.stations.filter((s) => s.kind !== "drop"), drops = f.stations.filter((s) => s.kind === "drop");
+    const idx = (id) => main.findIndex((s) => s.id === id);
+    const arcs = f.spec.links.some(([a, b]) => idx(a) >= 0 && idx(b) >= 0 && idx(b) !== idx(a) + 1);
+    const NH = 56, n = Math.max(1, main.length);
+    const wide = Math.min(140, (W - (n - 1) * 40) / n);
+    const vertical = n > 1 && wide < 92;
+    const box = {}, used = {};
+    const feeder = (id) => { const l = f.spec.links.find(([a, b]) => b === id && idx(a) >= 0); return l ? l[0] : main.length ? main[main.length - 1].id : null; };
+    if (!vertical) {
+      const top = arcs ? 34 : 1, gap = n > 1 ? (W - n * wide) / (n - 1) : 0;
+      main.forEach((s, i) => { box[s.id] = { x: n > 1 ? i * (wide + gap) : (W - wide) / 2, y: top, w: wide, h: NH }; });
+      drops.forEach((s) => { const fb = box[feeder(s.id)] || { x: 0 }; const k = used[fb.x] = (used[fb.x] || 0) + 1; box[s.id] = { x: clamp(fb.x + (k - 1) * (wide + 12), 0, W - wide), y: top + NH + 44, w: wide, h: NH }; });
+    } else {
+      const side = arcs ? 30 : 0, dw = drops.length ? clamp((W - side) * .34, 92, 150) : 0;
+      const mw = Math.min(240, W - side - (drops.length ? dw + 72 : 0));
+      main.forEach((s, i) => { box[s.id] = { x: side, y: 1 + i * (NH + 48), w: mw, h: NH }; });
+      drops.forEach((s) => { const fb = box[feeder(s.id)] || { y: 1 }; const k = used[fb.y] = (used[fb.y] || 0) + 1; box[s.id] = { x: W - dw, y: fb.y + (k - 1) * (NH + 10), w: dw, h: NH }; });
+    }
+    const H = Math.ceil(Math.max(...Object.values(box).map((b) => b.y + b.h)) + 1);
+    const svg = f.svg; svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.replaceChildren();
+    f.layer = svgEl("g"); f.vertical = vertical;
+    const side = (b, at) => (at === "r" ? [b.x + b.w, b.y + b.h / 2] : at === "l" ? [b.x, b.y + b.h / 2] : at === "t" ? [b.x + b.w / 2, b.y] : [b.x + b.w / 2, b.y + b.h]);
+    const lerp = (p, q, k) => [p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k];
+    f.links = new Map();
+    for (const [from, to, label] of f.spec.links) {
+      const A = box[from], B = box[to];
+      if (!A || !B) continue;
+      const ia = idx(from), ib = idx(to);
+      let p0, p3, p1, p2;
+      if (ia >= 0 && ib === ia + 1) { p0 = side(A, vertical ? "b" : "r"); p3 = side(B, vertical ? "t" : "l"); p1 = lerp(p0, p3, 1 / 3); p2 = lerp(p0, p3, 2 / 3); }
+      else if (ib < 0 || ia < 0) {
+        if (vertical) { p0 = side(A, "r"); p3 = side(B, "l"); const m = (p0[0] + p3[0]) / 2; p1 = [m, p0[1]]; p2 = [m, p3[1]]; }
+        else { p0 = side(A, "b"); p3 = side(B, "t"); const m = (p0[1] + p3[1]) / 2; p1 = [p0[0], m]; p2 = [p3[0], m]; }
+      } else if (vertical) { p0 = side(A, "l"); p3 = side(B, "l"); p1 = [A.x - 30, p0[1]]; p2 = [B.x - 30, p3[1]]; }
+      else { p0 = side(A, "t"); p3 = side(B, "t"); p1 = [p0[0], A.y - 40]; p2 = [p3[0], B.y - 40]; }
+      const path = [p0, p1, p2, p3], drop = ib < 0;
+      const length = Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) + (ia >= 0 && ib >= 0 && ib !== ia + 1 ? 60 : 0);
+      svg.append(svgEl("path", { class: "link", "data-drop": drop ? "" : undefined, d: "M" + p0.join(" ") + "C" + p1.join(" ") + " " + p2.join(" ") + " " + p3.join(" ") }));
+      const dx = p3[0] - p2[0] || p3[0] - p0[0], dy = p3[1] - p2[1] || p3[1] - p0[1], len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+      const tip = [p3[0] - ux * 1, p3[1] - uy * 1];
+      svg.append(svgEl("path", { class: "head", d: "M" + tip.join(" ") + "L" + (tip[0] - ux * 6 - uy * 3.5) + " " + (tip[1] - uy * 6 + ux * 3.5) + "L" + (tip[0] - ux * 6 + uy * 3.5) + " " + (tip[1] - uy * 6 - ux * 3.5) + "Z" }));
+      if (label) {
+        const mid = bez(path, .5), flat = Math.abs(p3[0] - p0[0]) >= Math.abs(p3[1] - p0[1]);
+        svg.append(svgEl("text", flat ? { class: "link-label", x: mid[0], y: mid[1] - 13, "text-anchor": "middle" } : { class: "link-label", x: mid[0] + 15, y: mid[1] + 3.5 }, String(label)));
+      }
+      f.links.set(from + ">" + to, { path, nx: -uy, ny: ux, dur: clamp(length / 200, .45, 1.2) * 1000, next: 0 });
+    }
+    for (const s of f.stations) {
+      const b = box[s.id], g = svgEl("g", { class: "node", "data-kind": s.kind });
+      const round = s.kind === "source" || s.kind === "sink" || s.kind === "drop";
+      g.append(svgEl("rect", { class: "shell", x: b.x + .5, y: b.y + .5, width: b.w - 1, height: b.h - 1, rx: round ? 16 : 10 }));
+      const pad = 14, fit = Math.max(4, Math.floor((b.w - pad * 2) / 6.4));
+      const name = s.label.length > fit ? s.label.slice(0, fit - 1).trimEnd() + "…" : s.label;
+      const label = svgEl("text", { class: "label", x: b.x + pad, y: b.y + 21 }, name);
+      if (name !== s.label) label.append(svgEl("title", {}, s.label));
+      const n = svgEl("text", { class: "n", x: b.x + b.w - pad, y: b.y + 21, "text-anchor": "end" });
+      const value = svgEl("text", { class: "value", x: b.x + pad, y: b.y + 43 });
+      const line = svgEl("g");
+      const badge = svgEl("circle", { class: "badge", cx: b.x + b.w - 5, cy: b.y + 5, r: 4.5, visibility: "hidden" });
+      g.append(label, n, value, line, badge); svg.append(g);
+      const at = f.at[s.id]; Object.assign(at, { b, g, label, n, value, line, badge, pad });
+      paintStation(f, s.id);
+    }
+    svg.append(f.layer);
+  }
+  function paintStation(f, id) {
+    const a = f.at[id], s = a.s;
+    if (!a.g) return;
+    const b = a.b, pad = a.pad, shown = a.text !== null ? a.text : format(a.count, {});
+    if (a.status) a.g.dataset.status = a.status; else delete a.g.dataset.status;
+    a.badge.setAttribute("visibility", a.status ? "visible" : "hidden");
+    a.line.replaceChildren();
+    if (s.kind === "queue") {
+      a.value.textContent = "";
+      a.n.textContent = a.max !== null ? shown + " / " + format(a.max, {}) : shown;
+      const y = b.y + 38, room = b.w - pad * 2;
+      if (a.max !== null) {
+        a.line.append(svgEl("rect", { class: "track", x: b.x + pad, y, width: room, height: 6, rx: 3 }));
+        const w = room * clamp(a.count / (a.max || 1), 0, 1);
+        if (w > 0) a.line.append(svgEl("rect", { class: "fill", x: b.x + pad, y, width: Math.max(6, w), height: 6, rx: 3 }));
+      } else {
+        const fit = Math.max(1, Math.floor((room + 3) / 9)), whole = Math.max(0, Math.round(a.count)), over = whole > fit;
+        const dots = over ? fit - 3 : whole;
+        for (let i = 0; i < dots; i++) a.line.append(svgEl("circle", { class: "wait", cx: b.x + pad + 3 + i * 9, cy: y + 3, r: 3 }));
+        if (over) a.line.append(svgEl("text", { class: "more", x: b.x + b.w - pad, y: y + 7, "text-anchor": "end" }, "+" + format(whole - dots, {})));
+        if (!whole) a.line.append(svgEl("text", { class: "more", x: b.x + pad, y: y + 7 }, "empty"));
+      }
+    } else {
+      a.n.textContent = "";
+      const word = a.text === null && a.count === null && a.status ? { up: "Up", down: "Down", busy: "Busy" }[a.status] : "";
+      a.value.textContent = word || (a.text !== null || a.count !== null ? shown : "");
+      if (word) a.value.dataset.state = ""; else delete a.value.dataset.state;
+    }
+    if (a.li) a.li.textContent = s.label + ": " + (a.count === null ? "" : shown) + (a.max !== null ? " of " + a.max : "") + (a.status ? ", " + a.status : "");
+  }
+  function flowRead(f) {
+    outputs[f.name] = { value: { stations: Object.fromEntries(f.stations.map((s) => { const a = f.at[s.id]; return [s.id, { label: s.label, kind: s.kind, count: a.count, max: a.max, text: a.text, status: a.status }]; })) } };
+  }
+  function flow(name, spec) {
+    const el = document.querySelector('[data-pg="flow"][data-name="' + name + '"]');
+    if (!el) throw new Error("No flow named " + name);
+    const f = flowHost(el), o = spec || {};
+    const stations = (Array.isArray(o.stations) ? o.stations : []).slice(0, 12).map((s) => ({ id: String(s.id), label: String(s.label ?? s.id), kind: FLOW_KINDS.includes(s.kind) ? s.kind : "worker" }));
+    const ids = new Set(stations.map((s) => s.id));
+    f.spec = { links: (Array.isArray(o.links) ? o.links : []).filter((l) => Array.isArray(l) && ids.has(String(l[0])) && ids.has(String(l[1]))).map((l) => [String(l[0]), String(l[1]), l[2] === undefined ? "" : String(l[2])]) };
+    f.stations = stations; f.at = {};
+    for (const s of stations) f.at[s.id] = { s, li: document.createElement("li"), count: s.kind === "queue" || s.kind === "sink" || s.kind === "drop" ? 0 : null, max: null, text: null, status: null };
+    f.sr.replaceChildren(...stations.map((s) => f.at[s.id].li));
+    layoutFlow(f); flowRead(f);
+    const station = (id) => { const a = f.at[String(id)]; if (!a) throw new Error("No station " + id + " in flow " + name); return a; };
+    return Object.freeze({
+      send(...args) {
+        const opts = args.length && args[args.length - 1] && typeof args[args.length - 1] === "object" ? args.pop() : {};
+        const route = args.map(String);
+        if (route.length < 2) throw new Error("send needs the station it leaves and the one it reaches");
+        const hops = route.slice(1).map((to, i) => { const l = f.links.get(route[i] + ">" + to); if (!l) throw new Error("No link from " + route[i] + " to " + to + " in flow " + name); return l; });
+        if (reduced || !f.visible || document.hidden || f.dots >= FLOW_MAX_DOTS) return false;
+        const tone = ["good", "bad", "warn"].includes(opts.tone) ? opts.tone : "";
+        const now = performance.now(), first = hops[0], key = route.join(">"), group = f.groups[key] || (f.groups[key] = { batch: -1, n: 0, start: 0 });
+        let start, off = 0;
+        if (group.batch === flowBatch) {
+          if (++group.n > FLOW_CLUSTER) return false;
+          start = group.start + group.n * 45; off = (group.n % 2 ? 1 : -1) * (2 + (group.n % 3) * 2.5);
+        } else {
+          start = Math.max(now, first.next);
+          if (start - now > FLOW_BACKLOG) { if (!tone) return false; start = now; }
+          group.batch = flowBatch; group.n = 0; group.start = start;
+        }
+        first.next = Math.max(first.next, start + FLOW_SPACING);
+        if (!flowBatchQueued) { flowBatchQueued = true; Promise.resolve().then(() => { flowBatch++; flowBatchQueued = false; }); }
+        const dot = svgEl("circle", { class: "item", r: 3.5, visibility: "hidden" });
+        if (tone && hops.length === 1) dot.dataset.tone = tone;
+        f.layer.append(dot); f.dots++;
+        flowDots.add({ flow: f, el: dot, hops, hop: first, i: 0, start, tone, off });
+        if (!flowFrame) flowFrame = requestAnimationFrame(flowTick);
+        return true;
+      },
+      count(id, n, more) {
+        const a = station(id), m = more || {};
+        a.count = n === null || n === undefined ? null : Number(n) || 0;
+        if ("max" in m) a.max = m.max === null ? null : Number(m.max);
+        if ("text" in m) a.text = m.text === null ? null : String(m.text);
+        paintStation(f, String(id)); flowRead(f);
+      },
+      status(id, value) {
+        const a = station(id);
+        if (value !== null && value !== undefined && !["up", "down", "busy"].includes(value)) throw new Error("A station's status is up, down or busy");
+        a.status = value || null; paintStation(f, String(id)); flowRead(f);
+      },
+      clear() {
+        dropDots(f);
+        for (const s of f.stations) { const a = f.at[s.id]; a.count = s.kind === "queue" || s.kind === "sink" || s.kind === "drop" ? 0 : null; a.text = null; a.status = null; paintStation(f, s.id); }
+        flowRead(f);
+      },
+    });
+  }
+  // The outcome: one plain sentence that says what happened. **Bold** marks the number that matters.
+  function outcome(name, text, more) {
+    const t = String(text ?? ""), o = more || {};
+    outputs[name] = { value: t.replace(/\*\*/g, ""), tone: o.tone || null };
+    for (const el of document.querySelectorAll('[data-pg="outcome"][data-name="' + name + '"]')) {
+      el.classList.add("pg-outcome"); el.setAttribute("aria-live", "polite");
+      el.replaceChildren(...t.split("**").map((part, i) => { if (i % 2 === 0) return document.createTextNode(part); const b = document.createElement("b"); b.textContent = part; return b; }));
+    }
+  }
   // Game set: ui.game({ board, you, me, first, move(board, move, who), winner(board), fromCell(row, col), say(move) }).
   // A tap on the board and the agent's move action take one path. Each of your moves is
   // emitted as a "move" event, so the agent waiting on watch answers without a chat message.
@@ -340,13 +588,13 @@ export const SETS_RUNTIME = String.raw`
     const img = e.target;
     if (img && img.tagName === "IMG" && /^https:\/\/thumb\.wikimedia\.org\//.test(img.src)) { img.dataset.retry = ""; img.src = img.src.replace("https://thumb.wikimedia.org/", "https://upload.wikimedia.org/"); }
   }, true);
-  Object.assign(SET_KINDS, { run: runBar, turn: (el) => el.classList.add("pg-turn"), guide, photos });
-  Object.assign(SET_UI, { answer: readyFirst(answer), breakdown: readyFirst(breakdown), run, game });
+  Object.assign(SET_KINDS, { run: runBar, turn: (el) => el.classList.add("pg-turn"), guide, photos, flow: flowHost, outcome: (el) => el.classList.add("pg-outcome") });
+  Object.assign(SET_UI, { answer: readyFirst(answer), breakdown: readyFirst(breakdown), run, game, flow: readyFirst(flow), outcome: readyFirst(outcome) });
   Object.assign(SET_ACTIONS, {
     move: (m) => playMove(m, theGame ? theGame.me : null),
     newGame: () => newGame("agent"),
     start: () => startGame("agent"),
-    seek: (name, t) => { const r = runs[String(name)]; if (!r) throw new Error("No run bar " + name); r.api.pause(); r.api.seek(t); lane("Moved to " + format(Number(t), { step: .1 }) + "."); return { t: r.t }; },
+    seek: (name, t) => { const r = runs[String(name)]; if (!r) throw new Error("No run bar " + name); r.api.pause(); r.api.seek(t); lane("Moved to " + (r.handlers && typeof r.handlers.format === "function" ? String(r.handlers.format(r.t)) : format(Number(t), { step: .1 })) + "."); return { t: r.t }; },
     run: (name, on) => { const r = runs[String(name)]; if (!r) throw new Error("No run bar " + name); if (on === false) r.api.pause(); else r.api.play(); return { playing: r.playing }; },
   });
 `;

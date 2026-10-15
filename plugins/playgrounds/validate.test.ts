@@ -17,6 +17,20 @@ it("accepts every reference card the skill tells agents to copy", () => {
   for (const name of cards) expect({ name, problems: kitProblems(readFileSync(new URL(name, dir), "utf8")) }).toEqual({ name, problems: [] });
 });
 
+it("builds the simulation reference from a flow, a control row and an outcome, not controls in a sentence", () => {
+  const card = readFileSync(new URL("./skills/playgrounds/references/rate-limiter.html", import.meta.url), "utf8");
+  expect(kitProblems(card)).toEqual([]);
+  for (const part of ['data-pg="flow"', 'data-pg="run"', 'data-pg="chart"', 'class="pg-form', 'data-pg="outcome"', "compact: true", "format: (t)"]) expect(card).toContain(part);
+  for (const part of ['data-pg="scrub"', "pg-sentence", 'data-pg="answer"', "pg-stats", "events:"]) expect(card).not.toContain(part);
+});
+
+it("requires a name on a flow and an outcome", () => {
+  expect(kitProblems('<div data-pg="flow" data-label="Jobs"></div>\n<p data-pg="outcome"></p>')).toEqual([
+    expect.stringMatching(/^line 1, <div data-pg="flow">: flow needs data-name/),
+    expect.stringMatching(/^line 2, <p data-pg="outcome">: outcome needs data-name/),
+  ]);
+});
+
 it("rejects data-suffix, which the kit ignores, and names data-unit instead", () => {
   const html =
     '<p class="pg-sentence">We have <span data-pg="scrub" data-param="users" data-label="Daily users" data-suffix="k" data-min="10" data-max="5000" data-step="10" data-value="1000"></span> daily users,\n' +
@@ -128,13 +142,17 @@ const EVERY_COMPONENT = `
 <div data-pg="photos"><img alt="" src="data:,"></div>
 <div data-pg="answer" data-name="verdict" data-label="Verdict"></div>
 <div data-pg="breakdown" data-name="parts"></div>
+<div data-pg="flow" data-name="jobs" data-label="Jobs"></div>
+<p data-pg="outcome" data-name="result"></p>
 <script>window.playground.ui.show("price", 12)</script>
 <script>window.playground.ui.table("rows", { columns: ["A"], rows: [[1]] })</script>
 <script>window.playground.ui.chart("load", { series: [{ label: "x", points: [[0, 1], [1, 2]] }] })</script>
 <script>window.playground.ui.chart("mix", { series: [{ label: "y", points: [["a", 1]] }] })</script>
 <script>window.playground.ui.answer("verdict", { value: "ok" })</script>
 <script>window.playground.ui.breakdown("parts", [{ label: "a", value: 1 }])</script>
-<script>window.playground.ui.run("sim", { tick() {}, seek() {} })</script>
+<script>window.playground.ui.run("sim", { tick() {}, seek() {}, format: (t) => "minute " + t })</script>
+<script>const f = window.playground.ui.flow("jobs", { stations: [{ id: "a", label: "In", kind: "source" }, { id: "b", label: "Out", kind: "sink" }], links: [["a", "b"]] }); f.count("b", 2); f.status("b", "up"); f.send("a", "b")</script>
+<script>window.playground.ui.outcome("result", "All **2** done.")</script>
 <script>window.playground.ui.game({ you: "X", me: "O", move: () => null })</script>`;
 
 it("allows every data-* attribute the kit reads through dataset from a component's own element", async () => {
@@ -180,7 +198,7 @@ it("allows every data-* attribute the kit reads through dataset from a component
   if (window.document.readyState !== "complete") await new Promise((resolve) => window.addEventListener("load", resolve));
   window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "z" }));
   const seen = [...reads];
-  for (const read of ["scrub prefix", "run duration", "run autoplay", "chart height", "keyboard octaves", "field placeholder", "board pieces", "agent empty"])
+  for (const read of ["scrub prefix", "run duration", "run autoplay", "chart height", "keyboard octaves", "field placeholder", "board pieces", "agent empty", "flow name", "flow label"])
     expect(seen).toContain(read);
   // hydrate reads data-pg and data-param from every element to decide what it is.
   const unexpected = seen.filter((read) => {

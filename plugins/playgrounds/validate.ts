@@ -38,13 +38,15 @@ export const KIT_ATTRIBUTES: Record<string, Record<string, AttrType>> = {
   photos: {},
   answer: { name: "text", label: "text" },
   breakdown: { name: "text" },
+  flow: { name: "text", label: "text" },
+  outcome: { name: "text" },
 };
 // Allowed on every component: the kit's conditional display, and styling hooks its CSS reads.
 export const SHARED_ATTRIBUTES = ["pg", "show", "tone", "primary"];
 const BOUND = ["field", "select", "slider", "tabs", "list", "board", "dial", "fader", "stepper", "segmented", "picker", "toggle", "steps", "scrub"];
 const CHOICE = ["select", "segmented", "tabs", "list", "picker"];
 const NUMERIC = ["field", "slider", "dial", "fader", "stepper", "scrub"];
-const NAMED = ["table", "chart", "answer", "breakdown"];
+const NAMED = ["table", "chart", "answer", "breakdown", "flow", "outcome"];
 const ALIASES: Record<string, string[]> = {
   suffix: ["unit"], units: ["unit"], default: ["value"], initial: ["value"], val: ["value"],
   minimum: ["min"], maximum: ["max"], increment: ["step"], choices: ["options"], items: ["options"],
