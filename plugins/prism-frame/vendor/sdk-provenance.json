@@ -1,0 +1,11 @@
+{
+  "package": "@get-bb/plugin-sdk@0.6.37",
+  "registryTarball": "https://registry.npmjs.org/@get-bb/plugin-sdk/-/plugin-sdk-0.6.37.tgz",
+  "registryIntegrity": "sha512-fltzoFz2DTSDo35tSMaDR/nlQeTE/WFO1BLUMD0LoJ+dbKsJBCloaK+Kl1BYXP+lABPBH7dgAAfKKKSIgCBzHA==",
+  "registryShasum": "50689403a23c0735cefcbaf4eaa1f41fc1723cf8",
+  "sourceRepository": "https://github.com/get-bb/bb",
+  "sourceCommit": "4c87fdec7b7effc022ff2ee31ec95c0a09c9ee62",
+  "sourcePath": "packages/plugin-sdk",
+  "archive": "get-bb-plugin-sdk-0.6.37.tgz",
+  "sha256": "c2989d2f2de43ac73f0a7ddc070709f017ce29b881fbae84b36f5b9883e082e9"
+}
