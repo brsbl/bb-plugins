@@ -146,3 +146,18 @@
 @container (max-width: 520px) {
   .iac-card { padding: calc(var(--iac-s) * 4); }
 }
+
+/* An unanswered card in the timeline is one line; it is answered in Waiting on you above the prompt box. */
+.iac-waiting-line { display: flex; align-items: center; gap: calc(var(--spacing, .25rem) * 1.5); max-width: 100%; margin: 6px 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: transparent; color: var(--muted-foreground); font: inherit; font-size: var(--text-xs, .75rem); text-align: left; cursor: pointer; }
+.iac-waiting-line:hover, .iac-waiting-line:focus-visible { background: var(--state-hover, var(--muted)); color: var(--foreground); outline: none; }
+.iac-waiting-icon { width: 14px; height: 14px; flex-shrink: 0; }
+.iac-waiting-question { min-width: 0; overflow: hidden; color: var(--foreground); text-overflow: ellipsis; white-space: nowrap; }
+.iac-waiting-where { flex-shrink: 0; }
+.iac-waiting-where::before { content: "· "; }
+.iac-table-lines { display: grid; }
+.iac-table-lines > .iac-card { margin: 6px 0; }
+/* In the drawer the card sits inside bb's prompt-stack chrome: no second border, one column. */
+.ac-card.ac-drawer { padding: 0; border: 0; background: transparent; }
+.ac-drawer .ac-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(var(--spacing, .25rem) * 1.5); }
+.ac-drawer .ac-context { font-size: var(--text-xs, .75rem); color: var(--muted-foreground); }
+.ac-drawer .ac-submit { justify-content: flex-end; }

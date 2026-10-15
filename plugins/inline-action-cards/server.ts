@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionIcons, actionLabel, actionMessage, mentionId, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type FollowUp, type Item } from "./model.js";
+import { actionIcons, actionLabel, actionMessage, mentionId, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, waitingSchema, type FollowUp, type Item, type Priority } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
@@ -17,6 +17,8 @@ const persistedTableSchema = z.union([
 ]);
 export const rpcContract = defineRpcContract({
   log: { input: z.object({ threadId: idSchema.optional() }).strict(), output: logSchema },
+  // Everything still waiting on the user across threads, for the drawer above the prompt box.
+  waiting: { input: z.object({}).strict(), output: waitingSchema },
   decideFromLog: { input: versioned.extend({ action: actionSchema.optional() }), output: itemSchema },
   get: { input: ref, output: itemViewSchema },
   save: { input: versioned.extend({ draft: draftSchema }), output: itemSchema },
@@ -92,23 +94,33 @@ export function createStore(bb: BbPluginApi) {
     assertAction(item, action);
     if (item.state === "failed" && action !== item.attempt?.action) throw new Error("Retry the original action, or reopen the card to choose another.");
     const attemptNote = noteSchema.parse(note ?? (item.state === "failed" ? item.attempt?.note : undefined) ?? "");
+    // An ask's answer is the user's own words, carried as the attempt note.
+    if (action === "answer" && !attemptNote) throw new Error("Write an answer first.");
     item.state = "pending";
     item.attempt = { id: randomUUID(), action, claimed: false, ...(attemptNote ? { note: attemptNote } : {}) };
     item.result = null;
   };
+  const withSources = async (items: Item[]) => {
+    const sources = new Map(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => [id, await threadSource(bb, id)] as const)));
+    return items.map((item) => ({ ...item, ...sources.get(item.threadId)! }));
+  };
   return {
     get,
     view: (threadId: string, id: string) => view(get(threadId, id)),
+    // Urgent first, then oldest; low priority last.
+    async waiting() {
+      const rows = db.prepare("SELECT value FROM action_items").all() as { value: string }[];
+      // Unanswered, or answered but never delivered to the agent (it needs Resend).
+      const open = rows.map((row) => itemSchema.parse(JSON.parse(row.value)))
+        .filter((item) => item.state === "ready" || (item.state === "pending" && !item.attempt?.claimed && !item.attempt?.sentAt));
+      return (await withSources(open)).sort((a, b) => rank(a.content.priority) - rank(b.content.priority)
+        || a.updatedAt.localeCompare(b.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
+    },
     async log(threadId?: string) {
       const rows = (threadId
         ? db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId)
         : db.prepare("SELECT value FROM action_items").all()) as { value: string }[];
-      const items = rows.map((row) => itemSchema.parse(JSON.parse(row.value)));
-      const titles = new Map<string, { title: string; projectId: string | null }>(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => {
-        try { const thread = await bb.sdk.threads.get({ threadId: id }); return [id, { title: thread.title ?? "Untitled thread", projectId: thread.projectId }] as const; }
-        catch { return [id, { title: "Unavailable thread", projectId: null }] as const; }
-      })));
-      const sorted = items.map((item) => ({ ...item, threadTitle: titles.get(item.threadId)!.title, threadProjectId: titles.get(item.threadId)!.projectId }))
+      const sorted = (await withSources(rows.map((row) => itemSchema.parse(JSON.parse(row.value)))))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
       // Failures need a retry and Later cards need a Resume, so both stay in Waiting on you; Later sorts last.
       const later = (item: Item) => item.state === "succeeded" && item.attempt?.action === "later";
@@ -246,6 +258,16 @@ export function createStore(bb: BbPluginApi) {
         item.attempt.sentAt ??= new Date().toISOString();
       });
     },
+    // An ask needs no claim: once its answer is sent, the question is settled.
+    answered(threadId: string, id: string, attemptId: string) {
+      return change(threadId, id, null, (item) => {
+        if (item.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.action !== "answer") throw new Error("This answer changed. Use the latest item.");
+        item.attempt.claimed = true;
+        item.attempt.sentAt ??= new Date().toISOString();
+        item.state = "succeeded";
+        item.result = { message: "Answered", retryable: false };
+      });
+    },
     // The host accepted the request (sent now, or queued behind a busy agent).
     submitted(input: z.infer<typeof rpcContract.submitted.input>) {
       const item = get(input.threadId, input.id);
@@ -277,6 +299,8 @@ export function createStore(bb: BbPluginApi) {
   };
 }
 
+const rank = (priority: Priority | undefined) => priority === "urgent" ? 0 : priority === "low" ? 2 : 1;
+
 // Card requests carry an action mention whose id is threadId:itemId:attemptId.
 function attemptRefs(pluginId: string, entry: QueueEntry) {
   return entry.content.flatMap((block) => block.type === "text" ? block.mentions : []).flatMap(({ resource }) => {
@@ -291,6 +315,7 @@ export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
   bb.rpc.register(rpcContract, {
     log: ({ threadId }) => store.log(threadId),
+    waiting: () => store.waiting(),
     async dispatch({ threadId, entries }) {
       if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
       // Resolve every durable reference before sending anything. Never accept arbitrary message text from the client.
@@ -312,8 +337,9 @@ export default function plugin(bb: BbPluginApi): void {
       });
       // This API owns queueing and dispatch; the user's composer, attachments and queued drafts are never edited.
       await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", text, mentions }] });
-      return rows.map(({ item, entry }) => entry.kind === "action"
-        ? store.submitted({ threadId, id: item.id, attemptId: entry.attemptId }) : item);
+      return rows.map(({ item, entry }) => entry.kind !== "action" ? item
+        : item.attempt?.action === "answer" ? store.answered(threadId, item.id, entry.attemptId)
+          : store.submitted({ threadId, id: item.id, attemptId: entry.attemptId }));
     },
     async decideFromLog(input) {
       const item = input.action ? store.prepare({ ...input, action: input.action }) : store.get(input.threadId, input.id);
@@ -364,6 +390,10 @@ export default function plugin(bb: BbPluginApi): void {
       }
       const changes = attempt === "changes";
       if (!changes && item.attempt?.id !== attempt) throw new Error("This action was replaced. Use the latest card.");
+      if (!changes && item.attempt?.action === "answer") return { context: JSON.stringify({
+        kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "answer", question: title(item), answer: item.attempt.note,
+        instruction: "This is the user's answer to your ask, in their own words. The ask is already settled: do not claim, report or resolve it. Act on the answer as you would the same reply typed in chat, under the user's existing authorization.",
+      }) };
       return { context: JSON.stringify({
         kind: "inline-action-card", threadId: item.threadId, itemId: item.id,
         intent: changes ? "request-changes" : item.state === "failed" ? "check-outcome" : "approved-action",
@@ -377,6 +407,7 @@ export default function plugin(bb: BbPluginApi): void {
   });
   const threadOption = { type: "string", description: "Owning thread; defaults to this thread" } as const;
   const itemPosition = [{ name: "id", required: true, description: "Stable item ID" }] as const;
+  const askPositions = [...itemPosition, { name: "question", required: true, description: "One-line question the user answers in their own words" }] as const;
   const scope = (ctx: PluginCliContext, thread?: string) => idSchema.parse(thread ?? ctx.threadId);
   const output = (item: Item | z.infer<typeof itemViewSchema>) => ({ exitCode: 0, stdout: `${JSON.stringify(item, null, 2)}\n` });
   bb.cli.register(defineCli({
@@ -403,9 +434,22 @@ export default function plugin(bb: BbPluginApi): void {
           return { exitCode: 0, stdout: `::actions{id="${id}"}\n` };
         },
       }),
+      ask: cliCommand({
+        summary: "Add a plain question to Waiting on you; it clears when the user answers or you resolve it",
+        positionals: askPositions,
+        options: {
+          thread: threadOption, urgent: { type: "boolean", description: "List it first in Waiting on you" },
+          context: { type: "string", description: "Optional short brief in Markdown" },
+        },
+        run({ options, positionals }, ctx) {
+          const id = idSchema.parse(positionals.id);
+          const item = store.create(scope(ctx, options.thread), id, { type: "ask", question: positionals.question, ...(options.urgent ? { priority: "urgent" } : {}), ...(options.context ? { context: options.context } : {}) });
+          return output(item);
+        },
+      }),
       create: cliCommand({
         summary: "Create one card; prints its directive", positionals: itemPosition,
-        options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply, Decide, or Choice JSON; use --item-stdin" } },
+        options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply, Decide, Choice, or Ask JSON, with optional priority; use --item-stdin" } },
         run({ options, positionals }, ctx) {
           const id = idSchema.parse(positionals.id);
           const item = store.create(scope(ctx, options.thread), id, JSON.parse(options.item));

@@ -36,21 +36,25 @@ function answer(label: RegExp | string, within_: HTMLElement = document.body) {
 function submit(within_: HTMLElement = document.body) {
   fireEvent.click(within(within_).getByRole("button", { name: /^Submit( \d+ answers?)?$/ }));
 }
-// The note opens from "Add note"; Submit sends whatever is in it.
-function note(value: string, within_: HTMLElement = document.body) {
-  fireEvent.click(within(within_).getByRole("button", { name: "Add note" }));
-  fireEvent.change(within(within_).getByRole("textbox", { name: "Note" }), { target: { value } });
+// After submitting, the drawer drops the item and says what was sent where.
+const sent = (label: string) => screen.findByText(`Sent “${label}” to Billing`);
+const source = { threadTitle: "Billing", threadProjectId: null };
+const directiveProps = (id: string, threadId = "thr_test") => ({ attributes: { id }, source: `::action{id="${id}"}`, message: { id: "msg_1", threadId, turnId: null, projectId: null }, openWorkspaceFile: null });
+// Open Waiting on you and the given item, the way a person does.
+async function openItem(question: RegExp | string) {
+  fireEvent.click(await screen.findByRole("button", { name: /^Waiting on you/ }));
+  fireEvent.click(await screen.findByRole("button", { name: typeof question === "string" ? `Answer: ${question}` : question }));
+  return screen.findByRole("form");
 }
-// After submitting, the card shows the chosen answer and its status.
-const chosen = (label: string) => screen.findByText(label, { selector: ".ac-outcome-answer" });
 async function setup(composerText = "", saveFailure = false, initialItem = fixture(), beforeSubmitted?: Promise<void>, dispatchFailure = false) {
   let item = initialItem;
   const calls: string[] = [];
   const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
+  const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, {
     composer: { scope: { kind: "thread", threadId: "thr_test" }, text: composerText },
     rpc: {
-      get: () => item,
+      waiting: () => item.state === "ready" ? [{ ...item, ...source }] : [],
+      get: () => ({ ...item, ...source }),
       save: (raw) => {
         const input = raw as { draft: string; revision: number };
         calls.push("save");
@@ -79,21 +83,22 @@ async function setup(composerText = "", saveFailure = false, initialItem = fixtu
       },
     },
   });
-  await screen.findByRole("form");
+  await openItem(/^Answer: /);
   return { slot, calls, get: () => item, reportSuccess: async () => {
     item = { ...item, revision: item.revision + 1, state: "succeeded", result: { message: "Sent", retryable: false } };
     await slot.behavior.emitRealtime("items", {});
   } };
 }
-it("shows the brief without a disclosure and links to the owning thread", async () => {
+it("shows the brief in Waiting on you and opens the owning thread", async () => {
   const item = { ...fixture(), threadTitle: "Workflow Inbox", threadProjectId: "proj_origin", content: { ...fixture().content, context: "What this is: the Inbox plan.\n\nNext: I keep the draft open if declined." } };
   const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, { rpc: { get: () => item } });
+  const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { rpc: { waiting: () => [item], get: () => item } });
+  await openItem(/^Answer: /);
   await screen.findByText(/Next: I keep the draft open/);
   expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
-  const link = screen.getByRole("link", { name: "Workflow Inbox" });
-  expect(link.getAttribute("href")).toBe("/projects/proj_origin/threads/thr_test");
-  fireEvent.click(link);
+  expect(screen.queryByRole("button", { name: "Add note" })).toBeNull();
+  expect(screen.getByText("Workflow Inbox")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Open thread/ }));
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread", threadId: "thr_test" }));
 });
 
@@ -117,9 +122,8 @@ it("flushes an immediate edit before submitting Send exactly once", async () => 
   expect(submittedMessages).toHaveLength(1);
   expect(submittedMentions).toMatchObject([{ provider: "action", id: "thr_test:esc-1:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Billing follow-up" }]);
   expect(get().content).toMatchObject({ draft: "My latest edit" });
-  await screen.findByText(/Sent\. Waiting for the agent\./);
-  expect(await chosen("Send")).toBeTruthy();
-  expect(screen.queryByRole("textbox")).toBeNull();
+  expect(await sent("Send")).toBeTruthy();
+  expect(screen.queryByRole("form")).toBeNull();
 });
 it("preserves an existing composer message", async () => {
   const { slot, calls } = await setup("Please also check another message");
@@ -137,8 +141,8 @@ it("replaces an obsolete local error when the agent reports success", async () =
   await screen.findByRole("alert");
   // Another client can complete the item while this view retains a local error.
   await reportSuccess();
-  await screen.findByText(/Sent to billing@example.com/);
-  expect(screen.queryByRole("alert")).toBeNull();
+  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  expect(screen.queryByRole("form")).toBeNull();
 });
 it("keeps an unsaved edit visible and offers recovery without submitting", async () => {
   const { slot, calls } = await setup("", true);
@@ -161,109 +165,12 @@ it("keeps an unsaved edit visible and offers recovery without submitting", async
   expect(submittedMessages).toHaveLength(0);
 });
 
-it("stages a reviewed table reply and sends it only with the sheet", async () => {
-  let items = [fixture(), { ...fixture(), id: "esc-2" }];
-  const calls: unknown[] = [];
-  const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "inbox" }, source: '::actions{id="inbox"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
-    composer: { scope: { kind: "thread", threadId: "thr_test" } },
-    rpc: {
-      table: () => ({ id: "inbox", threadId: "thr_test", title: "Replies", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
-      get: (raw) => items.find((item) => item.id === (raw as { id: string }).id),
-      prepareBatch: (raw) => {
-        const input = raw as { items: { id: string; revision: number; action: NonNullable<Item["attempt"]>["action"]; note?: string }[] };
-        calls.push(input);
-        items = items.map((item, index): Item => {
-          const entry = input.items.find((candidate) => candidate.id === item.id);
-          return entry ? { ...item, revision: item.revision + 1, state: "pending", attempt: { id: `ea45f71a-c216-4da4-a226-65736f4eccf${index}`, action: entry.action, claimed: false, ...(entry.note ? { note: entry.note } : {}) } } : item;
-        });
-        return items.filter((item) => input.items.some((entry) => entry.id === item.id));
-      },
-      dispatch: async (raw) => {
-        const ids = (raw as { entries: { id: string }[] }).entries.map((entry) => entry.id);
-        const sent = await dispatchFixture(items.filter((item) => ids.includes(item.id)));
-        items = items.map((item) => sent.find((next) => next.id === item.id) ?? item);
-        return sent;
-      },
-    },
-  });
-  const rows = await screen.findAllByRole("group", { name: /^Reply:/ });
-  // A form shows every draft; nothing hides behind Review.
-  expect(screen.getAllByRole("textbox", { name: "Draft" })).toHaveLength(2);
-  answer("Send", rows[1]!);
-  expect(submittedMessages).toHaveLength(0);
-  submit();
-  await waitFor(() => expect(submittedMessages).toHaveLength(1));
-  expect(calls).toEqual([expect.objectContaining({ items: [expect.objectContaining({ id: "esc-2", action: "send" })] })]);
-  await screen.findByText(/Sent\. Waiting for the agent\./);
-});
-
-it.each(["send", "yes", "no"] as const)("shows %s as submitting only while it is sent, then confirms the choice", async (action) => {
-  const item = fixture();
-  if (action !== "send") item.content = { type: "decide", question: "Switch digests?", consequence: "Keep schedules", yesLabel: "Switch", noLabel: "Keep" };
-  let release!: () => void;
-  const { slot } = await setup("", false, item, new Promise<void>((resolve) => { release = resolve; }));
-  const label = action === "send" ? "Send" : action === "yes" ? "Switch" : "Keep";
-  answer(label);
-  const button = screen.getByRole("button", { name: "Submit" });
-  fireEvent.click(button);
-  await waitFor(() => expect(submittedMessages).toHaveLength(1));
-  const pending = screen.getByRole("button", { name: "Submitting…" });
-  expect(pending).toBe(button);
-  expect(pending.getAttribute("aria-busy")).toBe("true");
-  expect((pending as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByRole("radio", { name: label }).matches(":disabled")).toBe(true);
-  release();
-  expect(await chosen(label)).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
-  expect(screen.queryByRole("radio")).toBeNull();
-});
-
-it("answers several rows as one form and sends every answer in one message", async () => {
-  let items: Item[] = ["one", "two", "three"].map((id) => ({ ...fixture(), id, content: { type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", noLabel: "Keep", actionKey: "switch" } }));
-  const calls: { items: { id: string; action: string }[] }[] = [];
-  const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
-    composer: { scope: { kind: "thread", threadId: "thr_test" } },
-    rpc: {
-      table: () => ({ id: "digests", threadId: "thr_test", title: "Digests", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
-      get: (raw) => items.find((item) => item.id === (raw as { id: string }).id),
-      prepareBatch: (raw) => {
-        const input = raw as { items: { id: string; revision: number; action: NonNullable<Item["attempt"]>["action"]; note?: string }[] };
-        calls.push(input as never);
-        items = items.map((item, index): Item => {
-          const entry = input.items.find((candidate) => candidate.id === item.id);
-          return entry ? { ...item, revision: item.revision + 1, state: "pending", attempt: { id: `ea45f71a-c216-4da4-a226-65736f4eccf${index}`, action: entry.action, claimed: false, ...(entry.note ? { note: entry.note } : {}) } } : item;
-        });
-        return items.filter((item) => input.items.some((entry) => entry.id === item.id));
-      },
-      dispatch: async (raw) => {
-        const ids = (raw as { entries: { id: string }[] }).entries.map((entry) => entry.id);
-        const sent = await dispatchFixture(items.filter((item) => ids.includes(item.id)));
-        items = items.map((item) => sent.find((next) => next.id === item.id) ?? item);
-        return sent;
-      },
-    },
-  });
-  const rows = await screen.findAllByRole("group", { name: /^Decision:/ });
-  expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
-  answer("Switch", rows[0]!);
-  answer("Keep", rows[1]!);
-  expect(submittedMessages).toHaveLength(0);
-  submit();
-  await waitFor(() => expect(submittedMessages).toHaveLength(1));
-  expect(calls).toEqual([{ id: "digests", threadId: "thr_test", items: [expect.objectContaining({ id: "one", action: "yes" }), expect.objectContaining({ id: "two", action: "no" })] }]);
-  expect(submittedMessages[0]!.split("\n")).toHaveLength(2);
-  expect(submittedMentions).toHaveLength(2);
-  await waitFor(() => expect(screen.getAllByText(/Sent\. Waiting for the agent\./)).toHaveLength(2));
-  expect(within(rows[2]!).getByRole("radio", { name: "Switch" })).toBeTruthy();
-});
-
 it("shows a card whose request never reached the agent as not sent, with Resend", async () => {
-  const item: Item = { ...fixture(), revision: 3, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, note: "how do i test?" }, content: { type: "decide", question: "Merge PR #42?", consequence: "Squash-merge it.", yesLabel: "Merge" } };
-  const { slot } = await setup("", false, item);
+  let item: Item = { ...fixture(), revision: 3, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, note: "how do i test?" }, content: { type: "decide", question: "Merge PR #42?", consequence: "Squash-merge it.", yesLabel: "Merge" } };
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.messageDirectives[0]!, directiveProps(item.id), { rpc: { get: () => item, dispatch: async () => { const next = await dispatchFixture([item]); item = next[0]!; return next; } } });
   expect((await screen.findByRole("status")).textContent).toContain("Not sent: it didn't reach the agent.");
-  expect(await chosen("Merge")).toBeTruthy();
+  expect(await screen.findByText("Merge", { selector: ".ac-outcome-answer" })).toBeTruthy();
   expect(screen.getByText("“how do i test?”")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Resend" }));
   await waitFor(() => expect(submittedMessages).toHaveLength(1));
@@ -293,31 +200,6 @@ it("keeps a prepared but unsent row in place with Resend", async () => {
   await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(submittedMentions).toMatchObject([{ id: "thr_test:one:ea45f71a-c216-4da4-a226-65736f4eccfd" }]);
   expect(await screen.findByText(/Sent\. Waiting for the agent\./)).toBeTruthy();
-});
-
-it("drops an answer when the agent changes its row, and keeps answers across a remount", async () => {
-  let items: Item[] = ["one", "two"].map((id) => ({ ...fixture(), id, content: { type: "choice", question: `Pick ${id}`, recommended: "b", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] } }));
-  const app = await loadPluginApp(() => import("./app.js"));
-  const props = { attributes: { id: "plans" }, source: '::actions{id="plans"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null };
-  const rpc = {
-    table: () => ({ id: "plans", threadId: "thr_test", title: "Plans", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }),
-    get: (raw: unknown) => ({ ...items.find((item) => item.id === (raw as { id: string }).id)!, followUps: [] }),
-  };
-  const checked = () => screen.getAllByRole("radio").filter((radio) => (radio as HTMLInputElement).checked).length;
-  let slot = renderSlot(app.messageDirectives[1]!, props, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc });
-  const rows = await screen.findAllByRole("group", { name: /^Choice:/ });
-  answer(/^Plan B/, rows[0]!);
-  answer(/^Plan A/, rows[1]!);
-  expect(checked()).toBe(2);
-  slot.lifecycle.unmount();
-  slot = renderSlot(app.messageDirectives[1]!, props, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc });
-  await screen.findAllByRole("group", { name: /^Choice:/ });
-  await waitFor(() => expect(checked()).toBe(2));
-  items = items.map((item) => item.id === "two" ? { ...item, revision: 2 } : item);
-  await slot.behavior.emitRealtime("items", {});
-  await waitFor(() => expect(checked()).toBe(1));
-  slot.lifecycle.unmount();
-  localStorage.clear();
 });
 
 it("Decision log refresh updates the reviewed draft while preserving unsaved local edits", async () => {
@@ -403,59 +285,10 @@ it("submits the picked option from a choice card, marking but never preselecting
   expect(submittedMentions).toMatchObject([{ provider: "action", id: "thr_test:setup:ea45f71a-c216-4da4-a226-65736f4eccfd", label: "Which account setup" }]);
   expect(screen.getByRole("button", { name: "Submitting…" }).getAttribute("aria-busy")).toBe("true");
   release();
-  expect(await chosen("UserSingle")).toBeTruthy();
+  expect(await sent("UserSingle")).toBeTruthy();
   expect(calls).toEqual(["choose", "submitted"]);
 });
-it("sends the note along with the chosen option", async () => {
-  const content = { type: "choice" as const, question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "UserSingle" }, { id: "multi", label: "UserMultiple" }] };
-  const { slot, get } = await setup("", false, { ...fixture(), id: "setup", content });
-  answer(/^UserMultiple/);
-  note("Keep the pool as backup");
-  submit();
-  await waitFor(() => expect(submittedMessages).toHaveLength(1));
-  expect(get().attempt).toMatchObject({ action: "choose", note: "Keep the pool as backup" });
-  expect(submittedMessages[0]).toContain(" — Keep the pool as backup");
-});
-it("saves a note with Enter without submitting the answer, and Escape restores the saved text", async () => {
-  const { slot, get } = await setup();
-  answer("Send");
-  note("  Keep a copy  ");
-  const input = screen.getByRole("textbox", { name: "Note" }) as HTMLTextAreaElement;
-  fireEvent.keyDown(input, { key: "Enter" });
-  expect(input.value).toBe("Keep a copy");
-  expect(input.readOnly).toBe(true);
-  expect(submittedMessages).toHaveLength(0);
-  expect(get().attempt).toBeNull();
-  fireEvent.click(input);
-  fireEvent.change(input, { target: { value: "Discard this edit" } });
-  fireEvent.keyDown(input, { key: "Escape" });
-  expect(input.value).toBe("Keep a copy");
-  expect(input.readOnly).toBe(true);
-  submit();
-  await waitFor(() => expect(submittedMessages).toHaveLength(1));
-  expect(get().attempt?.note).toBe("Keep a copy");
-});
-it("keeps IME Enter in the note editor and makes its icon actions local to the note", async () => {
-  const { slot, get } = await setup();
-  answer("Send");
-  note("Keep a copy");
-  const input = screen.getByRole("textbox", { name: "Note" }) as HTMLTextAreaElement;
-  fireEvent.keyDown(input, { key: "Enter", isComposing: true });
-  expect(input.readOnly).toBe(false);
-  const save = screen.getByRole("button", { name: "Save note" });
-  expect(save.getAttribute("type")).toBe("button");
-  fireEvent.click(save);
-  expect(input.readOnly).toBe(true);
-  fireEvent.click(input);
-  fireEvent.change(input, { target: { value: "Discard this edit" } });
-  const cancel = screen.getByRole("button", { name: "Cancel note" });
-  expect(cancel.getAttribute("type")).toBe("button");
-  fireEvent.click(cancel);
-  expect(input.value).toBe("Keep a copy");
-  expect(submittedMessages).toHaveLength(0);
-  expect(get().attempt).toBeNull();
-});
-it("keeps Submit disabled until an option is picked or a note is written", async () => {
+it("keeps Submit disabled until an option is picked", async () => {
   const content = { type: "choice" as const, question: "Pick a plan", options: [{ id: "a", label: "Plan A" }, { id: "b", label: "Plan B" }] };
   await setup("", false, { ...fixture(), id: "plan", content });
   const button = await screen.findByRole("button", { name: "Submit" });
@@ -464,42 +297,30 @@ it("keeps Submit disabled until an option is picked or a note is written", async
   expect((button as HTMLButtonElement).disabled).toBe(false);
 });
 
-it.each(["reply", "decide"] as const)("round-trips a %s note through click, message context, CLI claim, reload and result", async (type) => {
+it.each(["reply", "decide"] as const)("round-trips a %s answer from Waiting on you through message context, CLI claim, reload and result", async (type) => {
   let host = recordingHost();
   plugin(host.bb);
   const item = fixture();
   if (type === "decide") item.content = { type: "decide", question: "Switch digests?", consequence: "Switch the email digests", yesLabel: "Switch" };
-  const text = "but keep Money on the old automation";
   try {
     await host.harness.behavior.runCli(["create", item.id, "--thread", item.threadId, "--item", JSON.stringify(item.content)]);
     const app = await loadPluginApp(() => import("./app.js"));
-    const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: item.threadId, turnId: null, projectId: null }, openWorkspaceFile: null }, {
-      composer: { scope: { kind: "thread", threadId: item.threadId } },
-      rpc: {
-        get: (input) => host.harness.behavior.callRpc("get", input),
-        prepare: (input) => host.harness.behavior.callRpc("prepare", input),
-        dispatch: (input) => host.harness.behavior.callRpc("dispatch", input),
-      },
-    });
-    await screen.findByRole("radio", { name: type === "reply" ? "Send" : "Switch" });
+    const rpc = Object.fromEntries(["waiting", "get", "prepare", "dispatch"].map((name) => [name, (input: unknown) => host.harness.behavior.callRpc(name, input)]));
+    const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "thread", threadId: item.threadId } }, rpc });
+    await openItem(/^Answer: /);
     answer(type === "reply" ? "Send" : "Switch");
-    note(text);
     submit();
     await waitFor(() => expect(submittedMessages).toHaveLength(1));
-    expect(submittedMessages[0]).toContain(` — ${text}`);
-    const mention = submittedMentions[0]!;
-    const resolved = await host.harness.registrations.mentionProviders[0]!.resolve(mention.id);
-    const context = JSON.parse(resolved.context);
-    expect(context).toMatchObject({ note: text, intent: "approved-action" });
+    expect(submittedMessages[0]).not.toContain(" — ");
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);
+    expect(context).toMatchObject({ intent: "approved-action", action: type === "reply" ? "send" : "yes" });
     const claimed = await host.harness.behavior.runCli(["claim", item.id, "--thread", item.threadId, "--attempt", context.attemptId]);
-    expect(JSON.parse(claimed.stdout!).attempt).toMatchObject({ note: text, claimed: true });
+    expect(JSON.parse(claimed.stdout!).attempt).toMatchObject({ claimed: true });
     host = await host.harness.lifecycle.reload(plugin);
-    const saved = await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId]);
-    expect(JSON.parse(saved.stdout!).attempt.note).toBe(text);
     await host.harness.behavior.runCli(["report", item.id, "--thread", item.threadId, "--attempt", context.attemptId, "--outcome", "succeeded", "--message", "Switched"]);
-    await slot.behavior.emitRealtime("items", {});
-    await screen.findByText("Switched");
-    expect(screen.getByText(`“${text}”`).className).toContain("ac-outcome-note");
+    expect(JSON.parse((await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId])).stdout!)).toMatchObject({ state: "succeeded", result: { message: "Switched" } });
+    // Answered, it leaves Waiting on you.
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Answer: / })).toBeNull());
     slot.lifecycle.unmount();
   } finally { await host.harness.lifecycle.dispose(); }
 });
@@ -511,92 +332,6 @@ it("sends an answer without a note as plain approval", async () => {
   await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(get().attempt?.note).toBe("");
   expect(submittedMessages[0]).not.toContain(" — ");
-});
-
-it.each(["reply", "decide"] as const)("round-trips a %s comment without reserving an attempt or disabling choices", async (type) => {
-  let host = recordingHost();
-  plugin(host.bb);
-  const item = fixture();
-  if (type === "decide") item.content = { type: "decide", question: "Switch digests?", consequence: "Switch the email digests", yesLabel: "Switch" };
-  try {
-    await host.harness.behavior.runCli(["create", item.id, "--thread", item.threadId, "--item", JSON.stringify(item.content)]);
-    const app = await loadPluginApp(() => import("./app.js"));
-    const slot = renderSlot(app.messageDirectives[0]!, { attributes: { id: item.id }, source: '::action{id="esc-1"}', message: { id: "msg_1", threadId: item.threadId, turnId: null, projectId: null }, openWorkspaceFile: null }, {
-      composer: { scope: { kind: "thread", threadId: item.threadId } },
-      rpc: {
-        get: (input) => host.harness.behavior.callRpc("get", input),
-        comment: (input) => host.harness.behavior.callRpc("comment", input),
-        dispatch: (input) => host.harness.behavior.callRpc("dispatch", input),
-      },
-    });
-    const text = "Can you keep Money on the old one?";
-    // A note with no answer picked is sent on its own as a question.
-    await screen.findByRole("button", { name: "Add note" });
-    note(text);
-    submit();
-    await waitFor(() => expect(submittedMessages).toHaveLength(1));
-    expect(submittedMessages[0]).toContain(text);
-    expect(submittedMessages[0]).toMatch(type === "reply" ? /^Billing follow-up / : /^Switch digests /);
-    const mention = submittedMentions[0]!;
-    host = await host.harness.lifecycle.reload(plugin);
-    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
-    expect(context).toMatchObject({ intent: "comment", note: text, itemId: item.id });
-    expect(context).not.toHaveProperty("action");
-    expect(context).not.toHaveProperty("attemptId");
-    const saved = JSON.parse((await host.harness.behavior.runCli(["get", item.id, "--thread", item.threadId])).stdout!);
-    expect(saved).toMatchObject({ state: "ready", attempt: null, revision: 1 });
-    expect((screen.getByRole("radio", { name: type === "reply" ? "Send" : "Switch" }) as HTMLInputElement).disabled).toBe(false);
-    // The sent note is cleared and its editor closed.
-    expect(await screen.findByRole("button", { name: "Add note" })).toBeTruthy();
-    expect(screen.queryByRole("textbox", { name: "Note" })).toBeNull();
-    slot.lifecycle.unmount();
-  } finally { await host.harness.lifecycle.dispose(); }
-});
-
-it("keeps each row's own note in one submitted form, and shows Reply rows in full", async () => {
-  const host = recordingHost();
-  plugin(host.bb);
-  try {
-    for (const id of ["one", "two"]) await host.harness.behavior.runCli(["create", id, "--thread", "thr_test", "--item", JSON.stringify({ type: "decide", question: `Switch ${id}?`, consequence: "Keep schedules", yesLabel: "Switch", actionKey: "switch" })]);
-    await host.harness.behavior.runCli(["create-table", "digests", "--thread", "thr_test", "--table", JSON.stringify({ title: "Digests", ids: ["one", "two"] })]);
-    const app = await loadPluginApp(() => import("./app.js"));
-    const slot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "digests" }, source: '::actions{id="digests"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
-      composer: { scope: { kind: "thread", threadId: "thr_test" } },
-      rpc: {
-        table: (input) => host.harness.behavior.callRpc("table", input),
-        get: (input) => host.harness.behavior.callRpc("get", input),
-        prepareBatch: (input) => host.harness.behavior.callRpc("prepareBatch", input),
-        dispatch: (input) => host.harness.behavior.callRpc("dispatch", input),
-      },
-    });
-    const rows = await screen.findAllByRole("group", { name: /^Decision:/ });
-    expect(screen.queryByRole("alert")).toBeNull();
-    for (const [index, row] of rows.entries()) {
-      answer("Switch", row);
-      note(`Condition ${index}`, row);
-    }
-    submit();
-    await waitFor(() => expect(submittedMessages).toHaveLength(1));
-    expect(submittedMessages[0]).toContain(" — Condition 0");
-    expect(submittedMessages[0]).toContain(" — Condition 1");
-    for (const [index, mention] of submittedMentions.entries()) {
-      const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(mention.id)).context);
-      const claimed = JSON.parse((await host.harness.behavior.runCli(["claim", context.itemId, "--thread", "thr_test", "--attempt", context.attemptId])).stdout!);
-      expect(claimed.attempt.note).toBe(`Condition ${index}`);
-    }
-    slot.lifecycle.unmount();
-  } finally { await host.harness.lifecycle.dispose(); }
-
-  const app = await loadPluginApp(() => import("./app.js"));
-  const item = fixture();
-  const replySlot = renderSlot(app.messageDirectives[1]!, { attributes: { id: "replies" }, source: '::actions{id="replies"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
-    composer: { scope: { kind: "thread", threadId: "thr_test" } },
-    rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: [item.id], items: [item] }), get: () => item },
-  });
-  await screen.findByRole("group", { name: /^Reply:/ });
-  expect(screen.getByRole("textbox", { name: "Draft" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Add note" })).toBeTruthy();
-  replySlot.lifecycle.unmount();
 });
 
 it("Decision log offers a choice card Choose, Skip and Review, never Yes or No", async () => {
@@ -657,16 +392,74 @@ it("retries a failed table reply from its confirmation", async () => {
   await waitFor(() => expect(submittedMessages).toHaveLength(1));
   expect(calls).toEqual(["prepare"]);
 });
-it("never offers a bulk action, and Submit waits for an answer", async () => {
+it("shows a past table's unanswered rows as lines into Waiting on you, never as a form", async () => {
   const items = [fixture(), { ...fixture(), id: "esc-2" }];
   const app = await loadPluginApp(() => import("./app.js"));
   renderSlot(app.messageDirectives[1]!, { attributes: { id: "replies" }, source: '::actions{id="replies"}', message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null }, {
     composer: { scope: { kind: "thread", threadId: "thr_test" } },
-    rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: items.map((item) => item.id), items }), get: (raw) => items.find((item) => item.id === (raw as { id: string }).id) },
+    rpc: { table: () => ({ id: "replies", threadId: "thr_test", title: "Replies", ids: items.map((item) => item.id), items: items.map((item) => ({ ...item, followUps: [] })) }), get: (raw) => ({ ...items.find((item) => item.id === (raw as { id: string }).id)!, followUps: [] }) },
   });
-  expect(await screen.findAllByRole("group", { name: /^Reply:/ })).toHaveLength(2);
+  expect(await screen.findAllByRole("button", { name: /^In Waiting on you: / })).toHaveLength(2);
+  expect(screen.queryByRole("form")).toBeNull();
   expect(screen.queryByRole("button", { name: /all$/ })).toBeNull();
-  expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("opens an unanswered card from its timeline line in Waiting on you", async () => {
+  const item = fixture();
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { rpc: { waiting: () => [{ ...item, ...source }], get: () => item } });
+  renderSlot(app.messageDirectives[0]!, directiveProps(item.id), { rpc: { get: () => item } });
+  fireEvent.click(await screen.findByRole("button", { name: "In Waiting on you: Reply to billing@example.com: Missing refund" }));
+  expect(await screen.findByRole("form")).toBeTruthy();
+  expect(screen.getByRole("button", { name: /^Waiting on you/ }).getAttribute("aria-expanded")).toBe("true");
+});
+
+it("lists items urgent first with thread and age, steps through them, and hides when nothing waits", async () => {
+  const at = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const decide = (id: string, question: string, minutes: number, priority?: "urgent" | "low") => ({ ...fixture(), id, updatedAt: at(minutes), content: { type: "decide" as const, question, consequence: "Do it.", ...(priority ? { priority } : {}) }, threadTitle: `Thread ${id}`, threadProjectId: null });
+  let waiting = [decide("urgent", "Ship it?", 5, "urgent"), decide("old", "Archive it?", 3 * 24 * 60), decide("new", "Rename it?", 90)];
+  const app = await loadPluginApp(() => import("./app.js"));
+  const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { rpc: { waiting: () => waiting, get: (raw) => waiting.find((item) => item.id === (raw as { id: string }).id)! } });
+  const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+  expect(header.textContent).toContain("Urgent · Ship it?");
+  expect(header.textContent).toContain("3");
+  fireEvent.click(header);
+  const rows = within(screen.getByRole("list")).getAllByRole("button");
+  expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Answer: Ship it?", "Answer: Archive it?", "Answer: Rename it?"]);
+  expect(rows[0]!.textContent).toContain("Thread urgent");
+  expect(rows[1]!.textContent).toContain("3d");
+  fireEvent.click(rows[0]!);
+  expect(await screen.findByText("1 of 3")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(await screen.findByText("2 of 3")).toBeTruthy();
+  expect(screen.getByText("Archive it?", { selector: "p" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+  fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+  expect(await screen.findByText("3 of 3")).toBeTruthy();
+  waiting = [];
+  await slot.behavior.emitRealtime("items", {});
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull());
+});
+
+it("answers an ask in its own words and settles it without a claim", async () => {
+  const host = recordingHost();
+  plugin(host.bb);
+  try {
+    await host.harness.behavior.runCli(["ask", "channel", "Which channel should the report post to?", "--thread", "thr_test", "--urgent"]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const rpc = Object.fromEntries(["waiting", "get", "prepare", "dispatch"].map((name) => [name, (input: unknown) => host.harness.behavior.callRpc(name, input)]));
+    renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc });
+    await openItem("Answer: Which channel should the report post to?");
+    const button = screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "#feedback" } });
+    submit();
+    await waitFor(() => expect(submittedMessages).toEqual(["Answer Which channel should the report post to — #feedback"]));
+    expect(await screen.findByText(/Sent “#feedback” to/)).toBeTruthy();
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);
+    expect(context).toMatchObject({ intent: "answer", answer: "#feedback" });
+    expect(JSON.parse((await host.harness.behavior.runCli(["get", "channel", "--thread", "thr_test"])).stdout!)).toMatchObject({ state: "succeeded", result: { message: "Answered" } });
+  } finally { await host.harness.lifecycle.dispose(); }
 });
 
 it.each(["action", "actions"])("reserves the last %s height across virtualized reloads", async (directive) => {
@@ -682,14 +475,14 @@ it.each(["action", "actions"])("reserves the last %s height across virtualized r
   });
   try {
     let slot = renderSlot(target, props, { rpc: { get: () => item, table: () => table } });
-    await screen.findByRole("form");
+    await screen.findByRole("button", { name: /^In Waiting on you: / });
     slot.lifecycle.unmount();
     let finish!: () => void;
     const pending = new Promise<void>((resolve) => { finish = resolve; });
     slot = renderSlot(target, props, { rpc: { get: async () => { await pending; return item; }, table: async () => { await pending; return table; } } });
     expect(screen.getByRole("status").closest<HTMLElement>(".iac-container")!.style.minHeight).toBe("650px");
     finish();
-    await screen.findByRole("form");
+    await screen.findByRole("button", { name: /^In Waiting on you: / });
     await waitFor(() => expect(document.querySelector<HTMLElement>(".iac-container")!.style.minHeight).toBe(""));
     slot.lifecycle.unmount();
     // A desktop measurement must not reserve the wrong space after resizing to mobile.

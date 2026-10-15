@@ -1,6 +1,6 @@
 ---
 name: inline-action-cards
-description: Use whenever you need a user decision or approval in any thread, including merges or shipping, sending emails, applying changes, switching settings, or choosing between options. Create inline action cards instead of prose confirmation questions, handle card clicks, and report outcomes on the cards.
+description: Use whenever you need a user decision, approval or answer in any thread, including merges or shipping, sending emails, applying changes, switching settings, choosing between options, or a plain question waiting on the user. Create decision cards or asks in Waiting on you instead of prose confirmation questions, handle answers, and report outcomes on the cards.
 ---
 
 # Inline Decisions
@@ -16,6 +16,23 @@ Use a single card for that one decision. When the user picks one of several opti
 **Share cards at the end of your turn.** bb rolls up the messages and tool calls in the middle of a turn, so a card shared there is folded away where the user may never see it. Create every item with tool calls first, then emit each returned `::action{id="..."}` (or `::actions{id="..."}`) directive once, on its own line outside code fences, as the last thing in the turn's final message. Don't put a directive in an earlier message of the turn, and don't follow it with more tool calls or text.
 
 **Don't nag about waiting cards.** A waiting card is your open question, and the user may simply not have answered yet. By default, don't mention it at all: it stays in the thread and in the Decision log. Reshare a card only when: (1) your next step is blocked on that answer, (2) the user asks about it, or (3) the card changed (for example a revised draft). To reshare, emit the same `::action{id="..."}` (or `::actions{id="..."}`) directive again; the same live card renders in both places, so reuse the ID and don't create a new item. Reshare a card at most once per user reply, and never in two of your messages in a row without the user replying in between. Don't write "the card above is still waiting on your choice."
+
+## Waiting on you
+
+Every unanswered card and ask appears in **Waiting on you**, a drawer above the prompt box in every thread. It lists items from all threads, urgent first and then oldest. The user answers there; the answer is sent to the item's own thread. In the timeline, an unanswered card is one line that opens it in the drawer, and an answered card shows its result line. You still emit the directive so the thread records the decision and its result.
+
+Mark something urgent only when work is blocked on it now: add `"priority":"urgent"` to the item JSON (or `"low"` for anything that can wait).
+
+## Ask a plain question
+
+Anything waiting on the user that isn't a card goes in Waiting on you as an ask, never only in prose. Leads add an ask for every question waiting on the user and resolve it as soon as the user answers it anywhere else:
+
+```sh
+bb action-cards ask feedback-channel "Which channel should the weekly feedback report post to?" --urgent
+bb action-cards resolve feedback-channel --message 'Answered in chat: #feedback'
+```
+
+`--context` adds a short brief. The user's answer arrives as a message like “Answer <pill> — their words”, with `intent: answer` in hidden context. The ask is already settled: don't claim, report or resolve it; act on the answer as you would the same reply typed in chat. An ask needs no directive.
 
 All item data and drafts live in the plugin's SQLite storage. Never put them in thread storage. CLI JSON travels to the server; local paths do not.
 
@@ -105,7 +122,7 @@ Explain tradeoffs in the card’s `context` brief rather than relying on hints o
 
 Use a table only for at most 3 decisions that only make sense answered together, such as an action and the announcement that depends on it. Never use one to batch unrelated or backlog decisions; bring those one at a time. Create the items first, then create a table that references those same IDs. Emit its returned `::actions{id="..."}` directive on its own line. Rows keep their order as results arrive. Order rows by importance and keep each `question` scannable.
 
-Every card renders as a plain form. It names the source thread, then shows the question, `consequence`, and the full `context` brief. The answer is a radio group (Decide shows your Yes/No labels, Choice shows its options, Reply shows Send / Save to Gmail drafts under the full draft), followed by **Add note** and a **Submit** button. A table is one form with one Submit at the end: it sends one message with a mention per answered row, each with its own attempt and note. Rows the user left unanswered send nothing, so don't assume an answer for them. Keep `consequence` short and put long detail in `context`.
+In Waiting on you, each card opens as a form: the question, `consequence`, and the full `context` brief, then a radio group (Decide shows your Yes/No labels, Choice shows its options, Reply shows Send / Save to Gmail drafts under the full draft) and **Submit**. Each table row is its own item there and is answered on its own, so don't assume an answer for rows the user hasn't reached. Keep `consequence` short and put long detail in `context`.
 
 ```sh
 bb action-cards create price-change --item-stdin <<'JSON'
@@ -154,13 +171,9 @@ bb action-cards report esc-1 --attempt <uuid> --outcome failed --message 'Gmail 
 
 The card shows Retry. A new click creates a new attempt, which must be claimed again. If a timeout or crash leaves the outcome unknown, omit `--retryable`. The card offers Check outcome; inspect the service before reporting success or safe failure. Do not send again to discover whether the earlier send worked. A message with `check-outcome` context (or a legacy `Check outcome:` message) authorizes reconciliation only, not repeating the action. A pending Resend request uses the original attempt ID, so it cannot be claimed twice.
 
-## Comments with a choice
+## Notes and comments on older cards
 
-**Add note** opens the user's note under the answer; they can cancel it or save it before submitting. When Submit carries an answer, the note goes after the mention pill and is included as `note` in hidden context.
-
-## Comment without choosing
-
-When the user writes a note but picks no answer, Submit sends just the note as a follow-up question, with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `commentId`, `threadId`, and `itemId`; it has no action or attempt. A comment never approves the card's own action: never claim or create an attempt for it. Treat it as a chat message from the user. Answer questions, and follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization. If it is ambiguous, or the card's own action needs approval, ask the user to submit an answer on the card. The card stays ready, and other rows in the same table keep their answers.
+Waiting on you has no note field. Answers from older card versions can still carry a `note` after the mention pill; treat it as part of the approval. A note an older card sent with no answer picked arrives on its own as a follow-up question, with a speech-bubble pill. Hidden context contains `intent: comment`, `note`, `commentId`, `threadId`, and `itemId`; it has no action or attempt. A comment never approves the card's own action: never claim or create an attempt for it. Treat it as a chat message from the user. Answer questions, and follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization. If it is ambiguous, or the card's own action needs approval, ask the user to answer it in Waiting on you. The card stays ready.
 
 Answer the follow-up **on the card** so the answer sits next to the decision it is about:
 
@@ -195,8 +208,8 @@ A revision conflict means the user edited the draft meanwhile. Re-read and incor
 
 ## Decision log
 
-Point users to **Decision log** in the sidebar for waiting cards and past choices across threads. Read the log with `bb action-cards log --json`, or add `--thread <id>` to scope it to one thread.
+Point users to **Waiting on you** above the prompt box for open items, and to **Decision log** in the sidebar for past choices across threads. Read the log with `bb action-cards log --json`, or add `--thread <id>` to scope it to one thread.
 
 ## Limits
 
-Reply, Decide, and Choice cards, inline, plus the Decision log. No Gmail credentials, Gmail transport, autonomous send, scheduled reminder, or Undo is included. Agents supply the connected service and must report outcomes. The editor is a small autosaving plain-text field; it does not implement Docs rich text or proposal acceptance. Docs' private editor cannot be embedded or flushed safely by another plugin through the public SDK.
+Reply, Decide, Choice and Ask items, answered in Waiting on you, plus the Decision log. No Gmail credentials, Gmail transport, autonomous send, scheduled reminder, or Undo is included. Agents supply the connected service and must report outcomes. The editor is a small autosaving plain-text field; it does not implement Docs rich text or proposal acceptance. Docs' private editor cannot be embedded or flushed safely by another plugin through the public SDK.

@@ -496,3 +496,44 @@ it("checks an uncertain outcome without creating or authorizing another attempt"
   expect(context).toMatchObject({ intent: "check-outcome", attemptId });
   expect(() => store.claim(ref.threadId, ref.id, attemptId)).toThrow("already claimed");
 });
+
+describe("Waiting on you", () => {
+  it("lists open items across threads, urgent first then oldest and low last, including answers that never reached the agent", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const store = createStore(host.bb);
+    const decide = (question: string, priority?: "urgent" | "low") => ({ type: "decide", question, consequence: "Do it.", ...(priority ? { priority } : {}) });
+    store.create("thr_a", "low", decide("Low?", "low"));
+    store.create("thr_a", "first", decide("First?"));
+    store.create("thr_b", "second", decide("Second?"));
+    store.create("thr_b", "urgent", decide("Urgent?", "urgent"));
+    store.create("thr_b", "unsent", decide("Unsent?"));
+    store.prepare({ threadId: "thr_b", id: "unsent", revision: 1, action: "yes" });
+    store.create("thr_b", "sent", decide("Sent?"));
+    const sent = store.prepare({ threadId: "thr_b", id: "sent", revision: 1, action: "yes" });
+    store.submitted({ threadId: "thr_b", id: "sent", attemptId: sent.attempt!.id });
+    store.create("thr_b", "done", decide("Done?"));
+    store.resolve("thr_b", "done", "Moot");
+    const waiting = await host.harness.behavior.callRpc("waiting", {}) as Item[];
+    expect(waiting.map((item) => item.id)).toEqual(["urgent", "first", "second", "unsent", "low"]);
+  });
+  it("adds an ask from the CLI, requires a written answer, and settles it when the answer is sent", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => ({ ok: true, delivery: "queued" }) } } }); hosts.push(host); plugin(host.bb);
+    const created = await host.harness.behavior.runCli(["ask", "channel", "Which channel?", "--thread", ref.threadId, "--urgent", "--context", "The weekly report needs a home."]);
+    expect(JSON.parse(created.stdout!)).toMatchObject({ state: "ready", content: { type: "ask", question: "Which channel?", priority: "urgent", context: "The weekly report needs a home." } });
+    const store = createStore(host.bb);
+    expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "yes" })).toThrow("does not belong");
+    expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer" })).toThrow("Write an answer first");
+    const prepared = store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer", note: "#feedback" });
+    const [settled] = await host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId: prepared.attempt!.id }] }) as Item[];
+    expect(settled).toMatchObject({ state: "succeeded", attempt: { action: "answer", note: "#feedback", claimed: true }, result: { message: "Answered" } });
+    expect(host.harness.sdk.callsTo("threads.send")[0]![0]).toMatchObject({ input: [{ text: "Answer Which channel — #feedback" }] });
+    expect(() => store.claim(ref.threadId, "channel", prepared.attempt!.id)).toThrow();
+    expect(await host.harness.behavior.callRpc("waiting", {})).toEqual([]);
+  });
+  it("resolves an ask the user answered elsewhere", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    await host.harness.behavior.runCli(["ask", "archive", "OK to archive the workers?", "--thread", ref.threadId]);
+    const resolved = await host.harness.behavior.runCli(["resolve", "archive", "--thread", ref.threadId, "--message", "Answered in chat"]);
+    expect(JSON.parse(resolved.stdout!)).toMatchObject({ state: "succeeded", result: { message: "Answered in chat" } });
+  });
+});
