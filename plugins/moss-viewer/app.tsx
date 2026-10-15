@@ -23,7 +23,9 @@ import {
 import { EDITOR_NOTE_CHANGED, asNoteChanged, createEditorBridge, fromFrame, type EditorBridge, type EditorBridgeOptions } from "./editor-bridge";
 import { EditorStatus, MossEditorFrame, type EditorNote } from "./editor-panel";
 import type * as Moss from "./vendor/moss-editor.contract.js";
-import { COARSE_POINTER_HEADER_ICON_BUTTON_CLASS } from "./components/ui/coarse-pointer-sizing";
+import { COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS, COARSE_POINTER_TEXT_SM_CLASS } from "./components/ui/coarse-pointer-sizing";
+import { usePointerCoarse } from "./components/ui/hooks/use-pointer-coarse";
+import { ResponsiveDrawerShell } from "./components/ui/responsive-overlay";
 import { cn, formatHomePathForDisplay } from "./lib/utils";
 import {
   assetHref,
@@ -77,10 +79,9 @@ interface Kept {
   draft: Moss.MossDraft | null;
 }
 
-// bb's header icon button (28px, 16px glyph), the size its roomier panel and thread headers use.
 const HEADER_ICON_BUTTON_CLASS = cn(
   "inline-flex shrink-0 cursor-pointer items-center justify-center text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default disabled:opacity-50",
-  COARSE_POINTER_HEADER_ICON_BUTTON_CLASS,
+  COARSE_POINTER_COMPACT_ICON_BUTTON_CLASS,
 );
 /** Below this header width bb's file header folds its actions into a menu. */
 const NARROW_HEADER_PX = 560;
@@ -221,7 +222,7 @@ function HeaderButton({
 function NoteIcon() {
   return (
     <span className="flex size-4 shrink-0 items-center justify-center text-subtle-foreground max-md:pointer-coarse:size-5">
-      <Icon name="File" fallback="FileText" aria-hidden className="size-full" />
+      <Icon name="File" fallback="FileText" aria-hidden className="size-3.5 max-md:pointer-coarse:size-5" />
     </span>
   );
 }
@@ -249,7 +250,10 @@ function NotePath({ path }: { path: string }) {
             type="button"
             aria-label="Copy file path"
             onClick={copyPath}
-            className="min-w-0 cursor-pointer rounded-sm text-left font-mono text-sm font-medium leading-6 text-file-accent underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className={cn(
+              "min-w-0 cursor-pointer rounded-sm text-left font-normal text-file-accent underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              COARSE_POINTER_TEXT_SM_CLASS,
+            )}
           >
             <span dir="rtl" className="block w-min max-w-full truncate">
               {`\u200e${formatHomePathForDisplay(path)}`}
@@ -270,6 +274,81 @@ interface HeaderAction {
   label: string;
   disabled?: boolean;
   onSelect: () => void;
+}
+
+function TouchNoteActions({
+  path,
+  actions,
+  readSelection,
+  onSendToAgent,
+}: {
+  path: string;
+  actions: HeaderAction[];
+  readSelection: () => Moss.MossSelection | null;
+  onSendToAgent: (selection: Moss.MossSelection | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selection = useRef<Moss.MossSelection | null>(null);
+  const changeOpen = (next: boolean) => {
+    if (next) selection.current = readSelection();
+    setOpen(next);
+  };
+  const copyPath = () => {
+    void navigator.clipboard.writeText(path).then(
+      () => toast.success("File path copied", { position: "bottom-center", duration: COPIED_MS }),
+      () => toast.error("Failed to copy file path"),
+    );
+  };
+  const sheetActions: HeaderAction[] = [
+    { icon: "MessageSquarePlus", label: "Send to agent", onSelect: () => onSendToAgent(selection.current) },
+    { icon: "Copy", label: "Copy file path", onSelect: copyPath },
+    ...actions,
+  ];
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Note actions"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => changeOpen(true)}
+        className="absolute right-2 top-1 z-20 flex size-11 items-center justify-center rounded-lg border bg-surface-raised-solid text-muted-foreground shadow-sm active:bg-state-active focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <Icon name="MoreHorizontal" aria-hidden className="size-5" />
+      </button>
+      <ResponsiveDrawerShell open={open} onOpenChange={changeOpen} srLabel="Note actions">
+        <div className="flex min-h-11 shrink-0 items-center gap-2 px-4">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{noteTitle(path)}</span>
+          <button
+            type="button"
+            aria-label="Close note actions"
+            onClick={() => changeOpen(false)}
+            className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-state-active focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <Icon name="X" aria-hidden className="size-5" />
+          </button>
+        </div>
+        <div className="min-h-0 overflow-y-auto p-2">
+          {sheetActions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              disabled={action.disabled}
+              onClick={() => {
+                changeOpen(false);
+                action.onSelect();
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-md px-4 py-2 text-left text-sm active:bg-state-active focus-visible:bg-state-hover focus-visible:outline-none disabled:opacity-50"
+            >
+              <Icon name={action.icon} fallback="MoreHorizontal" aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </ResponsiveDrawerShell>
+    </>
+  );
 }
 
 function NoteHeader({
@@ -301,15 +380,15 @@ function NoteHeader({
     <TooltipProvider delayDuration={300}>
       <div
         ref={ref}
-        className="flex h-12 shrink-0 items-center gap-4 bg-surface-raised px-5 max-md:pointer-coarse:h-14 max-md:pointer-coarse:px-4"
+        className="flex h-[var(--bb-app-chrome-row-height,3rem)] shrink-0 items-center gap-2 bg-surface-raised-solid px-[var(--bb-panel-chrome-padding,1rem)] max-md:pointer-coarse:px-2"
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {canGoBack ? <HeaderButton icon="ChevronLeft" label="Back" onClick={onBack} /> : null}
           <NoteIcon />
           <NotePath path={path} />
           {status}
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {narrow
             ? null
             : actions.map((action) => (
@@ -481,6 +560,7 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const [original, setOriginal] = useState(false);
   const [missing, setMissing] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useHeaderCollapsed();
+  const touch = usePointerCoarse();
   // The open viewer's or editor's selection, read when the user sends the note to the agent.
   const selectionSource = useRef<(() => Moss.MossSelection | null) | null>(null);
   const setSelectionSource = useCallback((source: (() => Moss.MossSelection | null) | null) => {
@@ -782,14 +862,17 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   };
 
   // Send to agent, for this panel's thread: a mention of the selection, or the whole note, that the user sends.
-  const sendToAgent = () => {
-    const target = note;
-    let selection: Moss.MossSelection | null = null;
+  const readSelection = () => {
     try {
-      selection = selectionSource.current?.() ?? null;
+      return selectionSource.current?.() ?? null;
     } catch (error) {
       console.warn("[moss-viewer] could not read the selection; sending the whole note", error);
+      return null;
     }
+  };
+
+  const sendToAgent = (selection: Moss.MossSelection | null) => {
+    const target = note;
     const title = noteTitle(target.path);
     const shared = sharedSelection(selection);
     rpcRef.current
@@ -801,18 +884,19 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       .catch((error: unknown) => toast.error(`Couldn't send this note to the agent: ${messageOf(error)}`));
   };
 
+  const actions: HeaderAction[] = [
+    ...(restorable ? [{ icon: "ArrowTurnBackward", label: "Restore your last save from bb", onSelect: restoreLastSave }] : []),
+    { icon: "FolderOpen", label: touch ? "Show in Finder on Mac" : "Show in Finder", onSelect: revealNote },
+    { icon: "ExternalLink", label: touch ? "Open in Moss on Mac" : "Open in Moss", onSelect: openInMoss },
+  ];
   const header = (
     <NoteHeader
       path={note.path}
       canGoBack={stack.back.length > 0}
       status={editorNote ? <EditorStatus status={editorState.status} /> : null}
-      actions={[
-        ...(restorable ? [{ icon: "ArrowTurnBackward", label: "Restore your last save from bb", onSelect: restoreLastSave }] : []),
-        { icon: "FolderOpen", label: "Show in Finder", onSelect: revealNote },
-        { icon: "ExternalLink", label: "Open in Moss", onSelect: openInMoss },
-      ]}
+      actions={actions}
       onBack={back}
-      onSendToAgent={sendToAgent}
+      onSendToAgent={() => sendToAgent(readSelection())}
       collapsed={collapsed}
       onToggleCollapsed={() => setCollapsed(!collapsed)}
     />
@@ -822,10 +906,24 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {collapsed ? null : header}
       <div className={cn("relative min-h-0 flex-1", collapsed && "overflow-hidden")}>
-        {collapsed ? <SlideDownHeader>{header}</SlideDownHeader> : null}
+        {collapsed ? (
+          touch ? (
+            <TouchNoteActions
+              key={key}
+              path={note.path}
+              actions={[
+                ...(stack.back.length > 0 ? [{ icon: "ChevronLeft", label: "Back to previous note", onSelect: back }] : []),
+                ...actions,
+                { icon: "ChevronDown", label: "Keep header shown", onSelect: () => setCollapsed(false) },
+              ]}
+              readSelection={readSelection}
+              onSendToAgent={sendToAgent}
+            />
+          ) : <SlideDownHeader>{header}</SlideDownHeader>
+        ) : null}
         {collapsed && editorNote ? (
           // A save that needs attention stays in view while the header is hidden; the badge is empty otherwise.
-          <div className="pointer-events-none absolute right-4 top-4 z-10 rounded-md bg-surface-raised px-2 has-[[role=status]:empty]:hidden">
+          <div className={cn("pointer-events-none absolute top-4 z-10 rounded-md bg-surface-raised px-2 has-[[role=status]:empty]:hidden", touch ? "right-16" : "right-4")}>
             <EditorStatus status={editorState.status} />
           </div>
         ) : null}
