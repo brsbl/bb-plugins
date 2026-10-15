@@ -35,7 +35,8 @@
 .icx-dots i.icx-dot-on { background: var(--foreground); }
 .icx-note { display: flex; align-items: center; gap: 8px; margin: 12px 0; color: var(--muted-foreground); font-size: 13px; }
 .icx-retry { padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--foreground); font-size: 12px; cursor: pointer; }
-.icx-viewer-overlay { position: fixed; inset: 0; z-index: 1000; background: rgb(0 0 0 / 70%); }
+/* bb ImageLightbox uses black/70; its expanded diagram viewer uses --blur-sm (8px). */
+.icx-viewer-overlay { position: fixed; inset: 0; z-index: 1000; background: rgb(0 0 0 / 70%); -webkit-backdrop-filter: blur(var(--blur-sm, 8px)); backdrop-filter: blur(var(--blur-sm, 8px)); }
 .icx-viewer { position: fixed; inset: 24px; z-index: 1001; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 12px; padding: 48px 32px 0; color: white; outline: none; }
 .icx-viewer-stage { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; touch-action: pan-y pinch-zoom; }
 .icx-viewer-stage > img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 12px 40px color-mix(in oklab, var(--foreground) 20%, transparent); }
