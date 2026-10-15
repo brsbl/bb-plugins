@@ -1,0 +1,53 @@
+<!-- Pour-over coffee: the guide set. Real photos up top, then one step at a time.
+     Every step has its own drawing of the actual gear; the part that step touches
+     is in the accent color and everything else stays grey. -->
+<style>
+  :root { --pg-accent: #b5651d; }
+  .gear { --g: var(--pg-mark-muted); --soft: var(--pg-stage); }
+  .gear * { fill: var(--soft); stroke: var(--g); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .gear .on, .gear .on * { stroke: var(--pg-accent); fill: color-mix(in oklab, var(--pg-accent) 16%, var(--card)); }
+  .gear .flow { fill: none; stroke: var(--pg-accent); stroke-width: 3; stroke-dasharray: 4 5; }
+  .gear .note { fill: var(--pg-meta); stroke: none; font-size: 11px; }
+  @container (max-width: 460px) { .gear .note { font-size: 16px; } }
+</style>
+<h2 class="pg-title pg-reveal">Pour-over coffee</h2>
+<p class="pg-subtitle pg-reveal">One cup, about four minutes. 20 g coffee to 320 g water.</p>
+
+<div data-pg="photos" class="pg-reveal" style="--i:1">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Manual_drip_%28pour-over%29_coffee.jpg/960px-Manual_drip_%28pour-over%29_coffee.jpg" alt="Coffee dripping from a pour-over cone into a cup">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Coffee-filter.jpg/960px-Coffee-filter.jpg" alt="A paper coffee filter">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Drip_Coffee_Bangkok.jpg/960px-Drip_Coffee_Bangkok.jpg" alt="Drip coffee being brewed at a café counter">
+</div>
+
+<div data-pg="guide" data-param="step" class="pg-surface pg-reveal" style="--i:2">
+  <section data-step="1">
+    <svg class="gear" viewBox="0 0 460 200" role="img" aria-label="Kettle highlighted: heat the water"><g class="on"><path d="M64 156 Q58 100 88 88 H132 Q162 100 156 156 Z"/><path d="M98 88 Q110 74 122 88"/><path d="M156 108 Q184 116 164 146" fill="none"/><path d="M66 132 Q34 124 38 86 Q40 70 54 64" fill="none"/></g><g><path d="M286 70 H366 L348 114 H304 Z"/><path d="M306 78 L316 108 M326 78 V108 M346 78 L336 108" fill="none"/><path d="M298 114 H354 V121 H298 Z"/></g><g><path d="M296 124 H356 V172 Q356 182 346 182 H306 Q296 182 296 172 Z"/><path d="M356 136 Q378 140 356 164" fill="none"/></g><text class="note" x="40" y="194">Water just off the boil, 93–96 °C</text></svg>
+    <h3>Heat the water</h3>
+    <p>Bring about 500 g of water to just off the boil. The extra is for rinsing the filter.</p>
+  </section>
+  <section data-step="2">
+    <svg class="gear" viewBox="0 0 460 200" role="img" aria-label="Cone and filter highlighted: rinse the filter"><g><path d="M64 156 Q58 100 88 88 H132 Q162 100 156 156 Z"/><path d="M98 88 Q110 74 122 88"/><path d="M156 108 Q184 116 164 146" fill="none"/><path d="M66 132 Q34 124 38 86 Q40 70 54 64" fill="none"/></g><g class="on"><path d="M286 70 H366 L348 114 H304 Z"/><path d="M306 78 L316 108 M326 78 V108 M346 78 L336 108" fill="none"/><path d="M298 114 H354 V121 H298 Z"/></g><g><path d="M296 124 H356 V172 Q356 182 346 182 H306 Q296 182 296 172 Z"/><path d="M356 136 Q378 140 356 164" fill="none"/></g><path class="flow" d="M54 64 Q190 8 322 76"/></svg>
+    <h3>Rinse the filter</h3>
+    <p>Fold the paper filter along its seam, set it in the cone, and wet it all over. Pour the rinse water out of the cup.</p>
+  </section>
+  <section data-step="3">
+    <svg class="gear" viewBox="0 0 460 200" role="img" aria-label="Coffee bed highlighted: add the grounds"><g><path d="M64 156 Q58 100 88 88 H132 Q162 100 156 156 Z"/><path d="M98 88 Q110 74 122 88"/><path d="M156 108 Q184 116 164 146" fill="none"/><path d="M66 132 Q34 124 38 86 Q40 70 54 64" fill="none"/></g><g><path d="M286 70 H366 L348 114 H304 Z"/><path d="M306 78 L316 108 M326 78 V108 M346 78 L336 108" fill="none"/><path d="M298 114 H354 V121 H298 Z"/></g><g class="on"><path d="M294 80 H358 L352 96 H300 Z"/></g><g><path d="M296 124 H356 V172 Q356 182 346 182 H306 Q296 182 296 172 Z"/><path d="M356 136 Q378 140 356 164" fill="none"/></g><text class="note" x="380" y="92">20 g</text></svg>
+    <h3>Add the grounds</h3>
+    <p>Add 20 g of coffee ground medium-fine and shake the cone gently so the bed is flat.</p>
+  </section>
+  <section data-step="4">
+    <svg class="gear" viewBox="0 0 460 200" role="img" aria-label="Water stream highlighted: bloom"><g><path d="M64 156 Q58 100 88 88 H132 Q162 100 156 156 Z"/><path d="M98 88 Q110 74 122 88"/><path d="M156 108 Q184 116 164 146" fill="none"/><path d="M66 132 Q34 124 38 86 Q40 70 54 64" fill="none"/></g><g><path d="M286 70 H366 L348 114 H304 Z"/><path d="M306 78 L316 108 M326 78 V108 M346 78 L336 108" fill="none"/><path d="M298 114 H354 V121 H298 Z"/></g><g><path d="M294 80 H358 L352 96 H300 Z"/></g><g><path d="M296 124 H356 V172 Q356 182 346 182 H306 Q296 182 296 172 Z"/><path d="M356 136 Q378 140 356 164" fill="none"/></g><path class="flow" d="M54 64 Q190 8 322 76"/><text class="note" x="160" y="40">40 g · wait 30 s</text></svg>
+    <h3>Bloom</h3>
+    <p>Pour about 40 g of water in a spiral to wet every ground, then wait 30 seconds while it bubbles.</p>
+  </section>
+  <section data-step="5">
+    <svg class="gear" viewBox="0 0 460 200" role="img" aria-label="Cup highlighted: finish the pour"><g><path d="M64 156 Q58 100 88 88 H132 Q162 100 156 156 Z"/><path d="M98 88 Q110 74 122 88"/><path d="M156 108 Q184 116 164 146" fill="none"/><path d="M66 132 Q34 124 38 86 Q40 70 54 64" fill="none"/></g><g><path d="M286 70 H366 L348 114 H304 Z"/><path d="M306 78 L316 108 M326 78 V108 M346 78 L336 108" fill="none"/><path d="M298 114 H354 V121 H298 Z"/></g><g><path d="M294 80 H358 L352 96 H300 Z"/></g><g class="on"><path d="M296 124 H356 V172 Q356 182 346 182 H306 Q296 182 296 172 Z"/><path d="M356 136 Q378 140 356 164" fill="none"/></g><path class="flow" d="M54 64 Q190 8 322 76"/><path class="flow" d="M326 122 V140"/><text class="note" x="452" y="194" text-anchor="end">320 g by 3:30</text></svg>
+    <h3>Finish the pour</h3>
+    <p>Pour slowly in circles up to 320 g total, keeping the water level steady. It should finish dripping by about 3:30.</p>
+  </section>
+</div>
+
+<div class="pg-foot pg-reveal" style="--i:3">
+  <details><summary>Photos and ratios</summary><p>Photos from Wikimedia Commons (CC0, public domain, CC BY-SA 3.0). The ratio is 1:16; use 1:15 for stronger coffee.</p></details>
+  <div data-pg="agent" data-empty="Ask me about any step."></div>
+</div>
