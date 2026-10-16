@@ -259,7 +259,12 @@ it("log choices submit to their owning thread and resend the same durable attemp
     start: 5, end: 22, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:thr_other:${ref.id}:${pending.attempt!.id}` },
   }] }] });
   await expect(host.harness.behavior.callRpc("decideFromLog", args)).rejects.toThrow("changed");
-  const resent = await host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: pending.revision }) as Item;
+  // While the first request waits in the queue, a resend is refused rather than delivered twice.
+  await expect(host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: pending.revision })).rejects.toThrow("already sent");
+  // Once the thread went idle without it (the same state as idle recovery), it can be resent.
+  createStore(host.bb).release("thr_other", [{ id: ref.id, attemptId: pending.attempt!.id }]);
+  const unsent = createStore(host.bb).get("thr_other", ref.id);
+  const resent = await host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: unsent.revision }) as Item;
   expect(resent.attempt!.id).toBe(pending.attempt!.id);
   const log = await host.harness.behavior.callRpc("log", {});
   expect(log).toMatchObject({ waiting: [{ threadTitle: "Refund follow-up" }] });
@@ -613,7 +618,7 @@ describe("Waiting on you", () => {
     expect((await ask("launch-again", "Launch on Friday instead?", "--replaces", "launch-day")).exitCode).not.toBe(0);
     expect(() => store.get("thr_growth", "launch-again")).toThrow();
   });
-  it("adds an ask from the CLI, requires a written answer, and settles it when the answer is sent", async () => {
+  it("adds an ask from the CLI, and settles it only when the answer reaches the agent, not when it is queued", async () => {
     const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => ({ ok: true, delivery: "queued" }) } } }); hosts.push(host); plugin(host.bb);
     const created = await host.harness.behavior.runCli(["ask", "channel", "Which channel?", "--thread", ref.threadId, "--urgent", "--context", "The weekly report needs a home."]);
     expect(JSON.parse(created.stdout!)).toMatchObject({ state: "ready", content: { type: "ask", question: "Which channel?", priority: "urgent", context: "The weekly report needs a home." } });
@@ -621,11 +626,67 @@ describe("Waiting on you", () => {
     expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "yes" })).toThrow("does not belong");
     expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer" })).toThrow("Write an answer first");
     const prepared = store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer", note: "#feedback" });
-    const [settled] = await host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId: prepared.attempt!.id }] }) as Item[];
-    expect(settled).toMatchObject({ state: "succeeded", attempt: { action: "answer", note: "#feedback", claimed: true }, result: { message: "Answered" } });
+    const attemptId = prepared.attempt!.id;
+    const [queued] = await host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId }] }) as Item[];
+    // Queued behind a busy agent: sent, not yet answered.
+    expect(queued).toMatchObject({ state: "pending", attempt: { action: "answer", note: "#feedback", claimed: false } });
+    expect(queued.attempt!.sentAt).toBeTruthy();
     expect(host.harness.sdk.callsTo("threads.send")[0]![0]).toMatchObject({ input: [{ text: "Answer Which channel — #feedback" }] });
-    expect(() => store.claim(ref.threadId, "channel", prepared.attempt!.id)).toThrow();
     expect(await host.harness.behavior.callRpc("waiting", { threadId: ref.threadId })).toEqual([]);
+    // The user deletes the queued message: the ask comes back with its text, ready to resend.
+    const entry = makeQueueEntry({ threadId: ref.threadId, content: [{ type: "text", text: "Answer Which channel — #feedback", mentions: [{ start: 7, end: 20, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${ref.threadId}:channel:${attemptId}`, label: "Which channel" } }] }] });
+    await host.harness.behavior.emitThreadEvent("message.cancelled", { entry });
+    const restored = store.get(ref.threadId, "channel");
+    expect(restored).toMatchObject({ state: "pending", attempt: { id: attemptId, note: "#feedback", claimed: false } });
+    expect(restored.attempt!.sentAt).toBeUndefined();
+    expect((await host.harness.behavior.callRpc("waiting", { threadId: ref.threadId }) as Item[]).map((item) => item.id)).toEqual(["channel"]);
+    // Resent and delivered: bb resolves the answer's mention as the message reaches the agent, which settles it once.
+    await host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId }] });
+    expect(store.get(ref.threadId, "channel").state).toBe("pending");
+    const resolve = () => host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:channel:${attemptId}`);
+    expect(JSON.parse((await resolve()).context)).toMatchObject({ intent: "answer", answer: "#feedback" });
+    const settled = store.get(ref.threadId, "channel");
+    expect(settled).toMatchObject({ state: "succeeded", attempt: { claimed: true }, result: { message: "Answered" } });
+    await resolve();
+    expect(store.get(ref.threadId, "channel").revision).toBe(settled.revision);
+    expect(() => store.claim(ref.threadId, "channel", attemptId)).toThrow();
+  });
+  it("delivers an answer once when two clients resend the same attempt at the same time", async () => {
+    let release!: () => void;
+    const sending = new Promise<void>((resolve) => { release = resolve; });
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: async () => { await sending; return { ok: true, delivery: "queued" }; } } } }); hosts.push(host); plugin(host.bb);
+    await host.harness.behavior.runCli(["ask", "channel", "Which channel?", "--thread", ref.threadId]);
+    const prepared = createStore(host.bb).prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer", note: "#feedback" });
+    const send = () => host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId: prepared.attempt!.id }] });
+    const first = send();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect(send()).rejects.toThrow("already sent");
+    release();
+    await first;
+    expect(host.harness.sdk.callsTo("threads.send")).toHaveLength(1);
+  });
+  it("resends a failed first send from the Decision log through the same lifecycle, settling it once", async () => {
+    let fail = true;
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => { if (fail) throw new Error("Host disconnected"); return { ok: true, delivery: "sent" }; } } } }); hosts.push(host); plugin(host.bb);
+    await host.harness.behavior.runCli(["ask", "channel", "Which channel?", "--thread", ref.threadId]);
+    const store = createStore(host.bb);
+    const prepared = store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer", note: "#feedback" });
+    const attemptId = prepared.attempt!.id;
+    await expect(host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId }] })).rejects.toThrow("Host disconnected");
+    // The failed send released the attempt: it shows as not sent, with its text.
+    const unsent = store.get(ref.threadId, "channel");
+    expect(unsent).toMatchObject({ state: "pending", attempt: { note: "#feedback" } });
+    expect(unsent.attempt!.sentAt).toBeUndefined();
+    fail = false;
+    await host.harness.behavior.callRpc("decideFromLog", { threadId: ref.threadId, id: "channel", revision: unsent.revision });
+    expect(host.harness.sdk.callsTo("threads.send").at(-1)![0]).toMatchObject({ input: [{ text: "Answer Which channel — #feedback" }] });
+    await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:channel:${attemptId}`);
+    const settled = store.get(ref.threadId, "channel");
+    expect(settled).toMatchObject({ state: "succeeded", result: { message: "Answered" } });
+    // Idle recovery leaves a settled answer alone, and the log can't send it again.
+    store.undelivered(ref.threadId);
+    expect(store.get(ref.threadId, "channel").revision).toBe(settled.revision);
+    await expect(host.harness.behavior.callRpc("decideFromLog", { threadId: ref.threadId, id: "channel", revision: settled.revision })).rejects.toThrow("changed");
   });
   it("resolves an ask the user answered elsewhere", async () => {
     const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);

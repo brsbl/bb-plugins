@@ -1,6 +1,6 @@
 // Action Cards components. Presentational only: they take values and callbacks and never call RPC.
 // Hierarchy, top to bottom: question → what happens → evidence → answer → note + submit → outcome.
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Button } from "../components/ui/button.js";
 import { cn } from "../lib/utils.js";
 import "./tokens.css";
@@ -9,8 +9,8 @@ import "./components.css";
 export type Option = { id: string; label: string; hint?: string; destructive?: boolean };
 
 /** The card surface. A single decision is a form; a group is one form holding several decisions. */
-export function DecisionCard({ children, onSubmit, label, className }: { children: ReactNode; onSubmit?: () => void; label: string; className?: string }) {
-  return <form className={cn("ac ac-card", className)} aria-label={label} onSubmit={(event: FormEvent) => { event.preventDefault(); onSubmit?.(); }}>{children}</form>;
+export function DecisionCard({ children, onSubmit, onKeyDown, label, className }: { children: ReactNode; onSubmit?: () => void; onKeyDown?: (event: KeyboardEvent<HTMLFormElement>) => void; label: string; className?: string }) {
+  return <form className={cn("ac ac-card", className)} aria-label={label} onKeyDown={onKeyDown} onSubmit={(event: FormEvent) => { event.preventDefault(); onSubmit?.(); }}>{children}</form>;
 }
 
 /** Question first; consequence is the quiet line that says what the answer does. */

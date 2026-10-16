@@ -290,15 +290,36 @@ export function createStore(bb: BbPluginApi) {
         item.attempt.sentAt ??= new Date().toISOString();
       });
     },
-    // An ask needs no claim: once its answer is sent, the question is settled.
+    // An ask needs no claim: it settles once its answer reaches the agent, which is when bb resolves the
+    // answer's mention. Queued is not delivered. Settling twice is a no-op, so a re-drained message can't repeat it.
     answered(threadId: string, id: string, attemptId: string) {
-      return change(threadId, id, null, (item) => {
-        if (item.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.action !== "answer") throw new Error("This answer changed. Use the latest item.");
-        item.attempt.claimed = true;
-        item.attempt.sentAt ??= new Date().toISOString();
-        item.state = "succeeded";
-        item.result = { message: "Answered", retryable: false };
+      const item = get(threadId, id);
+      if (item.attempt?.id !== attemptId || item.attempt.action !== "answer" || item.state !== "pending") return item;
+      return change(threadId, id, null, (next) => {
+        next.attempt!.claimed = true;
+        next.attempt!.sentAt ??= new Date().toISOString();
+        next.state = "succeeded";
+        next.result = { message: "Answered", retryable: false };
       });
+    },
+    // Reserve each pending attempt before its message is sent, so a second client resending the same attempt
+    // is refused instead of delivering it twice. Returns the attempts it reserved.
+    reserve(threadId: string, entries: { id: string; attemptId: string }[]) {
+      const reserved = db.transaction(() => entries.flatMap(({ id, attemptId }) => {
+        const item = get(threadId, id);
+        if (item.state !== "pending" || item.attempt?.id !== attemptId) return [];
+        if (item.attempt.sentAt || item.attempt.claimed) throw new Error("This answer was already sent. It reaches the agent when the thread is free.");
+        change(threadId, id, null, (next) => { next.attempt!.sentAt = new Date().toISOString(); });
+        return [{ id, attemptId }];
+      }))();
+      return reserved;
+    },
+    // The send failed: the reserved attempts were never sent, so they can be sent again.
+    release(threadId: string, entries: { id: string; attemptId: string }[]) {
+      for (const { id, attemptId } of entries) {
+        const item = get(threadId, id);
+        if (item.state === "pending" && item.attempt?.id === attemptId && !item.attempt.claimed) change(threadId, id, null, (next) => { delete next.attempt!.sentAt; });
+      }
     },
     // The host accepted the request (sent now, or queued behind a busy agent).
     submitted(input: z.infer<typeof rpcContract.submitted.input>) {
@@ -311,7 +332,9 @@ export function createStore(bb: BbPluginApi) {
       for (const { threadId, id, attemptId } of attemptRefs(bb.pluginId, entry)) {
         const item = read.get(threadId, id) ? get(threadId, id) : null;
         if (item?.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.claimed) continue;
-        change(threadId, id, null, (next) => { next.state = "ready"; next.attempt = null; });
+        // An ask keeps its written answer: it shows as not sent, with Resend, instead of losing the text.
+        if (item.attempt.action === "answer") change(threadId, id, null, (next) => { delete next.attempt!.sentAt; });
+        else change(threadId, id, null, (next) => { next.state = "ready"; next.attempt = null; });
       }
     },
     report(threadId: string, id: string, attemptId: string, outcome: "succeeded" | "failed", message: string, retryable: boolean) {
@@ -370,46 +393,46 @@ function attemptRefs(pluginId: string, entry: QueueEntry) {
 
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
+  // Sends card answers and comments to their thread as one message. Never accepts arbitrary message text from the client.
+  const sendEntries = async (threadId: string, entries: z.infer<typeof rpcContract.dispatch.input>["entries"]) => {
+    if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
+    // Resolve every durable reference before sending anything.
+    const checked = entries.map((entry) => {
+      const item = store.get(threadId, entry.id);
+      if (entry.kind === "action" && ((item.state !== "pending" && !(item.state === "failed" && !item.result?.retryable)) || item.attempt?.id !== entry.attemptId)) throw new Error("This action changed. Use the latest card.");
+      return { item, entry };
+    });
+    const reserved = store.reserve(threadId, entries.flatMap((entry) => entry.kind === "action" ? [{ id: entry.id, attemptId: entry.attemptId }] : []));
+    const rows = checked.map(({ item, entry }) => {
+      const label = title(item).replace(/[?\s]+$/, "");
+      const prefix = entry.kind === "action" ? actionMessage(item) : "";
+      const note = entry.kind === "action" ? item.attempt?.note : store.getComment(threadId, item.id, entry.commentId);
+      const reference = entry.kind === "action" ? mentionId(item) : `${threadId}:${item.id}:comment_${entry.commentId}`;
+      return { label, prefix, reference, icon: entry.kind === "action" ? actionIcons[item.attempt!.action] : "MessageSquare", suffix: note ? `${entry.kind === "action" ? " — " : " "}${note}` : "" };
+    });
+    let text = "";
+    const mentions = rows.map(({ label, prefix, reference, suffix, icon }, index) => {
+      text += `${index ? "\n" : ""}${prefix}`;
+      const start = text.length;
+      text += label + suffix;
+      return { start, end: start + label.length, resource: { kind: "plugin" as const, pluginId: "inline-action-cards", itemId: `action:${reference}`, label, icon } };
+    });
+    // This API owns queueing and dispatch; the user's composer, attachments and queued drafts are never edited.
+    try { await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", text, mentions }] }); }
+    catch (err) { store.release(threadId, reserved); throw err; }
+    return checked.map(({ item, entry }) => entry.kind === "action" ? store.get(threadId, item.id) : item);
+  };
   bb.rpc.register(rpcContract, {
     log: ({ threadId }) => store.log(threadId),
     waiting: ({ threadId }) => store.waiting(threadId),
     waitingThreads: () => store.waitingThreads(),
-    async dispatch({ threadId, entries }) {
-      if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
-      // Resolve every durable reference before sending anything. Never accept arbitrary message text from the client.
-      const rows = entries.map((entry) => {
-        const item = store.get(threadId, entry.id);
-        if (entry.kind === "action" && ((item.state !== "pending" && !(item.state === "failed" && !item.result?.retryable)) || item.attempt?.id !== entry.attemptId)) throw new Error("This action changed. Use the latest card.");
-        const label = title(item).replace(/[?\s]+$/, "");
-        const prefix = entry.kind === "action" ? actionMessage(item) : "";
-        const note = entry.kind === "action" ? item.attempt?.note : store.getComment(threadId, item.id, entry.commentId);
-        const reference = entry.kind === "action" ? mentionId(item) : `${threadId}:${item.id}:comment_${entry.commentId}`;
-        return { item, entry, label, prefix, reference, icon: entry.kind === "action" ? actionIcons[item.attempt!.action] : "MessageSquare", suffix: note ? `${entry.kind === "action" ? " — " : " "}${note}` : "" };
-      });
-      let text = "";
-      const mentions = rows.map(({ label, prefix, reference, suffix, icon }, index) => {
-        text += `${index ? "\n" : ""}${prefix}`;
-        const start = text.length;
-        text += label + suffix;
-        return { start, end: start + label.length, resource: { kind: "plugin" as const, pluginId: "inline-action-cards", itemId: `action:${reference}`, label, icon } };
-      });
-      // This API owns queueing and dispatch; the user's composer, attachments and queued drafts are never edited.
-      await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", text, mentions }] });
-      return rows.map(({ item, entry }) => entry.kind !== "action" ? item
-        : item.attempt?.action === "answer" ? store.answered(threadId, item.id, entry.attemptId)
-          : store.submitted({ threadId, id: item.id, attemptId: entry.attemptId }));
-    },
+    dispatch: ({ threadId, entries }) => sendEntries(threadId, entries),
     async decideFromLog(input) {
       const item = input.action ? store.prepare({ ...input, action: input.action }) : store.get(input.threadId, input.id);
       if (!input.action && (item.revision !== input.revision || item.state !== "pending")) throw new Error("This card changed. Reload the log before resending.");
-      const label = title(item).replace(/[?\s]+$/, "");
-      const prefix = actionMessage(item);
-      await bb.sdk.threads.send({ threadId: item.threadId, mode: "queue-if-active", input: [{
-        type: "text", text: prefix + label, mentions: [{ start: prefix.length, end: prefix.length + label.length,
-          resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${mentionId(item)}`, label } }],
-      }] });
-      // Record the send like an inline card does, so the card settles in its thread.
-      return store.submitted({ threadId: item.threadId, id: item.id, attemptId: item.attempt!.id });
+      // The same path as an inline card, so a resent ask settles once, when it reaches the agent.
+      const [sent] = await sendEntries(item.threadId, [{ kind: "action", id: item.id, attemptId: item.attempt!.id }]);
+      return sent!;
     },
     get: async ({ threadId, id }) => ({ ...store.view(threadId, id), ...await threadSource(bb, threadId) }),
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
@@ -448,10 +471,14 @@ export default function plugin(bb: BbPluginApi): void {
       }
       const changes = attempt === "changes";
       if (!changes && item.attempt?.id !== attempt) throw new Error("This action was replaced. Use the latest card.");
-      if (!changes && item.attempt?.action === "answer") return { context: JSON.stringify({
-        kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "answer", question: title(item), answer: item.attempt.note,
-        instruction: "This is the user's answer to your ask, in their own words. The ask is already settled: do not claim, report or resolve it. Act on the answer as you would the same reply typed in chat, under the user's existing authorization.",
-      }) };
+      if (!changes && item.attempt?.action === "answer") {
+        // bb resolves this when the message reaches the agent, never while it waits in the queue.
+        store.answered(item.threadId, item.id, attempt);
+        return { context: JSON.stringify({
+          kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "answer", question: title(item), answer: item.attempt.note,
+          instruction: "This is the user's answer to your ask, in their own words. The ask is already settled: do not claim, report or resolve it. Act on the answer as you would the same reply typed in chat, under the user's existing authorization.",
+        }) };
+      }
       return { context: JSON.stringify({
         kind: "inline-action-card", threadId: item.threadId, itemId: item.id,
         intent: changes ? "request-changes" : item.state === "failed" ? "check-outcome" : "approved-action",

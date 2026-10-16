@@ -459,18 +459,35 @@ it("marks a question asked again with the earlier answer, steps through items, a
   expect(screen.getByText("1 of 2")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   expect(await screen.findByText("2 of 2")).toBeTruthy();
-  // Number keys pick an option, as in bb's question form, but never while the user types elsewhere.
+  // Number keys pick an option, as in bb's question form, only while focus is in the open card.
   expect(screen.getByText("2", { selector: "kbd" })).toBeTruthy();
   const composer = document.body.appendChild(document.createElement("textarea"));
   fireEvent.keyDown(composer, { key: "1" });
-  expect((screen.getByRole("radio", { name: /^Yes/ }) as HTMLInputElement).checked).toBe(false);
   fireEvent.keyDown(window, { key: "1" });
+  expect((screen.getByRole("radio", { name: /^Yes/ }) as HTMLInputElement).checked).toBe(false);
+  fireEvent.keyDown(screen.getByRole("radio", { name: /^No/ }), { key: "1" });
   expect((screen.getByRole("radio", { name: /^Yes/ }) as HTMLInputElement).checked).toBe(true);
   // Focus follows the pick, so Enter submits it rather than a focused header control.
   expect(document.activeElement).toBe(screen.getByRole("radio", { name: /^Yes/ }));
   composer.remove();
   fireEvent.keyDown(screen.getByRole("form"), { key: "Escape" });
   await waitFor(() => expect(header.getAttribute("aria-expanded")).toBe("false"));
+});
+
+it("never answers a collapsed or unfocused card from the keyboard", async () => {
+  const item = { ...fixture(), content: { type: "decide" as const, question: "Merge it?", consequence: "Squash-merge it." }, ...source };
+  const calls: string[] = [];
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item, prepare: () => { calls.push("prepare"); return item; } } });
+  const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+  await screen.findByRole("form");
+  if (header.getAttribute("aria-expanded") === "true") fireEvent.click(header);
+  for (const target of [document.body, window, header]) { fireEvent.keyDown(target, { key: "1" }); fireEvent.keyDown(target, { key: "Enter" }); }
+  fireEvent.click(header);
+  // Open but not focused: the keys still do nothing.
+  fireEvent.keyDown(document.body, { key: "1" });
+  expect((screen.getByRole("radio", { name: /^Yes/ }) as HTMLInputElement).checked).toBe(false);
+  expect(calls).toEqual([]);
 });
 
 it("asks only for the current thread's items and stays away outside a thread", async () => {

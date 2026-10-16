@@ -54,8 +54,15 @@ function Row({ item, now, onOpen }: { item: WaitingItem; now: number; onOpen: ()
   </li>;
 }
 
-function Answer({ item, now, onAnswered }: { item: WaitingItem; now: number; onAnswered: (item: Item) => void }) {
-  return <div className="max-h-[60vh] overflow-y-auto overscroll-contain px-3 pb-2 pt-2 max-sm:max-h-[calc(33dvh-2.5rem)]">
+function Answer({ item, now, focus, onAnswered }: { item: WaitingItem; now: number; focus: boolean; onAnswered: (item: Item) => void }) {
+  const body = useRef<HTMLDivElement>(null);
+  // Opened on purpose, the card takes focus so its number keys work; opened by default, focus stays where it was.
+  useEffect(() => {
+    if (!focus) return;
+    const frame = requestAnimationFrame(() => body.current?.querySelector<HTMLElement>("input:not(:disabled), textarea:not([readonly])")?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [focus, item.id]);
+  return <div ref={body} className="max-h-[60vh] overflow-y-auto overscroll-contain px-3 pb-2 pt-2 max-sm:max-h-[calc(33dvh-2.5rem)]">
     <div className="min-w-0 px-0.5">
       <p className="break-words text-xs font-medium text-foreground">
         {item.content.priority === "urgent" && <span className="font-normal text-destructive-text sm:hidden">Urgent · </span>}{questionOf(item)}
@@ -97,6 +104,8 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
   const [expanded, setExpandedState] = useState(() => !collapsedThreads.has(threadId));
   const setExpanded = (next: boolean) => { setExpandedState(next); if (next) collapsedThreads.delete(threadId); else collapsedThreads.add(threadId); };
   const [openKey, setOpenKey] = useState<string | null>(null);
+  // Whether the user opened the current item themselves, so it may take focus.
+  const [chosen, setChosen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const answered = useRef(new Set<string>());
@@ -127,7 +136,7 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
     const open = (event: Event) => {
       const target = (event as CustomEvent<Target>).detail;
       if (target.threadId !== threadId) return;
-      setExpanded(true); setOpenKey(keyOf(target)); setNotice(null);
+      setExpanded(true); setOpenKey(keyOf(target)); setNotice(null); setChosen(true);
     };
     window.addEventListener(OPEN_EVENT, open);
     return () => window.removeEventListener(OPEN_EVENT, open);
@@ -157,7 +166,7 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
   const open = openIndex >= 0 ? items[openIndex]! : null;
   const top = items[0]!;
   const back = !single && !!open && expanded;
-  const toggle = () => { pendingFocus.current = expanded ? null : "collapse"; setExpanded(!expanded); setOpenKey(null); };
+  const toggle = () => { pendingFocus.current = expanded || single ? null : "collapse"; setChosen(!expanded); setExpanded(!expanded); setOpenKey(null); };
   const onAnswered = (item: Item) => {
     answered.current.add(keyOf(item));
     setItems((current) => current.filter((candidate) => keyOf(candidate) !== keyOf(item)));
@@ -165,7 +174,7 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
     setOpenKey(null);
     void load();
   };
-  const step = (offset: 1 | -1) => setOpenKey(keyOf(items[(openIndex + offset + items.length) % items.length]!));
+  const step = (offset: 1 | -1) => { setChosen(true); setOpenKey(keyOf(items[(openIndex + offset + items.length) % items.length]!)); };
   return <section aria-label="Waiting on you"
     onKeyDown={(event) => { if (event.key === "Escape" && expanded) { event.stopPropagation(); pendingFocus.current = "trigger"; setExpanded(false); setOpenKey(null); } }}
     className="relative z-10 -mb-5 flex min-h-0 flex-col overflow-hidden rounded-xl rounded-b-none border border-b-0 border-border bg-surface-raised-solid pb-3 shadow-lift">
@@ -204,9 +213,9 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
       {notice && !open && <p role="status" className="flex items-center gap-1.5 border-b border-border/35 px-3 py-1.5 text-xs text-subtle-foreground">
         <Icon name="Check" className="size-3 shrink-0" aria-hidden /><span className="min-w-0 truncate">{notice}</span>
       </p>}
-      {open ? <Answer item={open} now={now} onAnswered={onAnswered} />
+      {open ? <Answer item={open} now={now} focus={chosen} onAnswered={onAnswered} />
         : <ul className="max-h-80 overflow-y-auto overscroll-contain pt-1 max-sm:max-h-[calc(33dvh-2.5rem)]">
-          {items.map((item) => <Row key={keyOf(item)} item={item} now={now} onOpen={() => setOpenKey(keyOf(item))} />)}
+          {items.map((item) => <Row key={keyOf(item)} item={item} now={now} onOpen={() => { setChosen(true); setOpenKey(keyOf(item)); }} />)}
         </ul>}
     </div>
   </section>;

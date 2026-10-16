@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { definePluginApp, experimental_Icon as Icon, Markdown, useBbNavigate, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
 import { actionLabel, idSchema, title, type Action, type FollowUp, type Item, type ItemView, type ActionLog, type TableView } from "./model.js";
@@ -190,14 +190,6 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, [draft, showBody]);
-  // Like bb's own question form: number keys pick an option and Enter submits, unless the user is typing elsewhere.
-  const keys = useRef<(event: KeyboardEvent) => void>(() => {});
-  useEffect(() => {
-    if (surface !== "drawer") return;
-    const onKey = (event: KeyboardEvent) => keys.current(event);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [surface]);
   if (!item) return <div className="iac-card" role="status">{error ?? "Loading card…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
@@ -218,7 +210,9 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     if (ask) { if (note.trim()) void act("answer"); }
     else if (value) void act(choice ? "choose" : value as Action, choice ? value : undefined);
   };
-  keys.current = (event) => {
+  // Like bb's own question form: number keys pick an option and Enter submits. Only while focus is inside this
+  // open card in the drawer, so a collapsed or unseen card can never be answered from the keyboard.
+  const keys = (event: KeyboardEvent<HTMLFormElement>) => {
     if (!ready || busy || ask || reply || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("input:not([type=radio]), textarea, select, [contenteditable]:not([contenteditable=false])")) return;
@@ -376,7 +370,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       ? <button type="button" className="iac-waiting-line" aria-label={`${outcome}, in Waiting on you: ${heading}`} onClick={() => openWaiting(threadId, id)}>{line}</button>
       : <div className="iac-waiting-line iac-result-line">{line}</div>;
   }
-  return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit}>
+  return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit} onKeyDown={drawer ? keys : undefined}>
     {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></>}
     {failure}
   </DecisionCard>;
