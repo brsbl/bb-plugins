@@ -13,7 +13,10 @@ const contextSchema = z.string().trim().min(1).max(20_000);
 export const mediaSrcSchema = z.string().trim().max(2000).refine((value) => /^https:\/\/\S+$/i.test(value) || /^\/[^\0\r\n]+\.(?:png|jpe?g|gif|webp|avif|svg)$/i.test(value),
   "Use an https URL or an absolute path to a .png, .jpg, .gif, .webp, .avif or .svg file on the thread's host");
 export const mediaSchema = z.object({ src: mediaSrcSchema, alt: line, caption: line.optional() }).strict();
-const evidence = { context: contextSchema.optional(), media: z.array(mediaSchema).min(1).max(4).optional() };
+// Urgent items lead Waiting on you; omitted means normal.
+export const prioritySchema = z.enum(["urgent", "normal", "low"]);
+export type Priority = z.infer<typeof prioritySchema>;
+const evidence = { context: contextSchema.optional(), media: z.array(mediaSchema).min(1).max(4).optional(), priority: prioritySchema.optional() };
 export const contentSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("reply"),
@@ -45,14 +48,16 @@ export const contentSchema = z.discriminatedUnion("type", [
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["options"], message: "Each option needs its own id" });
     if (value.recommended && !ids.includes(value.recommended)) ctx.addIssue({ code: "custom", path: ["recommended"], message: "Recommend one of the option ids" });
   }),
+  // A plain question the user answers in their own words.
+  z.object({ type: z.literal("ask"), question: line, ...evidence }).strict(),
 ]);
-export const actionSchema = z.enum(["send", "save-draft", "yes", "no", "later", "skip", "choose"]);
+export const actionSchema = z.enum(["send", "save-draft", "yes", "no", "later", "skip", "choose", "answer"]);
 export type Action = z.infer<typeof actionSchema>;
 export const actionIcons: Record<Action, string> = {
-  send: "Sent", "save-draft": "FileText", yes: "Check", no: "X", later: "Clock", skip: "inline-action-cards/skip-forward", choose: "Check",
+  send: "Sent", "save-draft": "FileText", yes: "Check", no: "X", later: "Clock", skip: "inline-action-cards/skip-forward", choose: "Check", answer: "MessageSquare",
 };
 export const labels: Record<Action, string> = {
-  send: "Send", "save-draft": "Save to Gmail drafts", yes: "Yes", no: "No", later: "Later", skip: "Skip", choose: "Use",
+  send: "Send", "save-draft": "Save to Gmail drafts", yes: "Yes", no: "No", later: "Later", skip: "Skip", choose: "Use", answer: "Answer",
 };
 export const itemSchema = z.object({
   id: idSchema,
@@ -159,7 +164,7 @@ export function mentionId(item: Item, changes = false): string {
 
 export function assertAction(item: Item, action: Action) {
   const allowed: Action[] = item.content.type === "reply" ? ["send", "save-draft", "later", "skip"]
-    : item.content.type === "choice" ? ["choose", "later", "skip"] : ["yes", "no", "later", "skip"];
+    : item.content.type === "choice" ? ["choose", "later", "skip"] : item.content.type === "ask" ? ["answer"] : ["yes", "no", "later", "skip"];
   if (!allowed.includes(action)) throw new Error("That action does not belong to this card.");
   if ((action === "send" || action === "save-draft") && item.content.type === "reply" && !item.content.draft.trim()) {
     throw new Error("Write a draft before sending or saving it to Gmail.");
@@ -177,4 +182,8 @@ export function actionMessage(item: Item): string {
 
 const logEntrySchema = itemSchema.extend({ threadTitle: z.string(), threadProjectId: z.string().nullable() });
 export const logSchema = z.object({ waiting: z.array(logEntrySchema), done: z.array(logEntrySchema) });
+// earlier: what the user already answered to an earlier version of the same question in this thread.
+const waitingItemSchema = logEntrySchema.extend({ earlier: z.string().optional() });
+export const waitingSchema = z.array(waitingItemSchema);
+export type WaitingItem = z.infer<typeof waitingItemSchema>;
 export type ActionLog = z.infer<typeof logSchema>;

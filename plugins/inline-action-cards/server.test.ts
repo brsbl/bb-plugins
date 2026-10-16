@@ -18,7 +18,8 @@ it.each([reply, { type: "decide", question: "File invoice?", consequence: "Add R
   expect(bare).toMatchObject({ exitCode: 0, stdout: '::action{id="bare"}\n' });
   expect(bare.stderr).toContain("Warning: this card has no context");
   expect(createStore(host.bb).get(ref.threadId, "bare").content.type).toBe(content.type);
-  const brief = await create("brief", { ...content, context: "A complete decision brief." });
+  // A separate thread, so the identical question doesn't supersede the first card.
+  const brief = await host.harness.behavior.runCli(["create", "brief", "--thread", "thr_brief", "--item", JSON.stringify({ ...content, context: "A complete decision brief." })]);
   expect(brief).toMatchObject({ exitCode: 0, stdout: '::action{id="brief"}\n' });
   expect(brief.stderr ?? "").toBe("");
 });
@@ -258,7 +259,12 @@ it("log choices submit to their owning thread and resend the same durable attemp
     start: 5, end: 22, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:thr_other:${ref.id}:${pending.attempt!.id}` },
   }] }] });
   await expect(host.harness.behavior.callRpc("decideFromLog", args)).rejects.toThrow("changed");
-  const resent = await host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: pending.revision }) as Item;
+  // While the first request waits in the queue, a resend is refused rather than delivered twice.
+  await expect(host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: pending.revision })).rejects.toThrow("already sent");
+  // Once the thread went idle without it (the same state as idle recovery), it can be resent.
+  createStore(host.bb).release("thr_other", [{ id: ref.id, attemptId: pending.attempt!.id }]);
+  const unsent = createStore(host.bb).get("thr_other", ref.id);
+  const resent = await host.harness.behavior.callRpc("decideFromLog", { threadId: "thr_other", id: ref.id, revision: unsent.revision }) as Item;
   expect(resent.attempt!.id).toBe(pending.attempt!.id);
   const log = await host.harness.behavior.callRpc("log", {});
   expect(log).toMatchObject({ waiting: [{ threadTitle: "Refund follow-up" }] });
@@ -324,7 +330,7 @@ it("settles a sent request and reopens it if its queued message is deleted", asy
   const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
   const { callRpc, emitThreadEvent, runCli } = host.harness.behavior;
   const decide = { type: "decide", question: "Merge PR?", consequence: "Squash into main", yesLabel: "Merge" };
-  for (const id of ["now", "gone"]) await runCli(["create", id, "--thread", ref.threadId, "--item", JSON.stringify(decide)]);
+  for (const id of ["now", "gone"]) await runCli(["create", id, "--thread", ref.threadId, "--item", JSON.stringify({ ...decide, question: `Merge PR ${id}?` })]);
   const get = async (id: string) => await callRpc("get", { threadId: ref.threadId, id }) as Item;
   const prepare = async (id: string) => (await callRpc("prepare", { threadId: ref.threadId, id, revision: 1, action: "yes" }) as Item).attempt!.id;
   const entry = (id: string, attemptId: string) => makeQueueEntry({ threadId: ref.threadId, content: [{ type: "text", text: "Merge Merge PR", mentions: [{ start: 6, end: 14, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${ref.threadId}:${id}:${attemptId}`, label: "Merge PR" } }] }] });
@@ -544,4 +550,148 @@ it("checks an uncertain outcome without creating or authorizing another attempt"
   const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:${ref.id}:${attemptId}`)).context);
   expect(context).toMatchObject({ intent: "check-outcome", attemptId });
   expect(() => store.claim(ref.threadId, ref.id, attemptId)).toThrow("already claimed");
+});
+
+describe("Waiting on you", () => {
+  const insert = (host: ReturnType<typeof createFakePluginHost>, item: Partial<Item> & { id: string; threadId: string; question: string; minutesAgo: number; priority?: "urgent" | "low" }) => {
+    const { question, minutesAgo, priority, ...rest } = item;
+    const value: Item = { revision: 1, state: "ready", attempt: null, result: null, ...rest, updatedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+      content: { type: "decide", question, consequence: "Do it.", ...(priority ? { priority } : {}) } };
+    host.bb.storage.database().prepare("INSERT INTO action_items VALUES (?, ?, ?)").run(value.threadId, value.id, JSON.stringify(value));
+  };
+  it("lists one thread's open items urgent first then oldest, low last, including answers that never reached the agent", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    insert(host, { threadId: "thr_a", id: "low", question: "Low?", minutesAgo: 90, priority: "low" });
+    insert(host, { threadId: "thr_a", id: "first", question: "First?", minutesAgo: 60 });
+    insert(host, { threadId: "thr_a", id: "urgent", question: "Urgent?", minutesAgo: 5, priority: "urgent" });
+    insert(host, { threadId: "thr_a", id: "unsent", question: "Unsent?", minutesAgo: 30, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false } });
+    insert(host, { threadId: "thr_a", id: "sent", question: "Sent?", minutesAgo: 20, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfe", action: "yes", claimed: false, sentAt: new Date().toISOString() } });
+    insert(host, { threadId: "thr_a", id: "done", question: "Done?", minutesAgo: 10, state: "succeeded", result: { message: "Moot", retryable: false } });
+    insert(host, { threadId: "thr_b", id: "elsewhere", question: "Elsewhere?", minutesAgo: 1, priority: "urgent" });
+    expect((await host.harness.behavior.callRpc("waiting", { threadId: "thr_a" }) as Item[]).map((item) => item.id)).toEqual(["urgent", "first", "unsent", "low"]);
+  });
+  it("keeps one item per question, however old", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    insert(host, { threadId: "thr_growth", id: "plan", question: "Approve the plan?", minutesAgo: 50 });
+    insert(host, { threadId: "thr_growth", id: "plan-v2", question: "Approve the revised plan?", minutesAgo: 40 });
+    insert(host, { threadId: "thr_growth", id: "budget", question: "Raise the budget?", minutesAgo: 30 });
+    insert(host, { threadId: "thr_growth", id: "budget-again", question: "raise the budget", minutesAgo: 20 });
+    insert(host, { threadId: "thr_growth", id: "old", question: "Still want this?", minutesAgo: 8 * 24 * 60 });
+    insert(host, { threadId: "thr_other", id: "plan", question: "Approve the plan?", minutesAgo: 45 });
+    expect((await host.harness.behavior.callRpc("waiting", { threadId: "thr_growth" }) as Item[]).map((item) => item.id)).toEqual(["old", "plan-v2", "budget-again"]);
+  });
+  it("tells the drawer what the user answered to an earlier version of a question", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    insert(host, { threadId: "thr_growth", id: "headline", question: "Which headline?", minutesAgo: 30, state: "succeeded", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "answer", claimed: true, note: "Org framing" }, result: { message: "Answered", retryable: false } });
+    insert(host, { threadId: "thr_growth", id: "headline-v2", question: "Which headline?", minutesAgo: 1 });
+    insert(host, { threadId: "thr_growth", id: "budget", question: "Raise the budget?", minutesAgo: 5 });
+    const waiting = await host.harness.behavior.callRpc("waiting", { threadId: "thr_growth" }) as (Item & { earlier?: string })[];
+    expect(waiting.map((item) => [item.id, item.earlier])).toEqual([["budget", undefined], ["headline-v2", "Org framing"]]);
+  });
+  it("supersedes older versions of a question in the same thread on create", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const create = (thread: string, id: string, question: string) => host.harness.behavior.runCli(["create", id, "--thread", thread, "--item", JSON.stringify({ type: "decide", question, consequence: "Do it.", context: "Brief." })]);
+    await create("thr_growth", "plan", "Approve the plan?");
+    await create("thr_other", "plan", "Approve the plan?");
+    const second = await create("thr_growth", "plan-v2", "Approve the revised plan?");
+    expect(second.stderr).toContain("Marked as superseded by plan-v2: plan");
+    const store = createStore(host.bb);
+    expect(store.get("thr_growth", "plan")).toMatchObject({ state: "succeeded", result: { message: "Superseded by plan-v2" } });
+    // Never across threads.
+    expect(store.get("thr_other", "plan").state).toBe("ready");
+  });
+  it("warns about an open question that overlaps a new one, and replaces it on request", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    const ask = (...args: string[]) => host.harness.behavior.runCli(["ask", ...args, "--thread", "thr_growth"]);
+    await ask("budget-300", "OK to spend $300 on the Reddit ad test?");
+    await ask("launch-day", "Which day should the launch post go out?");
+    const stacked = await ask("budget-500", "Approve $500 for the Reddit ad test?");
+    expect(stacked.stderr).toContain("Warning: this overlaps budget-300");
+    expect(stacked.stderr).not.toContain("launch-day");
+    const store = createStore(host.bb);
+    expect(store.get("thr_growth", "budget-300").state).toBe("ready");
+    const replaced = await ask("budget-final", "Approve $450 for the Reddit ad test this week?", "--replaces", "budget-300");
+    expect(replaced.stderr).toContain("Marked as superseded by budget-final: budget-300");
+    expect(store.get("thr_growth", "budget-300")).toMatchObject({ state: "succeeded", result: { message: "Superseded by budget-final" } });
+    expect(store.get("thr_growth", "launch-day").state).toBe("ready");
+    await host.harness.behavior.runCli(["resolve", "launch-day", "--thread", "thr_growth", "--message", "Answered in chat"]);
+    expect((await ask("launch-again", "Launch on Friday instead?", "--replaces", "launch-day")).exitCode).not.toBe(0);
+    expect(() => store.get("thr_growth", "launch-again")).toThrow();
+  });
+  it("adds an ask from the CLI, and settles it only when the answer reaches the agent, not when it is queued", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => ({ ok: true, delivery: "queued" }) } } }); hosts.push(host); plugin(host.bb);
+    const created = await host.harness.behavior.runCli(["ask", "channel", "Which channel?", "--thread", ref.threadId, "--urgent", "--context", "The weekly report needs a home."]);
+    expect(JSON.parse(created.stdout!)).toMatchObject({ state: "ready", content: { type: "ask", question: "Which channel?", priority: "urgent", context: "The weekly report needs a home." } });
+    const store = createStore(host.bb);
+    expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "yes" })).toThrow("does not belong");
+    expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer" })).toThrow("Write an answer first");
+    const prepared = store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer", note: "#feedback" });
+    const attemptId = prepared.attempt!.id;
+    const [queued] = await host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId }] }) as Item[];
+    // Queued behind a busy agent: sent, not yet answered.
+    expect(queued).toMatchObject({ state: "pending", attempt: { action: "answer", note: "#feedback", claimed: false } });
+    expect(queued.attempt!.sentAt).toBeTruthy();
+    expect(host.harness.sdk.callsTo("threads.send")[0]![0]).toMatchObject({ input: [{ text: "Answer Which channel — #feedback" }] });
+    expect(await host.harness.behavior.callRpc("waiting", { threadId: ref.threadId })).toEqual([]);
+    // The user deletes the queued message: the ask comes back with its text, ready to resend.
+    const entry = makeQueueEntry({ threadId: ref.threadId, content: [{ type: "text", text: "Answer Which channel — #feedback", mentions: [{ start: 7, end: 20, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${ref.threadId}:channel:${attemptId}`, label: "Which channel" } }] }] });
+    await host.harness.behavior.emitThreadEvent("message.cancelled", { entry });
+    const restored = store.get(ref.threadId, "channel");
+    expect(restored).toMatchObject({ state: "pending", attempt: { id: attemptId, note: "#feedback", claimed: false } });
+    expect(restored.attempt!.sentAt).toBeUndefined();
+    expect((await host.harness.behavior.callRpc("waiting", { threadId: ref.threadId }) as Item[]).map((item) => item.id)).toEqual(["channel"]);
+    // Resent and delivered: bb resolves the answer's mention as the message reaches the agent, which settles it once.
+    await host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId }] });
+    expect(store.get(ref.threadId, "channel").state).toBe("pending");
+    const resolve = () => host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:channel:${attemptId}`);
+    expect(JSON.parse((await resolve()).context)).toMatchObject({ intent: "answer", answer: "#feedback" });
+    const settled = store.get(ref.threadId, "channel");
+    expect(settled).toMatchObject({ state: "succeeded", attempt: { claimed: true }, result: { message: "Answered" } });
+    await resolve();
+    expect(store.get(ref.threadId, "channel").revision).toBe(settled.revision);
+    expect(() => store.claim(ref.threadId, "channel", attemptId)).toThrow();
+  });
+  it("delivers an answer once when two clients resend the same attempt at the same time", async () => {
+    let release!: () => void;
+    const sending = new Promise<void>((resolve) => { release = resolve; });
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: async () => { await sending; return { ok: true, delivery: "queued" }; } } } }); hosts.push(host); plugin(host.bb);
+    await host.harness.behavior.runCli(["ask", "channel", "Which channel?", "--thread", ref.threadId]);
+    const prepared = createStore(host.bb).prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer", note: "#feedback" });
+    const send = () => host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId: prepared.attempt!.id }] });
+    const first = send();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect(send()).rejects.toThrow("already sent");
+    release();
+    await first;
+    expect(host.harness.sdk.callsTo("threads.send")).toHaveLength(1);
+  });
+  it("resends a failed first send from the Decision log through the same lifecycle, settling it once", async () => {
+    let fail = true;
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => { if (fail) throw new Error("Host disconnected"); return { ok: true, delivery: "sent" }; } } } }); hosts.push(host); plugin(host.bb);
+    await host.harness.behavior.runCli(["ask", "channel", "Which channel?", "--thread", ref.threadId]);
+    const store = createStore(host.bb);
+    const prepared = store.prepare({ threadId: ref.threadId, id: "channel", revision: 1, action: "answer", note: "#feedback" });
+    const attemptId = prepared.attempt!.id;
+    await expect(host.harness.behavior.callRpc("dispatch", { threadId: ref.threadId, entries: [{ kind: "action", id: "channel", attemptId }] })).rejects.toThrow("Host disconnected");
+    // The failed send released the attempt: it shows as not sent, with its text.
+    const unsent = store.get(ref.threadId, "channel");
+    expect(unsent).toMatchObject({ state: "pending", attempt: { note: "#feedback" } });
+    expect(unsent.attempt!.sentAt).toBeUndefined();
+    fail = false;
+    await host.harness.behavior.callRpc("decideFromLog", { threadId: ref.threadId, id: "channel", revision: unsent.revision });
+    expect(host.harness.sdk.callsTo("threads.send").at(-1)![0]).toMatchObject({ input: [{ text: "Answer Which channel — #feedback" }] });
+    await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:channel:${attemptId}`);
+    const settled = store.get(ref.threadId, "channel");
+    expect(settled).toMatchObject({ state: "succeeded", result: { message: "Answered" } });
+    // Idle recovery leaves a settled answer alone, and the log can't send it again.
+    store.undelivered(ref.threadId);
+    expect(store.get(ref.threadId, "channel").revision).toBe(settled.revision);
+    await expect(host.harness.behavior.callRpc("decideFromLog", { threadId: ref.threadId, id: "channel", revision: settled.revision })).rejects.toThrow("changed");
+  });
+  it("resolves an ask the user answered elsewhere", async () => {
+    const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+    await host.harness.behavior.runCli(["ask", "archive", "OK to archive the workers?", "--thread", ref.threadId]);
+    const resolved = await host.harness.behavior.runCli(["resolve", "archive", "--thread", ref.threadId, "--message", "Answered in chat"]);
+    expect(JSON.parse(resolved.stdout!)).toMatchObject({ state: "succeeded", result: { message: "Answered in chat" } });
+  });
 });

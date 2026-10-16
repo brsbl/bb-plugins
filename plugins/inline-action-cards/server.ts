@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionIcons, actionLabel, actionMessage, mentionId, readItem, storedItem, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, type FollowUp, type Item } from "./model.js";
+import { actionIcons, actionLabel, actionMessage, mentionId, readItem, storedItem, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, waitingSchema, type FollowUp, type Item, type Priority } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
@@ -17,6 +17,10 @@ const persistedTableSchema = z.union([
 ]);
 export const rpcContract = defineRpcContract({
   log: { input: z.object({ threadId: idSchema.optional() }).strict(), output: logSchema },
+  // What one thread is still waiting on the user for, for the drawer above its prompt box.
+  waiting: { input: z.object({ threadId: idSchema }).strict(), output: waitingSchema },
+  // Threads with anything waiting on the user, for the sidebar's question glyph.
+  waitingThreads: { input: z.object({}).strict(), output: z.array(idSchema) },
   decideFromLog: { input: versioned.extend({ action: actionSchema.optional() }), output: itemSchema },
   get: { input: ref, output: itemViewSchema },
   save: { input: versioned.extend({ draft: draftSchema }), output: itemSchema },
@@ -99,23 +103,55 @@ export function createStore(bb: BbPluginApi) {
     assertAction(item, action);
     if (item.state === "failed" && action !== item.attempt?.action) throw new Error("Retry the original action, or reopen the card to choose another.");
     const attemptNote = noteSchema.parse(note ?? (item.state === "failed" ? item.attempt?.note : undefined) ?? "");
+    // An ask's answer is the user's own words, carried as the attempt note.
+    if (action === "answer" && !attemptNote) throw new Error("Write an answer first.");
     item.state = "pending";
     item.attempt = { id: randomUUID(), action, claimed: false, ...(attemptNote ? { note: attemptNote } : {}) };
     item.result = null;
   };
+  const withSources = async <T extends Item>(items: T[]) => {
+    const sources = new Map(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => [id, await threadSource(bb, id)] as const)));
+    return items.map((item) => ({ ...item, ...sources.get(item.threadId)! }));
+  };
   return {
     get,
     view: (threadId: string, id: string) => view(get(threadId, id)),
+    // One thread's open items, one per question: urgent first, then oldest; low priority last.
+    async waiting(threadId: string) {
+      const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
+      const items = rows.flatMap((row) => readItem(row.value) ?? []);
+      const open = distinctOpen(items).map((item) => {
+        const earlier = items.filter((other) => !isOpen(other) && other.attempt && other.updatedAt < item.updatedAt && sameQuestion(other, item))
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+        return earlier ? { ...item, earlier: answeredLabel(earlier) } : item;
+      });
+      return (await withSources(open)).sort((a, b) => rank(a.content.priority) - rank(b.content.priority)
+        || a.updatedAt.localeCompare(b.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
+    },
+    waitingThreads() {
+      return (db.prepare(`SELECT DISTINCT thread_id AS threadId FROM action_items WHERE json_extract(value, '$.state') IN ('ready', 'failed')
+        OR (json_extract(value, '$.state') = 'pending' AND json_extract(value, '$.attempt.claimed') = 0 AND json_extract(value, '$.attempt.sentAt') IS NULL)`).all() as { threadId: string }[])
+        .map((row) => row.threadId);
+    },
+    // A newer version of the same question in the same thread replaces the older unanswered ones.
+    // Also replaces the item named by --replaces, and reports open items that ask much the same thing.
+    supersede(threadId: string, id: string, replaces?: string) {
+      const latest = get(threadId, id);
+      const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
+      const open = rows.flatMap((row) => readItem(row.value) ?? []).filter((item) => item.id !== id && item.state === "ready");
+      const older = open.filter((item) => item.id === replaces || sameQuestion(item, latest));
+      for (const item of older) change(threadId, item.id, null, (next) => { next.state = "succeeded"; next.result = { message: `Superseded by ${id}`, retryable: false }; });
+      return { superseded: older.map((item) => item.id), overlapping: open.filter((item) => !older.includes(item) && overlaps(item, latest)) };
+    },
+    // An item --replaces may name: unanswered, in the same thread.
+    assertReplaceable(threadId: string, id: string) {
+      if (get(threadId, id).state !== "ready") throw new Error(`${id} is already answered or settled; only an unanswered item can be replaced.`);
+    },
     async log(threadId?: string) {
       const rows = (threadId
         ? db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId)
         : db.prepare("SELECT value FROM action_items").all()) as { value: string }[];
-      const items = rows.flatMap((row) => readItem(row.value) ?? []);
-      const titles = new Map<string, { title: string; projectId: string | null }>(await Promise.all([...new Set(items.map((item) => item.threadId))].map(async (id) => {
-        try { const thread = await bb.sdk.threads.get({ threadId: id }); return [id, { title: thread.title ?? "Untitled thread", projectId: thread.projectId }] as const; }
-        catch { return [id, { title: "Unavailable thread", projectId: null }] as const; }
-      })));
-      const sorted = items.map((item) => ({ ...item, threadTitle: titles.get(item.threadId)!.title, threadProjectId: titles.get(item.threadId)!.projectId }))
+      const sorted = (await withSources(rows.flatMap((row) => readItem(row.value) ?? [])))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
       // Failures need a retry and Later cards need a Resume, so both stay in Waiting on you; Later sorts last.
       const later = (item: Item) => item.state === "succeeded" && item.attempt?.action === "later";
@@ -254,6 +290,37 @@ export function createStore(bb: BbPluginApi) {
         item.attempt.sentAt ??= new Date().toISOString();
       });
     },
+    // An ask needs no claim: it settles once its answer reaches the agent, which is when bb resolves the
+    // answer's mention. Queued is not delivered. Settling twice is a no-op, so a re-drained message can't repeat it.
+    answered(threadId: string, id: string, attemptId: string) {
+      const item = get(threadId, id);
+      if (item.attempt?.id !== attemptId || item.attempt.action !== "answer" || item.state !== "pending") return item;
+      return change(threadId, id, null, (next) => {
+        next.attempt!.claimed = true;
+        next.attempt!.sentAt ??= new Date().toISOString();
+        next.state = "succeeded";
+        next.result = { message: "Answered", retryable: false };
+      });
+    },
+    // Reserve each pending attempt before its message is sent, so a second client resending the same attempt
+    // is refused instead of delivering it twice. Returns the attempts it reserved.
+    reserve(threadId: string, entries: { id: string; attemptId: string }[]) {
+      const reserved = db.transaction(() => entries.flatMap(({ id, attemptId }) => {
+        const item = get(threadId, id);
+        if (item.state !== "pending" || item.attempt?.id !== attemptId) return [];
+        if (item.attempt.sentAt || item.attempt.claimed) throw new Error("This answer was already sent. It reaches the agent when the thread is free.");
+        change(threadId, id, null, (next) => { next.attempt!.sentAt = new Date().toISOString(); });
+        return [{ id, attemptId }];
+      }))();
+      return reserved;
+    },
+    // The send failed: the reserved attempts were never sent, so they can be sent again.
+    release(threadId: string, entries: { id: string; attemptId: string }[]) {
+      for (const { id, attemptId } of entries) {
+        const item = get(threadId, id);
+        if (item.state === "pending" && item.attempt?.id === attemptId && !item.attempt.claimed) change(threadId, id, null, (next) => { delete next.attempt!.sentAt; });
+      }
+    },
     // The host accepted the request (sent now, or queued behind a busy agent).
     submitted(input: z.infer<typeof rpcContract.submitted.input>) {
       const item = get(input.threadId, input.id);
@@ -265,7 +332,9 @@ export function createStore(bb: BbPluginApi) {
       for (const { threadId, id, attemptId } of attemptRefs(bb.pluginId, entry)) {
         const item = read.get(threadId, id) ? get(threadId, id) : null;
         if (item?.state !== "pending" || item.attempt?.id !== attemptId || item.attempt.claimed) continue;
-        change(threadId, id, null, (next) => { next.state = "ready"; next.attempt = null; });
+        // An ask keeps its written answer: it shows as not sent, with Resend, instead of losing the text.
+        if (item.attempt.action === "answer") change(threadId, id, null, (next) => { delete next.attempt!.sentAt; });
+        else change(threadId, id, null, (next) => { next.state = "ready"; next.attempt = null; });
       }
     },
     report(threadId: string, id: string, attemptId: string, outcome: "succeeded" | "failed", message: string, retryable: boolean) {
@@ -285,6 +354,33 @@ export function createStore(bb: BbPluginApi) {
   };
 }
 
+const rank = (priority: Priority | undefined) => priority === "urgent" ? 0 : priority === "low" ? 2 : 1;
+
+// Unanswered, answered but never delivered to the agent (it needs Resend), or failed (it needs Retry or a check).
+const isOpen = (item: Item) => item.state === "ready" || item.state === "failed" || (item.state === "pending" && !item.attempt?.claimed && !item.attempt?.sentAt);
+const questionKey = (item: Item) => title(item).toLowerCase().replace(/\s+/g, " ").replace(/[\s?.!]+$/, "").trim();
+const idBase = (id: string) => id.replace(/-v\d+$/i, "");
+// Questions that share most of their meaningful words, such as "OK to spend $300 on the Reddit ad test?"
+// and "Approve $500 for the Reddit ad test?", ask the user the same thing twice.
+const STOP_WORDS = new Set("the and for you your our are can should could would will does what which when how who why with from this that into about any ok okay".split(" "));
+const words = (item: Item) => new Set(title(item).toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+  .filter((word) => word.length > 1 && !STOP_WORDS.has(word) && !/^\d+$/.test(word)).map((word) => word.replace(/s$/, "")));
+const overlaps = (a: Item, b: Item) => {
+  const left = words(a), right = words(b);
+  const shared = [...left].filter((word) => right.has(word)).length;
+  return shared >= 2 && shared / Math.min(left.size, right.size) >= 0.6;
+};
+const sameQuestion = (a: Item, b: Item) => a.threadId === b.threadId && (questionKey(a) === questionKey(b) || idBase(a.id) === idBase(b.id));
+const answeredLabel = (item: Item) => item.attempt!.action === "answer" ? item.attempt!.note ?? "an answer" : item.attempt!.choice?.label ?? actionLabel(item, item.attempt!.action);
+// Newest first, keeping only the newest item for each question.
+function distinctOpen(items: Item[]): Item[] {
+  const kept: Item[] = [];
+  for (const item of items.filter(isOpen).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+    if (!kept.some((other) => sameQuestion(other, item))) kept.push(item);
+  }
+  return kept;
+}
+
 // Card requests carry an action mention whose id is threadId:itemId:attemptId.
 function attemptRefs(pluginId: string, entry: QueueEntry) {
   return entry.content.flatMap((block) => block.type === "text" ? block.mentions : []).flatMap(({ resource }) => {
@@ -297,43 +393,46 @@ function attemptRefs(pluginId: string, entry: QueueEntry) {
 
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
+  // Sends card answers and comments to their thread as one message. Never accepts arbitrary message text from the client.
+  const sendEntries = async (threadId: string, entries: z.infer<typeof rpcContract.dispatch.input>["entries"]) => {
+    if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
+    // Resolve every durable reference before sending anything.
+    const checked = entries.map((entry) => {
+      const item = store.get(threadId, entry.id);
+      if (entry.kind === "action" && ((item.state !== "pending" && !(item.state === "failed" && !item.result?.retryable)) || item.attempt?.id !== entry.attemptId)) throw new Error("This action changed. Use the latest card.");
+      return { item, entry };
+    });
+    const reserved = store.reserve(threadId, entries.flatMap((entry) => entry.kind === "action" ? [{ id: entry.id, attemptId: entry.attemptId }] : []));
+    const rows = checked.map(({ item, entry }) => {
+      const label = title(item).replace(/[?\s]+$/, "");
+      const prefix = entry.kind === "action" ? actionMessage(item) : "";
+      const note = entry.kind === "action" ? item.attempt?.note : store.getComment(threadId, item.id, entry.commentId);
+      const reference = entry.kind === "action" ? mentionId(item) : `${threadId}:${item.id}:comment_${entry.commentId}`;
+      return { label, prefix, reference, icon: entry.kind === "action" ? actionIcons[item.attempt!.action] : "MessageSquare", suffix: note ? `${entry.kind === "action" ? " — " : " "}${note}` : "" };
+    });
+    let text = "";
+    const mentions = rows.map(({ label, prefix, reference, suffix, icon }, index) => {
+      text += `${index ? "\n" : ""}${prefix}`;
+      const start = text.length;
+      text += label + suffix;
+      return { start, end: start + label.length, resource: { kind: "plugin" as const, pluginId: "inline-action-cards", itemId: `action:${reference}`, label, icon } };
+    });
+    // This API owns queueing and dispatch; the user's composer, attachments and queued drafts are never edited.
+    try { await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", text, mentions }] }); }
+    catch (err) { store.release(threadId, reserved); throw err; }
+    return checked.map(({ item, entry }) => entry.kind === "action" ? store.get(threadId, item.id) : item);
+  };
   bb.rpc.register(rpcContract, {
     log: ({ threadId }) => store.log(threadId),
-    async dispatch({ threadId, entries }) {
-      if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
-      // Resolve every durable reference before sending anything. Never accept arbitrary message text from the client.
-      const rows = entries.map((entry) => {
-        const item = store.get(threadId, entry.id);
-        if (entry.kind === "action" && ((item.state !== "pending" && !(item.state === "failed" && !item.result?.retryable)) || item.attempt?.id !== entry.attemptId)) throw new Error("This action changed. Use the latest card.");
-        const label = title(item).replace(/[?\s]+$/, "");
-        const prefix = entry.kind === "action" ? actionMessage(item) : "";
-        const note = entry.kind === "action" ? item.attempt?.note : store.getComment(threadId, item.id, entry.commentId);
-        const reference = entry.kind === "action" ? mentionId(item) : `${threadId}:${item.id}:comment_${entry.commentId}`;
-        return { item, entry, label, prefix, reference, icon: entry.kind === "action" ? actionIcons[item.attempt!.action] : "MessageSquare", suffix: note ? `${entry.kind === "action" ? " — " : " "}${note}` : "" };
-      });
-      let text = "";
-      const mentions = rows.map(({ label, prefix, reference, suffix, icon }, index) => {
-        text += `${index ? "\n" : ""}${prefix}`;
-        const start = text.length;
-        text += label + suffix;
-        return { start, end: start + label.length, resource: { kind: "plugin" as const, pluginId: "inline-action-cards", itemId: `action:${reference}`, label, icon } };
-      });
-      // This API owns queueing and dispatch; the user's composer, attachments and queued drafts are never edited.
-      await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{ type: "text", text, mentions }] });
-      return rows.map(({ item, entry }) => entry.kind === "action"
-        ? store.submitted({ threadId, id: item.id, attemptId: entry.attemptId }) : item);
-    },
+    waiting: ({ threadId }) => store.waiting(threadId),
+    waitingThreads: () => store.waitingThreads(),
+    dispatch: ({ threadId, entries }) => sendEntries(threadId, entries),
     async decideFromLog(input) {
       const item = input.action ? store.prepare({ ...input, action: input.action }) : store.get(input.threadId, input.id);
       if (!input.action && (item.revision !== input.revision || item.state !== "pending")) throw new Error("This card changed. Reload the log before resending.");
-      const label = title(item).replace(/[?\s]+$/, "");
-      const prefix = actionMessage(item);
-      await bb.sdk.threads.send({ threadId: item.threadId, mode: "queue-if-active", input: [{
-        type: "text", text: prefix + label, mentions: [{ start: prefix.length, end: prefix.length + label.length,
-          resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${mentionId(item)}`, label } }],
-      }] });
-      // Record the send like an inline card does, so the card settles in its thread.
-      return store.submitted({ threadId: item.threadId, id: item.id, attemptId: item.attempt!.id });
+      // The same path as an inline card, so a resent ask settles once, when it reaches the agent.
+      const [sent] = await sendEntries(item.threadId, [{ kind: "action", id: item.id, attemptId: item.attempt!.id }]);
+      return sent!;
     },
     get: async ({ threadId, id }) => ({ ...store.view(threadId, id), ...await threadSource(bb, threadId) }),
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
@@ -372,6 +471,14 @@ export default function plugin(bb: BbPluginApi): void {
       }
       const changes = attempt === "changes";
       if (!changes && item.attempt?.id !== attempt) throw new Error("This action was replaced. Use the latest card.");
+      if (!changes && item.attempt?.action === "answer") {
+        // bb resolves this when the message reaches the agent, never while it waits in the queue.
+        store.answered(item.threadId, item.id, attempt);
+        return { context: JSON.stringify({
+          kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "answer", question: title(item), answer: item.attempt.note,
+          instruction: "This is the user's answer to your ask, in their own words. The ask is already settled: do not claim, report or resolve it. Act on the answer as you would the same reply typed in chat, under the user's existing authorization.",
+        }) };
+      }
       return { context: JSON.stringify({
         kind: "inline-action-card", threadId: item.threadId, itemId: item.id,
         intent: changes ? "request-changes" : item.state === "failed" ? "check-outcome" : "approved-action",
@@ -385,8 +492,16 @@ export default function plugin(bb: BbPluginApi): void {
   });
   const threadOption = { type: "string", description: "Owning thread; defaults to this thread" } as const;
   const itemPosition = [{ name: "id", required: true, description: "Stable item ID" }] as const;
+  const askPositions = [...itemPosition, { name: "question", required: true, description: "One-line question the user answers in their own words" }] as const;
   const scope = (ctx: PluginCliContext, thread?: string) => idSchema.parse(thread ?? ctx.threadId);
   const output = (item: Item | z.infer<typeof itemViewSchema>) => ({ exitCode: 0, stdout: `${JSON.stringify(item, null, 2)}\n` });
+  // Settle older versions of the same question.
+  const afterCreate = (item: Item, replaces?: string) => {
+    const { superseded, overlapping } = store.supersede(item.threadId, item.id, replaces);
+    return (superseded.length ? `Marked as superseded by ${item.id}: ${superseded.join(", ")}.\n` : "")
+      + (overlapping.length ? `Warning: this overlaps ${overlapping.map((other) => `${other.id} (“${title(other)}”)`).join(", ")}, still waiting on the user. Don't stack questions: resolve the old one with bb action-cards resolve <id> --message '…', or create the new one with --replaces <id>.\n` : "");
+  };
+  const replacesOption = { type: "string", description: "ID of an unanswered item in this thread that this one replaces; it is marked superseded" } as const;
   bb.cli.register(defineCli({
     name: "action-cards", summary: "Create inline cards, read saved drafts, and report action results",
     commands: {
@@ -411,14 +526,33 @@ export default function plugin(bb: BbPluginApi): void {
           return { exitCode: 0, stdout: `::actions{id="${id}"}\n` };
         },
       }),
-      create: cliCommand({
-        summary: "Create one card; prints its directive", positionals: itemPosition,
-        options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply, Decide, or Choice JSON; use --item-stdin" } },
+      ask: cliCommand({
+        summary: "Add a plain question to Waiting on you; it clears when the user answers or you resolve it",
+        positionals: askPositions,
+        options: {
+          thread: threadOption, urgent: { type: "boolean", description: "List it first in Waiting on you" },
+          context: { type: "string", description: "Optional short brief in Markdown" },
+          replaces: replacesOption,
+        },
         run({ options, positionals }, ctx) {
           const id = idSchema.parse(positionals.id);
+          const replaces = options.replaces === undefined ? undefined : idSchema.parse(options.replaces);
+          if (replaces) store.assertReplaceable(scope(ctx, options.thread), replaces);
+          const item = store.create(scope(ctx, options.thread), id, { type: "ask", question: positionals.question, ...(options.urgent ? { priority: "urgent" } : {}), ...(options.context ? { context: options.context } : {}) });
+          const notes = afterCreate(item, replaces);
+          return { ...output(item), ...(notes ? { stderr: notes } : {}) };
+        },
+      }),
+      create: cliCommand({
+        summary: "Create one card; prints its directive", positionals: itemPosition,
+        options: { thread: threadOption, item: { type: "string", required: true, stdin: true, description: "Reply, Decide, Choice, or Ask JSON, with optional priority; use --item-stdin" }, replaces: replacesOption },
+        run({ options, positionals }, ctx) {
+          const id = idSchema.parse(positionals.id);
+          const replaces = options.replaces === undefined ? undefined : idSchema.parse(options.replaces);
+          if (replaces) store.assertReplaceable(scope(ctx, options.thread), replaces);
           const item = store.create(scope(ctx, options.thread), id, JSON.parse(options.item));
-          return { exitCode: 0, stdout: `::action{id="${id}"}\n`,
-            ...(!item.content.context ? { stderr: "Warning: this card has no context. Include a short brief: what this is, why it needs the user's decision now, options, recommendation and why, and what happens after each answer. See the inline-action-cards skill.\n" } : {}) };
+          const notes = (!item.content.context ? "Warning: this card has no context. Include a short brief: what this is, why it needs the user's decision now, options, recommendation and why, and what happens after each answer. See the inline-action-cards skill.\n" : "") + afterCreate(item, replaces);
+          return { exitCode: 0, stdout: `::action{id="${id}"}\n`, ...(notes ? { stderr: notes } : {}) };
         },
       }),
       get: cliCommand({
