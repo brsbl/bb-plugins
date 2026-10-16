@@ -89,7 +89,14 @@ function sentLabel(item: Item): string {
   return attempt.choice?.label ?? actionLabel(item, attempt.action);
 }
 
-const collapsedThreads = new Set<string>();
+// Threads whose drawer the user opened in this tab.
+const EXPANDED_KEY = "inline-action-cards:expanded:";
+function wasExpanded(threadId: string): boolean {
+  try { return sessionStorage.getItem(EXPANDED_KEY + threadId) === "1"; } catch { return false; }
+}
+function rememberExpanded(threadId: string, expanded: boolean) {
+  try { if (expanded) sessionStorage.setItem(EXPANDED_KEY + threadId, "1"); else sessionStorage.removeItem(EXPANDED_KEY + threadId); } catch { /* Private browsing can refuse storage. */ }
+}
 
 export function WaitingBanner() {
   const { scope } = useComposer();
@@ -100,9 +107,9 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
   const rpc = useRpc<typeof rpcContract>();
   const navigate = useBbNavigate();
   const [items, setItems] = useState<WaitingItem[]>([]);
-  // Open by default, like bb's own question; collapsing holds for this thread until the page reloads.
-  const [expanded, setExpandedState] = useState(() => !collapsedThreads.has(threadId));
-  const setExpanded = (next: boolean) => { setExpandedState(next); if (next) collapsedThreads.delete(threadId); else collapsedThreads.add(threadId); };
+  // Collapsed to one quiet line until the user opens it; opening holds for this thread in this tab.
+  const [expanded, setExpandedState] = useState(() => wasExpanded(threadId));
+  const setExpanded = (next: boolean) => { setExpandedState(next); rememberExpanded(threadId, next); };
   const [openKey, setOpenKey] = useState<string | null>(null);
   // Whether the user opened the current item themselves, so it may take focus.
   const [chosen, setChosen] = useState(false);

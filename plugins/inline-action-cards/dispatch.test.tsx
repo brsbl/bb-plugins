@@ -11,7 +11,7 @@ const contents = {
   choice: { type: "choice", question: "Which format?", options: [{ id: "short", label: "Short" }, { id: "long", label: "Long" }] },
   reply: { type: "reply", summary: "Reply to the editor", to: ["editor@example.invalid"], cc: [], bcc: [], subject: "Notes", original: { from: "editor@example.invalid", body: "Ready?" }, draft: "Ready for review." },
 } as const;
-afterEach(() => { cleanup(); localStorage.clear(); });
+afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear(); });
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 
 it.each(["decide", "choice", "reply"] as const)("submits a %s from Waiting on you while preserving the composer draft", async (kind) => {
@@ -24,6 +24,9 @@ it.each(["decide", "choice", "reply"] as const)("submits a %s from Waiting on yo
     const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, {
       composer: { scope: { kind: "thread", threadId: "thr_test" }, text: draft }, rpc,
     });
+    // Collapsed by default: open it the way a person does.
+    const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+    if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
     const label = kind === "reply" ? "Send" : kind === "choice" ? "Short" : "Publish";
     fireEvent.click(await screen.findByRole("radio", { name: label }));
     const form = screen.getByRole("form");

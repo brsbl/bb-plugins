@@ -26,7 +26,7 @@ async function dispatchFixture(items: Item[]): Promise<Item[]> {
   } finally { await host.harness.lifecycle.dispose(); }
 }
 const fixture = (): Item => ({ id: "esc-1", threadId: "thr_test", revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-01T10:42:00Z", content: { type: "reply", summary: "Billing follow-up", subject: "Missing refund", to: ["billing@example.com"], cc: [], bcc: [], original: { from: "Billing", body: "Your refund is on its way." }, draft: "Original draft" } });
-afterEach(() => { cleanup(); submittedMessages.length = 0; submittedMentions.length = 0; localStorage.clear(); });
+afterEach(() => { cleanup(); submittedMessages.length = 0; submittedMentions.length = 0; localStorage.clear(); sessionStorage.clear(); });
 // Radix tooltips measure their content; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 // Answer a form field the way a person does: pick the radio, then press Submit.
@@ -197,6 +197,12 @@ it("shows answered and pending table rows as plain lines, never as cards", async
   });
   expect(await screen.findByRole("button", { name: "Not sent, in Waiting on you: Switch one?" })).toBeTruthy();
   expect(await screen.findByText("Decision: Keep")).toBeTruthy();
+  cleanup();
+  // An answered ask shows what the user wrote, once.
+  const ask: Item = { ...fixture(), id: "channel", revision: 3, state: "succeeded", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "answer", claimed: true, note: "#feedback" }, result: { message: "Answered", retryable: false }, content: { type: "ask", question: "Which channel?" } };
+  renderSlot(app.messageDirectives[0]!, directiveProps(ask.id), { rpc: { get: () => ask } });
+  expect(await screen.findByText("Answer: #feedback")).toBeTruthy();
+  expect(screen.queryByText(/Answer: Answer/)).toBeNull();
   expect(screen.queryByRole("form")).toBeNull();
   expect(screen.queryByRole("button", { name: "Resend" })).toBeNull();
 });
@@ -420,9 +426,8 @@ it("lists this thread's items urgent first with age, steps through them, and hid
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => waiting, get: (raw) => waiting.find((item) => item.id === (raw as { id: string }).id)! } });
   const header = await screen.findByRole("button", { name: /^Waiting on you/ });
-  // Open by default, like bb's own question; collapsed, it is one line with the top question and a count.
-  expect(header.getAttribute("aria-expanded")).toBe("true");
-  fireEvent.click(header);
+  // Collapsed by default: one quiet line with the top question and a count.
+  expect(header.getAttribute("aria-expanded")).toBe("false");
   expect(header.textContent).toBe("Waiting on you· Urgent · Ship it?3");
   fireEvent.click(header);
   const rows = within(await screen.findByRole("list")).getAllByRole("button");
@@ -451,6 +456,7 @@ it("marks a question asked again with the earlier answer, steps through items, a
   const app = await loadPluginApp(() => import("./app.js"));
   renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => waiting, get: (raw) => waiting.find((item) => item.id === (raw as { id: string }).id)! } });
   const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+  if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
   expect(header.textContent).toContain("· 2");
   const row = screen.getByRole("button", { name: "Answer: Which headline?" });
   expect(row.textContent).toContain("Asked again · you said “Run your agents like a team”");

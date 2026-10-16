@@ -359,11 +359,14 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   // The timeline keeps one plain line per answered card; anything that still needs the user opens Waiting on you.
   if (surface === "timeline") {
     const needsUser = stalled || item.state === "failed";
-    const outcome = stalled ? "Not sent" : item.state === "failed" ? "Failed" : chosen ?? "Answered";
+    const said = item.attempt?.note;
+    const outcome = stalled ? "Not sent" : item.state === "failed" ? "Failed"
+      : ask ? said ? said.length > 60 ? `${said.slice(0, 59).trimEnd()}…` : said : "Answered" : chosen ?? "Answered";
     const kind = reply ? "Reply" : ask ? "Answer" : "Decision";
     const line = <>
       <Icon name={needsUser ? "CircleQuestion" : "Check"} className="iac-waiting-icon" aria-hidden />
       <span className="iac-waiting-where">{kind}: {outcome}</span>
+      <span aria-hidden="true">·</span>
       <span className="iac-waiting-question">{heading}</span>
     </>;
     return needsUser
