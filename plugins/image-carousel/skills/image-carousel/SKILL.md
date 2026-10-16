@@ -12,6 +12,8 @@ A carousel shows one slide at a time with arrows outside the image in the side m
 
 Only show real captures. Never present mockups or placeholders as research or as before/after evidence. Pull request bodies still need their own screenshots; a carousel is for the thread.
 
+Click any image to open the full-size carousel. Previous/Next buttons, Left/Right keys, and touch swipes browse images while keeping captions and an “n / N” position visible. Before/after sets show Before then After for each slide. Titles and sources stay visible above a two-line description preview; Show more opens the full description without resizing the image. Close with Escape, the close button, or a click outside.
+
 ## Create
 
 Run `create` from the thread whose machine has the images: paths are read only from that thread's machine, and relative paths resolve against the current directory. The images are copied into the plugin, so the carousel keeps working after the files, worktree, or thread are cleaned up.
