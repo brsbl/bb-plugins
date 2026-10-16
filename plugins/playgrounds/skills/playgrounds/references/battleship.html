@@ -6,10 +6,10 @@
 <div data-pg="turn" class="pg-reveal" style="--i:1"></div>
 <div class="pg-banks pg-reveal" style="--i:2">
   <section class="pg-group"><h4 class="pg-label">My waters</h4>
-    <div data-pg="board" data-param="board" data-label="My waters" data-rows="8" data-cols="8" data-pieces="H:#e5484d:Hit,M:#9aa4b2:Miss"></div>
+    <div data-pg="board" data-param="board" data-label="My waters" data-rows="8" data-cols="8" data-pieces="H:var(--pg-bad):Hit:×,M:var(--pg-mark-muted):Miss:•"></div>
   </section>
   <section class="pg-group"><h4 class="pg-label">Your fleet</h4>
-    <div data-pg="board" data-param="fleet" data-label="Your fleet" data-rows="8" data-cols="8" data-pieces="S:#5b7a99:Ship,X:#e5484d:Hit,O:#c9d1db:Miss"></div>
+    <div data-pg="board" data-param="fleet" data-label="Your fleet" data-rows="8" data-cols="8" data-pieces="S:var(--pg-accent):Ship,X:var(--pg-bad):Hit:×,O:var(--pg-mark-muted):Miss:•"></div>
   </section>
 </div>
 <div class="pg-toolbar pg-reveal" style="--i:3" data-show="turn=setup"><button class="pg-btn" id="shuffle" type="button">Shuffle my fleet</button></div>
