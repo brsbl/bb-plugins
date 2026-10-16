@@ -179,6 +179,55 @@ it("lists every card once, keeps pending, failed and Later cards waiting with La
   expect((await store.log("thr_empty")).waiting).toEqual([]);
 });
 
+it("reads around items a newer build saved: drops unknown fields and skips unknown types", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  const row = (id: string, content: object, extra: object = {}) => host.bb.storage.database().prepare("INSERT INTO action_items VALUES (?, ?, ?)")
+    .run(ref.threadId, id, JSON.stringify({ id, threadId: ref.threadId, revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-15T10:00:00Z", content, ...extra }));
+  row("merge", { type: "decide", question: "Merge it?", consequence: "Squash-merge.", audience: "leads" }, { seenAt: "2026-10-15T10:01:00Z" });
+  row("channel", { type: "poll", question: "Which channel?", audience: "leads" });
+  const log = await host.harness.behavior.callRpc("log", {}) as { waiting: Item[] };
+  expect(log.waiting.map((item) => item.id)).toEqual(["merge"]);
+  expect(log.waiting[0]!.content).toEqual({ type: "decide", question: "Merge it?", consequence: "Squash-merge." });
+  const store = createStore(host.bb);
+  expect(store.get(ref.threadId, "merge").state).toBe("ready");
+  expect(() => store.get(ref.threadId, "channel")).toThrow("newer version");
+  expect((await host.harness.behavior.runCli(["log"])).exitCode).toBe(0);
+});
+it("keeps a newer build's fields through every rewrite, and never acts on an unknown type", async () => {
+  const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
+  const db = host.bb.storage.database();
+  const put = (id: string, content: object, extra: object = {}) => db.prepare("INSERT INTO action_items VALUES (?, ?, ?)")
+    .run(ref.threadId, id, JSON.stringify({ id, threadId: ref.threadId, revision: 1, state: "ready", attempt: null, result: null, updatedAt: "2026-10-15T10:00:00Z", content, seenAt: "later-build", ...extra }));
+  const raw = (id: string) => JSON.parse((db.prepare("SELECT value FROM action_items WHERE thread_id = ? AND item_id = ?").get(ref.threadId, id) as { value: string }).value);
+  const kept = (id: string) => expect(raw(id)).toMatchObject({ seenAt: "later-build", content: { audience: "leads" } });
+  put("draft", { ...reply, cc: [], bcc: [], audience: "leads" });
+  put("go", { type: "decide", question: "Merge it?", consequence: "Squash-merge.", audience: "leads" });
+  put("moot", { type: "decide", question: "Still needed?", consequence: "Keep it.", audience: "leads" });
+  put("lost", { type: "decide", question: "Ship it?", consequence: "Ship.", audience: "leads" }, { state: "pending", revision: 2,
+    attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false, sentAt: "2026-01-01T00:00:00.000Z", channel: "later-build" } });
+  put("channel", { type: "poll", question: "Which channel?", audience: "leads" });
+  const askBefore = raw("channel");
+  const store = createStore(host.bb);
+  store.save({ ...ref, id: "draft", revision: 1, draft: "Revised" });
+  kept("draft");
+  expect(raw("draft").content.draft).toBe("Revised");
+  const pending = store.prepare({ threadId: ref.threadId, id: "go", revision: 1, action: "yes" });
+  kept("go");
+  store.submitted({ threadId: ref.threadId, id: "go", attemptId: pending.attempt!.id });
+  store.claim(ref.threadId, "go", pending.attempt!.id);
+  kept("go");
+  store.report(ref.threadId, "go", pending.attempt!.id, "succeeded", "Merged", false);
+  kept("go");
+  store.resolve(ref.threadId, "moot", "No longer needed");
+  kept("moot");
+  store.undelivered(ref.threadId);
+  kept("lost");
+  expect(raw("lost").attempt).toMatchObject({ channel: "later-build" });
+  expect(raw("lost").attempt.sentAt).toBeUndefined();
+  expect(raw("channel")).toEqual(askBefore);
+  expect(() => store.resolve(ref.threadId, "channel", "Answered")).toThrow("newer version");
+  expect(raw("channel")).toEqual(askBefore);
+});
 it("CLI log defaults to all threads, supports JSON and explicit thread filters", async () => {
   const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
   for (const threadId of ["thr_one", "thr_two"]) await host.harness.behavior.runCli(["create", "reply", "--thread", threadId, "--item", JSON.stringify(reply)]);
