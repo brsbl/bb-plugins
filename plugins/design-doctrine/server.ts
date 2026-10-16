@@ -14,6 +14,7 @@ import {
   type OpenPublication,
   type Publication,
   closePublication,
+  directPublicationBase,
   materializeRules,
   openPublication,
   pluginDataDirectory,
@@ -33,6 +34,7 @@ import {
 } from "./history.js";
 import {
   createHarvest,
+  directRuleInputSchema,
   harvestProposalSchema,
   harvestVerdictSchema,
 } from "./harvest.js";
@@ -344,7 +346,15 @@ async function readWebhookBody(request: Request): Promise<Uint8Array> {
   return body;
 }
 
+const addRuleOutputSchema = z.object({
+  proposalId: z.number().int(),
+  threadId: z.string(),
+  verdict: z.string().nullable(),
+  reason: z.string().nullable(),
+});
+
 export const rpcContract = defineRpcContract({
+  experimental_addRule: { input: directRuleInputSchema, output: addRuleOutputSchema },
   getLibrary: { input: z.null(), output: librarySchema },
   getHarvestActivity: {
     input: harvestActivityInputSchema,
@@ -1097,11 +1107,14 @@ export default async function plugin(bb: BbPluginApi) {
    * remembered: caching a failure would disable the corpus for the lifetime of
    * the process after one offline fetch.
    */
-  async function resolveSource(): Promise<CorpusSource | null> {
-    if (corpusSource) return corpusSource;
-    const repositoryRoot = await resolveRepositoryRoot(DEFAULT_DOCTRINE_PATH);
+  async function resolveSource(root = DEFAULT_DOCTRINE_PATH): Promise<CorpusSource | null> {
+    if (root === DEFAULT_DOCTRINE_PATH && corpusSource) return corpusSource;
+    const repositoryRoot = await resolveRepositoryRoot(root);
     if (!repositoryRoot) return null;
-    githubRepository = await resolveGitHubRepository(repositoryRoot);
+    const repository = await resolveGitHubRepository(repositoryRoot);
+    if (root === DEFAULT_DOCTRINE_PATH) githubRepository = repository;
+    // A configured local maintenance checkout keeps its existing commit-only path.
+    if (root !== DEFAULT_DOCTRINE_PATH && !repository) return null;
     const dataDirectory = pluginDataDirectory(bb.storage.database().name);
     const readPath = join(dataDirectory, CORPUS_DIRECTORY);
     // bb owns the data directory; anything materialized inside the repository
@@ -1109,14 +1122,15 @@ export default async function plugin(bb: BbPluginApi) {
     if (!isAbsolute(readPath) || !relative(repositoryRoot, readPath).startsWith("..")) {
       return null;
     }
-    corpusSource = {
+    const source = {
       repositoryRoot,
       baseBranch: await resolveBaseBranch(repositoryRoot),
-      prefix: relative(repositoryRoot, DEFAULT_DOCTRINE_PATH),
+      prefix: relative(repositoryRoot, root),
       readPath,
       workPath: dataDirectory,
     };
-    return corpusSource;
+    if (root === DEFAULT_DOCTRINE_PATH) corpusSource = source;
+    return source;
   }
 
   async function doctrineRoot(): Promise<string> {
@@ -1132,15 +1146,22 @@ export default async function plugin(bb: BbPluginApi) {
    * legitimate to commit, and the harvest declines rather than writing rules
    * into the directory the plugin was installed from.
    */
-  async function openRulePublication(): Promise<Publication | null> {
+  async function openRulePublication(direct?: { originThreadId: string; title: string }): Promise<Publication | null> {
     const configured = expandPath((await settings.get()).doctrinePath);
+    if (direct) {
+      const source = await resolveSource(configured);
+      if (source) {
+        const base = directPublicationBase(source, await readOpenPublications(source));
+        return openPublication(base.source, undefined, { ...direct, parents: base.parents, trustedBranch: source.baseBranch });
+      }
+    }
     if (configured !== DEFAULT_DOCTRINE_PATH) {
       await ensureNotPublishedBranch(configured);
       return { root: configured, finish: async () => null };
     }
     const source = await resolveSource();
     if (!source) return null;
-    return openPublication(source);
+    return openPublication(source, undefined, direct);
   }
 
   function invalidate(): void {
@@ -1255,16 +1276,20 @@ export default async function plugin(bb: BbPluginApi) {
    * and could never merge. Harvests wait instead; the merge changes the read
    * copy, and rule-watch drains again.
    */
-  async function publicationInFlight(): Promise<boolean> {
-    const configured = expandPath((await settings.get()).doctrinePath);
-    if (configured !== DEFAULT_DOCTRINE_PATH) return false;
-    const source = await resolveSource();
+  async function publicationInFlight(direct = false): Promise<boolean> {
+    const source = await publicationSource();
     if (!source) return false;
     const open = await readOpenPublications(source);
     publicationCache = {
       at: Date.now(),
       value: open[0] ? { url: open[0].url } : null,
     };
+    // A direct rule reviews the pending chain and allocates its next unused ID.
+    // Archive harvests retain their existing one-publication-at-a-time behavior.
+    if (direct) {
+      directPublicationBase(source, open);
+      return false;
+    }
     // Strict branch protection blocks auto-merge on a branch that fell behind
     // main, and nothing else updates it. Every drain retries, by which time
     // GitHub has recomputed the merge state.
@@ -1292,12 +1317,10 @@ export default async function plugin(bb: BbPluginApi) {
     }
     if (publicationLookup) return publicationLookup;
     const request = (async () => {
-      const configured = expandPath((await settings.get()).doctrinePath);
-      if (configured !== DEFAULT_DOCTRINE_PATH) return null;
       const signal = AbortSignal.timeout(PUBLICATION_LOOKUP_TIMEOUT_MS);
       const value = await withDeadline(
         (async () => {
-          const source = await resolveSource();
+          const source = await publicationSource();
           if (!source) return null;
           const [open] = await readOpenPublications(source, signal);
           return open ? { url: open.url } : null;
@@ -1385,10 +1408,24 @@ export default async function plugin(bb: BbPluginApi) {
     return run;
   }
 
+  async function addRule(input: z.infer<typeof directRuleInputSchema>) {
+    const parsed = directRuleInputSchema.parse(input);
+    const stored = await betweenHarvests(async () => {
+      const sourceThreadId = parsed.evidence.thread.slice("@thread:".length).split("#")[0];
+      const thread = await bb.sdk.threads.get({ threadId: sourceThreadId });
+      return harvest.addRule(parsed, thread.projectId ?? PERSONAL_PROJECT_ID);
+    });
+    drainHarvest();
+    return addRuleOutputSchema.parse({
+      proposalId: stored.id, threadId: stored.threadId,
+      verdict: stored.verdict, reason: stored.reason,
+    });
+  }
+
   async function publicationSource(): Promise<CorpusSource | null> {
     const configured = expandPath((await settings.get()).doctrinePath);
-    if (configured !== DEFAULT_DOCTRINE_PATH) return null;
-    return resolveSource();
+    if (configured !== DEFAULT_DOCTRINE_PATH && !harvest.hasDirectSubmissions()) return null;
+    return resolveSource(configured);
   }
 
   /**
@@ -1482,7 +1519,7 @@ export default async function plugin(bb: BbPluginApi) {
         const next = harvest
           .pendingThreads()
           .find((thread) => !attempted.has(thread.threadId));
-        if (!next || (await publicationInFlight())) return false;
+        if (!next || (await publicationInFlight(harvest.hasPendingDirectRule(next.threadId)))) return false;
         attempted.add(next.threadId);
         await harvest.harvestThread(next.threadId, next.projectId);
         return true;
@@ -1606,6 +1643,7 @@ export default async function plugin(bb: BbPluginApi) {
     { auth: "none" },
   );
   bb.rpc.register(rpcContract, {
+    experimental_addRule: addRule,
     getLibrary: currentLibrary,
     getHarvestActivity: harvestActivity,
     cancelProposal,
@@ -1627,6 +1665,15 @@ export default async function plugin(bb: BbPluginApi) {
       );
     },
   });
+  bb.agents.registerTool({
+    name: "design_doctrine_add",
+    description: "Record a directly stated design rule with its exact user quote and source thread for shared doctrine review and a rule PR.",
+    instructions: "Record durable design rules as soon as the user states them. Supply anonymous evidence.summary and the exact private evidence.quote. Review rejects duplicates, conflicts, and unsupported quotes. Publication awaits merge approval.",
+    parameters: directRuleInputSchema.omit({ originThreadId: true }),
+    async execute(input, context) {
+      return JSON.stringify(await addRule({ ...input, originThreadId: context.threadId }));
+    },
+  });
   try {
     await currentLibrary();
   } catch (error) {
@@ -1638,7 +1685,7 @@ export default async function plugin(bb: BbPluginApi) {
       thread.title,
     );
     return {
-      tools: ["design_doctrine_search"],
+      tools: ["design_doctrine_search", "design_doctrine_add"],
       skills: ["design-doctrine"],
       ...(instructions ? { instructions } : {}),
     };
@@ -1647,6 +1694,7 @@ export default async function plugin(bb: BbPluginApi) {
     name: "doctrine",
     summary: "Browse and search product-design rules",
     commands: [
+      { name: "add", summary: "Record a directly stated design rule for review and publication", usage: "bb doctrine add --json '<rule with evidence: {thread, quote, summary}>'" },
       { name: "status", summary: "Show rule and Git status", usage: "bb doctrine status [--json]" },
       { name: "search", summary: "Search current rules", usage: "bb doctrine search <query> [--all] [--json]" },
       { name: "show", summary: "Show one rule", usage: "bb doctrine show <rule-id> [--json]" },
@@ -1658,6 +1706,16 @@ export default async function plugin(bb: BbPluginApi) {
       try {
         const command = argv[0] ?? "status";
         const json = argv.includes("--json");
+        if (command === "add") {
+          if (argv.length !== 3 || argv[1] !== "--json") {
+            throw new Error("Usage: bb doctrine add --json '<rule with evidence: {thread, quote, summary}>'");
+          }
+          const input = JSON.parse(requiredOption(argv, "--json"));
+          const result = await addRule(directRuleInputSchema.parse({
+            ...input, originThreadId: context.threadId ?? input.originThreadId,
+          }));
+          return { exitCode: 0, stdout: `${JSON.stringify(result)}\n` };
+        }
         if (command === "history") {
           const action = argv[1];
           if (action === "scan") {
@@ -1886,7 +1944,7 @@ export default async function plugin(bb: BbPluginApi) {
           if (!rule) return { exitCode: 1, stderr: `Rule not found: ${argv[1] ?? ""}\n` };
           return { exitCode: 0, stdout: json ? `${JSON.stringify(rule, null, 2)}\n` : `${formatRule(rule)}\n` };
         }
-        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show|history|harvest|validate>\n" };
+        return { exitCode: 2, stderr: "Usage: bb doctrine <status|search|show|add|history|harvest|validate>\n" };
       } catch (error) {
         return { exitCode: 1, stderr: `${error instanceof Error ? error.message : String(error)}\n` };
       }

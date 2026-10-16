@@ -62,6 +62,7 @@ describe("Design Doctrine plugin contract", () => {
     await plugin(bb);
 
     expect(harness.inspection.registrations.rpcMethods).toEqual([
+      "experimental_addRule",
       "getLibrary",
       "getHarvestActivity",
       "cancelProposal",
@@ -181,6 +182,7 @@ describe("Design Doctrine plugin contract", () => {
     expect(configuration.skills).toEqual(["design-doctrine"]);
     expect(configuration.tools.map(({ name }) => name)).toEqual([
       "design_doctrine_search",
+      "design_doctrine_add",
     ]);
     expect(configuration.instructions).toContain("ddr_001");
     expect(toolResult).toContain("ddr_001");
@@ -206,6 +208,7 @@ describe("Design Doctrine plugin contract", () => {
     expect(unavailableConfiguration.skills).toEqual(["design-doctrine"]);
     expect(unavailableConfiguration.tools.map(({ name }) => name)).toEqual([
       "design_doctrine_search",
+      "design_doctrine_add",
     ]);
     await harness.lifecycle.dispose();
   });
@@ -222,6 +225,7 @@ describe("Design Doctrine plugin contract", () => {
 
     await expect(plugin(bb)).resolves.toBeUndefined();
     expect(harness.inspection.registrations.rpcMethods).toEqual([
+      "experimental_addRule",
       "getLibrary",
       "getHarvestActivity",
       "cancelProposal",
@@ -288,6 +292,7 @@ describe("Design Doctrine plugin contract", () => {
     await expect(plugin(bb)).resolves.toBeUndefined();
     await vi.waitFor(() => expect(registrationsAtInventoryStart).not.toBeNull());
     expect(registrationsAtInventoryStart?.rpcMethods).toEqual([
+      "experimental_addRule",
       "getLibrary",
       "getHarvestActivity",
       "cancelProposal",
