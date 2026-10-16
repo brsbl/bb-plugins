@@ -480,10 +480,11 @@ it("never answers a collapsed or unfocused card from the keyboard", async () => 
   const app = await loadPluginApp(() => import("./app.js"));
   renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item, prepare: () => { calls.push("prepare"); return item; } } });
   const header = await screen.findByRole("button", { name: /^Waiting on you/ });
-  await screen.findByRole("form");
   if (header.getAttribute("aria-expanded") === "true") fireEvent.click(header);
+  expect(header.getAttribute("aria-expanded")).toBe("false");
   for (const target of [document.body, window, header]) { fireEvent.keyDown(target, { key: "1" }); fireEvent.keyDown(target, { key: "Enter" }); }
   fireEvent.click(header);
+  await screen.findByRole("radio", { name: /^Yes/ });
   // Open but not focused: the keys still do nothing.
   fireEvent.keyDown(document.body, { key: "1" });
   expect((screen.getByRole("radio", { name: /^Yes/ }) as HTMLInputElement).checked).toBe(false);
