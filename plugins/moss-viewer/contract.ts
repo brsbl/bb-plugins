@@ -135,6 +135,8 @@ const noteFile = z.discriminatedUnion("moss", [
     /** The note's layout.json sidecar as parsed JSON; the viewer validates its shape. */
     layout: z.unknown(),
     noteId: id.nullable(),
+    /** Absent on older hosts; only offer the native action when availability is known. */
+    canOpenInMoss: z.boolean().optional(),
     modifiedMs: z.number(),
     /** The note's version on disk as read, in `watchNote`'s terms; absent from hosts older than live reload. */
     version: z.string().optional(),
@@ -192,6 +194,8 @@ const readResult = z.discriminatedUnion("moss", [
     markdown: z.string(),
     layout: z.unknown(),
     noteId: id.nullable(),
+    /** Absent on older hosts; only offer the native action when availability is known. */
+    canOpenInMoss: z.boolean().optional(),
     modifiedMs: z.number(),
     /** The note's version on disk as read, in `watchNote`'s terms. */
     version: z.string().optional(),

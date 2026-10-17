@@ -131,6 +131,7 @@ export async function readNote({ path }: { path: string }) {
     markdown,
     layout: await readLayout(directory),
     noteId: await readNoteId(directory),
+    canOpenInMoss: await canOpenInMoss(),
     modifiedMs: file.modifiedMs,
     version: await noteVersion(file.path),
   };
@@ -291,6 +292,14 @@ export async function readAssetIn(directory: () => Promise<string>, input: Asset
     }
     throw error;
   }
+}
+
+/** Ask Launch Services without launching Moss; the app may be installed outside /Applications. */
+export async function canOpenInMoss(): Promise<boolean> {
+  if (platform() !== "darwin") return false;
+  return new Promise((accept) => {
+    execFile("/usr/bin/open", ["-Ra", "Moss"], { timeout: 5_000 }, (error) => accept(!error));
+  });
 }
 
 export async function openInMoss({ path }: { path: string }): Promise<{ opened: true }> {
