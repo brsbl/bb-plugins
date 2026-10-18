@@ -1,6 +1,6 @@
 ---
 name: collect-results
-description: Wait for delegated bb workers without polling, read their final replies and artifacts, and catch stalls and errors such as provider 429s and retry them. Use after delegating, when bb tells the lead that a worker finished, failed, or needs input, or when the user asks whether workers are done or what one found. report-results owns what reaches the user; bb-thread-status-report owns status reports across every running thread.
+description: Wait for delegated bb workers without polling, read their final replies and artifacts, and catch stalls and errors such as provider 429s and retry them. Use after delegating, when bb tells the lead that a worker finished, failed, or needs input, or when the user asks whether workers are done or what one found. report-results owns what reaches the user; Use bb-thread-status-report if installed for reports across all running threads; otherwise list threads with `bb thread list --json`, inspect current states, and report only the scope requested.
 ---
 
 # Collect results

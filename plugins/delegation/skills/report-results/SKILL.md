@@ -1,6 +1,6 @@
 ---
 name: report-results
-description: Turn delegated workers' results into a short report for the user, with batched bullets, evidence shown inline, decisions as action cards, and factual concerns flagged once. Use when passing on what workers found or built, when a batch of workers finishes, or when the user asks for the outcome of delegated work. comms owns general writing style and inline-action-cards owns card mechanics; this skill owns what a lead passes on from its workers.
+description: Turn delegated workers' results into a short report for the user, with batched bullets, evidence shown inline, decisions as action cards, and factual concerns flagged once. Use when passing on what workers found or built, when a batch of workers finishes, or when the user asks for the outcome of delegated work. Optional comms and inline-action-cards skills extend writing style and card mechanics; this skill owns what a lead passes on from its workers.
 ---
 
 # Report results
@@ -26,9 +26,9 @@ own report unless it changes what the user should do now.
 
 With `reportTo` set to `lead`, workers put decisions in their reports and the
 lead raises them. Gather every pending decision from your reports into one set
-of cards in your own thread, then resolve any copies a worker posted in its
-thread (`bb action-cards resolve <id> --thread <worker>`) so the user answers
-each decision once, in one place.
+of questions in your own thread. When action cards are installed, use them
+and resolve duplicate cards (`bb action-cards resolve <id> --thread <worker>`).
+Otherwise ask each decision once in plain text and relay the answer.
 
 With `reportTo` set to `user`, workers report to the user directly and keep
 their own cards. Don't re-summarize their reports. Report only what crosses
@@ -39,7 +39,8 @@ teams and the decisions that need you to coordinate.
 With `reportStyle` set to `bullets`:
 
 1. Lead with the single next decision when there is one; otherwise one line
-   with the outcome, following `comms`.
+   with the outcome. Follow `comms` if installed; otherwise use plain language,
+   concrete results, and short sentences.
 2. At most `reportMaxBullets` flat bullets, one per result, phrased as its
    effect. Link each worker as `@thread:<id>` and each PR as a Markdown link.
 3. Evidence, then decisions, last.
@@ -60,9 +61,10 @@ never move, overwrite, or delete a screenshot that has been shown.
 
 ## Decisions
 
-When `decisionsAsActionCards` is true, every decision the user owes becomes
-an action card through `inline-action-cards`. Put the options and your
-recommendation in a line or two before the card. Don't also ask in prose.
+When `decisionsAsActionCards` is true and `inline-action-cards` is installed,
+use a card with the options and recommendation. Otherwise ask one concise
+question in the conversation and wait for the answer. Never emit a card
+directive without a tool-created card.
 
 ## Flag concerns once
 
@@ -84,15 +86,11 @@ When you are the worker, your final reply is your report: at most
 
 ## Example
 
-```markdown
-Both fixes are up for review; one needs your call on the icon.
+```text
+The export update is ready for review.
 
-- Sidebar dots now match thread status: [PR #412](https://github.com/brsbl/bb-plugins/pull/412), CI green (@thread:thr_abc123)
-- The empty-state copy is updated, but CI is red on an unrelated lint step: [PR #413](https://github.com/brsbl/bb-plugins/pull/413) (@thread:thr_def456)
+- CSV export now includes column headers; link the verified PR and its checks.
+- A second worker needs a decision on which date format to support.
 
-![Sidebar with status dots on three threads](/path/from/worker/after.png)
-
-Pick the icon for the empty state. I recommend the outline one; it matches the sidebar.
-
-::action{id="empty-state-icon"}
+Which date format should exports use? I recommend ISO dates for sorting.
 ```
