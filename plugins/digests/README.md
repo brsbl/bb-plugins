@@ -4,6 +4,12 @@ Private briefings delivered as threads: one clear headline, a few numbered
 items with compact review buttons, and a flat “No action needed” email table collapsed. Briefs arrive in a
 Briefs inbox. Archive them when done and find old briefs with thread search.
 
+![A sample Morning brief thread: one reply needs you, with a Review reply button, the counts, and the No action needed table expanded](docs/brief.png)
+
+![Settings → Briefs with a Gmail site on an example account and a disabled weekday Morning brief](docs/settings.png)
+
+![Editing the Morning brief: its prompt, weekday schedule and the After reading: Keep unread selector](docs/settings-edit.png)
+
 ## Requirements
 
 - **Automations** schedules and dispatches brief runs.
