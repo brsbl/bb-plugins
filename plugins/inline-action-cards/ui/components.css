@@ -84,6 +84,8 @@
 /* Collapsed, the rendered context flows inline on one line: nothing is removed, only clipped. */
 .ac-context-summary { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ac-context-summary * { display: inline; margin: 0; padding: 0; white-space: nowrap; }
+/* Rendered Markdown brings its own color and type; context stays one muted line at the small size, collapsed or open. */
+.ac-context-line * { color: inherit; font-size: inherit; line-height: inherit; }
 .ac-context-summary :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, tr, td, th)::after { content: " "; }
 .ac-context-summary li + li::before { content: "· "; }
 .ac-context-summary img { display: none; }

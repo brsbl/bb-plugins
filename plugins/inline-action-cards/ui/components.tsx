@@ -34,7 +34,8 @@ export function ContextLine({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     const node = line.current;
     if (!node || open) return;
-    const measure = () => setClipped(node.scrollWidth > node.clientWidth + 1);
+    // Hidden when it overflows the line, or when it holds images, which the one-line view never shows.
+    const measure = () => setClipped(node.scrollWidth > node.clientWidth + 1 || !!node.querySelector("img, video, picture"));
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(node);

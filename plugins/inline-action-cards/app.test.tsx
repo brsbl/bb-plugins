@@ -118,6 +118,22 @@ it("shows the original context on one line, never altered, with more only when s
   expect(screen.getAllByRole("radio")).toHaveLength(2);
 });
 
+it("offers more for a short context whose image the one-line view hides", async () => {
+  const item = { ...fixture(), id: "chart-1", content: { type: "decide", question: "Ship the chart?", consequence: "Publish it.", context: "Before: ![chart](https://example.com/chart.png)" }, threadTitle: "Ops", threadProjectId: null } as const;
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+  await openItem(/^Answer: /);
+  fireEvent.click(await screen.findByRole("button", { name: "Show all context" }));
+  expect(document.querySelector(".ac-context-full img")).toBeTruthy();
+});
+
+it("keeps rendered context in the line's muted color and small size", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const css = await readFile(new URL("./ui/components.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.ac-context-line \* \{ color: inherit; font-size: inherit; line-height: inherit; \}/);
+  expect(css).toMatch(/\.ac-context-line \{[^}]*color: var\(--muted-foreground\)[^}]*font-size: var\(--ac-meta\)/);
+});
+
 it("offers more for clipped context and shows the full original", async () => {
   const width = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) { return this.classList.contains("ac-context-summary") ? 900 : 0; });
   const client = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) { return this.classList.contains("ac-context-summary") ? 300 : 0; });
