@@ -20,37 +20,37 @@ describe("GitHub Activity panel", () => {
         listNotifications: () => ({
           fetchedAt: "2026-08-12T12:00:00Z",
           identityKey: "https://api.github.com/user/1",
-          login: "brsbl",
+          login: "fixture-author",
           items: [
             {
               id: "n1",
               activity: "Mention",
               activityKind: "mention",
-              actor: "alice",
-              avatarUrl: "https://ghe.example.test/avatars/alice",
+              actor: "fixture-reviewer",
+              avatarUrl: "https://ghe.example.test/avatars/fixture-reviewer",
               number: 42,
-              repo: "get-bb/bb",
+              repo: "example-org/project-demo",
               resolved: false,
               resourceKind: "pr",
               title: "Scannable activity",
               unread: true,
               updatedAt: "2026-08-12T12:00:00Z",
-              url: "https://github.com/get-bb/bb/pull/42",
+              url: "https://github.com/example-org/project-demo/pull/42",
             },
             {
               id: "n2",
               activity: "New comment",
               activityKind: "comment",
-              actor: "bob",
+              actor: "fixture-maintainer",
               avatarUrl: null,
               number: 7,
-              repo: "brsbl/moss",
+              repo: "example-org/notes-demo",
               resolved: true,
               resourceKind: "issue",
               title: "Keep links local",
               unread: false,
               updatedAt: "2026-08-11T12:00:00Z",
-              url: "https://github.com/brsbl/moss/issues/7",
+              url: "https://github.com/example-org/notes-demo/issues/7",
             },
           ],
         }),
@@ -60,13 +60,13 @@ describe("GitHub Activity panel", () => {
     expect(await slot.findByText("#42")).toBeDefined();
     expect(screen.queryByText("mentioned you")).toBeNull();
     expect(screen.queryByText("commented")).toBeNull();
-    const actor = screen.getAllByText("@alice")[0]!.parentElement!;
+    const actor = screen.getAllByText("@fixture-reviewer")[0]!.parentElement!;
     expect(actor.className).toContain("rounded-full");
     expect(actor.className).toContain("bg-muted/35");
     expect(actor.className).toContain("font-normal");
     expect(actor.className).toContain("text-muted-foreground");
     const avatarImage = actor.querySelector(
-      'img[src="https://ghe.example.test/avatars/alice"]',
+      'img[src="https://ghe.example.test/avatars/fixture-reviewer"]',
     );
     expect(avatarImage).not.toBeNull();
     fireEvent.error(avatarImage!);
@@ -100,11 +100,11 @@ describe("GitHub Activity panel", () => {
     expect(desktopUpdatedTime.parentElement?.className).toContain(
       "justify-between",
     );
-    expect(screen.getAllByText("get-bb/bb")).toHaveLength(2);
+    expect(screen.getAllByText("example-org/project-demo")).toHaveLength(2);
     expect(screen.getByText("Scannable activity")).toBeDefined();
     expect(screen.getByText("#42").parentElement?.className).toContain("mt-0.5");
     const link = screen.getByRole("link", { name: /Scannable activity/u });
-    expect(link.getAttribute("href")).toBe("https://github.com/get-bb/bb/pull/42");
+    expect(link.getAttribute("href")).toBe("https://github.com/example-org/project-demo/pull/42");
     expect(link.getAttribute("target")).toBe("_blank");
     expect(link.className).toContain("items-start");
     expect(screen.getByText("Scannable activity").className).toContain(
@@ -127,7 +127,7 @@ describe("GitHub Activity panel", () => {
     expect(screen.queryByRole("columnheader", { name: /Last updated/u })).toBeNull();
     expect(screen.getAllByRole("columnheader")).toHaveLength(5);
     expect(
-      screen.getByRole("combobox", { name: "Filter by status" }),
+      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
     ).toBeDefined();
     expect(screen.queryByRole("option", { name: "Reviews" })).toBeNull();
     expect(screen.queryByRole("option", { name: "Approvals" })).toBeNull();
@@ -194,7 +194,7 @@ describe("GitHub Activity panel", () => {
     expect(markUnresolved.getAttribute("title")).toBe("Reopen");
     expect(markUnresolved.className).toContain("checked:bg-success");
     fireEvent.change(
-      screen.getByRole("combobox", { name: "Filter by status" }),
+      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
       { target: { value: "open" } },
     );
     markResolved.focus();
@@ -212,12 +212,12 @@ describe("GitHub Activity panel", () => {
       });
       expect(screen.queryByText("Scannable activity")).toBeNull();
       expect(document.activeElement).toBe(
-        screen.getByRole("combobox", { name: "Filter by status" }),
+        screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
       );
     });
 
     fireEvent.change(
-      screen.getByRole("combobox", { name: "Filter by status" }),
+      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
       { target: { value: "resolved" } },
     );
     expect(
@@ -246,7 +246,7 @@ describe("GitHub Activity panel", () => {
     });
 
     fireEvent.change(
-      screen.getByRole("combobox", { name: "Filter by status" }),
+      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
       { target: { value: "open" } },
     );
     expect(
@@ -257,7 +257,7 @@ describe("GitHub Activity panel", () => {
       ).checked,
     ).toBe(false);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Filter by resource type" }), {
+    fireEvent.change(screen.getByRole("comfixture-maintainerox", { name: "Filter by resource type" }), {
       target: { value: "issue" },
     });
     expect(screen.queryByText("Scannable activity")).toBeNull();
@@ -292,22 +292,22 @@ describe("GitHub Activity panel", () => {
           return {
             fetchedAt: "2026-08-12T12:00:00Z",
             identityKey: "https://api.github.com/user/1",
-            login: "brsbl",
+            login: "fixture-author",
             items: [
               {
                 id: "n1",
                 activity: "New comment",
                 activityKind: "comment" as const,
-                actor: "alice",
+                actor: "fixture-reviewer",
                 avatarUrl: null,
                 number: 42,
-                repo: "get-bb/bb",
+                repo: "example-org/project-demo",
                 resolved: false,
                 resourceKind: "pr" as const,
                 title: "Keep stale activity visible",
                 unread: true,
                 updatedAt: "2026-08-12T12:00:00Z",
-                url: "https://github.com/get-bb/bb/pull/42",
+                url: "https://github.com/example-org/project-demo/pull/42",
               },
             ],
           };
@@ -351,23 +351,23 @@ describe("GitHub Activity panel", () => {
         listNotifications: () => ({
           fetchedAt: "2026-08-12T12:00:00Z",
           identityKey: "https://api.github.com/user/1",
-          login: "brsbl",
+          login: "fixture-author",
           items: [
             {
               id: "n1",
               activity: "New comment",
               activityKind: "comment" as const,
-              actor: "alice",
+              actor: "fixture-reviewer",
               avatarUrl: null,
               eventKey: "comment:1",
               number: 42,
-              repo: "get-bb/bb",
+              repo: "example-org/project-demo",
               resolved: false,
               resourceKind: "pr" as const,
               title: "Retry resolve",
               unread: true,
               updatedAt: "2026-08-12T12:00:00Z",
-              url: "https://github.com/get-bb/bb/pull/42",
+              url: "https://github.com/example-org/project-demo/pull/42",
             },
           ],
         }),
@@ -381,7 +381,7 @@ describe("GitHub Activity panel", () => {
       name: "Resolve: Retry resolve",
     })) as HTMLInputElement;
     fireEvent.change(
-      screen.getByRole("combobox", { name: "Filter by status" }),
+      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
       { target: { value: "open" } },
     );
     checkbox.focus();
