@@ -354,7 +354,7 @@ See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template]
 
 Keep a thread's key files and links one click away in a strip above the composer. Give links recognizable titles, preview their destinations on hover or focus, and keep long file names readable with their extensions. Ask the agent to pin files from the Pin pill, or open, copy and unpin them from their menus.
 
-![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
+![A Markdown file and two titled links pinned above the composer; the long file name keeps its .md extension](plugins/file-pins/docs/strip.png)
 
 ![Unpinned files and links in the ⋯ list above the strip](plugins/file-pins/docs/more-list.png)
 
