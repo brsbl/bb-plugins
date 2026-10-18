@@ -545,6 +545,7 @@ function MossViewerFrame(props: FrameProps) {
 
 function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const { Original } = props;
+  const panelRef = useRef<HTMLDivElement>(null);
   // The parent keys this tab by its file, so the first request is the file for its lifetime.
   const [initial] = useState(props.initial);
   const rpc = useRpc<typeof rpcContract>();
@@ -769,6 +770,29 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
       window.removeEventListener("focus", renew);
     };
   }, [watchKey, connection, reloadViewer]);
+  // Moss adoption only changes meta.json, which is not part of the viewer's file version.
+  useEffect(() => {
+    if (viewerNote?.noteId !== null) return;
+    const refresh = () => {
+      if (document.visibilityState !== "hidden" && viewerRef.current?.noteId === null) readChanged();
+    };
+    const panel = panelRef.current;
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    panel?.addEventListener("focusin", refresh);
+    // bb can retain panels while another tab is selected, without hiding the document.
+    const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) refresh();
+    });
+    if (panel) observer?.observe(panel);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      panel?.removeEventListener("focusin", refresh);
+      observer?.disconnect();
+    };
+  }, [watchKey, viewerNote?.noteId, readChanged]);
+
   useRealtime(VIEWER_NOTE_CHANGED, (payload) => {
     const change = asViewerNoteChanged(payload);
     const shown = viewerRef.current;
@@ -887,7 +911,8 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   const actions: HeaderAction[] = [
     ...(restorable ? [{ icon: "ArrowTurnBackward", label: "Restore your last save from bb", onSelect: restoreLastSave }] : []),
     { icon: "FolderOpen", label: touch ? "Show in Finder on Mac" : "Show in Finder", onSelect: revealNote },
-    { icon: "ExternalLink", label: touch ? "Open in Moss on Mac" : "Open in Moss", onSelect: openInMoss },
+    ...(note.canOpenInMoss && note.noteId !== null
+      ? [{ icon: "ExternalLink", label: touch ? "Open in Moss on Mac" : "Open in Moss", onSelect: openInMoss }] : []),
   ];
   const header = (
     <NoteHeader
@@ -903,8 +928,24 @@ function MossNoteTab(props: { initial: ReadInput; Original: ComponentType }) {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
+    <div ref={panelRef} className="flex h-full min-h-0 flex-1 flex-col">
       {collapsed ? null : header}
+      {note.noteId === null ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface-raised-solid px-4 py-2 text-sm">
+          <span role="status" className="min-w-0 flex-1 text-muted-foreground">
+            {note.canOpenInMoss
+              ? "Open once in Moss to edit and comment here."
+              : "Read-only until opened once in Moss on your Mac."}
+          </span>
+          {note.canOpenInMoss ? (
+            <button type="button" onClick={openInMoss}
+              className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Icon name="ExternalLink" aria-hidden className="size-4" />
+              Open in Moss
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className={cn("relative min-h-0 flex-1", collapsed && "overflow-hidden")}>
         {collapsed ? (
           touch ? (
