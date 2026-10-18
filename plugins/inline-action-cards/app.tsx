@@ -269,9 +269,9 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const tone = stalled ? "unsent" : item.state === "failed" ? "failed" : item.state === "succeeded" ? "done" : "sent";
   const result = <DecisionBody about={<div className="ac-question">{heading}</div>} answer={<Outcome tone={tone} answer={chosen ?? ""} note={item.attempt?.note} status={where} time={new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
       actions={(stalled || item.state === "failed" || deferred) ? <>
-        {(deferred || (item.state === "failed" && item.result?.retryable)) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</Button>}
-        {stalled && <Button type="button" size="sm" variant="default" disabled={busy} onClick={() => void act()}>Resend</Button>}
-        {item.state === "failed" && <Button ref={reviewTarget} type="button" size="sm" variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</Button>}
+        {(deferred || (item.state === "failed" && item.result?.retryable)) && <Button type="button" size="sm" variant="outline" disabled={busy || dismissal.pending} onClick={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</Button>}
+        {stalled && <Button type="button" size="sm" variant="default" disabled={busy || dismissal.pending} onClick={() => void act()}>Resend</Button>}
+        {item.state === "failed" && <Button ref={reviewTarget} type="button" size="sm" variant="default" disabled={busy || dismissal.pending} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</Button>}
       </> : undefined} />} />;
   if (logEntry) {
     const failed = item.state === "failed";

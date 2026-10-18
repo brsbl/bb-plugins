@@ -439,6 +439,30 @@ it.each([
   await waitFor(() => expect(calls).toEqual([expect.objectContaining({ id: "merge-1", revision: 3 })]));
 });
 
+it("locks recovery during a pending dismissal and drops the dismissal if the item changes", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    let item = { ...fixture(), id: "merge-1", revision: 3, state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: true }, result: { message: "Head moved", retryable: true }, content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merge it." }, ...source } as Item & typeof source;
+    const calls: unknown[] = [];
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: {
+      waiting: () => [item], get: () => item,
+      dismiss: (input) => { calls.push(input); return { ...item, state: "succeeded" }; },
+    } });
+    const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+    if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
+    fireEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+    expect((screen.getByRole("button", { name: "Choose again" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Retry" }) as HTMLButtonElement).disabled).toBe(true);
+    // Another client reopens it before the Undo window ends: the pending dismissal must not carry over.
+    item = { ...item, revision: 4, state: "ready", attempt: null, result: null };
+    await slot.behavior.emitRealtime("items", {});
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Undo" })).toBeNull());
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(calls).toEqual([]);
+  } finally { vi.useRealTimers(); }
+});
+
 it("dismisses the open item in Waiting on you", async () => {
   const item = fixture();
   let dismissed = false;

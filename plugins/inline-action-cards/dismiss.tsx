@@ -15,7 +15,8 @@ export function useDismiss(item: Item | null, onDismissed?: (item: Item) => void
   const [committing, setCommitting] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const state = useRef({ pending: false, reason: "", item, sent: false });
+  // revision: the exact item the user chose to dismiss; a different revision is a different decision.
+  const state = useRef({ pending: false, reason: "", item, sent: false, revision: 0 });
   state.current.item = item;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const done = useRef(onDismissed); done.current = onDismissed;
@@ -28,7 +29,7 @@ export function useDismiss(item: Item | null, onDismissed?: (item: Item) => void
     setCommitting(true);
     try {
       const reasonText = current.reason.trim();
-      const next = await rpc.call("dismiss", { threadId: current.item.threadId, id: current.item.id, revision: current.item.revision, ...(reasonText ? { reason: reasonText.slice(0, 200) } : {}) });
+      const next = await rpc.call("dismiss", { threadId: current.item.threadId, id: current.item.id, revision: current.revision, ...(reasonText ? { reason: reasonText.slice(0, 200) } : {}) });
       current.pending = false;
       setPending(false); setCommitting(false);
       done.current?.(next);
@@ -39,7 +40,8 @@ export function useDismiss(item: Item | null, onDismissed?: (item: Item) => void
   }, [rpc]);
   const schedule = useCallback((ms = UNDO_MS) => { clear(); timer.current = setTimeout(() => void commit(), ms); }, [commit]);
   const start = () => {
-    Object.assign(state.current, { pending: true, reason: "", sent: false });
+    if (!item) return;
+    Object.assign(state.current, { pending: true, reason: "", sent: false, revision: item.revision });
     setPending(true); setReason(""); setError(null); schedule();
   };
   const undo = () => {
@@ -47,6 +49,11 @@ export function useDismiss(item: Item | null, onDismissed?: (item: Item) => void
     clear(); state.current.pending = false; setPending(false); setReason("");
   };
   const changeReason = (value: string) => { state.current.reason = value; setReason(value); };
+  // The item changed under a pending dismissal (reopened, retried, edited elsewhere): cancel it, never carry it over.
+  useEffect(() => {
+    const current = state.current;
+    if (current.pending && !current.sent && item && item.revision !== current.revision) undo();
+  }, [item?.revision]);
   // Leaving the view keeps the dismissal the user started.
   useEffect(() => () => { if (state.current.pending) void commit(); }, [commit]);
   return { pending, committing, reason, error, start, undo, commit, schedule, pause: clear, changeReason };
