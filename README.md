@@ -154,7 +154,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/i
 
 ### Inline Decisions
 
-Edit email replies and approve decisions inside agent messages. Review one item or a group in a table, and track waiting choices and results across threads in the Decision log.
+Answer everything agents need from you in Waiting on you, a drawer above the prompt box that collects decisions, email replies and plain questions from every thread, urgent first. Track past choices and results in the Decision log.
 
 ![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
 
