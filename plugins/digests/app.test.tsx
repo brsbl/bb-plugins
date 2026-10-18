@@ -312,7 +312,7 @@ describe("Digests app", () => {
   it("keeps repeat senders flat and preserves every source link and semantic accent", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const rows = ["Example Finance", "Example Design", "example finance", "Example Finance", "Example Design"].map((sender, index) => ({
-      title: `${sender} · Notice ${index}`, text: index === 2 ? "September statement is ready." : `Detail ${index}`, url: `https://example.test/mail/${index}`,
+      title: `${sender} · Notice ${index}`, text: index === 2 ? "September statement is ready." : index === 3 ? "Investment account update." : `Detail ${index}`, url: `https://example.test/mail/${index}`,
       ...(index === 0 ? { kind: "receipt", receivedAt: 1791043200000 } : {}),
     }));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
