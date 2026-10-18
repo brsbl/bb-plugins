@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "files": ["assets", "dist", "docs", "skills", "README.md"],
+  "files": ["assets", "dist", "docs", "skills", "README.md", "PLUGIN_OVERVIEW.md"],
   "engines": { "bb": ">=0.38.0", "bbPluginSdk": ">=0.4.6" },
   "bb": {
     "name": "Theme Preview",

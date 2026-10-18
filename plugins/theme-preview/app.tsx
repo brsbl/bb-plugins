@@ -206,7 +206,7 @@ function Sidebar({ selected, split, hover }: { selected?: boolean; split?: boole
       <Row label="Fix pink split row (oklch mix)" dot="status" />
       <Row label="Hue census battery" />
       <div style={{ flex: 1 }} />
-      <div style={{ display: "flex", alignItems: "center", height: 30, padding: "0 10px", fontSize: 12.5, color: v("muted-foreground") }}>brsbl</div>
+      <div style={{ display: "flex", alignItems: "center", height: 30, padding: "0 10px", fontSize: 12.5, color: v("muted-foreground") }}>Workspace</div>
     </div>
   );
 }
