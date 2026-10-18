@@ -710,8 +710,8 @@ describe("dismissing", () => {
     expect(context).toMatchObject({ intent: "dismissed", question: "Which channel?", reason: "Not needed" });
     // Nothing can act on it afterwards.
     const store = createStore(host.bb);
-    expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: 2, action: "answer", note: "#general" })).toThrow();
-    await expect(host.harness.behavior.callRpc("dismiss", { threadId: ref.threadId, id: "channel", revision: 2 })).rejects.toThrow("can't be dismissed");
+    expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: item.revision, action: "answer", note: "#general" })).toThrow();
+    await expect(host.harness.behavior.callRpc("dismiss", { threadId: ref.threadId, id: "channel", revision: item.revision })).rejects.toThrow("can't be dismissed");
   });
   it("keeps a failed notice for retry, sends it exactly once however many retries race, and makes no attempt", async () => {
     let archived = true;
