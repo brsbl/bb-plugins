@@ -53,10 +53,10 @@ Every command takes `--json`. Errors print `{"ok":false,"error":{"code","message
 
 `--file`, `--notes-file`, and `--out` are paths on the machine this thread runs on
 (absolute, `~/`, or relative to the working directory). Pass `--machine <host-id>` for
-another machine. File attachments require a connected Mac. Note search uses the default Moss notes folder
-in that Mac’s home directory; an absent folder returns no results. A typed absolute path
-can attach another file on the Mac. Opening a Moss note requires Moss installed there;
-otherwise bb falls back to its file preview. Without a Mac, use URL, pull request, or
+another machine. File attachments require a connected machine. Note search uses the default Moss notes folder
+in that machine’s home directory; an absent folder returns no results. A typed absolute path
+can attach another file on that machine. Opening a Moss note requires macOS with Moss installed;
+otherwise bb falls back to its file preview. Without a connected machine, use URL, pull request, or
 thread attachments; the calendar and Google sync still work.
 
 Human output is one line per item:

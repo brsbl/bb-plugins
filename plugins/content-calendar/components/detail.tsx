@@ -313,7 +313,7 @@ function GateForm({ item, onAdd, onCancel }: { item: Item; onAdd: (gate: GateInp
 }
 
 type AttachMode = "file" | "url" | "pr" | "thread";
-const ATTACH_LABELS: Record<AttachMode, string> = { file: "File on Mac…", url: "Link", pr: "Pull request", thread: "bb thread" };
+const ATTACH_LABELS: Record<AttachMode, string> = { file: "File…", url: "Link", pr: "Pull request", thread: "bb thread" };
 
 function Attachments({ item, act, open }: { item: Item; act: (run: () => Promise<Item>) => Promise<void>; open: (attachment: Attachment) => Promise<void> }) {
   const rpc = useCalendarRpc();
@@ -338,12 +338,12 @@ function Attachments({ item, act, open }: { item: Item; act: (run: () => Promise
     if (!fileKey && mode !== "file") return;
     rpc.call("machines", {}).then((result) => setMachines(result.machines), () => {});
   }, [rpc, fileKey, mode]);
-  const machineName = (machineId: string) => machines?.find((machine) => machine.id === machineId)?.name ?? "Mac";
+  const machineName = (machineId: string) => machines?.find((machine) => machine.id === machineId)?.name ?? "Machine";
   const meta = (attachment: Attachment): string => {
     if (attachment.kind === "file") {
       const state = states[attachment.id];
       const where = /\.md$/i.test(attachment.name) && /\/Moss\//.test(attachment.path) ? `Moss · ${machineName(attachment.machineId)}` : machineName(attachment.machineId);
-      return state === "missing" ? `Missing on ${machineName(attachment.machineId)}` : state === "offline" ? "Mac offline" : where;
+      return state === "missing" ? `Missing on ${machineName(attachment.machineId)}` : state === "offline" ? "Machine offline" : where;
     }
     if (attachment.kind === "url") { try { return new URL(attachment.url).hostname; } catch { return "Link"; } }
     if (attachment.kind === "pr") return "Pull request";

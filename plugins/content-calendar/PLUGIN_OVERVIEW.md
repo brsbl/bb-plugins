@@ -12,8 +12,8 @@ Requires Google Calendar and your own Google Cloud OAuth Desktop app client. The
 
 Choose an IANA time zone in Settings before creating a calendar; the default is UTC. Existing calendars keep their Google Calendar zone. Items sync with Google Calendar, including edits made there. Disconnected network writes queue for retry, and conflicting edits are shown for resolution. Disconnecting or uninstalling leaves your Google calendar intact. Export items as JSON from the CLI.
 
-## Optional Mac attachments
+## Optional file and Moss attachments
 
-Attaching files requires a connected Mac enrolled in bb. Note discovery searches that Mac’s default Moss notes folder. Without the folder, search has no results, but you can enter another file’s absolute path. Opening a note in Moss requires Moss installed on that Mac; otherwise bb falls back to file preview. Without a Mac, scheduling, sync, and link, pull request, and thread attachments remain available.
+Attaching files requires a connected machine enrolled in bb. Note discovery searches that machine’s default Moss notes folder. Without the folder, search has no results, but you can enter another file’s absolute path. Opening a note in Moss requires macOS with Moss installed; other files and platforms use bb’s file preview. With no connected machine, scheduling, sync, and link, pull request, and thread attachments remain available.
 
 Attachment references, notes, and other item metadata are stored in Google Calendar and cached in bb. File contents are not copied into the calendar.

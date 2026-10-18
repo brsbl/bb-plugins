@@ -18,7 +18,7 @@ Install **Content Calendar** from bb’s Community marketplace once listed. Unti
 - **See the schedule** by month or week. The left rule is the format color, the checkbox means posted, and a dashed rule means the item waits on something.
 - **Move items** by dragging, with **Move to…**, the **When** field, or the keyboard (Space, arrows, Space).
 - **Undated work** sits in the Evergreen and Later trays. In Google Calendar each tray item repeats every Monday.
-- **Attach** links, pull requests, and bb threads. File attachments require a connected Mac; see the requirements below.
+- **Attach** links, pull requests, and bb threads. File attachments require a connected machine; see the requirements below.
 - **Choose a format** or leave it as **No format**. The browser remembers your last choice; no publishing cadence is imposed.
 - **Agents** use `bb content-calendar` and paste `::content-calendar{view="week" start="2026-10-05"}` to show a live calendar inline in chat.
 
@@ -28,7 +28,7 @@ Disconnecting or uninstalling leaves the Content calendar and every item in Goog
 
 Google Calendar and your own Google Cloud OAuth Desktop app client are required. A fresh install shows connection instructions and disables Connect until client credentials are saved. There is no bundled account, calendar, or credential. Client ID, client secret, refresh token, and calendar ID use secret settings; the time zone is a normal setting.
 
-File attachments require an enrolled, connected Mac. Note discovery searches the default Moss notes folder in that Mac’s home directory. If the folder is missing, search returns no notes; you can still attach another file by entering its absolute path. Opening notes in Moss requires Moss installed on that Mac. When Moss cannot open a note, bb uses its file preview. With no connected Mac, the file picker reports that the Mac is offline; URL, pull request, and thread attachments, scheduling, and Google sync still work.
+File attachments require an enrolled, connected machine. Note discovery searches the default Moss notes folder in that machine’s home directory. If the folder is missing, search returns no notes; you can still attach another file by entering its absolute path. Opening notes in Moss requires macOS and Moss installed on that Mac. On other platforms, or when Moss cannot open a note, bb uses its file preview. With no connected machine, file attachments are unavailable; URL, pull request, and thread attachments, scheduling, and Google sync still work.
 
 Item titles, notes, gates, and attachment references are stored in your Google calendar and cached in bb’s plugin database. File attachments store references, not file contents. Treat calendar access as access to that item metadata. Disconnect removes bb’s saved refresh token but leaves the Google calendar and the local cache.
 

@@ -6,7 +6,7 @@ type Found = { path: string; name: string; relative: string };
 const looksLikePath = (value: string) => /^(\/|~\/)/.test(value.trim());
 
 /**
- * Attach → File on Mac. Searches the Mac through bb's host connection,
+ * Attach → File. Searches a machine through bb's host connection,
  * starting in ~/Moss/Notes; a typed absolute path attaches that file. The
  * machine picker appears only when more than one machine is enrolled.
  */
@@ -36,9 +36,9 @@ export function FilePicker({ machines, onPick, onCancel }: {
     setBusy(true); setError(null);
     try { await onPick(machine, path); } catch (err) { setError(readableError(err)); } finally { setBusy(false); }
   };
-  if (!machines) return <div className="cc-picker"><p className="cc-muted" role="status">Looking for your Mac…</p></div>;
+  if (!machines) return <div className="cc-picker"><p className="cc-muted" role="status">Looking for connected machines…</p></div>;
   if (!connected.length) return <div className="cc-picker">
-    <p className="cc-muted">Mac offline. Attach a file when it reconnects.</p>
+    <p className="cc-muted">No connected machine. Attach a file when one connects.</p>
     <div className="cc-row-actions"><button type="button" className="cc-button" onClick={onCancel}>Close</button></div>
   </div>;
   const files = result?.files ?? [];
