@@ -26,9 +26,9 @@ export function DecisionBody({ about, answer }: { about: ReactNode; answer: Reac
   return <div className="ac-body"><div className="ac-about">{about}</div><div className="ac-answer">{answer}</div></div>;
 }
 
-/** Optional context: one muted line under the question, with a quiet "more" when it doesn't fit or holds links. */
-export function ContextLine({ summary, rich, children }: { summary: string; rich?: boolean; children: ReactNode }) {
-  const line = useRef<HTMLSpanElement>(null);
+/** Optional context: the original text on one muted line under the question, with a quiet "more" whenever any of it is hidden. */
+export function ContextLine({ children }: { children: ReactNode }) {
+  const line = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [clipped, setClipped] = useState(false);
   useLayoutEffect(() => {
@@ -39,10 +39,10 @@ export function ContextLine({ summary, rich, children }: { summary: string; rich
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(node);
     return () => observer?.disconnect();
-  }, [open, summary]);
+  }, [open, children]);
   return <div className="ac-context-line" data-open={open || undefined}>
-    {open ? <div className="ac-context-full">{children}</div> : <span ref={line} className="ac-context-summary" title={summary}>{summary}</span>}
-    {(open || clipped || rich) && <button type="button" className="ac-context-more" aria-expanded={open} aria-label={open ? "Show less context" : "Show all context"} onClick={() => setOpen(!open)}>{open ? "less" : "more"}</button>}
+    <div ref={line} className={open ? "ac-context-full" : "ac-context-summary"}>{children}</div>
+    {(open || clipped) && <button type="button" className="ac-context-more" aria-expanded={open} aria-label={open ? "Show less context" : "Show all context"} onClick={() => setOpen(!open)}>{open ? "less" : "more"}</button>}
   </div>;
 }
 

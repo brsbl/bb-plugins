@@ -104,22 +104,33 @@ it("shows the brief in Waiting on you without naming the thread, and keeps the D
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
 });
 
-it("shows context as one muted line under the question, with more for the rest", async () => {
-  const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the Inbox fix?", consequence: "Release it.", context: "- **What:** the fix.\n- **Checks:** [CI passed](https://example.com/ci)." }, threadTitle: "Ops", threadProjectId: null } as const;
+it("shows the original context on one line, never altered, with more only when some of it is hidden", async () => {
+  const literal = "Keep `dry_run` enabled when revenue > cost.";
+  const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the Inbox fix?", consequence: "Release it.", context: literal }, threadTitle: "Ops", threadProjectId: null } as const;
   const app = await loadPluginApp(() => import("./app.js"));
   renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
   await openItem(/^Answer: /);
-  // Collapsed: plain text on one line, no list or link, and the options are right there.
-  expect(screen.getByText("What: the fix. · Checks: CI passed.")).toBeTruthy();
-  expect(screen.queryByRole("list")).toBeNull();
+  const line = document.querySelector<HTMLElement>(".ac-context-summary")!;
+  // Identifiers and comparisons survive; it all fits, so there is nothing to reveal.
+  expect(line.textContent).toContain("dry_run");
+  expect(line.textContent).toContain("revenue > cost");
+  expect(screen.queryByRole("button", { name: "Show all context" })).toBeNull();
   expect(screen.getAllByRole("radio")).toHaveLength(2);
-  expect(document.querySelector(".ac-context-full")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Show all context" }));
-  // Expanded, the full Markdown renders in place of the summary line.
-  expect(document.querySelector(".ac-context-full")?.textContent).toContain("CI passed");
-  expect(screen.queryByText("What: the fix. · Checks: CI passed.")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Show less context" }));
-  expect(document.querySelector(".ac-context-full")).toBeNull();
+});
+
+it("offers more for clipped context and shows the full original", async () => {
+  const width = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (this: HTMLElement) { return this.classList.contains("ac-context-summary") ? 900 : 0; });
+  const client = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) { return this.classList.contains("ac-context-summary") ? 300 : 0; });
+  try {
+    const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the Inbox fix?", consequence: "Release it.", context: "- **What:** the fix.\n- **Checks:** [CI passed](https://example.com/ci)." }, threadTitle: "Ops", threadProjectId: null } as const;
+    const app = await loadPluginApp(() => import("./app.js"));
+    renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+    await openItem(/^Answer: /);
+    fireEvent.click(await screen.findByRole("button", { name: "Show all context" }));
+    expect(document.querySelector(".ac-context-full")?.textContent).toContain("CI passed");
+    fireEvent.click(screen.getByRole("button", { name: "Show less context" }));
+    expect(document.querySelector(".ac-context-full")).toBeNull();
+  } finally { width.mockRestore(); client.mockRestore(); }
 });
 
 it("shows a waiting card's brief in the Decision log before Review is opened", async () => {

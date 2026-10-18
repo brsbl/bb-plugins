@@ -9,6 +9,15 @@ const hosts: ReturnType<typeof createFakePluginHost>[] = [];
 function setup() { const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); return { ...host, store: createStore(host.bb) }; }
 afterEach(async () => { for (const host of hosts.splice(0)) await host.harness.lifecycle.dispose(); });
 
+it("scans hostile context in linear time", async () => {
+  const { contextWarning } = await import("./server.js");
+  for (const context of ["\n".repeat(20_000), "[".repeat(20_000), `**${" ".repeat(19_990)}x`]) {
+    const started = performance.now();
+    contextWarning(context);
+    expect(performance.now() - started).toBeLessThan(50);
+  }
+});
+
 it.each([reply, { type: "decide", question: "File invoice?", consequence: "Add Receipts label" },
   { type: "choice", question: "Which folder?", options: [{ id: "a", label: "Receipts" }, { id: "b", label: "Reading" }] },
 ])("accepts no context or one plain sentence silently, and warns on a long or labelled brief ($type)", async (content) => {

@@ -383,7 +383,8 @@ function distinctOpen(items: Item[]): Item[] {
 
 // Cards stay small and plain: context is at most one short sentence, never a labelled or bulleted brief.
 const CONTEXT_WORDS = 40;
-const BRIEF_PATTERN = /\*\*\s*(what|why|options?|recommend|next)|^\s*(?:[-*+]|\d+[.)])\s|why now/im;
+// Horizontal whitespace only: \s would let long runs of newlines make each line start rescan the rest.
+const BRIEF_PATTERN = /\*\*[ \t]*(what|why|options?|recommend|next)|^[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]|why now/im;
 export function contextWarning(context: string | undefined): string {
   if (!context) return "";
   const words = context.trim().split(/\s+/).length;
