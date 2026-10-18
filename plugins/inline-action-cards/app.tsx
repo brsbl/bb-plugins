@@ -201,7 +201,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   };
   if (!item) return <div className="iac-card" role="status">{error ?? "Loading card…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const disabled = busy || loadError || pending;
-  const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
+  const deferred = item.state === "succeeded" && !item.dismissed && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = setViewResult;
   const recipients = reply && <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
     {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
@@ -276,7 +276,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   if (logEntry) {
     const failed = item.state === "failed";
     const retryable = failed && !!item.result?.retryable;
-    const later = item.state === "succeeded" && item.attempt?.action === "later";
+    const later = item.state === "succeeded" && !item.dismissed && item.attempt?.action === "later";
     const quiet = item.state === "succeeded" && !later;
     const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
     const openThread = () => navigate.toThread(threadId);
@@ -389,7 +389,10 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       : <div className="iac-waiting-line iac-result-line">{line}</div>;
   }
   return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit} onKeyDown={drawer ? keys : undefined}>
-    {done ? result : dismissal.pending ? <DismissBar dismissal={dismissal} /> : <>{field}{drawer && canDismiss(item)
+    {/* A safe failure or an answer that never reached the agent can still be dismissed from the drawer, beside its recovery. */}
+    {done ? <>{result}{drawer && canDismiss(item) && (dismissal.pending ? <DismissBar dismissal={dismissal} />
+      : <div className="iac-drawer-actions"><button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button></div>)}</>
+      : dismissal.pending ? <DismissBar dismissal={dismissal} /> : <>{field}{drawer && canDismiss(item)
       ? <div className="iac-drawer-actions"><button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button><SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></div>
       : <SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} />}</>}
     {dismissal.error && <div className="iac-error" role="alert">{dismissal.error}</div>}

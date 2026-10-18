@@ -158,7 +158,7 @@ export function createStore(bb: BbPluginApi) {
       const sorted = (await withSources(rows.flatMap((row) => readItem(row.value) ?? [])))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.threadId.localeCompare(b.threadId) || a.id.localeCompare(b.id));
       // Failures need a retry and Later cards need a Resume, so both stay in Waiting on you; Later sorts last.
-      const later = (item: Item) => item.state === "succeeded" && item.attempt?.action === "later";
+      const later = (item: Item) => item.state === "succeeded" && !item.dismissed && item.attempt?.action === "later";
       return { waiting: [...sorted.filter((item) => item.state !== "succeeded"), ...sorted.filter(later)],
         done: sorted.filter((item) => item.state === "succeeded" && !later(item)) };
     },
@@ -376,7 +376,7 @@ export function createStore(bb: BbPluginApi) {
     },
     reopen(input: z.infer<typeof rpcContract.reopen.input>) {
       return change(input.threadId, input.id, input.revision, (item) => {
-        const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
+        const deferred = item.state === "succeeded" && !item.dismissed && ["later", "skip"].includes(item.attempt?.action ?? "");
         if (!deferred && !(item.state === "failed" && item.result?.retryable)) throw new Error("Check the outcome with the agent before reopening this card.");
         item.state = "ready"; item.result = null; item.attempt = null;
       });

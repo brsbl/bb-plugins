@@ -762,6 +762,20 @@ describe("dismissing", () => {
     // A stale view can't dismiss a changed item.
     expect(() => store.dismiss({ threadId: ref.threadId, id: "safe", revision: 1 })).toThrow("changed elsewhere");
   });
+  it("never dismisses a Later or Skip attempt, and never treats a dismissed one as deferred", async () => {
+    const host = sendingHost();
+    const store = createStore(host.bb);
+    store.create(ref.threadId, "skipped", { type: "decide", question: "Archive it?", consequence: "Archive it." });
+    const prepared = store.prepare({ threadId: ref.threadId, id: "skipped", revision: 1, action: "skip" });
+    expect(() => store.dismiss({ threadId: ref.threadId, id: "skipped", revision: prepared.revision })).toThrow("can't be dismissed");
+    // A dismissed Later saved by an earlier build stays settled: not waiting, not resumable.
+    const legacy: Item = { id: "later", threadId: ref.threadId, revision: 2, state: "succeeded", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "later", claimed: false }, result: { message: "Dismissed", retryable: false }, updatedAt: new Date().toISOString(), content: { type: "decide", question: "Later?", consequence: "Do it." }, dismissed: { at: new Date().toISOString(), notice: "sent" } };
+    host.bb.storage.database().prepare("INSERT INTO action_items VALUES (?, ?, ?)").run(legacy.threadId, legacy.id, JSON.stringify(legacy));
+    expect(() => store.reopen({ threadId: ref.threadId, id: "later", revision: 2 })).toThrow();
+    const log = await host.harness.behavior.callRpc("log", { threadId: ref.threadId }) as { waiting: Item[]; done: Item[] };
+    expect(log.waiting.map((item) => item.id)).not.toContain("later");
+    expect(log.done.map((item) => item.id)).toContain("later");
+  });
   it("keeps the log readable for a build that doesn't know dismissals", async () => {
     const host = sendingHost();
     await host.harness.behavior.runCli(["ask", "old", "Still want this?", "--thread", ref.threadId]);

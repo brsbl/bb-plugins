@@ -421,6 +421,24 @@ it("shows a known undelivered dismissal notice and sends it once on retry", asyn
   expect(calls).toEqual([{ id: "merge-1", threadId: "thr_test" }]);
 });
 
+it.each([
+  ["a safe failure", { state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: true }, result: { message: "Head moved; nothing merged", retryable: true } }],
+  ["an answer that never reached the agent", { state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false } }],
+] as const)("offers Dismiss beside recovery in Waiting on you for %s", async (_, recovery) => {
+  const item = { ...fixture(), id: "merge-1", revision: 3, content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merge it." }, ...recovery, ...source } as Item & typeof source;
+  const calls: unknown[] = [];
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: {
+    waiting: () => calls.length ? [] : [item], get: () => item,
+    dismiss: (input) => { calls.push(input); return { ...item, revision: 4, state: "succeeded", result: { message: "Dismissed", retryable: false }, dismissed: { at: "2026-10-18T10:00:00.000Z", notice: "sent" } }; },
+  } });
+  const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+  if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
+  fireEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Reason (optional)" }), { key: "Enter" });
+  await waitFor(() => expect(calls).toEqual([expect.objectContaining({ id: "merge-1", revision: 3 })]));
+});
+
 it("dismisses the open item in Waiting on you", async () => {
   const item = fixture();
   let dismissed = false;

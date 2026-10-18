@@ -86,7 +86,9 @@ export type Item = z.infer<typeof itemSchema>;
 /** Whether the user can dismiss this item: unanswered, a safe failure, or an answer that never reached the agent. */
 export function canDismiss(item: Item): boolean {
   if (item.state === "ready") return true;
-  if (item.state === "failed") return !!item.result?.retryable && !["later", "skip"].includes(item.attempt?.action ?? "");
+  // A Later/Skip attempt kept on a settled item reads as deferred (and resumable) to every build, so it can't be dismissed.
+  if (["later", "skip"].includes(item.attempt?.action ?? "")) return false;
+  if (item.state === "failed") return !!item.result?.retryable;
   return item.state === "pending" && !item.attempt?.claimed && !item.attempt?.sentAt;
 }
 // A newer build may have saved item types or fields this build doesn't know. Unknown fields are set aside on
