@@ -21,7 +21,8 @@ Refresh when `checkedAt` is null, or when any file below changed after it
 (`stat -f %m <file>` on macOS, `stat -c %Y <file>` on Linux; `checkedAt` is in
 milliseconds).
 
-Refresh only on the machine `host` names. This machine is
+When `host` is null, refresh on this machine and record its host ID. Otherwise
+refresh only on the machine `host` names. This machine is
 `thread.environment.hostId` in `bb status --json`. Every machine reads the same
 recorded sources, but the files live on one: rebuilding on a machine without
 the user's memory notes would erase what those notes set. If `host` is another
@@ -75,9 +76,10 @@ number that no source states.
 
 ## Record
 
-After reading all available sources, clear stale records and record each value with the user's exact words. Pass this
-machine's host id with every command so other machines know where the files
-were read:
+After reading the sources, remove stale records and record each value with
+the user's exact words. Use `forget --all` only when every previous source
+was checked; otherwise preserve unreadable sources and forget only individual
+verified stale keys. Pass this machine's host ID with every command:
 
 ```sh
 bb delegation forget --all --host <host id>

@@ -14,7 +14,7 @@ passes only what matters back to the user. This skill covers the start.
 bb delegation settings --json
 ```
 
-Use the values it prints. The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from. Anything the user says in the current request overrides a setting.
+Use the values it prints. The values come from the user's own instructions first. If `bb delegation sources --json` shows `checkedAt` as null, or `~/.bb/AGENTS.md`, `~/.claude/CLAUDE.md`, or a memory note changed after it, refresh them with `delegation-defaults` before using them, but only on the machine its `host` names, or this machine when `host` is null (this machine is `thread.environment.hostId` in `bb status --json`). On any other machine, use the recorded values as they are: its files aren't the ones they came from. Anything the user says in the current request overrides a setting.
 Don't restate the values to the user.
 
 ## Delegate, propose, or do it yourself
