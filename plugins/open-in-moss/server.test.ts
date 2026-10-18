@@ -47,14 +47,14 @@ describe("POST /open", () => {
       pluginId: "open-in-moss",
       experimental_callHostRpc: async () => ({
         ok: true,
-        path: "/Users/brsbl/Moss/Notes/Tweets/Tweets.md",
+        path: "/tmp/fixture-notes/Checklist.md",
       }),
     });
     await createOpenInMossPlugin(dependencies({ platform: "linux", open: localOpen }))(host.bb);
     const response = await host.harness.fetchHttp("POST", "/open", {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        path: "/Users/brsbl/Moss/Notes/Tweets/Tweets.md",
+        path: "/tmp/fixture-notes/Checklist.md",
         hostId: "host_mac",
       }),
     });
@@ -63,7 +63,7 @@ describe("POST /open", () => {
     expect(host.harness.experimental_hostRpcCalls).toContainEqual(expect.objectContaining({
       hostId: "host_mac",
       method: "open",
-      input: { path: "/Users/brsbl/Moss/Notes/Tweets/Tweets.md" },
+      input: { path: "/tmp/fixture-notes/Checklist.md" },
     }));
     expect(localOpen).not.toHaveBeenCalled();
   });
@@ -85,10 +85,10 @@ describe("POST /open", () => {
     const localOpen = vi.fn(async () => {});
     await createOpenInMossPlugin(dependencies({ platform: "linux", open: localOpen }))(host.bb);
     const response = await host.harness.fetchHttp("POST", "/open", {
-      body: JSON.stringify({ path: "/Users/brsbl/Moss/Notes/Tweets/Tweets.md" }),
+      body: JSON.stringify({ path: "/tmp/fixture-notes/Checklist.md" }),
     });
     expect(response.status).toBe(200);
-    expect(open).toHaveBeenCalledExactlyOnceWith("/Users/brsbl/Moss/Notes/Tweets/Tweets.md");
+    expect(open).toHaveBeenCalledExactlyOnceWith("/tmp/fixture-notes/Checklist.md");
     expect(localOpen).not.toHaveBeenCalled();
     expect(host.harness.experimental_hostRpcCalls.map(({ hostId, method }) => ({ hostId, method }))).toEqual([
       { hostId: "host_linux", method: "probe" },
