@@ -354,6 +354,7 @@ it("preserves Prompt Improver's marketplace prefix and package subdirectory", as
   if (!pluginRepository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");
   const moduleUrl = pathToFileURL(resolve(pluginRepository, "tooling/publish-install-refs.mjs")).href;
   const { prepareVersionedRelease } = await import(moduleUrl);
+  await run(process.execPath, [resolve(pluginRepository, "tooling/build-plugin.mjs"), resolve(pluginRepository, "plugins/improve-prompt")]);
   const release = await prepareVersionedRelease("improve-prompt");
   expect(release.tag).toBe("prompt-shaper/v0.1.4");
   const manifest = JSON.parse(await git(pluginRepository, ["show", `${release.commit}:plugins/improve-prompt/package.json`]));
