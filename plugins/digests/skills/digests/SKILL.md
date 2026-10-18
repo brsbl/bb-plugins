@@ -28,12 +28,15 @@ Every dispatch resolves an explicit host and environment. Prefer the Personal pr
 Review definitions with the user before enabling them in plugin settings.
 Never edit or remove existing automations as an incidental setup step. Migrate
 only after the user approves the exact old and new schedules. Defaults are
-weekdays 10am PT, Monday 10am PT, and Sunday 11am PT respectively.
+weekdays 10am, Monday 10am, and Sunday 11am in the bb server’s system timezone.
+Confirm that timezone fits the user before enabling schedules; customize the
+starter prompts to their interests. Do not replace already-saved prompts or schedules.
 
 Settings lists signed-in sites and nests their digests. Access is checked when Settings opens and before every run. Rapid reopenings reuse a real check for 30 seconds. The import link opens bb’s own Browser settings; the user chooses
 the browser/profile and consents there. Add brief opens an inline prompt form;
 Create saves it enabled and offers Run now to preview. Editing keeps its ID and
-existing enabled state. New schedules default to weekdays 10am PT.
+existing enabled state. New schedules default to weekdays 10am in the browser’s timezone, shown beside
+the time. Editing an existing brief preserves its saved timezone.
 
 For agent-managed setup, use `bb digest define --file definition.json` with
 a new ID, name, projectId, instructions, connectionIds, createdAt timestamp,

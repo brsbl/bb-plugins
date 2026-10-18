@@ -47,10 +47,14 @@ are never adopted or changed.
 
 | Starter brief | Default time |
 | --- | --- |
-| Unread email | Weekdays, 10am PT |
-| Money | Monday, 10am PT |
-| Reading | Sunday, 11am PT |
+| Unread email | Weekdays, 10am |
+| Money | Monday, 10am |
+| Reading | Sunday, 11am |
 | X scorecard | Published by another thread |
+
+Starter setup uses the bb server’s system timezone. New briefs created in
+Settings use your browser’s timezone, shown beside the time. Saved prompts and
+schedules keep their existing values. Edit starter prompts to add your interests.
 
 Setup creates a Briefs inbox that catches this plugin’s
 briefs. Read and unread briefs stay there until you move or archive them.

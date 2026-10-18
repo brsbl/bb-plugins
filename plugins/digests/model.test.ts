@@ -51,6 +51,7 @@ describe("digest contracts", () => {
       ["unread-email", "0 10 * * 1-5"], ["money", "0 10 * * 1"], ["reading", "0 11 * * 0"], ["x-scorecard", null],
     ]);
     for (const recipe of DIGEST_RECIPES) {
+      if (recipe.schedule) expect(recipe.schedule.timezone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
       expect(recipe.instructions).not.toMatch(/digest_processed|label:|is:unread|read.only|snippet|thread storage/iu);
       const definition = DigestDefinitionSchema.parse({ ...recipe, projectId: "proj_test", createdAt: 1 });
       const runtime = collectionInstructions(definition);

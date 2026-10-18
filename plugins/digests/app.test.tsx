@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 
 const message = { id: "msg_1", threadId: "thr_issue", turnId: "turn_1", projectId: "proj_1" };
@@ -35,7 +35,7 @@ const definition = {
   automationId: null,
 };
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Digests app", () => {
   it("shows the newsletter immediately with safe rich text and optional more detail", async () => {
@@ -239,6 +239,10 @@ describe("Digests app", () => {
 
   it("creates a prompt digest at 10am and edits the same nested row", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
+    const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
+      return { ...resolved.call(this), timeZone: "Europe/Paris" };
+    });
     let definitions: typeof definition[] = [];
     const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
       overview: () => ({ definitions, connections: [{ id: "gmail", name: "Gmail", status: "signed-in" }], organizerReady: true, actionCardsAvailable: false }),
@@ -249,6 +253,7 @@ describe("Digests app", () => {
       },
     } });
     fireEvent.click(await slot.findByRole("button", { name: "+ Add brief" }));
+    expect(slot.getByText("Europe/Paris")).toBeDefined();
     const name = slot.getByLabelText("Name");
     expect(document.activeElement).toBe(name);
     expect(slot.getByLabelText("Emoji")).toBeDefined();
@@ -257,7 +262,7 @@ describe("Digests app", () => {
     fireEvent.change(slot.getByLabelText("What should it tell you?"), { target: { value: "Only messages that need a reply." } });
     fireEvent.click(slot.getByRole("button", { name: "Create brief" }));
     expect(await slot.findByText("Run now to preview")).toBeDefined();
-    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", emoji: "📰", instructions: "Only messages that need a reply.", connectionId: "gmail", afterReading: "keep-unread", schedule: { cron: "0 10 * * 1-5", timezone: "America/Los_Angeles" } } });
+    expect(slot.inspection.rpcCalls).toContainEqual({ method: "saveDigest", input: { name: "My inbox", emoji: "📰", instructions: "Only messages that need a reply.", connectionId: "gmail", afterReading: "keep-unread", schedule: { cron: "0 10 * * 1-5", timezone: "Europe/Paris" } } });
     expect(slot.getByText("Only messages that need a reply.").className).toContain("digest-prompt-preview");
     expect(slot.getByRole("heading", { name: "My inbox" }).textContent).toBe("My inbox");
     fireEvent.click(slot.getByRole("button", { name: "Edit My inbox" }));
@@ -268,6 +273,25 @@ describe("Digests app", () => {
     fireEvent.click(slot.getByRole("button", { name: "Save changes" }));
     expect(await slot.findByRole("button", { name: "Edit Replies" })).toBeDefined();
     expect(slot.inspection.rpcCalls.filter((call) => call.method === "saveDigest").at(-1)?.input).toMatchObject({ id: "digest-new", name: "Replies", emoji: "📮", afterReading: "mark-read" });
+  });
+
+  it("keeps a saved timezone and prompt when editing on a computer in another timezone", async () => {
+    const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
+      return { ...resolved.call(this), timeZone: "Asia/Tokyo" };
+    });
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
+      overview: () => ({ definitions: [definition], connections: [{ id: "gmail", name: "Gmail", status: "signed-in" }], organizerReady: true, actionCardsAvailable: false }),
+      saveDigest: (input) => ({ ...definition, ...input as object }),
+    } });
+    fireEvent.click(await slot.findByRole("button", { name: "Edit Reading" }));
+    expect(slot.getByText("PT")).toBeDefined();
+    fireEvent.change(slot.getByLabelText("Name"), { target: { value: "Saved reading" } });
+    fireEvent.click(slot.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(slot.inspection.rpcCalls.filter((call) => call.method === "saveDigest").at(-1)?.input).toMatchObject({
+      id: definition.id, instructions: definition.instructions, schedule: definition.schedule,
+    }));
   });
 
   it("shows source rows and a collapsed tail without performing account actions", async () => {

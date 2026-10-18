@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PublishInputSchema } from "./model";
 import { createService } from "./service";
+import plugin from "./server";
 import type { SignInPage } from "./signin";
 
 const DAY = 86_400_000;
@@ -94,6 +95,26 @@ const payload = () => PublishInputSchema.parse({
 });
 
 describe("digest issue lifecycle", () => {
+  it("sets up neutral system-timezone starters without replacing saved prompts or schedules", async () => {
+    const { bb, service, harness } = setup();
+    const saved = { ...service.requiredDefinition("reading"), instructions: "Only my chosen topics; keep this saved filter.", automationId: "auto_saved" };
+    service.store.definitions.put(saved);
+    plugin(bb);
+    const args = ["setup", "--project", "proj_digest", "--browser-host", "host_browser", "--provider", "codex", "--model", "model-test"];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await harness.behavior.runCli(args, { threadId: "thr_setup", projectId: "proj_digest" });
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(service.requiredDefinition("reading")).toMatchObject({
+        instructions: saved.instructions, schedule: saved.schedule, automationId: "auto_saved", enabled: false,
+      });
+      for (const id of ["unread-email", "money"]) {
+        expect(service.requiredDefinition(id)).toMatchObject({ enabled: false, schedule: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+      }
+      expect(service.store.definitions.list()).toHaveLength(4);
+    }
+    expect(harness.inspection.sdk.callsTo("plugins.callRpc").some(([call]) => (call as { pluginId: string }).pluginId === "automations")).toBe(false);
+  });
+
   it("waits for another Gmail collection before exposing a browser or observing unread state", async () => {
     const { service, harness } = setup();
     await service.begin("reading", "thr_first");
