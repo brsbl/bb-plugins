@@ -111,13 +111,15 @@ it("shows context as one muted line under the question, with more for the rest",
   await openItem(/^Answer: /);
   // Collapsed: plain text on one line, no list or link, and the options are right there.
   expect(screen.getByText("What: the fix. · Checks: CI passed.")).toBeTruthy();
-  expect(screen.queryByRole("link", { name: "CI passed" })).toBeNull();
   expect(screen.queryByRole("list")).toBeNull();
   expect(screen.getAllByRole("radio")).toHaveLength(2);
+  expect(document.querySelector(".ac-context-full")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Show all context" }));
-  expect(screen.getByRole("link", { name: "CI passed" })).toBeTruthy();
+  // Expanded, the full Markdown renders in place of the summary line.
+  expect(document.querySelector(".ac-context-full")?.textContent).toContain("CI passed");
+  expect(screen.queryByText("What: the fix. · Checks: CI passed.")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Show less context" }));
-  expect(screen.queryByRole("link", { name: "CI passed" })).toBeNull();
+  expect(document.querySelector(".ac-context-full")).toBeNull();
 });
 
 it("shows a waiting card's brief in the Decision log before Review is opened", async () => {
