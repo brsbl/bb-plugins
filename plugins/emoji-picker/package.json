@@ -7,6 +7,7 @@
   "files": [
     "assets",
     "dist",
+    "docs",
     "README.md",
     "PLUGIN_OVERVIEW.md"
   ],
