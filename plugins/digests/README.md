@@ -22,6 +22,8 @@ manifest contract has no field for declaring dependencies on other plugins;
 these requirements are checked through the setup and connection flows.
 Inline Decisions is optional for proposals that need your approval.
 
+## Install
+
 Install **Briefs** from the Community marketplace once listed, or use its
 published Git install ref with `bb plugin install`.
 
