@@ -31,8 +31,9 @@ the BB marketplace. Emoji Picker and Pinned Files & Links also publish version t
 the tag root to preserve its existing marketplace source. Bump the plugin version and lockfile, rebuild its artifacts, and
 merge after CI passes.
 The existing publish job creates `<slug>/v<version>` from the same bundles as
-`plugin/<slug>`. The tag retains `plugins/<slug>`, so marketplace URLs and
-version ranges stay valid. Do not tag the source commit manually.
+`plugin/<slug>`. Tags preserve the existing marketplace package location: the
+tag root for the entries noted above, or `plugins/<slug>` for the others.
+Marketplace URLs and version ranges stay valid. Do not tag the source commit manually.
 
 The generated release commit is parented by its source commit and records the
 package tree, lockfile digest, SDK archive, and builder provenance in
