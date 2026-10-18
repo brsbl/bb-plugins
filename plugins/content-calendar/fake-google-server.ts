@@ -16,7 +16,7 @@ createServer(async (request, response) => {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(chunk as Buffer);
   const body = Buffer.concat(chunks).toString("utf8");
-  // Edits "she" makes in Google Calendar: GET /_fake/events, POST /_fake/{rename,drag,delete} with { id, summary | date }.
+  // Edits a user makes in Google Calendar: GET /_fake/events, POST /_fake/{rename,drag,delete} with { id, summary | date }.
   if (url.pathname.startsWith("/_fake/")) {
     const input = body ? JSON.parse(body) as { id: string; summary?: string; date?: string } : { id: "" };
     const action = url.pathname.slice("/_fake/".length);

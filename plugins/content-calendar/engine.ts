@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { z } from "zod";
 import type { AttachmentInput, ConnectionState, ConnectionStatus, RpcContract } from "./contract.js";
 import {
-  CALENDAR_NAME, CALENDAR_TIME_ZONE, LIMITS, addDays, mondayOf, todayInCalendar,
+  CALENDAR_NAME, CALENDAR_TIME_ZONE, DEFAULT_TIME_ZONE, validTimeZone, LIMITS, addDays, mondayOf, todayInCalendar,
   type Attachment, type Gate, type Item, type StoredGate,
 } from "./model.js";
 import {
@@ -51,7 +51,16 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
   };
   const google = createGoogleClient({ fetch: deps.fetch, endpoints, now: deps.now, credentials: () => deps.credentials.get() });
   const nowIso = () => deps.now().toISOString();
-  const today = () => todayInCalendar(deps.now());
+  const timeZone = () => store.meta.get("timeZone") ?? (store.meta.get("everConnected") ? CALENDAR_TIME_ZONE : DEFAULT_TIME_ZONE);
+  const today = () => todayInCalendar(deps.now(), timeZone());
+  const newTimeZone = async () => {
+    const zone = await deps.newCalendarTimeZone?.() ?? DEFAULT_TIME_ZONE;
+    if (!validTimeZone(zone)) throw new CalendarError("invalid", "Choose a valid IANA time zone in Settings → Content Calendar", "For example Europe/London or Asia/Tokyo");
+    return zone;
+  };
+  const rememberTimeZone = (calendar: { timeZone?: string }) => {
+    if (calendar.timeZone && validTimeZone(calendar.timeZone)) store.meta.set("timeZone", calendar.timeZone);
+  };
   const monday = () => mondayOf(today());
 
   let offline: string | null = null;
@@ -140,6 +149,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
 
   const statusNow = async (): Promise<ConnectionStatus> => {
     const credentials = await deps.credentials.get();
+    const configuredZone = await deps.newCalendarTimeZone?.() ?? DEFAULT_TIME_ZONE;
     const problem = failure();
     let state: ConnectionState;
     let message: string | null = null;
@@ -157,6 +167,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     }
     return {
       state,
+      timeZone: store.meta.get("everConnected") ? timeZone() : (validTimeZone(configuredZone) ? configuredZone : DEFAULT_TIME_ZONE),
       calendarId,
       lastSyncedAt: store.meta.get("lastSyncedAt"),
       queued: counts.queued,
@@ -251,7 +262,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
 
   const assertCalendar = async (id: string) => {
     try {
-      await google.getCalendar(id);
+      rememberTimeZone(await google.getCalendar(id));
     } catch (error) {
       if (error instanceof GoogleHttpError && (error.status === 404 || error.status === 410)) throw new CalendarGone();
       throw error;
@@ -260,7 +271,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
 
   /** Reads an event against what bb knows of it. An unchanged description keeps the notes bb already has. */
   const read = (event: GoogleEvent, row: Row | null): ParsedEvent => {
-    const first = parseEvent(event, [row?.block], row?.base?.status);
+    const first = parseEvent(event, [row?.block], row?.base?.status, timeZone());
     if (row?.base && row.raw !== null && (event.description ?? "") === row.raw) {
       return { ...first, fields: { ...first.fields, notes: row.base.notes }, blockFound: true, block: row.block };
     }
@@ -321,7 +332,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     row.created = event.created ?? row.created;
     if (body.description !== undefined) row.block = block;
     row.raw = event.description ?? body.description ?? row.raw;
-    row.seriesStart = parseEvent(event, []).start;
+    row.seriesStart = parseEvent(event, [], undefined, timeZone()).start;
     row.base = row.fields;
     row.dirty = [];
     row.rewrite = false;
@@ -380,7 +391,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     }
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const previous = { raw: row.raw, block: row.block, notesDirty: row.dirty.includes("notes") };
-      const { body, block } = buildEvent(row.ccId, row.fields, monday(), itemTitle, previous, !row.eventId);
+      const { body, block } = buildEvent(row.ccId, row.fields, monday(), itemTitle, previous, !row.eventId, timeZone());
       if (!row.eventId) {
         const clientId = (row.clientId ??= newClientId());
         try {
@@ -590,7 +601,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
   const exception = (event: GoogleEvent): boolean => {
     if (event.status === "cancelled" || !event.recurringEventId || !/^\s*☑/u.test(event.summary ?? "")) return false;
     const row = store.rowByEvent(event.recurringEventId);
-    const date = occurrenceDate(event);
+    const date = occurrenceDate(event, timeZone());
     if (!row || row.deleted || !row.fields.tray || !date) return false;
     const next: Fields = { ...row.fields, status: "posted", date, tray: null, rrule: null, anchor: null, time: null, minutes: null, days: 1 };
     commitLocal(row, next, changedUnits(row.fields, next));
@@ -693,6 +704,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     const wasOffline = offline !== null || syncError !== null;
     syncing = true;
     try {
+      if (!store.meta.get("timeZone")) await assertCalendar(calendarId());
       let changed = await flush(failed);
       changed = (await pull()) || changed;
       if (roll() || store.counts().queued > failed.size) changed = (await flush(failed)) || changed;
@@ -898,7 +910,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     const stored = store.meta.get("calendarId") ?? credentials.calendarId ?? null;
     if (stored) {
       try {
-        await google.getCalendar(stored);
+        rememberTimeZone(await google.getCalendar(stored));
         return stored;
       } catch (error) {
         if (!isGone(error)) throw error;
@@ -911,7 +923,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     }
     if (requested) {
       try {
-        await google.getCalendar(requested);
+        rememberTimeZone(await google.getCalendar(requested));
         return requested;
       } catch (error) {
         if (!isGone(error) && !(error instanceof GoogleHttpError && error.status === 403)) throw error;
@@ -925,7 +937,9 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
         "Copy the calendar ID from the Content calendar's settings in Google Calendar, then run `bb content-calendar connect --calendar-id <ID>`",
       );
     }
-    return (await google.insertCalendar({ summary: CALENDAR_NAME, timeZone: CALENDAR_TIME_ZONE })).id;
+    const created = await google.insertCalendar({ summary: CALENDAR_NAME, timeZone: await newTimeZone() });
+    rememberTimeZone(created);
+    return created.id;
   };
 
   const useCalendar = async (id: string, keepItems: boolean) => {
@@ -1050,6 +1064,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
     connectStart: async (input) => {
       const credentials = await deps.credentials.get();
       if (!credentials.clientId || !credentials.clientSecret) throw needsClient();
+      if (!store.meta.get("everConnected")) await newTimeZone();
       const { verifier, challenge, state } = createPkce();
       store.meta.set("oauth", JSON.stringify({ verifier, state, calendarId: input.calendarId ?? null }));
       return { authUrl: buildAuthUrl(endpoints, credentials.clientId, challenge, state) };
@@ -1113,7 +1128,7 @@ export function createCalendarService(deps: ServiceDeps): CalendarService {
             if (!isGone(error)) throw error;
           }
         }
-        const created = await google.insertCalendar({ summary: CALENDAR_NAME, timeZone: CALENDAR_TIME_ZONE });
+        const created = await google.insertCalendar({ summary: CALENDAR_NAME, timeZone: timeZone() });
         store.transaction(() => {
           for (const row of store.queued().concat(store.rows().filter((entry) => entry.seq === null))) {
             if (row.deleted) {

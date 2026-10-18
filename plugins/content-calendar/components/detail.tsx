@@ -3,7 +3,7 @@ import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { LIMITS, STAGE_LABELS, TRAY_LABELS, todayInCalendar, type Attachment, type Format, type Gate, type Item, type Tray } from "../model.js";
 import type { GateInput, UpdateInput } from "../contract.js";
 import { isDate, isRejected, parsePullRequest, scheduledBefore, shortDate } from "../calendar-layout.js";
-import { readableError, useCalendarRpc, useDeferredDelete, useLiveReload, type When } from "./data.js";
+import { useCalendarTimeZone, readableError, useCalendarRpc, useDeferredDelete, useLiveReload, type When } from "./data.js";
 import { FormatSelect, MoveTo } from "./fields.js";
 import { Popover, usePopover } from "./popover.js";
 import { useToasts } from "./toasts.js";
@@ -26,7 +26,7 @@ export function useDraft(value: string) {
     draft,
     setDraft,
     onFocus: () => { if (base.current === null) base.current = draft; },
-    /** Ends the edit: the draft when she changed it, otherwise null (and the field shows the latest value). */
+    /** Ends the edit: the draft when the user changed it, otherwise null (and the field shows the latest value). */
     finish: (): string | null => {
       const start = base.current ?? latest.current;
       base.current = null;
@@ -107,6 +107,7 @@ function DetailBody({ item, error, onDismissError, onClose, update, move, act, r
   openAttachment: (attachment: Attachment) => Promise<void>;
 }) {
   const rpc = useCalendarRpc();
+  const timeZone = useCalendarTimeZone();
   const title = useDraft(item.title);
   const target = useDraft(item.target ?? "");
   const notes = useDraft(item.notes);
@@ -190,7 +191,7 @@ function DetailBody({ item, error, onDismissError, onClose, update, move, act, r
         <span className="cc-field-value">
           <select id={`cc-when-${id}`} className="cc-input" value={whenMode} onChange={(event) => {
             const value = event.target.value;
-            void move(value === "date" ? { date: todayInCalendar() } : { tray: value as Tray });
+            void move(value === "date" ? { date: todayInCalendar(new Date(), timeZone) } : { tray: value as Tray });
           }}>
             <option value="date">On a date</option>
             <option value="evergreen">{TRAY_LABELS.evergreen}</option>

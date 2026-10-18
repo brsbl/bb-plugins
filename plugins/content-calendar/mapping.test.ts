@@ -11,10 +11,10 @@ const noTitles = () => null;
 
 function fields(overrides: Partial<Fields> = {}): Fields {
   return {
-    title: "Orchestration blog post", format: "blog", status: "ready", date: "2026-10-28", time: null, minutes: null, days: 1,
-    tray: null, rrule: null, anchor: null, target: "Downloads baseline", notes: "Publish the day before the orchestration tweet.",
-    gates: [{ id: "g1", kind: "pr", repo: "get-bb/bb", number: 4772, cleared: false }],
-    attachments: [{ id: "a1", kind: "file", machineId: "mac", path: "/Users/brsbl/Moss/Notes/Draft/Draft.md", name: "Draft.md" }],
+    title: "Workshop guide", format: "blog", status: "ready", date: "2026-10-28", time: null, minutes: null, days: 1,
+    tray: null, rrule: null, anchor: null, target: "Registration goal", notes: "Publish the day before the workshop announcement.",
+    gates: [{ id: "g1", kind: "pr", repo: "example-org/sample-project", number: 4772, cleared: false }],
+    attachments: [{ id: "a1", kind: "file", machineId: "mac", path: "/fixtures/Draft.md", name: "Draft.md" }],
     pos: 1,
     ...overrides,
   };
@@ -37,25 +37,25 @@ function asEvent(id: string, ccId: string, item: Fields): { event: GoogleEvent; 
 describe("buildEvent", () => {
   it("writes the checkbox prefix, format color, all-day dates, and every property slot", () => {
     const { body, block } = buildEvent("cc_7k2m9q", fields(), MONDAY, noTitles);
-    expect(body.summary).toBe("☐ Orchestration blog post");
+    expect(body.summary).toBe("☐ Workshop guide");
     expect(body.colorId).toBe("10");
     expect(body.start).toEqual({ date: "2026-10-28", dateTime: null, timeZone: null });
     expect(body.end.date).toBe("2026-10-29");
     expect(body.recurrence).toEqual([]);
-    expect(body.extendedProperties.private).toMatchObject({ ccId: "cc_7k2m9q", status: "ready", format: "blog", tray: null, target: "Downloads baseline", pos: "1", gate2: null, att2: null });
-    expect(JSON.parse(body.extendedProperties.private.gate1!)).toEqual({ id: "g1", kind: "pr", repo: "get-bb/bb", number: 4772, cleared: false });
-    expect(body.description).toBe(`Publish the day before the orchestration tweet.\n\n${block}`);
+    expect(body.extendedProperties.private).toMatchObject({ ccId: "cc_7k2m9q", status: "ready", format: "blog", tray: null, target: "Registration goal", pos: "1", gate2: null, att2: null });
+    expect(JSON.parse(body.extendedProperties.private.gate1!)).toEqual({ id: "g1", kind: "pr", repo: "example-org/sample-project", number: 4772, cleared: false });
+    expect(body.description).toBe(`Publish the day before the workshop announcement.\n\n${block}`);
     expect(block).toBe([
       BLOCK_HEADER,
-      "bb blog post · Ready · Target: Downloads baseline",
-      "Waits on: get-bb/bb #4772 (not cleared) https://github.com/get-bb/bb/pull/4772",
+      "Blog post · Ready · Target: Registration goal",
+      "Waits on: example-org/sample-project #4772 (not cleared) https://github.com/example-org/sample-project/pull/4772",
       "Attached: Draft.md (on Mac)",
     ].join("\n"));
   });
 
   it("writes ☑ for posted items and clears the color without a format", () => {
     const { body } = buildEvent("cc_7k2m9q", fields({ status: "posted", format: null }), MONDAY, noTitles);
-    expect(body.summary).toBe("☑ Orchestration blog post");
+    expect(body.summary).toBe("☑ Workshop guide");
     expect(body.colorId).toBeNull();
   });
 
@@ -85,10 +85,10 @@ describe("parseEvent", () => {
 
   it("follows the checkbox typed in the title", () => {
     const { event } = asEvent("ev1", "cc_7k2m9q", fields());
-    expect(parseEvent({ ...event, summary: "☑ Orchestration blog post" }, []).fields.status).toBe("posted");
-    expect(parseEvent({ ...event, summary: "Orchestration blog post" }, []).fields).toMatchObject({ status: "ready", title: "Orchestration blog post" });
+    expect(parseEvent({ ...event, summary: "☑ Workshop guide" }, []).fields.status).toBe("posted");
+    expect(parseEvent({ ...event, summary: "Workshop guide" }, []).fields).toMatchObject({ status: "ready", title: "Workshop guide" });
     const posted = asEvent("ev1", "cc_7k2m9q", fields({ status: "posted" })).event;
-    expect(parseEvent({ ...posted, summary: "☐ Orchestration blog post" }, []).fields.status).toBe("ready");
+    expect(parseEvent({ ...posted, summary: "☐ Workshop guide" }, []).fields.status).toBe("ready");
   });
 
   it("changes the format when she picks a format color, and ignores other colors", () => {
@@ -139,8 +139,8 @@ describe("splitDescription", () => {
   });
 
   it("keeps her edit of a block line as notes", () => {
-    const description = `Notes\n\n${block.replace("Ready", "Ready (she typed this)")}`;
-    expect(splitDescription(description, [block]).notes).toBe("Notes\n\nbb blog post · Ready (she typed this) · Target: Downloads baseline");
+    const description = `Notes\n\n${block.replace("Ready", "Ready (the user typed this)")}`;
+    expect(splitDescription(description, [block]).notes).toBe("Notes\n\nBlog post · Ready (the user typed this) · Target: Registration goal");
   });
 
   it("treats the whole description as notes when the block is missing", () => {
@@ -176,7 +176,7 @@ describe("description writes", () => {
   const changed = fields({ target: "Signups" });
   const newBlock = renderBlock(changed, noTitles);
 
-  it("leaves the description out when neither her notes nor the block changed", () => {
+  it("leaves the description out when neither the user’s notes nor the block changed", () => {
     const { body } = buildEvent("cc_7k2m9q", item, MONDAY, noTitles, { raw: "<p>Her <a href=\"https://x.test/a\">link</a></p>", block, notesDirty: false }, false);
     expect(body.description).toBeUndefined();
     expect("description" in body).toBe(false);
@@ -199,12 +199,12 @@ describe("description writes", () => {
     expect(htmlToText(spliced)).toContain("Target: Signups");
   });
 
-  it("moves her plain-text lines inside the old block above the new one", () => {
+  it("moves the user’s plain-text lines inside the old block above the new one", () => {
     const raw = `Notes\n\n${block.replace(BLOCK_HEADER, `${BLOCK_HEADER}\nHer line`)}\nAfter`;
     expect(spliceBlock(raw, block, newBlock)).toBe(`Notes\n\nHer line\nAfter\n\n${newBlock}`);
   });
 
-  it("writes bb's notes when her notes changed in bb", () => {
+  it("writes bb's notes when the user’s notes changed in bb", () => {
     const { body } = buildEvent("cc_7k2m9q", changed, MONDAY, noTitles, { raw: "<p>old</p>", block, notesDirty: true }, false);
     expect(body.description).toBe(`${changed.notes}\n\n${newBlock}`);
   });
@@ -226,13 +226,22 @@ describe("private property limits", () => {
 
   it("parses records leniently and writes them back as found", () => {
     const { event } = asEvent("ev1", "cc_7k2m9q", fields());
-    const props = { ...event.extendedProperties!.private!, gate1: JSON.stringify({ id: "g1", kind: "pr", repo: "get-bb/bb", number: 1, cleared: true, by: "app" }), gate2: "{broken" };
+    const props = { ...event.extendedProperties!.private!, gate1: JSON.stringify({ id: "g1", kind: "pr", repo: "example-org/sample-project", number: 1, cleared: true, by: "app" }), gate2: "{broken" };
     const parsed = parseEvent({ ...event, extendedProperties: { private: props } }, []);
-    expect(parsed.fields.gates).toEqual([{ id: "g1", kind: "pr", repo: "get-bb/bb", number: 1, cleared: true }]);
+    expect(parsed.fields.gates).toEqual([{ id: "g1", kind: "pr", repo: "example-org/sample-project", number: 1, cleared: true }]);
     const written = privateProps("cc_7k2m9q", parsed.fields);
-    expect(JSON.parse(written.gate1!)).toEqual({ id: "g1", kind: "pr", repo: "get-bb/bb", number: 1, cleared: true, by: "app" });
+    expect(JSON.parse(written.gate1!)).toEqual({ id: "g1", kind: "pr", repo: "example-org/sample-project", number: 1, cleared: true, by: "app" });
     expect(written.gate2).toBe("{broken");
     expect(written.gate3).toBeNull();
     expect(written.ccv).toBe("1");
   });
+});
+
+
+it("reads offset timestamps and writes wall times in the selected calendar zone", () => {
+  const event: GoogleEvent = { id: "ev-zone", etag: "1", summary: "Workshop guide", start: { dateTime: "2026-10-07T18:30:00Z" }, end: { dateTime: "2026-10-07T19:30:00Z" } };
+  const parsed = parseEvent(event, [], undefined, "Asia/Tokyo");
+  expect(parsed.fields).toMatchObject({ date: "2026-10-08", time: "03:30", minutes: 60 });
+  const written = buildEvent("cc_zone1", parsed.fields, MONDAY, noTitles, undefined, true, "Asia/Tokyo");
+  expect(written.body.start).toEqual({ date: null, dateTime: "2026-10-08T03:30:00", timeZone: "Asia/Tokyo" });
 });

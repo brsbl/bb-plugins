@@ -86,5 +86,7 @@ export interface ServiceDeps {
   now(): Date;
   log: { info(message: string): void; warn(message: string): void; error(message: string): void };
   /** Overridable endpoints for the local fake of Google's APIs. */
+  /** Time zone for a newly created calendar; existing calendars retain their zone. */
+  newCalendarTimeZone?(): Promise<string>;
   google?: { apiBase?: string; authUrl?: string; tokenUrl?: string };
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { FORMATS, FORMAT_LABELS, NO_FORMAT_LABEL, TRAY_LABELS, todayInCalendar, type Format, type Item } from "../model.js";
-import type { When } from "./data.js";
+import { useCalendarTimeZone, type When } from "./data.js";
 
 export function FormatSelect({ value, onChange, id, label = "Format" }: { value: Format | null; onChange: (value: Format | null) => void; id?: string; label?: string }) {
   return <select id={id} aria-label={id ? undefined : label} className="cc-input" value={value ?? ""} onChange={(event) => onChange(event.target.value ? event.target.value as Format : null)}>
@@ -11,7 +11,8 @@ export function FormatSelect({ value, onChange, id, label = "Format" }: { value:
 
 /** Move to…: a date, Evergreen, or Later. The click-only alternative to dragging. */
 export function MoveTo({ item, onMove }: { item: Item; onMove: (when: When) => void }) {
-  const [date, setDate] = useState(item.date ?? todayInCalendar());
+  const timeZone = useCalendarTimeZone();
+  const [date, setDate] = useState(item.date ?? todayInCalendar(new Date(), timeZone));
   return <form className="cc-move" onSubmit={(event) => { event.preventDefault(); if (date) onMove({ date }); }}>
     <label className="cc-muted" htmlFor={`cc-move-${item.id}`}>Move “{item.title}” to</label>
     <div className="cc-row-actions">

@@ -98,12 +98,12 @@ describe("details", () => {
     const item = {
       date: "2026-10-27",
       waitsOn: [
-        { id: "g1", kind: "item" as const, itemId: "cc_aaaa", cleared: false, title: "Orchestration blog post", date: "2026-10-28" },
+        { id: "g1", kind: "item" as const, itemId: "cc_aaaa", cleared: false, title: "Workshop guide", date: "2026-10-28" },
         { id: "g2", kind: "item" as const, itemId: "cc_bbbb", cleared: false, title: null, date: null },
         { id: "g3", kind: "item" as const, itemId: "cc_cccc", cleared: false, title: "Earlier", date: "2026-10-01" },
       ],
     };
-    expect(scheduledBefore(item)).toEqual([{ title: "Orchestration blog post", date: "2026-10-28" }]);
+    expect(scheduledBefore(item)).toEqual([{ title: "Workshop guide", date: "2026-10-28" }]);
     expect(scheduledBefore({ ...item, date: null })).toEqual([]);
   });
 
@@ -114,8 +114,8 @@ describe("details", () => {
   });
 
   it("parses pull request references", () => {
-    expect(parsePullRequest("get-bb/bb#4772")).toEqual({ repo: "get-bb/bb", number: 4772 });
-    expect(parsePullRequest("https://github.com/get-bb/bb/pull/4772/files")).toEqual({ repo: "get-bb/bb", number: 4772 });
+    expect(parsePullRequest("example-org/sample-project#4772")).toEqual({ repo: "example-org/sample-project", number: 4772 });
+    expect(parsePullRequest("https://github.com/example-org/sample-project/pull/4772/files")).toEqual({ repo: "example-org/sample-project", number: 4772 });
     expect(parsePullRequest("#4772")).toBeNull();
   });
 

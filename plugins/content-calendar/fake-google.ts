@@ -4,7 +4,7 @@ import type { GoogleEvent } from "./mapping.js";
 import type { GoogleEndpoints } from "./google.js";
 
 // An in-memory Google Calendar v3 API and OAuth token endpoint behind a fetch-compatible function,
-// plus helpers that make the edits brsbl makes in Google Calendar.
+// plus helpers that make the edits a user makes in Google Calendar.
 
 export const FAKE_ENDPOINTS: GoogleEndpoints = {
   apiBase: "https://calendar.fake/calendar/v3",
@@ -65,7 +65,7 @@ export class FakeGoogle {
 
   // OAuth.
 
-  /** What Google does when she allows access: returns the loopback address to paste back. */
+  /** What Google does when the user allows access: returns the loopback address to paste back. */
   authorize(authUrl: string): string {
     const url = new URL(authUrl);
     const params = url.searchParams;
@@ -79,7 +79,7 @@ export class FakeGoogle {
     return redirect.toString();
   }
 
-  /** She removes bb's access in her Google account. */
+  /** The user removes bb's access in their Google account. */
   revoke(): void {
     this.refreshTokens.clear();
     this.accessTokens.clear();
@@ -109,7 +109,7 @@ export class FakeGoogle {
     return this.list().filter((event) => event.extendedProperties?.private?.ccId === ccId);
   }
 
-  // Edits she makes in Google Calendar.
+  // Edits a user makes in Google Calendar.
 
   rename(id: string, summary: string): void {
     this.edit(id, (event) => { event.summary = summary; });

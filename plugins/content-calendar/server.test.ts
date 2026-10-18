@@ -11,7 +11,7 @@ vi.mock("./engine.js", () => ({
 }));
 
 const item = (overrides: Partial<Item> = {}): Item => ({
-  id: "cc_abc123", title: "Ambient tweet", format: "tweet", status: "ready", date: "2026-10-28", time: null, days: 1, tray: null,
+  id: "cc_abc123", title: "Workshop announcement", format: "tweet", status: "ready", date: "2026-10-28", time: null, days: 1, tray: null,
   target: null, notes: "", waitsOn: [], attachments: [], sync: "synced", conflict: null, pos: 1, notice: null, updatedAt: "2026-10-03T00:00:00.000Z",
   ...overrides,
 });
@@ -54,7 +54,7 @@ function setup(options: { settings?: Record<string, string>; openInMoss?: boolea
       hosts: { list: async () => [makeHostResponse({ id: "mac", name: "My Mac", status: "connected" }), makeHostResponse({ id: "linux", name: "Worker", status: "disconnected" })] },
     },
     experimental_callHostRpc: async ({ method, input }) => {
-      if (method === "resolveFile") return { path: "/Users/me/Moss/Notes/Draft.md", name: "Draft.md" };
+      if (method === "resolveFile") return { path: "/fixtures/Draft.md", name: "Draft.md" };
       if (method === "openInMoss") return options.openInMoss === false ? { opened: false, reason: "Only notes under ~/Moss open in Moss." } : { opened: true };
       if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available" })) };
       return { root: "/Users/me/Moss/Notes", files: [] };
@@ -72,7 +72,7 @@ describe("content-calendar CLI", () => {
     const result = await cli(h, ["list", "--week", "2026-10-07"]);
     expect(result.exitCode).toBe(0);
     expect(service.list).toHaveBeenCalledWith({ from: "2026-10-05", to: "2026-10-11" });
-    expect(result.stdout).toBe("cc_abc123  2026-10-28  ☐ Ambient tweet  (Tweet · Ready)\ncc_tray01  Later  ☐ Ambient tweet  (No format · Idea)");
+    expect(result.stdout).toBe("cc_abc123  2026-10-28  ☐ Workshop announcement  (Tweet · Ready)\ncc_tray01  Later  ☐ Workshop announcement  (No format · Idea)");
     await cli(h, ["list", "--month", "2026-02", "--format", "blog", "--limit", "10"]);
     expect(service.list).toHaveBeenLastCalledWith({ from: "2026-02-01", to: "2026-02-28", format: "blog", limit: 10 });
     expect(JSON.parse((await cli(h, ["list", "--json"])).stdout ?? "")).toMatchObject({ items: [{ id: "cc_abc123" }, { id: "cc_tray01" }], nextCursor: null });
@@ -80,13 +80,13 @@ describe("content-calendar CLI", () => {
 
   it("adds, moves, gates, and checks items through the strict writes", async () => {
     const h = setup();
-    expect((await cli(h, ["add", "Ambient tweet", "--format", "none", "--tray", "evergreen", "--json"])).exitCode).toBe(0);
-    expect(service.strict.add).toHaveBeenCalledWith({ title: "Ambient tweet", format: null, when: { tray: "evergreen" } });
+    expect((await cli(h, ["add", "Workshop announcement", "--format", "none", "--tray", "evergreen", "--json"])).exitCode).toBe(0);
+    expect(service.strict.add).toHaveBeenCalledWith({ title: "Workshop announcement", format: null, when: { tray: "evergreen" } });
     expect((await cli(h, ["add", "No date", "--format", "tweet"])).exitCode).not.toBe(0);
     await cli(h, ["move", "cc_abc123", "--date", "2026-10-30", "--after", "cc_other1"]);
     expect(service.strict.move).toHaveBeenCalledWith({ id: "cc_abc123", when: { date: "2026-10-30" }, after: "cc_other1" });
-    await cli(h, ["gate", "add", "cc_abc123", "--pr", "get-bb/bb#4772"]);
-    expect(service.strict.gateAdd).toHaveBeenCalledWith({ id: "cc_abc123", gate: { kind: "pr", repo: "get-bb/bb", number: 4772 } });
+    await cli(h, ["gate", "add", "cc_abc123", "--pr", "example-org/sample-project#4772"]);
+    expect(service.strict.gateAdd).toHaveBeenCalledWith({ id: "cc_abc123", gate: { kind: "pr", repo: "example-org/sample-project", number: 4772 } });
     await cli(h, ["gate", "clear", "cc_abc123", "g1", "--reopen"]);
     expect(service.strict.gateClear).toHaveBeenCalledWith({ id: "cc_abc123", gateId: "g1", cleared: false });
     await cli(h, ["update", "cc_abc123", "--status", "posted", "--format", "essay"]);
@@ -156,8 +156,8 @@ describe("content-calendar CLI", () => {
     await expect(h.behavior.callRpc("attach", { id: "cc_abc123", attachment: { kind: "file", machineId: "mac", path: "/etc/passwd", name: "passwd" } })).rejects.toThrow();
     expect(service.attach).not.toHaveBeenCalled();
     expect(service.trustFile).not.toHaveBeenCalled();
-    await h.behavior.callRpc("attach", { id: "cc_abc123", attachment: { kind: "pr", repo: "get-bb/bb", number: 4772 } });
-    expect(service.attach).toHaveBeenCalledWith({ id: "cc_abc123", attachment: { kind: "pr", repo: "get-bb/bb", number: 4772 } });
+    await h.behavior.callRpc("attach", { id: "cc_abc123", attachment: { kind: "pr", repo: "example-org/sample-project", number: 4772 } });
+    expect(service.attach).toHaveBeenCalledWith({ id: "cc_abc123", attachment: { kind: "pr", repo: "example-org/sample-project", number: 4772 } });
   });
 
   it("prints the inline directive with the week normalized to Monday", async () => {
@@ -174,8 +174,8 @@ describe("content-calendar CLI", () => {
     const result = await cli(h, ["attach", "cc_abc123", "--file", "notes/Draft.md", "--json"], "thr_invoking");
     expect(result.exitCode).toBe(0);
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "mac", input: { path: "notes/Draft.md", cwd: "/Users/me/project" } });
-    expect(service.strict.attach).toHaveBeenCalledWith({ id: "cc_abc123", attachment: { kind: "file", machineId: "mac", path: "/Users/me/Moss/Notes/Draft.md", name: "Draft.md" } });
-    expect(service.trustFile).toHaveBeenCalledWith("mac", "/Users/me/Moss/Notes/Draft.md");
+    expect(service.strict.attach).toHaveBeenCalledWith({ id: "cc_abc123", attachment: { kind: "file", machineId: "mac", path: "/fixtures/Draft.md", name: "Draft.md" } });
+    expect(service.trustFile).toHaveBeenCalledWith("mac", "/fixtures/Draft.md");
     const offline = await cli(h, ["attach", "cc_abc123", "--file", "/x.md", "--machine", "linux", "--json"], "thr_invoking");
     expect(JSON.parse(offline.stdout ?? "")).toMatchObject({ ok: false, error: { code: "offline" } });
   });
@@ -209,9 +209,9 @@ describe("content-calendar CLI", () => {
 
 describe("attachments", () => {
   const attachments: Item["attachments"] = [
-    { id: "a1", kind: "file", machineId: "mac", path: "/Users/me/Moss/Notes/Draft.md", name: "Draft.md" },
+    { id: "a1", kind: "file", machineId: "mac", path: "/fixtures/Draft.md", name: "Draft.md" },
     { id: "a2", kind: "file", machineId: "mac", path: "/Users/me/Desktop/shot.png", name: "shot.png" },
-    { id: "a3", kind: "pr", repo: "get-bb/bb", number: 4772 },
+    { id: "a3", kind: "pr", repo: "example-org/sample-project", number: 4772 },
     { id: "a4", kind: "file", machineId: "linux", path: "/home/me/gone.md", name: "gone.md" },
   ];
 
@@ -224,14 +224,14 @@ describe("attachments", () => {
     const calls = h.inspection.experimental_hostRpcCalls.length;
     expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a2" })).toEqual({ opened: "preview", hostId: "mac", path: "/Users/me/Desktop/shot.png" });
     expect(h.inspection.experimental_hostRpcCalls).toHaveLength(calls);
-    expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a3" })).toEqual({ opened: "url", url: "https://github.com/get-bb/bb/pull/4772" });
+    expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a3" })).toEqual({ opened: "url", url: "https://github.com/example-org/sample-project/pull/4772" });
   });
 
   it("falls back to the preview when the Mac refuses to open a note", async () => {
     const h = setup({ openInMoss: false });
     await trustAll(attachments);
     service.get.mockResolvedValue(item({ attachments }));
-    expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a1" })).toEqual({ opened: "preview", hostId: "mac", path: "/Users/me/Moss/Notes/Draft.md" });
+    expect(await h.behavior.callRpc("openAttachment", { id: "cc_abc123", attachmentId: "a1" })).toEqual({ opened: "preview", hostId: "mac", path: "/fixtures/Draft.md" });
   });
 
   it("reports available, missing, and offline files", async () => {

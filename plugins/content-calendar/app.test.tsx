@@ -15,11 +15,11 @@ const item = (id: string, patch: Partial<Item>): Item => ({
   waitsOn: [], attachments: [], sync: "synced", conflict: null, pos: 1, notice: null, updatedAt: "2026-10-03T22:10:00Z", ...patch,
 });
 const fixtures = (): Item[] => [
-  item("cc_posted", { title: "Portola tweet", status: "posted", date: "2026-10-01" }),
-  item("cc_ambient", { title: "Ambient tweet", status: "drafting", date: "2026-10-07" }),
-  item("cc_orchestr", { title: "Orchestration blog post", format: "blog", status: "ready", date: "2026-10-28", waitsOn: [{ id: "g1", kind: "pr", repo: "get-bb/bb", number: 4772, cleared: false }] }),
+  item("cc_posted", { title: "Workshop recap", status: "posted", date: "2026-10-01" }),
+  item("cc_ambient", { title: "Workshop announcement", status: "drafting", date: "2026-10-07" }),
+  item("cc_orchestr", { title: "Workshop guide", format: "blog", status: "ready", date: "2026-10-28", waitsOn: [{ id: "g1", kind: "pr", repo: "example-org/sample-project", number: 4772, cleared: false }] }),
   item("cc_google", { title: "Made in Google", format: null, date: "2026-10-08" }),
-  item("cc_later", { title: "Cloud sandboxes", format: "blog", tray: "later" }),
+  item("cc_later", { title: "Workshop interviews", format: "blog", tray: "later" }),
 ];
 
 function rpc(items = fixtures()) {
@@ -48,7 +48,7 @@ async function renderPage(subPath = "month/2026-10") {
   const app = await loadPluginApp(() => import("./app.js"));
   const page = app.navPanels.find((panel) => panel.id === "calendar")!;
   const slot = renderSlot(page, { subPath }, { rpc: rpc() });
-  await screen.findByText("Ambient tweet");
+  await screen.findByText("Workshop announcement");
   return slot;
 }
 const card = (title: string) => screen.getByText(title).closest<HTMLElement>("[data-item-id]")!;
@@ -63,12 +63,12 @@ it("registers the page, directive, and connect form, and no side panel", async (
 
 it("gives every item a checkbox and never crosses anything out", async () => {
   await renderPage();
-  expect(screen.getByRole("checkbox", { name: "Posted: Portola tweet" })).toHaveProperty("checked", true);
-  expect(screen.getByRole("checkbox", { name: "Posted: Ambient tweet" })).toHaveProperty("checked", false);
-  expect(screen.getByRole("checkbox", { name: "Posted: Cloud sandboxes" })).toHaveProperty("checked", false);
+  expect(screen.getByRole("checkbox", { name: "Posted: Workshop recap" })).toHaveProperty("checked", true);
+  expect(screen.getByRole("checkbox", { name: "Posted: Workshop announcement" })).toHaveProperty("checked", false);
+  expect(screen.getByRole("checkbox", { name: "Posted: Workshop interviews" })).toHaveProperty("checked", false);
   // Posted items show only the format; the checkbox already says posted.
-  expect(within(card("Portola tweet")).getByText("Tweet")).toBeTruthy();
-  expect(within(card("Ambient tweet")).getByText("Tweet · Drafting")).toBeTruthy();
+  expect(within(card("Workshop recap")).getByText("Tweet")).toBeTruthy();
+  expect(within(card("Workshop announcement")).getByText("Tweet · Drafting")).toBeTruthy();
   for (const element of document.querySelectorAll<HTMLElement>("*")) expect(element.style.textDecoration).not.toContain("line-through");
   expect(readFileSync(join(process.cwd(), "app.css"), "utf8")).not.toMatch(/line-through/);
 });
@@ -94,42 +94,42 @@ it("labels items without a format and draws waiting items dashed", async () => {
   await renderPage();
   expect(within(card("Made in Google")).getByText("No format · Idea")).toBeTruthy();
   expect(card("Made in Google").className).toContain("cc-f-none");
-  const gated = card("Orchestration blog post");
+  const gated = card("Workshop guide");
   expect(gated.dataset.gated).toBe("true");
   expect(gated.className).toContain("cc-gated");
-  expect(within(gated).getByText("bb blog post · Waits on #4772")).toBeTruthy();
-  expect(card("Ambient tweet").dataset.gated).toBe("false");
-  expect(card("Ambient tweet").className).not.toContain("cc-gated");
+  expect(within(gated).getByText("Blog post · Waits on #4772")).toBeTruthy();
+  expect(card("Workshop announcement").dataset.gated).toBe("false");
+  expect(card("Workshop announcement").className).not.toContain("cc-gated");
 });
 
 it("shows both trays, with an empty tray inviting a drop", async () => {
   await renderPage();
   const evergreen = screen.getByRole("region", { name: "Evergreen" });
   expect(within(evergreen).getByText("Drop items here.")).toBeTruthy();
-  expect(within(screen.getByRole("region", { name: "Later" })).getByText("Cloud sandboxes")).toBeTruthy();
+  expect(within(screen.getByRole("region", { name: "Later" })).getByText("Workshop interviews")).toBeTruthy();
 });
 
 it("moves an item a day with the keyboard and announces each step", async () => {
   const slot = await renderPage();
-  const ambient = card("Ambient tweet");
+  const ambient = card("Workshop announcement");
   ambient.focus();
   fireEvent.keyDown(ambient, { key: " " });
-  expect(screen.getByText(/Picked up Ambient tweet\. Wednesday, October 7\./)).toBeTruthy();
+  expect(screen.getByText(/Picked up Workshop announcement\. Wednesday, October 7\./)).toBeTruthy();
   fireEvent.keyDown(ambient, { key: "ArrowRight" });
   expect(screen.getByText(/^Thursday, October 8\./)).toBeTruthy();
   fireEvent.keyDown(ambient, { key: " " });
   await waitFor(() => expect(slot.inspection.rpcCalls).toContainEqual({ method: "move", input: { id: "cc_ambient", when: { date: "2026-10-08" }, after: "cc_google" } }));
-  expect(screen.getByText(/Dropped Ambient tweet on Thursday, October 8\./)).toBeTruthy();
-  await waitFor(() => expect(within(screen.getByRole("group", { name: "Thursday, October 8" })).getByText("Ambient tweet")).toBeTruthy());
+  expect(screen.getByText(/Dropped Workshop announcement on Thursday, October 8\./)).toBeTruthy();
+  await waitFor(() => expect(within(screen.getByRole("group", { name: "Thursday, October 8" })).getByText("Workshop announcement")).toBeTruthy());
 });
 
 it("cancels a keyboard move with Escape", async () => {
   const slot = await renderPage();
-  const ambient = card("Ambient tweet");
+  const ambient = card("Workshop announcement");
   fireEvent.keyDown(ambient, { key: " " });
   fireEvent.keyDown(ambient, { key: "ArrowDown" });
   fireEvent.keyDown(ambient, { key: "Escape" });
-  expect(screen.getByText(/Move cancelled\. Ambient tweet stays on Wednesday, October 7\./)).toBeTruthy();
+  expect(screen.getByText(/Move cancelled\. Workshop announcement stays on Wednesday, October 7\./)).toBeTruthy();
   expect(slot.inspection.rpcCalls.some((call) => call.method === "move")).toBe(false);
 });
 
@@ -139,14 +139,14 @@ it("renders an inline week from the directive and edits items in place", async (
     attributes: { view: "week", start: "2026-10-05" }, source: '::content-calendar{view="week" start="2026-10-05"}',
     message: { id: "msg_1", threadId: "thr_test", turnId: null, projectId: null }, openWorkspaceFile: null,
   }, { rpc: rpc(), openThreadPanel: () => true });
-  await screen.findByText("Ambient tweet");
+  await screen.findByText("Workshop announcement");
   expect(screen.getByRole("region", { name: "Content calendar, Oct 5 – 11, 2026" })).toBeTruthy();
   expect(screen.getAllByRole("group", { name: /, October (5|6|7|8|9|10|11)$/ })).toHaveLength(7);
   expect(screen.queryByRole("region", { name: "Later" })).toBeNull();
   expect(slot.inspection.rpcCalls).toContainEqual({ method: "calendar", input: { from: "2026-10-05", to: "2026-10-11", trays: false } });
-  fireEvent.click(screen.getByText("Ambient tweet"));
-  const editor = await screen.findByRole("dialog", { name: "Edit Ambient tweet" });
-  expect(within(editor).getByRole("article", { name: "Item: Ambient tweet" })).toBeTruthy();
+  fireEvent.click(screen.getByText("Workshop announcement"));
+  const editor = await screen.findByRole("dialog", { name: "Edit Workshop announcement" });
+  expect(within(editor).getByRole("article", { name: "Item: Workshop announcement" })).toBeTruthy();
   expect(slot.inspection.navigateCalls.some((call) => call.method === "openThreadPanel")).toBe(false);
   fireEvent.click(within(editor).getByRole("button", { name: "Close" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -184,11 +184,11 @@ it("submits the masked client form without rendering the values", async () => {
 
 it("opens an item menu from the keyboard, moves through it with the arrows, and returns focus on Escape", async () => {
   await renderPage();
-  const trigger = screen.getByRole("button", { name: "More actions for Ambient tweet" });
+  const trigger = screen.getByRole("button", { name: "More actions for Workshop announcement" });
   expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
   trigger.focus();
   fireEvent.click(trigger);
-  const menu = await screen.findByRole("menu", { name: "Actions for Ambient tweet" });
+  const menu = await screen.findByRole("menu", { name: "Actions for Workshop announcement" });
   await waitFor(() => expect(document.activeElement).toBe(within(menu).getByRole("menuitem", { name: "Open" })));
   fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
   expect(document.activeElement).toBe(within(menu).getByRole("menuitem", { name: "Move to…" }));
@@ -218,10 +218,10 @@ it("debounces change signals into one reload, and refreshes only the status for 
 
 it("opens an item's editor beside it on click, and Escape closes it and returns focus to the item", async () => {
   await renderPage();
-  const ambient = card("Ambient tweet");
+  const ambient = card("Workshop announcement");
   fireEvent.click(ambient);
-  const editor = await screen.findByRole("dialog", { name: "Edit Ambient tweet" });
-  expect(within(editor).getByRole("article", { name: "Item: Ambient tweet" })).toBeTruthy();
+  const editor = await screen.findByRole("dialog", { name: "Edit Workshop announcement" });
+  expect(within(editor).getByRole("article", { name: "Item: Workshop announcement" })).toBeTruthy();
   expect(ambient.className).toContain("cc-selected");
   await waitFor(() => expect(document.activeElement).toBe(editor));
   fireEvent.keyDown(editor, { key: "Escape" });
@@ -231,7 +231,7 @@ it("opens an item's editor beside it on click, and Escape closes it and returns 
 });
 
 async function renderDetail(patch: Partial<Item> = {}) {
-  const current = { value: item("cc_ambient", { title: "Ambient tweet", status: "drafting", date: "2026-10-07", target: "3+ net follows", ...patch }) };
+  const current = { value: item("cc_ambient", { title: "Workshop announcement", status: "drafting", date: "2026-10-07", target: "3+ net follows", ...patch }) };
   const app = await loadPluginApp(() => import("./app.js"));
   const page = app.navPanels.find((panel) => panel.id === "calendar")!;
   const slot = renderSlot(page, { subPath: "month/2026-10" }, {
@@ -242,15 +242,15 @@ async function renderDetail(patch: Partial<Item> = {}) {
       move: (input: unknown) => { current.value = { ...current.value, date: (input as { when: { date: string } }).when.date }; return current.value; },
     },
   });
-  fireEvent.click(await screen.findByText("Ambient tweet"));
-  const article = await screen.findByRole("article", { name: "Item: Ambient tweet" });
+  fireEvent.click(await screen.findByText("Workshop announcement"));
+  const article = await screen.findByRole("article", { name: "Item: Workshop announcement" });
   return { slot, current, article };
 }
 
 it("never writes back an outside change that lands while a field is focused", async () => {
   const { slot, current, article } = await renderDetail();
   const calls = (method: string) => slot.inspection.rpcCalls.filter((call) => call.method === method).length;
-  for (const [label, field, next] of [["Title", "title", "Ambient tweet, from Google"], ["Target", "target", "5 net follows"], ["Notes", "notes", "Edited on her phone"]] as const) {
+  for (const [label, field, next] of [["Title", "title", "Workshop announcement, from Google"], ["Target", "target", "5 net follows"], ["Notes", "notes", "Edited on a phone"]] as const) {
     const input = within(article).getByLabelText(label) as HTMLInputElement | HTMLTextAreaElement;
     input.focus();
     const shows = calls("show");

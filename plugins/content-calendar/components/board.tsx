@@ -8,7 +8,7 @@ import {
   WEEKDAY_SHORT, cellNumber, dayName, dropPlacement, gridWeeks, itemsByDay, keyboardStep, rangeDays, samePlace, whereLabel,
   type CalendarRange,
 } from "../calendar-layout.js";
-import { lastFormat, readableError, rememberFormat, type CalendarView, type When, type useCalendarData } from "./data.js";
+import { CalendarTimeZone, lastFormat, readableError, rememberFormat, type CalendarView, type When, type useCalendarData } from "./data.js";
 import { ItemDetail } from "./detail.js";
 import { FormatSelect, MoveTo } from "./fields.js";
 import { ItemCardView, type CardSize } from "./item-card.js";
@@ -46,13 +46,17 @@ type Pop =
  * pointer drag, by keyboard (Space, arrows, Space, or Escape), or through
  * Move to… in each item's ⋯ menu.
  */
-export function CalendarBoard({ range, mode, data, view, jumpToken = 0, children }: {
+type BoardProps = {
   range: CalendarRange; mode: "page" | "inline"; data: Data; view: CalendarView;
   /** Changing this (the Today button) scrolls today's cell into view; it also runs once when the board mounts. */
   jumpToken?: number;
   children?: ReactNode;
-}) {
-  const today = todayInCalendar();
+};
+export function CalendarBoard(props: BoardProps) {
+  return <CalendarTimeZone.Provider value={props.view.status.timeZone}><BoardContent {...props} /></CalendarTimeZone.Provider>;
+}
+function BoardContent({ range, mode, data, view, jumpToken = 0, children }: BoardProps) {
+  const today = todayInCalendar(new Date(), view.status.timeZone);
   const { from, to } = rangeDays(range);
   const weeks = useMemo(() => gridWeeks(range), [range]);
   const byDay = useMemo(() => itemsByDay(view.dated), [view.dated]);
@@ -309,7 +313,7 @@ function TrayBox({ tray, highlighted, onAdd, children }: { tray: Tray; highlight
 /** Quick add: a title and a format (the last one used). Enter creates the item. */
 function QuickAdd({ when, onCreate, onClose }: { when: When; onCreate: (title: string, format: Format | null) => Promise<void>; onClose: () => void }) {
   const [title, setTitle] = useState("");
-  const [format, setFormat] = useState<Format | null>(() => { const saved = lastFormat(); return (FORMATS as readonly string[]).includes(saved) ? saved as Format : saved === "" ? null : "tweet"; });
+  const [format, setFormat] = useState<Format | null>(() => { const saved = lastFormat(); return (FORMATS as readonly string[]).includes(saved) ? saved as Format : null; });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return <form className="cc-quick-add" onSubmit={(event) => {
