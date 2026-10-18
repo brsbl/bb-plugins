@@ -114,7 +114,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/t
 
 Plans deliverables on a month or week calendar stored on a dedicated Google calendar, with drag-and-drop rescheduling, Evergreen and Later trays, gates, and attached Moss notes. Agents manage it through `bb content-calendar` and show it live inline in chat.
 
-![Content Calendar month view with Evergreen and Later trays](plugins/content-calendar/docs/calendar-month.png)
+![Content Calendar month view for October 2026 with sample workshop items and the Evergreen and Later trays](plugins/content-calendar/docs/calendar-month.png)
 
 [Source](plugins/content-calendar) · [README](plugins/content-calendar/README.md)
 

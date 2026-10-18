@@ -2,7 +2,13 @@
 
 Plan deliverables on a month or week calendar. Each new item starts as an all-day event on a dedicated Google calendar named **Content**, so the schedule also shows in Google Calendar and on your phone.
 
-![Content Calendar month view with Evergreen and Later trays](docs/calendar-month.png)
+![Content Calendar month view for October 2026 with sample workshop items and the Evergreen and Later trays](docs/calendar-month.png)
+
+![Week of October 19 with the Workshop guide details open, showing its Review outline gate and Workshop brief link](docs/calendar-week.png)
+
+![The same sample week shown inline in a conversation](docs/calendar-inline.png)
+
+![Setup before connecting: Google OAuth client steps, the time zone setting and a disabled Connect button](docs/calendar-setup.png)
 
 ## Install
 
