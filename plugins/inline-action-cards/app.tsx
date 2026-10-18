@@ -1,37 +1,37 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
-import { definePluginApp, Markdown, useBbNavigate, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { definePluginApp, experimental_Icon as Icon, Markdown, useBbNavigate, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, idSchema, title, type Action, type FollowUp, type Item, type ItemView, type ActionLog } from "./model.js";
+import { actionLabel, idSchema, title, type Action, type FollowUp, type Item, type ItemView, type ActionLog, type TableView } from "./model.js";
 import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { pendingLabel, sentStatus } from "./presentation.js";
 import { FollowUps, Media } from "./evidence.js";
-import { Button, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, DecisionRow, NoteField, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
-import { DecisionSheet, type SheetBinding } from "./sheet.js";
+import { Button, ClampedContext, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { readableError, submitting } from "./submit.js";
 import { ReloadFrame } from "./reload-frame.js";
+import { openWaiting, WaitingBanner } from "./drawer.js";
+import { markWaitingThreads } from "./sidebar-status.js";
 import "./app.css";
 import "./compact.css";
 
 type CardItem = Item & Partial<Pick<ItemView, "followUps" | "threadTitle" | "threadProjectId">>;
 
-export function ActionCard({ id, threadId, row = false, expanded = false, onExpand, initialItem, onItem, sheet, logEntry, onLoaded }: {
-  id: string; threadId: string; row?: boolean; expanded?: boolean; onExpand?: (open: boolean) => void;
+// Where a card renders. In the timeline an unanswered card is one line pointing to Waiting on you;
+// the drawer shows its form without a note, since the drawer itself names the question and thread.
+export type Surface = "timeline" | "drawer";
+
+export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntry, onLoaded }: {
+  id: string; threadId: string; surface?: Surface;
   initialItem?: CardItem; onItem?: (item: Item, own?: boolean) => void;
   onLoaded?: () => void;
-  // A decision sheet row stages its answer and keeps its comment in the sheet.
-  sheet?: SheetBinding;
   logEntry?: { threadTitle: string; threadProjectId: string | null; showThread: boolean };
 }) {
   const navigate = useBbNavigate();
-  const [source, setSource] = useState({ threadTitle: initialItem?.threadTitle, threadProjectId: initialItem?.threadProjectId });
-  const [localNote, setLocalNote] = useState("");
-  const note = sheet ? sheet.note : localNote;
-  const changeNote = (value: string) => sheet ? sheet.setNote(value) : setLocalNote(value);
+  // An ask's written answer, sent as its attempt note.
+  const [note, changeNote] = useState("");
   const clearNote = () => changeNote("");
   const [followUps, setFollowUps] = useState<FollowUp[]>(initialItem?.followUps ?? []);
   const [viewResult, setViewResult] = useState(false);
   const onItemRef = useRef(onItem); onItemRef.current = onItem;
-  const onExpandRef = useRef(onExpand); onExpandRef.current = onExpand;
   const rpc = useRpc<typeof rpcContract>();
   const [item, setItem] = useState<Item | null>(initialItem ?? null);
   useLayoutEffect(() => { if (item) onLoaded?.(); }, [item, onLoaded]);
@@ -40,8 +40,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const text = useRef(draft);
   const dirty = useRef(false);
   const [saving, setSaving] = useState(false);
-  const [localBusy, setBusy] = useState(false);
-  const busy = localBusy || !!sheet?.busy;
+  const [busy, setBusy] = useState(false);
   const [sending, setSending] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
@@ -54,13 +53,11 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   const alive = useRef(true);
   const adopt = useCallback((next: CardItem, own = false) => {
     const changedState = current.current?.state !== next.state;
-    const { followUps: latest, threadTitle, threadProjectId, ...plain } = next;
+    const { followUps: latest, threadTitle: _title, threadProjectId: _project, ...plain } = next;
     current.current = plain;
     if (alive.current) {
       setItem(plain); onItemRef.current?.(plain, own);
       if (latest) setFollowUps(latest);
-      if (threadTitle !== undefined) setSource({ threadTitle, threadProjectId });
-      if (changedState && (next.state === "succeeded" || next.state === "failed")) onExpandRef.current?.(false);
       if (changedState && (next.state === "succeeded" || next.state === "failed")) setError(null);
     }
   }, []);
@@ -141,8 +138,6 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
     if (unseen(action)) { revealedAt.current = Date.now(); setOpen(true); setTimeout(() => reviewTarget.current?.focus()); return; }
     // The rest of the gesture that opened it (a double-click or a held Enter) must not send.
     if ((action === "send" || action === "save-draft") && Date.now() - revealedAt.current < 500) return;
-    // A sheet row stages its answer; the sheet sends every staged row together.
-    if (sheet && action && current.current?.state === "ready") { sheet.stage(action, choice); return; }
     lock.current = true; submitting.add(threadId); setBusy(true); setSending(action ?? current.current?.attempt?.action ?? null); setError(null);
     try {
       await flush();
@@ -164,19 +159,6 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
     } catch (err) { setError(readableError(err)); }
     finally { lock.current = false; submitting.delete(threadId); setBusy(false); setSending(null); }
   };
-  const comment = async () => {
-    if (lock.current || submitting.has(threadId) || !note.trim()) return;
-    lock.current = true; submitting.add(threadId); setBusy(true); setError(null);
-    try {
-      await flush();
-      const next = current.current;
-      if (!next) return;
-      const saved = await rpc.call("comment", { id, threadId, revision: next.revision, note });
-      await rpc.call("dispatch", { threadId, entries: [{ kind: "comment", id, commentId: saved.commentId }] });
-      clearNote();
-    } catch (err) { setError(readableError(err)); }
-    finally { lock.current = false; submitting.delete(threadId); setBusy(false); }
-  };
   const reopen = async () => {
     if (!current.current || lock.current) return;
     lock.current = true; setBusy(true);
@@ -186,16 +168,17 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   };
   const reply = item?.content.type === "reply" ? item.content : null;
   const choice = item?.content.type === "choice" ? item.content : null;
+  const ask = item?.content.type === "ask";
   const ready = item?.state === "ready";
   const pending = item?.state === "pending";
   const status = item && !busy ? sentStatus(item) : null;
   // Prepared and once submitted, but never claimed by the time the thread went idle: the agent never got it.
   const stalled = !!item && item.state === "pending" && !busy && !status && !item.attempt?.claimed;
   const done = item?.state === "succeeded" || item?.state === "failed" || !!status || stalled;
-  const showBody = logEntry ? viewResult : row ? !!sheet || expanded : !done || viewResult;
+  const showBody = logEntry ? viewResult : !done || viewResult;
   const editor = useRef<HTMLTextAreaElement>(null);
   const reviewTarget = useRef<HTMLButtonElement>(null);
-  const unseen = (action?: Action) => !!reply && (row || !!logEntry) && !showBody && (action === "send" || action === "save-draft");
+  const unseen = (action?: Action) => !!reply && !!logEntry && !showBody && (action === "send" || action === "save-draft");
   useLayoutEffect(() => {
     const resize = () => {
       if (editor.current) {
@@ -210,7 +193,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
   if (!item) return <div className="iac-card" role="status">{error ?? "Loading card…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
-  const setOpen = (open: boolean) => row ? onExpand?.(open) : setViewResult(open);
+  const setOpen = setViewResult;
   const recipients = reply && <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
     {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
   </div>;
@@ -218,28 +201,40 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
     <div className="iac-email">{reply.original.body}</div>
   </details>;
   // The proposal: Action Cards design-system components (ui/), fed by this card's state.
-  const staged = sheet?.staged;
-  const value = sheet ? staged ? staged.action === "choose" ? staged.choice ?? null : staged.action : null : picked;
+  const value = picked;
   const formOptions: Option[] = reply ? [{ id: "send", label: "Send" }, { id: "save-draft", label: "Save to Gmail drafts" }]
     : choice ? choice.options : [{ id: "yes", label: actionLabel(item, "yes") }, { id: "no", label: actionLabel(item, "no") }];
   const suggested = choice ? choice.recommended : item.content.type === "decide" ? item.content.recommended : undefined;
-  const pickOption = (optionId: string) => { if (sheet) { if (choice) sheet.stage("choose", optionId); else sheet.stage(optionId as Action); } else setPicked(optionId); };
-  // With no answer picked, Submit sends the note on its own as a question.
-  const submit = () => { if (value) void act(choice ? "choose" : value as Action, choice ? value : undefined); else if (note.trim()) void comment(); };
+  const drawer = surface === "drawer";
+  const submit = () => {
+    if (ask) { if (note.trim()) void act("answer"); }
+    else if (value) void act(choice ? "choose" : value as Action, choice ? value : undefined);
+  };
+  // Like bb's own question form: number keys pick an option and Enter submits. Only while focus is inside this
+  // open card in the drawer, so a collapsed or unseen card can never be answered from the keyboard.
+  const keys = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (!ready || busy || ask || reply || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("input:not([type=radio]), textarea, select, [contenteditable]:not([contenteditable=false])")) return;
+    const digit = Number(event.key);
+    if (Number.isInteger(digit) && digit >= 1 && digit <= formOptions.length) {
+      event.preventDefault();
+      const option = formOptions[digit - 1]!.id;
+      setPicked(option);
+      // Focus follows the pick, so Enter submits it rather than activating whatever had focus.
+      Array.from(document.getElementsByName(fieldId)).find((input) => input instanceof HTMLInputElement && input.value === option)?.focus();
+    }
+    else if (event.key === "Enter" && value && !target?.closest("button, a")) { event.preventDefault(); submit(); }
+  };
   const fieldId = `iac-${threadId}-${id}`;
   const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
   const consequence = choice ? choice.consequence : item.content.type === "decide" ? item.content.consequence : null;
   const { context, media } = item.content;
   const brief = context && <ContextBlock><Markdown content={context} /></ContextBlock>;
-  const origin = <div className="ac-source">From <a
-    href={source.threadProjectId ? `/projects/${encodeURIComponent(source.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined}
-    role="link" tabIndex={0} onClick={(event) => { event.preventDefault(); navigate.toThread(threadId); }}
-    onKeyDown={(event) => { if (!source.threadProjectId && event.key === "Enter") navigate.toThread(threadId); }}
-  >{source.threadTitle ?? "Source thread"}</a></div>;
   const field = <DecisionBody
     about={<>
-      <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />
-      {brief}
+      {drawer ? consequence && <p className="ac-consequence">{consequence}</p> : <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />}
+      {drawer ? context && <ClampedContext><Markdown content={context} /></ClampedContext> : brief}
       {reply && <>
         {recipients}
         {original}
@@ -251,7 +246,10 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
       <Media media={media} threadId={threadId} />
       <FollowUps items={followUps} />
     </>}
-    answer={<OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={pickOption} />} />;
+    answer={ask
+      ? <textarea className="ac-textarea" aria-label="Your answer" placeholder="Your answer" value={note} readOnly={!ready || busy} rows={2} maxLength={1000} onChange={(event) => changeNote(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} />
+      : <OptionList name={fieldId} label={heading} options={formOptions} value={value} recommended={suggested} disabled={!ready || busy} onChange={setPicked} shortcuts={drawer} />} />;
   const failure = error && <div className="iac-error" role="alert">{error}<div className="iac-actions">
     {loadError && <ActionButton onClick={() => void load()}>Retry loading</ActionButton>}
     {saveError && <><ActionButton onClick={() => void flush().catch(() => {})}>Retry save</ActionButton><ActionButton onClick={() => void load(true)}>Load saved draft</ActionButton></>}
@@ -295,7 +293,7 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
     const commentButton = button("Comment", "comment", openThread, "outline", disabled);
     // Picking an option needs the card's radio list, so Choose opens the card's thread and never offers Yes or No.
     const chooseButton = button("Choose", "open", openThread, "default", false, pending && item.attempt?.action === "choose" ? pendingLabel(item, "choose") : undefined);
-    const kind = reply ? "Reply" : choice ? "Choice" : "Decision";
+    const kind = reply ? "Reply" : choice ? "Choice" : ask ? "Ask" : "Decision";
     if (quiet) {
       menu = <>{toggleCard}<MenuAction onSelect={openThread}>Open thread</MenuAction>{deferred && <MenuAction onSelect={() => void reopen()}>Resume</MenuAction>}</>;
       secondary = <span className="iac-log-status iac-log-result" title={item.result?.message}>{item.result?.message ?? "Done"}</span>;
@@ -309,11 +307,12 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
       primary = choice ? chooseButton : retryable ? button(unseen(item.attempt!.action) ? "Review and retry" : "Retry", "retry", () => void act(item.attempt!.action), "default", busy, undefined, reviewTarget) : button("Open thread", "open", openThread, "default", false);
     } else {
       menu = <>{pending ? <MenuAction onSelect={() => void act()}>Resend request</MenuAction>
-        : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>{unseen("save-draft") ? "Review and save to Gmail drafts" : "Save to Gmail drafts"}</MenuAction>}<MenuAction onSelect={() => void act("skip")}>Skip</MenuAction></>}
+        : <>{reply && <MenuAction onSelect={() => void act("save-draft")}>{unseen("save-draft") ? "Review and save to Gmail drafts" : "Save to Gmail drafts"}</MenuAction>}{!ask && <MenuAction onSelect={() => void act("skip")}>Skip</MenuAction>}</>}
         <MenuAction onSelect={openThread}>Open thread</MenuAction></>;
-      secondary = reply ? commentButton : choice ? null : decideButton("no");
+      // An ask is answered in Waiting on you, above the prompt box.
+      secondary = reply ? commentButton : choice || ask ? null : decideButton("no");
       primary = reply ? button(unseen("send") ? "Review and send" : "Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined, reviewTarget)
-        : choice ? chooseButton : decideButton("yes");
+        : choice ? chooseButton : ask ? null : decideButton("yes");
     }
     return <article className={quiet ? "iac-log-row iac-log-quiet" : later ? "iac-log-row iac-log-later" : "iac-log-row"} aria-label={`${kind}: ${heading}`}>
       <span className="iac-log-kind" role="img" aria-label={kind} title={kind}>{reply ? <MailIcon /> : <SignpostIcon />}</span>
@@ -351,14 +350,31 @@ export function ActionCard({ id, threadId, row = false, expanded = false, onExpa
       {failure}
     </article>;
   }
-  if (row && sheet) return <DecisionRow label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`}>
-    {origin}
-    {done ? result : <>{field}<NoteField value={note} onChange={changeNote} disabled={!ready || busy} /></>}
-    {failure}
-  </DecisionRow>;
-  return <DecisionCard label={`${reply ? "Reply" : choice ? "Choice" : "Decision"}: ${title(item)}`} onSubmit={submit}>
-    {origin}
-    {done ? result : <>{field}<SubmitRow note={note} onNote={changeNote} disabled={disabled} canSubmit={!!value || !!note.trim()} pending={!!sending} /></>}
+  const label = `${reply ? "Reply" : choice ? "Choice" : ask ? "Ask" : "Decision"}: ${title(item)}`;
+  if (surface === "timeline" && ready) return <button type="button" className="iac-waiting-line" aria-label={`In Waiting on you: ${heading}`} onClick={() => openWaiting(threadId, id)}>
+    <Icon name="CircleQuestion" className="iac-waiting-icon" aria-hidden />
+    <span className="iac-waiting-where">Waiting for answer</span>
+    <span className="iac-waiting-question">{heading}</span>
+  </button>;
+  // The timeline keeps one plain line per answered card; anything that still needs the user opens Waiting on you.
+  if (surface === "timeline") {
+    const needsUser = stalled || item.state === "failed";
+    const said = item.attempt?.note;
+    const outcome = stalled ? "Not sent" : item.state === "failed" ? "Failed"
+      : ask ? said ? said.length > 60 ? `${said.slice(0, 59).trimEnd()}…` : said : "Answered" : chosen ?? "Answered";
+    const kind = reply ? "Reply" : ask ? "Answer" : "Decision";
+    const line = <>
+      <Icon name={needsUser ? "CircleQuestion" : "Check"} className="iac-waiting-icon" aria-hidden />
+      <span className="iac-waiting-where">{kind}: {outcome}</span>
+      <span aria-hidden="true">·</span>
+      <span className="iac-waiting-question">{heading}</span>
+    </>;
+    return needsUser
+      ? <button type="button" className="iac-waiting-line" aria-label={`${outcome}, in Waiting on you: ${heading}`} onClick={() => openWaiting(threadId, id)}>{line}</button>
+      : <div className="iac-waiting-line iac-result-line">{line}</div>;
+  }
+  return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit} onKeyDown={drawer ? keys : undefined}>
+    {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></>}
     {failure}
   </DecisionCard>;
 }
@@ -381,13 +397,28 @@ export function ActionDirective({ attributes, message }: PluginMessageDirectiveP
   const parsed = idSchema.safeParse(attributes.id);
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This card has an invalid item ID. Ask the agent to recreate its link.</div>;
   const key = JSON.stringify(["action", message.threadId, parsed.data]);
-  return <ReloadFrame key={key} cacheKey={key}>{(onLoaded) => <ActionCard id={parsed.data} threadId={message.threadId} onLoaded={onLoaded} />}</ReloadFrame>;
+  return <ReloadFrame key={key} cacheKey={key}>{(onLoaded) => <ActionCard id={parsed.data} threadId={message.threadId} surface="timeline" onLoaded={onLoaded} />}</ReloadFrame>;
 }
 export function ActionsDirective({ attributes, message }: PluginMessageDirectiveProps) {
   const parsed = idSchema.safeParse(attributes.id);
   if (!parsed.success) return <div className="iac-card iac-error" role="alert">This table has an invalid ID. Ask the agent to recreate its link.</div>;
   const key = JSON.stringify(["actions", message.threadId, parsed.data]);
-  return <ReloadFrame key={key} cacheKey={key}>{(onLoaded) => <DecisionSheet id={parsed.data} threadId={message.threadId} onLoaded={onLoaded} />}</ReloadFrame>;
+  return <ReloadFrame key={key} cacheKey={key}>{(onLoaded) => <TableLines id={parsed.data} threadId={message.threadId} onLoaded={onLoaded} />}</ReloadFrame>;
+}
+// A past decision sheet: each row is its own line, answered in Waiting on you or showing its result.
+function TableLines({ id, threadId, onLoaded }: { id: string; threadId: string; onLoaded: () => void }) {
+  const rpc = useRpc<typeof rpcContract>();
+  const [table, setTable] = useState<TableView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useLayoutEffect(() => { if (table) onLoaded(); }, [table, onLoaded]);
+  const load = useCallback(async () => {
+    try { setTable(await rpc.call("table", { id, threadId })); setError(null); } catch (err) { setError(readableError(err)); }
+  }, [rpc, id, threadId]);
+  useEffect(() => { void load(); }, [load]);
+  if (!table) return <div className="iac-card" role="status">{error ?? "Loading decisions…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
+  return <section className="iac-table-lines" aria-label={table.title}>
+    {table.items.map((item) => <ActionCard key={item.id} id={item.id} threadId={threadId} surface="timeline" initialItem={item} />)}
+  </section>;
 }
 const DONE_PREVIEW = 5;
 // The sidebar page lists every thread; a thread panel lists only its own thread.
@@ -439,4 +470,6 @@ export default definePluginApp((app) => {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 4 11 8-11 8V4ZM19 4v16" /></svg> });
   app.slots.messageDirective({ id: "action", component: ActionDirective });
   app.slots.messageDirective({ id: "actions", component: ActionsDirective });
+  app.composer.customize({ id: "waiting", scopes: ["thread"], banners: [{ id: "waiting", chrome: "bare", component: WaitingBanner }] });
+  app.contentScripts.register({ id: "waiting-threads", mount: markWaitingThreads });
 });

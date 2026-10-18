@@ -1,6 +1,6 @@
 # Inline Decisions
 
-Edit an email reply or approve a decision directly inside an agent message. Use a single card for one important item or a table to review a group in place.
+Answer everything agents need from you in one place: **Waiting on you**, a drawer above the prompt box that collects decisions, email replies and plain questions from every thread.
 
 ![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
 
@@ -14,15 +14,13 @@ The install branch is published after the source PR merges. For a source checkou
 
 ## Use
 
-Ask an agent to use the **inline-action-cards** skill. It creates an item with `bb action-cards create` and emits `::action{id="esc-1"}`. Pick an answer and press Submit to send it right away; if the agent is busy, it waits in the thread's queue. Once the message is sent, the card shows what you sent until the agent reports a result. Pick an answer, optionally add a note, and press Submit. A note with no answer is sent as a question, and the card stays open. Skip remains in the Decision log's ⋯ menu. Comment also replaces Reply’s Ask for changes. Finish or clear any existing composer message before clicking an action.
+Ask an agent to use the **inline-action-cards** skill. What a thread needs from you collects in **Waiting on you**, a drawer above that thread's prompt box: its decision cards from `bb action-cards create`, and its plain questions from `bb action-cards ask <id> "…" [--urgent] [--replaces <id>]`. Collapsed, it shows the top question; it lists the thread's items urgent first and then oldest, and disappears when nothing is waiting. The Decision log is the cross-thread view.
 
-Reply cards show recipients, an expandable original excerpt, and an autosaving draft that edits like plain body text. Results collapse with the submitted comment underneath, plus View and recovery in place. IDs travel in hidden mention context. Sending waits for pending saves. Agents claim each attempt once, honor its comment as part of the approval, use the saved draft, and report its outcome through `bb action-cards report`. Verified failures offer Retry; uncertain outcomes offer Check outcome to avoid duplicate sends. The [agent skill](skills/inline-action-cards/SKILL.md) documents the full workflow.
+Click a row to answer it in place: the question, its brief, the options and Submit, or a written answer for a plain question. Submit sends your answer to that item's thread; if the agent is busy, it waits in the thread's queue. Use ‹ › to step through items, or Open thread for the full conversation. An item leaves the list once answered, or when the agent settles it with `bb action-cards resolve`.
 
-A choice card lists 2–6 short options under one question. Pick one and press Submit. A recommended option is tagged Recommended but never preselected.
+In the timeline, an unanswered card is one line that opens it in Waiting on you, and an answered card shows its result with Retry or Resend when something went wrong. Reply cards show recipients, the original excerpt and an autosaving draft. Agents claim each attempt once, use the saved draft, and report its outcome through `bb action-cards report`; uncertain outcomes offer Check outcome to avoid duplicate sends. The [agent skill](skills/inline-action-cards/SKILL.md) documents the full workflow.
 
-Use `bb action-cards create-table` with a title and up to 20 existing item IDs (Reply, Decide, or Choice) to emit `::actions{id="..."}`. Every card is a plain form: the question, what the answer does, any context (a preview that opens with Show more), a radio group for the answer, then **Add note** and Submit. Add note opens a note with × to cancel and Save note; a saved note shows as a preview you can edit or remove. A table is one form with one Submit, and it sends every answered row in one message. A note with no answer is sent as a question; the agent answers it on the card with `bb action-cards answer`. Submitted cards show what you chose, your note, and where it stands, with Retry or Resend when something went wrong.
-
-Any card can carry Markdown `context` (headings, lists, code, tables, links) and up to four images (`https://` URLs or absolute paths on the thread's host). A comment sent on its own asks a follow-up about one card; the agent answers on the card with `bb action-cards answer`.
+Any card can carry a Markdown `context` brief and up to four images, and an optional `priority` (`urgent`, `normal` or `low`).
 
 Items live in plugin-owned SQLite storage, scoped to their thread. Gmail access comes from the agent's connected tools. Cards no longer offer Later; existing Later cards still load and can be resumed.
 
