@@ -45,7 +45,7 @@ describe("Digests app", () => {
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, {
       rpc: { getIssue: () => ({ ...readyIssue,
         lede: "A quiet weekend: **14 new emails**, but only **2 need you**. Google flagged a sign-in to ==confirm today==.",
-        details: "## Reply to\n\n[**Ada Example**](https://example.test/ada) :chip[Example Co] suggested **Thursday at 3pm**.\n\n**[Review reply](https://example.test/reply)**\n\n## The rest\n\nYour scorecard gained :gain[+12 followers]. An [unsafe link](javascript:alert%281%29) stays inert.\n\n<script>window.untrusted = true</script>\n\n<!-- more -->\n\nEarlier context: `:chip[not a chip]`.",
+        details: "## Reply to\n\n[**Example Sender**](https://example.test/sender) :chip[Example Co] suggested **Thursday at 3pm**.\n\n**[Review reply](https://example.test/reply)**\n\n## The rest\n\nYour scorecard gained :gain[+12 followers]. An [unsafe link](javascript:alert%281%29) stays inert.\n\n<script>window.untrusted = true</script>\n\n<!-- more -->\n\nEarlier context: `:chip[not a chip]`.",
       }) },
     });
     expect(await slot.findByRole("heading", { name: readyIssue.headline })).toBeDefined();
@@ -54,7 +54,7 @@ describe("Digests app", () => {
     expect(slot.getByText("Example Co").className).toBe("digest-chip");
     expect(slot.getByText("+12 followers").className).toBe("digest-gain");
     expect(slot.getByRole("heading", { name: "Reply to" }).closest("details")).toBeNull();
-    expect(slot.getByRole("link", { name: "Ada Example" }).getAttribute("href")).toBe("https://example.test/ada");
+    expect(slot.getByRole("link", { name: "Example Sender" }).getAttribute("href")).toBe("https://example.test/sender");
     expect(slot.getByRole("link", { name: "Review reply" }).closest("p")?.className).toBe("digest-item-actions");
     expect(slot.queryByRole("link", { name: "unsafe link" })).toBeNull();
     expect(slot.container.querySelector("script, dl, time")).toBeNull();
@@ -171,7 +171,7 @@ describe("Digests app", () => {
   it("retries the failed digest from its persisted Settings error without enabling it", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.settingsSections[0]!, {}, { rpc: {
-      overview: () => ({ definitions: [definition], connections: [{ id: "gmail", name: "Gmail", status: "unknown" }], organizerReady: true, actionCardsAvailable: false, runErrors: { reading: "My Mac is offline. Open bb on that computer, then Retry." } }),
+      overview: () => ({ definitions: [definition], connections: [{ id: "gmail", name: "Gmail", status: "unknown" }], organizerReady: true, actionCardsAvailable: false, runErrors: { reading: "Fixture computer is offline. Open bb on that computer, then Retry." } }),
       run: () => ({ threadId: "thr_retry" }),
     } });
     fireEvent.click(await slot.findByRole("button", { name: "Retry" }));
@@ -273,7 +273,7 @@ describe("Digests app", () => {
   it("shows source rows and a collapsed tail without performing account actions", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
-      heading: "Needs you", items: [{ title: "Reply to Ada", text: "Coffee Thursday at 3pm.", urgency: "today", action: { label: "Review reply", url: "https://example.test/reply" } }],
+      heading: "Needs you", items: [{ title: "Reply to Example Sender", text: "Coffee Thursday at 3pm.", urgency: "today", action: { label: "Review reply", url: "https://example.test/reply" } }],
       later: [], laterLabel: "Later", tail: { label: "12 routine emails", details: "Receipts and newsletters." },
     } }) } });
     const action = await slot.findByRole("button", { name: "Review reply" });
@@ -291,17 +291,17 @@ describe("Digests app", () => {
       heading: "Needs you", items: [], later: [], laterLabel: "Later",
       all: { label: "All unread (4)", items: [{ title: "Meeting", text: "Confirm Thursday.", url: "https://example.test/meeting" }] },
       tail: { label: "Routine (2)", details: "Old Markdown fallback.", items: [
-        { title: "Amex · Autopay processed", text: "Payment complete.", url: "https://example.test/amex" },
+        { title: "Example Bank · Autopay processed", text: "Payment complete.", url: "https://example.test/bank" },
         { title: "Newsletter · This week", text: "Product news.", url: "https://example.test/news" },
       ] },
     } }) } });
     fireEvent.click(await slot.findByRole("link", { name: "2 need nothing from you" }));
     expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(true);
     expect(document.activeElement).toBe(slot.container.querySelector("details[id$='-tail'] > summary"));
-    fireEvent.click(slot.getByRole("link", { name: /Amex · Autopay processed/ }));
+    fireEvent.click(slot.getByRole("link", { name: /Example Bank · Autopay processed/ }));
     fireEvent.click(slot.getByRole("link", { name: "4 unread emails" }));
     expect(slot.inspection.navigateCalls).toEqual([
-      { method: "openUrl", url: "https://example.test/amex" },
+      { method: "openUrl", url: "https://example.test/bank" },
     ]);
     expect(slot.getByText("All unread").closest("details")?.open).toBe(true);
     expect(slot.container.querySelector<HTMLDetailsElement>("details[id$='-tail']")?.open).toBe(false);
@@ -311,13 +311,13 @@ describe("Digests app", () => {
 
   it("keeps repeat senders flat and preserves every source link and semantic accent", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
-    const rows = ["Robinhood", "Figma", "robinhood", "Robinhood", "Figma"].map((sender, index) => ({
+    const rows = ["Example Finance", "Example Design", "example finance", "Example Finance", "Example Design"].map((sender, index) => ({
       title: `${sender} · Notice ${index}`, text: index === 2 ? "September statement is ready." : `Detail ${index}`, url: `https://example.test/mail/${index}`,
       ...(index === 0 ? { kind: "receipt", receivedAt: 1791043200000 } : {}),
     }));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
       heading: "Needs you", items: [
-        { title: "Reply to Ada", text: "Confirm Thursday.", action: { label: "Review reply", url: "https://example.test/reply" } },
+        { title: "Reply to Example Sender", text: "Confirm Thursday.", action: { label: "Review reply", url: "https://example.test/reply" } },
         { title: "Check a new sign-in", tone: "danger", text: "An unfamiliar device.", action: { label: "Review alert", url: "https://example.test/alert" } },
       ], later: [], laterLabel: "Later", tail: { label: "Routine (5)", details: "", items: rows },
     } }) } });

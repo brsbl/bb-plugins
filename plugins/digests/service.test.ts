@@ -25,7 +25,7 @@ function setup(options: { runs?: Array<{
   const { bb, harness } = createFakePluginHost({
     pluginId: "digests",
     sdk: {
-      hosts: { get: async () => ({ ...makeHostResponse({ id: "host_browser", status: options.offline ? "disconnected" : "connected", name: "My Mac" }), connectMachineId: null }) },
+      hosts: { get: async () => ({ ...makeHostResponse({ id: "host_browser", status: options.offline ? "disconnected" : "connected", name: "Fixture computer" }), connectMachineId: null }) },
       projects: { list: async () => options.personal ? [{ id: "proj_personal", kind: "personal", name: "Personal", sources: [], gitRemoteUrl: null, createdAt: 1, updatedAt: 1 }] : [{ id: "proj_digest", kind: "standard", name: "Digest project", gitRemoteUrl: null, createdAt: 1, updatedAt: 1,
         sources: [{ id: "source_browser", projectId: "proj_digest", type: "local_path", hostId: "host_browser", path: "/digest-workspace", isDefault: true, createdAt: 1, updatedAt: 1 }] }] },
       environments: { listProviders: async () => options.personal ? [{ id: "personal-workspace", displayName: "Personal workspace", description: "", icon: "Folder", logoUrl: null, pluginId: "environment-personal-workspace", machineProviderId: null, requires: { projectCheckout: false, gitCheckout: false, gitRemote: false, projectless: true }, inputs: null, acceptsEmptyInputs: true, availability: null, machineAvailability: {} }] : [] },
@@ -135,6 +135,74 @@ describe("digest issue lifecycle", () => {
     expect(() => service.emailRead("thr_mark_read", { messageId: "unrecorded", status: "left-read" })).toThrow("Record");
   });
 
+  it.each(["keep-unread", "mark-read"] as const)("preserves a mixed reply chain in %s mode with a synthetic mailbox", async (afterReading) => {
+    const { service } = setup();
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), afterReading });
+    const begun = await service.begin("reading", "thr_fixture");
+    expect(begun.instructions).toContain("preserve mixed read/unread states per message");
+    expect(begun.instructions).toContain("without reopening it");
+    // The mailbox models opening and restoration separately from the journal.
+    // The production agent performs those browser actions; emailRead does not.
+    const mailbox = new Map([["fixture_unread", true], ["fixture_read", false]]);
+    for (const [messageId, wasUnread] of mailbox) {
+      service.emailRead("thr_fixture", { messageId, threadId: "fixture_chain", wasUnread, status: "opening" });
+      expect(mailbox.get(messageId)).toBe(wasUnread);
+      mailbox.set(messageId, false); // Opening the synthetic message marks it read.
+      if (wasUnread && afterReading === "keep-unread") mailbox.set(messageId, true);
+      const observedUnread = mailbox.get(messageId);
+      service.emailRead("thr_fixture", { messageId, status: observedUnread ? "restored-unread" : wasUnread ? "left-read" : "unchanged-read" });
+    }
+    const published = await service.publishCurrent("thr_fixture", payload());
+    expect(mailbox.get("fixture_read")).toBe(false);
+    expect(mailbox.get("fixture_unread")).toBe(afterReading === "keep-unread");
+    expect(published.issue.emailReads).toMatchObject([
+      { messageId: "fixture_unread", wasUnread: true, afterReading, status: afterReading === "keep-unread" ? "restored-unread" : "left-read" },
+      { messageId: "fixture_read", wasUnread: false, status: "unchanged-read" },
+    ]);
+  });
+
+  it.each(["opening", "restore-failed"] as const)("retains %s after an interrupted scheduled run and repairs the same journal on retry", async (status) => {
+    const runs = [{ id: "run_fixture", threadId: "thr_fixture", status: "running", scheduledFor: Date.now(), startedAt: Date.now(), error: null, skipReason: null }];
+    const { service, bb, harness } = setup({ runs });
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), automationId: "auto_fixture" });
+    const { issue } = await service.begin("reading", "thr_fixture");
+    service.emailRead("thr_fixture", { messageId: "fixture_unread", wasUnread: true, status: "opening" });
+    if (status === "restore-failed") service.emailRead("thr_fixture", { messageId: "fixture_unread", status });
+    runs[0]!.status = "failed";
+    const restarted = createService(bb);
+    await restarted.reconcile();
+    expect(await restarted.recoveryIssue("thr_fixture")).toMatchObject({ id: issue.id, state: "failed", recovery: "retry", emailReads: [{ status, wasUnread: true }] });
+    expect(await bb.storage.kv.get("gmail-collector")).toBeUndefined();
+    expect(await bb.storage.kv.get(`browsers:${issue.id}`)).toBeUndefined();
+    expect(restarted.store.processed("reading", "gmail", ["message_1"])).toEqual([]);
+    // A preference change must not rewrite the original message's obligation.
+    restarted.store.definitions.put({ ...restarted.requiredDefinition("reading"), afterReading: "mark-read" });
+    await restarted.retry("thr_fixture", issue.id);
+    const resumed = await restarted.begin("reading", "thr_fixture");
+    expect(resumed.issue.id).toBe(issue.id);
+    expect(resumed.instructions).toContain("repair any opening/restore-failed records");
+    expect(resumed.sessions[0]?.tabId).toBe("tab_2");
+    restarted.emailRead("thr_fixture", { messageId: "fixture_unread", wasUnread: false, status: "opening" });
+    expect(() => restarted.emailRead("thr_fixture", { messageId: "fixture_unread", status: "left-read" })).toThrow("Restore");
+    restarted.emailRead("thr_fixture", { messageId: "fixture_unread", status: "restored-unread" });
+    const published = await restarted.publishCurrent("thr_fixture", payload());
+    expect(published.issue.emailReads).toMatchObject([{ wasUnread: true, afterReading: "keep-unread", status: "restored-unread" }]);
+    expect(restarted.store.issues.list()).toHaveLength(1);
+    expect(restarted.store.processed("reading", "gmail", ["message_1"])).toEqual(["message_1"]);
+    expect(harness.inspection.sdk.callsTo("experimental_desktopBrowsers.closeTab")).toHaveLength(2);
+  });
+
+  it("preserves an unverified restoration in a partial published brief", async () => {
+    const { service, bb } = setup();
+    await service.begin("reading", "thr_fixture");
+    service.emailRead("thr_fixture", { messageId: "fixture_unread", wasUnread: true, status: "opening" });
+    service.emailRead("thr_fixture", { messageId: "fixture_unread", status: "restore-failed" });
+    const result = await service.publishCurrent("thr_fixture", { ...payload(), details: "Partial coverage: unread restoration could not be verified." });
+    const restarted = createService(bb);
+    expect(restarted.requiredIssue("thr_fixture")).toMatchObject({ id: result.issue.id, state: "ready", emailReads: [{ status: "restore-failed", wasUnread: true }] });
+    expect(result.issue.details).toContain("could not be verified");
+  });
+
   it("dispatches on the browser host in Personal rather than the server project default", async () => {
     const { service, harness } = setup({ personal: true });
     await service.ensureAutomation(service.requiredDefinition("reading"));
@@ -191,8 +259,8 @@ describe("digest issue lifecycle", () => {
 
   it("reports an offline execution host before dispatching an agent", async () => {
     const { service, harness } = setup({ offline: true });
-    await expect(service.run("reading")).rejects.toThrow("My Mac is offline");
-    expect((await service.overview()).runErrors.reading).toContain("My Mac is offline");
+    await expect(service.run("reading")).rejects.toThrow("Fixture computer is offline");
+    expect((await service.overview()).runErrors.reading).toContain("Fixture computer is offline");
     expect(harness.inspection.sdk.callsTo("threads.spawn")).toEqual([]);
     expect(harness.inspection.sdk.callsTo("plugins.callRpc").filter(([call]) => (call as { pluginId: string }).pluginId === "automations")).toEqual([]);
   });
@@ -581,6 +649,6 @@ describe("digest issue lifecycle", () => {
     expect(automationCalls[0]?.input).toMatchObject({ enabled: false, execution: { mode: "agent" }, trigger: { cron: "0 11 * * 0" } });
     expect(automationCalls[0]?.input.execution).not.toHaveProperty("targetThreadId");
     expect(automationCalls.slice(1).map(({ input }) => input.automationId)).toEqual(["auto_digest_new", "auto_digest_new", "auto_digest_new"]);
-    expect(JSON.stringify(automationCalls.map(({ input }) => input))).not.toMatch(/auto_zto0dtbcxme|auto_fffup3wj2me|auto_l_llrtabhlw/u);
+    expect(automationCalls.slice(1).every(({ input }) => input.automationId === "auto_digest_new")).toBe(true);
   });
 });

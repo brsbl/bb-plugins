@@ -79,12 +79,12 @@ describe("digest contracts", () => {
   });
 
   it("adds semantic tone and separate sender fields without changing saved briefings", () => {
-    const row = { title: "Robinhood · Account update", text: "Statement available.", url: "https://example.test/mail" };
+    const row = { title: "Example Finance · Account update", text: "Statement available.", url: "https://example.test/mail" };
     const payload = { headline: "One update", details: "Statement available.", brief: { heading: "Needs you", items: [], all: { label: "All unread", items: [row] } } };
     expect(PublishInputSchema.parse(payload).brief?.all?.items[0]).toEqual(row);
-    const next = { ...payload, brief: { ...payload.brief, tone: "success", all: { label: "All unread", items: [{ ...row, sender: "Robinhood", subject: "Account update" }] } } };
+    const next = { ...payload, brief: { ...payload.brief, tone: "success", all: { label: "All unread", items: [{ ...row, sender: "Example Finance", subject: "Account update" }] } } };
     expect(PublishInputSchema.parse(next).brief?.tone).toBe("success");
-    expect(PublishInputSchema.parse(next).brief?.all?.items[0]?.sender).toBe("Robinhood");
+    expect(PublishInputSchema.parse(next).brief?.all?.items[0]?.sender).toBe("Example Finance");
     expect(PublishInputSchema.safeParse({ ...next, brief: { ...next.brief, tone: "urgent" } }).success).toBe(false);
   });
 
