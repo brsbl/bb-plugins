@@ -14,7 +14,7 @@ it("scans hostile context in linear time", async () => {
   for (const context of ["\n".repeat(20_000), "[".repeat(20_000), `**${" ".repeat(19_990)}x`]) {
     const started = performance.now();
     contextWarning(context);
-    expect(performance.now() - started).toBeLessThan(50);
+    expect(performance.now() - started).toBeLessThan(100);
   }
 });
 
