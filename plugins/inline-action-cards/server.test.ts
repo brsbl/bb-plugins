@@ -704,7 +704,7 @@ describe("dismissing", () => {
     const item = await host.harness.behavior.callRpc("dismiss", { threadId: ref.threadId, id: "channel", revision: 1, reason: "Not needed" }) as Item;
     expect(item).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Dismissed · Not needed", retryable: false }, dismissed: { reason: "Not needed" } });
     expect(host.harness.sdk.callsTo("threads.send")).toHaveLength(1);
-    expect(host.harness.sdk.callsTo("threads.send")[0]![0]).toMatchObject({ threadId: ref.threadId, input: [{ text: "Dismissed: Which channel · Not needed" }] });
+    expect(host.harness.sdk.callsTo("threads.send")[0]![0]).toMatchObject({ threadId: ref.threadId, input: [{ text: "brsbl dismissed: Which channel · Not needed" }] });
     expect(await host.harness.behavior.callRpc("waiting", { threadId: ref.threadId })).toEqual([]);
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:channel:dismissed`)).context);
     expect(context).toMatchObject({ intent: "dismissed", question: "Which channel?", reason: "Not needed" });
@@ -712,6 +712,36 @@ describe("dismissing", () => {
     const store = createStore(host.bb);
     expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: 2, action: "answer", note: "#general" })).toThrow();
     await expect(host.harness.behavior.callRpc("dismiss", { threadId: ref.threadId, id: "channel", revision: 2 })).rejects.toThrow("can't be dismissed");
+  });
+  it("keeps a failed notice for retry, sends it exactly once however many retries race, and makes no attempt", async () => {
+    let archived = true;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: async () => {
+      if (archived) throw new Error("HTTP 409: Thread is archived");
+      await gate;
+      return { ok: true, delivery: "queued" };
+    } } } }); hosts.push(host); plugin(host.bb);
+    const { callRpc, runCli } = host.harness.behavior;
+    await runCli(["ask", "notice", "Which channel?", "--thread", ref.threadId]);
+    const failed = await callRpc("dismiss", { threadId: ref.threadId, id: "notice", revision: 1 }) as Item;
+    expect(failed).toMatchObject({ state: "succeeded", attempt: null, dismissed: { notice: "failed", noticeError: "HTTP 409: Thread is archived" } });
+    archived = false;
+    // Three retries at once: one claims and sends, the others see it already sending.
+    const retries = [1, 2, 3].map(() => callRpc("notifyDismissed", { threadId: ref.threadId, id: "notice" }));
+    release();
+    await Promise.all(retries);
+    const sends = host.harness.sdk.callsTo("threads.send");
+    expect(sends).toHaveLength(2);
+    expect(sends[1]![0]).toMatchObject({ input: [{ text: "brsbl dismissed: Which channel" }] });
+    const settled = await callRpc("notifyDismissed", { threadId: ref.threadId, id: "notice" }) as Item;
+    expect(settled).toMatchObject({ state: "succeeded", attempt: null, dismissed: { notice: "sent" } });
+    expect(settled.dismissed).not.toHaveProperty("noticeError");
+    expect(host.harness.sdk.callsTo("threads.send")).toHaveLength(2);
+    // An item that was never dismissed sends nothing.
+    await runCli(["ask", "open", "Still open?", "--thread", ref.threadId]);
+    expect(await callRpc("notifyDismissed", { threadId: ref.threadId, id: "open" })).toMatchObject({ state: "ready" });
+    expect(host.harness.sdk.callsTo("threads.send")).toHaveLength(2);
   });
   it("dismisses a safe failure keeping its attempt, but never an attempt in flight or with an unknown outcome", async () => {
     const host = sendingHost();

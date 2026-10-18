@@ -192,6 +192,13 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     return () => window.removeEventListener("resize", resize);
   }, [draft, showBody]);
   const dismissal = useDismiss(item, (next) => adopt(next));
+  // A known undelivered dismissal notice can be sent again; the server sends it at most once.
+  const retryNotice = async () => {
+    if (lock.current) return;
+    lock.current = true; setBusy(true); setError(null);
+    try { adopt(await rpc.call("notifyDismissed", { id, threadId })); } catch (err) { setError(readableError(err)); }
+    finally { lock.current = false; setBusy(false); }
+  };
   if (!item) return <div className="iac-card" role="status">{error ?? "Loading card…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
@@ -323,6 +330,10 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
         <span className="iac-log-meta">
           {later && <span>Later</span>}
           {failed && <span className="iac-failed" title={item.result?.message}><span role="img" aria-label="Failed">⚠</span> {item.result?.message}</span>}
+          {item.dismissed?.notice === "failed" && <span className="iac-failed" title={item.dismissed.noticeError}>
+            <span role="img" aria-label="Failed">⚠</span> Dismissed, but its thread wasn't told{" "}
+            <button type="button" className="iac-dismiss-undo" disabled={busy} onClick={() => void retryNotice()}>Tell the thread</button>
+          </span>}
           {logEntry.showThread && <a className="iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); openThread(); }}>{logEntry.threadTitle}</a>}
           <time dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
           {item.attempt?.note && <span title={item.attempt.note}>“{item.attempt.note}”</span>}

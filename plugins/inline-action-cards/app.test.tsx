@@ -364,7 +364,7 @@ it("dismisses a waiting item from the Decision log with a reason, telling its th
     const reason = screen.getByRole("textbox", { name: "Reason (optional)" });
     fireEvent.change(reason, { target: { value: "Paused the campaign" } });
     fireEvent.keyDown(reason, { key: "Enter" });
-    await waitFor(() => expect(submittedMessages).toEqual(["Dismissed: Raise the ads budget · Paused the campaign"]));
+    await waitFor(() => expect(submittedMessages).toEqual(["brsbl dismissed: Raise the ads budget · Paused the campaign"]));
     const saved = JSON.parse((await host.harness.behavior.runCli(["get", "budget", "--thread", "thr_test"])).stdout!);
     expect(saved).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Dismissed · Paused the campaign" }, dismissed: { reason: "Paused the campaign" } });
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);
@@ -391,6 +391,34 @@ it("Undo takes a dismissal back before anything is stored or sent", async () => 
     await vi.advanceTimersByTimeAsync(6_000);
     expect(calls).toEqual([expect.not.objectContaining({ reason: expect.anything() })]);
   } finally { vi.useRealTimers(); }
+});
+
+it("removes Undo as soon as a dismissal starts committing", async () => {
+  const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it." }, threadTitle: "Ops", threadProjectId: null } as const;
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => { finish = resolve; });
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }), dismiss: async () => { await gate; return { ...item, revision: 2, state: "succeeded", result: { message: "Dismissed", retryable: false }, dismissed: { at: "2026-10-18T10:00:00.000Z", notice: "sent" } }; } } });
+  const row = await screen.findByRole("article");
+  fireEvent.click(within(row).getByRole("button", { name: "Dismiss" }));
+  expect(within(row).getByRole("button", { name: "Undo" })).toBeTruthy();
+  fireEvent.keyDown(within(row).getByRole("textbox", { name: "Reason (optional)" }), { key: "Enter" });
+  // Committing: Undo can no longer prevent the dismissal or its notice, so it is gone.
+  expect(within(row).queryByRole("button", { name: "Undo" })).toBeNull();
+  expect(within(row).getByText("Dismissing…")).toBeTruthy();
+  finish();
+  await waitFor(() => expect(within(row).queryByText("Dismissing…")).toBeNull());
+});
+
+it("shows a known undelivered dismissal notice and sends it once on retry", async () => {
+  const item = { ...fixture(), id: "merge-1", revision: 2, state: "succeeded", result: { message: "Dismissed", retryable: false }, content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it." }, dismissed: { at: "2026-10-18T10:00:00.000Z", notice: "failed", noticeError: "HTTP 409: Thread is archived" }, threadTitle: "Ops", threadProjectId: null } as const;
+  const calls: unknown[] = [];
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [], done: [item] }), notifyDismissed: (input) => { calls.push(input); return { ...item, revision: 3, dismissed: { at: item.dismissed.at, notice: "sent" } }; } } });
+  expect(await screen.findByText(/its thread wasn't told/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Tell the thread" }));
+  await waitFor(() => expect(screen.queryByText(/its thread wasn't told/)).toBeNull());
+  expect(calls).toEqual([{ id: "merge-1", threadId: "thr_test" }]);
 });
 
 it("dismisses the open item in Waiting on you", async () => {

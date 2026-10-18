@@ -11,6 +11,8 @@ export const UNDO_MS = 5000;
 export function useDismiss(item: Item | null, onDismissed?: (item: Item) => void) {
   const rpc = useRpc<typeof rpcContract>();
   const [pending, setPending] = useState(false);
+  // Once the request starts, Undo is gone: it could no longer prevent the dismissal or its notice.
+  const [committing, setCommitting] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const state = useRef({ pending: false, reason: "", item, sent: false });
@@ -23,15 +25,16 @@ export function useDismiss(item: Item | null, onDismissed?: (item: Item) => void
     const current = state.current;
     if (!current.pending || current.sent || !current.item) return;
     current.sent = true;
+    setCommitting(true);
     try {
       const reasonText = current.reason.trim();
       const next = await rpc.call("dismiss", { threadId: current.item.threadId, id: current.item.id, revision: current.item.revision, ...(reasonText ? { reason: reasonText.slice(0, 200) } : {}) });
       current.pending = false;
-      setPending(false);
+      setPending(false); setCommitting(false);
       done.current?.(next);
     } catch (err) {
       current.sent = false; current.pending = false;
-      setPending(false); setError(readableError(err));
+      setPending(false); setCommitting(false); setError(readableError(err));
     }
   }, [rpc]);
   const schedule = useCallback((ms = UNDO_MS) => { clear(); timer.current = setTimeout(() => void commit(), ms); }, [commit]);
@@ -39,17 +42,21 @@ export function useDismiss(item: Item | null, onDismissed?: (item: Item) => void
     Object.assign(state.current, { pending: true, reason: "", sent: false });
     setPending(true); setReason(""); setError(null); schedule();
   };
-  const undo = () => { clear(); state.current.pending = false; setPending(false); setReason(""); };
+  const undo = () => {
+    if (state.current.sent) return;
+    clear(); state.current.pending = false; setPending(false); setReason("");
+  };
   const changeReason = (value: string) => { state.current.reason = value; setReason(value); };
   // Leaving the view keeps the dismissal the user started.
   useEffect(() => () => { if (state.current.pending) void commit(); }, [commit]);
-  return { pending, reason, error, start, undo, commit, schedule, pause: clear, changeReason };
+  return { pending, committing, reason, error, start, undo, commit, schedule, pause: clear, changeReason };
 }
 
 export type Dismissal = ReturnType<typeof useDismiss>;
 
 /** Shown in place of the item's controls while Undo is still possible. */
 export function DismissBar({ dismissal }: { dismissal: Dismissal }) {
+  if (dismissal.committing) return <div className="iac-dismiss" role="status"><span className="iac-dismiss-label">Dismissing…</span></div>;
   return <div className="iac-dismiss" role="status">
     <span className="iac-dismiss-label">Dismissed</span>
     <input className="iac-dismiss-reason" aria-label="Reason (optional)" placeholder="Reason (optional) · Enter to dismiss now" maxLength={200} value={dismissal.reason}

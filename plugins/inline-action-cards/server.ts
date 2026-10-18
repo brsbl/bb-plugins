@@ -29,6 +29,8 @@ export const rpcContract = defineRpcContract({
   reopen: { input: versioned, output: itemSchema },
   // Settle a waiting item without answering it, and tell its thread.
   dismiss: { input: versioned.extend({ reason: dismissReasonSchema.optional() }), output: itemSchema },
+  // Tell the thread again after a known failed notice. Never sends twice.
+  notifyDismissed: { input: ref, output: itemSchema },
   choose: { input: versioned.extend({ choice: idSchema, note: noteSchema.optional() }), output: itemSchema },
   table: { input: ref, output: tableViewSchema },
   prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive(), note: noteSchema.optional() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
@@ -242,7 +244,24 @@ export function createStore(bb: BbPluginApi) {
         if (!canDismiss(item)) throw new Error("This item is in progress or already settled, so it can't be dismissed.");
         item.state = "succeeded";
         item.result = { message: input.reason ? `Dismissed · ${input.reason}` : "Dismissed", retryable: false };
-        item.dismissed = { at: new Date().toISOString(), ...(input.reason ? { reason: input.reason } : {}) };
+        item.dismissed = { at: new Date().toISOString(), ...(input.reason ? { reason: input.reason } : {}), notice: "pending" };
+      });
+    },
+    // Claims the right to send a dismissal notice: pending (never tried) or failed (known undelivered). One caller wins.
+    claimNotice(threadId: string, id: string) {
+      try {
+        return change(threadId, id, null, (item) => {
+          if (!item.dismissed || (item.dismissed.notice !== "pending" && item.dismissed.notice !== "failed")) throw new Error("not claimable");
+          item.dismissed.notice = "sending";
+          delete item.dismissed.noticeError;
+        });
+      } catch { return null; }
+    },
+    finishNotice(threadId: string, id: string, error?: string) {
+      return change(threadId, id, null, (item) => {
+        if (item.dismissed?.notice !== "sending") return;
+        item.dismissed.notice = error ? "failed" : "sent";
+        if (error) item.dismissed.noticeError = error.slice(0, 300);
       });
     },
     // The thread went idle with nothing queued, yet a sent request was never claimed: the agent never got it
@@ -404,6 +423,25 @@ function attemptRefs(pluginId: string, entry: QueueEntry) {
 
 export default function plugin(bb: BbPluginApi): void {
   const store = createStore(bb);
+  // Sends a dismissal notice at most once: only the caller that claims it sends, and a failure is stored for retry.
+  const notifyDismissed = async (threadId: string, id: string) => {
+    const item = store.claimNotice(threadId, id);
+    if (!item) return store.get(threadId, id);
+    const label = title(item).replace(/[?\s]+$/, "");
+    const prefix = "brsbl dismissed: ";
+    const reason = item.dismissed?.reason;
+    try {
+      await bb.sdk.threads.send({ threadId, mode: "queue-if-active", input: [{
+        type: "text", text: `${prefix}${label}${reason ? ` · ${reason}` : ""}`,
+        mentions: [{ start: prefix.length, end: prefix.length + label.length, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${threadId}:${id}:dismissed`, label, icon: "X" } }],
+      }] });
+      return store.finishNotice(threadId, id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      bb.log.warn(`Dismissed ${id} but could not tell its thread: ${message}`);
+      return store.finishNotice(threadId, id, message);
+    }
+  };
   // Sends card answers and comments to their thread as one message. Never accepts arbitrary message text from the client.
   const sendEntries = async (threadId: string, entries: z.infer<typeof rpcContract.dispatch.input>["entries"]) => {
     if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw new Error("Each card can appear only once in a message.");
@@ -446,19 +484,9 @@ export default function plugin(bb: BbPluginApi): void {
       return sent!;
     },
     get: async ({ threadId, id }) => ({ ...store.view(threadId, id), ...await threadSource(bb, threadId) }),
-    // Tell the owning thread so its agent stops waiting. The item is already settled if the message can't be sent.
-    async dismiss(input) {
-      const item = store.dismiss(input);
-      const label = title(item).replace(/[?\s]+$/, "");
-      const prefix = "Dismissed: ";
-      try {
-        await bb.sdk.threads.send({ threadId: item.threadId, mode: "queue-if-active", input: [{
-          type: "text", text: `${prefix}${label}${input.reason ? ` · ${input.reason}` : ""}`,
-          mentions: [{ start: prefix.length, end: prefix.length + label.length, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${item.threadId}:${item.id}:dismissed`, label, icon: "X" } }],
-        }] });
-      } catch (err) { bb.log.warn(`Dismissed ${item.id} but could not tell its thread: ${err instanceof Error ? err.message : String(err)}`); }
-      return item;
-    },
+    // Settle first (it approves nothing), then tell the owning thread so its agent stops waiting.
+    dismiss: async (input) => { const item = store.dismiss(input); return notifyDismissed(item.threadId, item.id); },
+    notifyDismissed: ({ threadId, id }) => notifyDismissed(threadId, id),
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
     table: async ({ threadId, id }) => {
       const table = store.table(threadId, id);

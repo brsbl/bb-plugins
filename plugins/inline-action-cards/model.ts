@@ -76,7 +76,11 @@ export const itemSchema = z.object({
   result: z.object({ message: z.string().min(1).max(500), retryable: z.boolean() }).strict().nullable(),
   updatedAt: z.string(),
   // The user dismissed the item without answering: settled, nothing approved. Older builds drop this field on read.
-  dismissed: z.object({ at: z.iso.datetime(), reason: dismissReasonSchema.optional() }).strict().optional(),
+  // notice: whether the owning thread was told. "sending" is claimed by one sender; only "failed" is retried.
+  dismissed: z.object({
+    at: z.iso.datetime(), reason: dismissReasonSchema.optional(),
+    notice: z.enum(["pending", "sending", "sent", "failed"]).optional(), noticeError: z.string().max(300).optional(),
+  }).strict().optional(),
 }).strict();
 export type Item = z.infer<typeof itemSchema>;
 /** Whether the user can dismiss this item: unanswered, a safe failure, or an answer that never reached the agent. */
