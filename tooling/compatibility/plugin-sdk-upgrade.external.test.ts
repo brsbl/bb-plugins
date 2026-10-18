@@ -354,6 +354,7 @@ it("keeps the Emoji Picker marketplace tag installable at the repository root", 
   if (!pluginRepository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");
   const moduleUrl = pathToFileURL(resolve(pluginRepository, "tooling/publish-install-refs.mjs")).href;
   const { prepareVersionedRelease, assertVersionTagUnchanged } = await import(moduleUrl);
+  await run(process.execPath, [resolve(pluginRepository, "tooling/build-plugin.mjs"), resolve(pluginRepository, "plugins/emoji-picker")]);
   const release = await prepareVersionedRelease("emoji-picker");
   expect(release.tag).toBe("emoji-picker/v0.1.1");
   expect(release.packagePath).toBe("");
