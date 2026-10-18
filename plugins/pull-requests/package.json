@@ -1,12 +1,13 @@
 {
   "name": "bb-plugin-pull-requests",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "See your GitHub pull requests and continue related work in bb.",
   "type": "module",
   "license": "UNLICENSED",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "PLUGIN_OVERVIEW.md"
   ],
   "scripts": {
     "build": "node ../../tooling/build-plugin.mjs",

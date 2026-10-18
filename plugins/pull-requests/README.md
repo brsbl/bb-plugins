@@ -19,6 +19,7 @@ Open **Pull Requests** from plugin navigation. The sidebar queries GitHub for yo
 - Every PR has a readable status and reason. Live input requests win over GitHub freshness; stale or incomplete evidence is **Unknown**. **Ready for decision** means no known GitHub blocker, never user approval or QA sign-off.
 - Filters cover the complete known registry. Missing members, ambiguous dependencies, cached relationships, and incomplete GitHub discovery are labeled explicitly.
 - Paste a GitHub URL into search to open or link a PR. Manage links and the preferred thread in detail. Project ownership uses the preferred thread, then a unique verified origin, then an unambiguous repository mapping.
+- `BB-Thread-ID` markers remain supported. Linked `BB-Thread` markers can establish origin only for this server’s configured app, server-access, or loopback origin, after checking thread access and repository ownership. Links to other servers can still provide ordinary thread references.
 - Thread IDs and thread links in a PR description automatically associate accessible bb threads during sync. Multiple threads are supported; explicitly unlinked threads stay unlinked.
 
 Cached PRs remain usable during refresh. Descriptions and diffs load when opened, with delayed placeholders for slower reads.

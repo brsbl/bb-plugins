@@ -14,9 +14,21 @@ export function parsePullRequestUrl(raw: string) {
   const owner = match[1]!, repository = match[2]!, number = match[3]!;
   return { owner, repository, number: Number(number), url: `https://github.com/${owner}/${repository}/pull/${number}` };
 }
-export function originMarkers(body: string): string[] {
+export function originMarkers(body: string, serverUrls: readonly string[] = []): string[] {
   const legacy = Array.from(body.matchAll(/^BB-Thread-ID: (thr_[a-zA-Z0-9]+)\s*$/gm), (match) => match[1]!);
-  const linked = Array.from(body.matchAll(/^BB-Thread: \[[^\n]*\]\(https:\/\/brsbl\.getbb\.app\/projects\/proj_[a-zA-Z0-9]+\/threads\/(thr_[a-zA-Z0-9]+)\)\s*$/gm), (match) => match[1]!);
+  const origins = new Set(serverUrls.flatMap((value) => {
+    try {
+      const url = new URL(value);
+      return /^(https?:)$/.test(url.protocol) && !url.username && !url.password ? [url.origin] : [];
+    } catch { return []; }
+  }));
+  const linked = Array.from(body.matchAll(/^BB-Thread: \[[^\n]*\]\(([^\s)]+)\)\s*$/gm)).flatMap((match) => {
+    try {
+      const url = new URL(match[1]!);
+      const thread = /^\/projects\/proj_[a-zA-Z0-9]+\/threads\/(thr_[a-zA-Z0-9]+)$/.exec(url.pathname);
+      return origins.has(url.origin) && !url.username && !url.password && !url.search && !url.hash && thread ? [thread[1]!] : [];
+    } catch { return []; }
+  });
   return [...new Set([...legacy, ...linked])];
 }
 export function referencedThreadIds(body: string): string[] {
