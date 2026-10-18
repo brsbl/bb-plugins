@@ -27,7 +27,8 @@ This folder holds the small amount of machinery the plugins genuinely share. Run
 ## Marketplace releases
 
 Thread Organizer, Context Katamari, Ambient, and Server Switcher are listed in
-the BB marketplace. Bump the plugin version and lockfile, rebuild its artifacts, and
+the BB marketplace. Emoji Picker also publishes version tags, with its package at
+the tag root to preserve its existing marketplace source. Bump the plugin version and lockfile, rebuild its artifacts, and
 merge after CI passes.
 The existing publish job creates `<slug>/v<version>` from the same bundles as
 `plugin/<slug>`. The tag retains `plugins/<slug>`, so marketplace URLs and

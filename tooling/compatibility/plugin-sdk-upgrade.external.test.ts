@@ -348,3 +348,21 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
     await rm(fixture, { recursive: true, force: true });
   }
 }, 180_000);
+
+
+it("keeps the Emoji Picker marketplace tag installable at the repository root", async () => {
+  if (!pluginRepository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");
+  const moduleUrl = pathToFileURL(resolve(pluginRepository, "tooling/publish-install-refs.mjs")).href;
+  const { prepareVersionedRelease, assertVersionTagUnchanged } = await import(moduleUrl);
+  const release = await prepareVersionedRelease("emoji-picker");
+  expect(release.tag).toBe("emoji-picker/v0.1.1");
+  expect(release.packagePath).toBe("");
+  const manifest = JSON.parse(await git(pluginRepository, ["show", `${release.commit}:package.json`]));
+  expect(manifest.name).toBe("bb-plugin-emoji-picker");
+  expect(manifest.bb.app).toBe("./dist/install-app.mjs");
+  expect(manifest.dependencies).toBeUndefined();
+  expect(() => assertVersionTagUnchanged(release, release.commit)).not.toThrow();
+  expect(() => assertVersionTagUnchanged(release, release.sourceRevision))
+    .toThrow(/already exists with different contents/);
+  expect((await prepareVersionedRelease("emoji-picker")).commit).toBe(release.commit);
+});
