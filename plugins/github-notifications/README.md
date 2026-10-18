@@ -2,7 +2,11 @@
 
 GitHub Activity adds a BB sidebar panel for comments and mentions on pull requests and issues you authored.
 
-![GitHub Activity in BB](docs/screenshot.png)
+![GitHub Activity listing three sample mentions and comments on example-org pull requests and issues](docs/activity.png)
+
+![GitHub Activity when the GitHub CLI is signed out, showing the gh auth login guidance and Try again](docs/signed-out.png)
+
+![GitHub Activity with no comments or mentions to triage](docs/empty.png)
 
 ## Use
 
