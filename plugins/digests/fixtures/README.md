@@ -10,8 +10,10 @@ point a connection check at a real service or sign in for these captures.
 `example.test`. `brief.md` is its search/fallback text. Seed a disabled definition
 from `definition.json`, replacing `projectId` with an isolated fixture project's
 ID. Pass it to `bb digest define --file <prepared-definition.json>` from an
-empty fixture thread on that server. For a publish-only fixture, change
-`connectionIds` to `[]` and `schedule` to `null` before defining it.
+fixture thread on that server (seed it without starting an agent). For a
+publish-only fixture, change `connectionIds` to `[]` and `schedule` to `null`,
+and set `execution: {projectId, hostId}` to the isolated fixture project and
+computer before defining it. The project must have an available workspace.
 
 Use `bb digest publish --digest fixture-brief --file <brief.md> --headline
 "One reply needs you today" --lede "3 emails reviewed · 2 need no action"
