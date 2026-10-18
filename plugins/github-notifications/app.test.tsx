@@ -127,7 +127,7 @@ describe("GitHub Activity panel", () => {
     expect(screen.queryByRole("columnheader", { name: /Last updated/u })).toBeNull();
     expect(screen.getAllByRole("columnheader")).toHaveLength(5);
     expect(
-      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
+      screen.getByRole("combobox", { name: "Filter by status" }),
     ).toBeDefined();
     expect(screen.queryByRole("option", { name: "Reviews" })).toBeNull();
     expect(screen.queryByRole("option", { name: "Approvals" })).toBeNull();
@@ -194,7 +194,7 @@ describe("GitHub Activity panel", () => {
     expect(markUnresolved.getAttribute("title")).toBe("Reopen");
     expect(markUnresolved.className).toContain("checked:bg-success");
     fireEvent.change(
-      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
+      screen.getByRole("combobox", { name: "Filter by status" }),
       { target: { value: "open" } },
     );
     markResolved.focus();
@@ -212,12 +212,12 @@ describe("GitHub Activity panel", () => {
       });
       expect(screen.queryByText("Scannable activity")).toBeNull();
       expect(document.activeElement).toBe(
-        screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
+        screen.getByRole("combobox", { name: "Filter by status" }),
       );
     });
 
     fireEvent.change(
-      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
+      screen.getByRole("combobox", { name: "Filter by status" }),
       { target: { value: "resolved" } },
     );
     expect(
@@ -246,7 +246,7 @@ describe("GitHub Activity panel", () => {
     });
 
     fireEvent.change(
-      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
+      screen.getByRole("combobox", { name: "Filter by status" }),
       { target: { value: "open" } },
     );
     expect(
@@ -257,7 +257,7 @@ describe("GitHub Activity panel", () => {
       ).checked,
     ).toBe(false);
 
-    fireEvent.change(screen.getByRole("comfixture-maintainerox", { name: "Filter by resource type" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Filter by resource type" }), {
       target: { value: "issue" },
     });
     expect(screen.queryByText("Scannable activity")).toBeNull();
@@ -381,7 +381,7 @@ describe("GitHub Activity panel", () => {
       name: "Resolve: Retry resolve",
     })) as HTMLInputElement;
     fireEvent.change(
-      screen.getByRole("comfixture-maintainerox", { name: "Filter by status" }),
+      screen.getByRole("combobox", { name: "Filter by status" }),
       { target: { value: "open" } },
     );
     checkbox.focus();
