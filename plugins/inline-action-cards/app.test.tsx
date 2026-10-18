@@ -104,6 +104,22 @@ it("shows the brief in Waiting on you without naming the thread, and keeps the D
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toPluginPanel" }));
 });
 
+it("shows context as one muted line under the question, with more for the rest", async () => {
+  const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the Inbox fix?", consequence: "Release it.", context: "- **What:** the fix.\n- **Checks:** [CI passed](https://example.com/ci)." }, threadTitle: "Ops", threadProjectId: null } as const;
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+  await openItem(/^Answer: /);
+  // Collapsed: plain text on one line, no list or link, and the options are right there.
+  expect(screen.getByText("What: the fix. · Checks: CI passed.")).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "CI passed" })).toBeNull();
+  expect(screen.queryByRole("list")).toBeNull();
+  expect(screen.getAllByRole("radio")).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: "Show all context" }));
+  expect(screen.getByRole("link", { name: "CI passed" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Show less context" }));
+  expect(screen.queryByRole("link", { name: "CI passed" })).toBeNull();
+});
+
 it("shows a waiting card's brief in the Decision log before Review is opened", async () => {
   const item = { ...fixture(), threadTitle: "Workflow Inbox", threadProjectId: null, content: { ...fixture().content, context: "Why now: the planning lead needs your direction." } };
   const app = await loadPluginApp(() => import("./app.js"));

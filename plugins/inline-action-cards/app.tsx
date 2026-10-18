@@ -5,7 +5,7 @@ import { actionLabel, idSchema, title, type Action, type FollowUp, type Item, ty
 import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { pendingLabel, sentStatus } from "./presentation.js";
 import { FollowUps, Media } from "./evidence.js";
-import { Button, ClampedContext, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
+import { Button, ContextLine, DecisionBody, DecisionCard, DecisionHeader, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { readableError, submitting } from "./submit.js";
 import { ReloadFrame } from "./reload-frame.js";
 import { openWaiting, WaitingBanner } from "./drawer.js";
@@ -230,11 +230,11 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
   const consequence = choice ? choice.consequence : item.content.type === "decide" ? item.content.consequence : null;
   const { context, media } = item.content;
-  const brief = context && <ContextBlock><Markdown content={context} /></ContextBlock>;
+  const brief = context && <ContextLine summary={plainContext(context)} rich={/\]\(|\n/.test(context.trim())}><Markdown content={context} /></ContextLine>;
   const field = <DecisionBody
     about={<>
       {drawer ? consequence && <p className="ac-consequence">{consequence}</p> : <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />}
-      {drawer ? context && <ClampedContext><Markdown content={context} /></ClampedContext> : brief}
+      {brief}
       {reply && <>
         {recipients}
         {original}
@@ -386,6 +386,11 @@ function shortTime(value: string): string {
   return date.toDateString() === new Date().toDateString()
     ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     : date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+// One plain line from Markdown context, for the collapsed view; "more" shows it rendered with its links.
+function plainContext(markdown: string): string {
+  return markdown.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[*_`#>]+/g, "")
+    .split(/\n+/).map((line) => line.replace(/^\s*(?:[-+]|\d+[.)])\s+/, "").trim()).filter(Boolean).join(" · ");
 }
 function displayName(value: string): string { return value.replace(/\s*<[^>]+>/, "").trim() || value; }
 function resultLabel(item: Item): string {

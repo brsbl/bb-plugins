@@ -11,17 +11,24 @@ afterEach(async () => { for (const host of hosts.splice(0)) await host.harness.l
 
 it.each([reply, { type: "decide", question: "File invoice?", consequence: "Add Receipts label" },
   { type: "choice", question: "Which folder?", options: [{ id: "a", label: "Receipts" }, { id: "b", label: "Reading" }] },
-])("warns about missing context without changing successful create output ($type)", async (content) => {
+])("accepts no context or one plain sentence silently, and warns on a long or labelled brief ($type)", async (content) => {
   const host = createFakePluginHost({ pluginId: "inline-action-cards" }); hosts.push(host); plugin(host.bb);
-  const create = (id: string, item: unknown) => host.harness.behavior.runCli(["create", id, "--thread", ref.threadId, "--item", JSON.stringify(item)]);
-  const bare = await create("bare", content);
+  const create = (thread: string, id: string, item: unknown) => host.harness.behavior.runCli(["create", id, "--thread", thread, "--item", JSON.stringify(item)]);
+  // Separate threads, so identical questions don't supersede each other.
+  const bare = await create("thr_bare", "bare", content);
   expect(bare).toMatchObject({ exitCode: 0, stdout: '::action{id="bare"}\n' });
-  expect(bare.stderr).toContain("Warning: this card has no context");
-  expect(createStore(host.bb).get(ref.threadId, "bare").content.type).toBe(content.type);
-  // A separate thread, so the identical question doesn't supersede the first card.
-  const brief = await host.harness.behavior.runCli(["create", "brief", "--thread", "thr_brief", "--item", JSON.stringify({ ...content, context: "A complete decision brief." })]);
-  expect(brief).toMatchObject({ exitCode: 0, stdout: '::action{id="brief"}\n' });
-  expect(brief.stderr ?? "").toBe("");
+  expect(bare.stderr ?? "").toBe("");
+  const plain = await create("thr_plain", "plain", { ...content, context: "Billing needs the answer by Friday." });
+  expect(plain.stderr ?? "").toBe("");
+  for (const [thread, context] of [
+    ["thr_labels", "- **What:** the plan.\n- **Why now:** it's due.\n- **Next:** I ship it."],
+    ["thr_long", Array.from({ length: 45 }, (_, index) => `word${index}`).join(" ")],
+  ] as const) {
+    const busy = await create(thread, "busy", { ...content, context });
+    expect(busy).toMatchObject({ exitCode: 0, stdout: '::action{id="busy"}\n' });
+    expect(busy.stderr).toContain("keep context to one plain sentence");
+    expect(createStore(host.bb).get(thread, "busy").content.context).toBe(context);
+  }
 });
 
 it("attributes single and sheet cards to their source without rewriting saved records, and tolerates missing threads", async () => {

@@ -100,7 +100,7 @@
 .iac-log-review [aria-expanded="true"] { background: var(--state-active, var(--muted)); color: var(--foreground); }
 .iac-log-draft, .iac-log-row > .iac-error { grid-column: 2 / -1; }
 .iac-log-draft { margin-top: 8px; }
-.iac-log-brief { grid-column: 2 / -1; min-width: 0; margin-top: 8px; }
+.iac-log-brief { grid-column: 2 / -1; min-width: 0; margin-top: 2px; }
 .iac-log-draft p { margin: 0 0 4px; font-size: var(--text-xs, .75rem); overflow-wrap: anywhere; }
 .iac-log-options { margin: 0; padding-left: 18px; font-size: var(--text-xs, .75rem); }
 .iac-log-draft textarea { display: block; box-sizing: border-box; width: 100%; resize: none; font: inherit; line-height: 1.6; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); padding: 8px; }
@@ -161,23 +161,13 @@
 /* In the drawer the card sits inside bb's prompt-stack chrome: no second border, one column. */
 .ac-card.ac-drawer { padding: 0; border: 0; background: transparent; }
 .ac-drawer .ac-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(var(--spacing, .25rem) * 1.5); }
-.ac-drawer .ac-context, .ac-drawer .ac-context * { font-size: var(--text-xs, .75rem); }
-.ac-drawer .ac-context { padding: 0; background: transparent; color: var(--muted-foreground); }
-/* On a phone the brief shows its first point on one line, with More beside it, above the options. */
 @media (max-width: 639px) {
-  .ac-clamp:not([data-open]) { display: flex; align-items: baseline; gap: calc(var(--spacing, .25rem) * 2); }
-  .ac-clamp:not([data-open]) .ac-context-body { flex: 1; }
-  .ac-clamp:not([data-open]) .ac-context-body > :not(:first-child), .ac-clamp:not([data-open]) .ac-context-body li:not(:first-child) { display: none; }
-  .ac-clamp:not([data-open]) .ac-context-body > :first-child { display: -webkit-box; margin: 0; padding: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; list-style: none; }
-  .ac-clamp:not([data-open]) .ac-link { flex-shrink: 0; margin-top: 0; }
-  .ac-drawer:has(.ac-clamp:not([data-open])) .ac-consequence { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
   /* Question, what it does and the brief, then the answer; images and follow-ups after it. */
   .ac-drawer .ac-body, .ac-drawer .ac-about, .ac-drawer .ac-answer { display: contents; }
   .ac-drawer .ac-options, .ac-drawer .ac-answer > .ac-textarea { order: 1; }
   .ac-drawer .ac-submit { order: 2; }
-  .ac-drawer .ac-about > :not(.ac-consequence):not(.ac-clamp) { order: 3; }
+  .ac-drawer .ac-about > :not(.ac-consequence):not(.ac-context-line) { order: 3; }
 }
-.ac-clamp .ac-link { margin-top: 2px; font-size: var(--text-xs, .75rem); }
 /* Options match bb's question form: full-width rows with hover and selected fills, and their number key. */
 .ac-drawer .ac-options { gap: 2px; }
 .ac-drawer .ac-option { gap: calc(var(--spacing, .25rem) * 2.5); padding: calc(var(--spacing, .25rem) * 1.5) calc(var(--spacing, .25rem) * 2.5); border-radius: var(--radius-md, .375rem); font-size: var(--text-xs, .75rem); transition: background-color .12s; }

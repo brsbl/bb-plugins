@@ -78,3 +78,12 @@
 .ac-icon-button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .ac-icon-button:disabled { opacity: .5; cursor: default; }
 .ac-icon-button svg { width: 14px; height: 14px; }
+
+/* Context: one muted line under the question; "more" reveals it in full without moving the options first. */
+.ac-context-line { display: flex; align-items: baseline; gap: calc(var(--ac-s) * 1.5); min-width: 0; color: var(--muted-foreground); font-size: var(--ac-meta); line-height: 1.5; }
+.ac-context-summary { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ac-context-full { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ac-context-full > * { margin: 0; } .ac-context-full > * + * { margin-top: calc(var(--ac-s) * 1); }
+.ac-context-full ul, .ac-context-full ol { padding-left: 1.25em; }
+.ac-context-more { flex-shrink: 0; padding: 0; border: 0; background: none; color: var(--muted-foreground); font: inherit; text-decoration: underline; text-decoration-color: color-mix(in oklab, currentColor 40%, transparent); text-underline-offset: 3px; cursor: pointer; }
+.ac-context-more:hover, .ac-context-more:focus-visible { color: var(--foreground); outline: none; }
