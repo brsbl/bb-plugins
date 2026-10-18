@@ -357,6 +357,7 @@ it.each([
   if (!pluginRepository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");
   const moduleUrl = pathToFileURL(resolve(pluginRepository, "tooling/publish-install-refs.mjs")).href;
   const { prepareVersionedRelease, assertVersionTagUnchanged } = await import(moduleUrl);
+  await run(process.execPath, [resolve(pluginRepository, "tooling/build-plugin.mjs"), resolve(pluginRepository, `plugins/${slug}`)]);
   const release = await prepareVersionedRelease(slug);
   expect(release.tag).toBe(`${slug}/v${version}`);
   expect(release.packagePath).toBe("");
