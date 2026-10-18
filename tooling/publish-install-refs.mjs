@@ -27,9 +27,9 @@ const productionDependencyFields = [
   "peerDependencies",
 ];
 // Opt in per plugin so existing release histories are never rewritten.
-const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "emoji-picker"]);
+const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "emoji-picker", "file-pins"]);
 // These marketplace entries install the package at the tag root, without a subdir.
-const rootVersionTaggedPlugins = new Set(["emoji-picker"]);
+const rootVersionTaggedPlugins = new Set(["emoji-picker", "file-pins"]);
 const explicitlyRetiredInstallRefs = Object.freeze([
   "plugin/omegacode",
   "plugin/saved-places",

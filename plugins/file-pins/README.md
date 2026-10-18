@@ -1,7 +1,8 @@
 # Pinned Files & Links
 
 Keep local files and web links within reach in each thread. Pins stay above the
-composer even when the file viewer is closed, and are shared across clients.
+composer even when the file viewer is closed, and are shared across clients. Give links
+recognizable titles and hover or focus a pin to preview its destination.
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](docs/strip.png)
 
@@ -52,10 +53,10 @@ preference; its menu offers **Open**, **Copy link**, and **Unpin**.
 A thread without pins shows no strip; the pin button is always in the action row.
 
 ```bash
-bb file-pins pin '~/Moss/Notes/Tweets/Tweets.md' --machine host_37m3sgpq59
-bb file-pins pin https://github.com/brsbl/bb-plugins/pull/343 --title 'Quiet raised pins'
-bb file-pins list --thread thr_example --json
-bb file-pins remove <pin-id> --thread thr_example
+bb file-pins pin ./docs/launch-checklist.md
+bb file-pins pin https://example.com/guide --title 'Launch guide'
+bb file-pins list --json
+bb file-pins remove <pin-id>
 ```
 
 `--thread` defaults to the current thread. The file host defaults to the invoking

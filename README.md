@@ -352,7 +352,7 @@ See [contributor guidance](CONTRIBUTING.md), the [plugin catalog entry template]
 
 ### Pinned Files & Links
 
-Keep a thread's key files and links one click away in a strip above the composer. Ask the agent to pin files from the composer's Pin pill, let agents pin the PR, issue, spec and dev site they work with, and open, unpin or remove pins from their menus.
+Keep a thread's key files and links one click away in a strip above the composer. Give links recognizable titles, preview their destinations on hover or focus, and keep long file names readable with their extensions. Ask the agent to pin files from the Pin pill, or open, copy and unpin them from their menus.
 
 ![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](plugins/file-pins/docs/strip.png)
 
