@@ -82,11 +82,12 @@
 .iac-log-thread { color: inherit; text-decoration: none; cursor: pointer; }
 .iac-log-thread:hover { color: var(--foreground); text-decoration: underline; }
 .iac-log-thread:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
-.iac-log-actions { display: grid; grid-template-columns: 28px 28px var(--iac-log-button) var(--iac-log-button); align-items: center; gap: var(--iac-gap); }
-.iac-log-review { grid-column: 1; display: inline-flex; width: 28px; height: 28px; }
-.iac-log-menu { grid-column: 2; display: inline-flex; width: 28px; height: 28px; }
-.iac-log-secondary { grid-column: 3; display: flex; min-width: 0; justify-content: flex-end; }
-.iac-log-primary { grid-column: 4; display: flex; min-width: 0; }
+.iac-log-actions { display: grid; grid-template-columns: 28px 28px 28px var(--iac-log-button) var(--iac-log-button); align-items: center; gap: var(--iac-gap); }
+.iac-log-dismiss { grid-column: 1; display: inline-flex; width: 28px; height: 28px; }
+.iac-log-review { grid-column: 2; display: inline-flex; width: 28px; height: 28px; }
+.iac-log-menu { grid-column: 3; display: inline-flex; width: 28px; height: 28px; }
+.iac-log-secondary { grid-column: 4; display: flex; min-width: 0; justify-content: flex-end; }
+.iac-log-primary { grid-column: 5; display: flex; min-width: 0; }
 /* Icon-only action squares keep their role styling: secondary outlined, primary filled. */
 .iac-log-secondary .iac-icon { border: 1px solid var(--input, var(--border)); color: var(--foreground); }
 .iac-log-primary .iac-icon { background: var(--foreground); color: var(--background); }
@@ -95,7 +96,7 @@
 @media (prefers-reduced-motion: reduce) { .iac-log-actions .iac-icon[aria-busy="true"] svg { animation: none; } }
 .iac-log-status { box-sizing: border-box; width: 100%; padding-right: 2px; color: var(--muted-foreground); opacity: .75; font-size: var(--text-xs, .75rem); font-style: italic; text-align: right; }
 /* Done status needs no button, so it may use both columns. */
-.iac-log-quiet .iac-log-secondary { grid-column: 3 / 5; }
+.iac-log-quiet .iac-log-secondary { grid-column: 4 / 6; }
 .iac-log-quiet .iac-log-title, .iac-log-later .iac-log-title { color: var(--muted-foreground); }
 .iac-log-review [aria-expanded="true"] { background: var(--state-active, var(--muted)); color: var(--foreground); }
 .iac-log-draft, .iac-log-row > .iac-error { grid-column: 2 / -1; }
@@ -186,3 +187,15 @@
 .ac-drawer .ac-option-hint { font-size: var(--text-xs, .75rem); }
 .ac-option-key { margin-left: auto; padding-left: calc(var(--spacing, .25rem) * 2); color: var(--subtle-foreground, var(--muted-foreground)); font: inherit; font-size: var(--text-xs, .75rem); font-variant-numeric: tabular-nums; }
 .ac-drawer .ac-submit { justify-content: flex-end; }
+
+/* Dismiss: Undo and an optional reason while the dismissal can still be taken back. */
+.iac-dismiss { display: flex; align-items: center; gap: calc(var(--spacing, .25rem) * 2); min-width: 0; font-size: var(--text-xs, .75rem); color: var(--muted-foreground); }
+.iac-dismiss-label { flex-shrink: 0; }
+.iac-dismiss-reason { flex: 1; min-width: 0; height: 26px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-md, .5rem); background: transparent; color: var(--foreground); font: inherit; }
+.iac-dismiss-reason:focus { outline: none; box-shadow: 0 0 0 1px var(--ring, var(--border)); }
+.iac-dismiss-undo { flex-shrink: 0; padding: 2px 8px; border: 0; border-radius: var(--radius-md, .5rem); background: transparent; color: var(--foreground); font: inherit; font-weight: 500; cursor: pointer; }
+.iac-dismiss-undo:hover, .iac-dismiss-undo:focus-visible { background: var(--state-hover, var(--muted)); outline: none; }
+.iac-log-row .iac-dismiss { grid-column: 1 / -1; }
+.iac-drawer-actions { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--spacing, .25rem) * 2); }
+.iac-drawer-actions > .ac-submit { flex: 1; }
+.iac-drawer-actions > .iac-dismiss-undo { color: var(--muted-foreground); font-weight: 400; }

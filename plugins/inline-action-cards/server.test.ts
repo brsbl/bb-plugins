@@ -1,7 +1,7 @@
 import { createFakePluginHost, makeQueueEntry, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import plugin, { createStore } from "./server.js";
-import { actionMessage, type Item } from "./model.js";
+import { actionMessage, itemSchema, type Item } from "./model.js";
 
 const ref = { threadId: "thr_test", id: "esc-1" };
 const reply = { type: "reply", summary: "Billing follow-up", subject: "Missing refund", to: ["billing@example.com"], original: { from: "Billing", body: "Your refund is on the way." }, draft: "Original draft" };
@@ -693,5 +693,54 @@ describe("Waiting on you", () => {
     await host.harness.behavior.runCli(["ask", "archive", "OK to archive the workers?", "--thread", ref.threadId]);
     const resolved = await host.harness.behavior.runCli(["resolve", "archive", "--thread", ref.threadId, "--message", "Answered in chat"]);
     expect(JSON.parse(resolved.stdout!)).toMatchObject({ state: "succeeded", result: { message: "Answered in chat" } });
+  });
+});
+
+describe("dismissing", () => {
+  const sendingHost = () => { const host = createFakePluginHost({ pluginId: "inline-action-cards", sdk: { threads: { send: () => ({ ok: true, delivery: "queued" }) } } }); hosts.push(host); plugin(host.bb); return host; };
+  it("settles a waiting item with no attempt, leaves Waiting on you, and tells its thread once", async () => {
+    const host = sendingHost();
+    await host.harness.behavior.runCli(["ask", "channel", "Which channel?", "--thread", ref.threadId]);
+    const item = await host.harness.behavior.callRpc("dismiss", { threadId: ref.threadId, id: "channel", revision: 1, reason: "Not needed" }) as Item;
+    expect(item).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Dismissed · Not needed", retryable: false }, dismissed: { reason: "Not needed" } });
+    expect(host.harness.sdk.callsTo("threads.send")).toHaveLength(1);
+    expect(host.harness.sdk.callsTo("threads.send")[0]![0]).toMatchObject({ threadId: ref.threadId, input: [{ text: "Dismissed: Which channel · Not needed" }] });
+    expect(await host.harness.behavior.callRpc("waiting", { threadId: ref.threadId })).toEqual([]);
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:channel:dismissed`)).context);
+    expect(context).toMatchObject({ intent: "dismissed", question: "Which channel?", reason: "Not needed" });
+    // Nothing can act on it afterwards.
+    const store = createStore(host.bb);
+    expect(() => store.prepare({ threadId: ref.threadId, id: "channel", revision: 2, action: "answer", note: "#general" })).toThrow();
+    await expect(host.harness.behavior.callRpc("dismiss", { threadId: ref.threadId, id: "channel", revision: 2 })).rejects.toThrow("can't be dismissed");
+  });
+  it("dismisses a safe failure keeping its attempt, but never an attempt in flight or with an unknown outcome", async () => {
+    const host = sendingHost();
+    const store = createStore(host.bb);
+    for (const id of ["safe", "unknown", "sent"]) store.create(ref.threadId, id, { type: "decide", question: `Merge ${id}?`, consequence: "Merge it." });
+    const fail = (id: string, retryable: boolean) => {
+      const attempt = store.prepare({ threadId: ref.threadId, id, revision: 1, action: "yes" }).attempt!;
+      store.claim(ref.threadId, id, attempt.id);
+      return store.report(ref.threadId, id, attempt.id, "failed", "Head moved", retryable);
+    };
+    const safe = fail("safe", true);
+    expect(store.dismiss({ threadId: ref.threadId, id: "safe", revision: safe.revision })).toMatchObject({ state: "succeeded", attempt: { id: safe.attempt!.id }, result: { message: "Dismissed" } });
+    const unknown = fail("unknown", false);
+    expect(() => store.dismiss({ threadId: ref.threadId, id: "unknown", revision: unknown.revision })).toThrow("can't be dismissed");
+    const sent = store.prepare({ threadId: ref.threadId, id: "sent", revision: 1, action: "yes" });
+    const submitted = store.submitted({ threadId: ref.threadId, id: "sent", attemptId: sent.attempt!.id });
+    expect(() => store.dismiss({ threadId: ref.threadId, id: "sent", revision: submitted.revision })).toThrow("can't be dismissed");
+    // A stale view can't dismiss a changed item.
+    expect(() => store.dismiss({ threadId: ref.threadId, id: "safe", revision: 1 })).toThrow("changed elsewhere");
+  });
+  it("keeps the log readable for a build that doesn't know dismissals", async () => {
+    const host = sendingHost();
+    await host.harness.behavior.runCli(["ask", "old", "Still want this?", "--thread", ref.threadId]);
+    await host.harness.behavior.callRpc("dismiss", { threadId: ref.threadId, id: "old", revision: 1 });
+    const stored = JSON.parse((host.bb.storage.database().prepare("SELECT value FROM action_items WHERE item_id = 'old'").get() as { value: string }).value);
+    // An older build sees a settled item whose result says it was dismissed; the extra field is only extra.
+    const { dismissed, ...older } = stored;
+    expect(dismissed).toBeTruthy();
+    expect(older).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Dismissed" } });
+    expect(itemSchema.omit({ dismissed: true }).strict().safeParse(older).success).toBe(true);
   });
 });

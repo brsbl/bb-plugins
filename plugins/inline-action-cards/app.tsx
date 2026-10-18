@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { definePluginApp, experimental_Icon as Icon, Markdown, useBbNavigate, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, idSchema, title, type Action, type FollowUp, type Item, type ItemView, type ActionLog, type TableView } from "./model.js";
+import { actionLabel, canDismiss, idSchema, title, type Action, type FollowUp, type Item, type ItemView, type ActionLog, type TableView } from "./model.js";
 import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { pendingLabel, sentStatus } from "./presentation.js";
 import { FollowUps, Media } from "./evidence.js";
 import { Button, ClampedContext, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { readableError, submitting } from "./submit.js";
 import { ReloadFrame } from "./reload-frame.js";
+import { DismissBar, useDismiss } from "./dismiss.js";
 import { openWaiting, WaitingBanner } from "./drawer.js";
 import { markWaitingThreads } from "./sidebar-status.js";
 import "./app.css";
@@ -190,6 +191,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, [draft, showBody]);
+  const dismissal = useDismiss(item, (next) => adopt(next));
   if (!item) return <div className="iac-card" role="status">{error ?? "Loading card…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const disabled = busy || loadError || pending;
   const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
@@ -326,14 +328,16 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
           {item.attempt?.note && <span title={item.attempt.note}>“{item.attempt.note}”</span>}
         </span>
       </div>
-      <div className="iac-log-actions">
+      {dismissal.pending ? <DismissBar dismissal={dismissal} /> : <div className="iac-log-actions">
+        {canDismiss(item) && <span className="iac-log-dismiss">{button("Dismiss", "dismiss", dismissal.start, "outline", busy)}</span>}
         {review && <span className="iac-log-review">{review}</span>}
         {/* A lone Open thread is its own button, never a one-item ⋯ menu; skip it when the primary already opens the thread. */}
         {menu ? <span className="iac-log-menu"><MoreMenu disabled={busy || loadError}>{menu}</MoreMenu></span>
           : !(failed && (choice || !retryable)) && <span className="iac-log-menu">{button("Open thread", "open", openThread, "outline", false)}</span>}
         {secondary && <span className="iac-log-secondary">{secondary}</span>}
         {primary && <span className="iac-log-primary">{primary}</span>}
-      </div>
+      </div>}
+      {dismissal.error && <div className="iac-error" role="alert">{dismissal.error}</div>}
       {!quiet && brief && <div className="ac iac-log-brief">{brief}</div>}
       {viewResult && <div className="iac-log-draft">
         {quiet && brief && <div className="ac">{brief}</div>}
@@ -360,7 +364,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   if (surface === "timeline") {
     const needsUser = stalled || item.state === "failed";
     const said = item.attempt?.note;
-    const outcome = stalled ? "Not sent" : item.state === "failed" ? "Failed"
+    const outcome = stalled ? "Not sent" : item.state === "failed" ? "Failed" : item.dismissed ? "Dismissed"
       : ask ? said ? said.length > 60 ? `${said.slice(0, 59).trimEnd()}…` : said : "Answered" : chosen ?? "Answered";
     const kind = reply ? "Reply" : ask ? "Answer" : "Decision";
     const line = <>
@@ -374,7 +378,10 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       : <div className="iac-waiting-line iac-result-line">{line}</div>;
   }
   return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit} onKeyDown={drawer ? keys : undefined}>
-    {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></>}
+    {done ? result : dismissal.pending ? <DismissBar dismissal={dismissal} /> : <>{field}{drawer && canDismiss(item)
+      ? <div className="iac-drawer-actions"><button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button><SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></div>
+      : <SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} />}</>}
+    {dismissal.error && <div className="iac-error" role="alert">{dismissal.error}</div>}
     {failure}
   </DecisionCard>;
 }

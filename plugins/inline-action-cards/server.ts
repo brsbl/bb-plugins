@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi, type PluginCliContext, type PluginThreadEventPayloads } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { actionIcons, actionLabel, actionMessage, mentionId, readItem, storedItem, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, waitingSchema, type FollowUp, type Item, type Priority } from "./model.js";
+import { canDismiss, dismissReasonSchema, actionIcons, actionLabel, actionMessage, mentionId, readItem, storedItem, title, logSchema, actionSchema, answerSchema, assertAction, bulkLabel, contentSchema, draftSchema, followUpSchema, idSchema, itemSchema, itemViewSchema, noteSchema, tableContentSchema, tableSchema, tableViewSchema, waitingSchema, type FollowUp, type Item, type Priority } from "./model.js";
 
 const ref = z.object({ threadId: idSchema, id: idSchema }).strict();
 const versioned = ref.extend({ revision: z.number().int().positive() });
@@ -27,6 +27,8 @@ export const rpcContract = defineRpcContract({
   prepare: { input: versioned.extend({ action: actionSchema, note: noteSchema.optional() }), output: itemSchema },
   comment: { input: versioned.extend({ note: noteSchema.refine((value) => value.length > 0, "Write a comment first.") }), output: z.object({ item: itemSchema, commentId: z.string().uuid(), note: noteSchema }).strict() },
   reopen: { input: versioned, output: itemSchema },
+  // Settle a waiting item without answering it, and tell its thread.
+  dismiss: { input: versioned.extend({ reason: dismissReasonSchema.optional() }), output: itemSchema },
   choose: { input: versioned.extend({ choice: idSchema, note: noteSchema.optional() }), output: itemSchema },
   table: { input: ref, output: tableViewSchema },
   prepareTable: { input: ref.extend({ items: z.array(z.object({ id: idSchema, revision: z.number().int().positive(), note: noteSchema.optional() }).strict()).min(1).max(20) }), output: z.array(itemSchema) },
@@ -121,7 +123,7 @@ export function createStore(bb: BbPluginApi) {
       const rows = db.prepare("SELECT value FROM action_items WHERE thread_id = ?").all(threadId) as { value: string }[];
       const items = rows.flatMap((row) => readItem(row.value) ?? []);
       const open = distinctOpen(items).map((item) => {
-        const earlier = items.filter((other) => !isOpen(other) && other.attempt && other.updatedAt < item.updatedAt && sameQuestion(other, item))
+        const earlier = items.filter((other) => !isOpen(other) && other.attempt && !other.dismissed && other.updatedAt < item.updatedAt && sameQuestion(other, item))
           .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
         return earlier ? { ...item, earlier: answeredLabel(earlier) } : item;
       });
@@ -232,6 +234,15 @@ export function createStore(bb: BbPluginApi) {
         }
         item.state = "succeeded";
         item.result = { message, retryable: false };
+      });
+    },
+    // Dismissed by the user: settled with no approval. A failed attempt stays as history; nothing can claim it.
+    dismiss(input: z.infer<typeof rpcContract.dismiss.input>) {
+      return change(input.threadId, input.id, input.revision, (item) => {
+        if (!canDismiss(item)) throw new Error("This item is in progress or already settled, so it can't be dismissed.");
+        item.state = "succeeded";
+        item.result = { message: input.reason ? `Dismissed · ${input.reason}` : "Dismissed", retryable: false };
+        item.dismissed = { at: new Date().toISOString(), ...(input.reason ? { reason: input.reason } : {}) };
       });
     },
     // The thread went idle with nothing queued, yet a sent request was never claimed: the agent never got it
@@ -435,6 +446,19 @@ export default function plugin(bb: BbPluginApi): void {
       return sent!;
     },
     get: async ({ threadId, id }) => ({ ...store.view(threadId, id), ...await threadSource(bb, threadId) }),
+    // Tell the owning thread so its agent stops waiting. The item is already settled if the message can't be sent.
+    async dismiss(input) {
+      const item = store.dismiss(input);
+      const label = title(item).replace(/[?\s]+$/, "");
+      const prefix = "Dismissed: ";
+      try {
+        await bb.sdk.threads.send({ threadId: item.threadId, mode: "queue-if-active", input: [{
+          type: "text", text: `${prefix}${label}${input.reason ? ` · ${input.reason}` : ""}`,
+          mentions: [{ start: prefix.length, end: prefix.length + label.length, resource: { kind: "plugin", pluginId: "inline-action-cards", itemId: `action:${item.threadId}:${item.id}:dismissed`, label, icon: "X" } }],
+        }] });
+      } catch (err) { bb.log.warn(`Dismissed ${item.id} but could not tell its thread: ${err instanceof Error ? err.message : String(err)}`); }
+      return item;
+    },
     save: store.save, prepare: store.prepare, comment: store.comment, reopen: store.reopen, choose: store.choose,
     table: async ({ threadId, id }) => {
       const table = store.table(threadId, id);
@@ -469,6 +493,11 @@ export default function plugin(bb: BbPluginApi): void {
           instruction: "This is the user's comment on the card, not a click: it never approves the card's own action, so do not create or claim an attempt. Treat it like a chat message from the user. Answer a question on the card with bb action-cards answer <itemId> --comment <commentId> --message-stdin and keep any chat reply to one short line. Follow a clear instruction only as you would the same instruction typed in chat, under the user's existing authorization; when the request is ambiguous or the card's own action needs approval, ask the user to use the card's buttons instead. If it requests a change to a Reply, revise the same draft using its latest revision; Decide and Choice question/consequence updates are not supported, so explain the change. If what you did makes the card moot (for example the user said 'close this' and you closed the PR, or they withdrew the question), settle it with bb action-cards resolve <itemId> --message '<what happened>'. Other cards in the same table stay as the user left them.",
         }) };
       }
+      if (attempt === "dismissed") return { context: JSON.stringify({
+        kind: "inline-action-card", threadId: item.threadId, itemId: item.id, intent: "dismissed", question: title(item),
+        ...(item.dismissed?.reason ? { reason: item.dismissed.reason } : {}),
+        instruction: "The user dismissed this item without answering it. Nothing was approved, and it is already settled: do not claim, report, resolve or act on it. Stop waiting on it and carry on without it. Do not ask it again, as a card, an ask or in prose, unless something material changes; then say what changed.",
+      }) };
       const changes = attempt === "changes";
       if (!changes && item.attempt?.id !== attempt) throw new Error("This action was replaced. Use the latest card.");
       if (!changes && item.attempt?.action === "answer") {
