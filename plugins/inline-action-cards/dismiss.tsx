@@ -52,7 +52,7 @@ export type Dismissal = ReturnType<typeof useDismiss>;
 export function DismissBar({ dismissal }: { dismissal: Dismissal }) {
   return <div className="iac-dismiss" role="status">
     <span className="iac-dismiss-label">Dismissed</span>
-    <input className="iac-dismiss-reason" aria-label="Reason (optional)" placeholder="Reason (optional)" maxLength={200} value={dismissal.reason}
+    <input className="iac-dismiss-reason" aria-label="Reason (optional)" placeholder="Reason (optional) · Enter to dismiss now" maxLength={200} value={dismissal.reason}
       onFocus={dismissal.pause} onBlur={() => dismissal.schedule(3000)}
       onChange={(event) => dismissal.changeReason(event.target.value)}
       onKeyDown={(event) => {

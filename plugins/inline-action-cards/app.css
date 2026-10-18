@@ -196,6 +196,9 @@
 .iac-dismiss-undo { flex-shrink: 0; padding: 2px 8px; border: 0; border-radius: var(--radius-md, .5rem); background: transparent; color: var(--foreground); font: inherit; font-weight: 500; cursor: pointer; }
 .iac-dismiss-undo:hover, .iac-dismiss-undo:focus-visible { background: var(--state-hover, var(--muted)); outline: none; }
 .iac-log-row .iac-dismiss { grid-column: 1 / -1; }
+/* Dismiss is a quiet escape hatch, not a peer of the answer buttons. */
+.iac-log-dismiss .iac-icon { border-color: transparent; color: var(--muted-foreground); }
+.iac-log-dismiss .iac-icon:hover:not(:disabled) { color: var(--foreground); }
 .iac-drawer-actions { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--spacing, .25rem) * 2); }
 .iac-drawer-actions > .ac-submit { flex: 1; }
 .iac-drawer-actions > .iac-dismiss-undo { color: var(--muted-foreground); font-weight: 400; }
