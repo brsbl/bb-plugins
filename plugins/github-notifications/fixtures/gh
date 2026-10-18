@@ -26,8 +26,13 @@ elif len(args) > 1 and args[1].lstrip('/').startswith('notifications'):
         'id': 'fixture-notification', 'reason': 'mention', 'unread': True,
         'updated_at': updated, 'repository': {'full_name': repo},
         'subject': {'title': 'Add keyboard shortcuts', 'type': 'PullRequest',
+                    'latest_comment_url': f'https://api.github.com/repos/{repo}/issues/comments/1',
                     'url': f'https://api.github.com/repos/{repo}/pulls/42'},
     }]
+elif len(args) > 1 and args[1].endswith('/issues/comments/1'):
+    result = {'id': 1, 'body': f'@{owner} please check the keyboard shortcut.',
+              'created_at': updated, 'updated_at': updated,
+              'user': {'login': 'fixture-reviewer', 'avatar_url': None}}
 elif len(args) > 1 and args[1] == 'graphql':
     result = {'data': {'viewer': {'login': owner}, 'notification0': {'resource': {
         'author': {'login': owner}, 'number': 42,
