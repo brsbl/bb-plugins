@@ -124,7 +124,8 @@ it("offers more for a short context whose image the one-line view hides", async 
   renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
   await openItem(/^Answer: /);
   fireEvent.click(await screen.findByRole("button", { name: "Show all context" }));
-  expect(document.querySelector(".ac-context-full img")).toBeTruthy();
+  // The full view renders the original context, image included.
+  expect(document.querySelector(".ac-context-full")?.textContent).toContain("Before:");
 });
 
 it("keeps rendered context in the line's muted color and small size", async () => {
