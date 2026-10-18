@@ -8,6 +8,8 @@ unavailable, the link falls back to bb’s file viewer.
 
 ![A Markdown file link from bb open in Moss](docs/screenshot.png)
 
+![Without a Mac running Moss, clicking a sample checklist link in a bb thread opens it in bb's file viewer](docs/fallback.png)
+
 ## Install
 
 ```sh
