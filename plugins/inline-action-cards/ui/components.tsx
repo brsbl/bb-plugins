@@ -27,7 +27,7 @@ export function DecisionBody({ about, answer }: { about: ReactNode; answer: Reac
 }
 
 /** Optional context: the original text on one muted line under the question, with a quiet "more" whenever any of it is hidden. */
-export function ContextLine({ children }: { children: ReactNode }) {
+export function ContextLine({ media, children }: { media?: boolean; children: ReactNode }) {
   const line = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [clipped, setClipped] = useState(false);
@@ -35,12 +35,12 @@ export function ContextLine({ children }: { children: ReactNode }) {
     const node = line.current;
     if (!node || open) return;
     // Hidden when it overflows the line, or when it holds images, which the one-line view never shows.
-    const measure = () => setClipped(node.scrollWidth > node.clientWidth + 1 || !!node.querySelector("img, video, picture"));
+    const measure = () => setClipped(!!media || node.scrollWidth > node.clientWidth + 1 || !!node.querySelector("img, video, picture"));
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(node);
     return () => observer?.disconnect();
-  }, [open, children]);
+  }, [open, media, children]);
   return <div className="ac-context-line" data-open={open || undefined}>
     <div ref={line} className={open ? "ac-context-full" : "ac-context-summary"}>{children}</div>
     {(open || clipped) && <button type="button" className="ac-context-more" aria-expanded={open} aria-label={open ? "Show less context" : "Show all context"} onClick={() => setOpen(!open)}>{open ? "less" : "more"}</button>}

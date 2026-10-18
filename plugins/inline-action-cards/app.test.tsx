@@ -128,8 +128,11 @@ it("offers more for a short context whose image the one-line view hides", async 
 });
 
 it("keeps rendered context in the line's muted color and small size", async () => {
+  // jsdom gives import.meta.url an http scheme, so read the stylesheet from the plugin directory the tests run in.
   const { readFile } = await import("node:fs/promises");
-  const css = await readFile(new URL("./ui/components.css", import.meta.url), "utf8");
+  const { existsSync } = await import("node:fs");
+  const local = `${process.cwd()}/ui/components.css`;
+  const css = await readFile(existsSync(local) ? local : `${process.cwd()}/plugins/inline-action-cards/ui/components.css`, "utf8");
   expect(css).toMatch(/\.ac-context-line \* \{ color: inherit; font-size: inherit; line-height: inherit; \}/);
   expect(css).toMatch(/\.ac-context-line \{[^}]*color: var\(--muted-foreground\)[^}]*font-size: var\(--ac-meta\)/);
 });

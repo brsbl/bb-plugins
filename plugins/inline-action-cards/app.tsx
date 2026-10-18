@@ -230,7 +230,8 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
   const consequence = choice ? choice.consequence : item.content.type === "decide" ? item.content.consequence : null;
   const { context, media } = item.content;
-  const brief = context && <ContextLine><Markdown content={context} /></ContextLine>;
+  // Images never show in the one-line view, so context that has any always offers more.
+  const brief = context && <ContextLine media={context.includes("![") || /<img\b/i.test(context)}><Markdown content={context} /></ContextLine>;
   const field = <DecisionBody
     about={<>
       {drawer ? consequence && <p className="ac-consequence">{consequence}</p> : <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />}
