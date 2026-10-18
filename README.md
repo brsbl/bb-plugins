@@ -146,7 +146,7 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/c
 
 Shows screenshots inline as a carousel: design research with one product per slide, or Before and After side by side with one shared description. It replaces long runs of images and screenshot tables in agent replies.
 
-![A before/after carousel in a bb thread](plugins/image-carousel/docs/screenshot.png)
+![A before/after carousel in a bb thread showing two synthetic sample layouts side by side](plugins/image-carousel/docs/before-after.png)
 
 [Source](plugins/image-carousel) · [README](plugins/image-carousel/README.md)
 
