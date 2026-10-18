@@ -4,7 +4,9 @@ Keep local files and web links within reach in each thread. Pins stay above the
 composer even when the file viewer is closed, and are shared across clients. Give links
 recognizable titles and hover or focus a pin to preview its destination.
 
-![A pull request, a Markdown file, a localhost dev server, a Linear issue and a Figma link pinned above the composer](docs/strip.png)
+![A Markdown file and two titled links pinned above the composer; the long file name keeps its .md extension](docs/strip.png)
+
+![Hovering the Launch guide pin opens a preview card with its address, site and title](docs/link-preview.png)
 
 ![Unpinned files and links in the ⋯ list above the strip](docs/more-list.png)
 
