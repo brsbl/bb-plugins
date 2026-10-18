@@ -3,7 +3,11 @@
 Shows the bb server you are on in a strip above the sidebar footer and switches
 to any other server on your bb account with one click.
 
-![The current server in the sidebar strip, with the other servers on the account listed below it](docs/switcher.png)
+![The sidebar strip showing the current sample server, example-studio, and its address](docs/sidebar.png)
+
+![The strip expanded to list two more sample servers: example-cloud online and example-laptop offline](docs/switcher.png)
+
+![The ring picker for example-cloud, with an orange-to-green gradient and the preset colors](docs/ring-popover.png)
 
 ## Install
 
