@@ -23,9 +23,21 @@ type SidebarThread = ReturnType<typeof useSidebarThreads>["threads"][number];
 interface Page { rows: unknown[]; complete: boolean }
 
 async function conversationPage(sdk: Sdk, threadId: string, segments: number, signal: AbortSignal): Promise<Page> {
-  const page = await sdk.threads.timeline({ threadId, segmentLimit: String(Math.min(segments, MAX_SEGMENTS)), signal });
+  const page = await sdk.threads.timeline({ threadId, segmentLimit: String(Math.min(segments, MAX_SEGMENTS)), includeNestedRows: "true", signal });
+  // Completion notices can be inside collapsed turns. Expand only this bounded page;
+  // delegation work rows' childRows belong to other threads and are not this conversation.
+  const rows = new Map<string, (typeof page.rows)[number]>();
+  const pending = [...page.rows].reverse();
+  while (pending.length) {
+    const row = pending.pop()!;
+    if (row.kind === "conversation") {
+      if (!rows.has(row.id)) rows.set(row.id, row);
+    } else if (row.kind === "turn" && row.children) {
+      for (let index = row.children.length - 1; index >= 0; index--) pending.push(row.children[index]!);
+    }
+  }
   return {
-    rows: (page.rows as unknown[]).filter((row) => (row as { kind?: string }).kind === "conversation"),
+    rows: [...rows.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)),
     complete: !(page.timelinePage as { hasOlderRows?: boolean } | undefined)?.hasOlderRows,
   };
 }
