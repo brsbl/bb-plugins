@@ -331,3 +331,49 @@ it("draws a piece's mark on top of its color so pieces don't differ by color alo
   expect(cells.map((cell) => cell.getAttribute("aria-label"))).toEqual(["Row 1, column 1, Hit", "Row 1, column 2, Miss", "Row 1, column 3, Ship"]);
   dom.window.close();
 });
+
+it("updates mock-up outputs with both setter forms and rejects unknown inputs atomically", async () => {
+  const { dom } = frame('<button data-pg="toggle" data-param="email"></button><button data-pg="toggle" data-param="push"></button><output id="preview"></output>' +
+    '<script>const P = playground.params; const update = () => document.querySelector("#preview").textContent = JSON.stringify(P.all()); P.on(update); update();</script>');
+  const P = (dom.window as unknown as { playground: { params: { set(...args: unknown[]): unknown; get(name: string): unknown } } }).playground.params;
+  expect(P.set({ email: true, push: true })).toEqual({ email: true, push: true });
+  expect(dom.window.document.querySelector("#preview")!.textContent).toBe('{"email":true,"push":true}');
+  expect(P.set("email", false)).toBe(false);
+  expect(() => P.set({ email: true, typo: false })).toThrow(/Unknown playground parameter "typo".*Declare it/);
+  expect(P.get("email")).toBe(false);
+  expect(() => P.get("missing")).toThrow(/Unknown playground parameter/);
+  expect(() => P.set("email")).toThrow(/params.set\(name, value\)/);
+  expect(() => P.set([])).toThrow(/params.set\(name, value\)/);
+  expect(() => P.set("constructor", true)).toThrow(/Unknown playground parameter/);
+  expect(await command(dom.window, "setParams", [{ email: true, typo: true }])).toMatchObject({ ok: false, error: expect.stringContaining('"typo"') });
+  expect(P.get("email")).toBe(false);
+  expect(await command(dom.window, "setParams", [{ email: true }])).toMatchObject({ ok: true, value: { set: { email: true } } });
+  expect(dom.window.document.querySelector('[data-param="email"]')!.getAttribute("aria-pressed")).toBe("true");
+  dom.window.close();
+});
+
+it("keeps native and non-button toggles operable with visible wrapping labels", async () => {
+  const { dom } = frame('<div class="pg-form"><button data-pg="toggle" data-param="email" data-label="Email notifications for important release changes"></button><div data-pg="toggle" data-param="push" data-label="Push notifications for important release changes"></div></div>');
+  const { window } = dom;
+  if (window.document.readyState !== "complete") await new Promise((resolve) => window.addEventListener("load", resolve));
+  const button = window.document.querySelector("button")!;
+  const div = window.document.querySelector('[data-param="push"]') as HTMLElement;
+  expect(button.type).toBe("button");
+  button.click();
+  expect(button.getAttribute("aria-pressed")).toBe("true");
+  for (const key of ["Enter", " "]) {
+    div.dispatchEvent(new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    expect(div.getAttribute("aria-pressed")).toBe(key === "Enter" ? "true" : "false");
+  }
+  expect(div.getAttribute("role")).toBe("button");
+  expect(div.tabIndex).toBe(0);
+  for (const el of [button, div]) {
+    const css = window.getComputedStyle(el);
+    expect(css.whiteSpace).toBe("normal");
+    expect(css.overflowWrap).toBe("anywhere");
+    expect(css.minWidth).toMatch(/^0(px)?$/);
+    expect(css.maxWidth).toBe("100%");
+    expect(el.textContent).toContain("notifications for important release changes");
+  }
+  window.close();
+});
