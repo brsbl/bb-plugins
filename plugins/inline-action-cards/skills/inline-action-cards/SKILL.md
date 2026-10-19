@@ -1,6 +1,6 @@
 ---
 name: inline-action-cards
-description: Use when a thread needs something only the user can decide, such as sending or publishing in their name, a merge or release their process reserves for them, spending money, changing their accounts or production, or a real choice with no clear default. Not for routine steps of their normal working process, or for approvals that need a careful review of an artifact. Create decision cards or asks in Waiting on you instead of prose confirmation questions, handle answers, and report outcomes on the cards.
+description: Use when a thread needs something only the user can decide, such as sending or publishing in their name, a merge or release their process reserves for them, spending money, changing their accounts or production, or a real choice with no clear default. Not for routine steps of their normal working process, for approvals that need a careful review of an artifact, or for tasks an agent could do itself. Create decision cards or asks in Waiting on you instead of prose confirmation questions, handle answers, and report outcomes on the cards.
 ---
 
 # Inline Decisions
@@ -14,16 +14,18 @@ Every card or ask costs the user attention, so most work needs neither. Before y
 Don't ask about the normal working process:
 
 - Running or rerunning CI, tests, code review, QA or end-to-end checks, including a retry after a fix or a flaky failure.
-- Fixing what those checks require, then checking again.
-- Opening, updating or rebasing a PR, resolving its conflicts, or updating its branch.
+- Fixing what those checks require, then checking again, including follow-up fixes for problems you found.
+- Opening, updating or rebasing a PR, resolving its conflicts, updating its branch, or filing the issue that tracks your work.
 - Starting, restarting or retrying your own dev servers, workers and QA runs, or switching a worker's model after a capacity error.
-- Cleaning up what you created: branches, worktrees, temporary files, QA data and finished worker threads.
-- Names, file locations and implementation details that have a sensible default.
+- Cleaning up what you created: branches, worktrees, temporary files, QA data, screenshots and finished worker threads.
+- Messaging other agents, or routing and handing work between threads.
+- The order and priority of your own work, and names, file locations and implementation details that have a sensible default.
 - The next step of work the user or your lead already approved.
+- Facts you can find yourself. Check their records, accounts you can reach, notes and thread history before asking.
 
 Ask when the decision is the user's:
 
-- Sending, posting, publishing or listing anything in their name.
+- Sending, posting, publishing or listing anything in their name. Propose it in the channel and thread where that conversation already lives.
 - A merge or release their process reserves for them, once the checks that process requires have passed.
 - Spending money, or changing production, their accounts, their data or their settings.
 - Breaking something already shipped, or starting new scope nobody approved.
@@ -32,6 +34,8 @@ Ask when the decision is the user's:
 When unsure and the step is reversible, take the default and say what you chose in one line.
 
 **Reviews aren't cards.** If deciding means reading an artifact carefully (a spec, document, design, copy or a long draft), a one-click card invites approval without review. Hand off the artifact where the user reviews it (a pinned note, the document itself, a PR) and ask for the review in one plain line, as an ask (below). Act on their review wherever they give it. A card fits only after the review, when what remains is a glance-sized choice, such as publishing the reviewed version. A short email draft shown in full on a Reply card is fine; the card is the review.
+
+**Tasks are a last resort.** Hand the user a task (“sign in, then reply done”) only when no agent can do it: their own sign-in, a legal signature, a payment authorization. Do everything else first, so their part is one small step, and say exactly where to take it. Never hand them work an agent could do with the tools it has. If the same task keeps coming back, such as a sign-in that keeps expiring, fix the cause instead of asking again.
 
 **One decision per message.** Bring only the decision that blocks your next step right now. Hold the rest, and bring the next one after the user answers. Use a single card for it; when the user picks one of several options, use one choice card, never a table of yes/no rows. A table (decision sheet) is the exception: at most 3 tightly linked rows that only make sense answered together, never a way to clear a backlog.
 
@@ -42,11 +46,25 @@ The user decides from the card alone, at a glance. Each part has one job:
 - **`question`** says what is being decided, specifically enough to answer cold: name the thing, not “as discussed” or a bare PR number.
 - **Option labels** say what each choice does (`yesLabel`/`noLabel`, or a Choice option's `label` and one-line `hint`). Put consequences there, not in prose.
 - **`recommended`** tags the pick. Don't argue for it in text.
-- **`context`** is optional: at most **one plain sentence of 25 words or fewer**, for the one fact the question and labels can't carry (a deadline, a blocker, who asked). No Markdown labels, lists or “What/Why/Next” sections. Link evidence (checks, a report, a diff) instead of pasting it. Exact text the user must approve goes in a Reply draft, not here.
+- **`context`** is optional: at most **one plain sentence of 25 words or fewer**, for the one fact the question and labels can't carry (what started this, a deadline, a blocker, who asked). No Markdown labels, lists or “What/Why/Next” sections. Link evidence (checks, a report, a diff) instead of pasting it. Exact text the user must approve goes in a Reply draft, not here.
 
 If a card needs more than that, the decision is too big: split it, or, when the detail is an artifact to read, ask for a review instead (see “Reviews aren't cards”). The CLI warns (it still creates the card) when `context` runs past about 40 words or uses list or label patterns; rewrite the next card, don't recreate this one.
 
-**Bad:** “Run the code review on the Live Markdown stack?” A routine step; just do it. Also bad: “Approve the claim lines on the comparison page?” It needs a careful read, so ask for a review instead. And “Approve?” with a five-bullet What/Why now/Options/Recommendation/Next brief: busy, and the user doesn't read it.
+**Start from what the user knows.** If the situation is new to them, the question or `context` says what happened and who asked; never refer to an event, request or thing they haven't heard of as if they had.
+
+**Show options they must compare.** When options differ in how they look, attach each one as an image in `media` (up to 4) and match the labels to the images. When they differ in numbers such as prices, dates or sizes, put each option's numbers in its hint. If the options can't be compared at a glance, the choice isn't ready for a card: build the comparison first, then ask for a review.
+
+**Check the facts the choice rests on.** Verify details such as who is involved, dates and amounts against the source before proposing. If one is unknown, ask that plain question first.
+
+Bad cards:
+
+- “Run the code review on the Live Markdown stack?” A routine step; just do it.
+- “Approve the claim lines on the comparison page?” It needs a careful read, so ask for a review instead.
+- “Cancel the stray trial yourself, then reply done.” An agent with browser access can do it.
+- “Unlist the theme after the takedown request?” when the user has never heard of the request.
+- “Which type direction should we use?” with four names and no images of them.
+- “Move the trip two days later?” with no fares for either option and the wrong number of travelers.
+- “Approve?” with a five-bullet What/Why now/Options/Recommendation/Next brief: busy, and the user doesn't read it.
 
 **Good:** “Merge the Live Markdown stack?” once its required checks pass; labels “Merge both PRs” / “Keep them open”; `recommended: "yes"`; context “[Checks and review](https://example.com/checks) passed on the final heads.”
 
