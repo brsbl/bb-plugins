@@ -77,6 +77,7 @@ it("stops a repeated cursor and explains where to find remaining history", async
 });
 
 it("keeps bounded window growth for legacy servers without cursors", async () => {
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   const { slot, timeline } = await panel(({ threadId, segmentLimit }) => ({
     rows: threadId === "sample-lead" ? [recent] : Number(segmentLimit) === 100 ? [brief] : [],
     timelinePage: { hasOlderRows: Number(segmentLimit) < 100 },
@@ -84,6 +85,11 @@ it("keeps bounded window growth for legacy servers without cursors", async () =>
   await slot.findByText("Calculate the synthetic total.");
   await waitFor(() => expect(timeline.mock.calls.some(([args]) => args.segmentLimit === "100")).toBe(true));
   expect(timeline.mock.calls.every(([args]) => Number(args.segmentLimit) <= 100 && !args.beforeAnchorId)).toBe(true);
+  const reads = timeline.mock.calls.length;
+  fireEvent(document, new Event("visibilitychange"));
+  await waitFor(() => expect(timeline.mock.calls.length).toBeGreaterThan(reads));
+  expect(timeline.mock.calls.filter(([args]) => args.threadId === "sample-lead").at(-1)?.[0].segmentLimit).toBe("100");
+  expect(slot.getByText("Calculate the synthetic total.")).toBeTruthy();
 });
 
 it("bounds an endless advancing cursor walk and exposes the history limit", async () => {
@@ -125,11 +131,11 @@ it("keeps loaded older messages and the reader's position when new events refres
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   const { slot, timeline } = await panel(({ threadId, beforeAnchorSeq }) => {
     if (threadId !== "sample-lead") return { rows: [brief], timelinePage: { olderCursor: null } };
-    const page = beforeAnchorSeq === "20" ? 1 : beforeAnchorSeq === "10" ? 2 : 0;
+    const page = beforeAnchorSeq === "21" ? 1 : beforeAnchorSeq === "11" ? 2 : 0;
     return {
       rows: [collapsed(page === 0 ? [recent, ...(appended ? [reply("new", 40, "New tail reply.")] : [])] : page === 1 ? [older] : [oldest])],
       maxSeq: appended ? 40 : 30,
-      timelinePage: { olderCursor: page === 2 ? null : cursor(page === 0 ? 20 : 10), historySnapshot: appended ? "second" : "first", olderRowsSourceSeqEnd: null },
+      timelinePage: { olderCursor: page === 2 ? null : cursor(page === 0 ? 21 : 11), historySnapshot: appended ? "second" : "first", olderRowsSourceSeqEnd: null },
     };
   });
   await slot.findByText(oldest.text);

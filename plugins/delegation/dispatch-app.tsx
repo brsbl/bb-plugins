@@ -7,7 +7,7 @@ import {
   useSdk,
 } from "@get-bb/plugin-sdk/app";
 import { buildChannels, counterpartIds, type Channel, type ChannelMessage } from "./dispatch-model.js";
-import { canReadOlder, readOlder, readPage, refreshHistory, startHistory, type History } from "./dispatch-history.js";
+import { PAGE_SEGMENTS, canReadOlder, readOlder, readPage, refreshHistory, startHistory, type History } from "./dispatch-history.js";
 
 export const DISPATCH_ACTION_ID = "dispatch";
 /** Threads refetch when their sidebar state changes; this only catches anything that change missed. */
@@ -120,7 +120,8 @@ export function useChannels(threadId: string) {
       const stamp = current.stamps.get(id) ?? "";
       const cached = cache.current.get(id);
       if (!force && cached && stamp !== "" && cached.stamp === stamp) return cached.history;
-      const latest = await readPage(sdk, id, signal);
+      const segments = cached?.history.snapshot === undefined ? cached?.history.segments ?? PAGE_SEGMENTS : PAGE_SEGMENTS;
+      const latest = await readPage(sdk, id, signal, undefined, segments);
       const history = refreshHistory(cached?.history, latest);
       if (!signal.aborted) cache.current.set(id, { stamp, history });
       return history;
