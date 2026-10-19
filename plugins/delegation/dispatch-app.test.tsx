@@ -85,3 +85,36 @@ it("keeps bounded window growth for legacy servers without cursors", async () =>
   await waitFor(() => expect(timeline.mock.calls.some(([args]) => args.segmentLimit === "100")).toBe(true));
   expect(timeline.mock.calls.every(([args]) => Number(args.segmentLimit) <= 100 && !args.beforeAnchorId)).toBe(true);
 });
+
+it("bounds an endless advancing cursor walk and exposes the history limit", async () => {
+  const { slot, timeline } = await panel(({ threadId, beforeAnchorSeq }) => ({
+    rows: threadId === "sample-lead" ? [recent] : [],
+    timelinePage: { olderCursor: cursor(Number(beforeAnchorSeq ?? 100) - 1), historySnapshot: "sample-snapshot" },
+  }));
+  await slot.findByText(/Earlier messages are available in the threads/);
+  for (const id of ["sample-lead", "sample-worker"]) {
+    expect(timeline.mock.calls.filter(([args]) => args.threadId === id)).toHaveLength(20);
+  }
+  const reads = timeline.mock.calls.length;
+  fireEvent.scroll(slot.getByRole("tabpanel"));
+  expect(timeline).toHaveBeenCalledTimes(reads);
+});
+
+it("recovers an unavailable cursor from latest and waits for retry", async () => {
+  let stale = true;
+  const { slot, timeline } = await panel(({ threadId, beforeAnchorId }) => {
+    if (beforeAnchorId && stale) throw new Error("The cursor is no longer available. Reload latest.");
+    return {
+      rows: threadId === "sample-lead" ? [recent] : beforeAnchorId ? [brief] : [],
+      timelinePage: { olderCursor: beforeAnchorId ? null : cursor(20), historySnapshot: "sample-snapshot" },
+    };
+  });
+  await slot.findByText(/Couldn't load older messages/);
+  const reads = timeline.mock.calls.length;
+  fireEvent.scroll(slot.getByRole("tabpanel"));
+  expect(timeline).toHaveBeenCalledTimes(reads);
+  stale = false;
+  fireEvent.click(slot.getByRole("button", { name: "Retry" }));
+  await slot.findByText("Calculate the synthetic total.");
+  expect(slot.queryByText(/Couldn't load older messages/)).toBeNull();
+});

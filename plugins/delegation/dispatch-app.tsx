@@ -7,42 +7,15 @@ import {
   useSdk,
 } from "@get-bb/plugin-sdk/app";
 import { buildChannels, counterpartIds, type Channel, type ChannelMessage } from "./dispatch-model.js";
+import { canReadOlder, readOlder, readPage, refreshHistory, startHistory, type History } from "./dispatch-history.js";
 
 export const DISPATCH_ACTION_ID = "dispatch";
-/** Timeline segments read per thread. Scrolling to the top of a channel reads older ones. */
-const SEGMENTS = 20;
-/** bb rejects reads above 100 segments. */
-const MAX_SEGMENTS = 100;
 /** Threads refetch when their sidebar state changes; this only catches anything that change missed. */
 const SAFETY_REFRESH_MS = 5 * 60_000;
 const MAX_COUNTERPARTS = 16;
 const MAX_CONCURRENT_READS = 4;
 
-type Sdk = ReturnType<typeof useSdk>;
 type SidebarThread = ReturnType<typeof useSidebarThreads>["threads"][number];
-interface Page { rows: unknown[]; complete: boolean }
-
-async function conversationPage(sdk: Sdk, threadId: string, segments: number, signal: AbortSignal): Promise<Page> {
-  const page = await sdk.threads.timeline({ threadId, segmentLimit: String(Math.min(segments, MAX_SEGMENTS)), includeNestedRows: "true", signal });
-  // Completion notices can be inside collapsed turns. Expand only this bounded page;
-  // delegation work rows' childRows belong to other threads and are not this conversation.
-  const rows = new Map<string, (typeof page.rows)[number]>();
-  const pending = [...page.rows].reverse();
-  while (pending.length) {
-    const row = pending.pop()!;
-    if (row.kind === "conversation") {
-      if (!rows.has(row.id)) rows.set(row.id, row);
-    } else if (row.kind === "turn" && row.children) {
-      for (let index = row.children.length - 1; index >= 0; index--) pending.push(row.children[index]!);
-    }
-  }
-  // Older servers send hasOlderRows; current servers expose only olderCursor.
-  const meta = page.timelinePage as { hasOlderRows?: boolean; olderCursor?: unknown } | undefined;
-  return {
-    rows: [...rows.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)),
-    complete: meta?.hasOlderRows !== undefined ? meta.hasOlderRows === false : meta?.olderCursor == null,
-  };
-}
 
 /** Run reads a few at a time so a large org doesn't fan out at once. */
 async function inBatches<T, R>(items: readonly T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
@@ -115,19 +88,14 @@ function useVisibleInterval(callback: () => void, ms: number) {
   }, [ms]);
 }
 
-interface Cached { stamp: string; segments: number; page: Page }
+interface Cached { stamp: string; history: History }
 
-/** Channels for one thread: its own rows, plus each counterpart's rows sent by this thread. */
+/** Channels for one thread, retaining cursor pages only for the open conversation. */
 export function useChannels(threadId: string) {
   const sdk = useSdk();
   const org = useOrg(threadId);
-  const [segments, setSegments] = useState(SEGMENTS);
-  /** The window the last finished read used; behind `segments` while an older page loads. */
-  const [loadedSegments, setLoadedSegments] = useState(SEGMENTS);
-  const [selfRows, setSelfRows] = useState<unknown[]>([]);
-  const [counterpartRows, setCounterpartRows] = useState<Map<string, unknown[]>>(new Map());
-  const [completeHistory, setCompleteHistory] = useState<Set<string>>(new Set());
-  const [selfComplete, setSelfComplete] = useState(false);
+  const [pages, setPages] = useState(new Map<string, Cached>());
+  const [loading, setLoading] = useState(false);
   const [lastSeen, setLastSeen] = useState(() => readLastSeen(threadId));
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const cache = useRef(new Map<string, Cached>());
@@ -137,70 +105,107 @@ export function useChannels(threadId: string) {
 
   useEffect(() => {
     cache.current = new Map();
+    setPages(new Map());
     setStatus("loading");
   }, [threadId]);
 
-  /** Re-read only threads whose sidebar activity changed since their last read (or every thread when forced). */
   const load = useCallback(async (force: boolean) => {
     inFlight.current?.abort();
     const controller = new AbortController();
     inFlight.current = controller;
+    setLoading(true);
     const { signal } = controller;
     const current = orgRef.current;
-    const read = async (id: string): Promise<Page> => {
+    const read = async (id: string): Promise<History> => {
       const stamp = current.stamps.get(id) ?? "";
       const cached = cache.current.get(id);
-      if (!force && cached && cached.segments === segments && stamp !== "" && cached.stamp === stamp) return cached.page;
-      const page = await conversationPage(sdk, id, segments, signal);
-      if (!signal.aborted) cache.current.set(id, { stamp, segments, page });
-      return page;
+      if (!force && cached && stamp !== "" && cached.stamp === stamp) return cached.history;
+      const latest = await readPage(sdk, id, signal);
+      const history = refreshHistory(cached?.history, latest);
+      if (!signal.aborted) cache.current.set(id, { stamp, history });
+      return history;
     };
     try {
       const own = await read(threadId);
-      const ids = counterpartIds({ selfId: threadId, parentId: current.parentId, childIds: current.childIds, selfRows: own.rows }).slice(0, MAX_COUNTERPARTS);
-      const pages = await inBatches(ids, MAX_CONCURRENT_READS, async (id) => {
-        try { return [id, await read(id)] as const; } catch { return [id, cache.current.get(id)?.page ?? { rows: [], complete: false }] as const; }
-      });
       if (signal.aborted) return;
-      setSelfRows(own.rows);
-      setSelfComplete(own.complete);
-      setLoadedSegments(segments);
-      setCounterpartRows(new Map(pages.map(([id, page]) => [id, page.rows])));
-      setCompleteHistory(new Set(pages.filter(([, page]) => page.complete).map(([id]) => id)));
-      setStatus("ready");
-    } catch {
+      const ids = counterpartIds({ selfId: threadId, parentId: current.parentId, childIds: current.childIds, selfRows: own.rows }).slice(0, MAX_COUNTERPARTS);
+      // Prune counterparts that left the bounded set, including their retained pages.
+      for (const id of cache.current.keys()) if (id !== threadId && !ids.includes(id)) cache.current.delete(id);
+      await inBatches(ids, MAX_CONCURRENT_READS, async (id) => {
+        try { await read(id); } catch { /* Keep any loaded history; the channel offers a thread link. */ }
+      });
       if (!signal.aborted) {
-        setStatus((value) => (value === "ready" ? value : "error"));
-        setLoadedSegments(segments);
+        setPages(new Map(cache.current));
+        setStatus("ready");
+      }
+    } catch {
+      if (!signal.aborted) setStatus((value) => value === "ready" ? value : "error");
+    } finally {
+      if (inFlight.current === controller) {
+        inFlight.current = null;
+        setLoading(false);
       }
     }
-  }, [sdk, threadId, segments]);
+  }, [sdk, threadId]);
 
-  // Sidebar state is live, so a change to any thread in the org triggers a read of just that thread.
   const stampKey = [threadId, ...(org.parentId ? [org.parentId] : []), ...org.childIds].map((id) => `${id}=${org.stamps.get(id) ?? ""}`).join(",");
-  useEffect(() => {
-    void load(false);
-  }, [load, stampKey]);
+  useEffect(() => { void load(false); }, [load, stampKey]);
   useEffect(() => () => inFlight.current?.abort(), []);
   useVisibleInterval(() => { void load(true); }, SAFETY_REFRESH_MS);
 
-  const channels = useMemo(
-    () => buildChannels({ selfId: threadId, parentId: org.parentId, childIds: org.childIds, titles: org.titles, pending: org.pending, pendingKnown: org.ready, lastSeen, selfRows, counterpartRows, completeHistory }),
-    [threadId, org, lastSeen, selfRows, counterpartRows, completeHistory],
-  );
-  const loadEarlier = useCallback(() => setSegments((count) => Math.min(count + SEGMENTS, MAX_SEGMENTS)), []);
+  const loadEarlier = useCallback(async (counterpartId: string, retry = false) => {
+    if (inFlight.current) return;
+    const controller = new AbortController();
+    inFlight.current = controller;
+    setLoading(true);
+    const { signal } = controller;
+    try {
+      // A scroll affects only the open channel's two timelines, never every worker.
+      await Promise.all([threadId, counterpartId].map(async (id) => {
+        const cached = cache.current.get(id);
+        if (!cached) return;
+        const previous = retry ? { ...cached.history, failed: false } : cached.history;
+        if (!canReadOlder(previous)) return;
+        let history: History;
+        try {
+          history = await readOlder(sdk, id, previous, signal);
+        } catch (error) {
+          if (signal.aborted) return;
+          // A stale cursor needs a new latest snapshot. Pause automatic paging
+          // after recovery (or a network error) so a bad cursor cannot loop.
+          const stale = error instanceof Error && /cursor.*(no longer|invalid|available)/i.test(error.message);
+          if (stale) {
+            try { history = { ...startHistory(await readPage(sdk, id, signal)), failed: true }; }
+            catch { history = { ...previous, failed: true }; }
+          } else history = { ...previous, failed: true };
+        }
+        if (!signal.aborted && cache.current.get(id) === cached) cache.current.set(id, { ...cached, history });
+      }));
+      if (!signal.aborted) setPages(new Map(cache.current));
+    } finally {
+      if (inFlight.current === controller) {
+        inFlight.current = null;
+        setLoading(false);
+      }
+    }
+  }, [sdk, threadId]);
+
+  const channels = useMemo(() => buildChannels({
+    selfId: threadId, parentId: org.parentId, childIds: org.childIds, titles: org.titles,
+    pending: org.pending, pendingKnown: org.ready, lastSeen,
+    selfRows: pages.get(threadId)?.history.rows ?? [],
+    counterpartRows: new Map([...pages].filter(([id]) => id !== threadId).map(([id, cached]) => [id, cached.history.rows])),
+    completeHistory: new Set([...pages].filter(([, cached]) => cached.history.complete).map(([id]) => id)),
+  }), [threadId, org, lastSeen, pages]);
   const seen = useCallback((counterpartId: string) => {
     markSeen(threadId, counterpartId);
     setLastSeen(readLastSeen(threadId));
   }, [threadId]);
   return {
-    channels,
-    status,
-    seen,
-    /** Whether older history exists for a channel and bb will still serve a larger window. */
-    canLoadEarlier: (counterpartId: string) => segments < MAX_SEGMENTS && !(selfComplete && completeHistory.has(counterpartId)),
-    loadingEarlier: loadedSegments !== segments,
-    loadEarlier,
+    channels, status, seen, loadEarlier, loadingEarlier: loading,
+    canLoadEarlier: (id: string) => [threadId, id].some((key) => canReadOlder(pages.get(key)?.history)),
+    historyLimited: (id: string) => status === "ready" && [threadId, id].some((key) => !pages.has(key) || pages.get(key)?.history.limited),
+    historyFailed: (id: string) => [threadId, id].some((key) => pages.get(key)?.history.failed),
   };
 }
 
@@ -278,12 +283,14 @@ function useTimelineScroll(key: string | undefined, latestAt: number | undefined
 }
 
 export function DispatchPanel({ threadId, params }: { threadId: string; params: unknown }) {
-  const { channels, status, seen, canLoadEarlier, loadingEarlier, loadEarlier } = useChannels(threadId);
+  const { channels, status, seen, canLoadEarlier, loadingEarlier, loadEarlier, historyLimited, historyFailed } = useChannels(threadId);
+  const navigate = useBbNavigate();
   const requested = typeof params === "object" && params !== null ? (params as { counterpart?: unknown }).counterpart : undefined;
   const [active, setActive] = useState<string | null>(typeof requested === "string" ? requested : null);
   const current = channels.find((channel) => channel.counterpartId === active) ?? channels[0];
+  const earlier = useCallback(() => { if (current) void loadEarlier(current.counterpartId); }, [current?.counterpartId, loadEarlier]);
   const scroll = useTimelineScroll(current?.counterpartId, current?.latestAt, current?.messages.length ?? 0,
-    current ? canLoadEarlier(current.counterpartId) : false, loadingEarlier, loadEarlier);
+    current ? canLoadEarlier(current.counterpartId) : false, loadingEarlier, earlier);
 
   useEffect(() => {
     if (current) seen(current.counterpartId);
@@ -314,6 +321,12 @@ export function DispatchPanel({ threadId, params }: { threadId: string; params: 
       </div>
       {current ? (
         <div className="dp-channel" role="tabpanel" aria-label={current.title} ref={scroll.ref} onScroll={scroll.onScroll}>
+          {historyLimited(current.counterpartId) ? (
+            <p className="dp-empty">Earlier messages are available in the threads. <button type="button" onClick={() => navigate.toThread(threadId)}>Open this thread</button>{" "}<button type="button" onClick={() => navigate.toThread(current.counterpartId)}>Open {current.title}</button></p>
+          ) : null}
+          {historyFailed(current.counterpartId) ? (
+            <p className="dp-empty">Couldn't load older messages. <button type="button" disabled={loadingEarlier} onClick={() => void loadEarlier(current.counterpartId, true)}>Retry</button></p>
+          ) : null}
           {current.messages.length === 0 ? (
             <p className="dp-empty">No messages yet.</p>
           ) : (
