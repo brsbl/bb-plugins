@@ -348,3 +348,17 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
     await rm(fixture, { recursive: true, force: true });
   }
 }, 180_000);
+
+
+it("preserves Prompt Improver's marketplace prefix and package subdirectory", async () => {
+  if (!pluginRepository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");
+  const moduleUrl = pathToFileURL(resolve(pluginRepository, "tooling/publish-install-refs.mjs")).href;
+  const { prepareVersionedRelease } = await import(moduleUrl);
+  await run(process.execPath, [resolve(pluginRepository, "tooling/build-plugin.mjs"), resolve(pluginRepository, "plugins/improve-prompt")]);
+  const release = await prepareVersionedRelease("improve-prompt");
+  expect(release.tag).toBe("prompt-shaper/v0.1.4");
+  const manifest = JSON.parse(await git(pluginRepository, ["show", `${release.commit}:plugins/improve-prompt/package.json`]));
+  expect(manifest.name).toBe("bb-plugin-prompt-shaper");
+  expect(manifest.bb.app).toBe("./dist/install-app.mjs");
+  expect(manifest.dependencies).toBeUndefined();
+});
