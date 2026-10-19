@@ -240,11 +240,11 @@ it("Decision log keeps failures and Later cards waiting, orders row controls wit
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision, oddLabel], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
   const [ready, failure, deferred, decide] = await within(waiting).findAllByRole("article");
-  expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Keep open", "Merge"]);
+  expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Dismiss", "Review", "More actions", "Keep open", "Merge"]);
   // Labels that collide with Object.prototype keys fall back to the role icon instead of crashing the log.
   expect(within(waiting).getByRole("button", { name: "Constructor run" })).toBeTruthy();
   // Icon peers first, then secondary, with the primary always rightmost.
-  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Comment", "Review and send"]);
+  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Dismiss", "Review", "More actions", "Comment", "Review and send"]);
   expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
   expect(within(failure!).getByText(/Reconnect Gmail/)).toBeTruthy();
   expect(within(failure!).getByRole("button", { name: "Review and retry" })).toBeTruthy();
@@ -345,11 +345,138 @@ it("Decision log offers a choice card Choose, Skip and Review, never Yes or No",
   const app = await loadPluginApp(() => import("./app.js"));
   const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
   const row = await screen.findByRole("article", { name: "Choice: Which account setup?" });
-  expect(within(row).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Review", "More actions", "Choose"]);
+  expect(within(row).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Dismiss", "Review", "More actions", "Choose"]);
   fireEvent.click(within(row).getByRole("button", { name: "Review" }));
   expect(within(row).getByText("Several accounts")).toBeTruthy();
   fireEvent.click(within(row).getByRole("button", { name: "Choose" }));
   expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread" }));
+});
+
+it("dismisses a waiting item from the Decision log with a reason, telling its thread once", async () => {
+  const host = recordingHost(); plugin(host.bb);
+  try {
+    await host.harness.behavior.runCli(["create", "budget", "--thread", "thr_test", "--item", JSON.stringify({ type: "decide", question: "Raise the ads budget?", consequence: "Spend $50 a day.", context: "Brief." })]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const rpc = Object.fromEntries(["log", "get", "dismiss"].map((name) => [name, (input: unknown) => host.harness.behavior.callRpc(name, input)]));
+    renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
+    const row = await screen.findByRole("article", { name: "Decision: Raise the ads budget?" });
+    fireEvent.click(within(row).getByRole("button", { name: "Dismiss" }));
+    const reason = screen.getByRole("textbox", { name: "Reason (optional)" });
+    fireEvent.change(reason, { target: { value: "Paused the campaign" } });
+    fireEvent.keyDown(reason, { key: "Enter" });
+    await waitFor(() => expect(submittedMessages).toEqual(["brsbl dismissed: Raise the ads budget · Paused the campaign"]));
+    const saved = JSON.parse((await host.harness.behavior.runCli(["get", "budget", "--thread", "thr_test"])).stdout!);
+    expect(saved).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Dismissed · Paused the campaign" }, dismissed: { reason: "Paused the campaign" } });
+    const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(submittedMentions[0]!.id)).context);
+    expect(context).toMatchObject({ intent: "dismissed", reason: "Paused the campaign" });
+    expect(await screen.findByRole("region", { name: "Done" })).toBeTruthy();
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it("Undo takes a dismissal back before anything is stored or sent", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it." }, threadTitle: "Ops", threadProjectId: null } as const;
+    const calls: unknown[] = [];
+    const app = await loadPluginApp(() => import("./app.js"));
+    renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }), dismiss: (input) => { calls.push(input); return { ...item, state: "succeeded" }; } } });
+    const row = await screen.findByRole("article");
+    fireEvent.click(within(row).getByRole("button", { name: "Dismiss" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(calls).toEqual([]);
+    expect(within(row).getByRole("button", { name: "Dismiss" })).toBeTruthy();
+    // Without Undo it goes through on its own, with no reason.
+    fireEvent.click(within(row).getByRole("button", { name: "Dismiss" }));
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(calls).toEqual([expect.not.objectContaining({ reason: expect.anything() })]);
+  } finally { vi.useRealTimers(); }
+});
+
+it("removes Undo as soon as a dismissal starts committing", async () => {
+  const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it." }, threadTitle: "Ops", threadProjectId: null } as const;
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => { finish = resolve; });
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }), dismiss: async () => { await gate; return { ...item, revision: 2, state: "succeeded", result: { message: "Dismissed", retryable: false }, dismissed: { at: "2026-10-18T10:00:00.000Z", notice: "sent" } }; } } });
+  const row = await screen.findByRole("article");
+  fireEvent.click(within(row).getByRole("button", { name: "Dismiss" }));
+  expect(within(row).getByRole("button", { name: "Undo" })).toBeTruthy();
+  fireEvent.keyDown(within(row).getByRole("textbox", { name: "Reason (optional)" }), { key: "Enter" });
+  // Committing: Undo can no longer prevent the dismissal or its notice, so it is gone.
+  expect(within(row).queryByRole("button", { name: "Undo" })).toBeNull();
+  expect(within(row).getByText("Dismissing…")).toBeTruthy();
+  finish();
+  await waitFor(() => expect(within(row).queryByText("Dismissing…")).toBeNull());
+});
+
+it("shows a known undelivered dismissal notice and sends it once on retry", async () => {
+  const item = { ...fixture(), id: "merge-1", revision: 2, state: "succeeded", result: { message: "Dismissed", retryable: false }, content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merges it." }, dismissed: { at: "2026-10-18T10:00:00.000Z", notice: "failed", noticeError: "HTTP 409: Thread is archived" }, threadTitle: "Ops", threadProjectId: null } as const;
+  const calls: unknown[] = [];
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [], done: [item] }), notifyDismissed: (input) => { calls.push(input); return { ...item, revision: 3, dismissed: { at: item.dismissed.at, notice: "sent" } }; } } });
+  expect(await screen.findByText(/its thread wasn't told/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Tell the thread" }));
+  await waitFor(() => expect(screen.queryByText(/its thread wasn't told/)).toBeNull());
+  expect(calls).toEqual([{ id: "merge-1", threadId: "thr_test" }]);
+});
+
+it.each([
+  ["a safe failure", { state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: true }, result: { message: "Head moved; nothing merged", retryable: true } }],
+  ["an answer that never reached the agent", { state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: false } }],
+] as const)("offers Dismiss beside recovery in Waiting on you for %s", async (_, recovery) => {
+  const item = { ...fixture(), id: "merge-1", revision: 3, content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merge it." }, ...recovery, ...source } as Item & typeof source;
+  const calls: unknown[] = [];
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: {
+    waiting: () => calls.length ? [] : [item], get: () => item,
+    dismiss: (input) => { calls.push(input); return { ...item, revision: 4, state: "succeeded", result: { message: "Dismissed", retryable: false }, dismissed: { at: "2026-10-18T10:00:00.000Z", notice: "sent" } }; },
+  } });
+  const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+  if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
+  fireEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Reason (optional)" }), { key: "Enter" });
+  await waitFor(() => expect(calls).toEqual([expect.objectContaining({ id: "merge-1", revision: 3 })]));
+});
+
+it("locks recovery during a pending dismissal and drops the dismissal if the item changes", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    let item = { ...fixture(), id: "merge-1", revision: 3, state: "failed", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "yes", claimed: true }, result: { message: "Head moved", retryable: true }, content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merge it." }, ...source } as Item & typeof source;
+    const calls: unknown[] = [];
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: {
+      waiting: () => [item], get: () => item,
+      dismiss: (input) => { calls.push(input); return { ...item, state: "succeeded" }; },
+    } });
+    const header = await screen.findByRole("button", { name: /^Waiting on you/ });
+    if (header.getAttribute("aria-expanded") === "false") fireEvent.click(header);
+    fireEvent.click(await screen.findByRole("button", { name: "Dismiss" }));
+    expect((screen.getByRole("button", { name: "Choose again" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Retry" }) as HTMLButtonElement).disabled).toBe(true);
+    // Another client reopens it before the Undo window ends: the pending dismissal must not carry over.
+    item = { ...item, revision: 4, state: "ready", attempt: null, result: null };
+    await slot.behavior.emitRealtime("items", {});
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Undo" })).toBeNull());
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(calls).toEqual([]);
+  } finally { vi.useRealTimers(); }
+});
+
+it("dismisses the open item in Waiting on you", async () => {
+  const item = fixture();
+  let dismissed = false;
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { composer: { scope: { kind: "thread", threadId: "thr_test" } }, rpc: {
+    waiting: () => dismissed ? [] : [{ ...item, ...source }], get: () => item,
+    dismiss: () => { dismissed = true; return { ...item, revision: 2, state: "succeeded", result: { message: "Dismissed", retryable: false }, dismissed: { at: "2026-10-18T10:00:00.000Z" } }; },
+  } });
+  await openItem(/^Answer: /);
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Reason (optional)" }), { key: "Enter" });
+  await waitFor(() => expect(screen.queryByRole("form")).toBeNull());
+  expect(screen.getByText("Dismissed")).toBeTruthy();
+  expect(dismissed).toBe(true);
 });
 
 it("Decision log Send on a collapsed reply opens the email first and sends only once it is visible", async () => {
