@@ -1,0 +1,38 @@
+name: Playgrounds clip acceptance
+on:
+  pull_request:
+    paths:
+      - 'plugins/playgrounds/**'
+      - '.github/workflows/playgrounds-clip.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  clip:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+      - name: Allow Chrome's user-namespace sandbox on the disposable Linux runner
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Render and encode without an installed browser or FFmpeg
+        env:
+          BB_CLIP_PORTABLE_BROWSER: "1"
+        shell: bash
+        run: |
+          mkdir -p clip-tools
+          ln -s "$(command -v node)" clip-tools/node
+          PATH="$PWD/clip-tools:/usr/bin:/bin" node plugins/playgrounds/evals/clip-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clip-${{ matrix.os }}
+          path: clip-evidence/

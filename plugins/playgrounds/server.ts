@@ -234,7 +234,7 @@ function createStore(bb: BbPluginApi) {
   };
   // The prompt that made a playground: the last user message before it was published,
   // and the turn that published it. Model and token counts are not in the plugin API.
-  const provenanceOf = async (threadId: string, id: string): Promise<Provenance | null> => {
+  const provenanceOf = async (threadId: string, id: string, fullPrompt = false): Promise<Provenance | null> => {
     const row = db.prepare("SELECT published_at FROM answer_documents WHERE id = ?").get(id) as
       | { published_at: number | null }
       | undefined;
@@ -255,7 +255,7 @@ function createStore(bb: BbPluginApi) {
     if (!prompt?.text) return null;
     const turn = timeline.rows.find((r) => r.kind === "turn" && r.startedAt <= at && (r.completedAt ?? Infinity) >= at);
     return {
-      prompt: prompt.text.slice(0, 2000),
+      prompt: fullPrompt ? prompt.text : prompt.text.slice(0, 2000),
       provider: thread?.providerId ?? null,
       durationMs: turn?.completedAt ? Math.round(turn.completedAt - turn.startedAt) : null,
       turnId: turn?.turnId ?? null,
@@ -330,6 +330,7 @@ function createStore(bb: BbPluginApi) {
         }[]
       ).map((row) => savedRow(row.id));
     },
+    provenanceOf,
     saved: savedRow,
     findSaved(id: string): SavedPlayground | null {
       const row = db
@@ -592,6 +593,23 @@ export default function plugin(bb: BbPluginApi): void {
               exitCode: 0,
               stdout: `${store.publish(threadId, options.document).directive}\n`,
             };
+          },
+        }),
+        "clip-source": cliCommand({
+          summary: "Read a standalone HTML card and its original prompt for the local clip script",
+          positionals: [answerId],
+          options: { thread },
+          run: async ({ positionals, options }, ctx) => {
+            const threadId = await store.resolve(options.thread ?? ctx.threadId ?? "", positionals.id);
+            const answer = store.get(threadId, positionals.id);
+            if (answer.kind !== "html") throw new Error("Clip export supports HTML and Anatomy cards; native cards are not supported yet.");
+            const provenance = await store.provenanceOf(threadId, positionals.id, true);
+            return json(positionals.id, {
+              html: buildWidgetDocument({ id: answer.id, html: answer.widget.html, state: live.getState(threadId, answer.id).state, theme: fallbackTheme }),
+              prompt: provenance?.prompt ?? null,
+              anatomy: /class=["'][^"']*\biso\b/.test(answer.widget.html),
+              csp: FRAME_HEADERS["content-security-policy"],
+            });
           },
         }),
         save: cliCommand({
