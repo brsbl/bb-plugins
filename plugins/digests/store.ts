@@ -10,6 +10,7 @@ import {
   IssuePatchSchema,
   IssueSchema,
   PublishInputSchema,
+  parseStored,
   type Connection,
   type DigestDefinition,
   type Issue,
@@ -47,7 +48,7 @@ export const STORE_MIGRATIONS = [
 
 type JsonRow = { data: string };
 function parseRow<T>(row: unknown, schema: z.ZodType<T>): T | null {
-  return row === undefined ? null : schema.parse(JSON.parse((row as JsonRow).data));
+  return row === undefined ? null : parseStored(schema, JSON.parse((row as JsonRow).data));
 }
 
 /** Private data stays in the SDK's plugin-owned SQLite database, never in thread storage. */
@@ -88,7 +89,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
   const definitions = {
     list(): DigestDefinition[] {
       return (db.prepare("SELECT data FROM digest_definitions ORDER BY id").all() as JsonRow[])
-        .map((row) => DigestDefinitionSchema.parse(JSON.parse(row.data)));
+        .map((row) => parseStored(DigestDefinitionSchema, JSON.parse(row.data)));
     },
     get: definitionGet,
     put(input: z.input<typeof DigestDefinitionSchema>): DigestDefinition {
@@ -102,7 +103,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
   const connections = {
     list(): Connection[] {
       return (db.prepare("SELECT data FROM digest_connections ORDER BY id").all() as JsonRow[])
-        .map((row) => ConnectionSchema.parse(JSON.parse(row.data)));
+        .map((row) => parseStored(ConnectionSchema, JSON.parse(row.data)));
     },
     get: connectionGet,
     put(input: z.input<typeof ConnectionSchema>): Connection {
@@ -168,7 +169,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
       if (state !== undefined) { clauses.push("state = ?"); values.push(state); }
       const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
       return (db.prepare(`SELECT data FROM digest_issues ${where} ORDER BY created_at DESC, id LIMIT ? OFFSET ?`)
-        .all(...values, limit, offset) as JsonRow[]).map((row) => IssueSchema.parse(JSON.parse(row.data)));
+        .all(...values, limit, offset) as JsonRow[]).map((row) => parseStored(IssueSchema, JSON.parse(row.data)));
     },
     /** The issue and every processed message become visible together, or nothing changes. */
     publish(id: string, input: z.input<typeof PublishInputSchema>, now: number): Issue {

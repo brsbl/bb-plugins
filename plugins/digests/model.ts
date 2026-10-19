@@ -245,6 +245,27 @@ export const IssueListInputSchema = z.object({
   offset: z.number().int().nonnegative().max(1_000_000).default(0),
 }).strict();
 
+/**
+ * Reads JSON stored by a newer Briefs build: drops keys this build doesn't
+ * know and still validates everything else. Writes stay strict.
+ */
+export function parseStored<T>(schema: z.ZodType<T>, value: unknown): T {
+  let current = value;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const result = schema.safeParse(current);
+    if (result.success) return result.data;
+    const unknown = result.error.issues.filter((issue) => issue.code === "unrecognized_keys");
+    if (!unknown.length) throw result.error;
+    if (attempt === 0) current = structuredClone(current);
+    for (const issue of unknown) {
+      let target: unknown = current;
+      for (const key of issue.path) target = (target as Record<PropertyKey, unknown>)?.[key];
+      if (target && typeof target === "object") for (const key of issue.keys) delete (target as Record<string, unknown>)[key];
+    }
+  }
+  return schema.parse(current);
+}
+
 export type DigestDefinition = z.infer<typeof DigestDefinitionSchema>;
 export type Connection = z.infer<typeof ConnectionSchema>;
 export type Issue = z.infer<typeof IssueSchema>;
