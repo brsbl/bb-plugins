@@ -6,6 +6,7 @@
   "license": "UNLICENSED",
   "files": [
     "dist",
+    "docs",
     "vendor",
     "README.md",
     "PLUGIN_OVERVIEW.md"

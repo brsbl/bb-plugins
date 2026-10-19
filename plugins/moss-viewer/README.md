@@ -2,6 +2,8 @@
 
 Read Moss notes beside your bb thread, and edit eligible notes on their Mac.
 
+![A sample Moss note open read-only in bb's panel, explaining it stays read-only until opened once in Moss on a Mac, with its callout and table rendered](docs/viewer-read-only.png)
+
 ![A Moss note in Moss's own editor in bb's panel after a save, with a quiet header](https://github.com/user-attachments/assets/72e28ca7-3c9c-46b3-bca9-035f064c1fd3)
 
 ## Requirements and read-only fallback
