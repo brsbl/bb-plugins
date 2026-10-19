@@ -1,6 +1,6 @@
 ---
 name: inline-action-cards
-description: Use when a thread needs something only the user can decide, such as sending or publishing in their name, a merge or release their process reserves for them, spending money, changing their accounts or production, or a real choice with no clear default. Not for routine steps of their normal working process, for approvals that need a careful review of an artifact, or for handing the user tasks agents could do. Create decision cards or asks in Waiting on you instead of prose confirmation questions, handle answers, and report outcomes on the cards.
+description: Use before asking the user anything, in any thread. It decides whether to ask at all (routine steps and tasks agents can do never get a card) and how to ask when the user must decide, approve or answer, such as merges or releases, sending or publishing in their name, spending money, changing settings, choosing between options, reviewing a spec or document, or a plain question. Create decision cards or asks in Waiting on you instead of prose questions, handle answers, and report outcomes on the cards.
 ---
 
 # Inline Decisions
