@@ -1,0 +1,37 @@
+name: Playgrounds clip acceptance
+on:
+  pull_request:
+    paths:
+      - 'plugins/playgrounds/**'
+      - '.github/workflows/playgrounds-clip.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  clip:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+      - name: Render and encode without an installed FFmpeg
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        shell: bash
+        run: |
+          mkdir -p clip-tools
+          ln -s "$(command -v node)" clip-tools/node
+          PATH="$PWD/clip-tools:/usr/bin:/bin" node plugins/playgrounds/evals/clip-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clip-${{ matrix.os }}
+          path: clip-evidence/

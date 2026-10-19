@@ -113,6 +113,39 @@ parameter) shows one in the current thread with its saved inputs. When the user
   they played, or demonstrate something, let them try it, and critique the
   attempt.
 
+## Make a clip
+
+When the user asks "make a clip of this", run the bundled `how-it-works/scripts/clip.mjs`
+once with the card ID and an output path on the agent's machine:
+
+```sh
+node <how-it-works>/scripts/clip.mjs <id> --out <local-path>/clip.mp4 --actions replay.json
+```
+
+Prepare `replay.json` from the agent's own `do` actions (or explicitly recorded
+user inputs): `[["wait",1000],["do","setParams",[{"speed":2}]],["wait",2000]]`.
+It uses the same action names and argument arrays as `bb playgrounds do`. The
+export starts from the card's current saved state. Include a reset/set action
+first when replaying a sequence that needs a different starting state. Never
+invent input history or infer a recording from final state. With no actions,
+the card's idle animation is recorded.
+
+Defaults: square 720×720, 20 seconds, 30 fps, no audio; `--format landscape`
+is 1280×720 and `--format portrait` is 720×1280. `--seconds` accepts 10–40;
+reserve the last three seconds for the end frame. `--gif clip.gif` also makes
+a GIF and checks its actual bytes, dimensions and frame count against X's limits.
+The original prompt and exact bb credit are included; Anatomy also credits Ryan.
+If provenance is missing, supply the original user prompt with `--prompt`.
+
+This is a standalone replay, not a screen recording of the user's bb. It uses
+headless Chrome (`CHROME_PATH` can select it) and a temporary private profile.
+FFmpeg is discovered or downloaded automatically as a checksum-verified portable
+encoder on Mac arm64/x64 and Linux x64. No manual encoder installation is needed.
+Card content stays local; the renderer blocks network requests, so embed images
+as data URLs. On a managed host, launch the command through `bb host-care start`.
+Hand back links to the MP4/GIF files; never upload or post them. Native cards are
+not supported. Long prompts that do not fit at 32px fail visibly; try portrait.
+
 ## HTML playgrounds
 
 Write body markup with inline `<style>` and `<script>`. It renders in a
