@@ -41,6 +41,33 @@ const publication = (messageIds: string[]) => ({
 });
 
 describe("digest store", () => {
+  it("reads definitions and briefs stored by a newer build with unknown keys stripped", () => {
+    const { db, store } = harness();
+    const definition = { ...store.definitions.get("reading")!, owns: ["newsletters"] };
+    db.prepare("UPDATE digest_definitions SET data = ? WHERE id = ?").run(JSON.stringify(definition), "reading");
+    store.issues.create(issue("iss_newer"));
+    const stored = { ...store.issues.get("iss_newer")!, state: "ready", publishedAt: 20, futureField: true,
+      sources: [{ ...source("m1"), class: "money", placement: "shown" }],
+      brief: { heading: "Needs you", messageIdsVersion: 1, elsewhere: [{ label: "Also: 1 in Money", digestId: "money", count: 1 }],
+        items: [{ title: "Upload receipt", text: "Mercury needs it.", messageId: "m1", action: { label: "Upload receipt", url: "https://app.mercury.com/" } }],
+        later: [{ title: "Renew", messageId: "m2", secondaryAction: { label: "Open email", url: "https://mail.google.com/" } }],
+        laterLabel: "Later", all: { label: "All unread", items: [{ title: "A · B", text: "", url: "https://mail.google.com/", messageIds: ["m1"], copies: [] }] } } };
+    db.prepare("UPDATE digest_issues SET state = 'ready', data = ? WHERE id = ?").run(JSON.stringify(stored), "iss_newer");
+
+    expect(store.definitions.get("reading")).not.toHaveProperty("owns");
+    expect(store.definitions.list()[0]).not.toHaveProperty("owns");
+    const read = store.issues.get("iss_newer")!;
+    expect(read).not.toHaveProperty("futureField");
+    expect(read.sources[0]).toEqual(source("m1"));
+    expect(read.brief?.items[0]).toEqual({ title: "Upload receipt", text: "Mercury needs it.", action: { label: "Upload receipt", url: "https://app.mercury.com/" } });
+    expect(read.brief?.later[0]).toEqual({ title: "Renew" });
+    expect(read.brief?.all?.items[0]).toEqual({ title: "A · B", text: "", url: "https://mail.google.com/" });
+    expect(store.issues.list()[0]).toEqual(read);
+    expect(store.issues.update("iss_newer", { readAt: 30 }).readAt).toBe(30);
+    // Writes stay strict.
+    expect(() => store.issues.update("iss_newer", { futureField: true } as never)).toThrow();
+  });
+
   it("retains metadata and idempotency across store reinitialization", () => {
     const { store, bb } = harness();
     store.connections.put({ id: "gmail", name: "Gmail", url: "https://mail.google.com/", status: "signed-in", checkedAt: 10 });
