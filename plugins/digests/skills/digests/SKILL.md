@@ -99,7 +99,8 @@ Use `later` for quieter one-line items (`title`, optional `action`) and
 `laterLabel` for their heading. Put routine email in `tail: {label: "No action needed", details, items}`. Each item has `title: "Sender · Subject"`, one short `text` line, and its HTTPS `url`. It starts collapsed; keep details for existing Markdown consumers.
 The plugin renders count badges and a flat email table. Keep every email as its own row, including repeat senders; never create nested sender groups. Omit numbers from section labels; keep numeric summaryLinks labels. Include sender and subject separately on every email row, as well as the legacy combined title. Include receivedAt as epoch milliseconds and kind (receipt, bill, event, newsletter, shipping) when the source supports them. Never infer a date or type that is not known; omit unknown metadata. Summaries stay one short line. "No action needed" replaces "Routine" in the section and count labels. Choose warning for needs-attention, danger only for true alerts such as security or failed payments, success for gains or completed items, neutral for routine. Set brief.tone for its heading and item.tone for exceptions; urgency alone is not an alert. No whole-card colored backgrounds. A newsletter row may add `takeaways`: up to 5 short lines with its key points.
 The user's request wins over these per-type shape defaults; use a default only
-where the request is silent. Money uses needs-you cards and a spending line
+where the request is silent. Read-only action, approval-card and schema rules
+still apply; a request never makes a link or button perform a write. Money uses needs-you cards and a spending line
 under This week. Reading reads every newsletter for the user: Needs you holds
 only items to act on or decide (often none), then a collapsed In brief tail
 with one row per newsletter and its takeaways. Never recommend what to read,

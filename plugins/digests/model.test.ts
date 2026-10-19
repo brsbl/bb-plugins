@@ -72,6 +72,7 @@ describe("digest contracts", () => {
     const precedence = runtime.indexOf("The user's request wins over the plugin's shape defaults");
     expect(precedence).toBeGreaterThan(runtime.indexOf(reading.instructions));
     expect(precedence).toBeLessThan(runtime.indexOf("Per-type defaults, only where the user's request is silent"));
+    expect(runtime.slice(precedence)).toMatch(/^[^\n]*read-only action and approval-card rules[^\n]*never makes a link or button perform a write/u);
     expect(runtime).not.toMatch(/three Read cards|"Read these"|reading time in context/u);
     expect(runtime).toContain("never recommend what to read");
     expect(runtime).toContain('tail "In brief" with one row per newsletter');
