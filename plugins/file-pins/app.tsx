@@ -15,7 +15,7 @@ import { layoutPins, pinFile, PIN_MIN_WIDTH_CLASS, useMeasurePins, type Arrangem
 import { previewTarget } from "./open-target.js";
 import { pinTooltip } from "./pin-tooltip.js";
 import { LinkPreviewCard, PREVIEW_HOLD_MS, preparePreview } from "./link-preview-card.js";
-import { pinLabel } from "./pin-label.js";
+import { pinLabel, previewAddressLabel } from "./pin-label.js";
 import { previewClient, previewKey, refreshNotice } from "./preview-client.js";
 import { ReferenceIcon } from "./reference-icon.js";
 import { prStateLabel, showsPrState, UrlPinIcon, usePrStateAnswers } from "./url-pin-icon.js";
@@ -45,7 +45,14 @@ function PinIcon({ threadId, pin }: { threadId: string; pin: Reference }) {
 }
 
 const tipClass = "w-72 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg";
-const tipAddressClass = "border-b bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground break-all";
+const tipAddressClass = "min-w-0 truncate border-b bg-muted/30 px-3 py-2 text-[11px] leading-4 text-muted-foreground";
+
+function PreviewAddress({ value }: { value: string }) {
+  return <div className={tipAddressClass} title={value}>
+    <span aria-hidden="true">{previewAddressLabel(value)}</span>
+    <span className="sr-only">{value}</span>
+  </div>;
+}
 
 /**
  * A link's preview card, opened whole: hovering or focusing the pin starts loading its preview while the tooltip
@@ -65,7 +72,7 @@ function HeldTooltip({ prepare, trigger, address, card }: { prepare: () => Promi
   return <Tooltip open={open} onOpenChange={onOpenChange}>
     <TooltipTrigger asChild onPointerEnter={() => void prepare()} onFocus={() => void prepare()}>{trigger}</TooltipTrigger>
     <TooltipContent side="top" sideOffset={6} className={tipClass}>
-      <div className={tipAddressClass}>{address}</div>
+      <PreviewAddress value={address} />
       {card}
     </TooltipContent>
   </Tooltip>;
@@ -237,7 +244,7 @@ function PinStrip({ threadId }: { threadId: string }) {
     return <Tooltip>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
       <TooltipContent side="top" sideOffset={6} className={tipClass}>
-        <div className={tipAddressClass}>{tip.address}</div>
+        <PreviewAddress value={tip.address} />
         <div className="flex items-start gap-2 px-3 py-2.5">
           <span className="mt-0.5 shrink-0"><PinIcon threadId={threadId} pin={pin} /></span>
           <div className="min-w-0">

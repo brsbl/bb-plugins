@@ -24,4 +24,6 @@ it("keeps both ends of very long values", () => {
   expect(shown).toHaveLength(240);
   expect(shown.startsWith("/start/")).toBe(true);
   expect(shown.endsWith("/end.md")).toBe(true);
+  expect(pinTooltip({ ...file, path }, "mac").address).toBe(path);
+  expect(pinTooltip({ ...url, url: `https://example.com/${"x".repeat(500)}` }, "mac").address).toBe(`https://example.com/${"x".repeat(500)}`);
 });

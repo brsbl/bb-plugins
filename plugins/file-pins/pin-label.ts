@@ -32,6 +32,17 @@ export function cutMiddle(value: string, max: number): string {
   return `${chars.slice(0, head).join("")}${ELLIPSIS}${chars.slice(chars.length - (keep - head)).join("")}`;
 }
 
+/** A preview header keeps the beginning of an address and its final file or page name. */
+export function previewAddressLabel(value: string, max = 44): string {
+  if ([...value].length <= max) return value;
+  const start = [...value].slice(0, Math.min(12, max - 4)).join("");
+  const lastSlash = value.lastIndexOf("/");
+  const last = value.slice(lastSlash + 1);
+  const room = max - [...start].length - 2; // ellipsis and slash
+  if (lastSlash > start.length && last && room >= 4) return `${start}${ELLIPSIS}/${fileLabel(last, room)}`;
+  return cutMiddle(value, max);
+}
+
 export function fileLabel(name: string, max: number = PIN_LABEL_LIMITS.file): string {
   const chars = [...name];
   if (chars.length <= max) return name;
