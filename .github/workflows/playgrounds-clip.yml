@@ -22,6 +22,9 @@ jobs:
           node-version: 22.22.0
       - uses: browser-actions/setup-chrome@v2
         id: chrome
+        with:
+          # Numeric installs preserve the macOS .app bundle (stable-channel installs flatten it).
+          chrome-version: 155.0.8059.84
       - name: Allow Chrome's user-namespace sandbox on the disposable Linux runner
         if: runner.os == 'Linux'
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0

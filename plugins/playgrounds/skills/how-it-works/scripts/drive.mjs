@@ -115,7 +115,7 @@ async function main() {
     process.exit(1);
   }
   const profile = mkdtempSync(join(options.profileRoot ?? tmpdir(), "iso-drive-"));
-  const chrome = spawn(binary, ["--headless=new", ...(options.clip ? ["--use-gl=angle", "--use-angle=swiftshader"] : []), "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--allow-file-access-from-files", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "about:blank"]);
+  const chrome = spawn(binary, ["--headless=new", ...(options.clip ? ["--use-gl=angle", "--use-angle=swiftshader", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"] : []), "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--allow-file-access-from-files", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "about:blank"]);
   const stopChrome = () => { chrome.kill("SIGKILL"); try { rmSync(profile, { recursive: true, force: true }); } catch {} };
   process.once("SIGINT", () => { stopChrome(); process.exit(130); });
   process.once("SIGTERM", () => { stopChrome(); process.exit(143); });
@@ -186,7 +186,10 @@ async function main() {
     if (features.length) await send("Emulation.setEmulatedMedia", { features });
     const SLOW = `(()=>{const raf=window.requestAnimationFrame.bind(window);let real=null,virtual=0;window.__driveSpeed=1;window.requestAnimationFrame=(callback)=>raf((now)=>{if(real===null){real=now;virtual=now}virtual+=(now-real)*window.__driveSpeed;real=now;callback(virtual)});const clock=performance.now.bind(performance);let base=null,shown=0;performance.now=()=>{const now=clock();if(base===null){base=now;shown=now}shown+=(now-base)*window.__driveSpeed;base=now;return shown}})();`;
     const NO_GL = `(()=>{const get=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(kind,...rest){if(/webgl/.test(String(kind)))return null;return get.call(this,kind,...rest)}})();`;
-    const early = [SLOW, options.noWebgl ? NO_GL : "", options.preload ?? ""].filter(Boolean).join("\n");
+    // Fetch interception does not cover WebRTC ICE/STUN traffic. Install in every
+    // document/frame before card scripts can keep a reference to these constructors.
+    const NO_RTC = `for(const name of ["RTCPeerConnection","webkitRTCPeerConnection"])Object.defineProperty(globalThis,name,{value:undefined,writable:false,configurable:false});`;
+    const early = [options.clip ? NO_RTC : "", SLOW, options.noWebgl ? NO_GL : "", options.preload ?? ""].filter(Boolean).join("\n");
     await send("Page.addScriptToEvaluateOnNewDocument", { source: early });
     await send("Emulation.setDeviceMetricsOverride", { width: options.width, height: options.height, deviceScaleFactor: options.scale, mobile: options.width < 600 });
     await send("Page.navigate", { url });
