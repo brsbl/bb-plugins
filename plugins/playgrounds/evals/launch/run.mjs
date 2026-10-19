@@ -212,7 +212,7 @@ for (const provider of providers) for (const prompt of selected) {
     save(inflightPath,result);
     let threadInfo = await api(`/threads/${thread.id}?include=environment`);
     const environmentDeadline = Math.min(result.sentAt + capMs, Date.now() + 30_000);
-    while (!threadInfo.environment && Date.now() < environmentDeadline && !interrupted) {
+    while ((threadInfo.environment?.status !== 'ready' || !threadInfo.environment?.path) && Date.now() < environmentDeadline && !interrupted) {
       await new Promise(resolve => setTimeout(resolve, 250));
       threadInfo = await api(`/threads/${thread.id}?include=environment`);
     }
@@ -224,7 +224,7 @@ for (const provider of providers) for (const prompt of selected) {
     result.catalogDefaultModel = defaultModels.get(provider);
     if (thread.providerId !== provider || !result.model) throw new Error('Actual provider/model could not be verified');
     if (result.model !== result.catalogDefaultModel) throw new Error('Personal remembered a non-default model; reset the isolated instance before measuring');
-    if (threadInfo.projectId !== 'proj_personal' || threadInfo.environment?.workspaceProvisionType !== 'personal' || threadInfo.environment?.isGitRepo !== false) {
+    if (threadInfo.projectId !== 'proj_personal' || threadInfo.environment?.status !== 'ready' || !threadInfo.environment?.path || threadInfo.environment?.workspaceProvisionType !== 'personal' || threadInfo.environment?.isGitRepo !== false) {
       result.invalidSetup = true;
       throw new Error('Personal environment is missing or inherits a Git repository. Set GIT_CEILING_DIRECTORIES on the isolated server and host daemon before measuring.');
     }
