@@ -348,3 +348,24 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
     await rm(fixture, { recursive: true, force: true });
   }
 }, 180_000);
+
+
+it.each([
+  ["file-pins", "0.1.9"],
+])("keeps the %s marketplace tag installable at the repository root", async (slug, version) => {
+  if (!pluginRepository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");
+  const moduleUrl = pathToFileURL(resolve(pluginRepository, "tooling/publish-install-refs.mjs")).href;
+  const { prepareVersionedRelease, assertVersionTagUnchanged } = await import(moduleUrl);
+  await run(process.execPath, [resolve(pluginRepository, "tooling/build-plugin.mjs"), resolve(pluginRepository, `plugins/${slug}`)]);
+  const release = await prepareVersionedRelease(slug);
+  expect(release.tag).toBe(`${slug}/v${version}`);
+  expect(release.packagePath).toBe("");
+  const manifest = JSON.parse(await git(pluginRepository, ["show", `${release.commit}:package.json`]));
+  expect(manifest.name).toBe(`bb-plugin-${slug}`);
+  expect(manifest.bb.app).toBe("./dist/install-app.mjs");
+  expect(manifest.dependencies).toBeUndefined();
+  expect(() => assertVersionTagUnchanged(release, release.commit)).not.toThrow();
+  expect(() => assertVersionTagUnchanged(release, release.sourceRevision))
+    .toThrow(/already exists with different contents/);
+  expect((await prepareVersionedRelease(slug)).commit).toBe(release.commit);
+});
