@@ -20,7 +20,7 @@ it.each([
     text: "[bb system]\n\n@thread:sample-worker completed:\n\nSynthetic total: 42.",
   };
   const timeline = vi.fn(async ({ threadId, includeNestedRows, segmentLimit }: {
-    threadId: string; includeNestedRows?: string; segmentLimit: string;
+    threadId: string; includeNestedRows?: string; segmentLimit?: string;
   }) => ({
     rows: threadId === "sample-lead" ? [{
       id: "collapsed-turn", kind: "turn", createdAt: 1,
