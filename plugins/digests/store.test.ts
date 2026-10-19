@@ -175,6 +175,7 @@ const readingOwner: Owner = { class: "newsletters", digestId: "reading", name: "
 const owners = [moneyOwner, readingOwner];
 const base = { headline: "Brief", details: "Details." };
 const mailUrl = (messageId: string) => `https://mail.google.com/mail/u/0/#inbox/${messageId}`;
+const mail = { from: "Bills <bills@example.com>", subject: "Your bill" };
 
 function ledger() {
   const context = harness();
@@ -189,7 +190,7 @@ function ledger() {
   let count = 0;
   const begin = (digestId: string, at = NOW) => store.issues.create({ id: `iss_${digestId}_${count += 1}`, digestId, headline: "Preparing", createdAt: at }).id;
   const handOff = (messageId: string, at = NOW) => {
-    store.issues.publish(begin("inbox", at), { ...base, sources: [{ connectionId: "gmail", messageId, class: "money", placement: "handoff" }] }, at, { strict: true, owners });
+    store.issues.publish(begin("inbox", at), { ...base, sources: [{ connectionId: "gmail", messageId, class: "money", placement: "handoff", ...mail }] }, at, { strict: true, owners });
     return store.emailStatus("money", [{ connectionId: "gmail", messageId }], owners, [])[0] as { emailId: string };
   };
   return { ...context, begin, handOff };
@@ -206,9 +207,21 @@ describe("email ledger", () => {
     const later = NOW + 18.5 * HOUR;
     const candidate = { connectionId: "work-mail", messageId: "cc2", from: "NEWS@anthropic.com", subject: "what's new in  claude code", receivedAt: later };
     expect(store.emailStatus("reading", [candidate, { ...candidate, receivedAt: NOW + 73 * HOUR }], owners, [])).toEqual([
-      { status: "possible-copy", digestId: "reading", digestName: "Reading", issueId: first, row: { title: "Claude Code", text: "Plugins land." } },
+      { status: "possible-copy", digestId: "reading", digestName: "Reading", issueId: first, copyOf: { connectionId: "gmail", messageId: "cc1" }, row: { title: "Claude Code", text: "Plugins land." } },
       { status: "new" },
     ]);
+    // Another brief marks it copyOf exactly the returned key: one email, no new shown row, no placement.
+    const { copyOf } = store.emailStatus("inbox", [candidate], owners, [])[0] as { copyOf: { connectionId: string; messageId: string } };
+    const shownCount = () => db.prepare("SELECT count(*) AS count FROM digest_emails WHERE state = 'shown'").get();
+    expect(shownCount()).toEqual({ count: 1 });
+    const joined = store.issues.publish(begin("inbox", later), { ...base, sources: [{ connectionId: "work-mail", messageId: "cc2", copyOf, from: candidate.from, subject: candidate.subject, receivedAt: later }] },
+      later, { strict: true, owners });
+    expect(joined.sources[0]).not.toHaveProperty("placement");
+    const joinedIds = db.prepare("SELECT email_id FROM digest_email_copies WHERE gmail_message_id IN ('cc1', 'cc2')").all() as { email_id: string | null }[];
+    expect(joinedIds).toHaveLength(2);
+    expect(joinedIds[0]!.email_id).not.toBeNull();
+    expect(joinedIds[1]!.email_id).toBe(joinedIds[0]!.email_id);
+    expect(shownCount()).toEqual({ count: 1 });
 
     const second = begin("inbox", later);
     const statement = { from: "alerts@bank.com", subject: "Your statement", receivedAt: later };
@@ -226,7 +239,7 @@ describe("email ledger", () => {
   it("hands money mail to its owner and keeps every other brief from showing it again", () => {
     const { store, begin, handOff } = ledger();
     const { emailId } = handOff("bill1");
-    expect(() => store.issues.publish(begin("inbox"), { ...base, sources: [{ connectionId: "gmail", messageId: "bill1", class: "other", placement: "shown" }] }, NOW, { strict: true, owners }))
+    expect(() => store.issues.publish(begin("inbox"), { ...base, sources: [{ connectionId: "gmail", messageId: "bill1", class: "other", placement: "shown", ...mail }] }, NOW, { strict: true, owners }))
       .toThrow("Message bill1 from gmail is waiting for Money. Leave it out, or set urgent.");
     expect(store.emailStatus("reading", [{ connectionId: "gmail", messageId: "bill1" }], owners, []))
       .toEqual([{ status: "handed-off", ownerDigestId: "money", ownerName: "Money", until: moneyOwner.nextRunAt + 24 * HOUR }]);
@@ -237,7 +250,7 @@ describe("email ledger", () => {
     }]);
 
     const at = moneyOwner.nextRunAt;
-    store.issues.publish(begin("money", at), { ...base, sources: [{ connectionId: "gmail", messageId: "bill1", class: "money", placement: "shown" }] }, at, { strict: true, owners, returnedHandoffs: [emailId] });
+    store.issues.publish(begin("money", at), { ...base, sources: [{ connectionId: "gmail", messageId: "bill1", class: "money", placement: "shown", ...mail }] }, at, { strict: true, owners, returnedHandoffs: [emailId] });
     expect(store.handoffsFor("money", ["gmail"], new Set(["money"]), at)).toEqual([]);
 
     const retry = begin("reading", at);
@@ -251,7 +264,7 @@ describe("email ledger", () => {
   it("lets an urgent email bypass its owner", () => {
     const { store, begin } = ledger();
     const issueId = begin("inbox");
-    const due = { connectionId: "gmail", messageId: "due1", class: "money" as const, placement: "shown" as const };
+    const due = { connectionId: "gmail", messageId: "due1", class: "money" as const, placement: "shown" as const, ...mail };
     expect(() => store.issues.publish(issueId, { ...base, sources: [due] }, NOW, { strict: true, owners }))
       .toThrow("Money owns money mail from gmail; hand it off with placement handoff, or set urgent.");
     expect(store.issues.publish(issueId, { ...base, sources: [{ ...due, urgent: true }] }, NOW, { strict: true, owners }).state).toBe("ready");
@@ -259,7 +272,7 @@ describe("email ledger", () => {
 
   it("rejects strict publications whose cards or returned handoffs do not match their sources", () => {
     const { store, begin, handOff } = ledger();
-    const shown = { connectionId: "gmail", messageId: "m1", class: "other" as const, placement: "shown" as const };
+    const shown = { connectionId: "gmail", messageId: "m1", class: "other" as const, placement: "shown" as const, ...mail };
     const card = { title: "Pay", text: "Due Friday.", action: { label: "Open email", url: mailUrl("m1") } };
     const issueId = begin("inbox");
     expect(() => store.issues.publish(issueId, { ...base, sources: [shown], brief: { heading: "Inbox", items: [card] } }, NOW, { strict: true, owners }))
@@ -267,7 +280,7 @@ describe("email ledger", () => {
     expect(() => store.issues.publish(issueId, { ...base, sources: [{ ...shown, placement: undefined }] }, NOW, { strict: true, owners }))
       .toThrow("needs a placement");
     expect(() => store.issues.publish(issueId, {
-      ...base, sources: [shown, { connectionId: "gmail", messageId: "bill2", class: "money", placement: "handoff" }],
+      ...base, sources: [shown, { connectionId: "gmail", messageId: "bill2", class: "money", placement: "handoff", ...mail }],
       brief: { heading: "Inbox", items: [{ ...card, messageId: "m1" }], later: [{ title: "Bill", messageId: "bill2" }] },
     }, NOW, { strict: true, owners })).toThrow("Message bill2 is handoff, so it cannot appear in the brief.");
     expect(store.issues.get(issueId)?.state).toBe("collecting");
@@ -293,8 +306,8 @@ describe("email ledger", () => {
       .toEqual([{ status: "handed-to-you", emailId: shown.emailId, class: "money", handedOffBy: "inbox" }]);
     const issueId = begin("reading", expired);
     store.issues.publish(issueId, { ...base, sources: [
-      { connectionId: "gmail", messageId: "bill4", class: "money", placement: "shown" },
-      { connectionId: "gmail", messageId: "bill5", class: "money", placement: "released", reason: "Already paid" },
+      { connectionId: "gmail", messageId: "bill4", class: "money", placement: "shown", ...mail },
+      { connectionId: "gmail", messageId: "bill5", class: "money", placement: "released", reason: "Already paid", ...mail },
     ] }, expired, { strict: true, owners, returnedHandoffs: returned });
     expect(store.emailStatus("inbox", [{ connectionId: "gmail", messageId: "bill4" }, { connectionId: "gmail", messageId: "bill5" }], owners, [])).toEqual([
       { status: "shown", digestId: "reading", digestName: "Reading", issueId, threadId: null, shownAt: expired },
@@ -341,5 +354,69 @@ describe("email ledger", () => {
     store.issues.publish(begin("x-feed"), { ...base, sources: [{ connectionId: "x", messageId: "post1" }] }, NOW);
     expect(store.issues.publish(begin("x-feed"), { ...base, sources: [{ connectionId: "x", messageId: "post1", deduplicate: false }] }, NOW).state).toBe("ready");
     expect(() => store.issues.publish(begin("x-feed"), { ...base, sources: [{ connectionId: "x", messageId: "post1" }] }, NOW)).toThrow("already digested");
+  });
+
+  it("requires class, from and subject on every strict Gmail source and writes nothing when one is missing", () => {
+    const { store, db, begin } = ledger();
+    const issueId = begin("inbox");
+    expect(() => store.issues.publish(issueId, { ...base, sources: [{ connectionId: "gmail", messageId: "m9", placement: "shown", ...mail }] }, NOW, { strict: true, owners }))
+      .toThrow("Message m9 from gmail needs class, from and subject.");
+    expect(store.issues.get(issueId)).toMatchObject({ state: "collecting", sources: [] });
+    expect(db.prepare("SELECT count(*) AS count FROM digest_emails").get()).toEqual({ count: 0 });
+    expect(db.prepare("SELECT count(*) AS count FROM digest_email_copies").get()).toEqual({ count: 0 });
+    expect(store.processed("inbox", "gmail", ["m9"])).toEqual([]);
+  });
+
+  it("treats a returned handoff another brief already showed as accounted for, and never releases it", () => {
+    const { store, begin, handOff } = ledger();
+    const { emailId } = handOff("bill6");
+    const readingIssue = begin("reading");
+    // Money shows it before Reading, which also got it back, publishes.
+    const moneyIssue = begin("money");
+    store.issues.publish(moneyIssue, { ...base, sources: [{ connectionId: "gmail", messageId: "bill6", class: "money", placement: "shown", ...mail }] }, NOW, { strict: true, owners, returnedHandoffs: [emailId] });
+    expect(() => store.issues.publish(readingIssue, { ...base, sources: [{ connectionId: "gmail", messageId: "bill6", class: "money", placement: "released", reason: "Paid", ...mail }] }, NOW, { strict: true, owners, returnedHandoffs: [emailId] }))
+      .toThrow("Message bill6 from gmail is no longer waiting for a brief, so it cannot be released.");
+    expect(store.issues.publish(readingIssue, { ...base }, NOW, { strict: true, owners, returnedHandoffs: [emailId] }).state).toBe("ready");
+    expect(store.emailStatus("inbox", [{ connectionId: "gmail", messageId: "bill6" }], owners, []))
+      .toEqual([{ status: "shown", digestId: "money", digestName: "Money", issueId: moneyIssue, threadId: null, shownAt: NOW }]);
+  });
+
+  it("rejects a copy whose own inbox key another brief already showed, leaving the ledger unchanged", () => {
+    const { store, db, begin } = ledger();
+    store.issues.publish(begin("reading"), { ...base, sources: [{ connectionId: "work-mail", messageId: "w1", class: "other", placement: "shown", ...mail }] }, NOW, { strict: true, owners });
+    const snapshot = () => [db.prepare("SELECT * FROM digest_emails ORDER BY id").all(), db.prepare("SELECT * FROM digest_email_copies ORDER BY connection_id, gmail_message_id").all()];
+    const before = snapshot();
+    const issueId = begin("inbox");
+    expect(() => store.issues.publish(issueId, { ...base, sources: [
+      { connectionId: "gmail", messageId: "g1", class: "other", placement: "shown", ...mail },
+      { connectionId: "work-mail", messageId: "w1", copyOf: { connectionId: "gmail", messageId: "g1" }, ...mail },
+    ] }, NOW, { strict: true, owners })).toThrow("Message w1 from work-mail was already shown in Reading");
+    expect(snapshot()).toEqual(before);
+    expect(store.issues.get(issueId)?.state).toBe("collecting");
+  });
+
+  it("lets Money publish a spending summary line in later without a messageId", () => {
+    const { store, begin } = ledger();
+    const counted = [
+      { connectionId: "gmail", messageId: "r1", class: "money" as const, placement: "counted" as const, ...mail },
+      { connectionId: "work-mail", messageId: "r2", class: "money" as const, placement: "counted" as const, ...mail },
+    ];
+    const brief = (later: { title: string; action?: { label: string; url: string } }[]) => ({ heading: "Needs you", items: [], later, laterLabel: "This week" });
+    expect(() => store.issues.publish(begin("money"), { ...base, sources: counted, brief: brief([{ title: "Review card", action: { label: "Review card", url: "https://app.mercury.com/" } }]) }, NOW, { strict: true, owners }))
+      .toThrow("Each entry in later needs the Gmail message ID");
+    expect(store.issues.publish(begin("money"), { ...base, sources: counted, brief: brief([{ title: "Spent $412 this week" }]) }, NOW, { strict: true, owners }).state).toBe("ready");
+  });
+
+  it("never stores a source's sender, subject or headers, while the ledger still uses them", () => {
+    const { store, db, begin } = ledger();
+    const issueId = begin("inbox");
+    const published = store.issues.publish(issueId, { ...base, sources: [{
+      connectionId: "gmail", messageId: "p1", class: "other", placement: "shown", ...mail, rfcMessageId: "<p1@example.com>", signedBy: "example.com",
+    }] }, NOW, { strict: true, owners });
+    const stored = { connectionId: "gmail", messageId: "p1", class: "other", placement: "shown" };
+    expect(published.sources).toEqual([stored]);
+    expect(store.issues.get(issueId)?.sources).toEqual([stored]);
+    expect(db.prepare("SELECT rfc_message_id, fingerprint IS NOT NULL AS fingerprinted FROM digest_email_copies WHERE gmail_message_id = 'p1'").get())
+      .toEqual({ rfc_message_id: "<p1@example.com>", fingerprinted: 1 });
   });
 });

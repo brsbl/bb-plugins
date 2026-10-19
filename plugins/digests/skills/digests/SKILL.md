@@ -93,14 +93,15 @@ the accounts it reads.
 
 Classify each email as money, newsletters or other. Call `digest_email_status`
 with candidate IDs (and from, subject, receivedAt, rfcMessageId when the list
-shows them) before opening mail. Skip emails shown or handed off elsewhere. For
-a possible copy, compare bodies: the same email becomes `copyOf` the shown
-source; different content is shown. Publish every Gmail email read as a source
+shows them) before opening mail. Skip emails already shown in any brief, including this one, or handed off elsewhere. For
+a possible copy, compare bodies: if it is the same email, mark it `copyOf` the
+returned `copyOf` key; different content is shown. Publish every Gmail email read as a source
 with `class`, `from`, `subject`, `placement` (`shown`, `handoff`, `released`
 with a `reason`, or `counted`), plus `receivedAt`, `rfcMessageId` and
 `signedBy` when known. Set `urgent: true` to show mail the owner would see too
 late. Account for every returned handoff. Cards, `later` entries and rows cite
-their shown email with `messageId` / `messageIds`; same-run copies in other
+their shown email with `messageId` / `messageIds`; summary lines in `later`
+without buttons (such as "Spent $412 this week") need no `messageId`; same-run copies in other
 inboxes go in a row's `copies`. Everything left out appears only in
 `brief.elsewhere` ("Also: 3 in Money (Mon)"). `deduplicate:false` no longer
 bypasses this for Gmail. Non-Gmail briefs still use `digest_processed`. Failed

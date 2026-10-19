@@ -56,6 +56,22 @@ describe("checkTaskLink", () => {
     expect(reason("https://app.mercury.com/transactions?next=%2Fhome")).toMatch(/redirect/u);
   });
 
+  it("rejects fragments and hidden next hops in query values and path segments", () => {
+    for (const url of ["https://app.mercury.com/#/approve?token=abc123", "https://app.mercury.com/#/unsubscribe", "https://app.mercury.com/login#next=https://evil.com"]) {
+      expect(reason(url)).toMatch(/#fragment/u);
+    }
+    for (const url of [
+      "https://app.mercury.com/transactions?returnUrl=/%5Cevil.com",
+      "https://app.mercury.com/transactions?returnUrl=//x@evil.com",
+      "https://app.mercury.com/transactions?returnUrl=https:/%5Cevil.com",
+      "https://app.mercury.com/transactions?returnUrl=//evil%E3%80%82com",
+      "https://app.mercury.com/transactions?returnUrl=//%D0%B5vil.com",
+      "https://app.mercury.com/transactions?l=%2F%09%2Fevil.com",
+      "https://app.mercury.com/go/%5Cevil.com",
+    ]) expect(reason(url), url).toMatch(/another URL or host/u);
+    expect(reason("https://app.mercury.com/statements/receipt.pdf?id=123&tab=transactions")).toBeNull();
+  });
+
   it("requires plain HTTPS on a normal host", () => {
     expect(reason("http://app.mercury.com/transactions")).toMatch(/HTTPS/u);
     expect(reason("https://app.mercury.com:8443/transactions")).toMatch(/port/u);
@@ -118,6 +134,15 @@ describe("verifyTaskLinks", () => {
     const result = verifyTaskLinks(input, [source("m2", {}), source("m3", { from: "bills@example.com", signedBy: "example.com" })]);
     expect(result.items[0]!.action).toEqual({ label: "Open email", url: gmail });
     expect(result.later[0]).toEqual({ title: "Pay the bill", messageId: "m3", action: { label: "Open email", url: gmail } });
+  });
+
+  it("labels every Gmail main action Open email, so no Read button survives", () => {
+    const input = brief([{ title: "A newsletter", text: "", messageId: "m4", action: { label: "Read", url: gmail } }], [
+      { title: "Another", messageId: "m5", action: { label: "Read email", url: gmail } },
+    ]);
+    const result = verifyTaskLinks(input, [source("m4", {}), source("m5", {})]);
+    expect(result.items[0]!.action).toEqual({ label: "Open email", url: gmail });
+    expect(result.later[0]!.action).toEqual({ label: "Open email", url: gmail });
   });
 
   it("rejects a failing task link with no Gmail fallback", () => {

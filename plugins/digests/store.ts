@@ -93,7 +93,7 @@ export type EmailStatus =
   | { status: "shown"; digestId: string; digestName: string; issueId: string | null; threadId: string | null; shownAt: number }
   | { status: "handed-to-you"; emailId: string; class: MailClass | null; handedOffBy: string | null }
   | { status: "handed-off"; ownerDigestId: string | null; ownerName: string; until: number | null }
-  | { status: "possible-copy"; digestId: string; digestName: string; issueId: string | null; row?: { title: string; text: string } }
+  | { status: "possible-copy"; digestId: string; digestName: string; issueId: string | null; copyOf: { connectionId: string; messageId: string }; row?: { title: string; text: string } }
   | { status: "released"; reason: string | null }
   | { status: "new" };
 export type Handoff = {
@@ -333,6 +333,9 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
           if (strict && source.copyOf === undefined && source.placement === undefined) {
             throw new Error(`${label} needs a placement: shown, handoff, released, or counted.`);
           }
+          if (strict && source.copyOf === undefined && (source.class === undefined || source.from === undefined || source.subject === undefined)) {
+            throw new Error(`${label} needs class, from and subject.`);
+          }
           const placement: Placement = source.copyOf !== undefined ? "copy" : source.placement ?? "shown";
           const email = findEmail(source.connectionId, source.messageId, source.rfcMessageId);
           const returnedHere = email !== undefined && returned.has(email.id);
@@ -352,7 +355,17 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
           if (placement === "released" && !returnedHere) {
             throw new Error(`${label} was not handed to this brief, so it cannot be released.`);
           }
+          if (placement === "released" && email?.state !== "handoff") {
+            throw new Error(`${label} is no longer waiting for a brief, so it cannot be released. Leave it out.`);
+          }
           if (source.copyOf !== undefined) {
+            // A copy's own inbox key must not already be shown or waiting for another brief.
+            const ownId = copyEmailId(source.connectionId, source.messageId);
+            const own = ownId === null ? undefined : emailGet(ownId);
+            if (own?.state === "shown") throw shownError(source, own);
+            if (own?.state === "handoff" && own.owner_digest_id !== digestId && !returned.has(own.id)) {
+              throw new Error(`${label} is waiting for ${digestName(own.owner_digest_id, owners)}. Leave it out.`);
+            }
             const { connectionId, messageId } = source.copyOf;
             const inPayload = payload.sources.some((other) => other.connectionId === connectionId && other.messageId === messageId && other.copyOf === undefined);
             const recorded = db.prepare(`SELECT 1 FROM digest_email_copies WHERE connection_id = ? AND gmail_message_id = ?`).get(connectionId, messageId) !== undefined;
@@ -380,17 +393,24 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
             }
           };
           for (const item of brief.items) cite("card in items", item.messageId === undefined ? undefined : [item.messageId]);
-          for (const item of brief.later) cite("entry in later", item.messageId === undefined ? undefined : [item.messageId]);
+          for (const item of brief.later) {
+            // A later line without buttons may be a summary, such as "Spent $412 this week".
+            if (item.messageId === undefined && item.action === undefined && item.secondaryAction === undefined) continue;
+            cite("entry in later", item.messageId === undefined ? undefined : [item.messageId]);
+          }
           for (const row of brief.tail?.items ?? []) cite("row in tail", row.messageIds);
           for (const row of brief.all?.items ?? []) cite("row in all", row.messageIds);
         }
         if (strict) {
-          const unaccounted = [...returned].filter((emailId) => !plans.some(({ email, placement }) => email?.id === emailId
+          // A returned email another brief already showed or released is accounted for.
+          const unaccounted = [...returned].filter((emailId) => emailGet(emailId)?.state === "handoff" && !plans.some(({ email, placement }) => email?.id === emailId
             && (placement === "shown" || placement === "released" || (placement === "handoff" && email.owner_digest_id !== digestId))));
           if (unaccounted.length) throw new Error(`Show or release every email handed to this brief: ${unaccounted.join(", ")}.`);
         }
 
-        const result = IssueSchema.parse({ ...previous, ...payload, state: "ready", recovery: null, publishedAt });
+        // Briefs never stores sender, subject or headers; the ledger below reads them from the payload.
+        const sources = payload.sources.map(({ from: _from, subject: _subject, rfcMessageId: _rfc, signedBy: _signedBy, reason: _reason, ...kept }) => kept);
+        const result = IssueSchema.parse({ ...previous, ...payload, sources, state: "ready", recovery: null, publishedAt });
         writeIssue(result);
         const insertProcessed = db.prepare(`INSERT INTO digest_processed_sources
           (digest_id, connection_id, message_id, thread_id, issue_id, processed_at) VALUES (?, ?, ?, ?, ?, ?)
@@ -434,7 +454,12 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
         for (const { source, placement } of plans) {
           if (placement !== "copy" || source.copyOf === undefined) continue;
           const target = sourceKey(source.copyOf.connectionId, source.copyOf.messageId);
-          writeCopy(source, emailIds.has(target) ? emailIds.get(target)! : copyEmailId(source.copyOf.connectionId, source.copyOf.messageId));
+          const emailId = emailIds.has(target) ? emailIds.get(target)! : copyEmailId(source.copyOf.connectionId, source.copyOf.messageId);
+          const existing = copyEmailId(source.connectionId, source.messageId);
+          if (existing !== null && emailId !== null && existing !== emailId) {
+            throw new Error(`Message ${source.messageId} from ${source.connectionId} is already recorded as a different email, so it cannot be marked as a copy.`);
+          }
+          writeCopy(source, emailId);
         }
         return result;
       }).immediate();
@@ -458,7 +483,7 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
     emailStatus(digestId: string, candidates: EmailCandidate[], owners: Owner[], returnedHandoffs: string[]): EmailStatus[] {
       DigestIdSchema.parse(digestId);
       const returned = new Set(returnedHandoffs);
-      const likelyCopy = db.prepare(`SELECT c.gmail_message_id, e.owner_digest_id, e.issue_id
+      const likelyCopy = db.prepare(`SELECT c.connection_id, c.gmail_message_id, e.owner_digest_id, e.issue_id
         FROM digest_email_copies c JOIN digest_emails e ON e.id = c.email_id
         WHERE c.fingerprint = ? AND c.received_at BETWEEN ? AND ? AND c.connection_id <> ? AND e.state = 'shown'
         ORDER BY abs(c.received_at - ?) LIMIT 1`);
@@ -478,11 +503,11 @@ export function createStore(bb: Pick<BbPluginApi, "storage">) {
         const { from, subject, receivedAt } = candidate;
         if (from === undefined || subject === undefined || receivedAt === undefined) return { status: "new" };
         const match = likelyCopy.get(emailFingerprint(from, subject), receivedAt - COPY_WINDOW, receivedAt + COPY_WINDOW, candidate.connectionId, receivedAt) as
-          { gmail_message_id: string; owner_digest_id: string | null; issue_id: string | null } | undefined;
+          { connection_id: string; gmail_message_id: string; owner_digest_id: string | null; issue_id: string | null } | undefined;
         if (match === undefined) return { status: "new" };
         const row = briefRow(match.issue_id, match.gmail_message_id);
         return { status: "possible-copy", digestId: match.owner_digest_id ?? "", digestName: digestName(match.owner_digest_id, owners),
-          issueId: match.issue_id, ...(row ? { row } : {}) };
+          issueId: match.issue_id, copyOf: { connectionId: match.connection_id, messageId: match.gmail_message_id }, ...(row ? { row } : {}) };
       });
     },
     /** Handoffs this brief must show or release: its own, plus orphans whose owner stopped or missed its run. */

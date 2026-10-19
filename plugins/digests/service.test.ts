@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PublishInputSchema } from "./model";
 import { createService } from "./service";
+import type { Owner } from "./store";
 import type { SignInPage } from "./signin";
 
 const DAY = 86_400_000;
@@ -96,7 +97,7 @@ function setup(options: { runs?: Array<{
 const payload = () => PublishInputSchema.parse({
   headline: "One worthwhile read", metrics: [{ label: "Newsletters", value: "1" }],
   details: "A useful product essay, summarized from its preview snippet.",
-  sources: [{ connectionId: "gmail", messageId: "message_1", placement: "shown" }],
+  sources: [{ connectionId: "gmail", messageId: "message_1", placement: "shown", class: "other", from: "Essays <essays@example.com>", subject: "A product essay" }],
 });
 
 function withTwoInboxes(service: ReturnType<typeof setup>["service"], money?: { enabled: boolean }) {
@@ -638,12 +639,25 @@ describe("email ownership across briefs", () => {
     expect(published.issue.state).toBe("ready");
   });
 
+  it("fails a brief closed when an owner's schedule can't be read, without taking its handoffs", async () => {
+    const { service } = setup({ automations: {} });
+    withTwoInboxes(service, { enabled: true });
+    const money: Owner = { class: "money", digestId: "money", name: "Money", connectionIds: ["gmail", "gmail-brsabel"], nextRunAt: NOW };
+    service.store.issues.create({ id: "iss_handoff", digestId: "reading", headline: "Preparing", createdAt: NOW });
+    service.store.issues.publish("iss_handoff", { ...payload(), sources: [{ ...moneyMail("bill_9"), placement: "handoff" }] }, NOW, { strict: true, owners: [money] });
+    const result = await service.begin("reading", "thr_owner_check");
+    expect(result).toMatchObject({ complete: true, issue: { state: "failed", recovery: "retry", details: "Couldn't check Money's schedule. Retry this brief." } });
+    expect(result).not.toHaveProperty("handoffs");
+    expect(service.store.emailStatus("reading", [{ connectionId: "gmail-brsabel", messageId: "bill_9" }], [money], []))
+      .toMatchObject([{ status: "handed-off", ownerDigestId: "money" }]);
+  });
+
   it("downgrades a strict run's unverifiable task link to its email", async () => {
     const { service } = setup();
     await service.begin("reading", "thr_links");
     const gmailUrl = "https://mail.google.com/mail/u/0/#inbox/message_1";
     const published = await service.publishCurrent("thr_links", PublishInputSchema.parse({ ...payload(),
-      sources: [{ connectionId: "gmail", messageId: "message_1", placement: "shown", class: "other", from: "Bills <bills@example.com>", signedBy: "example.com" }],
+      sources: [{ connectionId: "gmail", messageId: "message_1", placement: "shown", class: "other", from: "Bills <bills@example.com>", subject: "Your bill", signedBy: "example.com" }],
       brief: { heading: "Today", items: [{ title: "Pay the bill", text: "Due Friday", messageId: "message_1",
         action: { label: "Pay now", url: "https://u123.ct.sendgrid.net/ls/click?upn=abc" }, secondaryAction: { label: "Email", url: gmailUrl } }] },
     }));

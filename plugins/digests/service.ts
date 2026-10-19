@@ -97,7 +97,7 @@ export function createService(bb: BbPluginApi) {
     return url !== undefined && new URL(url).hostname === "mail.google.com";
   };
   const gmailIds = (definition: DigestDefinition) => definition.connectionIds.filter(isGmail);
-  /** Eligible class owners, read live from each enabled, scheduled brief's automation. Never persisted. */
+  /** Eligible class owners, read live from each enabled, scheduled brief's automation. Never persisted. Throws when a schedule can't be read. */
   async function owners(): Promise<Owner[]> {
     const result: Owner[] = [];
     for (const definition of store.definitions.list()) {
@@ -107,7 +107,11 @@ export function createService(bb: BbPluginApi) {
       try {
         const current = await automation("automations_get", { projectId: automationProject(definition), automationId: definition.automationId }, automationSchema);
         if (current.enabled && typeof current.nextRunAt === "number") nextRunAt = current.nextRunAt;
-      } catch (error) { bb.log.warn(`Digest ${definition.id} owner check: ${error instanceof Error ? error.message : String(error)}`); }
+      } catch (error) {
+        // Fail closed: an unknown schedule must not hand this owner's mail to another brief.
+        bb.log.warn(`Digest ${definition.id} owner check: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Couldn't check ${definition.name}'s schedule. Retry this brief.`);
+      }
       if (nextRunAt === null) continue;
       const connectionIds = gmailIds(definition);
       for (const ownedClass of classes) result.push({ class: ownedClass, digestId: definition.id, name: definition.name, connectionIds, nextRunAt });

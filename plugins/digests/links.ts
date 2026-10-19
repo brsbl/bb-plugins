@@ -102,6 +102,21 @@ function looksLikeUrlOrHost(value: string): boolean {
   return result.isIp === true || (!!result.domain && (result.isIcann === true || result.isPrivate === true));
 }
 
+/** A decoded path segment or query value that could steer the page to another host. */
+function nextHop(value: string): boolean {
+  if (value.includes("\\") || value.includes("@")) return true;
+  for (const char of value) {
+    const code = char.codePointAt(0)!;
+    // Control, whitespace and non-ASCII characters can hide a host from simple checks.
+    if (code <= 0x20 || code >= 0x7f) return true;
+  }
+  try {
+    return new URL(value, "https://placeholder.invalid/").hostname !== "placeholder.invalid";
+  } catch {
+    return value !== "" && (value.includes("/") || value.includes("\\"));
+  }
+}
+
 function decode(value: string): string | null {
   try {
     return decodeURIComponent(value);
@@ -120,6 +135,8 @@ export function checkTaskLink(url: string, label: string, sender: TaskLinkSender
   if (parsed.protocol !== "https:") return fail("not HTTPS");
   if (parsed.port) return fail("uses a non-default port");
   if (parsed.username || parsed.password) return fail("carries a username or password");
+  // Single-page apps route and act on the fragment, which these checks can't see.
+  if (parsed.hash) return fail("has a #fragment");
   const host = parsed.hostname.toLowerCase().replace(/\.$/u, "");
   if (host.startsWith("[") || /^\d+(?:\.\d+){3}$/u.test(host)) return fail("uses an IP address");
   const domain = registrableDomain(host);
@@ -139,7 +156,8 @@ export function checkTaskLink(url: string, label: string, sender: TaskLinkSender
   const params = [...parsed.searchParams.entries()];
   const names = params.map(([name]) => name.toLowerCase());
   if (names.some((name) => REDIRECT_PARAMS.includes(name))) return fail("has a redirect parameter");
-  if ((segments as string[]).some(looksLikeUrlOrHost) || params.some(([, value]) => looksLikeUrlOrHost(value))) {
+  if ((segments as string[]).some((segment) => looksLikeUrlOrHost(segment) || nextHop(segment))
+    || params.some(([, value]) => looksLikeUrlOrHost(value) || nextHop(value))) {
     return fail("carries another URL or host");
   }
 
@@ -187,7 +205,9 @@ function verifyCard<T extends Card>(card: T, sources: readonly Source[]): T {
     delete (next as Card).secondaryAction;
   }
   const action = next.action;
-  if (!action || isEmailUrl(action.url)) return next;
+  if (!action) return next;
+  // The email button is always labeled Open email, so no Read button survives.
+  if (isEmailUrl(action.url)) return action.label === "Open email" ? next : { ...next, action: { label: "Open email", url: action.url } };
   const result = checkTaskLink(action.url, action.label, sender);
   if (result.ok) return next;
   const service = authenticatedService(sender);
@@ -206,7 +226,7 @@ function verifyCard<T extends Card>(card: T, sources: readonly Source[]): T {
  * Applies the task-link rules to items[] and later[]. Each card is checked against the source
  * with the same messageId. A failing link becomes "Go to <Service>" for an authenticated known
  * service, else the card's Gmail secondaryAction relabeled "Open email". Throws when a failing
- * link has no Gmail fallback. Gmail actions are never changed.
+ * link has no Gmail fallback. Gmail actions keep their URL and are labeled "Open email".
  */
 export function verifyTaskLinks(brief: Brief, sources: readonly Source[]): Brief {
   return {
