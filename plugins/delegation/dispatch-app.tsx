@@ -36,9 +36,11 @@ async function conversationPage(sdk: Sdk, threadId: string, segments: number, si
       for (let index = row.children.length - 1; index >= 0; index--) pending.push(row.children[index]!);
     }
   }
+  // Older servers send hasOlderRows; current servers expose only olderCursor.
+  const meta = page.timelinePage as { hasOlderRows?: boolean; olderCursor?: unknown } | undefined;
   return {
     rows: [...rows.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)),
-    complete: !(page.timelinePage as { hasOlderRows?: boolean } | undefined)?.hasOlderRows,
+    complete: meta?.hasOlderRows !== undefined ? meta.hasOlderRows === false : meta?.olderCursor == null,
   };
 }
 
