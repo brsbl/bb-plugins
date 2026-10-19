@@ -1,6 +1,6 @@
 ---
 name: inline-action-cards
-description: Use when a thread needs something only the user can decide, such as sending or publishing in their name, a merge or release their process reserves for them, spending money, changing their accounts or production, or a real choice with no clear default. Not for routine steps of their normal working process, for approvals that need a careful review of an artifact, or for tasks an agent could do itself. Create decision cards or asks in Waiting on you instead of prose confirmation questions, handle answers, and report outcomes on the cards.
+description: Use when a thread needs something only the user can decide, such as sending or publishing in their name, a merge or release their process reserves for them, spending money, changing their accounts or production, or a real choice with no clear default. Not for routine steps of their normal working process, for approvals that need a careful review of an artifact, or for handing the user tasks agents could do. Create decision cards or asks in Waiting on you instead of prose confirmation questions, handle answers, and report outcomes on the cards.
 ---
 
 # Inline Decisions
@@ -35,7 +35,7 @@ When unsure and the step is reversible, take the default and say what you chose 
 
 **Reviews aren't cards.** If deciding means reading an artifact carefully (a spec, document, design, copy or a long draft), a one-click card invites approval without review. Hand off the artifact where the user reviews it (a pinned note, the document itself, a PR) and ask for the review in one plain line, as an ask (below). Act on their review wherever they give it. A card fits only after the review, when what remains is a glance-sized choice, such as publishing the reviewed version. A short email draft shown in full on a Reply card is fine; the card is the review.
 
-**Tasks are a last resort.** Hand the user a task (“sign in, then reply done”) only when no agent can do it: their own sign-in, a legal signature, a payment authorization. Do everything else first, so their part is one small step, and say exactly where to take it. Never hand them work an agent could do with the tools it has. If the same task keeps coming back, such as a sign-in that keeps expiring, fix the cause instead of asking again.
+**Do the work; the user approves.** Agents do every task they can. Before handing the user anything to do, try every route: browser automation in their signed-in browser, CLIs and APIs, plugins, and other agents. If agents still can't do it, work on removing the blocker: fix its cause (such as a sign-in that keeps expiring), or ask for the tool that's missing. Hand the user a step only when no agent could ever take it (their own sign-in or a legal signature) or the work can't wait for the fix. Then make it an approval if you can, or else the single smallest step, with everything else done and the exact place to take it.
 
 **One decision per message.** Bring only the decision that blocks your next step right now. Hold the rest, and bring the next one after the user answers. Use a single card for it; when the user picks one of several options, use one choice card, never a table of yes/no rows. A table (decision sheet) is the exception: at most 3 tightly linked rows that only make sense answered together, never a way to clear a backlog.
 
