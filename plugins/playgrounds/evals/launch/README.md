@@ -105,3 +105,5 @@ summary; do not silently drop failures or edit the prompt corpus between rounds.
 
 The runner stops only threads it created. Driver PIDs and actions are recorded;
 its private Chrome profiles use the result directory's `.tmp` via `TMPDIR`.
+On Linux a short `/proc/<runner-pid>/fd/<directory-fd>` alias avoids Chrome's
+Unix socket path limit; the data remains physically inside that `.tmp` directory.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn, execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkControls } from './controls.mjs';
@@ -32,6 +32,12 @@ const selected = prompts.filter(p => !args.only || args.only.split(',').includes
 if (!selected.length) throw new Error('No prompt matched --only');
 mkdirSync(out, { recursive: true });
 mkdirSync(join(out, '.tmp'), { recursive: true });
+// Chrome's singleton socket cannot fit long worktree paths. Keep a directory
+// descriptor open for the runner lifetime; its short alias still stores every
+// profile and socket inside this run's owned directory.
+const chromeTempDir = process.platform === 'linux'
+  ? `/proc/${process.pid}/fd/${openSync(join(out, '.tmp'), 'r')}`
+  : join(out, '.tmp');
 const manifestPath = join(out, 'manifest.json');
 const commit = args.commit || (() => { try { return execFileSync('git', ['-C', pluginRoot, 'rev-parse', 'HEAD'], {encoding:'utf8'}).trim(); } catch { return 'unverified'; } })();
 const manifest = { label: args.label, url: base.origin, host: args.host, pluginRoot, commit, capMs, renderGraceMs: 30_000,
@@ -126,7 +132,7 @@ async function drive(target, actions, stem, width = 1280, { preload, timeout = 2
   writeFileSync(`${stem}.actions.json`, JSON.stringify(actions, null, 2));
   const command = [drivePath, target, '--actions', `${stem}.actions.json`, '--width', String(width), '--height', '1100', '--reduced'];
   if (preload) command.push('--preload', preload);
-  const child = spawn(process.execPath, command, { detached: true, env: { ...process.env, TMPDIR: join(out, '.tmp') }, stdio: ['ignore','pipe','pipe'] });
+  const child = spawn(process.execPath, command, { detached: true, env: { ...process.env, TMPDIR: chromeTempDir }, stdio: ['ignore','pipe','pipe'] });
   writeFileSync(`${stem}.pid`, String(child.pid));
   let log = '';
   child.stdout.on('data', chunk => { log += chunk; });
