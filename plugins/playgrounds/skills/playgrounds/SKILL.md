@@ -138,9 +138,11 @@ The original prompt and exact bb credit are included; Anatomy also credits Ryan.
 If provenance is missing, supply the original user prompt with `--prompt`.
 
 This is a standalone replay, not a screen recording of the user's bb. It uses
-headless Chrome (`CHROME_PATH` can select it) and a temporary private profile.
+headless Chrome and a temporary private profile. It reuses a detected browser
+(`CHROME_PATH` can select it), or automatically caches a pinned, checksum-verified
+Chrome for Testing archive and extracts it for this export.
 FFmpeg is discovered or downloaded automatically as a checksum-verified portable
-encoder on Mac arm64/x64 and Linux x64. No manual encoder installation is needed.
+encoder on Mac arm64/x64 and Linux x64. No manual browser or encoder installation is needed.
 Card content stays local; the renderer blocks network requests, so embed images
 as data URLs. On a managed host, launch the command through `bb host-care start`.
 Hand back links to the MP4/GIF files; never upload or post them. Native cards are

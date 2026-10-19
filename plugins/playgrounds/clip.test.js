@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { clipOptions, endFrame, inspectGif, CREDIT, ANATOMY_CREDIT } from "./skills/how-it-works/scripts/clip-record.mjs";
 
 function gif({ width = 1, height = 1, frames = 1 } = {}) {
@@ -23,4 +23,19 @@ it("keeps exact credit and original prompt, safely escaped at readable sizes", (
   expect(html).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; why?");
   expect(html).toContain("font:32px");
   expect(endFrame({ prompt: "Why?", anatomy: false })).not.toContain(ANATOMY_CREDIT);
+});
+
+
+it("rejects a corrupted browser archive before extraction and gives one recovery instruction", async () => {
+  const { mkdtempSync, existsSync, rmSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { clipBrowserPath } = await import("./skills/how-it-works/scripts/clip-browser.mjs");
+  const work = mkdtempSync(join(process.cwd(), ".clip-browser-test-"));
+  vi.stubEnv("BB_CLIP_PORTABLE_BROWSER", "1");
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("corrupted browser archive")));
+  try {
+    await expect(clipBrowserPath(work, join(work, "cache"))).rejects.toThrow("Could not prepare the clip browser; set CHROME_PATH to a working Chrome or Chromium executable and retry.");
+    expect(existsSync(join(work, "cache", "chrome.zip"))).toBe(false);
+    expect(existsSync(join(work, "browser"))).toBe(false);
+  } finally { vi.unstubAllGlobals(); vi.unstubAllEnvs(); rmSync(work, { recursive: true, force: true }); }
 });

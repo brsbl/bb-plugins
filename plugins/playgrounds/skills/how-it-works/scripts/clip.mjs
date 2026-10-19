@@ -6,6 +6,7 @@ import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { clipOptions, endFrame } from "./clip-record.mjs";
+import { clipBrowserPath } from "./clip-browser.mjs";
 import { ffmpegPath } from "./clip-tools.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -20,7 +21,7 @@ const HELP = `Make a local clip of an HTML or Anatomy playground (nothing upload
 Replay is a drive.mjs action array: ["wait",1000], ["do","setParams",[{...}]],
 ["key","ArrowLeft"], ["click","#button"], ["drag",selector,x0,y0,x1,y1,steps].
 Supply the agent's own do actions or an explicitly recorded input sequence.
-The clip is a replay; audio is omitted. Needs Chrome/Chromium (CHROME_PATH overrides).
+The clip is a replay; audio is omitted. Reuses Chrome/Chromium (CHROME_PATH overrides), or prepares a verified portable browser.
 FFmpeg with libx264 is used if present, otherwise a verified portable build is cached
 on macOS arm64/x64 or Linux x64 automatically. No Homebrew or manual encoder install.
 Run through bb host-care on managed hosts. Output files are never overwritten.`;
@@ -65,6 +66,7 @@ async function main() {
   const work = mkdtempSync(join(dirname(output), ".bb-clip-"));
   let server;
   try {
+    const chrome = await clipBrowserPath(work);
     const ffmpeg = await ffmpegPath();
     const token = randomUUID();
     const csp = source.csp ?? "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob: https://upload.wikimedia.org; media-src data: blob:; font-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'";
@@ -78,7 +80,7 @@ async function main() {
     const out = join(work, "clip.mp4"), gif = gifOutput ? join(work, "clip.gif") : null;
     const recipe = join(work, "recipe.json");
     writeFileSync(recipe, JSON.stringify({ ...config, actions, out, gif, ffmpeg, endUrl: base + "/end", cardUrl: base + "/card" }), { mode: 0o600 });
-    const child = spawn(process.execPath, ["--experimental-websocket", join(HERE, "drive.mjs"), base + "/card", "--width", String(config.width), "--height", String(config.height), "--profile-root", work, "--clip", recipe], { stdio: "inherit" });
+    const child = spawn(process.execPath, ["--experimental-websocket", join(HERE, "drive.mjs"), base + "/card", "--width", String(config.width), "--height", String(config.height), "--profile-root", work, "--clip", recipe], { stdio: "inherit", env: { ...process.env, CHROME_PATH: chrome } });
     const stop = () => child.kill("SIGTERM");
     process.once("SIGINT", stop); process.once("SIGTERM", stop);
     try {

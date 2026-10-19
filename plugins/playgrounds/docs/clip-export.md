@@ -23,9 +23,9 @@ The optional GIF uses at most 10 fps and 350 frames. Its encoded bytes are parse
 
 ## Encoder on a fresh Mac
 
-Use an existing FFmpeg with libx264, else automatically fetch ffmpeg-static **b6.1.1**, verify the pinned SHA-256 of the compressed asset, and unpack it in a private user cache. This covers Mac arm64, Mac x64 and Linux x64. No Homebrew, global package installation or user action is needed for the encoder. Headless Chrome/Chromium is the renderer prerequisite; `CHROME_PATH` can select a provisioned Chrome for Testing. This is a native FFmpeg route, not an unverified WebCodecs/MediaRecorder fallback.
+Use an existing FFmpeg with libx264, else automatically fetch ffmpeg-static **b6.1.1**, verify the pinned SHA-256 of the compressed asset, and unpack it in a private user cache. This covers Mac arm64, Mac x64 and Linux x64. No Homebrew, global package installation or user action is needed for the encoder. The renderer reuses detected Chrome/Chromium (`CHROME_PATH` can select it), or automatically downloads [official Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/) **155.0.8059.84** for Mac arm64/x64 or Linux x64. The pinned archive size and SHA-256 are verified before extraction into the export’s private scratch directory. The `.app` bundle remains intact; no application, package manager or global browser installation is required. `BB_CLIP_PORTABLE_BROWSER=1` forces this route for reproducible automation. If preparation fails, the agent receives one sentence directing it to set `CHROME_PATH` and retry. This is a native FFmpeg route, not an unverified WebCodecs/MediaRecorder fallback.
 
-[Release assets and upstream build/source/license information](https://github.com/eugeneware/ffmpeg-static/releases/tag/b6.1.1). The plugin does not redistribute the FFmpeg binary. The first encoder run downloads tooling only; it does not transmit the figure or its prompt. Offline use works once the tools are present.
+[Release assets and upstream build/source/license information](https://github.com/eugeneware/ffmpeg-static/releases/tag/b6.1.1). The plugin does not redistribute the FFmpeg binary. The first export downloads missing tooling only; it does not transmit the figure or its prompt. Offline use works once the tools are present.
 
 ## Social profile, checked 2026-10-19
 

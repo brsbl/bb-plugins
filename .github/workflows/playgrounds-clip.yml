@@ -20,17 +20,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22.22.0
-      - uses: browser-actions/setup-chrome@v2
-        id: chrome
-        with:
-          # Numeric installs preserve the macOS .app bundle (stable-channel installs flatten it).
-          chrome-version: 155.0.8059.84
       - name: Allow Chrome's user-namespace sandbox on the disposable Linux runner
         if: runner.os == 'Linux'
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - name: Render and encode without an installed FFmpeg
+      - name: Render and encode without an installed browser or FFmpeg
         env:
-          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+          BB_CLIP_PORTABLE_BROWSER: "1"
         shell: bash
         run: |
           mkdir -p clip-tools
