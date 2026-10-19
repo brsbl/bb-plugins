@@ -50,3 +50,8 @@ access disabled.
 There is no shared runtime package. Generated SDK declarations and vendored UI stay plugin-local, while repeated setup belongs in the generator. A helper moves under `packages/` only after at least two real plugins depend on the same stable behavior.
 
 The pinned SDK archive under [`vendor/`](vendor/) keeps clean installs reproducible. [`sdk-provenance.json`](vendor/sdk-provenance.json) records where it came from and verifies its contents.
+
+Prompt Improver also publishes immutable version tags. Its workspace stays at
+`plugins/improve-prompt`, and the publisher explicitly maps that directory to the
+existing `prompt-shaper/v<version>` prefix. Its marketplace range and subdirectory
+remain unchanged.

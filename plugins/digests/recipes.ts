@@ -17,7 +17,7 @@ export const DIGEST_RECIPES: DigestRecipe[] = [
   {
     id: "reading", name: "Reading", emoji: "📚", connectionIds: ["gmail"],
     schedule: { cron: "0 11 * * 0", timezone: "America/Los_Angeles" },
-    instructions: "Go through my unread newsletters. Pick the 3 most worth reading in full for someone building bb, an agentic IDE, and say in one line why each matters. Then give one useful takeaway from each of the rest, grouped by newsletter. Skip anything that's just a promotion.",
+    instructions: "Read my unread newsletters for me so I don't have to. First list anything I must act on or decide, if any. Then give the key takeaways from each newsletter. Don't recommend what to read. Skip anything that's just a promotion.",
   },
   {
     id: "x-scorecard", name: "X scorecard", emoji: "📊", connectionIds: ["x"], schedule: null,

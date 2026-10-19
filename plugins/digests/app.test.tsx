@@ -342,6 +342,27 @@ describe("Digests app", () => {
     }
   });
 
+  it("shows each newsletter's takeaways under its row and keeps rows without them compact", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      summaryLinks: [{ label: "2 newsletters", section: "tail" }],
+      heading: "Needs you", items: [], later: [], laterLabel: "Later",
+      tail: { label: "In brief", details: "Two newsletters.", items: [
+        { title: "Example Weekly · Issue 12", sender: "Example Weekly", subject: "Issue 12", text: "Agents moved into the editor.", url: "https://example.test/weekly", kind: "newsletter",
+          takeaways: ["Editors now ship agent panes by default.", "Review queues are the new bottleneck."] },
+        { title: "Sample Digest · Notes", text: "A short note on pricing.", url: "https://example.test/digest" },
+      ] },
+    } }) } });
+    fireEvent.click(await slot.findByRole("link", { name: "2 newsletters" }));
+    const takeaways = slot.getByRole("list", { name: "Takeaways from Example Weekly" });
+    expect(Array.from(takeaways.querySelectorAll("li"), (item) => item.textContent)).toEqual(["Editors now ship agent panes by default.", "Review queues are the new bottleneck."]);
+    expect(slot.container.querySelectorAll(".digest-email-row")).toHaveLength(2);
+    expect(slot.container.querySelectorAll(".digest-email-takeaways")).toHaveLength(1);
+    expect(slot.container.querySelector(".digest-email-scroll-tall")).not.toBeNull();
+    fireEvent.click(slot.getByRole("link", { name: /Sample Digest/ }));
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "openUrl", url: "https://example.test/digest" }]);
+  });
+
   it("keeps an unverified unread restoration visible even in a published issue", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue,

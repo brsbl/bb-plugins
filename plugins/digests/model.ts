@@ -144,6 +144,8 @@ const emailRow = z.object({
   subject: z.string().trim().min(1).max(180).optional(),
   receivedAt: timestamp.max(8_640_000_000_000_000).optional(),
   kind: z.enum(["receipt", "bill", "event", "newsletter", "shipping"]).optional(),
+  // Optional so older rows keep one summary line; reading briefs list each newsletter's key points.
+  takeaways: z.array(z.string().trim().min(1).max(200)).max(5).optional(),
 }).strict();
 
 /** Optional so existing Markdown publishers and stored issues remain valid. */
@@ -242,6 +244,27 @@ export const IssueListInputSchema = z.object({
   limit: z.number().int().min(1).max(500).default(100),
   offset: z.number().int().nonnegative().max(1_000_000).default(0),
 }).strict();
+
+/**
+ * Reads JSON stored by a newer Briefs build: drops keys this build doesn't
+ * know and still validates everything else. Writes stay strict.
+ */
+export function parseStored<T>(schema: z.ZodType<T>, value: unknown): T {
+  let current = value;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const result = schema.safeParse(current);
+    if (result.success) return result.data;
+    const unknown = result.error.issues.filter((issue) => issue.code === "unrecognized_keys");
+    if (!unknown.length) throw result.error;
+    if (attempt === 0) current = structuredClone(current);
+    for (const issue of unknown) {
+      let target: unknown = current;
+      for (const key of issue.path) target = (target as Record<PropertyKey, unknown>)?.[key];
+      if (target && typeof target === "object") for (const key of issue.keys) delete (target as Record<string, unknown>)[key];
+    }
+  }
+  return schema.parse(current);
+}
 
 export type DigestDefinition = z.infer<typeof DigestDefinitionSchema>;
 export type Connection = z.infer<typeof ConnectionSchema>;
