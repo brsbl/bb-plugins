@@ -78,6 +78,19 @@ describe("digest contracts", () => {
     expect(runtime).toContain('tail "In brief" with one row per newsletter');
   });
 
+  it("asks for one brief per email and task buttons instead of Read buttons", () => {
+    const inbox = DIGEST_RECIPES.find((recipe) => recipe.id === "unread-email")!;
+    const runtime = collectionInstructions(DigestDefinitionSchema.parse({ ...inbox, projectId: "proj_test", createdAt: 1 }));
+    expect(runtime).not.toMatch(/deduplicate:false|Review reply|source\/review button/u);
+    expect(runtime).toContain("digest_email_status");
+    expect(runtime).toContain("placement: shown");
+    expect(runtime).toContain("urgent:true");
+    expect(runtime).toContain("brief.elsewhere");
+    expect(runtime).toContain('"Upload receipt in Mercury"');
+    expect(runtime).toContain('secondaryAction is {label:"Open email"');
+    expect(runtime).toContain("never guess or construct a URL");
+  });
+
   it("accepts newsletter takeaways on new rows while older rows stay valid", () => {
     const row = { title: "Example Weekly · Issue 12", text: "Agents moved to the editor.", url: "https://example.test/news" };
     const brief = (items: object[]) => ({ heading: "Needs you", items: [], tail: { label: "In brief", details: "One newsletter.", items } });

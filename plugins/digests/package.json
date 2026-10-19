@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-digests",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Private briefings with clear next steps, delivered as threads using your browser sign-ins.",
   "type": "module",
   "license": "UNLICENSED",
