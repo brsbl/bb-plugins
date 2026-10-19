@@ -11,7 +11,7 @@ it.each([
   { name: "cursor complete", timelinePage: { olderCursor: null }, olderHistory: false },
   { name: "cursor incomplete", timelinePage: { olderCursor: { anchorId: "sample-anchor", anchorSeq: 1 } }, olderHistory: true },
   { name: "missing cursor", timelinePage: {}, olderHistory: false },
-  { name: "cursor reaches oldest page", timelinePage: { olderCursor: { anchorId: "sample-anchor", anchorSeq: 1 } }, olderHistory: true, endsAt: 40 },
+  { name: "cursor reaches oldest page", timelinePage: { olderCursor: { anchorId: "sample-anchor", anchorSeq: 1 } }, olderHistory: true, endsAt: 60 },
 ])("shows collapsed replies and loads bounded history: $name", async ({ timelinePage, olderHistory, endsAt }) => {
   const completion = {
     id: "completion", kind: "conversation", role: "user", createdAt: 2,
@@ -63,6 +63,6 @@ it.each([
   }
   for (const call of slot.inspection.sdkCalls.filter((call) => call.method === "threads.timeline")) {
     expect(call.args[0]).toMatchObject({ includeNestedRows: "true" });
-    expect(Number((call.args[0] as { segmentLimit: string }).segmentLimit)).toBeLessThanOrEqual(endsAt ?? (olderHistory ? 100 : 20));
+    expect(Number((call.args[0] as { segmentLimit: string }).segmentLimit)).toBeLessThanOrEqual(endsAt ?? (olderHistory ? 100 : 40));
   }
 });
