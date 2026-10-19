@@ -18,7 +18,7 @@ Don't ask about the normal working process:
 - Opening, updating or rebasing a PR, resolving its conflicts, updating its branch, or filing the issue that tracks your work.
 - Starting, restarting or retrying your own dev servers, workers and QA runs, or switching a worker's model after a capacity error.
 - Cleaning up what you created: branches, worktrees, temporary files, QA data, screenshots and finished worker threads.
-- Messaging other agents, or routing and handing work between threads.
+- Coordinating your own workers and sub-threads. Messaging other threads still follows bb's rules: only when the user asked, or to answer a thread that messaged you.
 - The order and priority of your own work, and names, file locations and implementation details that have a sensible default.
 - The next step of work the user or your lead already approved.
 - Facts you can find yourself. Check their records, accounts you can reach, notes and thread history before asking.
