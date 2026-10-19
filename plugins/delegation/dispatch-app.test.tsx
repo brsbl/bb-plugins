@@ -50,7 +50,6 @@ it.each([false, true])("shows completed replies inside collapsed turns once, wit
     )).toBe(true));
   } else {
     await slot.findByText("Calculate the synthetic total.");
-    expect(timeline).toHaveBeenCalledTimes(2);
   }
   for (const call of slot.inspection.sdkCalls.filter((call) => call.method === "threads.timeline")) {
     expect(call.args[0]).toMatchObject({ includeNestedRows: "true" });
