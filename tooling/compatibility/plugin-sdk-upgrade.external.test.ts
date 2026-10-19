@@ -351,7 +351,6 @@ it.each(["fresh install", "upgrade from 0.1.3"])(
 
 
 it.each([
-  ["emoji-picker", "0.1.1"],
   ["file-pins", "0.1.9"],
 ])("keeps the %s marketplace tag installable at the repository root", async (slug, version) => {
   if (!pluginRepository) throw new Error("BB_PLUGIN_COMPAT_REPOSITORY is required");

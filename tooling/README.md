@@ -27,7 +27,7 @@ This folder holds the small amount of machinery the plugins genuinely share. Run
 ## Marketplace releases
 
 Thread Organizer, Context Katamari, Ambient, and Server Switcher are listed in
-the BB marketplace. Emoji Picker and Pinned Files & Links also publish version tags, with their packages at
+the BB marketplace. Pinned Files & Links also publishes version tags, with its package at
 the tag root to preserve its existing marketplace source. Bump the plugin version and lockfile, rebuild its artifacts, and
 merge after CI passes.
 The existing publish job creates `<slug>/v<version>` from the same bundles as
