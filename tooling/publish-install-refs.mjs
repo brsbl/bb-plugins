@@ -26,7 +26,9 @@ const productionDependencyFields = [
   "peerDependencies",
 ];
 // Opt in per plugin so existing release histories are never rewritten.
-const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "content-calendar"]);
+const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "improve-prompt", "content-calendar"]);
+// Preserve the published prefix when a workspace directory differs from its stable ID.
+const versionTagPrefixes = { "improve-prompt": "prompt-shaper" };
 const explicitlyRetiredInstallRefs = Object.freeze([
   "plugin/omegacode",
   "plugin/saved-places",
@@ -264,7 +266,7 @@ export async function prepareVersionedRelease(slug) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
     throw new Error(`${slug}: stable release version required`);
   }
-  const tag = `${slug}/v${version}`;
+  const tag = `${versionTagPrefixes[slug] ?? slug}/v${version}`;
   const temporary = await mkdtemp(resolve(tmpdir(), "bb-plugin-tag-"));
   const indexPath = resolve(temporary, "index");
   try {
