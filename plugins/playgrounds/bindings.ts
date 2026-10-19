@@ -112,7 +112,7 @@ export function bindingProblems(html: string): string[] {
     if (type && !["module", "text/javascript", "application/javascript"].includes(type)) continue;
     try {
       const ast = parse(el.content, { ecmaVersion: "latest", sourceType: type === "module" ? "module" : "script" });
-      visit(ast as Ast, type === "module" ? new Map(global) : global, el.contentStart);
+      visit(ast as unknown as Ast, type === "module" ? new Map(global) : global, el.contentStart);
     } catch (error) {
       // Syntax errors would prevent all controls in this script from working.
       const e = error as Error & { pos?: number };
