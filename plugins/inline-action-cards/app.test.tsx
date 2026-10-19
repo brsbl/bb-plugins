@@ -418,7 +418,7 @@ it("answers a choice in the Decision log: question, context, options, then Submi
     const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
     const row = await screen.findByRole("article", { name: "Choice: Which account setup?" });
     // Reading order: question, context, options, then Submit.
-    const parts = [within(row).getByText("Which account setup?"), within(row).getByText("Existing threads keep theirs."), within(row).getByRole("radio", { name: /One account/ }), within(row).getByRole("button", { name: "Submit" })];
+    const parts = [within(row).getByText("Which account setup?", { selector: ".iac-log-title" }), within(row).getByText("Existing threads keep theirs."), within(row).getByRole("radio", { name: /One account/ }), within(row).getByRole("button", { name: "Submit" })];
     for (let index = 1; index < parts.length; index++) expect(parts[index - 1]!.compareDocumentPosition(parts[index]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(row).getAllByRole("radio").some((radio) => (radio as HTMLInputElement).checked)).toBe(false);
     fireEvent.click(within(row).getByRole("radio", { name: /Several accounts/ }));
