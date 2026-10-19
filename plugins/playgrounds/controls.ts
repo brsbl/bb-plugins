@@ -74,7 +74,8 @@ export const CONTROLS_CSS = String.raw`
 .pg-picker button:hover:not([aria-pressed=true]) { background: var(--pg-hover); }
 .pg-picker button[aria-pressed=true] { background: var(--pg-ink); color: var(--card); }
 .pg-picker > .pg-value { font-size: var(--pg-text-axis); }
-.pg-toggle { position: relative; }
+.pg-toggle { position: relative; min-width: 0; max-width: 100%; height: auto; align-self: start; white-space: normal; overflow-wrap: anywhere; text-align: center; border-radius: var(--pg-radius-control); }
+.pg-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .pg-pad { position: relative; display: grid; place-items: center; min-height: 44px; padding: 6px; border-radius: var(--pg-radius-control); border: 0; background: var(--card); box-shadow: var(--pg-edge-control), inset 0 -3px 0 var(--pg-hairline); color: var(--pg-ink); font-size: var(--pg-text-label); font-weight: 500; touch-action: none; user-select: none; -webkit-user-select: none; transition: transform var(--pg-fast), background var(--pg-fast); }
 .pg-pad.pg-on { background: color-mix(in oklab, var(--pg-c) 22%, var(--card)); transform: scale(.98); }
 .pg-pad small { display: block; font-size: var(--pg-text-axis); font-weight: 400; color: var(--pg-meta); }
@@ -278,7 +279,7 @@ export const CONTROLS_RUNTIME = String.raw`
   const fire = (type, detail) => { for (const fn of handlers.get(type) || []) { try { fn(detail); } catch (error) { console.error(error); } } };
 
   // Layer 2: parameters.
-  const specs = {}, values = {};
+  const specs = Object.create(null), values = Object.create(null);
   const restored = state && typeof state === "object" && state.params && typeof state.params === "object" ? state.params : {};
   const norm = (s, v) => s.scale === "log" ? Math.log(v / s.min) / Math.log(s.max / s.min) : (v - s.min) / (s.max - s.min);
   const denorm = (s, t) => { t = clamp(t, 0, 1); return s.scale === "log" ? s.min * Math.pow(s.max / s.min, t) : s.min + t * (s.max - s.min); };
@@ -311,9 +312,18 @@ export const CONTROLS_RUNTIME = String.raw`
   let laneText = state && typeof state === "object" && typeof state.lane === "string" ? state.lane : "";
   const persist = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => rawSave({ ...current(), params: { ...values }, lane: laneText }), 150); };
   api.save = (value) => rawSave(value && typeof value === "object" && !Array.isArray(value) && Object.keys(specs).length && !("params" in value) ? { ...value, params: { ...values }, lane: laneText } : value);
+  function requireParam(name) {
+    if (typeof name !== "string" || !Object.hasOwn(specs, name)) throw new Error("Unknown playground parameter " + JSON.stringify(name) + ". Declare it with data-pg/data-param or params.define(name, spec) before using it.");
+    return specs[name];
+  }
+  function setMany(next, from) {
+    if (!next || typeof next !== "object" || Array.isArray(next)) throw new Error("Use params.set(name, value), params.set({ name: value }), or setParams({ name: value }).");
+    const entries = Object.entries(next);
+    for (const [name] of entries) requireParam(name);
+    return Object.fromEntries(entries.map(([name, value]) => [name, set(name, value, from)]));
+  }
   function set(name, value, from) {
-    const s = specs[name];
-    if (!s) return undefined;
+    const s = requireParam(name);
     const next = valid(s, value);
     if (JSON.stringify(next) === JSON.stringify(values[name])) return next;
     values[name] = next;
@@ -330,8 +340,8 @@ export const CONTROLS_RUNTIME = String.raw`
   const ready = () => { if (document.body) hydrate(document); };
   const params = Object.freeze({
     define: (name, spec) => { ready(); return define(name, spec); },
-    set: (name, value) => { ready(); return set(name, value, "user"); },
-    get: (name) => { ready(); return values[name]; },
+    set: (...args) => { ready(); if (args.length === 1 && args[0] && typeof args[0] === "object") return setMany(args[0], "user"); if (args.length !== 2 || typeof args[0] !== "string") throw new Error("Use params.set(name, value) or params.set({ name: value })."); return set(args[0], args[1], "user"); },
+    get: (name) => { ready(); requireParam(name); return values[name]; },
     all: () => { ready(); return { ...values }; },
     spec: (name) => { ready(); return specs[name]; },
     format: (name, v) => { ready(); return format(v === undefined ? values[name] : v, specs[name] || {}); },
@@ -556,7 +566,8 @@ export const CONTROLS_RUNTIME = String.raw`
     toggle(el, name) {
       const s = specs[name];
       el.classList.add(el.classList.contains("pg-btn") ? "pg-toggle" : "pg-chip", "pg-toggle");
-      if (el.tagName !== "BUTTON") { el.tabIndex = 0; el.setAttribute("role", "button"); }
+      if (el.tagName !== "BUTTON") { el.tabIndex = 0; el.setAttribute("role", "button"); el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!e.repeat) el.click(); } }; }
+      else if (!el.hasAttribute("type")) el.type = "button";
       if (!el.textContent.trim()) el.textContent = s.label;
       el.onclick = () => set(name, !values[name]);
       return () => el.setAttribute("aria-pressed", String(Boolean(values[name])));
@@ -769,7 +780,7 @@ export const CONTROLS_RUNTIME = String.raw`
     select: (name, row, col) => choose(String(name), Number(row), Number(col), "agent"),
     say: (text) => { lane(text); return { ok: true }; },
     getParams: () => ({ values: { ...values }, outputs: JSON.parse(JSON.stringify(outputs)), specs: Object.fromEntries(Object.entries(specs).map(([k, s]) => [k, { label: s.label, unit: s.unit, min: s.min, max: s.max, options: s.options && s.options.map((o) => o.value), type: s.type, rows: s.rows, cols: s.cols }])) }),
-    setParams: (next) => { const out = {}; for (const [k, v] of Object.entries(next && typeof next === "object" ? next : {})) if (specs[k]) out[k] = set(k, v, "agent"); return { set: out }; },
+    setParams: (next) => ({ set: setMany(next, "agent") }),
     play: (notes, bpm) => play(notes, bpm),
     take: () => lastTake,
   };

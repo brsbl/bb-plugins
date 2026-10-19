@@ -187,6 +187,19 @@ readouts, `ui.table(name, { columns, rows })`, `ui.chart(name, spec)` (below), a
 taps and a cell you choose arrive as the same `select` event, so game rules live
 in one place.
 
+Use `params.set("email", true)` or `params.set({ email: true, push: false })`.
+A `data-pg` control declares its `data-param` automatically; declare inputs without
+kit controls with `params.define(name, spec)` before reading or setting them.
+Unknown names throw, including in `setParams`; object updates validate every name
+before changing any value. Read inputs in the preview/model and redraw with
+`params.on(update)`, then call `update()` once for the initial view.
+
+Publishing checks JavaScript bindings as well as markup: it rejects literal
+references to undeclared parameters and controls with no consumer, with names
+and repair instructions. This is a static check, not proof that a handler works:
+click every control and confirm the preview changes before publishing, including
+when names or controls are generated dynamically.
+
 **Driving it.** Every card with these controls exposes the same actions:
 `bb playgrounds do <id> read` (parameters and every readout), `do <id>
 setParams --args '[{"rate": 6}]'`, `do <id> select --args '["board", 0, 3]'`,
