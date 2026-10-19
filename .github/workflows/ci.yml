@@ -102,6 +102,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck --workspace=${{ matrix.package }}
       - run: npm run build --workspace=${{ matrix.package }}
+      - run: npx playwright install --with-deps chromium
+        if: matrix.package == 'bb-plugin-file-pins'
       - run: npm test --workspace=${{ matrix.package }}
       - run: npm run test:built --workspace=${{ matrix.package }} --if-present
       - run: node tooling/validate-plugin-artifacts.mjs ${{ matrix.path }}

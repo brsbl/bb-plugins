@@ -10,5 +10,7 @@ it("shows the full address visibly while its pin has keyboard focus", () => {
   expect(compact).toContain('aria-hidden="true">https://exam…/Planning-Notes.html</span>');
   expect(compact).toContain("truncate");
   expect(focused).toContain(`aria-hidden="true">${address}</span>`);
-  expect(focused).toContain("break-all whitespace-normal");
+  expect(focused).toContain("overflow-x-auto");
+  expect(focused).toContain("whitespace-nowrap");
+  expect(focused).toContain("ring-inset ring-ring");
 });

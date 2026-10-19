@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactElement, type RefObject } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactElement, type RefObject } from "react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { definePluginApp, experimental_FileLink as FileLink, UrlLink, useBbNavigate, useComposer, useRealtime, useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
@@ -46,6 +46,15 @@ function PinIcon({ threadId, pin }: { threadId: string; pin: Reference }) {
 }
 
 const tipClass = "w-72 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg";
+function scrollPreviewAddress(event: KeyboardEvent, address: HTMLDivElement | null) {
+  if (!address || address.scrollWidth <= address.clientWidth) return;
+  if (event.key === "ArrowRight") address.scrollLeft += 80;
+  else if (event.key === "ArrowLeft") address.scrollLeft -= 80;
+  else if (event.key === "End") address.scrollLeft = address.scrollWidth;
+  else if (event.key === "Home") address.scrollLeft = 0;
+  else return;
+  event.preventDefault();
+}
 /**
  * A link's preview card, opened whole: hovering or focusing the pin starts loading its preview while the tooltip
  * delay runs, and the card opens once the preview and its image are ready, or after PREVIEW_HOLD_MS with what it has.
@@ -53,6 +62,7 @@ const tipClass = "w-72 rounded-lg border bg-popover p-0 text-popover-foreground 
 function HeldTooltip({ prepare, trigger, address, card }: { prepare: () => Promise<void>; trigger: ReactElement; address: string; card: ReactElement }) {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
+  const addressRef = useRef<HTMLDivElement>(null);
   const request = useRef(0);
   useEffect(() => () => { request.current++; }, []);
   function onOpenChange(next: boolean) {
@@ -63,9 +73,9 @@ function HeldTooltip({ prepare, trigger, address, card }: { prepare: () => Promi
     void prepare().then(() => { clearTimeout(timer); show(); });
   }
   return <Tooltip open={open} onOpenChange={onOpenChange}>
-    <TooltipTrigger asChild onPointerEnter={() => void prepare()} onFocus={() => { setFocused(true); void prepare(); }} onBlur={() => setFocused(false)}>{trigger}</TooltipTrigger>
+    <TooltipTrigger asChild onPointerEnter={() => void prepare()} onFocus={() => { setFocused(true); void prepare(); }} onBlur={() => setFocused(false)} onKeyDown={(event) => scrollPreviewAddress(event, addressRef.current)}>{trigger}</TooltipTrigger>
     <TooltipContent side="top" sideOffset={6} className={tipClass}>
-      <PreviewAddress value={address} focused={focused} />
+      <PreviewAddress ref={addressRef} value={address} focused={focused} />
       {card}
     </TooltipContent>
   </Tooltip>;
@@ -73,10 +83,11 @@ function HeldTooltip({ prepare, trigger, address, card }: { prepare: () => Promi
 
 function FileTooltip({ trigger, address, card }: { trigger: ReactElement; address: string; card: ReactElement }) {
   const [focused, setFocused] = useState(false);
+  const addressRef = useRef<HTMLDivElement>(null);
   return <Tooltip>
-    <TooltipTrigger asChild onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>{trigger}</TooltipTrigger>
+    <TooltipTrigger asChild onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onKeyDown={(event) => scrollPreviewAddress(event, addressRef.current)}>{trigger}</TooltipTrigger>
     <TooltipContent side="top" sideOffset={6} className={tipClass}>
-      <PreviewAddress value={address} focused={focused} />
+      <PreviewAddress ref={addressRef} value={address} focused={focused} />
       {card}
     </TooltipContent>
   </Tooltip>;
