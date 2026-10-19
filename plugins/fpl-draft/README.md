@@ -35,7 +35,13 @@ Enter claims manually in FPL Draft. Failed refreshes preserve the previous view
 with a Retry action.
 
 See the [waiver-order evaluation](docs/waiver-order-evaluation.md) for the estimate’s
-observed results and limitations.
+calculation coverage and limitations.
+
+## Data dependency
+
+The plugin reads the public [Fantasy Premier League Draft API](https://draft.premierleague.com/api/bootstrap-static) from the bb server. It fetches league entries and manager names, match results, squad picks, player statistics and ownership, processed transactions, live points, and upcoming fixtures. No account connection, login, API key or credential is required; your server needs internet access. League and team settings start blank.
+
+The third-party API may be unavailable, delayed or changed without notice. Future squads may not be published yet, and live scores can change. Suggestions and order estimates depend on available data; the plugin cannot submit claims or read pending claims.
 
 ## Develop
 

@@ -6,122 +6,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-const LEAGUE = {
-  leagueName: "Globo Gym International Inc",
-  scoring: "h",
-  transactionMode: "waivers",
-  currentEvent: 2,
-  nextEvent: 3,
-  events: [
-    { id: 1, name: "Gameweek 1", deadlineTime: "2026-08-21T17:30:00Z", finished: true, started: true },
-    { id: 2, name: "Gameweek 2", deadlineTime: "2026-08-28T17:30:00Z", finished: false, started: true },
-    { id: 3, name: "Gameweek 3", deadlineTime: "2026-09-04T17:30:00Z", finished: false, started: false },
-  ],
-  managers: [
-    { leagueEntryId: 126586, entryId: 126068, teamName: "Banana Breath", managerName: "P D", shortName: "BB", waiverPick: 6 },
-    { leagueEntryId: 126585, entryId: 126067, teamName: "Mighty Frog FC", managerName: "W K", shortName: "MF", waiverPick: 3 },
-  ],
-  viewerLeagueEntryId: 126586,
-  viewerWarning: null,
-};
-
-const WEEK = {
-  event: 2,
-  live: true,
-  fetchedAt: "2026-09-01T12:00:00Z",
-  matchups: [
-    {
-      event: 2, started: true, finished: false,
-      home: { leagueEntryId: 126585, teamName: "Mighty Frog FC", managerName: "W K", points: 31, result: "L" as const },
-      away: { leagueEntryId: 126586, teamName: "Banana Breath", managerName: "P D", points: 44, result: "W" as const },
-    },
-  ],
-  table: [
-    { leagueEntryId: 126586, rank: 1, won: 1, drawn: 1, lost: 0, played: 2, pointsFor: 81, pointsAgainst: 62, leaguePoints: 4, rankDelta: 2, liveLeaguePoints: 3, form: ["D", "W"] as const, averageFor: 40.5 },
-    { leagueEntryId: 126585, rank: 2, won: 0, drawn: 0, lost: 2, played: 2, pointsFor: 62, pointsAgainst: 81, leaguePoints: 0, rankDelta: 0, liveLeaguePoints: 0, form: ["L", "L"] as const, averageFor: 31 },
-  ],
-};
-
-const sq = (o: Record<string, unknown>) => ({
-  elementId: 1, name: "Player", team: "EVE", position: "GKP" as const, slot: 1,
-  starting: true, eventPoints: 3, eventMinutes: 90, minutesPerGame: 90,
-  availability: "a", news: "", ...o,
-});
-
-/** One player per combination of availability and playing time. */
-const MULTI_WEEK = {
-  ...WEEK,
-  matchups: [
-    WEEK.matchups[0]!,
-    {
-      event: 2, started: true, finished: false,
-      home: { leagueEntryId: 900, teamName: "Pot of Greed", managerName: "M M", points: 25, result: "L" as const },
-      away: { leagueEntryId: 901, teamName: "Cosmic Gumbo", managerName: "P V", points: 39, result: "W" as const },
-    },
-  ],
-};
-
-const SQUAD = {
-  available: true, reason: null,
-  players: [
-    sq({ elementId: 1, name: "Fit", minutesPerGame: 90 }),
-    sq({ elementId: 2, name: "Injured", position: "DEF" as const, slot: 2, availability: "i", news: "Calf injury", minutesPerGame: 88 }),
-    sq({ elementId: 3, name: "Doubtful", position: "DEF" as const, slot: 3, availability: "d", news: "Knock", minutesPerGame: 85 }),
-    sq({ elementId: 4, name: "Fringe", position: "MID" as const, slot: 4, minutesPerGame: 12 }),
-    sq({ elementId: 5, name: "InjuredFringe", position: "MID" as const, slot: 5, availability: "i", news: "Foot", minutesPerGame: 4 }),
-    sq({ elementId: 6, name: "DoubtfulFringe", position: "FWD" as const, slot: 15, starting: false, availability: "d", news: "Ill", minutesPerGame: 9 }),
-  ],
-};
-
-const cand = (o: Record<string, unknown> = {}) => ({
-  elementId: 10, name: "Egan", team: "HUL", pointsPerGame: 3.4, minutesPerGame: 90,
-  seasonPoints: 17, goals: 0, assists: 1, defending: 34, bonus: 1,
-  availability: "a", news: "",
-  fplStats: { pointsPerMatch: 6.8, form: 4.2, minutes: 450, starts: 5, cleanSheets: 2, expectedGoals: 1.23, expectedAssists: 0.45 },
-  opponents: [{ opponent: "AVL", averagePoints: null, sample: 0, difficulty: 3, isHome: true, event: 3 }],
-  ...o,
-});
-
-const LIVRAMENTO = cand({ elementId: 3, name: "Livramento", team: "NEW", pointsPerGame: 0, minutesPerGame: 0, seasonPoints: 0, goals: 0, assists: 0, defending: 0, bonus: 0, availability: "i", news: "Calf injury", opponents: [] });
-const PERRI = cand({ elementId: 4, name: "Perri", team: "LEE", pointsPerGame: 0, minutesPerGame: 0, seasonPoints: 0, opponents: [] });
-
-const PLAN = {
-  available: true, reason: null, waiverPick: 6, totalManagers: 12,
-  fetchedAt: "2026-09-01T12:00:00Z",
-  weakSpots: [
-    { position: "DEF" as const, player: LIVRAMENTO, weakness: "injured" as const },
-    { position: "GKP" as const, player: PERRI, weakness: "fringe" as const },
-    { position: "FWD" as const, player: cand({ elementId: 6, name: "DoubtfulFringe", team: "BRE", minutesPerGame: 9, pointsPerGame: 0.2, availability: "d", news: "Ill" }), weakness: "doubtful" as const },
-  ],
-  swaps: [
-    {
-      position: "DEF" as const,
-      out: LIVRAMENTO,
-      in: cand(),
-      fallbacks: [cand({ elementId: 11, name: "Dedić", pointsPerGame: 2.4 })],
-      gain: 3.1,
-      // Nine managers need a defender; four of them pick before seat 6.
-      competition: { position: "DEF" as const, managersNeeding: 9, totalManagers: 12, needingPicks: [1, 2, 4, 5, 7, 8, 9, 11, 12] },
-    },
-    {
-      position: "GKP" as const,
-      out: PERRI,
-      in: cand({ elementId: 12, name: "Rushworth", team: "COV", pointsPerGame: 0.6 }),
-      fallbacks: [],
-      gain: 0.5,
-      competition: { position: "GKP" as const, managersNeeding: 4, totalManagers: 12, needingPicks: [6, 8, 10, 12] },
-    },
-  ],
-};
-
-const rpc = (o: Record<string, unknown> = {}) => ({
-  getLeague: () => LEAGUE, getWeek: () => WEEK, getSquad: () => SQUAD, getWaiverPlan: () => PLAN, getNextWaiverOrder: () => null, ...o,
-});
+import { LEAGUE, WEEK, MULTI_WEEK, SQUAD, PLAN, rpc, cand } from "./fixtures/app";
 
 async function render(opts: { subPath?: string; rpc?: Record<string, unknown> } = {}) {
   const app = await loadPluginApp(() => import("./app"));
   return renderSlot(app.navPanels[0]!, { subPath: opts.subPath ?? "" }, {
-    rpc: rpc(opts.rpc), settings: { leagueId: "4211" },
+    rpc: rpc(opts.rpc), settings: { leagueId: "900001" },
   });
 }
 
@@ -140,10 +30,10 @@ describe("league surface", () => {
     await slot.behavior.setComposerText("My question.");
     fireEvent.click(screen.getByRole("button", { name: "Ask agent" }));
     expect(slot.inspection.composer.mentions).toEqual([
-      { provider: "week", id: '["4211",2]', label: "FPL Draft · GW 2" },
+      { provider: "week", id: '["900001",2]', label: "FPL Draft · GW 2" },
     ]);
     expect(slot.inspection.composer.text).toContain("My question.\n\nWhat does this week");
-    expect(slot.inspection.composer.text).not.toContain("Banana Breath");
+    expect(slot.inspection.composer.text).not.toContain("Copper Kites");
     expect(slot.inspection.navigateCalls).toEqual([
       { method: "toCompose", options: { focusPrompt: true } },
     ]);
@@ -151,9 +41,9 @@ describe("league surface", () => {
 
   it("lists every matchup with its score", async () => {
     await render();
-    const row = await screen.findByRole("button", { name: /Mighty Frog FC.*31.*44.*Banana Breath/ });
-    expect(within(row).getByText("Mighty Frog FC")).toBeTruthy();
-    expect(within(row).getByText("Banana Breath")).toBeTruthy();
+    const row = await screen.findByRole("button", { name: /Velvet Comets.*31.*44.*Copper Kites/ });
+    expect(within(row).getByText("Velvet Comets")).toBeTruthy();
+    expect(within(row).getByText("Copper Kites")).toBeTruthy();
     expect(within(row).getByText("31")).toBeTruthy();
     expect(within(row).getByText("44")).toBeTruthy();
   });
@@ -177,9 +67,9 @@ describe("league surface", () => {
     await screen.findByRole("button", { name: /Home winner.*60/ });
     const names = () => Array.from(document.querySelectorAll('[data-match-toggle]'))
       .map(row => row.firstElementChild?.firstElementChild?.firstElementChild?.textContent);
-    expect(names()).toEqual(["Away winner", "Home winner", "Draw", "Mighty Frog FC", "Lower winner", "Unplayed"]);
+    expect(names()).toEqual(["Away winner", "Home winner", "Draw", "Velvet Comets", "Lower winner", "Unplayed"]);
     expect(matchups.map(row => row.home.teamName)).toEqual(originalOrder);
-    expect(screen.getByRole("button", { name: /Mighty Frog FC.*Banana Breath/ }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: /Velvet Comets.*Copper Kites/ }).getAttribute("aria-expanded")).toBe("true");
 
     matchups[0]!.home.points = 70;
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
@@ -195,7 +85,7 @@ describe("league surface", () => {
 
   it("keeps several matchups open at once", async () => {
     await render({ rpc: { getWeek: () => MULTI_WEEK } });
-    await screen.findByText("Pot of Greed");
+    await screen.findByText("Paper Rockets");
     const collapsed = screen.getAllByRole("button", { expanded: false });
     fireEvent.click(collapsed[0]!);
     await waitFor(() =>
@@ -214,15 +104,15 @@ describe("league surface", () => {
 describe("waiver surface", () => {
   async function open() {
     await render({ subPath: "waivers" });
-    await screen.findByText("League: Globo Gym International Inc");
-    await screen.findByText("Egan");
+    await screen.findByText("League: Lantern Cup");
+    await screen.findByText("Defender Cedar");
   }
 
   it("lists the weakest spots worst first, each with a plain reason", async () => {
     await open();
     const spots = document.querySelectorAll("[data-weak-spot]");
     expect(spots.length).toBe(3);
-    expect(spots[0]?.textContent).toContain("Livramento");
+    expect(spots[0]?.textContent).toContain("Defender Amber");
     expect(spots[0]?.textContent).toContain("Injured");
     expect(spots[1]?.textContent).toContain("Limited minutes");
     expect(spots[2]?.textContent).toContain("Doubtful");
@@ -234,7 +124,7 @@ describe("waiver surface", () => {
 
   it("numbers the weak spots on the pitch to match the list", async () => {
     await open();
-    await screen.findByText("Egan");
+    await screen.findByText("Defender Cedar");
     const badges = Array.from(document.querySelectorAll("[data-player-card] [data-badge]"), (b) => b.textContent);
     // Weak spots 1 and 3 (ids 3 and 6) are in the squad fixture; spot 2 (id 4) is Fringe, so it is too.
     expect(badges).toEqual(["1", "2", "3"]);
@@ -244,7 +134,7 @@ describe("waiver surface", () => {
     await open();
     const claims = document.querySelectorAll("[data-claim]");
     expect(claims.length).toBe(2);
-    for (const [index, position, outgoing, incoming] of [[0, "DEF", "Livramento", "Egan"], [1, "GKP", "Perri", "Rushworth"]] as const) {
+    for (const [index, position, outgoing, incoming] of [[0, "DEF", "Defender Amber", "Defender Cedar"], [1, "GKP", "Keeper Indigo", "Keeper Copper"]] as const) {
       const card = claims[index]!;
       expect(card.querySelector("[data-claim-header]")?.textContent).toBe(`${position}Priority ${index + 1}`);
       const transfer = within(card.querySelector<HTMLElement>("[data-claim-transfer]")!);
@@ -255,14 +145,14 @@ describe("waiver surface", () => {
   it("toggles once when clicking stats, fixtures, header, or the expanded comparison", async () => {
     await open();
     const card = document.querySelector<HTMLElement>("[data-claim]")!;
-    const toggle = within(card).getByRole("button", { name: "Claim 1, defender: Livramento out, Egan in" });
+    const toggle = within(card).getByRole("button", { name: "Claim 1, defender: Defender Amber out, Defender Cedar in" });
     fireEvent.click(within(card).getByText("Minutes played"));
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(within(card.querySelector<HTMLElement>("[data-claim-stats]")!).getByText("xG"));
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(within(card).getByRole("img", { name: /AVL home/ }));
+    fireEvent.click(within(card).getByRole("img", { name: /CED home/ }));
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    fireEvent.click(within(card).getAllByText("Egan")[0]!);
+    fireEvent.click(within(card).getAllByText("Defender Cedar")[0]!);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
@@ -271,7 +161,7 @@ describe("waiver surface", () => {
   it.each(["Enter", " "])("supports %j to expand and collapse the whole card", async key => {
     await open();
     const card = document.querySelector<HTMLElement>("[data-claim]")!;
-    const toggle = within(card).getByRole("button", { name: "Claim 1, defender: Livramento out, Egan in" });
+    const toggle = within(card).getByRole("button", { name: "Claim 1, defender: Defender Amber out, Defender Cedar in" });
     toggle.focus();
     expect(document.activeElement).toBe(toggle);
     fireEvent.keyDown(toggle, { key });
@@ -300,16 +190,16 @@ describe("waiver surface", () => {
     const [first, second] = Array.from(document.querySelectorAll("[data-claim]"));
     expect(first?.textContent).not.toContain("If taken");
     fireEvent.click(first!.querySelector('[role="button"]')!);
-    expect(first?.textContent).toMatch(/If taken\s*Dedić/);
+    expect(first?.textContent).toMatch(/If taken\s*Defender Quartz/);
     fireEvent.click(second!.querySelector('[role="button"]')!);
     expect(second?.textContent).toMatch(/If taken\s*nobody else worth it/);
   });
 
   it("asks about the full squad without assuming an optimized starting lineup", async () => {
     const slot = await render({ subPath: "waivers", rpc: {
-      getWaiverPlan: () => ({ ...PLAN, swaps: [{ ...PLAN.swaps[1]!, lineupGain: 0.5, lineupOut: "Pickford" }] }),
+      getWaiverPlan: () => ({ ...PLAN, swaps: [{ ...PLAN.swaps[1]!, lineupGain: 0.5, lineupOut: "Keeper Violet" }] }),
     } });
-    await screen.findByText("Rushworth");
+    await screen.findByText("Keeper Copper");
     await slot.behavior.setComposerText("My question.");
     fireEvent.click(screen.getByRole("button", { name: "Ask agent" }));
     expect(slot.inspection.navigateCalls[0]).toMatchObject({
@@ -318,9 +208,9 @@ describe("waiver surface", () => {
     expect(slot.inspection.navigateCalls[0]).not.toHaveProperty("options.initialPrompt");
     expect(slot.inspection.composer.text).toContain("My question.\n\nReview the waiver options for my full squad.");
     expect(slot.inspection.composer.mentions).toEqual([
-      { provider: "waivers", id: '["4211",126586]', label: "FPL Draft · Waivers" },
+      { provider: "waivers", id: '["900001",910002]', label: "FPL Draft · Waivers" },
     ]);
-    expect(slot.inspection.composer.text).not.toContain("Rushworth");
+    expect(slot.inspection.composer.text).not.toContain("Keeper Copper");
   });
 
   it("labels the published position as historical, not an estimate", async () => {
@@ -372,7 +262,7 @@ describe("waiver surface", () => {
   it("retains claims and labels history when the projection request fails", async () => {
     await render({ subPath: "waivers", rpc: { getNextWaiverOrder: () => { throw new Error("Unavailable"); } } });
     expect(await screen.findByText("Last published · 6 of 12")).toBeTruthy();
-    expect(screen.getByText("Egan")).toBeTruthy();
+    expect(screen.getByText("Defender Cedar")).toBeTruthy();
   });
 
   it.each([null, 0, 13])("avoids a made-up rank when the published pick is %s", async (waiverPick) => {
@@ -486,7 +376,7 @@ describe("waiver gameweek total", () => {
   it("keeps claims usable when the total is unavailable", async () => {
     await render({ subPath: "waivers", rpc: { getWeek: () => { throw new Error("Scores unavailable"); } } });
     expect(await screen.findByLabelText("Gameweek 2 team total unavailable")).toHaveProperty("textContent", "GW 2 · — pts");
-    expect(screen.getByText("Egan")).toBeTruthy();
+    expect(screen.getByText("Defender Cedar")).toBeTruthy();
   });
 
   it("keeps the total visible when the squad is unavailable", async () => {
@@ -495,14 +385,14 @@ describe("waiver gameweek total", () => {
     } });
     expect(await screen.findByLabelText("Gameweek 2 team total: 44 points, live")).toHaveProperty("textContent", "GW 2 · 44 pts · Live");
     expect(document.querySelector("[data-pitch]")).toBeNull();
-    expect(screen.getByText("Egan")).toBeTruthy();
+    expect(screen.getByText("Defender Cedar")).toBeTruthy();
   });
 });
 
 describe("fixture encoding", () => {
   it("prints the difficulty numeral so colour is never the only signal", async () => {
     await render({ subPath: "waivers" });
-    await screen.findByText("Egan");
+    await screen.findByText("Defender Cedar");
     const chips = screen.getAllByRole("img", { name: /Difficulty 3\/5/ });
     expect(chips.length).toBeGreaterThan(0);
     expect(chips[0]?.textContent).toMatch(/3/);
@@ -563,7 +453,7 @@ describe("table surface", () => {
   async function openTable() {
     await render({ subPath: "table" });
     // The table fetches its own week; wait for a real row before querying.
-    await screen.findByText("Banana Breath");
+    await screen.findByText("Copper Kites");
   }
 
   it("uses plain column labels without tooltip triggers or extra tab stops", async () => {
@@ -599,7 +489,7 @@ describe("load recovery", () => {
     expect(await screen.findByRole("alert")).toHaveProperty("textContent", expect.stringContaining("Connection lost"));
     expect(screen.queryByText(/Add your league id/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("Egan")).toBeTruthy();
+    expect(await screen.findByText("Defender Cedar")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -611,10 +501,10 @@ describe("load recovery", () => {
       getWaiverPlan: () => ++planCalls === 1 ? PLAN : replacement,
       getSquad: () => { if (++squadCalls === 2) throw new Error("Connection lost"); return SQUAD; },
     } });
-    await screen.findByText("Egan");
+    await screen.findByText("Defender Cedar");
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     await screen.findByRole("alert");
-    expect(screen.getByText("Egan")).toBeTruthy();
+    expect(screen.getByText("Defender Cedar")).toBeTruthy();
     expect(screen.queryByText("Replacement")).toBeNull();
     expect(document.querySelectorAll("[data-player-card]").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -630,7 +520,7 @@ describe("load recovery", () => {
     await screen.findByRole("alert");
     expect(screen.getByRole("tab", { name: "Waivers" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("Mighty Frog FC")).toBeTruthy();
+    expect(await screen.findByText("Velvet Comets")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
@@ -702,7 +592,7 @@ describe("refresh on page entry", () => {
     await slot.behavior.setComposerText("My question.");
     fireEvent.click(screen.getByRole("button", { name: "Ask agent" }));
     expect(slot.inspection.composer.mentions).toEqual([
-      { provider: "week", id: '["4211",2]', label: "FPL Draft · GW 2" },
+      { provider: "week", id: '["900001",2]', label: "FPL Draft · GW 2" },
     ]);
     expect(slot.inspection.composer.text).toContain("My question.\n\nReview my league position");
     expect(slot.inspection.navigateCalls).toEqual([{ method: "toCompose", options: { focusPrompt: true } }]);
