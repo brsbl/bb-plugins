@@ -177,7 +177,7 @@ function ThreadWaiting({ threadId }: { threadId: string }) {
   const onAnswered = (item: Item) => {
     answered.current.add(keyOf(item));
     setItems((current) => current.filter((candidate) => keyOf(candidate) !== keyOf(item)));
-    setNotice(`Sent “${sentLabel(item)}”`);
+    setNotice(item.dismissed ? item.dismissed.notice === "failed" ? "Dismissed, but its thread wasn't told. Retry from the Decision log." : "Dismissed" : `Sent “${sentLabel(item)}”`);
     setOpenKey(null);
     void load();
   };

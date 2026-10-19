@@ -25,6 +25,10 @@ Creating an item whose question matches an open one in the same thread, or whose
 
 Mark something urgent only when work is blocked on it now: add `"priority":"urgent"` to the item JSON (or `"low"` for anything that can wait).
 
+## Dismissed items
+
+The user can dismiss any waiting card or ask from Waiting on you or the Decision log, with an optional reason. A dismissal approves nothing and the item is already settled; its thread gets a message like “Dismissed: <pill> · reason” with `intent: dismissed` in hidden context. Don't claim, report, resolve or act on it. Stop waiting and carry on without it. **Never ask a dismissed question again**, as a card, an ask or in prose, unless something material changed; if it did, say what changed in the new item's brief. `bb action-cards log --thread <id> --json` shows dismissed items with `dismissed` set.
+
 ## Ask a plain question
 
 Anything waiting on the user that isn't a card goes in Waiting on you as an ask, never only in prose. Leads add an ask for every question waiting on the user and resolve it as soon as the user answers it anywhere else:
