@@ -19,7 +19,8 @@ it("renders one header line at rest, on hover, and on keyboard focus", async () 
       await page.hover("#hover");
       await page.focus("#focused");
       for (const state of ["default", "hover", "focused"]) {
-        const lines = await page.locator(`#${state} [aria-hidden="true"]`).evaluate((text) => text.getClientRects().length);
+        const lines = await page.locator(`#${state} [aria-hidden="true"]`).evaluate((text) =>
+          new Set(Array.from(text.getClientRects(), (rect) => Math.round(rect.top))).size);
         expect(lines, `${state} header at ${width}px`).toBe(1);
       }
       const scrollable = await page.locator("#focused > div").evaluate((header) => header.scrollWidth > header.clientWidth);
