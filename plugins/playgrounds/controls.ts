@@ -74,7 +74,7 @@ export const CONTROLS_CSS = String.raw`
 .pg-picker button:hover:not([aria-pressed=true]) { background: var(--pg-hover); }
 .pg-picker button[aria-pressed=true] { background: var(--pg-ink); color: var(--card); }
 .pg-picker > .pg-value { font-size: var(--pg-text-axis); }
-.pg-toggle { position: relative; min-width: 0; max-width: 100%; height: auto; align-self: start; white-space: normal; overflow-wrap: anywhere; text-align: center; border-radius: var(--pg-radius-control); }
+[data-pg=toggle].pg-toggle { position: relative; min-width: 0; max-width: 100%; height: auto; align-self: start; white-space: normal; overflow-wrap: anywhere; text-align: center; border-radius: var(--pg-radius-control); }
 .pg-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .pg-pad { position: relative; display: grid; place-items: center; min-height: 44px; padding: 6px; border-radius: var(--pg-radius-control); border: 0; background: var(--card); box-shadow: var(--pg-edge-control), inset 0 -3px 0 var(--pg-hairline); color: var(--pg-ink); font-size: var(--pg-text-label); font-weight: 500; touch-action: none; user-select: none; -webkit-user-select: none; transition: transform var(--pg-fast), background var(--pg-fast); }
 .pg-pad.pg-on { background: color-mix(in oklab, var(--pg-c) 22%, var(--card)); transform: scale(.98); }
