@@ -552,7 +552,7 @@ it("refuses to publish kit markup the kit would silently get wrong, from the too
     expect(cli.exitCode).toBe(1);
     expect(cli.stderr).toContain('use data-unit="k"');
     const fixed = html.replace('data-suffix="k"', 'data-unit="k"').replace("Stepped 1,2,4", "Stepped 1–4");
-    const ok = await host.harness.behavior.callAgentTool("playground", { action: "publish", title: "Rollout", html: fixed }, { threadId: "thr_test" });
+    const ok = await host.harness.behavior.callAgentTool("playground", { action: "publish", title: "Rollout", html: fixed + '<script>const update = () => document.body.dataset.preview = JSON.stringify(playground.params.all()); playground.params.on(update); update();</script>' }, { threadId: "thr_test" });
     expect(String(ok)).toContain("::playground{id=");
   } finally {
     await host.harness.lifecycle.dispose();
@@ -702,6 +702,24 @@ it("does not use --thread as a substitute for an invoking thread when reading fi
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("Run --playground-file from the bb thread");
     expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([]);
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it("rejects undeclared inputs and unused controls at both publication entrypoints", async () => {
+  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  try {
+    plugin(host.bb);
+    for (const [html, message] of [
+      ['<button data-pg="toggle" data-param="email"></button>', 'control "email" has no consumer'],
+      ['<script>playground.params.set({email: true})</script>', 'parameter "email" is undeclared'],
+    ]) {
+      await expect(host.harness.behavior.callAgentTool("playground", { action: "publish", title: "Notifications", html }, { threadId: "thr_test" })).rejects.toThrow(message);
+      const cli = await host.harness.behavior.runCli(["publish", "--thread", "thr_test", "--playground", JSON.stringify({ title: "Notifications", html })]);
+      expect(cli.exitCode).toBe(1);
+      expect(cli.stderr).toContain(message);
+    }
   } finally {
     await host.harness.lifecycle.dispose();
   }
