@@ -12,10 +12,10 @@ it("renders one header line at rest, on hover, and on keyboard focus", async () 
     const page = await browser.newPage();
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
-      await page.setContent(`<style>${css}</style>
+      await page.setContent(`<style>${css}</style><div data-bb-plugin="file-pins">
         <div style="width:288px" id="default">${renderToStaticMarkup(<PreviewAddress value={address} focused={false} />)}</div>
         <div style="width:288px" id="hover">${renderToStaticMarkup(<PreviewAddress value={address} focused={false} />)}</div>
-        <div style="width:288px" id="focused" tabindex="0">${renderToStaticMarkup(<PreviewAddress value={address} focused />)}</div>`);
+        <div style="width:288px" id="focused" tabindex="0">${renderToStaticMarkup(<PreviewAddress value={address} focused />)}</div></div>`);
       await page.hover("#hover");
       await page.focus("#focused");
       for (const state of ["default", "hover", "focused"]) {
