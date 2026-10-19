@@ -69,3 +69,9 @@ it("keeps the start and destination name in a one-line preview address", () => {
   expect(length(previewAddressLabel(path))).toBeLessThanOrEqual(44);
   expect(previewAddressLabel("/docs/readme.md")).toBe("/docs/readme.md");
 });
+
+it("keeps the URL pathname's page name when query and fragment contain slashes", () => {
+  const url = "https://example.com/guides/very/deep/Planning-Notes.html?next=/other#chapter/2";
+  expect(previewAddressLabel(url)).toBe("https://exam…/Planning-Notes.html");
+  expect(previewAddressLabel("https://example.com/page?next=/other#part/2")).toBe("https://example.com/page");
+});
