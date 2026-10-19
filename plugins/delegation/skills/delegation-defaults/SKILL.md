@@ -37,6 +37,8 @@ installed skills if available. No Claude setup, memory plugin, or separate
 personal skills are required. Missing optional files mean no source for that
 setting; use the override or fallback. If a previously recorded source cannot
 be read because of a permissions or host error, preserve it and report the gap.
+Agent memory notes may live under `~/.claude/projects/*/memory/`; check those
+notes when deciding whether memory changed since the last refresh.
 
 Settings apply across this bb. Record only rules the user intends globally;
 keep project- or task-specific instructions in the current worker prompt.
@@ -44,6 +46,11 @@ Do not promote another project's memory into a global setting. When scope is
 unclear, ask before recording it. Explicit user instructions outrank skill
 suggestions; between equally scoped user instructions, use the latest explicit
 one. Record the winning quote and explain any conflict in `--note`.
+
+Keep an existing recorded source whose note states a broader scope, such as
+org-wide or "all agents", even when stored under a project directory. Ask the
+user before removing any existing recorded source, and keep it until they
+confirm removal.
 
 Read optional `spawn`, `comms`, `inline-action-cards`, and `handoff` skills
 only if installed. Their absence is not an error. Current user decisions are
@@ -76,10 +83,10 @@ number that no source states.
 
 ## Record
 
-After reading the sources, remove stale records and record each value with
+After reading the sources, remove only user-confirmed stale records and record each value with
 the user's exact words. Use `forget --all` only when every previous source
-was checked; otherwise preserve unreadable sources and forget only individual
-verified stale keys. Pass this machine's host ID with every command:
+was checked and its removal confirmed; otherwise preserve existing sources
+and forget only individual confirmed keys. Pass this machine's host ID with every command:
 
 ```sh
 bb delegation forget --all --host <host id>
