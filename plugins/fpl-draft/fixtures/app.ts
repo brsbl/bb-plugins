@@ -35,7 +35,7 @@ export const WEEK = {
   ],
 };
 
-const sq = (o: Record<string, unknown>) => ({
+export const sq = (o: Record<string, unknown>) => ({
   elementId: 1, name: "Player", team: "ROS", position: "GKP" as const, slot: 1,
   starting: true, eventPoints: 3, eventMinutes: 90, minutesPerGame: 90,
   availability: "a", news: "", ...o,

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-import { LEAGUE, WEEK, MULTI_WEEK, SQUAD, PLAN, rpc, cand } from "./fixtures/app";
+import { LEAGUE, WEEK, MULTI_WEEK, SQUAD, PLAN, rpc, cand, sq } from "./fixtures/app";
 
 async function render(opts: { subPath?: string; rpc?: Record<string, unknown> } = {}) {
   const app = await loadPluginApp(() => import("./app"));
