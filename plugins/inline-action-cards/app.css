@@ -163,12 +163,13 @@
 .ac-card.ac-drawer { padding: 0; border: 0; background: transparent; }
 .ac-drawer .ac-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(var(--spacing, .25rem) * 1.5); }
 @media (max-width: 639px) {
-  /* Question, what it does and the brief, then the answer; images and follow-ups after it. */
+  /* Question, context and any draft, then the options and Submit; images and follow-ups after it. */
   .ac-drawer .ac-body, .ac-drawer .ac-about, .ac-drawer .ac-answer { display: contents; }
   .ac-drawer .ac-options, .ac-drawer .ac-answer > .ac-textarea { order: 1; }
   /* The action row (Dismiss and Submit) is the grid item here, not Submit inside it. */
   .ac-drawer .ac-submit, .ac-drawer .iac-drawer-actions { order: 2; }
-  .ac-drawer .ac-about > :not(.ac-consequence):not(.ac-context-line) { order: 3; }
+  /* Only supporting images and follow-ups move below Submit; a Reply's recipients and draft stay above its options. */
+  .ac-drawer .ac-about > :is(.iac-media, .iac-followups) { order: 3; }
 }
 /* Options match bb's question form: full-width rows with hover and selected fills, and their number key. */
 .ac-drawer .ac-options { gap: 2px; }

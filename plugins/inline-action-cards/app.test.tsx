@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import plugin from "./server.js";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import type { Item } from "./model.js";
+import { title, type Item } from "./model.js";
 const submittedMessages: string[] = [];
 const submittedMentions: { provider: string; id: string; label: string }[] = [];
 function recordSend(request: Parameters<BbPluginApi["sdk"]["threads"]["send"]>[0]) {
@@ -128,25 +128,55 @@ it("offers more for a short context whose image the one-line view hides", async 
   expect(document.querySelector(".ac-context-full")?.textContent).toContain("Before:");
 });
 
-it("keeps question, options, then Dismiss and Submit at 390px", async () => {
+// The phone layout flattens the card and reorders it with CSS order; jsdom has no layout, so apply the stylesheet's rules.
+async function phoneOrderRules(): Promise<[string, number][]> {
   const { readFile } = await import("node:fs/promises");
   const { existsSync } = await import("node:fs");
   const local = `${process.cwd()}/app.css`;
   const css = await readFile(existsSync(local) ? local : `${process.cwd()}/plugins/inline-action-cards/app.css`, "utf8");
-  // The phone layout flattens the card into one ordered column; the action row must sort after the options.
-  const phone = css.slice(css.indexOf("@media (max-width: 639px)"));
-  const orderOf = (selector: string) => Number(new RegExp(`${selector.replace(/[.]/g, "\\.")}[^{]*\\{[^}]*order: (\\d+)`).exec(phone)?.[1] ?? 0);
-  expect(orderOf(".ac-drawer .ac-options")).toBe(1);
-  expect(orderOf(".ac-drawer .iac-drawer-actions")).toBeGreaterThan(orderOf(".ac-drawer .ac-options"));
-  // And in the document the options come before the action row.
-  const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merge it." }, threadTitle: "Ops", threadProjectId: null } as const;
-  const app = await loadPluginApp(() => import("./app.js"));
-  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
-  await openItem(/^Answer: /);
-  const options = document.querySelector(".ac-options")!;
-  const actions = document.querySelector(".iac-drawer-actions")!;
-  expect(options.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-});
+  const start = css.indexOf("@media (max-width: 639px)");
+  const block = css.slice(start, css.indexOf("\n}", start));
+  return [...block.matchAll(/([^{}]+)\{[^}]*order: (\d+)/g)].map((match) => [match[1]!.replace(/\/\*[\s\S]*?\*\//g, "").trim(), Number(match[2])] as [string, number]);
+}
+function visualOrder(card: Element, rules: [string, number][] | null): Element[] {
+  const flatten = (element: Element): Element[] => [...element.children].flatMap((child) => rules && child.matches(".ac-body, .ac-about, .ac-answer") ? flatten(child) : [child]);
+  const items = flatten(card).map((element, index) => ({ element, index, order: rules ? rules.reduce((order, [selector, value]) => element.matches(selector) ? value : order, 0) : 0 }));
+  return items.sort((a, b) => a.order - b.order || a.index - b.index).map((item) => item.element);
+}
+const gridCards = {
+  decide: { ...fixture(), id: "grid-decide", content: { type: "decide", question: "Merge the fix?", consequence: "Squash-merge it.", context: "CI passed.", yesLabel: "Merge", noLabel: "Keep open" } },
+  choice: { ...fixture(), id: "grid-choice", content: { type: "choice", question: "Which plan?", context: "Review takes two days.", options: [{ id: "a", label: "Staged" }, { id: "b", label: "Everyone" }] } },
+  reply: { ...fixture(), id: "grid-reply", content: { ...fixture().content, context: "Billing asked yesterday." } },
+  ask: { ...fixture(), id: "grid-ask", content: { type: "ask", question: "Which channel?", context: "For the weekly report." } },
+  "sheet row": { ...fixture(), id: "grid-row", content: { type: "decide", question: "Archive the newsletter?", consequence: "Archive it.", context: "Part of a two-row sheet.", yesLabel: "Archive", noLabel: "Keep" } },
+} as const;
+it.each(Object.keys(gridCards).flatMap((type) => ["drawer", "log"].flatMap((surface) => ["desktop", "390px"].map((width) => [type, surface, width] as const))))(
+  "orders a %s in the %s at %s: question, context, content, then Submit", async (type, surface, width) => {
+    const item = { ...gridCards[type as keyof typeof gridCards], threadTitle: "Ops", threadProjectId: null } as Item & { threadTitle: string; threadProjectId: null };
+    const app = await loadPluginApp(() => import("./app.js"));
+    if (surface === "drawer") {
+      renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+      await openItem(/^Answer: /);
+    } else {
+      renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
+      await screen.findByRole("form");
+    }
+    const card = screen.getByRole("form");
+    const order = visualOrder(card, width === "390px" ? await phoneOrderRules() : null);
+    const at = (selector: string) => order.findIndex((element) => element.matches(selector) || !!element.querySelector(selector));
+    const asked = item.content.type === "reply" ? `Reply to ${item.content.to[0]}: ${item.content.subject}` : title(item);
+    const question = screen.getAllByText(asked).find((element) => !element.closest("legend"))!;
+    expect(question.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const content = at(type === "reply" ? "textarea[aria-label=Draft]" : type === "ask" ? "textarea[aria-label='Your answer']" : ".ac-options");
+    const submit = at("button[type=submit]");
+    expect(at(".ac-context-line")).toBeGreaterThanOrEqual(0);
+    expect(at(".ac-context-line")).toBeLessThan(content);
+    expect(content).toBeLessThan(submit);
+    if (type === "reply") {
+      expect(at(".iac-recipient-line")).toBeLessThan(submit);
+      expect(at(".ac-options")).toBeLessThan(submit);
+    }
+  });
 
 it("keeps rendered context in the line's muted color and small size", async () => {
   // jsdom gives import.meta.url an http scheme, so read the stylesheet from the plugin directory the tests run in.
