@@ -223,9 +223,10 @@
 .digest-email-row { color: var(--foreground); cursor: pointer; }
 .digest-email-row + .digest-email-row td, .digest-email-takeaways + .digest-email-row td { border-top: 1px solid var(--border); }
 /* Takeaways read as part of the email above them, still inside the bounded table. */
-.digest-email-scroll-tall { max-height: min(420px, 56dvh); }
+.digest-email-scroll-tall { max-height: min(420px, 56dvh); container-type: inline-size; }
 .digest-email-table .digest-email-takeaways td { padding-top: 0; color: var(--muted-foreground); white-space: normal; }
-.digest-email-takeaways ul { margin: 0; padding-left: 16px; list-style: disc; }
+/* Wrap at the visible width, not the wide table's, so phones need no sideways scroll. */
+.digest-email-takeaways ul { box-sizing: border-box; max-width: calc(100cqi - 16px); margin: 0; padding-left: 16px; list-style: disc; }
 .digest-email-takeaways li { overflow-wrap: anywhere; }
 .digest-email-row:hover, .digest-email-row:focus-within { background: var(--state-hover, var(--accent)); }
 .digest-email-sender { font-weight: 600; }
