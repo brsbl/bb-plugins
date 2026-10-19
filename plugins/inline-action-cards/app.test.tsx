@@ -128,7 +128,7 @@ it("offers more for a short context whose image the one-line view hides", async 
   expect(document.querySelector(".ac-context-full")?.textContent).toContain("Before:");
 });
 
-// The phone layout flattens the card and reorders it with CSS order; jsdom has no layout, so apply the stylesheet's rules.
+// The card reads as one column: on desktop in DOM order, on a phone reordered with CSS order. jsdom has no layout, so apply the stylesheet's phone rules.
 async function phoneOrderRules(): Promise<[string, number][]> {
   const { readFile } = await import("node:fs/promises");
   const { existsSync } = await import("node:fs");
@@ -139,7 +139,7 @@ async function phoneOrderRules(): Promise<[string, number][]> {
   return [...block.matchAll(/([^{}]+)\{[^}]*order: (\d+)/g)].map((match) => [match[1]!.replace(/\/\*[\s\S]*?\*\//g, "").trim(), Number(match[2])] as [string, number]);
 }
 function visualOrder(card: Element, rules: [string, number][] | null): Element[] {
-  const flatten = (element: Element): Element[] => Array.from(element.children).flatMap((child) => rules && child.matches(".ac-body, .ac-about, .ac-answer") ? flatten(child) : [child]);
+  const flatten = (element: Element): Element[] => Array.from(element.children).flatMap((child) => child.matches(".ac-body, .ac-about, .ac-answer") ? flatten(child) : [child]);
   const items = flatten(card).map((element, index) => ({ element, index, order: rules ? rules.reduce((order, [selector, value]) => element.matches(selector) ? value : order, 0) : 0 }));
   return items.sort((a, b) => a.order - b.order || a.index - b.index).map((item) => item.element);
 }
