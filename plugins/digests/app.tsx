@@ -15,6 +15,7 @@ import {
 import type { rpcContract } from "./contracts.js";
 import type { Connection, DigestDefinition, Issue, SaveDigest } from "./model.js";
 import { digestEmoji } from "./emoji.js";
+import { isEmailUrl, linkDomain } from "./links.js";
 import { expectedAccount } from "./sites.js";
 import { Button } from "./components/ui/button.js";
 import { Switch } from "./components/ui/switch.js";
@@ -277,7 +278,7 @@ function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: stri
           if (safeLink(item.url)) navigate.openUrl(item.url);
         }}>
           <td className="digest-email-sender" title={sender}><a href={safeLink(item.url)} aria-label={[sender, subject, item.text].filter(Boolean).join(" · ")}>{sender || "Email"}</a></td>
-          <td title={subject}>{subject}</td>
+          <td title={subject}>{item.copies?.length ? <span className="digest-email-copies" title={item.copies.map((copy) => copy.label).join(", ")}>{item.copies.length + 1} inboxes</span> : null}{subject}</td>
           <td className="digest-email-detail" title={item.text}><span>{item.text}</span></td>
           <td>{kind && <span className="digest-email-kind" data-kind={kind}>{kind[0]!.toUpperCase() + kind.slice(1)}</span>}</td>
           <td className="digest-email-date">{date && <time dateTime={date.toISOString()} title={date.toLocaleString()}>{dateLabel}</time>}</td>
@@ -285,6 +286,12 @@ function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: stri
       })}</tbody>
     </table>
   </div>;
+}
+
+/** The site a task button opens, shown beside it. Gmail buttons need no label. */
+function ActionDomain({ url }: { url: string }) {
+  const link = isEmailUrl(url) ? null : linkDomain(url);
+  return link ? <span className="digest-action-domain" title={link.host}>{link.domain}</span> : null;
 }
 
 function sectionLabel(label: string): string {
@@ -319,10 +326,21 @@ function BriefCards({ brief, headline, prefix, issueDate, expanded, setExpanded 
           {deadline && !repeatsHeadline && <span className="digest-urgency">{deadline}</span>}
           {item.secondaryAction && <Button variant="ghost" onClick={() => open(item.secondaryAction!.url)}>{item.secondaryAction.label}</Button>}
           <Button variant="outline" onClick={() => open(item.action.url)}>{item.action.label}</Button>
+          <ActionDomain url={item.action.url} />
         </div>
       </li>; })}
     </ol></section>}
-    {brief.later.length > 0 && <section className="digest-group digest-later"><h3 id={`${prefix}-later`} className="digest-section-heading" data-tone="neutral" tabIndex={-1}><CountLabel label={brief.laterLabel} count={brief.later.length} /></h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>{item.action && <Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button>}</li>)}</ul></section>}
+    {brief.later.length > 0 && <section className="digest-group digest-later"><h3 id={`${prefix}-later`} className="digest-section-heading" data-tone="neutral" tabIndex={-1}><CountLabel label={brief.laterLabel} count={brief.later.length} /></h3><ul>{brief.later.map((item, index) => <li key={index}><span>{item.title}</span>
+      {(item.action || item.secondaryAction) && <span className="digest-later-actions">
+        {item.secondaryAction && <Button variant="ghost" onClick={() => open(item.secondaryAction!.url)}>{item.secondaryAction.label}</Button>}
+        {item.action && <><Button variant="ghost" onClick={() => open(item.action!.url)}>{item.action.label}</Button><ActionDomain url={item.action.url} /></>}
+      </span>}
+    </li>)}</ul></section>}
+    {brief.elsewhere?.length ? <p className="digest-elsewhere">Also: {brief.elsewhere.map((entry, index) => <Fragment key={index}>
+      {index > 0 && " · "}{entry.threadId
+        ? <a href="#" onClick={(event) => { event.preventDefault(); navigate.toThread(entry.threadId!); }}>{entry.label}</a>
+        : entry.label}
+    </Fragment>)}</p> : null}
     {brief.tail && <details className="digest-more" id={`${prefix}-tail`} data-tone="neutral" open={expanded === "tail"}><summary onClick={(event) => { event.preventDefault(); setExpanded(expanded === "tail" ? null : "tail"); }}>
       <Icon name="ChevronRight" className="digest-chevron" aria-hidden /><CountLabel label={sectionLabel(brief.tail.label)} count={brief.tail.items?.length} />
     </summary>{brief.tail.items?.length ? <EmailList items={brief.tail.items} label={sectionLabel(brief.tail.label)} issueDate={issueDate} /> : <NewsletterText content={brief.tail.details} />}</details>}
