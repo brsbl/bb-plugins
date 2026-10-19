@@ -34,8 +34,9 @@ export function ContextLine({ media, children }: { media?: boolean; children: Re
   useLayoutEffect(() => {
     const node = line.current;
     if (!node || open) return;
-    // Hidden when it overflows the line, or when it holds images, which the one-line view never shows.
-    const measure = () => setClipped(!!media || node.scrollWidth > node.clientWidth + 1 || !!node.querySelector("img, video, picture"));
+    // Hidden when it overflows the line in either direction, or holds images or line breaks the one-line view folds away.
+    const measure = () => setClipped(!!media || node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1
+      || !!node.querySelector("img, video, picture, br"));
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(node);

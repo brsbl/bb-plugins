@@ -242,12 +242,14 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
   const consequence = choice ? choice.consequence : item.content.type === "decide" ? item.content.consequence : null;
   const { context, media } = item.content;
-  // Images never show in the one-line view, so context that has any always offers more.
-  const brief = context && <ContextLine media={context.includes("![") || /<img\b/i.test(context)}><Markdown content={context} /></ContextLine>;
+  // The one-line view never shows images and folds line breaks into spaces, so context with either always offers more.
+  const brief = context && <ContextLine media={context.trim().includes("\n") || context.includes("![") || /<img\b/i.test(context)}><Markdown content={context} /></ContextLine>;
   const field = <DecisionBody
     about={<>
-      {drawer || logForm ? consequence && <p className="ac-consequence">{consequence}</p> : <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />}
+      {/* Context sits right under the question; what the answer does follows it, just above the options. */}
+      {!(drawer || logForm) && <DecisionHeader question={heading} id={`${fieldId}-q`} />}
       {brief}
+      {consequence && <p className="ac-consequence">{consequence}</p>}
       {reply && <>
         {recipients}
         {original}

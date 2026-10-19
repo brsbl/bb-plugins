@@ -118,6 +118,17 @@ it("shows the original context on one line, never altered, with more only when s
   expect(screen.getAllByRole("radio")).toHaveLength(2);
 });
 
+it.each(["drawer", "log"] as const)("folds a hard line break into the one line in the %s and offers more", async (surface) => {
+  const item = { ...fixture(), id: "break-1", content: { type: "decide", question: "Ship the release?", consequence: "Publish it.", context: "CI passed.  \nRelease window closes Friday." }, threadTitle: "Ops", threadProjectId: null } as const;
+  const app = await loadPluginApp(() => import("./app.js"));
+  if (surface === "drawer") {
+    renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+    await openItem(/^Answer: /);
+  } else renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
+  fireEvent.click(await screen.findByRole("button", { name: "Show all context" }));
+  expect(document.querySelector(".ac-context-full")?.textContent).toContain("Release window closes Friday.");
+});
+
 it("offers more for a short context whose image the one-line view hides", async () => {
   const item = { ...fixture(), id: "chart-1", content: { type: "decide", question: "Ship the chart?", consequence: "Publish it.", context: "Before: ![chart](https://example.com/chart.png)" }, threadTitle: "Ops", threadProjectId: null } as const;
   const app = await loadPluginApp(() => import("./app.js"));
@@ -171,6 +182,11 @@ it.each(Object.keys(gridCards).flatMap((type) => ["drawer", "log"].flatMap((surf
     const submit = at("button[type=submit]");
     expect(at(".ac-context-line")).toBeGreaterThanOrEqual(0);
     expect(at(".ac-context-line")).toBeLessThan(content);
+    // Context sits right under the question; what the answer does comes after it, before the answer.
+    if (item.content.type === "decide") {
+      expect(at(".ac-consequence")).toBeGreaterThan(at(".ac-context-line"));
+      expect(at(".ac-consequence")).toBeLessThan(content);
+    }
     expect(content).toBeLessThan(submit);
     if (type === "reply") {
       expect(at(".iac-recipient-line")).toBeLessThan(submit);

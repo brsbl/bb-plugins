@@ -89,6 +89,10 @@
 .ac-context-summary :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, tr, td, th)::after { content: " "; }
 .ac-context-summary li + li::before { content: "· "; }
 .ac-context-summary img { display: none; }
+/* A hard break becomes a space, and the box is one line tall whatever the Markdown holds. */
+.ac-context-summary br { content: ""; }
+.ac-context-summary br::after { content: " "; }
+.ac-context-summary { max-height: 1.5em; }
 .ac-context-full { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ac-context-full > * { margin: 0; } .ac-context-full > * + * { margin-top: calc(var(--ac-s) * 1); }
 .ac-context-full ul, .ac-context-full ol { padding-left: 1.25em; }
