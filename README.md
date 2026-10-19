@@ -158,9 +158,7 @@ Answer everything agents need from you in Waiting on you, a drawer above the pro
 
 ![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
 
-![Action table and results](https://github.com/user-attachments/assets/ec63ecfe-86ad-4a46-8f6e-06a72e8923f0)
-
-![Mixed table with one reply expanded](https://github.com/user-attachments/assets/4eef8810-5a99-40af-8fa4-974d25f6937f)
+![A sample decision open in Waiting on you, with its context, both options, Recommended and Submit](plugins/inline-action-cards/docs/decision-in-thread.png)
 
 [Source](plugins/inline-action-cards) · [README](plugins/inline-action-cards/README.md)
 
