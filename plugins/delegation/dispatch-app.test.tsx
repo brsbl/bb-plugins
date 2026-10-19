@@ -3,13 +3,13 @@ import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 type Request = { threadId: string; includeNestedRows?: string; segmentLimit?: string; beforeAnchorId?: string; beforeAnchorSeq?: string };
 const cursor = (anchorSeq: number) => ({ anchorId: `sample-window-${anchorSeq}`, anchorSeq });
 const brief = { id: "brief", kind: "conversation", role: "user", initiator: "user", createdAt: 1, text: "Calculate the synthetic total." };
 const reply = (id: string, createdAt: number, text: string) => ({
-  id, kind: "conversation", role: "user", createdAt, initiator: "system", systemMessageKind: "child-completed",
+  id, kind: "conversation", role: "user", createdAt, sourceSeqStart: createdAt, sourceSeqEnd: createdAt, initiator: "system", systemMessageKind: "child-completed",
   systemMessageSubject: { kind: "thread", threadId: "sample-worker" }, text,
 });
 const recent = reply("recent", 30, "Synthetic total: 42.");
@@ -117,4 +117,32 @@ it("recovers an unavailable cursor from latest and waits for retry", async () =>
   fireEvent.click(slot.getByRole("button", { name: "Retry" }));
   await slot.findByText("Calculate the synthetic total.");
   expect(slot.queryByText(/Couldn't load older messages/)).toBeNull();
+});
+
+
+it("keeps loaded older messages and the reader's position when new events refresh the tail", async () => {
+  let appended = false;
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+  const { slot, timeline } = await panel(({ threadId, beforeAnchorSeq }) => {
+    if (threadId !== "sample-lead") return { rows: [brief], timelinePage: { olderCursor: null } };
+    const page = beforeAnchorSeq === "20" ? 1 : beforeAnchorSeq === "10" ? 2 : 0;
+    return {
+      rows: [collapsed(page === 0 ? [recent, ...(appended ? [reply("new", 40, "New tail reply.")] : [])] : page === 1 ? [older] : [oldest])],
+      maxSeq: appended ? 40 : 30,
+      timelinePage: { olderCursor: page === 2 ? null : cursor(page === 0 ? 20 : 10), historySnapshot: appended ? "second" : "first", olderRowsSourceSeqEnd: null },
+    };
+  });
+  await slot.findByText(oldest.text);
+  const channel = slot.getByRole("tabpanel");
+  Object.defineProperties(channel, { scrollHeight: { get: () => channel.querySelectorAll("li").length * 100 }, clientHeight: { value: 100 } });
+  channel.scrollTop = 100;
+  fireEvent.scroll(channel);
+  const olderReads = timeline.mock.calls.filter(([args]) => args.beforeAnchorId).length;
+  appended = true;
+  fireEvent(document, new Event("visibilitychange"));
+  await slot.findByText("New tail reply.");
+  expect(slot.getAllByText(oldest.text)).toHaveLength(1);
+  expect(slot.getAllByText(older.text)).toHaveLength(1);
+  expect(channel.scrollTop).toBe(100);
+  expect(timeline.mock.calls.filter(([args]) => args.beforeAnchorId)).toHaveLength(olderReads);
 });
