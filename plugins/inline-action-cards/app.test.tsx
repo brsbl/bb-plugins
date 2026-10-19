@@ -128,6 +128,26 @@ it("offers more for a short context whose image the one-line view hides", async 
   expect(document.querySelector(".ac-context-full")?.textContent).toContain("Before:");
 });
 
+it("keeps question, options, then Dismiss and Submit at 390px", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { existsSync } = await import("node:fs");
+  const local = `${process.cwd()}/app.css`;
+  const css = await readFile(existsSync(local) ? local : `${process.cwd()}/plugins/inline-action-cards/app.css`, "utf8");
+  // The phone layout flattens the card into one ordered column; the action row must sort after the options.
+  const phone = css.slice(css.indexOf("@media (max-width: 639px)"));
+  const orderOf = (selector: string) => Number(new RegExp(`${selector.replace(/[.]/g, "\\.")}[^{]*\\{[^}]*order: (\\d+)`).exec(phone)?.[1] ?? 0);
+  expect(orderOf(".ac-drawer .ac-options")).toBe(1);
+  expect(orderOf(".ac-drawer .iac-drawer-actions")).toBeGreaterThan(orderOf(".ac-drawer .ac-options"));
+  // And in the document the options come before the action row.
+  const item = { ...fixture(), id: "merge-1", content: { type: "decide", question: "Merge the PR?", consequence: "Squash-merge it." }, threadTitle: "Ops", threadProjectId: null } as const;
+  const app = await loadPluginApp(() => import("./app.js"));
+  renderSlot(app.composerCustomizations[0]!.banners![0]!, {}, { ...inThread, rpc: { waiting: () => [item], get: () => item } });
+  await openItem(/^Answer: /);
+  const options = document.querySelector(".ac-options")!;
+  const actions = document.querySelector(".iac-drawer-actions")!;
+  expect(options.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
 it("keeps rendered context in the line's muted color and small size", async () => {
   // jsdom gives import.meta.url an http scheme, so read the stylesheet from the plugin directory the tests run in.
   const { readFile } = await import("node:fs/promises");
