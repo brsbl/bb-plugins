@@ -144,6 +144,8 @@ const emailRow = z.object({
   subject: z.string().trim().min(1).max(180).optional(),
   receivedAt: timestamp.max(8_640_000_000_000_000).optional(),
   kind: z.enum(["receipt", "bill", "event", "newsletter", "shipping"]).optional(),
+  // Optional so older rows keep one summary line; reading briefs list each newsletter's key points.
+  takeaways: z.array(z.string().trim().min(1).max(200)).max(5).optional(),
 }).strict();
 
 /** Optional so existing Markdown publishers and stored issues remain valid. */

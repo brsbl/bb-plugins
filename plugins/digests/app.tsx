@@ -1,4 +1,4 @@
-import { Children, useCallback, useEffect, useRef, useState, useLayoutEffect, useSyncExternalStore, type ReactNode, useId } from "react";
+import { Children, Fragment, useCallback, useEffect, useRef, useState, useLayoutEffect, useSyncExternalStore, type ReactNode, useId } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -260,7 +260,8 @@ function emailKind(item: EmailRow): string | undefined {
 
 function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: string; issueDate: number }) {
   const navigate = useBbNavigate();
-  return <div className="digest-email-scroll" role="region" aria-label={label} tabIndex={0}>
+  const takeaways = items.some((item) => item.takeaways?.length);
+  return <div className={takeaways ? "digest-email-scroll digest-email-scroll-tall" : "digest-email-scroll"} role="region" aria-label={label} tabIndex={0}>
     <table className="digest-email-table">
       <colgroup><col className="digest-col-sender" /><col className="digest-col-subject" /><col className="digest-col-detail" /><col className="digest-col-kind" /><col className="digest-col-date" /></colgroup>
       <thead><tr><th scope="col">Sender</th><th scope="col">Subject</th><th scope="col">Summary</th><th scope="col">Type</th><th scope="col">Received</th></tr></thead>
@@ -270,7 +271,7 @@ function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: stri
         const date = item.receivedAt === undefined ? null : new Date(item.receivedAt);
         const sameDay = date?.toDateString() === new Date(issueDate).toDateString();
         const dateLabel = date ? new Intl.DateTimeFormat(undefined, sameDay ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric" }).format(date) : "";
-        return <tr key={index} className="digest-email-row" onClick={(event) => {
+        return <Fragment key={index}><tr className="digest-email-row" onClick={(event) => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault();
           if (safeLink(item.url)) navigate.openUrl(item.url);
@@ -280,7 +281,7 @@ function EmailList({ items, label, issueDate }: { items: EmailRow[]; label: stri
           <td className="digest-email-detail" title={item.text}><span>{item.text}</span></td>
           <td>{kind && <span className="digest-email-kind" data-kind={kind}>{kind[0]!.toUpperCase() + kind.slice(1)}</span>}</td>
           <td className="digest-email-date">{date && <time dateTime={date.toISOString()} title={date.toLocaleString()}>{dateLabel}</time>}</td>
-        </tr>;
+        </tr>{item.takeaways?.length ? <tr className="digest-email-takeaways"><td colSpan={5}><ul aria-label={`Takeaways from ${sender || subject}`}>{item.takeaways.map((takeaway, point) => <li key={point}>{takeaway}</li>)}</ul></td></tr> : null}</Fragment>;
       })}</tbody>
     </table>
   </div>;
