@@ -39,14 +39,14 @@ it.each([false, true])("shows completed replies inside collapsed turns once, wit
   if (hasOlderRows) {
     // A short channel loads older segments automatically, but stops at the cap.
     await waitFor(() => expect(slot.inspection.sdkCalls.some((call) =>
-      call.method === "threads.timeline" && (call.input as { segmentLimit?: string }).segmentLimit === "100",
+      call.method === "threads.timeline" && (call.args[0] as { segmentLimit?: string }).segmentLimit === "100",
     )).toBe(true));
   } else {
     await slot.findByText("Calculate the synthetic total.");
     expect(timeline).toHaveBeenCalledTimes(2);
   }
   for (const call of slot.inspection.sdkCalls.filter((call) => call.method === "threads.timeline")) {
-    expect(call.input).toMatchObject({ includeNestedRows: "true" });
-    expect(Number((call.input as { segmentLimit: string }).segmentLimit)).toBeLessThanOrEqual(100);
+    expect(call.args[0]).toMatchObject({ includeNestedRows: "true" });
+    expect(Number((call.args[0] as { segmentLimit: string }).segmentLimit)).toBeLessThanOrEqual(100);
   }
 });
