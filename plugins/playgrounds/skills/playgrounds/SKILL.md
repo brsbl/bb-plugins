@@ -187,7 +187,7 @@ readouts, `ui.table(name, { columns, rows })`, `ui.chart(name, spec)` (below), a
 taps and a cell you choose arrive as the same `select` event, so game rules live
 in one place.
 
-Use `params.set("email", true)` or `params.set({ email: true, push: false })`.
+Use `params.set("rate", 6)` or `params.set({ rate: 6, mode: "fast" })`.
 A `data-pg` control declares its `data-param` automatically; declare inputs without
 kit controls with `params.define(name, spec)` before reading or setting them.
 Unknown names throw, including in `setParams`; object updates validate every name
