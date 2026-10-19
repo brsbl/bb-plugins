@@ -7,6 +7,9 @@ import { checkControls } from './controls.mjs';
 import { hasInk } from './pixels.mjs';
 import { failureScore, providerSummary, resumeMismatch } from './metrics.mjs';
 
+let interrupted = false;
+process.on('SIGTERM', () => { interrupted = true; });
+process.on('SIGINT', () => { interrupted = true; });
 const here = dirname(fileURLToPath(import.meta.url));
 const prompts = JSON.parse(readFileSync(join(here, 'prompts.json'), 'utf8'));
 const args = {};
@@ -165,6 +168,7 @@ const ui = await drive(base.href,[['until','Boolean(document.querySelector("#roo
 if (ui.code || !ui.evals.some(v => v?.ready) || !hasInk(join(preflightDir,'bb.png'))) throw new Error('Preflight: dev bb UI did not render');
 
 for (const provider of providers) for (const prompt of selected) {
+  if (interrupted) throw new Error('Runner interrupted');
   const dir = join(out,provider,prompt.id), resultPath = join(dir,'result.json');
   mkdirSync(dir,{recursive:true});
   if (existsSync(resultPath)) { summarize(); continue; }
@@ -194,6 +198,7 @@ for (const provider of providers) for (const prompt of selected) {
     if (thread.providerId !== provider || !result.model) throw new Error('Actual provider/model could not be verified');
     if (result.model !== result.catalogDefaultModel) throw new Error('Personal remembered a non-default model; reset the isolated instance before measuring');
     if (threadInfo.projectId !== 'proj_personal') throw new Error('Thread was not created in Personal');
+    if (interrupted) throw new Error('Runner interrupted');
     const preload = join(dir,'monitor.js');
     writeFileSync(preload, `(${monitor.toString()})(${JSON.stringify(thread.id)});`);
     const remaining = Math.max(1, capMs - (Date.now()-result.sentAt));
@@ -234,5 +239,7 @@ for (const provider of providers) for (const prompt of selected) {
     save(resultPath,result); summarize();
     console.log(`${provider}/${prompt.id}: ${result.pass ? 'PASS' : 'FAIL'} ${(result.scoreMs/60000).toFixed(2)} min; ${result.error || result.controls?.reason || ''}`);
   }
+  if (result.stopError) throw new Error(`Could not stop owned thread ${result.threadId}: ${result.stopError}`);
+  if (interrupted) throw new Error('Runner interrupted');
 }
 console.log(join(out,'summary.md'));

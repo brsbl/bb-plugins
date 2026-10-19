@@ -8,7 +8,8 @@ export function inventory(scope = 'body') {
   if (!root) return [];
   const candidates = [...root.querySelectorAll('button,input:not([type="hidden"]),select,textarea,[role="button"],[role="switch"],[role="slider"],[role="checkbox"],[role="radio"],[role="tab"],[tabindex],canvas,[onclick],[data-drag]')];
   for (const el of root.querySelectorAll('*')) {
-    if (getComputedStyle(el).cursor === 'pointer' && getComputedStyle(el.parentElement || el).cursor !== 'pointer') candidates.push(el);
+    const cursor = getComputedStyle(el).cursor;
+    if (/^(pointer|grab|grabbing|move|.*resize)$/.test(cursor) && getComputedStyle(el.parentElement || el).cursor !== cursor) candidates.push(el);
   }
   return [...new Set(candidates)].filter(el => {
     const r = el.getBoundingClientRect();
@@ -16,7 +17,7 @@ export function inventory(scope = 'body') {
       !candidates.some(child => child !== el && el.contains(child));
   }).map((el, i) => {
     el.dataset.launchControl = String(i);
-    return { disabled: Boolean(el.disabled || el.getAttribute('aria-disabled') === 'true'), index: i, tag: el.tagName.toLowerCase(), type: el.type || el.getAttribute('role') || '',
+    return { cursor: getComputedStyle(el).cursor, disabled: Boolean(el.disabled || el.getAttribute('aria-disabled') === 'true'), index: i, tag: el.tagName.toLowerCase(), type: el.type || el.getAttribute('role') || '',
       label: el.getAttribute('aria-label') || el.textContent?.trim().slice(0, 100) || el.id || `control ${i}`,
       selected: el.checked || el.getAttribute('aria-pressed') === 'true' || el.getAttribute('aria-selected') === 'true',
       group: el.name || el.closest('[role="tablist"],.pg-seg,.pg-segmented')?.outerHTML.slice(0, 120) || null };
@@ -27,13 +28,13 @@ function action(c) {
   const s = selector(c);
   if (c.disabled) return null;
   if (c.tag === 'canvas' || (c.tag === 'input' && ['file','color','date','time','datetime-local','month','week'].includes(c.type))) return null;
-  if (c.type === 'range' || c.type === 'slider' || c.type === 'dial') return [['drag', s, 0.2, 0.5, 0.85, 0.5, 20]];
+  if (c.type === 'range' || c.type === 'slider' || c.type === 'dial' || /grab|move|resize/.test(c.cursor || '')) return [['drag', s, 0.2, 0.5, 0.85, 0.5, 20]];
   if (c.tag === 'select') return [['click', s], ['key', 'ArrowDown', s], ['key', 'Enter', s]];
   if (c.tag === 'textarea' || (c.tag === 'input' && ['text','search','email','url','password','tel','number'].includes(c.type))) {
     if (c.type === 'number') return [['click', s], ['key', 'ArrowUp', s]];
     return [['click', s], ['key', 'x', s]];
   }
-  if (c.tag === 'button' || ['button','submit','reset','checkbox','radio','switch','tab'].includes(c.type) || c.tag === 'a') return [['click', s]];
+  if (c.tag === 'button' || ['button','submit','reset','checkbox','radio','switch','tab'].includes(c.type) || c.tag === 'a' || c.cursor === 'pointer') return [['click', s]];
   return null;
 }
 
