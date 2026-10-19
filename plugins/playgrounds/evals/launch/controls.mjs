@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { writeFileSync } from 'node:fs';
 import { visualDelta } from './pixels.mjs';
+import { observeInteractions, unexercisedControls } from './observations.mjs';
 
 // This is run in the card's real rendered frame (not a reconstructed mock).
 export function inventory(scope = 'body') {
@@ -11,11 +12,14 @@ export function inventory(scope = 'body') {
     const cursor = getComputedStyle(el).cursor;
     if (/^(pointer|grab|grabbing|move|.*resize)$/.test(cursor) && getComputedStyle(el.parentElement || el).cursor !== cursor) candidates.push(el);
   }
+  const identities = window.__launchControlIdentities ||= { elements: new WeakMap(), next: 0 };
   return [...new Set(candidates)].filter(el => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden' &&
       !candidates.some(child => child !== el && el.contains(child));
-  }).map((el, i) => {
+  }).map(el => {
+    if (!identities.elements.has(el)) identities.elements.set(el, identities.next++);
+    const i = identities.elements.get(el);
     el.dataset.launchControl = String(i);
     return { cursor: getComputedStyle(el).cursor, disabled: Boolean(el.disabled || el.getAttribute('aria-disabled') === 'true'), index: i, tag: el.tagName.toLowerCase(), type: el.type || el.getAttribute('role') || '',
       label: el.getAttribute('aria-label') || el.textContent?.trim().slice(0, 100) || el.id || `control ${i}`,
@@ -62,7 +66,7 @@ export async function checkControls({ target, scope = 'body', width, dir, drive 
     plans.push({ ...control, paths, steps });
   }
   actions.push(['eval', listExpression]);
-  const exercised = await drive(target, actions, join(dir, 'controls'), width);
+  const exercised = await drive(target, observeInteractions(actions, listExpression), join(dir, 'controls'), width);
   const results = plans.map(plan => {
     if (!plan.paths) return plan;
     const masks = exercised.evals.find(v => v?.maskFor === plan.index)?.rects;
@@ -70,11 +74,16 @@ export async function checkControls({ target, scope = 'body', width, dir, drive 
     try { return { ...plan, ...visualDelta(plan.paths, masks) }; }
     catch (error) { return { ...plan, pass: false, reason: String(error) }; }
   });
-  const last = exercised.evals.filter(Array.isArray).at(-1) || [];
-  for (const c of last) if (!controls.some(p => p.tag === c.tag && p.type === c.type && p.label === c.label))
-    results.push({ ...c, pass: false, reason: 'Interaction exposed another control that was not exercised' });
+  const initial = exercised.evals.find(Array.isArray) || controls;
+  const snapshots = [
+    { inventoryAfter: {phase:'start'}, controls: initial },
+    ...exercised.evals.filter(value => value?.inventoryAfter),
+    { inventoryAfter: {phase:'end'}, controls: exercised.evals.filter(Array.isArray).at(-1) || [] },
+  ];
+  for (const control of unexercisedControls(controls, snapshots))
+    results.push({ ...control, pass: false, reason: 'Interaction exposed another control that was not exercised (retained even if later hidden)' });
   const pass = exercised.code === 0 && !exercised.log.includes('exception:') && results.every(c => c.pass);
-  const report = { pass, controls: results, reason: pass ? 'Every exposed control produced an output change' : 'At least one control is dead, unsupported, or unproven' };
+  const report = { pass, controls: results, inventories: snapshots, reason: pass ? 'Every exposed control produced an output change' : 'At least one control is dead, unsupported, or unproven' };
   writeFileSync(join(dir, 'controls.json'), JSON.stringify(report, null, 2));
   return report;
 }

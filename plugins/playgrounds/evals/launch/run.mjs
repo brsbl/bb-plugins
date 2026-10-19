@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { checkControls } from './controls.mjs';
 import { hasInk } from './pixels.mjs';
 import { failureScore, providerSummary, resumeMismatch } from './metrics.mjs';
+import { renderWindow } from './observations.mjs';
 
 let interrupted = false;
 process.on('SIGTERM', () => { interrupted = true; });
@@ -33,7 +34,7 @@ mkdirSync(out, { recursive: true });
 mkdirSync(join(out, '.tmp'), { recursive: true });
 const manifestPath = join(out, 'manifest.json');
 const commit = args.commit || (() => { try { return execFileSync('git', ['-C', pluginRoot, 'rev-parse', 'HEAD'], {encoding:'utf8'}).trim(); } catch { return 'unverified'; } })();
-const manifest = { label: args.label, url: base.origin, host: args.host, pluginRoot, commit, capMs,
+const manifest = { label: args.label, url: base.origin, host: args.host, pluginRoot, commit, capMs, renderGraceMs: 30_000,
   prompts, providers, modelSelection: 'omitted: default for each provider in fresh Personal project',
   concurrency: 1, timing: 'HTTP prompt send until loaded card is visible in real thread DOM; polling resolution 150 ms, screenshot corroboration',
   createdAt: new Date().toISOString() };
@@ -73,16 +74,19 @@ function questionEvidence(timeline, interactions) {
   return { structured, textQuestions, count: structured.length + textQuestions.filter(q => q.likely).length,
     needsReview: textQuestions.some(q => !q.likely) };
 }
-function monitor(threadId) {
+function monitor(threadId, capAt, renderWindow) {
   const visible = el => {
     const r = el.getBoundingClientRect();
     return r.width > 80 && r.height > 40 && r.bottom > 0 && r.top < innerHeight && getComputedStyle(el).visibility !== 'hidden';
   };
   const loaded = new WeakSet();
-  window.__launch = { proof: null, progress: [], errors: [], terminal: false };
+  window.__launch = { proof: null, progress: [], errors: [], done: false, agentCompletedAt: null, terminalObservedAt: null, completionSource: null };
   document.addEventListener('load', event => { if (event.target?.tagName === 'IFRAME' && event.target.src) loaded.add(event.target); }, true);
   setInterval(() => {
-    if (window.__launch.proof) return;
+    const state = window.__launch;
+    const windowState = renderWindow({now:Date.now(),capAt,agentCompletedAt:state.agentCompletedAt,visibleAt:state.proof?.at ?? null});
+    state.done = windowState.done;
+    if (state.done) return;
     const frame = document.querySelector('.pg-host .pg-widget iframe');
     const card = frame || document.querySelector('.pg-host .pg-answer:not([role="status"]):not(.pg-error)');
     if (!card) return;
@@ -108,7 +112,12 @@ function monitor(threadId) {
           window.__launch.progress.push({ rowId: row.id, at: Date.now(), text: row.text });
       }
       const thread = await (await fetch(`/api/v1/threads/${threadId}`)).json();
-      if (['idle','error'].includes(thread.status) && flatten(timeline.rows || []).some(row => row.role === 'assistant')) window.__launch.terminal = true;
+      if (['idle','error'].includes(thread.status) && flatten(timeline.rows || []).some(row => row.role === 'assistant') && window.__launch.agentCompletedAt === null) {
+        const completed = flatten(timeline.rows || []).filter(row => row.kind === 'turn' && Number.isFinite(row.completedAt)).map(row => row.completedAt);
+        window.__launch.terminalObservedAt = Date.now();
+        window.__launch.agentCompletedAt = completed.length ? Math.max(...completed) : window.__launch.terminalObservedAt;
+        window.__launch.completionSource = completed.length ? 'turn.completedAt' : 'terminal-observed';
+      }
     } catch (error) { window.__launch.errors.push(String(error)); }
   }, 1500);
 }
@@ -144,7 +153,10 @@ function summarize() {
   writeFileSync(join(out,'summary.md'), `# ${args.label}\n\nSource: ${commit}. Cap: ${capMs/60000} minutes. Fresh Personal threads; default models.\n\n` +
     '| Provider | Completed | Median | p90 | All controls live | Clarifying questions | Question reviews | Progress | Gate |\n|---|---:|---:|---:|---:|---:|---:|---:|---|\n' +
     results.map(r => `| ${r.provider} | ${r.completed}/20 | ${r.medianMs === null ? 'pending' : (r.medianMs/60000).toFixed(2)+' min'} | ${r.p90Ms === null ? 'pending' : (r.p90Ms/60000).toFixed(2)+' min'} | ${r.liveCards}/20 | ${r.clarifyingQuestions} | ${r.questionReviewsNeeded} | ${r.progressShown}/20 | ${r.pass ? 'PASS' : r.complete ? 'FAIL' : 'INCOMPLETE'} |`).join('\n') +
-    '\n\nMedian uses the middle pair; p90 uses nearest rank. Every missing card and capped run is scored at the cap, including early failures. A visible card with failed controls retains its measured time and fails control quality. Partial runs do not produce launch percentiles. Review question evidence before declaring zero clarifications.\n');
+    '\n\nMedian uses the middle pair; p90 uses nearest rank. Every missing card and capped run is scored at the cap, including early failures. A visible card with failed controls retains its measured time and fails control quality. Partial runs do not produce launch percentiles. Review question evidence before declaring zero clarifications.\n' +
+    '\nRender grace (fixed 30 s, bounded by run cap):\n' +
+    (results.flatMap(provider => provider.results.filter(run => run.renderGraceUsed).map(run =>
+      `- ${provider.provider}/${run.promptId}: agentCompletedAt=${run.agentCompletedAt}; terminalObservedAt=${run.terminalObservedAt}; renderDelayMs=${run.renderDelayMs ?? 'no card'}; grace retained card=${run.renderGraceRetainedCard}; scored ${(run.scoreMs/60000).toFixed(2)} min.`)).join('\n') || 'No run used render grace.') + '\n');
 }
 
 // Fail infrastructure preflight before any scored prompt is sent. The fixture
@@ -200,18 +212,26 @@ for (const provider of providers) for (const prompt of selected) {
     if (threadInfo.projectId !== 'proj_personal') throw new Error('Thread was not created in Personal');
     if (interrupted) throw new Error('Runner interrupted');
     const preload = join(dir,'monitor.js');
-    writeFileSync(preload, `(${monitor.toString()})(${JSON.stringify(thread.id)});`);
+    writeFileSync(preload, `(${monitor.toString()})(${JSON.stringify(thread.id)},${result.sentAt+capMs},${renderWindow.toString()});`);
     const remaining = Math.max(1, capMs - (Date.now()-result.sentAt));
     const visible = await drive(new URL(`/threads/${thread.id}`,base).href,
-      [['until','window.__launch?.proof || window.__launch?.terminal',remaining], ['eval','window.__launch'], ['shot',join(dir,'visible.png'),'[data-launch-card="visible"]']],
+      [['until','window.__launch?.proof || window.__launch?.done',remaining], ['eval','window.__launch'], ['shot',join(dir,'visible.png'),'[data-launch-card="visible"]']],
       join(dir,'visible'),prompt.width || 1280,{preload,timeout:remaining+20_000});
     const measurement = visible.evals.find(v => v && Object.hasOwn(v,'proof'));
     const proof = measurement?.proof;
     result.progress = measurement?.progress || [];
     result.browserErrors = measurement?.errors || [];
     result.proof = proof;
+    result.agentCompletedAt = measurement?.agentCompletedAt ?? null;
+    result.terminalObservedAt = measurement?.terminalObservedAt ?? null;
+    result.completionSource = measurement?.completionSource ?? null;
+    const render = renderWindow({now:Date.now(),capAt:result.sentAt+capMs,agentCompletedAt:result.agentCompletedAt,visibleAt:proof?.at ?? null});
+    result.renderGraceUsed = render.renderGraceUsed;
+    result.renderDelayMs = render.renderDelayMs;
+    result.renderGraceDeadline = render.deadline;
     result.wallMs = Date.now()-result.sentAt;
-    result.cardVisible = Boolean(proof && proof.at <= result.sentAt+capMs && visible.code === 0 && hasInk(join(dir,'visible.png')));
+    result.cardVisible = Boolean(proof && proof.at <= result.renderGraceDeadline && visible.code === 0 && hasInk(join(dir,'visible.png')));
+    result.renderGraceRetainedCard = Boolean(result.renderGraceUsed && result.cardVisible);
     result.visibleMs = result.cardVisible ? Math.max(0,proof.at-result.sentAt) : null;
     result.scoreMs = failureScore(result.visibleMs,capMs);
     const timeline = await api(`/threads/${thread.id}/timeline`);
@@ -219,6 +239,15 @@ for (const provider of providers) for (const prompt of selected) {
     save(join(dir,'timeline.json'),timeline);
     save(join(dir,'interactions.json'),interactions);
     result.questions = questionEvidence(timeline,interactions);
+    // The card may paint before the monitor's next API poll. Keep the actual
+    // completion time when present without claiming the grace changed this run.
+    if (result.agentCompletedAt === null) {
+      const completed = rowsIn(timeline).filter(row => row.kind === 'turn' && Number.isFinite(row.completedAt)).map(row => row.completedAt);
+      if (completed.length) {
+        result.agentCompletedAt = Math.max(...completed); result.completionSource = 'turn.completedAt';
+        result.renderDelayMs = proof ? Math.max(0,proof.at-result.agentCompletedAt) : null;
+      }
+    }
     await api(`/threads/${thread.id}/stop`,{});
     if (result.cardVisible) {
       const widths = prompt.id === 'narrow-toggle' ? [360,390,480] : [Math.round(proof.width)];
@@ -237,6 +266,7 @@ for (const provider of providers) for (const prompt of selected) {
     result.finishedAt = Date.now();
     result.wallMs ??= result.finishedAt-result.sentAt;
     save(resultPath,result); summarize();
+    if (result.renderGraceUsed) console.log(`${provider}/${prompt.id}: render grace used; agent completed ${result.agentCompletedAt}; render delay ${result.renderDelayMs ?? 'no card'} ms; retained card ${result.renderGraceRetainedCard}`);
     console.log(`${provider}/${prompt.id}: ${result.pass ? 'PASS' : 'FAIL'} ${(result.scoreMs/60000).toFixed(2)} min; ${result.error || result.controls?.reason || ''}`);
   }
   if (result.stopError) throw new Error(`Could not stop owned thread ${result.threadId}: ${result.stopError}`);

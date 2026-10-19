@@ -64,7 +64,14 @@ non-default model for Personal, reset the **isolated instance** before measuring
 - A missing card, interrupted run, or capped run is a failure at the cap time,
   including an agent that finishes early without a card. `wallMs` records actual
   elapsed time separately. Idle plus an assistant response ends a no-card run
-  early. A visible card with a dead control retains its measured delivery time
+  early, after a fixed render grace of at most 30 seconds. The grace ends at the
+  original run cap if that comes first; it never extends or subtracts from
+  send-to-card latency. `agentCompletedAt`, `terminalObservedAt`,
+  `renderGraceUsed`, `renderDelayMs`, and `renderGraceRetainedCard` distinguish
+  agent time from delayed UI rendering. Every affected case appears in the
+  console log and both summaries. Completion time comes from the timeline turn
+  when available, otherwise the first observed terminal status is labeled as
+  the source. A visible card with a dead control retains its measured delivery time
   and fails the control criterion.
 - The bundled `scripts/drive.mjs` opens the actual served frame URL and uses real
   pointer/keyboard input. Range controls are dragged; toggles/buttons clicked;
@@ -72,6 +79,10 @@ non-default model for Personal, reset the **isolated instance** before measuring
   controls are driven in the real thread UI. Narrow-toggle is tested at 360,
   390, and 480 px. Every exposed control must be proven, including newly exposed,
   disabled, and unsupported custom controls: unproven behavior fails with a reason.
+  Inventory is captured after every click, drag, key, move, scroll and wait.
+  Stable DOM identities prevent reassignment when controls appear or disappear;
+  newly exposed controls are retained as unproven failures even if a later tab
+  hides them. `controls.json` retains these intermediate inventories.
 - Three no-input and two post-input screenshots are retained per control. The
   diff masks control/label regions, ignores pixels already moving before input,
   requires persistent output change, and requires changed output to exceed the
@@ -86,7 +97,7 @@ nearest rank. Gate: at least 18/20 cards with all controls live, zero clarifying
 questions or outstanding question reviews, median <=3 minutes, p90 <=6 minutes,
 and progress on all twenty. A preflight subset is explicitly incomplete.
 
-Completed cases are never overwritten on resume. Revision, source path, cap,
+Completed cases are never overwritten on resume. Revision, source path, cap, render grace,
 prompts and provider list must match the manifest. An interrupted in-flight case
 is stopped and counted as capped; a fresh measurement needs a separate output
 directory. Keep raw evidence and document any human adjudication beside the

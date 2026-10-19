@@ -39,7 +39,11 @@ describe('launch gate accounting', () => {
   it('prevents resume from mixing revisions, caps, providers, or prompts', () => {
     const first = {label:'baseline',url:'http://localhost:4000',host:'h',pluginRoot:'/p',commit:'abc',capMs:900_000,prompts:['one'],providers:['codex']};
     expect(resumeMismatch(first,{...first})).toBeUndefined();
-    for (const [key,value] of [['commit','def'],['capMs',60_000],['prompts',['two']],['providers',['claude-code']]])
+    for (const [key,value] of [['commit','def'],['capMs',60_000],['renderGraceMs',30_000],['prompts',['two']],['providers',['claude-code']]])
       expect(resumeMismatch(first,{...first,[String(key)]:value})).toBe(key);
+  });
+  it('preserves every grace-affected run in summary evidence', () => {
+    const run = {...success(114_000),promptId:'cdn',agentCompletedAt:100_000,terminalObservedAt:101_000,renderGraceUsed:true,renderDelayMs:14_000,renderGraceRetainedCard:true};
+    expect(providerSummary('codex',[run]).results[0]).toMatchObject({promptId:'cdn',scoreMs:114_000,agentCompletedAt:100_000,terminalObservedAt:101_000,renderGraceUsed:true,renderDelayMs:14_000,renderGraceRetainedCard:true});
   });
 });

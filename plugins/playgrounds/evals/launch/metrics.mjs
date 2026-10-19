@@ -1,6 +1,6 @@
 export const failureScore = (visibleMs, capMs) => Number.isFinite(visibleMs) && visibleMs >= 0 && visibleMs <= capMs ? visibleMs : capMs;
 export function resumeMismatch(old, next) {
-  return ['label','url','host','pluginRoot','commit','capMs','prompts','providers'].find(key => JSON.stringify(old[key]) !== JSON.stringify(next[key]));
+  return ['label','url','host','pluginRoot','commit','capMs','renderGraceMs','prompts','providers'].find(key => JSON.stringify(old[key]) !== JSON.stringify(next[key]));
 }
 export function providerSummary(provider, all) {
   const done = all.filter(Boolean), complete = done.length === 20 && all.length === 20;
@@ -14,5 +14,5 @@ export function providerSummary(provider, all) {
   return { provider, complete, completed:done.length, total:20, medianMs, p90Ms, liveCards,
     clarifyingQuestions:questions, questionReviewsNeeded:reviews, progressShown, failures:done.filter(r => !r.pass).length,
     pass:complete && liveCards >= 18 && questions === 0 && reviews === 0 && progressShown === 20 && medianMs <= 180_000 && p90Ms <= 360_000,
-    results:done.map(r => ({promptId:r.promptId,model:r.model,scoreMs:r.scoreMs,cardVisible:r.cardVisible,pass:r.pass,error:r.error})) };
+    results:done.map(r => ({promptId:r.promptId,model:r.model,scoreMs:r.scoreMs,cardVisible:r.cardVisible,pass:r.pass,error:r.error,agentCompletedAt:r.agentCompletedAt ?? null,terminalObservedAt:r.terminalObservedAt ?? null,renderGraceUsed:r.renderGraceUsed ?? false,renderDelayMs:r.renderDelayMs ?? null,renderGraceRetainedCard:r.renderGraceRetainedCard ?? false})) };
 }
