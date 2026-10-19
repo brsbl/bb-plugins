@@ -128,7 +128,8 @@
 .digest-later li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 6px 6px 6px 12px; color: var(--foreground); font-size: 13px; line-height: 18px; }
 .digest-later .digest-button { flex: none; color: var(--muted-foreground); }
 .digest-later .digest-button:hover:not(:disabled) { color: var(--foreground); }
-.digest-later-actions { display: flex; flex: none; align-items: center; gap: 4px; margin-left: auto; }
+.digest-later-actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px; min-width: 0; margin-left: auto; }
+.digest-later-actions .digest-action-domain { min-width: 0; flex: 0 1 auto; }
 /* The title keeps a readable width; actions wrap under it on narrow screens. */
 .digest-later li { flex-wrap: wrap; }
 .digest-later li > span:first-child { flex: 1 1 160px; min-width: 0; }
