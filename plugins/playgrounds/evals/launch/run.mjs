@@ -182,6 +182,16 @@ const fixture = join(preflightDir,'fixture.html');
 writeFileSync(fixture, '<!doctype html><html><body style="margin:16px;width:300px;height:260px;background:white;color:black"><button onclick="document.querySelector(\'output\').textContent=++window.count;document.querySelector(\'svg rect\').setAttribute(\'width\',100+window.count*80)">Change output</button><output style="display:block;font-size:32px">0</output><svg width="280" height="100"><rect width="100" height="90" fill="blue"/></svg><script>window.count=0</script></body></html>');
 const fixtureResult = await checkControls({target:fixture,width:480,dir:preflightDir,drive});
 if (!fixtureResult.pass) throw new Error(`Preflight: browser/control driver failed; see ${preflightDir}/controls.json`);
+// A live pointer-dependent output must survive measurement; cosmetic hover
+// alone must not pass. These generic fixtures never enter an agent prompt.
+for (const live of [true, false]) {
+  const dragDir = join(preflightDir, live ? 'drag-live' : 'drag-inert'); mkdirSync(dragDir, {recursive:true});
+  const dragFixture = join(dragDir, 'fixture.html');
+  writeFileSync(dragFixture, `<!doctype html><html><body style="margin:16px;width:300px;height:260px;background:white;color:black"><style>[role=slider]{width:280px;height:90px;background:#ddd;cursor:grab}[role=slider]:hover{background:#acf}</style><div role="slider" tabindex="0" aria-label="Position"></div><output style="display:block;font-size:32px">0</output><svg width="280" height="100"><rect width="20" height="90" fill="blue"/></svg><script>const surface=document.querySelector('[role=slider]');let timer;const draw=n=>{document.querySelector('output').textContent=n;document.querySelector('rect').setAttribute('width',20+n*2)};if(${live}){surface.addEventListener('pointermove',e=>{clearTimeout(timer);draw(Math.round((e.clientX-surface.getBoundingClientRect().left)/2.8))});surface.addEventListener('pointerleave',()=>{timer=setTimeout(()=>draw(0),600)})}</script></body></html>`);
+  const checked = await checkControls({target:dragFixture,width:480,dir:dragDir,drive});
+  if (checked.pass !== live || checked.controls.length !== 1 || (!live && checked.controls[0].reason !== 'no proven output change outside controls'))
+    throw new Error(`Preflight: drag ${live ? 'live' : 'inert'} regression failed; see ${dragDir}/controls.json`);
+}
 const ui = await drive(base.href,[['until','Boolean(document.querySelector("#root")?.children.length)',20_000],['eval','({ready:Boolean(document.querySelector("#root")?.children.length),text:document.body.innerText.slice(0,300)})'],['shot',join(preflightDir,'bb.png'),'body']],join(preflightDir,'ui'),1280);
 if (ui.code || !ui.evals.some(v => v?.ready) || !hasInk(join(preflightDir,'bb.png'))) throw new Error('Preflight: dev bb UI did not render');
 

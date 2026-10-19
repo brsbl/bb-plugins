@@ -53,16 +53,19 @@ export async function checkControls({ target, scope = 'body', width, dir, drive 
     const steps = action(control);
     if (!steps) { plans.push({ ...control, pass: false, reason: control.disabled ? 'Disabled control: precondition not exercised; needs review' : 'Unsupported exposed control; manual proof required' }); continue; }
     const s = selector(control);
+    // Leaving a drag surface can reset its output. Keep its low/high pointer
+    // positions through the screenshots; the existing masks exclude cosmetics.
+    const moveOff = steps.some(step => step[0] === 'drag') ? [] : [['move', scope, 0.01, 0.01]];
     actions.push(['scroll', s]);
     // A selected tab/radio and a reset need a changed starting state to be tested.
     const peer = controls.find(c => c.index !== control.index && action(c) && (control.group ? c.group === control.group : action(c) && !/reset/i.test(c.label)));
     if (peer && (control.selected || /reset|restart|clear/i.test(control.label))) actions.push(...action(peer));
     if (control.type === 'range' || control.type === 'slider') actions.push(['drag', s, 0.8, 0.5, 0.2, 0.5]);
-    actions.push(['move', scope, 0.01, 0.01], ['wait', 400]);
+    actions.push(...moveOff, ['wait', 400]);
     const paths = ['before0','before1','before2','after0','after1'].map(name => join(dir, `control-${control.index}-${name}.png`));
     actions.push(['eval', `(()=>{const root=document.querySelector(${JSON.stringify(scope)}),r=root.getBoundingClientRect();return {maskFor:${control.index},rects:[...root.querySelectorAll('[data-launch-control]')].map(e=>{const b=(e.closest('label,.pg-control,[data-pg]')||e).getBoundingClientRect();return {x:b.x-r.x+4,y:b.y-r.y+4,w:b.width,h:b.height}})}})()`]);
     for (let n = 0; n < 3; n++) actions.push(['shot', paths[n], scope], ['wait', 450]);
-    actions.push(...steps, ['move', scope, 0.01, 0.01], ['wait', 450], ['shot', paths[3], scope], ['wait', 450], ['shot', paths[4], scope]);
+    actions.push(...steps, ...moveOff, ['wait', 450], ['shot', paths[3], scope], ['wait', 450], ['shot', paths[4], scope]);
     plans.push({ ...control, paths, steps });
   }
   actions.push(['eval', listExpression]);

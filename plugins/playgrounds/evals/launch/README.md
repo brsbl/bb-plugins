@@ -46,7 +46,8 @@ Before sending any scored prompt, preflight checks the Personal project, plugin
 presence, both providers' model catalogs, Chrome, real input dispatch, PNG diffs,
 and the actual dev UI. Infrastructure failures here abort without counting
 forty spurious product failures. The tiny preflight fixture is not an eval prompt
-and is never given to an agent.
+and is never given to an agent. Generic drag fixtures also verify that a live
+pointer-dependent readout passes while cosmetic hover alone fails.
 
 Each prompt creates a fresh `proj_personal` thread with a new personal environment
 and no Git checkout. The request omits `model`; the actual resolved model and
@@ -96,6 +97,9 @@ non-default model for Personal, reset the **isolated instance** before measuring
   This is deliberately conservative: purely animated responses and controls whose
   only legitimate output is their own appearance require investigation, not an
   automatic pass. PNG dimension changes are also unproven, never assumed live.
+  For drag controls the pointer stays at each endpoint during capture: leaving
+  the surface can reset a legitimate hover/drag output. Control masks still
+  exclude cosmetic hover changes from the score.
 
 `summary.json` and `summary.md` update after each case. Per-provider percentiles
 appear only after all twenty cases: median is the middle-pair mean, p90 is
