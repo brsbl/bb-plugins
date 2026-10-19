@@ -3,7 +3,15 @@
 Follow your Fantasy Premier League Draft league’s matches and standings, compare
 waiver options, and ask an agent about the current view without copying a report.
 
-![FPL Draft waiver suggestion with expanded player comparison](https://github.com/user-attachments/assets/ea04832a-1a7f-4fdc-bcf7-66b85b951611)
+![Matches for a sample league: the Velvet Comets–Copper Kites matchup for gameweek 2 with both lineups](docs/matches.png)
+
+![The sample league table with standings, scoring and form, Copper Kites highlighted](docs/table.png)
+
+![Waivers: the first suggested claim expanded with a player comparison and the fallback if it's taken](docs/waivers.png)
+
+![Ask agent from Matches: a new thread in a sample project with the FPL Draft · GW 2 context pill](docs/ask-agent.png)
+
+![Setup: FPL Draft settings with blank Draft league and Your team fields](docs/setup.png)
 
 ## Install
 
