@@ -10,7 +10,13 @@ name a skill, avoid questions, or satisfy a timer is appended.
 The owner provisions a **fresh isolated dev bb**, installs Playgrounds from the
 exact source path being measured, and enables the default Claude Code and Codex
 providers. Use a fresh bb data directory inside the worktree, never production
-data. Record the bb core revision and plugin installation command alongside the
+data. Since the data directory is nested in a worktree, launch the isolated
+server and host daemon with `GIT_CEILING_DIRECTORIES` set to its absolute data
+directory. This stops Personal workspaces from discovering the outer Git checkout.
+The runner verifies `workspaceProvisionType: personal` and `isGitRepo: false`
+after provisioning, and aborts an invalid setup without producing a summary.
+Preserve invalid setup evidence separately; never mix it with launch results.
+Record the bb core revision and plugin installation command alongside the
 results. Do not serve this eval from production bb.
 
 Launch the dev bb and this runner through `bb host-care start`. The runner is

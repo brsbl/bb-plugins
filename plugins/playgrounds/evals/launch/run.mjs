@@ -189,7 +189,10 @@ for (const provider of providers) for (const prompt of selected) {
   if (interrupted) throw new Error('Runner interrupted');
   const dir = join(out,provider,prompt.id), resultPath = join(dir,'result.json');
   mkdirSync(dir,{recursive:true});
-  if (existsSync(resultPath)) { summarize(); continue; }
+  if (existsSync(resultPath)) {
+    if (JSON.parse(readFileSync(resultPath,'utf8')).invalidSetup) throw new Error(`Invalid setup in ${dir}; preserve evidence and use a new output directory`);
+    summarize(); continue;
+  }
   const inflightPath = join(dir,'inflight.json');
   if (existsSync(inflightPath)) {
     const interrupted = JSON.parse(readFileSync(inflightPath,'utf8'));
@@ -207,7 +210,13 @@ for (const provider of providers) for (const prompt of selected) {
     result.actualProvider = thread.providerId;
     result.environmentId = thread.environmentId;
     save(inflightPath,result);
-    const threadInfo = await api(`/threads/${thread.id}?include=environment`);
+    let threadInfo = await api(`/threads/${thread.id}?include=environment`);
+    const environmentDeadline = Math.min(result.sentAt + capMs, Date.now() + 30_000);
+    while (!threadInfo.environment && Date.now() < environmentDeadline && !interrupted) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      threadInfo = await api(`/threads/${thread.id}?include=environment`);
+    }
+    result.environmentId = threadInfo.environmentId;
     save(join(dir,'thread.json'),threadInfo);
     const defaults = await api(`/threads/${thread.id}/default-execution-options`);
     save(join(dir,'execution-options.json'),defaults);
@@ -215,7 +224,10 @@ for (const provider of providers) for (const prompt of selected) {
     result.catalogDefaultModel = defaultModels.get(provider);
     if (thread.providerId !== provider || !result.model) throw new Error('Actual provider/model could not be verified');
     if (result.model !== result.catalogDefaultModel) throw new Error('Personal remembered a non-default model; reset the isolated instance before measuring');
-    if (threadInfo.projectId !== 'proj_personal') throw new Error('Thread was not created in Personal');
+    if (threadInfo.projectId !== 'proj_personal' || threadInfo.environment?.workspaceProvisionType !== 'personal' || threadInfo.environment?.isGitRepo !== false) {
+      result.invalidSetup = true;
+      throw new Error('Personal environment is missing or inherits a Git repository. Set GIT_CEILING_DIRECTORIES on the isolated server and host daemon before measuring.');
+    }
     if (interrupted) throw new Error('Runner interrupted');
     const preload = join(dir,'monitor.js');
     writeFileSync(preload, `(${monitor.toString()})(${JSON.stringify(thread.id)},${result.sentAt+capMs},${renderWindow.toString()});`);
@@ -271,7 +283,9 @@ for (const provider of providers) for (const prompt of selected) {
     if (result.threadId) await api(`/threads/${result.threadId}/stop`,{}).catch(error => { result.stopError = String(error); });
     result.finishedAt = Date.now();
     result.wallMs ??= result.finishedAt-result.sentAt;
-    save(resultPath,result); summarize();
+    save(resultPath,result);
+    if (result.invalidSetup) throw new Error(`${result.error} Preserve this setup evidence and use a new output directory.`);
+    summarize();
     if (result.renderGraceUsed) console.log(`${provider}/${prompt.id}: render grace used; agent completed ${result.agentCompletedAt}; render delay ${result.renderDelayMs ?? 'no card'} ms; retained card ${result.renderGraceRetainedCard}`);
     console.log(`${provider}/${prompt.id}: ${result.pass ? 'PASS' : 'FAIL'} ${(result.scoreMs/60000).toFixed(2)} min; ${result.error || result.controls?.reason || ''}`);
   }
