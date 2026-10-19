@@ -123,7 +123,7 @@ async function main() {
     let text = "";
     const timer = setTimeout(() => { stopChrome(); fail(new Error("Chrome did not start")); }, 20000);
     chrome.once("error", error => { clearTimeout(timer); stopChrome(); fail(error); });
-    chrome.once("exit", code => { clearTimeout(timer); fail(new Error(`Chrome exited ${code}`)); });
+    chrome.once("exit", code => { clearTimeout(timer); fail(new Error(`Chrome exited ${code}: ${text.slice(-4000)}`)); });
     chrome.stderr.on("data", (chunk) => {
       text += chunk;
       const match = text.match(/DevTools listening on ws:\/\/[^:]+:(\d+)\//);
@@ -153,7 +153,7 @@ async function main() {
         pending.delete(data.id);
       } else if (data.method === "Fetch.requestPaused" && options.clip) {
         const allowed = [options.clip.cardUrl, options.clip.endUrl].includes(data.params.request.url);
-        void send(allowed ? "Fetch.continueRequest" : "Fetch.failRequest", { requestId: data.params.requestId, ...(allowed ? {} : { errorReason: "BlockedByClient" }) });
+        void send(allowed ? "Fetch.continueRequest" : "Fetch.failRequest", { requestId: data.params.requestId, ...(allowed ? {} : { errorReason: "BlockedByClient" }) }).catch(error => problems.push(String(error)));
       } else if (data.method === "Runtime.consoleAPICalled" && (data.params.type === "error" || data.params.type === "warning")) {
         problems.push(`console.${data.params.type}: ${data.params.args.map((arg) => arg.value ?? arg.description ?? "").join(" ").slice(0, 600)}`);
       } else if (data.method === "Runtime.exceptionThrown") {
@@ -163,9 +163,10 @@ async function main() {
     };
     await new Promise((done) => (socket.onopen = done));
     const send = (method, params = {}) =>
-      new Promise((done) => {
+      new Promise((done, fail) => {
         const call = ++id;
-        pending.set(call, done);
+        const timer = setTimeout(() => { pending.delete(call); fail(new Error(`Chrome timed out: ${method}`)); }, 30000);
+        pending.set(call, result => { clearTimeout(timer); done(result); });
         socket.send(JSON.stringify({ id: call, method, params }));
       });
     const evaluate = async (expression) => {
@@ -320,6 +321,7 @@ async function main() {
       } else console.log(`unknown action ${kind}`);
     }
     };
+    if (options.clip) console.log("Chrome ready; recording clip.");
     if (options.clip) await recordClip({ send, evaluate, replay, options: options.clip });
     else await replay(actions);
     console.log(problems.length ? problems.join("\n") : "console: clean");

@@ -100,6 +100,7 @@ export async function recordClip({ send, evaluate, replay, options }) {
     if (replayError) throw replayError;
     if (!replayDone) throw new Error("Replay does not fit before the final 3 seconds. Shorten its waits or choose a longer clip.");
     await playback;
+    console.log(`Captured ${captured} images for ${contentFrames} content frames; drawing end frame.`);
     await send("Page.navigate", { url: endUrl });
     await new Promise((done) => setTimeout(done, 300));
     const fits = await evaluate(`document.fonts.ready.then(()=>{const r=document.querySelector('main')?.getBoundingClientRect();return !!r && r.top>=32 && r.bottom<=innerHeight-32 && document.documentElement.scrollWidth<=innerWidth})`);
