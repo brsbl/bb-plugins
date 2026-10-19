@@ -48,7 +48,7 @@ function PinIcon({ threadId, pin }: { threadId: string; pin: Reference }) {
 const tipClass = "w-72 rounded-lg border bg-popover p-0 text-popover-foreground shadow-lg";
 function scrollPreviewAddress(event: KeyboardEvent, value: string) {
   if (!["ArrowRight", "ArrowLeft", "End", "Home"].includes(event.key)) return;
-  const header = [...document.querySelectorAll<HTMLDivElement>("[data-pin-preview-address]")]
+  const header = Array.from(document.querySelectorAll<HTMLDivElement>("[data-pin-preview-address]"))
     .find((element) => element.title === value && !element.closest("[role=tooltip]"));
   if (!header || header.scrollWidth <= header.clientWidth) return;
   if (event.key === "ArrowRight") header.scrollLeft += 80;
