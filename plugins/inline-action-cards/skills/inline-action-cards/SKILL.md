@@ -1,6 +1,6 @@
 ---
 name: inline-action-cards
-description: Use when a thread needs something only the user can decide, such as sending or publishing in their name, a merge or release their process reserves for them, spending money, changing their accounts or production, or a real choice with no clear default. Not for routine steps of their normal working process. Create decision cards or asks in Waiting on you instead of prose confirmation questions, handle answers, and report outcomes on the cards.
+description: Use when a thread needs something only the user can decide, such as sending or publishing in their name, a merge or release their process reserves for them, spending money, changing their accounts or production, or a real choice with no clear default. Not for routine steps of their normal working process, or for approvals that need a careful review of an artifact. Create decision cards or asks in Waiting on you instead of prose confirmation questions, handle answers, and report outcomes on the cards.
 ---
 
 # Inline Decisions
@@ -31,6 +31,8 @@ Ask when the decision is the user's:
 
 When unsure and the step is reversible, take the default and say what you chose in one line.
 
+**Reviews aren't cards.** If deciding means reading an artifact carefully (a spec, document, design, copy or a long draft), a one-click card invites approval without review. Hand off the artifact where the user reviews it (a pinned note, the document itself, a PR) and ask for the review in one plain line, as an ask (below). Act on their review wherever they give it. A card fits only after the review, when what remains is a glance-sized choice, such as publishing the reviewed version. A short email draft shown in full on a Reply card is fine; the card is the review.
+
 **One decision per message.** Bring only the decision that blocks your next step right now. Hold the rest, and bring the next one after the user answers. Use a single card for it; when the user picks one of several options, use one choice card, never a table of yes/no rows. A table (decision sheet) is the exception: at most 3 tightly linked rows that only make sense answered together, never a way to clear a backlog.
 
 ## Keep the card small and plain
@@ -42,9 +44,9 @@ The user decides from the card alone, at a glance. Each part has one job:
 - **`recommended`** tags the pick. Don't argue for it in text.
 - **`context`** is optional: at most **one plain sentence of 25 words or fewer**, for the one fact the question and labels can't carry (a deadline, a blocker, who asked). No Markdown labels, lists or “What/Why/Next” sections. Link evidence (checks, a report, a diff) instead of pasting it. Exact text the user must approve goes in a Reply draft, not here.
 
-If a card needs more than that, the decision is too big: split it, or link a note that holds the detail. The CLI warns (it still creates the card) when `context` runs past about 40 words or uses list or label patterns; rewrite the next card, don't recreate this one.
+If a card needs more than that, the decision is too big: split it, or, when the detail is an artifact to read, ask for a review instead (see “Reviews aren't cards”). The CLI warns (it still creates the card) when `context` runs past about 40 words or uses list or label patterns; rewrite the next card, don't recreate this one.
 
-**Bad:** “Run the code review on the Live Markdown stack?” A routine step; just do it. Also bad: “Approve?” with a five-bullet What/Why now/Options/Recommendation/Next brief. Busy, and the user doesn't read it.
+**Bad:** “Run the code review on the Live Markdown stack?” A routine step; just do it. Also bad: “Approve the claim lines on the comparison page?” It needs a careful read, so ask for a review instead. And “Approve?” with a five-bullet What/Why now/Options/Recommendation/Next brief: busy, and the user doesn't read it.
 
 **Good:** “Merge the Live Markdown stack?” once its required checks pass; labels “Merge both PRs” / “Keep them open”; `recommended: "yes"`; context “[Checks and review](https://example.com/checks) passed on the final heads.”
 
@@ -134,7 +136,7 @@ bb action-cards create price-change --item-stdin <<'JSON'
 {"type":"decide","question":"Raise the Team plan to $12 for new signups?","consequence":"New signups pay $12 from Monday.","yesLabel":"Raise to $12","noLabel":"Keep $10","recommended":"yes","context":"Billing needs the answer by Friday; see the [pricing review](https://example.com/review)."}
 JSON
 bb action-cards create price-email --item-stdin <<'JSON'
-{"type":"decide","question":"Email Team admins that current customers keep $10?","consequence":"Send the linked notice on Monday.","yesLabel":"Send the notice","noLabel":"Don't email","recommended":"yes","context":"[Notice draft](https://example.com/notice)."}
+{"type":"decide","question":"Email Team admins that current customers keep $10?","consequence":"Send the linked notice on Monday.","yesLabel":"Send the notice","noLabel":"Don't email","recommended":"yes","context":"Uses the [notice](https://example.com/notice) you reviewed yesterday."}
 JSON
 bb action-cards create-table team-price --table-stdin <<'JSON'
 {"title":"Team plan price","ids":["price-change","price-email"]}
