@@ -87,3 +87,18 @@ try {
 } finally {
   await new Promise(done => stun.close(done));
 }
+
+
+// Check the two remaining delivery sizes, including credit readability after
+// normalizing a landscape clip (and its GIF) to a 720-pixel-wide social feed.
+for (const [format, width, height] of [["landscape", 1280, 720], ["portrait", 720, 1280]]) {
+  const video = `${out}/${format}.mp4`;
+  execFileSync(process.execPath, [root + "/skills/how-it-works/scripts/clip.mjs", "--file", root + "/skills/how-it-works/examples/dial-indicator/dial-indicator.html", "--prompt", "How does a dial indicator measure the height of a surface?", "--out", video, "--gif", `${out}/${format}.gif`, "--format", format, "--seconds", "10", "--actions", out + "/actions.json"], { stdio: "inherit", timeout: 240000 });
+  const shape = JSON.parse(readFileSync(video + ".json", "utf8"));
+  assert.equal(shape.width, width); assert.equal(shape.height, height); assert.equal(shape.frames, 300);
+  assert.ok(shape.minimumTextPxAt720 >= 31.99, "Credits and prompt stay readable at 720 px wide");
+  inspectGif(readFileSync(`${out}/${format}.gif`));
+  const stream = spawnSync(await ffmpegPath(), ["-hide_banner", "-i", video], { encoding: "utf8" }).stderr;
+  assert.ok(stream.includes(`${width}x${height}`)); assert.match(stream, /30 fps/); assert.match(stream, /Duration: 00:00:10\.00/);
+}
+assert.ok(report.minimumTextPxAt720 >= 31.99);

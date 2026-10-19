@@ -15,12 +15,13 @@ export function clipOptions({ format = "square", seconds = 20, prompt, anatomy =
   return { width: FORMATS[format][0], height: FORMATS[format][1], seconds, prompt, anatomy };
 }
 const escape = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-export function endFrame({ prompt, anatomy }) {
+export function endFrame({ prompt, anatomy, width = 720 }) {
+  const scale = width / 720;
   return `<!doctype html><meta charset="utf-8"><style>
   *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#10151d;color:#fff}
-  body{display:grid;place-items:center;padding:48px;font:32px/1.35 system-ui,sans-serif}
-  main{width:100%;text-align:center}h1{font-size:36px;line-height:1.25;margin:0;font-weight:650}
-  p{margin:24px 0 0;white-space:pre-wrap;overflow-wrap:anywhere} .credit{font-size:32px}
+  body{display:grid;place-items:center;padding:48px;font:${32 * scale}px/1.35 system-ui,sans-serif}
+  main{width:100%;text-align:center}h1{font-size:${36 * scale}px;line-height:1.25;margin:0;font-weight:650}
+  p{margin:24px 0 0;white-space:pre-wrap;overflow-wrap:anywhere} .credit{font-size:${32 * scale}px}
   </style><main><h1>${CREDIT}</h1>${anatomy ? `<p class="credit">${ANATOMY_CREDIT}</p>` : ""}<p>${escape(prompt)}</p></main>`;
 }
 
@@ -103,8 +104,9 @@ export async function recordClip({ send, evaluate, replay, options }) {
     console.log(`Captured ${captured} images for ${contentFrames} content frames; drawing end frame.`);
     await send("Page.navigate", { url: endUrl });
     await new Promise((done) => setTimeout(done, 300));
-    const fits = await evaluate(`document.fonts.ready.then(()=>{const r=document.querySelector('main')?.getBoundingClientRect();return !!r && r.top>=32 && r.bottom<=innerHeight-32 && document.documentElement.scrollWidth<=innerWidth})`);
-    if (!fits) throw new Error("The original prompt does not fit the end frame at 32 px. Use a portrait clip for more text.");
+    const endFrameCheck = await evaluate(`document.fonts.ready.then(()=>{const r=document.querySelector('main')?.getBoundingClientRect();const minimumTextPxAt720=Math.min(...[...document.querySelectorAll('h1,p')].map(el=>parseFloat(getComputedStyle(el).fontSize)))*720/innerWidth;return {fits:!!r && r.top>=32 && r.bottom<=innerHeight-32 && document.documentElement.scrollWidth<=innerWidth,minimumTextPxAt720}})`);
+    if (!endFrameCheck?.fits) throw new Error("The original prompt does not fit the end frame at 32 px. Use a portrait clip for more text.");
+    if (!(endFrameCheck.minimumTextPxAt720 >= 31.99)) throw new Error("End-frame text is smaller than 32 px at 720 px wide.");
     const end = await capture();
     for (let i = 0; i < 90; i++) await write(end);
     enc.child.stdin.end(); await enc.done;
@@ -120,7 +122,7 @@ export async function recordClip({ send, evaluate, replay, options }) {
       } catch (error) { rmSync(gif, { force: true }); throw error; }
       finally { rmSync(palette, { force: true }); }
     }
-    const report = { out, width, height, fps: 30, seconds, frames, captured, codec: "h264", pixelFormat: "yuv420p", audio: false, faststart: true, gif: gifInfo };
+    const report = { out, width, height, fps: 30, seconds, frames, captured, codec: "h264", pixelFormat: "yuv420p", audio: false, faststart: true, minimumTextPxAt720: endFrameCheck.minimumTextPxAt720, gif: gifInfo };
     writeFileSync(out + ".json", JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify(report));
   } catch (error) {

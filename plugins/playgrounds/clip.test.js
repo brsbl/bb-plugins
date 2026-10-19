@@ -22,6 +22,7 @@ it("keeps exact credit and original prompt, safely escaped at readable sizes", (
   expect(html).toContain(CREDIT); expect(html).toContain(ANATOMY_CREDIT);
   expect(html).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; why?");
   expect(html).toContain("font:32px");
+  expect(endFrame({ prompt: "Why?", anatomy: true, width: 1280 })).toContain("font:56.888888888888886px");
   expect(endFrame({ prompt: "Why?", anatomy: false })).not.toContain(ANATOMY_CREDIT);
 });
 
