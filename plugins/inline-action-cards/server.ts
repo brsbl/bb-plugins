@@ -411,6 +411,18 @@ function distinctOpen(items: Item[]): Item[] {
   return kept;
 }
 
+// Cards stay small and plain: context is at most one short sentence, never a labelled or bulleted brief.
+const CONTEXT_WORDS = 40;
+// Horizontal whitespace only: \s would let long runs of newlines make each line start rescan the rest.
+const BRIEF_PATTERN = /\*\*[ \t]*(what|why|options?|recommend|next)|^[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]|why now/im;
+export function contextWarning(context: string | undefined): string {
+  if (!context) return "";
+  const words = context.trim().split(/\s+/).length;
+  return words > CONTEXT_WORDS || BRIEF_PATTERN.test(context)
+    ? "Warning: keep context to one plain sentence (25 words or fewer, no lists or labels such as What/Why now/Next). The question says what is decided, option labels say what each choice does, and recommended tags the pick. Link evidence instead of pasting it.\n"
+    : "";
+}
+
 // Card requests carry an action mention whose id is threadId:itemId:attemptId.
 function attemptRefs(pluginId: string, entry: QueueEntry) {
   return entry.content.flatMap((block) => block.type === "text" ? block.mentions : []).flatMap(({ resource }) => {
@@ -588,7 +600,7 @@ export default function plugin(bb: BbPluginApi): void {
         positionals: askPositions,
         options: {
           thread: threadOption, urgent: { type: "boolean", description: "List it first in Waiting on you" },
-          context: { type: "string", description: "Optional short brief in Markdown" },
+          context: { type: "string", description: "Optional: one plain sentence the question can't carry" },
           replaces: replacesOption,
         },
         run({ options, positionals }, ctx) {
@@ -596,7 +608,7 @@ export default function plugin(bb: BbPluginApi): void {
           const replaces = options.replaces === undefined ? undefined : idSchema.parse(options.replaces);
           if (replaces) store.assertReplaceable(scope(ctx, options.thread), replaces);
           const item = store.create(scope(ctx, options.thread), id, { type: "ask", question: positionals.question, ...(options.urgent ? { priority: "urgent" } : {}), ...(options.context ? { context: options.context } : {}) });
-          const notes = afterCreate(item, replaces);
+          const notes = contextWarning(item.content.context) + afterCreate(item, replaces);
           return { ...output(item), ...(notes ? { stderr: notes } : {}) };
         },
       }),
@@ -608,7 +620,7 @@ export default function plugin(bb: BbPluginApi): void {
           const replaces = options.replaces === undefined ? undefined : idSchema.parse(options.replaces);
           if (replaces) store.assertReplaceable(scope(ctx, options.thread), replaces);
           const item = store.create(scope(ctx, options.thread), id, JSON.parse(options.item));
-          const notes = (!item.content.context ? "Warning: this card has no context. Include a short brief: what this is, why it needs the user's decision now, options, recommendation and why, and what happens after each answer. See the inline-action-cards skill.\n" : "") + afterCreate(item, replaces);
+          const notes = contextWarning(item.content.context) + afterCreate(item, replaces);
           return { exitCode: 0, stdout: `::action{id="${id}"}\n`, ...(notes ? { stderr: notes } : {}) };
         },
       }),
