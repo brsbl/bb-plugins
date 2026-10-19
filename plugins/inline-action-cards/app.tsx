@@ -144,7 +144,8 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       await flush();
       let next = current.current;
       if (!next) return;
-      if (logEntry) {
+      // A waiting card in the log is answered through its form, like the drawer; decideFromLog serves the log's retry and resend.
+      if (logEntry && next.state !== "ready") {
         const updated = await rpc.call("decideFromLog", { id, threadId, revision: next.revision, ...(action ? { action } : {}) });
         adopt(updated);
         return;
@@ -176,10 +177,12 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   // Prepared and once submitted, but never claimed by the time the thread went idle: the agent never got it.
   const stalled = !!item && item.state === "pending" && !busy && !status && !item.attempt?.claimed;
   const done = item?.state === "succeeded" || item?.state === "failed" || !!status || stalled;
+  // In the Decision log, a waiting card is a full form: question, context, options, then Dismiss and Submit.
+  const logForm = !!logEntry && ready;
   const showBody = logEntry ? viewResult : !done || viewResult;
   const editor = useRef<HTMLTextAreaElement>(null);
   const reviewTarget = useRef<HTMLButtonElement>(null);
-  const unseen = (action?: Action) => !!reply && !!logEntry && !showBody && (action === "send" || action === "save-draft");
+  const unseen = (action?: Action) => !!reply && !!logEntry && !logForm && !showBody && (action === "send" || action === "save-draft");
   useLayoutEffect(() => {
     const resize = () => {
       if (editor.current) {
@@ -243,7 +246,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const brief = context && <ContextLine media={context.includes("![") || /<img\b/i.test(context)}><Markdown content={context} /></ContextLine>;
   const field = <DecisionBody
     about={<>
-      {drawer ? consequence && <p className="ac-consequence">{consequence}</p> : <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />}
+      {drawer || logForm ? consequence && <p className="ac-consequence">{consequence}</p> : <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />}
       {brief}
       {reply && <>
         {recipients}
@@ -324,6 +327,22 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       primary = reply ? button(unseen("send") ? "Review and send" : "Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined, reviewTarget)
         : choice ? chooseButton : ask ? null : decideButton("yes");
     }
+    const meta = <span className="iac-log-meta">
+      {logEntry.showThread && <a className="iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); openThread(); }}>{logEntry.threadTitle}</a>}
+      <time dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
+    </span>;
+    if (logForm) return <article className="iac-log-row iac-log-form" aria-label={`${kind}: ${heading}`}>
+      <span className="iac-log-kind" role="img" aria-label={kind} title={kind}>{reply ? <MailIcon /> : <SignpostIcon />}</span>
+      <div className="iac-log-main"><span className="iac-log-title" title={heading}>{heading}</span>{meta}</div>
+      <DecisionCard label={`${kind}: ${heading}`} className="ac-drawer iac-log-card" onSubmit={submit}>
+        {dismissal.pending ? <DismissBar dismissal={dismissal} /> : <>{field}<div className="iac-drawer-actions">
+          {canDismiss(item) && <button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button>}
+          <SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} />
+        </div></>}
+        {dismissal.error && <div className="iac-error" role="alert">{dismissal.error}</div>}
+        {failure}
+      </DecisionCard>
+    </article>;
     return <article className={quiet ? "iac-log-row iac-log-quiet" : later ? "iac-log-row iac-log-later" : "iac-log-row"} aria-label={`${kind}: ${heading}`}>
       <span className="iac-log-kind" role="img" aria-label={kind} title={kind}>{reply ? <MailIcon /> : <SignpostIcon />}</span>
       <div className="iac-log-main">

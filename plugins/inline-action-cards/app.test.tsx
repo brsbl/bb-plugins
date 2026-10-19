@@ -173,12 +173,12 @@ it("offers more for clipped context and shows the full original", async () => {
   } finally { width.mockRestore(); client.mockRestore(); }
 });
 
-it("shows a waiting card's brief in the Decision log before Review is opened", async () => {
+it("shows a waiting card's context and its answer form in the Decision log", async () => {
   const item = { ...fixture(), threadTitle: "Workflow Inbox", threadProjectId: null, content: { ...fixture().content, context: "Why now: the planning lead needs your direction." } };
   const app = await loadPluginApp(() => import("./app.js"));
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
   await screen.findByText(/Why now: the planning lead/);
-  expect(screen.getByRole("button", { name: "Review" }).getAttribute("aria-expanded")).toBe("false");
+  expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
   expect(screen.getByText("Workflow Inbox")).toBeTruthy();
 });
 
@@ -283,9 +283,8 @@ it("Decision log refresh updates the reviewed draft while preserving unsaved loc
     log: () => ({ waiting: [item], done: [] }),
     save: () => { throw new Error("Offline: keep local changes"); },
   } });
-  await screen.findByRole("button", { name: "Review" });
-  fireEvent.click(screen.getByRole("button", { name: "Review" }));
-  expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft");
+  // A waiting reply is answered in place, so its draft is already in view.
+  expect(((await screen.findByRole("textbox", { name: "Draft" })) as HTMLTextAreaElement).value).toBe("Original draft");
   item = { ...item, revision: 2, content: { ...item.content, draft: "Updated elsewhere" } } as typeof item;
   await slot.behavior.emitRealtime("items", {});
   await waitFor(() => expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Updated elsewhere"));
@@ -295,7 +294,7 @@ it("Decision log refresh updates the reviewed draft while preserving unsaved loc
   expect((screen.getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Unsaved local edit");
 });
 
-it("Decision log keeps failures and Later cards waiting, orders row controls with the primary last, and collapses Done", async () => {
+it("Decision log answers waiting cards in place, keeps failures and Later cards waiting with their controls, and collapses Done", async () => {
   const entry = { threadTitle: "Refund follow-up", threadProjectId: "proj_cards" };
   const attempt = { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: true } as const;
   const failed = { ...fixture(), id: "esc-2", revision: 3, state: "failed", attempt, result: { message: "Reconnect Gmail", retryable: true }, ...entry } as const;
@@ -309,11 +308,13 @@ it("Decision log keeps failures and Later cards waiting, orders row controls wit
   renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [{ ...fixture(), ...entry }, failed, later, decision, oddLabel], done }) } });
   const waiting = await screen.findByRole("region", { name: "Waiting on you" });
   const [ready, failure, deferred, decide] = await within(waiting).findAllByRole("article");
-  expect(within(decide!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Dismiss", "Review", "More actions", "Keep open", "Merge"]);
-  // Labels that collide with Object.prototype keys fall back to the role icon instead of crashing the log.
-  expect(within(waiting).getByRole("button", { name: "Constructor run" })).toBeTruthy();
-  // Icon peers first, then secondary, with the primary always rightmost.
-  expect(within(ready!).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Dismiss", "Review", "More actions", "Comment", "Review and send"]);
+  // Waiting cards are forms: their options, then Dismiss and Submit.
+  expect(within(decide!).getAllByRole("radio").map((radio) => radio.closest("label")?.textContent)).toEqual(["Merge", "Keep open"]);
+  expect(within(decide!).getAllByRole("button").map((button) => button.textContent)).toEqual(["Dismiss", "Submit"]);
+  // Labels that collide with Object.prototype keys render as plain options instead of crashing the log.
+  expect(within(waiting).getByRole("radio", { name: "Constructor run" })).toBeTruthy();
+  expect(within(ready!).getByRole("radio", { name: "Send" })).toBeTruthy();
+  expect(within(ready!).getByRole("textbox", { name: "Draft" })).toBeTruthy();
   expect(within(failure!).getByRole("img", { name: "Failed" })).toBeTruthy();
   expect(within(failure!).getByText(/Reconnect Gmail/)).toBeTruthy();
   expect(within(failure!).getByRole("button", { name: "Review and retry" })).toBeTruthy();
@@ -408,17 +409,24 @@ it("sends an answer without a note as plain approval", async () => {
   expect(submittedMessages[0]).not.toContain(" — ");
 });
 
-it("Decision log offers a choice card Choose, Skip and Review, never Yes or No", async () => {
-  const content = { type: "choice", question: "Which account setup?", recommended: "multi", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] } as const;
-  const item = { ...fixture(), id: "setup", content, threadTitle: "Accounts", threadProjectId: "proj_cards" } as const;
-  const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: { log: () => ({ waiting: [item], done: [] }) } });
-  const row = await screen.findByRole("article", { name: "Choice: Which account setup?" });
-  expect(within(row).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual(["Dismiss", "Review", "More actions", "Choose"]);
-  fireEvent.click(within(row).getByRole("button", { name: "Review" }));
-  expect(within(row).getByText("Several accounts")).toBeTruthy();
-  fireEvent.click(within(row).getByRole("button", { name: "Choose" }));
-  expect(slot.inspection.navigateCalls).toContainEqual(expect.objectContaining({ method: "toThread" }));
+it("answers a choice in the Decision log: question, context, options, then Submit", async () => {
+  const host = recordingHost(); plugin(host.bb);
+  try {
+    await host.harness.behavior.runCli(["create", "setup", "--thread", "thr_test", "--item", JSON.stringify({ type: "choice", question: "Which account setup?", recommended: "multi", context: "Existing threads keep theirs.", options: [{ id: "single", label: "One account" }, { id: "multi", label: "Several accounts" }] })]);
+    const app = await loadPluginApp(() => import("./app.js"));
+    const rpc = Object.fromEntries(["log", "get", "choose", "dispatch"].map((name) => [name, (input: unknown) => host.harness.behavior.callRpc(name, input)]));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
+    const row = await screen.findByRole("article", { name: "Choice: Which account setup?" });
+    // Reading order: question, context, options, then Submit.
+    const parts = [within(row).getByText("Which account setup?"), within(row).getByText("Existing threads keep theirs."), within(row).getByRole("radio", { name: /One account/ }), within(row).getByRole("button", { name: "Submit" })];
+    for (let index = 1; index < parts.length; index++) expect(parts[index - 1]!.compareDocumentPosition(parts[index]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(row).getAllByRole("radio").some((radio) => (radio as HTMLInputElement).checked)).toBe(false);
+    fireEvent.click(within(row).getByRole("radio", { name: /Several accounts/ }));
+    fireEvent.click(within(row).getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(submittedMentions).toHaveLength(1));
+    expect(JSON.parse((await host.harness.behavior.runCli(["get", "setup", "--thread", "thr_test"])).stdout!)).toMatchObject({ state: "pending", attempt: { action: "choose", choice: { id: "multi" } } });
+    expect(slot.inspection.navigateCalls).toEqual([]);
+  } finally { await host.harness.lifecycle.dispose(); }
 });
 
 it("dismisses a waiting item from the Decision log with a reason, telling its thread once", async () => {
@@ -546,33 +554,6 @@ it("dismisses the open item in Waiting on you", async () => {
   await waitFor(() => expect(screen.queryByRole("form")).toBeNull());
   expect(screen.getByText("Dismissed")).toBeTruthy();
   expect(dismissed).toBe(true);
-});
-
-it("Decision log Send on a collapsed reply opens the email first and sends only once it is visible", async () => {
-  const item = { ...fixture(), content: { ...fixture().content, cc: ["ops@example.com"] }, threadTitle: "Refund follow-up", threadProjectId: "proj_cards" } as const;
-  const calls: unknown[] = [];
-  const app = await loadPluginApp(() => import("./app.js"));
-  renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc: {
-    log: () => ({ waiting: [item], done: [] }),
-    decideFromLog: (input) => { calls.push(input); return { ...item, revision: 2, state: "pending", attempt: { id: "ea45f71a-c216-4da4-a226-65736f4eccfd", action: "send", claimed: false, sentAt: "2026-10-01T19:09:00Z" } }; },
-  } });
-  const row = await screen.findByRole("article");
-  expect(within(row).queryByRole("textbox", { name: "Draft" })).toBeNull();
-  const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
-  fireEvent.click(within(row).getByRole("button", { name: "Review and send" }));
-  // The second click of a double-click only finishes opening the email.
-  fireEvent.click(within(row).getByRole("button", { name: "Send" }));
-  expect(calls).toHaveLength(0);
-  expect((within(row).getByRole("textbox", { name: "Draft" }) as HTMLTextAreaElement).value).toBe("Original draft");
-  expect(within(row).getByText(/To billing@example.com · Missing refund/)).toBeTruthy();
-  expect(within(row).getByText("Cc ops@example.com")).toBeTruthy();
-  expect(within(row).getByText(/Your refund is on its way/, { selector: "summary span" })).toBeTruthy();
-  const send = within(row).getByRole("button", { name: "Send" });
-  await waitFor(() => expect(document.activeElement).toBe(send));
-  now.mockReturnValue(2_000);
-  fireEvent.click(send);
-  await waitFor(() => expect(calls).toEqual([expect.objectContaining({ id: "esc-1", action: "send" })]));
-  now.mockRestore();
 });
 
 it("lists a failed reply in Waiting on you, where Retry sends it again", async () => {

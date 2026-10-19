@@ -193,3 +193,6 @@
 .iac-drawer-actions { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--spacing, .25rem) * 2); }
 .iac-drawer-actions > .ac-submit { flex: 1; }
 .iac-drawer-actions > .iac-dismiss-undo { color: var(--muted-foreground); font-weight: 400; }
+
+/* A waiting card in the Decision log is answered in place, in the drawer's form, under its title. */
+.iac-log-form .iac-log-card { grid-column: 2 / -1; margin-top: 8px; }
