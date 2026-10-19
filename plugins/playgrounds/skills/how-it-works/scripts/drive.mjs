@@ -115,10 +115,11 @@ async function main() {
     process.exit(1);
   }
   const profile = mkdtempSync(join(options.profileRoot ?? tmpdir(), "iso-drive-"));
-  const chrome = spawn(binary, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--allow-file-access-from-files", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "about:blank"]);
+  const chrome = spawn(binary, ["--headless=new", ...(options.clip ? ["--use-gl=angle", "--use-angle=swiftshader"] : []), "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--allow-file-access-from-files", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "about:blank"]);
   const stopChrome = () => { chrome.kill("SIGKILL"); try { rmSync(profile, { recursive: true, force: true }); } catch {} };
   process.once("SIGINT", () => { stopChrome(); process.exit(130); });
   process.once("SIGTERM", () => { stopChrome(); process.exit(143); });
+  let chromeLog = "";
   const port = await new Promise((done, fail) => {
     let text = "";
     const timer = setTimeout(() => { stopChrome(); fail(new Error("Chrome did not start")); }, 20000);
@@ -126,6 +127,7 @@ async function main() {
     chrome.once("exit", code => { clearTimeout(timer); fail(new Error(`Chrome exited ${code}: ${text.slice(-4000)}`)); });
     chrome.stderr.on("data", (chunk) => {
       text += chunk;
+      chromeLog = text.slice(-4000);
       const match = text.match(/DevTools listening on ws:\/\/[^:]+:(\d+)\//);
       if (match) {
         clearTimeout(timer);
@@ -165,7 +167,7 @@ async function main() {
     const send = (method, params = {}) =>
       new Promise((done, fail) => {
         const call = ++id;
-        const timer = setTimeout(() => { pending.delete(call); fail(new Error(`Chrome timed out: ${method}`)); }, 30000);
+        const timer = setTimeout(() => { pending.delete(call); fail(new Error(`Chrome timed out: ${method}\n${chromeLog}`)); }, 30000);
         pending.set(call, result => { clearTimeout(timer); done(result); });
         socket.send(JSON.stringify({ id: call, method, params }));
       });
