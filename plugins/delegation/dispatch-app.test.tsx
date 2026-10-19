@@ -1,68 +1,87 @@
 // @vitest-environment jsdom
-import { cleanup, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 
 afterEach(cleanup);
 
-it.each([
-  { name: "legacy complete", timelinePage: { hasOlderRows: false }, olderHistory: false },
-  { name: "legacy incomplete", timelinePage: { hasOlderRows: true }, olderHistory: true },
-  { name: "cursor complete", timelinePage: { olderCursor: null }, olderHistory: false },
-  { name: "cursor incomplete", timelinePage: { olderCursor: { anchorId: "sample-anchor", anchorSeq: 1 } }, olderHistory: true },
-  { name: "missing cursor", timelinePage: {}, olderHistory: false },
-  { name: "cursor reaches oldest page", timelinePage: { olderCursor: { anchorId: "sample-anchor", anchorSeq: 1 } }, olderHistory: true, endsAt: 60 },
-])("shows collapsed replies and loads bounded history: $name", async ({ timelinePage, olderHistory, endsAt }) => {
-  const completion = {
-    id: "completion", kind: "conversation", role: "user", createdAt: 2,
-    initiator: "system", systemMessageKind: "child-completed",
-    systemMessageSubject: { kind: "thread", threadId: "sample-worker" },
-    text: "[bb system]\n\n@thread:sample-worker completed:\n\nSynthetic total: 42.",
-  };
-  const timeline = vi.fn(async ({ threadId, includeNestedRows, segmentLimit }: {
-    threadId: string; includeNestedRows?: string; segmentLimit?: string;
-  }) => ({
-    rows: threadId === "sample-lead" ? [{
-      id: "collapsed-turn", kind: "turn", createdAt: 1,
-      children: includeNestedRows === "true" ? [
-        completion,
-        { id: "nested-turn", kind: "turn", children: [
-          { ...completion },
-          { ...completion, id: "follow-up", createdAt: 3, text: "Confirmed: 42." },
-        ] },
-      ] : null,
-    }] : endsAt && Number(segmentLimit) < endsAt ? [] : [{
-      id: "brief", kind: "conversation", role: "user", initiator: "user", createdAt: 1,
-      text: "Calculate the synthetic total.",
-    }],
-    timelinePage: endsAt && Number(segmentLimit) >= endsAt ? { olderCursor: null } : timelinePage,
-  }) as never);
+type Request = { threadId: string; includeNestedRows?: string; segmentLimit?: string; beforeAnchorId?: string; beforeAnchorSeq?: string };
+const cursor = (anchorSeq: number) => ({ anchorId: `sample-window-${anchorSeq}`, anchorSeq });
+const brief = { id: "brief", kind: "conversation", role: "user", initiator: "user", createdAt: 1, text: "Calculate the synthetic total." };
+const reply = (id: string, createdAt: number, text: string) => ({
+  id, kind: "conversation", role: "user", createdAt, initiator: "system", systemMessageKind: "child-completed",
+  systemMessageSubject: { kind: "thread", threadId: "sample-worker" }, text,
+});
+const recent = reply("recent", 30, "Synthetic total: 42.");
+const older = reply("older", 20, "Checked the sample input.");
+const oldest = reply("oldest", 10, "Started the sample calculation.");
+const collapsed = (children: unknown[]) => ({ id: "collapsed-turn", kind: "turn", createdAt: 1, children });
+
+async function panel(read: (args: Request) => unknown) {
+  const timeline = vi.fn(async (args: Request) => read(args) as never);
   const app = await loadPluginApp(() => import("./app.js"));
-  const slot = renderSlot(app.threadPanelActions[0]!, { threadId: "sample-lead", params: null }, {
-    sidebarThreads: { threads: [{
-      id: "sample-worker", parentThreadId: "sample-lead", originKind: null,
-      isArchived: false, displayTitle: "Sample worker", updatedAt: 1,
-    }] as never },
+  const slot = renderSlot(app.threadPanelActions[0]!, { threadId: "sample-lead", params: { counterpart: "sample-worker" } }, {
+    sidebarThreads: { threads: ["sample-worker", "sample-other"].map((id) => ({
+      id, parentThreadId: "sample-lead", originKind: null, isArchived: false, displayTitle: id, updatedAt: 1,
+    })) as never },
     sdk: { threads: { timeline } },
   });
+  return { slot, timeline };
+}
 
-  await slot.findByText("Synthetic total: 42.");
+it.each([{ hasOlderRows: false }, { olderCursor: null }, {}])("shows nested completed replies once when history is complete: %j", async (timelinePage) => {
+  const { slot, timeline } = await panel(({ threadId, includeNestedRows }) => ({
+    rows: threadId === "sample-lead" ? [collapsed(includeNestedRows === "true" ? [recent, collapsed([recent, older])] : [])] : [brief],
+    timelinePage,
+  }));
+  await slot.findByText("Calculate the synthetic total.");
   expect(slot.getAllByText("Synthetic total: 42.")).toHaveLength(1);
-  await slot.findByText("Confirmed: 42.");
-  expect(Array.from(slot.container.querySelectorAll(".dp-reply"), (row) => row.textContent)).toEqual([
-    "Synthetic total: 42.", "Confirmed: 42.",
-  ]);
-  if (olderHistory) {
-    // A short channel widens the latest window until history ends or it hits the cap.
-    await waitFor(() => expect(slot.inspection.sdkCalls.some((call) =>
-      call.method === "threads.timeline" && (call.args[0] as { segmentLimit?: string }).segmentLimit === String(endsAt ?? 100),
-    )).toBe(true));
+  expect(Array.from(slot.container.querySelectorAll(".dp-reply"), (row) => row.textContent)).toEqual([older.text, recent.text]);
+  expect(timeline.mock.calls.every(([args]) => !args.beforeAnchorId)).toBe(true);
+});
+
+it("follows multiple cursors despite a fixed latest window, retains nested replies, and stops at the beginning", async () => {
+  const { slot, timeline } = await panel(({ threadId, beforeAnchorId, beforeAnchorSeq }) => {
+    // The event budget fixes the latest window, regardless of segmentLimit.
+    const page = beforeAnchorId === cursor(20).anchorId ? 1 : beforeAnchorId === cursor(10).anchorId ? 2 : 0;
+    if (beforeAnchorId) expect(beforeAnchorSeq).toBe(page === 1 ? "20" : "10");
+    return {
+      rows: threadId === "sample-lead" ? [collapsed(page === 0 ? [recent] : page === 1 ? [older, recent] : [oldest, older])]
+        : threadId === "sample-worker" && page === 2 ? [brief] : [],
+      timelinePage: { olderCursor: page === 2 ? null : cursor(page === 0 ? 20 : 10), historySnapshot: "sample-snapshot" },
+    };
+  });
+  await slot.findByText("Calculate the synthetic total.");
+  expect(Array.from(slot.container.querySelectorAll(".dp-reply"), (row) => row.textContent)).toEqual([oldest.text, older.text, recent.text]);
+  for (const id of ["sample-lead", "sample-worker"]) {
+    expect(timeline.mock.calls.filter(([args]) => args.threadId === id).map(([args]) => args.beforeAnchorId ?? "latest")).toEqual([
+      "latest", cursor(20).anchorId, cursor(10).anchorId,
+    ]);
   }
-  if (!olderHistory || endsAt) {
-    await slot.findByText("Calculate the synthetic total.");
-  }
-  for (const call of slot.inspection.sdkCalls.filter((call) => call.method === "threads.timeline")) {
-    expect(call.args[0]).toMatchObject({ includeNestedRows: "true" });
-    expect(Number((call.args[0] as { segmentLimit: string }).segmentLimit)).toBeLessThanOrEqual(endsAt ?? (olderHistory ? 100 : 40));
-  }
+  expect(timeline.mock.calls.filter(([args]) => args.threadId === "sample-other")).toHaveLength(1);
+  expect(timeline.mock.calls.every(([args]) => args.segmentLimit === "20" && args.includeNestedRows === "true")).toBe(true);
+  const reads = timeline.mock.calls.length;
+  fireEvent.scroll(slot.getByRole("tabpanel"));
+  expect(timeline).toHaveBeenCalledTimes(reads);
+});
+
+it("stops a repeated cursor and explains where to find remaining history", async () => {
+  const { slot, timeline } = await panel(({ threadId }) => ({
+    rows: threadId === "sample-lead" ? [recent] : [],
+    timelinePage: { olderCursor: cursor(20), historySnapshot: "sample-snapshot" },
+  }));
+  await slot.findByText(/Earlier messages are available in the threads/);
+  expect(timeline.mock.calls.filter(([args]) => args.beforeAnchorId)).toHaveLength(2);
+  fireEvent.scroll(slot.getByRole("tabpanel"));
+  expect(timeline.mock.calls.filter(([args]) => args.beforeAnchorId)).toHaveLength(2);
+});
+
+it("keeps bounded window growth for legacy servers without cursors", async () => {
+  const { slot, timeline } = await panel(({ threadId, segmentLimit }) => ({
+    rows: threadId === "sample-lead" ? [recent] : Number(segmentLimit) === 100 ? [brief] : [],
+    timelinePage: { hasOlderRows: Number(segmentLimit) < 100 },
+  }));
+  await slot.findByText("Calculate the synthetic total.");
+  await waitFor(() => expect(timeline.mock.calls.some(([args]) => args.segmentLimit === "100")).toBe(true));
+  expect(timeline.mock.calls.every(([args]) => Number(args.segmentLimit) <= 100 && !args.beforeAnchorId)).toBe(true);
 });
