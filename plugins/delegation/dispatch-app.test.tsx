@@ -17,7 +17,10 @@ it.each([false, true])("shows completed replies inside collapsed turns once, wit
       id: "collapsed-turn", kind: "turn", createdAt: 1,
       children: includeNestedRows === "true" ? [
         completion,
-        { id: "nested-turn", kind: "turn", children: [{ ...completion }] },
+        { id: "nested-turn", kind: "turn", children: [
+          { ...completion },
+          { ...completion, id: "follow-up", createdAt: 3, text: "Confirmed: 42." },
+        ] },
       ] : null,
     }] : [{
       id: "brief", kind: "conversation", role: "user", initiator: "user", createdAt: 1,
@@ -36,6 +39,10 @@ it.each([false, true])("shows completed replies inside collapsed turns once, wit
 
   await slot.findByText("Synthetic total: 42.");
   expect(slot.getAllByText("Synthetic total: 42.")).toHaveLength(1);
+  await slot.findByText("Confirmed: 42.");
+  expect(Array.from(slot.container.querySelectorAll(".dp-reply"), (row) => row.textContent)).toEqual([
+    "Synthetic total: 42.", "Confirmed: 42.",
+  ]);
   if (hasOlderRows) {
     // A short channel loads older segments automatically, but stops at the cap.
     await waitFor(() => expect(slot.inspection.sdkCalls.some((call) =>
