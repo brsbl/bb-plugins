@@ -720,7 +720,7 @@ describe("dismissing", () => {
     const item = await host.harness.behavior.callRpc("dismiss", { threadId: ref.threadId, id: "channel", revision: 1, reason: "Not needed" }) as Item;
     expect(item).toMatchObject({ state: "succeeded", attempt: null, result: { message: "Dismissed · Not needed", retryable: false }, dismissed: { reason: "Not needed" } });
     expect(host.harness.sdk.callsTo("threads.send")).toHaveLength(1);
-    expect(host.harness.sdk.callsTo("threads.send")[0]![0]).toMatchObject({ threadId: ref.threadId, input: [{ text: "brsbl dismissed: Which channel · Not needed" }] });
+    expect(host.harness.sdk.callsTo("threads.send")[0]![0]).toMatchObject({ threadId: ref.threadId, input: [{ text: "Dismissed: Which channel · Not needed" }] });
     expect(await host.harness.behavior.callRpc("waiting", { threadId: ref.threadId })).toEqual([]);
     const context = JSON.parse((await host.harness.registrations.mentionProviders[0]!.resolve(`${ref.threadId}:channel:dismissed`)).context);
     expect(context).toMatchObject({ intent: "dismissed", question: "Which channel?", reason: "Not needed" });
@@ -749,7 +749,7 @@ describe("dismissing", () => {
     await Promise.all(retries);
     const sends = host.harness.sdk.callsTo("threads.send");
     expect(sends).toHaveLength(2);
-    expect(sends[1]![0]).toMatchObject({ input: [{ text: "brsbl dismissed: Which channel" }] });
+    expect(sends[1]![0]).toMatchObject({ input: [{ text: "Dismissed: Which channel" }] });
     const settled = await callRpc("notifyDismissed", { threadId: ref.threadId, id: "notice" }) as Item;
     expect(settled).toMatchObject({ state: "succeeded", attempt: null, dismissed: { notice: "sent" } });
     expect(settled.dismissed).not.toHaveProperty("noticeError");

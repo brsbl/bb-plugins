@@ -80,7 +80,7 @@ If a card needs more than that, the decision is too big: split it, or link a not
 
 **Bad:** question “Approve?” with a five-bullet What/Why now/Options/Recommendation/Next brief. Busy, and the user doesn't read it.
 
-**Good:** question “Use Ops Tools' plugin-goals draft as the tooling plan?”; labels “Use this plan” / “Revise it first”; `recommended: "yes"`; context “The planning lead needs it by Friday.”
+**Good (fictional example):** question “Use the Moonbase Garden Club’s draft as the planting plan?”; labels “Use this plan” / “Revise it first”; `recommended: "yes"`; context “The club needs the plan by Friday.”
 
 Replace illustrative claims with verified facts and include the exact head when approval depends on a revision. Never claim a gate passed just because an example says so.
 

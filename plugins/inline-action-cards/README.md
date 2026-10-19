@@ -1,8 +1,6 @@
 # Inline Decisions
 
-Answer everything agents need from you in one place: **Waiting on you**, a drawer above the prompt box that collects decisions, email replies and plain questions from every thread.
-
-![Minimal cards](https://github.com/user-attachments/assets/692e0678-252d-47cf-8e1f-01e2b5c3fa7e)
+Answer everything agents need from you in one place: **Waiting on you**, a drawer above the prompt box that collects decisions, email replies and plain questions from the active thread.
 
 ## Install
 
