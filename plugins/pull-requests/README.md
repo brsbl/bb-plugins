@@ -2,7 +2,11 @@
 
 See your GitHub pull requests and continue related work in bb.
 
-![Compact sidebar and pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/1ed45e6e-163d-44e9-852a-7e818eef0c2c)
+![The queue for a sample Atlas project and the Summary of PR 42, Improve keyboard navigation: passing checks, an approved review, a two-PR stack and its linked Keyboard navigation thread](docs/summary.png)
+
+![Needs attention on: the failing Handle empty search PR in the queue, beside the stack's ordered Summary](docs/stack-attention.png)
+
+![Read-only Changes for PR 42 showing the src/navigation.ts patch](docs/changes.png)
 
 ## Install
 
