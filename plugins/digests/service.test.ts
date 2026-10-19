@@ -666,13 +666,21 @@ describe("email ownership across briefs", () => {
   });
 
   it("keeps external publishing non-strict", async () => {
-    const { service } = setup();
+    const { service, harness } = setup();
     const action = { label: "Read on site", url: "https://example.com/essay" };
     const published = await service.publishExternal("reading", PublishInputSchema.parse({ ...payload(),
       sources: [{ connectionId: "gmail", messageId: "message_external" }],
       brief: { heading: "Reading", items: [{ title: "An essay", text: "Worth it", action }] },
     }), "external-1");
     expect(published.issue).toMatchObject({ state: "ready", brief: { items: [{ action }] } });
+
+    // Another brief can't show it again, and the rejected publish creates no thread.
+    service.store.definitions.put({ ...service.requiredDefinition("reading"), id: "inbox", name: "Inbox" });
+    const spawned = harness.inspection.sdk.callsTo("threads.spawn").length;
+    await expect(service.publishExternal("inbox", PublishInputSchema.parse({ ...payload(),
+      sources: [{ connectionId: "gmail", messageId: "message_external" }] }), "external-2"))
+      .rejects.toThrow("Message message_external from gmail was already shown in Reading. Remove it and publish again.");
+    expect(harness.inspection.sdk.callsTo("threads.spawn")).toHaveLength(spawned);
   });
 
   it("adds connections and sets owned classes while keeping the brief's automation and switch", async () => {

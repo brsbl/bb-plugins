@@ -18,6 +18,12 @@ const requireThread = (ctx: PluginCliContext) => {
   return ctx.threadId;
 };
 
+function ownedClasses(value: string) {
+  const parsed = z.array(z.enum(["money", "newsletters"])).safeParse(value.split(",").map((entry) => entry.trim()));
+  if (!parsed.success) throw new Error("Use --owns with money, newsletters, both (money,newsletters), none, or default.");
+  return parsed.data;
+}
+
 export default function plugin(bb: BbPluginApi) {
   const service = createService(bb);
   async function readFile(path: string, ctx: PluginCliContext) {
@@ -108,7 +114,7 @@ export default function plugin(bb: BbPluginApi) {
           if (!add?.length && !owns) throw new Error("Pass --add-connections or --owns.");
           return output(await service.updateDigest(input.options.digest, {
             ...(add?.length ? { addConnectionIds: add } : {}),
-            ...(owns ? { owns: owns === "default" ? null : owns === "none" ? [] : z.array(z.enum(["money", "newsletters"])).parse(owns.split(",").map((value) => value.trim())) } : {}),
+            ...(owns ? { owns: owns === "default" ? null : owns === "none" ? [] : ownedClasses(owns) } : {}),
           }));
         },
       }),

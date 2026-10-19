@@ -420,6 +420,9 @@ export function createService(bb: BbPluginApi) {
       for (const source of payload.sources) {
         if (!definition.connectionIds.includes(source.connectionId)) throw new Error("The source is outside this brief's declared connections.");
         if (store.processed(digestId, source.connectionId, [source.messageId]).length) throw new Error(`Message ${source.messageId} was already digested. Revise the report before publishing.`);
+        // Check before spawning a thread, so a rejected publish leaves no failed brief behind.
+        const status = store.emailStatus(digestId, [{ connectionId: source.connectionId, messageId: source.messageId, ...(source.rfcMessageId ? { rfcMessageId: source.rfcMessageId } : {}) }], [], [])[0];
+        if (status?.status === "shown") throw new Error(`Message ${source.messageId} from ${source.connectionId} was already shown in ${status.digestName}. Remove it and publish again.`);
       }
       issue ??= newIssue(definition, null, key);
       // Create the searchable native thread before committing processed IDs.
