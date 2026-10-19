@@ -308,6 +308,31 @@ describe("Digests app", () => {
     expect(slot.inspection.navigateCalls).toContainEqual({ method: "openUrl", url: "https://example.test/reply" });
   });
 
+  it("keeps a card's title, long context, deadline and both source actions", async () => {
+    const app = await loadPluginApp(() => import("./app.js"));
+    const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
+      heading: "Needs you", items: [{
+        title: "Confirm Room B for the workshop", text: "The previous reply suggested Room A, which is unavailable.",
+        context: "The workshop team requests confirmation of Room B.", deadline: "Due Tuesday at 15:00",
+        secondaryAction: { label: "View workshop details", url: "https://example.test/workshop" },
+        action: { label: "Review room request", url: "https://example.test/room" },
+      }], later: [], laterLabel: "Later",
+    } }) } });
+    const title = await slot.findByRole("heading", { name: "Confirm Room B for the workshop" });
+    const card = title.closest("li")!;
+    expect(card.contains(slot.getByText("The workshop team requests confirmation of Room B."))).toBe(true);
+    expect(card.contains(slot.getByText("Due Tuesday at 15:00"))).toBe(true);
+    for (const label of ["View workshop details", "Review room request"]) {
+      const action = slot.getByRole("button", { name: label });
+      expect(card.contains(action)).toBe(true);
+      fireEvent.click(action);
+    }
+    expect(slot.inspection.navigateCalls).toEqual([
+      { method: "openUrl", url: "https://example.test/workshop" },
+      { method: "openUrl", url: "https://example.test/room" },
+    ]);
+  });
+
   it("opens one email section at a time from counts and preserves source links", async () => {
     const app = await loadPluginApp(() => import("./app.js"));
     const slot = renderSlot(app.messageDirectives[0]!, directiveProps, { rpc: { getIssue: () => ({ ...readyIssue, brief: {
