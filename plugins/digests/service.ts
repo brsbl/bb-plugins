@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-import { createStore } from "./store.js";
-import { issueSchema, EmailReadInputSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
+import { createStore, type EmailCandidate, type Owner } from "./store.js";
+import { verifyTaskLinks } from "./links.js";
+import { DigestIdSchema, issueSchema, EmailReadInputSchema, type DigestDefinition, type Issue, type PublishInput, type Connection, type SaveDigest } from "./model.js";
 import { checkSignIn, closeBrowser, connectionScope, openBrowser, ConnectionError, type BrowserLease } from "./browser.js";
 import { executionTarget, executionFailure, ExecutionError } from "./execution.js";
 import { accountUrl, SITES } from "./sites.js";
@@ -91,6 +92,28 @@ export function createService(bb: BbPluginApi) {
     return failed;
   }
   const automationProject = (definition: DigestDefinition) => definition.automationProjectId ?? definition.projectId;
+  const isGmail = (connectionId: string) => {
+    const url = store.connections.get(connectionId)?.url;
+    return url !== undefined && new URL(url).hostname === "mail.google.com";
+  };
+  const gmailIds = (definition: DigestDefinition) => definition.connectionIds.filter(isGmail);
+  /** Eligible class owners, read live from each enabled, scheduled brief's automation. Never persisted. */
+  async function owners(): Promise<Owner[]> {
+    const result: Owner[] = [];
+    for (const definition of store.definitions.list()) {
+      const classes = definition.owns ?? (definition.id === "money" ? ["money" as const] : definition.id === "reading" ? ["newsletters" as const] : []);
+      if (!classes.length || !definition.enabled || !definition.schedule || !definition.automationId) continue;
+      let nextRunAt: number | null = null;
+      try {
+        const current = await automation("automations_get", { projectId: automationProject(definition), automationId: definition.automationId }, automationSchema);
+        if (current.enabled && typeof current.nextRunAt === "number") nextRunAt = current.nextRunAt;
+      } catch (error) { bb.log.warn(`Digest ${definition.id} owner check: ${error instanceof Error ? error.message : String(error)}`); }
+      if (nextRunAt === null) continue;
+      const connectionIds = gmailIds(definition);
+      for (const ownedClass of classes) result.push({ class: ownedClass, digestId: definition.id, name: definition.name, connectionIds, nextRunAt });
+    }
+    return result;
+  }
   const targetFor = (definition: Pick<DigestDefinition, "projectId" | "environment" | "execution" | "connectionIds">) => executionTarget(bb, definition,
     definition.connectionIds.map((id) => store.connections.get(id)).filter((value): value is Connection => value !== null));
   async function bindDefinition(definition: DigestDefinition) {
@@ -166,7 +189,9 @@ export function createService(bb: BbPluginApi) {
     return exclusive(`definition:${input.id ?? "new"}`, async () => {
       const previous = input.id ? requiredDefinition(input.id) : null;
       if (!store.connections.get(input.connectionId)) throw new Error("Reopen Settings to check your sites before adding a brief.");
-      if (previous && !previous.connectionIds.includes(input.connectionId)) throw new Error("Edit this brief under its original site.");
+      // Saving under another site adds it; the brief keeps its ID, automation and switch.
+      const connectionIds = !previous ? [input.connectionId] : previous.connectionIds.includes(input.connectionId) ? previous.connectionIds : [...previous.connectionIds, input.connectionId];
+      if (connectionIds.length > 20) throw new Error("A brief reads at most 20 connections.");
       if (!previous && !input.schedule) throw new Error("Choose when this brief should run.");
       // Existing publishers keep their mode; editing a prompt does not convert
       // a publishing contract or silently pause an enabled automation.
@@ -176,7 +201,7 @@ export function createService(bb: BbPluginApi) {
       await ensureSection(true);
       let definition: DigestDefinition = { ...defaults, ...previous, id: previous?.id ?? `digest-${randomUUID()}`, name: input.name, ...(input.emoji !== undefined ? { emoji: input.emoji } : {}), instructions: input.instructions,
         ...(input.afterReading !== undefined ? { afterReading: input.afterReading } : {}),
-        connectionIds: previous?.connectionIds ?? [input.connectionId], ...(input.execution ? { execution: input.execution } : {}), schedule: input.schedule, enabled: previous?.enabled ?? false,
+        connectionIds, ...(input.execution ? { execution: input.execution } : {}), schedule: input.schedule, enabled: previous?.enabled ?? false,
         automationId: previous?.automationId ?? null, permissionMode: previous?.permissionMode ?? "auto" as const, createdAt: previous?.createdAt ?? Date.now() };
       if (input.execution === null) delete definition.execution;
       if (previous?.automationId) {
@@ -198,6 +223,24 @@ export function createService(bb: BbPluginApi) {
         }
       }
       if (previous?.automationId) definition = await ensureAutomation(definition);
+      bb.realtime.publish("issues", {});
+      return definition;
+    });
+  }
+  async function updateDigest(id: string, change: { addConnectionIds?: string[]; owns?: ("money" | "newsletters")[] | null }) {
+    return exclusive(`definition:${id}`, async () => {
+      let definition = requiredDefinition(id);
+      for (const connectionId of change.addConnectionIds ?? []) {
+        if (!DigestIdSchema.safeParse(connectionId).success || !store.connections.get(connectionId)) throw new Error(`Unknown connection ${connectionId}. Run bb digest connections status.`);
+      }
+      const connectionIds = [...new Set([...definition.connectionIds, ...change.addConnectionIds ?? []])];
+      if (connectionIds.length > 20) throw new Error("A brief reads at most 20 connections.");
+      const next: DigestDefinition = { ...definition, connectionIds };
+      if (change.owns === null) delete next.owns;
+      else if (change.owns) next.owns = change.owns;
+      definition = store.definitions.put(next);
+      // Refresh the same automation's prompt and target for the new connections.
+      if (definition.automationId) definition = await ensureAutomation(definition);
       bb.realtime.publish("issues", {});
       return definition;
     });
@@ -261,7 +304,8 @@ export function createService(bb: BbPluginApi) {
           }
         }
         await bb.sdk.threads.update({ threadId, title: issueTitle(definition, issue.createdAt) });
-        if (definition.connectionIds.includes("gmail")) {
+        const readsGmail = gmailIds(definition).length > 0;
+        if (readsGmail) {
           // Inspecting original unread state is part of collection ownership:
           // two simultaneous runs must not observe each other's temporary reads.
           const acquired = await exclusive("gmail-collector", async () => {
@@ -290,7 +334,12 @@ export function createService(bb: BbPluginApi) {
         }
         await bb.storage.kv.set(`verified:${issue.id}`, true);
         const connections = definition.connectionIds.map((id) => store.connections.get(id)).filter((value): value is Connection => value !== null);
-        return { issue, directive: directive(issue), sessions, instructions: collectionInstructions(definition, connections), complete: false };
+        const eligible = readsGmail ? await owners() : [];
+        const handoffs = readsGmail ? store.handoffsFor(digestId, gmailIds(definition), new Set(eligible.map((owner) => owner.digestId)), Date.now()) : [];
+        // Marks a digest_begin run: its publish is strict and must account for these handoffs.
+        await bb.storage.kv.set(`handoffs:${issue.id}`, handoffs.map((handoff) => handoff.emailId));
+        await bb.storage.kv.set(`begun:${issue.id}`, true);
+        return { issue, directive: directive(issue), sessions, instructions: collectionInstructions(definition, connections), complete: false, owners: eligible, handoffs };
       } catch (error) {
         issue = await fail(issue, error instanceof Error ? error.message : String(error), error instanceof ConnectionError ? error.recovery : "retry");
         return { issue, directive: directive(issue), sessions: [], complete: true };
@@ -309,7 +358,14 @@ export function createService(bb: BbPluginApi) {
     for (const source of payload.sources) {
       if (!definition.connectionIds.includes(source.connectionId)) throw new Error("The source is outside this brief's declared connections.");
     }
-    const published = changed(store.issues.publish(issue.id, payload, Date.now()));
+    // Runs started by digest_begin on a Gmail brief are strict; external publishers are not.
+    const strict = await bb.storage.kv.get<boolean>(`begun:${issue.id}`) === true && gmailIds(definition).length > 0;
+    const published = changed(strict
+      ? store.issues.publish(issue.id, payload.brief ? { ...payload, brief: verifyTaskLinks(payload.brief, payload.sources) } : payload, Date.now(),
+        { strict: true, owners: await owners(), returnedHandoffs: await bb.storage.kv.get<string[]>(`handoffs:${issue.id}`) ?? [] })
+      : store.issues.publish(issue.id, payload, Date.now(), {}));
+    await bb.storage.kv.delete(`begun:${issue.id}`);
+    await bb.storage.kv.delete(`handoffs:${issue.id}`);
     await bb.storage.kv.delete(`recovery:${issue.id}`);
     await bb.storage.kv.delete(`verified:${issue.id}`);
     await closeIssueBrowsers(published);
@@ -320,7 +376,7 @@ export function createService(bb: BbPluginApi) {
     const issue = requiredIssue(threadId);
     if (issue.state !== "collecting") throw new Error("Begin or retry this brief before reading email.");
     const definition = requiredDefinition(issue.digestId);
-    if (!definition.connectionIds.includes("gmail")) throw new Error("This brief does not read Gmail.");
+    if (!gmailIds(definition).length) throw new Error("This brief does not read Gmail.");
     const reads = [...(issue.emailReads ?? [])];
     const index = reads.findIndex((read) => read.messageId === input.messageId);
     if (input.status === "opening") {
@@ -342,6 +398,15 @@ export function createService(bb: BbPluginApi) {
     }
     changed(store.issues.update(issue.id, { emailReads: reads }));
     return reads.find((read) => read.messageId === input.messageId)!;
+  }
+  /** Advisory status of candidate Gmail emails across briefs, for this thread's brief. */
+  async function emailStatus(threadId: string, candidates: EmailCandidate[]) {
+    const issue = requiredIssue(threadId);
+    const definition = requiredDefinition(issue.digestId);
+    for (const candidate of candidates) {
+      if (!definition.connectionIds.includes(candidate.connectionId)) throw new Error("This connection is not declared by the brief.");
+    }
+    return store.emailStatus(issue.digestId, candidates, await owners(), await bb.storage.kv.get<string[]>(`handoffs:${issue.id}`) ?? []);
   }
   async function publishExternal(digestId: string, payload: PublishInput, key: string) {
     return exclusive(`publish:${digestId}`, async () => {
@@ -606,5 +671,5 @@ export function createService(bb: BbPluginApi) {
       details: `Your brief was saved, but its delivery turn failed. Retry to display it without collecting again.\n\n${issue.details}` };
     return null;
   }
-  return { store, emailRead, bindDefinition, executionOptions, saveDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, runStatus, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
+  return { store, emailRead, emailStatus, bindDefinition, executionOptions, saveDigest, updateDigest, recoveryIssue, begin, publishCurrent, publishExternal, fail, requiredIssue, requiredDefinition, run, runStatus, setEnabled, retry, reconnect, checkConnections, checkSettingsConnections, settingsPreferences, dismissImportBanner, reconnectConnection, overview, reconcile, settled, ensureSection, ensureAutomation, closeIssueBrowsers };
 }

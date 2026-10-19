@@ -4,6 +4,7 @@ import { cliCommand, defineCli, type BbPluginApi, type PluginCliContext } from "
 import { z } from "zod";
 import { rpcContract } from "./contracts.js";
 import { createService } from "./service.js";
+import { EmailCandidateSchema } from "./store.js";
 import { connectionSchema, digestDefinitionSchema, publishInputSchema, EmailReadInputSchema, IdSchema, DigestIdSchema } from "./model.js";
 import { DIGEST_RECIPES } from "./recipes.js";
 import { directive } from "./prompts.js";
@@ -94,6 +95,23 @@ export default function plugin(bb: BbPluginApi) {
           return output(result);
         },
       }),
+      update: cliCommand({
+        summary: "Add connections to a brief or set the mail classes it owns, keeping its ID, automation and switch",
+        options: {
+          digest, json,
+          "add-connections": { type: "string", description: "Comma-separated connection IDs, from bb digest connections status" },
+          owns: { type: "string", description: "Comma-separated classes it owns (money,newsletters), none, or default" },
+        },
+        async run(input) {
+          const add = input.options["add-connections"]?.split(",").map((value) => value.trim()).filter(Boolean);
+          const owns = input.options.owns?.trim();
+          if (!add?.length && !owns) throw new Error("Pass --add-connections or --owns.");
+          return output(await service.updateDigest(input.options.digest, {
+            ...(add?.length ? { addConnectionIds: add } : {}),
+            ...(owns ? { owns: owns === "default" ? null : owns === "none" ? [] : z.array(z.enum(["money", "newsletters"])).parse(owns.split(",").map((value) => value.trim())) } : {}),
+          }));
+        },
+      }),
       "connections set": cliCommand({ summary: "Save connection metadata from JSON, without copying credentials", options: { file, json }, async run(input, ctx) {
         const connection = connectionSchema.parse(JSON.parse(await readFile(input.options.file, ctx)));
         return output(service.store.connections.put({ ...connection, status: "unknown", checkedAt: null, detail: null }));
@@ -137,7 +155,12 @@ export default function plugin(bb: BbPluginApi) {
       return JSON.stringify(service.store.processed(issue.digestId, input.connectionId, input.messageIds));
     },
   });
-  bb.agents.configure(() => ({ tools: ["digest_begin", "digest_email_read", "digest_publish", "digest_fail", "digest_processed"], skills: ["digests"] }));
+  bb.agents.registerTool({
+    name: "digest_email_status", description: "Advisory status of candidate Gmail emails across briefs: new, shown in brief X, handed to you, handed off to another brief, released, or possible copy of a shown row.",
+    parameters: z.object({ candidates: z.array(EmailCandidateSchema).min(1).max(500) }).strict(),
+    execute: async ({ candidates }, ctx) => JSON.stringify(await service.emailStatus(ctx.threadId, candidates)),
+  });
+  bb.agents.configure(() => ({ tools: ["digest_begin", "digest_email_read", "digest_publish", "digest_fail", "digest_processed", "digest_email_status"], skills: ["digests"] }));
   bb.events.on("thread.idle", ({ thread }) => service.settled(thread.id, false));
   bb.events.on("thread.failed", ({ thread }) => service.settled(thread.id, true));
   for (const event of ["thread.archived", "thread.deleted"] as const) bb.events.on(event, async ({ thread }) => {
