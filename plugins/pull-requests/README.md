@@ -2,7 +2,11 @@
 
 See your GitHub pull requests and continue related work in bb.
 
-![Compact sidebar and pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/1ed45e6e-163d-44e9-852a-7e818eef0c2c)
+![The queue for a sample Atlas project and the Summary of PR 42, Improve keyboard navigation: passing checks, an approved review, a two-PR stack and its linked Keyboard navigation thread](docs/summary.png)
+
+![Needs attention on: the failing Handle empty search PR in the queue, beside the stack's ordered Summary](docs/stack-attention.png)
+
+![Read-only Changes for PR 42 showing the src/navigation.ts patch](docs/changes.png)
 
 ## Install
 
@@ -19,6 +23,7 @@ Open **Pull Requests** from plugin navigation. The sidebar queries GitHub for yo
 - Every PR has a readable status and reason. Live input requests win over GitHub freshness; stale or incomplete evidence is **Unknown**. **Ready for decision** means no known GitHub blocker, never user approval or QA sign-off.
 - Filters cover the complete known registry. Missing members, ambiguous dependencies, cached relationships, and incomplete GitHub discovery are labeled explicitly.
 - Paste a GitHub URL into search to open or link a PR. Manage links and the preferred thread in detail. Project ownership uses the preferred thread, then a unique verified origin, then an unambiguous repository mapping.
+- `BB-Thread-ID` markers remain supported. Linked `BB-Thread` markers can establish origin only for this server’s configured app, server-access, or loopback origin, after checking thread access and repository ownership. Links to other servers can still provide ordinary thread references.
 - Thread IDs and thread links in a PR description automatically associate accessible bb threads during sync. Multiple threads are supported; explicitly unlinked threads stay unlinked.
 
 Cached PRs remain usable during refresh. Descriptions and diffs load when opened, with delayed placeholders for slower reads.

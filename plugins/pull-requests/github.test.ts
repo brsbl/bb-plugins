@@ -33,7 +33,25 @@ describe("GitHub read boundary", () => {
     const run = vi.fn<GhRunner>().mockResolvedValueOnce(JSON.stringify(account)).mockRejectedValueOnce(Object.assign(new Error("GraphQL"), { stderr: "Field 'stack' doesn't exist on type 'PullRequest'" })).mockResolvedValueOnce(JSON.stringify({ data: { viewer, search: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [rawPr()] } } })).mockResolvedValueOnce(JSON.stringify(account));
     expect(await searchPullRequests({ scope: "authored" }, run)).toMatchObject({ ok: true, snapshots: [{ stack: { state: "unavailable" } }] });
     expect(run.mock.calls[2]![0].join(" ")).not.toContain("stack {");
-    expect(originMarkers("BB-Thread: [Owner](https://brsbl.getbb.app/projects/proj_a/threads/thr_owner)\nBB-Thread-ID: thr_owner")).toEqual(["thr_owner"]);
+    expect(originMarkers("BB-Thread: [Owner](https://studio.example/projects/proj_a/threads/thr_owner)\nBB-Thread-ID: thr_owner")).toEqual(["thr_owner"]);
+  });
+  it("recognizes linked markers only on the current server while retaining plain markers", () => {
+    const linked = (origin: string, thread = "thr_owner") => `BB-Thread: [Implementation](${origin}/projects/proj_demo/threads/${thread})`;
+    expect(originMarkers(linked("https://studio.example"), ["https://studio.example/"])).toEqual(["thr_owner"]);
+    expect(originMarkers(linked("https://other.example"), ["https://other.example"])).toEqual(["thr_owner"]);
+    expect(originMarkers(linked("http://127.0.0.1:4567"), ["http://127.0.0.1:4567"])).toEqual(["thr_owner"]);
+    expect(originMarkers(`${linked("https://studio.example")}\nBB-Thread-ID: thr_owner`, ["https://studio.example"])).toEqual(["thr_owner"]);
+    expect(originMarkers(`${linked("https://other.example")}\nBB-Thread-ID: thr_legacy`, ["https://studio.example"])).toEqual(["thr_legacy"]);
+    expect(originMarkers(linked("https://studio.example"))).toEqual([]);
+    expect(referencedThreadIds(linked("https://other.example"))).toEqual(["thr_owner"]);
+  });
+  it("does not trust lookalike origins, credentials, malformed URLs, or marker prose", () => {
+    const body = [
+      "https://studio.example.evil.test", "https://studio.example@evil.test", "https://user@studio.example",
+      "http://studio.example", "https://studio.example:444", "not-a-url",
+    ].map((origin) => `BB-Thread: [Implementation](${origin}/projects/proj_demo/threads/thr_owner)`).join("\n");
+    expect(originMarkers(body, ["https://studio.example", "invalid"])).toEqual([]);
+    expect(originMarkers("Text BB-Thread: [Implementation](https://studio.example/projects/proj_demo/threads/thr_owner)", ["https://studio.example"])).toEqual([]);
   });
   it("keeps GitHub author avatars while accepting snapshots saved before avatars", async () => {
     const avatarUrl = "https://avatars.githubusercontent.com/u/42?s=40";
@@ -47,7 +65,7 @@ describe("GitHub read boundary", () => {
     expect(projectSnapshot({ ...rawPr(), author: null }).authorAvatarUrl).toBeNull();
   });
   it("deduplicates description IDs, mentions and thread links without matching partial IDs", () => {
-    expect(referencedThreadIds("BB-Thread-ID: thr_a\nRelated: thr_b, @thread:thr_a\n[Review](https://brsbl.getbb.app/projects/proj_a/threads/thr_c)\n[Chat](bb://thread/thr_d)\nnot_thr_other thr_partial_suffix thr_partial-suffix")).toEqual(["thr_a", "thr_b", "thr_c", "thr_d"]);
+    expect(referencedThreadIds("BB-Thread-ID: thr_a\nRelated: thr_b, @thread:thr_a\n[Review](https://studio.example/projects/proj_a/threads/thr_c)\n[Chat](bb://thread/thr_d)\nnot_thr_other thr_partial_suffix thr_partial-suffix")).toEqual(["thr_a", "thr_b", "thr_c", "thr_d"]);
   });
   it("queries account-wide authored and requested-review PRs with bounded cursor pagination", async () => {
     for (const [scope, qualifier] of [["authored", "author:alice is:open"], ["review", "is:open review-requested:alice"], ["history", "author:alice is:closed"]] as const) {

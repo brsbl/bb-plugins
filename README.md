@@ -76,11 +76,11 @@ Install: `bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/p
 
 See your GitHub pull requests and review requests, inspect checks and changes, and continue related work in bb. Thread links are optional and survive branch changes.
 
-![Compact Pull Requests sidebar with status icons and timestamps](https://github.com/user-attachments/assets/00c9963c-89ac-4ee6-86e4-06c7840c725c)
+![Needs attention on: the failing Handle empty search PR in the queue, beside a sample stack's ordered Summary](plugins/pull-requests/docs/stack-attention.png)
 
-![Pull request Summary with status rail and linked thread](https://github.com/user-attachments/assets/1ed45e6e-163d-44e9-852a-7e818eef0c2c)
+![Summary of a sample pull request with passing checks, an approved review, its stack and a linked thread](plugins/pull-requests/docs/summary.png)
 
-![Read-only changed file selection](https://github.com/user-attachments/assets/e664001b-4dbc-4ecc-8f48-38e79cd82dc1)
+![Read-only Changes for a sample pull request](plugins/pull-requests/docs/changes.png)
 
 [Source](plugins/pull-requests) · [README](plugins/pull-requests/README.md)
 

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { cliCommand, defineCli, PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { CHANGED, hostContract, rpcContract, type Link, type PullRequestItem, type ReadResult, type SearchResult, type Reader, type Snapshot, type ThreadChoice } from "./contract.js";
-import { githubRepository, mapConcurrent, parsePullRequestUrl, referencedThreadIds } from "./core.js";
+import { githubRepository, mapConcurrent, originMarkers, parsePullRequestUrl, referencedThreadIds } from "./core.js";
 import { createStore } from "./store.js";
 
 type Thread = Pick<Awaited<ReturnType<BbPluginApi["sdk"]["threads"]["get"]>>, "id" | "title" | "titleFallback" | "projectId" | "environmentId" | "archivedAt" | "deletedAt" | "visibility">;
@@ -205,7 +205,17 @@ export default function plugin(bb: BbPluginApi): void {
         try { const current = await eligibleThread(thread.id); store.link(item.id, makeLink(await threadChoice(current), "environment", "discovery")); } catch { /* Thread deleted or hidden during discovery. */ }
       }
       // A body convention can establish origin only when one accessible thread independently resolves to this repository.
-      const markers = item.snapshot?.originThreadIds ?? [];
+      const serverUrls = [bb.server.loopbackBaseUrl];
+      if (bb.server.experimental_appUrl) serverUrls.push(bb.server.experimental_appUrl);
+      try {
+        const { serverAccess } = await bb.sdk.system.config();
+        if (serverAccess.effectiveUrl) serverUrls.push(serverAccess.effectiveUrl);
+        for (const { availability } of serverAccess.providers) {
+          if (availability?.status === "available" && availability.serverUrl) serverUrls.push(availability.serverUrl);
+        }
+      } catch { /* Configured app and loopback origins remain usable if access discovery fails. */ }
+      // Reparse on the server: host snapshots and older cached markers cannot establish this server's origin.
+      const markers = originMarkers(item.snapshot?.body ?? "", serverUrls);
       if (markers.length === 1 && item.snapshot) {
         try {
           const origin = await eligibleThread(markers[0]!);
