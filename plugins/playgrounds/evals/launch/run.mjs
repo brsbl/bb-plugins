@@ -192,6 +192,17 @@ for (const live of [true, false]) {
   if (checked.pass !== live || checked.controls.length !== 1 || (!live && checked.controls[0].reason !== 'no proven output change outside controls'))
     throw new Error(`Preflight: drag ${live ? 'live' : 'inert'} regression failed; see ${dragDir}/controls.json`);
 }
+// A button can change geometry inside a separate interactive drawing. Keep
+// that output observable, while button/peer styling alone still fails.
+for (const live of [true, false]) {
+  const dir = join(preflightDir, live ? 'surface-button-live' : 'surface-button-inert'); mkdirSync(dir,{recursive:true});
+  const fixture = join(dir,'fixture.html');
+  writeFileSync(fixture, `<!doctype html><html><meta name="viewport" content="width=device-width, initial-scale=1"><body style="margin:16px;width:300px;height:280px;background:white;color:black"><button>Expand</button><button>Contract</button><div role="slider" aria-label="Position" style="width:280px;height:100px;cursor:grab"><svg width="280" height="100"><rect width="40" height="90" fill="blue"/></svg></div><output style="display:block;font-size:32px">0</output><script>const buttons=[...document.querySelectorAll('button')],surface=document.querySelector('[role=slider]');buttons.forEach((button,i)=>button.onclick=()=>{if(${live})document.querySelector('rect').setAttribute('width',i?40:220);else buttons.forEach((peer,j)=>peer.style.background=j===i?'red':'green')});surface.onpointermove=e=>document.querySelector('output').textContent=Math.round(e.clientX-surface.getBoundingClientRect().left)</script></body></html>`);
+  const checked = await checkControls({target:fixture,width:480,dir,drive});
+  const buttons = checked.controls.filter(c=>c.tag==='button');
+  if (checked.pass !== live || checked.controls.length !== 3 || buttons.length !== 2 || buttons.some(c=>c.pass !== live))
+    throw new Error(`Preflight: separate drawing ${live ? 'live' : 'inert'} regression failed; see ${dir}/controls.json`);
+}
 const ui = await drive(base.href,[['until','Boolean(document.querySelector("#root")?.children.length)',20_000],['eval','({ready:Boolean(document.querySelector("#root")?.children.length),text:document.body.innerText.slice(0,300)})'],['shot',join(preflightDir,'bb.png'),'body']],join(preflightDir,'ui'),1280);
 if (ui.code || !ui.evals.some(v => v?.ready) || !hasInk(join(preflightDir,'bb.png'))) throw new Error('Preflight: dev bb UI did not render');
 

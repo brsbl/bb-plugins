@@ -92,10 +92,13 @@ non-default model for Personal, reset the **isolated instance** before measuring
   newly exposed controls are retained as unproven failures even if a later tab
   hides them. `controls.json` retains these intermediate inventories.
 - Three no-input and two post-input screenshots are retained per control. The
-  diff masks control/label regions, ignores pixels already moving before input,
+  diff masks the tested control and ordinary control/label chrome, ignores pixels already moving before input,
   requires persistent output change, and requires changed output to exceed the
   measured ambient movement by 4x. A changed checkbox or thumb alone cannot pass.
-  This is deliberately conservative: purely animated responses and controls whose
+  When a button changes a separate interactive SVG/canvas drawing, that drawing
+  remains observable; the active surface itself stays masked when testing it.
+  Generic regressions require geometry changes to pass and button/peer styling
+  alone to fail. This is deliberately conservative: purely animated responses and controls whose
   only legitimate output is their own appearance require investigation, not an
   automatic pass. PNG dimension changes are also unproven, never assumed live.
   For drag controls the pointer stays at each endpoint during capture: leaving

@@ -27,6 +27,20 @@ export function inventory(scope = 'body') {
       group: el.name || el.closest('[role="tablist"],.pg-seg,.pg-segmented')?.outerHTML.slice(0, 120) || null };
   });
 }
+// A separate interactive drawing is output when another control changes it.
+// Keep the tested surface and ordinary control chrome/selection peers masked.
+function controlMasks(scope, testedIndex) {
+  const root = document.querySelector(scope), r = root.getBoundingClientRect();
+  const rects = [...root.querySelectorAll('[data-launch-control]')].filter(el => {
+    const ordinary = el.matches('button,input,select,textarea,[role="button"],[role="switch"],[role="checkbox"],[role="radio"],[role="tab"]');
+    const drawing = el.matches('svg,canvas') || el.querySelector('svg,canvas');
+    return Number(el.dataset.launchControl) === testedIndex || ordinary || !drawing;
+  }).map(el => {
+    const b = (el.closest('label,.pg-control,[data-pg]') || el).getBoundingClientRect();
+    return {x:b.x-r.x+4,y:b.y-r.y+4,w:b.width,h:b.height};
+  });
+  return {maskFor:testedIndex,rects};
+}
 const selector = c => `[data-launch-control="${c.index}"]`;
 function action(c) {
   const s = selector(c);
@@ -69,7 +83,7 @@ export async function checkControls({ target, scope = 'body', width, dir, drive 
     if (drag) actions.push(['drag', s, drag[4], drag[5], drag[2], drag[3]]);
     actions.push(...moveOff, ['wait', 400]);
     const paths = ['before0','before1','before2','after0','after1'].map(name => join(dir, `control-${control.index}-${name}.png`));
-    actions.push(['eval', `(()=>{const root=document.querySelector(${JSON.stringify(scope)}),r=root.getBoundingClientRect();return {maskFor:${control.index},rects:[...root.querySelectorAll('[data-launch-control]')].map(e=>{const b=(e.closest('label,.pg-control,[data-pg]')||e).getBoundingClientRect();return {x:b.x-r.x+4,y:b.y-r.y+4,w:b.width,h:b.height}})}})()`]);
+    actions.push(['eval', `(${controlMasks.toString()})(${JSON.stringify(scope)},${control.index})`]);
     for (let n = 0; n < 3; n++) actions.push(['shot', paths[n], scope], ...restoreBefore, ['wait', 450]);
     actions.push(...steps, ...moveOff, ['wait', 450], ['shot', paths[3], scope], ...restoreAfter, ['wait', 450], ['shot', paths[4], scope], ...restoreAfter);
     plans.push({ ...control, paths, steps });
