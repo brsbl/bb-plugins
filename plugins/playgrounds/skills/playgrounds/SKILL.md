@@ -5,6 +5,12 @@ description: "Answer with something the person can operate, inline in a bb messa
 
 # Playgrounds
 
+Before building any card, send one short progress sentence in the conversation
+stating what you are making. Do this even for a build that takes under a minute.
+If you already loaded this skill without an update, send it now, before your
+next build or publish call. Tool status, thinking, and the final answer's preface
+do not count. If work lasts more than a minute, add a factual progress update.
+
 Use `playground` with `action: "guide"` for the current schema, the
 HTML kit, and examples. Then call `action: "publish"` with either `document`
 (a native JSON document) or `html` plus `title` (and optional `width`). Copy
@@ -23,13 +29,16 @@ they never say "playground". Answer in prose only when one sentence would do.
 
 | They ask about | Build |
 | --- | --- |
-| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | An Anatomy figure: load the bundled `how-it-works` skill and build its machine, with the model's inputs as playground parameters (see Anatomy figures) |
+| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | A quick Anatomy figure: load the bundled `how-it-works` skill, use its default quick workflow, and expose the model's inputs as playground parameters (see Anatomy figures) |
 | Numbers, pricing, "how much / which", a decision | Calculator set |
 | Funnels, time series, distributions | A chart, with the inputs that drive it |
 | A screen or flow | A clickable mock-up of it |
 | Type, spacing, color, design tokens | A live preview (`references/type-scale.html`) |
 | Motion or feel (springs, easing, drag) | A motion preview they can operate |
 | A tradeoff that plays out over time (a backlog against worker count, an on-call rotation) | Simulation set |
+
+Start building with useful defaults; never ask a clarifying question before
+producing the first card. State any necessary assumption briefly.
 
 Build these as HTML playgrounds with the component library (see Components). Use
 a **native document** only for a quick formula answer with a few inputs and no
@@ -232,10 +241,20 @@ Unknown names throw, including in `setParams`; object updates validate every nam
 before changing any value. Read inputs in the preview/model and redraw with
 `params.on(update)`, then call `update()` once for the initial view.
 
+For programmatic inputs, `params.define("position", {type: "number", min: 0,
+max: 100, step: 1, default: 0})` declares the full numeric range; omitted bounds
+mean **0..1**. A sequence index needs its actual last index as `max`, not an
+unbounded local counter. Choices use `{type: "select", options: [{value: "a",
+label: "A"}, {value: "b", label: "B"}], default: "a"}`; bare string/number
+options also work, with strict value types. Free text uses `type: "text"` and
+booleans use `type: "toggle"` (`string` and `boolean` are accepted aliases).
+Keep HTML bounds and choices consistent with these declarations. Test the last
+choice and both endpoints in the published frame, whose bridge validates values.
+
 Publishing checks JavaScript bindings as well as markup: it rejects literal
 references to undeclared parameters and controls with no consumer, with names
 and repair instructions. This is a static check, not proof that a handler works:
-click every control and confirm the preview changes before publishing, including
+click every control and confirm the preview changes before showing the card, including
 when names or controls are generated dynamically.
 
 **Driving it.** Every card with these controls exposes the same actions:
@@ -480,15 +499,24 @@ shows a setup step, two boards and hidden pieces), and
 ([@wheresryan22](https://github.com/wheresryan22)), draws a technical idea as a
 working isometric machine. Playgrounds ships a copy as the `how-it-works` skill.
 Whenever someone asks how a system, mechanism, protocol or pipeline works, load
-the `how-it-works` skill and build the figure the framework-free way (a `build.mjs`
-that writes one standalone HTML page), then show that page as a playground:
+the `how-it-works` skill and follow its **quick figure** workflow: one mechanism,
+at most 40 parts, SVG only, no audit pass, and about 3 minutes to a working card.
+Start from the nearest bundled example when it fits. Show progress, choose
+reasonable defaults without clarifying questions, and leave the full Figure/Hero
+workflow in `how-it-works/references/full-mode.md` for an explicit request to
+"go deeper". The quick entrypoint includes the parameter contract; avoid loading
+unrelated component sets or full-mode references while making a quick figure.
+Build the framework-free way
+(a `build.mjs` that writes one standalone HTML page), then publish that page:
 
 ```sh
 bb playgrounds publish --playground-file /absolute/path/figure.html
 ```
 
-`--playground-file` reads only from this thread's workspace (its checkout; the
-`how-it-works` skill's "In bb" says where to copy it), so a large figure never passes through your context. The card keeps the page's styles and
+`--playground-file` can read from this thread's workspace or its
+`$BB_THREAD_STORAGE`. Use a fresh copy under thread storage as the `how-it-works`
+skill's "In bb" section describes, including in Personal threads without a Git
+checkout. A large figure never passes through your context. The card keeps the page's styles and
 scripts, follows bb's light or dark theme, and fits the page to the card. Credit
 Ryan and Anatomy in your reply.
 
