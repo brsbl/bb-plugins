@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromePath } from "./clip-browser.mjs";
 import { recordClip } from "./clip-record.mjs";
+import { clipClock, FRAME_MS, CLOCK_SOURCE } from "./clip-clock.mjs";
 import { LINE_ENDS } from "./line-ends.mjs";
 
 if (typeof WebSocket === "undefined" && !process.execArgv.includes("--experimental-websocket")) {
@@ -148,7 +149,7 @@ async function main() {
       new Promise((done, fail) => {
         const call = ++id;
         const timer = setTimeout(() => { pending.delete(call); fail(new Error(`Chrome timed out: ${method}\n${chromeLog}`)); }, 30000);
-        pending.set(call, result => { clearTimeout(timer); done(result); });
+        pending.set(call, result => { clearTimeout(timer); if (options.clip && result.error) fail(new Error(`${method}: ${JSON.stringify(result.error)}`)); else done(result); });
         socket.send(JSON.stringify({ id: call, method, params }));
       });
     const evaluate = async (expression) => {
@@ -169,11 +170,13 @@ async function main() {
     // Fetch interception does not cover WebRTC ICE/STUN traffic. Install in every
     // document/frame before card scripts can keep a reference to these constructors.
     const NO_RTC = `for(const name of ["RTCPeerConnection","webkitRTCPeerConnection"])Object.defineProperty(globalThis,name,{value:undefined,writable:false,configurable:false});`;
-    const early = [options.clip ? NO_RTC : "", SLOW, options.noWebgl ? NO_GL : "", options.preload ?? ""].filter(Boolean).join("\n");
+    const early = [options.clip ? NO_RTC : "", options.clip ? CLOCK_SOURCE : SLOW, options.noWebgl ? NO_GL : "", options.preload ?? ""].filter(Boolean).join("\n");
     await send("Page.addScriptToEvaluateOnNewDocument", { source: early });
     await send("Emulation.setDeviceMetricsOverride", { width: options.width, height: options.height, deviceScaleFactor: options.scale, mobile: options.width < 600 });
+    if (options.clip) { await send("Animation.enable"); await send("Animation.setPlaybackRate", { playbackRate: 0 }); }
     await send("Page.navigate", { url });
     await sleep(1200);
+    const clock = options.clip ? clipClock(send, evaluate) : null;
     const boxOf = (selector) => evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector ?? ".iso-plate")})||document.body;const r=el.getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height,sx:scrollX,sy:scrollY}})()`);
     const readout = () => evaluate(`(document.querySelector("[data-readout]")||{}).textContent||""`);
     const capture = async (selector, scale = 1, region) => {
@@ -190,27 +193,39 @@ async function main() {
     };
     let mouse = [4, 4];
     let failed = 0;
-    const replay = async (actions) => {
+    const replay = async function* (actions) {
     for (const action of actions) {
       const [kind, ...args] = action;
       if (kind === "do") {
         const token = "clip-" + Date.now() + "-" + Math.random();
-        const result = await evaluate(`new Promise((resolve) => {
+        const expression = `new Promise((resolve) => {
           const timeout = setTimeout(() => { removeEventListener("message", listen); resolve({ok:false,error:"Action timed out"}); }, 10000);
           const listen = (event) => { const m=event.data; if(m?.source!=="playground" || m.type!=="result" || m.cmdId!==${JSON.stringify(token)})return;
             clearTimeout(timeout); removeEventListener("message",listen); resolve(m); };
           addEventListener("message",listen);
           postMessage({source:"playground",type:"command",cmdId:${JSON.stringify(token)},action:${JSON.stringify(args[0])},args:${JSON.stringify(args[1] ?? [])}},"*");
-        })`);
+        })`;
+        let result;
+        if (options.clip) {
+          // Do not await a page promise while its virtual timers/rAF are paused.
+          // Poll it on frame boundaries, letting the encoder advance the clock.
+          await evaluate(`window.__bbClipAction={done:false};void (${expression}).then(value=>{window.__bbClipAction={done:true,value}})`);
+          for (let tick = 0; tick <= 300; tick++) {
+            const state = await evaluate('window.__bbClipAction');
+            if (state?.done) { result = state.value; break; }
+            yield FRAME_MS;
+          }
+          if (!result) throw new Error("Action timed out in virtual time");
+        } else result = await evaluate(expression);
         if (!result?.ok) throw new Error(result?.error ?? "Action failed");
-      } else if (kind === "wait") await sleep(args[0]);
+      } else if (kind === "wait") yield args[0];
       else if (kind === "scroll") await evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(args[0] ?? ".iso-plate")});if(el)el.scrollIntoView({block:"center"})})()`);
       else if (kind === "move") {
         const box = await boxOf(args[0]);
         const to = [box.x + box.w * args[1], box.y + box.h * args[2]];
         for (let step = 1; step <= 10; step++) {
           await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: mouse[0] + ((to[0] - mouse[0]) * step) / 10, y: mouse[1] + ((to[1] - mouse[1]) * step) / 10 });
-          await sleep(16);
+          yield 16;
         }
         mouse = to;
       } else if (kind === "click") {
@@ -229,7 +244,7 @@ async function main() {
         await send("Input.dispatchMouseEvent", { type: "mousePressed", x: from[0], y: from[1], button: "left", buttons: 1, clickCount: 1 });
         for (let step = 1; step <= steps; step++) {
           await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from[0] + ((to[0] - from[0]) * step) / steps, y: from[1] + ((to[1] - from[1]) * step) / steps, button: "left", buttons: 1 });
-          await sleep(16);
+          yield 16;
         }
         await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: to[0], y: to[1], button: "left", buttons: 0, clickCount: 1 });
         mouse = to;
@@ -250,7 +265,7 @@ async function main() {
             ok = true;
             break;
           }
-          await sleep(25);
+          yield 25;
         }
         if (!ok) console.log(`until: timed out waiting for ${args[0]}`);
       }
@@ -263,7 +278,7 @@ async function main() {
         const frames = [];
         const texts = [];
         for (let index = 0; index < count; index++) {
-          if (index) await sleep(every);
+          if (index) yield every;
           frames.push(await capture(selector, scale ?? 0.5, region));
           texts.push(await readout());
         }
@@ -273,7 +288,10 @@ async function main() {
       } else if (kind === "turn") {
         const [value, group] = args;
         const call = group ? `window.__isoTurn.set(${JSON.stringify({ [group]: value })})` : `window.__isoTurn.set(${typeof value === "object" ? JSON.stringify(value) : Number(value)})`;
-        await evaluate(`(()=>{if(!window.__isoTurn)return false;${call};return new Promise((done)=>requestAnimationFrame(()=>requestAnimationFrame(()=>done(true))))})()`);
+        if (options.clip) {
+          await evaluate(`(()=>{if(window.__isoTurn){${call}}})()`);
+          yield 2 * FRAME_MS;
+        } else await evaluate(`(()=>{if(!window.__isoTurn)return false;${call};return new Promise((done)=>requestAnimationFrame(()=>requestAnimationFrame(()=>done(true))))})()`);
       } else if (kind === "orbit") {
         const [out, from, to, step, selector, scale, region, columns] = args;
         const frames = [];
@@ -307,8 +325,8 @@ async function main() {
     }
     };
     if (options.clip) console.log("Chrome ready; recording clip.");
-    if (options.clip) await recordClip({ send, evaluate, replay, options: options.clip });
-    else await replay(actions);
+    if (options.clip) await recordClip({ send, evaluate, replay, clock, options: options.clip });
+    else for await (const delay of replay(actions)) await sleep(delay);
     console.log(problems.length ? problems.join("\n") : "console: clean");
     socket.close();
     finish(failed ? 1 : 0);

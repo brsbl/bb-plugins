@@ -21,7 +21,8 @@ const HELP = `Make a local clip of an HTML or Anatomy playground (nothing upload
 Replay is a drive.mjs action array: ["wait",1000], ["do","setParams",[{...}]],
 ["key","ArrowLeft"], ["click","#button"], ["drag",selector,x0,y0,x1,y1,steps].
 Supply the agent's own do actions or an explicitly recorded input sequence.
-The clip is a replay; audio is omitted. Reuses Chrome/Chromium (CHROME_PATH overrides), or prepares a verified portable browser.
+The clip is a replay; audio is omitted. Its page clock advances every frame by 1/30 s.
+Reuses Chrome/Chromium (CHROME_PATH overrides), or prepares a verified portable browser.
 FFmpeg with libx264 is used if present, otherwise a verified portable build is cached
 on macOS arm64/x64 or Linux x64 automatically. No Homebrew or manual encoder install.
 Run through bb host-care on managed hosts. Output files are never overwritten.`;
