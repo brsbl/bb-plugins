@@ -20,6 +20,7 @@ test('rejects personal home paths and real-shaped thread IDs, including links', 
   for (const value of [thread('a1b2c3d4e5'), thread('0123456789'), thread('exampleabc')]) {
     assert.equal(privateDataHits(`@thread:${value}#msg=42`).length, 1);
     assert.equal(privateDataHits(`/worktrees/${value}-1/report.json`).length, 1);
+    assert.equal(privateDataHits(`${value}_screenshot.png`).length, 1);
   }
 });
 

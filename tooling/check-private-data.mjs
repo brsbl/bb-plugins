@@ -13,7 +13,7 @@ export function privateDataHits(text) {
   const hits = [];
   const patterns = [
     { kind: 'home path', pattern: /\/(?:home|Users)\/[a-zA-Z0-9_.-]+/g, allowed: value => syntheticHomes.has(value) },
-    { kind: 'thread ID', pattern: /thr_[a-z0-9]{10}(?![a-z0-9_])/g, allowed: value => syntheticThread.test(value) },
+    { kind: 'thread ID', pattern: /thr_[a-z0-9]{10}(?![a-z0-9])/g, allowed: value => syntheticThread.test(value) },
   ];
   for (const { kind, pattern, allowed } of patterns) {
     for (const match of text.matchAll(pattern)) {
