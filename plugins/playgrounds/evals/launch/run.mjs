@@ -168,7 +168,7 @@ function summarize() {
 // Fail infrastructure preflight before any scored prompt is sent. The fixture
 // checks the driver, real input dispatch, masking, image decoding, and output diff.
 const defaultModels = new Map();
-const preflightDir = join(out,'preflight'); mkdirSync(preflightDir,{recursive:true});
+const preflightDir = join(out,'preflight',String(Date.now())); mkdirSync(preflightDir,{recursive:true});
 await api('/projects/proj_personal');
 const plugins = await api('/plugins'); save(join(preflightDir,'plugins.json'),plugins);
 if (!JSON.stringify(plugins).includes('playgrounds')) throw new Error('Preflight: Playgrounds is not installed');

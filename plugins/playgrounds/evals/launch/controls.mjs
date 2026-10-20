@@ -55,17 +55,23 @@ export async function checkControls({ target, scope = 'body', width, dir, drive 
     const s = selector(control);
     // Leaving a drag surface can reset its output. Keep its low/high pointer
     // positions through the screenshots; the existing masks exclude cosmetics.
-    const moveOff = steps.some(step => step[0] === 'drag') ? [] : [['move', scope, 0.01, 0.01]];
+    const drag = steps.find(step => step[0] === 'drag');
+    const moveOff = drag ? [] : [['move', scope, 0.01, 0.01]];
+    // Full-card capture can briefly resize Chrome's viewport and emit leave /
+    // enter without move. Restore the same real pointer position after capture
+    // so its delayed leave handler cannot reset the next measured frame.
+    const restoreBefore = drag ? [['move', s, drag[2], drag[3]]] : [];
+    const restoreAfter = drag ? [['move', s, drag[4], drag[5]]] : [];
     actions.push(['scroll', s]);
     // A selected tab/radio and a reset need a changed starting state to be tested.
     const peer = controls.find(c => c.index !== control.index && action(c) && (control.group ? c.group === control.group : action(c) && !/reset/i.test(c.label)));
     if (peer && (control.selected || /reset|restart|clear/i.test(control.label))) actions.push(...action(peer));
-    if (control.type === 'range' || control.type === 'slider') actions.push(['drag', s, 0.8, 0.5, 0.2, 0.5]);
+    if (drag) actions.push(['drag', s, drag[4], drag[5], drag[2], drag[3]]);
     actions.push(...moveOff, ['wait', 400]);
     const paths = ['before0','before1','before2','after0','after1'].map(name => join(dir, `control-${control.index}-${name}.png`));
     actions.push(['eval', `(()=>{const root=document.querySelector(${JSON.stringify(scope)}),r=root.getBoundingClientRect();return {maskFor:${control.index},rects:[...root.querySelectorAll('[data-launch-control]')].map(e=>{const b=(e.closest('label,.pg-control,[data-pg]')||e).getBoundingClientRect();return {x:b.x-r.x+4,y:b.y-r.y+4,w:b.width,h:b.height}})}})()`]);
-    for (let n = 0; n < 3; n++) actions.push(['shot', paths[n], scope], ['wait', 450]);
-    actions.push(...steps, ...moveOff, ['wait', 450], ['shot', paths[3], scope], ['wait', 450], ['shot', paths[4], scope]);
+    for (let n = 0; n < 3; n++) actions.push(['shot', paths[n], scope], ...restoreBefore, ['wait', 450]);
+    actions.push(...steps, ...moveOff, ['wait', 450], ['shot', paths[3], scope], ...restoreAfter, ['wait', 450], ['shot', paths[4], scope], ...restoreAfter);
     plans.push({ ...control, paths, steps });
   }
   actions.push(['eval', listExpression]);

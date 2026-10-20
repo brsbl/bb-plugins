@@ -48,6 +48,7 @@ and the actual dev UI. Infrastructure failures here abort without counting
 forty spurious product failures. The tiny preflight fixture is not an eval prompt
 and is never given to an agent. Generic drag fixtures also verify that a live
 pointer-dependent readout passes while cosmetic hover alone fails.
+Each invocation keeps its preflight evidence in a separate timestamped directory.
 
 Each prompt creates a fresh `proj_personal` thread with a new personal environment
 and no Git checkout. The request omits `model`; the actual resolved model and
@@ -99,7 +100,10 @@ non-default model for Personal, reset the **isolated instance** before measuring
   automatic pass. PNG dimension changes are also unproven, never assumed live.
   For drag controls the pointer stays at each endpoint during capture: leaving
   the surface can reset a legitimate hover/drag output. Control masks still
-  exclude cosmetic hover changes from the score.
+  exclude cosmetic hover changes from the score. Full-card capture can briefly
+  emit pointer leave/enter events, so the same pointer position is restored
+  immediately after each shot before waiting. An immediate capture-induced
+  reset remains unproven; the scorer does not weaken its visual-diff threshold.
 
 `summary.json` and `summary.md` update after each case. Per-provider percentiles
 appear only after all twenty cases: median is the middle-pair mean, p90 is
