@@ -622,10 +622,10 @@ export default function plugin(bb: BbPluginApi): void {
         "clip-exported": cliCommand({
           summary: "Record fixed usage categories after a clip has been saved locally",
           options: {
-            kind: { type: "string", required: true },
-            format: { type: "string", required: true },
-            size: { type: "string", required: true },
-            "duration-bucket": { type: "string", required: true },
+            kind: { type: "string", required: true, description: "Card kind: anatomy, html or native" },
+            format: { type: "string", required: true, description: "Saved format: mp4 or gif" },
+            size: { type: "string", required: true, description: "Clip shape: square, landscape or portrait" },
+            "duration-bucket": { type: "string", required: true, description: "under_15s, 15_30s, 30_60s or over_60s" },
           },
           async handler({ options }) {
             const properties = clipExportPropertiesSchema.parse({
