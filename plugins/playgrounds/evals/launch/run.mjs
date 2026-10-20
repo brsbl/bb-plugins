@@ -11,6 +11,7 @@ import { failureScore, providerSummary, resumeMismatch } from './metrics.mjs';
 import { buildingProgress, renderWindow } from './observations.mjs';
 import { proofFixtures } from './fixtures.mjs';
 import { verifyIsolation } from './isolation.mjs';
+import { reportDirectory } from './report-directory.mjs';
 
 let interrupted = false;
 process.on('SIGTERM', () => { interrupted = true; });
@@ -23,10 +24,12 @@ for (let i = 2; i < process.argv.length; i++) {
   if (!key.startsWith('--') || !process.argv[i+1] || process.argv[i+1].startsWith('--')) throw new Error(`Expected --option value: ${key}`);
   args[key.slice(2)] = process.argv[++i];
 }
-for (const key of ['url','host','data-dir','out','label','plugin-root']) if (!args[key]) throw new Error(`Missing --${key}`);
+for (const key of ['url','host','data-dir','label','plugin-root']) if (!args[key]) throw new Error(`Missing --${key}`);
 const base = new URL(args.url);
 if (!['127.0.0.1','localhost','[::1]'].includes(base.hostname)) throw new Error('Use a loopback isolated dev bb; production URLs are refused.');
-const out = resolve(args.out), pluginRoot = resolve(args['plugin-root']);
+const out = reportDirectory(here, args.out || join(here, 'reports', args.label));
+const pluginRoot = resolve(args['plugin-root']);
+if (args['dry-run'] && args['dry-run'] !== 'true') throw new Error('Use --dry-run true or omit it');
 const drivePath = join(pluginRoot, 'skills/how-it-works/scripts/drive.mjs');
 if (!existsSync(drivePath)) throw new Error(`No bundled driver: ${drivePath}`);
 const capMs = Number(args['cap-minutes'] || 15) * 60_000;
@@ -34,6 +37,13 @@ if (!(capMs > 0 && capMs <= 900_000)) throw new Error('Cap must be >0 and <=15 m
 const providers = (args.providers || 'claude-code,codex').split(',');
 const selected = prompts.filter(p => !args.only || args.only.split(',').includes(p.id));
 if (!selected.length) throw new Error('No prompt matched --only');
+if (args['dry-run']) {
+  mkdirSync(out, { recursive: true });
+  const plan = { dryRun: true, label: args.label, providers, prompts: selected, capMs };
+  writeFileSync(join(out, 'dry-run.json'), JSON.stringify(plan, null, 2));
+  console.log(`Dry run: ${providers.length * selected.length} attempts planned; no server, browser or agent contacted. Output: ${out}`);
+  process.exit(0);
+}
 mkdirSync(out, { recursive: true });
 mkdirSync(join(out, '.tmp'), { recursive: true });
 // Chrome's singleton socket cannot fit long worktree paths. Keep a directory

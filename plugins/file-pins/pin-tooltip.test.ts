@@ -1,13 +1,13 @@
 import { expect, it } from "vitest";
 import { pinTooltip, truncateMiddle } from "./pin-tooltip.js";
 
-const file = { id: "f", hostId: "mac", hostName: "Studio", path: "/Users/me/docs/plan.md", name: "plan.md", createdAt: "2026-01-01T00:00:00.000Z", status: "available" as const };
+const file = { id: "f", hostId: "mac", hostName: "Studio", path: "/Users/alex/docs/plan.md", name: "plan.md", createdAt: "2026-01-01T00:00:00.000Z", status: "available" as const };
 const url = { id: "u", kind: "url" as const, url: "https://example.com/launch", name: "example.com/launch", createdAt: "2026-01-01T00:00:00.000Z" };
 
 it("shows a file's full path, naming its machine only when it isn't the thread's", () => {
-  expect(pinTooltip(file, "mac")).toEqual({ address: "/Users/me/docs/plan.md", title: "plan.md" });
-  expect(pinTooltip(file, "linux")).toEqual({ address: "/Users/me/docs/plan.md", title: "plan.md", note: "Studio" });
-  expect(pinTooltip({ ...file, status: "missing" }, "mac")).toEqual({ address: "/Users/me/docs/plan.md", title: "plan.md", note: "(missing)" });
+  expect(pinTooltip(file, "mac")).toEqual({ address: "/Users/alex/docs/plan.md", title: "plan.md" });
+  expect(pinTooltip(file, "linux")).toEqual({ address: "/Users/alex/docs/plan.md", title: "plan.md", note: "Studio" });
+  expect(pinTooltip({ ...file, status: "missing" }, "mac")).toEqual({ address: "/Users/alex/docs/plan.md", title: "plan.md", note: "(missing)" });
   expect(pinTooltip({ ...file, status: "missing" }, "linux").note).toBe("Studio (missing)");
 });
 

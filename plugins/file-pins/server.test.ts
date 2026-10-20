@@ -41,7 +41,7 @@ function setup() {
     pluginId: "file-pins", experimental_hostEntry: true,
     sdk: {
       threads: { get: async ({ threadId }) => makeThreadResponse({ id: threadId, environmentId: "env-mac" }) },
-      environments: { get: async () => ({ hostId: "mac", path: "/Users/me/project" }) },
+      environments: { get: async () => ({ hostId: "mac", path: "/Users/alex/project" }) },
       hosts: { list: async () => [
         makeHostResponse({ id: "mac", name: "My Mac", status: "connected" }),
         makeHostResponse({ id: "linux", name: "Worker", status: "disconnected" }),
@@ -52,7 +52,7 @@ function setup() {
       if (hostId === "offline") throw new Error("Host offline");
       if (method === "inspect") return { files: (input as { paths: string[] }).paths.map((path) => ({ path, status: path.includes("gone") ? "missing" : "available" })) };
       const { path } = input as { path: string };
-      return { path: path === "~/note.md" ? "/Users/me/note.md" : path, name: path.split("/").at(-1)! };
+      return { path: path === "~/note.md" ? "/Users/alex/note.md" : path, name: path.split("/").at(-1)! };
     },
   });
   plugin(bb);
@@ -64,9 +64,9 @@ describe("thread file pins", () => {
     const h = setup();
     const first = await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "~/note.md" });
     await Promise.all([
-      h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/Users/me/note.md" }),
-      h.behavior.callRpc("pin", { threadId: "one", hostId: "linux", path: "/Users/me/note.md" }),
-      h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/Users/me/second.md" }),
+      h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/Users/alex/note.md" }),
+      h.behavior.callRpc("pin", { threadId: "one", hostId: "linux", path: "/Users/alex/note.md" }),
+      h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "/Users/alex/second.md" }),
     ]);
     const { harness: reloaded } = await h.lifecycle.reload(plugin);
     disposers.push(() => reloaded.lifecycle.dispose());
@@ -87,7 +87,7 @@ describe("thread file pins", () => {
   });
   it("routes explicit-machine CLI pins to that host without forwarding another host's cwd", async () => {
     const h = setup();
-    const response = await h.behavior.runCli(["pin", "/note.md", "--machine", "linux", "--thread", "destination", "--json"], { threadId: "invoking", cwd: "/Users/me/project", signal: new AbortController().signal });
+    const response = await h.behavior.runCli(["pin", "/note.md", "--machine", "linux", "--thread", "destination", "--json"], { threadId: "invoking", cwd: "/Users/alex/project", signal: new AbortController().signal });
     expect(response.exitCode).toBe(0);
     expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ hostId: "linux", input: { path: "/note.md" } });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)?.input).not.toHaveProperty("cwd");
@@ -126,7 +126,7 @@ describe("thread file pins", () => {
   it("resolves relative paths against the thread workspace on its own machine only", async () => {
     const h = setup();
     await h.behavior.callRpc("pin", { threadId: "one", hostId: "mac", path: "docs/note.md" });
-    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "mac", input: { path: "docs/note.md", cwd: "/Users/me/project" } });
+    expect(h.inspection.experimental_hostRpcCalls.at(-1)).toMatchObject({ method: "resolveFile", hostId: "mac", input: { path: "docs/note.md", cwd: "/Users/alex/project" } });
     await h.behavior.callRpc("pin", { threadId: "one", hostId: "pi", path: "/srv/note.md" });
     expect(h.inspection.experimental_hostRpcCalls.at(-1)?.input).not.toHaveProperty("cwd");
   });
@@ -174,7 +174,7 @@ describe("thread file pins", () => {
   it("loads pins stored before URL pins existed unchanged", async () => {
     const h = setup();
     const stored = [
-      { id: "a", hostId: "mac", path: "/Users/me/a.md", name: "a.md", createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "a", hostId: "mac", path: "/Users/alex/a.md", name: "a.md", createdAt: "2026-01-01T00:00:00.000Z" },
       { id: "b", hostId: "linux", path: "/srv/b.ts", name: "b.ts", createdAt: "2026-01-02T00:00:00.000Z" },
     ];
     await h.bb.storage.kv.set("thread:one:pins:v1", stored);
