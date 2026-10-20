@@ -1,6 +1,7 @@
 import { readdirSync } from "node:fs";
 import { createFakePluginHost, makePluginAgentConfigurationContext, makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { expect, it } from "vitest";
+import { MAX_HTML_LENGTH } from "./model.js";
 import plugin, { playgroundFromFile } from "./server.js";
 import { bill, stepper } from "./examples.js";
 
@@ -551,7 +552,7 @@ it("refuses to publish kit markup the kit would silently get wrong, from the too
     expect(cli.exitCode).toBe(1);
     expect(cli.stderr).toContain('use data-unit="k"');
     const fixed = html.replace('data-suffix="k"', 'data-unit="k"').replace("Stepped 1,2,4", "Stepped 1–4");
-    const ok = await host.harness.behavior.callAgentTool("playground", { action: "publish", title: "Rollout", html: fixed }, { threadId: "thr_test" });
+    const ok = await host.harness.behavior.callAgentTool("playground", { action: "publish", title: "Rollout", html: fixed + '<script>const update = () => document.body.dataset.preview = JSON.stringify(playground.params.all()); playground.params.on(update); update();</script>' }, { threadId: "thr_test" });
     expect(String(ok)).toContain("::playground{id=");
   } finally {
     await host.harness.lifecycle.dispose();
@@ -567,4 +568,183 @@ it("reads a playground file as JSON, or as a whole HTML page titled from its <ti
   expect(playgroundFromFile("/w/odd.html", "<" + "<title".repeat(200_000))).toMatchObject({ title: "odd" });
   expect(performance.now() - started).toBeLessThan(1_000);
   expect(() => playgroundFromFile("/w/huge.html", "<p>" + "x".repeat(2_000_001))).toThrow("longer than a playground allows");
+});
+
+function filePublishHost(options: {
+  workspace?: string;
+  storageRoot?: string;
+  readError?: string;
+  sizeBytes?: number;
+} = {}) {
+  const storageRoot = options.storageRoot ?? "/remote/bb/thread-storage/thr_test";
+  const html = "<title>Working figure</title><p>Visible card</p>";
+  const host = createFakePluginHost({
+    pluginId: "playgrounds",
+    sdk: {
+      threads: {
+        get: () => ({
+          ...makeThreadResponse({ id: "thr_test" }),
+          environment: { hostId: "host_remote", path: options.workspace ?? null },
+        }),
+        storageLocation: () => ({ hostId: "host_remote", storageRootPath: storageRoot }),
+      },
+      files: {
+        read: ({ path }: { path: string }) => {
+          if (options.readError) throw new Error(options.readError);
+          return { path, content: Buffer.from(html).toString("base64"), contentEncoding: "base64", sizeBytes: options.sizeBytes ?? html.length, sha256: "0" };
+        },
+      },
+    },
+  });
+  plugin(host.bb);
+  return host;
+}
+
+it.each([
+  { file: "/remote/bb/thread-storage/thr_test/figure.html", cwd: "/home/agent" },
+  { file: "figure.html", cwd: undefined },
+  { file: "figure.html", cwd: "/remote/bb/thread-storage/thr_test" },
+])("publishes a Personal thread's own file without a checkout ($file, $cwd)", async ({ file, cwd }) => {
+  const host = filePublishHost();
+  try {
+    const result = await host.harness.behavior.runCli(["publish", "--playground-file", file], { threadId: "thr_test", cwd });
+    expect(result.exitCode).toBe(0);
+    const id = /id="([^"]+)"/.exec(result.stdout!)![1];
+    expect(await host.harness.behavior.callRpc("get", { id, threadId: "thr_test" })).toMatchObject({
+      kind: "html", widget: { title: "Working figure", html: expect.stringContaining("Visible card") },
+    });
+    expect(host.harness.inspection.sdk.callsTo("threads.storageLocation")).toEqual([[{ threadId: "thr_test" }]]);
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([[{
+      hostId: "host_remote", path: "/remote/bb/thread-storage/thr_test/figure.html", rootPath: "/remote/bb/thread-storage/thr_test",
+    }]]);
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it("preserves workspace-relative publishing on the thread's host", async () => {
+  const host = filePublishHost({ workspace: "/remote/checkout" });
+  try {
+    const result = await host.harness.behavior.runCli(["publish", "--playground-file", "figure.html"], { threadId: "thr_test", cwd: "/remote/checkout/figures" });
+    expect(result.exitCode).toBe(0);
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([[{
+      hostId: "host_remote", path: "/remote/checkout/figures/figure.html", rootPath: "/remote/checkout",
+    }]]);
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it("uses Windows path semantics when thread storage lives on a Windows host", async () => {
+  const storageRoot = String.raw`C:\bb\thread-storage\thr_test`;
+  const host = filePublishHost({ storageRoot });
+  try {
+    const result = await host.harness.behavior.runCli(["publish", "--playground-file", "figure.html"], { threadId: "thr_test" });
+    expect(result.exitCode).toBe(0);
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([[{
+      hostId: "host_remote", path: `${storageRoot}\\figure.html`, rootPath: storageRoot,
+    }]]);
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it.each([
+  "/remote/bb/thread-storage/thr_other/figure.html",
+  "/remote/bb/thread-storage/thr_test_sibling/figure.html",
+  "../thr_other/figure.html",
+  "/remote/checkout/../secret.html",
+])("rejects outside paths before reading, even with a target --thread override (%s)", async (file) => {
+  const host = filePublishHost({ workspace: "/remote/checkout" });
+  try {
+    const result = await host.harness.behavior.runCli(["publish", "--thread", "thr_other", "--playground-file", file], { threadId: "thr_test", cwd: "/remote/bb/thread-storage/thr_test" });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("inside this thread's own storage or workspace");
+    expect(host.harness.inspection.sdk.callsTo("threads.storageLocation")).toEqual([[{ threadId: "thr_test" }]]);
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([]);
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it("propagates a host's symlink-escape rejection without an unconfined retry", async () => {
+  // Realpath enforcement belongs to the host SDK; exercise its failure contract
+  // rather than reimplementing the daemon's symlink logic in a mock filesystem.
+  const host = filePublishHost({ readError: "Path escapes read root" });
+  try {
+    const result = await host.harness.behavior.runCli(["publish", "--playground-file", "link.html"], { threadId: "thr_test" });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("escapes read root");
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([[{
+      hostId: "host_remote", path: "/remote/bb/thread-storage/thr_test/link.html", rootPath: "/remote/bb/thread-storage/thr_test",
+    }]]);
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it("retains the file size limit for Personal threads", async () => {
+  const host = filePublishHost({ sizeBytes: MAX_HTML_LENGTH * 2 + 1 });
+  try {
+    const result = await host.harness.behavior.runCli(["publish", "--playground-file", "figure.html"], { threadId: "thr_test" });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("too large for a playground");
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+
+it("does not use --thread as a substitute for an invoking thread when reading files", async () => {
+  const host = filePublishHost();
+  try {
+    const result = await host.harness.behavior.runCli(["publish", "--thread", "thr_test", "--playground-file", "/remote/bb/thread-storage/thr_test/figure.html"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Run --playground-file from the bb thread");
+    expect(host.harness.inspection.sdk.callsTo("files.read")).toEqual([]);
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+it("exports a thread-confined standalone card with saved state and unchanged CSP", async () => {
+  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  try {
+    plugin(host.bb);
+    const published = await host.harness.behavior.runCli(["publish", "--thread", "thr_clip", "--playground", JSON.stringify(stepper)]);
+    const id = /id="([^"]+)"/.exec(published.stdout!)![1]!;
+    await host.harness.behavior.runCli(["state", id, "--thread", "thr_clip", "--set", '{"count":7}']);
+    const response = await host.harness.behavior.runCli(["clip-source", id, "--thread", "thr_clip"]);
+    expect(response.exitCode).toBe(0);
+    const source = JSON.parse(unwrap(response.stdout));
+    const frame = await host.harness.behavior.fetchHttp("GET", `/frame?thread=thr_clip&id=${id}`);
+    expect(source.csp).toBe(frame.headers.get("content-security-policy"));
+    expect(source.html).toContain('"count":7');
+    expect(source.prompt).toBeNull();
+    expect(source.anatomy).toBe(false);
+    const forbidden = await host.harness.behavior.runCli(["clip-source", id, "--thread", "thr_unrelated"]);
+    expect(forbidden.exitCode).toBe(1);
+    const native = await host.harness.behavior.runCli(["publish", "--thread", "thr_clip", "--document", JSON.stringify(bill)]);
+    const nativeId = /id="([^"]+)"/.exec(native.stdout!)![1]!;
+    const unsupported = await host.harness.behavior.runCli(["clip-source", nativeId, "--thread", "thr_clip"]);
+    expect(unsupported.exitCode).toBe(1);
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
+it("rejects undeclared inputs and unused controls at both publication entrypoints", async () => {
+  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  try {
+    plugin(host.bb);
+    for (const [html, message] of [
+      ['<button data-pg="toggle" data-param="email"></button>', 'control "email" has no consumer'],
+      ['<script>playground.params.set({email: true})</script>', 'parameter "email" is undeclared'],
+    ]) {
+      await expect(host.harness.behavior.callAgentTool("playground", { action: "publish", title: "Notifications", html }, { threadId: "thr_test" })).rejects.toThrow(message);
+      const cli = await host.harness.behavior.runCli(["publish", "--thread", "thr_test", "--playground", JSON.stringify({ title: "Notifications", html })]);
+      expect(cli.exitCode).toBe(1);
+      expect(cli.stderr).toContain(message);
+    }
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
 });

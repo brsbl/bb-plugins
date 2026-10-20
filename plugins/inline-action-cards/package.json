@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-inline-action-cards",
-  "version": "0.3.0",
+  "version": "0.3.3",
   "description": "Answer what each thread needs from you in a drawer above its prompt box, and track results in the Decision log.",
   "type": "module",
   "license": "UNLICENSED",

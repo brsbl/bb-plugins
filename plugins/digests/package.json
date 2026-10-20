@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-digests",
-  "version": "0.1.1",
+  "version": "0.3.0",
   "description": "Private briefings with clear next steps, delivered as threads using your browser sign-ins.",
   "type": "module",
   "license": "UNLICENSED",
@@ -50,6 +50,7 @@
     "cron-parser": "^5.5.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "tldts": "^7.4.18",
     "zod": "^4.3.6"
   }
 }

@@ -133,6 +133,17 @@
 .digest-later li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 6px 6px 6px 12px; color: var(--foreground); font-size: 13px; line-height: 18px; }
 .digest-later .digest-button { flex: none; color: var(--muted-foreground); }
 .digest-later .digest-button:hover:not(:disabled) { color: var(--foreground); }
+.digest-later-actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px; min-width: 0; margin-left: auto; }
+.digest-later-actions .digest-action-domain { min-width: 0; flex: 0 1 auto; }
+/* The title keeps a readable width; actions wrap under it on narrow screens. */
+.digest-later li { flex-wrap: wrap; }
+.digest-later li > span:first-child { flex: 1 1 160px; min-width: 0; }
+/* The site a task button opens: quiet, beside the button, full host on hover. */
+.digest-action-domain { max-width: 120px; overflow: hidden; color: var(--muted-foreground); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.digest-elsewhere { margin: 12px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 18px; }
+.digest-elsewhere a { color: inherit; text-decoration: underline; text-decoration-color: var(--muted-foreground); text-underline-offset: 3px; }
+.digest-elsewhere a:hover { color: var(--foreground); }
+.digest-email-copies { display: inline-block; margin-right: 6px; padding: 0 4px; border-radius: var(--radius-sm, 4px); background: var(--muted); color: var(--muted-foreground); font-size: 10px; vertical-align: middle; }
 .digest-more,
 .digest-brief .digest-more { margin-top: 12px; padding-top: 0; border-top: 0; }
 .digest-group + .digest-more { margin-top: 20px; }
@@ -226,7 +237,13 @@
 .digest-email-table th { position: sticky; top: 0; z-index: 1; background: var(--background); color: var(--muted-foreground); font-size: 11px; font-weight: 400; border-bottom: 1px solid var(--border); }
 .digest-email-table th:last-child { text-align: right; }
 .digest-email-row { color: var(--foreground); cursor: pointer; }
-.digest-email-row + .digest-email-row td { border-top: 1px solid var(--border); }
+.digest-email-row + .digest-email-row td, .digest-email-takeaways + .digest-email-row td { border-top: 1px solid var(--border); }
+/* Takeaways read as part of the email above them, still inside the bounded table. */
+.digest-email-scroll-tall { max-height: min(420px, 56dvh); container-type: inline-size; }
+.digest-email-table .digest-email-takeaways td { padding-top: 0; color: var(--muted-foreground); white-space: normal; }
+/* Wrap at the visible width, not the wide table's, so phones need no sideways scroll. */
+.digest-email-takeaways ul { box-sizing: border-box; max-width: calc(100cqi - 16px); margin: 0; padding-left: 16px; list-style: disc; }
+.digest-email-takeaways li { overflow-wrap: anywhere; }
 .digest-email-row:hover, .digest-email-row:focus-within { background: var(--state-hover, var(--accent)); }
 .digest-email-sender { font-weight: 600; }
 .digest-email-sender a { color: inherit; text-decoration: none; }
@@ -241,6 +258,7 @@
   .digest-card-meta { display: grid; justify-items: end; gap: 2px; }
   .digest-card-meta .digest-chip, .digest-card-meta .digest-urgency { font-size: 10px; line-height: 12px; }
   .digest-card-meta .digest-button { padding-inline: 8px; }
+  .digest-card-meta .digest-action-domain { font-size: 10px; line-height: 12px; }
 }
 @media (min-width: 601px) {
   /* Hang disclosure chevrons in the gutter so every group label shares one left edge. */
