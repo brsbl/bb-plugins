@@ -352,6 +352,34 @@ it("updates mock-up outputs with both setter forms and rejects unknown inputs at
   dom.window.close();
 });
 
+it("drives programmatic choices and text/boolean aliases through user and agent input", async () => {
+  const { dom } = frame('<button id="change">Change</button><output></output><script>' +
+    'const P = playground.params; P.define("mode", {type:"select",options:["near","far"],default:"near"});' +
+    'P.define("caption", {type:"string",default:"Ready"}); P.define("enabled", {type:"boolean",default:false});' +
+    'const draw = () => { document.querySelector("output").textContent = JSON.stringify(P.all()); document.querySelector("button").setAttribute("aria-pressed", String(P.get("enabled"))); };' +
+    'P.on(draw); draw(); document.querySelector("button").onclick = () => P.set({mode:"far",caption:"Changed",enabled:true});</script>');
+  dom.window.document.querySelector("button")!.click();
+  const output = () => JSON.parse(dom.window.document.querySelector("output")!.textContent!);
+  expect(output()).toEqual({ mode: "far", caption: "Changed", enabled: true });
+  expect(dom.window.document.querySelector("button")!.getAttribute("aria-pressed")).toBe("true");
+  expect(await command(dom.window, "setParams", [{ mode: "near", caption: "From agent", enabled: false }])).toMatchObject({ ok: true });
+  expect(output()).toEqual({ mode: "near", caption: "From agent", enabled: false });
+  expect(dom.window.document.querySelector("button")!.getAttribute("aria-pressed")).toBe("false");
+  dom.window.close();
+});
+
+it("preserves typed choices and explicit numeric bounds through the card bridge", async () => {
+  const { dom } = frame('<output></output><script>const P = playground.params;' +
+    'P.define("step", {type:"number",min:0,max:4,step:1,default:0});' +
+    'P.define("size", {options:[2,8],default:2}); P.define("mode", {options:[{value:"a",label:"A"},{value:"b",label:"B"}],default:"a"});' +
+    'P.on(() => document.querySelector("output").textContent = JSON.stringify(P.all()));</script>');
+  expect(await command(dom.window, "setParams", [{ step: 4, size: 8, mode: "b" }])).toMatchObject({ ok: true });
+  expect(JSON.parse(dom.window.document.querySelector("output")!.textContent!)).toEqual({ step: 4, size: 8, mode: "b" });
+  expect(await command(dom.window, "setParams", [{ step: 12, size: "8" }])).toMatchObject({ ok: true });
+  expect(JSON.parse(dom.window.document.querySelector("output")!.textContent!)).toEqual({ step: 4, size: 2, mode: "b" });
+  dom.window.close();
+});
+
 it("keeps native and non-button toggles operable with visible wrapping labels", async () => {
   const { dom } = frame('<div class="pg-form"><button data-pg="toggle" data-param="email" data-label="Email notifications for important release changes"></button><div data-pg="toggle" data-param="push" data-label="Push notifications for important release changes"></div></div>');
   const { window } = dom;

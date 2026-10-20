@@ -237,10 +237,20 @@ Unknown names throw, including in `setParams`; object updates validate every nam
 before changing any value. Read inputs in the preview/model and redraw with
 `params.on(update)`, then call `update()` once for the initial view.
 
+For programmatic inputs, `params.define("position", {type: "number", min: 0,
+max: 100, step: 1, default: 0})` declares the full numeric range; omitted bounds
+mean **0..1**. A sequence index needs its actual last index as `max`, not an
+unbounded local counter. Choices use `{type: "select", options: [{value: "a",
+label: "A"}, {value: "b", label: "B"}], default: "a"}`; bare string/number
+options also work, with strict value types. Free text uses `type: "text"` and
+booleans use `type: "toggle"` (`string` and `boolean` are accepted aliases).
+Keep HTML bounds and choices consistent with these declarations. Test the last
+choice and both endpoints in the published frame, whose bridge validates values.
+
 Publishing checks JavaScript bindings as well as markup: it rejects literal
 references to undeclared parameters and controls with no consumer, with names
 and repair instructions. This is a static check, not proof that a handler works:
-click every control and confirm the preview changes before publishing, including
+click every control and confirm the preview changes before showing the card, including
 when names or controls are generated dynamically.
 
 **Driving it.** Every card with these controls exposes the same actions:
@@ -489,7 +499,10 @@ the `how-it-works` skill and follow its **quick figure** workflow: one mechanism
 at most 40 parts, SVG only, no audit pass, and about 3 minutes to a working card.
 Start from the nearest bundled example when it fits. Show progress, choose
 reasonable defaults without clarifying questions, and leave the full Figure/Hero
-workflow for an explicit request to "go deeper". Build the framework-free way
+workflow in `how-it-works/references/full-mode.md` for an explicit request to
+"go deeper". The quick entrypoint includes the parameter contract; avoid loading
+unrelated component sets or full-mode references while making a quick figure.
+Build the framework-free way
 (a `build.mjs` that writes one standalone HTML page), then publish that page:
 
 ```sh
