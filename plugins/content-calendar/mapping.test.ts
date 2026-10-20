@@ -14,7 +14,7 @@ function fields(overrides: Partial<Fields> = {}): Fields {
     title: "Orchestration blog post", format: "blog", status: "ready", date: "2026-10-28", time: null, minutes: null, days: 1,
     tray: null, rrule: null, anchor: null, target: "Downloads baseline", notes: "Publish the day before the orchestration tweet.",
     gates: [{ id: "g1", kind: "pr", repo: "get-bb/bb", number: 4772, cleared: false }],
-    attachments: [{ id: "a1", kind: "file", machineId: "mac", path: "/Users/brsbl/Moss/Notes/Draft/Draft.md", name: "Draft.md" }],
+    attachments: [{ id: "a1", kind: "file", machineId: "mac", path: "/Users/alex/Moss/Notes/Draft/Draft.md", name: "Draft.md" }],
     pos: 1,
     ...overrides,
   };
