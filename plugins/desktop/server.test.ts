@@ -39,7 +39,7 @@ function threadStore(threads: ListedThread[]) {
 const DEFAULT_THREADS = [
   listedThread("thr_old", { archivedAt: 5, createdAt: 1 }),
   listedThread("thr_a", { createdAt: 2 }),
-  listedThread("thr_automation", { visibility: "hidden", createdAt: 3 }),
+  listedThread("thr_example001", { visibility: "hidden", createdAt: 3 }),
 ];
 
 async function setup(threads: ListedThread[] = DEFAULT_THREADS) {
@@ -233,18 +233,18 @@ describe("desktop server", () => {
   });
 
   it("never shows a thread that was hidden before Desktop filed it", async () => {
-    // thr_automation is another plugin's hidden helper thread. Filing it and taking it out again must leave it hidden.
+    // thr_example001 is another plugin's hidden helper thread. Filing it and taking it out again must leave it hidden.
     const { harness, updates } = await setup();
     const hiding = (await harness.callRpc("createFolder", {
       name: "Launch",
       hideFromSidebar: true,
       position: null,
     })) as { id: string };
-    await harness.callRpc("addToFolder", { folderId: hiding.id, threadIds: ["thr_automation"], fromFolderId: null });
-    await harness.callRpc("removeFromFolder", { folderId: hiding.id, threadId: "thr_automation" });
-    await harness.callRpc("addToFolder", { folderId: hiding.id, threadIds: ["thr_automation"], fromFolderId: null });
+    await harness.callRpc("addToFolder", { folderId: hiding.id, threadIds: ["thr_example001"], fromFolderId: null });
+    await harness.callRpc("removeFromFolder", { folderId: hiding.id, threadId: "thr_example001" });
+    await harness.callRpc("addToFolder", { folderId: hiding.id, threadIds: ["thr_example001"], fromFolderId: null });
     await harness.callRpc("deleteFolder", { id: hiding.id });
-    expect(updates.filter((update) => update.threadId === "thr_automation")).toEqual([]);
+    expect(updates.filter((update) => update.threadId === "thr_example001")).toEqual([]);
   });
 
   it("shows every thread Desktop hid and stops hiding folders with unhide-all", async () => {
@@ -254,13 +254,13 @@ describe("desktop server", () => {
       hideFromSidebar: true,
       position: null,
     })) as { id: string };
-    await harness.callRpc("addToFolder", { folderId: hiding.id, threadIds: ["thr_a", "thr_automation"], fromFolderId: null });
+    await harness.callRpc("addToFolder", { folderId: hiding.id, threadIds: ["thr_a", "thr_example001"], fromFolderId: null });
     expect(metadata.get("thr_a")).toEqual({ hiddenByDesktop: true });
     const result = await harness.runCli(["unhide-all"]);
     expect(result).toMatchObject({ exitCode: 0, stdout: "Showed 1 thread in the sidebar." });
     expect(updates.at(-1)).toEqual({ threadId: "thr_a", visibility: "visible" });
     expect(metadata.get("thr_a")).toEqual({});
-    expect(updates.filter((update) => update.threadId === "thr_automation")).toEqual([]);
+    expect(updates.filter((update) => update.threadId === "thr_example001")).toEqual([]);
     const snapshot = (await harness.callRpc("snapshot", null)) as DesktopSnapshot;
     expect(snapshot.folders.find((folder) => folder.id === hiding.id)?.hideFromSidebar).toBe(false);
   });

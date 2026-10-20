@@ -38,9 +38,24 @@ node plugins/playgrounds/evals/launch/run.mjs \
   --url http://127.0.0.1:48992 --host <isolated-host-id> \
   --data-dir /absolute/worktree/.launch/data \
   --plugin-root /absolute/path/to/plugins/playgrounds \
-  --commit <exact-plugin-git-sha> --label baseline \
-  --out /absolute/worktree/.launch/results/baseline
+  --commit <exact-plugin-git-sha> --label baseline
 ```
+
+Raw output defaults to `evals/launch/reports/<label>/` beside this runner. That
+entire folder is gitignored: manifests, timelines, thread IDs, absolute paths,
+screenshots, summaries and local adjudications stay private. Optional `--out`
+must name a subdirectory of that same `reports/` folder; other paths (including
+symlink escapes) are refused. Existing runs outside it must be moved there before
+resuming. Never force-add raw reports. Publish only a manually reviewed aggregate
+like [the gate 1 table](gate-1-summary.md), without per-run links or identifiers.
+The repository privacy check also rejects private paths and real thread IDs in
+tracked files, including force-added reports.
+
+For a no-network dry run, add `--dry-run true` to the command above (use synthetic
+host/data-dir values and the actual local plugin root). It validates arguments,
+the output location, driver presence and prompt selection, then writes only
+`dry-run.json`. It sends no prompt, produces no scores and does not validate the
+server, browser or provider setup. Omit the flag for a scored run.
 
 For an archived baseline, **always pass `--commit`**: `git -C` inside an archive
 could otherwise report the surrounding worktree's revision. Use a different

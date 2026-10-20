@@ -601,7 +601,7 @@ function filePublishHost(options: {
 }
 
 it.each([
-  { file: "/remote/bb/thread-storage/thr_test/figure.html", cwd: "/home/agent" },
+  { file: "/remote/bb/thread-storage/thr_test/figure.html", cwd: "/home/user" },
   { file: "figure.html", cwd: undefined },
   { file: "figure.html", cwd: "/remote/bb/thread-storage/thr_test" },
 ])("publishes a Personal thread's own file without a checkout ($file, $cwd)", async ({ file, cwd }) => {
