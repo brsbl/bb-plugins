@@ -26,33 +26,25 @@ export function DecisionBody({ about, answer }: { about: ReactNode; answer: Reac
   return <div className="ac-body"><div className="ac-about">{about}</div><div className="ac-answer">{answer}</div></div>;
 }
 
-/** The brief stays visible in full so the decision never depends on opening clipped evidence. */
-export function ContextBlock({ children }: { children: ReactNode }) {
-  return <div className="ac-context">
-    <div className="ac-context-body">{children}</div>
-  </div>;
-}
-
-/** The brief on a narrow screen: one line, with More to read the rest, so the answer stays in view. */
-export function ClampedContext({ children }: { children: ReactNode }) {
-  const body = useRef<HTMLDivElement>(null);
+/** Optional context: the original text on one muted line under the question, with a quiet "more" whenever any of it is hidden. */
+export function ContextLine({ media, children }: { media?: boolean; children: ReactNode }) {
+  const line = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [clipped, setClipped] = useState(false);
   useLayoutEffect(() => {
-    const node = body.current;
-    if (!node) return;
-    // Clipped when the clamp cuts the consequence or the first point, or hides the rest; wide screens show it all.
-    const measure = () => setClipped(window.matchMedia?.("(max-width: 639px)").matches === true
-      && [node.closest(".ac-card")?.querySelector<HTMLElement>(".ac-consequence"), ...Array.from(node.querySelectorAll<HTMLElement>("*"))]
-        .some((child) => !!child && (child.scrollHeight > child.clientHeight + 1 || getComputedStyle(child).display === "none")));
+    const node = line.current;
+    if (!node || open) return;
+    // Hidden when it overflows the line in either direction, or holds images or line breaks the one-line view folds away.
+    const measure = () => setClipped(!!media || node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1
+      || !!node.querySelector("img, video, picture, br"));
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(node);
     return () => observer?.disconnect();
-  }, [open]);
-  return <div className="ac-context ac-clamp" data-open={open || undefined}>
-    <div ref={body} className="ac-context-body">{children}</div>
-    {(clipped || open) && <button type="button" className="ac-link" aria-expanded={open} aria-label={open ? "Show less of the brief" : "Show the full brief"} onClick={() => setOpen(!open)}>{open ? "Less" : "More"}</button>}
+  }, [open, media, children]);
+  return <div className="ac-context-line" data-open={open || undefined}>
+    <div ref={line} className={open ? "ac-context-full" : "ac-context-summary"}>{children}</div>
+    {(open || clipped) && <button type="button" className="ac-context-more" aria-expanded={open} aria-label={open ? "Show less context" : "Show all context"} onClick={() => setOpen(!open)}>{open ? "less" : "more"}</button>}
   </div>;
 }
 

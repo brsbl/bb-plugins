@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { definePluginApp, experimental_Icon as Icon, Markdown, useBbNavigate, useRealtime, useRpc, type PluginMessageDirectiveProps } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server.js";
-import { actionLabel, idSchema, title, type Action, type FollowUp, type Item, type ItemView, type ActionLog, type TableView } from "./model.js";
+import { actionLabel, canDismiss, idSchema, title, type Action, type FollowUp, type Item, type ItemView, type ActionLog, type TableView } from "./model.js";
 import { ActionButton, IconButton, MoreMenu, MenuAction, MailIcon, SignpostIcon, ViewIcon, ActionGlyphIcon, type ActionGlyph } from "./controls.js";
 import { pendingLabel, sentStatus } from "./presentation.js";
 import { FollowUps, Media } from "./evidence.js";
-import { Button, ClampedContext, ContextBlock, DecisionBody, DecisionCard, DecisionHeader, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
+import { Button, ContextLine, DecisionBody, DecisionCard, DecisionHeader, OptionList, Outcome, SubmitRow, type Option } from "./ui/components.js";
 import { readableError, submitting } from "./submit.js";
 import { ReloadFrame } from "./reload-frame.js";
+import { DismissBar, useDismiss } from "./dismiss.js";
 import { openWaiting, WaitingBanner } from "./drawer.js";
 import { markWaitingThreads } from "./sidebar-status.js";
 import "./app.css";
@@ -143,7 +144,8 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       await flush();
       let next = current.current;
       if (!next) return;
-      if (logEntry) {
+      // A waiting card in the log is answered through its form, like the drawer; decideFromLog serves the log's retry and resend.
+      if (logEntry && next.state !== "ready") {
         const updated = await rpc.call("decideFromLog", { id, threadId, revision: next.revision, ...(action ? { action } : {}) });
         adopt(updated);
         return;
@@ -175,10 +177,12 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   // Prepared and once submitted, but never claimed by the time the thread went idle: the agent never got it.
   const stalled = !!item && item.state === "pending" && !busy && !status && !item.attempt?.claimed;
   const done = item?.state === "succeeded" || item?.state === "failed" || !!status || stalled;
+  // In the Decision log, a waiting card is a full form: question, context, options, then Dismiss and Submit.
+  const logForm = !!logEntry && ready;
   const showBody = logEntry ? viewResult : !done || viewResult;
   const editor = useRef<HTMLTextAreaElement>(null);
   const reviewTarget = useRef<HTMLButtonElement>(null);
-  const unseen = (action?: Action) => !!reply && !!logEntry && !showBody && (action === "send" || action === "save-draft");
+  const unseen = (action?: Action) => !!reply && !!logEntry && !logForm && !showBody && (action === "send" || action === "save-draft");
   useLayoutEffect(() => {
     const resize = () => {
       if (editor.current) {
@@ -190,9 +194,17 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, [draft, showBody]);
+  const dismissal = useDismiss(item, (next) => adopt(next));
+  // A known undelivered dismissal notice can be sent again; the server sends it at most once.
+  const retryNotice = async () => {
+    if (lock.current) return;
+    lock.current = true; setBusy(true); setError(null);
+    try { adopt(await rpc.call("notifyDismissed", { id, threadId })); } catch (err) { setError(readableError(err)); }
+    finally { lock.current = false; setBusy(false); }
+  };
   if (!item) return <div className="iac-card" role="status">{error ?? "Loading card…"}{error && <ActionButton onClick={() => void load()}>Retry</ActionButton>}</div>;
   const disabled = busy || loadError || pending;
-  const deferred = item.state === "succeeded" && ["later", "skip"].includes(item.attempt?.action ?? "");
+  const deferred = item.state === "succeeded" && !item.dismissed && ["later", "skip"].includes(item.attempt?.action ?? "");
   const setOpen = setViewResult;
   const recipients = reply && <div className="iac-muted iac-recipient-line">To {reply.to.join(", ")} · {reply.subject}
     {reply.cc.length > 0 && <div>Cc {reply.cc.join(", ")}</div>}{reply.bcc.length > 0 && <div>Bcc {reply.bcc.join(", ")}</div>}
@@ -230,11 +242,14 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
   const consequence = choice ? choice.consequence : item.content.type === "decide" ? item.content.consequence : null;
   const { context, media } = item.content;
-  const brief = context && <ContextBlock><Markdown content={context} /></ContextBlock>;
+  // The one-line view never shows images and folds line breaks into spaces, so context with either always offers more.
+  const brief = context && <ContextLine media={context.trim().includes("\n") || context.includes("![") || /<img\b/i.test(context)}><Markdown content={context} /></ContextLine>;
   const field = <DecisionBody
     about={<>
-      {drawer ? consequence && <p className="ac-consequence">{consequence}</p> : <DecisionHeader question={heading} consequence={consequence} id={`${fieldId}-q`} />}
-      {drawer ? context && <ClampedContext><Markdown content={context} /></ClampedContext> : brief}
+      {/* Context sits right under the question; what the answer does follows it, just above the options. */}
+      {!(drawer || logForm) && <DecisionHeader question={heading} id={`${fieldId}-q`} />}
+      {brief}
+      {consequence && <p className="ac-consequence">{consequence}</p>}
       {reply && <>
         {recipients}
         {original}
@@ -260,14 +275,14 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   const tone = stalled ? "unsent" : item.state === "failed" ? "failed" : item.state === "succeeded" ? "done" : "sent";
   const result = <DecisionBody about={<div className="ac-question">{heading}</div>} answer={<Outcome tone={tone} answer={chosen ?? ""} note={item.attempt?.note} status={where} time={new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
       actions={(stalled || item.state === "failed" || deferred) ? <>
-        {(deferred || (item.state === "failed" && item.result?.retryable)) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</Button>}
-        {stalled && <Button type="button" size="sm" variant="default" disabled={busy} onClick={() => void act()}>Resend</Button>}
-        {item.state === "failed" && <Button ref={reviewTarget} type="button" size="sm" variant="default" disabled={busy} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</Button>}
+        {(deferred || (item.state === "failed" && item.result?.retryable)) && <Button type="button" size="sm" variant="outline" disabled={busy || dismissal.pending} onClick={() => void reopen()}>{deferred ? "Resume" : reply ? "Edit draft" : "Choose again"}</Button>}
+        {stalled && <Button type="button" size="sm" variant="default" disabled={busy || dismissal.pending} onClick={() => void act()}>Resend</Button>}
+        {item.state === "failed" && <Button ref={reviewTarget} type="button" size="sm" variant="default" disabled={busy || dismissal.pending} onClick={() => void act(item.result?.retryable ? item.attempt!.action : undefined, item.attempt?.choice?.id)}>{item.result?.retryable ? unseen(item.attempt!.action) ? "Review and retry" : "Retry" : "Check outcome"}</Button>}
       </> : undefined} />} />;
   if (logEntry) {
     const failed = item.state === "failed";
     const retryable = failed && !!item.result?.retryable;
-    const later = item.state === "succeeded" && item.attempt?.action === "later";
+    const later = item.state === "succeeded" && !item.dismissed && item.attempt?.action === "later";
     const quiet = item.state === "succeeded" && !later;
     const heading = reply ? `Reply to ${displayName(reply.to[0]!)}: ${reply.subject}` : title(item);
     const openThread = () => navigate.toThread(threadId);
@@ -314,6 +329,22 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       primary = reply ? button(unseen("send") ? "Review and send" : "Send", "send", () => void act("send"), "default", disabled, pending && item.attempt?.action === "send" ? pendingLabel(item, "send") : undefined, reviewTarget)
         : choice ? chooseButton : ask ? null : decideButton("yes");
     }
+    const meta = <span className="iac-log-meta">
+      {logEntry.showThread && <a className="iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); openThread(); }}>{logEntry.threadTitle}</a>}
+      <time dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
+    </span>;
+    if (logForm) return <article className="iac-log-row iac-log-form" aria-label={`${kind}: ${heading}`}>
+      <span className="iac-log-kind" role="img" aria-label={kind} title={kind}>{reply ? <MailIcon /> : <SignpostIcon />}</span>
+      <div className="iac-log-main"><span className="iac-log-title" title={heading}>{heading}</span>{meta}</div>
+      <DecisionCard label={`${kind}: ${heading}`} className="ac-drawer iac-log-card" onSubmit={submit}>
+        {dismissal.pending ? <DismissBar dismissal={dismissal} /> : <>{field}<div className="iac-drawer-actions">
+          {canDismiss(item) && <button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button>}
+          <SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} />
+        </div></>}
+        {dismissal.error && <div className="iac-error" role="alert">{dismissal.error}</div>}
+        {failure}
+      </DecisionCard>
+    </article>;
     return <article className={quiet ? "iac-log-row iac-log-quiet" : later ? "iac-log-row iac-log-later" : "iac-log-row"} aria-label={`${kind}: ${heading}`}>
       <span className="iac-log-kind" role="img" aria-label={kind} title={kind}>{reply ? <MailIcon /> : <SignpostIcon />}</span>
       <div className="iac-log-main">
@@ -321,19 +352,25 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
         <span className="iac-log-meta">
           {later && <span>Later</span>}
           {failed && <span className="iac-failed" title={item.result?.message}><span role="img" aria-label="Failed">⚠</span> {item.result?.message}</span>}
+          {item.dismissed?.notice === "failed" && <span className="iac-failed" title={item.dismissed.noticeError}>
+            <span role="img" aria-label="Failed">⚠</span> Dismissed, but its thread wasn't told{" "}
+            <button type="button" className="iac-dismiss-undo" disabled={busy} onClick={() => void retryNotice()}>Tell the thread</button>
+          </span>}
           {logEntry.showThread && <a className="iac-log-thread" href={logEntry.threadProjectId ? `/projects/${encodeURIComponent(logEntry.threadProjectId)}/threads/${encodeURIComponent(threadId)}` : undefined} onClick={(event) => { event.preventDefault(); openThread(); }}>{logEntry.threadTitle}</a>}
           <time dateTime={item.updatedAt} title={new Date(item.updatedAt).toLocaleString()}>{shortTime(item.updatedAt)}</time>
           {item.attempt?.note && <span title={item.attempt.note}>“{item.attempt.note}”</span>}
         </span>
       </div>
-      <div className="iac-log-actions">
+      {dismissal.pending ? <DismissBar dismissal={dismissal} /> : <div className="iac-log-actions">
+        {canDismiss(item) && <span className="iac-log-dismiss">{button("Dismiss", "dismiss", dismissal.start, "outline", busy)}</span>}
         {review && <span className="iac-log-review">{review}</span>}
         {/* A lone Open thread is its own button, never a one-item ⋯ menu; skip it when the primary already opens the thread. */}
         {menu ? <span className="iac-log-menu"><MoreMenu disabled={busy || loadError}>{menu}</MoreMenu></span>
           : !(failed && (choice || !retryable)) && <span className="iac-log-menu">{button("Open thread", "open", openThread, "outline", false)}</span>}
         {secondary && <span className="iac-log-secondary">{secondary}</span>}
         {primary && <span className="iac-log-primary">{primary}</span>}
-      </div>
+      </div>}
+      {dismissal.error && <div className="iac-error" role="alert">{dismissal.error}</div>}
       {!quiet && brief && <div className="ac iac-log-brief">{brief}</div>}
       {viewResult && <div className="iac-log-draft">
         {quiet && brief && <div className="ac">{brief}</div>}
@@ -360,7 +397,7 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
   if (surface === "timeline") {
     const needsUser = stalled || item.state === "failed";
     const said = item.attempt?.note;
-    const outcome = stalled ? "Not sent" : item.state === "failed" ? "Failed"
+    const outcome = stalled ? "Not sent" : item.state === "failed" ? "Failed" : item.dismissed ? "Dismissed"
       : ask ? said ? said.length > 60 ? `${said.slice(0, 59).trimEnd()}…` : said : "Answered" : chosen ?? "Answered";
     const kind = reply ? "Reply" : ask ? "Answer" : "Decision";
     const line = <>
@@ -374,7 +411,13 @@ export function ActionCard({ id, threadId, surface, initialItem, onItem, logEntr
       : <div className="iac-waiting-line iac-result-line">{line}</div>;
   }
   return <DecisionCard label={label} className={drawer ? "ac-drawer" : undefined} onSubmit={submit} onKeyDown={drawer ? keys : undefined}>
-    {done ? result : <>{field}<SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></>}
+    {/* A safe failure or an answer that never reached the agent can still be dismissed from the drawer, beside its recovery. */}
+    {done ? <>{result}{drawer && canDismiss(item) && (dismissal.pending ? <DismissBar dismissal={dismissal} />
+      : <div className="iac-drawer-actions"><button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button></div>)}</>
+      : dismissal.pending ? <DismissBar dismissal={dismissal} /> : <>{field}{drawer && canDismiss(item)
+      ? <div className="iac-drawer-actions"><button type="button" className="iac-dismiss-undo" disabled={busy} onClick={dismissal.start}>Dismiss</button><SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} /></div>
+      : <SubmitRow disabled={disabled} canSubmit={ask ? !!note.trim() : !!value} pending={!!sending} />}</>}
+    {dismissal.error && <div className="iac-error" role="alert">{dismissal.error}</div>}
     {failure}
   </DecisionCard>;
 }

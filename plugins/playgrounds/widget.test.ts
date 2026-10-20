@@ -331,3 +331,106 @@ it("draws a piece's mark on top of its color so pieces don't differ by color alo
   expect(cells.map((cell) => cell.getAttribute("aria-label"))).toEqual(["Row 1, column 1, Hit", "Row 1, column 2, Miss", "Row 1, column 3, Ship"]);
   dom.window.close();
 });
+
+it("updates mock-up outputs with both setter forms and rejects unknown inputs atomically", async () => {
+  const { dom } = frame('<button data-pg="toggle" data-param="email"></button><button data-pg="toggle" data-param="push"></button><output id="preview"></output>' +
+    '<script>const P = playground.params; const update = () => document.querySelector("#preview").textContent = JSON.stringify(P.all()); P.on(update); update();</script>');
+  const P = (dom.window as unknown as { playground: { params: { set(...args: unknown[]): unknown; get(name: string): unknown } } }).playground.params;
+  expect(P.set({ email: true, push: true })).toEqual({ email: true, push: true });
+  expect(dom.window.document.querySelector("#preview")!.textContent).toBe('{"email":true,"push":true}');
+  expect(P.set("email", false)).toBe(false);
+  expect(() => P.set({ email: true, typo: false })).toThrow(/Unknown playground parameter "typo".*Declare it/);
+  expect(P.get("email")).toBe(false);
+  expect(() => P.get("missing")).toThrow(/Unknown playground parameter/);
+  expect(() => P.set("email")).toThrow(/params.set\(name, value\)/);
+  expect(() => P.set([])).toThrow(/params.set\(name, value\)/);
+  expect(() => P.set("constructor", true)).toThrow(/Unknown playground parameter/);
+  expect(await command(dom.window, "setParams", [{ email: true, typo: true }])).toMatchObject({ ok: false, error: expect.stringContaining('"typo"') });
+  expect(P.get("email")).toBe(false);
+  expect(await command(dom.window, "setParams", [{ email: true }])).toMatchObject({ ok: true, value: { set: { email: true } } });
+  expect(dom.window.document.querySelector('[data-param="email"]')!.getAttribute("aria-pressed")).toBe("true");
+  dom.window.close();
+});
+
+it("drives programmatic choices and text/boolean aliases through user and agent input", async () => {
+  const { dom } = frame('<button id="change">Change</button><output></output><script>' +
+    'const P = playground.params; P.define("mode", {type:"select",options:["near","far"],default:"near"});' +
+    'P.define("caption", {type:"string",default:"Ready"}); P.define("enabled", {type:"boolean",default:false});' +
+    'const draw = () => { document.querySelector("output").textContent = JSON.stringify(P.all()); document.querySelector("button").setAttribute("aria-pressed", String(P.get("enabled"))); };' +
+    'P.on(draw); draw(); document.querySelector("button").onclick = () => P.set({mode:"far",caption:"Changed",enabled:true});</script>');
+  dom.window.document.querySelector("button")!.click();
+  const output = () => JSON.parse(dom.window.document.querySelector("output")!.textContent!);
+  expect(output()).toEqual({ mode: "far", caption: "Changed", enabled: true });
+  expect(dom.window.document.querySelector("button")!.getAttribute("aria-pressed")).toBe("true");
+  expect(await command(dom.window, "setParams", [{ mode: "near", caption: "From agent", enabled: false }])).toMatchObject({ ok: true });
+  expect(output()).toEqual({ mode: "near", caption: "From agent", enabled: false });
+  expect(dom.window.document.querySelector("button")!.getAttribute("aria-pressed")).toBe("false");
+  dom.window.close();
+});
+
+it("preserves typed choices and explicit numeric bounds through the card bridge", async () => {
+  const { dom } = frame('<output></output><script>const P = playground.params;' +
+    'P.define("step", {type:"number",min:0,max:4,step:1,default:0});' +
+    'P.define("size", {options:[2,8],default:2}); P.define("mode", {options:[{value:"a",label:"A"},{value:"b",label:"B"}],default:"a"});' +
+    'P.on(() => document.querySelector("output").textContent = JSON.stringify(P.all()));</script>');
+  expect(await command(dom.window, "setParams", [{ step: 4, size: 8, mode: "b" }])).toMatchObject({ ok: true });
+  expect(JSON.parse(dom.window.document.querySelector("output")!.textContent!)).toEqual({ step: 4, size: 8, mode: "b" });
+  expect(await command(dom.window, "setParams", [{ step: 12, size: "8" }])).toMatchObject({ ok: true });
+  expect(JSON.parse(dom.window.document.querySelector("output")!.textContent!)).toEqual({ step: 4, size: 2, mode: "b" });
+  dom.window.close();
+});
+
+it("keeps native and non-button toggles operable with visible wrapping labels", async () => {
+  const { dom } = frame('<div class="pg-form"><button data-pg="toggle" data-param="email" data-label="Email notifications for important release changes"></button><div data-pg="toggle" data-param="push" data-label="Push notifications for important release changes"></div></div>');
+  const { window } = dom;
+  if (window.document.readyState !== "complete") await new Promise((resolve) => window.addEventListener("load", resolve));
+  const button = window.document.querySelector("button")!;
+  const div = window.document.querySelector('[data-param="push"]') as HTMLElement;
+  expect(button.type).toBe("button");
+  button.click();
+  expect(button.getAttribute("aria-pressed")).toBe("true");
+  for (const key of ["Enter", " "]) {
+    div.dispatchEvent(new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    expect(div.getAttribute("aria-pressed")).toBe(key === "Enter" ? "true" : "false");
+  }
+  expect(div.getAttribute("role")).toBe("button");
+  expect(div.tabIndex).toBe(0);
+  for (const el of [button, div]) {
+    const css = window.getComputedStyle(el);
+    expect(css.whiteSpace).toBe("normal");
+    expect(css.overflowWrap).toBe("anywhere");
+    expect(css.minWidth).toMatch(/^0(px)?$/);
+    expect(css.maxWidth).toBe("100%");
+    expect(el.textContent).toContain("notifications for important release changes");
+  }
+  window.close();
+});
+
+it("does not apply a standalone frame's queued save messages as remote state", async () => {
+  const { dom } = frame('<button data-pg="toggle" data-param="enabled"></button><output></output><script>' +
+    'const P=playground.params;P.get("enabled");P.on(()=>{document.querySelector("output").textContent=String(P.get("enabled"));playground.save({note:"saved"});});</script>');
+  const { window } = dom;
+  if (window.document.readyState !== "complete") await new Promise((resolve) => window.addEventListener("load", resolve));
+  window.document.querySelector("button")!.click();
+  const output = window.document.querySelector("output")!;
+  expect(output.textContent).toBe("true");
+  window.dispatchEvent(new window.MessageEvent("message", {
+    source: window, data: { source: WIDGET_MESSAGE_SOURCE, type: "state", state: { params: { enabled: false } }, base: 0 },
+  }));
+  expect(output.textContent).toBe("true");
+  expect(await command(window, "setParams", [{ enabled: false }])).toMatchObject({ ok: true });
+  expect(output.textContent).toBe("false");
+  window.close();
+});
+
+it("still applies shared state sent by an embedded card's parent", () => {
+  const { dom } = frame('<button data-pg="toggle" data-param="enabled"></button><output></output><script>' +
+    'const P=playground.params;P.get("enabled");P.on(()=>document.querySelector("output").textContent=String(P.get("enabled")));</script>');
+  const host = new JSDOM("");
+  Object.defineProperty(dom.window, "parent", { value: host.window });
+  dom.window.dispatchEvent(new dom.window.MessageEvent("message", {
+    source: host.window, data: { source: WIDGET_MESSAGE_SOURCE, type: "state", state: { params: { enabled: true } }, version: 1 },
+  }));
+  expect(dom.window.document.querySelector("output")!.textContent).toBe("true");
+  dom.window.close(); host.window.close();
+});
