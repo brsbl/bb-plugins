@@ -1,6 +1,38 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error executable eval-only ESM
-import { observeInteractions, renderWindow, unexercisedControls } from './observations.mjs';
+import { buildingProgress, observeInteractions, renderWindow, unexercisedControls } from './observations.mjs';
+
+describe('visible progress while building', () => {
+  const work = {kind:'work', startedAt:20, completedAt:100};
+  const opening = {id:'opening', role:'assistant', text:'I’ll build a working model.', startedAt:10};
+  const update = {id:'update', role:'assistant', text:'The model is ready; I’m checking its inputs.', startedAt:50};
+  it('keeps visible opening text and updates while tools are still working', () => {
+    const observations = [{rowId:'opening',at:15,text:opening.text},{rowId:'update',at:60,text:update.text}];
+    expect(buildingProgress(observations,[opening,work,update])).toEqual(observations);
+  });
+  it('keeps progress observed during an unfinished tool call', () => {
+    const observation = {rowId:'update',at:60,text:update.text};
+    expect(buildingProgress([observation],[update,{kind:'work',startedAt:20}])).toEqual([observation]);
+  });
+  it('rejects a final answer observed just before its card paints', () => {
+    const final = {id:'final',role:'assistant',startedAt:110,text:'Here it is.\n::playground{id="example"}'};
+    expect(buildingProgress([{rowId:'final',at:115,text:final.text}],[work,final])).toEqual([]);
+  });
+  it('uses the completed row even if the browser saw only a streamed final preface', () => {
+    const final = {id:'final',role:'assistant',startedAt:90,text:'Here it is.\n::playground{id="example"}'};
+    expect(buildingProgress([{rowId:'final',at:95,text:'Here it is.'}],[work,final])).toEqual([]);
+  });
+  it('does not count final prose, tool status, unknown rows, or text first observed after work ended', () => {
+    const final = {id:'final',role:'assistant',startedAt:110,text:'All done.'};
+    const status = {id:'status',kind:'work',startedAt:20,completedAt:100,text:'Building'};
+    expect(buildingProgress([
+      {rowId:'final',at:115,text:final.text},
+      {rowId:'status',at:30,text:status.text},
+      {rowId:'missing',at:30,text:'Unknown'},
+      {rowId:'opening',at:105,text:opening.text},
+    ],[opening,work,final,status])).toEqual([]);
+  });
+});
 
 const windowAt = (now: number, agentCompletedAt: number | null, visibleAt: number | null = null, capAt = 900_000) =>
   renderWindow({now,agentCompletedAt,visibleAt,capAt});

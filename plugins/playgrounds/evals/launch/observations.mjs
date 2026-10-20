@@ -1,3 +1,16 @@
+export function buildingProgress(observations, rows) {
+  // A final preface can be visible before the iframe paints. Consult the final
+  // row as well as the browser observation: it may have been streaming then.
+  const byId = new Map(rows.map(row => [row.id, row]));
+  const work = rows.filter(row => row.kind === 'work' && Number.isFinite(row.startedAt));
+  return observations.filter(observation => {
+    const row = byId.get(observation.rowId);
+    return row?.role === 'assistant' && row.text?.trim() &&
+      !/::playground\s*\{/.test(row.text) && Number.isFinite(observation.at) &&
+      work.some(task => (Number.isFinite(task.completedAt) ? task.completedAt : Infinity) > observation.at);
+  });
+}
+
 // A terminal agent may finish before the browser mounts/paints its directive.
 // This grace never extends the run cap and never reduces the measured latency.
 export function renderWindow({ now, capAt, agentCompletedAt, visibleAt, graceMs = 30_000 }) {

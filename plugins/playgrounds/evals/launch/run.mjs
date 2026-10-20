@@ -8,7 +8,7 @@ import { hasInk } from './pixels.mjs';
 import { captureVisible, discoverCard } from './visibility-capture.mjs';
 import { visibilityFixtures } from './visibility-fixtures.mjs';
 import { failureScore, providerSummary, resumeMismatch } from './metrics.mjs';
-import { renderWindow } from './observations.mjs';
+import { buildingProgress, renderWindow } from './observations.mjs';
 import { proofFixtures } from './fixtures.mjs';
 import { verifyIsolation } from './isolation.mjs';
 
@@ -102,7 +102,7 @@ function monitor(threadId, capAt, renderWindow, discoverCard) {
   setInterval(async () => {
     if (window.__launch.proof) return;
     try {
-      const response = await fetch(`/api/v1/threads/${threadId}/timeline`);
+      const response = await fetch(`/api/v1/threads/${threadId}/timeline?includeNestedRows=true`);
       if (!response.ok) throw new Error(`timeline ${response.status}`);
       const timeline = await response.json();
       for (const row of flatten(timeline.rows || [])) if (row.role === 'assistant' && row.text?.trim()) {
@@ -265,7 +265,8 @@ for (const provider of providers) for (const prompt of selected) {
       preload,dir,tempRoot:chromeTempDir,capAt:result.sentAt+capMs,width:prompt.width || 1280});
     const measurement = visible.measurement;
     const proof = measurement?.proof;
-    result.progress = measurement?.progress || [];
+    result.progressObservations = measurement?.progress || [];
+    result.progress = [];
     result.browserErrors = measurement?.errors || [];
     result.proof = proof;
     result.agentCompletedAt = measurement?.agentCompletedAt ?? null;
@@ -280,10 +281,11 @@ for (const provider of providers) for (const prompt of selected) {
     result.renderGraceRetainedCard = Boolean(result.renderGraceUsed && result.cardVisible);
     result.visibleMs = result.cardVisible ? Math.max(0,proof.at-result.sentAt) : null;
     result.scoreMs = failureScore(result.visibleMs,capMs);
-    const timeline = await api(`/threads/${thread.id}/timeline`);
+    const timeline = await api(`/threads/${thread.id}/timeline?includeNestedRows=true`);
     const interactions = await api(`/threads/${thread.id}/interactions`);
     save(join(dir,'timeline.json'),timeline);
     save(join(dir,'interactions.json'),interactions);
+    result.progress = buildingProgress(result.progressObservations, rowsIn(timeline));
     result.questions = questionEvidence(timeline,interactions);
     // The card may paint before the monitor's next API poll. Keep the actual
     // completion time when present without claiming the grace changed this run.
