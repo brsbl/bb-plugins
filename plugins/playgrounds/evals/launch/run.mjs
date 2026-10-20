@@ -7,6 +7,7 @@ import { checkControls } from './controls.mjs';
 import { hasInk } from './pixels.mjs';
 import { failureScore, providerSummary, resumeMismatch } from './metrics.mjs';
 import { renderWindow } from './observations.mjs';
+import { proofFixtures } from './fixtures.mjs';
 
 let interrupted = false;
 process.on('SIGTERM', () => { interrupted = true; });
@@ -202,6 +203,17 @@ for (const live of [true, false]) {
   const buttons = checked.controls.filter(c=>c.tag==='button');
   if (checked.pass !== live || checked.controls.length !== 3 || buttons.length !== 2 || buttons.some(c=>c.pass !== live))
     throw new Error(`Preflight: separate drawing ${live ? 'live' : 'inert'} regression failed; see ${dir}/controls.json`);
+}
+// Region alignment and custom-surface modalities must prove real output, while
+// resize/focus/hover/color-only changes remain unproven. No topic-specific hooks.
+for (const fixture of proofFixtures) {
+  const dir=join(preflightDir,fixture.name);mkdirSync(dir,{recursive:true});
+  const path=join(dir,'fixture.html');writeFileSync(path,fixture.html);
+  const checked=await checkControls({target:path,width:480,dir,drive});
+  if(checked.pass!==fixture.expectedPass || checked.controls.length!==(fixture.controlCount || 1) ||
+    (fixture.expectedStatus && checked.status!==fixture.expectedStatus) ||
+    (fixture.liveMode && !checked.controls[0].probes?.some(probe=>probe.mode.startsWith(fixture.liveMode) && probe.pass)))
+    throw new Error(`Preflight: ${fixture.name} regression failed; see ${dir}/controls.json`);
 }
 const ui = await drive(base.href,[['until','Boolean(document.querySelector("#root")?.children.length)',20_000],['eval','({ready:Boolean(document.querySelector("#root")?.children.length),text:document.body.innerText.slice(0,300)})'],['shot',join(preflightDir,'bb.png'),'body']],join(preflightDir,'ui'),1280);
 if (ui.code || !ui.evals.some(v => v?.ready) || !hasInk(join(preflightDir,'bb.png'))) throw new Error('Preflight: dev bb UI did not render');

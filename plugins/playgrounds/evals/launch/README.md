@@ -46,8 +46,14 @@ Before sending any scored prompt, preflight checks the Personal project, plugin
 presence, both providers' model catalogs, Chrome, real input dispatch, PNG diffs,
 and the actual dev UI. Infrastructure failures here abort without counting
 forty spurious product failures. The tiny preflight fixture is not an eval prompt
-and is never given to an agent. Generic drag fixtures also verify that a live
-pointer-dependent readout passes while cosmetic hover alone fails.
+and is never given to an agent. Generic fixtures also verify live pointer,
+click-only and keyboard-only surfaces, output changes while a page resizes, and
+geometry inside the tested drawing. Matching inert fixtures change only
+hover/focus/color/padding; they must stay unproven.
+Mixed stable/ticking readouts, selected sibling choices, and a runtime exception
+with an otherwise working control are covered too. Saved-card replay scripts can
+import `proofFixtures` from `fixtures.mjs`; each has `name`, `html`, `expectedPass`
+and optional `liveMode`, `controlCount` (default 1), and `expectedStatus`.
 Each invocation keeps its preflight evidence in a separate timestamped directory.
 
 Each prompt creates a fresh `proj_personal` thread with a new personal environment
@@ -82,31 +88,55 @@ non-default model for Personal, reset the **isolated instance** before measuring
   the source. A visible card with a dead control retains its measured delivery time
   and fails the control criterion.
 - The bundled `scripts/drive.mjs` opens the actual served frame URL and uses real
-  pointer/keyboard input. Range and custom slider controls are dragged diagonally to exercise either horizontal or vertical input; toggles/buttons clicked;
-  text/select controls receive key events. HTML is not reconstructed. Native
-  controls are driven in the real thread UI. Narrow-toggle is tested at 360,
-  390, and 480 px. Every exposed control must be proven, including newly exposed,
-  disabled, and unsupported custom controls: unproven behavior fails with a reason.
-  Inventory is captured after every click, drag, key, move, scroll and wait.
-  Stable DOM identities prevent reassignment when controls appear or disappear;
-  newly exposed controls are retained as unproven failures even if a later tab
-  hides them. `controls.json` retains these intermediate inventories.
-- Three no-input and two post-input screenshots are retained per control. The
-  diff masks the tested control and ordinary control/label chrome, ignores pixels already moving before input,
-  requires persistent output change, and requires changed output to exceed the
-  measured ambient movement by 4x. A changed checkbox or thumb alone cannot pass.
-  When a button changes a separate interactive SVG/canvas drawing, that drawing
-  remains observable; the active surface itself stays masked when testing it.
-  Generic regressions require geometry changes to pass and button/peer styling
-  alone to fail. This is deliberately conservative: purely animated responses and controls whose
-  only legitimate output is their own appearance require investigation, not an
-  automatic pass. PNG dimension changes are also unproven, never assumed live.
-  For drag controls the pointer stays at each endpoint during capture: leaving
-  the surface can reset a legitimate hover/drag output. Control masks still
-  exclude cosmetic hover changes from the score. Full-card capture can briefly
-  emit pointer leave/enter events, so the same pointer position is restored
-  immediately after each shot before waiting. An immediate capture-induced
-  reset remains unproven; the scorer does not weaken its visual-diff threshold.
+  pointer/keyboard input. Native ranges are dragged diagonally to exercise either
+  horizontal or vertical input. Native toggles/buttons are clicked; text/select
+  controls receive keys. Custom focusable/drawing surfaces receive **separate**
+  drag, click, Home, End, arrow, Space and Enter attempts. A slider role does not
+  imply a working drag handler. Every attempt retains five PNGs, actions, output
+  evidence and its own live/unproven status; success by one route never labels
+  the other routes live. At least one route must prove the control's output. Button groups prepare a
+  sibling choice before measuring the target, so selecting an already selected
+  option does not hide its effect; the preparation itself supplies no proof.
+- HTML is not reconstructed. Native controls are driven in the real thread UI.
+  Narrow-toggle is tested at 360, 390 and 480 px. Disabled, unknown, conditionally
+  ineffective and newly exposed controls remain **unproven**, never automatically
+  called dead. Inventory is captured after every click, drag, key, move, scroll
+  and wait. Stable DOM identities prevent reassignment when controls disappear;
+  newly exposed controls remain unproven failures even if a later tab hides them.
+  `controls.json` retains these intermediate inventories. Runtime exceptions still
+  fail the entire card, even if a separately working control can be demonstrated.
+- Each screenshot has matching bounds and content signatures for independent
+  output regions: SVG figures, readouts, paragraphs, table cells and definition
+  values. The scorer aligns each region at its own origin and compares its common
+  extent without stretching pixels. Whole-page height changes and translations
+  supply no proof; a reflowed explanation or changed figure can still be measured.
+  Legacy resized screenshots without region metadata require a fresh controlled
+  replay, not an inferred pass.
+- A region needs **both** persistent text-token/SVG geometry changes and persistent
+  pixel changes. Control values, selected state, colors, borders, focus, hover and
+  class/style changes alone cannot satisfy the content check. Native control
+  chrome stays masked in every frame. Actual SVG geometry inside a custom input
+  surface remains observable, so masking the surface no longer hides its own
+  mechanism. Content evidence alone never passes invisible or unchanged pixels.
+- Three no-input and two post-input screenshots detect baseline motion. Changed
+  pixels must remain changed in both post-input images, were stable beforehand,
+  and exceed the region's baseline motion by 4x (at least 24 pixels). A stable
+  numerical result can prove a response without being drowned out by unrelated
+  animation in another region. Text tokens are compared separately so a stable
+  mode label can remain eligible beside a ticking counter; that region must still
+  meet the same pixel threshold. These thresholds remain deliberately conservative.
+  Five finite samples cannot rule out a coincident autonomous transition that is
+  stable in both sampling windows; inspect per-attempt evidence for ambiguous cases.
+  Unsupported canvas-only effects, continuously changing readouts, preconditions
+  such as a speed control while playback is idle, replaced output nodes, and
+  controls whose only response is their own styling remain unproven. The harness
+  does not invent an initial scenario or claim it has proved those controls dead.
+- For drag attempts the pointer stays at each endpoint during capture: leaving
+  the surface can reset a legitimate hover/drag output. The original pointer
+  restoration after each screenshot is preserved. An immediate capture-induced
+  reset still requires investigation; it is not excused by lower thresholds.
+  Delivery timings, caps, Personal isolation, terminal render grace and original
+  records are unchanged by these later control replays.
 
 `summary.json` and `summary.md` update after each case. Per-provider percentiles
 appear only after all twenty cases: median is the middle-pair mean, p90 is
