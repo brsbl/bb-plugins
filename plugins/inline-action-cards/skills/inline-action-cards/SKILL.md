@@ -58,7 +58,7 @@ If a card needs more than that, the decision is too big: split it, or, when the 
 
 Bad cards:
 
-- “Run the code review on the Live Markdown stack?” A routine step; just do it.
+- “Run the code review on the sample change?” A routine step; just do it.
 - “Approve the claim lines on the comparison page?” It needs a careful read, so ask for a review instead.
 - “Cancel the stray trial yourself, then reply done.” An agent with browser access can do it.
 - “Unlist the theme after the takedown request?” when the user has never heard of the request.
