@@ -8,6 +8,7 @@ import { hasInk } from './pixels.mjs';
 import { failureScore, providerSummary, resumeMismatch } from './metrics.mjs';
 import { renderWindow } from './observations.mjs';
 import { proofFixtures } from './fixtures.mjs';
+import { verifyIsolation } from './isolation.mjs';
 
 let interrupted = false;
 process.on('SIGTERM', () => { interrupted = true; });
@@ -20,7 +21,7 @@ for (let i = 2; i < process.argv.length; i++) {
   if (!key.startsWith('--') || !process.argv[i+1] || process.argv[i+1].startsWith('--')) throw new Error(`Expected --option value: ${key}`);
   args[key.slice(2)] = process.argv[++i];
 }
-for (const key of ['url','host','out','label','plugin-root']) if (!args[key]) throw new Error(`Missing --${key}`);
+for (const key of ['url','host','data-dir','out','label','plugin-root']) if (!args[key]) throw new Error(`Missing --${key}`);
 const base = new URL(args.url);
 if (!['127.0.0.1','localhost','[::1]'].includes(base.hostname)) throw new Error('Use a loopback isolated dev bb; production URLs are refused.');
 const out = resolve(args.out), pluginRoot = resolve(args['plugin-root']);
@@ -52,8 +53,9 @@ if (existsSync(manifestPath)) {
 } else writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
 async function api(path, body, method = body === undefined ? 'GET' : 'POST') {
+  if (!['GET','HEAD'].includes(method)) await verifyIsolation(base, args['data-dir'], args.host);
   const response = await fetch(new URL(`/api/v1${path}`, base), {
-    method, headers: { 'content-type':'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30_000),
+    method, redirect: 'error', headers: { 'content-type':'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${(await response.text()).slice(0, 500)}`);
   const text = await response.text();
@@ -170,6 +172,7 @@ function summarize() {
 // checks the driver, real input dispatch, masking, image decoding, and output diff.
 const defaultModels = new Map();
 const preflightDir = join(out,'preflight',String(Date.now())); mkdirSync(preflightDir,{recursive:true});
+save(join(preflightDir,'server-identity.json'), await verifyIsolation(base, args['data-dir'], args.host));
 await api('/projects/proj_personal');
 const plugins = await api('/plugins'); save(join(preflightDir,'plugins.json'),plugins);
 if (!JSON.stringify(plugins).includes('playgrounds')) throw new Error('Preflight: Playgrounds is not installed');

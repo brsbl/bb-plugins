@@ -19,6 +19,12 @@ Preserve invalid setup evidence separately; never mix it with launch results.
 Record the bb core revision and plugin installation command alongside the
 results. Do not serve this eval from production bb.
 
+Every setup/QA CLI command must explicitly set `BB_SERVER_URL` to the isolated
+origin; bare `bb` inside an agent thread targets production. Before each write,
+check `/api/v1/system/config` against the expected isolated data directory and
+host ID. The runner requires `--data-dir`, records this identity in preflight,
+rechecks it before every HTTP write, and refuses redirects.
+
 Launch the dev bb and this runner through `bb host-care start`. The runner is
 serial and owns all driver/browser descendants; it does not bypass the resource
 queue. Release the jobs when finished. `CHROME_PATH` must name an executable
@@ -30,6 +36,7 @@ absolute module path if the worktree has not installed dependencies.
 ```sh
 node plugins/playgrounds/evals/launch/run.mjs \
   --url http://127.0.0.1:48992 --host <isolated-host-id> \
+  --data-dir /absolute/worktree/.launch/data \
   --plugin-root /absolute/path/to/plugins/playgrounds \
   --commit <exact-plugin-git-sha> --label baseline \
   --out /absolute/worktree/.launch/results/baseline
