@@ -1,0 +1,344 @@
+{
+  "rows": [
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "toilet",
+      "width": 710,
+      "index": 0,
+      "review": "automatic proof unproven",
+      "finding": "Selected proof uses ArrowLeft, but retained handler only accepts Space/Enter or click. Pair shows refilling completing naturally, not an input-triggered flush. Reject automatic route proof; manually test advertised flush input.",
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/toilet-710-0.json",
+          "sha256": "14a545f235380472ef7c5d64b4b46fb8524fd421150dbbf99e451de4b65bf531"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/toilet-710-0.png",
+          "sha256": "b4b8efcdd042240257955b69a6f0f7a8afb62a9a33b0d7231ff910cf3866e39f"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/toilet/result.json",
+          "sha256": "3bd0928f6c28bfad5871de9655f846548019ade004b86ec53d06fb0250891a32"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:40:45.930123+00:00"
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "toilet",
+      "width": 710,
+      "index": 3,
+      "review": "automatic proof unproven",
+      "finding": "Pair shows refilling reaching Full after selecting 1x. This is compatible with autonomous settling and does not establish playback-rate effect. Compare refill slopes under controlled real-input preconditions.",
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/toilet-710-3.json",
+          "sha256": "64c7f1466b87c24752f5f361896ac9ba70a4e5730d9836f1a5a3465e2277862d"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/toilet-710-3.png",
+          "sha256": "0aa49c3da23e7826a57649106f54be9a8a00c5b972bf51479c45b84e4241b4fc"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/toilet/result.json",
+          "sha256": "3bd0928f6c28bfad5871de9655f846548019ade004b86ec53d06fb0250891a32"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:40:45.930826+00:00"
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "refrigerator",
+      "width": 710,
+      "index": 0,
+      "review": "live through supported alternate route",
+      "finding": "Reject the coincidental drag/unsupported-key proofs. Actual ArrowRight changes the thermostat threshold readout from on5.0/off3.0 to on5.5/off3.5, with knob geometry and duty24%->23%; saved source nudge updates local model before the initialization exception. This proves the stage keyboard route only; card remains runtime-error.",
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/refrigerator/width-710/control-0-key-ArrowRight-before2.png",
+          "sha256": "145ef8199e3fb857df3fce2125304ac68b93752eb99c5bf3b608affd5173263c"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/refrigerator/width-710/control-0-key-ArrowRight-after0.png",
+          "sha256": "1642993e954af2c6686d017013ca8f0cce65cd4c8b49011f5c08cf90e44db7a6"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/refrigerator/result.json",
+          "sha256": "d9130f077778372b7d011de6961d5780d0d422eb10a664b682b45eb8054fba44"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:44:30.972900+00:00"
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "refrigerator",
+      "width": 710,
+      "index": 3,
+      "review": "dead; automatic proof rejected",
+      "finding": "Drag pair changes door selected chrome but running share stays24%, heat-leak note still says through walls and gasket. Minor thermal drift and page reflow are not door response. Source initialization failure prevents subscription; original dead classification retained.",
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/refrigerator-710-3.png",
+          "sha256": "54e040992d2f40d93f6af23b79f38b375cde4d781535b200a4af4eb9f601d1e8"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/refrigerator/result.json",
+          "sha256": "d9130f077778372b7d011de6961d5780d0d422eb10a664b682b45eb8054fba44"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:44:30.973623+00:00"
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "spray-bottle",
+      "width": 710,
+      "index": 0,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/spray-bottle/width-710/control-0-key-ArrowRight-before2.png",
+          "sha256": "e0c84af8007869ae0f4d1e1bc092c10030a41a021ad43107925222754f4a8a43"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/spray-bottle/width-710/control-0-key-ArrowRight-after0.png",
+          "sha256": "becb6085738e369f173464e1ffc37ff417cca29fed1adefe329ad7008252b866"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline/claude-code/spray-bottle/published.html",
+          "sha256": "99feaea769771d35e13945cabb1acae6b35c539293ab5a63d5d7de5ae97722c8"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:46:43.315035+00:00",
+      "review": "live through supported route",
+      "finding": "Advertised keyboard squeeze pulse increases the settled sprayed total1.0->2.0mL and reduces bottle259->258mL. Reduced-motion source disables idle touring; this is input-caused cumulative output, not hover styling."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "stapler",
+      "width": 710,
+      "index": 0,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/stapler/width-710/control-0-key-End-before2.png",
+          "sha256": "6acd05e9bd9b52595ac7dd5eb424ba92f9ffe5dd43400174bfe165d7fb7d523b"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline-reviewed-v3/claude-code/stapler/width-710/control-0-key-End-after0.png",
+          "sha256": "75f908ba476edf55a98ca3090fe15c1f81916272ba7ed7b40ba4f7f7141a4382"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/baseline/claude-code/stapler/published.html",
+          "sha256": "af887c2514e6adedd7e2888e843a20f0dda2b562d96d502902c58d5bd3872b44"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:46:43.322256+00:00",
+      "review": "live through supported route",
+      "finding": "Supported End key closes the handle and drives/folds the staple: visible open gap9.0mm becomes clinched legs folded5.0mm, with clear mechanism geometry change. Prefer this supported route over the first click probe."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "websocket",
+      "width": 710,
+      "index": 0,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/websocket-710-0.png",
+          "sha256": "b61b960be0e6f03a693b3cba35853be1d219ab99ecd344c79185bcae0a2df9a7"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/websocket-710-0.json",
+          "sha256": "4bdc50ac22b7c41e753647ba644146bf9f06d62d600c98b2c2ee30a0cfa62e43"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:50:00.021813+00:00",
+      "review": "unproven",
+      "finding": "The click pair has the same delivery-time/framing text and subtle geometry differences. Retain as unproven pending a deliberate send with a distinct latency/readout; source alone does not grant visual proof."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "websocket",
+      "width": 710,
+      "index": 1,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/websocket-710-1.png",
+          "sha256": "b0f34b00d7e1f5269d2ff72871046ed5a316dfd7d489a764497cbcf850bddbbd"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/websocket-710-1.json",
+          "sha256": "8d720b7c6d86e163fc48d7515387296439ca87fe7689fe67758fc0b08075f5a4"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:50:00.025004+00:00",
+      "review": "live",
+      "finding": "After preparing Polling, clicking WebSocket changes the explanatory readout from Polling every1s to WebSocket handshake and changes gate geometry; selection styling is not the sole evidence."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "websocket",
+      "width": 710,
+      "index": 2,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/websocket-710-2.png",
+          "sha256": "491caaed53f6088136e3a2d60d2884b0c4ebc2c68d69258584798b3b76b83623"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/websocket-710-2.json",
+          "sha256": "8bed8275562848d39378b184a29ca6f3db58d0b8207b5397b465694f1668a88d"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:50:00.028134+00:00",
+      "review": "live",
+      "finding": "After preparing WebSocket, clicking Polling changes the readout from3 open connections to Polling every1s and changes connection/gate state."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "websocket",
+      "width": 710,
+      "index": 4,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/websocket-710-4.png",
+          "sha256": "43352e31e5a7fc421aff2cef60ffb6a7bc79db4bba3587d5523efb697e97ab5a"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/websocket-710-4.json",
+          "sha256": "464760c2b09cb4809aadeff0aca2641d35582908958bb27ba165e3ed5aaab07e"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:50:00.031107+00:00",
+      "review": "live",
+      "finding": "Real slider drag changes the stable output interval from Polling every1s to every4.5s. The unrelated empty-poll counter is not used as proof."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "load-balancer",
+      "width": 710,
+      "index": 0,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-0.png",
+          "sha256": "e31c058f74866592342ac546784eda085376f270482cce208b3b470e658721e3"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-0.json",
+          "sha256": "2f44dfd563dd295fdf104fc4258e5b3c543dfe8aeee557e540eba6122ea035e5"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:52:26.606493+00:00",
+      "review": "live",
+      "finding": "Supported ArrowRight changes model algorithm from round robin to least connections; output algorithm words change and queues reset, beyond selected-button styling."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "load-balancer",
+      "width": 710,
+      "index": 1,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-1.png",
+          "sha256": "7f8b690f40fc0b1968a7e2d8228d2e30cb63d1141cd48e9998c0d1a9dbd02cef"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-1.json",
+          "sha256": "92c3693b400c4f2517f14255325a9de212a169570de2f7e071e2ddb0c9622ee8"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:52:26.625223+00:00",
+      "review": "live",
+      "finding": "After preparing least connections, Round robin changes the output algorithm words to round robin and resets queues."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "load-balancer",
+      "width": 710,
+      "index": 2,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-2.png",
+          "sha256": "32fc4cc93949fda55484fa1295888127d82c552a04281585f33f6284be0ff982"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-2.json",
+          "sha256": "2e3c2c6c85d34ce3ac7d8d639d3108909bd8c7217ebeccee6f48d3fb86fceb61"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:52:26.642331+00:00",
+      "review": "live",
+      "finding": "Least connections changes the output algorithm words from round robin to least connections."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "load-balancer",
+      "width": 710,
+      "index": 3,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-3.png",
+          "sha256": "97503bcf1e676fa74b3d80b3e040abef647578db32ef693a0ca4134ebc9f9630"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-3.json",
+          "sha256": "fa2f73d970d2672175d92aac127a852dfad446b871cb9f73a3092c6fa382dc99"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:52:26.659408+00:00",
+      "review": "live",
+      "finding": "Random changes the output algorithm words from round robin to random."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "load-balancer",
+      "width": 710,
+      "index": 11,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-11.png",
+          "sha256": "649bc0287d6643233e0e5bbe1e87483b4a26a033ef1536269fcd271c6a870dcf"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-11.json",
+          "sha256": "96a4ed00ca9fea88a2cb3a0fe0b36d0107eb8388c4f285c4a5f5842548d3e97f"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:52:26.676412+00:00",
+      "review": "live",
+      "finding": "Selecting no failed server removes the unavailable x marker from the first server queue in the model readout."
+    },
+    {
+      "revision": "baseline",
+      "provider": "claude-code",
+      "prompt": "load-balancer",
+      "width": 710,
+      "index": 14,
+      "evidence": [
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-14.png",
+          "sha256": "2244ac4c3b0f3e6a9883e6a47e52292afdc4d69f88de49ef6cef45626f57f4e9"
+        },
+        {
+          "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/replay-pairs/baseline/claude-code/load-balancer-710-14.json",
+          "sha256": "03e1a506b542dde7ce532f680685561755d7bb0a01ea1d8e91914bbd52034d1e"
+        }
+      ],
+      "reviewedAt": "2026-10-20T05:52:26.694309+00:00",
+      "review": "live",
+      "finding": "Marking server3 failed changes the third queue to an unavailable x, beyond the selected-button state."
+    }
+  ]
+}

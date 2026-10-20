@@ -1,0 +1,1972 @@
+{
+  "generatedAt": "2026-10-20T03:57:15.197549+00:00",
+  "baselineVisible": {
+    "n": 15,
+    "median": {
+      "visibleSeconds": 547.618,
+      "observedToolSpanUnionSeconds": 61.468,
+      "unattributedSeconds": 495.4680000000001,
+      "toolCount": 32
+    },
+    "meanPhasesSeconds": {
+      "dispatch_to_first_tool": 9.949666666666667,
+      "read_design_generation_before_first_write": 334.0672,
+      "write_build_to_first_browser_check": 67.30853333333333,
+      "self_verify_revise_to_publish": 128.36333333333334,
+      "publish_command_to_visible_or_cap": 12.978133333333334
+    },
+    "medianPhasesSeconds": {
+      "dispatch_to_first_tool": 8.882,
+      "read_design_generation_before_first_write": 345.618,
+      "write_build_to_first_browser_check": 16.29,
+      "self_verify_revise_to_publish": 125.928,
+      "publish_command_to_visible_or_cap": 12.78
+    }
+  },
+  "pilot": {
+    "n": 2,
+    "median": {
+      "visibleSeconds": 240.725,
+      "observedToolSpanUnionSeconds": 31.0425,
+      "unattributedSeconds": 209.6825,
+      "toolCount": 17.5
+    },
+    "meanPhasesSeconds": {
+      "dispatch_to_first_tool": 19.445500000000003,
+      "read_design_generation_before_first_write": 157.2695,
+      "write_build_to_first_browser_check": 5.17,
+      "self_verify_revise_to_publish": 36.969,
+      "publish_command_to_visible_or_cap": 21.871000000000002
+    },
+    "medianPhasesSeconds": {
+      "dispatch_to_first_tool": 19.445500000000003,
+      "read_design_generation_before_first_write": 157.2695,
+      "write_build_to_first_browser_check": 5.17,
+      "self_verify_revise_to_publish": 36.969,
+      "publish_command_to_visible_or_cap": 21.871000000000002
+    }
+  },
+  "runs": [
+    {
+      "label": "baseline",
+      "prompt": "bicycle-pump",
+      "threadId": "thr_56zs5u74me",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792450604852,
+      "endpointMs": 1792451126399,
+      "observedSeconds": 521.547,
+      "scoreSeconds": 521.547,
+      "visibleSeconds": 521.547,
+      "actualWallSeconds": 521.802,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_56zs5u74me:tool:da042aafe5-i2",
+          "startMs": 1792450610987,
+          "endMs": 1792450610987,
+          "startSeconds": 6.135,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_56zs5u74me:command:da042aafe5-i30",
+          "startMs": 1792450747358,
+          "endMs": 1792450747986,
+          "startSeconds": 142.506,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_56zs5u74me:command:da042aafe5-i39",
+          "startMs": 1792450998959,
+          "endMs": 1792451003672,
+          "startSeconds": 394.107,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_56zs5u74me:command:da042aafe5-i66",
+          "startMs": 1792451110539,
+          "endMs": 1792451111433,
+          "startSeconds": 505.687,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 6.135,
+        "read_design_generation_before_first_write": 136.371,
+        "write_build_to_first_browser_check": 251.601,
+        "self_verify_revise_to_publish": 111.58,
+        "publish_command_to_visible_or_cap": 15.86
+      },
+      "toolCount": 33,
+      "observedToolSpanUnionSeconds": 54.315,
+      "unattributedSeconds": 467.232,
+      "categories": {
+        "build": {
+          "calls": 3,
+          "observedSpanSeconds": 1.726
+        },
+        "inspect_screenshot": {
+          "calls": 4,
+          "observedSpanSeconds": 0.269
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.894
+        },
+        "read_setup": {
+          "calls": 19,
+          "observedSpanSeconds": 15.362
+        },
+        "verify": {
+          "calls": 3,
+          "observedSpanSeconds": 18.234
+        },
+        "verify_mixed": {
+          "calls": 3,
+          "observedSpanSeconds": 17.83
+        }
+      },
+      "infrastructureEvents": [
+        {
+          "sequence": 973,
+          "type": "system/thread/interrupted",
+          "createdAt": 1792451126733,
+          "data": {
+            "reason": "manual-stop"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "::playground{id=\"1c38e956-390d-4f42-a4de-1d2908641649\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/bicycle-pump/result.json",
+          "sha256": "8dde69ce92b51c5f0891112587e55939c26b86ea6685035f6b4074ac7487ba2e"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/bicycle-pump/timeline.json",
+          "sha256": "98fc4e5f02579466b2478165fee371c055f1adbaaa7d4ee1bcef77671d7faec0"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "cdn",
+      "threadId": "thr_txgewajj25",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792451135190,
+      "endpointMs": 1792451582225,
+      "observedSeconds": 447.035,
+      "scoreSeconds": 447.035,
+      "visibleSeconds": 447.035,
+      "actualWallSeconds": 447.199,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_txgewajj25:tool:da610a9727-i2",
+          "startMs": 1792451145409,
+          "endMs": 1792451145427,
+          "startSeconds": 10.219,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_txgewajj25:file-edit:da610a9727-i44:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_txgewajj25/.how-it-works/examples/cdn-purge/build.mjs:file-change:0",
+          "startMs": 1792451491027,
+          "endMs": 1792451491117,
+          "startSeconds": 355.837,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_txgewajj25:command:da610a9727-i47",
+          "startMs": 1792451502014,
+          "endMs": 1792451513733,
+          "startSeconds": 366.824,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_txgewajj25:command:da610a9727-i62",
+          "startMs": 1792451567220,
+          "endMs": 1792451567976,
+          "startSeconds": 432.03,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 10.219,
+        "read_design_generation_before_first_write": 345.618,
+        "write_build_to_first_browser_check": 10.987,
+        "self_verify_revise_to_publish": 65.206,
+        "publish_command_to_visible_or_cap": 15.005
+      },
+      "toolCount": 35,
+      "observedToolSpanUnionSeconds": 72.721,
+      "unattributedSeconds": 374.314,
+      "categories": {
+        "build": {
+          "calls": 2,
+          "observedSpanSeconds": 0.616
+        },
+        "inspect_screenshot": {
+          "calls": 3,
+          "observedSpanSeconds": 0.164
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.756
+        },
+        "read_setup": {
+          "calls": 18,
+          "observedSpanSeconds": 22.926
+        },
+        "verify": {
+          "calls": 1,
+          "observedSpanSeconds": 11.719
+        },
+        "verify_mixed": {
+          "calls": 2,
+          "observedSpanSeconds": 14.382
+        },
+        "web_research": {
+          "calls": 8,
+          "observedSpanSeconds": 22.158
+        }
+      },
+      "infrastructureEvents": [
+        {
+          "sequence": 634,
+          "type": "system/thread/interrupted",
+          "createdAt": 1792451582453,
+          "data": {
+            "reason": "manual-stop"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "::playground{id=\"2eb15439-66ef-466e-b65a-53c7699e6048\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/cdn/result.json",
+          "sha256": "40dd621119d10e6e8dbac152c84ca17c1bfbb83caf550072796fd9970a79b265"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/cdn/timeline.json",
+          "sha256": "1253a77c4d52fc2bb840f278d6e4125bfd30291b5eb8bcd9e45bc99fcde2af04"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "database-index",
+      "threadId": "thr_mnfizd4zef",
+      "model": null,
+      "classification": "infrastructure_failure",
+      "sentAt": 1792459223008,
+      "endpointMs": 1792459341812,
+      "observedSeconds": 118.804,
+      "scoreSeconds": 900.0,
+      "visibleSeconds": null,
+      "actualWallSeconds": 118.804,
+      "error": "TimeoutError: The operation was aborted due to timeout",
+      "markers": {
+        "firstTool": null,
+        "firstArtifactWrite": null,
+        "firstBrowserVerification": null,
+        "firstPublishCommand": null
+      },
+      "phasesSeconds": {},
+      "toolCount": 0,
+      "observedToolSpanUnionSeconds": 0.0,
+      "unattributedSeconds": 118.804,
+      "categories": {},
+      "infrastructureEvents": [
+        {
+          "sequence": 9,
+          "type": "system/error",
+          "createdAt": 1792459342031,
+          "data": {
+            "code": "thread_provisioning_failed",
+            "message": "Provisioning thread failed",
+            "detail": "Timed out waiting for command result"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/database-index/result.json",
+          "sha256": "04d1704b5e861105862532da14422ee47fdf8ec2101e5ad5fcd951f78bf64c80"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "dns",
+      "threadId": "thr_vt6h3d6kty",
+      "model": null,
+      "classification": "infrastructure_failure",
+      "sentAt": 1792459182127,
+      "endpointMs": 1792459222951,
+      "observedSeconds": 40.824,
+      "scoreSeconds": 900.0,
+      "visibleSeconds": null,
+      "actualWallSeconds": 40.824,
+      "error": "TimeoutError: The operation was aborted due to timeout",
+      "markers": {
+        "firstTool": null,
+        "firstArtifactWrite": null,
+        "firstBrowserVerification": null,
+        "firstPublishCommand": null
+      },
+      "phasesSeconds": {},
+      "toolCount": 0,
+      "observedToolSpanUnionSeconds": 0.0,
+      "unattributedSeconds": 40.824,
+      "categories": {},
+      "infrastructureEvents": [
+        {
+          "sequence": 12,
+          "type": "system/error",
+          "createdAt": 1792459222761,
+          "data": {
+            "code": "thread_command_failed",
+            "message": "Command thread.start failed",
+            "detail": "Host is not connected"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/dns/result.json",
+          "sha256": "691aa0196720c4b34fdc74edc848cf28507ef337f5b0b81ef0b3f11dcd4df110"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "door-lock",
+      "threadId": "thr_v9jwghm8md",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792454299840,
+      "endpointMs": 1792454967760,
+      "observedSeconds": 667.92,
+      "scoreSeconds": 667.92,
+      "visibleSeconds": 667.92,
+      "actualWallSeconds": 668.09,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_v9jwghm8md:tool:da414c783b-i2",
+          "startMs": 1792454309056,
+          "endMs": 1792454309056,
+          "startSeconds": 9.216,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_v9jwghm8md:file-edit:da414c783b-i28:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_v9jwghm8md/.how-it-works/examples/pin-tumbler/build.mjs:file-change:0",
+          "startMs": 1792454721159,
+          "endMs": 1792454721280,
+          "startSeconds": 421.319,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_v9jwghm8md:command:da414c783b-i33",
+          "startMs": 1792454738370,
+          "endMs": 1792454755492,
+          "startSeconds": 438.53,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_v9jwghm8md:command:da414c783b-i69",
+          "startMs": 1792454957938,
+          "endMs": 1792454958629,
+          "startSeconds": 658.098,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 9.216,
+        "read_design_generation_before_first_write": 412.103,
+        "write_build_to_first_browser_check": 17.211,
+        "self_verify_revise_to_publish": 219.568,
+        "publish_command_to_visible_or_cap": 9.822
+      },
+      "toolCount": 33,
+      "observedToolSpanUnionSeconds": 118.145,
+      "unattributedSeconds": 549.775,
+      "categories": {
+        "build": {
+          "calls": 4,
+          "observedSpanSeconds": 2.027
+        },
+        "inspect_screenshot": {
+          "calls": 7,
+          "observedSpanSeconds": 0.569
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.691
+        },
+        "read_setup": {
+          "calls": 14,
+          "observedSpanSeconds": 4.998
+        },
+        "verify": {
+          "calls": 4,
+          "observedSpanSeconds": 43.1
+        },
+        "verify_mixed": {
+          "calls": 3,
+          "observedSpanSeconds": 66.76
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "::playground{id=\"5c5a31e0-29a7-4e04-b8dd-6ec081070ff4\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/door-lock/result.json",
+          "sha256": "8bb083098e0b5b37622f33beed644aa182cb3cf3a4b8194cc333caeceb8bd773"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/door-lock/timeline.json",
+          "sha256": "c485252a4e7828a27c2d9c28014f7a1e73a4e16d05e103430ea8b111f534efab"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "git-merge",
+      "threadId": "thr_2vpryj2idq",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792462039040,
+      "endpointMs": 1792462509712,
+      "observedSeconds": 470.672,
+      "scoreSeconds": 470.672,
+      "visibleSeconds": 470.672,
+      "actualWallSeconds": 470.847,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_2vpryj2idq:tool:dae24f5918-i2",
+          "startMs": 1792462047922,
+          "endMs": 1792462047922,
+          "startSeconds": 8.882,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_2vpryj2idq:file-edit:dae24f5918-i28:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_2vpryj2idq/.how-it-works/examples/git-merge/build.mjs:file-change:0",
+          "startMs": 1792462359877,
+          "endMs": 1792462359913,
+          "startSeconds": 320.837,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_2vpryj2idq:command:dae24f5918-i32",
+          "startMs": 1792462374889,
+          "endMs": 1792462384808,
+          "startSeconds": 335.849,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_2vpryj2idq:command:dae24f5918-i54",
+          "startMs": 1792462500817,
+          "endMs": 1792462501478,
+          "startSeconds": 461.777,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 8.882,
+        "read_design_generation_before_first_write": 311.955,
+        "write_build_to_first_browser_check": 15.012,
+        "self_verify_revise_to_publish": 125.928,
+        "publish_command_to_visible_or_cap": 8.895
+      },
+      "toolCount": 28,
+      "observedToolSpanUnionSeconds": 52.925,
+      "unattributedSeconds": 417.747,
+      "categories": {
+        "build": {
+          "calls": 2,
+          "observedSpanSeconds": 0.856
+        },
+        "inspect_screenshot": {
+          "calls": 5,
+          "observedSpanSeconds": 0.312
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.661
+        },
+        "read_setup": {
+          "calls": 16,
+          "observedSpanSeconds": 5.59
+        },
+        "verify": {
+          "calls": 2,
+          "observedSpanSeconds": 23.058
+        },
+        "verify_mixed": {
+          "calls": 2,
+          "observedSpanSeconds": 22.448
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "::playground{id=\"88f2b93e-41e9-464a-b8b4-071b55250342\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/git-merge/result.json",
+          "sha256": "8851bb178c13d80d2a4f53176a50795ff65a55fab87ad631d8b5cc66a6fb3233"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/git-merge/timeline.json",
+          "sha256": "bd6229cbc425da82aa0f7fce8e7d23d0b00d7d23ce61fec35a3495289863a572"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "load-balancer",
+      "threadId": "thr_u4yhkzb5a8",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792463131962,
+      "endpointMs": 1792463472753,
+      "observedSeconds": 340.791,
+      "scoreSeconds": 340.791,
+      "visibleSeconds": 340.791,
+      "actualWallSeconds": 340.976,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_u4yhkzb5a8:tool:daf301985c-i2",
+          "startMs": 1792463138422,
+          "endMs": 1792463138422,
+          "startSeconds": 6.46,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_u4yhkzb5a8:file-edit:daf301985c-i32:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_u4yhkzb5a8/.how-it-works/examples/load-balancer/build.mjs:file-change:0",
+          "startMs": 1792463381050,
+          "endMs": 1792463381098,
+          "startSeconds": 249.088,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_u4yhkzb5a8:command:daf301985c-i35",
+          "startMs": 1792463388050,
+          "endMs": 1792463396885,
+          "startSeconds": 256.088,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_u4yhkzb5a8:command:daf301985c-i48",
+          "startMs": 1792463462116,
+          "endMs": 1792463462775,
+          "startSeconds": 330.154,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 6.46,
+        "read_design_generation_before_first_write": 242.628,
+        "write_build_to_first_browser_check": 7.0,
+        "self_verify_revise_to_publish": 74.066,
+        "publish_command_to_visible_or_cap": 10.637
+      },
+      "toolCount": 27,
+      "observedToolSpanUnionSeconds": 55.65,
+      "unattributedSeconds": 285.141,
+      "categories": {
+        "build": {
+          "calls": 2,
+          "observedSpanSeconds": 0.565
+        },
+        "inspect_screenshot": {
+          "calls": 3,
+          "observedSpanSeconds": 0.118
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.659
+        },
+        "read_setup": {
+          "calls": 18,
+          "observedSpanSeconds": 7.117
+        },
+        "verify": {
+          "calls": 2,
+          "observedSpanSeconds": 27.478
+        },
+        "verify_mixed": {
+          "calls": 1,
+          "observedSpanSeconds": 19.713
+        }
+      },
+      "infrastructureEvents": [
+        {
+          "sequence": 410,
+          "type": "system/thread/interrupted",
+          "createdAt": 1792463472994,
+          "data": {
+            "reason": "manual-stop"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "::playground{id=\"1146c6b1-132f-4beb-9334-c92095e6b774\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/load-balancer/result.json",
+          "sha256": "29f43ace05c0dd9a66fd2d1dd7aa332bf5b2109b4414b4b6ce333690e2be1198"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/load-balancer/timeline.json",
+          "sha256": "82dc2fa8ae2ae1f9ec7122293a7b57d3b8c2d0d9285c1da0aacc3f3d6dfafc47"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "narrow-toggle",
+      "threadId": "thr_3dwahvkmkp",
+      "model": null,
+      "classification": "infrastructure_failure",
+      "sentAt": 1792459153882,
+      "endpointMs": 1792459181918,
+      "observedSeconds": 28.036,
+      "scoreSeconds": 900.0,
+      "visibleSeconds": null,
+      "actualWallSeconds": 28.036,
+      "error": "TypeError: fetch failed",
+      "markers": {
+        "firstTool": null,
+        "firstArtifactWrite": null,
+        "firstBrowserVerification": null,
+        "firstPublishCommand": null
+      },
+      "phasesSeconds": {},
+      "toolCount": 0,
+      "observedToolSpanUnionSeconds": 0.0,
+      "unattributedSeconds": 28.036,
+      "categories": {},
+      "infrastructureEvents": [
+        {
+          "sequence": 8,
+          "type": "system/thread/interrupted",
+          "createdAt": 1792459181876,
+          "data": {
+            "reason": "manual-stop"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/narrow-toggle/result.json",
+          "sha256": "806911068e27f93dbf734c77250787a1b3c566db75c1f9f8f2484c740b9de1a7"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "notification-settings",
+      "threadId": null,
+      "model": null,
+      "classification": "infrastructure_failure",
+      "sentAt": 1792459128522,
+      "endpointMs": 1792459153571,
+      "observedSeconds": 25.049,
+      "scoreSeconds": 900.0,
+      "visibleSeconds": null,
+      "actualWallSeconds": 25.049,
+      "error": "Error: POST /threads: 502 {\"code\":\"dispatch_hook_failed\",\"message\":\"The \\\"concurrency-limit\\\" plugin's message.dispatch hook failed: did not decide within 10000ms\",\"details\":{\"pluginId\":\"concurrency-limit\"}}",
+      "markers": {
+        "firstTool": null,
+        "firstArtifactWrite": null,
+        "firstBrowserVerification": null,
+        "firstPublishCommand": null
+      },
+      "phasesSeconds": {},
+      "toolCount": 0,
+      "observedToolSpanUnionSeconds": 0.0,
+      "unattributedSeconds": 25.049,
+      "categories": {},
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/notification-settings/result.json",
+          "sha256": "098c6bc150c37f5c669e1df5ca6d2c9c2a4c2bb90d632fc87ae702e92f2d3df1"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "refrigerator",
+      "threadId": "thr_mczrxpv37u",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792454976372,
+      "endpointMs": 1792455667430,
+      "observedSeconds": 691.058,
+      "scoreSeconds": 691.058,
+      "visibleSeconds": 691.058,
+      "actualWallSeconds": 691.25,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_mczrxpv37u:tool:da3afdfe18-i2",
+          "startMs": 1792454985440,
+          "endMs": 1792454985440,
+          "startSeconds": 9.068,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_mczrxpv37u:command:da3afdfe18-i25",
+          "startMs": 1792455362657,
+          "endMs": 1792455362967,
+          "startSeconds": 386.285,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_mczrxpv37u:command:da3afdfe18-i30",
+          "startMs": 1792455512396,
+          "endMs": 1792455515956,
+          "startSeconds": 536.024,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_mczrxpv37u:command:da3afdfe18-i51",
+          "startMs": 1792455642787,
+          "endMs": 1792455650232,
+          "startSeconds": 666.415,
+          "category": "publish_mixed"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 9.068,
+        "read_design_generation_before_first_write": 377.217,
+        "write_build_to_first_browser_check": 149.739,
+        "self_verify_revise_to_publish": 130.391,
+        "publish_command_to_visible_or_cap": 24.643
+      },
+      "toolCount": 27,
+      "observedToolSpanUnionSeconds": 46.652,
+      "unattributedSeconds": 644.406,
+      "categories": {
+        "build": {
+          "calls": 3,
+          "observedSpanSeconds": 0.9
+        },
+        "inspect_screenshot": {
+          "calls": 5,
+          "observedSpanSeconds": 0.162
+        },
+        "publish_mixed": {
+          "calls": 1,
+          "observedSpanSeconds": 7.445
+        },
+        "read_setup": {
+          "calls": 14,
+          "observedSpanSeconds": 16.605
+        },
+        "verify": {
+          "calls": 2,
+          "observedSpanSeconds": 7.235
+        },
+        "verify_mixed": {
+          "calls": 2,
+          "observedSpanSeconds": 14.305
+        }
+      },
+      "infrastructureEvents": [
+        {
+          "sequence": 1294,
+          "type": "system/thread/interrupted",
+          "createdAt": 1792455667698,
+          "data": {
+            "reason": "manual-stop"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "wrote fridge.html\nwrote fridge-light.html\nline ends: 0 of 472 ends on 77 lines float\nconsole: clean\nclip 16,64 358x474 \u00b7 readout \"3.6 \u00b0C inside \u00b7 compressor on\" \u00b7 scrolls sideways: no\nconsole: clean\n::playground{id=\"cb08a4d7-55ab-4bc2-939c-6ddc963af5c3\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/refrigerator/result.json",
+          "sha256": "be90ba53e0e4f879efc1cfcc779118e01d3486a11c72797cd6416a9f8aafece1"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/refrigerator/timeline.json",
+          "sha256": "b6c30f00676f71823278da07700be4856d17887b3a5fc9144306a1380c0bd8f0"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "seat-belt",
+      "threadId": "thr_mrexqzb2vm",
+      "model": "claude-opus-5-5",
+      "classification": "capped_no_visible_card",
+      "sentAt": 1792456891142,
+      "endpointMs": 1792457791142,
+      "observedSeconds": 900.0,
+      "scoreSeconds": 900.0,
+      "visibleSeconds": null,
+      "actualWallSeconds": 920.125,
+      "error": "No loaded, visibly rendered card before cap (or browser proof failed)",
+      "markers": {
+        "firstTool": {
+          "id": "thr_mrexqzb2vm:tool:dac22f0203-i2",
+          "startMs": 1792456899322,
+          "endMs": 1792456899322,
+          "startSeconds": 8.18,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_mrexqzb2vm:command:dac22f0203-i43",
+          "startMs": 1792457348181,
+          "endMs": 1792457348719,
+          "startSeconds": 457.039,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_mrexqzb2vm:command:dac22f0203-i47",
+          "startMs": 1792457481946,
+          "endMs": 1792457485527,
+          "startSeconds": 590.804,
+          "category": "verify_mixed"
+        },
+        "firstPublishCommand": {
+          "id": "thr_mrexqzb2vm:command:dac22f0203-i85",
+          "startMs": 1792457681244,
+          "endMs": 1792457685183,
+          "startSeconds": 790.102,
+          "category": "publish_mixed"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 8.18,
+        "read_design_generation_before_first_write": 448.859,
+        "write_build_to_first_browser_check": 133.765,
+        "self_verify_revise_to_publish": 199.298,
+        "publish_command_to_visible_or_cap": 109.898
+      },
+      "toolCount": 44,
+      "observedToolSpanUnionSeconds": 137.868,
+      "unattributedSeconds": 762.1320000000001,
+      "categories": {
+        "build": {
+          "calls": 2,
+          "observedSpanSeconds": 0.858
+        },
+        "inspect_screenshot": {
+          "calls": 7,
+          "observedSpanSeconds": 0.377
+        },
+        "publish_mixed": {
+          "calls": 1,
+          "observedSpanSeconds": 3.939
+        },
+        "read_setup": {
+          "calls": 24,
+          "observedSpanSeconds": 24.634
+        },
+        "verify": {
+          "calls": 4,
+          "observedSpanSeconds": 50.63
+        },
+        "verify_mixed": {
+          "calls": 5,
+          "observedSpanSeconds": 41.109
+        },
+        "web_research": {
+          "calls": 1,
+          "observedSpanSeconds": 16.321
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "wrote seat-belt.html\nline ends: 0 of 189 ends on 25 lines float\nconsole: clean\n::playground{id=\"f859a59c-b76c-4f15-9241-0b14a2e00ef0\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/seat-belt/result.json",
+          "sha256": "06f8107d0dbdc071df8e1f7b618ba1301b0486374d3239fb5042d316b075ee3b"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/seat-belt/timeline.json",
+          "sha256": "c13ff82fdf981475ab1727de0a74ef0ae5434add26b2c415f996f109c071a7c5"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "spray-bottle",
+      "threadId": "thr_saaff7fgjy",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792456335080,
+      "endpointMs": 1792456882698,
+      "observedSeconds": 547.618,
+      "scoreSeconds": 547.618,
+      "visibleSeconds": 547.618,
+      "actualWallSeconds": 547.803,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_saaff7fgjy:tool:da948817ab-i2",
+          "startMs": 1792456345287,
+          "endMs": 1792456345287,
+          "startSeconds": 10.207,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_saaff7fgjy:file-edit:da948817ab-i30:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_saaff7fgjy/.how-it-works/examples/spray-bottle/build.mjs:file-change:0",
+          "startMs": 1792456723214,
+          "endMs": 1792456723303,
+          "startSeconds": 388.134,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_saaff7fgjy:command:da948817ab-i37",
+          "startMs": 1792456739504,
+          "endMs": 1792456741499,
+          "startSeconds": 404.424,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_saaff7fgjy:command:da948817ab-i72",
+          "startMs": 1792456869918,
+          "endMs": 1792456870906,
+          "startSeconds": 534.838,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 10.207,
+        "read_design_generation_before_first_write": 377.927,
+        "write_build_to_first_browser_check": 16.29,
+        "self_verify_revise_to_publish": 130.414,
+        "publish_command_to_visible_or_cap": 12.78
+      },
+      "toolCount": 38,
+      "observedToolSpanUnionSeconds": 66.197,
+      "unattributedSeconds": 481.42100000000005,
+      "categories": {
+        "build": {
+          "calls": 3,
+          "observedSpanSeconds": 1.508
+        },
+        "inspect_screenshot": {
+          "calls": 7,
+          "observedSpanSeconds": 0.19
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.988
+        },
+        "read_setup": {
+          "calls": 18,
+          "observedSpanSeconds": 21.118
+        },
+        "verify": {
+          "calls": 4,
+          "observedSpanSeconds": 25.542
+        },
+        "verify_mixed": {
+          "calls": 3,
+          "observedSpanSeconds": 14.359
+        },
+        "web_research": {
+          "calls": 2,
+          "observedSpanSeconds": 12.572
+        }
+      },
+      "infrastructureEvents": [
+        {
+          "sequence": 1048,
+          "type": "system/thread/interrupted",
+          "createdAt": 1792456882940,
+          "data": {
+            "reason": "manual-stop"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "::playground{id=\"8db28966-2d1c-43ed-a852-ec3ab2314034\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/spray-bottle/result.json",
+          "sha256": "05ccab52159a1bfa2a00f3a53646a595f268f81771e5e2fe3a1cc28f195cae82"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/spray-bottle/timeline.json",
+          "sha256": "345437909086f108c81206eb8389f18ef399213355a1ab1234b26e3bd6a49f7f"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "stapler",
+      "threadId": "thr_km5bs3fghd",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792455691073,
+      "endpointMs": 1792456308898,
+      "observedSeconds": 617.825,
+      "scoreSeconds": 617.825,
+      "visibleSeconds": 617.825,
+      "actualWallSeconds": 617.986,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_km5bs3fghd:tool:da9e1326b8-i2",
+          "startMs": 1792455700041,
+          "endMs": 1792455700041,
+          "startSeconds": 8.968,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_km5bs3fghd:file-edit:da9e1326b8-i27:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_km5bs3fghd/.how-it-works/examples/stapler/scene.mjs:file-change:0",
+          "startMs": 1792456046947,
+          "endMs": 1792456046993,
+          "startSeconds": 355.874,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_km5bs3fghd:command:da9e1326b8-i32",
+          "startMs": 1792456104621,
+          "endMs": 1792456110773,
+          "startSeconds": 413.548,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_km5bs3fghd:command:da9e1326b8-i74",
+          "startMs": 1792456294249,
+          "endMs": 1792456295121,
+          "startSeconds": 603.176,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 8.968,
+        "read_design_generation_before_first_write": 346.906,
+        "write_build_to_first_browser_check": 57.674,
+        "self_verify_revise_to_publish": 189.628,
+        "publish_command_to_visible_or_cap": 14.649
+      },
+      "toolCount": 37,
+      "observedToolSpanUnionSeconds": 60.202,
+      "unattributedSeconds": 557.623,
+      "categories": {
+        "build": {
+          "calls": 3,
+          "observedSpanSeconds": 0.56
+        },
+        "inspect_screenshot": {
+          "calls": 9,
+          "observedSpanSeconds": 0.355
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.872
+        },
+        "read_setup": {
+          "calls": 15,
+          "observedSpanSeconds": 6.279
+        },
+        "verify": {
+          "calls": 2,
+          "observedSpanSeconds": 12.667
+        },
+        "verify_mixed": {
+          "calls": 7,
+          "observedSpanSeconds": 39.469
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "::playground{id=\"4ac5e136-c69b-4026-bbf0-3cc50cbcdbfb\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/stapler/result.json",
+          "sha256": "5291a2719eaacc232488431dff8fea8448e27c733ab233c5832ab3e4a78933e3"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/stapler/timeline.json",
+          "sha256": "cb44f1049f6698a1b69381993df6514eb101910a783c91d0621ea574c2ec6189"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "thermos",
+      "threadId": "thr_25rwzfxbne",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792453731642,
+      "endpointMs": 1792454276282,
+      "observedSeconds": 544.64,
+      "scoreSeconds": 544.64,
+      "visibleSeconds": 544.64,
+      "actualWallSeconds": 544.867,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_25rwzfxbne:tool:dab1b69b3d-i2",
+          "startMs": 1792453740214,
+          "endMs": 1792453740214,
+          "startSeconds": 8.572,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_25rwzfxbne:file-edit:dab1b69b3d-i29:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_25rwzfxbne/.how-it-works/examples/thermos/model.mjs:file-change:0",
+          "startMs": 1792454064564,
+          "endMs": 1792454066831,
+          "startSeconds": 332.922,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_25rwzfxbne:command:dab1b69b3d-i36",
+          "startMs": 1792454205000,
+          "endMs": 1792454208749,
+          "startSeconds": 473.358,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_25rwzfxbne:command:dab1b69b3d-i53",
+          "startMs": 1792454263575,
+          "endMs": 1792454264361,
+          "startSeconds": 531.933,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 8.572,
+        "read_design_generation_before_first_write": 324.35,
+        "write_build_to_first_browser_check": 140.436,
+        "self_verify_revise_to_publish": 58.575,
+        "publish_command_to_visible_or_cap": 12.707
+      },
+      "toolCount": 27,
+      "observedToolSpanUnionSeconds": 33.471,
+      "unattributedSeconds": 511.169,
+      "categories": {
+        "build": {
+          "calls": 3,
+          "observedSpanSeconds": 2.797
+        },
+        "inspect_screenshot": {
+          "calls": 5,
+          "observedSpanSeconds": 0.227
+        },
+        "other": {
+          "calls": 1,
+          "observedSpanSeconds": 0.526
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.786
+        },
+        "read_setup": {
+          "calls": 13,
+          "observedSpanSeconds": 4.382
+        },
+        "verify": {
+          "calls": 2,
+          "observedSpanSeconds": 8.817
+        },
+        "verify_mixed": {
+          "calls": 1,
+          "observedSpanSeconds": 8.803
+        },
+        "web_research": {
+          "calls": 1,
+          "observedSpanSeconds": 7.586
+        }
+      },
+      "infrastructureEvents": [
+        {
+          "sequence": 937,
+          "type": "system/thread/interrupted",
+          "createdAt": 1792454276577,
+          "data": {
+            "reason": "manual-stop"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "::playground{id=\"0393ed27-1822-49f2-a4cd-efdc381bc223\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/thermos/result.json",
+          "sha256": "94c9bf59e4a47f91aead169d231ca8129cc90093c5715c17f1df2a213b18f709"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/thermos/timeline.json",
+          "sha256": "a4fdd9bc189d6f05dc9562e6354c45a7f08297186f181929c17b353b775643cc"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "toaster",
+      "threadId": "thr_tpv3gzb7zb",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792457811775,
+      "endpointMs": 1792458260851,
+      "observedSeconds": 449.076,
+      "scoreSeconds": 449.076,
+      "visibleSeconds": 449.076,
+      "actualWallSeconds": 449.228,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_tpv3gzb7zb:tool:da9eb85223-i2",
+          "startMs": 1792457822679,
+          "endMs": 1792457822679,
+          "startSeconds": 10.904,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_tpv3gzb7zb:file-edit:da9eb85223-i30:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_tpv3gzb7zb/.how-it-works/examples/toaster/build.mjs:file-change:0",
+          "startMs": 1792458165024,
+          "endMs": 1792458165059,
+          "startSeconds": 353.249,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_tpv3gzb7zb:command:da9eb85223-i33",
+          "startMs": 1792458175452,
+          "endMs": 1792458179273,
+          "startSeconds": 363.677,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_tpv3gzb7zb:command:da9eb85223-i48",
+          "startMs": 1792458248050,
+          "endMs": 1792458248865,
+          "startSeconds": 436.275,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 10.904,
+        "read_design_generation_before_first_write": 342.345,
+        "write_build_to_first_browser_check": 10.428,
+        "self_verify_revise_to_publish": 72.598,
+        "publish_command_to_visible_or_cap": 12.801
+      },
+      "toolCount": 25,
+      "observedToolSpanUnionSeconds": 43.794,
+      "unattributedSeconds": 405.28200000000004,
+      "categories": {
+        "build": {
+          "calls": 2,
+          "observedSpanSeconds": 0.663
+        },
+        "inspect_screenshot": {
+          "calls": 4,
+          "observedSpanSeconds": 0.131
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.815
+        },
+        "read_setup": {
+          "calls": 14,
+          "observedSpanSeconds": 6.484
+        },
+        "verify": {
+          "calls": 1,
+          "observedSpanSeconds": 3.821
+        },
+        "verify_mixed": {
+          "calls": 2,
+          "observedSpanSeconds": 25.016
+        },
+        "web_research": {
+          "calls": 1,
+          "observedSpanSeconds": 6.864
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "::playground{id=\"289dc5ae-e757-45e6-9db0-545a13a42fa9\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/toaster/result.json",
+          "sha256": "1c9d8eef5cc88ab2ab6defe223c4c106f90a89dd87950250ef9f1ddbe57e29e0"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/toaster/timeline.json",
+          "sha256": "3e978aa96fa31e3c994043f74895796c382a59eab9b71e8b3333cfc0817f26bd"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "toilet",
+      "threadId": "thr_qybj3im32q",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792453111696,
+      "endpointMs": 1792453693624,
+      "observedSeconds": 581.928,
+      "scoreSeconds": 581.928,
+      "visibleSeconds": 581.928,
+      "actualWallSeconds": 582.081,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_qybj3im32q:tool:da0ff571db-i2",
+          "startMs": 1792453119277,
+          "endMs": 1792453119277,
+          "startSeconds": 7.581,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_qybj3im32q:command:da0ff571db-i18",
+          "startMs": 1792453291354,
+          "endMs": 1792453291716,
+          "startSeconds": 179.658,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_qybj3im32q:command:da0ff571db-i30",
+          "startMs": 1792453579799,
+          "endMs": 1792453588200,
+          "startSeconds": 468.103,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_qybj3im32q:command:da0ff571db-i56",
+          "startMs": 1792453685250,
+          "endMs": 1792453685972,
+          "startSeconds": 573.554,
+          "category": "publish_mixed"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 7.581,
+        "read_design_generation_before_first_write": 172.077,
+        "write_build_to_first_browser_check": 288.445,
+        "self_verify_revise_to_publish": 105.451,
+        "publish_command_to_visible_or_cap": 8.374
+      },
+      "toolCount": 26,
+      "observedToolSpanUnionSeconds": 70.148,
+      "unattributedSeconds": 511.78,
+      "categories": {
+        "build": {
+          "calls": 6,
+          "observedSpanSeconds": 2.256
+        },
+        "inspect_screenshot": {
+          "calls": 4,
+          "observedSpanSeconds": 23.677
+        },
+        "publish_mixed": {
+          "calls": 1,
+          "observedSpanSeconds": 0.722
+        },
+        "read_setup": {
+          "calls": 8,
+          "observedSpanSeconds": 13.33
+        },
+        "verify": {
+          "calls": 4,
+          "observedSpanSeconds": 34.686
+        },
+        "verify_mixed": {
+          "calls": 3,
+          "observedSpanSeconds": 18.892
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "Mon Oct 19 11:48:05 PM UTC 2026\n::playground{id=\"25762c88-b5b4-417a-b690-cbc64df8ea50\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/toilet/result.json",
+          "sha256": "bcd6de86fbb82a0995be8b670c844905856ae606e9022afacf1560b987740d90"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/toilet/timeline.json",
+          "sha256": "64f330054ecbd9d5d3e015b67e4ea914b4c2d4295f1207b96015591dbd55bb23"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "umbrella",
+      "threadId": "thr_kdgr63qmx4",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792458269840,
+      "endpointMs": 1792458879674,
+      "observedSeconds": 609.834,
+      "scoreSeconds": 609.834,
+      "visibleSeconds": 609.834,
+      "actualWallSeconds": 610.232,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_kdgr63qmx4:tool:daeeb801fd-i2",
+          "startMs": 1792458300723,
+          "endMs": 1792458300723,
+          "startSeconds": 30.883,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_kdgr63qmx4:file-edit:daeeb801fd-i25:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_kdgr63qmx4/.how-it-works/examples/umbrella/build.mjs:file-change:0",
+          "startMs": 1792458686074,
+          "endMs": 1792458686117,
+          "startSeconds": 416.234,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_kdgr63qmx4:command:daeeb801fd-i31",
+          "startMs": 1792458703390,
+          "endMs": 1792458712148,
+          "startSeconds": 433.55,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_kdgr63qmx4:command:daeeb801fd-i64",
+          "startMs": 1792458863955,
+          "endMs": 1792458864661,
+          "startSeconds": 594.115,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 30.883,
+        "read_design_generation_before_first_write": 385.351,
+        "write_build_to_first_browser_check": 17.316,
+        "self_verify_revise_to_publish": 160.565,
+        "publish_command_to_visible_or_cap": 15.719
+      },
+      "toolCount": 32,
+      "observedToolSpanUnionSeconds": 84.934,
+      "unattributedSeconds": 524.9,
+      "categories": {
+        "build": {
+          "calls": 2,
+          "observedSpanSeconds": 0.595
+        },
+        "inspect_screenshot": {
+          "calls": 5,
+          "observedSpanSeconds": 0.177
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.706
+        },
+        "read_setup": {
+          "calls": 17,
+          "observedSpanSeconds": 29.074
+        },
+        "verify": {
+          "calls": 3,
+          "observedSpanSeconds": 18.727
+        },
+        "verify_mixed": {
+          "calls": 4,
+          "observedSpanSeconds": 35.655
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "::playground{id=\"f1ed8eb9-9ae5-4b1a-8baf-49534862b98f\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/umbrella/result.json",
+          "sha256": "bf6b4c0cd3502008c51f7b98d34b01887cc3918c9706103a8abb1a9a26b51da0"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/umbrella/timeline.json",
+          "sha256": "8c72f27a2f2fe4f0c829d66e5d2776e02b593e002e96bd2394cd881a8b0d46e1"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "washing-machine",
+      "threadId": "thr_27nd984gw9",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792451867802,
+      "endpointMs": 1792452685022,
+      "observedSeconds": 817.22,
+      "scoreSeconds": 817.22,
+      "visibleSeconds": 817.22,
+      "actualWallSeconds": 817.447,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_27nd984gw9:tool:daf16c17af-i2",
+          "startMs": 1792451873231,
+          "endMs": 1792451873231,
+          "startSeconds": 5.429,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_27nd984gw9:file-edit:daf16c17af-i44:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_27nd984gw9/.how-it-works/examples/washing-machine/build.mjs:file-change:0",
+          "startMs": 1792452474364,
+          "endMs": 1792452477052,
+          "startSeconds": 606.562,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_27nd984gw9:command:daf16c17af-i46",
+          "startMs": 1792452483479,
+          "endMs": 1792452487534,
+          "startSeconds": 615.677,
+          "category": "verify_mixed"
+        },
+        "firstPublishCommand": {
+          "id": "thr_27nd984gw9:command:daf16c17af-i78",
+          "startMs": 1792452671976,
+          "endMs": 1792452672703,
+          "startSeconds": 804.174,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 5.429,
+        "read_design_generation_before_first_write": 601.133,
+        "write_build_to_first_browser_check": 9.115,
+        "self_verify_revise_to_publish": 188.497,
+        "publish_command_to_visible_or_cap": 13.046
+      },
+      "toolCount": 40,
+      "observedToolSpanUnionSeconds": 127.586,
+      "unattributedSeconds": 689.634,
+      "categories": {
+        "build": {
+          "calls": 1,
+          "observedSpanSeconds": 2.688
+        },
+        "inspect_screenshot": {
+          "calls": 5,
+          "observedSpanSeconds": 0.28
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.727
+        },
+        "read_setup": {
+          "calls": 23,
+          "observedSpanSeconds": 10.948
+        },
+        "verify": {
+          "calls": 4,
+          "observedSpanSeconds": 47.443
+        },
+        "verify_mixed": {
+          "calls": 4,
+          "observedSpanSeconds": 57.463
+        },
+        "web_research": {
+          "calls": 2,
+          "observedSpanSeconds": 8.037
+        }
+      },
+      "infrastructureEvents": [
+        {
+          "sequence": 1895,
+          "type": "system/thread/interrupted",
+          "createdAt": 1792452685412,
+          "data": {
+            "reason": "manual-stop"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "::playground{id=\"de7574fc-2dd0-430f-bf80-9e10e08567f5\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/washing-machine/result.json",
+          "sha256": "55aac494a1b176374df4a13ec7b30378094debab60a0d4b858b18d203f35c4c2"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/washing-machine/timeline.json",
+          "sha256": "db6308b66985b21ce9baa198bc012fe3401d26c030754375f408b19bff60ef05"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "websocket",
+      "threadId": "thr_pztn9rwqje",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792462526288,
+      "endpointMs": 1792463101363,
+      "observedSeconds": 575.075,
+      "scoreSeconds": 575.075,
+      "visibleSeconds": 575.075,
+      "actualWallSeconds": 575.272,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_pztn9rwqje:tool:daa2127865-i2",
+          "startMs": 1792462534438,
+          "endMs": 1792462534438,
+          "startSeconds": 8.15,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_pztn9rwqje:file-edit:daa2127865-i27:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_pztn9rwqje/.how-it-works/figures/websocket/build.mjs:file-change:0",
+          "startMs": 1792462898080,
+          "endMs": 1792462898133,
+          "startSeconds": 371.792,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_pztn9rwqje:command:daa2127865-i29",
+          "startMs": 1792462906381,
+          "endMs": 1792462909963,
+          "startSeconds": 380.093,
+          "category": "verify_mixed"
+        },
+        "firstPublishCommand": {
+          "id": "thr_pztn9rwqje:command:daa2127865-i65",
+          "startMs": 1792463089095,
+          "endMs": 1792463089971,
+          "startSeconds": 562.807,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 8.15,
+        "read_design_generation_before_first_write": 363.642,
+        "write_build_to_first_browser_check": 8.301,
+        "self_verify_revise_to_publish": 182.714,
+        "publish_command_to_visible_or_cap": 12.268
+      },
+      "toolCount": 33,
+      "observedToolSpanUnionSeconds": 79.607,
+      "unattributedSeconds": 495.4680000000001,
+      "categories": {
+        "build": {
+          "calls": 2,
+          "observedSpanSeconds": 1.41
+        },
+        "inspect_screenshot": {
+          "calls": 7,
+          "observedSpanSeconds": 0.558
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.876
+        },
+        "read_setup": {
+          "calls": 14,
+          "observedSpanSeconds": 7.662
+        },
+        "verify": {
+          "calls": 3,
+          "observedSpanSeconds": 40.497
+        },
+        "verify_mixed": {
+          "calls": 6,
+          "observedSpanSeconds": 28.78
+        }
+      },
+      "infrastructureEvents": [
+        {
+          "sequence": 1137,
+          "type": "system/thread/interrupted",
+          "createdAt": 1792463101639,
+          "data": {
+            "reason": "manual-stop"
+          }
+        }
+      ],
+      "firstPublishOutputExcerpt": "::playground{id=\"a9718d52-8bb8-481f-bab9-15f56c29ce15\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/websocket/result.json",
+          "sha256": "7edf8cad8249cb01800d9573265a1c5950bdad36beee6c455d5a6eade94a8171"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/websocket/timeline.json",
+          "sha256": "fd9ab2cba0c2b41a0848905a80c8b2894496dd66ead752ca098b3a1d108b9669"
+        }
+      ]
+    },
+    {
+      "label": "baseline",
+      "prompt": "zipper",
+      "threadId": "thr_f6yyf5fxa4",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792452695421,
+      "endpointMs": 1792453103185,
+      "observedSeconds": 407.764,
+      "scoreSeconds": 407.764,
+      "visibleSeconds": 407.764,
+      "actualWallSeconds": 407.945,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_f6yyf5fxa4:tool:da2fb7df2b-i2",
+          "startMs": 1792452703992,
+          "endMs": 1792452703992,
+          "startSeconds": 8.571,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_f6yyf5fxa4:file-edit:da2fb7df2b-i29:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/plugins/environment-personal-workspace/host-data/workspaces/thr_f6yyf5fxa4/.how-it-works/examples/zipper/build.mjs:file-change:0",
+          "startMs": 1792452975377,
+          "endMs": 1792452975487,
+          "startSeconds": 279.956,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_f6yyf5fxa4:command:da2fb7df2b-i31",
+          "startMs": 1792452985450,
+          "endMs": 1792452989477,
+          "startSeconds": 290.029,
+          "category": "verify_mixed"
+        },
+        "firstPublishCommand": {
+          "id": "thr_f6yyf5fxa4:command:da2fb7df2b-i57",
+          "startMs": 1792453095719,
+          "endMs": 1792453096480,
+          "startSeconds": 400.298,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 8.571,
+        "read_design_generation_before_first_write": 271.385,
+        "write_build_to_first_browser_check": 10.073,
+        "self_verify_revise_to_publish": 110.269,
+        "publish_command_to_visible_or_cap": 7.466
+      },
+      "toolCount": 29,
+      "observedToolSpanUnionSeconds": 61.468,
+      "unattributedSeconds": 346.296,
+      "categories": {
+        "build": {
+          "calls": 1,
+          "observedSpanSeconds": 0.11
+        },
+        "inspect_screenshot": {
+          "calls": 5,
+          "observedSpanSeconds": 0.223
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.761
+        },
+        "read_setup": {
+          "calls": 16,
+          "observedSpanSeconds": 6.137
+        },
+        "verify": {
+          "calls": 2,
+          "observedSpanSeconds": 20.748
+        },
+        "verify_mixed": {
+          "calls": 4,
+          "observedSpanSeconds": 33.489
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "::playground{id=\"f7c5e581-23a6-437b-8c85-05e3958f2bdc\"}",
+      "sources": [
+        {
+          "path": ".launch/results/baseline/claude-code/zipper/result.json",
+          "sha256": "492efa5021fcc0f23233e0a8547bec413e9889a858d9a4f6a4fff00e87c3dd0d"
+        },
+        {
+          "path": ".launch/results/baseline/claude-code/zipper/timeline.json",
+          "sha256": "e9fd7279c91bf476e3d64e193596ab58cc1833d007c2454116b9658c8dc81426"
+        }
+      ]
+    },
+    {
+      "label": "prototype",
+      "prompt": "bicycle-pump",
+      "threadId": "thr_abm3wsbdua",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792467241502,
+      "endpointMs": 1792467479470,
+      "observedSeconds": 237.968,
+      "scoreSeconds": 237.968,
+      "visibleSeconds": 237.968,
+      "actualWallSeconds": 238.209,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_abm3wsbdua:tool:dad523d551-i2",
+          "startMs": 1792467249959,
+          "endMs": 1792467249959,
+          "startSeconds": 8.457,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_abm3wsbdua:command:dad523d551-i17",
+          "startMs": 1792467399275,
+          "endMs": 1792467399680,
+          "startSeconds": 157.773,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_abm3wsbdua:command:dad523d551-i18",
+          "startMs": 1792467404319,
+          "endMs": 1792467419145,
+          "startSeconds": 162.817,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_abm3wsbdua:command:dad523d551-i30",
+          "startMs": 1792467460429,
+          "endMs": 1792467472392,
+          "startSeconds": 218.927,
+          "category": "publish_mixed"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 8.457,
+        "read_design_generation_before_first_write": 149.316,
+        "write_build_to_first_browser_check": 5.044,
+        "self_verify_revise_to_publish": 56.11,
+        "publish_command_to_visible_or_cap": 19.041
+      },
+      "toolCount": 15,
+      "observedToolSpanUnionSeconds": 40.244,
+      "unattributedSeconds": 197.724,
+      "categories": {
+        "build": {
+          "calls": 1,
+          "observedSpanSeconds": 0.405
+        },
+        "inspect_screenshot": {
+          "calls": 3,
+          "observedSpanSeconds": 0.19
+        },
+        "publish_mixed": {
+          "calls": 1,
+          "observedSpanSeconds": 11.963
+        },
+        "read_setup": {
+          "calls": 8,
+          "observedSpanSeconds": 3.135
+        },
+        "verify": {
+          "calls": 1,
+          "observedSpanSeconds": 14.826
+        },
+        "verify_mixed": {
+          "calls": 1,
+          "observedSpanSeconds": 9.725
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "wrote floor-pump.html\nshot shots/g.png \u00b7 readout \"barrel 0 psi \u00b7 tire 14.7 psi \u00b7 valve shut\"\nconsole: clean\n::playground{id=\"200cab6e-dda1-4e07-9472-7d396e6062cd\"}",
+      "sources": [
+        {
+          "path": ".launch/results/prototype/claude-code/bicycle-pump/result.json",
+          "sha256": "bf1e0f41c72510e459940b15e0c828c415fc91ad711e27440e56d73288e08f0b"
+        },
+        {
+          "path": ".launch/results/prototype/claude-code/bicycle-pump/timeline.json",
+          "sha256": "cb0e2969db032235e3fdc6299456bf763e28446995408e10ac277b396658759a"
+        }
+      ]
+    },
+    {
+      "label": "prototype",
+      "prompt": "cdn",
+      "threadId": "thr_79h5kedc99",
+      "model": "claude-opus-5-5",
+      "classification": "visible_card",
+      "sentAt": 1792467499812,
+      "endpointMs": 1792467743294,
+      "observedSeconds": 243.482,
+      "scoreSeconds": 243.482,
+      "visibleSeconds": 243.482,
+      "actualWallSeconds": 243.833,
+      "error": null,
+      "markers": {
+        "firstTool": {
+          "id": "thr_79h5kedc99:tool:da42b9c023-i2",
+          "startMs": 1792467530246,
+          "endMs": 1792467530246,
+          "startSeconds": 30.434,
+          "category": "read_setup"
+        },
+        "firstArtifactWrite": {
+          "id": "thr_79h5kedc99:file-edit:da42b9c023-i24:/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/data/thread-storage/thr_79h5kedc99/figure-TCPZhW/examples/cdn-purge/build.mjs:file-change:0",
+          "startMs": 1792467695469,
+          "endMs": 1792467695509,
+          "startSeconds": 195.657,
+          "category": "build"
+        },
+        "firstBrowserVerification": {
+          "id": "thr_79h5kedc99:command:da42b9c023-i27",
+          "startMs": 1792467700765,
+          "endMs": 1792467709331,
+          "startSeconds": 200.953,
+          "category": "verify"
+        },
+        "firstPublishCommand": {
+          "id": "thr_79h5kedc99:command:da42b9c023-i32",
+          "startMs": 1792467718593,
+          "endMs": 1792467719305,
+          "startSeconds": 218.781,
+          "category": "publish"
+        }
+      },
+      "phasesSeconds": {
+        "dispatch_to_first_tool": 30.434,
+        "read_design_generation_before_first_write": 165.223,
+        "write_build_to_first_browser_check": 5.296,
+        "self_verify_revise_to_publish": 17.828,
+        "publish_command_to_visible_or_cap": 24.701
+      },
+      "toolCount": 20,
+      "observedToolSpanUnionSeconds": 21.841,
+      "unattributedSeconds": 221.641,
+      "categories": {
+        "build": {
+          "calls": 2,
+          "observedSpanSeconds": 0.449
+        },
+        "inspect_screenshot": {
+          "calls": 1,
+          "observedSpanSeconds": 0.029
+        },
+        "publish": {
+          "calls": 1,
+          "observedSpanSeconds": 0.712
+        },
+        "read_setup": {
+          "calls": 14,
+          "observedSpanSeconds": 8.738
+        },
+        "verify": {
+          "calls": 2,
+          "observedSpanSeconds": 11.913
+        }
+      },
+      "infrastructureEvents": [],
+      "firstPublishOutputExcerpt": "::playground{id=\"0f5a6e5e-3d20-4158-8e1a-a04da922a0d9\"}",
+      "sources": [
+        {
+          "path": ".launch/results/prototype/claude-code/cdn/result.json",
+          "sha256": "5e6f73e25e371cfa6dc1bf8030c531a8b6936799709a2eb47c440eae49300fa7"
+        },
+        {
+          "path": ".launch/results/prototype/claude-code/cdn/timeline.json",
+          "sha256": "23c701162883d01076b277fdeb880a6333691a4bf4e13fdd837e95cb65dc1448"
+        }
+      ]
+    }
+  ],
+  "method": "Work-row start/completion event timestamps are observed envelopes, not CPU timings. File-change completion recovered from read-only events when normalized row omits completedAt. Before-first-write includes reading, design, argument/code generation and unsplit waits. No provider-token-stream clock exists in retained events to disaggregate these. Combined shell commands cannot isolate subcommands. Gaps are not attributed to model thinking or host stalls. End is visible proof, cap for seat-belt, finishedAt for infrastructure failures. Post-visible evaluator control-driving is excluded.",
+  "exportNote": {
+    "detail": "Compact phase export; complete work rows and gaps remain in the original linked evidence.",
+    "path": "/home/bersabel/.bb/plugins/environment-git-worktree/host-data/worktrees/thr_vv8zgxmczt-1/bb-plugins/.launch/results/claude-timing-analysis.json",
+    "sha256": "11acb26b65c013ece7e11666c181222ef91f5b8d67bf493f42759e15a836dc20"
+  }
+}
