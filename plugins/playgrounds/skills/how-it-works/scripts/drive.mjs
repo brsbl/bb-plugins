@@ -138,7 +138,7 @@ async function main() {
       const data = JSON.parse(message.data);
       if (!data.id) events.get(data.method)?.();
       if (data.id && pending.has(data.id)) {
-        pending.get(data.id)(data);
+        if(process.env.BB_CLIP_TRACE) console.error("DONE",data.id);pending.get(data.id)(data);
         pending.delete(data.id);
       } else if (data.method === "Fetch.requestPaused" && options.clip) {
         const allowed = [options.clip.cardUrl, options.clip.endUrl].includes(data.params.request.url);
@@ -153,7 +153,7 @@ async function main() {
     await new Promise((done) => (socket.onopen = done));
     const send = (method, params = {}) =>
       new Promise((done, fail) => {
-        const call = ++id;
+        const call = ++id; if(process.env.BB_CLIP_TRACE) console.error("SEND",call,method);
         const timer = setTimeout(() => { pending.delete(call); fail(new Error(`Chrome timed out: ${method}\n${chromeLog}`)); }, 30000);
         pending.set(call, result => { clearTimeout(timer); if (options.clip && result.error) fail(new Error(`${method}: ${JSON.stringify(result.error)}`)); else done(result); });
         socket.send(JSON.stringify({ id: call, method, params }));

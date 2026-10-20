@@ -26,6 +26,7 @@ jobs:
       - name: Render and encode without an installed browser or FFmpeg
         env:
           BB_CLIP_PORTABLE_BROWSER: "1"
+          BB_CLIP_TRACE: "1"
         shell: bash
         run: |
           mkdir -p clip-tools
