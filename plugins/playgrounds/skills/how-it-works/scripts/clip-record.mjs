@@ -123,6 +123,7 @@ export async function recordClip({ send, evaluate, replay, clock, options }) {
     writeFileSync(out + ".json", JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify(report));
   } catch (error) {
+    enc.child.stdin.destroy();
     enc.child.kill("SIGTERM"); await enc.done.catch(() => {});
     // Output is new (the entry script rejects existing destinations).
     rmSync(out, { force: true });

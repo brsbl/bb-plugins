@@ -12,6 +12,7 @@ function installClock() {
     get: (target, key) => key === "now" ? () => Math.floor(epoch + now) : Reflect.get(target, key),
   });
   Object.defineProperty(performance, "now", { value: () => now });
+  Object.defineProperty(performance, "timeOrigin", { value: epoch });
   globalThis.requestAnimationFrame = (callback) => { const id = nextId++; frames.set(id, callback); return id; };
   globalThis.cancelAnimationFrame = (id) => frames.delete(id);
   function timer(callback, delay, repeat, args) {
@@ -43,7 +44,7 @@ function installClock() {
       const [id, task] = due;
       now = task.at;
       if (task.repeat) task.at += task.repeat; else timers.delete(id);
-      task.callback(...task.args);
+      Reflect.apply(task.callback, globalThis, task.args);
       await Promise.resolve();
     }
     now = time;
@@ -51,7 +52,7 @@ function installClock() {
     const batch = [...frames];
     for (const [id, callback] of batch) {
       if (!frames.delete(id)) continue;
-      callback(now);
+      Reflect.apply(callback, globalThis, [now]);
       await Promise.resolve();
     }
     seekAnimations();
