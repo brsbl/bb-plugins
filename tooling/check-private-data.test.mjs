@@ -13,7 +13,7 @@ const mac = name => '/' + 'Users/' + name;
 const thread = suffix => 'thr_' + suffix;
 
 test('rejects personal home paths and real-shaped thread IDs, including links', () => {
-  for (const value of [home('bersabel'), mac('brsbl'), home('someone'), mac('other-user'), home('user2'), mac('alexander'), home('name.with-dots')]) {
+  for (const value of [mac('brsbl'), home('someone'), mac('other-user'), home('user2'), mac('alexander'), home('name.with-dots')]) {
     assert.equal(privateDataHits(`first\n[file](file://${value}/note.md)`).length, 1);
     assert.equal(privateDataHits(`first\n${value}`)[0].line, 2);
   }
@@ -22,6 +22,25 @@ test('rejects personal home paths and real-shaped thread IDs, including links', 
     assert.equal(privateDataHits(`/worktrees/${value}-1/report.json`).length, 1);
     assert.equal(privateDataHits(`${value}_screenshot.png`).length, 1);
   }
+});
+
+test('rejects personal account names case-insensitively without banning the public GitHub owner', () => {
+  const accounts = ['brs' + 'abel', 'bt' + 'adesse11', 'ber' + 'sabel', 'ta' + 'desse'];
+  for (const name of accounts) {
+    for (const value of [name, name.toUpperCase(), `gmail-${name}`, `${name}@example.com`]) {
+      assert.ok(privateDataHits(value).some(hit => hit.kind === 'personal identifier'));
+    }
+  }
+  for (const value of [home('ber' + 'sabel'), mac('brsbl').toUpperCase()]) {
+    assert.ok(privateDataHits(value).some(hit => hit.kind === 'home path'));
+  }
+  for (const url of [
+    'https://github.com/brsbl/bb-plugins',
+    'git:https://github.com/brsbl/bb-plugins.git@plugin/playgrounds',
+    'https://github.com/brsbl/marketplace',
+    'https://raw.githubusercontent.com/brsbl/marketplace/main/marketplace.json',
+    'alex@example.com',
+  ]) assert.deepEqual(privateDataHits(url), []);
 });
 
 test('allows only explicit synthetic homes and thread examples', () => {

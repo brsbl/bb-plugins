@@ -8,11 +8,15 @@ import { gunzipSync } from 'node:zlib';
 // Keep examples explicit; never exempt whole files, tests, or vendored sources.
 const syntheticHomes = new Set(['/home/user', '/Users/alex']);
 const syntheticThread = /^thr_example[0-9]{3}$/;
+// Split the denied account names so the policy itself does not repeat them
+// verbatim in tracked files. The public GitHub owner is intentionally allowed.
+const personalIdentifiers = new RegExp(['brs' + 'abel', 'ber' + 'sabel', 'ta' + 'desse'].join('|'), 'gi');
 
 export function privateDataHits(text) {
   const hits = [];
   const patterns = [
-    { kind: 'home path', pattern: /\/(?:home|Users)\/[a-zA-Z0-9_.-]+/g, allowed: value => syntheticHomes.has(value) },
+    { kind: 'personal identifier', pattern: personalIdentifiers, allowed: () => false },
+    { kind: 'home path', pattern: /\/(?:home|Users)\/[a-zA-Z0-9_.-]+/gi, allowed: value => syntheticHomes.has(value) },
     { kind: 'thread ID', pattern: /thr_[a-z0-9]{10}(?![a-z0-9])/g, allowed: value => syntheticThread.test(value) },
   ];
   for (const { kind, pattern, allowed } of patterns) {

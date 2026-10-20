@@ -3,7 +3,7 @@ import { VIEWER_NOTE_CHANGED_CHANNEL } from "./contract.js";
 import { VIEWER_NOTE_CHANGED, asViewerNoteChanged, assetHref, safeExternalUrl } from "./viewer-frame.js";
 
 it("opens only web and mail links from a note", () => {
-  expect(safeExternalUrl("https://x.com/brsabel/status/1")).toBe("https://x.com/brsabel/status/1");
+  expect(safeExternalUrl("https://x.com/alex/status/1")).toBe("https://x.com/alex/status/1");
   expect(safeExternalUrl("mailto:me@example.com")).toBe("mailto:me@example.com");
   expect(safeExternalUrl("/docs", "https://example.com/a/")).toBe("https://example.com/docs");
   for (const url of ["javascript:alert(1)", " JavaScript:alert(1)", "data:text/html,<b>x</b>", "file:///etc/passwd", "not a url"]) {
