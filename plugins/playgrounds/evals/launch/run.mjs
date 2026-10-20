@@ -5,6 +5,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkControls } from './controls.mjs';
 import { hasInk } from './pixels.mjs';
+import { captureVisible } from './visibility-capture.mjs';
+import { visibilityFixtures } from './visibility-fixtures.mjs';
 import { failureScore, providerSummary, resumeMismatch } from './metrics.mjs';
 import { renderWindow } from './observations.mjs';
 import { proofFixtures } from './fixtures.mjs';
@@ -44,7 +46,7 @@ const manifestPath = join(out, 'manifest.json');
 const commit = args.commit || (() => { try { return execFileSync('git', ['-C', pluginRoot, 'rev-parse', 'HEAD'], {encoding:'utf8'}).trim(); } catch { return 'unverified'; } })();
 const manifest = { label: args.label, url: base.origin, host: args.host, pluginRoot, commit, capMs, renderGraceMs: 30_000,
   prompts, providers, modelSelection: 'omitted: default for each provider in fresh Personal project',
-  concurrency: 1, timing: 'HTTP prompt send until loaded card is visible in real thread DOM; polling resolution 150 ms, screenshot corroboration',
+  concurrency: 1, timing: 'HTTP prompt send until accepted screenshot of a loaded card in the real thread; stable DOM identity, layout and visible interior; screenshot completion is the observed upper bound',
   createdAt: new Date().toISOString() };
 if (existsSync(manifestPath)) {
   const old = JSON.parse(readFileSync(manifestPath, 'utf8'));
@@ -84,13 +86,10 @@ function questionEvidence(timeline, interactions) {
     needsReview: textQuestions.some(q => !q.likely) };
 }
 function monitor(threadId, capAt, renderWindow) {
-  const visible = el => {
-    const r = el.getBoundingClientRect();
-    return r.width > 80 && r.height > 40 && r.bottom > 0 && r.top < innerHeight && getComputedStyle(el).visibility !== 'hidden';
-  };
-  const loaded = new WeakSet();
-  window.__launch = { proof: null, progress: [], errors: [], done: false, agentCompletedAt: null, terminalObservedAt: null, completionSource: null };
-  document.addEventListener('load', event => { if (event.target?.tagName === 'IFRAME' && event.target.src) loaded.add(event.target); }, true);
+  if (window.top !== window) return;
+  const loaded = new WeakMap(), identities = new WeakMap(); let nextIdentity = 0;
+  window.__launch = { proof: null, candidate: null, progress: [], errors: [], done: false, agentCompletedAt: null, terminalObservedAt: null, completionSource: null };
+  document.addEventListener('load', event => { if (event.target?.tagName === 'IFRAME' && event.target.src) loaded.set(event.target, Date.now()); }, true);
   setInterval(() => {
     const state = window.__launch;
     const windowState = renderWindow({now:Date.now(),capAt,agentCompletedAt:state.agentCompletedAt,visibleAt:state.proof?.at ?? null});
@@ -98,12 +97,14 @@ function monitor(threadId, capAt, renderWindow) {
     if (state.done) return;
     const frame = document.querySelector('.pg-host .pg-widget iframe');
     const card = frame || document.querySelector('.pg-host .pg-answer:not([role="status"]):not(.pg-error)');
-    if (!card) return;
-    card.scrollIntoView({block:'center'});
-    if (!visible(card) || (frame && !loaded.has(frame))) return;
-    card.dataset.launchCard = 'visible';
-    window.__launch.proof = { at: Date.now(), kind: frame ? 'html' : 'document', target: frame?.src || location.href,
-      width: card.getBoundingClientRect().width, height: card.getBoundingClientRect().height };
+    if (!card || (frame && !loaded.has(frame))) { state.candidate = null; return; }
+    const r = card.getBoundingClientRect();
+    if (r.width <= 80 || r.height <= 40 || getComputedStyle(card).visibility === 'hidden') { state.candidate = null; return; }
+    if (!identities.has(card)) identities.set(card, { key: String(++nextIdentity), at: loaded.get(card) || Date.now() });
+    const identity = identities.get(card);
+    if (card.dataset.launchCard !== 'candidate') card.dataset.launchCard = 'candidate';
+    if (card.dataset.launchKey !== identity.key) card.dataset.launchKey = identity.key;
+    state.candidate = { ...identity, kind: frame ? 'html' : 'document', target: frame?.src || location.href };
   }, 150);
   const flatten = rows => rows.flatMap(row => [row, ...flatten(row.children || row.childRows || [])]);
   const normalize = text => text.replace(/[*_`#\[\]]/g, '').replace(/\s+/g, ' ').trim();
@@ -173,6 +174,7 @@ function summarize() {
 const defaultModels = new Map();
 const preflightDir = join(out,'preflight',String(Date.now())); mkdirSync(preflightDir,{recursive:true});
 save(join(preflightDir,'server-identity.json'), await verifyIsolation(base, args['data-dir'], args.host));
+await visibilityFixtures({dir:join(preflightDir,'visibility'),tempRoot:chromeTempDir});
 await api('/projects/proj_personal');
 const plugins = await api('/plugins'); save(join(preflightDir,'plugins.json'),plugins);
 if (!JSON.stringify(plugins).includes('playgrounds')) throw new Error('Preflight: Playgrounds is not installed');
@@ -268,11 +270,9 @@ for (const provider of providers) for (const prompt of selected) {
     if (interrupted) throw new Error('Runner interrupted');
     const preload = join(dir,'monitor.js');
     writeFileSync(preload, `(${monitor.toString()})(${JSON.stringify(thread.id)},${result.sentAt+capMs},${renderWindow.toString()});`);
-    const remaining = Math.max(1, capMs - (Date.now()-result.sentAt));
-    const visible = await drive(new URL(`/threads/${thread.id}`,base).href,
-      [['until','window.__launch?.proof || window.__launch?.done',remaining], ['eval','window.__launch'], ['shot',join(dir,'visible.png'),'[data-launch-card="visible"]']],
-      join(dir,'visible'),prompt.width || 1280,{preload,timeout:remaining+20_000});
-    const measurement = visible.evals.find(v => v && Object.hasOwn(v,'proof'));
+    const visible = await captureVisible({target:new URL(`/threads/${thread.id}`,base).href,
+      preload,dir,tempRoot:chromeTempDir,capAt:result.sentAt+capMs,width:prompt.width || 1280});
+    const measurement = visible.measurement;
     const proof = measurement?.proof;
     result.progress = measurement?.progress || [];
     result.browserErrors = measurement?.errors || [];

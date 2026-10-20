@@ -41,7 +41,7 @@ export function inventory(scope = 'body') {
 export function captureEvidence(scope,probeId,frameIndex) {
   const root=document.querySelector(scope),rootRect=root.getBoundingClientRect();
   const ordinary='button,input,select,textarea,label,[role="button"],[role="switch"],[role="checkbox"],[role="radio"],[role="tab"]';
-  const candidates=[...root.querySelectorAll('svg,canvas,output,[data-readout],[aria-live],.pg-sentence,.pg-readouts dd,p,dd,td')]
+  const candidates=[...root.querySelectorAll('svg,canvas,output,[data-readout],[aria-live],[role="status"],.pg-sentence,.pg-readouts dd,p,dd,td')]
     .filter(el => !el.closest(ordinary) && !el.parentElement?.closest('svg,canvas'));
   // Prefer the outer named output if nested selectors describe the same text.
   const outputs=candidates.filter(el => !candidates.some(parent => parent!==el && parent.contains(el)));

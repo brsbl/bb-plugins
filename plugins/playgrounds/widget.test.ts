@@ -405,3 +405,32 @@ it("keeps native and non-button toggles operable with visible wrapping labels", 
   }
   window.close();
 });
+
+it("does not apply a standalone frame's queued save messages as remote state", async () => {
+  const { dom } = frame('<button data-pg="toggle" data-param="enabled"></button><output></output><script>' +
+    'const P=playground.params;P.get("enabled");P.on(()=>{document.querySelector("output").textContent=String(P.get("enabled"));playground.save({note:"saved"});});</script>');
+  const { window } = dom;
+  if (window.document.readyState !== "complete") await new Promise((resolve) => window.addEventListener("load", resolve));
+  window.document.querySelector("button")!.click();
+  const output = window.document.querySelector("output")!;
+  expect(output.textContent).toBe("true");
+  window.dispatchEvent(new window.MessageEvent("message", {
+    source: window, data: { source: WIDGET_MESSAGE_SOURCE, type: "state", state: { params: { enabled: false } }, base: 0 },
+  }));
+  expect(output.textContent).toBe("true");
+  expect(await command(window, "setParams", [{ enabled: false }])).toMatchObject({ ok: true });
+  expect(output.textContent).toBe("false");
+  window.close();
+});
+
+it("still applies shared state sent by an embedded card's parent", () => {
+  const { dom } = frame('<button data-pg="toggle" data-param="enabled"></button><output></output><script>' +
+    'const P=playground.params;P.get("enabled");P.on(()=>document.querySelector("output").textContent=String(P.get("enabled")));</script>');
+  const host = new JSDOM();
+  Object.defineProperty(dom.window, "parent", { value: host.window });
+  dom.window.dispatchEvent(new dom.window.MessageEvent("message", {
+    source: host.window, data: { source: WIDGET_MESSAGE_SOURCE, type: "state", state: { params: { enabled: true } }, version: 1 },
+  }));
+  expect(dom.window.document.querySelector("output")!.textContent).toBe("true");
+  dom.window.close(); host.window.close();
+});
