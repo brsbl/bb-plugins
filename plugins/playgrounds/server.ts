@@ -1,3 +1,4 @@
+import { createAnalytics, clipExportPropertiesSchema, playgroundKind } from "./analytics.js";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { cliCommand, defineCli, defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
@@ -174,6 +175,7 @@ const sharesConversation = (thread: ThreadLink) =>
   thread.sourceThreadId !== null &&
   thread.lifecycleOwnerThreadId === thread.sourceThreadId;
 function createStore(bb: BbPluginApi) {
+  const report = createAnalytics(bb);
   const db = bb.storage.database();
   bb.storage.migrate(db, [
     "CREATE TABLE answer_documents (id TEXT PRIMARY KEY, document TEXT NOT NULL, kind TEXT NOT NULL)",
@@ -316,13 +318,17 @@ function createStore(bb: BbPluginApi) {
         copyAnswers(thread.sourceThreadId, thread.id, null);
     },
     publish(threadId: string, json: string) {
-      return insert(threadId, "document", JSON.stringify(parseDocument(json)));
+      const result = insert(threadId, "document", JSON.stringify(parseDocument(json)));
+      void report({ name: "playground_published", properties: { kind: "native" } });
+      return result;
     },
     // Every HTML publish (tool, --playground, --playground-stdin, --playground-file) comes through here.
     publishHtml(threadId: string, widget: HtmlAnswer) {
       const parsed = htmlAnswerSchema.parse(widget);
       assertKitMarkup(parsed.html);
-      return insert(threadId, "html", JSON.stringify(parsed));
+      const result = insert(threadId, "html", JSON.stringify(parsed));
+      void report({ name: "playground_published", properties: { kind: playgroundKind("html", parsed.html) } });
+      return result;
     },
     async save(threadId: string, id: string, title?: string): Promise<SavedPlayground> {
       const answer = get(threadId, id);
@@ -375,6 +381,8 @@ function createStore(bb: BbPluginApi) {
       if (exists(target, saved.id))
         live.setState(target, saved.id, live.getState(saved.threadId, saved.id).state, "saved");
       else copyAnswers(saved.threadId, target, saved.id);
+      const answer = get(target, saved.id);
+      void report({ name: "playground_published", properties: { kind: playgroundKind(answer.kind, answer.kind === "html" ? answer.widget.html : "") } });
       return { id: saved.id, directive: `::playground{id="${saved.id}"}` };
     },
     removeThread(threadId: string) {
@@ -609,6 +617,23 @@ export default function plugin(bb: BbPluginApi): void {
               exitCode: 0,
               stdout: `${store.publish(threadId, options.document).directive}\n`,
             };
+          },
+        }),
+        "clip-exported": cliCommand({
+          summary: "Record fixed usage categories after a clip has been saved locally",
+          options: {
+            kind: { type: "string", required: true },
+            format: { type: "string", required: true },
+            size: { type: "string", required: true },
+            "duration-bucket": { type: "string", required: true },
+          },
+          async handler({ options }) {
+            const properties = clipExportPropertiesSchema.parse({
+              kind: options.kind, format: options.format, size: options.size,
+              duration_bucket: options["duration-bucket"],
+            });
+            await createAnalytics(bb)({ name: "playground_clip_exported", properties });
+            return { exitCode: 0 };
           },
         }),
         "clip-source": cliCommand({
