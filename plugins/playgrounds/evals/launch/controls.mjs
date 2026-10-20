@@ -165,7 +165,9 @@ export async function checkControls({ target, scope = 'body', width, dir, drive 
   const initial=exercised.evals.find(Array.isArray) || controls;
   const snapshots=[{inventoryAfter:{phase:'start'},controls:initial},...exercised.evals.filter(value=>value?.inventoryAfter),{inventoryAfter:{phase:'end'},controls:exercised.evals.filter(Array.isArray).at(-1) || []}];
   for(const control of unexercisedControls(controls,snapshots)) results.push({...control,pass:false,status:'unproven',reason:'Interaction exposed another control that was not exercised (retained even if later hidden)'});
-  const runtimeErrors=exercised.log.split('\n').filter(line=>line.includes('exception:'));
+  // The parameter bridge catches subscriber failures and reports console.error;
+  // a partially updated readout must not turn that failed render into a pass.
+  const runtimeErrors=exercised.log.split('\n').filter(line=>/^(?:exception|console\.error):/.test(line));
   const pass=exercised.code===0 && runtimeErrors.length===0 && results.every(control=>control.pass);
   const report={pass,status:pass?'live':runtimeErrors.length?'runtime-error':'unproven',algorithm:'aligned-output-regions-v1',controls:results,inventories:snapshots,runtimeErrors,
     reason:pass?'Every exposed control produced a proven output change':runtimeErrors.length?'Runtime exception prevents card proof':'At least one control remains unproven; this is not proof that it is dead'};
