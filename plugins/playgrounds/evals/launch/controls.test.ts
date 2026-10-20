@@ -20,4 +20,7 @@ describe('custom surface input coverage',()=>{
     const probes=inputProbes({index:0,tag:'input',type:'checkbox'});
     expect(probes).toEqual([{mode:'primary',steps:[['click','[data-launch-control="0"]']]}]);
   });
+  it('clicks a native disclosure without relying on a custom cursor or role',()=>{
+    expect(inputProbes({index:4,tag:'summary',type:'',cursor:'auto',focusable:true})).toEqual([{mode:'primary',steps:[['click','[data-launch-control="4"]']]}]);
+  });
 });

@@ -89,7 +89,8 @@ non-default model for Personal, reset the **isolated instance** before measuring
   and fails the control criterion.
 - The bundled `scripts/drive.mjs` opens the actual served frame URL and uses real
   pointer/keyboard input. Native ranges are dragged diagonally to exercise either
-  horizontal or vertical input. Native toggles/buttons are clicked; text/select
+  horizontal or vertical input. Native toggles, buttons and disclosure summaries
+  are clicked (summary discovery does not depend on cursor styling); text/select
   controls receive keys. Custom focusable/drawing surfaces receive **separate**
   drag, click, Home, End, arrow, Space and Enter attempts. A slider role does not
   imply a working drag handler. Every attempt retains five PNGs, actions, output

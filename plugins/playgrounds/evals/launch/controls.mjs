@@ -7,7 +7,7 @@ import { observeInteractions, unexercisedControls } from './observations.mjs';
 export function inventory(scope = 'body') {
   const root = document.querySelector(scope);
   if (!root) return [];
-  const candidates = [...root.querySelectorAll('button,input:not([type="hidden"]),select,textarea,[role="button"],[role="switch"],[role="slider"],[role="checkbox"],[role="radio"],[role="tab"],[tabindex],canvas,[onclick],[data-drag]')];
+  const candidates = [...root.querySelectorAll('button,summary,input:not([type="hidden"]),select,textarea,[role="button"],[role="switch"],[role="slider"],[role="checkbox"],[role="radio"],[role="tab"],[tabindex],canvas,[onclick],[data-drag]')];
   for (const el of root.querySelectorAll('*')) {
     const cursor = getComputedStyle(el).cursor;
     if (/^(pointer|grab|grabbing|move|.*resize)$/.test(cursor) && getComputedStyle(el.parentElement || el).cursor !== cursor) candidates.push(el);
@@ -94,14 +94,14 @@ function action(c) {
     if (c.type === 'number') return [['click', s], ['key', 'ArrowUp', s]];
     return [['click', s], ['key', 'x', s]];
   }
-  if (c.tag === 'button' || ['button','submit','reset','checkbox','radio','switch','tab'].includes(c.type) || c.tag === 'a' || c.cursor === 'pointer') return [['click', s]];
+  if (c.tag === 'button' || c.tag === 'summary' || ['button','submit','reset','checkbox','radio','switch','tab'].includes(c.type) || c.tag === 'a' || c.cursor === 'pointer') return [['click', s]];
   return null;
 }
 
 export function inputProbes(control) {
   const primary=action(control);
   if(control.disabled || control.tag==='canvas') return [];
-  const native=['button','input','select','textarea','a'].includes(control.tag);
+  const native=['button','summary','input','select','textarea','a'].includes(control.tag);
   const custom=!native && (control.focusable || control.drawing || primary || ['slider','button'].includes(control.type));
   if(!custom) return primary ? [{mode:primary.some(step => step[0]==='drag')?'drag':'primary',steps:primary}] : [];
   const s=selector(control);
