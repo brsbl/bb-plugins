@@ -707,6 +707,30 @@ it("does not use --thread as a substitute for an invoking thread when reading fi
   }
 });
 
+it("exports a thread-confined standalone card with saved state and unchanged CSP", async () => {
+  const host = createFakePluginHost({ pluginId: "playgrounds" });
+  try {
+    plugin(host.bb);
+    const published = await host.harness.behavior.runCli(["publish", "--thread", "thr_clip", "--playground", JSON.stringify(stepper)]);
+    const id = /id="([^"]+)"/.exec(published.stdout!)![1]!;
+    await host.harness.behavior.runCli(["state", id, "--thread", "thr_clip", "--set", '{"count":7}']);
+    const response = await host.harness.behavior.runCli(["clip-source", id, "--thread", "thr_clip"]);
+    expect(response.exitCode).toBe(0);
+    const source = JSON.parse(unwrap(response.stdout));
+    const frame = await host.harness.behavior.fetchHttp("GET", `/frame?thread=thr_clip&id=${id}`);
+    expect(source.csp).toBe(frame.headers.get("content-security-policy"));
+    expect(source.html).toContain('"count":7');
+    expect(source.prompt).toBeNull();
+    expect(source.anatomy).toBe(false);
+    const forbidden = await host.harness.behavior.runCli(["clip-source", id, "--thread", "thr_unrelated"]);
+    expect(forbidden.exitCode).toBe(1);
+    const native = await host.harness.behavior.runCli(["publish", "--thread", "thr_clip", "--document", JSON.stringify(bill)]);
+    const nativeId = /id="([^"]+)"/.exec(native.stdout!)![1]!;
+    const unsupported = await host.harness.behavior.runCli(["clip-source", nativeId, "--thread", "thr_clip"]);
+    expect(unsupported.exitCode).toBe(1);
+  } finally { await host.harness.lifecycle.dispose(); }
+});
+
 it("rejects undeclared inputs and unused controls at both publication entrypoints", async () => {
   const host = createFakePluginHost({ pluginId: "playgrounds" });
   try {
