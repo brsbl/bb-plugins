@@ -1,3 +1,7 @@
+export function buildingProgress(observations, rows) {
+  return observations;
+}
+
 // A terminal agent may finish before the browser mounts/paints its directive.
 // This grace never extends the run cap and never reduces the measured latency.
 export function renderWindow({ now, capAt, agentCompletedAt, visibleAt, graceMs = 30_000 }) {
