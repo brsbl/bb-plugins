@@ -8,33 +8,80 @@ description: "Explain how a system, mechanism, protocol, pipeline or piece of ar
 Anatomy is by Ryan ([@wheresryan22](https://github.com/wheresryan22)), MIT
 licensed (see `LICENSE`): [skills.wheresryan.sh/anatomy](https://skills.wheresryan.sh/anatomy).
 This copy ships with the bb Playgrounds plugin, adapted from upstream commit
-`dbf697a527bbf7d358668e1557cb1e35ff725d46`. The only changes are the name and description, this note, the "In bb"
-section below and the removal of the prebuilt example pages, which each
-example's `build.mjs` writes again. Credit Ryan and Anatomy whenever you show a figure.
+`dbf697a527bbf7d358668e1557cb1e35ff725d46`. The bb adaptation changes the name and
+description, publication and workspace instructions, and the default workflow
+to a quick figure; it retains the fuller Anatomy workflow for deeper requests.
+Prebuilt example pages are omitted; each example's `build.mjs` writes them again.
+Credit Ryan and Anatomy whenever you show a figure.
 
 ## In bb
 
-- **Work on a copy in the thread's workspace.** Builds write their pages next to
-  the script, so first copy this skill's folder (the one holding this
-  `SKILL.md`) into the thread's primary workspace, its checkout or working
-  directory, not thread storage or `/tmp`: `--playground-file` only reads files
-  inside that workspace. Keep the copy out of commits with a dot-directory that
-  git ignores locally:
-  `cp -R <skill folder> .how-it-works && echo .how-it-works/ >> "$(git rev-parse --git-path info/exclude)"`.
-  Build and edit there, never in the original.
+- **Work on a copy in this thread's storage.** Personal threads need no Git
+  checkout. Copy this skill's folder (the one holding this `SKILL.md`) to a
+  fresh directory under `$BB_THREAD_STORAGE`; builds write beside their script.
+  For example, `figure_dir=$(mktemp -d "$BB_THREAD_STORAGE/figure-XXXXXX")`
+  then `cp -R <skill folder>/. "$figure_dir/"`. Build and edit that copy,
+  never the installed skill. No Git commands or repository setup are needed.
 - **Build before you open an example.** The examples ship as sources only. Run
   `node examples/<name>/build.mjs` in your copy to get its page.
 - **Show the figure as a playground.** Use the framework-free way (a `build.mjs`
-  that writes one standalone HTML page), then publish it from the workspace:
+  that writes one standalone HTML page), then publish it from thread storage:
   `bb playgrounds publish --playground-file /absolute/path/figure.html`. Read the
   `playgrounds` skill's "Anatomy figures" section for the card's `read` and `key`
   actions and for binding the model's inputs to playground parameters.
+
+## Quick figure — default
+
+For an ordinary request to explain how something works, build a **quick figure**.
+This is the complete default workflow. Use the full Figure/Hero workflow below
+only when the person explicitly asks to go deeper or requests that level of
+craft. A complex subject alone does not select full mode.
+
+- **Start visibly.** Before tools, tell the person in one sentence which
+  mechanism you are making interactive. Never ask a clarifying question: choose
+  a useful ordinary case, state a necessary assumption, and proceed. If the
+  build is still running after a minute, give a short factual progress update.
+- **Budget about 3 minutes to a working published page.** Record the start time.
+  Spend roughly the first 30 seconds choosing the mechanism and starter, the
+  next two minutes building, and the remaining time checking and publishing.
+  This is a target, not a claim about elapsed time. If it runs long, report that
+  honestly and reduce decorative scope; keep the mechanism and controls working.
+- **One mechanism, at most 40 parts.** Draw only the parts needed to show cause
+  and effect, with one model driving movement and readouts. There is no minimum
+  part count. Use SVG for the drawing, inline CSS and JavaScript for the page,
+  and no WebGL, canvas or 3D runtime. Give the object volume and purposeful
+  detail, but do not add screws or ornament to meet a density quota.
+- **Reuse the nearest bundled example when it fits.** Choose from the examples
+  listed below; read and adapt its source in the thread-storage copy. Keep just
+  the useful mechanism and SVG pieces. The smallest SVG example is the starting
+  point when its controls and motion fit. If none fits, use the kit's standalone
+  page helpers directly. Do not build or read every example.
+- **Make the explanation true and operable.** Use a simple, explicitly described
+  model; verify uncertain facts from relevant sources rather than inventing
+  precise numbers. Give each exposed control a visible effect in the mechanism
+  or readout, with a visible label, keyboard support and reduced-motion behavior.
+  Bind model inputs to playground parameters as described in the `playgrounds`
+  skill so the person and agent can operate the same model.
+- **Check the working page once, then publish.** Open it, operate every exposed
+  control with `scripts/drive.mjs`, and compare before/after screenshots to catch
+  dead controls. Check the figure and controls fit a 390 px column, and fix any
+  broken behavior or unreadable content. This mode has **no audit pass**: skip
+  geometry audits, line checks, 4× detail sweeps and shader/3D checks. Do not
+  inherit those requirements from the full-mode sections or references below.
+  Publish the standalone HTML with `--playground-file`, emit its directive,
+  and give one concise takeaway with Anatomy credit.
+
+The examples and kit are shared by both modes. The dense-detail requirements,
+full workflow, craft verification, WebGL and 3D sections below apply **only to
+full mode**. Consult references only for an API or technique you need; a reference
+must not expand a quick figure into a full production build.
 
 ## What it makes
 
 This skill makes figures like a small instrument on a bench: a heavy base on feet, rails with tick rulers, a carriage on bushings, knurled knobs, coil springs, a dial gauge whose needle moves, screws as tiny dots. The reader understands the idea because they recognise the machine. Every number the figure shows comes from the same model that moves its parts.
 
-Eight complete examples ship with the skill. Open the closest one before you start. Each framework-free example is built with `node examples/<name>/build.mjs`, which writes a standalone HTML page next to the script; add `--light` for the light theme.
+Eight complete examples ship with the skill. Start from the closest one that fits;
+quick figures keep only the SVG parts needed for their one mechanism. Each framework-free example is built with `node examples/<name>/build.mjs`, which writes a standalone HTML page next to the script; add `--light` for the light theme.
 
 - `examples/dial-indicator/` is the smallest: a dial gauge on a stand, about 300 lines in all.
 - `examples/desk-computer/` is framework-free SVG: a desk computer with a keyboard you can type on. The typed line appears on a CRT screen drawn in the plane of the case front, and the picture collapses to a line and a dot when you switch it off. It has about 85 solids and 850 paths.
@@ -45,9 +92,9 @@ Eight complete examples ship with the skill. Open the closest one before you sta
 - `examples/spot-plate/` is a second production figure from the same site: six pairs of glass drops on a spot plate, each pair drawn from one distance field, so a pair closer than `merge` runs together into one piece of glass. A fan of feeler blades sets `merge`, one blade per gap. It is the reference for shapes that morph into each other and for one control driving many parts.
 - `examples/turning-dial/` is the optional 3D mode: a combination dial that turns in true 3D with a small robot hand on it. It has about 90 live parts in metal materials, a second turn group, a hinge, a three-hinge finger that lifts and a pod that breaks off as a free body. A WebGL LED, its light pool and sparks follow the moving parts. `stress.mjs` beside it is a dense hand of about 380 parts in a cluttered workshop, used to measure performance.
 
-The test rig is the quality bar for the drawing itself. The Raptor is the bar for shader work: a WebGL effect has to reach its standard of world-space, no-pop, seamless rendering.
+For full mode, the test rig is the quality bar for the drawing itself. The Raptor is the bar for shader work: a WebGL effect has to reach its standard of world-space, no-pop, seamless rendering.
 
-## The one idea that matters
+## Full mode: the one idea that matters
 
 **The object is the explanation.** Don't draw boxes, arrows and labels. Invent a real, well-made physical thing whose working *is* the concept. Here is how earlier figures mapped:
 
@@ -68,15 +115,18 @@ Two ways this fails, both seen in practice:
 
 The fix for both is the same: a recognisable machine, built from many small, precise, purposeful parts.
 
-**Every creation is highly detailed.** This holds for every figure, however small the idea or the request: a quick explainer is still a dense, real machine, never a few slabs. What scales with the size (workflow step 1) is how far you push it: a Figure gets the 4× sweep over its subject and mechanism, a Hero or an Epic over the whole drawing.
+**Every full-mode creation is highly detailed.** These density requirements do
+not apply to quick figures. What scales with the full-mode size (workflow step 1)
+is how far you push it: a Figure gets the 4× sweep over its subject and mechanism, a Hero or an Epic over the whole drawing.
 - **Read the real thing.** Build it the way the real object is built: every screw, seam, bevel, bushing, label plate, cable with its connector, scale with its ticks, and the parts that hold the parts.
 - **Two looks.** At 1× it reads as one clear machine. At 4× every region still has something true to find; a bare face or an empty corner is unfinished work, not calm.
 - **Purposeful, never noise.** Detail comes from parts that belong to the mechanism. Each one sits on another part, ends on an edge, and fades rather than stops.
 - **Check it last.** Before you finish, zoom to 4× (over the subject and mechanism for a Figure, the whole drawing for a Hero or an Epic) and add the real parts that are missing wherever a region is plain.
 
-## Workflow
+## Full-mode workflow
 
-Work in this order. Write the concept and the parts list before any geometry. Most of the quality is decided there.
+Use this only for an explicit request to go deeper or for a full Figure, Hero or
+Epic. Work in this order. Write the concept and the parts list before any geometry. Most of the quality is decided there.
 
 1. **Size it before you start.** Tell the user which size the request is and roughly how long it will take, before any other work.
    - **Figure**: one mechanism, 40–80 parts, SVG with at most one WebGL layer. About 30–90 minutes. Build it without asking.
@@ -127,7 +177,7 @@ Pick the path that fits the project:
 - **Standalone HTML, a static SVG, a blog post or any non-React site.** Write a Node build script like `examples/dial-indicator/build.mjs`. It imports `kit/iso-kit.mjs`, assembles strings with `solidSvg`, `lineSvg`, `dotsSvg`, `wireSvg` and `faceTextSvg`, wraps them with `figureSvg` and `plateHtml`, and writes the page with `pageHtml({ script: kitScript() + live })`, or `kitScript() + glScript() + live` when it has a shader. For a lone `.svg` file use `figureSvg({ standalone: "dark" | "light" })`, which embeds the styles.
 - **React or Next.js.** Copy `kit/` into the project (for example `components/iso/`). Keep geometry in plain `.ts` modules, build the static art in a server component with the `draw.tsx` components, and pass it as element props to one `"use client"` live component that moves things. `references/react.md` explains the split and a trap with large pages.
 
-## Craft rules (short form)
+## Full-mode craft rules (short form)
 
 These are the rules that separate a crafted figure from a diagram. `references/craft.md` gives the full reasoning and recipes.
 
@@ -145,7 +195,7 @@ These are the rules that separate a crafted figure from a diagram. `references/c
 - **Volume.** Give things real thickness, make them stand on other things, and put a soft halo under the base and under anything lifted.
 - **Composition.** Centre the figure and let it fill about 55–65% of the card. Keep a consistent scale across a set of figures, and make sure it still reads at 390 px wide.
 
-## WebGL inside the drawing
+## Full mode: WebGL inside the drawing
 
 Use a shader only for what lines can't draw: fire and exhaust, water and caustics, real lamp light, glow, steam. The parts stay SVG. The core rules come from the first shader figure, whose colour change between phases looked cut rather than crossfaded:
 
@@ -165,7 +215,7 @@ Use a shader only for what lines can't draw: fire and exhaust, water and caustic
 
 Read `references/webgl.md` before writing any shader.
 
-## 3D: figures that turn (beta)
+## Full mode: 3D figures that turn (beta)
 
 3D is an option like WebGL. Use it when a part moving in depth is the idea: a dial or turntable that turns, fingers that flex, a piece that breaks off and falls. The rest of the figure stays static kit art.
 
@@ -184,9 +234,10 @@ Read `references/3d.md` first.
 
 ## References
 
-Read these as you need them:
+Read these as you need them. Their dense-detail and audit requirements are for
+full mode; quick figures use only the API or technique needed for the mechanism:
 
-- `references/craft.md`: the look in depth, including the parts vocabulary with code, tone tables, painter's order patterns, round parts, pipes and harnesses, exploded views, screens on faces, and the anti-patterns that got figures rejected. Read it before designing.
+- `references/craft.md`: the look in depth, including the parts vocabulary with code, tone tables, painter's order patterns, round parts, pipes and harnesses, exploded views, screens on faces, and the anti-patterns that got figures rejected. Read it before designing a full-mode figure.
 - `references/kit.md`: the API, with signatures and examples.
 - `references/motion.md`: live behaviour (loops, springs, tours, pointer, keyboard, accessibility, reduced motion), plus envelopes for one-shot events, exploded views, depth re-sorting and arming, in vanilla JS and React.
 - `references/react.md`: the React/Next.js server/client split, element props and the large-payload key-warning trap.

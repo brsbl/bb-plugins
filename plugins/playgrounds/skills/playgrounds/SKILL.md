@@ -23,13 +23,18 @@ they never say "playground". Answer in prose only when one sentence would do.
 
 | They ask about | Build |
 | --- | --- |
-| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | An Anatomy figure: load the bundled `how-it-works` skill and build its machine, with the model's inputs as playground parameters (see Anatomy figures) |
+| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | A quick Anatomy figure: load the bundled `how-it-works` skill, use its default quick workflow, and expose the model's inputs as playground parameters (see Anatomy figures) |
 | Numbers, pricing, "how much / which", a decision | Calculator set |
 | Funnels, time series, distributions | A chart, with the inputs that drive it |
 | A screen or flow | A clickable mock-up of it |
 | Type, spacing, color, design tokens | A live preview (`references/type-scale.html`) |
 | Motion or feel (springs, easing, drag) | A motion preview they can operate |
 | A tradeoff that plays out over time (a backlog against worker count, an on-call rotation) | Simulation set |
+
+Start building with useful defaults; never ask a clarifying question before
+producing the first card. State any necessary assumption briefly. Show a short
+progress sentence before tools and, if the build takes more than a minute, a
+factual update while it is still building.
 
 Build these as HTML playgrounds with the component library (see Components). Use
 a **native document** only for a quick formula answer with a few inputs and no
@@ -480,15 +485,21 @@ shows a setup step, two boards and hidden pieces), and
 ([@wheresryan22](https://github.com/wheresryan22)), draws a technical idea as a
 working isometric machine. Playgrounds ships a copy as the `how-it-works` skill.
 Whenever someone asks how a system, mechanism, protocol or pipeline works, load
-the `how-it-works` skill and build the figure the framework-free way (a `build.mjs`
-that writes one standalone HTML page), then show that page as a playground:
+the `how-it-works` skill and follow its **quick figure** workflow: one mechanism,
+at most 40 parts, SVG only, no audit pass, and about 3 minutes to a working card.
+Start from the nearest bundled example when it fits. Show progress, choose
+reasonable defaults without clarifying questions, and leave the full Figure/Hero
+workflow for an explicit request to "go deeper". Build the framework-free way
+(a `build.mjs` that writes one standalone HTML page), then publish that page:
 
 ```sh
 bb playgrounds publish --playground-file /absolute/path/figure.html
 ```
 
-`--playground-file` reads only from this thread's workspace (its checkout; the
-`how-it-works` skill's "In bb" says where to copy it), so a large figure never passes through your context. The card keeps the page's styles and
+`--playground-file` can read from this thread's workspace or its
+`$BB_THREAD_STORAGE`. Use a fresh copy under thread storage as the `how-it-works`
+skill's "In bb" section describes, including in Personal threads without a Git
+checkout. A large figure never passes through your context. The card keeps the page's styles and
 scripts, follows bb's light or dark theme, and fits the page to the card. Credit
 Ryan and Anatomy in your reply.
 
