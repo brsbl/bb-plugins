@@ -297,6 +297,13 @@ export const CONTROLS_RUNTIME = String.raw`
   function define(name, spec) {
     if (!/^[A-Za-z][\w-]*$/.test(name)) throw new Error("Parameter names are letters, digits, - and _: " + name);
     const s = { label: name, ...spec };
+    // Programmatic declarations commonly use JavaScript type names and bare
+    // choices. Normalize them to the same schema as data-pg controls before
+    // validating values, so a valid choice cannot silently reset to default.
+    if (s.type === "string") s.type = "text";
+    if (s.type === "boolean") s.type = "toggle";
+    if (Array.isArray(s.options)) s.options = s.options.map((option) =>
+      typeof option === "string" || typeof option === "number" ? { value: option, label: String(option) } : option);
     if (s.type === "grid") s.default = s.default || Array.from({ length: s.rows }, () => Array(s.steps).fill(false));
     else if (s.type === "board") s.default = Array.isArray(s.default) ? s.default : Array.from({ length: s.rows }, () => Array(s.cols).fill(""));
     else if (s.type === "text") s.default = s.default === undefined ? "" : String(s.default);

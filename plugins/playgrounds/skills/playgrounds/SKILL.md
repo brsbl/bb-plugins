@@ -23,13 +23,18 @@ they never say "playground". Answer in prose only when one sentence would do.
 
 | They ask about | Build |
 | --- | --- |
-| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | An Anatomy figure: load the bundled `how-it-works` skill and build its machine, with the model's inputs as playground parameters (see Anatomy figures) |
+| How a system, mechanism, protocol or pipeline works ("how does OAuth login work?", "walk my team through our job queue") | A quick Anatomy figure: load the bundled `how-it-works` skill, use its default quick workflow, and expose the model's inputs as playground parameters (see Anatomy figures) |
 | Numbers, pricing, "how much / which", a decision | Calculator set |
 | Funnels, time series, distributions | A chart, with the inputs that drive it |
 | A screen or flow | A clickable mock-up of it |
 | Type, spacing, color, design tokens | A live preview (`references/type-scale.html`) |
 | Motion or feel (springs, easing, drag) | A motion preview they can operate |
 | A tradeoff that plays out over time (a backlog against worker count, an on-call rotation) | Simulation set |
+
+Start building with useful defaults; never ask a clarifying question before
+producing the first card. State any necessary assumption briefly. Show a short
+progress sentence before tools and, if the build takes more than a minute, a
+factual update while it is still building.
 
 Build these as HTML playgrounds with the component library (see Components). Use
 a **native document** only for a quick formula answer with a few inputs and no
@@ -113,6 +118,44 @@ parameter) shows one in the current thread with its saved inputs. When the user
   they played, or demonstrate something, let them try it, and critique the
   attempt.
 
+## Make a clip
+
+When the user asks "make a clip of this", run the bundled `how-it-works/scripts/clip.mjs`
+once with the card ID and an output path on the agent's machine:
+
+```sh
+node <how-it-works>/scripts/clip.mjs <id> --out <local-path>/clip.mp4 --actions replay.json
+```
+
+Prepare `replay.json` from the agent's own `do` actions (or explicitly recorded
+user inputs): `[["wait",1000],["do","setParams",[{"speed":2}]],["wait",2000]]`.
+It uses the same action names and argument arrays as `bb playgrounds do`. The
+export starts from the card's current saved state. Include a reset/set action
+first when replaying a sequence that needs a different starting state. Never
+invent input history or infer a recording from final state. With no actions,
+the card's idle animation is recorded.
+
+Defaults: square 720×720, 20 seconds, 30 fps, no audio; `--format landscape`
+is 1280×720 and `--format portrait` is 720×1280. `--seconds` accepts 10–40;
+reserve the last three seconds for the end frame. `--gif clip.gif` also makes
+a GIF and checks its actual bytes, dimensions and frame count against X's limits.
+The original prompt and exact bb credit are included; Anatomy also credits Ryan.
+If provenance is missing, supply the original user prompt with `--prompt`.
+
+This is a standalone replay, not a screen recording of the user's bb. It uses
+headless Chrome and a temporary private profile. It reuses a detected browser
+(`CHROME_PATH` can select it), or automatically caches a pinned, checksum-verified
+Chrome for Testing archive and extracts it for this export. A page clock advances
+1/30 second per captured frame, so a slow host takes longer without losing motion.
+Replay waits and asynchronous actions use that clock. Use page animation for clips;
+media playback and worker clocks are outside the deterministic capture contract.
+FFmpeg is discovered or downloaded automatically as a checksum-verified portable
+encoder on Mac arm64/x64 and Linux x64. No manual browser or encoder installation is needed.
+Card content stays local; the renderer blocks network requests, so embed images
+as data URLs. On a managed host, launch the command through `bb host-care start`.
+Hand back links to the MP4/GIF files; never upload or post them. Native cards are
+not supported. Long prompts that do not fit at 32px fail visibly; try portrait.
+
 ## HTML playgrounds
 
 Write body markup with inline `<style>` and `<script>`. It renders in a
@@ -194,10 +237,20 @@ Unknown names throw, including in `setParams`; object updates validate every nam
 before changing any value. Read inputs in the preview/model and redraw with
 `params.on(update)`, then call `update()` once for the initial view.
 
+For programmatic inputs, `params.define("position", {type: "number", min: 0,
+max: 100, step: 1, default: 0})` declares the full numeric range; omitted bounds
+mean **0..1**. A sequence index needs its actual last index as `max`, not an
+unbounded local counter. Choices use `{type: "select", options: [{value: "a",
+label: "A"}, {value: "b", label: "B"}], default: "a"}`; bare string/number
+options also work, with strict value types. Free text uses `type: "text"` and
+booleans use `type: "toggle"` (`string` and `boolean` are accepted aliases).
+Keep HTML bounds and choices consistent with these declarations. Test the last
+choice and both endpoints in the published frame, whose bridge validates values.
+
 Publishing checks JavaScript bindings as well as markup: it rejects literal
 references to undeclared parameters and controls with no consumer, with names
 and repair instructions. This is a static check, not proof that a handler works:
-click every control and confirm the preview changes before publishing, including
+click every control and confirm the preview changes before showing the card, including
 when names or controls are generated dynamically.
 
 **Driving it.** Every card with these controls exposes the same actions:
@@ -442,15 +495,24 @@ shows a setup step, two boards and hidden pieces), and
 ([@wheresryan22](https://github.com/wheresryan22)), draws a technical idea as a
 working isometric machine. Playgrounds ships a copy as the `how-it-works` skill.
 Whenever someone asks how a system, mechanism, protocol or pipeline works, load
-the `how-it-works` skill and build the figure the framework-free way (a `build.mjs`
-that writes one standalone HTML page), then show that page as a playground:
+the `how-it-works` skill and follow its **quick figure** workflow: one mechanism,
+at most 40 parts, SVG only, no audit pass, and about 3 minutes to a working card.
+Start from the nearest bundled example when it fits. Show progress, choose
+reasonable defaults without clarifying questions, and leave the full Figure/Hero
+workflow in `how-it-works/references/full-mode.md` for an explicit request to
+"go deeper". The quick entrypoint includes the parameter contract; avoid loading
+unrelated component sets or full-mode references while making a quick figure.
+Build the framework-free way
+(a `build.mjs` that writes one standalone HTML page), then publish that page:
 
 ```sh
 bb playgrounds publish --playground-file /absolute/path/figure.html
 ```
 
-`--playground-file` reads only from this thread's workspace (its checkout; the
-`how-it-works` skill's "In bb" says where to copy it), so a large figure never passes through your context. The card keeps the page's styles and
+`--playground-file` can read from this thread's workspace or its
+`$BB_THREAD_STORAGE`. Use a fresh copy under thread storage as the `how-it-works`
+skill's "In bb" section describes, including in Personal threads without a Git
+checkout. A large figure never passes through your context. The card keeps the page's styles and
 scripts, follows bb's light or dark theme, and fits the page to the card. Credit
 Ryan and Anatomy in your reply.
 

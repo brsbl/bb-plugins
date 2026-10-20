@@ -46,7 +46,9 @@ accepted and opened the same way). `/u/0/` is whichever account Google lists
 first in bb's browser. Checks report the
 signed-in account and fail with "Signed in as X, expected Y" on a mismatch.
 `bb digest connections status --check` performs a fresh read-only
-connection check. If the browser is unavailable, say so and offer Retry.
+connection check. `bb digest update --digest <id> --add-connections <id,id>`
+adds accounts to an existing brief and `--owns money,newsletters|none|default`
+sets which mail it owns; both keep its ID, automation and enabled state. If the browser is unavailable, say so and offer Retry.
 
 The prompt (`instructions`) stores only the user's own words about what they
 want to know. Never add searches, read-only rules, deduplication, output format,
@@ -76,10 +78,34 @@ unresolved journal entries before collecting again.
 
 Restoring originally unread mail is the only explicit Gmail write allowed.
 Never send, reply, archive, delete, accept, label, create drafts, or change
-settings. Other sites remain read-only. Reading calls `digest_processed` with
-stable Gmail message IDs before opening newsletters, excludes prior
-publications, and submits the IDs with `digest_publish`. Failed attempts never
-consume IDs. Ordinary inbox and money updates set `deduplicate:false` on published sources so previous coverage never substitutes for a requested fresh full read; newsletter/reading digests keep source deduplication on. Never invent full-body summaries when a body couldn't be read.
+settings. Other sites remain read-only. Never invent full-body summaries when a
+body couldn't be read.
+
+### One brief per email
+
+Each Gmail email appears in exactly one published brief. `digest_begin` returns
+`owners` (the eligible briefs that own money mail and newsletters, their
+accounts and next run) and `handoffs` (emails this brief must show or release).
+A brief owns classes through its definition's optional `owns`; without it, the
+`money` starter owns money mail and `reading` owns newsletters. An owner is
+eligible only while it is enabled, scheduled and has a next run, and only for
+the accounts it reads.
+
+Classify each email as money, newsletters or other. Call `digest_email_status`
+with candidate IDs (and from, subject, receivedAt, rfcMessageId when the list
+shows them) before opening mail. Skip emails already shown in any brief, including this one, or handed off elsewhere. For
+a possible copy, compare bodies: if it is the same email, mark it `copyOf` the
+returned `copyOf` key; different content is shown. Publish every Gmail email read as a source
+with `class`, `from`, `subject`, `placement` (`shown`, `handoff`, `released`
+with a `reason`, or `counted`), plus `receivedAt`, `rfcMessageId` and
+`signedBy` when known. Set `urgent: true` to show mail the owner would see too
+late. Account for every returned handoff. Cards, `later` entries and rows cite
+their shown email with `messageId` / `messageIds`; summary lines in `later`
+without buttons (such as "Spent $412 this week") need no `messageId`; same-run copies in other
+inboxes go in a row's `copies`. Everything left out appears only in
+`brief.elsewhere` ("Also: 3 in Money (Mon)"). `deduplicate:false` no longer
+bypasses this for Gmail. Non-Gmail briefs still use `digest_processed`. Failed
+attempts never consume anything.
 
 Publish with an outcome `headline` ("2 things need you today"), one short
 `lede` line ("14 new emails · 12 need no action"), and a structured `brief`.
@@ -91,11 +117,18 @@ has a one-line `title`, short `text`, optional `context`, `tone`
 that sharpens the headline, such as "Due Thu 3pm" or "This week". Otherwise omit
 it. Never repeat "Today" when the headline already says "need you today", and
 never invent a deadline from urgency.
-One filled primary button appears per numbered card. Every URL opens a source
-or review page; it must never perform a write. Use "Review sign-in", not "It
-was me", when a button only opens a security alert.
+One filled primary button appears per numbered card. For email, it opens the
+page where the user finishes the task, labeled with that task ("Upload receipt
+in Mercury", "Register"), and `secondaryAction` is Open email. Record the task
+link while reading, never follow it, and use only a plain HTTPS link on the
+sender's domain or known service with no tracking redirect, token or
+action-on-open path. Briefs checks every task link at publish, shows its domain
+beside the button, and replaces a failing one with Open email; never guess a
+URL. Task labels never use Read, Open, Confirm, Approve, Accept, Yes, Done,
+Paid, It was me, Unsubscribe or Verify. No button may perform a write. Use
+"Review sign-in", not "It was me", when a button only opens a security alert.
 
-Use `later` for quieter one-line items (`title`, optional `action`) and
+Use `later` for quieter one-line items (`title`, optional `action` and `secondaryAction`) and
 `laterLabel` for their heading. Put routine email in `tail: {label: "No action needed", details, items}`. Each item has `title: "Sender · Subject"`, one short `text` line, and its HTTPS `url`. It starts collapsed; keep details for existing Markdown consumers.
 The plugin renders count badges and a flat email table. Keep every email as its own row, including repeat senders; never create nested sender groups. Omit numbers from section labels; keep numeric summaryLinks labels. Include sender and subject separately on every email row, as well as the legacy combined title. Include receivedAt as epoch milliseconds and kind (receipt, bill, event, newsletter, shipping) when the source supports them. Never infer a date or type that is not known; omit unknown metadata. Summaries stay one short line. "No action needed" replaces "Routine" in the section and count labels. Choose warning for needs-attention, danger only for true alerts such as security or failed payments, success for gains or completed items, neutral for routine. Set brief.tone for its heading and item.tone for exceptions; urgency alone is not an alert. No whole-card colored backgrounds. A newsletter row may add `takeaways`: up to 5 short lines with its key points.
 The user's request wins over these per-type shape defaults; use a default only
