@@ -1,12 +1,16 @@
-## What you get
+Ask bb how something works, and explore a working figure that you and the agent can operate.
 
-- Native playgrounds: number fields, sliders, choices, live metrics, line and bar charts, tables, explanations, and interactive diagrams. They run no code and follow bb's theme.
-- HTML playgrounds for custom layouts, illustrations, schematic maps, and photos, rendered in a sandboxed frame without access to bb, its cookies, or the conversation. Network connections are blocked; images may load from upload.wikimedia.org, which receives a request when those photos are shown.
-- Inputs saved with the playground, so they follow you across devices and every open copy updates live.
-- An agent that can read your inputs, follow what you do, and drive the playground when you ask it to.
-- A private library: save any playground with its inputs, reopen it from the Playgrounds page, or @-mention it to bring it into a new conversation.
+Free plugin for bb.
 
-Install Playgrounds, then ask for a calculator, a scenario comparison, or a walkthrough.
+[Anatomy by Ryan (@wheresryan22)](https://skills.wheresryan.sh/anatomy). Playgrounds includes an adapted copy of Anatomy, released under the MIT license.
+
+## Hero clip
+
+Hero clip slot — Growth records the launch demonstration on November 5. Replace this paragraph with the approved clip link before launch.
+
+## Privacy
+
+HTML playgrounds run in a sandboxed frame without access to bb, its cookies, or the conversation. Network connections are blocked; images may load from upload.wikimedia.org, which receives a request when those photos are shown. Saved playgrounds are private to you.
 
 ## Requirements
 
