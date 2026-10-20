@@ -13,7 +13,7 @@ else to install.
 
 ## Install
 
-Requires bb 0.46 or newer.
+Requires bb 0.46 or newer and Plugin SDK 0.6.37 or newer within the supported 0.6 series.
 
 ```bash
 bb plugin install git:https://github.com/brsbl/bb-plugins.git@plugin/playgrounds --yes
