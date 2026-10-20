@@ -1,0 +1,4 @@
+# Captured bb markup and the test that queries it are not Desktop UI. The build's Tailwind scan honors .ignore files,
+# so this keeps bb's class names in them from adding utilities to the plugin's CSS.
+__fixtures__/
+chat-contract.test.ts
