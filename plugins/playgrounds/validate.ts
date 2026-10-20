@@ -1,3 +1,5 @@
+import { bindingProblems } from "./bindings.js";
+
 // Publish-time checks for component kit markup (`data-pg` elements). The kit ignores
 // attributes it doesn't read and splits options on every comma, so mistakes show up
 // as a card that silently drops units or controls. This catches them before publishing.
@@ -163,17 +165,23 @@ function checkElement(kind: string, attrs: Map<string, string>) {
 
 // Start tags and their data-* attributes, in one linear pass (no backtracking on
 // unterminated quotes or tags).
-function* startTags(text: string) {
+export function* startTags(text: string) {
   const name = /[a-zA-Z][^\s/>]*/y, attr = /[^\s"'>/=]+/y, equals = /\s*=\s*/y, bare = /[^\s"'=<>`]+/y;
   const sticky = (re: RegExp, at: number) => ((re.lastIndex = at), re.exec(text));
   let p = 0;
   while ((p = text.indexOf("<", p)) !== -1) {
+    if (text.startsWith("<!--", p)) {
+      const close = text.indexOf("-->", p + 4);
+      p = close === -1 ? text.length : close + 3;
+      continue;
+    }
     const index = p;
     const tag = sticky(name, p + 1);
     p++;
     if (!tag) continue;
     p = name.lastIndex;
     const attrs = new Map<string, string>();
+    const attributes = new Map<string, string>();
     while (p < text.length && text[p] !== ">") {
       const a = sticky(attr, p);
       if (!a) {
@@ -195,9 +203,19 @@ function* startTags(text: string) {
         }
       }
       const key = a[0].toLowerCase();
+      if (!attributes.has(key)) attributes.set(key, decode(value));
       if (key.startsWith("data-") && !attrs.has(key.slice(5))) attrs.set(key.slice(5), decode(value));
     }
-    yield { index, name: tag[0].toLowerCase(), attrs };
+    const tagName = tag[0].toLowerCase(), contentStart = Math.min(p + 1, text.length);
+    let content = "";
+    if (["script", "style", "textarea"].includes(tagName)) {
+      const close = new RegExp("</" + tagName + "\\s*>", "gi");
+      close.lastIndex = contentStart;
+      const hit = close.exec(text);
+      content = text.slice(contentStart, hit?.index ?? text.length);
+      p = hit ? close.lastIndex : text.length;
+    }
+    yield { index, name: tagName, attrs, attributes, content, contentStart };
   }
 }
 
@@ -243,12 +261,14 @@ export function kitProblems(html: string): string[] {
 const MAX_LISTED = 25;
 export function assertKitMarkup(html: string) {
   const problems = kitProblems(html);
+  // Report markup fixes first; binding analysis assumes valid kit declarations.
+  if (!problems.length) problems.push(...bindingProblems(html));
   if (!problems.length) return;
   const listed = problems.slice(0, MAX_LISTED).map((p) => `- ${p}`);
   if (problems.length > MAX_LISTED) listed.push(`- …and ${problems.length - MAX_LISTED} more.`);
   throw new Error(
     [
-      `Not published: the card's component markup has ${problems.length === 1 ? "a problem" : `${problems.length} problems`} the kit would silently get wrong. Fix ${problems.length === 1 ? "it" : "them all"} and publish again (see the playgrounds skill's Components section).`,
+      `Not published: the card's components have ${problems.length === 1 ? "a problem" : `${problems.length} problems`} the kit would silently get wrong. Fix ${problems.length === 1 ? "it" : "them all"} and publish again (see the playgrounds skill's Components section).`,
       ...listed,
     ].join("\n"),
   );

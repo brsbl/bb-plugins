@@ -51,6 +51,7 @@
     "vitest": "^4.1.8"
   },
   "dependencies": {
+    "acorn": "^8.15.0",
     "zod": "^4.3.6"
   }
 }
