@@ -102,7 +102,7 @@ function monitor(threadId, capAt, renderWindow, discoverCard) {
   setInterval(async () => {
     if (window.__launch.proof) return;
     try {
-      const response = await fetch(`/api/v1/threads/${threadId}/timeline`);
+      const response = await fetch(`/api/v1/threads/${threadId}/timeline?includeNestedRows=true`);
       if (!response.ok) throw new Error(`timeline ${response.status}`);
       const timeline = await response.json();
       for (const row of flatten(timeline.rows || [])) if (row.role === 'assistant' && row.text?.trim()) {
@@ -281,7 +281,7 @@ for (const provider of providers) for (const prompt of selected) {
     result.renderGraceRetainedCard = Boolean(result.renderGraceUsed && result.cardVisible);
     result.visibleMs = result.cardVisible ? Math.max(0,proof.at-result.sentAt) : null;
     result.scoreMs = failureScore(result.visibleMs,capMs);
-    const timeline = await api(`/threads/${thread.id}/timeline`);
+    const timeline = await api(`/threads/${thread.id}/timeline?includeNestedRows=true`);
     const interactions = await api(`/threads/${thread.id}/interactions`);
     save(join(dir,'timeline.json'),timeline);
     save(join(dir,'interactions.json'),interactions);

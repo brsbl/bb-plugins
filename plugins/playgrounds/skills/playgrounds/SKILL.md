@@ -5,6 +5,12 @@ description: "Answer with something the person can operate, inline in a bb messa
 
 # Playgrounds
 
+Before building any card, send one short progress sentence in the conversation
+stating what you are making. Do this even for a build that takes under a minute.
+If you already loaded this skill without an update, send it now, before your
+next build or publish call. Tool status, thinking, and the final answer's preface
+do not count. If work lasts more than a minute, add a factual progress update.
+
 Use `playground` with `action: "guide"` for the current schema, the
 HTML kit, and examples. Then call `action: "publish"` with either `document`
 (a native JSON document) or `html` plus `title` (and optional `width`). Copy
@@ -32,9 +38,7 @@ they never say "playground". Answer in prose only when one sentence would do.
 | A tradeoff that plays out over time (a backlog against worker count, an on-call rotation) | Simulation set |
 
 Start building with useful defaults; never ask a clarifying question before
-producing the first card. State any necessary assumption briefly. Show a short
-progress sentence before tools and, if the build takes more than a minute, a
-factual update while it is still building.
+producing the first card. State any necessary assumption briefly.
 
 Build these as HTML playgrounds with the component library (see Components). Use
 a **native document** only for a quick formula answer with a few inputs and no

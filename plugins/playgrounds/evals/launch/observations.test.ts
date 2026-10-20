@@ -10,6 +10,10 @@ describe('visible progress while building', () => {
     const observations = [{rowId:'opening',at:15,text:opening.text},{rowId:'update',at:60,text:update.text}];
     expect(buildingProgress(observations,[opening,work,update])).toEqual(observations);
   });
+  it('keeps progress observed during an unfinished tool call', () => {
+    const observation = {rowId:'update',at:60,text:update.text};
+    expect(buildingProgress([observation],[update,{kind:'work',startedAt:20}])).toEqual([observation]);
+  });
   it('rejects a final answer observed just before its card paints', () => {
     const final = {id:'final',role:'assistant',startedAt:110,text:'Here it is.\n::playground{id="example"}'};
     expect(buildingProgress([{rowId:'final',at:115,text:final.text}],[work,final])).toEqual([]);
