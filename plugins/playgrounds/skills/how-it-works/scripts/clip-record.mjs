@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { readFileSync, writeFileSync, rmSync } from "node:fs";
-import { performance } from "node:perf_hooks";
+import { FRAME_MS } from "./clip-clock.mjs";
 
 export const FORMATS = { square: [720, 720], landscape: [1280, 720], portrait: [720, 1280] };
 export const CREDIT = "Made with bb · getbb.app";
@@ -70,37 +70,34 @@ function encoder(binary, args, pipe = false) {
   return { child, done };
 }
 
-export async function recordClip({ send, evaluate, replay, options }) {
+export async function recordClip({ send, evaluate, replay, clock, options }) {
   const { width, height, seconds, out, ffmpeg, endUrl, actions = [], gif } = options;
   const frames = seconds * 30, contentFrames = frames - 90;
-  const capture = async () => {
-    const shot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false, clip: { x: 0, y: 0, width, height, scale: 1 } });
-    if (!shot.result?.data) throw new Error("Chrome did not capture a frame.");
-    return Buffer.from(shot.result.data, "base64");
-  };
+  const capture = () => clock.capture();
   const enc = encoder(ffmpeg, ["-f", "image2pipe", "-framerate", "30", "-i", "pipe:0", "-an", "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-profile:v", "high", "-pix_fmt", "yuv420p", "-b:v", "5M", "-minrate", "5M", "-maxrate", "5M", "-bufsize", "10M", "-x264-params", "nal-hrd=cbr:force-cfr=1:open-gop=0", "-g", "60", "-movflags", "+faststart", "-f", "mp4", "-n", out], true);
   const write = async (frame) => {
     if (enc.child.stdin.destroyed) { await enc.done; throw new Error("Encoder stopped."); }
     if (!enc.child.stdin.write(frame)) await Promise.race([once(enc.child.stdin, "drain"), enc.done.then(() => { throw new Error("Encoder stopped."); })]);
   };
-  let replayError, replayDone = false;
-  const playback = replay(actions).then(() => { replayDone = true; }, (e) => { replayError = e; });
+  const playback = replay(actions);
   try {
-    let count = 0, captured = 0;
-    const start = performance.now();
-    while (count < contentFrames) {
-      if (replayError) throw replayError;
-      const frame = await capture(); captured++;
-      // Hold a captured frame when a busy host misses a deadline. The movie stays
-      // 30 fps and real-time; it never speeds up the simulation to hide a slow host.
-      const due = Math.min(contentFrames, Math.max(count + 1, Math.floor((performance.now() - start) * 30 / 1000)));
-      while (count < due) { await write(frame); count++; }
-      const wait = start + count * 1000 / 30 - performance.now();
-      if (wait > 0) await new Promise((done) => setTimeout(done, wait));
+    let resumeAt = 0, replayDone = false;
+    for (let index = 0; index < contentFrames; index++) {
+      const time = index * FRAME_MS;
+      await clock.advanceTo(time);
+      while (!replayDone && resumeAt <= time + 1e-7) {
+        const next = await playback.next();
+        replayDone = next.done;
+        if (!next.done) {
+          if (!Number.isFinite(next.value) || next.value < 0) throw new Error("Replay delays must be finite and non-negative.");
+          resumeAt += next.value;
+        }
+      }
+      await write(await capture());
     }
-    if (replayError) throw replayError;
     if (!replayDone) throw new Error("Replay does not fit before the final 3 seconds. Shorten its waits or choose a longer clip.");
-    await playback;
+    const captured = contentFrames;
+    await clock.advanceTo(contentFrames * FRAME_MS);
     console.log(`Captured ${captured} images for ${contentFrames} content frames; drawing end frame.`);
     await send("Page.navigate", { url: endUrl });
     await new Promise((done) => setTimeout(done, 300));
@@ -122,10 +119,11 @@ export async function recordClip({ send, evaluate, replay, options }) {
       } catch (error) { rmSync(gif, { force: true }); throw error; }
       finally { rmSync(palette, { force: true }); }
     }
-    const report = { out, width, height, fps: 30, seconds, frames, captured, codec: "h264", pixelFormat: "yuv420p", audio: false, faststart: true, minimumTextPxAt720: endFrameCheck.minimumTextPxAt720, gif: gifInfo };
+    const report = { out, width, height, fps: 30, seconds, frames, captured, clock: "virtual", codec: "h264", pixelFormat: "yuv420p", audio: false, faststart: true, minimumTextPxAt720: endFrameCheck.minimumTextPxAt720, gif: gifInfo };
     writeFileSync(out + ".json", JSON.stringify(report, null, 2) + "\n");
     console.log(JSON.stringify(report));
   } catch (error) {
+    enc.child.stdin.destroy();
     enc.child.kill("SIGTERM"); await enc.done.catch(() => {});
     // Output is new (the entry script rejects existing destinations).
     rmSync(out, { force: true });

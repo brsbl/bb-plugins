@@ -30,6 +30,7 @@ jobs:
         run: |
           mkdir -p clip-tools
           ln -s "$(command -v node)" clip-tools/node
+          PATH="$PWD/clip-tools:/usr/bin:/bin" node plugins/playgrounds/evals/clip-motion.mjs
           PATH="$PWD/clip-tools:/usr/bin:/bin" node plugins/playgrounds/evals/clip-smoke.mjs
       - uses: actions/upload-artifact@v4
         if: always()

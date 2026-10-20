@@ -140,7 +140,10 @@ If provenance is missing, supply the original user prompt with `--prompt`.
 This is a standalone replay, not a screen recording of the user's bb. It uses
 headless Chrome and a temporary private profile. It reuses a detected browser
 (`CHROME_PATH` can select it), or automatically caches a pinned, checksum-verified
-Chrome for Testing archive and extracts it for this export.
+Chrome for Testing archive and extracts it for this export. A page clock advances
+1/30 second per captured frame, so a slow host takes longer without losing motion.
+Replay waits and asynchronous actions use that clock. Use page animation for clips;
+media playback and worker clocks are outside the deterministic capture contract.
 FFmpeg is discovered or downloaded automatically as a checksum-verified portable
 encoder on Mac arm64/x64 and Linux x64. No manual browser or encoder installation is needed.
 Card content stays local; the renderer blocks network requests, so embed images
