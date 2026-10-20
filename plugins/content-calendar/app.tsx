@@ -36,9 +36,9 @@ export function PageHeader() {
 
 export function CalendarPage({ subPath }: PluginNavPanelProps) {
   const navigate = useBbNavigate();
-  const today = todayInCalendar();
-  const range = useMemo(() => parseSubPath(subPath, today), [subPath, today]);
   const { status, error, reload, setStatus } = useStatus();
+  const today = todayInCalendar(new Date(), status?.timeZone);
+  const range = useMemo(() => parseSubPath(subPath, today), [subPath, today]);
   const go = (next: CalendarRange) => navigate.toPluginPanel(PAGE_PATH, { subPath: rangeSubPath(next) });
   return <ToastProvider><div className="cc-root cc-page">
     {!status ? <div className="cc-page-empty" role="status">{error ? <><p className="cc-error">{error}</p><button type="button" className="cc-button" onClick={() => void reload()}>Retry</button></> : <p className="cc-muted">Loading…</p>}</div>
@@ -114,7 +114,7 @@ function InlineCalendar({ initial }: { initial: CalendarRange }) {
       <b>Content Calendar</b><span className="cc-muted">{rangeLabel(range)}</span><span className="cc-spacer" />
       <button type="button" className="cc-button cc-icon-only" aria-label={`Previous ${unit}`} onClick={() => setRange(shiftRange(range, -1))}>‹</button>
       <button type="button" className="cc-button cc-icon-only" aria-label={`Next ${unit}`} onClick={() => setRange(shiftRange(range, 1))}>›</button>
-      <button type="button" className="cc-button" onClick={() => { setRange(todayRange(range.view, todayInCalendar())); setJump((value) => value + 1); }}>Today</button>
+      <button type="button" className="cc-button" onClick={() => { setRange(todayRange(range.view, todayInCalendar(new Date(), status?.timeZone))); setJump((value) => value + 1); }}>Today</button>
       <button type="button" className="cc-button" onClick={openPage}>Open calendar</button>
     </div>
     {!status ? <p className="cc-muted cc-embed-message" role="status">Loading…</p>

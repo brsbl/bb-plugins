@@ -26,7 +26,7 @@ const productionDependencyFields = [
   "peerDependencies",
 ];
 // Opt in per plugin so existing release histories are never rewritten.
-const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "improve-prompt", "desktop"]);
+const versionTaggedPlugins = new Set(["thread-organizer", "context-katamari", "ambient", "server-switcher", "improve-prompt", "desktop", "content-calendar"]);
 // Preserve the published prefix when a workspace directory differs from its stable ID.
 const versionTagPrefixes = { "improve-prompt": "prompt-shaper" };
 const explicitlyRetiredInstallRefs = Object.freeze([

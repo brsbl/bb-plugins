@@ -159,9 +159,9 @@ export type ItemTitle = (itemId: string) => string | null;
 
 /**
  * `lastStatus` is the status bb last read from this event; it outranks the `status`
- * property, which can be stale after she typed ☑ and bb hasn't written since.
+ * property, which can be stale after the user typed ☑ and bb hasn't written since.
  */
-export function parseEvent(event: GoogleEvent, knownBlocks: readonly (string | null | undefined)[], lastStatus?: Status): ParsedEvent {
+export function parseEvent(event: GoogleEvent, knownBlocks: readonly (string | null | undefined)[], lastStatus?: Status, timeZone = CALENDAR_TIME_ZONE): ParsedEvent {
   const props = event.extendedProperties?.private ?? {};
   const summary = event.summary ?? "";
   const prefix = /^\s*([☐☑])\s*/u.exec(summary);
@@ -175,8 +175,8 @@ export function parseEvent(event: GoogleEvent, knownBlocks: readonly (string | n
   const colorFormat = FORMATS.find((candidate) => FORMAT_COLOR_IDS[candidate] === event.colorId);
   if (colorFormat) format = colorFormat;
 
-  const start = readWhen(event.start);
-  const end = readWhen(event.end);
+  const start = readWhen(event.start, timeZone);
+  const end = readWhen(event.end, timeZone);
   let date = start?.date ?? null;
   let time = start?.time ?? null;
   let minutes: number | null = null;
@@ -232,8 +232,8 @@ export function parseEvent(event: GoogleEvent, knownBlocks: readonly (string | n
 }
 
 /** The date of the occurrence an exception replaces, in the calendar's zone. */
-export function occurrenceDate(event: GoogleEvent): string | null {
-  return readWhen(event.originalStartTime)?.date ?? readWhen(event.start)?.date ?? null;
+export function occurrenceDate(event: GoogleEvent, timeZone = CALENDAR_TIME_ZONE): string | null {
+  return readWhen(event.originalStartTime, timeZone)?.date ?? readWhen(event.start, timeZone)?.date ?? null;
 }
 
 /**
@@ -243,7 +243,7 @@ export function occurrenceDate(event: GoogleEvent): string | null {
  * includes a description (inserts).
  */
 export function buildEvent(
-  ccId: string, fields: Fields, monday: string, itemTitle: ItemTitle, previous?: DescriptionBase, full = true,
+  ccId: string, fields: Fields, monday: string, itemTitle: ItemTitle, previous?: DescriptionBase, full = true, timeZone = CALENDAR_TIME_ZONE,
 ): { body: EventWrite; block: string } {
   const block = renderBlock(fields, itemTitle);
   const description = composeDescription(fields.notes.trim(), block, previous, full);
@@ -255,7 +255,7 @@ export function buildEvent(
     recurrence = [TRAY_RULE];
   } else {
     const date = (fields.tray ? fields.anchor : fields.date) ?? monday;
-    range = fields.time ? timed(date, fields.time, fields.minutes ?? 60) : allDay(date, fields.days);
+    range = fields.time ? timed(date, fields.time, fields.minutes ?? 60, timeZone) : allDay(date, fields.days);
     if (fields.tray && fields.rrule) recurrence = fields.rrule;
   }
   return {
@@ -428,7 +428,7 @@ export function looksLikeEditorHtml(value: string): boolean {
 }
 
 /**
- * Splits a description into her notes and bb's block. The block is found by the
+ * Splits a description into the user’s notes and bb's block. The block is found by the
  * text bb wrote, line by line, so lines she added inside or after it stay notes.
  */
 export function splitDescription(
@@ -486,7 +486,7 @@ const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: "\"
 
 // Dates and times, always in the calendar's zone.
 
-function readWhen(value: EventDateTime | undefined): { date: string; time: string | null; ms: number | null } | null {
+function readWhen(value: EventDateTime | undefined, timeZone: string): { date: string; time: string | null; ms: number | null } | null {
   if (!value) return null;
   if (value.date) return { date: value.date, time: null, ms: null };
   if (!value.dateTime) return null;
@@ -496,13 +496,13 @@ function readWhen(value: EventDateTime | undefined): { date: string; time: strin
   if (!/[zZ]|[+-]\d{2}:\d{2}$/.test(value.dateTime)) {
     return { date: value.dateTime.slice(0, 10), time: value.dateTime.slice(11, 16), ms: Date.parse(`${value.dateTime.slice(0, 16)}:00Z`) };
   }
-  const parts = Object.fromEntries(LOCAL_FORMAT.formatToParts(new Date(ms)).map((part) => [part.type, part.value]));
+  const parts = Object.fromEntries(localFormat(timeZone).formatToParts(new Date(ms)).map((part) => [part.type, part.value]));
   const hour = parts.hour === "24" ? "00" : parts.hour;
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${hour}:${parts.minute}`, ms };
 }
 
-const LOCAL_FORMAT = new Intl.DateTimeFormat("en-CA", {
-  timeZone: CALENDAR_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+const localFormat = (timeZone: string) => new Intl.DateTimeFormat("en-CA", {
+  timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
 });
 
 function daysBetween(from: string, to: string): number {
@@ -516,12 +516,12 @@ function allDay(date: string, days: number): { start: EventDateTime; end: EventD
   };
 }
 
-function timed(date: string, time: string, minutes: number): { start: EventDateTime; end: EventDateTime } {
+function timed(date: string, time: string, minutes: number, timeZone: string): { start: EventDateTime; end: EventDateTime } {
   const startMs = Date.parse(`${date}T${time}:00Z`);
   const end = new Date(startMs + Math.max(0, minutes) * 60_000).toISOString().slice(0, 16);
   return {
-    start: { date: null, dateTime: `${date}T${time}:00`, timeZone: CALENDAR_TIME_ZONE },
-    end: { date: null, dateTime: `${end}:00`, timeZone: CALENDAR_TIME_ZONE },
+    start: { date: null, dateTime: `${date}T${time}:00`, timeZone },
+    end: { date: null, dateTime: `${end}:00`, timeZone },
   };
 }
 

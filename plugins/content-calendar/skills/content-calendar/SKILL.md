@@ -1,6 +1,6 @@
 ---
 name: content-calendar
-description: Read and change brsbl's content schedule (tweets, bb blog posts, essays, site pages) with `bb content-calendar`, show it inline in chat, or set up its Google Calendar connection. Use when the user asks what's scheduled, to add, move, check off, gate, or attach files to a deliverable, to show the calendar, or to connect Google Calendar.
+description: Read and change the user's publishing schedule with `bb content-calendar`, show it inline in chat, or set up its Google Calendar connection. Use when the user asks what's scheduled, to add, move, check off, gate, or attach files to a deliverable, to show the calendar, or to connect Google Calendar.
 ---
 
 ## Show the calendar inline
@@ -16,11 +16,16 @@ When the user asks to see the schedule, and right after you change it:
 
 - **The checkbox means posted.** `--status posted` checks an item; any other status unchecks it.
   Never describe or mark posted items with strikethrough.
-- **Essays are brsbl's.** Items have no owner or assignee. Never add one, ask who owns
-  something, or call anything "unowned".
+- Items have no owner or assignee field. Do not invent one.
 - An item has a date **or** a tray (`evergreen` or `later`), never both. Dates are
-  YYYY-MM-DD in America/Los_Angeles.
-- Formats: `tweet`, `blog` (bb blog post), `essay`, `site` (site page), or `none`.
+  YYYY-MM-DD in the connected calendar’s time zone (`status --json` reports `timeZone`).
+  For a new calendar, the user can set **New calendar time zone** in Settings → Content Calendar
+  to an IANA zone such as `Europe/London` or `Asia/Tokyo`; the default is `UTC`.
+  Existing calendars retain their Google Calendar zone, including after reconnecting.
+- Let the user choose the format. Built-in choices are `tweet`, `blog` (blog post),
+  `essay`, `site` (site page), and `none`; use `none` when no category fits. The interface
+  starts with No format and remembers the last choice on that browser. These are optional
+  labels, not a required editorial mix or publishing cadence.
   Statuses: `idea`, `drafting`, `ready`, `posted`.
 - An item with an open gate ("Waits on") is blocked. Checking an item clears the item
   gates that point to it.
@@ -38,7 +43,7 @@ Every command takes `--json`. Errors print `{"ok":false,"error":{"code","message
 | `move <id> (--date D \| --tray T) [--before ID \| --after ID]` | Same as dragging |
 | `gate add <id> (--pr owner/repo#n \| --item ID \| --text "…" [--url URL])` | Adds a gate |
 | `gate clear <id> <gateId> [--reopen]`, `gate remove <id> <gateId>` | Clears, reopens, or removes a gate |
-| `attach <id> (--file PATH [--machine ID] \| --url URL [--title T] \| --pr owner/repo#n \| --thread thr_… [--title T])` | Attaches a reference, never a copy |
+| `attach <id> (--file PATH [--machine ID] \| --url URL [--title T] \| --pr owner/repo#n \| --thread THREAD_ID [--title T])` | Attaches a reference, never a copy |
 | `detach <id> <attachmentId>` | Removes an attachment |
 | `delete <id>` | Deletes the item and its Google event. Final; confirm with the user first. |
 | `reapply <id>` | After a conflict, writes bb's values over Google's |
@@ -48,22 +53,26 @@ Every command takes `--json`. Errors print `{"ok":false,"error":{"code","message
 
 `--file`, `--notes-file`, and `--out` are paths on the machine this thread runs on
 (absolute, `~/`, or relative to the working directory). Pass `--machine <host-id>` for
-another machine. A Moss note attachment opens in Moss on that Mac.
+another machine. File attachments require a connected machine. Note search uses the default Moss notes folder
+in that machine’s home directory; an absent folder returns no results. A typed absolute path
+can attach another file on that machine. Opening a Moss note requires macOS with Moss installed;
+otherwise bb falls back to its file preview. Without a connected machine, use URL, pull request, or
+thread attachments; the calendar and Google sync still work.
 
 Human output is one line per item:
 
 ```
-cc_7k2m9q  2026-10-28  ☐ Orchestration blog post  (bb blog post · Ready)
+cc_7k2m9q  2026-10-28  ☐ Workshop guide  (Blog post · Ready)
 ```
 
 ### Item shape (`show --json`)
 
 ```json
 {
-  "id": "cc_7k2m9q", "title": "Orchestration blog post", "format": "blog", "status": "ready",
-  "date": "2026-10-28", "time": null, "days": 1, "tray": null, "target": "Downloads baseline",
-  "notes": "…", "waitsOn": [{ "id": "g1", "kind": "pr", "repo": "get-bb/bb", "number": 4772, "cleared": false }],
-  "attachments": [{ "id": "a1", "kind": "file", "machineId": "…", "path": "/Users/alex/Moss/Notes/…", "name": "….md" }],
+  "id": "cc_7k2m9q", "title": "Workshop guide", "format": "blog", "status": "ready",
+  "date": "2026-10-28", "time": null, "days": 1, "tray": null, "target": "Registration goal",
+  "notes": "…", "waitsOn": [{ "id": "g1", "kind": "text", "text": "Review outline", "cleared": false }],
+  "attachments": [{ "id": "a1", "kind": "url", "url": "https://example.com/workshop", "title": "Workshop brief" }],
   "sync": "synced", "conflict": null, "updatedAt": "2026-10-03T22:10:00Z"
 }
 ```
@@ -87,10 +96,9 @@ The user does steps 1–6 in their browser; never ask them to paste the client s
 
 1. In the Google Cloud console, create a project (or choose one).
 2. **APIs & Services → Library:** enable the **Google Calendar API**.
-3. **OAuth consent screen:** user type **External**. Set the publishing status to
-   **In production**, not Testing; Google expires refresh tokens after 7 days in Testing.
-   With a Google Workspace account, choose **Internal** instead: it skips both the
-   unverified-app warning and the 7-day token expiry.
+3. Configure the consent screen for your account. External apps in **Testing** need
+   test users and their Calendar refresh tokens expire after seven days. For ongoing use,
+   follow Google’s production requirements; eligible Workspace organizations can use Internal.
 4. Add the scope `https://www.googleapis.com/auth/calendar.app.created`, and no other.
    It lets bb create and edit only its own calendar.
 5. **Credentials → Create credentials → OAuth client ID**, application type **Desktop app**.
@@ -98,7 +106,8 @@ The user does steps 1–6 in their browser; never ask them to paste the client s
    `bb content-calendar connect` in a thread: it shows a masked form that saves them straight
    to secret settings, and the values never pass through the agent.
 7. `bb content-calendar connect` prints Google's sign-in address. The user opens it and approves.
-   With an External consent screen, Google shows a one-time "unverified app" warning; continue past it.
+   Review the requested account and permissions before approving. Google may require
+   consent-screen or verification steps for your project.
 8. The browser lands on a `127.0.0.1` address that doesn't load. The user copies that whole
    address, and you run `bb content-calendar connect --paste '<url>'`.
 
@@ -107,3 +116,5 @@ afterwards; the calendar may be tied to it. If bb's data was lost but the calend
 exists, run `connect --calendar-id <ID>` with the ID from Google Calendar's settings instead
 of creating a second calendar. If `status` says the calendar was deleted, `restore-calendar`
 recreates it from bb's copy.
+
+Setup references: [Google OAuth token lifetime](https://developers.google.com/identity/protocols/oauth2/), [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth), and [desktop loopback flow](https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration).

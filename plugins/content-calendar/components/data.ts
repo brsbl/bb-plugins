@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRealtime, useRealtimeConnectionState, useRpc, type PluginRpcClient } from "@get-bb/plugin-sdk/app";
 import { CHANGED, type AddInput, type ConnectionStatus, type RpcContract } from "../contract.js";
 import { todayInCalendar, type Item, type Tray } from "../model.js";
 import { byPos, placementPos, type Placement } from "../calendar-layout.js";
 import { useToasts } from "./toasts.js";
+
+export const CalendarTimeZone = createContext<string | undefined>(undefined);
+export const useCalendarTimeZone = () => useContext(CalendarTimeZone);
 
 export type Rpc = PluginRpcClient<RpcContract>;
 export type When = { date: string } | { tray: Tray };
@@ -161,14 +164,14 @@ export function useCalendarData(from: string, to: string, trays: boolean) {
   /** The checkbox. Checking a tray item gives it today's date; unchecking returns it to Ready. */
   const setPosted = useCallback(async (item: Item, posted: boolean) => {
     const toDay = posted && !!item.tray;
-    setOverride(item.id, { ...item, status: posted ? "posted" : "ready", ...(toDay ? { tray: null, date: todayInCalendar() } : {}) });
+    setOverride(item.id, { ...item, status: posted ? "posted" : "ready", ...(toDay ? { tray: null, date: todayInCalendar(new Date(), data?.status.timeZone) } : {}) });
     setActionError(null);
     try {
       upsert(await rpc.call("update", { id: item.id, status: posted ? "posted" : "ready" }));
     } catch (err) {
       setActionError(`Couldn't update “${item.title}”. ${readableError(err)}`);
     } finally { clearOverride(item.id); }
-  }, [rpc, setOverride, clearOverride, upsert]);
+  }, [rpc, setOverride, clearOverride, upsert, data?.status.timeZone]);
 
   const add = useCallback(async (input: AddInput) => {
     const item = await rpc.call("add", input);
@@ -224,7 +227,7 @@ export function useDeferredDelete() {
 /** Remembers the last format used in quick add. */
 const FORMAT_KEY = "content-calendar:last-format";
 export function lastFormat(): string {
-  try { return localStorage.getItem(FORMAT_KEY) ?? "tweet"; } catch { return "tweet"; }
+  try { return localStorage.getItem(FORMAT_KEY) ?? ""; } catch { return ""; }
 }
 export function rememberFormat(value: string) {
   try { localStorage.setItem(FORMAT_KEY, value); } catch { /* storage unavailable */ }

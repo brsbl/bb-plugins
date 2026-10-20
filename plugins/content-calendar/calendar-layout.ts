@@ -207,13 +207,13 @@ export function parsePullRequest(text: string): { repo: string; number: number }
   return Number.isSafeInteger(number) && number > 0 ? { repo: match[1]!, number } : null;
 }
 
-export function clockLabel(iso: string): string {
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: CALENDAR_TIME_ZONE }).format(new Date(iso));
+export function clockLabel(iso: string, timeZone = CALENDAR_TIME_ZONE): string {
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone }).format(new Date(iso));
 }
 
 export type SyncTone = "ok" | "busy" | "warn" | "error" | "off";
 /** The header's sync line. */
-export function syncLabel(status: Pick<ConnectionStatus, "state" | "lastSyncedAt">, now: number): { text: string; tone: SyncTone } {
+export function syncLabel(status: Pick<ConnectionStatus, "state" | "lastSyncedAt" | "timeZone">, now: number): { text: string; tone: SyncTone } {
   switch (status.state) {
     case "synced": {
       if (!status.lastSyncedAt) return { text: "Synced", tone: "ok" };
@@ -223,7 +223,7 @@ export function syncLabel(status: Pick<ConnectionStatus, "state" | "lastSyncedAt
       return { text: `Synced ${Math.floor(minutes / 60)} h ago`, tone: "ok" };
     }
     case "syncing": return { text: "Syncing…", tone: "busy" };
-    case "offline": return { text: status.lastSyncedAt ? `Offline · last synced ${clockLabel(status.lastSyncedAt)}` : "Offline", tone: "warn" };
+    case "offline": return { text: status.lastSyncedAt ? `Offline · last synced ${clockLabel(status.lastSyncedAt, status.timeZone)}` : "Offline", tone: "warn" };
     case "reconnect": return { text: "Reconnect Google Calendar", tone: "error" };
     case "calendar_deleted": return { text: "Calendar deleted in Google", tone: "error" };
     default: return { text: "Not connected", tone: "off" };

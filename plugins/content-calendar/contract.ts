@@ -25,6 +25,7 @@ export type ConnectionState = z.infer<typeof connectionStateSchema>;
 
 export const statusOutput = z.object({
   state: connectionStateSchema,
+  timeZone: z.string().optional(),
   calendarId: z.string().nullable(),
   lastSyncedAt: z.string().nullable(),
   queued: z.number().int(),
